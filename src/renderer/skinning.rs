@@ -6,13 +6,14 @@
 //! - NEAR: a compute pass skins the body once a frame (`assets/shaders/skinning.wgsl`) into a
 //!   vertex buffer in the ordinary mesh layout. Each of the body's regions (skin, hair, shirt, ...)
 //!   is registered once as an ordinary `Mesh` over that buffer, so the frame draws a near body as a
-//!   handful of plain `RenderObject`s: the sun shadow pass, the cascades and the colour pass all
-//!   read the same skinned vertices, and no pass had to learn anything.
+//!   handful of plain `RenderObject`s in the scene list: the shadow atlas (renderer/local_shadows.rs,
+//!   since 2026-11-10; the far sun map never draws the scene list) and the colour pass read the same
+//!   skinned vertices, and no pass had to learn anything.
 //! - MIDDLE: the vertex shader skins it (`assets/shaders/skinning_vs.wgsl`, appended to the PBR
 //!   megashader for one PSO of its own, the surface class's fragment entry with the surface PSO's
 //!   permutation), which costs no memory. Drawn after the opaque list in the scene passes (the live
-//!   frame and the camera screens). Rung 1 gives middle bodies no sun shadow; rung 4's instanced
-//!   crowd skinning adds a skinned shadow PSO beside this one.
+//!   frame and the camera screens). Since 2026-11-10 two skinned SHADOW PSOs beside it draw the middle
+//!   bodies, and the first-person body's unfolded twin (`skin_shadow_only`), into the shadow atlas.
 //!
 //! THE POSE PALETTE is one storage buffer, rewritten every frame: per body, its model matrix, its
 //! morph block (`MORPH_SLOTS` matrices saying which of its shape targets are on and how much,
@@ -106,11 +107,25 @@ struct MiddleDraw {
     model_index: u32,
 }
 
-/// The VS PSO and what it was built for.
+/// The VS PSO and what it was built for, with its two shadow twins (2026-11-10, the shadow atlas:
+/// renderer/local_shadows.rs): `vs_skinned` into a depth-only target, and the same with `fs_shadow`
+/// for the card hair's cut. The colour PSO's scene format does not touch them.
 struct SkinnedPso {
     pipeline: wgpu::RenderPipeline,
     format: wgpu::TextureFormat,
+    shadow: wgpu::RenderPipeline,
+    shadow_alpha: wgpu::RenderPipeline,
 }
+
+/// A skinned near mesh's bounding sphere in the body's own space (`Mesh::bounds`): its vertices are
+/// written each frame by the skinning pass, so the sphere is the generous body one
+/// (`local_shadows::BODY_RADIUS_M` about `BODY_CENTRE`), which holds a body lying down or reaching up.
+const BODY_BOUNDS: [f32; 4] = [
+    super::local_shadows::BODY_CENTRE[0],
+    super::local_shadows::BODY_CENTRE[1],
+    super::local_shadows::BODY_CENTRE[2],
+    super::local_shadows::BODY_RADIUS_M,
+];
 
 /// Everything the skinned path keeps on the renderer.
 pub struct Skinning {
@@ -127,6 +142,10 @@ pub struct Skinning {
     /// This frame's dispatches are queued and not yet recorded (`encode_skinning`).
     dispatch_pending: std::cell::Cell<bool>,
     middle: Vec<MiddleDraw>,
+    /// Bodies drawn into the shadow maps only (2026-11-10): the first-person body's unfolded twin,
+    /// whose head the eye camera's copy folds away but whose shadow keeps it
+    /// (`skin_shadow_only`; docs/design/character-animation.md section 17).
+    shadow_only: Vec<MiddleDraw>,
     /// Group 1 of the VS PSO: the identity object uniform, the palette and a body's morphs.
     vs_layout: wgpu::BindGroupLayout,
     vs_object: wgpu::Buffer,
@@ -509,6 +528,7 @@ impl Renderer {
             sk.staging.clear();
             sk.jobs.clear();
             sk.middle.clear();
+            sk.shadow_only.clear();
             sk.dispatch_pending.set(false);
         }
     }
@@ -579,6 +599,16 @@ impl Renderer {
     pub fn skin_middle(&mut self, body: usize, region: usize, material: usize, model_index: u32) {
         if let Some(sk) = self.skinning.as_mut() {
             sk.middle.push(MiddleDraw { body, region, material, model_index });
+        }
+    }
+
+    /// Queue one region of a body for the SHADOW MAPS ONLY (2026-11-10), skinned in the vertex shader
+    /// from the palette at `model_index`: the first-person body's unfolded twin, so your shadow keeps
+    /// the head the eye camera's copy folds away. Never drawn in a colour pass. Call only when
+    /// `shadow_casters_wanted()` (the palette rows cost a body's worth otherwise).
+    pub fn skin_shadow_only(&mut self, body: usize, region: usize, material: usize, model_index: u32) {
+        if let Some(sk) = self.skinning.as_mut() {
+            sk.shadow_only.push(MiddleDraw { body, region, material, model_index });
         }
     }
 
@@ -678,6 +708,66 @@ impl Renderer {
         }
     }
 
+    /// Draw the skinned bodies the scene list does not hold into a shadow view whose groups 0 and 1
+    /// the caller set (2026-11-10, renderer/local_shadows.rs): the middle tier and the shadow-only
+    /// twins, each kept when `keep(centre, radius)` says its bounding sphere touches the view (the
+    /// centre read from its model matrix in this frame's palette). Depth only, the card hair through
+    /// `fs_shadow`. Returns how many draws it made. Nothing while the skinned PSOs are building.
+    pub(super) fn draw_skinned_shadow(&self, pass: &mut wgpu::RenderPass<'_>, keep: impl Fn(Vec3, f32) -> bool) -> u32 {
+        let Some(sk) = self.skinning.as_ref() else { return 0 };
+        if sk.middle.is_empty() && sk.shadow_only.is_empty() {
+            return 0;
+        }
+        let Some(pso) = sk.vs_pso.ready() else { return 0 };
+        let mut draws = 0u32;
+        for cutout in [false, true] {
+            let mut bound_pso = false;
+            let mut bound_material = usize::MAX;
+            let mut bound_body = usize::MAX;
+            for d in sk.middle.iter().chain(sk.shadow_only.iter()) {
+                let Some(material) = self.materials.get(d.material) else { continue };
+                if material.casts_cutout_shadow() != cutout {
+                    continue;
+                }
+                let Some(body) = sk.bodies.get(d.body) else { continue };
+                let Some((ib, first, count)) = body.regions.get(d.region) else { continue };
+                let Some((centre, radius)) = shadow_sphere(&sk.staging, d.model_index) else { continue };
+                if !keep(centre, radius) {
+                    continue;
+                }
+                if !bound_pso {
+                    bound_pso = true;
+                    pass.set_pipeline(if cutout { &pso.shadow_alpha } else { &pso.shadow });
+                }
+                if bound_material != d.material {
+                    bound_material = d.material;
+                    pass.set_bind_group(2, &material.bind_group, &[]);
+                    pass.set_bind_group(3, material.shadow_albedo_group().unwrap_or(&self.shadow_pass_texture_bind_group), &[]);
+                }
+                if bound_body != d.body {
+                    bound_body = d.body;
+                    pass.set_bind_group(1, &body.vs_bind, &[]);
+                    pass.set_vertex_buffer(0, body.vertices.slice(..));
+                }
+                pass.set_index_buffer(ib.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(*first..*first + *count, body.base_vertex as i32, d.model_index..d.model_index + 1);
+                draws += 1;
+            }
+        }
+        draws
+    }
+
+    /// The bounding spheres `draw_skinned_shadow` tests, one per draw it could make (the middle tier
+    /// and the shadow-only twins), so the atlas knows which views have a body to draw before it binds
+    /// anything for them (renderer/local_shadows.rs).
+    pub(super) fn skinned_shadow_spheres(&self) -> Vec<(Vec3, f32)> {
+        let Some(sk) = self.skinning.as_ref() else { return Vec::new() };
+        if sk.vs_pso.ready().is_none() {
+            return Vec::new();
+        }
+        sk.middle.iter().chain(sk.shadow_only.iter()).filter_map(|d| shadow_sphere(&sk.staging, d.model_index)).collect()
+    }
+
     /// How many joints a registered body has (the palette rows it needs are three per joint).
     pub fn skin_joint_count(&self, body: usize) -> u32 {
         self.skinning.as_ref().and_then(|s| s.bodies.get(body)).map_or(0, |b| b.joint_count)
@@ -706,7 +796,7 @@ impl Renderer {
         let n = regions.len();
         let meshes = regions
             .into_iter()
-            .map(|(index_buffer, first_index, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex }))
+            .map(|(index_buffer, first_index, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex, bounds: BODY_BOUNDS }))
             .collect();
         NearSlot { params, bind, out, meshes, regions: n }
     }
@@ -725,7 +815,7 @@ impl Renderer {
         let mut ids = s.meshes.clone();
         let n = regions.len();
         for (k, (index_buffer, first_index, index_count)) in regions.into_iter().enumerate() {
-            let mesh = Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex };
+            let mesh = Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex, bounds: BODY_BOUNDS };
             if k < ids.len() {
                 self.replace_mesh(ids[k], mesh);
             } else {
@@ -854,6 +944,7 @@ impl Skinning {
             jobs: Vec::new(),
             dispatch_pending: std::cell::Cell::new(false),
             middle: Vec::new(),
+            shadow_only: Vec::new(),
             vs_layout,
             vs_object,
             vs_pso,
@@ -940,8 +1031,11 @@ impl Skinning {
                     push_constant_ranges: &[],
                 });
                 let pipeline = pipeline::Pipeline::build_skinned_surface_pso(&device, format, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE);
-                log::info!("[Pipelines] vertex-shader skinning PSO built in {:.1}s (background)", started.elapsed().as_secs_f32());
-                let _ = tx.send(SkinnedPso { pipeline, format });
+                // Its two shadow twins (2026-11-10, renderer/local_shadows.rs), from the same module.
+                let shadow = pipeline::Pipeline::build_skinned_shadow_pso(&device, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE, false);
+                let shadow_alpha = pipeline::Pipeline::build_skinned_shadow_pso(&device, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE, true);
+                log::info!("[Pipelines] vertex-shader skinning PSOs (colour and two shadow) built in {:.1}s (background)", started.elapsed().as_secs_f32());
+                let _ = tx.send(SkinnedPso { pipeline, format, shadow, shadow_alpha });
             });
         match spawned {
             Ok(_) => Deferred::waiting(rx),
@@ -963,6 +1057,18 @@ fn storage_entry(binding: u32, visibility: wgpu::ShaderStages, read_only: bool) 
         ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only }, has_dynamic_offset: false, min_binding_size: None },
         count: None,
     }
+}
+
+/// A skinned body's bounding sphere for the shadow views, from its model matrix (the palette's three
+/// rows at `model_index`): a `BODY_RADIUS_M` sphere about `BODY_CENTRE` lifted along its up axis,
+/// scaled with the body (renderer/local_shadows.rs).
+fn shadow_sphere(staging: &[[f32; 4]], model_index: u32) -> Option<(Vec3, f32)> {
+    let r = model_index as usize * 3;
+    let rows = staging.get(r..r + 3)?;
+    let centre = Vec3::new(rows[0][3], rows[1][3], rows[2][3]);
+    let scale = Vec3::new(rows[0][0], rows[1][0], rows[2][0]).length();
+    let lift = Vec3::new(rows[0][1], rows[1][1], rows[2][1]) * super::local_shadows::BODY_CENTRE[1];
+    Some((centre + lift, super::local_shadows::BODY_RADIUS_M * scale.max(0.1)))
 }
 
 const COMPUTE_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/skinning.wgsl"));

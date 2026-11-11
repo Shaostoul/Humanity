@@ -1713,6 +1713,44 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         };
         log::info!("Showcase: sun_shadows -> {:?} (None = Settings > Planets)", state.renderer.sun_cascades.shadows_pin);
     }
+    // THE SHADOW ATLAS'S PINS (2026-11-10, renderer/local_shadows.rs, docs/design/local-light-shadows.md):
+    // {"local_shadows":"0"} turns the atlas off (no room light shadows and no near sun view), a level
+    // id ("simplified", "full") pins that level, "1" or "auto" hands it back to Settings > Graphics.
+    // {"near_levels":"0"} drops the near sun view alone ("1" or "auto" back). Pins over the setting,
+    // never writes to it, so a capture and its shadows-off twin (the red twin) differ only by what the
+    // atlas takes away, and the player's config is never touched.
+    if let Some(t) = grab("local_shadows") {
+        state.renderer.local_shadows.pin = match t.as_str() {
+            "auto" | "1" => None,
+            "0" => Some(String::new()),
+            id if crate::renderer::local_shadows::is_level(id) => Some(id.to_string()),
+            other => {
+                log::warn!("Showcase: local_shadows wants \"0\", \"1\", \"auto\" or a level id, not {other:?}");
+                state.renderer.local_shadows.pin.clone()
+            }
+        };
+        log::info!("Showcase: local_shadows -> {:?} (None = Settings > Graphics)", state.renderer.local_shadows.pin);
+    }
+    if let Some(t) = grab("near_levels") {
+        state.renderer.local_shadows.near_pin = match t.as_str() {
+            "auto" | "1" => None,
+            _ => Some(false),
+        };
+        log::info!("Showcase: near_levels -> {:?} (None = on with the atlas)", state.renderer.local_shadows.near_pin);
+    }
+    // {"fp_shadow_twin":"0"}: the first-person body pushes no unfolded twin into the shadow maps, so
+    // your shadow loses its head (the red twin of the twin); "1" or "auto" puts it back.
+    if let Some(t) = grab("fp_shadow_twin") {
+        state.renderer.local_shadows.twin_off = t == "0";
+        log::info!("Showcase: fp_shadow_twin -> {}", !state.renderer.local_shadows.twin_off);
+    }
+    // {"shadow_fast":"0"}: every shadow caster draws through the classic path, none instanced (the
+    // fast path's red twin, 2026-11-11: the picture must stay the same, only the cost moves); "1" or
+    // "auto" puts the fast path back.
+    if let Some(t) = grab("shadow_fast") {
+        state.renderer.local_shadows.fast_off = t == "0";
+        log::info!("Showcase: shadow_fast -> {}", !state.renderer.local_shadows.fast_off);
+    }
     // {"room_gi_vis":"1"} makes every room run DDGI's Chebyshev visibility
     // test, which rung 1 skips because inside a room's own box it is an
     // identity; "0" restores the default. For measuring what the test costs,

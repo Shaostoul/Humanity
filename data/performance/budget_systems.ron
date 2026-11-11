@@ -105,13 +105,15 @@
     ),
     (
         id: "sun_shadows",
-        display: "Sun shadows",
+        display: "Shadows",
         category: "gpu",
-        sources: ["gpu.shadow"],
+        // gpu.shadow_near and gpu.shadow_local: the shadow atlas (2026-11-10, renderer/local_shadows.rs),
+        // the near sun view and the room lights' faces.
+        sources: ["gpu.shadow", "gpu.shadow_near", "gpu.shadow_local"],
         locked: false,
         base_frac: 0.12,
         color: "warning",
-        note: "The near-field depth pass the sun casts shadows from.",
+        note: "The depth passes shadows are cast from: the sun over the planet, the sun near you, and the room lights.",
     ),
     (
         id: "interior_scene",
@@ -221,6 +223,7 @@
             "cpu.stars", "cpu.celestial", "cpu.scene", "cpu.transparent",
             "cpu.overlay", "cpu.lines", "cpu.celestial_lines", "cpu.particles",
             "cpu.gpu_particles", "cpu.particles_sim", "cpu.present",
+            "cpu.shadow_near", "cpu.shadow_local",
         ],
         locked: true,
         base_frac: 0.25,
@@ -497,6 +500,20 @@
         base_frac: 0.03,
         color: "warning",
         note: "Near-field grass tiller mesh and its instance buffer.",
+    ),
+    (
+        // The shadow atlas (2026-11-10, renderer/local_shadows.rs): one depth texture for the room
+        // lights' shadows and the near sun view, its table and its views' camera buffers.
+        id: "vram_shadow_atlas",
+        display: "Shadow atlas",
+        category: "vram",
+        sources: ["vram.shadow_atlas"],
+        locked: false,
+        base_frac: 0.02,
+        // Not "warning": Grass sits beside it in the wedge and has that one (the Performance page's
+        // neighbouring-colour tests, red on 2026-11-11 with both "warning").
+        color: "nav_tools",
+        note: "The shadow maps for the room lights and the sun near you.",
     ),
     (
         id: "vram_uniforms",

@@ -16330,6 +16330,342 @@
           ]
         }
       }
+    },
+    {
+      "id": "shadow-hall-chair-night",
+      "desc": "The homestead's ground hall at 00:00 station time (room lights only), from 2.4 m up looking north-west and down: a wooden chair under a warm lamp, a woman standing 1.7 m from it, a table, shelves and rugs.",
+      "expect": "About forty lamps reach this view and the eight that matter most cast shadows, so every shadow here is faint, as it is in a real room lit by that many overlapping panels: the walls and the stairs keep the light of lamps behind them out. The cost case for the shadow atlas (many lamps, many casters); shadow-racks-night is the picture gate.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "the costs: gpu.shadow_local, gpu.shadow_near and cpu.shadow_local within the budgets of docs/design/local-light-shadows.md section 10",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,2.4,41.6,-0.61,-0.7",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "43.3,0,40.5;43.31,0,40.5;0.01"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "shadow-hall-chair-night-off",
+      "desc": "The homestead's ground hall at 00:00 station time (room lights only), from 2.4 m up looking north-west and down: a wooden chair under a warm lamp, a woman standing 1.7 m from it, a table, shelves and rugs. RED TWIN: the shadow atlas switched off (showcase local_shadows 0).",
+      "expect": "The same hall with no shadows from the chair, the woman, the table or the shelves: the look before 2026-11-10.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,2.4,41.6,-0.61,-0.7",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "local_shadows": "0"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "43.3,0,40.5;43.31,0,40.5;0.01"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "shadow-racks-noon",
+      "desc": "The mushroom room at 12:00 station time, sun through the glass roof (the window case aboard), from 2.4 m up looking down at a woman standing among the racks.",
+      "expect": "The woman casts a shadow on the sunlit floor and the racks cast their shelves' shadows: the sun's light through the roof is shaded by what stands under it.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "the floor in the woman's sun shadow is darker than with the atlas off (shadow-metrics)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "8.5,2.4,60.0,-0.75,-0.75",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "6.0,0,57.5;6.01,0,57.5;0.01"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "shadow-racks-noon-off",
+      "desc": "The mushroom room at 12:00 station time, sun through the glass roof (the window case aboard), from 2.4 m up looking down at a woman standing among the racks. RED TWIN: the shadow atlas switched off (showcase local_shadows 0).",
+      "expect": "The sunlit floor with no shadow under the woman or the racks: the look before 2026-11-10.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "8.5,2.4,60.0,-0.75,-0.75",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "local_shadows": "0"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "6.0,0,57.5;6.01,0,57.5;0.01"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "shadow-planet-third",
+      "desc": "On open Sahara sand at 16:30, the player's own body in third person seen from behind, the sun low in the west.",
+      "expect": "The body casts a long shadow on the sand to its right (east), from its feet outward.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "the sand in the body's shadow is darker than with the atlas off (shadow-metrics)",
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23.5,
+        "lon": 13.1,
+        "altitude_km": 0.03,
+        "look_offset_deg": 60
+      },
+      "showcase": {
+        "time": "16.5",
+        "sea": "0.3",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_showcase": [
+        {
+          "stand": "0,1.7,0,0,-20",
+          "stand_at": "23.5,13.10",
+          "walk": "1"
+        },
+        {
+          "camera_mode": "third",
+          "hud": "0",
+          "body": "male"
+        }
+      ],
+      "final_settle_s": 4,
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "shadow-planet-third-off",
+      "desc": "On open Sahara sand at 16:30, the player's own body in third person seen from behind, the sun low in the west. RED TWIN: the shadow atlas switched off (showcase local_shadows 0).",
+      "expect": "The body on the sand with no shadow: the look before 2026-11-10.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23.5,
+        "lon": 13.1,
+        "altitude_km": 0.03,
+        "look_offset_deg": 60
+      },
+      "showcase": {
+        "time": "16.5",
+        "sea": "0.3",
+        "weather": "clear",
+        "local_shadows": "0"
+      },
+      "settle_s": 10,
+      "final_showcase": [
+        {
+          "stand": "0,1.7,0,0,-20",
+          "stand_at": "23.5,13.10",
+          "walk": "1"
+        },
+        {
+          "camera_mode": "third",
+          "hud": "0",
+          "body": "male"
+        }
+      ],
+      "final_settle_s": 4,
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "shadow-fp-racks-noon",
+      "desc": "First person in the mushroom room at noon, standing and looking down: your own body (the male body, its head folded away for the eye) on the sunlit floor.",
+      "expect": "Your legs and shoes on the floor, and your shadow on the floor, head and shoulders included: the shadow is drawn from the unfolded body.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "the floor in your sun shadow is darker than with the atlas off (shadow-metrics)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "8.0,1.7,60.5,-0.75,-0.95",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "walk": "1",
+          "body": "male",
+          "fp_body": "1",
+          "reduce_motion": "1"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "shadow-fp-racks-noon-off",
+      "desc": "First person in the mushroom room at noon, standing and looking down: your own body (the male body, its head folded away for the eye) on the sunlit floor. RED TWIN: the shadow atlas switched off (showcase local_shadows 0).",
+      "expect": "Your body on the floor with no shadow: the look before 2026-11-10.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "8.0,1.7,60.5,-0.75,-0.95",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "local_shadows": "0"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "walk": "1",
+          "body": "male",
+          "fp_body": "1",
+          "reduce_motion": "1"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "shadow-racks-night",
+      "desc": "The mushroom room at 00:00 station time, room lights only (its own lamp over the racks), from 2.4 m up looking down at a woman standing among the racks.",
+      "expect": "The woman casts a shadow on the floor toward the camera, away from the lamp over the racks; the racks cast their posts' and shelves' shadows on the floor, and a shelf under another shelf is darker than the top one.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "the floor in the woman's and the racks' shadows is darker than with the atlas off (shadow-metrics)",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "8.5,2.4,60.0,-0.75,-0.75",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "6.0,0,57.5;6.01,0,57.5;0.01"
+        }
+      ],
+      "final_settle_s": 3
+    },
+    {
+      "id": "shadow-racks-night-off",
+      "desc": "The mushroom room at 00:00 station time, room lights only (its own lamp over the racks), from 2.4 m up looking down at a woman standing among the racks. RED TWIN: the shadow atlas switched off (showcase local_shadows 0).",
+      "expect": "The same room with no shadow from the woman or the racks: the look before 2026-11-10.",
+      "_why": "The shadow atlas, rung 1 (2026-11-10, docs/design/local-light-shadows.md): before it the room lights cast no shadows and the near world (homes, furniture, every person's body) never reached the sun's shadow map. Score with scripts/shadow-metrics.mjs against the -off twin (showcase local_shadows 0), which is the same frame with the atlas switched off: the red twin.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "8.5,2.4,60.0,-0.75,-0.75",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "local_shadows": "0"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "6.0,0,57.5;6.01,0,57.5;0.01"
+        }
+      ],
+      "final_settle_s": 3
     }
   ],
   "ladder": {

@@ -3021,6 +3021,7 @@ pub fn apply_graphics_preset(state: &mut GuiState, p: &GraphicsPreset) {
             "planet_clouds" => { if let Some(x) = b(v) { s.planet_clouds = x; true } else { false } }
             "live_weather" => { if let Some(x) = b(v) { s.live_weather = x; true } else { false } }
             "sun_shadows" => { if let Some(x) = b(v) { s.sun_shadows = x; true } else { false } }
+            "local_shadows" => { if let Some(x) = v.as_str().filter(|x| crate::renderer::local_shadows::is_level(x)) { s.local_shadows = x.to_string(); true } else { false } }
             "water_fft" => { if let Some(x) = b(v) { s.water_fft = x; true } else { false } }
             "gpu_particles" => { if let Some(x) = b(v) { s.gpu_particles = x; true } else { false } }
             "sky_constellations" => { if let Some(x) = b(v) { s.sky_constellations = x; true } else { false } }

@@ -68,6 +68,7 @@ pub const HELD_PINS: &[&str] = &[
     "room_gi",
     "bounced_light_detail",
     "sun_shadows",
+    "local_shadows",
     "godrays",
     "aurora",
     "sun_glare",
@@ -307,6 +308,8 @@ pub fn hold_renderer(r: &mut crate::renderer::Renderer) {
     r.emission.off = true;
     r.sun_glare_on = false;
     r.sun_cascades.shadows_pin = Some(false);
+    // The shadow atlas (2026-11-10): no room light shadows and no near sun view.
+    r.local_shadows.pin = Some(String::new());
 }
 
 /// The one line run.log carries, and `debug/low_impact.json`, the confirmation spawnGame waits

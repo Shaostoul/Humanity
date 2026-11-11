@@ -701,6 +701,11 @@ pub struct AppConfig {
     /// by the sun. Off = the pre-v0.899 unshadowed look (cheaper).
     #[serde(default = "default_true")]
     pub sun_shadows: bool,
+    /// Room light shadows (2026-11-10, Settings > Graphics > Light and sky): a level id from
+    /// data/gui/shadow_levels.json (Off, Simplified, Full). An id the file does not list falls back to
+    /// the design's level, Full (`renderer::local_shadows::DEFAULT_LEVEL`).
+    #[serde(default = "default_local_shadows")]
+    pub local_shadows: String,
     #[serde(default = "default_shadow_strength")]
     pub shadow_strength: f32,
     /// The camera aperture the Sun's glare is the diffraction of, millimetres (Settings > Graphics
@@ -1171,6 +1176,7 @@ fn default_fps_foreground() -> u32 { 120 }
 fn default_fps_background() -> u32 { 30 }
 fn default_cloud_quality() -> String { "high".to_string() }
 fn default_bounced_light_detail() -> String { crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string() }
+fn default_local_shadows() -> String { crate::renderer::local_shadows::DEFAULT_LEVEL.to_string() }
 fn default_furniture_detail() -> String { crate::gui::furniture_detail::DEFAULT_LEVEL.to_string() }
 fn default_garment_textures() -> String { crate::gui::garment_textures::DEFAULT_LEVEL.to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
@@ -1670,6 +1676,7 @@ impl AppConfig {
             grass_detail: state.settings.grass_detail,
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
+            local_shadows: state.settings.local_shadows.clone(),
             shadow_strength: state.settings.shadow_strength,
             sun_aperture_mm: state.settings.sun_aperture_mm,
             time_speed: state.settings.time_speed,
@@ -1984,6 +1991,13 @@ impl AppConfig {
         state.settings.grass_detail = self.grass_detail.clamp(0.0, 1.0);
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
+        // Checked against the levels file the Settings chooser draws (data/gui/shadow_levels.json).
+        state.settings.local_shadows = if crate::renderer::local_shadows::is_level(&self.local_shadows) {
+            self.local_shadows.clone()
+        } else {
+            log::warn!("config: unknown local_shadows {:?}, falling back to {}", self.local_shadows, default_local_shadows());
+            default_local_shadows()
+        };
         state.settings.shadow_strength = self.shadow_strength;
         // Held to what the glare takes; a hand-edited config's nonsense back to the default.
         state.settings.sun_aperture_mm = if self.sun_aperture_mm.is_finite() {

@@ -128,6 +128,8 @@ pub mod shader_loader;
 /// Which material types can DISCARD in the sun shadow pass, and the test that
 /// keeps that answer equal to the shader's (v0.1108).
 pub mod shadow_cutout;
+/// Shadows from the room lights and the sun near you (2026-11-10, docs/design/local-light-shadows.md).
+pub mod local_shadows;
 /// Where the stars are (the catalogue's sky turned into the world by the
 /// date) and how much of them twilight leaves (2026-10-04, BUG-139).
 pub mod sky_frame;
@@ -368,6 +370,8 @@ pub struct Renderer {
     pub room_gi: room_probes_gpu::RoomGi,
     /// Near sun cascades (renderer/sun_cascades.rs).
     pub sun_cascades: sun_cascades::SunCascades,
+    /// The shadow atlas (renderer/local_shadows.rs), group 0 bindings 8-10.
+    pub local_shadows: local_shadows::LocalShadows,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1440,16 +1444,17 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
+        let local_shadows = local_shadows::LocalShadows::new(&device); // before the camera groups bind it
         let camera_bind_group = pipeline::camera_bind_group(
             &device,
             &pipeline.camera_bind_group_layout,
             "Camera Bind Group",
-            &camera_buffer,
+            camera_buffer.as_entire_buffer_binding(),
             &lights_buffer,
             &tile_counts_buffer,
             &tile_indices_buffer,
             &env_regions_buffer,
-            &room_gi,
+            &room_gi, local_shadows.colour_binding(),
         );
 
         // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries (module const).
@@ -1841,12 +1846,12 @@ impl Renderer {
             &device,
             &pipeline.camera_bind_group_layout,
             "Light Camera BG",
-            &light_camera_buffer,
+            light_camera_buffer.as_entire_buffer_binding(),
             &lights_buffer,
             &tile_counts_buffer,
             &tile_indices_buffer,
             &env_regions_buffer,
-            &room_gi,
+            &room_gi, local_shadows.colour_binding(),
         );
 
         // 1x1 dummy depth for the shadow pass's own group 3 (see field doc).
@@ -2036,6 +2041,7 @@ impl Renderer {
             emission,
             room_gi,
             sun_cascades: Default::default(),
+            local_shadows,
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),
@@ -2579,51 +2585,6 @@ impl Renderer {
     /// loop. Each light is a point light or a spot with a real cone (v0.639).
     /// There is deliberately no software cap: the practical ceiling is GPU
     /// fill cost, visible in the F2 overlay's live light count + FPS.
-    /// Rebuild + upload the per-tile light lists (clustering L1b). Call after
-    /// `set_point_lights` with the SAME light slice (tile indices index into
-    /// it). `enabled = false` zeroes the tile-pixel poke, which sends the
-    /// shader down the classic full-loop path.
-    pub fn update_light_tiles(
-        &mut self,
-        lights: &[light::RoomLight],
-        view_proj: &glam::Mat4,
-        cam_pos: glam::Vec3,
-        screen: (u32, u32),
-        enabled: bool,
-    ) {
-        let _cost = frame_costs::stage("cpu.light_tiles");
-        if !enabled || lights.is_empty() {
-            self.tile_px = (0.0, 0.0);
-            return;
-        }
-        let bins: Vec<light_tiles::BinLight> = lights
-            .iter()
-            .map(|l| {
-                if l.cos_outer <= -1.5 {
-                    // LINE light (sentinel -2.0): the whole segment pos..dir
-                    // emits. Bin the enclosing sphere: midpoint + half-length
-                    // added to the range (conservative).
-                    let mid = (l.pos + l.dir) * 0.5;
-                    light_tiles::BinLight {
-                        pos: mid,
-                        range: l.range + (l.dir - l.pos).length() * 0.5,
-                    }
-                } else {
-                    light_tiles::BinLight { pos: l.pos, range: l.range }
-                }
-            })
-            .collect();
-        let (counts, indices) = light_tiles::bin_lights(&bins, view_proj, cam_pos, screen);
-        self.queue
-            .write_buffer(&self.tile_counts_buffer, 0, bytemuck::cast_slice(&counts));
-        self.queue
-            .write_buffer(&self.tile_indices_buffer, 0, bytemuck::cast_slice(&indices));
-        self.tile_px = (
-            (screen.0 as f32 / light_tiles::TILE_COLS as f32).max(1.0),
-            (screen.1 as f32 / light_tiles::TILE_ROWS as f32).max(1.0),
-        );
-    }
-
     pub fn set_point_lights(&mut self, lights: &[light::RoomLight]) {
         let _cost = frame_costs::stage("cpu.lights");
         // Grow the storage buffer by doubling if needed (bind groups are

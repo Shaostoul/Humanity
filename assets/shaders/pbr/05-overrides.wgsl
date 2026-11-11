@@ -85,3 +85,12 @@ override HAS_SLAB_OCCLUSION: bool = true;
 // PSOs; folded out of every other.
 override HAS_ROOM_AMBIENT: bool = true;
 
+// HAS_SHADOW_ATLAS (2026-11-10, docs/design/local-light-shadows.md): the shadow
+// atlas at group 0 bindings 8-10 (renderer/local_shadows.rs). Two guards: the
+// light loop in frag_tail (a shadowed room light's visibility, after its
+// attenuation) and sun_shadow_offset (the near sun view, multiplied after the
+// far map, so every sun term sees the people, furniture and homes near you).
+// Live in the surface and vegetation PSOs and the terrain's (the ground under a
+// person or a hut); folded out of the water, shell and cloud PSOs.
+override HAS_SHADOW_ATLAS: bool = true;
+

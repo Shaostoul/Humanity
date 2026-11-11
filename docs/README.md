@@ -37,6 +37,8 @@ content (sounds, models, shaders, data, planets, UI pages)? The step-by-step
 pipeline guides live in **[dev/](dev/)**. Adding or changing a graphics setting? Every
 one says what you will see differently and what it costs on this computer: the rule,
 the checklist and the audit are in **[design/graphics-settings.md](design/graphics-settings.md)**.
+Working on shadows (room lights, people, furniture, the sun near you)? The plan and its rungs are
+in **[design/local-light-shadows.md](design/local-light-shadows.md)**.
 
 ---
 

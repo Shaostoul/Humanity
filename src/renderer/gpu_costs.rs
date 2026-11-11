@@ -578,6 +578,9 @@ impl Renderer {
             // Room GI's probe atlas, its scratch and its buffers (2026-09-27).
             + self.room_gi.vram_bytes();
         set_vram("vram.render_targets", targets);
+        // The shadow atlas (2026-11-10, renderer/local_shadows.rs): the depth atlas, its table and
+        // its views' camera buffers.
+        set_vram("vram.shadow_atlas", self.local_shadows.vram_bytes());
 
         // Particles: the two billboard vertex pools plus the GPU-simulated
         // pool's draw buffer (its private state buffer lands in the untracked

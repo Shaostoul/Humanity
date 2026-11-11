@@ -148,6 +148,29 @@ pub struct Mesh {
     /// draw of a registry mesh goes through `indices()` and `base_vertex`.
     pub first_index: u32,
     pub base_vertex: i32,
+    /// A sphere holding every vertex, in the mesh's own space: (centre x, y, z, radius), the radius
+    /// padded for a vertex shader's small sway (2026-11-10, the shadow atlas culls its casters per
+    /// view with it, renderer/local_shadows.rs). A negative radius means unknown: never culled.
+    pub bounds: [f32; 4],
+}
+
+/// "Unknown" for `Mesh::bounds`: a caster with it is drawn into every shadow view.
+pub const UNBOUNDED: [f32; 4] = [0.0, 0.0, 0.0, -1.0];
+
+/// The sphere `Mesh::bounds` holds for these vertices: the box's centre, the farthest vertex from it,
+/// padded by a tenth and 5 cm for the vertex shader's sway (wind on a plant). No vertices: radius 0.
+pub fn bounding_sphere(vertices: &[Vertex]) -> [f32; 4] {
+    let Some(first) = vertices.first() else { return [0.0; 4] };
+    let mut lo = glam::Vec3::from(first.position);
+    let mut hi = lo;
+    for v in vertices {
+        let p = glam::Vec3::from(v.position);
+        lo = lo.min(p);
+        hi = hi.max(p);
+    }
+    let c = (lo + hi) * 0.5;
+    let r = vertices.iter().map(|v| glam::Vec3::from(v.position).distance_squared(c)).fold(0.0f32, f32::max).sqrt();
+    [c.x, c.y, c.z, r * 1.1 + 0.05]
 }
 
 impl Mesh {
@@ -159,7 +182,7 @@ impl Mesh {
     /// A mesh id that draws nothing, over a few bytes of `buffer` (made with VERTEX and INDEX), so it
     /// holds on to no other memory.
     pub fn nothing(buffer: &wgpu::Buffer) -> Self {
-        Mesh { vertex_buffer: buffer.clone(), index_buffer: buffer.clone(), index_count: 0, first_index: 0, base_vertex: 0 }
+        Mesh { vertex_buffer: buffer.clone(), index_buffer: buffer.clone(), index_count: 0, first_index: 0, base_vertex: 0, bounds: [0.0; 4] }
     }
 
     /// Build a mesh from raw vertex and index data.
@@ -180,6 +203,7 @@ impl Mesh {
             index_count: indices.len() as u32,
             first_index: 0,
             base_vertex: 0,
+            bounds: bounding_sphere(vertices),
         }
     }
 

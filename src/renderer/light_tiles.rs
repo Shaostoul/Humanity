@@ -7,8 +7,9 @@
 //! old 256 truncate to 2048 (the flat-cost ceiling the operator asked for:
 //! "could we have 1,000 or more?").
 //!
-//! Pure math + owned buffers, no wgpu here: unit-tested below, uploaded by
-//! the renderer. Conservative over-inclusion is always allowed (costs a few
+//! Pure math + owned buffers: unit-tested below. The one renderer method,
+//! `Renderer::update_light_tiles` at the bottom, uploads the lists (moved here
+//! from renderer/mod.rs on 2026-11-10 under the file-size ratchet). Conservative over-inclusion is always allowed (costs a few
 //! ALU on a few tiles); EXCLUSION of a light from a tile it lights is the
 //! only correctness bug, and the tests pin against it.
 
@@ -103,6 +104,55 @@ pub fn bin_lights(
         }
     }
     (counts, indices)
+}
+
+/// The upload: the frame's lights binned and written to the tile buffers the
+/// light loop reads (group 0 bindings 2 and 3).
+impl super::Renderer {
+    /// Rebuild + upload the per-tile light lists (clustering L1b). Call after
+    /// `set_point_lights` with the SAME light slice (tile indices index into
+    /// it). `enabled = false` zeroes the tile-pixel poke, which sends the
+    /// shader down the classic full-loop path.
+    pub fn update_light_tiles(
+        &mut self,
+        lights: &[super::light::RoomLight],
+        view_proj: &glam::Mat4,
+        cam_pos: glam::Vec3,
+        screen: (u32, u32),
+        enabled: bool,
+    ) {
+        let _cost = humanity_core::frame_costs::stage("cpu.light_tiles");
+        if !enabled || lights.is_empty() {
+            self.tile_px = (0.0, 0.0);
+            return;
+        }
+        let bins: Vec<BinLight> = lights
+            .iter()
+            .map(|l| {
+                if l.cos_outer <= -1.5 {
+                    // LINE light (sentinel -2.0): the whole segment pos..dir
+                    // emits. Bin the enclosing sphere: midpoint + half-length
+                    // added to the range (conservative).
+                    let mid = (l.pos + l.dir) * 0.5;
+                    BinLight {
+                        pos: mid,
+                        range: l.range + (l.dir - l.pos).length() * 0.5,
+                    }
+                } else {
+                    BinLight { pos: l.pos, range: l.range }
+                }
+            })
+            .collect();
+        let (counts, indices) = bin_lights(&bins, view_proj, cam_pos, screen);
+        self.queue
+            .write_buffer(&self.tile_counts_buffer, 0, bytemuck::cast_slice(&counts));
+        self.queue
+            .write_buffer(&self.tile_indices_buffer, 0, bytemuck::cast_slice(&indices));
+        self.tile_px = (
+            (screen.0 as f32 / TILE_COLS as f32).max(1.0),
+            (screen.1 as f32 / TILE_ROWS as f32).max(1.0),
+        );
+    }
 }
 
 #[cfg(test)]

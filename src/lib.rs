@@ -14807,6 +14807,10 @@ mod native_app {
                                 // Settings > Planets apply every frame.
                                 state.renderer.sun_shadows =
                                     state.gui_state.settings.sun_shadows;
+                                // Room light shadows (2026-11-10, renderer/local_shadows.rs): the level id.
+                                if state.renderer.local_shadows.level != state.gui_state.settings.local_shadows {
+                                    state.renderer.local_shadows.level = state.gui_state.settings.local_shadows.clone();
+                                }
                                 state.renderer.shadow_strength =
                                     state.gui_state.settings.shadow_strength.clamp(0.0, 1.0);
                                 state.renderer.godray_intensity =
@@ -14936,6 +14940,23 @@ mod native_app {
                                         glass_mat == Some(o.material),
                                     )
                                 });
+                                // Pass 0.9: THE SHADOW ATLAS (2026-11-10, renderer/local_shadows.rs): the room
+                                // lights' shadows and the near sun view, drawn from the scene's casters (the home's
+                                // list rides the station) and the celestial build pieces, BEFORE the celestial pass,
+                                // so the terrain under a person and everything in the home sample this frame's maps.
+                                {
+                                    use crate::renderer::local_shadows::CasterList;
+                                    let so = state.station_off;
+                                    state.renderer.render_shadow_atlas(
+                                        &state.camera,
+                                        &[
+                                            (&all_objects, so, CasterList::Scene),
+                                            (&planet_ghost, Vec3::ZERO, CasterList::Scene),
+                                            (&people_render_space, Vec3::ZERO, CasterList::Scene),
+                                            (&celestial_objects, Vec3::ZERO, CasterList::CelestialSurfaces),
+                                        ],
+                                    );
+                                }
                                 // The 5th argument is this pass's ANIMATION CLOCK: live wall time unless the rig
                                 // pinned it (showcase_request {"anim_clock":"300"}). The pass stamps it into
                                 // sun_color.w on BOTH the colour and the shadow camera buffers, and the vertex

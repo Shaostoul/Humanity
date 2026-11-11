@@ -98,7 +98,6 @@ pub(crate) mod first_steps;
 pub(crate) mod world_entry;
 pub use connections::{connect_target, erased_entry, EraseOutcome, ERASED_BY_ADMIN_NOTE, ERASED_CONNECT_NOTE, ERASE_UNFINISHED_NOTE, OFFICIAL_SERVER};
 
-
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
 // regression. Test-only; pulls in egui_kittest (a dev-dependency).
 /// The value types the GUI passes around: one struct or enum per thing a page
@@ -4352,8 +4351,9 @@ pub struct SettingsState {
     /// 17 = ~4.8 m wave vertices at the eye, 20 = ~0.6 m. Selection stays
     /// pixel-driven, so this only shapes the closest tens of metres.
     pub water_detail_depth: f32,
-    /// Sun shadow map on/off (v0.907, Settings > Planets).
+    /// Sun shadow map on/off (v0.907), and Room light shadows' level id (2026-11-10, data/gui/shadow_levels.json).
     pub sun_shadows: bool,
+    pub local_shadows: String,
     /// How dark a full sun shadow gets, 0..1 (v0.1104). 1.0 = no direct sun
     /// reaches a shadowed surface and the sky-irradiance term fills it, which
     /// is what real shadows are. Lower values leak warm sunlight into shadow.
@@ -4677,7 +4677,7 @@ impl Default for SettingsState {
             grass_detail: 0.6,
             veg_tree_card_m: humanity_core::lod_registry::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
             water_detail_depth: 20.0,
-            sun_shadows: true,
+            sun_shadows: true, local_shadows: crate::renderer::local_shadows::DEFAULT_LEVEL.to_string(),
             shadow_strength: 1.0,
             sun_aperture_mm: crate::renderer::sun_disc::DEFAULT_APERTURE_MM,
             time_speed: humanity_systems::time::DEFAULT_TIME_SPEED,

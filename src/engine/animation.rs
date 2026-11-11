@@ -2612,6 +2612,10 @@ pub(crate) fn draw_people(
         }
         // TRUE FIRST PERSON (rung 2b): the eye rides the drawn head (its eyes' midpoint), low-passed, and
         // the head and neck are folded away for the eye camera.
+        // THE SHADOW KEEPS THE HEAD (2026-11-10, the shadow atlas, docs/design/local-light-shadows.md):
+        // the unfolded pose's rows are kept before the fold and pushed again below for the shadow maps
+        // only (renderer `skin_shadow_only`), so your shadow is a whole person's.
+        let mut shadow_rows: Option<Vec<[f32; 4]>> = None;
         if p.first_person {
             if let Some(h) = hand_rig {
                 let eye_model = match h.eyes {
@@ -2621,6 +2625,11 @@ pub(crate) fn draw_people(
                 my_eye = Some(world.transform_point3(eye_model));
                 if fp_head_hidden {
                     if let Some(neck) = first_person_fold(h) {
+                        if renderer.shadow_twin_wanted() {
+                            let mut whole = Vec::new();
+                            pose::palette_rows(skel, &rt.model, &mut whole);
+                            shadow_rows = Some(whole);
+                        }
                         humanity_animation::interact::collapse_subtree(skel, &mut rt.model, neck);
                     }
                 }
@@ -2630,6 +2639,7 @@ pub(crate) fn draw_people(
         pose::palette_rows(skel, &rt.model, &mut rt.rows);
         let morph = pose::morph_rows(gpu_weights, body.model.vertex_count() as u32);
         let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
+        let shadow_index = shadow_rows.map(|rows| renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rows));
         // The interaction probe (showcase `anchor_probe`, rung 2b): the drawn body against what it
         // touches, near bodies in an interaction, and the first-person eye.
         if let Some(aprobe) = aprobe.as_mut() {
@@ -2808,6 +2818,12 @@ pub(crate) fn draw_people(
             report.middle += 1;
             for (region, material) in materials.iter().copied().enumerate() {
                 renderer.skin_middle(gpu_body, region, material, index);
+            }
+        }
+        // The first-person body's unfolded twin, for the shadow maps only (pushed above).
+        if let Some(si) = shadow_index {
+            for (region, material) in materials.iter().copied().enumerate() {
+                renderer.skin_shadow_only(gpu_body, region, material, si);
             }
         }
         rt.figures.insert(p.key, fig);

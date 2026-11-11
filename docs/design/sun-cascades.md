@@ -5,6 +5,14 @@ lighting review found that the player's home never casts into the sun shadow
 map. It is the build order for the fix. Line numbers are as of v0.1386.0;
 re-grep before trusting one.
 
+**2026-11-10: increment 1 landed another way.** The shadow atlas
+([local-light-shadows.md](local-light-shadows.md), `src/renderer/local_shadows.rs`) holds one near
+sun tile (2048 texels over 32 m on Full, 1.6 cm texels: between C1 and C2 below) drawn from the
+scene lists with the hull-frame sun (`cur_sun`), multiplied into every sun term after the far map.
+It shares the atlas with the room lights' shadows and lives at group 0 bindings 8-10, so the group 3
+growth planned below did not happen. Increments 2 to 4 (the full ladder, PCSS, glass) remain, now as
+more tiles of that atlas.
+
 ## 1. How the sun shadow map works today, and why the home never casts
 
 - **Build and fit** happen in `render_celestial_onto` (celestial.rs 538-646).

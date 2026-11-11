@@ -746,24 +746,28 @@ impl Renderer {
             &self.device,
             layout,
             "Camera Bind Group",
-            &self.camera_buffer,
+            self.camera_buffer.as_entire_buffer_binding(),
             &self.lights_buffer,
             &self.tile_counts_buffer,
             &self.tile_indices_buffer,
             &self.env_regions_buffer,
             &self.room_gi,
+            self.local_shadows.colour_binding(),
         );
         self.light_camera_bind_group = pipeline::camera_bind_group(
             &self.device,
             layout,
             "Light Camera BG",
-            &self.light_camera_buffer,
+            self.light_camera_buffer.as_entire_buffer_binding(),
             &self.lights_buffer,
             &self.tile_counts_buffer,
             &self.tile_indices_buffer,
             &self.env_regions_buffer,
             &self.room_gi,
+            self.local_shadows.colour_binding(),
         );
+        // The shadow atlas pass's own per-view groups bind the same buffers: made again on next need.
+        self.local_shadows.forget_view_groups();
         self.room_gi.rebind = false;
     }
 

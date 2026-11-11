@@ -488,6 +488,14 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
         }
 
         if (attenuation > 0.001) {
+            // THE ROOM LIGHT'S SHADOW (2026-11-10, the shadow atlas,
+            // docs/design/local-light-shadows.md): a light the budget shadowed
+            // this frame looks itself up in the atlas (its cube face or its spot
+            // view); every other light reads 1 after one compare. After the
+            // attenuation's cheap rejects, so a light out of reach costs nothing.
+            if (HAS_SHADOW_ATLAS && f32(i) < shadow_table[0].x) {
+                attenuation = attenuation * local_light_visibility(u32(i), in.world_position, normal, dot(normal, light_dir));
+            }
             lo = lo + evaluate_light(light_dir, light_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);
         }
     }

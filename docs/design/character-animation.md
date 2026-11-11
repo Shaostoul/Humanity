@@ -806,6 +806,8 @@ What rung 1 built, against sections 2 to 10, and what it chose where the plan le
   skinned in the vertex shader by a PSO of their own (the megashader plus `vs_skinned`, the surface
   class's entry and permutation), built on a background thread so the boot is not longer; until it
   is ready, middle bodies are compute-skinned too. Middle bodies cast no sun shadow yet (rung 4).
+  Since 2026-11-10 every tier but the far one casts into the shadow atlas (the room lights and the
+  near sun view; [local-light-shadows.md](local-light-shadows.md)); the far sun map still holds no body.
   Bodies use material type 25: plain PBR, no panel grid.
 - **The tiers (8.4)** live in `characters.ron` (near 15 m and 16 bodies, middle 40 m), not in
   `data/lod/categories.ron` as section 9 suggested: that file's rows drive Settings sliders by stage,
@@ -1818,6 +1820,10 @@ off it: the shortest body reaches no further upright, and leaning is the full-bo
   pass; on a planet the body stands in the scene list, which the sun map does not draw), so nothing
   is lost by drawing the first-person body once with its head folded; when bodies cast shadows (rung
   4's skinned shadow PSO) the shadow must draw the unfolded pose (a second palette for the player).
+  **Done 2026-11-10** (the shadow atlas, [local-light-shadows.md](local-light-shadows.md)): bodies
+  now cast into the room lights' shadows and the near sun view; the first-person body pushes its
+  unfolded pose a second time (`skin_shadow_only`) and the skinned shadow PSOs draw it, and the middle
+  tier, into the shadow maps only.
 - **The network (8.5).** The movement message carries the look's **pitch** (whole degrees, clamped to
   89 either way, left out when level) and the **act** (`["chair_seat", 1]`: an anchor id and the phase,
   0 entering, 1 holding, 2 leaving; left out when using nothing), read through one clamping reader each

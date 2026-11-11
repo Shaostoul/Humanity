@@ -33,6 +33,11 @@
         "gpu.celestial_t": "graphics.pass.celestial_t",
         "gpu.sky_view": "graphics.pass.sky_view",
         "gpu.shadow": "graphics.pass.shadow",
+        "gpu.shadow_near": "graphics.pass.shadow_near",
+        "gpu.shadow_local": "graphics.pass.shadow_local",
+        "cpu.shadow_local": "graphics.pass.shadow_local_cpu",
+        "cpu.shadow_near": "graphics.pass.shadow_near_cpu",
+        "vram.shadow_atlas": "graphics.pass.shadow_atlas",
         "gpu.godrays": "graphics.pass.godrays",
         "gpu.ssao": "graphics.pass.ssao",
         "gpu.room_probes": "graphics.pass.room_probes",
@@ -87,7 +92,10 @@
         (id: "grass_detail", cost: [Shares(["gpu.scene"])]),
         (id: "water_detail_depth", cost: [Shares(["gpu.celestial_t"])]),
         // ── Light and sky ──
-        (id: "sun_shadows", cost: [Gpu(["gpu.shadow"])]),
+        (id: "sun_shadows", cost: [Gpu(["gpu.shadow", "gpu.shadow_near"])]),
+        // Room light shadows (2026-11-10, renderer/local_shadows.rs): the atlas passes, choosing and
+        // drawing the casters, the atlas memory, and each level's own memory worked out beside it.
+        (id: "local_shadows", cost: [Gpu(["gpu.shadow_local", "gpu.shadow_near"]), Cpu(["cpu.shadow_local", "cpu.shadow_near"]), Memory(["vram.shadow_atlas"]), Computed]),
         (id: "lights_tiled", cost: [Cpu(["cpu.light_tiles"]), Shares(["gpu.scene"])]),
         (id: "bounced_light_detail", cost: [Computed, Gpu(["gpu.room_probes"])]),
         (id: "shadow_strength", cost: [Free("graphics.free.shader_number")]),

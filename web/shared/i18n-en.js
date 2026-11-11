@@ -4721,7 +4721,12 @@ window.HOS_I18N_EN = {
       "patch_arena": "the ground pieces",
       "meshes": "the 3D models' shapes",
       "grass": "the grass",
-      "particles_memory": "the rain and snow"
+      "particles_memory": "the rain and snow",
+      "shadow_near": "the shadow pass for the sun near you",
+      "shadow_local": "the room lights' shadow pass",
+      "shadow_local_cpu": "choosing the room lights and drawing their shadows",
+      "shadow_near_cpu": "choosing what casts in the sun near you",
+      "shadow_atlas": "the shadow atlas"
     },
     "window_mode": "Window mode",
     "window_mode_hint": "How the game's window sits on your screen. Windowed fullscreen fills the screen and keeps the title bar and taskbar; borderless drops the title bar; exclusive gives the whole screen to the game (true fullscreen). A change applies at once.",
@@ -4789,7 +4794,7 @@ window.HOS_I18N_EN = {
     "water_detail_depth": "Water: wave detail (14 to 20)",
     "water_detail_depth_hint": "How finely the water surface is meshed near you: 17 is about 5 m between wave points, 20 about 0.6 m (every ripple is real shape). Only the closest water refines, so open ocean costs the same at any setting.",
     "sun_shadows": "Sun shadows",
-    "sun_shadows_hint": "Terrain, plants and buildings cast real shadows from the sun. Off: flatter light.",
+    "sun_shadows_hint": "Terrain, plants and buildings cast real shadows from the sun, and so do the people, furniture and homes near you while Room light shadows is on. Off: flatter light, and nothing casts a sun shadow.",
     "lights_tiled": "Many lights at once",
     "lights_tiled_hint": "Lets far more lamps, fires and glowing things light the scene at once (up to 2048 instead of 256) by sorting lights into screen tiles, so each pixel only weighs the lights near it (the renderer calls this tiled light lists). Turn it on if lights stop lighting things when several are close together. Off is the classic way: fine for a handful of lights. Experimental.",
     "bounced_light_detail": "Bounced light detail",
@@ -4890,7 +4895,21 @@ window.HOS_I18N_EN = {
     "show_roof_hint": "Off: the sky (stars and the real solar system) shows through the open top; on: the home is sealed, for an indoor look.",
     "show_hull": "Show hull (H)",
     "show_hull_hint": "The outer hull built around the ship's zones (open above glass roofs, so gardens keep their starlight). Off: an unobstructed view inside, or from above while building.",
-    "trees": "Trees"
+    "trees": "Trees",
+    "local_shadows": "Room light shadows",
+    "local_shadows_hint": "Shadows cast by people, furniture and walls from the room lights, and from the sun near you (through a glass roof, or outdoors on a planet). The lights that matter most where you look cast them; the rest still light the room, without shadows. Off: no room light shadows, and the people and furniture near you cast no sun shadow. Simplified: four lights, smaller maps, harder edges. Full: eight lights, soft edges. Works on every graphics card the game runs on: it needs only depth textures, which all of them have.",
+    "local_shadows_choice": {
+      "off": "Off",
+      "simplified": "Simplified",
+      "full": "Full"
+    },
+    "local_shadows_level_off": "No room light shadows and no sun shadows from the people and furniture near you; no video memory.",
+    "local_shadows_level": "Up to {lights} room lights with shadows, each face up to {face} texels; the sun near you in {sun} cm texels; {taps} comparisons a lookup; {memory} of video memory.",
+    "local_shadows_card": "{card}: {own} of its own memory; this level's shadow maps use {used} ({share}% of it).",
+    "local_shadows_card_warn": "{used} is more than an eighth of this card's {own}: the rest of the world needs that memory, and the game may stutter when the card runs short. A lower level gives it back.",
+    "local_shadows_card_unknown": "The graphics card has not said how much memory of its own it has, so this level is not checked against it.",
+    "local_shadows_now": "Now: {shadowed} of {lights} room lights cast shadows ({over} more in view without them), in {views} shadow views.",
+    "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes."
   },
   "gameplay": {
     "level": {

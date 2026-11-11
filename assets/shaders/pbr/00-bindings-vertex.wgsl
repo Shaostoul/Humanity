@@ -140,6 +140,25 @@ struct EnvRegion {
 @group(0) @binding(6) var room_gi_samp: sampler;
 @group(0) @binding(7) var<storage, read> room_gi: GiRooms;
 
+// THE SHADOW ATLAS (2026-11-10, docs/design/local-light-shadows.md): one depth
+// atlas a frame holding the shadowed room lights' cube faces and spot views and
+// the near sun view (renderer/local_shadows.rs, drawn before the celestial
+// pass), a comparison sampler, and the table. The table is vec4 rows: row 0 =
+// (lights the lookup covers, first view row, near sun view + 1 or 0, taps), then
+// the lookup four lights a row (kind * SHADOW_KIND_STRIDE + first view + 1, 0 =
+// unshadowed), then SHADOW_VIEW_ROWS rows per view (the view-projection's four
+// columns, the tile (u0, v0, side, filter radius) in atlas uv, and (the light's
+// position or the direction toward it, the world texel per metre of depth or
+// negated and flat for an orthographic view), and (the light's shadow reach, 0 for
+// an orthographic view)). CPU twin and lockstep test:
+// local_shadows::pack_table, table_constants_match_the_shader.
+@group(0) @binding(8) var shadow_atlas: texture_depth_2d;
+@group(0) @binding(9) var shadow_atlas_samp: sampler_comparison;
+@group(0) @binding(10) var<storage, read> shadow_table: array<vec4<f32>>;
+const SHADOW_VIEW_ROWS: u32 = 7u;
+const SHADOW_KIND_STRIDE: u32 = 4096u;
+const SHADOW_KIND_CUBE: u32 = 1u;
+
 // Influence of ONE region at the ground point under sample_dir (expected unit).
 // The CPU twin is EnvRegion::influence; the contract both owe is pinned by
 // env_influence_matches_the_shader_contract in src/renderer/env_regions.rs:
@@ -548,7 +567,16 @@ fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
             return 0.0;
         }
     }
-    return sun_map_offset(world_pos, n_dot_l, n);
+    var vis = sun_map_offset(world_pos, n_dot_l, n);
+    // THE NEAR SUN VIEW (2026-11-10, the shadow atlas): the people, furniture
+    // and homes near you, which the far map never holds, multiplied in after
+    // it, so every sun term (this one in frag_tail, and every in-entry
+    // sun_shadow call) sees them. Row 0's z is the view's index + 1, 0 when the
+    // CPU drew none (sun shadows off, the level Off, the sun down).
+    if (HAS_SHADOW_ATLAS && shadow_table[0].z > 0.5) {
+        vis = vis * near_sun_visibility(world_pos, n_dot_l, n);
+    }
+    return vis;
 }
 
 // Plain entry point: fragments outside the ortho box (or with shadows off)
@@ -556,6 +584,135 @@ fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
 // field. Opts out of the normal offset by passing a zero normal.
 fn sun_shadow(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
     return sun_shadow_offset(world_pos, n_dot_l, vec3<f32>(0.0));
+}
+
+// ── THE SHADOW ATLAS'S LOOKUPS (2026-11-10, docs/design/local-light-shadows.md) ──
+//
+// One view of the atlas from a world-space point: 1 lit, 0 in shadow. The
+// receiver is moved toward the light by 1.5 of the view's texels at that
+// distance and along its normal by half a texel to two (by the sine of the
+// incidence angle), the normal-offset bias in WORLD units (Holbert 2010, the
+// far map's own scheme above), so a face 3 m from a lamp at 512 texels a face
+// biases by about 2 cm and the sun's 1.6 cm texels by about 2.4 cm: no acne,
+// and a chair leg's shadow still meets the floor. Then 16 comparisons on a
+// Vogel disk (or 4 on a square for the simplified level), each a bilinear
+// hardware comparison, inside the tile less the filter's reach, so a lookup
+// never reads its neighbour's tile. A view with no tile (nothing cast into it)
+// reads lit; an orthographic view fades to lit over its outer 13%.
+fn shadow_atlas_view(v: u32, p: vec3<f32>, n: vec3<f32>, ndl: f32) -> f32 {
+    let base = u32(shadow_table[0].y + 0.5) + v * SHADOW_VIEW_ROWS;
+    let rect = shadow_table[base + 4u];
+    if (rect.z <= 0.0) {
+        return 1.0;
+    }
+    let info = shadow_table[base + 5u];
+    // The view's matrix is read column by column where it is used, never held
+    // as a mat4 (2026-11-11): 16 more live registers in the lighting tail cost
+    // about 0.15 ms of the hall's scene pass, even with shadows off, because a
+    // shader's register count is set by its fullest path, taken or not.
+    let ortho = info.w < 0.0;
+    var texel = -info.w;
+    var to_light = info.xyz;
+    if (!ortho) {
+        let w0 = shadow_table[base].w * p.x + shadow_table[base + 1u].w * p.y + shadow_table[base + 2u].w * p.z + shadow_table[base + 3u].w;
+        texel = info.w * max(w0, 0.0);
+        to_light = normalize(info.xyz - p);
+    }
+    let cosl = clamp(ndl, 0.0, 1.0);
+    let slope = sqrt(max(1.0 - cosl * cosl, 0.0));
+    var sample_pos = p + to_light * (texel * 1.5);
+    if (dot(n, n) > 0.5) {
+        sample_pos = sample_pos + normalize(n) * (texel * (0.5 + 1.5 * slope));
+    }
+    let lc = shadow_table[base] * sample_pos.x + shadow_table[base + 1u] * sample_pos.y + shadow_table[base + 2u] * sample_pos.z + shadow_table[base + 3u];
+    if (lc.w <= 0.0) {
+        return 1.0;
+    }
+    let ndc = lc.xyz / lc.w;
+    let edge = max(abs(ndc.x), abs(ndc.y));
+    if (edge > 1.0 || ndc.z <= 0.0 || ndc.z >= 1.0) {
+        return 1.0;
+    }
+    let local_uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    let atlas_texel = 1.0 / f32(textureDimensions(shadow_atlas).x);
+    let border = rect.w + atlas_texel;
+    let lo = rect.xy + vec2<f32>(border);
+    let hi = rect.xy + vec2<f32>(rect.z - border);
+    let uv = rect.xy + local_uv * rect.z;
+    var lit = 0.0;
+    if (shadow_table[0].w > 8.0) {
+        for (var k = 0u; k < 16u; k = k + 1u) {
+            let r = sqrt((f32(k) + 0.5) / 16.0) * rect.w;
+            let a = f32(k) * 2.3999632;
+            let o = vec2<f32>(cos(a), sin(a)) * r;
+            lit = lit + textureSampleCompareLevel(shadow_atlas, shadow_atlas_samp, clamp(uv + o, lo, hi), ndc.z);
+        }
+        lit = lit / 16.0;
+    } else {
+        let h = rect.w * 0.5;
+        lit = textureSampleCompareLevel(shadow_atlas, shadow_atlas_samp, clamp(uv + vec2<f32>(-h, -h), lo, hi), ndc.z)
+            + textureSampleCompareLevel(shadow_atlas, shadow_atlas_samp, clamp(uv + vec2<f32>(h, -h), lo, hi), ndc.z)
+            + textureSampleCompareLevel(shadow_atlas, shadow_atlas_samp, clamp(uv + vec2<f32>(-h, h), lo, hi), ndc.z)
+            + textureSampleCompareLevel(shadow_atlas, shadow_atlas_samp, clamp(uv + vec2<f32>(h, h), lo, hi), ndc.z);
+        lit = lit * 0.25;
+    }
+    if (ortho) {
+        lit = mix(lit, 1.0, smoothstep(0.87, 0.99, edge));
+    } else {
+        // Past the light's shadow reach (local_shadows::shadow_reach, where its
+        // falloff is a twentieth of its value at a metre) its casters were not
+        // drawn: the shadow fades out over the reach's last fifth, so the edge
+        // never shows.
+        let reach = shadow_table[base + 6u].x;
+        if (reach > 0.0) {
+            lit = mix(lit, 1.0, smoothstep(0.8 * reach, reach, length(p - info.xyz)));
+        }
+    }
+    return lit;
+}
+
+// The cube face a direction from a point light falls on: its major axis, ties
+// to x then y (0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z). CPU twin:
+// local_shadows::cube_face_of (the test reads these two comparisons back).
+fn shadow_cube_face(d: vec3<f32>) -> u32 {
+    let a = abs(d);
+    if (a.x >= a.y && a.x >= a.z) {
+        return select(1u, 0u, d.x >= 0.0);
+    }
+    if (a.y >= a.z) {
+        return select(3u, 2u, d.y >= 0.0);
+    }
+    return select(5u, 4u, d.z >= 0.0);
+}
+
+// A room light's visibility from a point: 1 for a light the budget left
+// unshadowed (its lookup is 0, or past the lookup's end), else its cube face
+// (picked by the direction from the light) or its one spot view.
+fn local_light_visibility(i: u32, p: vec3<f32>, n: vec3<f32>, ndl: f32) -> f32 {
+    if (f32(i) >= shadow_table[0].x) {
+        return 1.0;
+    }
+    let code = u32(shadow_table[1u + i / 4u][i % 4u] + 0.5);
+    if (code == 0u) {
+        return 1.0;
+    }
+    var v = code % SHADOW_KIND_STRIDE - 1u;
+    if (code / SHADOW_KIND_STRIDE == SHADOW_KIND_CUBE) {
+        let origin = shadow_table[u32(shadow_table[0].y + 0.5) + v * SHADOW_VIEW_ROWS + 5u].xyz;
+        v = v + shadow_cube_face(p - origin);
+    }
+    return shadow_atlas_view(v, p, n, ndl);
+}
+
+// The near sun view's visibility, softened by Settings' shadow strength as the
+// far map's is (sun_map_offset), so the two read as one shadow.
+fn near_sun_visibility(p: vec3<f32>, ndl: f32, n: vec3<f32>) -> f32 {
+    let nv = u32(shadow_table[0].z + 0.5);
+    if (nv == 0u) {
+        return 1.0;
+    }
+    let lit = shadow_atlas_view(nv - 1u, p, n, ndl);
+    return mix(1.0 - shadow_u.params.y, 1.0, lit);
 }
 
 struct VertexInput {

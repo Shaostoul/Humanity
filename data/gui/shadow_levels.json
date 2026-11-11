@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "_comment": "Settings > Graphics > Light and sky > Room light shadows (2026-11-10, docs/design/local-light-shadows.md). Each level is one shadow atlas: a square depth texture of side `atlas` texels (video memory atlas x atlas x 4 bytes) holding a cube of six faces for each shadowed point light, one view for each spot light, and the near sun view (an orthographic tile `sun_tile` texels on a side covering `sun_extent_m` metres either side of you, so people, furniture and the home shade the sunlight that reaches them). `lights` is the most room lights shadowed at once: the ones that matter most this frame (bright, and reaching what you see); every other light still lights the room but casts no shadow. A light's faces are `face` texels for the two most important, half that for the next two, a quarter for the rest, never under `face_min`; a light that still does not fit is left unshadowed. `taps` is how many depth comparisons soften each lookup (4 or 16). atlas 0 is Off: no room light shadows and no near sun view (the far sun shadow over the planet is Settings > Graphics > Sun shadows). Values are held on load to what the renderer can do (powers of two, at most an 8192 atlas, at most 64 lights, the near sun tile at most half the atlas). 'full' is the design and the default; src/config.rs falls back to it for an id not listed here. Changing this file takes effect at the next start.",
+  "levels": [
+    {
+      "id": "off",
+      "atlas": 0
+    },
+    {
+      "id": "simplified",
+      "lights": 4,
+      "atlas": 2048,
+      "face": 256,
+      "face_min": 128,
+      "sun_tile": 1024,
+      "sun_extent_m": 12.0,
+      "taps": 4
+    },
+    {
+      "id": "full",
+      "lights": 8,
+      "atlas": 4096,
+      "face": 512,
+      "face_min": 128,
+      "sun_tile": 2048,
+      "sun_extent_m": 16.0,
+      "taps": 16
+    }
+  ]
+}

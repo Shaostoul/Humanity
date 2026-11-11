@@ -407,6 +407,40 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Bindings 8-10: THE SHADOW ATLAS (2026-11-10, renderer/local_shadows.rs,
+                    // docs/design/local-light-shadows.md): the depth atlas holding the room lights'
+                    // cube faces and spot views and the near sun view, its comparison sampler, and the
+                    // table saying which light uses which views (vec4 rows). Read by frag_tail's light
+                    // loop and sun_shadow_offset behind HAS_SHADOW_ATLAS. The atlas pass itself binds
+                    // the 1x1 stand-in at 8 (the atlas is its depth attachment). Built by
+                    // `camera_bind_group` below, the one constructor.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 9,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 10,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            // The header row: the smallest valid table.
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -1595,6 +1629,65 @@ impl Pipeline {
         })
     }
 
+    /// The skinned SHADOW PSOs (2026-11-10, the shadow atlas: renderer/local_shadows.rs): the
+    /// megashader with `vs_skinned` appended, drawn into a shadow map, so a middle body and the
+    /// first-person body's unfolded twin cast like every other caster. The sun shadow PSOs' state
+    /// (standard Z, `Less`, no culling, no bias, no colour target); `cutout` adds `fs_shadow` for the
+    /// card hair's cut, exactly as `shadow_for` picks between the classic pair. Registered in
+    /// PSO_REGISTRY like them, every switch off.
+    pub(super) fn build_skinned_shadow_pso(
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+        pipeline_layout: &wgpu::PipelineLayout,
+        attributes: &[wgpu::VertexAttribute],
+        stride: u64,
+        cutout: bool,
+    ) -> wgpu::RenderPipeline {
+        let label = if cutout { "Skinned Shadow Alpha Pipeline" } else { "Skinned Shadow Pipeline" };
+        let constants = pso_constants(label);
+        let entry = pso_fragment_entry(label);
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_skinned"),
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: stride,
+                    step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes,
+                }],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+            },
+            fragment: entry.map(|entry| wgpu::FragmentState {
+                module: shader,
+                entry_point: Some(entry),
+                targets: &[],
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+            }),
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        })
+    }
+
     /// The two cloud PSOs (`CloudPsos`), compiled side by side on two scoped
     /// workers with the large compile stack (`spawn_compile`). Used by both
     /// the inline path (inside `build_all_pipelines`' scope, as one of its
@@ -2294,16 +2387,31 @@ pub const FEATURE_SLAB_OCCLUSION: &str = "HAS_SLAB_OCCLUSION";
 /// compiled out of the terrain, water, shell and cloud pipelines.
 pub const FEATURE_ROOM_AMBIENT: &str = "HAS_ROOM_AMBIENT";
 
+/// The shadow atlas (2026-11-10, renderer/local_shadows.rs, docs/design/local-light-shadows.md):
+/// the room lights' shadows and the near sun view. A FEATURE switch with TWO guards: the light loop
+/// in frag_tail (a shadowed light's visibility, after its attenuation) and `sun_shadow_offset` (the
+/// near sun view, multiplied into every sun term after the far map). Live in the classes that draw a
+/// home's inside (surface, vegetation) AND the terrain, because the near sun view is how a person or
+/// a hut shades the ground under them; compiled out of the water, shell and cloud pipelines.
+pub const FEATURE_SHADOW_ATLAS: &str = "HAS_SHADOW_ATLAS";
+
 /// Every feature switch (see `FEATURE_ROOM_GI`, `FEATURE_SLAB_OCCLUSION`,
-/// `FEATURE_ROOM_AMBIENT`), in declaration order.
-pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT];
+/// `FEATURE_ROOM_AMBIENT`, `FEATURE_SHADOW_ATLAS`), in declaration order.
+pub const ALL_FEATURE_SWITCHES: &[&str] = &[FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT, FEATURE_SHADOW_ATLAS];
 
 /// Every switch the megashader declares, in declaration order: the shell
 /// switches, then the feature switches. The permutation tests and
 /// `shader_loader::validate_wgsl` require each one to exist with a `= true`
 /// default, so every pipeline that does NOT name a switch keeps its code.
-pub const ALL_SWITCHES: &[&str] =
-    &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT];
+pub const ALL_SWITCHES: &[&str] = &[
+    BRANCH_ATMOSPHERE,
+    BRANCH_CLOUD,
+    BRANCH_OCEAN,
+    FEATURE_ROOM_GI,
+    FEATURE_SLAB_OCCLUSION,
+    FEATURE_ROOM_AMBIENT,
+    FEATURE_SHADOW_ATLAS,
+];
 
 /// The fragment entry of the two alpha-cutout sun-shadow PSOs: ONE union
 /// twin of the class entries' cutout discards (pinned to them by
@@ -2417,7 +2525,9 @@ impl ShaderClass {
     pub const fn live_features(self) -> &'static [&'static str] {
         match self {
             ShaderClass::Surface | ShaderClass::Vegetation => ALL_FEATURE_SWITCHES,
-            ShaderClass::Terrain | ShaderClass::Water | ShaderClass::Shell | ShaderClass::Cloud => &[],
+            // The near sun view shades the ground under a person or a hut (the shadow atlas).
+            ShaderClass::Terrain => &[FEATURE_SHADOW_ATLAS],
+            ShaderClass::Water | ShaderClass::Shell | ShaderClass::Cloud => &[],
         }
     }
 
@@ -2431,15 +2541,30 @@ impl ShaderClass {
             ShaderClass::Terrain => {
                 &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
             }
-            ShaderClass::Water => {
-                &[BRANCH_ATMOSPHERE, BRANCH_CLOUD, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
-            }
-            ShaderClass::Shell => {
-                &[BRANCH_CLOUD, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
-            }
-            ShaderClass::Cloud => {
-                &[BRANCH_ATMOSPHERE, BRANCH_OCEAN, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION, FEATURE_ROOM_AMBIENT]
-            }
+            ShaderClass::Water => &[
+                BRANCH_ATMOSPHERE,
+                BRANCH_CLOUD,
+                FEATURE_ROOM_GI,
+                FEATURE_SLAB_OCCLUSION,
+                FEATURE_ROOM_AMBIENT,
+                FEATURE_SHADOW_ATLAS,
+            ],
+            ShaderClass::Shell => &[
+                BRANCH_CLOUD,
+                BRANCH_OCEAN,
+                FEATURE_ROOM_GI,
+                FEATURE_SLAB_OCCLUSION,
+                FEATURE_ROOM_AMBIENT,
+                FEATURE_SHADOW_ATLAS,
+            ],
+            ShaderClass::Cloud => &[
+                BRANCH_ATMOSPHERE,
+                BRANCH_OCEAN,
+                FEATURE_ROOM_GI,
+                FEATURE_SLAB_OCCLUSION,
+                FEATURE_ROOM_AMBIENT,
+                FEATURE_SHADOW_ATLAS,
+            ],
         }
     }
 
@@ -2556,6 +2681,11 @@ pub const PSO_REGISTRY: &[PsoRow] = &[
     // skinned in the vertex shader (`vs_skinned`), shaded exactly as a surface. Built on its own
     // background thread by `build_skinned_surface_pso`, not by `build_all_pipelines`.
     class_row("PBR-lite Skinned Surface Render Pipeline", ShaderClass::Surface),
+    // The shadow atlas (2026-11-10, renderer/local_shadows.rs): the skinned bodies the scene list
+    // does not hold (the middle tier, the first-person body's unfolded twin) drawn into the shadow
+    // maps, depth only and with fs_shadow for the card hair. Built beside the skinned surface PSO.
+    shadow_row("Skinned Shadow Pipeline", None),
+    shadow_row("Skinned Shadow Alpha Pipeline", Some(SHADOW_FRAGMENT_ENTRY)),
 ];
 
 /// The registry row for one PSO label. Panics on a label that is not in
@@ -3142,10 +3272,73 @@ mod permutation_tests {
         }
     }
 
+    /// THE SHADOW ATLAS (2026-11-10, renderer/local_shadows.rs): one switch, two guards, the switch
+    /// the FIRST operand of each.
+    /// - (a) The room light guard inside frag_tail's light loop, after the attenuation is worked out
+    ///   and before the light is added, its next line calling `local_light_visibility`.
+    /// - (b) The near sun guard inside `sun_shadow_offset`, after the far map, its next line calling
+    ///   `near_sun_visibility`, so every sun term (the tail's and each in-entry `sun_shadow`) sees the
+    ///   near world.
+    /// - (c) Each lookup has exactly that one caller.
+    /// - (d) Live in the surface, vegetation and terrain classes (the terrain is the ground under a
+    ///   person), compiled out of the water, shell and cloud PSOs and every shadow PSO.
+    /// Seen red first (2026-11-10) with the switch left out of the terrain's live features (and put
+    /// in its dead set): "left: [Surface, Vegetation] right: [Surface, Terrain, Vegetation]".
+    #[test]
+    fn the_shadow_atlas_is_guarded_by_its_switch() {
+        let main = code_only(class_entries_side());
+        let s = FEATURE_SHADOW_ATLAS;
+        // (a) The room light guard.
+        let lamp = format!("if ({s} && f32(i) < shadow_table[0].x) {{");
+        let sites: Vec<usize> = main.match_indices(&lamp).map(|(p, _)| p).collect();
+        assert_eq!(sites.len(), 1, "exactly one {lamp:?}, found {}", sites.len());
+        let (t0, t1) = function_body(&main, "frag_tail");
+        assert!(sites[0] > t0 && sites[0] < t1, "the room light guard must be inside frag_tail");
+        let tail = &main[t0..t1];
+        let atten = t0 + tail.find("var attenuation").expect("the light loop's attenuation");
+        let add = t0 + tail.find("lo = lo + evaluate_light(light_dir").expect("the light loop's add");
+        assert!(
+            atten < sites[0] && sites[0] < add,
+            "the room light guard (line {}) must come after the attenuation (line {}) and before the light is added (line {})",
+            line_of(&main, sites[0]),
+            line_of(&main, atten),
+            line_of(&main, add)
+        );
+        let next = main[sites[0] + lamp.len()..].lines().nth(1).unwrap_or("").trim();
+        assert!(next.contains("local_light_visibility("), "the line after the room light guard must call local_light_visibility, found {next:?}");
+        // (b) The near sun guard.
+        let sun = format!("if ({s} && shadow_table[0].z > 0.5) {{");
+        let sites: Vec<usize> = main.match_indices(&sun).map(|(p, _)| p).collect();
+        assert_eq!(sites.len(), 1, "exactly one {sun:?}, found {}", sites.len());
+        let (o0, o1) = function_body(&main, "sun_shadow_offset");
+        assert!(sites[0] > o0 && sites[0] < o1, "the near sun guard must be inside sun_shadow_offset");
+        let map = o0 + main[o0..o1].find("sun_map_offset(").expect("the far map");
+        assert!(map < sites[0], "the near sun view multiplies in after the far map");
+        let next = main[sites[0] + sun.len()..].lines().nth(1).unwrap_or("").trim();
+        assert!(next.contains("near_sun_visibility("), "the line after the near sun guard must call near_sun_visibility, found {next:?}");
+        // (c) One caller each.
+        for (func, owner) in [("local_light_visibility", "frag_tail"), ("near_sun_visibility", "sun_shadow_offset")] {
+            let uses: Vec<usize> =
+                identifier_sites(&main, func).into_iter().filter(|&p| !main[..p].ends_with("fn ")).collect();
+            assert_eq!(uses.len(), 1, "{func} must be called in exactly one place (inside {owner}), found {}", uses.len());
+            let (b0, b1) = function_body(&main, owner);
+            assert!(uses[0] > b0 && uses[0] < b1, "{func}'s one call must be inside {owner}");
+        }
+        // (d) Live in the surface, vegetation and terrain classes, off everywhere else.
+        let owners: Vec<ShaderClass> =
+            ShaderClass::ALL.iter().copied().filter(|c| c.live_features().contains(&s)).collect();
+        assert_eq!(owners, vec![ShaderClass::Surface, ShaderClass::Terrain, ShaderClass::Vegetation]);
+        for row in PSO_REGISTRY {
+            let live = row.class.is_some_and(|c| owners.contains(&c));
+            assert_eq!(!row.dead.contains(&s), live, "{}: the shadow atlas live = {live}", row.label);
+        }
+    }
+
     /// The expected registry, PSO by PSO. A hand-written twin of
     /// PSO_REGISTRY so a row cannot be changed without this test naming the
     /// change: ten class rows over six classes (the skinned surface row since
-    /// 2026-11-08), two sun-shadow rows, two terrain-batch rows.
+    /// 2026-11-08), two sun-shadow rows, two terrain-batch rows, two skinned shadow rows (the shadow
+    /// atlas, 2026-11-10).
     const EXPECTED_ROWS: &[(&str, Option<ShaderClass>, Option<&str>)] = &[
         ("PBR-lite Surface Render Pipeline", Some(ShaderClass::Surface), Some("fs_surface")),
         ("PBR-lite Surface Transparent Pipeline", Some(ShaderClass::Surface), Some("fs_surface")),
@@ -3161,10 +3354,12 @@ mod permutation_tests {
         ("Patch Batch Render Pipeline", Some(ShaderClass::Terrain), Some("fs_terrain")),
         ("Patch Batch Shadow Pipeline", None, Some("fs_shadow")),
         ("PBR-lite Skinned Surface Render Pipeline", Some(ShaderClass::Surface), Some("fs_surface")),
+        ("Skinned Shadow Pipeline", None, None),
+        ("Skinned Shadow Alpha Pipeline", None, Some("fs_shadow")),
     ];
 
     #[test]
-    fn the_registry_covers_exactly_the_fourteen_megashader_psos() {
+    fn the_registry_covers_exactly_the_sixteen_megashader_psos() {
         let labels: Vec<&str> = PSO_REGISTRY.iter().map(|r| r.label).collect();
         let expected: Vec<&str> = EXPECTED_ROWS.iter().map(|(l, _, _)| *l).collect();
         assert_eq!(labels, expected, "the registry's rows (or their order) changed");
@@ -3200,12 +3395,15 @@ mod permutation_tests {
         }
         // The opaque classes all compile every SHELL branch out: an opaque
         // fragment never enters a shell. The two that draw room interiors
-        // keep room GI; the terrain PSOs switch it off as well.
+        // keep room GI; the terrain PSOs switch it off as well, and keep only
+        // the shadow atlas (2026-11-10: the near sun view shades the ground
+        // under a person).
+        let terrain_dead: Vec<&str> = ALL_SWITCHES.iter().copied().filter(|s| *s != FEATURE_SHADOW_ATLAS).collect();
         for (label, dead) in [
             ("PBR-lite Surface Render Pipeline", ALL_BRANCH_SWITCHES),
-            ("PBR-lite Terrain Render Pipeline", ALL_SWITCHES),
+            ("PBR-lite Terrain Render Pipeline", terrain_dead.as_slice()),
             ("PBR-lite Vegetation Render Pipeline", ALL_BRANCH_SWITCHES),
-            ("Patch Batch Render Pipeline", ALL_SWITCHES),
+            ("Patch Batch Render Pipeline", terrain_dead.as_slice()),
         ] {
             let map = pso_constants(label);
             assert_eq!(map.len(), dead.len(), "{label}: {dead:?} off");
@@ -3727,6 +3925,10 @@ mod permutation_tests {
 /// of bug impossible rather than merely documented.
 ///
 /// `camera` is a parameter because the shadow pass binds the light camera here.
+/// It is a buffer BINDING rather than a buffer because the shadow atlas's views
+/// share one buffer, each group binding its own slot of it (2026-11-11,
+/// renderer/local_shadows.rs: one upload a frame instead of one per view); every
+/// other caller passes `buffer.as_entire_buffer_binding()`.
 /// The other four are always the same buffers; the shadow pass never reads the
 /// lights storage buffer, but the layout requires something bound, so it shares
 /// the main one.
@@ -3734,18 +3936,19 @@ pub fn camera_bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
     label: &str,
-    camera: &wgpu::Buffer,
+    camera: wgpu::BufferBinding<'_>,
     lights: &wgpu::Buffer,
     tile_counts: &wgpu::Buffer,
     tile_indices: &wgpu::Buffer,
     env_regions: &wgpu::Buffer,
     room_gi: &super::room_probes_gpu::RoomGi,
+    shadows: ShadowAtlasBinding<'_>,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some(label),
         layout,
         entries: &[
-            wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() },
+            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(camera) },
             wgpu::BindGroupEntry { binding: 1, resource: lights.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 2, resource: tile_counts.as_entire_binding() },
             wgpu::BindGroupEntry { binding: 3, resource: tile_indices.as_entire_binding() },
@@ -3755,6 +3958,21 @@ pub fn camera_bind_group(
             wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&room_gi.atlas_view) },
             wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::Sampler(&room_gi.sampler) },
             wgpu::BindGroupEntry { binding: 7, resource: room_gi.rooms_buf.as_entire_binding() },
+            // The shadow atlas (2026-11-10): the atlas (or its 1x1 stand-in), its comparison
+            // sampler and its table (renderer/local_shadows.rs).
+            wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(shadows.atlas) },
+            wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::Sampler(shadows.sampler) },
+            wgpu::BindGroupEntry { binding: 10, resource: shadows.table.as_entire_binding() },
         ],
     })
+}
+
+/// What group 0 binds at 8-10 (2026-11-10, renderer/local_shadows.rs): the shadow atlas, its
+/// comparison sampler and its table. The colour passes and the sun shadow pass bind the atlas itself
+/// (`LocalShadows::colour_binding`); the atlas pass binds the 1x1 stand-in, because the atlas is its
+/// own depth attachment and wgpu refuses a texture sampled and written in one pass.
+pub struct ShadowAtlasBinding<'a> {
+    pub atlas: &'a wgpu::TextureView,
+    pub sampler: &'a wgpu::Sampler,
+    pub table: &'a wgpu::Buffer,
 }

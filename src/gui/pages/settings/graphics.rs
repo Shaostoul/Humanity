@@ -253,6 +253,85 @@ fn draw_bounced_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     }
 }
 
+/// Room light shadows (2026-11-10, renderer/local_shadows.rs, docs/design/local-light-shadows.md): the
+/// levels from data/gui/shadow_levels.json, each with what it shadows and its video memory worked out
+/// from its own numbers, the card's memory against the chosen level, and what the shadows are doing
+/// this frame.
+fn draw_local_shadows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate::gui::HintDisplay) {
+    use crate::gui::widgets::Hint;
+    use crate::renderer::bounced_light_detail::{adapter_memory, mb_words};
+    use crate::renderer::local_shadows as ls;
+    group_label(ui, theme, "graphics.local_shadows");
+    egui::Grid::new("local_shadow_levels").num_columns(2).show(ui, |ui| {
+        for level in ls::levels() {
+            let sel = state.settings.local_shadows == level.id;
+            let name = t_dyn(&format!("graphics.local_shadows_choice.{}", level.id));
+            if ui.selectable_label(sel, RichText::new(name).size(theme.font_size_small)).hint("graphics.local_shadows_level_hint").clicked() && !sel {
+                state.settings.local_shadows = level.id.clone();
+                state.settings_dirty = true;
+            }
+            let words = if level.atlas == 0 {
+                t("graphics.local_shadows_level_off").to_string()
+            } else {
+                tf(
+                    "graphics.local_shadows_level",
+                    &[
+                        ("lights", &level.lights.to_string()),
+                        ("face", &level.face.to_string()),
+                        ("sun", &format!("{:.1}", level.sun_texel_cm())),
+                        ("taps", &level.taps.to_string()),
+                        ("memory", &mb_words(level.atlas_bytes())),
+                    ],
+                )
+            };
+            muted(ui, theme, words);
+            ui.end_row();
+        }
+    });
+    graphics_hint(ui, theme, hint, "local_shadows");
+    // The card's own memory against the chosen level (the hardware-notice rule): an eighth of it is
+    // where the line warns, as the garment textures' does.
+    let level = ls::level(&state.settings.local_shadows);
+    if level.atlas > 0 {
+        let used = level.atlas_bytes();
+        match adapter_memory().and_then(|a| a.dedicated_bytes.filter(|b| *b > 0).map(|b| (a.name.clone(), b))) {
+            Some((card, own)) => {
+                let share = used as f64 / own as f64 * 100.0;
+                muted(
+                    ui,
+                    theme,
+                    tf(
+                        "graphics.local_shadows_card",
+                        &[("card", &card), ("own", &mb_words(own)), ("used", &mb_words(used)), ("share", &format!("{share:.1}"))],
+                    ),
+                );
+                if used * 8 > own {
+                    warn(ui, theme, tf("graphics.local_shadows_card_warn", &[("used", &mb_words(used)), ("own", &mb_words(own))]));
+                }
+            }
+            None => muted(ui, theme, t("graphics.local_shadows_card_unknown")),
+        }
+    }
+    // What the shadows did this frame (the renderer publishes it with the frame costs).
+    if let Some(s) = crate::renderer::local_shadows::published_stats() {
+        if s.atlas > 0 {
+            muted(
+                ui,
+                theme,
+                tf(
+                    "graphics.local_shadows_now",
+                    &[
+                        ("shadowed", &s.shadowed.to_string()),
+                        ("lights", &s.lights.to_string()),
+                        ("over", &s.over_budget.to_string()),
+                        ("views", &s.views.to_string()),
+                    ],
+                ),
+            );
+        }
+    }
+}
+
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
     // The section accent drives every subsection header below, so the whole
@@ -529,6 +608,7 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate
             state.settings_dirty = true;
         }
         graphics_hint(ui, theme, hint, "sun_shadows");
+        draw_local_shadows(ui, theme, state, hint);
         // "Many lights at once" (renamed from "Tiled light lists" on 2026-08-25, renderer
         // jargon nobody would search for; the term is kept in the hint for anyone who knows it).
         if widgets::toggle(ui, theme, t("graphics.lights_tiled"), &mut state.settings.lights_tiled) {

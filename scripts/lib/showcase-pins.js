@@ -19,6 +19,12 @@ const STICKY_PIN_RESETS = Object.freeze({
   present_dither: "1",
   sun_shadows: "auto",
   near_levels: "auto",
+  // Room light shadows (2026-11-10, renderer/local_shadows.rs): "0" off, a level id pins it, "auto"
+  // hands it back to Settings > Graphics.
+  local_shadows: "auto",
+  fp_shadow_twin: "1",
+  // The shadow atlas's instanced caster path (2026-11-11): "0" draws every caster the classic way.
+  shadow_fast: "1",
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",

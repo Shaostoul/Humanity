@@ -676,7 +676,7 @@ mod tests {
     #[test]
     fn validate_wgsl_refuses_a_megashader_missing_a_permutation_switch() {
         use super::super::pipeline::{
-            ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_AMBIENT, FEATURE_ROOM_GI, FEATURE_SLAB_OCCLUSION,
+            ALL_SWITCHES, BRANCH_CLOUD, FEATURE_ROOM_AMBIENT, FEATURE_ROOM_GI, FEATURE_SHADOW_ATLAS, FEATURE_SLAB_OCCLUSION,
         };
         let intact = super::assembled_pbr_source();
         super::validate_wgsl(intact).expect("the embedded megashader passes the gate");
@@ -706,6 +706,15 @@ mod tests {
         assert!(naga_alone_accepts(&ambient_gone), "a megashader without HAS_ROOM_AMBIENT is valid WGSL");
         let err = super::validate_wgsl(&ambient_gone).expect_err("a megashader without HAS_ROOM_AMBIENT must be refused");
         assert!(err.contains(FEATURE_ROOM_AMBIENT), "the refusal must name HAS_ROOM_AMBIENT: {err}");
+
+        // And the shadow atlas (2026-11-10): a stale tree without it would hand the water, shell and
+        // cloud fragments the atlas lookups. Seen fail first (2026-11-10) with FEATURE_SHADOW_ATLAS left
+        // out of ALL_SWITCHES (the gate never looks for it): "a megashader without HAS_SHADOW_ATLAS must
+        // be refused: ()", the source accepted.
+        let atlas_gone = without_switch(intact, FEATURE_SHADOW_ATLAS);
+        assert!(naga_alone_accepts(&atlas_gone), "a megashader without HAS_SHADOW_ATLAS is valid WGSL");
+        let err = super::validate_wgsl(&atlas_gone).expect_err("a megashader without HAS_SHADOW_ATLAS must be refused");
+        assert!(err.contains(FEATURE_SHADOW_ATLAS), "the refusal must name HAS_SHADOW_ATLAS: {err}");
 
         // One switch gone: naga alone accepts it; the gate refuses it and
         // names the switch.

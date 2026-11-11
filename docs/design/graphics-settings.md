@@ -90,7 +90,8 @@ it costs; "Now" is how its cost is known since this audit.
 | Grass: ground cover | yes | **wrong**: "about how the world LOOKS, not how fast it runs" (more tufts are drawn and kept) | Shares and Memory, measured; the claim removed |
 | Grass: blade detail | yes | "for frames" | Shares, measured |
 | Water: wave detail | yes | "open ocean costs the same" | Shares (water pass), measured |
-| Sun shadows | yes | vague ("a little more FPS") | Gpu (shadow pass), measured |
+| Sun shadows | yes | vague ("a little more FPS") | Gpu (shadow pass), measured; since 2026-11-10 also the near sun view's pass |
+| Room light shadows (new 2026-11-10, docs/design/local-light-shadows.md) | yes: what casts, which lamps, Off loses the near sun shadows too | (new) | Levels as data (data/gui/shadow_levels.json: Off, Simplified, Full), each level's lamps, face size, near-sun texel and memory computed beside it; Gpu (the two atlas passes), Cpu (choosing and drawing the casters) and Memory (the atlas), measured; the card's memory against the level, warned past an eighth; how many lamps cast shadows this frame. NOT yet in the line (2026-11-11): the scene pass's share, the sampling and the lookup compiled into it, which costs even at Off (local-light-shadows.md section 10; rung 1b makes Off free) |
 | Many lights at once | yes | vague ("slightly cheaper") | Cpu (light tiles) and Shares, measured |
 | Bounced light detail | yes | memory per level, worked out | Computed (unchanged) and Gpu (bounced light pass), measured |
 | Shadow strength | yes | none | Free: a number the shading uses |
