@@ -1938,6 +1938,16 @@ named in the steps' commits.
 - The free clip tier decided which interactions are clips; the data was written so a clip replaces
   a target pose in one line of the row (`enter: (clip: ...)`).
 
+### Answers after rung 2b (operator, 2026-11-10)
+
+- **A hand opens hinged doors.** Asked whether hinged home doors should start swinging when a hand
+  reaches the handle (about 0.9 m) instead of opening by themselves at 2.6 m, with sliding and
+  corridor doors, and any door while sprinting, keeping 2.6 m so nobody runs into a shut door: "Sure."
+- **On a seat high for the body, the feet dangle.** Asked whether the feet should stay planted with
+  the thighs sloping down, or dangle: "Dangle otherwise the character's butt clips down through the
+  seat or we stretch the character." So the hips stay on the seat and the legs hang from it when the
+  floor is out of reach; nothing is stretched to meet the floor.
+
 ## References
 
 - MotionBricks: README, model cards and ONNX guide, https://github.com/NVlabs/motionbricks; the
