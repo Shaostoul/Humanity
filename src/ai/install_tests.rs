@@ -353,6 +353,64 @@ fn parts_are_joined_and_checked_whole() {
     assert!(tree(&scratch).is_empty(), "nothing is left: {:?}", tree(&scratch));
 }
 
+/// MINISTRAL 3 3B INSTALLS IN ITS PARTS (2026-11-11): the built-in catalog lists Mistral AI's own file
+/// (its hash is Mistral's) for the Rich choice, in two parts because it is over PART_LIMIT; a small
+/// stand-in with the catalog's own file name, part names and part count, its licence and README under
+/// their release names, downloads from a 127.0.0.1 server part by part in the catalog's order, is
+/// joined and checked whole, and lands in models/ministral-3-3b/ with LICENSE.txt and README.md and
+/// nothing left in downloads/. Never the real 2 GB. Seen red 2026-11-11 against the catalog before
+/// Ministral's row: "Ministral is listed".
+#[test]
+fn ministral_installs_in_its_parts_from_a_loopback_server() {
+    let real = AiCatalog::parse(super::catalog::BUILT_IN).expect("the built-in catalog");
+    let m = real.model("ministral-3-3b").expect("Ministral is listed").clone();
+    assert_eq!((m.bytes, m.sha256.as_str()), (2_147_023_008, "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8"));
+    assert_eq!(m.sha256, m.upstream_sha256, "Mistral AI's own file, unchanged");
+    assert_eq!((m.maker.as_str(), m.licence.as_str()), ("Mistral AI", "ai.licence.apache2"));
+    assert_eq!(real.for_choice("characters-rich").map(|x| x.id.as_str()), Some("ministral-3-3b"), "the Rich choice, beside Granite's Quick");
+    assert_eq!(m.parts.len(), 2, "over PART_LIMIT, so in parts: {:?}", m.parts);
+    assert!(m.parts.iter().all(|p| p.bytes <= super::catalog::PART_LIMIT) && m.parts.iter().map(|p| p.bytes).sum::<u64>() == m.bytes);
+    // The stand-in: the test fixture split into Ministral's part count, renamed to its release names.
+    let (mut cat, files) = fixture(250_000, m.parts.len());
+    let rename = |n: &str| -> String {
+        if let Some(i) = n.strip_prefix("model.gguf.part").and_then(|r| r.split("of").next()).and_then(|i| i.parse::<usize>().ok()) {
+            m.parts[i - 1].file.clone()
+        } else if n == "model-LICENSE.txt" {
+            m.extras[0].file.clone()
+        } else if n == "model-README.md" {
+            m.extras[1].file.clone()
+        } else {
+            n.to_string()
+        }
+    };
+    let files: Vec<(String, Vec<u8>)> = files.into_iter().map(|(n, b)| (rename(&n), b)).collect();
+    let t = &mut cat.models[0];
+    t.id = m.id.clone();
+    t.choice = m.choice.clone();
+    t.file = m.file.clone();
+    for p in &mut t.parts {
+        p.file = rename(&p.file);
+    }
+    for x in &mut t.extras {
+        x.file = rename(&x.file);
+    }
+    // (The stand-in breaks one catalog rule on purpose: it is far under PART_LIMIT yet in parts, so
+    // `problems()` would refuse it; the installer takes the parts as listed, which is what is tested.)
+    let t = humanity_core::test_temp::dir("ai_ministral");
+    let root = ai_root(&t);
+    let server = serve(files, Serve::Normal, m.file.clone());
+    let job = install::new_job(install::download_total(&cat, &cat.models[0], &root));
+    install::install_model(&server.base, &cat, &m.id, &root, &job).expect("Ministral's parts install");
+    let got = &cat.models[0];
+    install::verify(&install::model_file(&root, got), got.bytes, &got.sha256).expect("joined and checked whole");
+    let fetched: Vec<String> = server.seen.lock().unwrap().iter().map(|(n, _)| n.clone()).filter(|n| n.starts_with(&m.file)).collect();
+    let want: Vec<String> = m.parts.iter().map(|p| p.file.clone()).collect();
+    assert_eq!(fetched, want, "part by part in the catalog's order, never the whole");
+    let dir = install::model_dir(&root, &m.id);
+    assert!(dir.join(&m.file).is_file() && dir.join("LICENSE.txt").is_file() && dir.join("README.md").is_file(), "{:?}", tree(&root));
+    assert!(tree(&install::downloads_dir(&root)).is_empty(), "nothing left in downloads: {:?}", tree(&root));
+}
+
 /// REMOVE AND REMOVE ALL LEAVE NOTHING (5.3): removing the last model takes the engine and the `ai`
 /// folder with it; installing again and removing all deletes the folder whole; a half-finished download
 /// goes with Remove too. Seen red 2026-11-09 with the engine step left out of `remove_model`: "the last

@@ -7,7 +7,8 @@
 //!   now (src/ai/hardware.rs), in plain words.
 //! - **One card per choice** in data/ai/choices.ron: the model and its maker, what it needs while you
 //!   play, whether this computer has it and what works instead (4.7). A choice the built-in catalog can
-//!   download (src/ai/catalog.rs; rung 2: Talking characters (Quick), Granite 4.0 1B) also shows, BEFORE
+//!   download (src/ai/catalog.rs; rung 2: Talking characters (Quick), Granite 4.0 1B; 2026-11-11:
+//!   Talking characters (Rich), Ministral 3 3B) also shows, BEFORE
 //!   anything downloads, its download size (the AI engine's added the first time: the engine comes
 //!   with the first model and goes with the last), where it comes from, and its licence, whose full
 //!   text opens right on the card (5.2); then Get, its progress, Stop (what arrived is kept, and Get

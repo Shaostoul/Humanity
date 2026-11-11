@@ -291,7 +291,7 @@
       "music_on": "Music",
       "music_on_hint": "The game's own calm music, composed live as you play. It never repeats.",
       "music_on_pages": "Music on the app's pages",
-      "music_on_pages_hint": "Also play the music on everyday pages like Chat and Tasks, not only in the game.",
+      "music_on_pages_hint": "Plays the game's music on the app's pages too, from the moment HumanityOS opens and all session, not only in the game. It plays alongside your own music player, each at its own volume in Windows, so turn this off if you would rather have the pages quiet.",
       "tuning": "Tuning",
       "tuning_432": "A = 432 Hz",
       "tuning_440": "A = 440 Hz",
@@ -320,9 +320,7 @@
       "tone_hz_hint": "The tone's pitch in hertz.",
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
-      "tone_volume_hint": "How loud the tone is.",
-      "music_at_start": "Play the music when HumanityOS opens",
-      "music_at_start_hint": "Starts the game's music as soon as the app opens, on the first pages you see, until you first go into the world; after that the pages follow Music on the app's pages. It plays alongside anything else on your computer (your own music player too, each at its own volume in Windows), so turn this off if you would rather open the app quietly."
+      "tone_volume_hint": "How loud the tone is."
     },
     "notifications_volume": "Notifications Volume",
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",

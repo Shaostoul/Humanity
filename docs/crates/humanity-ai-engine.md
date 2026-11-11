@@ -9,7 +9,8 @@ feature is in use, talking over its standard input and output (no socket, no lis
 Rung 1 (2026-11-09) built its skeleton: `--fake` answers with scripted lines and timing so every
 screen, fallback and notice is tested without a model. Rung 2 (2026-11-09) adds llama.cpp behind the
 `llama` cargo feature: CPU only, the portable kernels (one `ggml-cpu-<level>.dll` per processor
-generation, the best chosen at start), Granite 4.0 1B as the first model; built without the feature
+generation, the best chosen at start), Granite 4.0 1B as the first model (Ministral 3 3B runs on the same
+engine unchanged, 2026-11-11); built without the feature
 (the plain `cargo build` the app's client tests make) it still refuses every model request in words. It
 has a workspace of its own, outside the app's, so HumanityOS.exe can never depend on it and the C++
 runtimes it links (llama.cpp now, audio.cpp later) never slow the app's build.
@@ -85,7 +86,10 @@ just ai-engine test
   characters. The llama half (release, `--features llama`, `--nocapture`): the real engine starts with
   the CPU backend and refuses a non-GGUF in words (always runs); a real model answers piece by piece, a
   grammar fixes the reply's shape, a cancel stops a real reply between pieces (these need a model file:
-  HUMANITY_AI_TEST_GGUF, else the operator's Granite on E:, and say SKIPPED when there is none). Not in
+  HUMANITY_AI_TEST_GGUF, else the operator's Granite on E:, and say SKIPPED when there is none); and
+  Ministral 3 3B loads and answers with Mistral's template around the project's persona, never the
+  GGUF's default system message (HUMANITY_AI_TEST_MINISTRAL, else the operator's copy on E:,
+  SKIPPED likewise; 2026-11-11). Not in
   `just verify` (it is not a member of the app's workspace): run it after any change here.
 - **`just ai-engine check`**: both builds type-checked, warnings budget 0 (seen red on a scratch
   unused function). **`just ai-engine measure`**: the design's 9.1 to 9.3 on this computer (an

@@ -9,12 +9,24 @@
  * for every hash in it and a mod cannot point the app at another file (6.2). It is written here,
  * never by hand: for each file the script MEASURES its size and SHA-256 (the engine zip from
  * `just ai-engine package`'s engine.json, each model from its source on this computer), refuses a
- * model whose hash is not its publisher's (`upstream_sha256`), and splits a file of 2 GiB or more into
- * parts (GitHub: "Each file included in a release must be under 2 GiB"), each with its own hash.
+ * model whose hash is not its publisher's (`upstream_sha256`), and splits a file larger than the
+ * recipe's `part_bytes` (2,000,000,000 bytes) into parts of at most that, each with its own hash.
+ * GitHub's own limit is "Each file included in a release must be under 2 GiB"; the parts start 7%
+ * below it (2026-11-11) so that no published file sits a hair under the limit: Ministral 3 3B is
+ * 2,147,023,008 bytes, only 460,640 under 2 GiB, and goes up as two parts.
  *
  *   node scripts/ai-catalog.js                 write data/ai/catalog.ron
  *   node scripts/ai-catalog.js --stage DIR     also fill DIR with exactly the release's files (each
- *                                              checked after copying) and write DIR/upload-command.txt
+ *                                              checked after copying) and write DIR-upload-command.txt
+ *   node scripts/ai-catalog.js --stage DIR --add ID[,ID]
+ *                                              fill DIR with only those models' files (parts, licence,
+ *                                              README), to ADD to the release already published, and
+ *                                              write the `gh release upload` command for them
+ *   node scripts/ai-catalog.js --keep-engine   take the engine's row from the catalog as it stands (the
+ *                                              zip already on the release) instead of measuring a fresh
+ *                                              `just ai-engine package`: a zip built in another folder
+ *                                              differs by a build-folder stamp, and the published one
+ *                                              must keep the hash the app checks it against
  *   node scripts/ai-catalog.js --print         print the catalog instead of writing it
  *
  * Uploading is the top-level session's step, never a dispatched agent's (6.1; docs/ai/release.md):
@@ -62,9 +74,9 @@ function sha256(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
-/** The parts of a file of `bytes` (none when it is under 2 GiB): [{ file, start, end }]. */
+/** The parts of a file of `bytes` (none when it is `partBytes` or smaller): [{ file, start, end }]. */
 function partPlan(file, bytes, partBytes) {
-  if (bytes < TWO_GIB) return [];
+  if (bytes <= partBytes) return [];
   if (!(partBytes > 0 && partBytes < TWO_GIB)) fail(`part_bytes ${partBytes} must be under 2 GiB`);
   const n = Math.ceil(bytes / partBytes);
   const out = [];
@@ -89,7 +101,7 @@ function catalogRon(cat) {
     '// Every AI file HumanityOS may download, with its size and SHA-256. COMPILED INTO THE APP',
     '// (src/ai/catalog.rs), so a signed release vouches for every hash and a mod cannot point the app at',
     '// another file; HUMANITY_AI_CATALOG (a full path) reads a local copy instead, for development only.',
-    '// A file of 2 GiB or more is listed as parts, each with its own hash, checked whole after joining.',
+    '// A file over 2,000,000,000 bytes is listed as parts, each with its own hash, checked whole after joining.',
     '// A model taken unchanged from its publisher also carries the publisher\'s own hash',
     '// (upstream_sha256), so anyone can compare the project\'s copy with the maker\'s.',
     'AiCatalog(',
@@ -145,9 +157,21 @@ function extraBytes(x) {
   fail(`the extra ${x.file} has neither "from" nor "text"`);
 }
 
-function build(recipe) {
+/** The engine's row as the catalog has it now (`--keep-engine`): the zip already on the release. */
+function keptEngine(recipe) {
+  // Required here, not at the top: check-ai-catalog.js requires this file.
+  const { parseRon } = require('./check-ai-catalog');
+  const e = parseRon(fs.readFileSync(CATALOG, 'utf8')).engine;
+  if (!e || e.licence !== recipe.engine.licence || e.licence_text !== recipe.engine.licence_text || JSON.stringify(e.credits) !== JSON.stringify(recipe.engine.credits)) {
+    fail('--keep-engine: the catalog\'s engine row does not match the recipe\'s licence and credits: package the engine and run without --keep-engine');
+  }
+  return { ...e, _path: null };
+}
+
+function build(recipe, keepEngine) {
+  if (keepEngine) return buildModels(recipe, keptEngine(recipe));
   const pkgPath = path.join(ROOT, recipe.engine.package);
-  if (!fs.existsSync(pkgPath)) fail(`${pkgPath} is missing: run \`just ai-engine package\` first`);
+  if (!fs.existsSync(pkgPath)) fail(`${pkgPath} is missing: run \`just ai-engine package\` first (or --keep-engine to keep the published zip's row)`);
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
   const zip = path.join(path.dirname(pkgPath), pkg.file);
   const zipNow = hashRange(zip);
@@ -165,7 +189,11 @@ function build(recipe) {
     credits: recipe.engine.credits,
     _path: zip,
   };
-  if (pkg.bytes >= TWO_GIB) fail('the engine zip is 2 GiB or more');
+  if (pkg.bytes > recipe.part_bytes) fail('the engine zip is larger than part_bytes');
+  return buildModels(recipe, engine);
+}
+
+function buildModels(recipe, engine) {
   const models = [];
   for (const r of recipe.models) {
     if (!fs.existsSync(r.source)) fail(`${r.id}: its source ${r.source} is not on this computer`);
@@ -205,7 +233,7 @@ function place(from, to, expect, start = 0, end = null) {
   if (got.sha256 !== expect.sha256 || got.bytes !== expect.bytes) fail(`${to} does not match after copying`);
 }
 
-function stage(cat, dir) {
+function stage(cat, dir, add) {
   fs.mkdirSync(dir, { recursive: true });
   const names = [];
   const put = (name, fn) => {
@@ -214,8 +242,13 @@ function stage(cat, dir) {
     fn(to);
     names.push(name);
   };
-  put(cat.engine.file, (to) => place(cat.engine._path, to, cat.engine));
-  for (const m of cat.models) {
+  if (add) {
+    for (const id of add) if (!cat.models.some((m) => m.id === id)) fail(`--add: no model ${id} in the recipe`);
+  } else {
+    if (!cat.engine._path) fail('--stage of the whole release needs the engine zip: package it and run without --keep-engine (or use --add)');
+    put(cat.engine.file, (to) => place(cat.engine._path, to, cat.engine));
+  }
+  for (const m of cat.models.filter((x) => !add || add.includes(x.id))) {
     if (m.parts.length) {
       for (const p of m.parts) put(p.file, (to) => place(m.source, to, p, p.start, p.end));
     } else {
@@ -227,7 +260,11 @@ function stage(cat, dir) {
   for (const f of fs.readdirSync(dir)) if (!names.includes(f)) fs.rmSync(path.join(dir, f), { recursive: true });
   const notes = `AI files for HumanityOS (docs/design/embeddable-ai.md). Downloaded only when a person chooses AI in Settings > AI, and checked against the SHA-256 of each file compiled into the app (data/ai/catalog.ron). Contents: the AI engine ${cat.engine.version} (llama.cpp, processor only) and ${cat.models.map((m) => `${m.model} by ${m.maker}`).join(', ')}, each with its licence. Not a game release.`;
   const files = names.sort().map((n) => `"${path.join(dir, n)}"`).join(' ');
-  const cmd = `gh release create ${cat.release} --repo ${REPO} --latest=false --title "AI files" --notes "${notes}" ${files}`;
+  // Adding to the published release: `gh release upload` adds files and refuses one already there
+  // (no --clobber, so a published file the app's catalog vouches for is never replaced by accident).
+  const cmd = add
+    ? `gh release upload ${cat.release} --repo ${REPO} ${files}`
+    : `gh release create ${cat.release} --repo ${REPO} --latest=false --title "AI files" --notes "${notes}" ${files}`;
   // Beside the folder, not in it: the folder holds only what the release carries.
   fs.writeFileSync(`${dir}-upload-command.txt`, `${cmd}\n`);
   console.log(`\nStaged ${names.length} files in ${dir}:`);
@@ -237,7 +274,7 @@ function stage(cat, dir) {
 
 function main(argv) {
   const recipe = JSON.parse(fs.readFileSync(RECIPE, 'utf8'));
-  const cat = build(recipe);
+  const cat = build(recipe, argv.includes('--keep-engine'));
   // --base-url: a developer's catalog pointing at scripts/serve-ai-files.js (loopback only; printed,
   // never written over the built-in one).
   const b = argv.indexOf('--base-url');
@@ -257,10 +294,13 @@ function main(argv) {
   const s = argv.indexOf('--stage');
   if (s >= 0) {
     if (!argv[s + 1]) fail('--stage needs a folder');
-    stage(cat, path.resolve(argv[s + 1]));
+    const a = argv.indexOf('--add');
+    if (a >= 0 && !argv[a + 1]) fail('--add needs a model id (or several, with commas)');
+    stage(cat, path.resolve(argv[s + 1]), a >= 0 ? argv[a + 1].split(',') : null);
   }
 }
 
-if (require.main === module) main(process.argv.slice(2));
-
+// Exported before main runs: --keep-engine requires check-ai-catalog.js, which requires this file.
 module.exports = { partPlan, catalogRon, TWO_GIB };
+
+if (require.main === module) main(process.argv.slice(2));

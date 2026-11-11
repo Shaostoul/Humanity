@@ -20,9 +20,12 @@ pub const BUILT_IN: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/da
 /// A developer's catalog file in place of the built-in one.
 pub const OVERRIDE_ENV: &str = "HUMANITY_AI_CATALOG";
 
-/// A file of 2 GiB or more is published in parts (GitHub: "Each file included in a release must be
-/// under 2 GiB").
-pub const PART_LIMIT: u64 = 1 << 31;
+/// The largest file published whole: anything larger comes in parts of at most this many bytes, each
+/// with its own hash. GitHub's limit is "Each file included in a release must be under 2 GiB"; this is
+/// 7% under it (2026-11-11), so no published file sits a hair below the limit (Ministral 3 3B is only
+/// 460,640 bytes under 2 GiB and comes in two parts). The recipe's `part_bytes`
+/// (scripts/ai-catalog-recipe.json) is the same number; scripts/check-ai-catalog.js holds them equal.
+pub const PART_LIMIT: u64 = 2_000_000_000;
 
 /// One part of a split file.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -138,8 +141,8 @@ impl AiCatalog {
     }
 
     /// What the app refuses to use: a file without a real hash or size, a name that is not a plain file
-    /// name, parts that do not add up to the whole or that a file under 2 GiB should not have, a part
-    /// that is not under 2 GiB, an id twice. The same rules as scripts/check-ai-catalog.js.
+    /// name, parts that do not add up to the whole or that a file of PART_LIMIT or less should not have,
+    /// a part over PART_LIMIT, an id twice. The same rules as scripts/check-ai-catalog.js.
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
         fn file(out: &mut Vec<String>, what: &str, name: &str, bytes: u64, sha: &str, parts: &[Part]) {
@@ -152,18 +155,18 @@ impl AiCatalog {
             if !is_hash(sha) {
                 out.push(format!("{what}: {sha:?} is not a SHA-256"));
             }
-            if bytes >= PART_LIMIT && parts.is_empty() {
-                out.push(format!("{what}: {bytes} bytes is 2 GiB or more, so it must come in parts"));
+            if bytes > PART_LIMIT && parts.is_empty() {
+                out.push(format!("{what}: {bytes} bytes is over {PART_LIMIT}, so it must come in parts"));
             }
-            if bytes < PART_LIMIT && !parts.is_empty() {
-                out.push(format!("{what}: under 2 GiB but listed in parts"));
+            if bytes <= PART_LIMIT && !parts.is_empty() {
+                out.push(format!("{what}: {PART_LIMIT} bytes or smaller but listed in parts"));
             }
             if !parts.is_empty() && parts.iter().map(|p| p.bytes).sum::<u64>() != bytes {
                 out.push(format!("{what}: its parts do not add up to its {bytes} bytes"));
             }
             for p in parts {
-                if !plain_name(&p.file) || p.bytes == 0 || p.bytes >= PART_LIMIT || !is_hash(&p.sha256) {
-                    out.push(format!("{what}: the part {:?} is not a plain name with a size under 2 GiB and a SHA-256", p.file));
+                if !plain_name(&p.file) || p.bytes == 0 || p.bytes > PART_LIMIT || !is_hash(&p.sha256) {
+                    out.push(format!("{what}: the part {:?} is not a plain name with a size of at most {PART_LIMIT} bytes and a SHA-256", p.file));
                 }
             }
         }

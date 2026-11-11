@@ -1218,9 +1218,14 @@ snapshots:
 # The name is checked BEFORE cargo runs, because cargo exits 0 when a test filter
 # matches nothing and this recipe used to follow that with an unconditional
 # `echo "Wrote ..."`. A typo reported success and rendered nothing.
+#
+# One at a time (--test-threads=1, as `just snapshots` does): the name is a prefix, so
+# `just snapshot settings_ai` also renders settings_ai_installed and settings_ai_low_memory,
+# and run side by side their shared settings (the test's AI folder, the pretend free memory)
+# leaked into each other's pictures (2026-11-11: settings_ai.png showed Granite installed).
 snapshot name:
     @node scripts/snapshot-name.js {{name}}
-    node scripts/lib-tests.js snapshot_{{name}} --ignored --nocapture
+    node scripts/lib-tests.js snapshot_{{name}} --ignored --test-threads=1 --nocapture
     @echo "Wrote tests/snapshots/{{name}}.png (a GPU-less run SKIPS and still exits 0 - check the lines above)"
 
 # Pre-push checklist: the recurring CI gotchas in one shot (untracked source

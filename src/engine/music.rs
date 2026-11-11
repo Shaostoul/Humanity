@@ -111,9 +111,6 @@ pub(crate) struct Inputs {
     pub generation: u64,
     /// The Dev card's "start the music afresh".
     pub restart: bool,
-    /// The app has not gone into the world yet this run: Settings > Music's "Play the music when
-    /// HumanityOS opens" plays the score on the pages until it has (2026-11-11).
-    pub opening: bool,
 }
 
 /// What plays this frame and how loud: Settings' choices, where the music is heard from, and the duck.
@@ -132,10 +129,9 @@ pub(crate) struct Gains {
 pub(crate) fn gains(inp: &Inputs) -> Gains {
     let s = &inp.settings;
     let worldly = matches!(inp.hearing, Hearing::World | Hearing::OverWorld);
-    // On a page: when Settings plays the music there, or from the app's start until the first time
-    // in the world (`music_at_start`, 2026-11-11).
-    let on_page = s.music_on_pages || (s.music_at_start && inp.opening);
-    let music = s.music_on && ((worldly && inp.aboard) || (inp.hearing == Hearing::Page && on_page));
+    // On a page (the title screen included): when Settings > Music's one page switch plays it there,
+    // from the app's start and all session (2026-11-11, the operator: "Play on the app pages as well.").
+    let music = s.music_on && ((worldly && inp.aboard) || (inp.hearing == Hearing::Page && s.music_on_pages));
     let tones = s.tones_on && !music && (worldly || s.music_on_pages);
     let hum = s.ship_hum && worldly && inp.aboard;
     let master = inp.master.clamp(0.0, 1.0);
@@ -372,8 +368,6 @@ pub(crate) struct MusicRuntime {
     /// The page opened from the world, while it stays open.
     over_world: Option<GuiPage>,
     was_in_world: bool,
-    /// The world has been entered this run (the end of the music at start, `Inputs::opening`).
-    entered_world: bool,
     /// The build on the worker.
     building: Option<Building>,
     /// The decoded recordings kept between builds (None while lent to the worker).
@@ -655,7 +649,6 @@ pub(crate) fn frame(state: &mut EngineState) {
     let (h, kept) = hearing(state.music.was_in_world, state.music.over_world, state.world_loaded, page);
     state.music.over_world = kept;
     state.music.was_in_world = h == Hearing::World;
-    state.music.entered_world |= h == Hearing::World;
     let inputs = Inputs {
         settings: state.gui_state.settings.music.clone(),
         master: state.gui_state.settings.master_volume,
@@ -671,7 +664,6 @@ pub(crate) fn frame(state: &mut EngineState) {
         reuse: humanity_core::reuse::enabled(),
         generation: crate::instrument_packs::ui::installed_generation(),
         restart: std::mem::take(&mut state.gui_state.music_dev.restart_requested),
-        opening: !state.music.entered_world,
     };
     let readout = {
         let EngineState { music, audio, .. } = &mut *state;

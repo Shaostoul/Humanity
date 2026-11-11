@@ -2916,7 +2916,7 @@ they play, voices levelled per person, a slider per kind, an opt-in mic level) a
 - Web: `web/shared/video-volume.js`, Settings > Audio & Video > Videos (`web/pages/settings.html`)
 
 ### Live music and the ship's hum (2026-11-06)
-The music at the app's start (2026-11-11, the operator: "we should have the music start playing when HumanityOS starts"): Settings > Music > "Play the music when HumanityOS opens" (on by default) plays the score on the title screen and the pages from the app's start until you first go into the world; after that the pages follow "Music on the app's pages". It follows Music on and the Master and Music volumes; an instance a script started in the background has no sound device until a person clicks into it, so rigs stay silent (`engine/music.rs` `Inputs::opening`; test `the_music_starts_with_the_app_and_a_script_launch_stays_silent`).
+The music on the pages, from the app's start (2026-11-11, the operator: "we should have the music start playing when HumanityOS starts", then "Play on the app pages as well."): ONE switch, Settings > Music > "Music on the app's pages" (on by default), plays the score on the title screen and the app's pages from the moment HumanityOS opens and all session, a trip into the world and back included; its hint says it plays alongside your own music player, each at its own volume in Windows. (A second switch, "Play the music when HumanityOS opens", which stopped at the first world entry, was folded into it the same day.) It follows Music on and the Master and Music volumes; an instance a script started in the background has no sound device until a person clicks into it, so rigs stay silent (`engine/music.rs` `gains`; test `the_music_starts_with_the_app_and_a_script_launch_stays_silent`).
 The game composes its own music live at A = 432 Hz (440 one setting away): a composer walks each
 mood's chord graph with voice leading, varies motifs and never repeats a phrase within ten minutes;
 synthesised voices (pads, a formant choir, celesta bells, the STEEL PAN, membrane DEEP DRUMS and
@@ -3069,7 +3069,7 @@ max_tokens and an optional GBNF grammar, unload, a status with its real committe
 that obeys the reuse switch. `just ai-engine package` makes the stored, licensed zip
 (`humanity-ai-engine-v1-windows-x64.zip`). The app compiles in `data/ai/catalog.ron` (written by
 `just ai-catalog` from its recipe: every file's size and SHA-256, Granite's equal to IBM's own; files of
-2 GiB or more in parts), and Settings > AI shows, before anything downloads, each downloadable model's
+2 GiB or more in parts, over 2,000,000,000 bytes since 2026-11-11), and Settings > AI shows, before anything downloads, each downloadable model's
 size (the engine's added the first time: it comes with the first model and goes with the last), source
 and licence (its full text opens on the card); Get downloads in the background with progress, Stop
 keeps what arrived and Get carries on with an HTTP Range request, every file is checked (a mismatch is
@@ -3098,6 +3098,28 @@ its need plus 512 MB, 4 threads on a 6-core PC) and streams Granite's answer.
   `settings_ai_installed` (installed, Remove all AI's confirmation)
 - Release files: the `assets-ai-1` release (the top-level session uploads; `just ai-catalog --stage`
   prepares exactly its files and the `gh release create ... --latest=false` command)
+
+### Embeddable AI: Ministral 3 3B, the Rich brain for talking characters (2026-11-11)
+The operator, 2026-11-11: "setup ministral". Mistral AI's own text-only GGUF
+(`Ministral-3-3B-Instruct-2512-Q4_K_M.gguf`, 2,147,023,008 bytes, SHA-256 Mistral's own) is a downloadable
+model beside Granite: the Rich choice of Talking characters (`data/ai/choices.ron` `characters-rich`), the
+stronger brain beside Granite's Quick one. The pinned llama.cpp runs it unchanged (architecture
+`mistral3`); measured on the operator's PC at 4 threads and below-normal priority: 2.2 s load, about
+2.1 GB committed, 54 to 57 tokens a second reading a persona and 12 to 14 writing (design 9.3a). Its
+catalog row comes from the recipe with the Apache 2.0 text and the finding's credit README beside the
+file; it goes up to `assets-ai-1` in two parts, because any file over 2,000,000,000 bytes is now split
+(7% under GitHub's 2 GiB; the recipe's `part_bytes` and the app's `PART_LIMIT`, held equal by
+`scripts/check-ai-catalog.js`). Settings > AI's Rich card shows its size, maker (Mistral AI) and
+licence before anything downloads. The engine's prompts never use the GGUF's own default system message
+(the finding's condition), and the talk card itself is rung 3.
+- Data: `scripts/ai-catalog-recipe.json` (the row), `data/ai/catalog.ron` (regenerated with
+  `just ai-catalog --keep-engine`, which keeps the published engine zip's row), `data/credits.ron`
+  (`ministral_3_3b`), `CREDITS.md`, `LICENSES.md`
+- Scripts: `scripts/ai-catalog.js` (`--keep-engine`; `--stage DIR --add ID` stages only the files to add
+  to the published release and writes the `gh release upload` command), `scripts/check-ai-catalog.js`
+- Tests: `ministral_loads_and_answers` (the engine, `just ai-engine test`; SKIPPED in words without the
+  file), `ministral_installs_in_its_parts_from_a_loopback_server` (`src/ai/install_tests.rs`)
+- Snapshot: `just snapshot settings_ai` (both models' cards, nothing downloaded)
 
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.

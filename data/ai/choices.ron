@@ -1,8 +1,9 @@
 // The AI choices Settings > AI will offer, and what each needs (docs/design/embeddable-ai.md, sections
 // 4.1, 4.7, 9.1 and 10; rung 1, 2026-11-09). Read by src/ai/choices.rs; one row per feature and per
-// choice, never code (Infinite-of-X). Nothing here is downloadable yet: rung 2's catalog
-// (data/ai/catalog.ron, compiled into the app with each file's SHA-256) brings the files under the same
-// ids. Words are keys in data/i18n/en.json; model and maker names are the makers' own.
+// choice, never code (Infinite-of-X). The catalog (data/ai/catalog.ron, compiled into the app with each
+// file's SHA-256) fills a choice by its id: characters-quick with Granite 4.0 1B (rung 2, 2026-11-09)
+// and characters-rich with Ministral 3 3B, the stronger brain beside it (2026-11-11); the others wait
+// for their rungs' files. Words are keys in data/i18n/en.json; model and maker names are the makers' own.
 //
 // UNITS: every *_mb is binary megabytes (MiB, 1,048,576 bytes), the unit this computer's memory and
 // free space are read in (src/ai/hardware.rs), so a need compares with a reading directly; the page
@@ -10,7 +11,8 @@
 // up, so the card says what the design says ("about 2.9 GB").
 //
 // THE NUMBERS ARE THE DESIGN'S PLANNING FIGURES, not measurements (rung 4 measures them on the
-// operator's PC and a floor-class PC, rung 5 the voice):
+// operator's PC and a floor-class PC, rung 5 the voice; the first readings, Granite's and Ministral's
+// committed memory and rates on the operator's PC, are in the design's 9.3a and sit inside these):
 // - memory_mb: memory while running with a 4,096-token conversation (4.1's column: the file, the
 //   key-value cache worked out in 4.2 and 4.3, and a few hundred MB of buffers). Pocket TTS's is the
 //   design's "a few hundred MB (measured in rung 5)", written as a planning figure.

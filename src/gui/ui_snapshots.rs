@@ -4630,7 +4630,8 @@ fn snapshot_dev_claude() {
 /// Rung 2 (2026-11-09): an empty `ai` folder of the test's own, so the Talking characters (Quick) card
 /// shows Granite 4.0 1B's download BEFORE anything downloads: its size with the AI engine's added (the
 /// engine comes with the first model), where it comes from, its licence with the full text opened on
-/// the card, and Get.
+/// the card, and Get. Since 2026-11-11 the Rich card above it shows Ministral 3 3B's the same way (its
+/// size, maker Mistral AI and licence), so both models are on the page.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_settings_ai() {
@@ -4638,7 +4639,7 @@ fn snapshot_settings_ai() {
     crate::ai::paths::set_test_root(Some(root.join("ai")));
     crate::gui::pages::settings::ai::reset_for_snapshot();
     crate::gui::pages::settings::ai::open_licence_for_snapshot("granite-4-0-1b");
-    render_page_png("settings_ai", 1100, 1900, |ctx, theme, state| {
+    render_page_png("settings_ai", 1100, 2300, |ctx, theme, state| {
         settings_panel(ctx, theme, state, |ui, theme, state| crate::gui::pages::settings::ai::draw(ui, theme, state, theme.nav_dev()));
     });
     crate::gui::pages::settings::ai::reset_for_snapshot();

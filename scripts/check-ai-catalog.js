@@ -8,9 +8,10 @@
  * - it is exactly what scripts/ai-catalog.js writes from its recipe (re-rendered from its own values,
  *   byte for byte), so a hand edit fails; and it lists exactly the recipe's models, with their files,
  *   choices, licences and publisher hashes;
- * - every file has a SHA-256 and a size; a file of 2 GiB or more is in parts that add up to it, each
- *   under 2 GiB with its own hash; a file under 2 GiB is not split; a model taken unchanged from its
- *   publisher has the publisher's hash;
+ * - every file has a SHA-256 and a size; a file over the recipe's part_bytes (2,000,000,000, under
+ *   GitHub's 2 GiB) is in parts that add up to it, each at most that size with its own hash; a file of
+ *   that size or smaller is not split; the app's own copy of the limit (src/ai/catalog.rs PART_LIMIT)
+ *   is the recipe's; a model taken unchanged from its publisher has the publisher's hash;
  * - every licence key has its words in data/i18n/en.json, every licence text is in data/, every
  *   credit id is a row of data/credits.ron, every finding exists, every choice is in
  *   data/ai/choices.ron;
@@ -33,6 +34,12 @@
  *     - granite-4-0-1b: its SHA-256 is not its publisher's (22ec0f9c...31d7f1), though it is published unchanged
  * (a hand edit that changes only the layout is the first rule's: the catalog re-rendered from its own
  * values no longer matches the file).
+ *
+ * SEEN RED 2026-11-11 with Ministral 3 3B's row (two parts), on scratch copies written by
+ * catalogRon: with its parts dropped, "ministral-3-3b: 2147023008 bytes is over 2000000000, so it
+ * must come in parts"; with its second part one byte short, "ministral-3-3b: its parts add up to
+ * 2147023007, not 2147023008"; and before its credit row existed, "ministral-3-3b: the credit
+ * ministral_3_3b is not a row of data/credits.ron". The real catalog: no problems.
  */
 
 const fs = require('fs');
@@ -165,16 +172,22 @@ function problems(catalogText, root = ROOT) {
   const rendered = catalogRon(cat);
   if (rendered.replace(/\r\n/g, '\n') !== catalogText.replace(/\r\n/g, '\n')) out.push('data/ai/catalog.ron is not what scripts/ai-catalog.js writes (a hand edit?): run `just ai-catalog`');
 
+  // The largest file published whole (the recipe's part_bytes, under GitHub's 2 GiB), and the app's
+  // own copy of the same rule (src/ai/catalog.rs PART_LIMIT): the two must agree.
+  const limit = recipe.part_bytes;
+  if (!(limit > 0 && limit < TWO_GIB)) out.push(`the recipe's part_bytes ${limit} must be above 0 and under 2 GiB`);
+  const appLimit = Number(((/pub const PART_LIMIT: u64 = ([0-9_]+);/.exec(fs.readFileSync(path.join(root, 'src', 'ai', 'catalog.rs'), 'utf8')) || [])[1] || '').replace(/_/g, ''));
+  if (appLimit !== limit) out.push(`the recipe splits files over ${limit} bytes, the app (src/ai/catalog.rs PART_LIMIT) over ${appLimit}: they must agree`);
   const file = (what, name, bytes, sha, parts) => {
     if (!plain(name)) out.push(`${what}: ${JSON.stringify(name)} is not a plain file name`);
     if (!(bytes > 0)) out.push(`${what}: no size`);
     if (!isHash(sha)) out.push(`${what}: ${JSON.stringify(sha)} is not a SHA-256`);
-    if (bytes >= TWO_GIB && !(parts && parts.length)) out.push(`${what}: ${bytes} bytes is 2 GiB or more, so it must come in parts`);
-    if (bytes < TWO_GIB && parts && parts.length) out.push(`${what}: under 2 GiB but listed in parts`);
+    if (bytes > limit && !(parts && parts.length)) out.push(`${what}: ${bytes} bytes is over ${limit}, so it must come in parts`);
+    if (bytes <= limit && parts && parts.length) out.push(`${what}: ${limit} bytes or smaller but listed in parts`);
     if (parts && parts.length) {
       const sum = parts.reduce((a, p) => a + p.bytes, 0);
       if (sum !== bytes) out.push(`${what}: its parts add up to ${sum}, not ${bytes}`);
-      for (const p of parts) if (!plain(p.file) || !(p.bytes > 0) || p.bytes >= TWO_GIB || !isHash(p.sha256)) out.push(`${what}: the part ${JSON.stringify(p.file)} needs a plain name, a size under 2 GiB and a SHA-256`);
+      for (const p of parts) if (!plain(p.file) || !(p.bytes > 0) || p.bytes > limit || !isHash(p.sha256)) out.push(`${what}: the part ${JSON.stringify(p.file)} needs a plain name, a size of at most ${limit} bytes and a SHA-256`);
     }
   };
   const licence = (what, key, text) => {

@@ -1,8 +1,8 @@
 {
-  "_about": "The recipe scripts/ai-catalog.js turns into data/ai/catalog.ron (docs/design/embeddable-ai.md, 6.2; rung 2, 2026-11-09). Edit THIS file, never the catalog: the script measures each file (its size and SHA-256), refuses one that does not match its publisher's hash, splits anything of 2 GiB or more into parts, and writes the catalog the app compiles in. Only what can be downloaded today is listed: Ministral 3 3B, Gemma 4 and Pocket TTS are absent until their rungs bring their files (data/ai/choices.ron still shows what each will need).",
+  "_about": "The recipe scripts/ai-catalog.js turns into data/ai/catalog.ron (docs/design/embeddable-ai.md, 6.2; rung 2, 2026-11-09). Edit THIS file, never the catalog: the script measures each file (its size and SHA-256), refuses one that does not match its publisher's hash, splits anything over part_bytes into parts, and writes the catalog the app compiles in. Only what can be downloaded today is listed: Gemma 4 and Pocket TTS are absent until their rungs bring their files (data/ai/choices.ron still shows what each will need).",
   "release": "assets-ai-1",
   "base_url": "https://github.com/Shaostoul/Humanity/releases/download/assets-ai-1/",
-  "_part_bytes": "GitHub's limit is 'Each file included in a release must be under 2 GiB' (the runtime finding, F10): a file of 2 GiB or more goes up as parts of this size, each with its own hash, joined and checked whole after download.",
+  "_part_bytes": "GitHub's limit is 'Each file included in a release must be under 2 GiB' (the runtime finding, F10). A file larger than this many bytes goes up as parts of at most this size, each with its own hash, joined and checked whole after download. 2,000,000,000 is 7% under the limit (2026-11-11), so no published file sits a hair below it: Ministral 3 3B (2,147,023,008 bytes) is only 460,640 bytes under 2 GiB and goes up as two parts. src/ai/catalog.rs PART_LIMIT is the app's copy; scripts/check-ai-catalog.js holds the two equal.",
   "part_bytes": 2000000000,
   "engine": {
     "package": "target/ai-engine/package/engine.json",
@@ -45,6 +45,39 @@
           "install_as": "README.md",
           "text": "Granite 4.0 1B (Q4_K_M GGUF) by IBM, https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF, Apache License 2.0. Unmodified. Training data disclosure: https://github.com/ibm-granite/granite-4.0-nano-language-models/tree/main/disclosures.\n",
           "_why": "The credit README exactly as the Granite finding wrote it ('How the project would credit it')."
+        }
+      ]
+    },
+    {
+      "id": "ministral-3-3b",
+      "choice": "characters-rich",
+      "kind": "brain",
+      "model": "Ministral 3 3B",
+      "maker": "Mistral AI",
+      "licence": "ai.licence.apache2",
+      "licence_text": "ai/licences/apache-2.0.txt",
+      "finding": "docs/reference/findings/2026-11-08-ministral-3-3b.md",
+      "credits": [
+        "ministral_3_3b"
+      ],
+      "upstream": "https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+      "upstream_sha256": "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8",
+      "source": "E:\\HumanityOS\\ai-src\\ministral-3-3b\\Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+      "file": "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+      "context": 4096,
+      "_what": "The stronger brain for talking characters (the Rich choice, embeddable-ai.md 4.2), beside Granite's quick one. Mistral's own text-only GGUF, unmodified (its hash is Mistral's); the mmproj vision file is not published. The finding's conditions (its 2026-11-11 addendum): the Apache 2.0 text and the credit beside it, the project's own system prompt and NEVER the repository's SYSTEM_PROMPT.txt (it says it is Mistral's Le Chat), an AI label wherever it speaks (rung 3), the text model only.",
+      "extras": [
+        {
+          "file": "Ministral-3-3B-Instruct-2512-LICENSE.txt",
+          "install_as": "LICENSE.txt",
+          "from": "data/ai/licences/apache-2.0.txt",
+          "_why": "Apache 2.0 section 4(a): 'You must give any other recipients of the Work or Derivative Works a copy of this License'. Mistral's repository has no LICENSE file (the Ministral finding, F5), so the text is apache.org's, the same file Granite carries."
+        },
+        {
+          "file": "Ministral-3-3B-Instruct-2512-README.md",
+          "install_as": "README.md",
+          "text": "Ministral 3 3B Instruct 2512 (Q4_K_M GGUF, text model only) by Mistral AI, https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF, Apache License 2.0. Unmodified; the vision projector file is not included.\n",
+          "_why": "The credit README exactly as the Ministral finding wrote it ('How the project would credit it')."
         }
       ]
     }

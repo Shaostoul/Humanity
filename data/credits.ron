@@ -288,5 +288,23 @@
             attribution_required: true,
             shown_in: ["Credits", "Settings > AI (the model's card, before the download)", "The model's folder (LICENSE.txt and README.md)"],
         ),
+        // The stronger AI model for talking characters (embeddable AI, 2026-11-11): Mistral AI's own
+        // text-only GGUF, unmodified (its SHA-256 is Mistral's), served from the project's
+        // `assets-ai-1` release in two parts and downloaded only when a person chooses it. Mistral's
+        // repository has no LICENSE and no NOTICE file, so apache.org's Apache 2.0 text travels beside
+        // the file (LICENSE.txt) with the credit README the finding wrote. The finding's conditions:
+        // the project's own system prompt (never the repository's, which says it is Mistral's Le Chat),
+        // an AI label wherever it speaks, the text model only (no vision file).
+        // Finding: docs/reference/findings/2026-11-08-ministral-3-3b.md (and its 2026-11-11 addendum).
+        (
+            id: "ministral_3_3b",
+            name: "Ministral 3 3B Instruct 2512 (Mistral AI)",
+            used_for: "The AI model behind talking characters (Rich), the stronger one beside Granite's quick one, for computers with about 3 GB of memory to spare, when a person chooses it in Settings > AI (Ministral-3-3B-Instruct-2512-Q4_K_M.gguf, Mistral AI's own file, unmodified, the text model only).",
+            licence: "Apache 2.0",
+            notice: "Ministral 3 3B Instruct 2512 by Mistral AI, Apache License 2.0; unmodified, text model only (the vision projector file is not included)",
+            url: "https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+            attribution_required: true,
+            shown_in: ["Credits", "Settings > AI (the model's card, before the download)", "The model's folder (LICENSE.txt and README.md)"],
+        ),
     ],
 )

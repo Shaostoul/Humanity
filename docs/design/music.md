@@ -618,7 +618,7 @@ In Settings > Audio, beside the existing sliders. Keys go into `data/i18n/en.jso
 | Music (toggle) | `settings.audio.music_on` | on | "Music" / hint: "The game's own calm music, composed live as you play. It never repeats." |
 | Music Volume (exists) | `settings.audio.music_volume` | 0.5 | hint: "How loud the music is. Scales together with Master Volume." |
 | Tuning | `settings.audio.tuning` | A = 432 Hz | "Tuning: A = 432 Hz / A = 440 Hz" / hint: "The pitch every note is tuned to. 432 sounds very slightly lower than the usual 440. A matter of taste: no health effect is claimed." |
-| Music on the app's pages | `settings.audio.music_on_pages` | off | hint: "Also play the music on everyday pages like Chat and Tasks, not only in the game." |
+| Music on the app's pages | `settings.audio.music_on_pages` | on (2026-11-11) | hint: the music on the app's pages too, from the moment HumanityOS opens and all session, alongside your own music player, each at its own volume in Windows |
 | Quiet gaps | `settings.audio.music_gaps` | Sometimes | "Often / Sometimes / Never" / hint: "Moments of silence between pieces of music." |
 | Ambience Volume | `settings.audio.ambience_volume` | 0.6 | hint: "Background sounds of places, like the ship's hum. Separate from the music." |
 | Ship hum (toggle) | `settings.audio.ship_hum` | on | hint: "The soft sound of the ship's engines and structure while you are aboard. Louder near the engines, quieter in small rooms." |
@@ -813,7 +813,10 @@ listed in docs/crates/humanity-music.md, "How to test it".
      size not shown on the page), for rung 8.
 2. **Music on the app's everyday pages?** Recommendation: **off by default**, on in the game's
    menus and the world, with a toggle. Those pages are real life, and people often play their own
-   music there.
+   music there. **Answered 2026-11-11, ON by default:** "we should have the music start playing when
+   HumanityOS starts", and, asked whether it should stop at the first trip into the world, "Play on
+   the app pages as well." One switch, "Music on the app's pages", from the app's start and all
+   session; its hint says it plays alongside the person's own music player, each at its own volume.
 3. **AI-generated music at all?** Recommendation: **no**, not in the app and not offline for now
    (section 17).
 4. **A recorded choir from volunteers under CC0?** Recommendation: **yes, later**; the synthesised

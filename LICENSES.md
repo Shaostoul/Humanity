@@ -222,7 +222,7 @@ and its 2026-11-09 addendum.
 
 Neither asks for anything in return; both are credited in Settings > Credits.
 
-## The AI downloads (llama.cpp and Granite 4.0 1B) - never inside the app
+## The AI downloads (llama.cpp, Granite 4.0 1B and Ministral 3 3B) - never inside the app
 
 AI is optional in HumanityOS (the operator, 2026-11-09: "AI needs to be optional, not
 required"), so none of what follows ships with the app. It is downloaded only when a
@@ -257,6 +257,20 @@ publishes the datasets that trained it:
 <https://github.com/ibm-granite/granite-4.0-nano-language-models/tree/main/disclosures>.
 The research, quoted and dated: `docs/reference/findings/2026-11-08-granite-4-0-1b.md`
 and its 2026-11-09 addendum.
+
+**Ministral 3 3B Instruct 2512** (`Ministral-3-3B-Instruct-2512-Q4_K_M.gguf`, installed into
+`ai/models/ministral-3-3b/`) is **Mistral AI**'s own GGUF
+(<https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF>), unmodified and the text
+model only (the vision projector file is not included), licensed under the **Apache License
+2.0** (<https://www.apache.org/licenses/LICENSE-2.0>). Its SHA-256,
+`9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8`, is Mistral AI's own (the
+Hugging Face storage id). It is published in two parts, each with its own hash, joined and
+checked whole on the person's computer. Mistral's repository has no LICENSE and no NOTICE file,
+so the licence text beside the file (`LICENSE.txt`) is apache.org's, with a short credit
+`README.md`. The project runs it with its own system prompt, never the repository's (which
+presents the model as Mistral's own assistant), and labels every line it writes as AI. Mistral
+does not disclose its training data. The research, quoted and dated:
+`docs/reference/findings/2026-11-08-ministral-3-3b.md` and its 2026-11-11 addendum.
 
 Redistributing these files means keeping their licence texts with them; both licences
 also disclaim every warranty, and the AI tag on every line a model writes (rung 3)

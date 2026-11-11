@@ -62,9 +62,6 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
         widgets::setting_hint(ui, theme, hint, t("settings.music.music_on_hint"));
         dirty |= with_hint(ui, "settings.music.music_on_pages_hint", |ui| widgets::toggle(ui, theme, t("settings.music.music_on_pages"), &mut m.music_on_pages));
         widgets::setting_hint(ui, theme, hint, t("settings.music.music_on_pages_hint"));
-        // The music from the app's start (2026-11-11): engine/music.rs `Inputs::opening`.
-        dirty |= with_hint(ui, "settings.music.music_at_start_hint", |ui| widgets::toggle(ui, theme, t("settings.music.music_at_start"), &mut m.music_at_start));
-        widgets::setting_hint(ui, theme, hint, t("settings.music.music_at_start_hint"));
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(t("settings.music.tuning")).color(theme.text_secondary()));
         ui.horizontal_wrapped(|ui| {

@@ -289,8 +289,11 @@ session's** (CLAUDE.md standing permissions, 2026-11-07), always with `--latest=
 dispatched agent never uploads.
 
 GitHub caps each release file: "Each file included in a release must be under 2 GiB" (the runtime
-finding, F10). Ministral fits by 460,640 bytes; Granite, the engine and Pocket TTS fit easily; Gemma 4
-E2B goes up in two parts and E4B in three.
+finding, F10). Ministral fits by only 460,640 bytes, so the parts start lower (2026-11-11): any file over
+2,000,000,000 bytes, 7% under the limit, goes up in parts of at most that size, and Ministral goes up in
+two (2,000,000,000 and 147,023,008 bytes). Granite, the engine and Pocket TTS fit easily; Gemma 4 E2B goes
+up in two parts and E4B in three. The number lives in the recipe (`part_bytes`) and the app
+(`src/ai/catalog.rs` `PART_LIMIT`), and `scripts/check-ai-catalog.js` holds them equal.
 
 ### 6.2 The catalog
 
@@ -325,7 +328,7 @@ AiCatalog(
             upstream_sha256: "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8",
             file: "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
             bytes: 2147023008,
-            parts: [],       // one part when under 2 GiB
+            parts: [...],    // two parts (over 2,000,000,000 bytes); [] for a smaller file
             needs: (memory_mb: 2900, cores: 4, disk_mb: 2200),
         ),
         // granite-4-0-1b, gemma-4-e2b (two parts), gemma-4-e4b (three parts), pocket-tts-en, ...
@@ -338,7 +341,7 @@ AiCatalog(
   unchanged from its publisher, the catalog also records the publisher's own hash (the Hugging Face
   storage id is a SHA-256), so anyone can compare the project's copy with the maker's: Ministral
   `9ed150d4...fc5f8` and Granite `22ec0f9c...31d7f1` are in their findings.
-- **Parts.** A file over 2 GiB is listed as parts, each with its own hash; after joining, the whole
+- **Parts.** A file over 2,000,000,000 bytes (6.1) is listed as parts, each with its own hash; after joining, the whole
   file is checked against the whole-file hash (which, for Gemma, is Google's).
 - **Each model's folder** carries its licence text and a short credit README, as its finding wrote
   them (Apache 2.0 for the brains; CC BY 4.0 for Pocket TTS and Mimi with the training-data line).
@@ -572,6 +575,28 @@ faster, measured on the floor PC in rung 9. **Not measured: the game's frame cos
 writes** (9.5): the only release build on this PC was from another tree (the rigs' freshness gate
 refused it), and 12.1's `ai-talk` rig, which measures exactly that, comes with rung 3's talk card.
 
+**Ministral 3 3B** (`Ministral-3-3B-Instruct-2512-Q4_K_M.gguf`, architecture `mistral3`, 3.4 billion
+parameters, 2,039 MB of weights), measured 2026-11-11 the same way (`just ai-engine measure` with
+`HUMANITY_AI_TEST_GGUF` naming it; the same engine, kernels and 4,096-token working memory; no game
+running; two runs at 4 threads, one at 6):
+
+| What | 4 threads (9.2's choice on 6 cores) | 6 threads |
+|---|---|---|
+| Load (the file already in the system's file cache) | 2.16 to 2.21 s (2.17 s through the engine's own protocol, 2,048 tokens) | 2.16 s |
+| Committed memory after the load (what the job's cap counts) | 2,072 MB; 2,079 MB after a 128-token reply | 2,080 MB |
+| Working set (the mapped file included) | 3,291 MB after the load, 3,965 MB after a reply | 3,966 MB |
+| Prefill, the same 224-token character persona read whole | 54 to 57 tokens a second (3.9 to 4.2 s) | 72 a second (3.1 s) |
+| Writing | 12.1 to 13.8 tokens a second (13 on a 14-token reply through the protocol) | 14.6 a second |
+| A second question, the persona reused (209 of 216 tokens) | 236 to 238 ms for the 7 new tokens | 188 ms |
+
+So against 4.2 and 9.1: Ministral commits about 2.1 GB, well inside its 2.9 GB planning figure (the
+Rich choice's 2,970 MB in `choices.ron`; the job's cap for it is 2,970 + 512 = 3,482 MB); writing sits
+at the low end of the 10 to 13 tokens a second planned for it, about half Granite's rate, as the
+weights' size predicts (memory speed is the limit: two more threads add 6 to 20%). With the persona
+already read, a 40-token reply's first words come in about 0.25 s and the whole reply in about 3 s,
+inside 9.3's 1 s and 4 s; a cold persona adds about 4 s once per conversation (Granite's 2 s), a
+cost rung 3's talk card must plan for. The game's frame cost while it writes is the same open measurement as Granite's (rung 3's `ai-talk` rig).
+
 ### 9.4 The voice's real-time factor
 
 At least 1.5 times faster than real time on 2 threads beside the game on the floor PC (the maker's
@@ -767,6 +792,24 @@ Each rung is a slice of the real thing.
 3. **Talking characters.** The talk card's text box beside the written lines; personas from
    `crew.ron`; the project's prompt; the fixed output shape; the filter; the AI tag; fallbacks;
    Ministral added; local only.
+   **Ministral's download built first, 2026-11-11** (the operator: "setup ministral"): the pinned
+   llama.cpp (llama-cpp-sys-2 0.1.161) knows its architecture (`mistral3`) and the rung 2 engine loads
+   and answers with it unchanged (`ministral_loads_and_answers`, in `just ai-engine test`, SKIPPED in
+   words without the file); its catalog row from the recipe (Mistral's own hash, two parts, the
+   Apache 2.0 text and the finding's credit README as `Ministral-3-3B-Instruct-2512-LICENSE.txt` and
+   `-README.md`), the Rich choice of `choices.ron`, credits rows, and Settings > AI's Rich card with
+   its size, maker and licence before anything downloads; the parts install tested from a loopback
+   server with Ministral's own names and part count (`ministral_installs_in_its_parts_from_a_loopback_server`);
+   9.3a's measurements. `just ai-catalog --keep-engine --stage <folder> --add ministral-3-3b` stages
+   exactly the files to ADD to `assets-ai-1` and writes the `gh release upload` command (the top-level
+   session uploads). **For the talk card, found on the way:** the engine formats the prompt with
+   llama.cpp's built-in templates, which read Ministral 3's as `mistral-v7` and put a space after
+   each marker (`[SYSTEM_PROMPT] text`, `[INST] text`); the model's own template has none (the
+   `mistral-v7-tekken` shape). The test's reply reads well as it is; the exact shape (choosing
+   `mistral-v7-tekken` for a Tekken-tokenizer model in `shim.c`) changes the engine, so it goes with
+   rung 3's new engine package rather than replacing the zip already published. And the GGUF's
+   template carries Mistral's default system message ("You power an AI assistant called Le Chat"):
+   the built-in template path never uses it, with a persona or without one, and the test holds that.
 4. **The head-to-head test.** The battery and the `ai-talk` rig on Ministral, Granite and Gemma 4 E2B,
    on the operator's PC and a floor-class PC; the operator reads the results side by side; defaults
    per hardware tier chosen from them.

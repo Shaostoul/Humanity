@@ -277,6 +277,73 @@ fn a_real_model_loads_and_answers_piece_by_piece() {
     assert_eq!(out.last(), Some(&EngineMessage::Ok { to: "unload".into() }));
 }
 
+/// The operator's copy of Ministral 3 3B (HUMANITY_AI_TEST_MINISTRAL to point elsewhere; the Ministral
+/// finding's 2026-11-11 addendum). None, saying so, when it is not on this computer.
+#[cfg(feature = "llama")]
+fn ministral() -> Option<std::path::PathBuf> {
+    let p = std::env::var_os("HUMANITY_AI_TEST_MINISTRAL").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from(r"E:\HumanityOS\ai-src\ministral-3-3b\Ministral-3-3B-Instruct-2512-Q4_K_M.gguf"));
+    if p.is_file() {
+        Some(p)
+    } else {
+        eprintln!("SKIPPED: Ministral 3 3B is not at {} (set HUMANITY_AI_TEST_MINISTRAL to its GGUF to run this test); it did not run, it did not pass", p.display());
+        None
+    }
+}
+
+/// MINISTRAL 3 3B LOADS AND ANSWERS ON THE PINNED LLAMA.CPP (2026-11-11, embeddable AI: the Rich brain
+/// beside Granite's quick one): Mistral's own GGUF (architecture `mistral3`) loads through the engine on
+/// 4 threads, a question is answered piece by piece in words with a done, the status reports it, and it
+/// unloads. And the finding's condition on the system prompt, at the engine: the prompt the engine
+/// builds carries the project's persona inside Mistral's [SYSTEM_PROMPT] markers and never the
+/// repository's own default system message (the GGUF's template holds it, "You power an AI assistant
+/// called Le Chat"), with a persona or without one. SKIPPED in words when the file is not on this
+/// computer.
+///
+/// It passed on its first run on the real file (the pinned llama.cpp knows `mistral3`). Seen red
+/// 2026-11-11 with HUMANITY_AI_TEST_MINISTRAL pointed at Granite 4.0 1B, whose template is not
+/// Mistral's: "Mistral's markers around the project's persona:
+/// \"<|start_of_role|>system<|end_of_role|>You are Mara, the hydroponics lead.<|end_of_text|>...\"".
+#[cfg(feature = "llama")]
+#[test]
+fn ministral_loads_and_answers() {
+    let Some(model) = ministral() else { return };
+    let path = model.display().to_string();
+    let load = m(AppMessage::Load { id: "ministral".into(), path: path.clone(), sha256: String::new(), kind: ModelKind::Brain, context: 2048, threads: 4, device: Device::Cpu });
+    let ask = m(AppMessage::Generate {
+        id: "ministral".into(),
+        request: 1,
+        persona: "You are a crew member on a ship in a game. Answer in one short sentence.".into(),
+        turns: vec![Turn { role: Role::User, text: "What is your job aboard?".into() }],
+        grammar: None,
+        max_tokens: 40,
+    });
+    let (_, out) = talk(&Options::default(), &[load, ask, m(AppMessage::Status), m(AppMessage::Unload { id: "ministral".into() })]);
+    assert!(matches!(&out[0], EngineMessage::Loaded { id, .. } if id == "ministral"), "Ministral loads: {:?}", out[0]);
+    let pieces: Vec<&str> = out.iter().filter_map(|x| if let EngineMessage::Token { request: 1, text } = x { Some(text.as_str()) } else { None }).collect();
+    let reply: String = pieces.concat();
+    assert!(pieces.len() > 3, "the reply came in {} piece(s): {reply:?}", pieces.len());
+    assert!(reply.split_whitespace().filter(|w| w.chars().any(char::is_alphabetic)).count() >= 3, "words: {reply:?}");
+    assert!(!reply.contains("[INST]") && !reply.contains("[/INST]") && !reply.contains("[SYSTEM_PROMPT]"), "no template markers in the reply: {reply:?}");
+    let done = out.iter().find_map(|x| if let EngineMessage::Done { request: 1, tokens, ms_prefill, ms_generate } = x { Some((*tokens, *ms_prefill, *ms_generate)) } else { None }).expect("a done");
+    assert!(done.0 > 0 && done.0 <= 40 && done.2 > 0, "{done:?}");
+    eprintln!("MINISTRAL: {reply:?} ({} tokens, prefill {} ms, writing {} ms)", done.0, done.1, done.2);
+    assert!(out.iter().any(|x| matches!(x, EngineMessage::Status { loaded, memory_mb: Some(mb), threads: 4, .. } if loaded.len() == 1 && *mb > 1000)), "{out:?}");
+    assert_eq!(out.last(), Some(&EngineMessage::Ok { to: "unload".into() }));
+
+    // The system prompt is the project's, never the repository's (the finding, F4 and the addendum).
+    let folder = std::env::current_exe().expect("the test program").parent().expect("its folder").to_path_buf();
+    crate::llama::init(&folder, false).expect("llama.cpp starts");
+    let brain = crate::llama::Brain::load(&path, 512, 2).expect("the model loads");
+    let turn = vec![Turn { role: Role::User, text: "Hello?".into() }];
+    let with = brain.prompt("You are Mara, the hydroponics lead.", &turn).expect("a prompt");
+    assert!(with.contains("[SYSTEM_PROMPT]") && with.contains("You are Mara, the hydroponics lead.") && with.contains("[INST]"), "Mistral's markers around the project's persona: {with:?}");
+    let without = brain.prompt("", &turn).expect("a prompt");
+    for p in [&with, &without] {
+        assert!(!p.contains("Le Chat") && !p.contains("created by Mistral AI"), "never the repository's default system message: {p:?}");
+    }
+    assert!(!without.contains("[SYSTEM_PROMPT]"), "no persona, no system prompt at all: {without:?}");
+}
+
 /// A FIXED SHAPE (8.3's "the free-text reply is generated in a fixed shape"): with a grammar, the reply
 /// can only be what the grammar allows. Seen red 2026-11-09 with the grammar never handed to the
 /// sampler (`Brain::sampler` passing NULL): "the grammar's shape: \"Yes, I am a crew member on\"".

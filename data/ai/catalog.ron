@@ -5,7 +5,7 @@
 // Every AI file HumanityOS may download, with its size and SHA-256. COMPILED INTO THE APP
 // (src/ai/catalog.rs), so a signed release vouches for every hash and a mod cannot point the app at
 // another file; HUMANITY_AI_CATALOG (a full path) reads a local copy instead, for development only.
-// A file of 2 GiB or more is listed as parts, each with its own hash, checked whole after joining.
+// A file over 2,000,000,000 bytes is listed as parts, each with its own hash, checked whole after joining.
 // A model taken unchanged from its publisher also carries the publisher's own hash
 // (upstream_sha256), so anyone can compare the project's copy with the maker's.
 AiCatalog(
@@ -43,6 +43,31 @@ AiCatalog(
             extras: [
                 (file: "granite-4.0-1b-LICENSE.txt", install_as: "LICENSE.txt", bytes: 11358, sha256: "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"),
                 (file: "granite-4.0-1b-README.md", install_as: "README.md", bytes: 238, sha256: "b1e3731f5879628fdb1641598d2c658caa13ae78e9701360091082ff6bf24239"),
+            ],
+            context: 4096,
+        ),
+        (
+            id: "ministral-3-3b",
+            choice: "characters-rich",
+            kind: "brain",
+            model: "Ministral 3 3B",
+            maker: "Mistral AI",
+            licence: "ai.licence.apache2",
+            licence_text: "ai/licences/apache-2.0.txt",
+            finding: "docs/reference/findings/2026-11-08-ministral-3-3b.md",
+            credits: ["ministral_3_3b"],
+            upstream: "https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF",
+            upstream_sha256: "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8",
+            file: "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+            bytes: 2147023008,
+            sha256: "9ed150d4367e68df0ac8e1540f6ddc65b42d0ee26378329d1ecbca60f93fc5f8",
+            parts: [
+                (file: "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf.part1of2", bytes: 2000000000, sha256: "b26f0d83d016a61cd58d704ae6122aca91496bb882796077fda84e6e12f8922e"),
+                (file: "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf.part2of2", bytes: 147023008, sha256: "f36c5697c27c31cb1a6b28a505b19d99d54d336124f1f58d420424c8ecd7729b"),
+            ],
+            extras: [
+                (file: "Ministral-3-3B-Instruct-2512-LICENSE.txt", install_as: "LICENSE.txt", bytes: 11358, sha256: "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"),
+                (file: "Ministral-3-3B-Instruct-2512-README.md", install_as: "README.md", bytes: 218, sha256: "e710f4305fd340053788be6e5526e39f5f93f176b77404810e1cb4eff514c549"),
             ],
             context: 4096,
         ),

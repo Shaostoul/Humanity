@@ -12,16 +12,15 @@ use crate::tuning::Tuning;
 pub struct MusicSettings {
     /// The game's own music, in the world aboard the ship.
     pub music_on: bool,
-    /// Also on the app's everyday pages (Chat, Tasks, the Library): off by default, because those
-    /// pages are real life and people often play their own music there.
+    /// Also on the app's pages (the title screen, Chat, Tasks, the Library), from the moment
+    /// HumanityOS opens and all session, a trip into the world and back included. ON by default
+    /// (2026-11-11, the operator: "we should have the music start playing when HumanityOS starts",
+    /// then "Play on the app pages as well."); it plays alongside the person's own music player, each
+    /// at its own volume in Windows, and follows `music_on` and the volumes. An instance a script
+    /// started in the background has no sound at all until a person clicks into it
+    /// (engine/launch_focus.rs), so a rig stays silent. (This one switch replaced a second, "Play the
+    /// music when HumanityOS opens", the same day; an old config's `music_at_start` is ignored.)
     pub music_on_pages: bool,
-    /// The music from the moment HumanityOS opens (2026-11-11, the operator: "we should have the
-    /// music start playing when HumanityOS starts"): the score plays on the title screen and the
-    /// pages you open, from the app's start until you first go into the world; after that the pages
-    /// follow [`Self::music_on_pages`]. On by default; it follows the volumes and `music_on`, and an
-    /// instance a script started in the background has no sound at all until a person clicks into it
-    /// (engine/launch_focus.rs), so a rig stays silent.
-    pub music_at_start: bool,
     /// The tuning every note follows.
     pub tuning: Tuning,
     /// The style (a file's id in data/music/styles).
@@ -48,8 +47,7 @@ impl Default for MusicSettings {
     fn default() -> Self {
         MusicSettings {
             music_on: true,
-            music_on_pages: false,
-            music_at_start: true,
+            music_on_pages: true,
             tuning: Tuning::A432,
             style: crate::library::DEFAULT_STYLE.to_string(),
             blend_with: String::new(),
