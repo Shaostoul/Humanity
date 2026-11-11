@@ -960,6 +960,21 @@ fn count_in_inventory(state: &GuiState, item_id: &str) -> u32 {
     in_backpack(state, item_id) + in_home_storage(state, item_id) + from_tanks(state, item_id)
 }
 
+/// The Play hub's Crafting card (pages/play.rs, 2026-11-11): how many recipes there are and for
+/// how many of them the backpack, home storage and tanks hold every input now (the station and
+/// the skill are the recipe's own page's to say). Creative mode needs no materials.
+pub(crate) fn hub_summary(state: &GuiState) -> Vec<String> {
+    let total = state.craft_recipes.len();
+    let mut lines = vec![tf("play.hub.crafting_recipes", &[("count", &total.to_string())])];
+    if state.creative_mode {
+        lines.push(t("play.hub.crafting_creative").to_string());
+    } else if total > 0 {
+        let ready = state.craft_recipes.iter().filter(|r| r.inputs.iter().all(|(id, n)| count_in_inventory(state, id) >= *n)).count();
+        lines.push(tf("play.hub.crafting_ready", &[("count", &ready.to_string())]));
+    }
+    lines
+}
+
 /// Why home storage does not count where the player is, or None.
 fn storage_not_here(state: &GuiState) -> Option<&'static str> {
     use humanity_systems::crafting::home_store::{not_here_reason, words};

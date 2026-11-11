@@ -464,3 +464,32 @@ fn the_settings_hint_reads_the_data() {
     assert!(hint.contains("stops laying after a day, falls sick after 2 days and dies after 3 days"), "{hint}");
     assert!(hint.contains("never fall sick or die"), "{hint}");
 }
+
+/// FARM ANIMALS OFF MEANS OFF (2026-11-11, Settings > Gameplay > Farm animals, Off): six weeks
+/// with no feed and an empty tank, a hen lays at her full rate, is never hungry, thirsty, sick or
+/// dead, and the player is told nothing; with feed in storage and water in a tank she takes none
+/// of either.
+///
+/// Seen red 2026-11-11 with the tick's Off branch taken out (Off treated as Forgiving): "with
+/// farm animals off she lays at the full rate: 0".
+#[test]
+fn farm_animals_off_need_nothing_and_always_lay() {
+    let data = store(&[], Mode::Off);
+    let mut world = hecs::World::new();
+    let hen = herd_animal(&mut world, "chicken", "chicken#0");
+    let sp = shipped_care().species["chicken"].clone();
+    run(&mut world, &data, 42.0 * 24.0);
+    let c = care(&world, hen);
+    assert_eq!(c.production(&sp, Mode::Off), 1.0, "with farm animals off she lays at the full rate: {}", c.production(&sp, Mode::Off));
+    assert_eq!((c.hungry_h, c.thirsty_h), (0.0, 0.0), "never hungry or thirsty");
+    assert!(world.get::<&Dead>(hen).is_err() && lost(&data).is_empty(), "never dead");
+    assert!(notices(&data).is_empty(), "nothing to tell: {:?}", notices(&data));
+    // With feed and water there, she takes none of it.
+    let data = store(&[("grain_corn_0", 50)], Mode::Off);
+    let mut world = hecs::World::new();
+    let t = tank(&mut world, 100.0);
+    herd_animal(&mut world, "chicken", "chicken#1");
+    run(&mut world, &data, 7.0 * 24.0);
+    assert_eq!(stock_of(&data, "grain_corn_0"), 50, "no feed taken from storage");
+    assert_eq!(world.get::<&WaterTank>(t).unwrap().liters, 100.0, "no water drawn from the tank");
+}

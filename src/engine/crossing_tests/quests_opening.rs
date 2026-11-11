@@ -1198,7 +1198,9 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
                     assert_eq!(view, "vitals");
                     has(t, "press I", "the key");
                     has(t, "Inventory > Status", "the section");
-                    assert!(inventory.contains("(\"inv_sec\", \"status\"), \"Status\""), "the Inventory page has a Status section");
+                    // Its words by key since 2026-11-11 (`inventory.status` in data/i18n/en.json).
+                    assert!(inventory.contains("(\"inv_sec\", \"status\"), t(\"inventory.status\")"), "the Inventory page has a Status section");
+                    assert_eq!(humanity_core::i18n::t("inventory.status"), "Status", "and it reads Status, the word the step names");
                 }
                 QuestObjective::Eat { .. } if food.is_some() => {
                     has(t, "press I", "the key");
@@ -1222,7 +1224,7 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
                 QuestObjective::Plant { .. } => {
                     has(t, "press I", "the key");
                     has(t, "Garden", "the section");
-                    assert!(inventory.contains("(\"inv_sec\", \"garden\"), \"Garden\""), "the Inventory page has a Garden section");
+                    assert!(inventory.contains("(\"inv_sec\", \"garden\"), t(\"inventory.garden\")"), "the Inventory page has a Garden section");
                     assert!(inventory.contains("\"Plant this tower\""), "a tower design's button plants it");
                     let tower = towers.iter().find(|tw| t.contains(&tw.name)).unwrap_or_else(|| panic!("the opening's line {t:?} names a tower design"));
                     assert!(
@@ -1239,7 +1241,7 @@ fn every_step_of_the_opening_names_what_the_game_shows() {
                 QuestObjective::Gather { .. } => {
                     has(t, "Inventory > Mining", "the drone");
                     has(t, "trading post (E)", "the vendor, and the key that opens it");
-                    assert!(inventory.contains("(\"inv_sec\", \"mining\"), \"Mining\""), "the Inventory page has a Mining section");
+                    assert!(inventory.contains("(\"inv_sec\", \"mining\"), t(\"inventory.mining\")"), "the Inventory page has a Mining section");
                 }
                 QuestObjective::Build { blueprint_id } => {
                     has(t, "Crafting > Structures", "the section");

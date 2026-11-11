@@ -724,6 +724,15 @@ pub(crate) fn take_request_text_at(path: &std::path::Path, now: std::time::Insta
 /// tower with the species at staggered growth stages (the procedural-plant
 /// demo ladder). Consumed on read. An in-Garden GUI button is tracked as
 /// in-app-ops debt (docs/design/in-app-ops.md).
+/// Choose `level` for the gameplay setting `id` the way its radio does (the setting and the save
+/// mark), for the showcase verbs `illness`, `walk_pace`, `animation_mode` and `gameplay`.
+fn set_gameplay_level(state: &mut EngineState, id: &str, level: &str) {
+    if state.gui_state.settings.level(id) != level {
+        state.gui_state.settings.set_level(id, level);
+        state.gui_state.settings_dirty = true;
+    }
+}
+
 pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // The `hold` verb's keys come up when their time is up: every frame, so
     // before the no-request early return (engine/rig_walk.rs).
@@ -792,19 +801,29 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.controller.fly_mode = false;
         log::info!("Showcase: walk -> fly mode off, on foot");
     }
-    // {"illness":"realistic"} / {"illness":"forgiving"} (2026-10-20, falls): Settings > Gameplay >
-    // Illness and injury, set the way its radio sets it (the setting and the save mark), so a rig
-    // can judge a fall in both modes in one boot (scripts/verify-falls.js). Permanent dev tooling.
+    // {"illness":"realistic"} / {"illness":"forgiving"} / {"illness":"off"} (2026-10-20, falls;
+    // Off 2026-11-11): Settings > Gameplay > Illness and injury, set the way its radio sets it (the
+    // setting and the save mark), so a rig can judge a fall in every level in one boot
+    // (scripts/verify-falls.js). Permanent dev tooling.
     if let Some(raw) = grab("illness") {
         match crate::engine::body_probe::parse_illness_mode(&raw) {
-            Some(realistic) => {
-                if state.gui_state.settings.illness_realistic != realistic {
-                    state.gui_state.settings.illness_realistic = realistic;
-                    state.gui_state.settings_dirty = true;
-                }
-                log::info!("Showcase: illness -> {}", if realistic { "Realistic" } else { "Forgiving" });
+            Some(level) => {
+                set_gameplay_level(state, "illness", &level);
+                log::info!("Showcase: illness -> {level}");
             }
-            None => log::warn!("Showcase: illness wants realistic or forgiving, not {raw:?}"),
+            None => log::warn!("Showcase: illness wants off, forgiving or realistic, not {raw:?}"),
+        }
+    }
+    // {"gameplay":"body_heat=off"} (2026-11-11): any gameplay setting to any of its levels
+    // (data/gameplay/levels.json), set the way its radio sets it, so a rig reaches every level of
+    // every setting. Permanent dev tooling.
+    if let Some(raw) = grab("gameplay") {
+        let (id, level) = raw.split_once('=').map_or((raw.trim(), ""), |(a, b)| (a.trim(), b.trim()));
+        if crate::gui::gameplay_levels::setting(id).and_then(|s| s.level(level)).is_some() {
+            set_gameplay_level(state, id, level);
+            log::info!("Showcase: gameplay {id} -> {level}");
+        } else {
+            log::warn!("Showcase: gameplay wants setting=level from data/gameplay/levels.json, not {raw:?}");
         }
     }
     // {"face":"yaw,pitch"} (ship homes increment 7, 2026-10-21): turn the camera to that yaw and
@@ -1090,12 +1109,8 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(v) = grab("animation_mode") {
         match v.as_str() {
             "realistic" | "simplified" => {
-                let simplified = v == "simplified";
-                if state.gui_state.settings.anim_simplified != simplified {
-                    state.gui_state.settings.anim_simplified = simplified;
-                    state.gui_state.settings_dirty = true;
-                    log::info!("Showcase: animation_mode -> {v}");
-                }
+                set_gameplay_level(state, "animation", &v);
+                log::info!("Showcase: animation_mode -> {v}");
             }
             _ => log::warn!("Showcase: animation_mode wants \"realistic\" or \"simplified\", not {v:?}"),
         }
@@ -1287,19 +1302,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             _ => log::warn!("Showcase: anchor_probe wants seconds from 0 to 30, not {v:?}"),
         }
     }
-    // {"walk_pace":"realistic"} / {"walk_pace":"simplified"} (2026-11-09): Settings' walking pace
-    // (engine/walk_pace.rs), so a rig walks and runs at either mode's speeds.
+    // {"walk_pace":"realistic"} / {"walk_pace":"brisk"} / {"walk_pace":"simplified"} (2026-11-09;
+    // Brisk 2026-11-11): Settings' walking pace (engine/walk_pace.rs), so a rig walks and runs at any
+    // level's speeds.
     if let Some(v) = grab("walk_pace") {
-        match v.as_str() {
-            "realistic" | "simplified" => {
-                let realistic = v == "realistic";
-                if state.gui_state.settings.walk_realistic != realistic {
-                    state.gui_state.settings.walk_realistic = realistic;
-                    state.gui_state.settings_dirty = true;
-                    log::info!("Showcase: walk_pace -> {v}");
-                }
+        match crate::gui::gameplay_levels::setting("walk_pace").and_then(|s| s.level(&v)) {
+            Some(_) => {
+                set_gameplay_level(state, "walk_pace", &v);
+                log::info!("Showcase: walk_pace -> {v}");
             }
-            _ => log::warn!("Showcase: walk_pace wants \"realistic\" or \"simplified\", not {v:?}"),
+            None => log::warn!("Showcase: walk_pace wants a level of data/gameplay/levels.json (realistic, brisk, simplified), not {v:?}"),
         }
     }
     // {"build_editor":"1"} / {"build_editor":"0"} (2026-10-04, ship homes 1b, round 5): open or

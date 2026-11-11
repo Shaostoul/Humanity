@@ -382,3 +382,44 @@ fn humid_heat_costs_at_least_as_much_water_as_dry() {
     let (humid, dry) = (hour(0.8), hour(0.2));
     assert!(humid >= dry, "an hour walking at 35 C: {humid:.3} L humid, {dry:.3} L dry");
 }
+
+/// BODY HEAT OFF MEANS OFF (2026-11-11, Settings > Gameplay > Body heat, Off): in weather that
+/// kills a Realistic body within hours (-30 C in an 8 m/s wind, bare) and in deadly heat (50 C,
+/// working hard), twelve hours of `vitals_tick` with the mode Off take no health, sweat nothing
+/// out, leave the core at the neutral 36.8 C and put no temperature condition on; a body already
+/// cold when it is turned off is brought back to it at once.
+///
+/// Seen red 2026-11-11 with `vitals_tick`'s Off branch taken out (Off then only showing the
+/// neutral core and zeroing the harm): "50 C: nothing sweated out with body heat off" (left:
+/// 10.938162 litres in the twelve hours).
+#[test]
+fn body_heat_off_never_harms_or_chills() {
+    use humanity_core::ecs::components::StatusEffects;
+    for (air, wind, clo, met) in [(-30.0_f32, 8.0_f32, 0.0_f32, MET_STANDING), (50.0, 0.0, BASE_OUTFIT_CLO, 4.0)] {
+        let ex = Exposure::outdoors(air, 0.5, wind, 0.0);
+        let mut tracked = Tracked::new(37.0, Mode::Off);
+        let mut core = 37.0_f32;
+        let mut effects = StatusEffects::default();
+        let (mut harm, mut sweat) = (0.0_f32, 0.0_f32);
+        for _ in 0..(12 * 60) {
+            let out = vitals_tick(&mut tracked, &mut core, &mut effects, &ex, clo, met, Mode::Off, 60.0, 120.0);
+            harm += out.harm;
+            sweat += out.sweat_l;
+        }
+        assert!((f64::from(core) - CORE_NEUTRAL_C).abs() < 1e-3, "{air} C: the core stays at the neutral 36.8 C with body heat off (it read {core:.1})");
+        assert_eq!(harm, 0.0, "{air} C: no harm with body heat off");
+        assert_eq!(sweat, 0.0, "{air} C: nothing sweated out with body heat off");
+        assert!(effects.active.is_empty(), "{air} C: no condition with body heat off: {:?}", effects.active.iter().map(|e| &e.id).collect::<Vec<_>>());
+    }
+    // The same cold, Realistic, does harm (the weather above is deadly, so Off is what spared it).
+    let ex = Exposure::outdoors(-30.0, 0.5, 8.0, 0.0);
+    let (mut tracked, mut core, mut effects) = (Tracked::new(37.0, Mode::Realistic), 37.0_f32, humanity_core::ecs::components::StatusEffects::default());
+    let mut harm = 0.0;
+    for _ in 0..(12 * 60) {
+        harm += vitals_tick(&mut tracked, &mut core, &mut effects, &ex, 0.0, MET_STANDING, Mode::Realistic, 60.0, 120.0).harm;
+    }
+    assert!(harm > 100.0, "Realistic, the same cold kills ({harm:.0} health)");
+    // Turned off while cold and shivering: 37 C again at once, the conditions gone.
+    let out = vitals_tick(&mut tracked, &mut core, &mut effects, &ex, 0.0, MET_STANDING, Mode::Off, 1.0, 120.0);
+    assert!((f64::from(core) - CORE_NEUTRAL_C).abs() < 1e-3 && out.harm == 0.0 && effects.active.is_empty(), "turning it off ends the cold at once ({core:.1} C)");
+}

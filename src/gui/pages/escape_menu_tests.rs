@@ -274,20 +274,19 @@ fn the_preview_switch_off_means_no_preview() {
     assert_eq!(secondary(&out, &r.theme), chat, "with the preview off, the row stays Chat's");
 }
 
-/// PLAY: A TAP OPENS PLAY'S PAGE, A HOLD GOES INTO THE WORLD, AND THE PAGE'S BUTTON GOES IN (the
-/// operator's answer of 2026-11-03). A press let go at once opens Play's page and its row; a press
-/// held for `play_hold_ms` (800 ms) goes into the world without a release (the picker, with no
-/// game played yet), and its release opens nothing; on Play's page, Enter the world goes in on a
-/// click, and on Enter while the keyboard is on it.
+/// PLAY ONLY OPENS ITS HUB; THE HUB'S BUTTON GOES IN (the operator, 2026-11-11: "Let's remove
+/// clicking play immediately starting the game"). A tap on Play opens Play's page and does not go
+/// in; a press held two seconds, far past rung 2's 800 ms hold, still never goes into the world,
+/// and its release opens Play's page as a tap does; on the hub, Enter the world goes in on a click,
+/// and on Enter while the keyboard is on it; and the hub has a card for each page of Play's row
+/// that opens something, whose button opens that page as a step from the hub.
 ///
-/// Seen red 2026-11-03, four ways: with a click on Play going into the world (rung 1's): "a tap on
-/// Play opens Play's page; left: None, right: Play"; with the hold never counting: "a hold of
-/// 800 ms goes into the world; left: Chat, right: None"; with the latch taken out (and egui letting
-/// a long press count as a click, as below): "letting go after the hold opens nothing more; left:
-/// Play, right: None"; and with Enter the world doing nothing: "Enter the world goes in (a click);
-/// left: Play, right: None".
+/// Seen red 2026-11-11 with the rung 2 hold put back in `category_button` (a press held 0.8 s
+/// calling `play::enter_world`): "a press held 2 s on Play never goes into the world; left: None,
+/// right: Chat"; and with the hub's Enter the world doing nothing: "Enter the world goes in (a
+/// click); left: Play, right: None".
 #[test]
-fn play_tap_opens_its_page_a_hold_enters_and_its_button_enters() {
+fn play_only_opens_its_hub_and_the_hubs_button_enters() {
     let menu = crate::gui::navigation::menu();
     let play_words = t_dyn(&category(&menu, "play").button.label).to_string();
     // A tap.
@@ -297,25 +296,19 @@ fn play_tap_opens_its_page_a_hold_enters_and_its_button_enters() {
     r.click(play);
     assert_eq!(r.state.active_page, GuiPage::Play, "a tap on Play opens Play's page");
     assert!(!r.state.launcher_open_select, "a tap does not go in");
-    // A hold. egui counts a press up to 0.8 s long as a click, exactly the default hold; let it
-    // count presses of any length here, so the release after the hold WOULD be a click (a hold
-    // set shorter in the file is one), and only the latch keeps it from opening Play's page.
+    // A long press: held still for two seconds, then let go.
     let mut r = Rows::new(TV);
-    r.ctx.options_mut(|o| o.input_options.max_click_duration = 60.0);
     let out = r.frame(Vec::new());
     let play = at(&out, &play_words);
     r.move_to(play);
     r.press(play, true);
-    r.wait(0.5);
-    assert_eq!(r.state.active_page, GuiPage::Chat, "half a hold goes nowhere yet");
-    r.wait(0.4);
-    assert_eq!(r.state.active_page, GuiPage::None, "a hold of 800 ms goes into the world");
-    assert!(r.state.launcher_open_select, "with no game played yet, through the character picker");
-    assert_eq!(r.state.history.current().map(|p| p.page), Some(GuiPage::Chat), "Escape in the world returns to the page left");
+    r.wait(2.0);
+    assert_eq!(r.state.active_page, GuiPage::Chat, "a press held 2 s on Play never goes into the world");
+    assert!(!r.state.launcher_open_select, "nor opens the character picker");
     r.press(play, false);
     r.frame(Vec::new());
-    assert_eq!(r.state.active_page, GuiPage::None, "letting go after the hold opens nothing more");
-    // Play's page and its button, a click and Enter.
+    assert_eq!(r.state.active_page, GuiPage::Play, "letting go of a long press opens Play's page, as a tap does");
+    // The hub's Enter the world, a click and Enter.
     for keyboard in [false, true] {
         let mut r = Rows::new(TV);
         r.with_page = true;
@@ -341,6 +334,22 @@ fn play_tap_opens_its_page_a_hold_enters_and_its_button_enters() {
         }
         assert_eq!(r.state.active_page, GuiPage::None, "Enter the world goes in ({})", if keyboard { "Enter" } else { "a click" });
     }
+    // A card for each page of Play's row, and its button opens that page from the hub.
+    let cards = crate::gui::pages::play::cards(&menu);
+    let names: Vec<&str> = cards.iter().map(|b| t_dyn(&b.label)).collect();
+    for want in ["nav.characters", "nav.quests", "nav.inventory", "nav.crafting"] {
+        assert!(names.contains(&t(want)), "the hub has a card for {want}: {names:?}");
+    }
+    let mut r = Rows::new(TV);
+    r.with_page = true;
+    r.state.active_page = GuiPage::Play;
+    r.frame(Vec::new());
+    let out = r.frame(Vec::new());
+    let open_inventory = humanity_core::i18n::tf("play.hub.open", &[("page", &t("nav.inventory"))]);
+    let button = at(&out, &open_inventory);
+    r.click(button);
+    assert_eq!(r.state.active_page, GuiPage::Inventory, "Open Inventory opens the Inventory page");
+    assert!(!r.state.launcher_open_select, "and does not go into the world");
 }
 
 /// The rows at a Font Size in a window of `px` pixels: the words drawn in each of the two rows,

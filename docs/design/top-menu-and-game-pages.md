@@ -9,7 +9,8 @@ options below are no longer open choices but its inputs. **The findings stand:**
 (what the menu, the Humanity page and Play and Characters are today), 4d's inventory of what the
 Worlds and Servers pages build on, and section 5 (the Characters relayout, built). The questions in
 section 6 are replaced by navigation.md's section 16, except question 6 (text size on the TV),
-which is BUG-225.
+which is BUG-225. **Section 7 (2026-11-11)** is the operator's newer answer for Play: it opens the
+game's hub and never goes into the world by itself.
 
 **Status (2026-11-02):** a plan with options. Sections 4a to 4d are taste decisions for the
 operator: nothing in them is built or decided. Section 5, the Characters page relayout, is decided
@@ -364,3 +365,32 @@ is Play (goes, and says where), Characters (the pairing screen, its WHERE column
 and Servers (the depth) (C1 and D1); and the menu's colours mean one thing each, with the game's
 own systems inside the game (A1). Built in rungs: the Characters relayout (done), Servers, Worlds,
 Play's words, the menu, the overview.
+
+## 7. Play as the game's hub (built 2026-11-11)
+
+The operator, 2026-11-11: "Let's turn the play page into the MCP/overview of all the dedicated game
+related pages. Then we can have the dedicated sub-pages of the game. Let's remove clicking play
+immediately starting the game. We need to make more use of the play."
+
+This settles section 3's two doors differently from C1: Play no longer goes in at all. A press on
+Play in the top menu, of any length, opens Play's page, and the page is the game's master control
+panel (`src/gui/pages/play.rs`):
+
+- **The world you will enter**, a magenta tint section (the Play category's purple): who and where
+  was played last, in words, and **Enter the world** (a click, or Enter on it). It and the
+  Characters picker's Enter bar and the title screen's Enter World are the ways in, each a button
+  pressed on purpose.
+- **A card per game page**, each a tint section in its own colour (red, green, blue, cyan, yellow,
+  round again), up to three across: the page's name, a live summary of what is in it now (each
+  page's `hub_summary`, read from what the app already holds: no file read, no scan of the saves),
+  and its Open button. The cards are Play's row in `data/gui/navigation.json`, every item that
+  opens something, in the file's order, so Worlds and Servers get their cards the day their pages
+  exist. A card's page opens as a step from the hub: Escape on it comes back.
+- **Removed:** navigation rung 2's press and hold (800 ms straight into the world), its
+  `timings.play_hold_ms`, the page's "Or press and hold Play" line and its test. The menu file now
+  refuses a `play_hold_ms` (`navigation_tests.rs`), and `escape_menu_tests.rs`
+  `play_only_opens_its_hub_and_the_hubs_button_enters` holds that a press held two seconds still
+  only opens the hub.
+- **The website:** no game runs in a browser, so the website's Play still opens /download and has no
+  hub; its Inventory and Crafting pages are its own (the website's Inventory is the real-life
+  inventory, with its own red, green and blue sections already).

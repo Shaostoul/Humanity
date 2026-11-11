@@ -44,9 +44,17 @@ use crate::inventory::{Inventory, ItemRegistry, ItemStack};
 /// startup, after the data directory is known); restart the game to apply an edit.
 pub const RULES_FILE: &str = "world/death.ron";
 
-/// Which death the player chose in Settings > Gameplay > Death.
+/// DataStore key of the Death level (a plain `DeathMode`), published each frame by
+/// `engine::survival_env` (2026-11-11), so the systems that take health can honour Off.
+pub const MODE_KEY: &str = "death_mode";
+
+/// The levels of Settings > Gameplay > Death (data/gameplay/levels.json): the house rule's two
+/// modes, and Off (2026-11-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DeathMode {
+    /// Death turned off: the player cannot die. Whatever takes health (the body's needs and
+    /// wounds in `FoodSystem`, a creature's blow in `CombatSystem`) stops at [`OFF_HEALTH_FLOOR`].
+    Off,
     /// Nothing is lost (the default, the house rule for deep systems).
     #[default]
     Simplified,
@@ -55,15 +63,32 @@ pub enum DeathMode {
 }
 
 impl DeathMode {
-    /// The mode from the saved switch (`AppConfig::death_realistic`).
-    pub fn from_realistic(realistic: bool) -> Self {
-        if realistic {
-            DeathMode::Realistic
-        } else {
-            DeathMode::Simplified
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(DeathMode::Off),
+            "simplified" => Some(DeathMode::Simplified),
+            "realistic" => Some(DeathMode::Realistic),
+            _ => None,
         }
     }
+
+    /// The Settings level. Absent (headless tests, the relay) is Simplified: a body can die, as
+    /// it always could.
+    pub fn from_store(data: &humanity_core::hot_reload::data_store::DataStore) -> Self {
+        data.get::<DeathMode>(MODE_KEY).copied().unwrap_or_default()
+    }
+
+    /// The least health the player can be left with in this mode: [`OFF_HEALTH_FLOOR`] when
+    /// death is off, else nothing.
+    pub fn health_floor(self) -> f32 {
+        if self == DeathMode::Off { OFF_HEALTH_FLOOR } else { 0.0 }
+    }
 }
+
+/// Death Off: the health a player is held at, whatever hurts them (one point of 100: alive,
+/// and the HUD's bar plainly empty, so the danger still reads).
+pub const OFF_HEALTH_FLOOR: f32 = 1.0;
 
 /// Everything the Realistic mode plays by: data/world/death.ron, field for field. Each
 /// field is described in the file.
@@ -267,7 +292,8 @@ pub fn player(world: &hecs::World) -> Option<hecs::Entity> {
 /// death outside the world, so nothing is lost). Worn clothing and gear are the `Outfit`,
 /// which is not touched. Returns what the death screen says.
 pub fn on_death(world: &mut hecs::World, mode: DeathMode, spot: Option<PackSpot>) -> DeathNote {
-    if mode == DeathMode::Simplified {
+    // Off: a death that came anyway (the Dev page's `die` verb) costs nothing, as Simplified.
+    if matches!(mode, DeathMode::Simplified | DeathMode::Off) {
         return DeathNote::NothingLost;
     }
     let Some(p) = player(world) else { return DeathNote::NothingLost };

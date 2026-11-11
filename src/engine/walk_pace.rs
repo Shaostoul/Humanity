@@ -4,10 +4,15 @@
 //! walked at 5 m/s, a jog, so a body's walk had nothing to match): the Realistic mode walks at
 //! 1.4 m/s and runs at about 4; the Simplified mode keeps the game's 5 m/s walk and 9.5 m/s sprint.
 //! The house rule for deep systems (CLAUDE.md, "Every deep system ships two modes") gives every one
-//! of them a switch in Settings > Gameplay; movement had none, so this adds the smallest honest one,
-//! `settings.walk_realistic` (Simplified by default, like the others), persisted in AppConfig.
+//! of them a switch in Settings > Gameplay; movement had none, so this added the smallest honest one
+//! (Simplified by default, like the others), persisted in AppConfig.
 //!
-//! The speeds are data/game.csv's four `*_speed_*_mps` rows, read at boot, on a game.csv save (hot
+//! LEVELS (2026-11-11): the pace is a level of data/gameplay/levels.json (`walk_pace`): Realistic,
+//! Brisk (a fast walk and a fast run, 2 and 6 m/s) and Simplified. A level's id names its rows, so
+//! a pace is added in data alone: `walk_speed_<id>_mps`, `run_speed_<id>_mps`, `crouch_speed_<id>_mps`.
+//! There is no Off: a body always walks.
+//!
+//! The speeds are data/game.csv's `*_speed_<level>_mps` rows, read at boot, on a game.csv save (hot
 //! reload) and whenever the switch changes; a missing row keeps the compiled-in pace
 //! (`WALK_SPEED_MPS`, `SPRINT_FACTOR`). They set the controller's walk speed and its sprint factor;
 //! every other speed rule (status effects, a carried load, the planet walk's gear) multiplies on top
@@ -26,10 +31,9 @@ pub(crate) struct Pace {
     pub crouch_mps: f32,
 }
 
-/// The pace of a mode from game.csv's knobs (`knob` reads one by key), the compiled-in pace for any
-/// row that is missing or not a sensible speed.
-pub(crate) fn pace_for(realistic: bool, knob: &mut dyn FnMut(&str) -> Option<f64>) -> Pace {
-    let mode = if realistic { "realistic" } else { "simplified" };
+/// The pace of a level (its id names game.csv's rows) from game.csv's knobs (`knob` reads one by
+/// key), the compiled-in pace for any row that is missing or not a sensible speed.
+pub(crate) fn pace_for(mode: &str, knob: &mut dyn FnMut(&str) -> Option<f64>) -> Pace {
     let mut read = |key: String, fallback: f32| -> f32 {
         knob(&key).map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0).unwrap_or(fallback)
     };
@@ -41,18 +45,23 @@ pub(crate) fn pace_for(realistic: bool, knob: &mut dyn FnMut(&str) -> Option<f64
 
 /// Set the controller's walk speed and sprint factor from the walking pace in Settings.
 pub(crate) fn apply(state: &mut EngineState) {
-    let realistic = state.gui_state.settings.walk_realistic;
-    let r = pace_for(true, &mut |k| state.asset_manager.game_setting_f64(k));
-    let s = pace_for(false, &mut |k| state.asset_manager.game_setting_f64(k));
-    // Both modes' speeds, for Settings' description of the switch.
-    state.gui_state.walk_pace_speeds = [r.walk_mps, r.run_mps, s.walk_mps, s.run_mps];
-    let pace = if realistic { r } else { s };
+    let level = state.gui_state.settings.level("walk_pace").to_string();
+    // Every level's speeds, for Settings' words about each choice.
+    let levels: Vec<String> = crate::gui::gameplay_levels::setting("walk_pace").map(|s| s.levels.iter().map(|l| l.id.clone()).collect()).unwrap_or_default();
+    state.gui_state.walk_pace_speeds = levels
+        .iter()
+        .map(|id| {
+            let p = pace_for(id, &mut |k| state.asset_manager.game_setting_f64(k));
+            (id.clone(), p.walk_mps, p.run_mps)
+        })
+        .collect();
+    let pace = pace_for(&level, &mut |k| state.asset_manager.game_setting_f64(k));
     state.controller.speed = pace.walk_mps;
     state.controller.sprint_factor = pace.run_mps / pace.walk_mps;
     state.controller.crouch_factor = pace.crouch_mps / pace.walk_mps;
     log::info!(
         "Walking pace: {} ({:.2} m/s walking, {:.2} m/s running)",
-        if realistic { "Realistic" } else { "Simplified" },
+        level,
         pace.walk_mps,
         pace.run_mps
     );
@@ -79,10 +88,12 @@ mod tests {
     /// sprint 10.5 runs past 9.5, the on-foot limit's walk".
     #[test]
     fn the_shipped_paces_are_the_operators_and_stay_under_the_on_foot_limit() {
-        let r = pace_for(true, &mut |k| shipped(k));
-        let s = pace_for(false, &mut |k| shipped(k));
+        let r = pace_for("realistic", &mut |k| shipped(k));
+        let s = pace_for("simplified", &mut |k| shipped(k));
+        let b = pace_for("brisk", &mut |k| shipped(k));
         let cap = WALK_SPEED_MPS * SPRINT_FACTOR + 1e-4;
-        for (name, p) in [("Realistic", r), ("Simplified", s)] {
+        assert_eq!((b.walk_mps, b.run_mps, b.crouch_mps), (2.0, 6.0, 1.0), "Brisk (2026-11-11)");
+        for (name, p) in [("Realistic", r), ("Simplified", s), ("Brisk", b)] {
             assert!(p.run_mps <= cap, "the {name} sprint {} runs past {cap:.1}, the on-foot limit's walk", p.run_mps);
         }
         assert_eq!((r.walk_mps, r.run_mps), (1.4, 4.0), "Realistic");
@@ -98,11 +109,11 @@ mod tests {
     /// player: "walk 0").
     #[test]
     fn a_missing_or_broken_row_keeps_the_compiled_pace() {
-        let none = pace_for(true, &mut |_| None);
+        let none = pace_for("realistic", &mut |_| None);
         assert_eq!(none, Pace { walk_mps: WALK_SPEED_MPS, run_mps: WALK_SPEED_MPS * SPRINT_FACTOR, crouch_mps: WALK_SPEED_MPS * CROUCH_FACTOR });
-        let zero = pace_for(true, &mut |k| if k.starts_with("walk") { Some(0.0) } else { Some(f64::NAN) });
+        let zero = pace_for("realistic", &mut |k| if k.starts_with("walk") { Some(0.0) } else { Some(f64::NAN) });
         assert!(zero.walk_mps > 0.0, "walk {}", zero.walk_mps);
-        let slow_run = pace_for(true, &mut |k| if k.starts_with("walk") { Some(2.0) } else { Some(1.0) });
+        let slow_run = pace_for("realistic", &mut |k| if k.starts_with("walk") { Some(2.0) } else { Some(1.0) });
         assert_eq!(slow_run.run_mps, 2.0);
     }
 }

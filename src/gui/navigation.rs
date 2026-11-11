@@ -3,7 +3,7 @@
 //!
 //! `data/gui/navigation.json` holds the design's eight categories and every page placed in them,
 //! what a person can reach that the design's rows leave out (`outside`, each with its reason), the
-//! desktop's timings (the second row's preview, Play's press and hold), and what the website's
+//! desktop's timings (the second row's preview), and what the website's
 //! single row shows until rung 5 draws its two rows (`today_row`). Both apps draw from it: the
 //! desktop's two rows through [`menu`] (pages/escape_menu.rs), the website's row through
 //! scripts/gen-navigation.js, which writes the website's part into web/shared/shell.js. The file's
@@ -127,14 +127,12 @@ pub struct Timings {
     pub preview_rest_ms: u32,
     /// How long the preview stays after the pointer leaves both rows.
     pub preview_leave_ms: u32,
-    /// How long Play is pressed and held to go straight into the world.
-    pub play_hold_ms: u32,
 }
 
 impl Default for Timings {
     /// The design's numbers, for a menu that could not be read at all.
     fn default() -> Self {
-        Timings { preview_rest_ms: 200, preview_leave_ms: 300, play_hold_ms: 800 }
+        Timings { preview_rest_ms: 200, preview_leave_ms: 300 }
     }
 }
 
@@ -439,7 +437,6 @@ fn check(file: &File) -> Result<(), String> {
     for (what, ms, range) in [
         ("preview_rest_ms", t.preview_rest_ms, 50..=2000),
         ("preview_leave_ms", t.preview_leave_ms, 0..=5000),
-        ("play_hold_ms", t.play_hold_ms, 300..=3000),
     ] {
         if !range.contains(&ms) {
             return Err(format!("timings: `{what}` is {ms} ms, outside {} to {} ms", range.start(), range.end()));

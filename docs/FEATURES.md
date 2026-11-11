@@ -1871,7 +1871,7 @@ next entry), the Aa switch, the bell and help; under it the
 category's pages, only pages that exist (Mission, People, Rules, Roadmap, Devlog, Worlds and Servers
 wait for rung 7). Resting the pointer 200 ms on another category previews its row (Settings >
 Appearance turns it off; Escape ends it); a row that does not fit puts the rest under More, never a
-third row. Play: a tap opens Play's page, a press and hold of 800 ms goes into the world. Sizes and
+third row. Play: a press of any length opens Play's page, the game's hub (since 2026-11-11 nothing in the menu goes into the world by itself; the 800 ms press and hold was taken out). Sizes and
 category colours are theme tokens (`nav_primary_height` and siblings, `nav_cat_<id>`), each in
 Settings. The Humanity and Dev side lists became their rows. (The file name `escape_menu.rs` is
 older than the menu: it is not an in-game pause overlay.)
@@ -1920,9 +1920,20 @@ menu, stopping at the warning); the incoming call is a band at the top centre th
 Graphics, audio, controls, game, account categories with sliders and toggles.
 - Native: `src/gui/pages/settings.rs`
 
+### Play: the game's hub (2026-11-11)
+The operator: "Let's turn the play page into the MCP/overview of all the dedicated game related pages." Play in the top menu only ever opens this page (no press and hold). On it: the world you will enter (who and where you played last) with its Enter the world button, in a magenta tint section, then a card per page of Play's row in data/gui/navigation.json (Characters, Quests, Inventory, Crafting; Worlds and Servers join when built), each a tint section with a live summary (the last character and the saves the picker counted; the quest under way and its step; what you carry and your health; the recipes and how many you have the materials for) and an Open button that opens the page as a step from the hub (Escape comes back). Up to three cards across. The website's Play opens /download (no game runs in a browser), so it has no hub to mirror.
+- Native: `src/gui/pages/play.rs` (`cards`, `summary`, `open_card`, `enter_world`), each page's `hub_summary` (`quests.rs`, `inventory.rs`, `crafting.rs`)
+- Test: `escape_menu_tests.rs` `play_only_opens_its_hub_and_the_hubs_button_enters`; snapshot `play_page`
+
+### Gameplay settings' levels, Off included (2026-11-11)
+The operator: "I feel like we need to provide more than two options for our gameplay settings. Including just turning settings off completely." Settings > Gameplay draws each setting from data/gameplay/levels.json, its levels gentlest first, each with its name and a sentence saying what it changes (shown under the row and as each radio's hint). Hostile wildlife: Off (default) / Few (a third of each pack, at least one) / Normal. Vitals drain: Off / Slow / Real time (default) / Fast, plus its slider. Body heat: Off (the body at its neutral 36.8 C always, no shivering, sweat, condition or harm) / Forgiving (default) / Realistic. Illness and injury: Off (no food poisoning, no wound from a bite, burn or fall, no harm from burns or falls, any illness or wound heals at once) / Forgiving (default) / Realistic. Farm animals: Off (they take nothing and always make their full yield) / Forgiving (default) / Realistic. Walking pace: Realistic / Brisk / Simplified (default). Animation: Simplified / Realistic (default). Carrying weight: Off (no limit) / Forgiving (default) / Realistic. Death: Off (the player cannot die, health stops at 1) / Simplified (default) / Realistic. Mining drone: Off (always charged, never wears) / Simplified (default) / Realistic. Saved as `AppConfig::gameplay` (setting id to level id); an old config's true/false switches read as the defaults. The dev IPC's `gameplay` verb sets any level (`body_heat=off`).
+- Native: `src/gui/gameplay_levels.rs` (the file, `level_of`, `understood`), `src/gui/pages/settings_gameplay.rs`, each system's `Mode::from_level` (`body_heat`, `illness` with `wounds` and `falls`, `animal_care`, `encumbrance`, `death_pack` with `combat` and `food`, `mining`), `src/engine/survival_env.rs`, `walk_pace.rs`, `world_load.rs` `spawn_wilds`
+- Data: `data/gameplay/levels.json`, `data/game.csv` (`*_speed_brisk_mps`)
+- Tests: one per system that Off means off (`body_heat_off_never_harms_or_chills`, `illness_and_injury_off_means_no_wound_no_illness_and_no_harm`, `farm_animals_off_need_nothing_and_always_lay`, `carrying_weight_off_has_no_limit`, `death_off_means_the_player_cannot_die`, `the_drone_off_flies_free`, `hostile_wildlife_off_few_and_normal`), the file's (`gameplay_levels::tests`), the page's and the save's
+
 ### Inventory Page
-6-column item grid with selection and detail panel.
-- Native: `src/gui/pages/inventory.rs`
+Every part in a tint section (2026-11-11, the operator: "Tighten it up. Bring in the RGB sections like we have elsewhere"): Status red, The fleet blue, Equipment yellow, You and your places green, Garden cyan, Mining magenta, Vehicles red, each still a fold. The status cards are compact (name and number on one line over a thin bar, up to four across: two short rows for eight vitals), the equipment slots are labelled cards with the worn thing's name or Empty (a click takes it off), and the item tiles are tighter (80 points, a 40-point picture). Words by key.
+- Native: `src/gui/pages/inventory.rs`, `src/gui/widgets/tint_section.rs` (`frame`, the section without a title of its own)
 
 ### Chat Page (3-Panel, v0.89.0)
 DMs (red), Groups (green cards), Servers (blue), message feed, input bar. DMs/Groups headers have settings cog menus (v0.90.0). Server header cog replaces X disconnect (v0.90.0).
@@ -2898,6 +2909,7 @@ they play, voices levelled per person, a slider per kind, an opt-in mic level) a
 - Web: `web/shared/video-volume.js`, Settings > Audio & Video > Videos (`web/pages/settings.html`)
 
 ### Live music and the ship's hum (2026-11-06)
+The music at the app's start (2026-11-11, the operator: "we should have the music start playing when HumanityOS starts"): Settings > Music > "Play the music when HumanityOS opens" (on by default) plays the score on the title screen and the pages from the app's start until you first go into the world; after that the pages follow "Music on the app's pages". It follows Music on and the Master and Music volumes; an instance a script started in the background has no sound device until a person clicks into it, so rigs stay silent (`engine/music.rs` `Inputs::opening`; test `the_music_starts_with_the_app_and_a_script_launch_stays_silent`).
 The game composes its own music live at A = 432 Hz (440 one setting away): a composer walks each
 mood's chord graph with voice leading, varies motifs and never repeats a phrase within ten minutes;
 synthesised voices (pads, a formant choir, celesta bells, the STEEL PAN, membrane DEEP DRUMS and
@@ -3301,7 +3313,7 @@ idle, walk, jog and sprint play now, crouch, jump and sit are retargeted for run
 spot stays our procedural clip. A locomotion state machine with blend spaces plays idle, turning on
 the spot, and walk, jog and sprint stride-matched to the real speed (each clip's speed measured from
 its feet, scaled to the body's legs), backwards when walking backwards. **The walking pace** is a
-Settings > Gameplay switch: Realistic walks at 1.4 m/s and runs at 4, Simplified keeps 5 and 9.5
+Settings > Gameplay level (three since 2026-11-11: Realistic, Brisk at 2 and 6 m/s, Simplified; data/gameplay/levels.json, the speeds game.csv's `*_speed_<level>_mps`): Realistic walks at 1.4 m/s and runs at 4, Simplified keeps 5 and 9.5
 (data/game.csv). The nearest bodies (up to 16 within 15 m) are skinned once a frame by a compute pass
 into ordinary meshes, so the sun shadow and every pass draw them unchanged; the rest are skinned in
 the vertex shader. The body is DATA: the humanoid standard uses VRM 1.0's bone names as roles; any

@@ -15,6 +15,13 @@ pub struct MusicSettings {
     /// Also on the app's everyday pages (Chat, Tasks, the Library): off by default, because those
     /// pages are real life and people often play their own music there.
     pub music_on_pages: bool,
+    /// The music from the moment HumanityOS opens (2026-11-11, the operator: "we should have the
+    /// music start playing when HumanityOS starts"): the score plays on the title screen and the
+    /// pages you open, from the app's start until you first go into the world; after that the pages
+    /// follow [`Self::music_on_pages`]. On by default; it follows the volumes and `music_on`, and an
+    /// instance a script started in the background has no sound at all until a person clicks into it
+    /// (engine/launch_focus.rs), so a rig stays silent.
+    pub music_at_start: bool,
     /// The tuning every note follows.
     pub tuning: Tuning,
     /// The style (a file's id in data/music/styles).
@@ -42,6 +49,7 @@ impl Default for MusicSettings {
         MusicSettings {
             music_on: true,
             music_on_pages: false,
+            music_at_start: true,
             tuning: Tuning::A432,
             style: crate::library::DEFAULT_STYLE.to_string(),
             blend_with: String::new(),

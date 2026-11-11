@@ -13,7 +13,7 @@ pub(crate) fn bridge(state: &mut crate::engine::state::EngineState) {
 
 /// The bridge on its two halves, so it is tested without an engine.
 pub(crate) fn bridge_gui(gui: &mut GuiState, data: &DataStore) {
-    humanity_systems::mining::publish_mode(data, gui.settings.drone_realistic);
+    humanity_systems::mining::publish_mode(data, humanity_systems::mining::Mode::from_level(gui.settings.level("mining_drone")).unwrap_or_default());
     if let Some(req) = gui.pending_drone_request.take() {
         humanity_systems::mining::request(data, req);
     }
@@ -32,12 +32,12 @@ mod tests {
     #[test]
     fn the_bridge_hands_the_panel_and_the_mode_across() {
         let mut data = DataStore::new();
-        data.insert(MODE_KEY, Mutex::new(false));
+        data.insert(MODE_KEY, Mutex::new(Mode::Simplified));
         data.insert(REQUEST_KEY, Mutex::new(Option::<DroneRequest>::None));
         let shown = DroneReadout { trip_wh: 4264.0, ..Default::default() };
         data.insert(READOUT_KEY, Mutex::new(Some(shown.clone())));
         let mut gui = GuiState::default();
-        gui.settings.drone_realistic = true;
+        gui.settings.set_level("mining_drone", "realistic");
         gui.pending_drone_request = Some(DroneRequest::Repair);
         bridge_gui(&mut gui, &data);
         let handed = *data.get::<Mutex<Option<DroneRequest>>>(REQUEST_KEY).unwrap().lock().unwrap();

@@ -1,0 +1,91 @@
+{
+  "_doc": [
+    "THE GAMEPLAY SETTINGS' LEVELS (2026-11-11; src/gui/gameplay_levels.rs reads this file, Settings > Gameplay draws it).",
+    "The operator, that day: \"I feel like we need to provide more than two options for our gameplay settings. Including just turning settings off completely. Like body heat, illness, etc.\"",
+    "Each setting lists its levels in the order Settings shows them, from the gentlest (Off, where a system can be off) to the hardest, with the level a new player gets (`default`: the softened one, CLAUDE.md's dual-modes rule). Each level carries its name (`words`) and a sentence saying what it changes (`says`), both keys in data/i18n/en.json, so a person reads what a choice does before choosing it (docs/design/graphics-settings.md's rule: say what it changes).",
+    "A level's `id` is what config.json saves (`gameplay`: setting id -> level id) and what the system reads: body heat, illness and injury, farm animals, carrying weight, death and the mining drone each turn the id into their own mode (gameplay_levels.rs `understood` holds every one of them to this file, so a level added here that its system does not know fails a test). The walking pace's id names data/game.csv's rows (`walk_speed_<id>_mps`), so a pace is added in data alone. A `value` is a number the setting uses as it is: the share of each wild pack that spawns, or the vitals drain.",
+    "A saved level this file no longer lists reads as the default, and so does a config.json from before the levels (no backwards compatibility before v1.0)."
+  ],
+  "settings": [
+    {
+      "id": "hostile_wildlife", "words": "gameplay.hostile_wildlife", "note": "gameplay.hostile_wildlife_note", "default": "off",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.hostile_wildlife_off", "value": 0.0 },
+        { "id": "few", "words": "gameplay.level.few", "says": "gameplay.hostile_wildlife_few", "value": 0.34 },
+        { "id": "normal", "words": "gameplay.level.normal", "says": "gameplay.hostile_wildlife_normal", "value": 1.0 }
+      ]
+    },
+    {
+      "id": "vitals_drain", "words": "gameplay.vitals_drain", "note": "gameplay.vitals_drain_note", "default": "real_time", "slider": [0.0, 3.0],
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.vitals_drain_off", "value": 0.0 },
+        { "id": "slow", "words": "gameplay.level.slow", "says": "gameplay.vitals_drain_slow", "value": 0.5 },
+        { "id": "real_time", "words": "gameplay.level.real_time", "says": "gameplay.vitals_drain_real_time", "value": 1.0 },
+        { "id": "fast", "words": "gameplay.level.fast", "says": "gameplay.vitals_drain_fast", "value": 2.0 }
+      ]
+    },
+    {
+      "id": "body_heat", "words": "gameplay.body_heat", "default": "forgiving",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.body_heat_off" },
+        { "id": "forgiving", "words": "gameplay.level.forgiving", "says": "gameplay.body_heat_forgiving" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.body_heat_realistic" }
+      ]
+    },
+    {
+      "id": "illness", "words": "gameplay.illness", "default": "forgiving",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.illness_off" },
+        { "id": "forgiving", "words": "gameplay.level.forgiving", "says": "gameplay.illness_forgiving" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.illness_realistic" }
+      ]
+    },
+    {
+      "id": "animal_care", "words": "gameplay.animal_care", "default": "forgiving",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.animal_care_off" },
+        { "id": "forgiving", "words": "gameplay.level.forgiving", "says": "gameplay.animal_care_forgiving" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.animal_care_realistic" }
+      ]
+    },
+    {
+      "id": "walk_pace", "words": "settings.walking_pace", "note": "settings.walking_pace_hint", "default": "simplified",
+      "levels": [
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.walk_pace_realistic" },
+        { "id": "brisk", "words": "gameplay.level.brisk", "says": "gameplay.walk_pace_brisk" },
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.walk_pace_simplified" }
+      ]
+    },
+    {
+      "id": "animation", "words": "settings.animation_mode", "note": "settings.animation_mode_hint", "default": "realistic",
+      "levels": [
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "settings.animation_simplified_hint" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "settings.animation_realistic_hint" }
+      ]
+    },
+    {
+      "id": "carry", "words": "gameplay.carry", "note": "gameplay.carry_note", "default": "forgiving",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.carry_off" },
+        { "id": "forgiving", "words": "gameplay.level.forgiving", "says": "gameplay.carry_forgiving" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.carry_realistic" }
+      ]
+    },
+    {
+      "id": "death", "words": "gameplay.death", "default": "simplified",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.death_off" },
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.death_simplified" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.death_realistic" }
+      ]
+    },
+    {
+      "id": "mining_drone", "words": "gameplay.mining_drone", "default": "simplified",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.mining_drone_off" },
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.mining_drone_simplified" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.mining_drone_realistic" }
+      ]
+    }
+  ]
+}

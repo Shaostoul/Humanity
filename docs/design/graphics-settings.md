@@ -160,3 +160,42 @@ level shows its video memory on this card and its download before anything downl
 whose pools would pass an eighth of the card's own memory says so in words. Measured at the crowd on
 the RTX 4070: 90.7 MB of pools at 1K, 282.7 MB at 2K (256 MB to download), each 2K texture into its
 slot in about 0.9 ms, the GPU's work unchanged.
+
+## Gameplay settings follow the same rule (2026-11-11)
+
+The operator, 2026-11-11: "I feel like we need to provide more than two options for our gameplay
+settings. Including just turning settings off completely. Like body heat, illness, etc." The rule
+above (say what a choice changes before it is chosen; levels are data) applies to Settings >
+Gameplay as it does to graphics. A gameplay level costs no frame time worth a line (each is a
+branch in a system that runs anyway), so its words say what changes in play instead.
+
+- **One row per setting** in `data/gameplay/levels.json` (compiled in as the fallback): its name,
+  an optional longer note, its default (the softened level, CLAUDE.md's dual-modes rule) and its
+  levels, gentlest first. Each level has a name and a sentence saying what it changes, both by key
+  in `data/i18n/en.json`. Settings shows the sentence of the chosen level under the row and every
+  level's sentence as its radio's hint (`src/gui/pages/settings_gameplay.rs`).
+- **Off wherever a system can be off**, and then at least two more levels (the file refuses Off
+  and only one other). A system that cannot be off (walking, the bodies' animation) has no Off,
+  and its levels say why they differ.
+- **Off means off, held by a test per system**: body heat (the neutral core always, no harm), illness and
+  injury (none happens, any present heals at once), farm animals (they need nothing), carrying
+  weight (no limit), death (the player cannot die), the mining drone (free trips), hostile
+  wildlife (no predators). Each test was seen red first (docs/FEATURES.md lists them).
+- **Every level is understood by its system**: `gameplay_levels::understood` asks each system's
+  `Mode::from_level`, and a test fails on a level in the file that its system does not know.
+- **Saved** as config.json's `gameplay` (setting id to level id). A level the file no longer
+  lists, and a config from before the levels, read as the default.
+- **A shared world**: these levels are the person's own; the relay enforces none of them (it keeps
+  no body heat, illness, carrying or death rules of its own today), so Off on one player's machine
+  changes only what that player's own systems do. When a server comes to enforce one (a server's
+  survival rules), its Settings row must say so in words beside the choice, and which levels the
+  server allows.
+
+### Checklist for a new gameplay setting
+
+1. A row in `data/gameplay/levels.json`, its words added with `node scripts/i18n-add.js`.
+2. The system's `Mode::from_level` (or the number it reads), and a line in
+   `gameplay_levels::understood`.
+3. Off, if the system can be off, with a test that Off means off, seen red first.
+4. The level reaches the system through `SettingsState::level` (engine/survival_env.rs publishes
+   the survival ones each frame).

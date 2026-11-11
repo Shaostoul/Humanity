@@ -165,17 +165,19 @@ fn fire_warmth(state: &EngineState) -> f64 {
 /// Once per frame: publish the survival context, the body heat mode and the
 /// illness mode (BUG-162, `systems::illness`).
 pub(crate) fn publish(state: &mut EngineState) {
-    let mode = if state.gui_state.settings.body_heat_realistic {
-        body_heat::Mode::Realistic
-    } else {
-        body_heat::Mode::Forgiving
-    };
-    state.data_store.insert(body_heat::MODE_KEY, mode);
-    let illness = humanity_systems::illness::Mode::from_realistic(state.gui_state.settings.illness_realistic);
-    state.data_store.insert(humanity_systems::illness::MODE_KEY, illness);
+    // Each level of Settings > Gameplay (data/gameplay/levels.json, 2026-11-11) into its system's
+    // mode; a level the system does not know plays as the system's default.
+    let levels = &state.gui_state.settings;
+    let mode = body_heat::Mode::from_level(levels.level("body_heat")).unwrap_or_default();
+    let illness = humanity_systems::illness::Mode::from_level(levels.level("illness")).unwrap_or_default();
     // Farm animals (2026-10-12, first-hour audit S6): what neglect does to them.
-    let animals = humanity_systems::animal_care::Mode::from_realistic(state.gui_state.settings.animal_care_realistic);
+    let animals = humanity_systems::animal_care::Mode::from_level(levels.level("animal_care")).unwrap_or_default();
+    // Death (2026-11-11): Off holds the player's health at its floor in the systems that take it.
+    let death = humanity_systems::death_pack::DeathMode::from_level(levels.level("death")).unwrap_or_default();
+    state.data_store.insert(body_heat::MODE_KEY, mode);
+    state.data_store.insert(humanity_systems::illness::MODE_KEY, illness);
     state.data_store.insert(humanity_systems::animal_care::MODE_KEY, animals);
+    state.data_store.insert(humanity_systems::death_pack::MODE_KEY, death);
 
     // The air where the player stands: temperature, humidity, wind, what is
     // falling and the pressure, all from the weather's at-player export

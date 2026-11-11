@@ -1774,7 +1774,8 @@ mod quest_tests {
         assert!(!iron.contains("stock"), "the iron step points at no Dev-mode button: {iron}");
         // The places it names exist.
         let inventory = std::fs::read_to_string(root.join("src/gui/pages/inventory.rs")).expect("the Inventory page source");
-        assert!(inventory.contains("\"Mining\", tree_force"), "the Inventory page has a Mining section");
+        // Its words by key since 2026-11-11 (data/i18n/en.json `inventory.mining`).
+        assert!(inventory.contains("t(\"inventory.mining\"), tree_force"), "the Inventory page has a Mining section");
         for file in ["home.ron", "home_solo.ron"] {
             let home = crate::grow_machines::load_home(&root.join("data/machines").join(file)).unwrap_or_else(|| panic!("{file} parses"));
             assert!(

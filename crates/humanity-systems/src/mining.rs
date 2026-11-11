@@ -48,13 +48,18 @@ pub const REQUEST_KEY: &str = "mining_drone_request";
 /// DataStore key of what the Mining panel shows (`Mutex<Option<DroneReadout>>`), written
 /// by the DroneSystem every tick.
 pub const READOUT_KEY: &str = "mining_drone_readout";
-/// DataStore key of the Settings mode (`Mutex<bool>`, true = Realistic), published each
-/// frame from Settings > Gameplay > Mining drone (`publish_mode`).
-pub const MODE_KEY: &str = "mining_drone_realistic";
+/// DataStore key of the Settings level (`Mutex<Mode>`), published each frame from Settings >
+/// Gameplay > Mining drone (`publish_mode`).
+pub const MODE_KEY: &str = "mining_drone_mode";
 
-/// The two modes of the house rule for deep systems.
+/// The levels of Settings > Gameplay > Mining drone (data/gameplay/levels.json): the house rule's
+/// two modes, and Off (2026-11-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
+    /// The drone's running costs turned off: its battery is always full (the dock asks the home
+    /// for nothing), a trip takes no charge and adds no wear, and wear it already has never keeps
+    /// it docked.
+    Off,
     /// The default: the dock charges the drone even when the home cannot, so a flat home
     /// only delays a trip, and it wears at `DroneSpec::simplified_wear_share` of the rate.
     #[default]
@@ -67,11 +72,16 @@ impl Mode {
     /// The Settings mode. Absent (headless tests, the relay) is Realistic: the physics
     /// the tests measure, the convention `life_support::is_realistic` uses.
     pub fn from_store(data: &DataStore) -> Self {
-        let realistic = data.get::<Mutex<bool>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(true);
-        if realistic {
-            Mode::Realistic
-        } else {
-            Mode::Simplified
+        data.get::<Mutex<Mode>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(Mode::Realistic)
+    }
+
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(Mode::Off),
+            "simplified" => Some(Mode::Simplified),
+            "realistic" => Some(Mode::Realistic),
+            _ => None,
         }
     }
 }
@@ -142,6 +152,7 @@ impl DroneSpec {
     /// The wear one trip adds in `mode`, in trips.
     pub fn wear_per_trip(&self, mode: Mode) -> f32 {
         match mode {
+            Mode::Off => 0.0,
             Mode::Realistic => 1.0,
             Mode::Simplified => self.simplified_wear_share,
         }
@@ -172,6 +183,11 @@ impl DroneUnit {
     }
 
     /// Due for its service: it does not take off until it has one.
+    /// Kept docked by its wear in `mode`: worn out, unless the drone's costs are Off (2026-11-11).
+    pub fn stays_docked(&self, spec: &DroneSpec, mode: Mode) -> bool {
+        mode != Mode::Off && self.worn_out(spec)
+    }
+
     pub fn worn_out(&self, spec: &DroneSpec) -> bool {
         self.wear_trips >= spec.service_trips - 1e-4
     }
@@ -247,13 +263,13 @@ pub fn register(data_store: &mut DataStore) {
     data_store.insert(SPEC_KEY, spec);
     data_store.insert(REQUEST_KEY, Mutex::new(Option::<DroneRequest>::None));
     data_store.insert(READOUT_KEY, Mutex::new(Option::<DroneReadout>::None));
-    data_store.insert(MODE_KEY, Mutex::new(false));
+    data_store.insert(MODE_KEY, Mutex::new(Mode::Simplified));
 }
 
-/// Publish the Settings mode (each frame, and before a save's time away is run).
-pub fn publish_mode(data: &DataStore, realistic: bool) {
-    if let Some(Ok(mut v)) = data.get::<Mutex<bool>>(MODE_KEY).map(|m| m.lock()) {
-        *v = realistic;
+/// Publish the Settings level (each frame, and before a save's time away is run).
+pub fn publish_mode(data: &DataStore, mode: Mode) {
+    if let Some(Ok(mut v)) = data.get::<Mutex<Mode>>(MODE_KEY).map(|m| m.lock()) {
+        *v = mode;
     }
 }
 
@@ -415,6 +431,10 @@ impl System for DroneSystem {
                 }
                 None => {}
             }
+            // Off (2026-11-11): the battery is always full, so the dock never asks the home for power.
+            if mode == Mode::Off {
+                u.pack_wh = spec.pack_wh;
+            }
             // What the dock gave the battery since the last tick.
             charge = charge_at_dock(world, spec, mode, u, sdt);
         }
@@ -451,7 +471,7 @@ impl System for DroneSystem {
         // ── A LAUNCH WAITING FOR THE BATTERY (Simplified) goes once it holds a trip.
         if let (Some(spec), Some(u)) = (spec.as_ref(), unit.as_mut()) {
             let docked = world.query::<&Drone>().iter().next().is_none();
-            if docked && u.charged(spec) && !u.worn_out(spec) {
+            if docked && u.charged(spec) && !u.stays_docked(spec, mode) {
                 if let Some((target, manifest)) = u.held.take() {
                     if launch(world, data, &target, &manifest) {
                         pay_for_trip(spec, mode, u);
@@ -472,7 +492,7 @@ impl System for DroneSystem {
         {
             let any_drone = world.query::<&Drone>().iter().next().is_some();
             let ready = match (spec.as_ref(), unit.as_ref()) {
-                (Some(spec), Some(u)) => u.held.is_none() && u.charged(spec) && !u.worn_out(spec),
+                (Some(spec), Some(u)) => u.held.is_none() && u.charged(spec) && !u.stays_docked(spec, mode),
                 _ => true,
             };
             if !any_drone && ready {
@@ -553,7 +573,7 @@ impl System for DroneSystem {
                         came_back_empty(world, data, item_registry, &target, &manifest);
                     }
                     if let (Some(spec), Some(u)) = (spec.as_ref(), unit.as_mut()) {
-                        tell_if_worn(data, spec, u, item_registry);
+                        tell_if_worn(data, spec, mode, u, item_registry);
                     }
                 }
             }
@@ -737,7 +757,7 @@ fn commission_with_costs(
     manifest: &[(String, u32)],
 ) {
     let item_registry = data.get::<ItemRegistry>("item_registry");
-    if u.worn_out(spec) {
+    if u.stays_docked(spec, mode) {
         reply(
             data,
             format!(
@@ -757,7 +777,7 @@ fn commission_with_costs(
         let scale = crate::time::scaled_dt(1.0, data).max(1e-6) as f64;
         let when = wait.map(|w| duration_words(w / scale));
         match mode {
-            Mode::Simplified => {
+            Mode::Simplified | Mode::Off => {
                 u.held = Some((target.to_string(), manifest.to_vec()));
                 reply(
                     data,
@@ -791,8 +811,8 @@ fn commission_with_costs(
 }
 
 /// When the trip just home has worn the drone out, say so once.
-fn tell_if_worn(data: &DataStore, spec: &DroneSpec, u: &mut DroneUnit, item_registry: Option<&ItemRegistry>) {
-    if u.worn_out(spec) && !u.told_worn {
+fn tell_if_worn(data: &DataStore, spec: &DroneSpec, mode: Mode, u: &mut DroneUnit, item_registry: Option<&ItemRegistry>) {
+    if u.stays_docked(spec, mode) && !u.told_worn {
         u.told_worn = true;
         notice(
             data,
@@ -895,14 +915,14 @@ fn build_readout(
         },
         Charging::Shed => match mode {
             Mode::Realistic => "Not charging: the home has no power to spare. It charges again when the home's panels or batteries can give it power.".to_string(),
-            Mode::Simplified => format!(
+            Mode::Simplified | Mode::Off => format!(
                 "The home has no power to spare, so the dock charges it anyway (Simplified): a trip's charge in {}.",
                 when.clone().unwrap_or_else(|| "a while".to_string())
             ),
         },
         Charging::NoGrid => match mode {
             Mode::Realistic => "Not charging: the home has no battery bank for the dock to charge it from.".to_string(),
-            Mode::Simplified => format!(
+            Mode::Simplified | Mode::Off => format!(
                 "The home has no battery bank, so the dock charges it anyway (Simplified): a trip's charge in {}.",
                 when.clone().unwrap_or_else(|| "a while".to_string())
             ),
@@ -913,7 +933,7 @@ fn build_readout(
     let can_service = u.wear_trips > 0.0 && (free || parts.iter().all(|p| p.have >= p.need));
     let per = spec.wear_per_trip(mode).max(1e-6);
     let trips_left = ((spec.service_trips - u.wear_trips).max(0.0) / per + 1e-3).floor() as u32;
-    let blocked = if u.worn_out(spec) {
+    let blocked = if u.stays_docked(spec, mode) {
         Some("Due for its service: it stays docked until it is repaired.".to_string())
     } else if docked && !u.charged(spec) && mode == Mode::Realistic {
         Some(format!("Its battery holds {} of the {} a trip needs.", kwh(u.pack_wh), kwh(spec.trip_wh)))
@@ -1238,8 +1258,12 @@ pub fn advance_away(world: &mut hecs::World, data: &DataStore, secs: f64, spare_
                 let held = unit.as_ref().and_then(|u| u.held.clone());
                 let Some((target, manifest)) = held.or_else(|| standing_order(data)) else { break };
                 if let (Some(spec), Some(u)) = (spec.as_ref(), unit.as_mut()) {
-                    if u.worn_out(spec) {
+                    if u.stays_docked(spec, mode) {
                         break;
+                    }
+                    // Off: always charged, the time away included.
+                    if mode == Mode::Off {
+                        u.pack_wh = spec.pack_wh;
                     }
                     let need = f64::from((spec.trip_wh - u.pack_wh).max(0.0));
                     if need > 1e-3 {
@@ -1309,7 +1333,7 @@ pub fn advance_away(world: &mut hecs::World, data: &DataStore, secs: f64, spare_
             break;
         };
         if let (Some(spec), Some(u)) = (spec.as_ref(), unit.as_mut()) {
-            tell_if_worn(data, spec, u, item_registry);
+            tell_if_worn(data, spec, mode, u, item_registry);
         }
         if !d.cargo.iter().any(|(_, q)| *q > 0) {
             // An empty trip: the asteroid holds none of what the order asks

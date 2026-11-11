@@ -5,6 +5,8 @@ pub mod escape_menu;
 pub mod settings;
 pub mod settings_time;
 pub mod settings_garden;
+/// Settings > Gameplay's settings with levels, drawn from data/gameplay/levels.json (2026-11-11).
+pub mod settings_gameplay;
 /// Settings > Music: the live music, its style, the tuning, the ship's hum, the tones (2026-11-06).
 pub mod settings_music;
 pub mod inventory;

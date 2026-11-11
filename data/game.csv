@@ -31,4 +31,7 @@ run_speed_realistic_mps,4.0,Running speed (Shift) in the Realistic walking pace 
 walk_speed_simplified_mps,5.0,Walking speed in the Simplified walking pace: the game's pace before 2026-11-09,physics,0.5,5.0,float
 run_speed_simplified_mps,9.5,Sprinting speed (Shift) in the Simplified walking pace: 5 m/s times 1.9; the relay's on-foot limit is checked against it,physics,1.0,9.5,float
 crouch_speed_realistic_mps,0.8,Crouched walking speed (hold C) in the Realistic walking pace: a slow crouched walk (character animation rung 2a; Quaternius's crouch walk covers 0.72 m/s on its own rig),physics,0.2,1.4,float
+walk_speed_brisk_mps,2.0,Walking speed in the Brisk walking pace (2026-11-11): a fast walk; most people walk 1.2 to 1.5 m/s and a brisk walk is about 2,physics,0.5,3.0,float
+run_speed_brisk_mps,6.0,Running speed (Shift) in the Brisk walking pace: a fast run; well under the relay's on-foot limit (the Simplified sprint),physics,1.0,9.5,float
+crouch_speed_brisk_mps,1.0,Crouched walking speed (hold C) in the Brisk walking pace: half its walk,physics,0.2,2.0,float
 crouch_speed_simplified_mps,1.6,Crouched walking speed (hold C) in the Simplified walking pace: a third of its walk,physics,0.2,5.0,float

@@ -1717,7 +1717,7 @@ mod native_app {
                     );
                     // The player's modes before the time-away catch-up below, which charges the drone
                     // (and decides whether the ship powers it) by them (first-hour audit S5).
-                    humanity_systems::mining::publish_mode(&data_store, gui_state.settings.drone_realistic);
+                    humanity_systems::mining::publish_mode(&data_store, humanity_systems::mining::Mode::from_level(gui_state.settings.level("mining_drone")).unwrap_or_default());
                     humanity_systems::life_support::publish(&data_store, gui_state.garden_pests.life_support_realistic);
                     let resumed = crate::save_load::resume_home(
                         &mut game_world.world,
@@ -6949,7 +6949,7 @@ mod native_app {
                     {
                         use std::sync::atomic::{AtomicU8, Ordering};
                         static PREV_HOSTILE: AtomicU8 = AtomicU8::new(u8::MAX);
-                        let cur = state.gui_state.settings.hostile_wildlife as u8;
+                        let cur = (crate::gui::gameplay_levels::value_of(&state.gui_state.settings.gameplay, "hostile_wildlife") > 0.0) as u8;
                         let prev = PREV_HOSTILE.swap(cur, Ordering::Relaxed);
                         if prev == 1 && cur == 0 {
                             let doomed: Vec<hecs::Entity> = state

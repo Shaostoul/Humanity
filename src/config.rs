@@ -894,57 +894,19 @@ pub struct AppConfig {
     /// use time (renderer::clouds::quality_param).
     #[serde(default = "default_cloud_quality")]
     pub cloud_quality: String,
-    /// Spawn hostile wild creatures (wild_spawns.ron predator rows). Default
-    /// OFF pre-launch (v0.791, operator: "disable the wolves"); the Dev spawn
-    /// page still places hostiles deliberately.
+    /// The gameplay settings' levels (2026-11-11; src/gui/gameplay_levels.rs reads
+    /// data/gameplay/levels.json): setting id to level id, for hostile wildlife, body heat, illness
+    /// and injury, farm animals, carrying weight, the walking pace, animation, death and the mining
+    /// drone. A setting missing here, or a level the file no longer lists, plays at the file's
+    /// default (the softened one). Each was a true/false field before (`body_heat_realistic` and
+    /// its kin); a config.json from then reads as the defaults: no backwards compatibility before
+    /// v1.0. Held in GuiState as `settings.gameplay`.
     #[serde(default)]
-    pub hostile_wildlife: bool,
+    pub gameplay: std::collections::BTreeMap<String, String>,
     /// Survival-needs speed: scales hunger/thirst/energy decay (1.0 = normal,
     /// 0 = paused). Settings > Gameplay slider (v0.791).
     #[serde(default = "default_vitals_drain")]
     pub vitals_drain: f32,
-    /// Body heat (2026-09-27, systems::body_heat): false is Forgiving (the
-    /// same heat balance, the core swings half as far from normal and cold or
-    /// heat harm at half the rate), true is Realistic. The simplified mode by
-    /// default, the house rule for deep systems. Held in GuiState as
-    /// `settings.body_heat_realistic`.
-    #[serde(default)]
-    pub body_heat_realistic: bool,
-    /// Illness (BUG-162, systems::illness): false is Forgiving (food poisoning
-    /// runs half its course and takes half the water), true is Realistic (the
-    /// course and the water the data gives, data/medical/illnesses.ron). The
-    /// simplified mode by default, the house rule for deep systems. Held in
-    /// GuiState as `settings.illness_realistic`.
-    #[serde(default)]
-    pub illness_realistic: bool,
-    /// Farm animals (2026-10-12, first-hour audit S6, systems::animal_care): false is
-    /// Forgiving (an animal left without feed or water only stops making eggs, milk or wool),
-    /// true is Realistic (left long enough it falls sick and dies). The simplified mode by
-    /// default, the house rule for deep systems. Held in GuiState as
-    /// `settings.animal_care_realistic`.
-    #[serde(default)]
-    pub animal_care_realistic: bool,
-    /// Carrying weight (BUG-136, systems::encumbrance): false is Forgiving
-    /// (the limit and a warning only), true is Realistic (an overload slows
-    /// walking and stops jumps under gravity, and a load's mass weighs on
-    /// every jump). Forgiving by default, the house rule for deep systems.
-    /// Held in GuiState as `settings.carry_realistic`.
-    #[serde(default)]
-    pub carry_realistic: bool,
-    /// Walking pace (2026-11-09, the operator's decision; engine::walk_pace): false is Simplified
-    /// (a 5 m/s walk and a 9.5 m/s sprint, the game's pace before then), true is Realistic (a
-    /// 1.4 m/s walk and a 4 m/s run); the speeds are data/game.csv's. Simplified by default, the house
-    /// rule for deep systems. Held in GuiState as `settings.walk_realistic`.
-    #[serde(default)]
-    pub walk_realistic: bool,
-    /// Animation (2026-11-09, character animation rung 2a; engine::animation): false is Realistic
-    /// (the near bodies' feet on the world with leg IK, foot locking and stair footsteps, the middle
-    /// bodies' pelvis offset), true is Simplified (every body gets the pelvis offset alone). Realistic
-    /// by default: the operator's decision of 2026-11-08 (character-animation.md question 5, "full
-    /// realism where the measured budget allows"), and the feet cost microseconds (section 8.0).
-    /// Held in GuiState as `settings.anim_simplified`.
-    #[serde(default)]
-    pub anim_simplified: bool,
     /// Show my body in first person (2026-11-10, character animation rung 2b): your own body drawn
     /// for the first-person eye, head and neck folded away (true, the default: the operator's
     /// question 4 of 2026-11-08, "yes, with a Settings switch"), or the old view with no body. An old
@@ -967,20 +929,6 @@ pub struct AppConfig {
     /// Held in GuiState as `settings.pipe_marking_full`.
     #[serde(default)]
     pub pipe_marking_full: bool,
-    /// Death (2026-10-04, systems::death_pack, the operator's decision): false is Simplified
-    /// (nothing is lost, the death screen's old promise), true is Realistic (everything in the
-    /// backpack stays where you fell, in a pack to go back for; what you wear stays on you).
-    /// Simplified by default, the house rule for deep systems. Held in GuiState as
-    /// `settings.death_realistic`.
-    #[serde(default)]
-    pub death_realistic: bool,
-    /// Mining drone (first-hour audit S5, 2026-10-12, systems::mining): false is Simplified
-    /// (its dock charges it even when the home has no power to spare, so a flat home only
-    /// delays a trip, and it wears half as fast), true is Realistic (a trip needs a charge the
-    /// home really gave, and a full trip's wear). Simplified by default, the house rule for
-    /// deep systems. Held in GuiState as `settings.drone_realistic`.
-    #[serde(default)]
-    pub drone_realistic: bool,
     /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
     /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent =>
     /// Normal via `#[serde(default)]` (the default since 2026-10-04; it was
@@ -1763,20 +1711,12 @@ impl AppConfig {
             gpu_particles: state.settings.gpu_particles,
             far_tree_sheet: state.settings.far_tree_sheet,
             cloud_quality: state.settings.cloud_quality.clone(),
-            hostile_wildlife: state.settings.hostile_wildlife,
+            gameplay: state.settings.gameplay.clone(),
             vitals_drain: state.settings.vitals_drain,
-            body_heat_realistic: state.settings.body_heat_realistic,
-            illness_realistic: state.settings.illness_realistic,
-            animal_care_realistic: state.settings.animal_care_realistic,
-            carry_realistic: state.settings.carry_realistic,
-            walk_realistic: state.settings.walk_realistic,
-            anim_simplified: state.settings.anim_simplified,
             fp_body: state.settings.fp_body,
             reduce_motion: state.settings.reduce_motion,
             crouch_toggle: state.settings.crouch_toggle,
             pipe_marking_full: state.settings.pipe_marking_full,
-            death_realistic: state.settings.death_realistic,
-            drone_realistic: state.settings.drone_realistic,
             play_mode: state.settings.play_mode,
             hud_vitals: state.settings.hud_vitals,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
@@ -2130,20 +2070,12 @@ impl AppConfig {
             "config: cloud renderer tier = {}",
             state.settings.cloud_quality
         );
-        state.settings.hostile_wildlife = self.hostile_wildlife;
+        state.settings.gameplay = self.gameplay.clone();
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
-        state.settings.body_heat_realistic = self.body_heat_realistic;
-        state.settings.illness_realistic = self.illness_realistic;
-        state.settings.animal_care_realistic = self.animal_care_realistic;
-        state.settings.carry_realistic = self.carry_realistic;
-        state.settings.walk_realistic = self.walk_realistic;
-        state.settings.anim_simplified = self.anim_simplified;
         state.settings.fp_body = self.fp_body;
         state.settings.reduce_motion = self.reduce_motion;
         state.settings.crouch_toggle = self.crouch_toggle;
         state.settings.pipe_marking_full = self.pipe_marking_full;
-        state.settings.death_realistic = self.death_realistic;
-        state.settings.drone_realistic = self.drone_realistic;
         // Play mode (task #50): restore the persisted mode, then PRESET the
         // creative (free resources) flag from it -- GuiState defaults that
         // flag to true (early-dev posture), so a Normal-mode player must get
@@ -2753,71 +2685,43 @@ mod play_mode_tests {
         assert_eq!(fresh.settings.person_controls.get("me", "ann").mb(), 25);
     }
 
-    /// The two realism switches (BUG-136 carrying weight, and body heat,
-    /// which had the same gap) start Forgiving and a chosen Realistic
-    /// survives a save and a load: through the GUI state, the JSON and back.
-    /// Seen red with `from_gui_state` writing `carry_realistic: false`:
-    /// "the carrying switch is written" (the JSON held
-    /// `"carry_realistic":false`).
+    /// THE GAMEPLAY LEVELS SURVIVE A SAVE AND A LOAD, AND AN OLD FILE READS AS THE DEFAULTS
+    /// (2026-11-11, data/gameplay/levels.json): every level chosen in Settings > Gameplay is
+    /// written to the config and read back after a restart; a config.json from before the levels
+    /// (its old true/false switches, `body_heat_realistic` and its kin) loads, and every setting
+    /// plays at its default. It replaced one round-trip test per switch.
+    ///
+    /// Seen red 2026-11-11 with `from_gui_state` writing an empty map: "the levels are written"
+    /// (the JSON held `"gameplay":{}`).
     #[test]
-    fn the_realism_switches_survive_a_save_and_a_load() {
+    fn the_gameplay_levels_survive_a_save_and_a_load_and_an_old_file_reads_as_the_defaults() {
         let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.carry_realistic && !state.settings.body_heat_realistic, "both start Forgiving");
-        state.settings.carry_realistic = true;
-        state.settings.body_heat_realistic = true;
+        assert_eq!(state.settings.level("body_heat"), "forgiving", "body heat starts Forgiving");
+        assert_eq!(state.settings.level("death"), "simplified", "death starts Simplified");
+        assert_eq!(state.settings.level("hostile_wildlife"), "off", "hostile wildlife starts off");
+        let chosen = [("body_heat", "off"), ("illness", "realistic"), ("animal_care", "off"), ("carry", "realistic"), ("walk_pace", "brisk"), ("animation", "simplified"), ("death", "off"), ("mining_drone", "off"), ("hostile_wildlife", "few")];
+        for (id, level) in chosen {
+            state.settings.set_level(id, level);
+        }
         let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"carry_realistic\":true"), "the carrying switch is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert!(json.contains("\"body_heat\":\"off\"") && json.contains("\"walk_pace\":\"brisk\""), "the levels are written: {json}");
         let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.carry_realistic, "Realistic carrying stays chosen after a restart");
-        assert!(fresh.settings.body_heat_realistic, "Realistic body heat stays chosen after a restart");
-    }
-
-    /// The walking pace (2026-11-09) starts Simplified, a chosen Realistic survives a save and a
-    /// load through the GUI state, the JSON and back, and a settings file written before the switch
-    /// existed (no `walk_realistic` in it) loads as Simplified rather than failing.
-    /// Seen red 2026-11-09 with `from_gui_state` writing `walk_realistic: false`: "the walking pace
-    /// is written" (the JSON held `"walk_realistic":false`); and, with `#[serde(default)]` taken off
-    /// the field, the old-shape file refused: "missing field `walk_realistic`".
-    #[test]
-    fn the_walking_pace_survives_a_save_and_a_load_and_an_old_file_reads() {
-        let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.walk_realistic, "the walking pace starts Simplified");
-        state.settings.walk_realistic = true;
-        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"walk_realistic\":true"), "the walking pace is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
-        let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.walk_realistic, "Realistic walking stays chosen after a restart");
-        // The old shape: the same file without the field.
-        let mut old: serde_json::Value = serde_json::from_str(&json).unwrap();
-        old.as_object_mut().unwrap().remove("walk_realistic");
-        let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switch reads");
-        assert!(!read.walk_realistic, "and walks at the Simplified pace");
-    }
-
-    /// The animation mode (character animation rung 2a, 2026-11-09) starts Realistic (the
-    /// operator's question 5), a chosen Simplified survives a save and a load through the GUI state,
-    /// the JSON and back, and a settings file written before the switch existed reads as Realistic.
-    /// Seen red 2026-11-09 with `apply_to_gui_state` not copying it back: "Simplified animation stays
-    /// chosen after a restart".
-    #[test]
-    fn the_animation_mode_survives_a_save_and_a_load_and_an_old_file_reads() {
-        let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.anim_simplified, "the animation starts Realistic");
-        state.settings.anim_simplified = true;
-        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"anim_simplified\":true"), "the animation mode is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
-        let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.anim_simplified, "Simplified animation stays chosen after a restart");
-        let mut old: serde_json::Value = serde_json::from_str(&json).unwrap();
-        old.as_object_mut().unwrap().remove("anim_simplified");
-        let read: AppConfig = serde_json::from_value(old).expect("a settings file from before the switch reads");
-        assert!(!read.anim_simplified, "and animates Realistic");
+        serde_json::from_str::<AppConfig>(&json).unwrap().apply_to_gui_state(&mut fresh);
+        for (id, level) in chosen {
+            assert_eq!(fresh.settings.level(id), level, "{id} stays at {level} after a restart");
+        }
+        // A config.json written before the levels: its switches are not read, nothing fails.
+        let mut old = serde_json::to_value(AppConfig::default()).unwrap();
+        let o = old.as_object_mut().unwrap();
+        o.remove("gameplay");
+        for key in ["body_heat_realistic", "illness_realistic", "carry_realistic", "death_realistic", "drone_realistic", "walk_realistic", "anim_simplified", "hostile_wildlife"] {
+            o.insert(key.to_string(), serde_json::Value::Bool(true));
+        }
+        let read: AppConfig = serde_json::from_value(old).expect("an old config.json still loads");
+        let mut after = crate::gui::GuiState::default();
+        read.apply_to_gui_state(&mut after);
+        assert_eq!(after.settings.level("body_heat"), "forgiving", "and plays at the defaults");
+        assert_eq!(after.settings.level("hostile_wildlife"), "off");
     }
 
     /// The first-person body and Reduce motion (character animation rung 2b, 2026-11-10): the body
@@ -2844,40 +2748,6 @@ mod play_mode_tests {
         assert!(!read.reduce_motion);
     }
 
-    /// The Illness mode (BUG-162, 2026-10-05) starts Forgiving and a chosen Realistic survives
-    /// a save and a load, through the GUI state, the JSON and back.
-    /// Seen red with `from_gui_state` writing `illness_realistic: false`: "the illness mode is
-    /// written" (the JSON held `"illness_realistic":false`).
-    #[test]
-    fn the_illness_mode_survives_a_save_and_a_load() {
-        let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.illness_realistic, "illness starts Forgiving");
-        state.settings.illness_realistic = true;
-        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"illness_realistic\":true"), "the illness mode is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
-        let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.illness_realistic, "Realistic illness stays chosen after a restart");
-    }
-
-    /// The farm animals mode (2026-10-12, first-hour audit S6) starts Forgiving and a chosen
-    /// Realistic survives a save and a load, through the GUI state, the JSON and back.
-    /// Seen red 2026-10-12 with `from_gui_state` writing `animal_care_realistic: false`: "the
-    /// farm animals mode is written" (the JSON held `"animal_care_realistic":false`).
-    #[test]
-    fn the_farm_animals_mode_survives_a_save_and_a_load() {
-        let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.animal_care_realistic, "farm animals start Forgiving");
-        state.settings.animal_care_realistic = true;
-        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"animal_care_realistic\":true"), "the farm animals mode is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
-        let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.animal_care_realistic, "Realistic farm animals stay chosen after a restart");
-    }
-
     /// The pipe-marking mode (2026-10-04) starts Simplified and a chosen Full survives a save
     /// and a load, through the GUI state, the JSON and back.
     /// Seen red with `from_gui_state` writing `pipe_marking_full: false`: "the pipe marking
@@ -2893,23 +2763,6 @@ mod play_mode_tests {
         let mut fresh = crate::gui::GuiState::default();
         back.apply_to_gui_state(&mut fresh);
         assert!(fresh.settings.pipe_marking_full, "Full pipe markings stay chosen after a restart");
-    }
-
-    /// The Death mode (2026-10-04, systems::death_pack) starts Simplified and a chosen
-    /// Realistic survives a save and a load, through the GUI state, the JSON and back.
-    /// Seen red with `from_gui_state` writing `death_realistic: false`: "the death mode is
-    /// written" (the JSON held `"death_realistic":false`).
-    #[test]
-    fn the_death_mode_survives_a_save_and_a_load() {
-        let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.death_realistic, "death starts Simplified");
-        state.settings.death_realistic = true;
-        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"death_realistic\":true"), "the death mode is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
-        let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.death_realistic, "Realistic death stays chosen after a restart");
     }
 
     /// The Garden updates choice (2026-10-31, farm-clock.md rung 2) starts at every second,
@@ -2943,24 +2796,6 @@ mod play_mode_tests {
         wild.garden_update_s = f32::NAN;
         wild.apply_to_gui_state(&mut fresh);
         assert_eq!(fresh.settings.garden_update_s, 0.0);
-    }
-
-    /// The Mining drone mode (first-hour audit S5, 2026-10-12, systems::mining) starts
-    /// Simplified and a chosen Realistic survives a save and a load, through the GUI state,
-    /// the JSON and back. Seen red with `from_gui_state` writing `drone_realistic: false`:
-    /// "the drone mode is written" (the JSON held `"drone_realistic":false`).
-    #[test]
-    fn the_drone_mode_survives_a_save_and_a_load() {
-        let mut state = crate::gui::GuiState::default();
-        assert!(!state.settings.drone_realistic, "the drone starts Simplified");
-        assert!(!AppConfig::default().drone_realistic, "a fresh install too");
-        state.settings.drone_realistic = true;
-        let json = serde_json::to_string(&AppConfig::from_gui_state(&state)).unwrap();
-        assert!(json.contains("\"drone_realistic\":true"), "the drone mode is written");
-        let back: AppConfig = serde_json::from_str(&json).unwrap();
-        let mut fresh = crate::gui::GuiState::default();
-        back.apply_to_gui_state(&mut fresh);
-        assert!(fresh.settings.drone_realistic, "Realistic drone stays chosen after a restart");
     }
 
     /// The per-screen video choice and the ffmpeg path survive a save and a
@@ -3139,16 +2974,10 @@ mod pbkdf2_migration_tests {
         assert_eq!(c.notifications_volume, 1.0, "the notifications volume starts full (BUG-265)");
         assert!(c.ui_sounds_enabled);
         assert_eq!(c.vitals_drain, 1.0);
-        // Body heat starts Forgiving (the simplified mode is the default).
-        assert!(!c.body_heat_realistic);
-        // Illness starts Forgiving too (BUG-162).
-        assert!(!c.illness_realistic);
-        // Carrying weight starts Forgiving too (BUG-136).
-        assert!(!c.carry_realistic);
+        // No gameplay level chosen: each plays at data/gameplay/levels.json's default (2026-11-11).
+        assert!(c.gameplay.is_empty());
         // Pipe markings start Simplified (2026-10-04).
         assert!(!c.pipe_marking_full);
-        // Death starts Simplified: nothing is lost (2026-10-04).
-        assert!(!c.death_realistic);
         assert_eq!(c.planet_max_subdiv, 6.0);
         // Fresh installs see the concept tour exactly once: the serde
         // default is true (pre-v0.198 configs skip it) but the no-config

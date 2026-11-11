@@ -31,8 +31,37 @@ fn store(spec: DroneSpec, realistic: bool, unit: DroneUnit) -> DataStore {
     data.insert(SPEC_KEY, spec);
     data.insert(REQUEST_KEY, Mutex::new(Option::<DroneRequest>::None));
     data.insert(READOUT_KEY, Mutex::new(Option::<DroneReadout>::None));
-    data.insert(MODE_KEY, Mutex::new(realistic));
+    data.insert(MODE_KEY, Mutex::new(if realistic { Mode::Realistic } else { Mode::Simplified }));
     data
+}
+
+/// MINING DRONE OFF MEANS OFF (2026-11-11, Settings > Gameplay > Mining drone, Off): with a flat
+/// battery, no home power at all and a two-trip service interval, Keep mining flies trip after
+/// trip: the drone is never held for a charge, adds no wear, and a drone already due for its
+/// service flies too.
+///
+/// Seen red 2026-11-11 with the tick's Off top-up taken out (Off charging as Simplified, from a
+/// grid that is not there): "with the drone off it flies three trips or more from a flat battery
+/// and no power, past its service: 0 iron".
+#[test]
+fn the_drone_off_flies_free() {
+    let mut spec = shipped();
+    spec.service_trips = 2.0;
+    let worn = DroneUnit { pack_wh: 0.0, wear_trips: 2.0, ..DroneUnit::new(&spec) };
+    let data = store(spec.clone(), false, worn);
+    *data.get::<Mutex<Mode>>(MODE_KEY).unwrap().lock().unwrap() = Mode::Off;
+    keep_mining(&data, 10);
+    let mut world = hecs::World::new();
+    let player = world.spawn((Inventory::new(16), Controllable));
+    world.spawn((rock(10_000.0),));
+    let mut sys = DroneSystem::new();
+    for _ in 0..400 {
+        sys.tick(&mut world, 1.0, &data);
+    }
+    assert!(iron(&world, player) >= 30, "with the drone off it flies three trips or more from a flat battery and no power, past its service: {} iron", iron(&world, player));
+    let u = unit_now(&data);
+    assert_eq!(u.wear_trips, 2.0, "no wear added");
+    assert!(notices(&data).iter().all(|n| !n.contains("due for its service") && !n.contains("battery")), "never held: {:?}", notices(&data));
 }
 
 /// A drone with an empty battery.

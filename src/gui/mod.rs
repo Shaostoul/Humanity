@@ -60,6 +60,10 @@ pub mod navigation;
 /// Back and Forward (navigation rung 4): the one way between places, `GuiState::go`.
 #[cfg(feature = "native")]
 pub mod history;
+/// The gameplay settings' levels (2026-11-11): data/gameplay/levels.json, which Settings >
+/// Gameplay draws and the systems read through `SettingsState::level`.
+#[cfg(feature = "native")]
+pub mod gameplay_levels;
 pub mod layers;
 /// The characters' bodies and animation as the pages see them (`GuiState::characters`).
 pub mod characters;
@@ -396,10 +400,10 @@ pub enum GuiPage {
     /// section_nav sidebar folding in Profile's sections + Inventory, Wallet,
     /// Tasks, Map, Market. Replaces six separate nav buttons. See pages/real.rs.
     Real,
-    /// Play's own page (navigation rung 2, 2026-11-03; the operator's answer of 2026-11-03): who
-    /// and where you played last and an Enter the world button, under the Play row (Characters,
-    /// Quests, Inventory, Crafting). A tap on Play opens it; a press and hold goes into the world
-    /// (`None`). pages/play.rs. (A Play variant of v0.360, a tab folding Crafting and Studio, went
+    /// Play's own page, the game's hub (navigation rung 2, 2026-11-03; the hub, 2026-11-11): the
+    /// world you will enter with its Enter the world button, and a card for each page of the Play
+    /// row (Characters, Quests, Inventory, Crafting) with what is in it now. A press on Play opens
+    /// it and never goes into the world. pages/play.rs. (A Play variant of v0.360, a tab folding Crafting and Studio, went
     /// in v0.415.0: an unrelated page of the same name.)
     Play,
     /// Dev, the developer tools tab (2026-10-20): a section_nav over Bugs,
@@ -2091,9 +2095,10 @@ pub struct GuiState {
     pub appearance: humanity_core::ecs::components::Appearance,
     /// Set when the appearance edits change; the main loop rebuilds the avatar mesh.
     pub appearance_dirty: bool,
-    /// The walking pace's speeds as data/game.csv gives them, metres a second: Realistic walk and
-    /// run, Simplified walk and sprint (published by engine::walk_pace for Settings' description).
-    pub walk_pace_speeds: [f32; 4],
+    /// The walking pace's speeds as data/game.csv gives them, one (level id, walk, run) in metres a
+    /// second per level of data/gameplay/levels.json (published by engine::walk_pace for Settings'
+    /// words about each level).
+    pub walk_pace_speeds: Vec<(String, f32, f32)>,
     /// The characters' bodies and animation as the pages see them (body choices and sliders, the
     /// player's height, Show skeletons, Feet on the world): `gui/characters.rs`.
     pub characters: characters::CharactersGui,
@@ -3874,7 +3879,7 @@ impl Default for GuiState {
             showroom_confirm: false,
             appearance: humanity_core::ecs::components::Appearance::default(),
             appearance_dirty: false,
-            walk_pace_speeds: [1.4, 4.0, 5.0, 9.5],
+            walk_pace_speeds: vec![("realistic".into(), 1.4, 4.0), ("brisk".into(), 2.0, 6.0), ("simplified".into(), 5.0, 9.5)],
             characters: Default::default(),
             outfit: humanity_core::ecs::components::Outfit::default(),
             outfit_dirty: false,
@@ -4541,41 +4546,17 @@ pub struct SettingsState {
     // (GuiState::notif_*, edited by Settings > Notifications AND the chat DM
     // cog; v0.980 removed the dead notify_*/dnd_* placebos nothing read).
     // Gameplay
-    /// Spawn hostile wild creatures (wolf packs etc. from wild_spawns.ron).
-    /// Default OFF pre-launch (v0.791, operator: "disable the wolves") -- the
-    /// Dev spawn page still places any creature deliberately. Turning it off
-    /// mid-session despawns live hostiles; turning it on repopulates on the
-    /// next world load. The play-mode system (task #50) deliberately leaves
-    /// this INDEPENDENT of the mode: hostile wildlife is a difficulty choice
-    /// in every mode, not a cheat, so switching modes never flips it.
-    pub hostile_wildlife: bool,
+    /// The gameplay settings' levels (2026-11-11, gui/gameplay_levels.rs and
+    /// data/gameplay/levels.json): setting id to level id, for body heat, illness and injury, farm
+    /// animals, carrying weight, death, the mining drone, the walking pace, animation and hostile
+    /// wildlife. Read through `gameplay_levels::level_of`, which gives the file's default for a
+    /// setting never chosen. Saved as AppConfig::gameplay; published by engine::survival_env and
+    /// each system's bridge. (Each was a true/false switch before; an old config.json reads as the
+    /// defaults.)
+    pub gameplay: std::collections::BTreeMap<String, String>,
     /// Survival-needs speed: scales hunger/thirst/energy decay in the food
     /// system (1.0 = normal, 0 = paused). v0.791, with slowed base rates.
     pub vitals_drain: f32,
-    /// Body heat mode (2026-09-27, systems::body_heat): false is Forgiving
-    /// (the default: the same physics, the core swings half as far and harm
-    /// comes at half the rate), true is Realistic. Saved as
-    /// AppConfig::body_heat_realistic; published by engine::survival_env.
-    pub body_heat_realistic: bool,
-    /// Illness mode (BUG-162, systems::illness): false is Forgiving (the
-    /// default: a shorter course taking half the water), true is Realistic.
-    /// Saved as AppConfig::illness_realistic; published by engine::survival_env.
-    pub illness_realistic: bool,
-    /// Farm animals mode (2026-10-12, systems::animal_care): false is Forgiving (the default:
-    /// neglect only stops what they make), true is Realistic (they fall sick and die).
-    /// Saved as AppConfig::animal_care_realistic; published by engine::survival_env.
-    pub animal_care_realistic: bool,
-    /// Carrying weight mode (BUG-136, systems::encumbrance): false is
-    /// Forgiving (the default: the same limit, a warning only), true is
-    /// Realistic (an overload slows walking and stops jumps, and a load's
-    /// mass weighs on every jump). Saved as AppConfig::carry_realistic.
-    pub carry_realistic: bool,
-    /// Walking pace (2026-11-09, engine::walk_pace): false Simplified (default: 5 m/s walk, 9.5 sprint),
-    /// true Realistic (1.4 and 4 m/s); speeds from data/game.csv. Saved as AppConfig::walk_realistic.
-    pub walk_realistic: bool,
-    /// Animation (2026-11-09, rung 2a): false Realistic (default: the near bodies' feet by leg IK, foot
-    /// locking, stair footsteps), true Simplified (the pelvis offset alone). AppConfig::anim_simplified.
-    pub anim_simplified: bool,
     /// Show my body in first person (rung 2b; default true, the old body-less view false). AppConfig::fp_body.
     pub fp_body: bool,
     /// Reduce motion (rung 2b): the first-person eye off the drawn head (default false). AppConfig::reduce_motion.
@@ -4586,16 +4567,6 @@ pub struct SettingsState {
     /// content's main colour per marker, the default), true is Full (the scheme's whole marker,
     /// main-additional-main). Saved as AppConfig::pipe_marking_full.
     pub pipe_marking_full: bool,
-    /// Death (2026-10-04, systems::death_pack): false is Simplified (the default: nothing is
-    /// lost), true is Realistic (the backpack's contents stay where you fell, in a pack to go
-    /// back for). Saved as AppConfig::death_realistic.
-    pub death_realistic: bool,
-    /// Mining drone (first-hour audit S5, 2026-10-12, systems::mining): false is Simplified
-    /// (the default: its dock charges it even when the home has no power to spare, so a flat
-    /// home only delays a trip, and it wears half as fast), true is Realistic (a trip needs a
-    /// charge the home really gave). Saved as AppConfig::drone_realistic; published by
-    /// engine::drone::bridge.
-    pub drone_realistic: bool,
     /// Which survival bars the HUD draws (2026-09-25). See HudVitals.
     pub hud_vitals: crate::config::HudVitals,
     /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
@@ -4652,6 +4623,19 @@ pub struct SettingsState {
     pub seed_phrase_input: String,
     pub seed_phrase_recovery_status: String,
     pub seed_phrase_show_recover: bool,
+}
+
+#[cfg(feature = "native")]
+impl SettingsState {
+    /// The level chosen for the gameplay setting `id` (data/gameplay/levels.json), or its default.
+    pub fn level(&self, id: &str) -> &str {
+        gameplay_levels::level_of(&self.gameplay, id)
+    }
+
+    /// Choose `level` for the gameplay setting `id` (a rig's verb, a test, Settings itself).
+    pub fn set_level(&mut self, id: &str, level: &str) {
+        self.gameplay.insert(id.to_string(), level.to_string());
+    }
 }
 
 #[cfg(feature = "native")]
@@ -4753,19 +4737,11 @@ impl Default for SettingsState {
             nav_preview: true,
             hint_display: HintDisplay::default(),
             language: "en".to_string(),
-            hostile_wildlife: false,
+            gameplay: Default::default(),
             vitals_drain: 1.0,
-            body_heat_realistic: false,
-            illness_realistic: false,
-            animal_care_realistic: false,
-            carry_realistic: false,
-            walk_realistic: false,
-            anim_simplified: false,
             fp_body: true, reduce_motion: false,
             crouch_toggle: false,
             pipe_marking_full: false,
-            death_realistic: false,
-            drone_realistic: false,
             hud_vitals: crate::config::HudVitals::default(),
             play_mode: crate::config::PlayMode::default(),
             // Off until a choice, as every server keeps a new member (BUG-240; config.rs).

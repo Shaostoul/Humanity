@@ -58,9 +58,14 @@ pub const DISEASE: &str = "disease";
 /// Game seconds in a day, for the data's litres a day.
 const DAY_S: f32 = crate::time::EARTH_DAY_S as f32;
 
-/// The two modes of the house rule.
+/// The levels of Settings > Gameplay > Illness and injury (data/gameplay/levels.json): the house
+/// rule's two modes, and Off (2026-11-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
+    /// Illness and injury turned off: no food poisoning, no wound from a bite, a burn or a fall,
+    /// no harm from burns or falls, and any illness or wound already on the body heals at once
+    /// (`FoodSystem` clears them each tick, `Wounds::take_injuries` takes nothing).
+    Off,
     /// The default: a shorter, milder course (`Illnesses::forgiving`).
     #[default]
     Forgiving,
@@ -75,12 +80,13 @@ impl Mode {
         data.get::<Mode>(MODE_KEY).copied().unwrap_or(Mode::Realistic)
     }
 
-    /// The mode the saved setting names (`AppConfig::illness_realistic`).
-    pub fn from_realistic(realistic: bool) -> Self {
-        if realistic {
-            Mode::Realistic
-        } else {
-            Mode::Forgiving
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(Mode::Off),
+            "forgiving" => Some(Mode::Forgiving),
+            "realistic" => Some(Mode::Realistic),
+            _ => None,
         }
     }
 }
@@ -180,6 +186,7 @@ impl Illnesses {
     /// The share of the Realistic course this mode runs.
     pub fn course_share(&self, mode: Mode) -> f32 {
         match mode {
+            Mode::Off => 0.0,
             Mode::Realistic => 1.0,
             Mode::Forgiving => self.forgiving.course_share.clamp(0.0, 1.0),
         }
@@ -188,6 +195,7 @@ impl Illnesses {
     /// The share of the Realistic water loss this mode takes.
     pub fn water_share(&self, mode: Mode) -> f32 {
         match mode {
+            Mode::Off => 0.0,
             Mode::Realistic => 1.0,
             Mode::Forgiving => self.forgiving.water_share.clamp(0.0, 1.0),
         }

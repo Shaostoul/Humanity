@@ -63,6 +63,17 @@ pub fn edge(theme: &Theme, tint: Tint) -> egui::Color32 {
 
 /// Draw a section titled `title` in `tint` around what `add` draws, the full width available.
 pub fn show<R>(ui: &mut egui::Ui, theme: &Theme, tint: Tint, title: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    frame(ui, theme, tint, |ui| {
+        ui.label(RichText::new(title).size(theme.font_size_small).color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        add(ui)
+    })
+}
+
+/// The section's fill and edge in `tint` around what `add` draws, the full width available, with
+/// no title of its own: for a part that brings its own heading, such as the Inventory page's
+/// sections, each a fold that opens and closes (`widgets::section_disclosure`) (2026-11-11).
+pub fn frame<R>(ui: &mut egui::Ui, theme: &Theme, tint: Tint, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let c = color(theme, tint);
     egui::Frame::NONE
         .fill(c.gamma_multiply(SHADE))
@@ -71,8 +82,6 @@ pub fn show<R>(ui: &mut egui::Ui, theme: &Theme, tint: Tint, title: &str, add: i
         .inner_margin(egui::Margin::same(theme.spacing_sm as i8))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(RichText::new(title).size(theme.font_size_small).color(theme.text_secondary()).strong());
-            ui.add_space(theme.spacing_xs);
             add(ui)
         })
         .inner

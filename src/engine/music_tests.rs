@@ -91,6 +91,8 @@ fn inputs(data: &Path) -> Inputs {
         reuse: true,
         generation: 0,
         restart: false,
+        // Past the opening: the tests below are about the world and the page rule.
+        opening: false,
     }
 }
 
@@ -374,4 +376,49 @@ fn the_score_with_recordings_measured() {
             built.took_ms
         );
     }
+}
+
+/// THE MUSIC STARTS WHEN HUMANITYOS STARTS (2026-11-11, the operator: "we should have the music
+/// start playing when HumanityOS starts"): from the app's start, on the title screen and the pages,
+/// the score plays (Settings > Music, "Play the music when HumanityOS opens", on by default),
+/// until the first time in the world; after that the pages follow "Music on the app's pages".
+/// It follows Music on and the volumes, the switch turns it off, and an instance with no sound
+/// device (a script's background launch, engine/launch_focus.rs) plays nothing.
+///
+/// Seen red 2026-11-11 with `gains` ignoring `opening` (the page rule alone, as before): "the
+/// title screen plays the music at the app's start" failed (left: false, right: true).
+#[test]
+fn the_music_starts_with_the_app_and_a_script_launch_stays_silent() {
+    let t = quick_music("music_at_start");
+    let data = t.join("data");
+    let mut inp = inputs(&data);
+    inp.hearing = Hearing::Page;
+    inp.aboard = false;
+    inp.opening = true;
+    assert_eq!(gains(&inp).music, true, "the title screen plays the music at the app's start");
+    assert!((gains(&inp).music_gain - 0.7).abs() < 1e-6, "at the Music Volume times the Master");
+    inp.master = 0.0;
+    assert_eq!(gains(&inp).music_gain, 0.0, "the Master Volume at zero silences it");
+    inp.master = 1.0;
+    inp.settings.music_on = false;
+    assert_eq!(gains(&inp).music, false, "Music off silences it");
+    inp.settings.music_on = true;
+    inp.settings.music_at_start = false;
+    assert_eq!(gains(&inp).music, false, "the switch turns the music at start off");
+    inp.settings.music_at_start = true;
+    // A score really starts on a page at the app's start (the quick data builds in milliseconds).
+    let mut rt = MusicRuntime::default();
+    let mut mix = Offline::default();
+    let r = run_until(&mut rt, &mut mix, &inp, 600, |r| r.score.is_some());
+    assert!(r.device && r.score.is_some(), "a score plays at the app's start");
+    // No sound device, as a script's background launch has none: nothing plays, frame after frame.
+    let mut silent = MusicRuntime::default();
+    for _ in 0..300 {
+        let r = silent.step(None, &inp);
+        assert!(!r.device && r.score.is_none(), "an instance with no sound device plays nothing");
+        silent.wait_for_build();
+    }
+    // After the first time in the world, a page is the page rule's again.
+    inp.opening = false;
+    assert_eq!(gains(&inp).music, false, "once the world has been entered, an app page plays no music by default");
 }

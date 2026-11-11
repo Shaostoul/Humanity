@@ -114,9 +114,12 @@ pub fn mass_jump_scale(carried_kg: f32) -> f32 {
     (BODY_MASS_KG / (BODY_MASS_KG + carried_kg.max(0.0))).sqrt()
 }
 
-/// Which of the two modes the Settings switch picked.
+/// The levels of Settings > Gameplay > Carrying weight (data/gameplay/levels.json): the house
+/// rule's two modes, and Off (2026-11-11).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum CarryMode {
+    /// Carrying weight turned off: no limit, so never overloaded, never slowed, no warning.
+    Off,
     /// The default: a warning only.
     #[default]
     Forgiving,
@@ -125,12 +128,13 @@ pub enum CarryMode {
 }
 
 impl CarryMode {
-    /// From the saved setting (`AppConfig::carry_realistic`).
-    pub fn from_realistic(realistic: bool) -> Self {
-        if realistic {
-            CarryMode::Realistic
-        } else {
-            CarryMode::Forgiving
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(CarryMode::Off),
+            "forgiving" => Some(CarryMode::Forgiving),
+            "realistic" => Some(CarryMode::Realistic),
+            _ => None,
         }
     }
 }
@@ -186,9 +190,10 @@ pub fn evaluate(input: CarryInput, g_m_s2: f32, mode: CarryMode) -> CarryState {
     let limit_1g = input.capacity_kg.max(0.0) + input.bonus_kg.max(0.0);
     let limit_here = limit_here_kg(limit_1g, g_m_s2);
     let ratio = overload_ratio(input.carried_kg, limit_here);
-    let overloaded = ratio > 1.0;
+    // Off (2026-11-11): there is no limit to be over.
+    let overloaded = ratio > 1.0 && mode != CarryMode::Off;
     let (speed_factor, jump_scale) = match mode {
-        CarryMode::Forgiving => (1.0, 1.0),
+        CarryMode::Off | CarryMode::Forgiving => (1.0, 1.0),
         CarryMode::Realistic => {
             // An overload only exists under gravity (`limit_here_kg`), and
             // under gravity an overloaded body does not leave the ground.
@@ -212,12 +217,18 @@ impl CarryState {
 
     /// The load against the limit here, 0 to 1, for the tile's bar.
     pub fn fraction(&self) -> f32 {
+        if self.mode == CarryMode::Off {
+            return 0.0;
+        }
         overload_ratio(self.input.carried_kg, self.limit_here_kg).clamp(0.0, 1.0)
     }
 
     /// The Weight tile's value: "62.0 / 50.0 kg", or the mass alone when
     /// weightless.
     pub fn tile_value(&self) -> String {
+        if self.mode == CarryMode::Off {
+            return format!("{:.1} kg, no limit", self.input.carried_kg);
+        }
         match self.limit_here_kg {
             Some(limit) => format!("{:.1} / {:.1} kg", self.input.carried_kg, limit),
             None => format!("{:.1} kg, weightless", self.input.carried_kg),
@@ -227,6 +238,9 @@ impl CarryState {
     /// The sentences under the Status tiles: where the limit comes from and,
     /// when it matters, why the player is slow or cannot jump.
     pub fn tile_note(&self) -> String {
+        if self.mode == CarryMode::Off {
+            return format!("Carrying weight is off ({SETTING_PATH}): carry any load at full speed.");
+        }
         let limit_1g = self.limit_1g_kg();
         let mut s = if self.input.bonus_kg > 0.0 {
             format!(
@@ -257,6 +271,7 @@ impl CarryState {
                 CarryMode::Forgiving => s.push_str(&format!(
                     " Overloaded by {over:.1} kg. Forgiving mode does not slow you; Realistic mode ({SETTING_PATH}) would."
                 )),
+                CarryMode::Off => {}
             }
         } else if self.mode == CarryMode::Realistic && self.jump_scale < 0.995 {
             s.push_str(&format!(
@@ -281,7 +296,7 @@ impl CarryState {
             CarryMode::Realistic => {
                 format!("{load}: walking at {}, no jumping", pct(self.speed_factor))
             }
-            CarryMode::Forgiving => format!("{load} (Forgiving: no slowdown)"),
+            CarryMode::Forgiving | CarryMode::Off => format!("{load} (Forgiving: no slowdown)"),
         })
     }
 }
@@ -365,6 +380,21 @@ mod tests {
     /// and does not jump. Red, against a stub `evaluate` that only warned
     /// (speed 1, jump 1, the old do-nothing behaviour): "Realistic walks
     /// slower when over: 1".
+    #[test]
+    fn carrying_weight_off_has_no_limit() {
+        // CARRYING WEIGHT OFF MEANS OFF (2026-11-11, Settings > Gameplay > Carrying weight, Off):
+        // three times the limit at 1 g is not overloaded, walks and jumps at full speed, puts no
+        // line on the HUD, and the tile says there is no limit. Seen red 2026-11-11 with `evaluate`
+        // ignoring Off (Off read as Forgiving): "Off: three times the limit is not overloaded".
+        let s = evaluate(load(150.0, 50.0, 0.0), ONE_G_M_S2, CarryMode::Off);
+        assert!(!s.overloaded, "Off: three times the limit is not overloaded");
+        assert_eq!((s.speed_factor, s.jump_scale), (1.0, 1.0), "Off: full speed, full jumps");
+        assert_eq!(s.hud_line(), None, "Off: no HUD line");
+        assert_eq!(s.fraction(), 0.0, "Off: the tile's bar is empty");
+        assert!(s.tile_value().contains("no limit") && s.tile_note().contains("off"), "Off: the tile says so: {} / {}", s.tile_value(), s.tile_note());
+        assert!(evaluate(load(150.0, 50.0, 0.0), ONE_G_M_S2, CarryMode::Realistic).overloaded, "the same load is overloaded in Realistic");
+    }
+
     #[test]
     fn realistic_overload_walks_slower_and_cannot_jump() {
         let s = evaluate(load(60.0, 50.0, 0.0), ONE_G_M_S2, CarryMode::Realistic);

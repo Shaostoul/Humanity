@@ -100,6 +100,9 @@ pub const WIP_MUTE_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"),
 /// The top menu (docs/design/navigation.md, rung 1; src/gui/navigation.rs), so a data folder
 /// without the file still has a menu. Ungated though only the desktop app reads it, as WIP_MUTE_JSON is.
 pub const NAVIGATION_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gui/navigation.json"));
+/// The gameplay settings' levels (2026-11-11; src/gui/gameplay_levels.rs), so a data folder without
+/// the file still offers every level. Ungated though only the desktop app reads it, as NAVIGATION_JSON is.
+pub const GAMEPLAY_LEVELS_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/gameplay/levels.json"));
 /// How much of a message the DM list can show (src/gui/pages/chat/dm_rows.rs), so a data folder
 /// without the file still offers the choice. Ungated though only the desktop app reads it, as
 /// NAVIGATION_JSON is.
@@ -380,6 +383,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "notifications/notifications.json" => Some(NOTIFICATIONS_JSON),
         "gui/wip_mute.json" => Some(WIP_MUTE_JSON),
         "gui/navigation.json" => Some(NAVIGATION_JSON),
+        "gameplay/levels.json" => Some(GAMEPLAY_LEVELS_JSON),
         "gui/dm_preview.json" => Some(DM_PREVIEW_JSON),
         "external/catalog.json" => Some(EXTERNAL_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
@@ -802,6 +806,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "gui/wip_mute.json",
     "gui/navigation.json",
     "gui/dm_preview.json",
+    "gameplay/levels.json",
 ];
 
 #[cfg(test)]

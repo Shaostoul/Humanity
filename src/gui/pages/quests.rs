@@ -48,6 +48,32 @@ const METER_HEIGHT: f32 = 8.0;
 /// The accent stripe down the left of a card under way and of its current step.
 const STRIPE: f32 = 3.0;
 
+/// The Play hub's Quests card (pages/play.rs, 2026-11-11): the first quest under way and its
+/// step, then how many more wait and how many are done, read from what GuiState holds.
+pub(crate) fn hub_summary(state: &GuiState) -> Vec<String> {
+    let mut active = state.quests.iter().filter(|q| !q.completed);
+    let done = state.quests.iter().filter(|q| q.completed).count();
+    let mut lines = Vec::new();
+    match active.next() {
+        Some(q) => {
+            let (step, total) = ((q.step_index + 1).min(q.step_total.max(1)).to_string(), q.step_total.max(1).to_string());
+            lines.push(tf("play.hub.quests_now", &[("quest", &q.name), ("step", &step), ("total", &total)]));
+            let more = active.count();
+            if more > 0 {
+                lines.push(tf("play.hub.quests_more", &[("count", &more.to_string())]));
+            }
+        }
+        None => lines.push(t("play.hub.quests_none").to_string()),
+    }
+    if !state.quests_available.is_empty() {
+        lines.push(tf("play.hub.quests_available", &[("count", &state.quests_available.len().to_string())]));
+    }
+    if done > 0 {
+        lines.push(tf("play.hub.quests_done", &[("count", &done.to_string())]));
+    }
+    lines
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))

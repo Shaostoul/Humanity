@@ -5,6 +5,7 @@ use egui::{Color32, Frame, RichText, CornerRadius, ScrollArea, Stroke, Vec2};
 use crate::gui::{GardenArea, GuiAsteroid, GuiDrone, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use humanity_core::i18n::t;
 use std::cell::RefCell;
 
 // Equipment slot definitions are loaded from `data/inventory/equipment_slots.json`
@@ -91,32 +92,80 @@ fn manifest_bar(ui: &mut egui::Ui, theme: &Theme, draft: &[(String, u32)], cap: 
 /// One vital as a TILE: a small card with the vital's name, its value, and a
 /// chunky rounded colour-by-level bar. A grid of these reads at a glance and uses
 /// the page width, replacing the old thin name/value/bar text rows.
+/// The Play hub's Inventory card (pages/play.rs, 2026-11-11): what you carry against what you can
+/// carry, how many things are in your pack, and your health once the vitals have synced.
+pub(crate) fn hub_summary(state: &GuiState) -> Vec<String> {
+    use humanity_core::i18n::tf;
+    let things: u32 = state.inventory_items.iter().flatten().map(|s| s.quantity).sum();
+    let mut lines = vec![
+        tf("play.hub.inventory_weight", &[("value", &state.carry.tile_value())]),
+        tf("play.hub.inventory_things", &[("count", &things.to_string())]),
+    ];
+    if state.vitals.satiation_max > 0.0 {
+        let (hp, max) = (format!("{:.0}", state.player_health), format!("{:.0}", state.player_health_max));
+        lines.push(tf("play.hub.inventory_health", &[("hp", &hp), ("max", &max)]));
+    }
+    lines
+}
+
+/// One status card: its name and its number on one line, a thin bar under them (2026-11-11: the
+/// cards were tall, a heading-sized number over a chunky bar; now two short rows hold all eight).
 fn vital_tile(ui: &mut egui::Ui, theme: &Theme, name: &str, value: &str, frac: f32, color: Color32) {
     Frame::NONE
         .fill(theme.bg_card())
-        .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
         .stroke(Stroke::new(1.0_f32, theme.border()))
-        .inner_margin(Vec2::new(10.0, 8.0))
+        .inner_margin(Vec2::new(8.0, 4.0))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(RichText::new(name).size(theme.font_size_small).color(theme.text_muted()));
-            ui.label(
-                RichText::new(value)
-                    .size(theme.font_size_heading)
-                    .strong()
-                    .color(color),
-            );
-            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(name).size(theme.font_size_small).color(theme.text_muted()));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new(value).size(theme.font_size_body).strong().color(color));
+                });
+            });
             let w = ui.available_width();
-            let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 8.0), egui::Sense::hover());
-            let r = CornerRadius::same(4);
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(w, 4.0), egui::Sense::hover());
+            let r = CornerRadius::same(2);
             ui.painter().rect_filled(rect, r, theme.bg_secondary());
             let fill_w = w * frac.clamp(0.0, 1.0);
             if fill_w > 0.0 {
-                let fill = egui::Rect::from_min_size(rect.min, Vec2::new(fill_w, 8.0));
-                ui.painter().rect_filled(fill, r, color);
+                ui.painter().rect_filled(egui::Rect::from_min_size(rect.min, Vec2::new(fill_w, 4.0)), r, color);
             }
         });
+}
+
+/// One equipment slot (2026-11-11, "equipment slots readable"): a card with the slot's name over
+/// the worn thing's name, or Empty, edged in the accent when something is worn. A click on a filled
+/// slot takes it off (the caller does), and its hint says so.
+fn equip_slot(ui: &mut egui::Ui, theme: &Theme, slot: &str, worn: Option<&str>) -> egui::Response {
+    use crate::gui::widgets::Hint;
+    let stroke = if worn.is_some() { Stroke::new(1.5_f32, theme.accent()) } else { Stroke::new(1.0_f32, theme.border()) };
+    let inner = Frame::NONE
+        .fill(theme.bg_card())
+        .corner_radius(CornerRadius::same(theme.border_radius as u8))
+        .stroke(stroke)
+        .inner_margin(Vec2::new(6.0, 4.0))
+        .show(ui, |ui| {
+            ui.set_width(EQUIP_SLOT_W - 12.0);
+            // Stacked, whatever the row around it lays out: the slot's name over what is worn.
+            ui.vertical(|ui| {
+                ui.add(egui::Label::new(RichText::new(slot).size(theme.font_size_small).color(theme.text_muted())).truncate());
+                match worn {
+                    Some(name) => ui.add(egui::Label::new(RichText::new(name).size(theme.font_size_small).color(theme.text_primary()).strong()).truncate()),
+                    None => ui.label(RichText::new(t("inventory.slot_empty")).size(theme.font_size_small).color(theme.text_muted())),
+                };
+            });
+        });
+    let resp = inner.response.interact(egui::Sense::click());
+    if worn.is_some() {
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        resp.hint("inventory.slot_unequip_hint")
+    } else {
+        resp.hint("inventory.slot_empty_hint")
+    }
 }
 
 // GardenArea + the loader moved to gui/mod.rs (loaded via the resolved data_dir in
@@ -444,7 +493,10 @@ fn kind_color(theme: &Theme, kind: &str) -> egui::Color32 {
 }
 
 /// Fixed tile width for the nested-container inventory so a row of tiles stays even.
-const ITEM_TILE_W: f32 = 96.0;
+/// An equipment slot's width: room for "Right hand" and a short item name.
+const EQUIP_SLOT_W: f32 = 104.0;
+/// An item tile's width (tightened 2026-11-11 from 96: a 40-point picture, its name, its count).
+const ITEM_TILE_W: f32 = 80.0;
 
 /// Selected placed-pool item (by index into `state.placed_items`) for the inspect +
 /// "Move to" card — the spatial-inventory counterpart to `state.selected_slot` (which
@@ -491,12 +543,12 @@ fn item_tile(
         .fill(theme.bg_card())
         .corner_radius(CornerRadius::same(theme.border_radius_lg as u8))
         .stroke(stroke)
-        .inner_margin(Vec2::new(6.0, 6.0))
+        .inner_margin(Vec2::new(4.0, 4.0))
         .show(ui, |ui| {
-            ui.set_width(ITEM_TILE_W - 12.0);
+            ui.set_width(ITEM_TILE_W - 8.0);
             ui.vertical_centered(|ui| {
-                widgets::placeholder_tile(ui, theme, widgets::swatch_color(item_id), 48.0, &glyph);
-                ui.add_space(2.0);
+                widgets::placeholder_tile(ui, theme, widgets::swatch_color(item_id), 40.0, &glyph);
+                ui.add_space(1.0);
                 ui.add(
                     egui::Label::new(
                         RichText::new(name).size(theme.font_size_small).color(theme.text_primary()),
@@ -2628,7 +2680,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
         ScrollArea::vertical().show(ui, |ui| {
-            ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
+            ui.label(RichText::new(t("nav.inventory")).size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
             // Creative / survival fine-tune. The PLAY MODE owns this flag since
@@ -2665,15 +2717,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // it (the buttons mutate it THIS frame; sections below pick it up).
             let mut tree_force: Option<bool> = None;
             ui.horizontal(|ui| {
-                if widgets::secondary_button(ui, theme, "Collapse all") {
+                if widgets::Button::secondary(t("inventory.collapse_all")).hint("inventory.collapse_all_hint").show(ui, theme) {
                     tree_force = Some(false);
                 }
-                if widgets::secondary_button(ui, theme, "Expand all") {
+                if widgets::Button::secondary(t("inventory.expand_all")).hint("inventory.expand_all_hint").show(ui, theme) {
                     tree_force = Some(true);
                 }
                 // "Start collapsed" as a proper bordered button — the whole area is
                 // clickable; .active() renders the ON state like a pressed button.
-                if widgets::Button::new("Start collapsed")
+                if widgets::Button::new(t("inventory.start_collapsed"))
+                    .hint("inventory.start_collapsed_hint")
                     .active(state.trees_start_collapsed)
                     .show(ui, theme)
                 {
@@ -2686,7 +2739,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             // ── Status (collapsible) — the live player vitals. Body renders only
             //    when the section is open; closes just before the Equipment divider. ──
-            if widgets::section_disclosure(ui, theme, ("inv_sec", "status"), "Status", tree_force) {
+            crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Red, |ui| {
+            if widgets::section_disclosure(ui, theme, ("inv_sec", "status"), t("inventory.status"), tree_force) {
 
             // Live player vitals as a GRID OF TILES (name + value + a chunky
             // colour-by-level bar) instead of thin text rows — using the width and
@@ -2716,7 +2770,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // (label, value, fraction 0..1, colour) for each tile.
             let mut tiles: Vec<(&str, String, f32, Color32)> = Vec::new();
             tiles.push((
-                "Weight",
+                t("inventory.weight"),
                 carry.tile_value(),
                 weight_frac,
                 weight_color,
@@ -2734,7 +2788,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 theme.accent()
             };
             tiles.push((
-                "Volume",
+                t("inventory.volume"),
                 format!("{:.1} / {:.0} L", carry_vol, max_vol),
                 vol_frac,
                 vol_color,
@@ -2759,26 +2813,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // Health leads the grid (v0.687, operator field report: the HUD
                 // shows a health bar but the inventory Status section did not).
                 let hp_frac = (state.player_health / state.player_health_max.max(1.0)).clamp(0.0, 1.0);
-                tiles.push(("Health", format!("{:.0} / {:.0}", state.player_health, state.player_health_max), hp_frac, color_for(hp_frac)));
-                tiles.push(("Satiation", format!("{:.0} / {:.0}", v.satiation, v.satiation_max), sat_frac, color_for(sat_frac)));
-                tiles.push(("Hydration", format!("{:.0} / {:.0}", v.hydration, v.hydration_max), hyd_frac, color_for(hyd_frac)));
-                tiles.push(("Energy", format!("{:.0} / {:.0}", v.energy, v.energy_max), energy_frac, color_for(energy_frac)));
-                tiles.push(("Oxygen", format!("{:.0} / {:.0}", v.oxygen, v.oxygen_max), oxy_frac, color_for(oxy_frac)));
-                tiles.push(("Waste", format!("{:.0} / {:.0}", v.waste, v.waste_max), waste_frac, waste_col));
+                tiles.push((t("inventory.health"), format!("{:.0} / {:.0}", state.player_health, state.player_health_max), hp_frac, color_for(hp_frac)));
+                tiles.push((t("inventory.satiation"), format!("{:.0} / {:.0}", v.satiation, v.satiation_max), sat_frac, color_for(sat_frac)));
+                tiles.push((t("inventory.hydration"), format!("{:.0} / {:.0}", v.hydration, v.hydration_max), hyd_frac, color_for(hyd_frac)));
+                tiles.push((t("inventory.energy"), format!("{:.0} / {:.0}", v.energy, v.energy_max), energy_frac, color_for(energy_frac)));
+                tiles.push((t("inventory.oxygen"), format!("{:.0} / {:.0}", v.oxygen, v.oxygen_max), oxy_frac, color_for(oxy_frac)));
+                tiles.push((t("inventory.waste"), format!("{:.0} / {:.0}", v.waste, v.waste_max), waste_frac, waste_col));
             }
 
             ui.add_space(theme.spacing_xs);
-            // Three tiles across so the vitals use the width instead of stacking
-            // into one thin left-hugging column. Tiles are read-only, so they go
-            // straight into the columns.
-            let cols_n = 3usize;
-            ui.columns(cols_n, |cols| {
-                for (i, (name, value, frac, color)) in tiles.iter().enumerate() {
-                    let c = &mut cols[i % cols_n];
-                    vital_tile(c, theme, name, value, *frac, *color);
-                    c.add_space(theme.spacing_sm);
-                }
-            });
+            // A grid of compact cards (2026-11-11, the operator: "Tighten it up"): as many across
+            // as fit at about fourteen letters each, up to four, so eight vitals take two short
+            // rows rather than three tall ones. Read-only, so they go straight into the columns.
+            let cols_n = ((ui.available_width() / (theme.font_size_body * 14.0)).floor() as usize).clamp(2, 4);
+            for row in tiles.chunks(cols_n) {
+                ui.columns(cols_n, |cols| {
+                    for (i, (name, value, frac, color)) in row.iter().enumerate() {
+                        vital_tile(&mut cols[i], theme, name, value, *frac, *color);
+                    }
+                });
+                ui.add_space(theme.spacing_xs);
+            }
             // Where the Weight tile's limit comes from and, when it matters,
             // why the player is slow or cannot jump (BUG-136).
             ui.label(
@@ -2802,7 +2857,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     theme.accent()
                 };
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Body temp").color(theme.text_secondary()).size(theme.font_size_small));
+                    ui.label(RichText::new(t("inventory.body_temp")).color(theme.text_secondary()).size(theme.font_size_small));
                     ui.label(
                         RichText::new(format!("{:.1}°C", temp))
                             .color(temp_col)
@@ -2813,13 +2868,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Outside is not airless on Earth: the Air bar says
                     // whether there is air, this only says where you are.
                     if state.vitals.sealed {
-                        ui.label(RichText::new("Sealed").size(theme.font_size_small).color(theme.accent()));
+                        ui.label(RichText::new(t("inventory.sealed")).size(theme.font_size_small).color(theme.accent()));
                     } else if state.vitals.sheltered {
                         // Under a built roof on enough walls (2026-09-27): out
                         // of the wind and rain, at the outside temperature.
-                        ui.label(RichText::new("Sheltered").size(theme.font_size_small).color(theme.accent()));
+                        ui.label(RichText::new(t("inventory.sheltered")).size(theme.font_size_small).color(theme.accent()));
                     } else {
-                        ui.label(RichText::new("Outside").size(theme.font_size_small).color(theme.warning()));
+                        ui.label(RichText::new(t("inventory.outside")).size(theme.font_size_small).color(theme.warning()));
                     }
                 });
             }
@@ -2829,18 +2884,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.horizontal(|ui| {
                 // A ten-minute nap (2026-09-27, systems::sleep::short_rest);
                 // a night in a built bed is what restores energy.
-                if widgets::secondary_button(ui, theme, "Short rest") {
+                if widgets::Button::secondary(t("inventory.short_rest")).hint("inventory.short_rest_hint").show(ui, theme) {
                     action_rest = true;
                 }
                 // Compost also draws off the stored urine as fertilizer (2026-09-26).
-                if widgets::secondary_button(ui, theme, "Compost and draw off urine") {
+                if widgets::Button::secondary(t("inventory.compost")).hint("inventory.compost_hint").show(ui, theme) {
                     action_compost = true;
                 }
             });
             if !effects.is_empty() {
                 ui.add_space(theme.spacing_xs);
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(RichText::new("Effects:").color(theme.text_secondary()));
+                    ui.label(RichText::new(t("inventory.effects")).color(theme.text_secondary()));
                     for (name, remaining) in &effects {
                         // An illness lasts a day or two (BUG-162): hours, not
                         // thousands of minutes.
@@ -2877,19 +2932,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
 
             } // ── end Status ──
-
-            widgets::rgb_section_divider(ui, theme);
+            });
+            ui.add_space(theme.spacing_sm);
 
             // ── The fleet (2026-10-04): what you used from the ship's fleet and gave it, in the
             //    red or the black, and taking a meal or giving at a fleet store (fleet_ledger.rs).
-            if widgets::section_disclosure(ui, theme, ("inv_sec", "fleet"), "The fleet", tree_force) {
+            crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Blue, |ui| {
+            if widgets::section_disclosure(ui, theme, ("inv_sec", "fleet"), t("inventory.fleet"), tree_force) {
                 super::fleet_ledger::draw_section(ui, theme, state);
             }
-
-            widgets::rgb_section_divider(ui, theme);
+            });
+            ui.add_space(theme.spacing_sm);
 
                 // ── Equipment (collapsible) — closes before the You & places divider ──
-                if widgets::section_disclosure(ui, theme, ("inv_sec", "equipment"), "Equipment", tree_force) {
+                crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Yellow, |ui| {
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "equipment"), t("inventory.equipment"), tree_force) {
                 ui.add_space(theme.spacing_xs);
 
                 // v0.750 (ladder rung 8): slots render the REAL worn state — the
@@ -2909,55 +2966,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal_wrapped(|ui| {
                     for (slot_id, label) in &slots {
                         let worn: Option<String> = state.outfit.equipped.get(slot_id).cloned();
-                        let slot_size = 64.0;
-                        ui.vertical(|ui| {
-                            let (rect, response) = ui.allocate_exact_size(
-                                Vec2::splat(slot_size),
-                                egui::Sense::click(),
-                            );
-                            let fill = theme.bg_secondary();
-                            let stroke = if worn.is_some() {
-                                Stroke::new(1.5_f32, theme.accent())
-                            } else {
-                                Stroke::new(1.0_f32, theme.border())
-                            };
-                            ui.painter().rect_filled(rect, CornerRadius::same(4), fill);
-                            ui.painter().rect_stroke(rect, CornerRadius::same(4), stroke, egui::StrokeKind::Outside);
-
-                            if let Some(item_id) = &worn {
-                                let display = lookup_item_details(item_id)
-                                    .map(|d| d.name)
-                                    .unwrap_or_else(|| item_id.clone());
-                                let icon = display.chars().next().unwrap_or('?').to_string();
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    &icon,
-                                    egui::FontId::proportional(18.0),
-                                    theme.text_primary(),
-                                );
-                                let resp = response.on_hover_text(format!("{display} (click to unequip)"));
-                                if resp.clicked() {
-                                    state.pending_unequip = Some(slot_id.clone());
-                                }
-                            } else {
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    "-",
-                                    egui::FontId::proportional(14.0),
-                                    theme.text_muted(),
-                                );
-                            }
-
-                            ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_muted()));
-                        });
+                        let display = worn.as_ref().map(|id| lookup_item_details(id).map(|d| d.name).unwrap_or_else(|| id.clone()));
+                        if equip_slot(ui, theme, label, display.as_deref()).clicked() && worn.is_some() {
+                            state.pending_unequip = Some(slot_id.clone());
+                        }
                     }
                 });
 
                 } // ── end Equipment ──
-
-                widgets::rgb_section_divider(ui, theme);
+                });
+                ui.add_space(theme.spacing_sm);
 
                 // Your entity / container tree — top-level entities (You, your
                 // home, a vehicle, …), each a container with its own contents,
@@ -2966,7 +2984,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // live backpack contents inject at the node marked kind:"backpack".
                 // No place data → flat backpack fallback.
                 // ── You & places (collapsible) — closes before the Garden divider ──
-                let header = if state.places.is_empty() { "Backpack" } else { "You & your places" };
+                let header = if state.places.is_empty() { t("inventory.backpack") } else { t("inventory.places") };
+                crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Green, |ui| {
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "places"), header, tree_force) {
                 ui.add_space(theme.spacing_xs);
 
@@ -3206,19 +3225,23 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
 
                 } // ── end You & places ──
+                });
 
                 // ── GARDEN (collapsible) — numbered SLOT rows per tower; click a
                 //    slot to expand its multi-row plant card. The Dev seed/grow
                 //    buttons sit in the body. Closes before the Mining divider. ──
-                widgets::rgb_section_divider(ui, theme);
-                if widgets::section_disclosure(ui, theme, ("inv_sec", "garden"), "Garden", tree_force) {
+                ui.add_space(theme.spacing_sm);
+                crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Cyan, |ui| {
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "garden"), t("inventory.garden"), tree_force) {
                 draw_garden_section(ui, theme, state, tree_force, tree_default_open, &mut garden_acts);
                 } // ── end Garden ──
+                });
 
-                widgets::rgb_section_divider(ui, theme);
+                ui.add_space(theme.spacing_sm);
                 // ── Mining (collapsible) — commission drones to fetch ore from
                 //    finite asteroids. Closes before the panel's scroll area. ──
-                if widgets::section_disclosure(ui, theme, ("inv_sec", "mining"), "Mining", tree_force) {
+                crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Magenta, |ui| {
+                if widgets::section_disclosure(ui, theme, ("inv_sec", "mining"), t("inventory.mining"), tree_force) {
                 ui.add_space(theme.spacing_xs);
                 if state.asteroids.is_empty() {
                     ui.label(RichText::new("No asteroids in range.").color(theme.text_muted()));
@@ -3259,13 +3282,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_xs);
                 draw_drone_rows(ui, theme, state, tree_force);
                 } // ── end Mining ──
+                });
 
                 // ── Vehicles (collapsible, Stage 3 v0.680) — every vehicle standing
                 //    in the world: deploy/factory output. Summon one and it DRIVES
                 //    itself to you; watch it come or walk alongside. ──
                 if !state.vehicles.is_empty() || !state.factory_status.is_empty() {
-                    widgets::rgb_section_divider(ui, theme);
-                    if widgets::section_disclosure(ui, theme, ("inv_sec", "vehicles"), "Vehicles", tree_force) {
+                    ui.add_space(theme.spacing_sm);
+                    crate::gui::widgets::tint_section::frame(ui, theme, crate::gui::widgets::tint_section::Tint::Red, |ui| {
+                    if widgets::section_disclosure(ui, theme, ("inv_sec", "vehicles"), t("inventory.vehicles"), tree_force) {
                         ui.add_space(theme.spacing_xs);
                         // Live production lines (v0.681): what every auto machine is
                         // doing RIGHT NOW and, when idle, exactly why ("waiting for
@@ -3334,6 +3359,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                         }
                     }
+                    });
                 } // ── end Vehicles ──
         }); // close the single-panel ScrollArea
         }); // close the single CentralPanel

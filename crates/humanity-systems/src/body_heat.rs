@@ -111,9 +111,14 @@ pub const HEAT_HARM_PER_DEG_S: f32 = 100.0 / 3600.0;
 /// by `engine::survival_env` from Settings > Gameplay > Body heat.
 pub const MODE_KEY: &str = "body_heat_mode";
 
-/// The two modes of the house rule.
+/// The levels of Settings > Gameplay > Body heat (data/gameplay/levels.json): the house rule's two
+/// modes, and Off (2026-11-11, the operator: "Including just turning settings off completely. Like
+/// body heat, illness, etc.").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
+    /// Body heat turned off: the core stays at the neutral 36.8 C whatever the weather, no shivering, no sweat,
+    /// no temperature conditions and no harm (`vitals_tick` keeps the body neutral).
+    Off,
     /// The default: the same physics, the core shown swinging half as far
     /// from normal, harm at half the rate.
     #[default]
@@ -134,9 +139,20 @@ impl Mode {
         data.get::<Mode>(MODE_KEY).copied().unwrap_or(Mode::Realistic)
     }
 
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(Mode::Off),
+            "forgiving" => Some(Mode::Forgiving),
+            "realistic" => Some(Mode::Realistic),
+            _ => None,
+        }
+    }
+
     /// The core temperature this mode shows for a real one.
     pub fn shown(self, real_core_c: f64) -> f64 {
         match self {
+            Mode::Off => CORE_NEUTRAL_C,
             Mode::Realistic => real_core_c,
             Mode::Forgiving => CORE_NEUTRAL_C + FORGIVING_SWING * (real_core_c - CORE_NEUTRAL_C),
         }
@@ -145,6 +161,7 @@ impl Mode {
     /// The real core temperature a shown one stands for (a loaded save, a respawn).
     pub fn real(self, shown_core_c: f64) -> f64 {
         match self {
+            Mode::Off => CORE_NEUTRAL_C,
             Mode::Realistic => shown_core_c,
             Mode::Forgiving => CORE_NEUTRAL_C + (shown_core_c - CORE_NEUTRAL_C) / FORGIVING_SWING,
         }
@@ -163,6 +180,7 @@ pub fn harm_per_s(shown_core_c: f32, mode: Mode) -> f32 {
         0.0
     };
     match mode {
+        Mode::Off => 0.0,
         Mode::Realistic => h,
         Mode::Forgiving => h * FORGIVING_HARM,
     }
@@ -785,6 +803,17 @@ pub fn vitals_tick(
     dt_s: f32,
     linger_s: f32,
 ) -> HeatOutcome {
+    // Off (2026-11-11): temperature never touches the body. It is held at the neutral core, so
+    // turning body heat back on starts from a comfortable body, never from a cold the model ran up
+    // while it was off; no condition stays on, and nothing is sweated out or harmed.
+    if mode == Mode::Off {
+        *tracked = Tracked::new(CORE_NEUTRAL_C as f32, Mode::Realistic);
+        *core_c = CORE_NEUTRAL_C as f32;
+        for id in ["hypothermia", "heat_exhaustion", "heat_stroke", "shivering"] {
+            effects.remove(id);
+        }
+        return HeatOutcome { harm: 0.0, cause: "", sweat_l: 0.0 };
+    }
     // Something else set the core (a respawn puts it back to 37 C, a load
     // restores the saved one): start the body over from it.
     if (*core_c - tracked.shown_c).abs() > 0.5 {

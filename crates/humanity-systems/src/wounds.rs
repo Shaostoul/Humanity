@@ -292,6 +292,7 @@ impl Wounds {
     /// This mode's share of a wound's course.
     pub fn course_share(&self, mode: Mode) -> f64 {
         match mode {
+            Mode::Off => 0.0,
             Mode::Realistic => 1.0,
             Mode::Forgiving => f64::from(self.forgiving.course_share.clamp(0.0, 1.0)),
         }
@@ -300,6 +301,7 @@ impl Wounds {
     /// This mode's share of a wound's harm.
     pub fn harm_share(&self, mode: Mode) -> f64 {
         match mode {
+            Mode::Off => 0.0,
             Mode::Realistic => 1.0,
             Mode::Forgiving => f64::from(self.forgiving.harm_share.clamp(0.0, 1.0)),
         }
@@ -308,6 +310,7 @@ impl Wounds {
     /// This mode's share of a wound's chance of going bad.
     pub fn goes_bad_share(&self, mode: Mode) -> f32 {
         match mode {
+            Mode::Off => 0.0,
             Mode::Realistic => 1.0,
             Mode::Forgiving => self.forgiving.goes_bad_share.clamp(0.0, 1.0),
         }
@@ -354,6 +357,15 @@ impl Wounds {
         real_dt: f64,
         out: &mut BodyTick,
     ) {
+        // Illness and injury Off (2026-11-11): a bite, a burn or a fall leaves no wound and takes
+        // no health; what waits is taken and dropped, and no burn is building.
+        if mode == Mode::Off {
+            inj.pending.clear();
+            inj.dose_s = 0.0;
+            inj.burn = None;
+            inj.since_heat_s += real_dt.max(0.0);
+            return;
+        }
         let mut heated = false;
         for injury in std::mem::take(&mut inj.pending) {
             match injury {
@@ -472,7 +484,8 @@ impl Wounds {
     pub fn healing_per_awake_s(&self, mode: Mode, max_health: f32) -> f64 {
         let days = f64::from(match mode {
             Mode::Realistic => self.healing.realistic_days,
-            Mode::Forgiving => self.healing.forgiving_days,
+            // Off clears every wound at once; its healing of other harm is Forgiving's.
+            Mode::Forgiving | Mode::Off => self.healing.forgiving_days,
         });
         let asleep_h = crate::sleep::SLEEP_HOURS;
         let awake_equivalent_h = (24.0 - asleep_h) + asleep_h * f64::from(self.healing.asleep.max(0.0));

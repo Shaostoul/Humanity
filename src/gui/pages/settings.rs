@@ -3060,18 +3060,7 @@ pub fn apply_graphics_preset(state: &mut GuiState, p: &GraphicsPreset) {
 /// Settings > Gameplay (v0.791): survival tuning + which home design loads.
 /// Born from an operator field report ("disable the wolves... extend the
 /// dehydration time. I keep getting killed and its annoying").
-/// The walking pace's description, with the speeds data/game.csv gives each mode (published by
-/// `engine::walk_pace` into `GuiState::walk_pace_speeds`).
-fn walking_pace_hint(speeds: [f32; 4]) -> String {
-    let n = |v: f32| format!("{v:.1}");
-    humanity_core::i18n::tf(
-        "settings.walking_pace_hint",
-        &[("rw", &n(speeds[0])), ("rr", &n(speeds[1])), ("sw", &n(speeds[2])), ("sr", &n(speeds[3]))],
-    )
-}
-
 pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::gui::widgets::Hint;
     use humanity_core::i18n::t;
     let hint = state.settings.hint_display;
     // ── Play mode (task #50): Normal | Creative | Dev ──
@@ -3134,105 +3123,11 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Survival").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        if widgets::toggle(ui, theme, "Hostile wildlife", &mut state.settings.hostile_wildlife) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(
-            ui,
-            theme,
-            hint,
-            "Wolf packs and other predators in the wilds. Off removes them \
-             immediately; turning it on repopulates next time you enter the \
-             world. The Dev spawn page can always place any creature.",
-        );
-        if widgets::labeled_slider(ui, theme, "Vitals drain", &mut state.settings.vitals_drain, 0.0..=3.0) {
-            state.settings_dirty = true;
-        }
-        widgets::setting_hint(
-            ui,
-            theme,
-            hint,
-            "How fast hunger, thirst, and energy fall. 1.0 = real time (thirst \
-             in about two days, hunger in about a week), 0 = survival needs paused.",
-        );
-        // Body heat (2026-09-27, systems::body_heat; the dual-mode house rule).
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Body heat").color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
-                let selected = state.settings.body_heat_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.body_heat_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, &body_heat_hint());
-        // Illness and injury (BUG-162, systems::illness; first-hour audit S8,
-        // systems::wounds; the dual-mode house rule): how hard food poisoning,
-        // wounds and healing are. The hints' numbers are read from the data
-        // they describe.
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Illness and injury").color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
-                let selected = state.settings.illness_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.illness_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, &humanity_systems::illness::mode_hint());
-        widgets::setting_hint(ui, theme, hint, &humanity_systems::wounds::mode_hint());
-        // Farm animals (2026-10-12, first-hour audit S6, systems::animal_care; the dual-mode
-        // house rule): what neglect does to them. The hint's numbers come from the data.
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Farm animals").color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
-                let selected = state.settings.animal_care_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.animal_care_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, &humanity_systems::animal_care::mode_hint());
-        // Walking pace (2026-11-09, engine::walk_pace; the dual-mode house rule, the operator's
-        // decision): how fast you walk and run. The hint's speeds come from data/game.csv.
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new(t("settings.walking_pace")).color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label, tip) in [
-                (false, "settings.walking_simplified", "settings.walking_simplified_hint"),
-                (true, "settings.walking_realistic", "settings.walking_realistic_hint"),
-            ] {
-                let selected = state.settings.walk_realistic == realistic;
-                if ui.radio(selected, RichText::new(t(label)).color(theme.text_primary())).hint(tip).clicked() && !selected {
-                    state.settings.walk_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, &walking_pace_hint(state.walk_pace_speeds));
-        // Animation (2026-11-09, character animation rung 2a; engine::animation): the dual-mode
-        // house rule for the bodies. Realistic by default (the operator's question 5).
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new(t("settings.animation_mode")).color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (simplified, label, tip) in [
-                (false, "settings.animation_realistic", "settings.animation_realistic_hint"),
-                (true, "settings.animation_simplified", "settings.animation_simplified_hint"),
-            ] {
-                let selected = state.settings.anim_simplified == simplified;
-                if ui.radio(selected, RichText::new(t(label)).color(theme.text_primary())).hint(tip).clicked() && !selected {
-                    state.settings.anim_simplified = simplified;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, t("settings.animation_mode_hint"));
+        // The settings with levels (2026-11-11): hostile wildlife, the vitals drain, body heat,
+        // illness and injury, farm animals, the walking pace, animation, carrying weight, death and
+        // the mining drone, each a row of data/gameplay/levels.json (settings_gameplay.rs).
+        super::settings_gameplay::draw(ui, theme, state, hint);
+
         // Your body in first person and Reduce motion (2026-11-10, character animation rung 2b):
         // the operator's question 4, "yes, with a Settings switch and a Reduce motion option".
         ui.add_space(theme.spacing_sm);
@@ -3244,60 +3139,7 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         widgets::setting_hint(ui, theme, hint, t("settings.reduce_motion_note"));
-        // Carrying weight (BUG-136, systems::encumbrance; the dual-mode house rule).
         ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Carrying weight").color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
-                let selected = state.settings.carry_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.carry_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(
-            ui,
-            theme,
-            hint,
-            "You carry 50 kg comfortably at 1 g, more with a backpack. In lower \
-             gravity the same load weighs less, so you can carry more: about 2.6 \
-             times as much on Mars and 6 times on the Moon, with no limit when \
-             weightless. Realistic: over the limit you walk slower the more you \
-             are over and cannot jump, and any load is extra mass to launch, so \
-             your jumps are lower. Forgiving shows the same limit and warns you, \
-             and changes nothing about how you move.",
-        );
-        // Death (2026-10-04, systems::death_pack; the dual-mode house rule, the operator's
-        // decision): what dying costs.
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Death").color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Simplified"), (true, "Realistic")] {
-                let selected = state.settings.death_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.death_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        let interact = humanity_core::input::bindings::pretty_key_name(state.keybinds.pair(humanity_core::input::bindings::GameAction::Interact).0);
-        widgets::setting_hint(ui, theme, hint, &death_hint(&state.death_pack.rules, &interact));
-        // Mining drone (first-hour audit S5, 2026-10-12, systems::mining; the dual-mode house
-        // rule): what its battery and its wear ask of the home. The hint's numbers are read
-        // from the data it describes.
-        ui.add_space(theme.spacing_sm);
-        ui.label(RichText::new("Mining drone").color(theme.text_secondary()));
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Simplified"), (true, "Realistic")] {
-                let selected = state.settings.drone_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.drone_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, &humanity_systems::mining::mode_hint());
         // Survival bars on the HUD (2026-09-25): the simple and full modes of
         // the same readout, plus the default that shows a need when it matters.
         ui.add_space(theme.spacing_sm);
@@ -5125,15 +4967,6 @@ mod veg_lod_range_tests {
 /// `{{name}}` placeholders; the words had `{rw}`, so Settings showed "you walk at {rw} metres a
 /// second"). Seen red 2026-11-09 with the words as they were: "the speeds are filled in: How fast
 /// you walk and run ... at {rw} metres a second".
-#[cfg(test)]
-mod walking_pace_hint_tests {
-    #[test]
-    fn the_walking_pace_hint_fills_in_the_speeds() {
-        let hint = super::walking_pace_hint([1.4, 4.0, 5.0, 9.5]);
-        assert!(!hint.contains('{') && hint.contains("1.4") && hint.contains("9.5"), "the speeds are filled in: {hint}");
-    }
-}
-
 #[cfg(test)]
 mod body_heat_hint_tests {
     use super::body_heat_hint;

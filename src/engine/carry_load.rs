@@ -65,7 +65,7 @@ pub(crate) fn steer(controller: &mut CameraController, carry: &CarryState) {
 pub(crate) fn apply(state: &mut EngineState) {
     let g = walk_gravity(state.gui_state.surface_gravity_now, state.controller.interior_gravity());
     state.data_store.insert(enc::LOCAL_G_KEY, g);
-    let mode = CarryMode::from_realistic(state.gui_state.settings.carry_realistic);
+    let mode = CarryMode::from_level(state.gui_state.settings.level("carry")).unwrap_or_default();
     let carry = match player_carry_input(&state.game_world.world) {
         Some(input) => enc::evaluate(input, g, mode),
         None => CarryState::default(),

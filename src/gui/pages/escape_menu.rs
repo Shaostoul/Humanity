@@ -14,9 +14,11 @@
 //! A row that does not fit across the window shows what fits in order and puts the rest under
 //! MORE at its end (the "priority plus" pattern), never a third row.
 //!
-//! PLAY (the operator's answer of 2026-11-03, section 16.1): a tap opens Play's page (pages/play.rs)
-//! and its row; a press and hold goes straight into the world, the button filling as it is held
-//! (`widgets::hold_step`, the clock every hold in the app uses; `timings.play_hold_ms`, 800 ms).
+//! PLAY (2026-11-11, the operator: "Let's remove clicking play immediately starting the game"):
+//! a press on Play, of any length, opens Play's page, the game's hub (pages/play.rs), and its row.
+//! Nothing in the menu goes into the world by itself: the hub's Enter the world does, and the
+//! Characters item opens the character picker. (Rung 2's press and hold, 800 ms straight into
+//! the world, was taken out that day.)
 //!
 //! WHAT IS DATA: every button, its order, words, hint, icon, colour token and the page it opens
 //! is data/gui/navigation.json (gui/navigation.rs reads it), the same file the website's menu is
@@ -311,7 +313,6 @@ fn primary_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, menu: &
             let widths: Vec<f32> = menu.desktop.iter().map(|c| button_width(ui, t_dyn(&c.button.label), size, icon, mode.show_label())).collect();
             let more_w = button_width(ui, t("nav.more"), size, None, true) + GAP;
             let fit = fitting(&widths, (aa.left() - 10.0 - x).max(0.0), more_w);
-            let hold_s = menu.file.timings.play_hold_ms as f32 / 1000.0;
             for (ci, cat) in menu.desktop.iter().enumerate().take(fit) {
                 let r = Rect::from_min_size(egui::pos2(x, cy - bh / 2.0), Vec2::new(widths[ci], bh));
                 let look = if Some(ci) == docked {
@@ -321,7 +322,7 @@ fn primary_row(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, menu: &
                 } else {
                     Look::Idle
                 };
-                let (hovered, clicked) = category_button(ui, theme, state, r, cat, look, mode, hold_s, full.bottom());
+                let (hovered, clicked) = category_button(ui, theme, state, r, cat, look, mode, full.bottom());
                 if hovered {
                     out.hovered = Some(ci);
                 }
@@ -383,15 +384,15 @@ fn arrow_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, r: Rect,
 }
 
 /// One category's button in the primary row. Returns (the pointer is on it, a click went
-/// somewhere). Play's is pressed and held to go into the world; a tap opens its page.
+/// somewhere). Every one, Play's included, opens its page and nothing more (2026-11-11).
 #[allow(clippy::too_many_arguments)]
-fn category_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rect: Rect, cat: &NavCategory, look: Look, mode: NavDisplayMode, hold_s: f32, row_bottom: f32) -> (bool, bool) {
+fn category_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rect: Rect, cat: &NavCategory, look: Look, mode: NavDisplayMode, row_bottom: f32) -> (bool, bool) {
     let b = &cat.button;
-    let is_play = b.page == GuiPage::Play;
     let id = Id::new(("nav_primary", cat.id.as_str()));
     let words = t_dyn(&b.label);
-    // Play's button senses a drag too, so a press held still keeps it (the hold).
-    let drag = if is_play { Sense::DRAG } else { Sense::empty() };
+    // Play's senses a drag too, so a press held past a click's length still reads as a press on
+    // it when let go (`drag_stopped` below): hands used to rung 2's hold land on the hub.
+    let drag = if b.page == GuiPage::Play { Sense::DRAG } else { Sense::empty() };
     let resp = named(ui.interact(rect, id, Sense::click() | drag), true, Some(look == Look::Active), words);
     let col = colour(theme, cat);
     let look = if look == Look::Idle && resp.hovered() { Look::Hovered } else { look };
@@ -404,29 +405,6 @@ fn category_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rect:
     };
     let painter = ui.painter();
     painter.rect_filled(rect, CornerRadius::same(6), fill);
-
-    // Play: a press and hold goes into the world, the button filling from the left as it is held.
-    // Once a hold has gone in, the rest of that press (and its release) does nothing more: the
-    // latch is kept until the button is let go.
-    let latch = id.with("went_in");
-    let latched = is_play && ui.ctx().data(|d| d.get_temp::<bool>(latch)).unwrap_or(false);
-    let mut went_in = false;
-    if is_play {
-        let holding = resp.is_pointer_button_down_on() && !latched;
-        let (progress, fired) = crate::gui::widgets::hold_step(ui, id.with("hold"), holding, hold_s);
-        if fired {
-            ui.ctx().data_mut(|d| d.insert_temp(latch, true));
-            crate::gui::pages::play::enter_world(state, false);
-            went_in = true;
-        } else if holding && progress > 0.0 {
-            let fill_r = Rect::from_min_size(rect.min, Vec2::new(rect.width() * progress.min(1.0), rect.height()));
-            ui.painter().rect_filled(fill_r, CornerRadius::same(6), tint(col, 120));
-        }
-        if latched && !resp.is_pointer_button_down_on() {
-            ui.ctx().data_mut(|d| d.remove::<bool>(latch));
-        }
-    }
-    let painter = ui.painter();
     painter.rect_stroke(rect, CornerRadius::same(6), stroke, StrokeKind::Inside);
     if look == Look::Active {
         // The category's colour runs down into its row.
@@ -453,10 +431,13 @@ fn category_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rect:
         painter.circle_filled(egui::pos2(rect.right() - 5.0, rect.top() + 5.0), 3.0, theme.danger());
     }
     let hovered = resp.hovered();
-    let mut clicked = went_in;
+    let mut clicked = false;
     // Its hint under both rows, never over the secondary row the pointer goes to next.
     let resp = resp.hint_dyn_below(rows_height(theme), &b.hint);
-    if resp.clicked() && !went_in && !latched {
+    // egui counts a press up to `max_click_duration` (0.8 s) as a click; a longer press on Play is
+    // still a press on Play, so it opens the hub too rather than doing nothing.
+    let long_press = b.page == GuiPage::Play && resp.drag_stopped();
+    if resp.clicked() || long_press {
         open(state, b);
         clicked = true;
     }

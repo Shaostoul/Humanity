@@ -552,3 +552,98 @@ fn the_injury_hint_names_the_heights_a_fall_hurts_from() {
         assert!(hint.contains(part), "the hint names {part:?}: {hint}");
     }
 }
+
+// ── Illness and injury Off (2026-11-11) ──
+
+/// ILLNESS AND INJURY OFF MEANS OFF (Settings > Gameplay > Illness and injury, Off): a wolf's
+/// bite leaves no wound (its own blow still lands: that is combat, which Hostile wildlife governs),
+/// spoiled food does not make anyone ill, a landing that breaks bones in Realistic takes no
+/// health and leaves no wound, and a body already ill and bleeding when it is turned off is well
+/// at the next tick. Why "never happen and heal at once" rather than one of the two: a wound or an
+/// illness that happened but healed in a frame would still flash its notice and its words on the
+/// HUD, and one that never healed would outlast the setting; Off has to mean neither is there.
+///
+/// Seen red 2026-11-11 with FoodSystem's Off clearing taken out: "turning it off heals them at
+/// once" (the bleeding, the bite wound and the poisoning stayed). (Taking out the Off branch in
+/// `Wounds::take_injuries` alone stays green: the clearing heals the bite's wound in the same tick,
+/// so the two cover each other; each is kept, so a wound never shows for even a frame.)
+#[test]
+fn illness_and_injury_off_means_no_wound_no_illness_and_no_harm() {
+    let mut sys = FoodSystem::new(data_dir());
+    let mut combat = crate::combat::CombatSystem::new();
+    let data = store(Some(Mode::Off));
+    let mut world = hecs::World::new();
+    let p = player(&mut world);
+    wolf_bites(&data, p, 10.0);
+    combat.tick(&mut world, 0.016, &data);
+    sys.tick(&mut world, 0.0, &data);
+    assert!(effects(&world, p).active.iter().all(|e| e.id != "bleeding" && e.id != "bite_wound"), "with illness and injury off a bite leaves no wound: {:?}", ids(&effects(&world, p)));
+    assert_eq!(health(&world, p), 90.0, "the blow itself still takes its 10 (combat, not a wound)");
+    // Spoiled food: never ill.
+    let keeps = sys.freshness_secs("roast_chicken_0").expect("roast chicken is food");
+    {
+        let mut inv = world.get::<&mut Inventory>(p).unwrap();
+        inv.add_item("roast_chicken_0", 1, 99);
+        let stack = inv.slots.iter_mut().flatten().find(|s| s.item_id == "roast_chicken_0").unwrap();
+        stack.age_s = keeps + 1.0;
+    }
+    *data.get::<Mutex<Option<String>>>("consume_request").unwrap().lock().unwrap() = Some("roast_chicken_0".to_string());
+    sys.tick(&mut world, 0.0, &data);
+    assert!(!effects(&world, p).has("food_poisoning"), "spoiled food makes no one ill with it off");
+    // A landing: Realistic at 12 m/s takes health; Off takes nothing and leaves nothing.
+    let hard = land(Mode::Realistic, Some(12.0));
+    assert!(hard.took > 0.0, "12 m/s hurts in Realistic ({} health)", hard.took);
+    let off = land(Mode::Off, Some(12.0));
+    assert_eq!(off.took, 0.0, "and takes no health with it off");
+    assert!(off.fx.active.is_empty() && off.died.is_none(), "and leaves no wound: {:?}", ids(&off.fx));
+    // Already ill and bleeding when it is turned off: well at the next tick.
+    let realistic = store(Some(Mode::Realistic));
+    let mut world = hecs::World::new();
+    let p = player(&mut world);
+    wolf_bites(&realistic, p, 10.0);
+    combat.tick(&mut world, 0.016, &realistic);
+    sys.tick(&mut world, 0.0, &realistic);
+    world.get::<&mut StatusEffects>(p).unwrap().apply("food_poisoning", 86_400.0);
+    assert!(effects(&world, p).has("bleeding"), "bleeding in Realistic");
+    sys.tick(&mut world, 0.0, &data);
+    let fx = effects(&world, p);
+    assert!(!fx.has("bleeding") && !fx.has("bite_wound") && !fx.has("food_poisoning"), "turning it off heals them at once: {:?}", ids(&fx));
+}
+
+/// DEATH OFF MEANS THE PLAYER CANNOT DIE (2026-11-11, Settings > Gameplay > Death, Off): a wolf's
+/// blow of 500 (combat) and a landing at 40 m/s (the body's tick, Realistic injuries) each leave
+/// the player alive at the floor of 1 health, with no Dead marker and no death screen; the same
+/// blow with death on kills.
+///
+/// Seen red 2026-11-11 with `CombatSystem` ignoring the Death level (the floor 0): "a blow of 500
+/// with death off leaves the player at 1 health: 0".
+#[test]
+fn death_off_means_the_player_cannot_die() {
+    use crate::death_pack::{DeathMode, MODE_KEY as DEATH_KEY, OFF_HEALTH_FLOOR};
+    let mut sys = FoodSystem::new(data_dir());
+    let mut combat = crate::combat::CombatSystem::new();
+    let mut data = store(Some(Mode::Realistic));
+    data.insert(DEATH_KEY, DeathMode::Off);
+    let mut world = hecs::World::new();
+    let p = player(&mut world);
+    wolf_bites(&data, p, 500.0);
+    combat.tick(&mut world, 0.016, &data);
+    sys.tick(&mut world, 0.0, &data);
+    assert_eq!(health(&world, p), f64::from(OFF_HEALTH_FLOOR), "a blow of 500 with death off leaves the player at 1 health: {}", health(&world, p));
+    assert!(world.get::<&Dead>(p).is_err(), "and alive");
+    assert!(data.get::<Mutex<Option<String>>>("player_death").unwrap().lock().unwrap().is_none(), "no death screen");
+    // A landing that kills in Realistic.
+    crate::wounds::injure(&mut world, p, Injury::Fall { impact_m_s: 40.0 });
+    world.get::<&mut Health>(p).unwrap().current = 100.0;
+    sys.tick(&mut world, 0.0, &data);
+    assert_eq!(health(&world, p), f64::from(OFF_HEALTH_FLOOR), "a 40 m/s landing with death off leaves 1 health");
+    assert!(world.get::<&Dead>(p).is_err(), "and alive");
+    // Death on (Simplified): the same blow kills.
+    let mut data = store(Some(Mode::Realistic));
+    data.insert(DEATH_KEY, DeathMode::Simplified);
+    let mut world = hecs::World::new();
+    let p = player(&mut world);
+    wolf_bites(&data, p, 500.0);
+    combat.tick(&mut world, 0.016, &data);
+    assert!(world.get::<&Dead>(p).is_ok(), "with death on the same blow kills");
+}

@@ -738,7 +738,8 @@ impl FoodSystem {
             }
             // Spoiled food always poisons; otherwise raw food risks illness while
             // cooked/preserved food (risk 0) is safe.
-            if is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk) {
+            // Illness and injury Off (2026-11-11): spoiled or raw food never makes anyone ill.
+            if fx.illness_mode != crate::illness::Mode::Off && (is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk)) {
                 let already = effects.has("food_poisoning");
                 log::info!(
                     "[Food] {item_id} consumed {} -> food poisoning{}",
@@ -866,6 +867,8 @@ impl System for FoodSystem {
         // Settings > Gameplay > Illness (BUG-162, systems::illness): how long
         // an illness lasts and how much water it takes.
         let illness_mode = crate::illness::Mode::from_store(data);
+        // Settings > Gameplay > Death (2026-11-11): Off holds the player's health at its floor.
+        let death_mode = crate::death_pack::DeathMode::from_store(data);
 
         // ── 1. EAT / DRINK: drain the consume_request (Eat button) and
         //    drink_request (Drink button) channels, written by the main-loop
@@ -1254,6 +1257,14 @@ impl System for FoodSystem {
             if let Some(inj) = injuries {
                 self.wounds.take_injuries(inj, effects, registry, illness_mode, real_s, &mut wound_tick);
             }
+            // Illness and injury Off (2026-11-11): any illness or wound on the body heals at once,
+            // so turning it off mid-illness ends the illness rather than letting it run on.
+            if illness_mode == crate::illness::Mode::Off {
+                let gone: Vec<String> = self.wounds.on(effects).map(|w| w.effect.clone()).chain(self.illnesses.on(effects).map(|i| i.effect.clone())).collect();
+                for id in gone {
+                    effects.remove(&id);
+                }
+            }
             self.wounds.harm(effects, illness_mode, game_s, &mut wound_tick);
             for (cause, amt) in &wound_tick.harm {
                 health_drain += amt;
@@ -1305,7 +1316,9 @@ impl System for FoodSystem {
                     self.wounds.healing(effects, registry, illness_mode, health.max, asleep, health_drain > 0.0, game_s);
                 let before = health.current;
                 if health_drain > 0.0 || effect_heal > 0.0 {
-                    change_exactly(&mut health.current, &mut carry.health, effect_heal - health_drain, 0.0, health.max);
+                    // Death Off (2026-11-11): the player's health stops at the floor, never at 0.
+                    let floor = if ctrl.is_some() { death_mode.health_floor().min(before.max(0.0)) } else { 0.0 };
+                    change_exactly(&mut health.current, &mut carry.health, effect_heal - health_drain, floor, health.max);
                 }
                 if ctrl.is_some() && before > 0.0 && health.current <= 0.0 {
                     let cause =

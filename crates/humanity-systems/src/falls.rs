@@ -106,6 +106,8 @@ impl Falls {
     pub fn read_speed(&self, impact_m_s: f32, mode: Mode) -> f32 {
         let v = impact_m_s.max(0.0);
         match mode {
+            // Illness and injury Off: every landing is read as standing still.
+            Mode::Off => 0.0,
             Mode::Realistic => v,
             Mode::Forgiving => v * self.forgiving.speed_share.clamp(0.0, 1.0),
         }

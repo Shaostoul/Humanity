@@ -433,7 +433,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
     spawn_wilds(
         &mut state.game_world.world,
         &state.data_store,
-        state.gui_state.settings.hostile_wildlife,
+        crate::gui::gameplay_levels::value_of(&state.gui_state.settings.gameplay, "hostile_wildlife"),
         content.contains(&HomeContent::WildSpawns),
     );
 
@@ -920,7 +920,7 @@ pub(crate) fn spawn_herd(
 pub(crate) fn spawn_wilds(
     world: &mut hecs::World,
     data: &humanity_core::hot_reload::data_store::DataStore,
-    hostile_wildlife: bool,
+    hostile_share: f32,
     carries: bool,
 ) -> usize {
     let old: Vec<hecs::Entity> = world.query::<(
@@ -950,16 +950,16 @@ pub(crate) fn spawn_wilds(
             // Settings > Gameplay "Hostile wildlife" (v0.791): predator/
             // aggressive rows only spawn when enabled (default OFF pre-launch;
             // operator: "disable the wolves"). Dev-page spawns are unaffected.
-            if !hostile_wildlife
-                && matches!(
-                    humanity_systems::livestock::behavior_type_for(def),
-                    "predator" | "aggressive"
-                )
-            {
+            // Since 2026-11-11 a level, not a switch (data/gameplay/levels.json): its `value` is the
+            // share of each hostile pack that spawns, at least one of a pack once it is above 0
+            // (Few: one wolf of a pack of three).
+            let hostile = matches!(humanity_systems::livestock::behavior_type_for(def), "predator" | "aggressive");
+            if hostile && hostile_share <= 0.0 {
                 continue;
             }
+            let count = if hostile { ((s.count as f32 * hostile_share).ceil() as u32).max(1) } else { s.count };
             let center = Vec3::new(s.pos.0, 0.0, s.pos.1);
-            for i in 0..s.count {
+            for i in 0..count {
                 let a = i as f32 * 2.399_963 + si as f32 * 1.7;
                 let r = s.radius * (0.4 + 0.6 * (i as f32 + 1.0) / s.count.max(1) as f32);
                 let pos = center + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
@@ -1340,7 +1340,7 @@ pub(crate) fn refresh_home_content(state: &mut EngineState) {
         .collect();
     spawn_herd(&mut state.game_world.world, &state.data_store, &anchors, carries(HomeContent::Herd));
     place_decorations(state, &anchors, carries(HomeContent::Decorations));
-    spawn_wilds(&mut state.game_world.world, &state.data_store, state.gui_state.settings.hostile_wildlife, carries(HomeContent::WildSpawns));
+    spawn_wilds(&mut state.game_world.world, &state.data_store, crate::gui::gameplay_levels::value_of(&state.gui_state.settings.gameplay, "hostile_wildlife"), carries(HomeContent::WildSpawns));
     if let Some(b) = state.gui_state.ship_structure.as_ref().and_then(crate::engine::home_plot::home_box) {
         state.hologram_room_center = hologram_spot(b.0);
     }

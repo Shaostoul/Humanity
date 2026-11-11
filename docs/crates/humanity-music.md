@@ -20,7 +20,7 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
   - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/style.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
   - `feature = "kira"`: `crates/humanity-music/src/kira_sound.rs`
   - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`
-- **Size:** 7,020 lines in 20 files, 1,134 of them in 2 test files.
+- **Size:** 7,028 lines in 20 files, 1,134 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 20, engine 13.

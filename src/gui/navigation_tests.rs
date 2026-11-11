@@ -41,7 +41,7 @@ fn the_shipped_navigation_file_parses() {
     assert_eq!(humanity_core::i18n::t("nav.own_life"), "Life", "the working name (section 16.1)");
     // A tap on Play opens Play's own page (16.1, question 2).
     assert_eq!(disk.desktop[1].button.page, GuiPage::Play, "Play's button opens Play's page");
-    assert_eq!(disk.file.timings, Timings { preview_rest_ms: 200, preview_leave_ms: 300, play_hold_ms: 800 });
+    assert_eq!(disk.file.timings, Timings { preview_rest_ms: 200, preview_leave_ms: 300 });
 }
 
 /// NONE LOST, NONE TWICE: every desktop page (`dispatch::ALL_PAGES`, the world included) is in
@@ -183,7 +183,9 @@ fn a_malformed_row_fails_loudly() {
         ("a category with no page", |v| entry(v, "library")["page"] = serde_json::Value::Null, "the category `library` opens no whole desktop page"),
         ("a category with no desktop picture", |v| entry(v, "apps")["icon"] = "grid".into(), "the category `apps`: its icon `grid` has no desktop picture"),
         ("a preview that waits a minute", |v| v["timings"]["preview_rest_ms"] = 60000.into(), "timings: `preview_rest_ms` is 60000 ms"),
-        ("a hold as short as a click", |v| v["timings"]["play_hold_ms"] = 100.into(), "timings: `play_hold_ms` is 100 ms"),
+        // Play's press and hold was taken out on 2026-11-11 (a press on Play only opens its hub):
+        // a file still giving it a length is refused, not quietly read.
+        ("Play's old hold coming back", |v| v["timings"]["play_hold_ms"] = 800.into(), "unknown field `play_hold_ms`"),
         ("an outside entry with no reason", |v| entry(v, "hi")["why"] = " ".into(), "the entry `hi` is outside the rows and does not say why"),
         ("today's website row naming a desktop-only page", |v| v["today_row"]["web"][0]["items"][0] = "studio".into(), "today's website row names `studio`, which has no website address"),
         ("web_active for a tab not in the row", |v| v["today_row"]["web_active"]["studio"] = "studio".into(), "web_active names `studio`"),

@@ -830,9 +830,9 @@ Roadmap, Devlog, Worlds and Servers wait for rung 7 (the Relay Control page, Ser
 part, opens from the chat's sidebar as before and is in `outside`). The own-life category's word is
 "Life", a working name the operator may change (16.1). Play is a page of its own
 (`GuiPage::Play`, `src/gui/pages/play.rs`): who and where was played last and Enter the world; a
-tap on Play opens it, a press and hold of 800 ms goes in (the button fills as it is held; the
-hold's clock is `widgets::hold_step`, shared with the delete confirms, and 800 ms is where egui
-stops counting a press as a click, so no press is both). The sizes are the section 7 tokens and
+tap on Play opened it and a press and hold of 800 ms went in. **Since 2026-11-11 a press of any
+length only opens it, as the game's hub** (top-menu-and-game-pages.md section 7: the operator, "Let's
+remove clicking play immediately starting the game"); the hold and `timings.play_hold_ms` are gone. The sizes are the section 7 tokens and
 the colours one `nav_cat_<id>` token per category, each in Settings (Appearance's colours, Widgets'
 Nav card), and the preview's switch is Settings > Appearance, "Show a category's pages when the
 pointer rests on it". Back walks the steps Escape walks (the old back stack) until rung 4; Forward
@@ -1005,7 +1005,8 @@ until he answers.
   and hold goes into the world, filling as it is held (the reusable `widgets::hold_to_confirm`,
   with a hold far shorter than its 3 s for deleting). Holding is hard for some hands, so Play's
   page also has its own "Enter the world" button, and a keyboard's Enter on that button goes in at
-  once. Section 3 and rung 2 follow this.
+  once. Section 3 and rung 2 follow this. **Superseded 2026-11-11:** the hold is gone and Play's page
+  is the game's hub (top-menu-and-game-pages.md section 7).
 - **Question 3, the preview on hover.** "For what exactly? Yes with option for off." The preview is
   this: resting the pointer on a category's button for a moment shows that category's pages in the
   second row, without clicking, so a person can see what is inside before going there; moving

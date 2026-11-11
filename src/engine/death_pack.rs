@@ -38,7 +38,7 @@ pub(crate) type BodyAt = (String, DVec3, DQuat);
 
 /// The Death setting as the player has it (Settings > Gameplay > Death).
 fn mode(state: &EngineState) -> DeathMode {
-    DeathMode::from_realistic(state.gui_state.settings.death_realistic)
+    DeathMode::from_level(state.gui_state.settings.level("death")).unwrap_or_default()
 }
 
 /// Right after the systems tick, every frame: a new death, a death that came back with a

@@ -129,6 +129,7 @@ impl System for CombatSystem {
         }
 
         // ── Process pending damage events ──
+        let death_mode = crate::death_pack::DeathMode::from_store(data);
         let events: Vec<_> = self.pending_damage.drain(..).collect();
         let mut deaths_to_handle: Vec<(hecs::Entity, Option<String>, bool, DamageType)> =
             Vec::new();
@@ -159,8 +160,10 @@ impl System for CombatSystem {
                 crate::wounds::injure(world, entity, crate::wounds::Injury::Bite);
             }
 
+            // Death Off (2026-11-11): a blow leaves the player at the floor, never dead.
+            let floor = if world.get::<&humanity_core::ecs::components::Controllable>(entity).is_ok() { death_mode.health_floor() } else { 0.0 };
             if let Ok(mut health) = world.get::<&mut Health>(entity) {
-                health.current = (health.current - mitigated).max(0.0);
+                health.current = (health.current - mitigated).max(floor);
                 if health.current <= 0.0 {
                     log::info!(
                         "Entity {:?} killed by {:.1} {:?} damage ({:.0}% mitigated by armor)",

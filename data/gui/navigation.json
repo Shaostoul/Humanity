@@ -6,7 +6,7 @@
     "A ROW SHOWS ONLY PAGES THAT EXIST (rung 2): an item with no desktop `page` is not drawn on the desktop, and a page that does not exist yet never borrows another page's name (\"The nav button label is the page's name\"). Waiting for rung 7, the pages the design adds (`new`): Mission on the desktop (until then the Humanity page IS the Mission Dashboard), People (the Directory stands in its place under its own name until People takes it in), Rules, Roadmap and Devlog on the desktop, Worlds, and Servers (the Relay Control page, the servers you run, is opened from the chat's sidebar until it becomes Servers' Yours part).",
     "THE OWN-LIFE CATEGORY'S NAME IS OPEN (section 16.1, question 1: \"Home\" clashes with the player homes). Its id is the neutral `own_life` and its words are the key `nav.own_life`, \"Life\" since rung 2 as a working name the operator may change: renaming it is one word in data/i18n/en.json.",
     "outside: what a person can reach that the design's two rows leave out, each with `why` (the world itself, the title screen, an alias, the website's own pages). A test holds every desktop page and every website page to exactly one place in this file (categories, items or outside): none lost, none twice.",
-    "timings: the desktop's, in milliseconds (section 4.1): how long the pointer rests on another category's button before the second row previews its pages (`preview_rest_ms`), how long the preview stays after the pointer leaves both rows (`preview_leave_ms`), and how long Play is pressed and held to go straight into the world (`play_hold_ms`; a tap opens Play's page).",
+    "timings: the desktop's, in milliseconds (section 4.1): how long the pointer rests on another category's button before the second row previews its pages (`preview_rest_ms`), how long the preview stays after the pointer leaves both rows (`preview_leave_ms`). (Play's press and hold, `play_hold_ms`, was taken out on 2026-11-11: a press on Play only opens its page.)",
     "today_row: what the WEBSITE's single row shows until rung 5 draws its two rows (the desktop's two rows replaced its own single row in rung 2). `web` is web/shared/shell.js's groups (a CSS class each, a divider between); `web_active` maps an entry to the older key the website lights its tab by, where the two differ (the pages' data-active and shell.js's address list); `web_label` maps an entry to the words the website's tab still shows, where they differ from the entry's (the own-life category is \"Life\" on the desktop; the website's tab opens its Home page, so it says Home until rung 5); and Play is Download on the website, where it opens /download (the operator, 2026-11-04: \"on the web I think we should rename play to download, since it takes the user to the download page anyways\"). `web_icon` likewise gives the website tab its own icon where it differs."
   ],
   "categories": [
@@ -35,7 +35,7 @@
     {
       "id": "play", "label": "nav.play", "hint": "nav.play_hint", "icon": "games", "colour": "nav_cat_play",
       "page": "play", "web": "/download",
-      "_note": "Section 16.1, question 2 (rung 2): a tap opens Play's page (who and where you played last, and its Enter the world button); a press and hold goes straight into the world (`timings.play_hold_ms`). No game runs in a browser, so the website's Play opens /download.",
+      "_note": "Section 16.1, question 2 (rung 2): a tap opened Play's page and a press and hold went straight into the world. Since 2026-11-11 (the operator: \"Let's remove clicking play immediately starting the game\") a press of any length opens Play's page, the game's hub: the world you will enter with its Enter the world button, and a card for each item of this row that opens something (pages/play.rs reads this row). No game runs in a browser, so the website's Play opens /download.",
       "items": [
         { "id": "characters", "label": "nav.characters", "hint": "nav.characters_hint", "icon": "user", "page": "none", "section": "picker", "web": null, "desktop_only": true },
         { "id": "worlds", "label": "nav.worlds", "hint": "nav.worlds_hint", "icon": "globe", "page": null, "web": null, "desktop_only": true, "new": true,
@@ -115,7 +115,7 @@
     }
   ],
   "outside": [
-    { "id": "world", "page": "none", "why": "The world itself, first person: Play's press and hold and the Enter the world button on Play's page go in (section 11: entering the world is never a menu step)." },
+    { "id": "world", "page": "none", "why": "The world itself, first person: the Enter the world button on Play's hub and the Characters picker's Enter go in (section 11: entering the world is never a menu step)." },
     { "id": "title_screen", "page": "main_menu", "why": "The title screen, shown at launch; never in a menu (section 3)." },
     { "id": "profile_alias", "page": "profile", "why": "An alias: this page id forwards to the Profile page (`real`), which the own-life row's Profile opens (src/gui/pages/real.rs)." },
     { "id": "relay_control", "page": "relay_control", "why": "The servers you run (the Relay Control page), opened from the chat's sidebar: it becomes the Servers page's Yours part when Servers is built (section 8, rung 7)." },
@@ -129,7 +129,7 @@
     { "id": "privacy", "web": "/privacy", "why": "The privacy policy: linked from every page's footer and from the front door, where people look for it, not a menu step (docs/design/privacy-notice.md). On the desktop it is a Library document on the Your Privacy shelf." },
     { "id": "not_found", "web": "/404", "why": "The page nginx shows for an address that is not here; nobody goes to it on purpose. The desktop app has no addresses, so it has none (docs/design/privacy-notice.md section 5)." }
   ],
-  "timings": { "preview_rest_ms": 200, "preview_leave_ms": 300, "play_hold_ms": 800 },
+  "timings": { "preview_rest_ms": 200, "preview_leave_ms": 300 },
   "today_row": {
     "web": [
       { "class": "nav-group-sim", "items": ["play", "apps"] },

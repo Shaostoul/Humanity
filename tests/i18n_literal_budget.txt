@@ -58,7 +58,7 @@
 10 src/gui/pages/household.rs
 20 src/gui/pages/hud.rs
 27 src/gui/pages/identity.rs
-118 src/gui/pages/inventory.rs
+100 src/gui/pages/inventory.rs
 1 src/gui/pages/keymap.rs
 27 src/gui/pages/library.rs
 50 src/gui/pages/main_menu.rs
@@ -88,7 +88,7 @@
 39 src/gui/pages/server_settings/federation.rs
 14 src/gui/pages/server_settings/reports.rs
 3 src/gui/pages/server_settings/role_limits.rs
-280 src/gui/pages/settings.rs
+269 src/gui/pages/settings.rs
 8 src/gui/pages/settings/data_folder.rs
 62 src/gui/pages/settings/recovery.rs
 8 src/gui/pages/settings_time.rs

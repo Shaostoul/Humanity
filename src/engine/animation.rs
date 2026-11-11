@@ -2037,7 +2037,7 @@ pub(crate) fn draw_people(
     // measures the same drawn feet against the same ground.
     let feet_on = state.gui_state.characters.feet_on_world;
     let need_ground = feet_on || state.animation.probe.is_some();
-    let simplified = state.gui_state.settings.anim_simplified;
+    let simplified = state.gui_state.settings.level("animation") == "simplified";
     let built = if need_ground && !showroom && state.aboard_station {
         crate::engine::build_place::built_piece_boxes(&state.game_world.world, state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry"), None)
     } else {

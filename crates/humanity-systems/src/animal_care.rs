@@ -60,9 +60,13 @@ const HOUR_S: f64 = crate::time::SECONDS_PER_HOUR;
 
 // ── The two modes ────────────────────────────────────────────────────────────────────────────
 
-/// The two modes of the house rule.
+/// The levels of Settings > Gameplay > Farm animals (data/gameplay/levels.json): the house rule's
+/// two modes, and Off (2026-11-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Mode {
+    /// Farm animals' needs turned off: they take no feed or water from the home and always make
+    /// their full yield, never hungry, thirsty, sick or dead of neglect.
+    Off,
     /// The default: neglect stops what an animal makes, and nothing worse.
     #[default]
     Forgiving,
@@ -77,12 +81,13 @@ impl Mode {
         data.get::<Mode>(MODE_KEY).copied().unwrap_or(Mode::Realistic)
     }
 
-    /// The mode the saved setting names (`AppConfig::animal_care_realistic`).
-    pub fn from_realistic(realistic: bool) -> Self {
-        if realistic {
-            Mode::Realistic
-        } else {
-            Mode::Forgiving
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(Mode::Off),
+            "forgiving" => Some(Mode::Forgiving),
+            "realistic" => Some(Mode::Realistic),
+            _ => None,
         }
     }
 }
@@ -433,11 +438,13 @@ pub fn tick(world: &mut hecs::World, game_dt: f32, data: &DataStore) {
             care.away_s = 0.0;
         }
 
-        // This tick's feed and water.
+        // This tick's feed and water. Off (2026-11-11): the animal needs nothing, so nothing is
+        // taken from the home and it counts as fed and watered.
         let need_kg = sp.dry_matter_kg_day * dt / DAY_S;
-        let (ate, _) = eat(&mut care, sp, cd, stock_guard.as_deref_mut(), items, need_kg);
         let need_l = sp.water_l_day * dt / DAY_S;
-        if care.drinker_l < need_l {
+        let off = mode == Mode::Off;
+        let ate = if off { need_kg } else { eat(&mut care, sp, cd, stock_guard.as_deref_mut(), items, need_kg).0 };
+        if !off && care.drinker_l < need_l {
             // A day's water at a time: a tick's sip is too small for the tank's f32 litres.
             let want = (sp.water_l_day - care.drinker_l).max(need_l - care.drinker_l);
             care.drinker_l += f64::from(crate::fluids::draw_from_tanks(world, want as f32));
@@ -449,20 +456,26 @@ pub fn tick(world: &mut hecs::World, game_dt: f32, data: &DataStore) {
                 care.drinker_l += litres;
             }
         }
-        let drank = care.drinker_l.min(need_l);
-        care.drinker_l -= drank;
+        let drank = if off { need_l } else { care.drinker_l.min(need_l) };
+        if !off {
+            care.drinker_l -= drank;
+        }
 
         if dt > 0.0 {
             let hours = dt / HOUR_S;
             let recovery = match mode {
                 Mode::Realistic => sp.recovery,
-                Mode::Forgiving => cd.forgiving_recovery,
+                Mode::Forgiving | Mode::Off => cd.forgiving_recovery,
             };
             care.hungry_h = shortfall(care.hungry_h, hours, ate / need_kg.max(1e-12), recovery);
             care.thirsty_h = shortfall(care.thirsty_h, hours, drank / need_l.max(1e-12), recovery);
             if mode == Mode::Forgiving {
                 care.hungry_h = care.hungry_h.min(sp.feed.stops_h);
                 care.thirsty_h = care.thirsty_h.min(sp.water.stops_h);
+            }
+            if off {
+                care.hungry_h = 0.0;
+                care.thirsty_h = 0.0;
             }
             care.no_feed = ate + 1e-12 < need_kg;
             care.no_water = drank + 1e-12 < need_l;

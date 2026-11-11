@@ -18,7 +18,7 @@
 23 page how_to
 5 page hud
 3 page identity
-55 page inventory
+50 page inventory
 1 page keymap
 14 page library
 22 page main_menu
@@ -32,7 +32,7 @@
 22 page safety_protected
 100 page server_settings
 3 page server_strip
-160 page settings
+154 page settings
 4 page settings_time
 33 page studio
 13 page testing

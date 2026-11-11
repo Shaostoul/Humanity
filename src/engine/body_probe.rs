@@ -87,7 +87,7 @@ pub(crate) fn vitals_json(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn falls_core(
     landings: (u32, Option<f32>),
-    realistic: bool,
+    illness_level: &str,
     gravity_m_s2: f32,
     flying: bool,
     aboard: bool,
@@ -98,7 +98,7 @@ pub(crate) fn falls_core(
     serde_json::json!({
         "landings": landings.0,
         "last_m_s": landings.1,
-        "mode": if realistic { "realistic" } else { "forgiving" },
+        "mode": illness_level,
         "gravity_m_s2": gravity_m_s2,
         "flying": flying,
         "aboard": aboard,
@@ -142,7 +142,7 @@ pub(crate) fn falls_json(state: &crate::engine::state::EngineState) -> serde_jso
     let planet = planet_walk(state);
     falls_core(
         state.controller.landings_taken(),
-        state.gui_state.settings.illness_realistic,
+        state.gui_state.settings.level("illness"),
         planet.as_ref().map_or_else(|| state.controller.interior_gravity(), |p| p.2),
         flying,
         state.aboard_station,
@@ -152,14 +152,12 @@ pub(crate) fn falls_json(state: &crate::engine::state::EngineState) -> serde_jso
     )
 }
 
-/// Read a showcase `illness` value: `realistic` or `forgiving` (Settings > Gameplay > Illness and
-/// injury), any case, spaces allowed. None for anything else, so a typo changes nothing.
-pub(crate) fn parse_illness_mode(raw: &str) -> Option<bool> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "realistic" => Some(true),
-        "forgiving" => Some(false),
-        _ => None,
-    }
+/// Read a showcase `illness` value: a level of Settings > Gameplay > Illness and injury
+/// (data/gameplay/levels.json: `off`, `forgiving`, `realistic`), any case, spaces allowed. None
+/// for anything else, so a typo changes nothing.
+pub(crate) fn parse_illness_mode(raw: &str) -> Option<String> {
+    let v = raw.trim().to_ascii_lowercase();
+    crate::gui::gameplay_levels::setting("illness").and_then(|s| s.level(&v)).map(|l| l.id.clone())
 }
 
 #[cfg(test)]
@@ -225,14 +223,14 @@ mod tests {
     /// The `falls` block and the `illness` verb's words.
     #[test]
     fn the_falls_block_and_the_illness_words() {
-        let v = falls_core((2, Some(7.67)), true, 9.81, false, true, None, false, 5.0);
+        let v = falls_core((2, Some(7.67)), "realistic", 9.81, false, true, None, false, 5.0);
         assert_eq!((v["landings"].as_u64(), v["mode"].as_str(), v["aboard"].as_bool()), (Some(2), Some("realistic"), Some(true)));
         assert!((v["last_m_s"].as_f64().unwrap() - 7.67).abs() < 1e-4);
         assert_eq!((v["planet"].clone(), v["probe_hold"].as_bool(), v["climb_m_s"].as_f64()), (serde_json::Value::Null, Some(false), Some(5.0)));
-        let p = falls_core((1, Some(7.0)), true, 9.81, false, false, Some("earth"), true, 1.5);
+        let p = falls_core((1, Some(7.0)), "realistic", 9.81, false, false, Some("earth"), true, 1.5);
         assert_eq!((p["planet"].as_str(), p["probe_hold"].as_bool()), (Some("earth"), Some(true)));
-        assert_eq!(falls_core((0, None), false, 9.81, true, false, None, false, 5.0)["last_m_s"], serde_json::Value::Null);
-        assert_eq!(falls_core((0, None), false, 9.81, true, false, None, false, 5.0)["mode"], "forgiving");
+        assert_eq!(falls_core((0, None), "forgiving", 9.81, true, false, None, false, 5.0)["last_m_s"], serde_json::Value::Null);
+        assert_eq!(falls_core((0, None), "forgiving", 9.81, true, false, None, false, 5.0)["mode"], "forgiving");
         // The planet climb: the walk's speed with its limp, the gear (at least 1) and a load's
         // shares. A sprained (0.75) and a broken (0.4) ankle climb at 1.5 m/s.
         let mut c = crate::renderer::camera::CameraController::new(5.0, 1.0);
@@ -241,8 +239,9 @@ mod tests {
         assert!((planet_climb_m_s(&c) - 1.5).abs() < 1e-5);
         c.jump_scale = 0.0;
         assert_eq!(planet_climb_m_s(&c), 0.0, "an overloaded body cannot climb");
-        assert_eq!(parse_illness_mode(" Realistic "), Some(true));
-        assert_eq!(parse_illness_mode("forgiving"), Some(false));
+        assert_eq!(parse_illness_mode(" Realistic ").as_deref(), Some("realistic"));
+        assert_eq!(parse_illness_mode("forgiving").as_deref(), Some("forgiving"));
+        assert_eq!(parse_illness_mode("OFF").as_deref(), Some("off"), "Off is a level too (2026-11-11)");
         for bad in ["", "real", "1", "on"] {
             assert_eq!(parse_illness_mode(bad), None, "{bad:?}");
         }

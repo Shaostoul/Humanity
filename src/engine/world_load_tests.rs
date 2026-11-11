@@ -54,12 +54,12 @@ fn a_cabin_home_spawns_none_of_the_homesteads_world() {
         .collect();
     let mut world = hecs::World::new();
     let herd = spawn_herd(&mut world, &data, &anchors, homestead.contains(&HomeContent::Herd));
-    let wilds = spawn_wilds(&mut world, &data, false, homestead.contains(&HomeContent::WildSpawns));
+    let wilds = spawn_wilds(&mut world, &data, 0.0, homestead.contains(&HomeContent::WildSpawns));
     assert!(herd > 0, "a homestead home has its herd");
     assert!(wilds > 0, "a homestead home has its wilds (the berry bushes, the wild flax, the clay pit)");
     // A cabin's: the same spawns take every one of them away and put none back.
     let herd = spawn_herd(&mut world, &data, &anchors, cabin.contains(&HomeContent::Herd));
-    let wilds = spawn_wilds(&mut world, &data, false, cabin.contains(&HomeContent::WildSpawns));
+    let wilds = spawn_wilds(&mut world, &data, 0.0, cabin.contains(&HomeContent::WildSpawns));
     let creatures = world.query::<&humanity_core::ecs::components::Creature>().iter().count();
     assert_eq!(
         (herd, wilds, creatures),
@@ -79,4 +79,38 @@ fn a_home_on_the_ships_air_has_no_air_space_of_its_own() {
     assert_eq!(volumes, vec![14_685.0], "a homestead has its own air, at its own size");
     replace_home_air(&mut world, false, 0.0, 19.5);
     assert_eq!(world.query::<&HomeAir>().iter().count(), 0, "a cabin keeps the homestead's air space");
+}
+
+/// HOSTILE WILDLIFE'S LEVELS (2026-11-11, data/gameplay/levels.json): Off spawns no predator at
+/// all, Few fewer than Normal (one of each pack at least), Normal every pack whole; the peaceful
+/// wilds (berry bushes, flax, clay) are the same at every level.
+///
+/// Seen red 2026-11-11 with the share ignored (any share above 0 spawning whole packs, the old
+/// switch's On): "Few spawns fewer predators than Normal (3 against 3)".
+#[test]
+fn hostile_wildlife_off_few_and_normal() {
+    // The shipped wilds hold no pack today (the wolves wait for the predator arc), so the test
+    // brings back the file's own wolf row as a pack of three.
+    let mut data = registries();
+    let text = std::fs::read_to_string(repo_data().join("entities/wild_spawns.ron")).unwrap();
+    let with_wolves = text.replacen(r#"// (creature: "wolf", count: 2,"#, r#"(creature: "wolf", count: 3,"#, 1);
+    assert_ne!(with_wolves, text, "the wolf row is in the file");
+    data.insert("wild_spawn_list", humanity_systems::livestock::WildSpawnList::from_ron(with_wolves.as_bytes()).unwrap());
+    let count = |share: f32| {
+        let mut world = hecs::World::new();
+        let all = spawn_wilds(&mut world, &data, share, true);
+        let hostile = world
+            .query::<&humanity_core::ecs::components::AIBehavior>()
+            .iter()
+            .filter(|(_, ai)| matches!(ai.behavior_type.as_str(), "predator" | "aggressive"))
+            .count();
+        (all - hostile, hostile)
+    };
+    let (calm_off, off) = count(0.0);
+    let (calm_few, few) = count(0.34);
+    let (calm_normal, normal) = count(1.0);
+    assert_eq!(off, 0, "Off spawns no predator");
+    assert!(normal > 0, "Normal spawns the packs ({normal})");
+    assert!(few > 0 && few < normal, "Few spawns fewer predators than Normal ({few} against {normal})");
+    assert_eq!((calm_off, calm_few), (calm_normal, calm_normal), "the peaceful wilds are the same at every level");
 }
