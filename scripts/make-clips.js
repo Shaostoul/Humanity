@@ -550,9 +550,14 @@ async function main() {
         // would undo it, the way probe-sweep.js sends one. The "stand" verb
         // puts the eye at a height over a lat/lon looking along a compass
         // heading, which the park cannot do: it only tilts toward north.
+        // A list is sent one step at a time, final_settle_s after each, the way
+        // probe-sweep.js sends a vantage's (2026-11-11: the character shots copy
+        // the anim-* vantages' steps, and one object written whole holds only one).
         if (c.final_showcase) {
-          req("showcase_request.json", c.final_showcase);
-          await sleep((c.final_settle_s ?? 6) * 1000);
+          for (const step of Array.isArray(c.final_showcase) ? c.final_showcase : [c.final_showcase]) {
+            req("showcase_request.json", step);
+            await sleep((c.final_settle_s ?? 6) * 1000);
+          }
         }
         if (c.during) req("showcase_request.json", c.during);
         else req("showcase_request.json", { time_scale: "1" });

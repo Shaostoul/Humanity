@@ -3,7 +3,7 @@
     "The clip maker's shot list (scripts/make-clips.js, 2026-09-30). One entry per shot; adding a shot is an edit here.",
     "camera: a camera_request, exactly as tests/visual/vantages.json writes one ({body, lat, lon, altitude_km, look_offset_deg, time} for a planet, {station:'home'} for the home).",
     "showcase: sent before the park (weather, sea state, cloud_cover). during: sent just before the recording starts, so the sun does not move while the ground streams in. time_scale there is GAME SECONDS PER REAL SECOND (a new game runs at 1, a real 24-hour day; the Simplified preset is 72, a 20-minute day): 600 turns a 12 s clip into two hours of light, 900 turns Earth an eighth of the way round.",
-    "final_showcase: sent after the re-park, which would undo it. The \"stand\" verb ({\"stand\":\"dx,h,dz,heading,pitch\",\"stand_at\":\"lat,lon\"}) puts the eye h metres over the ground at a lat/lon looking along a compass heading (degrees from north) and pitch; the camera park cannot aim anywhere but toward north. final_settle_s (default 6) is the wait after it, for the ground to stream in at the new height.",
+    "final_showcase: sent after the re-park, which would undo it; a list is sent one step at a time, final_settle_s after each (the anim-* vantages' steps copy over as they are). The \"stand\" verb ({\"stand\":\"dx,h,dz,heading,pitch\",\"stand_at\":\"lat,lon\"}) puts the eye h metres over the ground at a lat/lon looking along a compass heading (degrees from north) and pitch; the camera park cannot aim anywhere but toward north. final_settle_s (default 6) is the wait after it, for the ground to stream in at the new height.",
     "fov in showcase: the lens, vertical degrees (10..120), released to the Settings value at the start of every shot. The play default is 90, which turns a far mountain into a few pixels.",
     "record: the movie-mode request (src/engine/movie.rs): seconds, fps, warmup_s, anim_speed (cloud and water time-lapse), pan_yaw_deg / pan_pitch_deg, path [[t, x, y, z, yaw, pitch], ...] in the home frame, descend_half_life_s / descend_floor_m.",
     "settle_s: seconds after the park for terrain and clouds to stream in before recording (the heavy forest vantages need over a minute).",
@@ -331,6 +331,420 @@
             -0.5
           ]
         ]
+      }
+    },
+    {
+      "id": "char-crowd-realistic",
+      "title": "Fifty people walking about, Realistic animation",
+      "caption": "Fifty people walking about in the Realistic animation mode: the people nearest you put each foot on the floor, stair or slope under it.",
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "35"
+      },
+      "settle_s": 8,
+      "during": {
+        "time_scale": "1",
+        "crowd": "50,3.5,-1,0,10"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 0.5
+      }
+    },
+    {
+      "id": "char-crowd-simplified",
+      "title": "The same crowd, Simplified animation",
+      "caption": "The same crowd in the Simplified animation mode: only the hips follow the floor, which is lighter on older computers.",
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "simplified",
+        "fov": "35"
+      },
+      "settle_s": 8,
+      "during": {
+        "time_scale": "1",
+        "crowd": "50,3.5,-1,0,10"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 0.5
+      }
+    },
+    {
+      "id": "char-stairs-realistic",
+      "title": "Up the stairs, Realistic animation",
+      "caption": "Walking up the stairs in the Realistic animation mode: each foot lands on a tread.",
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.7,38.7,-1.5708,0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "40"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0"
+        }
+      ],
+      "final_settle_s": 0.5,
+      "during": {
+        "time_scale": "1",
+        "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
+      },
+      "record": {
+        "seconds": 10,
+        "warmup_s": 0.2
+      }
+    },
+    {
+      "id": "char-stairs-simplified",
+      "title": "Up the stairs, Simplified animation",
+      "caption": "The same walk in the Simplified animation mode: the hips rise with the stairs, but the feet are not set on each tread.",
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.7,38.7,-1.5708,0.2",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "simplified",
+        "fov": "40"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0"
+        }
+      ],
+      "final_settle_s": 0.5,
+      "during": {
+        "time_scale": "1",
+        "figure_path": "42.6,0,38.65;41.0,0,38.65;36.5,3.0,38.65;35.5,3.0,38.65;0.9"
+      },
+      "record": {
+        "seconds": 10,
+        "warmup_s": 0.2
+      }
+    },
+    {
+      "id": "char-sit-couch",
+      "title": "Sitting down on the couch",
+      "caption": "Sitting down on the couch and getting up again: one sit animation, fitted to this seat's height.",
+      "camera": {
+        "station": "home",
+        "pose": "50.6,1.4,43.9,-2.62,-0.3",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0"
+        }
+      ],
+      "final_settle_s": 0.5,
+      "during": {
+        "time_scale": "1",
+        "crowd_act": "couch_1:couch_seat_middle,7,body=male"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 0.2
+      }
+    },
+    {
+      "id": "char-sit-high-chair",
+      "title": "A seat a little high: the legs hang",
+      "caption": "Sitting down on a chair a little high for her, and getting up again: the hips land on the seat and the lower legs hang from the knees.",
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.5,41.6,-0.61,-0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0"
+        }
+      ],
+      "final_settle_s": 0.5,
+      "during": {
+        "time_scale": "1",
+        "crowd_act": "chair_7,7,body=female"
+      },
+      "record": {
+        "seconds": 12,
+        "warmup_s": 0.2
+      }
+    },
+    {
+      "id": "char-ladder",
+      "title": "Up the ladder through the hatch",
+      "caption": "Climbing the ladder up through the hatch, hands and feet on the rungs.",
+      "camera": {
+        "station": "home",
+        "pose": "33,1.7,25,3.1416,0.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0"
+        }
+      ],
+      "final_settle_s": 0.5,
+      "during": {
+        "time_scale": "1",
+        "figure_path": "33,0,26.2;33,0,27.5;33,3,27.5;33,3,28.8;0.6"
+      },
+      "record": {
+        "seconds": 10,
+        "warmup_s": 0.2
+      }
+    },
+    {
+      "id": "char-faces-female",
+      "title": "One face, three looks (female)",
+      "caption": "One face, three looks: the detail sliders reshape the nose, chin, eyes, mouth, ears and cheekbones.",
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.62,24,-1.5708,-0.06",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "35"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0",
+          "hud": "0",
+          "lineup": "female,1.25,0.6|hair=bob02|hair=bob02,d:nose_hump=0.6,d:nose_vert=0.6,d:nose_horiz=0.6,d:chin_prominent=0.6,d:chin_width=0.6,d:eye_scale=0.6,d:mouth_horiz=0.6,d:mouth_upperlip_volume=0.6,d:ear_scale=0.6,d:cheek_bones=0.6,d:forehead_nubian=0.6,d:head_fat=0.6|hair=bob02,d:nose_hump=-0.6,d:nose_vert=-0.6,d:nose_horiz=-0.6,d:chin_prominent=-0.6,d:chin_width=-0.6,d:eye_scale=-0.6,d:mouth_horiz=-0.6,d:mouth_upperlip_volume=-0.6,d:ear_scale=-0.6,d:cheek_bones=-0.6,d:forehead_nubian=-0.6,d:head_fat=-0.6"
+        }
+      ],
+      "final_settle_s": 4,
+      "record": {
+        "seconds": 10,
+        "warmup_s": 0.5,
+        "path": [
+          [
+            0,
+            90.5,
+            1.58,
+            24.6,
+            -1.5708,
+            0
+          ],
+          [
+            10,
+            90.5,
+            1.58,
+            23.4,
+            -1.5708,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "id": "char-faces-male",
+      "title": "One face, three looks (male)",
+      "caption": "The same detail sliders on a male face: as made, turned up, and turned down.",
+      "camera": {
+        "station": "home",
+        "pose": "90.5,1.62,24,-1.5708,-0.06",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "35"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0",
+          "hud": "0",
+          "lineup": "male,1.25,0.6|hair=short02|hair=short02,d:nose_hump=0.6,d:nose_vert=0.6,d:nose_horiz=0.6,d:chin_prominent=0.6,d:chin_width=0.6,d:eye_scale=0.6,d:mouth_horiz=0.6,d:mouth_upperlip_volume=0.6,d:ear_scale=0.6,d:cheek_bones=0.6,d:forehead_nubian=0.6,d:head_fat=0.6|hair=short02,d:nose_hump=-0.6,d:nose_vert=-0.6,d:nose_horiz=-0.6,d:chin_prominent=-0.6,d:chin_width=-0.6,d:eye_scale=-0.6,d:mouth_horiz=-0.6,d:mouth_upperlip_volume=-0.6,d:ear_scale=-0.6,d:cheek_bones=-0.6,d:forehead_nubian=-0.6,d:head_fat=-0.6"
+        }
+      ],
+      "final_settle_s": 4,
+      "record": {
+        "seconds": 10,
+        "warmup_s": 0.5,
+        "path": [
+          [
+            0,
+            90.5,
+            1.68,
+            24.6,
+            -1.5708,
+            0
+          ],
+          [
+            10,
+            90.5,
+            1.68,
+            23.4,
+            -1.5708,
+            0
+          ]
+        ]
+      }
+    },
+    {
+      "id": "char-racks-night",
+      "title": "The mushroom room at midnight, one lamp",
+      "caption": "The mushroom room at midnight under its one lamp: the racks and the person among them cast shadows.",
+      "camera": {
+        "station": "home",
+        "pose": "8.5,2.4,60.0,-0.78,-0.42",
+        "time": 8.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "50"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "camera_mode": "first",
+          "hud": "0",
+          "fp_body": "0"
+        },
+        {
+          "crowd": "0",
+          "figure_path": "6.0,0,57.5;6.01,0,57.5;0.01"
+        }
+      ],
+      "final_settle_s": 3,
+      "record": {
+        "seconds": 10,
+        "warmup_s": 1
+      }
+    },
+    {
+      "id": "char-door-hand",
+      "title": "Opening a door by hand",
+      "caption": "Walking up to a door and opening it by hand, seen through your own eyes.",
+      "camera": {
+        "station": "home",
+        "pose": "53.6,1.7,34.5,3.1416,-0.8",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0",
+          "camera_mode": "first",
+          "walk": "1",
+          "walk_pace": "realistic",
+          "hud": "0",
+          "fp_body": "1"
+        }
+      ],
+      "final_settle_s": 2.6,
+      "during": {
+        "time_scale": "1",
+        "hold": "forward",
+        "hold_s": "5"
+      },
+      "record": {
+        "seconds": 8,
+        "warmup_s": 0.2
+      }
+    },
+    {
+      "id": "char-fp-legs",
+      "title": "Looking down at your own legs",
+      "caption": "First person, looking down: your own legs, clothes and shoes as you walk.",
+      "camera": {
+        "station": "home",
+        "pose": "50,1.7,40.5,-1.5708,-1.15",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "0",
+          "camera_mode": "first",
+          "hud": "0",
+          "body": "male",
+          "look_wear": "hair=short02,wear:chest=mh_male_casualsuit02,wear:feet=mh_shoes03",
+          "walk": "1",
+          "walk_pace": "realistic"
+        }
+      ],
+      "final_settle_s": 4,
+      "during": {
+        "time_scale": "1",
+        "hold": "forward",
+        "hold_s": "5"
+      },
+      "record": {
+        "seconds": 9,
+        "warmup_s": 0.3
       }
     }
   ]

@@ -12,6 +12,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-11",
+      "decision": "Operator asked for screenshots or videos (\"the sim test of the AI running around ... the different AI modes\"). 12 clips filmed on the v0.1556.0 exe with `just clips` into C:/Users/Shaos/Videos/HumanityOS clips/20261111-225612 (16x9, 9x16, master, still, captions in clips.md): the crowd and the stairs each in Realistic and Simplified animation (the stairs pair shows the difference plainly), sitting on a couch and a high chair, the ladder through its hatch, the door by hand, two face-slider sets, the mushroom room at night with shadows, first-person legs. Found: BUG-292 (detail-slider faces show banded shading, ridges at full values); the dev crowd walks through furniture; no truly high seat in the home to film. clips.json shots and a make-clips.js fix (a list final_showcase sent step by step) merged."
+    },
+    {
+      "date": "2026-11-11",
       "decision": "Merged a4c4b01f6: ONE music switch (Music on the app's pages, default on, from the app's start all session; music_at_start removed) and Ministral 3 3B set up as the characters-rich model (the pinned llama.cpp runs mistral3 unchanged; 2.2 s load, about 2.08 GB committed, 12-14 tokens/s writing at 4 threads). Its four files uploaded to assets-ai-1 in two parts (part limit now 2,000,000,000 bytes), each GitHub digest matching the catalog. Coordinator calls: two parts (a 0.02% margin under GitHub's 2 GiB is too thin); the mistral-v7-tekken template fix waits for rung 3's engine package. The agent left a scratch engine build at C:/mmt that its guard would not delete: told the operator (safe to delete), not deleted on the agent's behalf. Ships in the next release (Nov 12)."
     },
     {
@@ -1256,6 +1260,7 @@
     "Do NOT re-run the near-tree test suite hunting a ~50% flake. It was a sibling test writing a process-global mid-run, and it is gone by construction now that density is an argument."
   ],
   "things_pending_or_known_gaps": [
+    "2026-11-11: BUG-292 detail-slider faces banded/ridged (likely normals not recomputed after the per-person build). The dev crowd walks through furniture (crowd verb ignores obstacles).",
     "2026-11-11: AI rung 3 (talking characters) on Granite and Ministral; with its new engine package, fix the chat template to mistral-v7-tekken in shim.c.",
     "2026-11-11 FIRST: shadows rung 1b (a) Off truly free (pipelines without the atlas lookup when Off; the cost line must show the real Off cost until then), (b) deferred shadow mask, (c) one draw per mesh per light via clip distances (CPU 1.7-2.0 ms on Full in the hall); fix home-shadow-metrics.mjs --gate criteria (stale: room GI remainder, hut view frames no sand).",
     "2026-11-11: move the remaining gameplay modes (garden pests, pollination, soil pH, picking, ship life support, pipe markings, HUD bars) into data/gameplay/levels.json with a further level where meaningful.",
@@ -1273,7 +1278,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-11T22:08:06.454Z",
+  "last_updated": "2026-11-11T23:07:54.553Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
