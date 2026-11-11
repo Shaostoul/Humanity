@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1555.0 (11 November 2026)
+
+- Shape your own face and body with 248 sliders (nose, eyes, jaw, ears and more), and wear real clothes, shoes, hats and hair fitted to your shape; others see your look.
+- Sit on chairs and beds, lie down, climb ladders through their hatches, work at a bench, and open doors with your hand.
+- True first person: look down and see your own legs, clothes and hands.
+- Every graphics setting says what it changes and what it costs on your computer; clothing textures at 512, 1K or an optional 2K download.
+- No stutter when crowds arrive, clothes in under a third of the video memory, and downloads about 150 MB smaller.
+
 ### v0.1554.1 (10 November 2026)
 
 - v0.1554.0 for macOS and Linux, whose builds had stopped on one line meant only for Windows.
