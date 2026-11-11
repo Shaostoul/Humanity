@@ -12,6 +12,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-10",
+      "decision": "Rung 2b follow-up merged: hand-opened hinged doors (reach from 0.9 m, swing within 0.40 m of the handle; sliding/corridor and sprinting keep 2.6 m) and legs hanging from high seats (thighs 3.5 cm into the seat, soles 9.2 cm clear on the female chair vantage; red twins fail). Coordinator calls: doors swing away from the opener until rung 3 can play a pull with a step back; the skirt sagging ~8 cm through a seat waits for the cloth work."
+    },
+    {
+      "date": "2026-11-10",
       "decision": "Operator asked: \"Is there anything else renderer related that we're missing?\" Coordinator audit from the code (not memory): NO anti-aliasing of any kind (billboard_bake.rs: \"this engine has no MSAA anywhere\"; no TAA, no motion vectors, no upscaling or render scale); no local-light shadows (shadows agent running); no specular reflections indoors (no SSR, no reflection probes; room probes carry irradiance only); no skin subsurface scattering, cloth sheen or clearcoat; no decals; light intensity is a multiplier, not photometric units; no HDR display output; no parallax/displacement; no DOF or motion blur; characters' eyes and teeth not converted. Present: sun shadows with cascades, bloom, exposure, AO, bounced room light, atmosphere, clouds, light shafts, ocean, particles. Plan: after the shadows agent, one agent writes the whole renderer gap plan (each gap's 2030 technique, budget on the RTX 4070 and an RX 580-class card, its Settings control with a cost line, build order; anti-aliasing with motion vectors likely first, as upscaling, hair and foliage stability depend on it); the building waits for the weekly reset (2026-11-13 03:00 UTC)."
     },
     {
@@ -1229,7 +1233,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-11T02:06:23.038Z",
+  "last_updated": "2026-11-11T02:29:30.177Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
