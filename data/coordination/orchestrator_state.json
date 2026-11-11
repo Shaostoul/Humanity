@@ -12,6 +12,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-11",
+      "decision": "v0.1555.0 released (the look, its pools, rung 2b and follow-up, texture levels and the Graphics audit, downloads without source PNGs). verify-runtime PASS 3/3 panics 0; lints and rig-tests green. Delivered to the operator's exe. The first release with release-files.js in the bundle step: watching every platform job and the mirror."
+    },
+    {
+      "date": "2026-11-11",
       "decision": "Operator resumed (\"Let's continue.\") with new requests, verbatim in scratchpad wk-playhub.txt: the Play page becomes the hub (\"MCP/overview\") of every game page with dedicated sub-pages; \"remove clicking play immediately starting the game\"; music starts when HumanityOS starts; gameplay settings get more than two choices including Off (body heat, illness, etc.); the Inventory tightened and in the RGB tint sections. Dispatched: the Play hub agent (all five parts) and a FRESH shadows finisher from the paused WIP branch (per the new rule: no resumed agents). Cutting the look batch release now (Nov 11 Pacific).",
       "why": "Operator 2026-11-11."
     },
@@ -1214,7 +1218,7 @@
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming.",
     "2026-11-06 (orchestrator session 1c730720): src/relay push routes, push_send.rs, web_push.rs, src/relay/handlers/utils.rs fetch_link_preview (SSRF agent); chat video upload/poster paths in both apps and the relay uploads (poster agent)."
   ],
-  "version_state": "v0.1554.1 released 2026-11-10 (read Cargo.toml for the current version; never trust this line over it). Two releases on Nov 10 Pacific already.",
+  "version_state": "v0.1555.0 released 2026-11-11 (read Cargo.toml for the current version; never trust this line over it).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
@@ -1246,7 +1250,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-11T12:04:29.885Z",
+  "last_updated": "2026-11-11T12:26:42.257Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
