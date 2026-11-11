@@ -111,6 +111,19 @@ touch the same hot files, run them as back-to-back waves and merge serially, but
 never sit idle to "save budget." "Efficient" now means throughput, not frugality.
 See memory `feedback_usage_budget_pacing.md`.
 
+**Where the usage goes, measured (2026-11-10, the operator asked).** In the week from 2026-11-06,
+the dispatched agents were 94% of this session's effective usage (cache reads weighted 0.1x, cache
+writes 2x, output 5x) and the orchestrator itself about 6%. A big feature agent cost about as much
+as the orchestrator's whole week, because every step re-reads its whole working context: the
+largest ran 600 to 800 steps at about 500k tokens of context each (character rung 2b: 417M cache
+read over 791 steps). So the levers are the agents' context size and step count, not the
+orchestrator's chatter: (1) briefs tell agents to read big files by section (offset/limit, grep),
+never whole (`src/lib.rs`, the design docs, `animation.rs`), and to trim build, test and rig output
+to the lines that matter (`tail`, `grep`) before it enters the context; (2) a job that would run
+past about 400 steps is split into two briefs, the second starting fresh; (3) a follow-up to a
+finished agent is a NEW agent with a short brief, never a resumed one, which drags its old context
+through every step. These lines are in the shared brief (scratchpad `wk-common.txt`).
+
 ## 5. Dispatching agents
 
 - **Lean hard on parallel subagents** (cost is a flat Max subscription with abundant headroom, see memory `project_financial_context.md` + `feedback_velocity_no_checkpoints.md`); the real limiter is your own verification, so parallelize that too. Fan out wide on DISJOINT file sets; agents that must touch the same hot file (`src/lib.rs`, the shared shader tail `assets/shaders/pbr/90-fragment-main.wgsl`) run as back-to-back waves, merged serially (section 4).
