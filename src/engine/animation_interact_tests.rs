@@ -12,7 +12,7 @@ use humanity_animation::interact::{contact_time, default_back_drop, release_time
 use humanity_animation::{Engagement, FeetDef, FootFrame, FootMode, FootPlacer, LoadedBody, Phase, Pose};
 
 use super::*;
-use crate::engine::anchor_probe::{hips_clearance, rung_gap, seat_drop, skinned, surface_clearance};
+use crate::engine::anchor_probe::{hips_clearance, lowest_over, rung_gap, seat_drop, skinned, surface_clearance, thigh_clearance};
 use crate::engine::feet_ground::TestGround;
 
 fn repo_data() -> PathBuf {
@@ -23,9 +23,38 @@ fn body<'a>(lib: &'a CharacterLibrary, choice: &str) -> &'a LoadedBody {
     &lib.bodies[lib.body_index(choice).unwrap_or_else(|| panic!("no body {choice}"))]
 }
 
+/// A body dressed as the frame dresses a dev stand-in (`key`'s seed, the wearer's default outfit:
+/// the female's skirt), its own mesh, skeleton, feet and seat and hand vertices in place of the bare
+/// body's, so the probe's measures read what the running game draws.
+fn dressed(lib: &CharacterLibrary, choice: &str, key: super::FigureKey) -> LoadedBody {
+    let bi = lib.body_index(choice).unwrap_or_else(|| panic!("no body {choice}"));
+    let b = &lib.bodies[bi];
+    let cosmetics = humanity_core::cosmetics::load_cosmetics(&repo_data());
+    let model_of = |id: &str| -> Option<Option<String>> { cosmetics.iter().find(|c| c.id == id).map(|c| c.model.clone()) };
+    let garments = lib.dress_for(bi, "other", super::figure_seed(key), &humanity_animation::DressChoice::default(), &model_of);
+    assert!(!garments.is_empty(), "the stand-in is dressed");
+    let detail = Default::default();
+    let inputs = humanity_animation::PersonInputs { shape: &[], detail: &detail, garments: &garments, covers: true, soles: true };
+    let k = humanity_animation::look::look_key(bi, &inputs);
+    let m = humanity_animation::look::build_person(b, b.base.as_ref().expect("a MakeHuman body"), lib.look.as_ref().expect("the look"), &lib.humanoid, &inputs, k);
+    let mut out = b.clone();
+    out.skeleton = m.skeleton.clone();
+    out.feet = m.feet.clone();
+    out.model = m.model.clone();
+    out.foot_vertices = m.foot_vertices.clone();
+    out.seat_vertices = m.seat_vertices.clone();
+    out.hand_vertices = m.hand_vertices.clone();
+    out
+}
+
 /// A person at an anchor's root (its object at the origin, unturned) holding it `t` seconds in,
 /// posed as the frame poses them: the palette rows, the model matrices and the world matrix.
 fn pose_at(lib: &CharacterLibrary, b: &LoadedBody, anchor: &str, phase: Phase, t: f32, warp: bool) -> (Vec<[f32; 4]>, Vec<Mat4>, Mat4, crate::engine::interact::Placed) {
+    pose_at_with(lib, b, anchor, phase, t, warp, false)
+}
+
+/// `pose_at`, seated with the feet planted by the whole leg when `plant` (the red twin).
+fn pose_at_with(lib: &CharacterLibrary, b: &LoadedBody, anchor: &str, phase: Phase, t: f32, warp: bool, plant: bool) -> (Vec<[f32; 4]>, Vec<Mat4>, Mat4, crate::engine::interact::Placed) {
     let ai = lib.anchors.index(anchor).unwrap_or_else(|| panic!("no anchor {anchor}"));
     let def = &lib.anchors.anchors[ai];
     let skel = &b.skeleton;
@@ -66,7 +95,7 @@ fn pose_at(lib: &CharacterLibrary, b: &LoadedBody, anchor: &str, phase: Phase, t
     if def.kind == humanity_animation::AnchorKind::Sit {
         if let Some(rig) = b.feet.as_ref() {
             let contacts = def.phase(phase).clip.as_deref().and_then(|c| b.clips.index(c)).map_or([1.0, 1.0], |c| b.clips.get(c).contacts_at(t));
-            let frame = FootFrame { world, contacts, airborne: false, dt: 1.0 / 60.0, pelvis_fixed: w.engage > 0.0 };
+            let frame = FootFrame { world, contacts, airborne: false, dt: 1.0 / 60.0, pelvis_fixed: w.engage > 0.0, seat_plant: plant };
             FootPlacer::default().place(rig, skel, &lib.humanoid, &mut out, &mut model, &frame, &TestGround { floor: 0.0, stair: None, slope: 0.0 }, FootMode::Full, &FeetDef::default());
         }
     }
@@ -125,6 +154,70 @@ fn hips_rest_on_this_seat_at_every_seats_height() {
         }
     }
     assert!(red_fails >= 2, "with warping off only {red_fails} seats failed: the bound would pass without the warp");
+}
+
+/// THE LEGS HANG FROM A SEAT HIGH FOR THE BODY (the operator, 2026-11-10: "Dangle otherwise the
+/// character's butt clips down through the seat or we stretch the character"). On the chair (0.47 m,
+/// higher than the sit clip's seat on the female body) her hips stay on the seat (2 cm in to 2.5 cm
+/// over), her thighs are not driven down through it (over each thigh, 3 to 15 cm in front of the
+/// hips, no more than 5 cm into the cushion: the thigh's flesh, the garment over it and the cushion,
+/// none of them soft here; the clip's own seated thigh reads 2.6 cm bare and 4.7 cm in the skirt she
+/// wears in the running game) and her feet hang clear of the floor, bare and dressed as the running
+/// game's stand-in. On the couch (0.40 m, lower than
+/// the clip's seat on the male body) his feet stand on the floor (1 cm into to 3 cm over it), each
+/// lower leg swung forward about its knee. Red twins: with the feet planted by the whole leg
+/// (`seat_plant`, as rung 2b first drew it) her soles are on the floor and her hips pulled into the
+/// seat; with motion warping off (the clip's own seat) her thighs go well through it.
+/// Measured (IT_DEBUG=1, 2026-11-10): hanging, the female's hips 0.0 cm, thighs 2.6 cm into the
+/// cushion (4.7 dressed), soles 5.5 cm clear of the floor (5.6 dressed); the male on the couch,
+/// soles 0.3 cm over it. Planted, the female's hips 0.9 cm in, thighs 3.1 cm in (5.5 dressed),
+/// soles 0.3 cm over the floor. Warping off, her thighs 8.2 cm in. The skirt's cloth between her
+/// thighs sags 8 cm down through the seat hanging or planted alike (skinned cloth, left out of the
+/// measure: `anchor_probe::THIGH_GAP_M`).
+/// Seen red 2026-11-10 with the seated solve left out (`if false && frame.pelvis_fixed` in
+/// feet.rs, every seated leg planted by the whole leg): "female on the chair: the thighs go 0.031 m
+/// down through the seat" (the soles, 0.3 cm over the floor, would have failed next).
+#[test]
+fn the_legs_hang_from_a_seat_high_for_the_body() {
+    let lib = read_library(&repo_data()).unwrap();
+    let female_dressed = dressed(&lib, "female", super::FigureKey::Crowd(0));
+    let measure_body = |b: &LoadedBody, anchor: &str, plant: bool, warp: bool| {
+        let choice = format!("{}{}", b.choice, if std::ptr::eq(b, &female_dressed) { " (dressed)" } else { "" });
+        let def = &lib.anchors.anchors[lib.anchors.index(anchor).unwrap()];
+        let c = def.contact(ContactPart::Hips).unwrap();
+        let (rows, model, world, placed) = pose_at_with(&lib, b, anchor, Phase::Hold, 0.5, warp, plant);
+        let (root, facing) = placed.root(def);
+        let forward = Quat::from_rotation_y(facing) * Vec3::Z;
+        let hips = world.transform_point3(model[b.hands.as_ref().unwrap().hips].w_axis.truncate());
+        let seat_pts = skinned(&b.model, &b.seat_vertices, &[], &rows, &world, 1);
+        let all = crate::engine::anchor_probe::skinned_drawn(&b.model, &[], &rows, &world, 1);
+        let on_seat = hips_clearance(&seat_pts, hips, placed.point(c.at), Vec3::Y, Some(forward)).expect("hips over the seat");
+        let thigh = thigh_clearance(&seat_pts, hips, placed.point(c.at), Vec3::Y, forward).expect("thighs over the seat");
+        let feet = lowest_over(&all, root, Vec3::Y).expect("a body");
+        if std::env::var("IT_DEBUG").is_ok() {
+            eprintln!("{choice} on {anchor} (plant {plant}, warp {warp}): hips {on_seat:.3} m, thighs {thigh:.3} m over the seat, the soles {feet:.3} m over the floor");
+        }
+        (on_seat, thigh, feet)
+    };
+    let measure = |choice: &str, anchor: &str, plant: bool, warp: bool| measure_body(body(&lib, choice), anchor, plant, warp);
+    // Dressed as the running game's stand-in (the female's skirt), hanging and planted.
+    let (hips, thigh, feet) = measure_body(&female_dressed, "chair_seat", false, true);
+    assert!((-0.02..=0.025).contains(&hips), "dressed on the chair: the hips stand {hips:.3} m over the seat");
+    assert!(thigh >= -0.05, "dressed on the chair: the thighs go {:.3} m down through the seat", -thigh);
+    assert!(feet > 0.005, "dressed on the chair: the soles are {feet:.3} m over the floor, not hanging clear of it");
+    let (_, _, red_feet) = measure_body(&female_dressed, "chair_seat", true, true);
+    assert!(red_feet <= 0.005, "dressed and planted, the soles are {red_feet:.3} m over the floor: the twin would pass the hanging check");
+    let (hips, thigh, feet) = measure("female", "chair_seat", false, true);
+    assert!((-0.02..=0.025).contains(&hips), "female on the chair: the hips stand {hips:.3} m over the seat");
+    assert!(thigh >= -0.05, "female on the chair: the thighs go {:.3} m down through the seat", -thigh);
+    assert!(feet > 0.005, "female on the chair: the soles are {feet:.3} m over the floor, not hanging clear of it");
+    let (_, thigh, feet) = measure("male", "couch_seat_middle", false, true);
+    assert!(thigh >= -0.05, "male on the couch: the thighs go {:.3} m down through the seat", -thigh);
+    assert!((-0.01..=0.03).contains(&feet), "male on the couch: the soles are {feet:.3} m over the floor, not standing on it");
+    let (red_hips, _, red_feet) = measure("female", "chair_seat", true, true);
+    assert!(red_feet <= 0.005 && red_hips < hips, "planted by the whole leg the female's soles are {red_feet:.3} m over the floor and her hips {red_hips:.3} m: the twin would pass the hanging check");
+    let (_, red_thigh, _) = measure("female", "chair_seat", false, false);
+    assert!(red_thigh < -0.05, "with warping off the female's thighs are {red_thigh:.3} m over the chair: the thigh bound could not fail");
 }
 
 /// LYING: both bodies lie in the bed with the lowest drawn vertex of the hips within 2 cm into to

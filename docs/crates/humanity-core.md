@@ -22,7 +22,7 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
 - **Size:** 19,173 lines in 64 files, 922 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 39, `test-support` 9, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 663, gui 510, systems 464, renderer 71, ship 57, net 54, relay 34, animation 21, terrain 5.
+- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 663, gui 522, systems 464, renderer 71, ship 57, net 54, relay 34, animation 21, terrain 5.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 217 tests, and this runs exactly them, checked against every test's name:
 
@@ -38,10 +38,10 @@ just test-lib --crate humanity-core
 | `debug::push_debug` | 82 | gui 42, net 23, engine 17 |
 | `ecs::components` | 77 | systems 58, engine 18, ship 1 |
 | `storage::data_dir` | 76 | gui 40, systems 21, engine 7, ship 5, relay 2, net 1 |
-| `i18n::t` | 73 | gui 66, engine 6, systems 1 |
+| `i18n::t` | 74 | gui 67, engine 6, systems 1 |
 | `embedded_data::note_builtin_copy` | 60 | ship 15, systems 14, relay 13, gui 9, renderer 6, engine 1, net 1, terrain 1 |
+| `i18n` | 60 | gui 60 |
 | `ecs::components::Transform` | 59 | engine 40, systems 15, gui 1, net 1, relay 1, ship 1 |
-| `i18n` | 58 | gui 58 |
 | `frame_costs::stage` | 51 | engine 30, systems 16, gui 4, renderer 1 |
 | `frame_costs::span` | 49 | engine 49 |
 | `ecs::components::Controllable` | 46 | systems 26, engine 19, gui 1 |
@@ -50,7 +50,7 @@ just test-lib --crate humanity-core
 | `cosmos::find_body` | 32 | engine 26, gui 4, renderer 2 |
 | `embedded_data::load_data_or_embedded` | 32 | systems 13, gui 8, net 6, engine 3, relay 1, ship 1 |
 
-And 265 more items, 985 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
+And 265 more items, 994 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
 <!-- end generated -->
 
 ## Rules

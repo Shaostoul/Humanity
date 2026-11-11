@@ -2976,6 +2976,9 @@ pub(crate) fn rebuild_door_panels(state: &mut EngineState) {
         .iter()
         .map(|(p, _)| p.locks.iter().map(|l| l.state).collect())
         .collect();
+    // Each door's swing (rung 2b's follow-up) stays beside its open fraction, which the rebuild
+    // keeps while the door count holds; a new door swings the way its hinge turns until opened.
+    state.door_swing.resize(state.door_panels.len(), Default::default());
     note_landing_doors(state);
 }
 
@@ -3334,13 +3337,16 @@ pub(crate) fn render_door_panels(
     // is where it stands.
     let camera_actor = state.aboard_station.then_some(state.camera.position - Vec3::Y * state.controller.eye_height());
     let remote_eye = humanity_core::ecs::components::EYE_HEIGHT_M as f32;
-    let others: Vec<Vec3> = state
+    // With how fast each moves across the floor (rung 2b's follow-up: a sprinting player opens a
+    // hinged door at its open_dist, a walking one by hand).
+    let others_moving: Vec<(Vec3, f32)> = state
         .game_world
         .world
         .query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
         .iter()
-        .map(|(_e, (t, _))| t.position - Vec3::Y * remote_eye)
+        .map(|(_e, (t, r))| (t.position - Vec3::Y * remote_eye, Vec3::new(r.velocity.x, 0.0, r.velocity.z).length()))
         .collect();
+    let others: Vec<Vec3> = others_moving.iter().map(|o| o.0).collect();
     let animals: Vec<Vec3> = state
         .game_world
         .world
@@ -3367,6 +3373,14 @@ pub(crate) fn render_door_panels(
     // The editor's cut-away leaves out the doors over its cut (they still open and close: only
     // their drawing goes), with their rings, panels and locks.
     let cut = state.home_draw.cut.clone();
+    // A HAND opens a hinged door (rung 2b's follow-up, the operator 2026-11-10: "Sure."): the local
+    // player sprinting (Shift with a walk key) opens it at its open_dist as before; the handle's place
+    // on the panel is the door anchor's row (data/characters/interactions.ron) when the bodies are
+    // read, else the row's own numbers.
+    let me_sprinting = state.controller.gait().1;
+    let handle_local = crate::engine::interact::handle_local(state.animation.library().as_deref());
+    let mut swings = std::mem::take(&mut state.door_swing);
+    swings.resize(state.door_panels.len(), Default::default());
     for (di, (p, open)) in state.door_panels.iter_mut().enumerate() {
         // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
         // (v0.538: consult door_anim::is_operable so a door explicitly styled "fixed" does not
@@ -3429,11 +3443,47 @@ pub(crate) fn render_door_panels(
             }
             _ => None,
         };
-        let target = door_target(p, *open, locked_now, manual.get(di).copied().unwrap_or(false), landing, dist);
+        // A door a hand opens (`door_anim::HandOpen`, its style's row): walking people open it by
+        // hand or body, fast ones and animals at its open_dist; a locked one, a manual one and a
+        // landing door with no car stay `door_target`'s.
+        let hand = humanity_systems::door_anim::style_hand(&p.style)
+            .filter(|_| operable && p.auto_open && !p.others_only && !locked_now && landing != Some(false));
+        let (target, opener) = match hand {
+            Some(h) => {
+                let near_hand = hand_door_actors(p, camera_actor, me_sprinting, &others_moving, &animals, &h, handle_local);
+                let t = humanity_systems::door_anim::hand_door_target(dist, near_hand.hand.0, near_hand.touch.0, near_hand.fast.0, p.open_dist, &h, *open);
+                (t, near_hand.opener(&h))
+            }
+            None => (door_target(p, *open, locked_now, manual.get(di).copied().unwrap_or(false), landing, dist), None),
+        };
+        // Starting to open from shut: it swings away from whoever opens it (a hand door), and at the
+        // push's pace when a hand did.
+        if *open <= 0.02 && target > 0.5 {
+            if let (Some(h), Some((at, by_hand))) = (hand, opener) {
+                swings[di] = humanity_systems::door_anim::Swing { side: humanity_systems::door_anim::swing_away_from(p.hinge, p.center, at), by_hand };
+                let _ = h;
+            } else {
+                swings[di] = Default::default();
+            }
+        }
         // Frame-rate-independent exponential ease toward the target: smooth open/close, ~0.4 s
-        // to settle, no snapping (v0.540, pure + tested in door_anim since v0.795).
+        // to settle, no snapping (v0.540, pure + tested in door_anim since v0.795); a door a hand is
+        // opening at the push's pace.
         let open_before = *open;
-        *open = humanity_systems::door_anim::ease_open(*open, target, dt);
+        *open = match hand {
+            Some(h) if swings[di].by_hand && target > 0.5 => humanity_systems::door_anim::ease_open_at(*open, target, dt, h.swing_rate),
+            _ => humanity_systems::door_anim::ease_open(*open, target, dt),
+        };
+        // And pushed ahead of anyone walking through it: never so little open that the panel passes
+        // through a body near it (a door a hand opened swings at the push's pace, slower than a walk
+        // through it near the hinge).
+        if hand.is_some() && swings[di].by_hand && target > 0.5 {
+            for a in camera_actor.into_iter().chain(others.iter().copied()) {
+                if (a - p.hinge).length_squared() < 2.25 && humanity_ship::door_panels::feet_reach_door(a.y, p.center.y, p.center.y + p.size.y) {
+                    *open = open.max(humanity_systems::door_anim::push_open(p.hinge, p.center, swings[di].side, a, PUSH_CLEAR_M));
+                }
+            }
+        }
         // Door SFX (v0.983): fire on the swing's START edges - rising off
         // fully-closed plays the open sound, dropping off fully-open plays
         // the close. Mid-swing reversals stay quiet (no re-trigger spam when
@@ -3454,7 +3504,7 @@ pub(crate) fn render_door_panels(
         if m.hidden || !drawn {
             continue;
         }
-        let hinge_rot = Quat::from_rotation_y(m.hinge);
+        let hinge_rot = Quat::from_rotation_y(m.hinge * swings[di].side);
         let world_off = p.rotation * Vec3::new(m.offset.0, m.offset.1, m.offset.2);
         let c = p.center + world_off;
         let pos = p.hinge + hinge_rot * (c - p.hinge);
@@ -3480,7 +3530,84 @@ pub(crate) fn render_door_panels(
             opaque.push(obj);
         }
     }
+    state.door_swing = swings;
     state.pending_sfx.extend(sfx);
+}
+
+/// How far a door a hand opened keeps its panel from a body walking through (metres, across the
+/// floor): about the drawn body's half width at the shoulders and hips, inside the walk's 0.3 m.
+const PUSH_CLEAR_M: f32 = 0.28;
+
+/// Who is at a hand-opened door this frame (rung 2b's follow-up): the nearest walking person's feet
+/// to its handle on their side and to its face, and the nearest fast actor (a sprinting person, an
+/// animal) to its middle, each with where they stand, all across the floor and only those on the
+/// door's storey (`door_panels::feet_reach_door`).
+struct HandDoorActors {
+    hand: (f32, Vec3),
+    touch: (f32, Vec3),
+    fast: (f32, Vec3),
+}
+
+impl HandDoorActors {
+    /// Who opens it now, if anyone does, and whether by hand (a hand at the handle or a body at the
+    /// face) or as a door opens for something fast.
+    fn opener(&self, h: &humanity_systems::door_anim::HandOpen) -> Option<(Vec3, bool)> {
+        if self.hand.0 <= h.reach_m {
+            Some((self.hand.1, true))
+        } else if self.touch.0 <= h.touch_m {
+            Some((self.touch.1, true))
+        } else if self.fast.0 < f32::MAX {
+            Some((self.fast.1, false))
+        } else {
+            None
+        }
+    }
+}
+
+/// `HandDoorActors` for door `p`: the camera (the local player, sprinting or not), the other
+/// players with their speed across the floor (faster than the row's `sprint_mps` is a sprint) and
+/// the animals; `handle` is the handle's place on the panel, (along from its free edge, out from its
+/// face), as `interact::handle_local` reads it.
+fn hand_door_actors(
+    p: &humanity_ship::door_panels::PanelPlacement,
+    camera: Option<Vec3>,
+    me_sprinting: bool,
+    others: &[(Vec3, f32)],
+    animals: &[Vec3],
+    h: &humanity_systems::door_anim::HandOpen,
+    handle: (f32, f32),
+) -> HandDoorActors {
+    let (sill, head) = (p.center.y, p.center.y + p.size.y);
+    let on_storey = |a: &Vec3| humanity_ship::door_panels::feet_reach_door(a.y, sill, head);
+    let flat = |v: Vec3| Vec3::new(v.x, 0.0, v.z).length();
+    let normal = p.rotation * Vec3::Z;
+    let along = p.rotation * Vec3::X;
+    let mut out = HandDoorActors { hand: (f32::MAX, Vec3::ZERO), touch: (f32::MAX, Vec3::ZERO), fast: (f32::MAX, Vec3::ZERO) };
+    let walkers = camera.filter(|_| !me_sprinting).into_iter().chain(others.iter().filter(|o| o.1 <= h.sprint_mps).map(|o| o.0));
+    for a in walkers.filter(on_storey) {
+        let d = a - p.center;
+        let side = if d.dot(normal) >= 0.0 { 1.0 } else { -1.0 };
+        let at = p.center + p.rotation * Vec3::new(p.size.x * 0.5 + handle.0, 0.0, side * (p.size.z * 0.5 + handle.1));
+        let to_handle = flat(a - at);
+        if to_handle < out.hand.0 {
+            out.hand = (to_handle, a);
+        }
+        // The face, anywhere across the door's width (and the walk's radius beyond each side).
+        if d.dot(along).abs() <= p.size.x * 0.5 + humanity_ship::wall_collision::PLAYER_RADIUS {
+            let to_face = d.dot(normal).abs();
+            if to_face < out.touch.0 {
+                out.touch = (to_face, a);
+            }
+        }
+    }
+    let fast = camera.filter(|_| me_sprinting).into_iter().chain(others.iter().filter(|o| o.1 > h.sprint_mps).map(|o| o.0)).chain(animals.iter().copied());
+    for a in fast.filter(on_storey) {
+        let d = flat(a - p.center);
+        if d < out.fast.0 {
+            out.fast = (d, a);
+        }
+    }
+    out
 }
 
 #[cfg(test)]

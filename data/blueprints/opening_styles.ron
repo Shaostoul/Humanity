@@ -7,8 +7,20 @@
 // anchors (character animation rung 2b, 2026-11-10): the interaction anchors a door of this style
 // offers, ids of data/characters/interactions.ron. A swing door's handle: a person going through
 // closes a hand round it while the door swings open.
+//
+// hand (the operator, 2026-11-10: "Sure."): a HAND opens a door of this style instead of it opening
+// by itself at its open_dist (door_anim::HandOpen). It starts to swing when a walking person's feet
+// come within reach_m of its handle (their hand on it: 0.40 m is where the shortest body's arm reaches
+// a handle at 0.95 m from its feet on the handle's side; the operator was asked about "about 0.9 m",
+// the distance the hand starts reaching from) or within touch_m of its face anywhere across
+// its width (just short of the body touching it, so nobody stands stuck at a shut door), swings away
+// from them (they stand inside the arc a panel coming toward them would sweep) at the push's pace
+// (swing_rate per second, against 9 for a door that opens itself: about a walking pace at the
+// handle, so the hand stays on it) and stops blocking the walk once it moves. A sprint (faster than
+// sprint_mps across the floor) and an animal still open it at its open_dist, so nobody runs into it
+// shut.
 [
-    (id: "swing", anchors: ["door_swing_handle"]),
+    (id: "swing", anchors: ["door_swing_handle"], hand: Some((reach_m: 0.40, touch_m: 0.42, swing_rate: 1.0, sprint_mps: 5.5))),
     (id: "slide"),
     (id: "iris"),
     (id: "rotate"),

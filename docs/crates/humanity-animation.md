@@ -40,10 +40,10 @@ because animation never reaches the server: the relay build never compiles it (t
 - **Owns** all of `crates/humanity-animation/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
   - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/feet.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/interact.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/look.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
   - test builds only: `crates/humanity-animation/src/fixtures.rs`, `crates/humanity-animation/src/tests.rs`
-- **Size:** 6,232 lines in 17 files, 580 of them in 2 test files.
+- **Size:** 6,300 lines in 17 files, 580 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 21.
-- **May be used by** (the plan): engine. **Used today by:** engine 137.
+- **May be used by** (the plan): engine. **Used today by:** engine 140.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 21 tests, and this runs exactly them, checked against every test's name:
 
@@ -55,23 +55,23 @@ just test-lib --crate humanity-animation
 
 | Item | References | From |
 |---|---:|---|
-| `Phase` | 14 | engine 14 |
-| `AnchorKind` | 11 | engine 11 |
-| `GarmentKind` | 8 | engine 8 |
+| `Phase` | 15 | engine 15 |
+| `AnchorKind` | 12 | engine 12 |
+| `interact::phase_len` | 8 | engine 8 |
 | `DressChoice` | 7 | engine 7 |
-| `interact::phase_len` | 7 | engine 7 |
-| `LookLibrary` | 5 | engine 5 |
+| `GarmentKind` | 7 | engine 7 |
 | `FootRig` | 4 | engine 4 |
 | `LoadedBody` | 4 | engine 4 |
 | `PersonMesh` | 4 | engine 4 |
 | `Skeleton` | 4 | engine 4 |
 | `interact::ContactPart` | 4 | engine 4 |
+| `look::GarmentDef` | 4 | engine 4 |
 | `Limbs` | 3 | engine 3 |
 | `Part` | 3 | engine 3 |
 | `look::build_person` | 3 | engine 3 |
 | `AnchorDef` | 2 | engine 2 |
 
-And 39 more items, 54 references (`node scripts/crate-cards.js --interface humanity-animation` lists them all).
+And 41 more items, 56 references (`node scripts/crate-cards.js --interface humanity-animation` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -215,6 +215,10 @@ And 39 more items, 54 references (`node scripts/crate-cards.js --interface human
   (the shod foot probe, and its red twin that must FAIL), `anim-stairs-soles-off` and
   `anim-crowd-near-look-off` (the cost twin). The converters:
   `node scripts/gen-makehuman-look.js --check` and `gen-makehuman-body.js --check`.
+- **Seated legs (rung 2b's follow-up, 2026-11-10):** `feet::solve_seated_leg` (only the lower leg
+  swings: onto the floor within the shin's reach, else hanging); the engine's
+  `the_legs_hang_from_a_seat_high_for_the_body` (bare and dressed, red without the seated solve);
+  in the running game `anim-sit-chair`'s `legs_hang` and its red twin `anim-sit-chair-feet-planted`.
 - **The interactions (rung 2b, 2026-11-10):** the crate's `interact::tests` (the climb's hands
   alternate on rungs, red with both hands moving together, and let go past the top, red held on;
   look-at's limits, red unclamped; the phase weights, red with the exit run forward and again with
@@ -238,8 +242,9 @@ And 39 more items, 54 references (`node scripts/crate-cards.js --interface human
 ## Open work
 
 - **What rung 2b left** (character-animation.md section 17, "Known limits"): lying, climbing, a
-  bench and a door are target poses with IK (the free clip library has no clip for them); the doors
-  open themselves at 2.6 m, so a hand takes a door already swinging rather than opening it; held
+  bench and a door are target poses with IK (the free clip library has no clip for them); hand
+  doors swing away from whoever opens them (a pull needs a step back); a skirt's cloth sags between
+  the thighs through a seat (skinned cloth); held
   things are not drawn (no item has a model), only the hands' grips and the two-handed hold; what
   each hand holds does not cross the network yet; a crew member's activity names no anchor until the
   crowd timetable (crowd-simulation.md rung 3); the take-off anticipation from the jump key is still

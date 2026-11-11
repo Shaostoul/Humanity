@@ -621,6 +621,10 @@ pub(crate) struct EngineState {
     /// authored states on a structural rebuild (mirrors door_manual_open). A door is passable only
     /// when all of its locks are open.
     pub(crate) door_locks: Vec<Vec<humanity_ship::lock_types::LockState>>,
+    /// Which way each door's panel swings and whether a hand opened it this time (character
+    /// animation rung 2b's follow-up, `door_anim::Swing`), parallel to door_panels: a door a hand
+    /// opens swings away from whoever opened it, at the push's pace.
+    pub(crate) door_swing: Vec<humanity_systems::door_anim::Swing>,
     pub(crate) door_panel_mesh: Option<usize>,
     pub(crate) door_slab_mat: Option<usize>,
     pub(crate) door_glass_mat: Option<usize>,

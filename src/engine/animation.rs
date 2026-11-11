@@ -1481,7 +1481,8 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             second_hand: None,
         };
         if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
-            p.act = remote_act_in(state, lib, &mut p, r.doing.act.as_ref());
+            let walking = Vec3::new(r.velocity.x, 0.0, r.velocity.z).length() > DOOR_WALKING_MPS;
+            p.act = remote_act_in(state, lib, &mut p, r.doing.act.as_ref(), walking);
         }
         out.push(p);
     }
@@ -1518,7 +1519,7 @@ fn gather(state: &EngineState, showroom: bool) -> Vec<Person> {
             second_hand: None,
         };
         if let Some(lib) = lib.as_deref().filter(|_| state.interact.rung2b_on) {
-            p.act = door_act_in(state, lib, &p);
+            p.act = door_act_in(state, lib, &p, false);
         }
         out.push(p);
     }
@@ -1575,14 +1576,17 @@ fn my_act_in(state: &EngineState, lib: &CharacterLibrary, p: &mut Person) -> Opt
             }
         }
     }
-    door_act_in(state, lib, p)
+    // Walking up to a shut hand door, the hand reaches for it (a walk key held, not sprinting).
+    let (moving, sprinting) = state.controller.gait();
+    door_act_in(state, lib, p, moving && !sprinting)
 }
 
 /// Another player's act (rung 2b), as their update named it: a seat or a bed posed from the
 /// anchor's own row where they stand (their capsule is at its root), a ladder or a workbench found by
-/// its id near them; else a door opening at their hand, worked out here.
-fn remote_act_in(state: &EngineState, lib: &CharacterLibrary, p: &mut Person, act: Option<&humanity_core::stance::Act>) -> Option<ActIn> {
-    let Some(act) = act else { return door_act_in(state, lib, p) };
+/// its id near them; else a door opening at their hand, worked out here (`walking`: they move across
+/// the floor, so their hand reaches for a shut hand door they come up to).
+fn remote_act_in(state: &EngineState, lib: &CharacterLibrary, p: &mut Person, act: Option<&humanity_core::stance::Act>, walking: bool) -> Option<ActIn> {
+    let Some(act) = act else { return door_act_in(state, lib, p, walking) };
     let anchor = lib.anchors.index(&act.anchor)?;
     let def = &lib.anchors.anchors[anchor];
     let phase = humanity_animation::Phase::from_code(act.phase)?;
@@ -1636,17 +1640,30 @@ fn crowd_act_in(state: &EngineState, lib: &CharacterLibrary, c: &CrowdFigure, cl
             return Some(ActIn { anchor: placed.anchor, phase: None, t: None, placed: Some(placed) });
         }
     }
-    door_act_in(state, lib, p)
+    // A stand-in opens no door (the doors open for players and animals), so it reaches for none.
+    door_act_in(state, lib, p, false)
 }
 
 /// A swing door opening within reach of a person's hand (rung 2b, worked out on every screen): its
-/// handle as their act.
-fn door_act_in(state: &EngineState, lib: &CharacterLibrary, p: &Person) -> Option<ActIn> {
+/// handle as their act. And (rung 2b's follow-up, a hand opens hinged doors) a SHUT one a `walking`
+/// person comes up to: the hand reaches for the handle the walking pace times the reach's own enter
+/// phase before their feet are within the door's `reach_m`, so it is on the handle as the door
+/// starts to swing.
+fn door_act_in(state: &EngineState, lib: &CharacterLibrary, p: &Person, walking: bool) -> Option<ActIn> {
     if !state.aboard_station {
         return None;
     }
     let shoulder = p.feet + p.up * 1.35;
-    let h = crate::engine::interact::opening_handle_near(state, lib, shoulder, DOOR_REACH_M)?;
+    let h = match crate::engine::interact::opening_handle_near(state, lib, shoulder, DOOR_REACH_M) {
+        Some(h) => h,
+        None if walking => {
+            let lead = lib.anchors.anchors.iter().find(|a| a.kind == humanity_animation::AnchorKind::Door).map_or(0.0, |def| {
+                humanity_animation::interact::phase_len(def, humanity_animation::Phase::Enter, &lib.bodies[0].clips) * DOOR_REACH_PACE_MPS
+            });
+            crate::engine::interact::shut_hand_handle_near(state, lib, p.feet, shoulder, lead)?
+        }
+        None => return None,
+    };
     // Only a door ahead of them (one swinging open beside or behind them is not theirs to hold).
     let ahead = Vec3::new(p.facing.sin(), 0.0, p.facing.cos());
     let to = h.at - shoulder;
@@ -1665,10 +1682,12 @@ fn door_act_in(state: &EngineState, lib: &CharacterLibrary, p: &Person) -> Optio
         let at = p.feet + rotation * (rig.shoulders[side] * scale);
         (h.at - at).length() <= rig.reach[side] * scale * DOOR_REACH_SHARE
     });
-    if !reaches {
+    // A shut door's handle is reached for from further off (the reach before the swing); one swinging
+    // is held only within the arm's reach.
+    if h.opening && !reaches {
         return None;
     }
-    let placed = crate::engine::interact::Placed { anchor: h.anchor, origin: h.at, yaw: 0.0, object: crate::engine::interact::ObjectRef::Door(h.door) };
+    let placed = crate::engine::interact::Placed { anchor: h.anchor, origin: h.at, yaw: 0.0, object: crate::engine::interact::ObjectRef::Door { panel: h.door, swinging: h.opening } };
     Some(ActIn { anchor: h.anchor, phase: None, t: None, placed: Some(placed) })
 }
 
@@ -1678,6 +1697,13 @@ const DOOR_REACH_M: f32 = 0.85;
 /// The share of an arm's full length (shoulder to the palm's middle) a hand reaches for a handle at:
 /// short of the elbow locked straight.
 const DOOR_REACH_SHARE: f32 = 0.95;
+/// The walking pace the hand's reach for a shut door is timed to (metres a second): the Realistic
+/// walk (engine/walk_pace.rs). At it, the reach's enter phase ends as the feet come within the
+/// door's `reach_m` and the door starts to swing.
+const DOOR_REACH_PACE_MPS: f32 = 1.4;
+/// Faster than this across the floor another player is walking (metres a second): their hand
+/// reaches for a shut hand door they come up to.
+const DOOR_WALKING_MPS: f32 = 0.3;
 
 /// Turn a person to face an anchor while it holds them (a ladder, a workbench): the drawn body
 /// faces it (the capsule and the camera are untouched); a climber is also drawn at the ladder's face,
@@ -1922,6 +1948,14 @@ fn probe_contacts(
             let pts = skinned(model, seat, weights, rows, world, crate::engine::anchor_probe::VERTEX_STRIDE);
             let forward = (def.kind == AnchorKind::Sit).then(|| body_rotation(p.up, p.facing) * Vec3::Z);
             note(probe, "hips_m", hips_clearance(&pts, hips_world, contact, p.up, forward));
+            // Seated, the legs (the operator, 2026-11-10: on a seat high for the body they hang): the
+            // thighs over the seat in front of the buttocks, and the lowest of the drawn body (the
+            // soles) over the floor the person stands on.
+            if let Some(forward) = forward {
+                note(probe, "thigh_m", crate::engine::anchor_probe::thigh_clearance(&pts, hips_world, contact, p.up, forward));
+                let all = crate::engine::anchor_probe::skinned_drawn(model, weights, rows, world, 3);
+                note(probe, "feet_m", crate::engine::anchor_probe::lowest_over(&all, p.feet, p.up));
+            }
         }
         AnchorKind::Climb if engage_w > 0.999 => {
             let Some(pl) = tr.placed else { return };
@@ -1950,7 +1984,8 @@ fn probe_contacts(
             }
         }
         AnchorKind::Door if holding => {
-            let Some(pl) = tr.placed else { return };
+            // While the door swings (a hand reaching for a shut one is not on its handle yet).
+            let Some(pl) = tr.placed.filter(|pl| matches!(pl.object, crate::engine::interact::ObjectRef::Door { swinging: true, .. })) else { return };
             let gap = (0..2).filter_map(|side| nearest(&skinned(model, &hands[side], weights, rows, world, crate::engine::anchor_probe::VERTEX_STRIDE), pl.origin)).reduce(f32::min);
             note(probe, "handle_m", gap);
         }
@@ -2136,6 +2171,7 @@ pub(crate) fn draw_people(
     let keep_cap = own_keep_cap(lib.characters.tiers.near_cap);
     // The interactions' switches (rung 2b; the rigs' red twins) and the probe while it runs.
     let (warp_on, hand_ik_on, fp_head_hidden, rung2b_on) = (state.interact.warp_on, state.interact.hand_ik_on, state.interact.fp_head_hidden, state.interact.rung2b_on);
+    let seat_plant = state.interact.seat_plant;
     let mut aprobe = state.interact.probe.take();
     let mut me_act: Option<(String, humanity_animation::Phase)> = None;
     let mut my_eye: Option<Vec3> = None;
@@ -2518,7 +2554,7 @@ pub(crate) fn draw_people(
             Some(rig) => {
                 // Seated (rung 2b), the hips are the seat's: the pelvis is not moved for the feet.
                 let pelvis_fixed = act_kind == Some(humanity_animation::AnchorKind::Sit) && engage_w > 0.0;
-                let frame = humanity_animation::FootFrame { world, contacts: act_contacts.unwrap_or_else(|| animator.contacts()), airborne: p.airborne, dt, pelvis_fixed };
+                let frame = humanity_animation::FootFrame { world, contacts: act_contacts.unwrap_or_else(|| animator.contacts()), airborne: p.airborne, dt, pelvis_fixed, seat_plant };
                 let t0 = (mode == FootMode::Full).then(std::time::Instant::now);
                 let r = feet.place(rig, skel, &lib.humanoid, &mut rt.pose, &mut rt.model, &frame, &person_ground, mode, &lib.characters.feet);
                 if let Some(t0) = t0 {

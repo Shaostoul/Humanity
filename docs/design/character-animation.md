@@ -1747,8 +1747,8 @@ later rungs).
   WALKS IN to the approach point at 1.2 m/s (the locomotion graph reads the motion, so the body walks;
   the act is sent only once the walk-in is done, so another player's screen times the sit from its
   start). Seated, the feet keep their contacts (the sit clips' labels) with the pelvis held by the seat
-  (`FootFrame::pelvis_fixed`), so a foot under a high seat hangs at its leg's reach rather than
-  pulling the hips off the seat.
+  (`FootFrame::pelvis_fixed`); since the operator's answer, only the lower legs move, so on a seat high
+  for the body the legs hang ("Built after the answers", below).
 - **What grants an interaction (gameplay never waits for animation).** E at a seat sits the player on
   the nearest seat of it; E at the bed sleeps the night as before and lies them down. Both are ROOT
   DRIVEN: the capsule (the camera's eye) is eased onto the anchor's root, held there
@@ -1761,8 +1761,10 @@ later rungs).
   within 95% of their own arm's length from their nearer shoulder (each body's rest bones and palm at
   the scale it is drawn, `HandRig::reach`) takes that hand (worked out on every screen for everyone
   drawn, like the door itself, so never sent). The first sweep used a fixed 85 cm from a fixed
-  shoulder height, and the hand hung 30 cm short of a handle beyond the arm. Not root driven: the capsule stays where those systems put it; the drawn
-  body faces the ladder or the bench, and a climber is drawn at the ladder's face.
+  shoulder height, and the hand hung 30 cm short of a handle beyond the arm. Since the operator's
+  answer a hand opens a shut swing door ("Built after the answers", below). Not root driven: the
+  capsule stays where those systems put it; the drawn body faces the ladder or the bench, and a
+  climber is drawn at the ladder's face.
 - **Each interaction, and what plays it.** The free tier of Quaternius's library (43 clips, read
   2026-11-10) has the sit (Sitting_Enter, Sitting_Idle_Loop, Sitting_Exit: retargeted since rung 1,
   now played) and no lie-down, no ladder climb, no lean on a bench and no door push, so those are
@@ -1908,12 +1910,7 @@ named in the steps' commits.
   them. Lying is entered by blending the idle onto its back while the root eases onto the bed, not by
   sitting on the edge and swinging the legs up; a captured lie-down and ladder climb, retargeted
   from the free motion-capture sets at rung 3 (CMU, ACCAD, 100STYLE), would replace them.
-- The homestead's swing doors open themselves at 2.6 m (their `open_dist`) and swing a quarter turn
-  in 0.4 s, so the hand cannot open a door: it takes the handle of a door already swinging, toward
-  the person (the vantage) or away from them, once the handle comes within the arm's reach, and lets
-  go when the door stops swinging or the handle falls behind or out of reach. A door opened by the
-  hand (the door starting to swing when the hand reaches it) would need the doors to open at arm's
-  reach, a gameplay change for the operator (question below).
+- (Answered and built after the rung: a hand now opens a hinged door. See below.)
 - Held things are not drawn (no item has a model): the hands close in their grips and a two-handed
   thing puts both hands on its shaft. What each hand holds does not cross the network (another
   player's hands stay open).
@@ -1947,6 +1944,77 @@ named in the steps' commits.
   the thighs sloping down, or dangle: "Dangle otherwise the character's butt clips down through the
   seat or we stretch the character." So the hips stay on the seat and the legs hang from it when the
   floor is out of reach; nothing is stretched to meet the floor.
+
+### Built after the answers (2026-11-10)
+
+- **A hand opens a hinged door.** The swing row of `data/blueprints/opening_styles.ron` gains
+  `hand: (reach_m: 0.40, touch_m: 0.42, swing_rate: 1.0, sprint_mps: 5.5)` (`door_anim::HandOpen`;
+  a style without it still opens itself, so sliding and corridor doors are unchanged):
+  - A walking person coming up to a shut swing door reaches for its handle before they get there
+    (the Realistic walking pace times the reach's 0.35 s enter phase, so from about 0.9 m: the
+    distance the question named). The door starts to swing when their feet are within 0.40 m of the
+    handle across the floor, or within 0.42 m of its face anywhere across its width, so nobody stands
+    stuck at a shut door. The question said "about 0.9 m"; measured, 0.40 m is where the shortest
+    body's arm (95% of it, shoulder 1.36 m) meets a handle at 0.95 m.
+  - It swings AWAY from whoever opens it. A person opening a door by hand stands inside the arc a
+    panel coming toward them would sweep through them, and the body cannot step back to pull it.
+  - It eases open at the push's pace (rate 1.0 a second against the 9 of a door that opens itself,
+    about a walking pace at the handle), and is pushed ahead of anyone walking through it
+    (`door_anim::push_open`: never so little open that the panel comes within 0.28 m of a body).
+    So once it moves, its closed segment stops blocking the walk.
+  - While it swings, the palm stays on the slab where it passes the person (the contact slides along
+    the face from the handle toward them; the slab draws no handle), and lets go when the slab is
+    behind them or out of reach.
+  - A sprint (the local player's Shift; another player faster than 5.5 m/s across the floor) and an
+    animal still open it at its `open_dist`. Locked, manual and landing doors are as before.
+  - Each door panel keeps a `door_anim::Swing` (side, by hand) beside its open fraction. The probe
+    measures the door hand only while the door swings.
+- **On a seat high for the body, the legs hang.** Seated, only the lower leg swings, about its knee
+  (`feet::solve_seated_leg`). It goes onto the floor when the floor is within the shin's reach (a
+  low seat: the foot slides forward, the knee bending more), and hangs toward it when not. The
+  thighs stay on the seat as the clip lays them, and nothing is stretched. Showcase `seat_plant` 1
+  is the red twin, the whole-leg plant as rung 2b first drew it. The probe gains `thigh_m` (over
+  each thigh, 3 to 15 cm in front of the hips, the gap between the thighs left out) and `feet_m`
+  (the soles over the floor), and the judge a `legs_hang` rule: the thighs at most 5 cm into the
+  seat (the thigh's flesh, the garment over it and the cushion, none of them soft here), and the
+  soles clear of the floor.
+
+**Proof, in the tests** (each seen red; the text in each comment):
+- `door_anim`: a walker 1.5 m off no longer opens a hand door, a hand on the handle or a body at the
+  face does, a sprint opens it at 2.6 m; the panel swings away from the opener from either side; a
+  body walking through a 0.9 m doorway keeps 0.28 m from the pushed panel.
+- The engine's hanging legs, on the bare body and dressed as the running game's stand-in:
+  - Female on the chair, hanging: hips 0.0 cm, thighs 2.6 cm into the cushion (4.7 in her skirt),
+    soles 5.5 cm clear of the floor.
+  - Male on the couch: soles 0.3 cm over the floor.
+  - The same female planted: soles 0.3 cm over the floor, hips 0.9 cm in (red).
+  - Warping off: her thighs 8.2 cm in (red).
+  - Red without the seated solve: "female on the chair: the thighs go 0.031 m down through the seat".
+- The probe's thigh and floor measures (red with the gap between the thighs read) and the judge's
+  `legs_hang` (red with the soles' clearance dropped).
+
+**Proof, in the running game** (`node scripts/probe-sweep.js`, release build, the drawn mesh):
+
+| Vantage | Measured | Red twin | Twin measured |
+|---|---|---|---|
+| anim-sit-chair (the female stand-in in her skirt) | hips 0.0 cm on the seat, thighs 3.5 cm into it, soles 9.2 cm clear of the floor | -feet-planted | soles 0.4 cm over the floor, thighs 9.5 cm into the seat: FAIL |
+| anim-door-hand (the player, first person, walking up the handle side) | the palm 1.3 to 3.9 cm from the door's contact, 24 frames while it swings | -hand-ik-off | 18.2 to 25.9 cm: FAIL |
+
+The first run of the follow-up found two things. The skirt's cloth between the stand-in's thighs
+sags 8 cm down through the seat, hanging or planted alike; the headless test, then measuring the bare
+body, had missed it. And at 0.5 m from the handle the female's arm could not reach it, so no frame
+had the hand on the door. Fixed in step 2: the thighs are read over each thigh with that gap left
+out, and `reach_m` is 0.40 with the palm sliding along the slab.
+
+**Known limits, after the answers**:
+- Hand doors swing away from whoever opens them, so a home's door swings either way. A real door
+  swings one way, and the person pulling it steps back, which the body cannot do yet (a question for
+  the operator in the rung's report).
+- The skirt's cloth sags between the thighs through a seat. That is skinned cloth; cloth simulation
+  or a seated garment shape would fix it.
+- Thighs read 2.6 to 4.7 cm into a cushion: neither the body nor the seat is soft.
+- Another player's sprint is judged by their speed (5.5 m/s), not their key. A dev stand-in opens no
+  door.
 
 ## References
 

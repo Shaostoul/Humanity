@@ -74,12 +74,14 @@ const STICKY_PIN_RESETS = Object.freeze({
   look_wear: "hair=,brows=,lashes=,wear:chest=,wear:feet=,wear:head=",
   // Interactions (2026-11-10, character animation rung 2b, engine/interact.rs): the player's grant
   // ({"act":"none"} lets go at once), motion warping, the hands on their contacts and the hidden
-  // first-person head (each a red twin's switch), and Settings' first-person body and Reduce motion.
+  // first-person head and the seated feet planted (each a red twin's switch), and Settings'
+  // first-person body and Reduce motion.
   // A `crowd_act` stand-in lives in the crowd, cleared above.
   act: "none",
   warp: "1",
   hand_ik: "1",
   fp_head: "1",
+  seat_plant: "0",
   fp_body: "1",
   reduce_motion: "0",
   // How deep, and how near the camera, the terrain refines inside an installed map pack (2026-11-09,

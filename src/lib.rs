@@ -1946,6 +1946,7 @@ mod native_app {
                 door_panels: Vec::new(),
                 door_manual_open: Vec::new(),
                 door_locks: Vec::new(),
+                door_swing: Vec::new(),
                 door_panel_mesh: None,
                 door_slab_mat: None,
                 door_glass_mat: None,

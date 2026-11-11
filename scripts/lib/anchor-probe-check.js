@@ -18,7 +18,14 @@
 //                     surface (and no more than `rung_sink_m` inside it).
 //   hands_on_surface  each hand's lowest drawn vertex within `surface_sink_m` under to
 //                     `surface_float_m` over the work surface.
-//   hand_on_handle    the hand's nearest drawn vertex within `handle_m` of the door's handle.
+//   hand_on_handle    the hand's nearest drawn vertex within `handle_m` of the door's handle, while
+//                     the door swings (a hand opens a hinged door, the operator 2026-11-10).
+//   legs_hang         seated on a seat high for the body (the operator, 2026-11-10: "Dangle
+//                     otherwise the character's butt clips down through the seat or we stretch the
+//                     character"): over each thigh, in front of the buttocks, no more than
+//                     `thigh_sink_m` into the seat (the thigh's flesh, the garment over it and the
+//                     cushion, none soft here), and the lowest drawn vertex (the soles) more than
+//                     `feet_clear_m` over the floor: the legs hang.
 //   head_hidden       the player's own body drawn in first person (`body_below_m` at least
 //                     `body_below_min_m` under the eye) with nothing of it within `eye_clear_m` of
 //                     the eye (the camera's near plane).
@@ -35,12 +42,14 @@ const DEFAULTS = Object.freeze({
   surface_sink_m: 0.015,
   surface_float_m: 0.025,
   handle_m: 0.04,
+  thigh_sink_m: 0.05,
+  feet_clear_m: 0.005,
   eye_clear_m: 0.1,
   body_below_min_m: 1.0,
   min_frames: 8,
 });
 
-const RULES = Object.freeze(["hips_on_seat", "hands_on_rungs", "hands_on_surface", "hand_on_handle", "head_hidden"]);
+const RULES = Object.freeze(["hips_on_seat", "hands_on_rungs", "hands_on_surface", "hand_on_handle", "head_hidden", "legs_hang"]);
 // The measures each rule reads (`any`: at least one of them must have frames; each present is judged).
 const READS = Object.freeze({
   hips_on_seat: { names: ["hips_m"], any: false },
@@ -48,6 +57,7 @@ const READS = Object.freeze({
   hands_on_surface: { names: ["left_hand_m", "right_hand_m"], any: false },
   hand_on_handle: { names: ["handle_m"], any: false },
   head_hidden: { names: ["eye_nearest_m", "body_below_m"], any: false },
+  legs_hang: { names: ["thigh_m", "feet_m"], any: false },
 });
 const f3 = (x) => (typeof x === "number" ? x.toFixed(3) : String(x));
 
@@ -112,6 +122,10 @@ function judgeAnchors(readout, spec, opts = {}) {
           if (n === "eye_nearest_m" && x.lowest_m < o.eye_clear_m) fail(`is ${f3(x.lowest_m)} m: the body is drawn inside the camera's near plane (at least ${o.eye_clear_m})`);
           if (n === "body_below_m" && x.highest_m < o.body_below_min_m) fail(`is ${f3(x.highest_m)} m: no body drawn under the eye (at least ${o.body_below_min_m})`);
           if (n === "eye_nearest_m") worst = x.lowest_m;
+        } else if (rule === "legs_hang") {
+          if (n === "thigh_m" && x.lowest_m < -o.thigh_sink_m) fail(`reaches ${f3(-x.lowest_m)} m into the seat: the thighs driven through it (at most ${o.thigh_sink_m})`);
+          if (n === "feet_m" && x.lowest_m <= o.feet_clear_m) fail(`is ${f3(x.lowest_m)} m: the soles on the floor, not hanging clear of it (more than ${o.feet_clear_m})`);
+          if (n === "feet_m") worst = x.lowest_m;
         }
       }
     }

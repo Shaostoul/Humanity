@@ -15,6 +15,9 @@
 //   failed, the 0.071 m float no longer reported;
 // - the body-under-the-eye requirement dropped: "no body under the eye fails" failed, an empty view
 //   passing as a hidden head.
+// - the soles' clearance dropped (`feet_clear_m: -Infinity`, 2026-11-10, the hanging legs): "legs hanging
+//   from a high seat pass; planted feet or thighs through the seat fail" failed, the planted twin's
+//   soles 0.003 m over the floor no longer reported ("did not match /soles on the floor/").
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -64,6 +67,18 @@ test("no body under the eye fails", () => {
   const v = judgeAnchors({ frames: 45, people: [person("me", "first_person", { eye_nearest_m: m(1.2, 1.4), body_below_m: m(0.1, 0.2) })] }, { rules: ["head_hidden"], who: ["me"] });
   assert.strictEqual(v.ok, false);
   assert.match(v.failures.join(" "), /no body drawn under the eye/);
+});
+
+test("legs hanging from a high seat pass; planted feet or thighs through the seat fail", () => {
+  const spec = { rules: ["legs_hang"], who: ["crowd:0"] };
+  const legs = (thigh, feet) => ({ people: [{ who: "crowd:0", body: "female", anchor: "chair_seat", measures: { thigh_m: m(thigh, thigh), feet_m: m(feet, feet) } }] });
+  assert.equal(judgeAnchors(legs(-0.047, 0.055), spec).ok, true);
+  const planted = judgeAnchors(legs(-0.055, 0.003), spec);
+  assert.equal(planted.ok, false);
+  assert.match(planted.failures.join(" "), /soles on the floor/);
+  assert.match(planted.failures.join(" "), /thighs driven through/);
+  const missing = judgeAnchors({ people: [{ who: "crowd:0", body: "female", anchor: "chair_seat", measures: { thigh_m: m(-0.01, -0.01) } }] }, spec);
+  assert.equal(missing.misconfigured, true);
 });
 
 test("a readout with nobody holding the anchor is misconfigured", () => {

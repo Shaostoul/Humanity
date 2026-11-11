@@ -1245,14 +1245,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // {"hand_ik":"0"}: hands and feet left off their contacts (the climb's and the workbench's red
     // twin); {"fp_head":"0"}: the first-person head drawn round the eye (its red twin); {"rung2b":"0"}:
     // no interactions, look-at or first-person body, as main drew (the cost twin). "1" puts each back.
-    for (verb, slot) in [("warp", 0usize), ("hand_ik", 1), ("fp_head", 2), ("rung2b", 3)] {
+    // {"seat_plant":"1"}: seated, the feet planted with the whole leg (the hanging legs' red twin).
+    for (verb, slot) in [("warp", 0usize), ("hand_ik", 1), ("fp_head", 2), ("rung2b", 3), ("seat_plant", 4)] {
         if let Some(v) = grab(verb) {
             let on = v != "0";
             match slot {
                 0 => state.interact.warp_on = on,
                 1 => state.interact.hand_ik_on = on,
                 2 => state.interact.fp_head_hidden = on,
-                _ => state.interact.rung2b_on = on,
+                3 => state.interact.rung2b_on = on,
+                _ => state.interact.seat_plant = on,
             }
             log::info!("Showcase: {verb} -> {on}");
         }

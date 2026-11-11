@@ -3450,9 +3450,13 @@ contact frame and out from the exit clip's lift-off; the root's travel and turn 
 approach (a walk-in first when the player stood further off). E at a seat sits the player (the
 capsule held there, a movement key or E gets up); E at the bed sleeps and lies them down; the
 ladder's own climb shows hands and feet on its rungs (from the piece's rung spacing, a diagonal
-gait; out at the hatch the hands let go); an open workbench card puts both hands on its top; a swing
-door still swinging within a person's own arm's reach takes their palm (the doors still open
-themselves at 2.6 m). Where the free clip library has no clip (lying, climbing, a bench, a door) the
+gait; out at the hatch the hands let go); an open workbench card puts both hands on its top; a hand
+opens a hinged door (the operator, 2026-11-10): walking up to a shut swing door the hand reaches for
+its handle, the door starts to swing at 0.40 m from it (or a body at its face), away from the
+person, pushed ahead of them as they walk through with the palm on it; sprints, animals, sliding and
+corridor doors still open at 2.6 m (`opening_styles.ron`'s `hand`). On a seat high for the body
+the legs hang from it (only the lower legs swing, so nothing clips down through the seat or
+stretches). Where the free clip library has no clip (lying, climbing, a bench, a door) the
 pose is a target pose with two-bone IK, said so in the design. **Hands**: two-bone arm IK with the
 hand turned as asked and a grip library (`data/characters/grips.ron`: relaxed, power, rung, pinch,
 staff, two-handed, flat) blended per finger; the equipment's single hands slot split into two grip

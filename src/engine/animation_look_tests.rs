@@ -333,7 +333,7 @@ fn planted_clearances(lib: &CharacterLibrary, b: &LoadedBody, m: &PersonMesh, cl
         let world = Mat4::from_rotation_translation(Quat::IDENTITY, Vec3::new(clip.speed_mps * t, m.lift, 0.0));
         pose::model_matrices(&pb.skeleton, &pose, &mut model);
         let contacts = clip.contacts_at(t);
-        placer.place(rig, &pb.skeleton, &lib.humanoid, &mut pose, &mut model, &FootFrame { world, contacts, airborne: false, dt, pelvis_fixed: false }, &floor, FootMode::Full, &def);
+        placer.place(rig, &pb.skeleton, &lib.humanoid, &mut pose, &mut model, &FootFrame { world, contacts, airborne: false, dt, pelvis_fixed: false, seat_plant: false }, &floor, FootMode::Full, &def);
         rows.clear();
         pose::palette_rows(&pb.skeleton, &model, &mut rows);
         let feet = crate::engine::foot_probe::skinned_feet(&pb.model, &pb.foot_vertices, &[], &rows, &world);

@@ -92,6 +92,111 @@ pub struct OpeningStyle {
     pub id: String,
     #[serde(default)]
     pub anchors: Vec<String>,
+    /// A hand opens a door of this style (None: it opens by itself at its `open_dist`).
+    #[serde(default)]
+    pub hand: Option<HandOpen>,
+}
+
+/// A door a HAND opens (character animation rung 2b's follow-up; the operator, 2026-11-10, asked
+/// whether hinged home doors should start swinging when a hand reaches the handle instead of by
+/// themselves at 2.6 m, sliding and corridor doors and any door while sprinting keeping 2.6 m:
+/// "Sure."). A row of `data/blueprints/opening_styles.ron` carries it.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+pub struct HandOpen {
+    /// How near a walking person's feet come to the handle, across the floor, when the door starts
+    /// to swing (metres): their hand is on the handle then.
+    pub reach_m: f32,
+    /// How near the door's face a person's feet come, anywhere across its width, when it opens
+    /// whether or not the hand found the handle (metres): just short of the body touching it (the
+    /// walk's 0.3 m radius and the slab's half thickness), so nobody stands stuck at a shut door.
+    pub touch_m: f32,
+    /// The push's pace: while a hand opens it the door eases open at this rate (`ease_open_at`, per
+    /// second), slower than a door that opens itself (9), so the hand stays on it as they walk on.
+    pub swing_rate: f32,
+    /// Faster than this across the floor (metres a second) is a sprint: the door opens at its
+    /// `open_dist` as one that opens itself, so nobody runs into it shut.
+    pub sprint_mps: f32,
+}
+
+/// Which way a door's panel is swinging, and why (one per door panel, beside the open fraction):
+/// `side` multiplies `panel_motion`'s hinge turn (+1 the way it turns, -1 the other), and
+/// `by_hand` says a hand opened it this time (it swings at the push's pace and no longer blocks
+/// the walk once it moves, `HandOpen`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Swing {
+    pub side: f32,
+    pub by_hand: bool,
+}
+
+impl Default for Swing {
+    fn default() -> Self {
+        Swing { side: 1.0, by_hand: false }
+    }
+}
+
+/// How a door of `style` is opened by hand, if it is (`OpeningStyle::hand`).
+pub fn style_hand(style: &str) -> Option<HandOpen> {
+    opening_styles().iter().find(|s| s.id == style).and_then(|s| s.hand)
+}
+
+/// Where a HAND-opened door is heading this frame (0 shut, 1 open). `near` is the nearest actor
+/// of any kind to its middle and `fast` the nearest that cannot open it by hand (a sprinting person,
+/// an animal), both across the floor; `hand` the nearest walking person's feet to its handle and
+/// `touch` the nearest walking person's feet to its face. Shut, it opens when a hand reaches the
+/// handle (`reach_m`), a body is about to touch it (`touch_m`), or something fast comes within
+/// `open_dist`; once it moves it stays open while anyone is within `open_dist` and the hysteresis,
+/// as a door that opens itself does, so it never swings shut on someone in the doorway.
+pub fn hand_door_target(near: f32, hand: f32, touch: f32, fast: f32, open_dist: f32, h: &HandOpen, open_now: f32) -> f32 {
+    if open_now > 0.02 {
+        if near < open_dist + AUTO_CLOSE_HYSTERESIS { 1.0 } else { 0.0 }
+    } else if hand <= h.reach_m || touch <= h.touch_m || fast < open_dist {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+/// HOW FAR A BODY PUSHES A HINGED PANEL: the least open fraction (0 to 1, a quarter turn) at which the
+/// panel, hinged at `hinge` with its closed middle at `center` and swinging `side` (`Swing::side`),
+/// keeps every point of it at least `clear` across the floor from `body` (1 when no swing does).
+/// A person walking through a door a hand opened pushes it ahead of them, so the panel never
+/// passes through them: the door eases open at the push's pace, and never less than this.
+pub fn push_open(hinge: glam::Vec3, center: glam::Vec3, side: f32, body: glam::Vec3, clear: f32) -> f32 {
+    let flat = |v: glam::Vec3| glam::Vec3::new(v.x, 0.0, v.z);
+    let reach = flat(center - hinge) * 2.0;
+    let b = flat(body - hinge);
+    let off = |open: f32| {
+        let edge = glam::Quat::from_rotation_y(open * PI * 0.5 * side) * reach;
+        let t = (b.dot(edge) / edge.length_squared().max(1e-8)).clamp(0.0, 1.0);
+        (b - edge * t).length()
+    };
+    if off(0.0) >= clear {
+        return 0.0;
+    }
+    if off(1.0) < clear {
+        return 1.0;
+    }
+    let (mut lo, mut hi) = (0.0_f32, 1.0_f32);
+    for _ in 0..14 {
+        let mid = 0.5 * (lo + hi);
+        if off(mid) >= clear {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    hi
+}
+
+/// The way a hinged panel swings AWAY from `opener` (+1: the way `panel_motion`'s hinge angle turns
+/// it, -1: the other), from its hinge, its closed middle and the opener, across the floor. A person
+/// opening a door by hand stands inside the arc a panel swinging toward them would sweep through
+/// them, and the body cannot yet step back to pull it, so the panel goes away from them.
+pub fn swing_away_from(hinge: glam::Vec3, center: glam::Vec3, opener: glam::Vec3) -> f32 {
+    let e = center - hinge;
+    // A small positive turn about +Y moves the panel's middle this way.
+    let moves = glam::Vec3::new(e.z, 0.0, -e.x);
+    if (opener - center).dot(moves) > 0.0 { -1.0 } else { 1.0 }
 }
 
 /// Every opening style, compiled in (the construction editor lists them; the engine reads a door's
@@ -104,7 +209,7 @@ pub fn opening_styles() -> &'static [OpeningStyle] {
             Ok(v) if !v.is_empty() => v,
             Ok(_) | Err(_) => {
                 log::error!("opening_styles.ron missing/invalid; using fallback");
-                ["swing", "fixed"].iter().map(|s| OpeningStyle { id: s.to_string(), anchors: Vec::new() }).collect()
+                ["swing", "fixed"].iter().map(|s| OpeningStyle { id: s.to_string(), anchors: Vec::new(), hand: None }).collect()
             }
         }
     })
@@ -152,7 +257,13 @@ pub fn auto_open_target(dist: f32, open_dist: f32, open_now: f32) -> f32 {
 /// rate. dt is clamped non-negative (a scheduler hiccup must not run the door backwards) and the
 /// result to 0..1 (what the slide/iris styles and the collision gate expect).
 pub fn ease_open(open: f32, target: f32, dt: f32) -> f32 {
-    let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
+    ease_open_at(open, target, dt, 9.0)
+}
+
+/// `ease_open` at another `rate` (per second): a door a hand pushes swings at the push's pace
+/// (`HandOpen::swing_rate`).
+pub fn ease_open_at(open: f32, target: f32, dt: f32, rate: f32) -> f32 {
+    let ease = 1.0 - (-dt.max(0.0) * rate.max(0.0)).exp();
     (open + (target - open) * ease).clamp(0.0, 1.0)
 }
 
@@ -284,6 +395,66 @@ mod tests {
         ] {
             assert!(feet_reach_door(feet, sill, top), "feet {why} ({feet}, the door {sill} to {top}) do not reach it");
         }
+    }
+
+    /// A HAND OPENS A HINGED DOOR (the operator, 2026-11-10: "Sure."): shut, it stays shut for a
+    /// walking person until their feet are within reach of the handle (0.40 m) or about to touch its
+    /// face (0.42 m), whatever their distance to its middle; something fast (a sprint, an animal)
+    /// opens it at its 2.6 m as before; once moving it stays open while anyone is within 3.4 m.
+    /// Seen red 2026-11-10 with the walker's distance to the middle opening it as before (`near <
+    /// open_dist` in place of the hand's reach): "a walker 1.5 m off opened the door by hand" (left: 1.0).
+    #[test]
+    fn a_hand_opens_a_hinged_door_and_a_sprint_still_opens_it_at_its_distance() {
+        let h = style_hand("swing").expect("the swing row says a hand opens it");
+        assert_eq!((h.reach_m, h.touch_m), (0.40, 0.42));
+        assert!(style_hand("slide").is_none(), "a sliding door opens itself");
+        let far = f32::MAX;
+        assert_eq!(hand_door_target(1.5, 1.6, 1.5, far, 2.6, &h, 0.0), 0.0, "a walker 1.5 m off opened the door by hand");
+        assert_eq!(hand_door_target(0.6, 0.39, 0.5, far, 2.6, &h, 0.0), 1.0, "a hand on the handle did not open it");
+        assert_eq!(hand_door_target(0.6, 0.9, 0.4, far, 2.6, &h, 0.0), 1.0, "a body against the face did not open it");
+        assert_eq!(hand_door_target(2.0, far, far, 2.0, 2.6, &h, 0.0), 1.0, "a sprint at 2 m did not open it");
+        assert_eq!(hand_door_target(3.0, far, far, 3.0, 2.6, &h, 0.0), 0.0);
+        assert_eq!(hand_door_target(3.0, 2.9, 2.9, far, 2.6, &h, 0.1), 1.0, "a door swinging open shut on someone 3 m off");
+        assert_eq!(hand_door_target(3.5, far, far, far, 2.6, &h, 0.8), 0.0, "an open door nobody is near stayed open");
+        assert!(ease_open_at(0.0, 1.0, 0.1, h.swing_rate) < ease_open(0.0, 1.0, 0.1), "the push swung as fast as a door that opens itself");
+    }
+
+    /// THE PANEL SWINGS AWAY FROM WHOEVER OPENS IT: from either side, the swing's first turn moves
+    /// the panel's middle further from the opener.
+    /// Seen red 2026-11-10 with the side's sign flipped: "opened from Vec3(0.45, 0.0, 1.0) the panel
+    /// swung toward them".
+    #[test]
+    fn the_panel_swings_away_from_whoever_opens_it() {
+        let (hinge, center) = (glam::Vec3::ZERO, glam::Vec3::new(0.45, 0.0, 0.0));
+        for opener in [glam::Vec3::new(0.45, 0.0, 1.0), glam::Vec3::new(0.45, 0.0, -1.0), glam::Vec3::new(-0.3, 0.0, 0.6)] {
+            let side = swing_away_from(hinge, center, opener);
+            let turned = hinge + glam::Quat::from_rotation_y(side * 0.3) * (center - hinge);
+            assert!((turned - opener).length() > (center - opener).length(), "opened from {opener:?} the panel swung toward them");
+        }
+    }
+
+    /// A BODY WALKING THROUGH PUSHES THE PANEL AHEAD OF IT: a person walking straight through a
+    /// 0.9 m doorway 0.15 m off its middle toward the handle, from 0.6 m before it to 0.6 m past,
+    /// with the panel at `push_open` never has any of the panel within 0.28 m of them; a body
+    /// clear of the door asks for nothing.
+    /// Seen red 2026-11-10 with the swing's side left out (`* side` dropped, the panel turned the
+    /// other way): "at 0.05 m past the doorway the panel came 0.188 m from the body".
+    #[test]
+    fn a_body_walking_through_pushes_the_panel_ahead_of_it() {
+        let (hinge, center) = (glam::Vec3::ZERO, glam::Vec3::new(0.45, 0.0, 0.0));
+        // The opener comes from -z, so the panel swings toward +z.
+        let side = swing_away_from(hinge, center, glam::Vec3::new(0.6, 0.0, -1.0));
+        let mut z = -0.6_f32;
+        while z <= 0.6 {
+            let body = glam::Vec3::new(0.6, 0.0, z);
+            let open = push_open(hinge, center, side, body, 0.28);
+            let edge = glam::Quat::from_rotation_y(open * PI * 0.5 * side) * (center * 2.0);
+            let t = (body.dot(edge) / edge.length_squared()).clamp(0.0, 1.0);
+            let gap = (body - edge * t).length();
+            assert!(gap >= 0.28 - 1e-3, "at {z:.2} m past the doorway the panel came {gap:.3} m from the body");
+            z += 0.05;
+        }
+        assert_eq!(push_open(hinge, center, side, glam::Vec3::new(0.6, 0.0, -1.0), 0.28), 0.0, "a body a metre off pushed the door");
     }
 
     #[test]

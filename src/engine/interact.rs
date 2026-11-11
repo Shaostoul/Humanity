@@ -52,8 +52,9 @@ pub(crate) enum ObjectRef {
     Machine(usize),
     /// A ladder piece: its height, rung count and width (its own size, structure_types.ron).
     Ladder { height: f32, rungs: u32, width: f32 },
-    /// A door panel (an index into `EngineState::door_panels`).
-    Door(usize),
+    /// A door panel (an index into `EngineState::door_panels`), and whether it is swinging open now
+    /// (a hand reaching for a shut one's handle is not yet on it: the probe measures the swing).
+    Door { panel: usize, swinging: bool },
 }
 
 impl Placed {
@@ -107,6 +108,9 @@ pub(crate) struct InteractRuntime {
     /// Rung 2b at all (showcase `rung2b` 0: no interactions, no look-at, no first-person body, as
     /// main drew before this rung): the same-boot twin its cost is measured against.
     pub rung2b_on: bool,
+    /// Seated, plant the feet with the whole leg (showcase `seat_plant` 1, the red twin of the
+    /// hanging legs: the thighs slope down through a seat high for the body to reach the floor).
+    pub seat_plant: bool,
     /// Each door's open fraction on the last frame (a door opening is one whose fraction rose).
     pub door_prev: Vec<f32>,
     /// When each door's fraction last rose (the runtime clock): a door that opened within
@@ -118,7 +122,7 @@ pub(crate) struct InteractRuntime {
 
 impl Default for InteractRuntime {
     fn default() -> Self {
-        InteractRuntime { me: None, warp_on: true, hand_ik_on: true, fp_head_hidden: true, rung2b_on: true, door_prev: Vec::new(), door_rose_at: Vec::new(), probe: None }
+        InteractRuntime { me: None, warp_on: true, hand_ik_on: true, fp_head_hidden: true, rung2b_on: true, seat_plant: false, door_prev: Vec::new(), door_rose_at: Vec::new(), probe: None }
     }
 }
 
@@ -258,6 +262,19 @@ pub(crate) struct Handle {
 /// The handle of a door panel on the face toward `toward`, where `door_anim` has swung it this
 /// frame; None for a door whose style names no door anchor.
 pub(crate) fn door_handle(state: &EngineState, lib: &CharacterLibrary, door: usize, toward: Vec3) -> Option<Handle> {
+    door_contact(state, lib, door, toward, false)
+}
+
+/// How near the hinge a palm pushing a swinging door goes (metres along the panel from its hinge
+/// edge): a hand pushes the slab, not the jamb.
+const PUSH_FROM_HINGE_M: f32 = 0.15;
+
+/// `door_handle`, or with `slide` the point a palm pushes a SWINGING door at: on the same face at
+/// the handle's height, slid along the panel from the handle toward `toward` (no nearer the hinge
+/// than `PUSH_FROM_HINGE_M`), as a person walking through a door they opened keeps their palm on
+/// the slab where it passes them (rung 2b's follow-up: the slab draws no handle, so the palm is
+/// flat on it). The handle itself is where the hand opens a shut one.
+fn door_contact(state: &EngineState, lib: &CharacterLibrary, door: usize, toward: Vec3, slide: bool) -> Option<Handle> {
     let (p, open) = state.door_panels.get(door)?;
     if p.is_window {
         return None;
@@ -271,11 +288,25 @@ pub(crate) fn door_handle(state: &EngineState, lib: &CharacterLibrary, door: usi
     // The panel's frame: x along the wall from its hinge side, the panel centred on `center` with its
     // sill there; the row's x is from the FREE edge back toward the hinge.
     let m = humanity_systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
-    let hinge_rot = Quat::from_rotation_y(m.hinge);
+    // The way it swings (a hand door swings away from whoever opened it, rung 2b's follow-up).
+    let side = state.door_swing.get(door).map_or(1.0, |s| s.side);
+    let hinge_rot = Quat::from_rotation_y(m.hinge * side);
     let side_of = |sign: f32| {
-        let local = Vec3::new(p.size.x * 0.5 + c.at[0], c.at[1], sign * (p.size.z * 0.5 + c.at[2].abs()));
-        let closed = p.center + p.rotation * (Vec3::new(m.offset.0, m.offset.1, m.offset.2) + local);
-        let at = p.hinge + hinge_rot * (closed - p.hinge);
+        let point = |x: f32| {
+            let local = Vec3::new(x, c.at[1], sign * (p.size.z * 0.5 + c.at[2].abs()));
+            let closed = p.center + p.rotation * (Vec3::new(m.offset.0, m.offset.1, m.offset.2) + local);
+            p.hinge + hinge_rot * (closed - p.hinge)
+        };
+        let handle = point(p.size.x * 0.5 + c.at[0]);
+        let at = if slide {
+            // The nearest point to `toward` across the floor on the face from the handle to near the hinge.
+            let inner = point(-p.size.x * 0.5 + PUSH_FROM_HINGE_M);
+            let span = horizontal(inner - handle);
+            let t = (horizontal(toward - handle).dot(span) / span.length_squared().max(1e-8)).clamp(0.0, 1.0);
+            handle + (inner - handle) * t
+        } else {
+            handle
+        };
         let out = (hinge_rot * p.rotation * Vec3::Z * sign).normalize_or_zero();
         (at, out)
     };
@@ -298,13 +329,50 @@ pub(crate) fn opening_handle_near(state: &EngineState, lib: &CharacterLibrary, s
         if *open <= 0.01 || (p.center - shoulder).length_squared() > 9.0 {
             continue;
         }
-        let Some(h) = door_handle(state, lib, i, shoulder) else { continue };
+        // Swinging, the palm pushes the slab where it passes the person (`door_contact`'s slide).
+        let Some(h) = door_contact(state, lib, i, shoulder, true) else { continue };
         let d = (h.at - shoulder).length();
         if h.opening && d <= reach && best.is_none_or(|(b, _)| d < b) {
             best = Some((d, h));
         }
     }
     best.map(|(_, h)| h)
+}
+
+/// A SHUT door a hand opens, being walked up to (rung 2b's follow-up): the one whose handle (on the
+/// face toward `shoulder`) is nearest `feet` within its row's `reach_m` and `lead` more across the
+/// floor, so the hand reaches for the handle before the feet are close enough for the door to start
+/// swinging, and is on it as it does.
+pub(crate) fn shut_hand_handle_near(state: &EngineState, lib: &CharacterLibrary, feet: Vec3, shoulder: Vec3, lead: f32) -> Option<Handle> {
+    let mut best: Option<(f32, Handle)> = None;
+    for i in 0..state.door_panels.len() {
+        let (p, open) = &state.door_panels[i];
+        let Some(hand) = humanity_systems::door_anim::style_hand(&p.style) else { continue };
+        if *open > 0.02 || p.is_window || !p.auto_open || (p.center - feet).length_squared() > 9.0 {
+            continue;
+        }
+        let Some(h) = door_handle(state, lib, i, shoulder) else { continue };
+        let d = horizontal(h.at - feet).length();
+        if d <= hand.reach_m + lead && best.is_none_or(|(b, _)| d < b) {
+            best = Some((d, h));
+        }
+    }
+    best.map(|(_, h)| h)
+}
+
+/// The handle's place on a hand door's panel for the door's trigger (rung 2b's follow-up): how far
+/// in from the free edge (negative, toward the hinge) and how far out from the face, from the
+/// door anchor's row (data/characters/interactions.ron, `door_swing_handle`) when the bodies are
+/// read, else that row's numbers as shipped.
+pub(crate) fn handle_local(lib: Option<&CharacterLibrary>) -> (f32, f32) {
+    let shipped = (-0.07, 0.045);
+    let Some(lib) = lib else { return shipped };
+    lib.anchors
+        .anchors
+        .iter()
+        .find(|a| a.kind == AnchorKind::Door)
+        .and_then(|a| a.contacts.first())
+        .map_or(shipped, |c| (c.at[0], c.at[2].abs()))
 }
 
 /// How long after a door last swung wider it still counts as being opened by whoever is at it

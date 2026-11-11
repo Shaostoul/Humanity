@@ -204,6 +204,42 @@ pub(crate) fn hips_clearance(pts: &[Vec3], hips: Vec3, seat: Vec3, up: Vec3, for
         .reduce(f32::min)
 }
 
+/// How far forward of the hips joint the thighs are read on a seat (metres): their underside on the
+/// cushion in front of the buttocks (`SEAT_FORWARD_M`), short of the chair's front edge (the
+/// shallowest seat, about 18 cm from the hips), so a knee hanging over the edge is not counted.
+const THIGH_FORWARD_M: f32 = 0.15;
+/// How far across of the hips the thighs are read (each thigh about 9 cm out from the middle).
+const THIGH_ACROSS_M: f32 = 0.16;
+/// The middle left out between the thighs (metres either side): a skirt's cloth spans the gap
+/// between them, and skinned cloth sags there (the dressed female stand-in's skirt 8 cm down through
+/// the seat between her thighs, hanging or planted alike), which is the garment, not the legs.
+const THIGH_GAP_M: f32 = 0.05;
+
+/// THE THIGHS ON THE SEAT: the lowest of `pts` (the seat vertices) between `SEAT_FORWARD_M` and
+/// `THIGH_FORWARD_M` forward of the drawn hips joint `hips` (the way the person faces), over each
+/// thigh (`THIGH_GAP_M` to `THIGH_ACROSS_M` across), over the seat's contact `seat` (metres). Negative: the thighs driven
+/// down through the seat, as a leg sloped to plant its foot under a seat high for the body drives
+/// them (the operator, 2026-11-10: "Dangle otherwise the character's butt clips down through the
+/// seat or we stretch the character").
+pub(crate) fn thigh_clearance(pts: &[Vec3], hips: Vec3, seat: Vec3, up: Vec3, forward: Vec3) -> Option<f32> {
+    let flat = |v: Vec3| v - up * v.dot(up);
+    let side = forward.cross(up).normalize_or_zero();
+    pts.iter()
+        .filter(|p| {
+            let d = flat(**p - hips);
+            let ahead = d.dot(forward);
+            let across = d.dot(side).abs();
+            ahead > SEAT_FORWARD_M && ahead <= THIGH_FORWARD_M && across >= THIGH_GAP_M && across <= THIGH_ACROSS_M
+        })
+        .map(|p| (*p - seat).dot(up))
+        .reduce(f32::min)
+}
+
+/// The lowest of `pts` over the floor at `floor` (metres): seated, the soles; negative through it.
+pub(crate) fn lowest_over(pts: &[Vec3], floor: Vec3, up: Vec3) -> Option<f32> {
+    pts.iter().map(|p| (*p - floor).dot(up)).reduce(f32::min)
+}
+
 /// The gap from the nearest of `pts` to a rung (a segment from `a` to `b`, `half` thick each way),
 /// metres; negative inside it.
 pub(crate) fn rung_gap(pts: &[Vec3], a: Vec3, b: Vec3, half: f32) -> Option<f32> {
@@ -270,13 +306,20 @@ mod tests {
     /// underside forward of the hips); a point touching a rung's surface reads 0 and one 5 cm off it
     /// 0.05; a hand 1 cm over a bench reads 0.01.
     /// Seen red 2026-11-10 with the rung's thickness not taken off ("a touching point reads 0.040"),
-    /// and with the seat's forward filter off ("the thigh forward of the hips is the legs'").
+    /// with the seat's forward filter off ("the thigh forward of the hips is the legs'"), and with the
+    /// gap between the thighs read (`THIGH_GAP_M` 0): "only the thighs on the seat count".
     #[test]
     fn the_probes_measures_read_what_they_say() {
         let up = Vec3::Y;
         let seat = Vec3::new(0.0, 0.47, 0.0);
         assert!((hips_clearance(&[Vec3::new(0.05, 0.47, 0.02), Vec3::new(0.0, 0.6, 0.0)], seat, seat, up, None).unwrap()).abs() < 1e-6);
         assert!((hips_clearance(&[Vec3::new(0.05, 0.44, 0.02), Vec3::new(0.5, 0.1, 0.0)], seat, seat, up, None).unwrap() + 0.03).abs() < 1e-6, "far points are not the seat's");
+        // The thighs: 3 to 15 cm ahead of the hips, 5 to 16 cm across; a knee further out, a point
+        // behind and the cloth sagging between the thighs are not read. And the lowest point over a
+        // floor.
+        let thighs = [Vec3::new(0.08, 0.45, 0.10), Vec3::new(-0.05, 0.40, 0.30), Vec3::new(0.30, 0.10, 0.10), Vec3::new(0.0, 0.43, 0.02), Vec3::new(0.01, 0.30, 0.10)];
+        assert!((thigh_clearance(&thighs, seat, seat, up, Vec3::Z).unwrap() + 0.02).abs() < 1e-6, "only the thighs on the seat count");
+        assert!((lowest_over(&[Vec3::new(0.0, 0.03, 0.0), Vec3::new(0.0, 0.5, 0.0)], Vec3::ZERO, up).unwrap() - 0.03).abs() < 1e-6);
         // A thigh's underside forward of the hips is not the seat's, for a person facing +Z.
         assert!((hips_clearance(&[Vec3::new(0.0, 0.47, -0.05), Vec3::new(0.0, 0.44, 0.08)], seat, seat, up, Some(Vec3::Z)).unwrap()).abs() < 1e-6, "the thigh forward of the hips is the legs'");
         let (a, b) = (Vec3::new(-0.3, 1.0, 0.0), Vec3::new(0.3, 1.0, 0.0));

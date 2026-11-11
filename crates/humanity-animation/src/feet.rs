@@ -627,9 +627,15 @@ pub struct FootFrame {
     pub airborne: bool,
     pub dt: f32,
     /// The hips are held by an interaction's contact (rung 2b: seated, the hips on the seat): the
-    /// pelvis is not moved for the feet, and a foot that cannot reach its ground hangs at the end
-    /// of its leg's reach, as feet do under a high seat.
+    /// pelvis is not moved for the feet, and the thighs stay on the seat as the clip lays them: each
+    /// lower leg swings about its knee to put its foot on the floor when the floor is within the
+    /// shin's reach (a low seat: the foot slides forward), and hangs toward it when it is not (a seat
+    /// high for the body: the feet dangle). The operator, 2026-11-10: "Dangle otherwise the
+    /// character's butt clips down through the seat or we stretch the character."
     pub pelvis_fixed: bool,
+    /// Seated, plant the feet with the whole leg instead (the thighs slope down off the seat to reach
+    /// the floor): the dev red twin, showcase `seat_feet` plant, as rung 2b first drew a high seat.
+    pub seat_plant: bool,
 }
 
 impl FootPlacer {
@@ -988,7 +994,11 @@ impl FootPlacer {
         if mode == FootMode::Full {
             for (i, t) in targets.iter().enumerate() {
                 let Some((ankle_t, foot_rot)) = *t else { continue };
-                solve_leg(skel, pose, model, rig.legs[i], ankle_t, foot_rot);
+                if frame.pelvis_fixed && !frame.seat_plant {
+                    solve_seated_leg(skel, pose, model, rig.legs[i], ankle_t, foot_rot);
+                } else {
+                    solve_leg(skel, pose, model, rig.legs[i], ankle_t, foot_rot);
+                }
             }
             crate::retarget::apply_twists(skel, humanoid, pose);
             model_matrices(skel, pose, model);
@@ -1106,6 +1116,43 @@ fn solve_leg(skel: &Skeleton, pose: &mut Pose, model: &mut Vec<Mat4>, leg: Leg, 
     set_model_rotation(skel, pose, model, leg.upper, ra);
     set_model_rotation(skel, pose, model, leg.lower, rb);
     set_model_rotation(skel, pose, model, leg.foot, foot_rot);
+}
+
+/// A SEATED leg (the hips and thighs on the seat, as the clip lays them): only the lower leg swings,
+/// about its knee, so nothing is stretched and the thigh is never driven down through the seat.
+/// With the floor within the shin's reach under the knee, the ankle goes onto the floor's height
+/// on the circle the shin sweeps there, nearest its target (a low seat: the foot slides forward,
+/// the knee bending more), and the foot takes `foot_rot` (flat on the floor). With the floor
+/// further down than the shin reaches (a seat high for the body), the shin points toward the target
+/// and the foot keeps the clip's turn: the leg hangs from the seat, the foot clear of the floor.
+fn solve_seated_leg(skel: &Skeleton, pose: &mut Pose, model: &mut Vec<Mat4>, leg: Leg, ankle_t: Vec3, foot_rot: Quat) {
+    let pos = |m: &[Mat4], k: usize| m[k].w_axis.truncate();
+    let rot = |m: &[Mat4], k: usize| m[k].to_scale_rotation_translation().1.normalize();
+    let (b, c) = (pos(model, leg.lower), pos(model, leg.foot));
+    let shin = (c - b).length();
+    if shin < 1e-4 {
+        return;
+    }
+    let drop = b.y - ankle_t.y;
+    let (want, on_floor) = if drop >= shin {
+        // Out of reach: hang toward the target, the whole shin's length from the knee.
+        (b + (ankle_t - b).normalize_or_zero() * shin, false)
+    } else {
+        // Within reach: on the floor, the shin's length from the knee, toward the target across the
+        // floor (the way the toes point when the target is under the knee).
+        let across = Vec3::new(ankle_t.x - b.x, 0.0, ankle_t.z - b.z);
+        let toes = pos(model, leg.toes) - c;
+        let way = if across.length() > 0.02 { across.normalize() } else { Vec3::new(toes.x, 0.0, toes.z).try_normalize().unwrap_or(Vec3::Z) };
+        let r = (shin * shin - drop.max(0.0) * drop.max(0.0)).sqrt();
+        (Vec3::new(b.x, ankle_t.y, b.z) + way * r, true)
+    };
+    let (from, to) = ((c - b).normalize_or_zero(), (want - b).normalize_or_zero());
+    if from != Vec3::ZERO && to != Vec3::ZERO {
+        set_model_rotation(skel, pose, model, leg.lower, (Quat::from_rotation_arc(from, to) * rot(model, leg.lower)).normalize());
+    }
+    if on_floor {
+        set_model_rotation(skel, pose, model, leg.foot, foot_rot);
+    }
 }
 
 /// Give joint `k` the model-space rotation `r` (its local rotation under its parent's posed one),

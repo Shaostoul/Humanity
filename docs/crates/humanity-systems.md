@@ -15,13 +15,13 @@ core, ship and terrain, draws nothing, and the server compiles it too.
 - **Owns** all of `crates/humanity-systems/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
   - no gate (every build): `crates/humanity-systems/src/surface_walk.rs`, `crates/humanity-systems/src/surface_move.rs`, `crates/humanity-systems/src/persistence.rs` + `crates/humanity-systems/src/persistence/`, `crates/humanity-systems/src/time.rs`, `crates/humanity-systems/src/notices.rs`, `crates/humanity-systems/src/farming/`, `crates/humanity-systems/src/construction/`, `crates/humanity-systems/src/door_anim.rs`, `crates/humanity-systems/src/inventory/`, `crates/humanity-systems/src/encumbrance.rs`, `crates/humanity-systems/src/machine_levels.rs`, `crates/humanity-systems/src/combat/`, `crates/humanity-systems/src/quests/`, `crates/humanity-systems/src/crafting/`, `crates/humanity-systems/src/vehicles/`, `crates/humanity-systems/src/livestock.rs`, `crates/humanity-systems/src/animal_care.rs`, `crates/humanity-systems/src/abilities.rs`, `crates/humanity-systems/src/ai/`, `crates/humanity-systems/src/skills/`, `crates/humanity-systems/src/ecology.rs`, `crates/humanity-systems/src/economy/`, `crates/humanity-systems/src/player.rs`, `crates/humanity-systems/src/interaction.rs`, `crates/humanity-systems/src/weather.rs`, `crates/humanity-systems/src/weather_events.rs`, `crates/humanity-systems/src/hydrology.rs`, `crates/humanity-systems/src/atmosphere.rs`, `crates/humanity-systems/src/body_environment.rs`, `crates/humanity-systems/src/env_layer1.rs`, `crates/humanity-systems/src/precipitation.rs`, `crates/humanity-systems/src/disasters.rs`, `crates/humanity-systems/src/electrical.rs`, `crates/humanity-systems/src/plumbing.rs`, `crates/humanity-systems/src/solar.rs`, `crates/humanity-systems/src/fire.rs`, `crates/humanity-systems/src/status_effects.rs`, `crates/humanity-systems/src/flight.rs`, `crates/humanity-systems/src/food.rs`, `crates/humanity-systems/src/body_heat.rs`, `crates/humanity-systems/src/illness.rs`, `crates/humanity-systems/src/treatment.rs`, `crates/humanity-systems/src/wounds.rs`, `crates/humanity-systems/src/falls.rs`, `crates/humanity-systems/src/sleep.rs`, `crates/humanity-systems/src/death_pack.rs`, `crates/humanity-systems/src/fluids.rs`, `crates/humanity-systems/src/mining.rs`, `crates/humanity-systems/src/governance.rs`, `crates/humanity-systems/src/docking.rs`, `crates/humanity-systems/src/aging.rs`, `crates/humanity-systems/src/creative_arts.rs`, `crates/humanity-systems/src/geology.rs`, `crates/humanity-systems/src/oceanography.rs`, `crates/humanity-systems/src/astronomy.rs`, `crates/humanity-systems/src/manufacturing.rs`, `crates/humanity-systems/src/waste.rs`, `crates/humanity-systems/src/genetics.rs`, `crates/humanity-systems/src/transportation.rs`, `crates/humanity-systems/src/offline.rs`, `crates/humanity-systems/src/self_sufficiency.rs`, `crates/humanity-systems/src/grow_machines.rs`, `crates/humanity-systems/src/life_support.rs`, `crates/humanity-systems/src/ship_power.rs`, `crates/humanity-systems/src/ship_meals.rs`
   - test builds only: `crates/humanity-systems/src/day_energy_tests.rs`, `crates/humanity-systems/src/crossing_tests/`
-- **Size:** 79,848 lines in 148 files, 12,190 of them in 35 test files.
+- **Size:** 80,019 lines in 148 files, 12,190 of them in 35 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-systems/src/surface_walk.rs` 462 of 474.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 8, `native` 7.
 - **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 464, ship 26, terrain 7.
-- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 561, gui 163, relay 10.
+- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 572, gui 163, relay 10.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 856 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 859 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-systems
@@ -47,7 +47,7 @@ just test-lib --crate humanity-systems
 | `time::GameTime` | 7 | engine 7 |
 | `construction::uses::planet_store_paths` | 6 | engine 6 |
 
-And 357 more items, 565 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
+And 364 more items, 576 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -103,6 +103,10 @@ And 357 more items, 565 references (`node scripts/crate-cards.js --interface hum
   `data/medical/falls.ron` say;
   [falls-judge.test.js](../../scripts/tests/falls-judge.test.js)), `just verify-shared-build`
   (building in the shared world). One game at a time: [game-boots.md](../ai/game-boots.md).
+- **Doors a hand opens (2026-11-10):** `door_anim`'s tests (the hand target, the swing away from
+  the opener, the push ahead of a body walking through, each seen red); in the running game
+  `anim-door-hand` and its red twin `anim-door-hand-hand-ik-off` (character-animation.md section 17,
+  "Built after the answers").
 
 ## Open work
 

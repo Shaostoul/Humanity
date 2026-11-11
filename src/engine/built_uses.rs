@@ -220,7 +220,7 @@ mod tests {
         let mut wrong = Vec::new();
         for pantry_open in [false, true] {
             let panels: Vec<_> = placements.iter().enumerate().map(|(i, p)| (p.clone(), if i == pantry && pantry_open { 1.0 } else { 0.0 })).collect();
-            let shut: Vec<_> = shut_door_segments(&panels, &[]).collect();
+            let shut: Vec<_> = shut_door_segments(&panels, &[], &[]).collect();
             let here = humanity_ship::sight::ReachBlockers { walls: &walls, doors: &shut, ship: Some(&ship) };
             let what = if pantry_open { "the pantry's door open" } else { "the pantry's door shut" };
             let e = looked_at(&world, Some(&reg), eye, dir, REACH_M, None, here).map(|h| h.1);
@@ -355,13 +355,19 @@ pub(crate) fn reach_blockers(state: &EngineState, aboard: bool) -> humanity_ship
 /// `locks`, `EngineState::door_locks`), as the segment of its panel from its sill to its head
 /// (`wall_collision::door_panel_segment`), so a door shut on one storey is no wall on another.
 /// A window is not here: its wall's span is solid to the walk without it.
+///
+/// A door a hand is opening (`swings`, `EngineState::door_swing`; rung 2b's follow-up) stops being a
+/// wall once it moves: it swings away from whoever opened it, at the push's pace, and its closed
+/// panel's segment is not where the panel is.
 pub(crate) fn shut_door_segments<'a>(
     panels: &'a [(humanity_ship::door_panels::PanelPlacement, f32)],
     locks: &'a [Vec<humanity_ship::lock_types::LockState>],
+    swings: &'a [humanity_systems::door_anim::Swing],
 ) -> impl Iterator<Item = humanity_ship::wall_collision::WallSegment> + 'a {
     panels.iter().enumerate().filter_map(move |(i, (p, open))| {
         let locked = crate::engine::home_meshes::door_locked_now(p, locks.get(i));
-        if p.is_window || (*open >= 0.5 && !locked) {
+        let pushed = swings.get(i).is_some_and(|s| s.by_hand) && *open > 0.02;
+        if p.is_window || ((*open >= 0.5 || pushed) && !locked) {
             return None;
         }
         Some(humanity_ship::wall_collision::door_panel_segment(p.center, p.rotation, p.size))
@@ -374,7 +380,7 @@ pub(crate) fn shut_door_segments<'a>(
 pub(crate) fn refresh_shut_doors(state: &mut EngineState) {
     let mut shut = std::mem::take(&mut state.shut_doors);
     shut.clear();
-    shut.extend(shut_door_segments(&state.door_panels, &state.door_locks));
+    shut.extend(shut_door_segments(&state.door_panels, &state.door_locks, &state.door_swing));
     state.shut_doors = shut;
 }
 

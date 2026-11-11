@@ -2598,10 +2598,11 @@
     {
       "id": "anim-sit-chair",
       "desc": "The ground hall, three metres from chair_7 (the homestead chair, its seat 0.47 m), a stand-in with the female body walking in from in front of it and sitting down (Quaternius's sit, its contact frame warped onto this seat; as made, that body's sit puts its hips 7.8 cm into this seat, the red twin).",
-      "expect": "A person seated on the chair, hips and thighs on the cushion, back against its back, feet on the floor in front of it, hands in the lap.",
+      "expect": "A person seated on the chair, hips and thighs on the cushion, back against its back, the lower legs hanging from the seat with the feet just clear of the floor (the seat is high for her: the operator, 2026-11-10, 'Dangle'), hands in the lap.",
       "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
       "regressions": [
         "anchor_probe hips_on_seat: the drawn hips and thighs on THIS seat, within 2 cm into it to 2.5 cm over it",
+        "anchor_probe legs_hang: over each thigh no more than 5 cm into the seat (flesh, the skirt over it and the cushion, none soft) and the soles clear of the floor (the legs hang from a seat high for the body)",
         "panics=0"
       ],
       "camera": {
@@ -2624,7 +2625,8 @@
       "anchor_probe": {
         "secs": 1.5,
         "rules": [
-          "hips_on_seat"
+          "hips_on_seat",
+          "legs_hang"
         ],
         "who": [
           "crowd:0"
@@ -2662,6 +2664,44 @@
         "secs": 1.5,
         "rules": [
           "hips_on_seat"
+        ],
+        "who": [
+          "crowd:0"
+        ]
+      }
+    },
+    {
+      "id": "anim-sit-chair-feet-planted",
+      "desc": "anim-sit-chair with the seated feet planted by the whole leg (showcase seat_plant 1, as rung 2b first drew a seat high for the body): the thighs slope down off the seat so the soles reach the floor.",
+      "expect": "The person seated with the soles on the floor and the thighs sloping down: the probe's legs_hang check FAILS (the soles are on the floor, not hanging).",
+      "_why": "The red twin of the hanging legs (the operator, 2026-11-10: \"Dangle otherwise the character's butt clips down through the seat or we stretch the character\"): it must fail the check the green vantage passes, so the check is shown able to fail in the running game.",
+      "regressions": [
+        "the red twin: anchor_probe legs_hang FAILS with the soles on the floor",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "44.6,1.5,41.6,-0.61,-0.25",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd_act": "chair_7,body=female",
+          "seat_plant": "1"
+        }
+      ],
+      "final_settle_s": 3.5,
+      "anchor_probe": {
+        "secs": 1.5,
+        "rules": [
+          "hips_on_seat",
+          "legs_hang"
         ],
         "who": [
           "crowd:0"
@@ -2925,16 +2965,16 @@
     },
     {
       "id": "anim-door-hand",
-      "desc": "First person in the small room south of the ground hall, the player on foot (showcase walk: the rig parks flying, and flying forward at this pitch went into the floor) walking north at the Realistic pace (1.4 m/s, W held 1.85 s, from 3.5 m off the door: beyond the 3.4 m an open door waits for before it shuts, so it is shut when the walk starts and opens at 2.6 m) to its swing door (x 53.0 to 53.9 at z 38, hinged on the west side), a little left of the door's middle, looking down ahead: the door swings open toward them by itself as they come (it opens at 2.6 m), and their right hand takes its handle as it comes within the arm's own reach, and holds it while the door is still swinging.",
-      "expect": "Looking down ahead: the door swung open toward you on your right, your own right arm out and the palm flat on the door near its free edge at about hip height, your legs and shoes below; no head or hair in the view.",
+      "desc": "First person in the small room south of the ground hall, the player on foot (showcase walk: the rig parks flying, and flying forward at this pitch went into the floor) walking north at the Realistic pace (1.4 m/s, W held 3.2 s from 3.5 m off: beyond the 3.4 m an open door waits for before it shuts, so it is shut when the walk starts) up the handle side of its swing door (x 53.0 to 53.9 at z 38, hinged on the west side, the handle at the east edge), looking down ahead. A hand opens it (the operator, 2026-11-10): the player's left hand reaches for the shut door's handle as they come, the door starts to swing when their feet are within 0.5 m of the handle (the swing row's reach_m), away from them, and is pushed ahead of them as they walk through, the hand on it.",
+      "expect": "Looking down ahead: the door starting to swing away from you, your own left arm out and the palm on the door near its free (east) edge at about hip height, your legs and shoes below; no head or hair in the view.",
       "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. A swing door's handle is an anchor its opening style names; the hand is worked out on every screen for anyone at a door that is opening. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
       "regressions": [
-        "anchor_probe hand_on_handle: the hand's nearest drawn vertex within 4 cm of the handle while the door opens",
+        "anchor_probe hand_on_handle: the hand's nearest drawn vertex within 4 cm of the handle while the door swings (the hand opening it)",
         "panics=0"
       ],
       "camera": {
         "station": "home",
-        "pose": "53.25,1.7,34.5,3.1416,-1.15",
+        "pose": "53.6,1.7,34.5,3.1416,-1.15",
         "time": 20.15
       },
       "showcase": {
@@ -2951,14 +2991,14 @@
           "hud": "0"
         },
         {
-          "anchor_probe": "3.4",
+          "anchor_probe": "3.6",
           "hold": "forward",
-          "hold_s": "1.85"
+          "hold_s": "3.2"
         }
       ],
-      "final_settle_s": 2.5,
+      "final_settle_s": 2.6,
       "anchor_probe": {
-        "secs": 3.4,
+        "secs": 3.6,
         "armed": true,
         "rules": [
           "hand_on_handle"
@@ -2970,8 +3010,8 @@
     },
     {
       "id": "anim-door-hand-hand-ik-off",
-      "desc": "anim-door-hand with the hand left off the handle (showcase hand_ik 0): the door still swings open toward the player, the arm hangs as the walk leaves it.",
-      "expect": "The door swung open toward you on your right, your right arm down at your side, not on the door.",
+      "desc": "anim-door-hand with the hand left off the handle (showcase hand_ik 0): the door still opens as the player comes up to it, but the arm hangs as the walk leaves it.",
+      "expect": "The door swinging away from you, your left arm down at your side, not on the door.",
       "_why": "Character animation rung 2b (2026-11-10, docs/design/character-animation.md section 17): interactions anchored to things. A swing door's handle is an anchor its opening style names; the hand is worked out on every screen for anyone at a door that is opening. The interaction probe (src/engine/anchor_probe.rs) skins the touching vertices of each near person in an interaction on the CPU with the very palette the GPU draws and measures them against the thing; scripts/lib/anchor-probe-check.js judges it.",
       "regressions": [
         "anchor_probe hand_on_handle must FAIL: the hanging hand is far off the handle",
@@ -2979,7 +3019,7 @@
       ],
       "camera": {
         "station": "home",
-        "pose": "53.25,1.7,34.5,3.1416,-1.15",
+        "pose": "53.6,1.7,34.5,3.1416,-1.15",
         "time": 20.15
       },
       "showcase": {
@@ -2997,14 +3037,14 @@
           "hand_ik": "0"
         },
         {
-          "anchor_probe": "3.4",
+          "anchor_probe": "3.6",
           "hold": "forward",
-          "hold_s": "1.85"
+          "hold_s": "3.2"
         }
       ],
-      "final_settle_s": 2.5,
+      "final_settle_s": 2.6,
       "anchor_probe": {
-        "secs": 3.4,
+        "secs": 3.6,
         "armed": true,
         "rules": [
           "hand_on_handle"
