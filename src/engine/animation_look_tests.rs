@@ -140,6 +140,138 @@ fn a_persons_own_mesh_is_their_look() {
     }
 }
 
+/// The face detail sliders the anim-look-face vantages set, each at `v`.
+fn face_details(v: f32) -> std::collections::BTreeMap<String, f32> {
+    ["nose_hump", "nose_vert", "nose_horiz", "chin_prominent", "chin_width", "eye_scale", "mouth_horiz", "mouth_upperlip_volume", "ear_scale", "cheek_bones", "forehead_nubian", "head_fat"]
+        .into_iter()
+        .map(|k| (k.to_string(), v))
+        .collect()
+}
+
+/// Each body vertex's angle (degrees) between the normal it carries and the normal of the surface
+/// it is drawn on: every triangle's area-weighted normal summed onto its corners, the corners welded
+/// the way the build welds them (by base vertex; a generated eye or brow vertex by its place in
+/// its primitive), so a UV seam shades as one surface. `normals` gives each body primitive's normals (the built ones, or a red
+/// arm's), laid over the built positions. Returns (worst angle, vertices over 10 degrees, vertices).
+fn shading_error(b: &LoadedBody, m: &PersonMesh, normals: &dyn Fn(usize, usize) -> Vec3) -> (f32, usize, usize) {
+    let base = b.base.as_ref().unwrap();
+    let body_prims = m.parts.iter().take_while(|p| matches!(p, Part::Region(_))).count();
+    assert_eq!(body_prims, b.model.primitives.len(), "every body primitive is drawn (no garments, so none is dropped)");
+    // A base vertex's own copies weld by it; a generated vertex (eyes, brows: a blend of base
+    // vertices) welds with the copies at its place in its own primitive.
+    let key = |pi: usize, g: usize, i: usize| match base.sole(g + i) {
+        Some(vi) => (usize::MAX, [vi, 0, 0]),
+        None => (pi, b.model.primitives[pi].vertices[i].position.map(f32::to_bits)),
+    };
+    let mut acc: std::collections::HashMap<(usize, [u32; 3]), Vec3> = std::collections::HashMap::new();
+    let mut g0 = 0;
+    for (pi, p) in m.model.primitives[..body_prims].iter().enumerate() {
+        for tri in p.indices.chunks_exact(3) {
+            let at = |k: u32| Vec3::from(p.vertices[k as usize].position);
+            let f = (at(tri[1]) - at(tri[0])).cross(at(tri[2]) - at(tri[0]));
+            for &k in tri {
+                *acc.entry(key(pi, g0, k as usize)).or_insert(Vec3::ZERO) += f;
+            }
+        }
+        g0 += p.vertices.len();
+    }
+    let (mut worst, mut over, mut count) = (0.0_f32, 0usize, 0usize);
+    g0 = 0;
+    for (pi, p) in m.model.primitives[..body_prims].iter().enumerate() {
+        for i in 0..p.vertices.len() {
+            let Some(want) = acc.get(&key(pi, g0, i)).filter(|n| n.length_squared() > 1e-20) else { continue };
+            let deg = normals(pi, i).normalize_or_zero().dot(want.normalize()).clamp(-1.0, 1.0).acos().to_degrees();
+            worst = worst.max(deg);
+            over += usize::from(deg > 10.0);
+            count += 1;
+        }
+        g0 += p.vertices.len();
+    }
+    (worst, over, count)
+}
+
+/// BUG-292: A FACE SHAPED WITH THE DETAIL SLIDERS IS SHADED BY ITS OWN SURFACE. The vantage's dozen
+/// face sliders at full value, and every drawn body vertex's normal within a degree of the normal
+/// of the triangles it is drawn on. The red arm (the body's normals as made, laid over the shaped
+/// face) must fail the same bound, so the measure can see stale normals.
+/// RED before the fix (2026-11-11, this reference then welding generated vertices by the blend
+/// they follow, not by place): "the shaped face's normals are not its surface's: worst 23.5
+/// degrees, 30 of 15479 vertices over 10": the skin's own normals were already worked out again,
+/// welded by base vertex, but the generated vertices (the eyes and brows, which follow a blend of
+/// base vertices) kept the base mesh's.
+#[test]
+fn a_shaped_face_is_shaded_by_its_own_surface() {
+    let lib = read_library(&repo_data()).unwrap();
+    let bi = body_index(&lib, "female");
+    let b = &lib.bodies[bi];
+    let m = build(&lib, bi, &face_details(1.0), &[], true, true);
+    let built = shading_error(b, &m, &|pi, i| Vec3::from(m.model.primitives[pi].vertices[i].normal));
+    let as_made = shading_error(b, &m, &|pi, i| Vec3::from(b.model.primitives[pi].vertices[i].normal));
+    if debug() {
+        eprintln!("built: worst {:.1} deg, {} of {} over 10; red arm: worst {:.1} deg, {} over 10", built.0, built.1, built.2, as_made.0, as_made.1);
+    }
+    assert!(as_made.0 > 10.0, "the red arm (the normals as made) was not seen: worst {:.1} degrees", as_made.0);
+    assert!(built.0 < 1.0, "the shaped face's normals are not its surface's: worst {:.1} degrees, {} of {} vertices over 10", built.0, built.1, built.2);
+}
+
+/// How the body folds at `at` against the body as made, over its triangles whose three corners are
+/// base vertices of their own: (triangles turned over, triangles, the worst rise of an edge's
+/// crease in degrees, edges creased more than 40 degrees sharper).
+fn folds(b: &LoadedBody, at: &dyn Fn(usize, usize) -> Vec3) -> (usize, usize, f32, usize) {
+    let base = b.base.as_ref().unwrap();
+    let mut tris: Vec<([u32; 3], Vec3, Vec3)> = Vec::new();
+    let mut g0 = 0;
+    for (pi, q) in b.model.primitives.iter().enumerate() {
+        for tri in q.indices.chunks_exact(3) {
+            let Some(keys) = tri.iter().map(|&k| base.sole(g0 + k as usize)).collect::<Option<Vec<u32>>>() else { continue };
+            let face = |pos: &dyn Fn(u32) -> Vec3| (pos(tri[1]) - pos(tri[0])).cross(pos(tri[2]) - pos(tri[0])).normalize_or_zero();
+            tris.push(([keys[0], keys[1], keys[2]], face(&|k| Vec3::from(q.vertices[k as usize].position)), face(&|k| at(pi, k as usize))));
+        }
+        g0 += q.vertices.len();
+    }
+    let turned = tris.iter().filter(|t| t.1.dot(t.2) < 0.0).count();
+    let mut edges: std::collections::HashMap<(u32, u32), Vec<usize>> = std::collections::HashMap::new();
+    for (ti, t) in tris.iter().enumerate() {
+        for e in 0..3 {
+            let (a, c) = (t.0[e], t.0[(e + 1) % 3]);
+            edges.entry((a.min(c), a.max(c))).or_default().push(ti);
+        }
+    }
+    let deg = |a: Vec3, c: Vec3| a.dot(c).clamp(-1.0, 1.0).acos().to_degrees();
+    let rises: Vec<f32> = edges.values().filter(|l| l.len() == 2).map(|l| deg(tris[l[0]].2, tris[l[1]].2) - deg(tris[l[0]].1, tris[l[1]].1)).collect();
+    (turned, tris.len(), rises.iter().copied().fold(0.0, f32::max), rises.iter().filter(|r| **r > 40.0).count())
+}
+
+/// BUG-292: THE FACE SLIDERS AT FULL VALUE FOLD NOTHING (the ridges). No detail slider alone folds
+/// the body (each of the twelve at full value creases an edge by at most 52 degrees), but the face
+/// vantage's dozen at full value sum their movements around the mouth and cheeks; the build's fold
+/// guard (`look::unfold_details`) smooths them there until no triangle is turned over and no edge
+/// creases more than 60 degrees sharper than as made. The red arm (the detail movement tripled)
+/// must fail the same bounds.
+/// RED before the guard (2026-11-11): "the face sliders at 1 turned 24 of 27164 body triangles
+/// over". With the first guard (turned-over triangles only) that passed but the capture still
+/// showed the ridges: worst crease rise 116.9 degrees, 35 edges over 40 (the skin's, measured).
+#[test]
+fn the_face_sliders_at_full_value_fold_nothing() {
+    let lib = read_library(&repo_data()).unwrap();
+    let bi = body_index(&lib, "female");
+    let b = &lib.bodies[bi];
+    for v in [1.0, -1.0] {
+        let m = build(&lib, bi, &face_details(v), &[], true, true);
+        let built = folds(b, &|pi, k| Vec3::from(m.model.primitives[pi].vertices[k].position));
+        let tripled = folds(b, &|pi, k| {
+            let made = Vec3::from(b.model.primitives[pi].vertices[k].position);
+            made + (Vec3::from(m.model.primitives[pi].vertices[k].position) - made) * 3.0
+        });
+        if debug() {
+            eprintln!("face sliders at {v}: {} of {} triangles turned over, worst crease rise {:.1} deg, {} edges over 40; red arm (tripled) {:?}", built.0, built.1, built.2, built.3, tripled);
+        }
+        assert_eq!(built.0, 0, "the face sliders at {v} turned {} of {} body triangles over", built.0, built.1);
+        assert!(built.2 <= 60.5, "the face sliders at {v} creased an edge {:.1} degrees sharper than as made ({} edges over 40)", built.2, built.3);
+        assert!(tripled.0 > 0 && tripled.2 > 60.5, "the red arm (the movement tripled) folded nothing: {tripled:?}");
+    }
+}
+
 /// THE OWN-MESH POOL IS PLANNED FOR THE LARGEST DRESSED PERSON (2026-11-10, renderer::mesh_pool):
 /// on each body, a person in the largest garment of every kind (by vertices, then by indices),
 /// covers off so every body triangle stays, is BUILT for real, and their drawn mesh is within the

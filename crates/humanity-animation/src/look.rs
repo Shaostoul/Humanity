@@ -7,7 +7,8 @@
 //! person is BUILT ONCE when their look changes, on the CPU, into their own vertex data:
 //!
 //! 1. every base-mesh vertex (the body and MakeHuman's helpers) moved by the person's shape targets
-//!    and detail targets (`BodyBase`, `DetailTargets`);
+//!    and detail targets (`BodyBase`, `DetailTargets`), the detail movement smoothed wherever the
+//!    summed targets would turn the surface over (`unfold_details`, BUG-292);
 //! 2. the body's drawn vertices moved with them (each follows its base vertices) and their normals
 //!    worked out again from the shaped surface; the triangles under a worn garment's covered regions
 //!    dropped, so skin never pokes through (`covers`);
@@ -360,6 +361,7 @@ pub fn build_person(body: &LoadedBody, base: &BodyBase, look: &LookLibrary, huma
             }
         }
     }
+    unfold_details(body, base, &mut detail, &mut shaped);
 
     // 2. The hidden base vertices: each garment's own, inside the regions it covers.
     let mut hidden = vec![false; nb];
@@ -464,8 +466,28 @@ pub fn build_person(body: &LoadedBody, base: &BodyBase, look: &LookLibrary, huma
     let mut model = SkinnedModelData { joints: body.model.joints.clone(), ..Default::default() };
     let mut parts = Vec::new();
     let mut g0 = 0usize; // the glTF vertex index of the primitive's first vertex
-    // Normals of the body surface worked out again, welded by base vertex.
-    let mut normal_acc = vec![Vec3::ZERO; nb];
+    // Normals of the body surface worked out again, welded by base vertex. A generated vertex (the
+    // brows, the eyes) follows a blend of base vertices instead, and welds with the copies of it in
+    // its own primitive at the same place (a UV seam's): until BUG-292 those kept the base mesh's
+    // normals, 23.5 degrees off the shaped eyes at the face vantage's full values.
+    let mut weld: Vec<u32> = Vec::with_capacity(base.follow.len());
+    let mut blends: std::collections::HashMap<(usize, [u32; 3]), u32> = std::collections::HashMap::new();
+    {
+        let mut g = 0usize;
+        for (pi, prim) in body.model.primitives.iter().enumerate() {
+            for (i, v) in prim.vertices.iter().enumerate() {
+                weld.push(match base.sole(g + i) {
+                    Some(vi) => vi,
+                    None => {
+                        let next = (nb + blends.len()) as u32;
+                        *blends.entry((pi, v.position.map(f32::to_bits))).or_insert(next)
+                    }
+                });
+            }
+            g += prim.vertices.len();
+        }
+    }
+    let mut normal_acc = vec![Vec3::ZERO; nb + blends.len()];
     let mut prims: Vec<(usize, Vec<SkinnedVertex>, Vec<u32>)> = Vec::new();
     for (pi, prim) in body.model.primitives.iter().enumerate() {
         let region = body.primitive_regions.get(pi).copied().unwrap_or(0);
@@ -505,9 +527,7 @@ pub fn build_person(body: &LoadedBody, base: &BodyBase, look: &LookLibrary, huma
             let (a, b, c) = (Vec3::from(verts[tri[0] as usize].position), Vec3::from(verts[tri[1] as usize].position), Vec3::from(verts[tri[2] as usize].position));
             let fnrm = (b - a).cross(c - a);
             for &k in tri {
-                if let Some(vi) = sole(k) {
-                    normal_acc[vi as usize] += fnrm;
-                }
+                normal_acc[weld[g0 + k as usize] as usize] += fnrm;
             }
         }
         prims.push((region, verts, indices));
@@ -516,11 +536,9 @@ pub fn build_person(body: &LoadedBody, base: &BodyBase, look: &LookLibrary, huma
     g0 = 0;
     for (region, mut verts, indices) in prims {
         for (i, v) in verts.iter_mut().enumerate() {
-            if let Some(vi) = base.sole(g0 + i) {
-                let n = normal_acc[vi as usize];
-                if n.length_squared() > 1e-20 {
-                    v.normal = n.normalize().to_array();
-                }
+            let n = normal_acc[weld[g0 + i] as usize];
+            if n.length_squared() > 1e-20 {
+                v.normal = n.normalize().to_array();
             }
         }
         g0 += verts.len();
@@ -605,6 +623,116 @@ pub fn build_person(body: &LoadedBody, base: &BodyBase, look: &LookLibrary, huma
     let seat_vertices = crate::library::vertices_bound_to(&model, &crate::library::seat_joints(&skeleton, humanoid));
     let hand_vertices = [0, 1].map(|side| crate::library::vertices_bound_to(&model, &crate::library::hand_joints(&skeleton, humanoid, side)));
     PersonMesh { model, parts, skeleton, feet, lift, foot_vertices, seat_vertices, hand_vertices, key }
+}
+
+/// How many times `unfold_details` smooths the detail movement where the surface folded.
+const UNFOLD_PASSES: usize = 32;
+
+/// How much sharper than on the body as made an edge of the body may crease before
+/// `unfold_details` smooths it (radians; 60 degrees). Measured 2026-11-11 on the female body: each
+/// of the face vantage's twelve sliders alone at full value creases an edge by at most 52 degrees
+/// (nose_hump), so no single slider is touched, while the twelve together creased one by 117.
+const CREASE_RISE: f32 = std::f32::consts::FRAC_PI_3;
+
+/// THE FOLD GUARD (BUG-292, 2026-11-11). Detail targets add: MakeHuman made each to be right on
+/// its own, and the sliders that reach the same part of the face (a wider mouth, higher cheekbones,
+/// a wider chin, a fuller head) sum their movements there. No slider alone folds the body, but a
+/// dozen face sliders at full value turned 24 skin triangles of the female body over and creased
+/// 35 edges by more than 40 degrees around the mouth and cheeks: the ridges seen on the
+/// anim-look-face vantages. So wherever a body triangle (by its base vertices) faces the other way
+/// from the body as made, or an edge creases `CREASE_RISE` sharper than as made, the corners'
+/// detail movement is smoothed toward their neighbours' (pass after pass, the fold's corners and
+/// the ring around them only), until nothing is folded. A look that folds nothing is untouched,
+/// and a look with no detail value costs nothing here.
+fn unfold_details(body: &LoadedBody, base: &BodyBase, detail: &mut [Vec3], shaped: &mut [Vec3]) {
+    if detail.iter().all(|d| *d == Vec3::ZERO) {
+        return;
+    }
+    // The body's triangles that detail moves, by base vertex (the generated brows and eyes, which
+    // follow a blend, are left out: they are placed from the body's own vertices).
+    let moved = |vi: u32| detail.get(vi as usize).is_some_and(|d| *d != Vec3::ZERO);
+    let mut tris: Vec<[u32; 3]> = Vec::new();
+    let mut g0 = 0usize;
+    for prim in &body.model.primitives {
+        for tri in prim.indices.chunks_exact(3) {
+            let (Some(a), Some(b), Some(c)) = (base.sole(g0 + tri[0] as usize), base.sole(g0 + tri[1] as usize), base.sole(g0 + tri[2] as usize)) else { continue };
+            if moved(a) || moved(b) || moved(c) {
+                tris.push([a, b, c]);
+            }
+        }
+        g0 += prim.vertices.len();
+    }
+    let unit = |at: &dyn Fn(u32) -> Vec3, t: &[u32; 3]| (at(t[1]) - at(t[0])).cross(at(t[2]) - at(t[0])).normalize_or_zero();
+    let angle = |a: Vec3, b: Vec3| a.dot(b).clamp(-1.0, 1.0).acos();
+    // The body as made (its shape without the detail movement) stays the same through the passes.
+    let made: Vec<Vec3> = tris.iter().map(|t| unit(&|k| shaped[k as usize] - detail[k as usize], t)).collect();
+    // The edges two of those triangles share (sorted by their two base vertices), each with the
+    // cosine its two faces may not fall below: their angle as made plus `CREASE_RISE` (none past
+    // a full fold, which the turned-over check already catches).
+    let mut ends: Vec<(u64, u32)> = Vec::with_capacity(tris.len() * 3);
+    for (ti, t) in tris.iter().enumerate() {
+        for e in 0..3 {
+            let (a, c) = (t[e], t[(e + 1) % 3]);
+            ends.push((u64::from(a.min(c)) << 32 | u64::from(a.max(c)), ti as u32));
+        }
+    }
+    ends.sort_unstable();
+    let edges: Vec<(usize, usize, f32)> = ends
+        .windows(2)
+        .filter(|w| w[0].0 == w[1].0)
+        .map(|w| (w[0].1 as usize, w[1].1 as usize, (angle(made[w[0].1 as usize], made[w[1].1 as usize]) + CREASE_RISE).min(std::f32::consts::PI).cos()))
+        .collect();
+    let mut fold = vec![false; detail.len()];
+    let mut sum = vec![Vec3::ZERO; detail.len()];
+    let mut count = vec![0u32; detail.len()];
+    let mut now = vec![Vec3::ZERO; tris.len()];
+    for _ in 0..UNFOLD_PASSES {
+        let mut any = false;
+        for (ti, t) in tris.iter().enumerate() {
+            now[ti] = unit(&|k| shaped[k as usize], t);
+            if now[ti].dot(made[ti]) < 0.0 {
+                any = true;
+                for &k in t {
+                    fold[k as usize] = true;
+                }
+            }
+        }
+        for &(x, y, limit) in &edges {
+            if now[x].dot(now[y]) < limit {
+                any = true;
+                for &k in tris[x].iter().chain(&tris[y]) {
+                    fold[k as usize] = true;
+                }
+            }
+        }
+        if !any {
+            return;
+        }
+        // The fold's ring too: smoothing the turned corners alone toward neighbours that moved as
+        // far left 6 of the 24 turned over after 32 passes (the test's first run).
+        let ring: Vec<u32> = tris.iter().filter(|t| t.iter().any(|&k| fold[k as usize])).flatten().copied().collect();
+        for k in ring {
+            fold[k as usize] = true;
+        }
+        for t in &tris {
+            for (i, &k) in t.iter().enumerate() {
+                if fold[k as usize] {
+                    sum[k as usize] += detail[t[(i + 1) % 3] as usize] + detail[t[(i + 2) % 3] as usize];
+                    count[k as usize] += 2;
+                }
+            }
+        }
+        for vi in 0..detail.len() {
+            if fold[vi] && count[vi] > 0 {
+                let d = sum[vi] / count[vi] as f32;
+                shaped[vi] += d - detail[vi];
+                detail[vi] = d;
+            }
+            fold[vi] = false;
+            sum[vi] = Vec3::ZERO;
+            count[vi] = 0;
+        }
+    }
 }
 
 /// Where the line through `o` along `d` meets triangle (a, b, c): the signed distance along `d` (a
