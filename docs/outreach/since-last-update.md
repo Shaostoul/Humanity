@@ -11,4 +11,8 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
-(Nothing yet since v0.1556.0. Merged for the next release: one music switch, Music on the app's pages, playing from the app's start all session; Ministral 3 3B in Settings > AI.)
+### v0.1557.0 (12 November 2026)
+
+- The music plays from the moment HumanityOS opens and on the pages all session (Settings > Music > Music on the app's pages).
+- Settings > AI also offers Ministral 3 3B by Mistral AI, the stronger "Rich" model beside Granite; nothing AI is installed unless you choose it.
+- Faces shaped with the detail sliders no longer fold into ridges at the limits.

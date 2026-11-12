@@ -14,7 +14,7 @@ resolver = "2"
 # it here (the first `version = ` line of this file). The core's own code reports it too (the boot
 # timings, the frame costs, the play journal, the refresh check), so the members share it.
 [workspace.package]
-version = "0.1556.0"
+version = "0.1557.0"
 edition = "2021"
 
 # Every dependency more than one member uses, with its version and features in ONE place: a member names
