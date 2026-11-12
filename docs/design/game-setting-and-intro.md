@@ -1130,3 +1130,21 @@ to discovered nearby asteroids/comets/whatever." ([drone-mining.md](drone-mining
 - **Designed 2026-11-03: [respawn-and-revival.md](respawn-and-revival.md)** (the field lifeline,
   Hardcore's costs side by side, magic's options, everything respawning costs and gives; twelve
   questions for him in its section 9).
+
+## 10.2 His words on the greeting and talking (2026-11-11)
+
+Asked for a video of the big crowd test, he went on, verbatim: "Let's figure out how the player
+talks (without coding it) to the AI. Do we offer a selection of like trade, or quests, or something
+else? What if we have them talk about something? What if we have it be like... The intro? The player
+flies as a passenger in on a transport ship and disembarks. They're greeted by like a welcomer? Maybe
+the Captain or something? Like, hey, thank you for joining us on the main mothership we don't have a
+name for yet. Then we can say like... Project Universe (the name for HumanityOS from 2019 to 2025) is
+lucky to have another volunteer. That way we can put the AI TTS a shot. Maybe the entire crew of the
+transport ship is new volunteers for the cause of exploring, colonizing, defending, etc. our galaxy."
+
+This adds a greeting at beat 5 (stepping off) before the Arrivals desk (beat 6), makes the fellow
+passengers new volunteers like the player, and names "Project Universe" in the welcome as the
+project's own history. The coordinator's proposal (not his decision): see the reply of 2026-11-11 in
+the journal; the talk card's shape is embeddable-ai.md section 5.1 and rung 3. Written lines carry
+the whole intro without AI (CLAUDE.md: AI is optional); AI answers questions beyond them and the
+computer voice reads lines only when the person installed them.
