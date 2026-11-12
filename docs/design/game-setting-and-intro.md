@@ -1148,3 +1148,10 @@ project's own history. The coordinator's proposal (not his decision): see the re
 the journal; the talk card's shape is embeddable-ai.md section 5.1 and rung 3. Written lines carry
 the whole intro without AI (CLAUDE.md: AI is optional); AI answers questions beyond them and the
 computer voice reads lines only when the person installed them.
+
+## 10.3 His answers on the greeting, the name and the programme (2026-11-11)
+
+- **Who greets you:** the Captain once over the transport's address system, and a Welcomer in person at the bottom of the ramp: "Agreed."
+- **Project Universe** is the in-world name of the volunteer programme, so the project's real history (Project Universe, 2019 to 2025) becomes the story's: "Agreed."
+- **Naming the mothership by vote**, with the signed voting already built: "I like this idea. We can use it as a way of testing a long form poll essentially. Though we may want to choose a placeholder name for simplicity sake."
+- **The placeholder name and its prefix:** "You and I want to figure out the name. Also, we need to figure out the correct "USS" like thing for the name. I was thinking something like the USS Crown of Thorns or some other name with heavy symbolic meaning." Open: the coordinator's options are in the journal's entry of 2026-11-11; his choice goes here.
