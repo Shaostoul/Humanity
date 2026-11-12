@@ -746,6 +746,94 @@
         "seconds": 9,
         "warmup_s": 0.3
       }
+    },
+    {
+      "id": "crowd-commons-wide",
+      "title": "A hundred people in the Commons",
+      "caption": "A hundred people walking about the Commons: the 16 nearest are drawn in full, in their own clothes with each foot set on the floor, and everyone further off in a lighter style with plain colours.",
+      "camera": {
+        "station": "home",
+        "pose": "92,1.6,58,0,-0.1",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "50"
+      },
+      "settle_s": 8,
+      "during": {
+        "time_scale": "1",
+        "crowd": "100,6.5,-1,0,12"
+      },
+      "record": {
+        "seconds": 14,
+        "warmup_s": 0.5,
+        "path": [
+          [
+            0,
+            92,
+            4.5,
+            59,
+            0.25,
+            -0.3
+          ],
+          [
+            14,
+            92,
+            4.5,
+            59,
+            -0.25,
+            -0.3
+          ]
+        ]
+      }
+    },
+    {
+      "id": "crowd-commons-among",
+      "title": "Standing in the crowd",
+      "caption": "Standing in the Commons at eye height while a hundred people walk and run past: the 16 nearest wear their own clothes, the rest are drawn in plain colours.",
+      "camera": {
+        "station": "home",
+        "pose": "92,1.6,46,0,-0.04",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear",
+        "animation_mode": "realistic",
+        "fov": "45"
+      },
+      "settle_s": 8,
+      "during": {
+        "time_scale": "1",
+        "crowd": "100,6.5,-1,0,0"
+      },
+      "record": {
+        "seconds": 14,
+        "warmup_s": 0.5,
+        "path": [
+          [
+            0,
+            92,
+            1.6,
+            46,
+            0.5,
+            -0.04
+          ],
+          [
+            14,
+            92,
+            1.6,
+            46,
+            -0.5,
+            -0.04
+          ]
+        ]
+      }
     }
   ]
 }
