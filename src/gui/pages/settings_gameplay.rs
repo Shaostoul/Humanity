@@ -8,6 +8,11 @@
 //! applied to gameplay: say what a choice changes before it is chosen; every radio's hint says it
 //! too), then the setting's longer note, its numbers read from the data it describes.
 //!
+//! Since 2026-11-12 the garden's and the ship's settings (garden pests, pollination, soil pH,
+//! picking, ship life support) are rows of the file too, in its "garden" group: the page draws
+//! the "survival" group at the top of its Survival card and the "garden" group under its own
+//! heading further down (`draw_group`).
+//!
 //! Nothing here lists a setting: the loop draws the file. The one thing that is per setting is
 //! [`note`], the long description some systems write from their own data (body heat's balance,
 //! illness's course, the drone's battery), and where the level is kept: a level id in
@@ -24,10 +29,19 @@ use crate::gui::{GuiState, HintDisplay};
 /// The setting whose levels are points on `settings.vitals_drain` rather than a saved level id.
 const VITALS_DRAIN: &str = "vitals_drain";
 
-/// Draw every setting of data/gameplay/levels.json, in the file's order. Marks the settings dirty
-/// when a level changes.
+/// Draw every setting of data/gameplay/levels.json, in the file's order, every group. Marks the
+/// settings dirty when a level changes.
 pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay) {
     for s in &gameplay_levels::file().settings {
+        ui.add_space(theme.spacing_sm);
+        draw_setting(ui, theme, state, hint, s);
+    }
+}
+
+/// Draw the settings of one group of the file (`Setting::group`: the survival rows at the top of
+/// the page, the garden's and the ship's further down), in the file's order.
+pub fn draw_group(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: HintDisplay, group: &str) {
+    for s in gameplay_levels::file().settings.iter().filter(|s| s.group == group) {
         ui.add_space(theme.spacing_sm);
         draw_setting(ui, theme, state, hint, s);
     }

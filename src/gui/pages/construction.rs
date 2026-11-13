@@ -579,7 +579,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // to the station (2026-09-27).
                 // And what each machine really drew over its last game day (2026-10-22).
                 let basis = humanity_ship::machines::MeterBasis {
-                    life_support_on_grid: state.garden_pests.life_support_realistic,
+                    life_support_on_grid: humanity_systems::life_support::Mode::from_level(state.settings.level("life_support")).unwrap_or_default().on_grid(),
                     recorded: Some(&state.machine_day_energy),
                 };
                 draw_buildability(ui, theme, home, basis, legend_mode(state));

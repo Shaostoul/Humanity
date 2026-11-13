@@ -721,9 +721,6 @@ pub struct AppConfig {
     pub hours_per_day: u32,
     #[serde(default = "default_days_per_year")]
     pub days_per_year: u32,
-    /// Garden pests (2026-09-26): 0 off, 0.5 gentle, 1 the cited damage.
-    #[serde(default = "default_pest_severity")]
-    pub pest_severity: f32,
     /// How often the garden is worked out (2026-10-31, docs/design/farm-clock.md rung 2,
     /// farming::clock): game seconds between two advances of each grow area, 0 for every frame.
     /// A config written before it reads as every second, the default.
@@ -734,29 +731,11 @@ pub struct AppConfig {
     /// object; every field has its default, so a config from before reads with the defaults.
     #[serde(default)]
     pub music: humanity_music::MusicSettings,
-    /// Soil pH in the garden (2026-09-26, farming::soil_ph): On models it,
-    /// Off freezes it and hides it. On by default.
-    #[serde(default = "default_true")]
-    pub soil_ph: bool,
-    /// Pollination (2026-09-26, farming::pollination): On, an indoor crop
-    /// needs a hand or a bumblebee hive to set fruit; Off, every crop sets
-    /// fully. Held in GuiState as `garden_pests.pollination_off`.
-    #[serde(default = "default_true")]
-    pub pollination: bool,
-    /// Picking over a season (2026-09-26, farming::picking): false is
-    /// Forgiving (ripe produce waits on the plant), true is Realistic (a pick
-    /// not taken before the next comes ripe is lost). Forgiving by default.
-    /// Held in GuiState as `garden_pests.picking_realistic`.
-    #[serde(default)]
-    pub picking_realistic: bool,
-    /// Ship life support (2026-09-26, systems::life_support): false is
-    /// Station-supplied (the air handlers and the CO2 scrubber run, the water
-    /// comes back and the air is real, but the station's own plant powers
-    /// them), true is Realistic (the home's grid pays their draw). The
-    /// simplified mode by default, the house rule for deep systems. Held in
-    /// GuiState as `garden_pests.life_support_realistic`.
-    #[serde(default)]
-    pub life_support_realistic: bool,
+    // Garden pests, soil pH, pollination, picking and ship life support are levels of
+    // data/gameplay/levels.json since 2026-11-12, saved in `gameplay` below; the switches this
+    // file had for them (`pest_severity`, `soil_ph`, `pollination`, `picking_realistic`,
+    // `life_support_realistic`) are gone, and a config.json that still holds them reads each as
+    // its level's default (serde skips the old fields; no backwards compatibility before v1.0).
     /// Offline progression (2026-09-25): crops keep growing while the game is
     /// closed. On by default; see save_load::catch_up_world.
     #[serde(default = "default_true")]
@@ -1195,7 +1174,6 @@ fn default_sun_aperture_mm() -> f32 { crate::renderer::sun_disc::DEFAULT_APERTUR
 fn default_time_speed() -> f32 { humanity_systems::time::DEFAULT_TIME_SPEED }
 fn default_hours_per_day() -> u32 { humanity_systems::time::DEFAULT_HOURS_PER_DAY }
 fn default_days_per_year() -> u32 { humanity_systems::time::DEFAULT_DAYS_PER_YEAR }
-fn default_pest_severity() -> f32 { humanity_systems::farming::pests::DEFAULT_PEST_SEVERITY }
 fn default_garden_update_s() -> f32 { humanity_systems::farming::clock::DEFAULT_INTERVAL_S as f32 }
 // ── Vegetation LOD ceilings (v0.1109) ──────────────────────────────────────
 // The OUTER limit of each vegetation-LOD control, in ONE place, because the
@@ -1682,13 +1660,8 @@ impl AppConfig {
             time_speed: state.settings.time_speed,
             hours_per_day: state.settings.hours_per_day,
             days_per_year: state.settings.days_per_year,
-            pest_severity: state.settings.pest_severity,
             garden_update_s: state.settings.garden_update_s,
             music: state.settings.music.clone(),
-            soil_ph: !state.garden_pests.soil_ph_off,
-            pollination: !state.garden_pests.pollination_off,
-            picking_realistic: state.garden_pests.picking_realistic,
-            life_support_realistic: state.garden_pests.life_support_realistic,
             offline_progression: state.settings.offline_progression,
             fresh_world_each_launch: state.settings.fresh_world_each_launch,
             godray_intensity: state.settings.godray_intensity,
@@ -2011,15 +1984,10 @@ impl AppConfig {
         state.settings.time_speed = humanity_systems::time::clamp_time_speed(self.time_speed);
         state.settings.hours_per_day = humanity_systems::time::clamp_hours_per_day(self.hours_per_day);
         state.settings.days_per_year = humanity_systems::time::clamp_days_per_year(self.days_per_year);
-        state.settings.pest_severity = self.pest_severity.clamp(0.0, 1.0);
         // Clamped on the way in like the clock: a hand-edited config past an hour (the longest
         // choice), or not a number, is taken as the nearest choice allows.
         state.settings.garden_update_s = humanity_systems::farming::clock::clamp_choice(f64::from(self.garden_update_s)) as f32;
         state.settings.music = self.music.clone();
-        state.garden_pests.soil_ph_off = !self.soil_ph;
-        state.garden_pests.pollination_off = !self.pollination;
-        state.garden_pests.picking_realistic = self.picking_realistic;
-        state.garden_pests.life_support_realistic = self.life_support_realistic;
         state.settings.offline_progression = self.offline_progression;
         state.settings.fresh_world_each_launch = self.fresh_world_each_launch;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
@@ -2713,7 +2681,24 @@ mod play_mode_tests {
         assert_eq!(state.settings.level("body_heat"), "forgiving", "body heat starts Forgiving");
         assert_eq!(state.settings.level("death"), "simplified", "death starts Simplified");
         assert_eq!(state.settings.level("hostile_wildlife"), "off", "hostile wildlife starts off");
-        let chosen = [("body_heat", "off"), ("illness", "realistic"), ("animal_care", "off"), ("carry", "realistic"), ("walk_pace", "brisk"), ("animation", "simplified"), ("death", "off"), ("mining_drone", "off"), ("hostile_wildlife", "few")];
+        // The garden's and the ship's levels too (2026-11-12): seen red 2026-11-12 before
+        // data/gameplay/levels.json listed them: "garden_pests stays at realistic after a restart".
+        let chosen = [
+            ("body_heat", "off"),
+            ("illness", "realistic"),
+            ("animal_care", "off"),
+            ("carry", "realistic"),
+            ("walk_pace", "brisk"),
+            ("animation", "simplified"),
+            ("death", "off"),
+            ("mining_drone", "off"),
+            ("hostile_wildlife", "few"),
+            ("garden_pests", "realistic"),
+            ("pollination", "off"),
+            ("soil_ph", "realistic"),
+            ("picking", "off"),
+            ("life_support", "realistic"),
+        ];
         for (id, level) in chosen {
             state.settings.set_level(id, level);
         }
@@ -2731,11 +2716,20 @@ mod play_mode_tests {
         for key in ["body_heat_realistic", "illness_realistic", "carry_realistic", "death_realistic", "drone_realistic", "walk_realistic", "anim_simplified", "hostile_wildlife"] {
             o.insert(key.to_string(), serde_json::Value::Bool(true));
         }
+        // And the garden's and the ship's switches from before 2026-11-12.
+        o.insert("pest_severity".to_string(), serde_json::json!(1.0));
+        for (key, v) in [("soil_ph", false), ("pollination", false), ("picking_realistic", true), ("life_support_realistic", true)] {
+            o.insert(key.to_string(), serde_json::Value::Bool(v));
+        }
         let read: AppConfig = serde_json::from_value(old).expect("an old config.json still loads");
         let mut after = crate::gui::GuiState::default();
         read.apply_to_gui_state(&mut after);
         assert_eq!(after.settings.level("body_heat"), "forgiving", "and plays at the defaults");
         assert_eq!(after.settings.level("hostile_wildlife"), "off");
+        let garden = [("garden_pests", "gentle"), ("pollination", "gentle"), ("soil_ph", "gentle"), ("picking", "forgiving"), ("life_support", "station_supplied")];
+        for (id, level) in garden {
+            assert_eq!(after.settings.level(id), level, "an old {id} switch reads as the default");
+        }
     }
 
     /// The first-person body and Reduce motion (character animation rung 2b, 2026-11-10): the body

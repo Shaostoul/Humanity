@@ -39,9 +39,12 @@
 //!    nutrient, pest and pH ceilings. The player is told once per grow area
 //!    when its soil leaves a crop's window, and which amendment fixes it.
 //!
-//! TWO MODES (the house rule for a deep system): the "garden_soil_ph_on"
-//! channel, from Settings "Soil pH: Off / On". Off freezes all of it: no
-//! drift, no cap, no amendments, and the Garden panel does not show pH.
+//! THREE LEVELS (the house rule for a deep system; Settings > Gameplay, data/gameplay/levels.json,
+//! 2026-11-12): the "garden_soil_ph_severity" channel holds the share of the pH cap's loss a crop
+//! really takes. Off (0) freezes all of it: no drift, no cap, no amendments, and the Garden panel
+//! does not show pH. Gentle (0.5, a new player's level): the pH drifts and the amendments work as
+//! in Realistic, but a crop outside its window loses half the harvest it would (`crop_ceiling`).
+//! Realistic (1, and the absent case) is the cited model.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
@@ -56,10 +59,13 @@ use super::PlantDef;
 /// The shipped copy, so a bare exe with no data folder still has the model.
 pub const SOIL_PH_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/garden/soil_ph.ron"));
 
-/// Soil pH is on unless Settings turns it off. Absent channel (headless
-/// tests, early boot) reads as this, so a test that never publishes it sees
-/// what players get.
-pub const DEFAULT_SOIL_PH_ON: bool = true;
+/// The level when nothing has published one (headless tests, early boot): Realistic, the cited
+/// model the tests measure. The game publishes Settings' level every frame (a new player's is
+/// Gentle, data/gameplay/levels.json).
+pub const DEFAULT_SOIL_PH_SEVERITY: f32 = 1.0;
+
+/// DataStore key of the level, a `Mutex<f32>`: 0 Off, 0.5 Gentle, 1 Realistic.
+pub const MODE_KEY: &str = "garden_soil_ph_severity";
 
 /// The pending pool for the acidity of newly added ammonium.
 pub const NITRIFICATION: &str = "nitrification";
@@ -434,21 +440,25 @@ pub fn crop_ph(units: &PhUnits, data: &SoilPhData, area: &str, slot: Option<u32>
     Some((remembered.unwrap_or(soil.start_ph), false))
 }
 
-/// The pH health ceiling for one crop (100 when pH is off, held, not
-/// modelled, or the plant is unknown).
+/// The pH health ceiling for one crop at the level `severity` (100 when pH is off, held, not
+/// modelled, or the plant is unknown). Gentle (0.5) takes half of what Realistic's cap takes
+/// (`health_ceiling`, floor included), so the harvest a crop loses to its pH is halved.
 pub fn crop_ceiling(
     units: &PhUnits,
     data: &SoilPhData,
-    on: bool,
+    severity: f32,
     area: &str,
     slot: Option<u32>,
     def: Option<&PlantDef>,
 ) -> f32 {
-    if !on {
+    if !(severity > 0.0) {
         return 100.0;
     }
     match (def, crop_ph(units, data, area, slot)) {
-        (Some(d), Some((ph, false))) => health_ceiling(data, ph, f64::from(d.ph_min), f64::from(d.ph_max)),
+        (Some(d), Some((ph, false))) => {
+            let realistic = health_ceiling(data, ph, f64::from(d.ph_min), f64::from(d.ph_max));
+            100.0 - severity.min(1.0) * (100.0 - realistic)
+        }
         _ => 100.0,
     }
 }
@@ -458,12 +468,12 @@ pub fn crop_ceiling(
 pub fn check_crop(
     units: &PhUnits,
     data: &SoilPhData,
-    on: bool,
+    severity: f32,
     area: &str,
     slot: Option<u32>,
     def: Option<&PlantDef>,
 ) -> (f32, Option<OutOfWindow>) {
-    let cap = crop_ceiling(units, data, on, area, slot, def);
+    let cap = crop_ceiling(units, data, severity, area, slot, def);
     if cap >= 100.0 {
         return (cap, None);
     }
@@ -479,11 +489,16 @@ pub fn check_crop(
     (cap, out)
 }
 
-/// Is soil pH on (the "garden_soil_ph_on" channel, from Settings)?
+/// The level (the "garden_soil_ph_severity" channel, from Settings): 0 Off to 1 Realistic. A
+/// value that is not a number reads as the default.
+pub fn severity(data: &DataStore) -> f32 {
+    let v = data.get::<Mutex<f32>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(DEFAULT_SOIL_PH_SEVERITY);
+    if v.is_finite() { v.clamp(0.0, 1.0) } else { DEFAULT_SOIL_PH_SEVERITY }
+}
+
+/// Is soil pH on at all (any level but Off): drift, amendments and the panel's pH.
 pub fn is_on(data: &DataStore) -> bool {
-    data.get::<Mutex<bool>>("garden_soil_ph_on")
-        .and_then(|m| m.lock().ok().map(|v| *v))
-        .unwrap_or(DEFAULT_SOIL_PH_ON)
+    severity(data) > 0.0
 }
 
 // -- What the player is told, and the request channel -------------------------------
@@ -759,10 +774,10 @@ pub fn credit_potash(world: &mut hecs::World, area: &str, doses: &[(u32, f64)], 
 // -- The request and Settings channels, and the Garden panel's view ------------------
 
 /// Put the pH channels in the DataStore (lib.rs, at boot): the data, the
-/// Settings switch, and the Garden panel's Lime / Sulfur request.
+/// Settings level, and the Garden panel's Lime / Sulfur request.
 pub fn register(store: &mut DataStore) {
     store.insert("garden_soil_ph", SoilPhData::load());
-    store.insert("garden_soil_ph_on", Mutex::new(DEFAULT_SOIL_PH_ON));
+    store.insert(MODE_KEY, Mutex::new(DEFAULT_SOIL_PH_SEVERITY));
     store.insert("soil_ph_request", Mutex::new(Option::<(String, String)>::None));
     store.insert(AWAY_CHANNEL, Mutex::new(0.0_f64));
 }
@@ -796,12 +811,12 @@ pub fn take_away_secs(data: &DataStore) -> f64 {
         .unwrap_or(0.0)
 }
 
-/// Carry this frame's Settings switch and the panel's chosen amendment
-/// `(area, amendment id)` to the farming system (lib.rs, every frame).
-pub fn bridge(store: &DataStore, on: bool, request: Option<(String, String)>) {
-    if let Some(m) = store.get::<Mutex<bool>>("garden_soil_ph_on") {
+/// Carry this frame's Settings level (its number in data/gameplay/levels.json) and the panel's
+/// chosen amendment `(area, amendment id)` to the farming system (lib.rs, every frame).
+pub fn bridge(store: &DataStore, severity: f32, request: Option<(String, String)>) {
+    if let Some(m) = store.get::<Mutex<f32>>(MODE_KEY) {
         if let Ok(mut v) = m.lock() {
-            *v = on;
+            *v = severity;
         }
     }
     if let Some(req) = request {
@@ -830,18 +845,23 @@ pub struct CropPhView {
 pub struct GardenView<'a> {
     data: Option<&'a SoilPhData>,
     units: PhUnits,
-    on: bool,
+    /// The level (`severity`): the cap shown is the level's.
+    severity: f32,
 }
 
 impl<'a> GardenView<'a> {
     pub fn new(store: &'a DataStore, world: &hecs::World) -> Self {
         let units = world.query::<&SoilMemory>().iter().next().map(|(_, m)| m.ph.clone()).unwrap_or_default();
-        Self { data: store.get::<SoilPhData>("garden_soil_ph"), units, on: is_on(store) }
+        Self { data: store.get::<SoilPhData>("garden_soil_ph"), units, severity: severity(store) }
+    }
+
+    fn on(&self) -> bool {
+        self.severity > 0.0
     }
 
     pub fn crop(&self, crop: &CropInstance, def: Option<&PlantDef>) -> CropPhView {
         let window = def.map_or([0.0; 2], |d| [d.ph_min, d.ph_max]);
-        let (Some(data), true) = (self.data, self.on) else {
+        let (Some(data), true) = (self.data, self.on()) else {
             return CropPhView { window, cap: 100.0, ..Default::default() };
         };
         let area = crop.tower_id.as_deref().unwrap_or("");
@@ -849,7 +869,7 @@ impl<'a> GardenView<'a> {
             Some((ph, held)) => CropPhView {
                 ph: Some(ph as f32),
                 window,
-                cap: crop_ceiling(&self.units, data, true, area, crop.tower_slot, def),
+                cap: crop_ceiling(&self.units, data, self.severity, area, crop.tower_slot, def),
                 held,
             },
             None => CropPhView { window, cap: 100.0, ..Default::default() },
@@ -859,7 +879,7 @@ impl<'a> GardenView<'a> {
     /// The amendments as (id, button label), in the file's order; empty when
     /// soil pH is off.
     pub fn amendments(&self) -> Vec<(String, String)> {
-        match (self.data, self.on) {
+        match (self.data, self.on()) {
             (Some(d), true) => d.amendments.iter().map(|a| (a.id.clone(), a.name.clone())).collect(),
             _ => Vec::new(),
         }

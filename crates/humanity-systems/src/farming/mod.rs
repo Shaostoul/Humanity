@@ -1759,7 +1759,10 @@ impl FarmingSystem {
         }
         let ph_data: &soil_ph::SoilPhData =
             data.get::<soil_ph::SoilPhData>("garden_soil_ph").or(self.ph_data.as_ref()).expect("loaded above");
-        let ph_on = soil_ph::is_on(data);
+        // Settings > Gameplay > Soil pH's level (0 Off, 0.5 Gentle, 1 Realistic): any but Off
+        // drifts the beds and takes amendments; the level scales the harvest pH takes.
+        let ph_severity = soil_ph::severity(data);
+        let ph_on = ph_severity > 0.0;
         // GREENHOUSE HUMIDITY (2026-09-26, humidity.rs; every number in
         // humidity.ron): which grow room each area stands in and the home's
         // air, for the diseases' Humidity condition and the crops' window.
@@ -2774,6 +2777,8 @@ impl FarmingSystem {
         let windows = data
             .get::<picking::HarvestWindows>(picking::DATA_KEY)
             .unwrap_or_else(|| picking::HarvestWindows::shipped());
+        // Settings > Gameplay > Picking (2026-11-12): with it Off no plant bears over a season.
+        let picking_mode = picking::mode(data);
         // Where this tick's step began on the clock (farm-clock.md rung 1): the clock moves first
         // (TimeSystem ticks before this system), so the step is the `game_dt` seconds that ended
         // at `elapsed_seconds`. A crop's age at the step's start is that, less its planted_at.
@@ -2810,7 +2815,7 @@ impl FarmingSystem {
             // Skip crops already at their final stage (they sit until
             // harvested), except a plant still bearing through its picking
             // window (see `windows` above).
-            let bears = windows.plan(&crop.crop_def_id).is_some();
+            let bears = windows.plan_at(&crop.crop_def_id, picking_mode).is_some();
             if let Some(last) = plant_stages.last() {
                 if crop.growth_stage == *last && !bears {
                     continue;
@@ -3029,7 +3034,7 @@ impl FarmingSystem {
             };
             // Soil pH (soil_ph.rs): outside its window a crop's nutrients are
             // less available, capped the same way; said once per area below.
-            let (ph_ceiling, off) = soil_ph::check_crop(&ph_units, ph_data, ph_on, area, crop.tower_slot, def);
+            let (ph_ceiling, off) = soil_ph::check_crop(&ph_units, ph_data, ph_severity, area, crop.tower_slot, def);
             if let Some(o) = off {
                 // The area's String only when it is new to the map (F1: no allocation per crop).
                 if !ph_out.contains_key(area) {

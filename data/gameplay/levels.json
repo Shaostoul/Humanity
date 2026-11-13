@@ -4,7 +4,8 @@
     "The operator, that day: \"I feel like we need to provide more than two options for our gameplay settings. Including just turning settings off completely. Like body heat, illness, etc.\"",
     "Each setting lists its levels in the order Settings shows them, from the gentlest (Off, where a system can be off) to the hardest, with the level a new player gets (`default`: the softened one, CLAUDE.md's dual-modes rule). Each level carries its name (`words`) and a sentence saying what it changes (`says`), both keys in data/i18n/en.json, so a person reads what a choice does before choosing it (docs/design/graphics-settings.md's rule: say what it changes).",
     "A level's `id` is what config.json saves (`gameplay`: setting id -> level id) and what the system reads: body heat, illness and injury, farm animals, carrying weight, death and the mining drone each turn the id into their own mode (gameplay_levels.rs `understood` holds every one of them to this file, so a level added here that its system does not know fails a test). The walking pace's id names data/game.csv's rows (`walk_speed_<id>_mps`), so a pace is added in data alone. A `value` is a number the setting uses as it is: the share of each wild pack that spawns, or the vitals drain.",
-    "A saved level this file no longer lists reads as the default, and so does a config.json from before the levels (no backwards compatibility before v1.0)."
+    "A saved level this file no longer lists reads as the default, and so does a config.json from before the levels (no backwards compatibility before v1.0).",
+    "2026-11-12: the garden's and the ship's settings joined (garden pests, pollination, soil pH, picking, ship life support), each with `group` \"garden\", drawn under their own heading further down the page (a setting without `group` is in \"survival\", at the top). Garden pests', pollination's and soil pH's `value` is the share of a loss a crop really takes (0 Off, 0.5 Gentle, 1 Realistic); picking and life support turn the id into their modes. Why each has the levels it has: docs/design/graphics-settings.md, \"The garden's and the ship's levels\"."
   ],
   "settings": [
     {
@@ -85,6 +86,45 @@
         { "id": "off", "words": "gameplay.level.off", "says": "gameplay.mining_drone_off" },
         { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.mining_drone_simplified" },
         { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.mining_drone_realistic" }
+      ]
+    },
+    {
+      "id": "garden_pests", "group": "garden", "words": "gameplay.garden_pests", "note": "gameplay.garden_pests_note", "default": "gentle",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.garden_pests_off", "value": 0.0 },
+        { "id": "gentle", "words": "gameplay.level.gentle", "says": "gameplay.garden_pests_gentle", "value": 0.5 },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.garden_pests_realistic", "value": 1.0 }
+      ]
+    },
+    {
+      "id": "pollination", "group": "garden", "words": "gameplay.pollination", "note": "gameplay.pollination_note", "default": "gentle",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.pollination_off", "value": 0.0 },
+        { "id": "gentle", "words": "gameplay.level.gentle", "says": "gameplay.pollination_gentle", "value": 0.5 },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.pollination_realistic", "value": 1.0 }
+      ]
+    },
+    {
+      "id": "soil_ph", "group": "garden", "words": "gameplay.soil_ph", "note": "gameplay.soil_ph_note", "default": "gentle",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.soil_ph_off", "value": 0.0 },
+        { "id": "gentle", "words": "gameplay.level.gentle", "says": "gameplay.soil_ph_gentle", "value": 0.5 },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.soil_ph_realistic", "value": 1.0 }
+      ]
+    },
+    {
+      "id": "picking", "group": "garden", "words": "gameplay.picking", "note": "gameplay.picking_note", "default": "forgiving",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.picking_off" },
+        { "id": "forgiving", "words": "gameplay.level.forgiving", "says": "gameplay.picking_forgiving" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.picking_realistic" }
+      ]
+    },
+    {
+      "id": "life_support", "group": "garden", "words": "gameplay.life_support", "note": "gameplay.life_support_note", "default": "station_supplied",
+      "levels": [
+        { "id": "station_supplied", "words": "gameplay.level.station_supplied", "says": "gameplay.life_support_station_supplied" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.life_support_realistic" }
       ]
     }
   ]

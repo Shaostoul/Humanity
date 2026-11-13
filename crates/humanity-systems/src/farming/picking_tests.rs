@@ -38,7 +38,11 @@ fn store() -> DataStore {
 }
 
 fn set_realistic(data: &mut DataStore, on: bool) {
-    data.insert(picking::MODE_KEY, Mutex::new(on));
+    set_mode(data, if on { picking::Mode::Realistic } else { picking::Mode::Forgiving });
+}
+
+fn set_mode(data: &mut DataStore, mode: picking::Mode) {
+    data.insert(picking::MODE_KEY, Mutex::new(mode));
 }
 
 fn last_stage(data: &DataStore, plant: &str) -> String {
@@ -185,6 +189,45 @@ fn a_once_crop_is_harvested_once_as_before() {
     assert_eq!(count(&world, who, "vegetable_lettuce_0"), got, "nothing more");
 }
 
+/// PICKING OFF HARVESTS EVERY CROP ONCE (2026-11-12, Settings > Gameplay > Picking's Off,
+/// data/gameplay/levels.json): a ripe tomato bed keeps no picking clock and shows no picking
+/// row while it waits, and one press gives its whole season and leaves the plot empty. A bed
+/// already part picked when picking went Off (10 of its 36 shares taken) gives only the 26 it
+/// had left and is done, so switching to Off never hands out a season twice.
+///
+/// Seen red 2026-11-12 with `HarvestWindows::plan_at` ignoring Off (Off played as Forgiving):
+/// "Off: no picking clock while it waits".
+#[test]
+fn picking_off_harvests_every_crop_once() {
+    let mut data = store();
+    set_mode(&mut data, picking::Mode::Off);
+    let def = data.get::<PlantRegistry>("plant_registry").unwrap().get("tomato").unwrap().clone();
+    let ripe = last_stage(&data, "tomato");
+    let plan = tomato_plan();
+    let mut sys = FarmingSystem::new();
+    let mut world = hecs::World::new();
+    let who = player(&mut world);
+    let t = world.spawn((crop("tomato", Some("tomato_bed"), &ripe),));
+    tick(&mut sys, &mut world, &data, 1.0, None);
+    assert!(world.get::<&CropPicking>(t).is_err(), "Off: no picking clock while it waits");
+    assert!(picking::GuiView::new(&world, &data).row(t).is_empty(), "Off: no picking row");
+    tick(&mut sys, &mut world, &data, 0.0, Some(t));
+    assert!(world.get::<&CropInstance>(t).is_err(), "Off: one press harvests it whole and empties the plot");
+    let got = f64::from(count(&world, who, "vegetable_tomato_0"));
+    let (lo, hi) = (10.0 * f64::from(def.yield_min), 10.0 * f64::from(def.yield_max));
+    assert!(got >= lo.floor() && got <= hi.ceil(), "Off: the whole season in one harvest: {got} in {lo}..{hi}");
+    // Part picked before Off.
+    let part = CropPicking { roll: Some(0.5), next_pick: 10, taken: 10, days_ripe: 10.0 * plan.every_days, ..Default::default() };
+    let t2 = world.spawn((crop("tomato", Some("tomato_bed"), &ripe), part));
+    let before = count(&world, who, "vegetable_tomato_0");
+    tick(&mut sys, &mut world, &data, 0.0, Some(t2));
+    assert!(world.get::<&CropInstance>(t2).is_err(), "a part-picked bed is done after one press at Off");
+    let season = 10.0 * (f64::from(def.yield_min) + 0.5 * f64::from(def.yield_max - def.yield_min));
+    let want = season * f64::from(plan.picks - 10) / f64::from(plan.picks);
+    let got2 = f64::from(count(&world, who, "vegetable_tomato_0") - before);
+    assert!((got2 - want).abs() <= 1.5, "only the shares it had left: {got2} against {want:.1}");
+}
+
 /// Picking before the next pick is ripe gives nothing: a tomato bed picked
 /// the day it ripens, then pressed again a garden day later (the interval is
 /// 1.75), gives no items and takes no share; at 1.75 days it gives the next.
@@ -269,7 +312,7 @@ fn a_spent_plant_leaves_the_plot_empty() {
     let t = world.spawn((crop("tomato", Some("tomato_bed"), &ripe),));
     sys.tick(&mut world, 0.0, &data);
     assert!(world.get::<&CropInstance>(t).is_ok(), "ripe and bearing");
-    picking::publish(&data, false, Some(t.to_bits().into()));
+    picking::publish(&data, picking::Mode::Forgiving, Some(t.to_bits().into()));
     sys.tick(&mut world, 0.0, &data);
     assert!(world.get::<&CropInstance>(t).is_err(), "Clear empties the plot");
 }

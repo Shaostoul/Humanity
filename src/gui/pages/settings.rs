@@ -3126,8 +3126,9 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(theme.spacing_xs);
         // The settings with levels (2026-11-11): hostile wildlife, the vitals drain, body heat,
         // illness and injury, farm animals, the walking pace, animation, carrying weight, death and
-        // the mining drone, each a row of data/gameplay/levels.json (settings_gameplay.rs).
-        super::settings_gameplay::draw(ui, theme, state, hint);
+        // the mining drone, each a row of data/gameplay/levels.json (settings_gameplay.rs); its
+        // "garden" group is drawn further down.
+        super::settings_gameplay::draw_group(ui, theme, state, hint, crate::gui::gameplay_levels::SURVIVAL);
 
         // Your body in first person and Reduce motion (2026-11-10, character animation rung 2b):
         // the operator's question 4, "yes, with a Settings switch and a Reduce motion option".
@@ -3166,75 +3167,12 @@ pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         );
 
         ui.add_space(theme.spacing_lg);
-        // Garden pests (2026-09-26, the dual-mode house rule for deep systems).
-        ui.label(RichText::new("Garden pests, diseases and weeds").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Aphids, spider mites, caterpillars, slugs and potato beetles build up on the crops they feed on, gray mold, powdery mildew and downy mildew spread in humid air, and weeds come up from the seed in any soil bed or field; all of them cut the harvest. Gentle halves the damage; Realistic uses the losses the extension guides report; Off turns pests, diseases and weeds off. The greenhouse air stays real either way.");
-        ui.horizontal(|ui| {
-            for (value, label) in [(0.0_f32, "Off"), (0.5, "Gentle"), (1.0, "Realistic")] {
-                let selected = (state.settings.pest_severity - value).abs() < 0.01;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.settings.pest_severity = value;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        // Pollination (2026-09-26, farming::pollination; the dual-mode house rule).
-        ui.add_space(theme.spacing_lg);
-        ui.label(RichText::new("Pollination").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Indoors there is no wind and no bees, so tomatoes, peppers, squash, cucumbers, strawberries and corn set little or no fruit unless you hand-pollinate them or keep a bumblebee hive with a colony in it (a colony works about ten weeks). A circulation fan helps strawberries. On uses the fruit set the extension guides report; Off lets every crop set fully.");
-        ui.horizontal(|ui| {
-            for (off, label) in [(true, "Off"), (false, "On")] {
-                let selected = state.garden_pests.pollination_off == off;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.garden_pests.pollination_off = off;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        // Picking over a season (2026-09-26, farming::picking; the dual-mode house rule).
-        ui.add_space(theme.spacing_lg);
-        ui.label(RichText::new("Picking").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Tomatoes, peppers, cucumbers, strawberries, kale and cut herbs are picked every few days for weeks once ripe, each pick a share of the season. Forgiving lets ripe produce wait on the plant until you pick it; Realistic loses a pick you do not take before the next comes ripe, as real produce goes past its best.");
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Forgiving"), (true, "Realistic")] {
-                let selected = state.garden_pests.picking_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.garden_pests.picking_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        // Ship life support (2026-09-26, systems::life_support; the dual-mode house rule).
-        ui.add_space(theme.spacing_lg);
-        ui.label(RichText::new("Ship life support").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Aboard the station every litre the crops breathe out is condensed back out of the air by the air handlers and returned to the tanks, and the crops, the people and the mushrooms trade carbon dioxide and oxygen through the home's air. That happens either way. Station-supplied ties your home to the ship's reactor: it supplies whatever your own panels and batteries do not, air machines included, and every kilowatt-hour is metered on the Home page, so nothing browns out. Realistic unties it: your home runs on what it makes and stores, and at full planting the air machines alone use more than the rest of the home.");
-        ui.horizontal(|ui| {
-            for (realistic, label) in [(false, "Station-supplied"), (true, "Realistic")] {
-                let selected = state.garden_pests.life_support_realistic == realistic;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.garden_pests.life_support_realistic = realistic;
-                    state.settings_dirty = true;
-                }
-            }
-        });
-        ui.add_space(theme.spacing_lg);
-        // Soil pH (2026-09-26, farming::soil_ph; the dual-mode house rule).
-        ui.label(RichText::new("Soil pH").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        widgets::setting_hint(ui, theme, hint, "Each bed has a pH. Nitrogen fertilizer, stored urine too, slowly turns it acid; lime raises it and sulfur lowers it, over weeks. A crop outside the pH it grows best at gives less. Off turns this off and hides it.");
-        ui.horizontal(|ui| {
-            for (off, label) in [(true, "Off"), (false, "On")] {
-                let selected = state.garden_pests.soil_ph_off == off;
-                if ui.radio(selected, RichText::new(label).color(theme.text_primary())).clicked() && !selected {
-                    state.garden_pests.soil_ph_off = off;
-                    state.settings_dirty = true;
-                }
-            }
-        });
+        // The garden's and the ship's levels (2026-11-12): garden pests, pollination, soil pH,
+        // picking and ship life support, the rows of data/gameplay/levels.json's "garden" group
+        // (settings_gameplay.rs), each level saying what it changes. They were hand-drawn
+        // switches here until then (pollination and soil pH only Off / On).
+        ui.label(RichText::new(t("gameplay.garden_heading")).color(theme.text_secondary()).strong());
+        super::settings_gameplay::draw_group(ui, theme, state, hint, "garden");
         ui.add_space(theme.spacing_lg);
         // Time (2026-09-27): the one game clock's three settings, in their
         // own module because this file is past its size.

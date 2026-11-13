@@ -30,13 +30,15 @@
 //! 4. A crop harvested `Once` behaves as before: one roll, one harvest, the
 //!    unit emptied.
 //!
-//! TWO MODES (the house rule for a deep system): "garden_picking_realistic",
-//! from Settings. Forgiving (false, the default and the absent case): ripe
-//! produce waits on the plant, a harvest takes every share that has come ripe
-//! since the last one, and the plant is spent only when its last share has
-//! been picked. Realistic: a share is at its best for one interval and passes
-//! over if it is not picked before the next comes ripe, and the plant is spent
-//! when its window ends. The sources for why are in harvest_windows.ron.
+//! THREE LEVELS (the house rule for a deep system; Settings > Gameplay, data/gameplay/levels.json,
+//! 2026-11-12): "garden_picking_mode", a [`Mode`]. Off: picking over a season is off, so every
+//! crop is harvested once when ripe, its whole season in one harvest, and its unit is free at
+//! once (a plant already part picked gives what it has left and is done). Forgiving (the default
+//! and the absent case): ripe produce waits on the plant, a harvest takes every share that has
+//! come ripe since the last one, and the plant is spent only when its last share has been
+//! picked. Realistic: a share is at its best for one interval and passes over if it is not
+//! picked before the next comes ripe, and the plant is spent when its window ends. The sources
+//! for why are in harvest_windows.ron.
 //!
 //! SEED. A survival harvest returns seed in proportion to what it harvested:
 //! `SEEDS_PER_FULL_HARVEST` for a full season (every share, full health, full
@@ -63,9 +65,32 @@ pub const HARVEST_WINDOWS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_R
 
 /// DataStore key of the loaded data (registered by the main loop).
 pub const DATA_KEY: &str = "garden_harvest_windows";
-/// DataStore key of the mode, a `Mutex<bool>`: true is Realistic. Absent =
-/// Forgiving.
-pub const MODE_KEY: &str = "garden_picking_realistic";
+/// DataStore key of the level, a `Mutex<Mode>`. Absent = Forgiving.
+pub const MODE_KEY: &str = "garden_picking_mode";
+
+/// Settings > Gameplay > Picking's level (data/gameplay/levels.json).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Mode {
+    /// Every crop is harvested once when ripe, its whole season at once.
+    Off,
+    /// Picked over its season; ripe produce waits on the plant.
+    #[default]
+    Forgiving,
+    /// Picked over its season; a pick not taken before the next comes ripe is lost.
+    Realistic,
+}
+
+impl Mode {
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "off" => Some(Mode::Off),
+            "forgiving" => Some(Mode::Forgiving),
+            "realistic" => Some(Mode::Realistic),
+            _ => None,
+        }
+    }
+}
 /// DataStore key of the crop card's Clear button, a `Mutex<Option<u64>>`
 /// holding a crop entity's bits.
 pub const CLEAR_KEY: &str = "clear_crop_request";
@@ -181,6 +206,15 @@ impl HarvestWindows {
     /// How this plant is harvested; a plant not listed is harvested once.
     pub fn harvest(&self, plant: &str) -> Harvest {
         self.index.get(plant).copied().unwrap_or(Harvest::Once)
+    }
+
+    /// A picked plant's season plan at the level `mode`: None for one harvested once, and for
+    /// every plant with picking Off.
+    pub fn plan_at(&self, plant: &str, mode: Mode) -> Option<Plan> {
+        if mode == Mode::Off {
+            return None;
+        }
+        self.plan(plant)
     }
 
     /// A picked plant's season plan; None for one harvested once.
@@ -366,23 +400,28 @@ pub enum Leaving {
     Cleared,
 }
 
-/// Is the mode Realistic? Absent = Forgiving.
+/// The level. Absent = Forgiving.
+pub fn mode(data: &DataStore) -> Mode {
+    data.get::<std::sync::Mutex<Mode>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or_default()
+}
+
+/// Is the level Realistic?
 pub fn realistic(data: &DataStore) -> bool {
-    data.get::<std::sync::Mutex<bool>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(false)
+    mode(data) == Mode::Realistic
 }
 
 /// Register the data and the two channels (the main loop, at boot).
 pub fn register(data_store: &mut DataStore) {
     data_store.insert(DATA_KEY, HarvestWindows::load());
-    data_store.insert(MODE_KEY, std::sync::Mutex::new(false));
+    data_store.insert(MODE_KEY, std::sync::Mutex::new(Mode::default()));
     data_store.insert(CLEAR_KEY, std::sync::Mutex::new(Option::<u64>::None));
 }
 
-/// The Garden panel's side, for the main loop each frame: the Settings mode
+/// The Garden panel's side, for the main loop each frame: the Settings level
 /// and the crop the player chose to clear.
-pub fn publish(data: &DataStore, realistic: bool, clear: Option<u64>) {
-    if let Some(Ok(mut v)) = data.get::<std::sync::Mutex<bool>>(MODE_KEY).map(|m| m.lock()) {
-        *v = realistic;
+pub fn publish(data: &DataStore, mode: Mode, clear: Option<u64>) {
+    if let Some(Ok(mut v)) = data.get::<std::sync::Mutex<Mode>>(MODE_KEY).map(|m| m.lock()) {
+        *v = mode;
     }
     if let (Some(bits), Some(m)) = (clear, data.get::<std::sync::Mutex<Option<u64>>>(CLEAR_KEY)) {
         if let Ok(mut v) = m.lock() {
@@ -443,7 +482,8 @@ impl Picking {
     /// `vacate_unit`).
     pub fn step(&mut self, world: &mut hecs::World, data: &DataStore, days: f64, scope: &super::clock::Scope) -> Vec<(hecs::Entity, Leaving)> {
         let mut out = Vec::new();
-        let realistic = realistic(data);
+        let mode = mode(data);
+        let realistic = mode == Mode::Realistic;
         if !realistic {
             self.told_over.clear();
         }
@@ -456,7 +496,8 @@ impl Picking {
             if !scope.crop(mark) {
                 continue;
             }
-            let Some(plan) = windows.plan(&crop.crop_def_id) else { continue };
+            // Off: no plant bears over a season, so none keeps a clock (`plan_at`).
+            let Some(plan) = windows.plan_at(&crop.crop_def_id, mode) else { continue };
             if !ripe(crop, plants) {
                 continue;
             }
@@ -506,9 +547,19 @@ impl Picking {
         let n = plants.max(1) as f32;
         let (ymin, ymax) = (per_plant.0 * n, per_plant.1 * n);
         let full = (f64::from(ymin) + f64::from(ymax)) / 2.0;
-        let realistic = realistic(data);
+        let mode = mode(data);
+        let realistic = mode == Mode::Realistic;
         self.ensure_loaded(data);
-        let Some(plan) = Self::windows(&self.data, data).plan(plant_id) else {
+        let windows = Self::windows(&self.data, data);
+        // Off: harvested once (`plan_at`), unless the plant is already part picked (picking was
+        // on when it ripened): then it gives every share it has left, at once, and is done, so
+        // switching to Off never hands out a season twice.
+        let part_picked = world.get::<&CropPicking>(entity).map_or(false, |r| r.next_pick > 0);
+        let plan = match mode {
+            Mode::Off if part_picked => windows.plan(plant_id),
+            _ => windows.plan_at(plant_id, mode),
+        };
+        let Some(plan) = plan else {
             let roll = rand::random::<f32>();
             let items = super::harvest_quantity(ymin, ymax, scale, roll, rand::random::<f32>());
             let seeds = seed_count(season_items(ymin, ymax, roll, scale), full, rand::random::<f64>());
@@ -516,7 +567,14 @@ impl Picking {
         };
         let mut rec = world.get::<&CropPicking>(entity).map(|r| (*r).clone()).unwrap_or_default();
         let first = rec.taken == 0;
-        let shares = take(&mut rec, &plan, realistic);
+        let shares = if mode == Mode::Off {
+            let left = plan.picks.saturating_sub(rec.next_pick);
+            rec.next_pick = plan.picks;
+            rec.taken += left;
+            left
+        } else {
+            take(&mut rec, &plan, realistic)
+        };
         if shares == 0 {
             return None;
         }
@@ -716,11 +774,13 @@ impl GuiView {
         let mut v = Self::default();
         let windows = data.get::<HarvestWindows>(DATA_KEY).unwrap_or_else(|| HarvestWindows::shipped());
         let plants = data.get::<super::PlantRegistry>("plant_registry");
-        let realistic = realistic(data);
+        let mode = mode(data);
+        let realistic = mode == Mode::Realistic;
         for &e in crops {
             let Ok(mut q) = world.query_one::<(&CropInstance, Option<&CropPicking>)>(e) else { continue };
             let Some((crop, rec)) = q.get() else { continue };
-            let Some(plan) = windows.plan(&crop.crop_def_id) else { continue };
+            // Off: no picking row, a crop harvested once.
+            let Some(plan) = windows.plan_at(&crop.crop_def_id, mode) else { continue };
             if crop.growth_stage == STAGE_DEAD {
                 continue;
             }

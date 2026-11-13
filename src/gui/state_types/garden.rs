@@ -27,30 +27,22 @@ pub struct GardenPests {
     pub areas: Vec<GuiAreaPests>,
     /// (area, control id), carried to the farming system next frame.
     pub pending: Option<(String, String)>,
-    /// Soil pH (farming::soil_ph): Settings "Soil pH: Off" (saved as
-    /// AppConfig::soil_ph), the amendments as (id, label), and the one the
+    // The levels of garden pests, soil pH, pollination, picking and ship life support live in
+    // `SettingsState::gameplay` since 2026-11-12 (data/gameplay/levels.json; engine::garden_levels
+    // publishes them): only the panel's rows and requests are here.
+    /// Soil pH (farming::soil_ph): the amendments as (id, label), and the one the
     /// player chose as (area, amendment id), carried next frame.
-    pub soil_ph_off: bool,
     pub ph_amendments: Vec<(String, String)>,
     pub ph_pending: Option<(String, String)>,
-    /// Pollination (2026-09-26, farming::pollination): Settings "Off" (the
-    /// config's `pollination` inverted, so the derived default is On), each
+    /// Pollination (2026-09-26, farming::pollination): each
     /// indoor area's pollination line (flowers waiting for a pollinator, and
     /// the bumblebee hives that reach it with their colonies, 2026-09-27),
     /// and what the player just chose: hand-pollinate an area, or introduce
     /// a colony in a hive.
-    pub pollination_off: bool,
     pub pollinate_areas: Vec<humanity_systems::farming::pollination::AreaRow>,
     pub pollinate_pending: Option<humanity_systems::farming::pollination::Request>,
-    /// Picking over a season (2026-09-26, farming::picking): Settings
-    /// "Realistic" (saved as AppConfig::picking_realistic; Forgiving is the
-    /// default), and the crop the player chose to clear from its plot.
-    pub picking_realistic: bool,
-    /// Ship life support (2026-09-26, systems::life_support): Settings
-    /// "Realistic" (the home runs on what it makes and stores; saved as
-    /// AppConfig::life_support_realistic) or "Station-supplied", the default
-    /// (the ship's reactor feeds it, metered: systems::ship_power).
-    pub life_support_realistic: bool,
+    /// Picking over a season (2026-09-26, farming::picking): the crop the player chose to clear
+    /// from its plot.
     pub clear_pending: Option<u64>,
     /// The air each grow area grows in (2026-09-26, farming::humidity): (area
     /// tag, its line for the panel, how humid: 0 fine, 1 above the fans'

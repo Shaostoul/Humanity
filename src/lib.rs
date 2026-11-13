@@ -1718,7 +1718,9 @@ mod native_app {
                     // The player's modes before the time-away catch-up below, which charges the drone
                     // (and decides whether the ship powers it) by them (first-hour audit S5).
                     humanity_systems::mining::publish_mode(&data_store, humanity_systems::mining::Mode::from_level(gui_state.settings.level("mining_drone")).unwrap_or_default());
-                    humanity_systems::life_support::publish(&data_store, gui_state.garden_pests.life_support_realistic);
+                    // The garden's and the ship's levels too (2026-11-12): who powers the air machines, and
+                    // the garden levels the catch-up's growth plays at.
+                    crate::engine::garden_levels::GardenLevels::of(&gui_state.settings.gameplay).publish(&data_store, &mut gui_state.garden_pests);
                     let resumed = crate::save_load::resume_home(
                         &mut game_world.world,
                         &data_store,
@@ -6538,20 +6540,14 @@ mod native_app {
                             }
                         }
                     }
-                    // Garden pests: Settings severity and the panel's chosen control -> sim.
-                    if let Some(m) = state.data_store.get::<std::sync::Mutex<f32>>("garden_pest_severity") {
-                        if let Ok(mut s) = m.lock() {
-                            *s = state.gui_state.settings.pest_severity.clamp(0.0, 1.0);
-                        }
-                    }
+                    // Settings > Gameplay's garden and ship levels (garden pests, soil pH, pollination,
+                    // picking, ship life support; data/gameplay/levels.json, 2026-11-12) and the
+                    // Garden panel's amendment, hand pollination and Clear -> sim.
+                    crate::engine::garden_levels::GardenLevels::of(&state.gui_state.settings.gameplay).publish(&state.data_store, &mut state.gui_state.garden_pests);
                     // Garden updates (Settings > Gameplay, 2026-10-31, farming::clock): how often the farm advances.
                     humanity_systems::farming::clock::publish(&state.data_store, f64::from(state.gui_state.settings.garden_update_s));
-                    humanity_systems::farming::soil_ph::bridge(&state.data_store, !state.gui_state.garden_pests.soil_ph_off, state.gui_state.garden_pests.ph_pending.take());
                     humanity_systems::farming::humidity::publish_room_bounds(&state.data_store, &state.gui_state.room_bounds); // grow rooms' air
-                    let gp = &mut state.gui_state.garden_pests; // pollination: Settings mode + Hand-pollinate -> sim
-                    humanity_systems::farming::pollination::publish(&state.data_store, !gp.pollination_off, gp.pollinate_pending.take());
-                    humanity_systems::farming::picking::publish(&state.data_store, gp.picking_realistic, gp.clear_pending.take());
-                    humanity_systems::life_support::publish(&state.data_store, gp.life_support_realistic); // ship life support: who powers the air machines
+                    let gp = &mut state.gui_state.garden_pests;
                     humanity_systems::farming::weeds::publish(&state.data_store, gp.weed_pending.take()); // Hoe / Mulch -> sim
                     if let Some(req) = state.gui_state.garden_pests.pending.take() {
                         if let Some(m) = state.data_store.get::<std::sync::Mutex<Option<(String, String)>>>("pest_control_request") {

@@ -273,14 +273,18 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     before = check(&mut page, &world, &data, &before, "a machine edit (the grow plots)", true);
 
     // (e) Each setting the views read.
-    *data.get::<Mutex<bool>>(farming::pollination::MODE_KEY).unwrap().lock().unwrap() = false;
+    // The levels since 2026-11-12 (Off, Gentle, Realistic: the share of the loss kept), each a
+    // change of the page and of the key.
+    *data.get::<Mutex<f32>>(farming::pollination::MODE_KEY).unwrap().lock().unwrap() = 0.0;
     before = check(&mut page, &world, &data, &before, "pollination off", true);
-    *data.get::<Mutex<bool>>(farming::pollination::MODE_KEY).unwrap().lock().unwrap() = true;
-    before = check(&mut page, &world, &data, &before, "pollination on", true);
-    *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = false;
+    *data.get::<Mutex<f32>>(farming::pollination::MODE_KEY).unwrap().lock().unwrap() = 1.0;
+    before = check(&mut page, &world, &data, &before, "pollination realistic", true);
+    *data.get::<Mutex<f32>>(farming::pollination::MODE_KEY).unwrap().lock().unwrap() = 0.5;
+    before = check(&mut page, &world, &data, &before, "pollination gentle", true);
+    *data.get::<Mutex<f32>>(farming::soil_ph::MODE_KEY).unwrap().lock().unwrap() = 0.0;
     before = check(&mut page, &world, &data, &before, "soil pH off", true);
-    *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = true;
-    before = check(&mut page, &world, &data, &before, "soil pH on", true);
+    *data.get::<Mutex<f32>>(farming::soil_ph::MODE_KEY).unwrap().lock().unwrap() = 1.0;
+    before = check(&mut page, &world, &data, &before, "soil pH realistic", true);
     *data.get::<Mutex<f32>>("garden_pest_severity").unwrap().lock().unwrap() = 0.0;
     before = check(&mut page, &world, &data, &before, "pests off", true);
     *data.get::<Mutex<f32>>("garden_pest_severity").unwrap().lock().unwrap() = 1.0;
@@ -296,8 +300,12 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
         frame(&data, &mut world, &mut sys, 3600.0);
     }
     before = check(&mut page, &world, &data, &before, "two game days on", true);
-    *data.get::<Mutex<bool>>(farming::picking::MODE_KEY).unwrap().lock().unwrap() = true;
+    *data.get::<Mutex<farming::picking::Mode>>(farming::picking::MODE_KEY).unwrap().lock().unwrap() = farming::picking::Mode::Realistic;
     before = check(&mut page, &world, &data, &before, "picking realistic", true);
+    *data.get::<Mutex<farming::picking::Mode>>(farming::picking::MODE_KEY).unwrap().lock().unwrap() = farming::picking::Mode::Off;
+    before = check(&mut page, &world, &data, &before, "picking off", true);
+    *data.get::<Mutex<farming::picking::Mode>>(farming::picking::MODE_KEY).unwrap().lock().unwrap() = farming::picking::Mode::Realistic;
+    before = check(&mut page, &world, &data, &before, "picking realistic again", true);
     data.get::<Mutex<HashMap<String, f32>>>("garden_irrigation").unwrap().lock().unwrap().insert("bed_a".into(), 0.1);
     before = check(&mut page, &world, &data, &before, "an area's irrigation target", true);
 

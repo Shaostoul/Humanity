@@ -285,7 +285,7 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Each loop's live daily energy (2026-10-22): the machines as they ran over their last
     // game day, by the meter the Construction page shows.
     let basis = humanity_ship::machines::MeterBasis {
-        life_support_on_grid: state.garden_pests.life_support_realistic,
+        life_support_on_grid: humanity_systems::life_support::Mode::from_level(state.settings.level("life_support")).unwrap_or_default().on_grid(),
         recorded: Some(&state.machine_day_energy),
     };
     let metered: Vec<Option<String>> = state

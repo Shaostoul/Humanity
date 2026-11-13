@@ -192,11 +192,32 @@ branch in a system that runs anyway), so its words say what changes in play inst
   survival rules), its Settings row must say so in words beside the choice, and which levels the
   server allows.
 
+### The garden's and the ship's levels (2026-11-12)
+
+The five settings the first pass left as hand-drawn switches joined the file in its `"garden"`
+group (drawn under the "Garden and ship" heading; `Setting::group`), each level saying what it
+changes, every level held by a test in its system that was seen red first, and published each
+frame by `engine/garden_levels.rs` (its test holds that every level reaches its system as that
+system's own value). A config.json from before reads each as its default.
+
+| Setting | Levels (default in bold) | Why these levels |
+|---|---|---|
+| Garden pests, diseases and weeds | Off, **Gentle**, Realistic (0, 0.5, 1) | Already three. No further level: Realistic is the losses the extension guides report, so a harsher one would invent damage no source gives, and one between Off and Gentle would only be a smaller number with nothing new to do or learn. |
+| Pollination | Off, **Gentle** (new), Realistic (0, 0.5, 1) | Was Off / On. Gentle keeps the whole loop (hand, hive, fan; the notice and the card) but a crop nobody pollinates loses half of what it would, the same rule as the pests' Gentle, so a new player learns pollination without losing a tomato crop to it (`pollination::kept`). |
+| Soil pH | Off, **Gentle** (new), Realistic (0, 0.5, 1) | Was Off / On. Gentle keeps the drift and the lime and sulfur, but a crop outside its window loses half the harvest Realistic takes (`soil_ph::crop_ceiling`). |
+| Picking | Off (new), **Forgiving**, Realistic | Was Forgiving / Realistic. Off turns picking over a season off: every crop is harvested once when ripe, its whole season at once, and the spot is free again (a plant already part picked gives only what it had left). |
+| Ship life support | **Station-supplied**, Realistic | No Off: the air, the water and the carbon are the garden's physics at every level (a crop breathes and drinks through this air), so there is no system to switch off, and Station-supplied already asks nothing of the player. A middle level, "the station powers the air machines only", would mean something, but the power simulation cannot yet tell an island's air machines from its other loads (`ship_power::feed_watts` feeds a whole island), so it is left for that work. |
+
+Two settings stay switches because they are cosmetic and a level would add nothing: **pipe
+markings** (Simplified or Full; how the pipes are labelled, not what they carry) and **survival
+bars on the HUD** (which bars show and when; the needs underneath are the same at every choice).
+
 ### Checklist for a new gameplay setting
 
 1. A row in `data/gameplay/levels.json`, its words added with `node scripts/i18n-add.js`.
 2. The system's `Mode::from_level` (or the number it reads), and a line in
    `gameplay_levels::understood`.
-3. Off, if the system can be off, with a test that Off means off, seen red first.
+3. Off, if the system can be off, with a test that Off means off, seen red first; a test per
+   further level, seen red first.
 4. The level reaches the system through `SettingsState::level` (engine/survival_env.rs publishes
-   the survival ones each frame).
+   the survival ones each frame, engine/garden_levels.rs the garden's and the ship's).

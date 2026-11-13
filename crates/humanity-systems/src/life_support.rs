@@ -265,6 +265,35 @@ impl LifeSupportData {
 /// them.
 pub const MODE_KEY: &str = "life_support_realistic";
 
+/// Settings > Gameplay > Ship life support's level (data/gameplay/levels.json, 2026-11-12).
+/// Two levels and no Off: the air, the water and the carbon are the garden's physics at every
+/// level (a crop's carbon dioxide and its water come through this air), so there is no system to
+/// switch off, and Station-supplied is already the level that asks nothing of the player.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Mode {
+    /// The ship's reactor feeds the home past what it makes; nothing browns out.
+    #[default]
+    StationSupplied,
+    /// The home runs on what it makes and stores, its air machines included.
+    Realistic,
+}
+
+impl Mode {
+    /// The mode a level of data/gameplay/levels.json names, None for one this system does not know.
+    pub fn from_level(level: &str) -> Option<Self> {
+        match level {
+            "station_supplied" => Some(Mode::StationSupplied),
+            "realistic" => Some(Mode::Realistic),
+            _ => None,
+        }
+    }
+
+    /// Does the home's grid power its air machines (the `MODE_KEY` channel's value)?
+    pub fn on_grid(self) -> bool {
+        self == Mode::Realistic
+    }
+}
+
 /// Register the data and the mode (lib.rs, at startup). The mode starts
 /// Station-supplied, the softened default of the house rule for deep systems
 /// (CLAUDE.md, "Dual modes"); Settings > Ship life support switches it.

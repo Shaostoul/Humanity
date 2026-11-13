@@ -4,7 +4,8 @@
 //!
 //! Every gameplay setting with levels (body heat, illness and injury, farm animals, carrying
 //! weight, death, the mining drone, the walking pace, animation, hostile wildlife, the vitals
-//! drain) is a row of `data/gameplay/levels.json`: its levels in the order Settings shows them,
+//! drain, and since 2026-11-12 the garden's and the ship's: garden pests, pollination, soil pH,
+//! picking and ship life support) is a row of `data/gameplay/levels.json`: its levels in the order Settings shows them,
 //! each with its name and a sentence saying what it changes (keys in data/i18n/en.json), and the
 //! level a new player gets. Settings > Gameplay draws the file; nothing here lists a setting.
 //!
@@ -45,6 +46,14 @@ pub struct Level {
     pub value: Option<f32>,
 }
 
+/// The group a setting is in when the file does not say: the rows at the top of Settings >
+/// Gameplay's Survival card.
+pub const SURVIVAL: &str = "survival";
+
+fn survival() -> String {
+    SURVIVAL.to_string()
+}
+
 /// One setting and its levels, gentlest first.
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -52,6 +61,10 @@ pub struct Setting {
     pub id: String,
     /// Its name's key.
     pub words: String,
+    /// Where on the page it is drawn (2026-11-12): "survival" (the default) at the top, "garden"
+    /// (the garden's and the ship's levels) under their own heading further down.
+    #[serde(default = "survival")]
+    pub group: String,
     /// A longer note under the choices, by key, for what holds at every level (optional).
     #[serde(default)]
     pub note: Option<String>,
@@ -164,14 +177,24 @@ pub fn understood(setting: &str, level: &str) -> bool {
         "animation" => matches!(level, "realistic" | "simplified"),
         // Its id names data/game.csv's rows: any id is read, and the test checks the rows exist.
         "walk_pace" => !level.is_empty(),
+        // The garden's and the ship's (2026-11-12): picking and life support by their modes.
+        "picking" => sys::farming::picking::Mode::from_level(level).is_some(),
+        "life_support" => sys::life_support::Mode::from_level(level).is_some(),
         // Numbers, used as they are.
         "hostile_wildlife" | "vitals_drain" => setting_has_value(setting, level),
+        // The share of a loss kept (0 Off, 1 Realistic): the systems clamp to 0..1, so a level
+        // outside it would play as the nearest end while Settings showed it.
+        "garden_pests" | "pollination" | "soil_ph" => setting_has_value(setting, level) && share_of(setting, level),
         _ => false,
     }
 }
 
 fn setting_has_value(setting_id: &str, level: &str) -> bool {
     setting(setting_id).and_then(|s| s.level(level)).is_some_and(|l| l.value.is_some_and(|v| v.is_finite() && v >= 0.0))
+}
+
+fn share_of(setting_id: &str, level: &str) -> bool {
+    setting(setting_id).and_then(|s| s.level(level)).and_then(|l| l.value).is_some_and(|v| (0.0..=1.0).contains(&v))
 }
 
 #[cfg(test)]
@@ -214,12 +237,19 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "{missing:#?}");
-        for id in ["body_heat", "illness", "animal_care", "carry", "death", "mining_drone", "hostile_wildlife", "vitals_drain"] {
+        // The garden's and the ship's since 2026-11-12: seen red that day before the file listed
+        // them: "the setting garden_pests is in the file".
+        for id in ["body_heat", "illness", "animal_care", "carry", "death", "mining_drone", "hostile_wildlife", "vitals_drain", "garden_pests", "pollination", "soil_ph", "picking"] {
             let s = f.settings.iter().find(|s| s.id == id).unwrap_or_else(|| panic!("the setting {id} is in the file"));
             assert!(s.level("off").is_some() && s.levels.len() >= 3, "{id} has Off and at least two other levels: {:?}", s.levels.iter().map(|l| &l.id).collect::<Vec<_>>());
         }
-        for id in ["walk_pace", "animation"] {
+        // No Off where there is no system to switch off (life support: the air is the garden's
+        // physics at every level; walking and the bodies' animation).
+        for id in ["walk_pace", "animation", "life_support"] {
             assert!(f.settings.iter().any(|s| s.id == id), "the setting {id} is in the file");
+        }
+        for id in ["garden_pests", "pollination", "soil_ph", "picking", "life_support"] {
+            assert_eq!(f.settings.iter().find(|s| s.id == id).map(|s| s.group.as_str()), Some("garden"), "{id} is drawn with the garden's levels");
         }
     }
 

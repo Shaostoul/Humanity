@@ -272,6 +272,9 @@ pub mod registries;
 pub mod screens;
 // The Garden data the Inventory page shows, built only on a frame that draws it (2026-10-30).
 pub mod garden_mirror;
+/// Settings > Gameplay's garden and ship levels (garden pests, pollination, soil pH, picking,
+/// ship life support; data/gameplay/levels.json) into their systems, once a frame (2026-11-12).
+pub mod garden_levels;
 pub mod state;
 /// Visible storage: crates in the storage zones and tank level bars.
 pub mod stock_piles;

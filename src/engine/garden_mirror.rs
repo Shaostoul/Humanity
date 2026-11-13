@@ -367,9 +367,10 @@ pub(crate) fn build(
         for key in STAMPED {
             h.write_u64(data.stamp(key));
         }
-        h.write_u8(soil_ph::is_on(data) as u8);
-        h.write_u8(pollination::mode_on(data) as u8);
-        h.write_u8(picking::realistic(data) as u8);
+        // The levels (2026-11-12): soil pH's and pollination's shares, picking's mode.
+        h.write_u32(soil_ph::severity(data).to_bits());
+        h.write_u32(pollination::severity(data).to_bits());
+        h.write_u8(picking::mode(data) as u8);
         h.write_u32(severity.to_bits());
         h.write_u32(time_scale.to_bits());
         h.write(humanity_core::i18n::language().as_bytes());

@@ -38,11 +38,16 @@
 //! machine instance id, so it is saved, and a hive taken away and placed again
 //! keeps the colony its id had (a new id has none).
 //!
-//! TWO MODES (the house rule for a deep system): the "garden_pollination_on"
-//! channel, from Settings. Off, every crop sets fully and nothing is shown or
-//! said, and no colony ages; On (the default, and the absent case) is the
-//! cited model.
+//! THREE LEVELS (the house rule for a deep system; Settings > Gameplay, data/gameplay/levels.json,
+//! 2026-11-12): the "garden_pollination_severity" channel holds the share of the fruit a crop
+//! loses unpollinated that it really loses. Off (0): every crop sets fully and nothing is shown
+//! or said, and no colony ages. Gentle (0.5, a new player's level): everything works as in
+//! Realistic, but a crop keeps half of what it would lose (`kept`), in its harvest, its card and
+//! the notice alike. Realistic (1, and the absent case the tests measure): the cited model. The
+//! operator, 2026-11-11: "I feel like we need to provide more than two options for our gameplay
+//! settings. Including just turning settings off completely."
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use serde::Deserialize;
@@ -56,8 +61,9 @@ pub const POLLINATION_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"
 
 /// DataStore key of the loaded data (registered by the main loop).
 pub const DATA_KEY: &str = "garden_pollination";
-/// DataStore key of the mode, a `Mutex<bool>`: true is On. Absent = On.
-pub const MODE_KEY: &str = "garden_pollination_on";
+/// DataStore key of the level, a `Mutex<f32>`: the share of the loss kept, 0 (Off) to 1
+/// (Realistic). Absent = 1.
+pub const MODE_KEY: &str = "garden_pollination_severity";
 /// DataStore key of the Garden panel's pollination request, a
 /// `Mutex<Option<Request>>`.
 pub const REQUEST_KEY: &str = "pollinate_request";
@@ -123,6 +129,25 @@ impl CropPollinationDef {
     pub fn is_flowering(&self, stage: &str) -> bool {
         self.flowering.iter().any(|s| s == stage)
     }
+
+    /// This crop as the level `severity` plays it: its unhelped share raised so it loses only
+    /// `severity` of what it would (`kept`). Every fruit set worked from it (`fruit_set`, and so
+    /// the harvest, the card and the notice) is then `kept` of the Realistic one, because a crop's
+    /// loss is its unhelped loss times its unpollinated days. Borrowed unchanged at Realistic.
+    pub fn at(&self, severity: f32) -> Cow<'_, Self> {
+        if severity >= 1.0 {
+            return Cow::Borrowed(self);
+        }
+        let mut c = self.clone();
+        c.no_help = kept(self.no_help, severity);
+        Cow::Owned(c)
+    }
+}
+
+/// The share of a full crop a crop that would set `set` sets at the level `severity`: it loses
+/// `severity` of what it would lose (Gentle, 0.5, half; Realistic, 1, all of it).
+pub fn kept(set: f64, severity: f32) -> f64 {
+    1.0 - f64::from(severity.clamp(0.0, 1.0)) * (1.0 - set.clamp(0.0, 1.0))
 }
 
 /// A pollination device (pollination.ron `devices`): a catalog machine that,
@@ -455,23 +480,32 @@ impl Help {
     }
 }
 
-/// Is pollination On? Absent = On.
+/// The level: the share of its loss an unpollinated crop really loses, 0 (Off) to 1
+/// (Realistic). Absent = 1, the cited model the tests measure; a value that is not a number reads
+/// as 1 too.
+pub fn severity(data: &DataStore) -> f32 {
+    let v = data.get::<std::sync::Mutex<f32>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(1.0);
+    if v.is_finite() { v.clamp(0.0, 1.0) } else { 1.0 }
+}
+
+/// Is pollination on at all (any level but Off)?
 pub fn mode_on(data: &DataStore) -> bool {
-    data.get::<std::sync::Mutex<bool>>(MODE_KEY).and_then(|m| m.lock().ok().map(|v| *v)).unwrap_or(true)
+    severity(data) > 0.0
 }
 
 /// Register the data and the two channels (the main loop, at boot).
 pub fn register(data_store: &mut DataStore) {
     data_store.insert(DATA_KEY, PollinationData::load());
-    data_store.insert(MODE_KEY, std::sync::Mutex::new(true));
+    data_store.insert(MODE_KEY, std::sync::Mutex::new(1.0_f32));
     data_store.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<Request>::None));
 }
 
-/// The Garden panel's side, for the main loop each frame: the Settings mode
-/// and what the player asked (hand-pollinate an area, introduce a colony).
-pub fn publish(data: &DataStore, on: bool, pending: Option<Request>) {
-    if let Some(Ok(mut v)) = data.get::<std::sync::Mutex<bool>>(MODE_KEY).map(|m| m.lock()) {
-        *v = on;
+/// The Garden panel's side, for the main loop each frame: the Settings level (its number in
+/// data/gameplay/levels.json) and what the player asked (hand-pollinate an area, introduce a
+/// colony).
+pub fn publish(data: &DataStore, severity: f32, pending: Option<Request>) {
+    if let Some(Ok(mut v)) = data.get::<std::sync::Mutex<f32>>(MODE_KEY).map(|m| m.lock()) {
+        *v = severity;
     }
     if let (Some(req), Some(m)) = (pending, data.get::<std::sync::Mutex<Option<Request>>>(REQUEST_KEY)) {
         if let Ok(mut v) = m.lock() {
@@ -580,7 +614,8 @@ impl Pollination {
     }
 
     /// The fruit set this crop's harvest is multiplied by (1 with the mode
-    /// Off, for a crop not in the data, or one that set fully).
+    /// Off, for a crop not in the data, or one that set fully), at the level
+    /// Settings chose (`CropPollinationDef::at`).
     pub fn harvest_set(&self, world: &hecs::World, data: &DataStore, entity: hecs::Entity) -> f32 {
         if !mode_on(data) {
             return 1.0;
@@ -588,6 +623,8 @@ impl Pollination {
         let Some(d) = data.get::<PollinationData>(DATA_KEY).or(self.data.as_ref()) else { return 1.0 };
         let Ok(crop) = world.get::<&CropInstance>(entity) else { return 1.0 };
         let Some(def) = d.crop(&crop.crop_def_id) else { return 1.0 };
+        let def = def.at(severity(data));
+        let def = def.as_ref();
         let covered = covered_fields(world, data);
         let rec = world.get::<&CropPollination>(entity).ok();
         // A field crop with a record flowered under a cover: its record
@@ -876,13 +913,15 @@ fn share_words(share: f64) -> String {
 }
 
 /// The one line said when an indoor area's crops start flowering with
-/// nothing to pollinate them: what they set left alone, and what to do.
+/// nothing to pollinate them: what they set left alone, and what to do. The shares are the
+/// level's (`kept`), so Gentle says what Gentle gives.
 pub fn flowering_notice(data: &DataStore, d: &PollinationData, area: &str, plants: &BTreeSet<String>, covered: bool) -> String {
+    let sev = severity(data);
     let defs: Vec<&CropPollinationDef> = plants.iter().filter_map(|p| d.crop(p)).collect();
     let names: Vec<String> = defs.iter().map(|c| plant_name(data, &c.id)).collect();
     let alone: Vec<String> = defs
         .iter()
-        .map(|c| format!("{} sets {}", plant_name(data, &c.id), share_words(c.no_help)))
+        .map(|c| format!("{} sets {}", plant_name(data, &c.id), share_words(kept(c.no_help, sev))))
         .collect();
     let how: Vec<String> = defs
         .iter()
@@ -916,7 +955,7 @@ pub fn flowering_notice(data: &DataStore, d: &PollinationData, area: &str, plant
     for dv in &d.devices {
         let served: Vec<String> = defs
             .iter()
-            .filter_map(|c| dv.sets.get(&c.id).map(|v| format!("{} sets {}", plant_name(data, &c.id), share_words(*v))))
+            .filter_map(|c| dv.sets.get(&c.id).map(|v| format!("{} sets {}", plant_name(data, &c.id), share_words(kept(*v, sev)))))
             .collect();
         if !served.is_empty() {
             s.push_str(&format!(", or run a {} over them ({} under one)", dv.name, served.join("; ")));
@@ -1055,18 +1094,26 @@ pub struct AreaFlags {
 
 /// What every crop's row is worked out against, once (2026-10-31, docs/design/sim-frame-cost.md,
 /// "The Garden views by area"): the data, the plants, the hives' and devices' help, the row
-/// covers. None with the mode Off or no data, when there are no rows.
+/// covers, the level. None with the mode Off or no data, when there are no rows.
 pub struct GuiContext<'a> {
     d: &'a PollinationData,
     plants: Option<&'a super::PlantRegistry>,
     help: Help,
     covered: HashSet<String>,
+    /// The level (`severity`): the cards say what this level sets.
+    severity: f32,
 }
 
 impl<'a> GuiContext<'a> {
     pub fn now(world: &hecs::World, data: &'a DataStore) -> Option<Self> {
         let d = data.get::<PollinationData>(DATA_KEY).filter(|_| mode_on(data))?;
-        Some(Self { d, plants: data.get::<super::PlantRegistry>("plant_registry"), help: Help::now(world, data, d), covered: covered_fields(world, data) })
+        Some(Self {
+            d,
+            plants: data.get::<super::PlantRegistry>("plant_registry"),
+            help: Help::now(world, data, d),
+            covered: covered_fields(world, data),
+            severity: severity(data),
+        })
     }
 
     /// Everything about `area` its crops' rows read besides the crops themselves: a working hive
@@ -1160,8 +1207,10 @@ impl GuiView {
             let outdoors = rec.is_none() && open_field(area, covered);
             let hive_here = help.hive(area);
             let device = help.device(d, def, area);
-            let sets = device.map(|(dv, _)| (dv.name.as_str(), dv.sets.get(&def.id).copied().unwrap_or(0.0)));
-            let row = card_row(def, rec, outdoors, hive_here, sets, phase);
+            // The card says what the level sets (Gentle keeps half the loss): the crop as the
+            // level plays it, and a device's cited set the same way.
+            let sets = device.map(|(dv, _)| (dv.name.as_str(), kept(dv.sets.get(&def.id).copied().unwrap_or(0.0), ctx.severity)));
+            let row = card_row(def.at(ctx.severity).as_ref(), rec, outdoors, hive_here, sets, phase);
             if !outdoors && def.needs_help() {
                 let entry = areas.entry(area.to_string()).or_default();
                 entry.2 |= def.by.hive_helps();
@@ -1214,13 +1263,18 @@ mod tests {
     }
 
     /// A store at `speed` growth with the channels pollination uses and the
-    /// notices, with the mode On (as absent) unless `on` is false.
+    /// notices, at Realistic (as absent) unless `on` is false (Off).
     fn store(speed: f32, on: bool) -> DataStore {
+        store_at(speed, if on { 1.0 } else { 0.0 })
+    }
+
+    /// `store` at the level `severity` (0 Off, 0.5 Gentle, 1 Realistic).
+    fn store_at(speed: f32, severity: f32) -> DataStore {
         let mut data = make_store();
         crate::farming::fixtures::gardening::set_garden_speed(&data, speed);
         crate::notices::register(&mut data);
         data.insert(REQUEST_KEY, std::sync::Mutex::new(Option::<Request>::None));
-        data.insert(MODE_KEY, std::sync::Mutex::new(on));
+        data.insert(MODE_KEY, std::sync::Mutex::new(severity));
         data
     }
 
@@ -1724,9 +1778,41 @@ mod tests {
         assert_eq!(p.harvest_set(&world, &data, old), 1.0, "a zucchini that never saw a bee sets fully");
         let view = GuiView::new(&world, &data);
         assert_eq!((view.row(fresh), view.row(old), view.areas.len()), (String::new(), String::new(), 0));
-        // And On again, the same zucchini sets nothing.
-        *data.get::<std::sync::Mutex<bool>>(MODE_KEY).unwrap().lock().unwrap() = true;
+        // And Realistic again, the same zucchini sets nothing.
+        *data.get::<std::sync::Mutex<f32>>(MODE_KEY).unwrap().lock().unwrap() = 1.0;
         assert_eq!(p.harvest_set(&world, &data, old), 0.0);
+    }
+
+    /// GENTLE KEEPS HALF OF WHAT AN UNPOLLINATED CROP LOSES (2026-11-12, Settings > Gameplay >
+    /// Pollination's middle level, data/gameplay/levels.json, value 0.5): a zucchini nothing
+    /// pollinated sets half a crop where Realistic sets none, and a tomato left alone about 75%
+    /// where Realistic sets its cited 49%; its card and the flowering notice say the same share,
+    /// so the words never promise less than the harvest gives.
+    ///
+    /// Seen red 2026-11-12 with `kept` returning the Realistic set unchanged (Gentle then played
+    /// as Realistic): "Gentle: a zucchini nothing pollinated sets half a crop: 0".
+    #[test]
+    fn gentle_keeps_half_of_what_an_unpollinated_crop_loses() {
+        let mut data = store_at(100.0, 0.5);
+        data.insert(DATA_KEY, shipped());
+        let mut world = watered_world();
+        let unhelped = || CropPollination { flowering_days: 5.0, ..Default::default() };
+        let zuke = world.spawn((crop("zucchini", "ntower_3", "flower"), unhelped()));
+        let tomato = world.spawn((crop("tomato", "ntower_3", "flower"), unhelped()));
+        let p = Pollination::new();
+        let set = |data: &DataStore, e| p.harvest_set(&world, data, e);
+        assert!((set(&data, zuke) - 0.5).abs() < 1e-6, "Gentle: a zucchini nothing pollinated sets half a crop: {}", set(&data, zuke));
+        assert!((set(&data, tomato) - 0.745).abs() < 1e-4, "Gentle: a tomato left alone keeps half its loss: {}", set(&data, tomato));
+        let card = GuiView::new(&world, &data).row(zuke);
+        assert_eq!(card, "not pollinated: expect about 50% of a full crop", "the card says what Gentle sets");
+        let plants: BTreeSet<String> = ["zucchini".to_string()].into();
+        let said = flowering_notice(&data, &shipped(), "ntower_3", &plants, false);
+        assert!(said.contains("zucchini sets about 50% of a full crop"), "the notice says what Gentle sets: {said}");
+        // Realistic, the same crops: the cited shares.
+        *data.get::<std::sync::Mutex<f32>>(MODE_KEY).unwrap().lock().unwrap() = 1.0;
+        assert_eq!(set(&data, zuke), 0.0, "Realistic: the zucchini sets nothing");
+        assert!((set(&data, tomato) - 0.49).abs() < 1e-4, "Realistic: the tomato sets its cited 49%: {}", set(&data, tomato));
+        assert_eq!(GuiView::new(&world, &data).row(zuke), "not pollinated: expect no fruit");
     }
 
     /// The card's words for each case. Seen red by requiring more than two

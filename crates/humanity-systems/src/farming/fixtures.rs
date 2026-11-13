@@ -350,15 +350,20 @@ pub mod soil_ph {
     }
 
     /// A store with the channels pH uses, pests off (so only pH moves health),
-    /// crops at 100x growth, soil pH `on` or off.
+    /// crops at 100x growth, soil pH Realistic when `on`, else Off.
     pub fn store(on: bool) -> DataStore {
+        store_at(if on { 1.0 } else { 0.0 })
+    }
+
+    /// `store` at the soil pH level `severity` (0 Off, 0.5 Gentle, 1 Realistic).
+    pub fn store_at(severity: f32) -> DataStore {
         let mut data = make_store();
         data.insert("garden_pest_severity", Mutex::new(0.0_f32));
         crate::notices::register(&mut data);
         // Time speed 1 (the one clock, 2026-09-27): a real second is a game second.
         data.get::<Mutex<crate::time::GameTime>>("game_time").unwrap().lock().unwrap().time_scale = 1.0;
         soil_ph::register(&mut data);
-        *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = on;
+        *data.get::<Mutex<f32>>(soil_ph::MODE_KEY).unwrap().lock().unwrap() = severity;
         data
     }
 

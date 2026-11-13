@@ -2208,8 +2208,9 @@ fn snapshot_report_reasons() -> Vec<crate::net::report::ReportReason> {
     // Settings > Gameplay (2026-10-04): the realism switches, Where you live
     // (ship homes increment 6; it was Home Design) and the Pipe markings row
     // (Simplified / Full) at the end. Tall canvas so the whole section is one
-    // reviewable image (2,150 px had stopped short of Where you live by 2026-10-12).
-    render_page_png("gameplay_settings", 960, 2800, |ctx, theme, state| {
+    // reviewable image (2,150 px had stopped short of Where you live by 2026-10-12;
+    // 2,800 px stopped at Time once the garden's and the ship's levels joined, 2026-11-12).
+    render_page_png("gameplay_settings", 960, 3800, |ctx, theme, state| {
         settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_gameplay_content);
     });
 }

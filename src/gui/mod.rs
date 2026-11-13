@@ -4368,7 +4368,6 @@ pub struct SettingsState {
     pub time_speed: f32,
     pub hours_per_day: u32,
     pub days_per_year: u32,
-    pub pest_severity: f32, // garden pests: 0 off, 0.5 gentle, 1 realistic (farming::pests)
     /// How often the garden is worked out, game seconds, 0 for every frame (2026-10-31,
     /// docs/design/farm-clock.md rung 2; Settings > Gameplay > Garden updates;
     /// farming::clock). Every second by default.
@@ -4683,7 +4682,6 @@ impl Default for SettingsState {
             time_speed: humanity_systems::time::DEFAULT_TIME_SPEED,
             hours_per_day: humanity_systems::time::DEFAULT_HOURS_PER_DAY,
             days_per_year: humanity_systems::time::DEFAULT_DAYS_PER_YEAR,
-            pest_severity: humanity_systems::farming::pests::DEFAULT_PEST_SEVERITY,
             garden_update_s: humanity_systems::farming::clock::DEFAULT_INTERVAL_S as f32,
             music: humanity_music::MusicSettings::default(),
             offline_progression: true,

@@ -559,8 +559,46 @@ fn a_hand_planted_crop_is_not_held_to_soil_ph() {
     let blueberry = plants.get("blueberry").cloned();
     let units = soil_ph::PhUnits::default();
     assert_eq!(soil_ph::crop_ph(&units, &ph, "", None), None, "no unit, no pH");
-    assert_eq!(soil_ph::crop_ceiling(&units, &ph, true, "", None, blueberry.as_ref()), 100.0);
-    assert!(soil_ph::crop_ceiling(&units, &ph, true, "bed_1", Some(0), blueberry.as_ref()) < 100.0, "in a bed it is held");
+    assert_eq!(soil_ph::crop_ceiling(&units, &ph, 1.0, "", None, blueberry.as_ref()), 100.0);
+    assert!(soil_ph::crop_ceiling(&units, &ph, 1.0, "bed_1", Some(0), blueberry.as_ref()) < 100.0, "in a bed it is held");
+}
+
+/// EVERY LEVEL OF SOIL PH DOES WHAT ITS WORDS SAY (2026-11-12, Settings > Gameplay > Soil pH,
+/// data/gameplay/levels.json). A blueberry (window 4.5 to 5.5) in a bed at the soil's start of
+/// 6.5 sits a whole pH unit out: Realistic caps it at 100 less the cited loss per unit; Gentle
+/// takes half of that, so it loses half the harvest; Off takes nothing. And a lettuce bed limed
+/// at 5.5 drifts the same at Gentle as at Realistic (Gentle changes only the loss), and not at
+/// all at Off.
+///
+/// Seen red 2026-11-12 with `crop_ceiling` using the Realistic cap at every level above Off:
+/// "Gentle: half the loss: 70 against 85".
+#[test]
+fn every_soil_ph_level_takes_what_its_words_say() {
+    let ph = shipped();
+    let plants = PlantRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/plants.csv")).as_slice()).unwrap();
+    let blueberry = plants.get("blueberry").cloned();
+    let units = soil_ph::PhUnits::default();
+    let cap = |severity: f32| soil_ph::crop_ceiling(&units, &ph, severity, "bed_1", Some(0), blueberry.as_ref());
+    let realistic = cap(1.0);
+    assert!(realistic < 100.0, "Realistic: a blueberry a pH unit out is capped: {realistic}");
+    let want = 100.0 - (100.0 - realistic) / 2.0;
+    assert!((cap(0.5) - want).abs() < 1e-3, "Gentle: half the loss: {} against {want}", cap(0.5));
+    assert_eq!(cap(0.0), 100.0, "Off: no loss");
+    // The beds drift the same at Gentle and Realistic, and not at Off.
+    let drift = |severity: f32| {
+        let data = store_at(severity);
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((Irrigator,));
+        world.spawn((crop(&data, "lettuce", "bed_1", 0), rich()));
+        set_unit(&mut world, "bed_1", 0, 5.5, &[("lime", 1.0)]);
+        soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S));
+        sys.tick(&mut world, 0.001, &data);
+        unit(&world, "bed_1", 0).unwrap().ph
+    };
+    let (r, g, o) = (drift(1.0), drift(0.5), drift(0.0));
+    assert!((g - r).abs() < 1e-9 && (r - 6.0).abs() < 5e-3, "Gentle drifts as Realistic does: {g} and {r}");
+    assert_eq!(o, 5.5, "Off: frozen");
 }
 
 /// Lime that was still reacting when the player left keeps reacting over the
@@ -598,7 +636,7 @@ fn lime_keeps_reacting_while_the_player_is_away() {
     soil_ph::hand_away_secs(&data, 30.0 * f64::from(DAY_S));
     sys.tick(&mut world, 0.001, &data);
     assert_eq!(unit(&world, "bed_1", 0).unwrap().ph, 5.5, "off: frozen");
-    *data.get::<Mutex<bool>>("garden_soil_ph_on").unwrap().lock().unwrap() = true;
+    *data.get::<Mutex<f32>>(soil_ph::MODE_KEY).unwrap().lock().unwrap() = 1.0;
     sys.tick(&mut world, 0.001, &data);
     assert!((unit(&world, "bed_1", 0).unwrap().ph - 5.5).abs() < 1e-3, "turning pH on later does not release the time away");
 }
