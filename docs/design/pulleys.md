@@ -325,3 +325,7 @@ by `just snapshot calculator_pulleys`.
    rung 2 "lighter gear" choice.
 3. **Gravity on the Calculator.** It assumes Earth. Recommendation: a world choice beside the load
    (Earth, Mars, the Moon, the ship's spin), read from `data/planets/`.
+
+## His answers (operator, 2026-11-13)
+
+Lighter pullers (an older person, a child) once a primary source is read, and a planet's gravity chosen beside the load: "Sure."

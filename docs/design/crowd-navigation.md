@@ -357,3 +357,7 @@ Kept in the report of the work that raised them; decided ones move into the sect
   Environmental Planners, 1971.
 - Weidmann, U. Transporttechnik der Fussganger. Schriftenreihe des IVT 90, ETH Zurich, 1993.
 - Hall, E. T. The Hidden Dimension. Doubleday, 1966.
+
+## His answers (operator, 2026-11-13)
+
+Crowds navigate by default aboard (circle stays for measurements), and the player's own character stops at furniture the way the crowd does: "Agreed. We want the ship to feel alive."

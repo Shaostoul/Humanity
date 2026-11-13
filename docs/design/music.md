@@ -1018,3 +1018,10 @@ nothing). No CC0 recording of a real taiko exists in what was searched.
 
 **The website** plays no music yet (rung 9), so it has no Instruments list; it mirrors this one when
 it does.
+
+## The operator on electro swing (2026-11-13, after v0.1558.0)
+
+- **Switching genre is too slow.** "I clicked to enable electro swing but, the transition was really slow, felt like it took a minute or so." A bug to fix: a genre change should be heard within seconds, crossfading at the next bar.
+- **Variety, by seed.** "Like we don't want the same electro swing song for hours on end, we definitely want variety to the music. Even different chords and what not. Are we able to have like procedural seeds for music? So it generates a track based on the seed and then we can vary the seed X amount of minutes to mix up the music?" The composer is already seeded (section 4.2), but a genre's fixed progressions and motifs make its hours sound alike. So: a piece is a seed; each new piece draws its key, its chord walk, freshly generated motifs, its form (sections that return) and its lead instrument from that seed within the genre's rules; a new piece every few minutes (a setting, with Never), crossfading at a phrase.
+- **The manouche guitar download is approved.** "Let's do it." (the Martin HD-28 steel-string SFZ, CC0 in its own header, github.com/sfzinstruments/Discord-SFZ-GM-Bank, folder "026-Acoustic Guitar (steel)").
+- **More instruments.** "Any other instruments we can add?" From the libraries already approved and on disk (no new download): solo violin (the hot-club violin), tenor saxophone, grand and upright pianos, vibraphone, harmonica, marimba, glockenspiel and the orchestral strings and winds VSCO 2 CE holds.

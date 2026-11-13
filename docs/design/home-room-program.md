@@ -204,3 +204,15 @@ replacing the default; today's homestead stays loadable until the wipe decides. 
 zone (`console-room`) is referenced across code, scripts and fixtures, so merging it into the
 living room is part of that build. The drafts should then be drawn from those files, so the
 drawings and the game can never disagree.
+
+## His answers (operator, 2026-11-13)
+
+1. **Five people, four bedrooms.** "Let's do 5 people with four bedrooms. That's akin the household I grew up with 2 parents and 3 kids (one being me)."
+2. **The upstairs over the quiet wing.** "Plumbing in one stack makes sense. Let's do it over the quiet wing."
+3. **One room for one person's living, kitchen and dining.** "Make them one room."
+4. **Bees on every homestead.** "Each homestead gets its own hive."
+5. **The vehicle bay: two vehicles for a household, one for one person, bigger craft in the hangar.** "Works for me."
+6. **The lit greenhouse for the staples, soil beds in the orchard for variety and fodder.** "Agreed."
+7. **The row house next.** "Let's start with row house."
+
+So the two drafts are approved as drawn; phase 2 turns them into home-design data (section 7, "After approval") and drafts the row house.

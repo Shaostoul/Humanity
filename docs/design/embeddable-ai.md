@@ -1062,3 +1062,7 @@ question starts from what was found.
   [`character-animation.md`](character-animation.md) (8.7, 10),
   [`embedded-browser.md`](embedded-browser.md) (the opt-in separate host pattern),
   [`two-realities.md`](two-realities.md), [`resource-budgets.md`](resource-budgets.md).
+
+## His answers on rung 3 (operator, 2026-11-13)
+
+The characters' prompt gets the ship's real place names (Ministral had invented "Second Street"), and CB-7 stays the trader: "Works for now until we come up with something better."
