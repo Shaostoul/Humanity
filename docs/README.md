@@ -42,6 +42,10 @@ in **[design/local-light-shadows.md](design/local-light-shadows.md)**. What else
 (anti-aliasing and upscaling, reflections, skin and cloth, real light units, HDR display, decals,
 relief, depth of field) and the order to build it: **[design/renderer-roadmap.md](design/renderer-roadmap.md)**.
 
+Sizing the mothership (homes, hangars, farms, livestock, the drum's steel, shielding, power)? The
+sourced, dated numbers are in
+**[reference/research/2026-11-13-mothership-sizes/README.md](reference/research/2026-11-13-mothership-sizes/README.md)**.
+
 ---
 
 ## The big picture (anyone)

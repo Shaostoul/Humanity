@@ -249,14 +249,20 @@ id = "hospital"
 name = "Medical Bay (hospital)"
 zone = "drum"
 per = "person"
-# 50 beds for 10,000 people at 58 m2 a bed, "administrative, diagnostic, treatment, nursery,
-# surgical, obstetrical, service, and circulation facilities" included.
-m2_per_person = 0.3
-levels = 1
+# SP-413 gave 50 beds for 10,000 people at 58 m2 a bed (0.3 m2 a person), "administrative,
+# diagnostic, treatment, nursery, surgical, obstetrical, service, and circulation facilities"
+# included. Its bed count still matches today's (OECD average about 4.3 beds per 1,000), but a
+# modern hospital is about two and a half times larger per bed: "Whole hospital area per bed is
+# rising from 90m2 pre 1990 towards the 135–155m2 current in the USA and France" (BDP, May 2004).
+# So 4.3 beds x 140 m2 / 1,000 people = 0.6 m2 a person (research README section 1, A1 and A3).
+m2_per_person = 0.6
+# Two storeys (Proposal: every real hospital stacks; SP-413 put it on one), so it covers the same
+# drum floor as before.
+levels = 2
 height_m = 5.0
 net = false
 min_m2 = 300.0
-source = "sp413"
+source = "sizes-research"
 
 [[space]]
 id = "assembly"
@@ -352,13 +358,18 @@ id = "general_services"
 name = "General Services: barracks, the public respawner, the medbay's front desk"
 zone = "drum"
 per = "unit"
+# Sized by its barracks: the US Army's troop-housing rule, "a minimum of 72 square feet of floor
+# space per person" (6.7 m2), and UNHCR's floor under every shelter, "Minimum 4.5m2 to 5.5m2
+# indoor living space per person" (research README sections 1 and 3, C3 and C5). 600 m2 sleeps
+# about 90 people at 6.7 m2, about 3.6% of the 2,500 it serves (the share with no home yet:
+# Proposal).
 unit_m2 = 600.0
 people_per_unit = 2500.0
 min_units = 1
 levels = 2
 height_m = 4.0
 net = false
-source = "proposal"
+source = "sizes-research"
 
 [[space]]
 id = "rail_stations"
@@ -366,6 +377,8 @@ name = "Axial rail stations (Fore Landing, mid-drum, Aft Landing)"
 zone = "drum"
 per = "drum"
 units_per_drum = 3
+# Proposal still: the 2026-11-13 research pass found no station-size standard it could read (the
+# one platform guide found refuses automated readers), research README section 1.
 unit_m2 = 1000.0
 levels = 1
 height_m = 6.0
@@ -378,11 +391,14 @@ name = "Spoke lifts down the end caps (four a cap) and their stairs"
 zone = "end_cap"
 per = "drum"
 units_per_drum = 8
+# A 21-person, 1,600 kg lift needs a shaft about 3.0 x 1.9 to 2.0 m, 5.7 to 6.1 m2 (TK Elevator's
+# shaft table, research README section 1, A15); the rest is its stair and landings, for which no
+# sourced size was found (Proposal).
 unit_m2 = 40.0
 levels = 1
 height_m = 250.0
 net = false
-source = "proposal"
+source = "sizes-research"
 
 # --- The ship's farms: everyone the homes do not feed --------------------------------------------
 
@@ -477,7 +493,8 @@ name = "Air plant: the machines behind the crops (CO2 removal, oxygen, trace gas
 zone = "spine"
 per = "person"
 # The crops make the oxygen (closed-loop-test.md); this is the physical and chemical backup a
-# ship cannot do without. Proposal.
+# ship cannot do without. Proposal: the 2026-11-13 research pass found no published floor or
+# volume per person for life-support machinery (research README section 1, a negative finding).
 m2_per_person = 0.3
 min_m2 = 500.0
 net = true
@@ -505,6 +522,8 @@ name = "Drum engineering control room"
 zone = "spine"
 per = "drum"
 units_per_drum = 1
+# Proposal: no published floor area for a power plant's main control room or a mission control
+# room was found (research README section 1, a negative finding).
 unit_m2 = 300.0
 net = true
 source = "proposal"
@@ -524,16 +543,22 @@ name = "Heavy industry: fabrication, smelting, machine shops, the factory distri
 zone = "spine"
 per = "person"
 # SP-413's settlement had light industry only (its heavy work happened in a separate zero-g
-# factory), and the mothership has no Earth to trade with. Proposal.
+# factory), and the mothership has no Earth to trade with. The UK Employment Densities Guide
+# (2010) gives general industry 36 m2 of floor per full-time worker (range 18 to 60): 6 m2 a
+# resident is one resident in six at a heavy-industry job, about twice an industrial country's
+# manufacturing share, because the ship makes everything it uses (research README section 1, A12;
+# the share is a judgement).
 m2_per_person = 6.0
 net = false
-source = "proposal"
+source = "sizes-research"
 
 [[space]]
 id = "freight"
 name = "Freight rail, cargo tunnels and freight lifts"
 zone = "spine"
 per = "person"
+# Proposal: the research pass found warehouse densities (storage, a separate row) but no figure
+# for freight tunnels and lifts per person (research README section 1).
 m2_per_person = 1.0
 net = false
 source = "proposal"
@@ -545,6 +570,8 @@ id = "bridge"
 name = "The bridge (the ship's command)"
 zone = "bow"
 per = "ship"
+# Proposal: no published floor area for a large ship's bridge or a mission control room was found
+# (research README section 1, a negative finding).
 unit_m2 = 800.0
 net = true
 source = "proposal"
@@ -554,53 +581,128 @@ id = "arrivals"
 name = "The Arrivals hall, the receptionist's desk, customs and freight intake"
 zone = "bow"
 per = "ship"
+# Airport planning (IATA's manual as the Port Authority of New York and New Jersey reproduces it,
+# 2013): "15 square feet per seated passenger, and 10 square feet per standing passenger", and
+# about 3.5 m2 a passenger once baggage claim, waiting and a passport desk are added (research
+# README section 2, B17). With GSA's 1.4 for circulation that is about 5 m2 a passenger, so
+# 1,500 m2 takes about 250 people at once (two Class M ferry loads and a shuttle) beside the desks
+# and the freight intake.
 unit_m2 = 1500.0
 net = false
-source = "proposal"
+source = "sizes-research"
+
+# The hangar bays, one row per TRANSPORT CLASS (research README section 2, 2026-11-13). Each class
+# is defined by a real craft's envelope, and each bay is that envelope plus a real standard's
+# clearance plus an unloading strip. Every ship has at least one bay of each class, so any
+# transport can call; how many more per person is a Proposal (the throughput is small: a drum of
+# 7,800 whose residents each fly once a year makes about 43 passenger movements a day).
 
 [[space]]
 id = "hangar_bays"
-name = "Hangar bays for the transports"
+name = "Shuttle bays (Class S: about 19 passengers plus cargo, the intro's ride; Hangar Bay 1 is one)"
 zone = "bow"
 per = "unit"
-# Today's Hangar Bay 1 district is 50 x 40 m (data/blueprints/ship_structure.ron); one bay per
-# thousand people. Proposal.
-unit_m2 = 2000.0
-people_per_unit = 1000.0
+# The class envelope is the Sikorsky S-92's, 20.9 m long and 17.2 m across its rotor disc, 5.5 m
+# high, 19 passengers (FAA AC 150/5390-2D, 2023, Appendix C). The FAA's parking clearance, "the
+# greater of 10 feet (3 m) or 0.28 D" (5.85 m), all round makes 32.6 x 28.9 m (942 m2), and a 6 m
+# strip along one side for the ramp, baggage and walkway (Proposal) makes 1,138 m2. One bay for
+# every 2,000 people (Proposal). Until 2026-11-13: 2,000 m2 per 1,000 people, unsourced.
+unit_m2 = 1140.0
+people_per_unit = 2000.0
 min_units = 1
 net = false
-source = "proposal"
+source = "sizes-research"
+
+[[space]]
+id = "ferry_bays"
+name = "Ferry bays (Class M: about 72 passengers plus cargo)"
+zone = "bow"
+per = "unit"
+# The class envelope is the ATR 72-600's, 27.17 m long, 27.05 m wingspan, 7.65 m high, 72 to 78
+# seats (ATR's marketing booklet, 2018). ICAO Annex 14 (2022) recommends 4.5 m of stand clearance
+# for its code letter C all round: 36.2 x 36.1 m (1,304 m2), plus the 6 m unloading strip, 1,521 m2.
+# One for every 5,000 people (Proposal).
+unit_m2 = 1520.0
+people_per_unit = 5000.0
+min_units = 1
+net = false
+source = "sizes-research"
+
+[[space]]
+id = "freighter_bays"
+name = "Freighter bays (Class C: a C-130-class transport, about 20 tonnes of cargo)"
+zone = "bow"
+per = "unit"
+# The operator's "C130" (2026-11-12). The C-130J-30's envelope, 34.37 m long, 40.41 m wingspan,
+# 11.84 m high (Lockheed Martin), fits one 15 m bow deck. ICAO's 7.5 m clearance for code letter
+# D all round: 49.4 x 55.4 m (2,736 m2), plus a 10 m loading apron at its rear ramp, 3,290 m2.
+# One for every 10,000 people (Proposal).
+unit_m2 = 3290.0
+people_per_unit = 10000.0
+min_units = 1
+net = false
+source = "sizes-research"
+
+[[space]]
+id = "heavy_bays"
+name = "Heavy-lift bays (Class H: one 100-tonne-plus vehicle, a walker or an ultra-class haul truck, per craft)"
+zone = "bow"
+per = "unit"
+# The operator, 2026-11-12: "They need a transport ship large enough for 100 tons or more per
+# cargoed vehicle." The cargo envelope is the largest haul trucks' (Liebherr T 284 242 t empty and
+# 363 t payload; BelAZ up to 14.8 x 8.45 x 6.72 m), taken as 16 x 10 x 7.5 m and 250 t (a
+# judgement), in a 20 x 11.2 x 8 m hold with a full-width ramp, inside a 60 x 20 x 14 m craft (a
+# design, not a real craft: no airliner carries a whole haul truck). ICAO's 7.5 m all round and a
+# 10 m apron make 35 x 85 m (2,975 m2), 21.5 m high: two of the bow's 15 m decks, so 5,950 m2 of
+# deck. One for every 10,000 people (Proposal).
+unit_m2 = 5950.0
+people_per_unit = 10000.0
+min_units = 1
+net = false
+source = "sizes-research"
 
 [[space]]
 id = "craft_parking"
 name = "Parking spots for private craft (\"the hangar where all the private spaceships are stored\")"
 zone = "bow"
 per = "unit"
-# A 12 x 12 m parking spot (floor rails with chocks), one for every 20 people. Proposal. Until
-# 2026-11-07 this row said "cradle", which the operator read as a way of reviving people; it is a
-# parking place for one craft, so it says so.
-unit_m2 = 150.0
+# The private craft is defined by a four-seat light helicopter's envelope, the Robinson R44's:
+# 11.7 m long, 10.1 m across its rotor disc (FAA AC 150/5390-2D, Appendix C). Towed in, the FAA's
+# 3 m clearance shared with the neighbours makes 14.7 x 13.1 m, 193 m2, rounded to 200 with the
+# floor rails and chocks (research README section 2, B3 and B14). One for every 20 people
+# (Proposal, question 15). Until 2026-11-13 the spot was 12 x 12 m, smaller than the craft with its
+# clearance. Until 2026-11-07 this row said "cradle", which the operator read as a way of reviving
+# people; it is a parking place for one craft, so it says so.
+unit_m2 = 200.0
 people_per_unit = 20.0
 min_units = 1
 net = false
-source = "proposal"
+source = "sizes-research"
 
 [[space]]
 id = "mech_bays"
 name = "Mech and vehicle bays"
 zone = "bow"
 per = "unit"
+# One bay for one heavy vehicle of the Class H envelope (16 x 10 x 7.5 m): a 4 m working margin
+# all round makes 24 x 18 m (432 m2), and the rest is its parts and tool room. A fire station's
+# apparatus bay is the same idea at a smaller size: a 3.05 x 15.24 m truck in a bay about 5.2 x
+# 27.7 m (research README section 2, B16; the bay size is from a search summary, low confidence).
+# One for every 2,000 people (Proposal). A walker taller than about 13 m needs two decks: no
+# official height for the walker class was readable (H8).
 unit_m2 = 600.0
 people_per_unit = 2000.0
 min_units = 1
 net = false
-source = "proposal"
+source = "sizes-research"
 
 [[space]]
 id = "drone_bay"
 name = "Mining drone bay: the drones' parking spots, their propellant plant, the ore intake (docs/design/drone-mining.md)"
 zone = "bow"
 per = "unit"
+# Proposal: the drone has no defined size yet (drone-mining.md), so the research pass could not
+# size its bay (research README section 2).
 unit_m2 = 300.0
 people_per_unit = 500.0
 min_units = 1
@@ -767,6 +869,11 @@ where = "docs/reference/findings/2026-11-07-community-size.md"
 id = "drum-limits"
 what = "Hoop stress and spin stability of drums, material strengths, the ADA's walking-surface slopes"
 where = "docs/reference/findings/2026-11-07-drum-limits.md"
+
+[[source]]
+id = "sizes-research"
+what = "The mothership sizes research pass (2026-11-13): hospitals, barracks, lifts, industry, airport halls, transport classes and their bays"
+where = "docs/reference/research/2026-11-13-mothership-sizes/README.md, sections 1 to 3, and its helper notes"
 
 [[source]]
 id = "proposal"

@@ -41,6 +41,12 @@
 //     2,033 ships): seen red by changing the homestead share to 0.09 ("Drum 1 holds at most:
 //     expected 7781, got 7343"; "ships for a billion: expected 204, got 214").
 // The red runs: the scratch script sg3-red-space.js (2026-11-07), one mutation at a time.
+//
+// 2026-11-13 (the sizes research pass: the bow's bays sized from defined transport classes, the
+// private craft's parking spot from a real craft): "the bow the master plan quotes" seen red with
+// the scratch script rs-red-bow.js: with the parking spot put back to the unsourced 150 m2 the
+// no-homestead limit came out 14,600 instead of 11,500 and the sector's bow 19,282 m2 instead of
+// 20,532; with the Class M, C and H bay rows removed, 13,500 and 9,772.
 
 'use strict';
 
@@ -311,6 +317,17 @@ test('the shipped numbers the master plan quotes', () => {
   assert.ok(s.halfRingLength <= s.stableLength, `two half-ring sectors make a drum of ${s.halfRingLength} m, inside ${s.stableLength}`);
   assert.ok(s.best.walksOk, 'some layout meets both walking rules');
   assert.strictEqual(sp.maxPopulation(prog, null, { farmLevels: 2 }), 9031, 'two levels of farms');
+});
+
+test('the bow the master plan quotes: a bay for every transport class, a parking spot that fits its craft', () => {
+  const prog = sp.loadProgram();
+  for (const id of ['hangar_bays', 'ferry_bays', 'freighter_bays', 'heavy_bays']) {
+    assert.ok(prog.space.some((s) => s.id === id && s.zone === 'bow'), `the bow has its ${id}`);
+  }
+  const noHomesteads = sp.maxPopulation(prog, { homestead: 0, cabin: 0.22, apartment: 0.78 });
+  assert.strictEqual(noHomesteads, 11500, `Drum 1 with no homesteads (the bow full): expected 11500, got ${noHomesteads}`);
+  const bow = Math.round(sp.totalFor(prog, 500, null, {}).zone.bow);
+  assert.ok(Math.abs(bow - 20532) < 500, `one sector's bow decks: expected about 20,532 m2, got ${bow}`);
 });
 
 test('the checks catch a scale study naming a material that is not there', () => {

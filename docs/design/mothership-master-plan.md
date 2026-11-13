@@ -190,6 +190,8 @@ Before the wipe he raised the sizes of the hangar and the places beyond the home
 
 Queued for the research pass after the 2026-11-13 reset, each answer sourced and dated (CLAUDE.md): the closed loop (pollinators, decomposers, nitrogen and carbon sources when the only input is rock powder; Biosphere 2, MELiSSA and BIOS-3 as references), the housing tiers, the drum's structure (hoop stress from spin, air pressure, floor and shielding loads; steel, titanium, aluminium, basalt and carbon fibre; plate sizes and whether to roll or facet them), reactor sizing and siting (power per person including farm lighting, small modular and micro reactors, fuel use, vault shielding and the catastrophe case), and photovoltaic surfaces (efficiency of transparent and painted PV, and that panels inside the ship only recapture the ship's own lamp light).
 
+**Answered 2026-11-13: [the mothership sizes research](../reference/research/2026-11-13-mothership-sizes/README.md)**, every number sourced, dated and quoted, with the operator's decisions listed at its end. The headlines: the hangar as four bays from defined transport classes (an S-92-sized shuttle 1,140 m2, an ATR 72-sized ferry 1,520 m2, a C-130 class freighter 3,290 m2, a heavy lift for one 100-tonne-plus vehicle 5,950 m2 of deck), now in the space program; housing tiers from barracks (6.7 m2 of sleeping floor) to a homestead (372 m2 of soil beds or 40 to 65 m2 under lamps per person to feed one), and a 34 x 55 m household plot that would let Drum 1 hold 10,875; livestock space from welfare standards (a pasture-raised hen 10 m2); rock powder supplies no nitrogen or carbon, which come from carbonaceous asteroids and legumes; the drum's steel 14 cm for air alone and 17.5 cm with soil at a pressure-vessel allowable; a **correction**: 4.5 t/m2 of shield gives about 55 mSv a year, and 7 t/m2 of water gives 16; three RITM-200N-class reactors for a full Drum 1 in unpressurised vaults; basalt fibre not for clothing, linen at about 80 m2 of flax a person; a colony module of at least 2,000 and planned at 5,000 people (1.4); burning hydrogen is a water loop, not a source, and rain from the spine lands tens to hundreds of metres to one side (1.4).
+
 ### 1.4 His answers on the world aboard (2026-11-12, directions)
 
 Verbatim, each to one of the coordinator's questions:
@@ -249,7 +251,7 @@ Verbatim, each to one of the coordinator's questions:
 | Stern | Proposal: data; the main radiators, the reactors that charge the jump | weightless | the ship's loudest machinery | Proposal |
 
 **The arithmetic of size** is now the space program's (3.12) and its scale study (3.16). Drum 1
-holds about 7,800 people at the default mix of homes, 14,900 with no homesteads and 1,200 if
+holds about 7,800 people at the default mix of homes, 11,500 with no homesteads and 1,200 if
 everyone is a homesteader. A billion people need 2 million sectors; at Drum 1's radius that is a
 million drums. So the ship grows in drums of a larger radius (1 km, 40 sectors each) and the
 population in ships: about 204 ships of 246 drums for a billion, 2,033 for ten billion (3.16).
@@ -399,7 +401,7 @@ about 262 m around by 263 m along, a third of its sector's half ring (3.15); run
   never share passenger paths (planning rule, section 2.9 of ship-homes-and-logistics.md).
 
 **Capacity of Drum 1** is the space program's (3.12): about 7,800 people at the default mix (8%
-homesteaders), about 14,900 with no homesteads (then the bow's parking spots for private craft are
+homesteaders), about 11,500 with no homesteads (then the bow's parking spots for private craft are
 the limit), about 1,200 if everyone homesteads. The bands above are one way to lay that out; the
 program says how much of each band's area the population needs.
 
@@ -594,12 +596,12 @@ against the same rows. Change a number and the ship changes.
 | Group | The rows (m2 a person unless noted) | Zone | Source |
 |---|---|---|---|
 | Homes | a homestead plot of 4,895 m2 plus 31.5% for its street and gap, for 2.5 people; a cabin of 7.5 m2 plus 2 m2 of shared rooms, with circulation and structure, on 2 storeys; an apartment from the block template (23.1 m2 of floor a resident) | drum | the home kinds (ship-homes-and-logistics.md 1.2), the block template |
-| Community | shops 2.3 (2 storeys), offices 1 (3), schools 1 (3), hospital 0.3 (at least 300 m2), assembly halls 1.5, recreation 1, public open space 10 (at least 0.5 ha a neighbourhood), workshops 4 (2), streets and paths 12, the rest 2.9 (3) | drum | NASA SP-413, Table 3-2 |
+| Community | shops 2.3 (2 storeys), offices 1 (3), schools 1 (3), hospital 0.6 (2 storeys, at least 300 m2; modern area a bed, 2026-11-13), assembly halls 1.5, recreation 1, public open space 10 (at least 0.5 ha a neighbourhood), workshops 4 (2), streets and paths 12, the rest 2.9 (3) | drum | NASA SP-413, Table 3-2 |
 | Neighbourhoods and landings | a commons for each 167 people (1,870 m2, today's Commons; three to a sector), General Services for each 2,500, 3 rail stations and 8 spoke lifts a drum | drum, end caps | the ship file, the community-size finding, Proposal |
 | The ship's farms, for everyone whose home does not feed them | growing floor 122.2 (the comfortable garden with its paths) on one level under the sunline, `[farms] levels` allowing two or more; animals 5, processing 4, drying 8, on 3 levels | drum | survival-garden.md (comfort tier), SP-413 |
 | Life support and power | water and waste 4, electrical 0.1, communications 0.05, the air plant 0.3 (at least 500 m2), a reactor pair (4,000 m2) for each 5,560 people plus a spare pair, a control room a drum | spine | SP-413, closed-loop-test.md, Proposal |
 | Storage, industry, freight | storage 5, heavy industry 6, freight rail and tunnels 1 | spine | SP-413, Proposal |
-| The bow | the bridge 800 m2 and the Arrivals hall 1,500 m2 once; a hangar bay (2,000 m2) for each 1,000 people, a parking spot for a private craft (150 m2) for each 20, a mech bay (600 m2) for each 2,000, a drone bay (300 m2) for each 500 | bow | Proposal |
+| The bow | the bridge 800 m2 and the Arrivals hall 1,500 m2 once; a bay for each transport class, sized from a real craft and a real clearance: shuttle (S-92 class) 1,140 m2 for each 2,000 people, ferry (ATR 72 class) 1,520 m2 for each 5,000, freighter (C-130 class) 3,290 m2 and heavy lift (one 100-tonne-plus vehicle) 5,950 m2 of deck for each 10,000, at least one of each; a parking spot for a private craft (200 m2, a four-seat R44's size with its clearance) for each 20, a mech bay (600 m2) for each 2,000, a drone bay (300 m2) for each 500 | bow | [the sizes research](../reference/research/2026-11-13-mothership-sizes/README.md) section 2; the counts Proposal |
 | Outside the hull | radiator fin 67 | exterior | closed-loop-test.md |
 | Allowances | circulation x 1.4 and structure + 10% on rooms given bare | | GSA 2012 (1.4 to 1.6), Proposal |
 
@@ -613,13 +615,16 @@ the comfortable garden; until then they used NASA's 65.29 m2 and Drum 1 held 9,4
 
 | People | Drum floor | Spine decks | Bow decks | Floor a person | Drum 1 |
 |---|---|---|---|---|---|
-| 100 | 0.053 km2 (2%) | 0.011 km2 (1%) | 0.006 km2 (4%) | 698 m2 | holds them |
-| 500 (one sector) | 0.206 km2 (7%) | 0.017 km2 (2%) | 0.009 km2 (6%) | 466 m2 | holds them |
-| 1,000 | 0.407 km2 (13%) | 0.025 km2 (3%) | 0.013 km2 (8%) | 446 m2 | holds them |
-| 10,000 | 4.03 km2 (128%) | 0.179 km2 (23%) | 0.107 km2 (67%) | 431 m2 | **does not**: two drums |
+| 100 | 0.053 km2 (2%) | 0.011 km2 (1%) | 0.017 km2 (10%) | 798 m2 | holds them |
+| 500 (one sector) | 0.206 km2 (7%) | 0.017 km2 (2%) | 0.021 km2 (13%) | 488 m2 | holds them |
+| 1,000 | 0.407 km2 (13%) | 0.025 km2 (3%) | 0.026 km2 (16%) | 458 m2 | holds them |
+| 10,000 | 4.03 km2 (128%) | 0.179 km2 (23%) | 0.130 km2 (82%) | 434 m2 | **does not**: two drums |
+
+(The bow column changed on 2026-11-13, when the bays were sized from defined transport classes and
+the parking spot from a real craft; the drum floor did not move.)
 
 The most Drum 1 holds: **7,781** at the default mix (about 15 sectors); 9,031 with the farms on two
-levels; 14,900 with no homesteads (then the bow is full, of parking spots for private craft); 1,187
+levels; 11,500 with no homesteads (then the bow is full, of parking spots for private craft); 1,187
 if everyone homesteads. At 10,000 people it holds them with at most 4% homesteaders.
 
 What the numbers say (computed from the program):
@@ -632,7 +637,7 @@ What the numbers say (computed from the program):
   lamps frees 0.56 km2 (the lever when the floor runs short, at a cost in power; the operator's
   "allow for two or more").
 - **Small populations pay for minimums**: a hospital, a hangar bay and a bridge for 100 people
-  make 698 m2 a person; at scale it settles near 430.
+  make 798 m2 a person; at scale it settles near 435.
 - **The spine has room to spare** (23% at 10,000): industry and storage can grow.
 - **The bow is the limit of a dense drum**, because of one private craft's parking spot for every
   20 people (question 15).
@@ -813,7 +818,7 @@ homesteads (40 people), 110 cabins (110 people, seven halls of 16), 4 atrium blo
 (56,212 m2 of growing floor on one level, the comfortable garden; plus animals, processing and
 drying). **Drum floor 0.206 km2** for a sector on its own (413 m2 a resident, minimums such as a
 hospital and a hangar bay included); 0.202 km2 once a full drum shares them. Spine decks 0.017
-km2, bow decks 0.009 km2. It draws 5.4 MW at the closed-loop test's 10.8 kW a person.
+km2, bow decks 0.021 km2 (one bay of every transport class). It draws 5.4 MW at the closed-loop test's 10.8 kW a person.
 
 **Its drum size and its walks.** On a drum of Drum 1's radius (250 m, 1.89 rpm):
 
@@ -1246,7 +1251,7 @@ settled, one marked OPEN keeps its recommendation until he answers.
     40 dB outside and 30 dB inside at night from all sources together (3.13).
 12. **Neighbourhood 1's mix.** DECIDED 2026-11-06: homesteads and the cabin block side by side.
 13. **The mix of homes.** OPEN. At 8% homesteaders Drum 1 holds about 7,800; at no homesteads
-    about 14,900; at all homesteads about 1,200 (3.12). A sector of 500 at 8% has 16 homesteads.
+    about 11,500; at all homesteads about 1,200 (3.12). A sector of 500 at 8% has 16 homesteads.
     *Recommendation:* keep 8% as the default and let each server set its own mix in data, so a
     server that wants more homesteads opens its next sector sooner.
 14. **One level of farms under the sunline, or two under lamps?** DECIDED 2026-11-07: "Let's start
@@ -1254,7 +1259,7 @@ settled, one marked OPEN keeps its recommendation until he answers.
 15. **The bow's room for private craft.** The word: DECIDED 2026-11-07 (a "cradle" was a parking
     spot for one craft, not a way of reviving people; it now says parking spot). The number: OPEN.
     One parking spot for every 20 people fills the proposed bow (120 m across, 300 m long) at
-    about 14,900 people. *Recommendation:* keep one for every 20 people for Drum 1, and give later
+    about 11,500 people (the spot is 200 m2 since 2026-11-13, a real four-seat craft with its clearance). *Recommendation:* keep one for every 20 people for Drum 1, and give later
     drums hangar decks of their own in their spine hubs rather than one ever-growing bow.
 16. **Drone mining.** DECIDED 2026-11-07: drones jump only to discovered nearby asteroids, comets
     and the like, never between stars ("Maybe not jump between stars but, at least jump to
