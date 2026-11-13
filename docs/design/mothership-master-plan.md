@@ -235,7 +235,15 @@ The operator, to the twelve decisions at the end of [the sizes research](../refe
    for long term longevity and resiliency." And slag is not a later rung: "Mining technically already
    exists. Players send out drones to mine." So the drones' ore, smelted, leaves slag that is packed
    onto the hull outside the water (rock outside, water inside to soak up the secondary neutrons), a
-   loop in which a player's mining thickens the ship's armour.
+   loop in which a player's mining thickens the ship's armour. On the mass (he was "mixed": "how
+   feasible is it? I imagine the extra mass drastically slows the mothership down. Would we still be
+   able to turn?"): slag replacing part of the water adds about 9% to Drum 1 (turns about 5% slower);
+   slag on top of the full water adds about a third; the cruise is a jump and the drums turn in pairs,
+   so mass costs only manoeuvres (coordinator's estimates). Decided: armour against agility is **a
+   player vote per ship** ("Should be a player vote per ship"), and slag is to be justified as an
+   endless resource sink by its uses ("We'll have to figure out the various ways we can use the slag.
+   That way we can justify it as an infinite resource sink."): armour, reaction mass for a mass
+   driver, and the rest a research pass lists.
 9. **Drum material:** steel for Drum 1, plates rolled to the curve; basalt composite studied for later drums.
 10. **Cloth:** a row in the planning sheet, 4 kg a person a year, about 40 m2 of flax.
 11. **The colony module:** 5,000 people with a gene bank.
