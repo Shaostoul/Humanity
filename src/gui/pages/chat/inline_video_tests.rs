@@ -79,7 +79,7 @@ impl Chat {
     /// Each of `posts` is a message's words; each `/uploads/` address in them is given a size.
     pub(crate) fn new(test: &str, posts: &[&str], w: f32, h: f32) -> Chat {
         let dir = humanity_core::test_temp::dir(test);
-        let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+        let fake = dir.join(crate::media::ffmpeg::FFMPEG_EXE);
         std::fs::write(&fake, b"not ffmpeg").unwrap(); // a conversion cannot rescue a test
         let mut state = GuiState::default();
         state.chat_active_channel = "global".into();
@@ -531,7 +531,7 @@ fn a_picture_opened_on_a_wall_screen_fills_that_screen_not_the_apps() {
 #[test]
 fn a_view_dropped_before_its_fetch_was_taken_deletes_the_copy() {
     let dir = humanity_core::test_temp::dir("chat_video_unread_fetch");
-    let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+    let fake = dir.join(crate::media::ffmpeg::FFMPEG_EXE);
     std::fs::write(&fake, b"not ffmpeg").unwrap(); // no conversion: the copy is all there is
     let copy = dir.join("copy.video");
     let mut view = VideoView::default();

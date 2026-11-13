@@ -605,8 +605,9 @@ folder (the drive root or the folder itself, either is accepted), picks the
 main title (the biggest title set, with its `_0` menu left out, parts in
 order), and hands the whole title to ffmpeg as one film through its
 `concat:` protocol, so a two-part title plays as one film and not as its
-first half. From there it is an ordinary converted clip in the media cache:
-the second time the same disc is opened there is no ffmpeg run at all.
+first half. From there ffmpeg decodes it as it plays, as it does any file
+the player does not decode itself (since 2026-11-13; until then the title
+was converted whole into a media cache first, which the proof below used).
 
 A **copy-protected commercial disc does not play, and never will**. Those
 discs are encrypted, and HumanityOS does not break disc protection: there
@@ -642,12 +643,14 @@ a folder on a hard disk does, that a title spread over four or five
 disc trips the same refusal (its packets are marked the same way, but only
 a real one proves it).
 
-**Anything ffmpeg can read.** The player itself decodes only WebM AV1 +
-Opus (the codec policy: no patented decoders are shipped). A chosen file it
-refuses is converted once by the machine's ffmpeg into the media cache and
-the converted copy plays, with the percentage on screen and an honest
-message naming the fix when ffmpeg or an encoder is missing. Proven on the
-real screen: an H.264 + AAC MP4 fixture handed to `wall_screen_5` through
+**Anything ffmpeg can read.** The player itself decodes only AV1 + Opus
+(the codec policy: no patented decoders are shipped), and on Windows asks
+the computer's own decoders for an ordinary MP4. A chosen file neither
+plays is decoded by the machine's ffmpeg as it plays (since 2026-11-13:
+raw pictures and sound through two pipes, nothing converted ahead or kept;
+`src/media/stream.rs`), with an honest message naming the fix when ffmpeg
+is missing. Until 2026-11-13 it was converted once into a media cache
+first, which is what this proof used: an H.264 + AAC MP4 fixture handed to `wall_screen_5` through
 the dev IPC converted, played (76,832 of 921,600 pixels changed between two
 snapshots a second apart), and opened again from the cache with no second
 ffmpeg run.

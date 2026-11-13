@@ -16,8 +16,9 @@
 //!
 //! Codecs: AV1 (rav1d, pure-Rust build) and Opus (unsafe-libopus). Both are
 //! royalty-free. Anything else is refused at `open()` with an error naming
-//! the codec; other formats get transcoded on ingest (a later rung), never
-//! decoded here.
+//! the codec, and is played either by the computer's own decoders
+//! (`system.rs`) or by the person's own ffmpeg as it plays (`stream.rs`,
+//! `VideoPlayer::open_stream`), never decoded by code in this exe.
 //!
 //! ## Thread and clock model
 //!
@@ -43,17 +44,20 @@
 //! stepping it back.
 
 pub mod audio;
-/// Video discs: choosing a disc's main title and converting it (2026-09-18).
+/// Video discs: choosing a disc's main title and handing it to ffmpeg as one film (2026-09-18).
 pub mod dvd;
+/// The person's own ffmpeg: finding it, and which road a file takes (`begin_ingest`).
+pub mod ffmpeg;
 /// What a file is, in a person's words, when nothing here plays it (BUG-228, 2026-11-03).
 pub mod kind;
 /// The MP4 container, so AV1 in an MP4 reaches our own decoder (BUG-228, 2026-11-03).
 pub mod mp4;
 /// Every other file through the computer's own decoders (Windows Media Foundation, 2026-10-18):
 /// an ordinary MP4 above all.
+/// A film through the person's ffmpeg as it plays: nothing converted ahead or kept (2026-11-13).
+pub mod stream;
 #[cfg(windows)]
 pub mod system;
-pub mod transcode;
 pub mod video;
 
 #[cfg(test)]
@@ -154,7 +158,7 @@ impl fmt::Display for MediaError {
             MediaError::UnsupportedCodec { kind, codec_id } => write!(
                 f,
                 "unsupported {kind} codec {codec_id}: this player decodes AV1 video ({CODEC_AV1}) \
-                 and Opus audio ({CODEC_OPUS}) only; transcode the file to WebM AV1 + Opus"
+                 and Opus audio ({CODEC_OPUS}) only; ffmpeg plays every other kind"
             ),
             MediaError::Decoder(e) => write!(f, "AV1 decode failed: {e}"),
             MediaError::Audio(e) => write!(f, "audio failed: {e}"),
@@ -290,8 +294,11 @@ pub struct MediaInfo {
     /// Windows): `attach_audio_with` hands the sound to `system::SystemAudio`.
     pub system_sound: bool,
     /// The file has sound the computer's own decoders cannot play (that codec's name, "Opus" for
-    /// instance): the picture plays silent unless converted (transcode.rs `begin_ingest`).
+    /// instance): the picture plays silent unless ffmpeg plays it (ffmpeg.rs `begin_ingest`).
     pub sound_lost: Option<String>,
+    /// Decoded by the person's own ffmpeg as it plays (`stream.rs`): its tracks have no numbers
+    /// (`video_track` 0, `audio_track` Some(0) when it has sound), its sound comes at 48 kHz stereo.
+    pub stream: bool,
 }
 
 /// Open the container with a buffered reader. Both the video thread and the
@@ -363,7 +370,7 @@ pub fn probe(path: &Path) -> Result<MediaInfo, MediaError> {
 
 #[cfg(test)]
 thread_local! {
-    /// Tests of our own decoder's refusals and of the conversion path turn the computer's own
+    /// Tests of our own decoder's refusals and of the ffmpeg road turn the computer's own
     /// decoders off on their thread (`system_decoders_off_on_this_thread`), so a file Windows
     /// plays still goes the way those tests are about.
     static SYSTEM_DECODERS_OFF: Cell<bool> = const { Cell::new(false) };
@@ -461,6 +468,7 @@ fn probe_matroska(path: &Path) -> Result<MediaInfo, MediaError> {
         mp4: false,
         system_sound: false,
         sound_lost: None,
+        stream: false,
     })
 }
 
@@ -477,7 +485,7 @@ fn describe_matroska(path: &Path) -> kind::FileKind {
 /// `probe` for an MP4 holding AV1 video, which our own decoder plays (BUG-228): `None` when its
 /// picture is something else (the computer's own decoders are asked then). Opus sound is ours too;
 /// any other sound (AAC above all) goes to the computer's own decoders, the way an ordinary MP4's
-/// does, and where they cannot play it the picture plays silent (`sound_lost`) unless converted.
+/// does, and where they cannot play it the picture plays silent (`sound_lost`) unless ffmpeg plays it.
 fn probe_mp4(path: &Path, movie: &mp4::Movie) -> Option<MediaInfo> {
     let video = movie.video.as_ref()?;
     if !matches!(video.codec, mp4::TrackCodec::Av1 { .. }) {
@@ -498,6 +506,7 @@ fn probe_mp4(path: &Path, movie: &mp4::Movie) -> Option<MediaInfo> {
         timestamp_scale_ns: 0,
         system: false,
         mp4: true,
+        stream: false,
         system_sound: false,
         sound_lost: None,
     };
@@ -1047,6 +1056,9 @@ pub(crate) fn take_due_frame(frames: &mut VecDeque<VideoFrame>, clock: f64) -> O
 pub struct VideoPlayer {
     path: PathBuf,
     info: MediaInfo,
+    /// A film the person's ffmpeg decodes as it plays (`open_stream`): what it reads, and the
+    /// switch that stops its running picture ffmpeg when the player goes.
+    stream: Option<(Arc<stream::StreamSource>, stream::KillSwitch)>,
     shared: Arc<Shared>,
     thread: Option<JoinHandle<()>>,
     clock: Clock,
@@ -1080,6 +1092,20 @@ impl VideoPlayer {
     pub fn open_with_threads(path: impl AsRef<Path>, threads: i32) -> Result<Self, MediaError> {
         let path = path.as_ref().to_path_buf();
         let info = probe(&path)?;
+        Self::start(path, info, None, threads)
+    }
+
+    /// Play a film through the person's own ffmpeg as it plays (`stream.rs`): the answer of the
+    /// short look `ffmpeg::begin_ingest` started. Starts PAUSED at 0, like `open`; nothing is
+    /// converted ahead and nothing is written.
+    pub fn open_stream(source: stream::StreamSource) -> Result<Self, MediaError> {
+        let info = source.info();
+        let path = source.input.clone();
+        Self::start(path, info, Some((Arc::new(source), stream::KillSwitch::default())), 0)
+    }
+
+    /// Start the decode thread for a probed file or a stream.
+    fn start(path: PathBuf, info: MediaInfo, stream: Option<(Arc<stream::StreamSource>, stream::KillSwitch)>, threads: i32) -> Result<Self, MediaError> {
         let shared = Arc::new(Shared {
             queue: Mutex::new(DecodeQueue {
                 frames: VecDeque::with_capacity(QUEUE_CAPACITY),
@@ -1100,10 +1126,14 @@ impl VideoPlayer {
             restart_instead_of_queueing: AtomicBool::new(false),
         });
         let thread = {
-            let (path, info, shared) = (path.clone(), info.clone(), shared.clone());
+            let (path, info, shared, stream) = (path.clone(), info.clone(), shared.clone(), stream.clone());
             std::thread::Builder::new()
                 .name("media-decode".into())
                 .spawn(move || {
+                    // A film the person's ffmpeg decodes, as it plays.
+                    if let Some((source, kill)) = stream {
+                        return stream::decode_thread(source, kill, shared);
+                    }
                     // A file the computer's own decoders play (an MP4) goes through them.
                     #[cfg(windows)]
                     if info.system {
@@ -1117,6 +1147,7 @@ impl VideoPlayer {
             clock: Clock::new(info.duration_s),
             path,
             info,
+            stream,
             shared,
             thread: Some(thread),
             audio: None,
@@ -1178,16 +1209,23 @@ impl VideoPlayer {
         if let Some(mut old) = self.audio.take() {
             old.stop(zero_tween());
         }
-        // The computer's own decoders play the sound of a file they play whole, and the sound of an
-        // MP4 whose AV1 picture is ours (`system_sound`, AAC above all).
+        // The person's ffmpeg plays the sound of a film it decodes; the computer's own decoders play
+        // the sound of a file they play whole, and the sound of an MP4 whose AV1 picture is ours
+        // (`system_sound`, AAC above all).
         #[cfg(windows)]
-        let mut data = if self.info.system || self.info.system_sound {
+        let mut data = if let Some((source, _)) = &self.stream {
+            kira::sound::streaming::StreamingSoundData::from_decoder(stream::PipeAudio::new(source.clone()))
+        } else if self.info.system || self.info.system_sound {
             kira::sound::streaming::StreamingSoundData::from_decoder(system::SystemAudio::open(&self.path, &self.info)?)
         } else {
             kira::sound::streaming::StreamingSoundData::from_decoder(audio::OpusTrack::open(&self.path, &self.info)?)
         };
         #[cfg(not(windows))]
-        let mut data = kira::sound::streaming::StreamingSoundData::from_decoder(audio::OpusTrack::open(&self.path, &self.info)?);
+        let mut data = if let Some((source, _)) = &self.stream {
+            kira::sound::streaming::StreamingSoundData::from_decoder(stream::PipeAudio::new(source.clone()))
+        } else {
+            kira::sound::streaming::StreamingSoundData::from_decoder(audio::OpusTrack::open(&self.path, &self.info)?)
+        };
         if opts.looping {
             data = data.loop_region(..);
         }
@@ -1473,6 +1511,11 @@ impl Drop for VideoPlayer {
         // one picture (tens of milliseconds at 1080p single-thread).
         self.shared.stop.store(true, Ordering::SeqCst);
         self.shared.wake.notify_all();
+        // A film through ffmpeg: stop its picture ffmpeg, so a read waiting on a slow drive ends
+        // now and the join below never waits on it.
+        if let Some((_, kill)) = &self.stream {
+            kill.kill();
+        }
         if let Some(t) = self.thread.take() {
             let _ = t.join();
         }

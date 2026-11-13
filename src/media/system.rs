@@ -413,8 +413,8 @@ fn probe_here(path: &Path) -> Result<MediaInfo, MediaError> {
         Ok(Some(a)) => (Some(a.codec.to_string()), a.rate, a.channels),
         Ok(None) => (None, 0, 0),
         Err(lost) => {
-            // A picture Windows can show with a sound it cannot. The screens convert it with the
-            // person's ffmpeg when there is one (transcode.rs `begin_ingest`); otherwise it plays
+            // A picture Windows can show with a sound it cannot. The screens play it through the
+            // person's ffmpeg when there is one (ffmpeg.rs `begin_ingest`); otherwise it plays
             // silent, and the Media page says why.
             log::warn!("media: {}: Windows cannot decode its sound ({})", path.display(), lost);
             sound_lost = Some(lost);
@@ -438,6 +438,7 @@ fn probe_here(path: &Path) -> Result<MediaInfo, MediaError> {
         mp4: false,
         system_sound: false,
         sound_lost,
+        stream: false,
     })
 }
 

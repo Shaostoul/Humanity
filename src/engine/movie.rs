@@ -563,7 +563,7 @@ pub(crate) fn capture(state: &mut EngineState, texture: &wgpu::Texture) {
 
 fn spawn_encoder(spec: &RecordSpec, w: u32, h: u32, configured: &str) -> Result<Encoder, String> {
     let wanted = if spec.ffmpeg.is_empty() { configured } else { spec.ffmpeg.as_str() };
-    let ffmpeg = crate::media::transcode::find_ffmpeg(wanted)
+    let ffmpeg = crate::media::ffmpeg::find_ffmpeg(wanted)
         .ok_or("ffmpeg not found: set it in Settings > Media, or put it on PATH")?;
     if let Some(dir) = std::path::Path::new(&spec.out).parent() {
         let _ = std::fs::create_dir_all(dir);

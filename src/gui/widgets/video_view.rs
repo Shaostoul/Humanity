@@ -9,12 +9,13 @@
 //! browser's own `<video>` element.
 //!
 //! **One road for every video (BUG-228, 2026-11-03).** The fetched copy goes through
-//! `media::transcode::begin_ingest`, the decision the in-world screens make: played as it is, or
-//! converted once with the person's own ffmpeg (Settings > Media) when nothing here plays it, or
-//! refused in words that say what the file is. It used to open the player directly, so a chat
-//! video never got the conversion a screen gave the same file. The decision runs on the fetch's
-//! worker (it may ask Windows and ffmpeg); a conversion is written beside the temporary copy and
-//! deleted with it, so nothing is kept across runs.
+//! `media::ffmpeg::begin_ingest`, the decision the in-world screens make: played as it is, or
+//! played through the person's own ffmpeg as it goes (Settings > Media; since 2026-11-13 nothing
+//! is converted ahead or written) when nothing here plays it, or refused in words that say what
+//! the file is. It used to open the player directly, so a chat video never got the road a screen
+//! gave the same file. The decision, ffmpeg's short look at the file included, runs on the fetch's
+//! worker (it may ask Windows and ffmpeg); only the temporary copy is kept, and it goes with the
+//! view.
 //!
 //! **Inside a chat message (2026-11-06).** A video posted in chat plays in its row
 //! (`pages/chat/inline_video.rs`), through this view: its picture, its place ([`VideoView::seek_to`]),
@@ -32,7 +33,7 @@ use humanity_core::i18n::{t, tf};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
-use crate::media::transcode::{Ingest, TranscodeJob};
+use crate::media::ffmpeg::Ready;
 
 /// The player's buttons and lines.
 pub const PLAY_HERE: &str = "Play here";
@@ -50,6 +51,10 @@ pub fn sound_lost_words(codec: &str) -> String {
     format!("Its sound ({codec}) is in a format this computer cannot play here. Download it to hear it in another player.")
 }
 
+/// How long the fetch's worker waits for ffmpeg's short look at a video (a slow disc can take a
+/// while to spin up; a look on a file takes a tenth of a second).
+const LOOK_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// What it says when the file will not play: what the file is and why (`begin_ingest`'s words, or
 /// the player's), then what will play it.
 pub fn cannot_play_words(why: &str) -> String {
@@ -57,7 +62,7 @@ pub fn cannot_play_words(why: &str) -> String {
 }
 
 /// What the worker hands back: the temporary copy and what `begin_ingest` decided for it.
-type Fetched = Result<(PathBuf, Ingest), String>;
+type Fetched = Result<(PathBuf, Ready), String>;
 
 /// Where a video's sound is heard from (BUG-258, 2026-11-06).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -81,10 +86,6 @@ pub struct VideoView {
     pub problem: String,
     /// The temporary copy being played, deleted with the view.
     pub temp: Option<PathBuf>,
-    /// A conversion running with the person's ffmpeg; its copy plays when it ends.
-    job: Option<TranscodeJob>,
-    /// The converted copy (beside the temporary one), deleted with the view.
-    converted: Option<PathBuf>,
     /// What the person knows the video by, for the words.
     name: String,
     /// Its sound: handed to the mixer once, muted with Mute, at the mix (volume, pan) last sent.
@@ -114,8 +115,6 @@ impl Default for VideoView {
             texture: None,
             problem: String::new(),
             temp: None,
-            job: None,
-            converted: None,
             name: String::new(),
             sound_attached: false,
             muted: false,
@@ -132,7 +131,8 @@ impl Default for VideoView {
 
 impl VideoView {
     /// Fetch the video with `fetch` on a worker (it returns the temporary copy), decide there how it
-    /// plays (`begin_ingest`, with `ffmpeg_setting` from Settings > Media), then play it. `name` is
+    /// plays (`begin_ingest` and ffmpeg's look, with `ffmpeg_setting` from Settings > Media), then
+    /// play it. `name` is
     /// what the person knows the video by (the chat card's name, the item's title), for the words.
     pub fn start(&mut self, ffmpeg_setting: &str, name: &str, fetch: impl FnOnce() -> Result<PathBuf, String> + Send + 'static) {
         let (tx, rx) = std::sync::mpsc::channel();
@@ -145,14 +145,11 @@ impl VideoView {
         let handed = self.handed.clone();
         std::thread::spawn(move || {
             let fetched = fetch().map(|copy| {
-                // A conversion is written beside the copy: the temporary folder, swept at every start.
-                let dir = copy.parent().map(|p| p.to_path_buf()).unwrap_or_else(std::env::temp_dir);
-                let ingest = crate::media::transcode::begin_ingest_as(&copy, &name, &ffmpeg_setting, &dir);
-                (copy, ingest)
+                let ready = crate::media::ffmpeg::begin_ingest_as(&copy, &name, &ffmpeg_setting).wait(LOOK_TIMEOUT);
+                (copy, ready)
             });
             match tx.send(fetched) {
-                // The view went while it was fetching: nobody will play it, so it goes now (a
-                // conversion stops when its job is dropped, and takes its part file with it). A view
+                // The view went while it was fetching: nobody will play it, so it goes now. A view
                 // that goes after this send takes it in its own Drop.
                 Err(std::sync::mpsc::SendError(Ok((copy, _)))) => {
                     let _ = std::fs::remove_file(copy);
@@ -178,14 +175,9 @@ impl VideoView {
         self.player.is_some()
     }
 
-    /// Whether a conversion is running, and how far it is.
-    pub fn converting(&self) -> Option<f32> {
-        self.job.as_ref().map(|j| j.percent())
-    }
-
-    /// Open the player on `path` and start it (at [`VideoView::start_at`]), or say why not.
-    fn open(&mut self, path: &std::path::Path) {
-        match crate::media::VideoPlayer::open(path) {
+    /// Start a player that opened (at [`VideoView::start_at`]), or say why it did not.
+    fn open(&mut self, opened: Result<crate::media::VideoPlayer, crate::media::MediaError>) {
+        match opened {
             Ok(mut player) => {
                 // A place at the very end would start it ended: then it starts from the top.
                 if self.start_at > 0.0 && (player.duration_s() <= 0.0 || self.start_at < player.duration_s() - 0.5) {
@@ -266,16 +258,12 @@ impl VideoView {
                 Ok(result) => {
                     self.fetch_rx = None;
                     match result {
-                        Ok((copy, ingest)) => {
+                        Ok((copy, ready)) => {
                             self.temp = Some(copy); // deleted with the view from here on
-                            match ingest {
-                                Ingest::Direct(p) | Ingest::Cached(p) => self.open(&p),
-                                Ingest::Transcoding { job, why } => {
-                                    log::info!("media: converting a video to play here: it {why}");
-                                    self.converted = Some(job.dst().to_path_buf());
-                                    self.job = Some(job);
-                                }
-                                Ingest::Failed(words) => self.problem = cannot_play_words(&words),
+                            match ready {
+                                Ready::Direct(p) => self.open(crate::media::VideoPlayer::open(&p)),
+                                Ready::Stream(source) => self.open(crate::media::VideoPlayer::open_stream(source)),
+                                Ready::Failed(words) => self.problem = cannot_play_words(&words),
                             }
                         }
                         Err(e) => self.problem = e,
@@ -287,17 +275,6 @@ impl VideoView {
                     self.problem = "The video stopped coming.".to_string();
                 }
             }
-        }
-        if let Some(result) = self.job.as_ref().and_then(|j| j.result()) {
-            self.job = None;
-            match result {
-                Ok(dst) => self.open(&dst),
-                Err(e) => {
-                    self.problem = cannot_play_words(&tf("video.convert_failed", &[("name", &self.name), ("error", &e)]));
-                }
-            }
-        } else if self.job.is_some() {
-            ctx.request_repaint_after(Duration::from_millis(200));
         }
         if let Some(player) = self.player.as_mut() {
             let mut show = None;
@@ -397,10 +374,6 @@ impl VideoView {
             }
         } else if self.fetch_rx.is_some() {
             ui.label(small(FETCHING));
-        } else if let Some(pct) = self.converting() {
-            let pct = format!("{pct:.0}");
-            ui.label(small(&tf("video.converting", &[("pct", &pct)])));
-            ui.ctx().request_repaint_after(Duration::from_millis(200));
         } else if self.player.is_some() {
             ui.label(small(STARTING));
             ui.ctx().request_repaint_after(Duration::from_millis(100));
@@ -461,24 +434,15 @@ impl VideoView {
 }
 
 impl Drop for VideoView {
-    /// The player lets go of the file first, then the temporary copy goes. A fetch that finished
-    /// but was never taken (the view went before its next poll: a wall screen's chat not drawn
-    /// since Play) is taken here, so its copy and any conversion of it go too (BUG-258).
+    /// The player lets go of the file first (a film through ffmpeg stops its ffmpegs), then the
+    /// temporary copy goes. A fetch that finished but was never taken (the view went before its next
+    /// poll: a wall screen's chat not drawn since Play) is taken here, so its copy goes too
+    /// (BUG-258).
     fn drop(&mut self) {
-        if let Some(Ok(Ok((copy, ingest)))) = self.fetch_rx.take().map(|rx| rx.try_recv()) {
-            if let Ingest::Transcoding { job, .. } = ingest {
-                let dst = job.dst().to_path_buf();
-                drop(job); // kills ffmpeg and removes its part file
-                let _ = std::fs::remove_file(dst);
-            }
+        if let Some(Ok(Ok((copy, _)))) = self.fetch_rx.take().map(|rx| rx.try_recv()) {
             let _ = std::fs::remove_file(copy);
         }
         self.player = None;
-        // A conversion still running stops (its job's Drop kills ffmpeg and removes its part file).
-        self.job = None;
-        if let Some(path) = self.converted.take() {
-            let _ = std::fs::remove_file(path);
-        }
         if let Some(path) = self.temp.take() {
             if let Err(e) = std::fs::remove_file(&path) {
                 if e.kind() != std::io::ErrorKind::NotFound {

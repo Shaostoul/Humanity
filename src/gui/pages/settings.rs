@@ -3537,8 +3537,9 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 }
 
 /// Settings > Media (2026-09-18): where ffmpeg is, for the in-world video
-/// screens. A chosen video that is not WebM AV1 + Opus (an MP4, an MKV, a
-/// MOV) is converted once with the machine's ffmpeg; this row is the one
+/// screens. A chosen video the app does not play itself (an MKV, a MOV, an
+/// AVI, a disc) plays through the machine's ffmpeg as it goes (since
+/// 2026-11-13; it was converted once ahead until then); this row is the one
 /// place to point the app at it when auto-detection fails. The screen's
 /// own error text names this section ("set its path in Settings > Media"),
 /// so the label and the section name must not drift apart.
@@ -3582,12 +3583,7 @@ pub(crate) fn draw_media_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             ui,
             theme,
             hint,
-            "In-world video screens play WebM with AV1 video and Opus audio. A file in any \
-             other format (MP4, MKV, MOV, AVI ...) chosen with a screen's Open button is \
-             converted once into that format with ffmpeg, into your HumanityOS media cache, \
-             and the original is left untouched. Leave this empty to find ffmpeg on the PATH \
-             and in the usual install folders; set it when the screen reports ffmpeg was not \
-             found. A file path or the folder holding ffmpeg both work.",
+            &humanity_core::i18n::t("settings.media_ffmpeg_hint"),
         );
     });
     // The ffmpeg picker modal (take/put keeps the borrow simple).
@@ -3607,10 +3603,11 @@ pub(crate) fn draw_media_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 }
 
 /// The "found ffmpeg at ..." line, re-resolved at most every two seconds
-/// for a given setting: resolving walks every PATH directory, which is
-/// dozens of file checks, too many to repeat on every frame the Settings
-/// page is open. The encoder probe behind it is cached for the process by
-/// `transcode::detect_encoder`.
+/// for a given setting: resolving walks every PATH directory and reads
+/// data/media/ingest.json, dozens of file checks, too many to repeat on
+/// every frame the Settings page is open. A reuse rebuilt on a schedule, so
+/// it obeys the one reuse switch (humanity_core::reuse): with it off, the
+/// line is worked out on every frame.
 fn media_status_line(setting: &str) -> String {
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
@@ -3618,11 +3615,11 @@ fn media_status_line(setting: &str) -> String {
     let cache = CACHE.get_or_init(|| Mutex::new(None));
     let mut g = cache.lock().unwrap();
     if let Some((for_setting, line, at)) = g.as_ref() {
-        if for_setting == setting && at.elapsed() < Duration::from_secs(2) {
+        if humanity_core::reuse::enabled() && for_setting == setting && at.elapsed() < Duration::from_secs(2) {
             return line.clone();
         }
     }
-    let line = crate::media::transcode::ffmpeg_status_line(setting);
+    let line = crate::media::ffmpeg::ffmpeg_status_line(setting);
     *g = Some((setting.to_string(), line.clone(), Instant::now()));
     line
 }

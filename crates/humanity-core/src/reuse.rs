@@ -94,6 +94,11 @@
 //! - `src/engine/screens/camera.rs`: `last_render` (camera screens). Already a schedule: each
 //!   renders at most every 100 ms and at most one a frame (`CAMERA_INTERVAL`, `pick_due`), so a
 //!   picture is never older than its turn; it stays as it is.
+//! - `src/gui/pages/settings.rs`: `CACHE` (Settings > Media's "Found ffmpeg" line, in
+//!   `media_status_line`: worked out at most every two seconds, and on every frame with the switch
+//!   off). The converted videos once kept on disk in `<data dir>/media/cache` were not put behind
+//!   the switch: they are gone, a film plays through the person's ffmpeg as it goes
+//!   (`media::stream`, 2026-11-13).
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

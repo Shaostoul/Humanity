@@ -278,7 +278,7 @@ fn a_video_posted_in_chat_plays_in_its_card() {
 #[test]
 fn play_plays_an_av1_mp4_through_our_own_decoder() {
     let dir = humanity_core::test_temp::dir("chat_av1_fake_ffmpeg");
-    let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+    let fake = dir.join(crate::media::ffmpeg::FFMPEG_EXE);
     std::fs::write(&fake, b"not ffmpeg").unwrap(); // a conversion cannot rescue the test
     let playing = |t: &[String]| t.iter().any(|t| t == "Pause") || t.iter().any(|t| t.contains("cannot") || t.contains("could not"));
     let (texts, copy, videos) = play_in_card(&media_fixture("sliding-bar-av1-opus.mp4"), &dir, &fake.display().to_string(), playing);
@@ -299,7 +299,7 @@ fn play_plays_an_av1_mp4_through_our_own_decoder() {
 #[test]
 fn a_video_nothing_here_plays_is_named_in_plain_words() {
     let dir = humanity_core::test_temp::dir("chat_plain_words");
-    let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+    let fake = dir.join(crate::media::ffmpeg::FFMPEG_EXE);
     std::fs::write(&fake, b"not ffmpeg").unwrap();
     let not_video = dir.join("not-a-video.bin");
     std::fs::write(&not_video, b"these bytes are no film").unwrap();
@@ -307,6 +307,6 @@ fn a_video_nothing_here_plays_is_named_in_plain_words() {
     let (texts, _copy, _videos) = play_in_card(&not_video, &dir, &fake.display().to_string(), refused);
     let words = texts.iter().find(|t| t.contains("VLC")).unwrap_or_else(|| panic!("the card says what will play it: {texts:?}"));
     assert!(words.starts_with("clip.mp4 is a kind of file this app does not read itself."), "what the file is, by the name it was posted with: {words}");
-    assert!(words.contains(crate::media::transcode::FFMPEG_HINT), "the fix in the app: {words}");
+    assert!(words.contains(crate::media::ffmpeg::FFMPEG_HINT), "the fix in the app: {words}");
     assert!(!words.contains("Ebml") && !words.contains("Expected") && !words.contains("WebM/Matroska"), "no reader's words: {words}");
 }

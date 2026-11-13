@@ -9,8 +9,8 @@
 //!
 //! - **Nothing until Play.** Drawing a row fetches nothing and decodes nothing. The first Play
 //!   fetches the whole file (the player opens a file) on the one road every video takes:
-//!   `VideoView::start` hands the copy to `transcode::begin_ingest_as` (BUG-228), which plays it,
-//!   converts it with the person's ffmpeg, or names it in plain words, drawn here in the row.
+//!   `VideoView::start` hands the copy to `ffmpeg::begin_ingest_as` (BUG-228), which plays it,
+//!   plays it through the person's ffmpeg as it goes, or names it in plain words, drawn here in the row.
 //! - **One video plays at a time.** The last video Play was pressed on ([`ChatVideos::current`]) is
 //!   the only one allowed to play; [`ChatVideos::end_frame`] pauses any other, which also catches a
 //!   video whose fetch finished after another was started.
@@ -437,7 +437,7 @@ impl ChatVideos {
     /// player, and carrying on from its still's place), or pause it if it plays. It becomes the one
     /// allowed to play. A video that could not play tries again.
     pub(crate) fn press_play(&mut self, url: &str, name: &str, ffmpeg: &str) {
-        let refused = self.live.get(url).is_some_and(|l| !l.view.has_player() && !l.view.fetching() && l.view.converting().is_none());
+        let refused = self.live.get(url).is_some_and(|l| !l.view.has_player() && !l.view.fetching());
         if refused {
             self.live.remove(url);
         }
@@ -749,7 +749,7 @@ impl ChatVideos {
         }
         let Some(url) = self.current.clone() else { return };
         let Some(live) = self.live.get(&url) else { return };
-        let wants_to_play = live.view.is_playing() || live.view.fetching() || live.view.converting().is_some();
+        let wants_to_play = live.view.is_playing() || live.view.fetching();
         let left_now = live.inline_seen < frame && live.seen + 1 >= frame;
         if !wants_to_play || !left_now || self.window.as_deref() == Some(url.as_str()) {
             return;
@@ -882,7 +882,7 @@ fn draw_player(ui: &mut egui::Ui, theme: &Theme, videos: &mut ChatVideos, url: &
         videos.open_volume_settings = true;
     }
     if let Some(live) = videos.live.get(url) {
-        if live.view.fetching() || live.view.converting().is_some() {
+        if live.view.fetching() {
             ctx.request_repaint_after(std::time::Duration::from_millis(200));
         }
     }
@@ -1013,8 +1013,6 @@ pub(super) fn paint_picture(ui: &egui::Ui, theme: &Theme, videos: &ChatVideos, u
     } else if let Some(live) = live {
         if live.view.fetching() {
             Some(t("chat_video.fetching").to_string())
-        } else if let Some(pct) = live.view.converting() {
-            Some(tf("video.converting", &[("pct", &format!("{pct:.0}"))]))
         } else if live.view.has_player() && live.view.texture().is_none() {
             Some(t("chat_video.starting").to_string())
         } else {
@@ -1026,7 +1024,7 @@ pub(super) fn paint_picture(ui: &egui::Ui, theme: &Theme, videos: &ChatVideos, u
         None
     };
     let playing = live.is_some_and(|l| l.view.is_playing());
-    let busy = live.is_some_and(|l| l.view.fetching() || l.view.converting().is_some());
+    let busy = live.is_some_and(|l| l.view.fetching());
     let r = (rect.height() * 0.12).clamp(14.0, 32.0);
     if !playing && !busy && !elsewhere {
         // The Play mark: a round button with a triangle pointing right, drawn (no glyph).

@@ -6,7 +6,7 @@
 // purpose, recorded at the test.
 
 use super::*;
-use crate::media::transcode::{begin_ingest, Ingest};
+use crate::media::ffmpeg::{begin_ingest, Ingest, Ready};
 use crate::media::VideoPlayer;
 use kira::sound::streaming::Decoder as _;
 use std::time::{Duration, Instant};
@@ -159,10 +159,9 @@ fn an_mp4_plays_directly_with_no_conversion() {
     if skip() {
         return;
     }
-    let cache = humanity_core::test_temp::dir("system_ingest");
-    match begin_ingest(&fixture(), "", &cache) {
+    match begin_ingest(&fixture(), "") {
         Ingest::Direct(p) => assert_eq!(p, fixture()),
-        Ingest::Transcoding { .. } | Ingest::Cached(_) => panic!("played directly, not converted"),
+        Ingest::Stream { .. } => panic!("played directly, not through ffmpeg"),
         Ingest::Failed(msg) => panic!("played directly, not refused: {msg}"),
     }
 }
@@ -262,7 +261,8 @@ fn a_sound_that_starts_later_than_the_picture_still_does() {
     assert!(rms(0.35, 0.5, &after) > 0.05, "then the tone: {}", rms(0.35, 0.5, &after));
 }
 
-/// A VIDEO WHOSE SOUND WINDOWS CANNOT PLAY SAYS SO, AND A SCREEN CONVERTS IT (a review, 2026-10-18):
+/// A VIDEO WHOSE SOUND WINDOWS CANNOT PLAY SAYS SO, AND A SCREEN PLAYS IT THROUGH FFMPEG (a review,
+/// 2026-10-18; through ffmpeg as it plays since 2026-11-13):
 /// the H.264 + Opus fixture plays its picture through Windows with `sound_lost` naming Opus (the
 /// Media page says the sound cannot play here); with no ffmpeg a screen plays it silent rather than
 /// not at all. Seen red 2026-10-18 with `sound_lost` left unset: "the lost sound is named" (left:
@@ -277,20 +277,26 @@ fn a_video_whose_sound_windows_cannot_play_says_so() {
     assert!(info.system && info.audio_track.is_none());
     assert_eq!(info.sound_lost.as_deref(), Some("Opus"), "the lost sound is named");
     assert!(crate::gui::widgets::video_view::sound_lost_words("Opus").contains("Opus"));
-    // A setting naming a file that is not ffmpeg: the conversion cannot start, so it plays silent.
+    // A setting naming a file that is not ffmpeg: ffmpeg cannot run, so it plays silent.
     let d = humanity_core::test_temp::dir("system_sound_lost");
     let fake = d.join("ffmpeg.exe");
     std::fs::write(&fake, b"echo").unwrap();
-    match begin_ingest(&path, &fake.display().to_string(), &d.join("cache")) {
-        Ingest::Direct(p) => assert_eq!(p, path),
-        Ingest::Transcoding { .. } => panic!("no encoder to convert with: played silent"),
-        Ingest::Cached(_) => panic!("a fresh cache cannot hit"),
-        Ingest::Failed(msg) => panic!("played silent rather than not at all: {msg}"),
+    match begin_ingest(&path, &fake.display().to_string()).wait(std::time::Duration::from_secs(30)) {
+        Ready::Direct(p) => assert_eq!(p, path),
+        Ready::Stream(_) => panic!("a text file is not ffmpeg: played silent"),
+        Ready::Failed(msg) => panic!("played silent rather than not at all: {msg}"),
     }
-    if crate::media::transcode::find_ffmpeg("").is_some() {
-        match begin_ingest(&path, "", &d.join("cache")) {
-            Ingest::Transcoding { why, .. } => assert!(why.contains("Opus"), "{why}"),
-            other => panic!("with ffmpeg, converted for its sound: {:?}", std::mem::discriminant(&other)),
+    if crate::media::ffmpeg::find_ffmpeg("").is_some() {
+        match begin_ingest(&path, "") {
+            Ingest::Stream { why, opening } => {
+                assert!(why.contains("Opus"), "{why}");
+                match opening.wait(std::time::Duration::from_secs(30)) {
+                    Ready::Stream(src) => assert_eq!(src.summary.audio_codec.as_deref(), Some("opus"), "ffmpeg plays its sound"),
+                    Ready::Direct(_) => panic!("ffmpeg is here: it plays the sound"),
+                    Ready::Failed(msg) => panic!("{msg}"),
+                }
+            }
+            other => panic!("with ffmpeg, played through it for its sound: {:?}", std::mem::discriminant(&other)),
         }
     }
 }

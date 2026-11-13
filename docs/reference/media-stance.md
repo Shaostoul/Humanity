@@ -21,8 +21,9 @@ can't watch my own movies on my own free open source software."
 
 - **Plays video files.** Any file on your machine, chosen from inside the app,
   shown on any screen in the world. A format our player cannot decode is
-  converted once with the ffmpeg already installed on your machine, cached, and
-  played. Your original file is never modified.
+  played through the ffmpeg already installed on your machine, which decodes it
+  as it plays (since 2026-11-13; before that it was converted first and the copy
+  kept). Nothing is copied or kept, and your original file is never modified.
 - **Plays AV1 video in an MP4 with its own decoder (since 2026-11-03).** Video
   sites commonly hand out AV1, a royalty-free codec, in an MP4. The app's own
   player already decoded AV1 from WebM; it now reads the MP4 container too, on
@@ -80,7 +81,7 @@ what its owner permits an app to touch.
 
 | Where you are | Video files | A disc in the drive | A protected disc |
 |---|---|---|---|
-| Windows, macOS, Linux (the downloaded app) | Yes, any file, converted once if needed | Yes, when the disc can be read as files | Only if your own machine already carries that capability |
+| Windows, macOS, Linux (the downloaded app) | Yes, any file, through your own ffmpeg if needed | Yes, when the disc can be read as files | Only if your own machine already carries that capability |
 | iPhone, iPad, Android (the installed web app) | See below | No | No |
 | Game consoles | No build exists | No | No |
 
@@ -149,8 +150,9 @@ Contact: the operator, through the project's public channels.
 
 ## Where this lives in the code
 
-- `src/media/` is the player and the conversion (`transcode.rs`); `mp4.rs` reads
-  the MP4 container for the player's own AV1 decoder.
+- `src/media/` is the player; `ffmpeg.rs` finds your ffmpeg and decides which
+  road a file takes, `stream.rs` plays a file through it as it goes, and
+  `mp4.rs` reads the MP4 container for the player's own AV1 decoder.
 - `src/engine/screens/video.rs` is the in-world screen and its controls.
 - `data/media/ingest.json` is the data file naming what the picker lists and
   where ffmpeg is looked for.

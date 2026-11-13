@@ -506,10 +506,12 @@ pub(crate) fn spawn_with(state: &mut GuiState, job: Job, work: impl FnOnce() -> 
 /// Every frame, whatever page is open (src/lib.rs): forget another server's or person's state,
 /// read the answers that came back, keep an upload under way going, and hand it the current
 /// upload token. Once per run it also clears the folder "Play here" fetches into, and the
-/// downloads folder's unfinished part files, of anything a run that did not close cleanly left.
+/// downloads folder's unfinished part files, of anything a run that did not close cleanly left,
+/// and deletes the converted-video folder versions before 2026-11-13 kept (`media::ffmpeg`).
 pub(crate) fn poll_upload(ctx: &egui::Context, state: &mut GuiState) {
     open::sweep_temp_once();
     crate::gui::widgets::image_cache::sweep_downloads_once();
+    crate::media::ffmpeg::remove_old_cache_once();
     sync_server(state);
     poll(ctx, state);
     note_token(state);

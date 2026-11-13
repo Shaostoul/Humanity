@@ -89,12 +89,15 @@ line in `docs/history/audio-engine.md`.
   decoder (`system::probe_sound`), as an ordinary MP4's does. When nothing plays
   a file, `media::probe` says what it is in plain names (`media::kind`), never a
   reader's own message.
-- **Everything else** (MP4 with H.264 or H.265, MKV with H.264, MOV, AVI, MP3 audio) is the job
-  of **transcode-on-ingest**: when a file enters the platform's storage, a
-  later rung converts it once to WebM AV1 + Opus (with the machine's ffmpeg
-  where present, or a pure-Rust rav1e + Opus encoder path when we have one
-  fast enough), and the player only ever sees the one format. One decoder
-  pair in the exe, no codec sprawl, no patent exposure.
+- **Everything else** (an MP4 the computer's own decoders cannot play, MKV with H.264, MOV, AVI,
+  a disc's MPEG-2) is decoded **by the machine's own ffmpeg as it plays** (2026-11-13,
+  `src/media/stream.rs`, "Through ffmpeg as it plays" below): ffmpeg hands the player raw
+  pictures and raw sound through two pipes, the same way Windows's own decoders hand over an
+  ordinary MP4's. The exe still carries one decoder pair and no patented decoder: the H.264 or
+  MPEG-2 decoding happens in the person's ffmpeg, as it did when the file was converted ahead.
+  (From 2026-09-18 to 2026-11-13 such a file was converted once to WebM AV1 + Opus first and the
+  copy kept in a media cache; that broke the no-caches rule and made a film wait for its whole
+  conversion.)
 
 ### Video discs: what plays and what does not (2026-09-18)
 
@@ -108,9 +111,9 @@ unprotected video disc: the `.VOB` files in its `VIDEO_TS` folder are
 ordinary MPEG-2 program streams. MPEG-2 video and AC-3 audio are not in the
 excluded list above and do not need to be: their patents expired around 2017
 and 2018, and in any case nothing new ships in our exe for them, because the
-machine's own ffmpeg reads the stream and the existing transcode-on-ingest
-path converts it once into the one format the player decodes. A disc is
-simply another thing ffmpeg can read.
+machine's own ffmpeg reads the stream and decodes it as it plays, the road
+every file the player does not decode itself takes. A disc is simply another
+thing ffmpeg can read.
 
 **A copy-protected commercial disc, we do not touch.** Those discs are
 encrypted, and HumanityOS does not break disc protection. There is no
@@ -163,6 +166,12 @@ src/media/mod.rs    MediaError, MediaInfo, probe(), VideoFrame, VideoPlayer,
 src/media/video.rs  Av1Decoder (the only place rav1d's C-shaped API is called),
                     YUV to RGBA conversion, decode_video() for tests and bench
 src/media/audio.rs  OpusHead parsing, OpusTrack: a kira streaming Decoder
+src/media/mp4.rs    the MP4 container, for AV1 in an MP4
+src/media/system.rs the computer's own decoders (Windows Media Foundation)
+src/media/ffmpeg.rs finding the person's ffmpeg; begin_ingest(): which road a file takes
+src/media/stream.rs a film through ffmpeg as it plays: the look, the picture pipe
+                    (YUV4MPEG2), PipeAudio (the sound pipe, a kira streaming Decoder)
+src/media/dvd.rs    a video disc's main title, handed to ffmpeg as one film
 crates/humanity-core/src/audio/mod.rs    AudioManager::play_stream(): hands a streaming sound to kira
 ```
 
@@ -322,15 +331,15 @@ and nothing downloaded, so the files carry no third-party rights:
 - `unsupported-vp8-vorbis.webm` (4,692 bytes): 0.2 s of 64x36 VP8 plus mono
   Vorbis, so the refusal path has a real file to refuse.
 - `moving-box-h264-aac.mp4` (22,798 bytes): 2 s of 320x180 H.264 plus AAC,
-  the format a phone writes, so transcode-on-ingest has a real file to
-  convert.
+  the format a phone writes, so the ffmpeg road (and, on Windows, the
+  computer's own decoders) has a real file to play.
 - `VIDEO_TS/` (69,632 bytes for the tree): a whole unencrypted video disc,
   so the disc path is tested with no disc in the drive.
   `VTS_01_1.VOB` and `VTS_01_2.VOB` are ONE 2 s MPEG-2 program stream
   (300 kbit/s video, AC-3 audio, a cyan square sliding and bobbing) cut in
   half at a 2048 byte pack boundary, which is exactly what a disc author
   does at the VOB size limit: the timestamps run on across the cut, so the
-  two parts really do convert as one film and a test that only got the
+  two parts really do play as one film and a test that only got the
   first part fails on the duration. `VTS_01_0.VOB` is the title set's menu
   (a still green field) and `VTS_02_1.VOB` a smaller second title set, so
   "ignore the menu, pick the biggest set" has something to be right about.
@@ -409,14 +418,46 @@ What the numbers say:
 
 Mitigations, in the order they would be reached for: (1) rav1d's frame and
 tile threads, on by default; (2) YUV to RGBA in a shader, removing the serial
-CPU pass; (3) transcode-on-ingest choosing 720p for machines that need it
-(2.25x fewer pixels: roughly 64 fps single-thread at the 1080p rate above);
-(4) an assembly build of rav1d later. On that last one: nasm is a BUILD-time
+CPU pass; (3) for a machine that cannot keep up, handing an AV1 file to its
+ffmpeg as well (its dav1d has the assembly; until 2026-11-13 every converted
+file was capped at 720p for this reason, 2.25x fewer pixels, and the cap went
+with the conversion); (4) an assembly build of rav1d later. On that last one: nasm is a BUILD-time
 tool on the CI machine, never something a player installs, so
 `features = ["asm"]` in the release workflow stays an honest option if real
 content demands it; dav1d's assembly is typically 2 to 4x faster than the
 plain build. It is not turned on now because it is not needed for 1080p and
 the no-toolchain build is worth keeping simple.
+
+### Through ffmpeg as it plays (2026-11-13)
+
+Measured on the dev machine (i7-8700K, 12 logical processors, ffmpeg 2025-01-22
+gyan.dev full build), with other agents compiling, so read the numbers as an
+upper bound. The sources: one minute of a real film made into a 1280x692
+H.264 + AAC MKV (a "short local clip") and into an NTSC video-disc title
+(720x480 MPEG-2 + AC-3, 16:9) cut into two VOB parts at a pack boundary; the
+2 s fixture; and the 20 s 1280x720 MPEG-4 Part 2 + AC-3 clip the screen test
+makes for itself. BEFORE is the whole-file conversion that had to finish
+before the first picture (the pinned SVT-AV1 preset 8 command, ffmpeg run at
+below-normal priority under the operator's share rules); AFTER is the time from
+the open to the first picture on the ffmpeg road (`bench_first_picture`, and
+the screen test's own timing).
+
+| Source | BEFORE: first picture after | AFTER: first picture after | AFTER: seek to the middle |
+|---|---|---|---|
+| 1 min 1280x692 H.264 + AAC MKV | 16.4 s (3.7x real time; a two-hour film about 32 min) | 0.21 s (the look 0.06 s) | 0.26 s |
+| 1 min disc title, 2 VOB parts | 5.9 s (10x real time; a two-hour title about 12 min) | 0.15 s (the look 0.05 s) | 0.14 s |
+| the 2 s 320x180 fixture | 0.3 s | 0.11 s | |
+| 20 s 1280x720 MPEG-4 (the screen test) | 5.97 s (the test's red run) | 0.25 s (bound in the test: 2 s) | |
+
+And on disk: BEFORE kept every converted film (the dev machine's
+`media/cache` held one two-hour film, 595 MB); AFTER writes nothing. Decoding
+alone is far faster than real time, and so is the pipe: ffmpeg wrote raw pictures into a
+reading process at about 1.5 GB a second, 1,121 pictures a second at 1280x692, 2,204 at the
+disc's 854x480 and 506 at 1920x1038 (a script counting the bytes ffmpeg wrote with the picture arguments). What sets the pace
+while a film plays is the colour conversion on the decode thread, the same one the AV1 path
+uses (about 2.7 ms a 1080p picture in the release build, "Measurements" above). A debug test
+build runs that converter unoptimised and shows only about 13 pictures a second at 1280x692
+(`bench_first_picture`), which says nothing about the release exe.
 
 ### A video playing in a chat row (2026-11-06)
 
@@ -460,8 +501,8 @@ opened the video in a window of its own. Now the player sits inside the message,
 - **Nothing costs anything until Play.** A row fetches nothing and decodes nothing when it is
   drawn. The first Play fetches the whole file (the player opens a file; streaming is not built,
   "Streaming from the relay" below) on the one road every video takes: `VideoView::start` hands
-  the copy to `transcode::begin_ingest_as`, which plays it, converts it with the person's ffmpeg,
-  or names it in the plain words BUG-228 built. Those words are drawn in the row, under the
+  the copy to `ffmpeg::begin_ingest_as`, which plays it, hands it to the person's ffmpeg to play
+  as it goes, or names it in the plain words BUG-228 built. Those words are drawn in the row, under the
   player, with the card's Download beside the name.
 - **The still frame is drawn after the first press, not before** (the brief asked which). A still
   before Play would need, for every video row on screen, a range read of the MP4's index box
@@ -714,17 +755,29 @@ row").
   folder. The choice is remembered PER SCREEN in `AppConfig::screen_media`
   (keyed by the placed instance id), so a data file's `video:` source is
   only the default and the remembered file wins on the next boot.
-- **Transcode on ingest: DONE (2026-09-18).** A chosen file the player
-  refuses is converted ONCE by the machine's ffmpeg into
-  `<data dir>/media/cache/<blake3 of path, size and date>.webm` and the
-  converted copy plays; the source is never touched. ffmpeg is looked for at
-  the Settings > Media path, then `PATH`, then the per-platform list in
-  `data/media/ingest.json`. The percentage shows on the screen while it
-  runs; a cache hit skips ffmpeg entirely; no ffmpeg, a missing encoder or an
-  unreadable file is an on-screen message naming the fix, never a panic and
-  never a silent black screen. The command line is pinned by
-  `transcode_args`, so a later edit cannot quietly change the quality or
-  drop the audio. Implementation: `src/media/transcode.rs`.
+- **Through ffmpeg as it plays: DONE (2026-11-13).** A chosen file the
+  player refuses is decoded by the machine's ffmpeg WHILE it plays: nothing
+  is converted ahead, nothing is written to disk, the source is never
+  touched. ffmpeg is looked for at the Settings > Media path, then `PATH`,
+  then the per-platform list in `data/media/ingest.json`; a short look at
+  the file (`ffmpeg -i`, on a worker) gives its picture size, length and
+  sound, then one ffmpeg sends raw pictures (YUV4MPEG2, 8-bit 4:2:0, square
+  pixels, at most 1080 rows, deinterlaced when the file is interlaced) and a
+  second raw sound (32-bit float, 48 kHz stereo). A seek starts both again at
+  the new place. No ffmpeg or an unreadable file is an on-screen message
+  naming the fix, never a panic and never a silent black screen. Both
+  command lines are pinned by `the_command_lines_are_pinned`. A crash leaves
+  nothing behind: the pipes are the only link, and ffmpeg exits on its next
+  write once they close (`a_crash_leaves_no_ffmpeg_running`).
+  Implementation: `src/media/ffmpeg.rs` and `src/media/stream.rs`.
+  It replaced **transcode on ingest** (2026-09-18 to 2026-11-13), which
+  converted the whole file to WebM AV1 + Opus first and kept the copy in
+  `<data dir>/media/cache`: it broke the no-caches rule (CLAUDE.md, operator
+  2026-07-16, "Every cache is a chance to encounter a bug."), kept every film
+  on disk (595 MB for one film on the dev machine) and showed nothing until
+  the whole conversion was done (the numbers are in "Measurements", "Through
+  ffmpeg as it plays"). An old cache folder is deleted once at start, with a
+  log line (`ffmpeg::remove_old_cache_once`).
   Still to come on that side: synchronised playback between players (a
   one-shot Sync: load the same source, seek to the same moment, then play
   independently; `docs/design/in-world-screens.md`, "Screens are per
@@ -761,12 +814,26 @@ row").
   `BufReader<File>`. Playing a WebM as it downloads means a reader that
   blocks on the not-yet-arrived range, which is a transport question for the
   storage rungs.
-- **Transcode on ingest: DONE**, see the display-integration entry above.
+- **Through ffmpeg as it plays: DONE** (it replaced transcode on ingest), see
+  the display-integration entry above.
 - **GPU colour conversion.** The CPU converter is correct and measured; the
   shader version belongs with the surface.
 - **More than two audio channels** (Opus multistream), **HDR tone mapping**.
 
 ## Known limits
+
+- **Through ffmpeg as it plays (2026-11-13): what it does not do yet.** A
+  film with HDR (PQ or HLG) colour comes through as plain 8-bit BT.2020 and
+  looks washed out: no tone mapping (the conversion before it did none
+  either; ffmpeg's `zscale` and `tonemap` filters would do it, but
+  `zscale` is not in every build). The picture is capped at 1080 rows
+  (`stream::MAX_ROWS`, the pipe and the colour conversion per picture). A
+  seek restarts both ffmpegs at the new place, about a tenth to a quarter of
+  a second; a disc whose timestamps jump between its cells seeks where
+  ffmpeg's estimate puts it. Subtitles and a disc's other audio tracks are
+  not chosen (the first picture stream that is not cover art, the first
+  sound stream). A file's uneven frame rate is evened to the rate ffmpeg
+  prints (`fps=`), because the pipe carries no times.
 
 - **FIXED 2026-09-27 (BUG-093): the abort below was a real over-wide borrow
   in rav1d's CDEF, not only its instrumentation.** `padding` in rav1d 1.1.0's

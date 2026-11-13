@@ -286,6 +286,14 @@ unsafe fn plane_bytes<'a>(
     Ok(std::slice::from_raw_parts(ptr.as_ptr() as *const u8, len))
 }
 
+/// 8-bit 4:2:0 studio-range planes (the picture pipe from ffmpeg, `stream.rs`) to RGBA, with the
+/// same converter the AV1 path uses. `y` is `width` x `height`; `u` and `v` are the halves,
+/// rounded up, packed with no padding.
+pub(crate) fn yuv420_to_rgba(width: usize, height: usize, y: &[u8], u: &[u8], v: &[u8], matrix: ColorMatrix) -> Vec<u8> {
+    let l = PlaneLayout { width, height, ss_hor: 1, ss_ver: 1, grey: false, bpc: 8, full_range: false, matrix };
+    yuv_to_rgba(&l, y, width, u, v, width.div_ceil(2))
+}
+
 /// Fixed-point (16 fractional bits) YUV to RGBA. Coefficients are the
 /// standard ones for each matrix (BT.601, BT.709, BT.2020 non-constant
 /// luminance); limited range scales Y by 255/219 and chroma by 255/224.

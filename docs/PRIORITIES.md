@@ -726,7 +726,7 @@ tiers (2026-10-03: the full list, Homestead default), the expiring erase marker
   private files, device-to-device files, Media rows; `data/safety/file_risks.json`). And the file
   picker's dimmed backdrop and tinted sections. Follow-ups: "Play here" for a WebM video in chat on
   the desktop (the Media page's player), and an MP4 there through the computer's own ffmpeg
-  (`transcode::begin_ingest`), as the Media page does.
+  (`ffmpeg::begin_ingest`), as the Media page does.
   The chat bar fix below is CONFIRMED by his screenshot of 2026-10-14: the message box sits
   fully above the taskbar.
 

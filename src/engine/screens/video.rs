@@ -5,7 +5,8 @@
 //! The operator's words: "movies on displays", then "I want to play a video
 //! of my own on it". Design: docs/design/in-world-screens.md, the "Video
 //! sources" section; the player itself and the codec policy:
-//! docs/design/media-player.md; the conversion: `src/media/transcode.rs`.
+//! docs/design/media-player.md; the person's ffmpeg: `src/media/ffmpeg.rs` and
+//! `src/media/stream.rs`.
 //!
 //! How the pieces meet:
 //!
@@ -37,12 +38,13 @@
 //!   `video:` source is only the default and the remembered file wins on
 //!   the next boot. The dev IPC's `video_open` goes through the same
 //!   `open_path`.
-//! * INGEST: a chosen file the player accepts (WebM AV1 + Opus) opens at
-//!   once; any other file is converted once by the machine's ffmpeg into
-//!   the media cache and the converted copy plays (`transcode::begin_ingest`
-//!   decides; the strip shows the percentage while it runs; a cache hit
-//!   skips ffmpeg). No ffmpeg, no encoder, a bad file: an on-screen message
-//!   naming the fix, never a panic, never a silent black screen.
+//! * INGEST: a chosen file the player accepts (AV1 + Opus, or on Windows an
+//!   ordinary MP4 through the computer's own decoders) opens at once; any
+//!   other file is played by the machine's ffmpeg as it goes, after a short
+//!   look at it on a worker (`ffmpeg::begin_ingest` decides; nothing is
+//!   converted ahead and nothing is written). No ffmpeg or a bad file: an
+//!   on-screen message naming the fix, never a panic, never a silent black
+//!   screen.
 //! * The SOUND is the clip's Opus track through kira, placed at the screen:
 //!   every frame the engine tells the provider where its screen and the
 //!   listener are (`world_update`), and the provider sets the stream's
@@ -74,7 +76,8 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult, FilePickerState};
 use crate::gui::widgets::{self, ButtonVariant};
 use crate::gui::GuiState;
-use crate::media::transcode::{self, Ingest, TranscodeJob};
+use crate::media::ffmpeg::{self, Ingest, Ready};
+use crate::media::stream::Opening;
 use crate::media::{compose_mix, mix_moved, AudioAttach, VideoFrame, VideoPlayer, MIX_TWEEN_MS};
 
 /// Beyond this distance from the listener a screen's sound is silent. The
@@ -337,7 +340,7 @@ impl StripTimer {
 }
 
 /// Whether the control strip is drawn this tick: always while paused,
-/// while there is no picture to hide it behind (opening, converting, an
+/// while there is no picture to hide it behind (opening, starting ffmpeg, an
 /// error), while the picker is open, and otherwise only while the pointer
 /// recently moved on the screen.
 pub fn strip_wanted(paused: bool, no_picture: bool, picker_open: bool, recently_moved: bool) -> bool {
@@ -647,18 +650,18 @@ pub struct VideoProvider {
     /// The Settings > Media ffmpeg path, mirrored from the GUI state each
     /// frame so `open_path` (which the IPC calls between frames) has it.
     ffmpeg_setting: String,
-    /// The media cache, resolved on first use (tests point it at scratch).
-    cache_dir: Option<PathBuf>,
-    /// The file that actually plays: the source, or its converted copy.
+    /// What the player reads: the file, or what ffmpeg is handed for it (a disc's chain of parts).
     resolved: Option<PathBuf>,
-    /// The player, once opened. `None` before the first frame, while a
-    /// conversion runs, and after an open error.
+    /// The player, once opened. `None` before the first frame, while ffmpeg's short look at the
+    /// file runs, and after an open error.
     player: Option<VideoPlayer>,
-    /// A conversion in flight; its result opens the player.
-    job: Option<TranscodeJob>,
-    /// Why a conversion was needed, for the notice ("is a WebM file with VP8
-    /// video, which this app cannot play as it is").
-    convert_why: Option<String>,
+    /// ffmpeg's short look at the file, running on a worker; its answer opens the player.
+    opening: Option<Opening>,
+    /// The film plays through the person's ffmpeg (as it goes, nothing written).
+    via_ffmpeg: bool,
+    /// Why ffmpeg was needed, for the notice ("is a WebM file with VP8 video, which this app
+    /// cannot play as it is").
+    ffmpeg_why: Option<String>,
     /// Set once an open has been tried, whatever the outcome, so a failed
     /// open is shown on the screen and not retried every frame.
     open_attempted: bool,
@@ -709,13 +712,8 @@ pub struct VideoProvider {
     /// What the last run's notice said, to redraw when it changes (the
     /// percentage ticking up).
     last_notice: Option<String>,
-    /// The last open was served from the media cache (no ffmpeg run).
-    // reuse: a record for the status line; the media cache itself is `cache_dir`.
-    cache_hit: bool,
-    /// How many conversions this provider started.
-    transcodes: u64,
     /// The thing being opened is a DISC (a folder, `src/media/dvd.rs`), not
-    /// a single file. Kept so a conversion that fails later still gets the
+    /// a single file. Kept so ffmpeg failing on it later still gets the
     /// plain answer about copy protection instead of a decoder error.
     disc_source: bool,
 }
@@ -731,11 +729,11 @@ impl VideoProvider {
             remember_pending: false,
             adopted: false,
             ffmpeg_setting: String::new(),
-            cache_dir: None,
             resolved: None,
             player: None,
-            job: None,
-            convert_why: None,
+            opening: None,
+            via_ffmpeg: false,
+            ffmpeg_why: None,
             open_attempted: false,
             error: None,
             want_playing: true,
@@ -752,27 +750,15 @@ impl VideoProvider {
             strip_top_frac: 1.0,
             tex: None,
             last_notice: None,
-            cache_hit: false,
-            transcodes: 0,
             disc_source: false,
         }
     }
 
-    /// Use `dir` as the media cache (tests; the app uses `transcode::cache_dir`).
-    pub fn with_cache_dir(mut self, dir: PathBuf) -> Self {
-        self.cache_dir = Some(dir);
-        self
-    }
-
-    /// The Settings > Media ffmpeg path to use for conversions.
+    /// The Settings > Media ffmpeg path, for files the person's ffmpeg plays.
     pub fn set_ffmpeg_setting(&mut self, setting: &str) {
         if self.ffmpeg_setting != setting {
             self.ffmpeg_setting = setting.to_string();
         }
-    }
-
-    fn cache_dir(&mut self) -> PathBuf {
-        self.cache_dir.get_or_insert_with(transcode::cache_dir).clone()
     }
 
     /// The name shown on the strip and in messages: the chosen file's name,
@@ -787,7 +773,20 @@ impl VideoProvider {
     /// Open the player on a file the player accepts. A failure becomes the
     /// screen's error; it never panics and is never retried per frame.
     fn open_player(&mut self, path: PathBuf) {
-        match VideoPlayer::open(&path) {
+        let opened = VideoPlayer::open(&path);
+        self.adopt_player(opened, path);
+    }
+
+    /// Open the player on a film the person's ffmpeg decodes as it plays (the answer of its look).
+    fn open_stream_player(&mut self, source: crate::media::stream::StreamSource) {
+        let input = source.input.clone();
+        let opened = VideoPlayer::open_stream(source);
+        self.adopt_player(opened, input);
+    }
+
+    /// Keep a player that opened (playing if wanted, at the start volume), or its error.
+    fn adopt_player(&mut self, opened: Result<VideoPlayer, crate::media::MediaError>, path: PathBuf) {
+        match opened {
             Ok(mut p) => {
                 if self.want_playing {
                     p.play();
@@ -813,39 +812,35 @@ impl VideoProvider {
         self.resolved = Some(path);
     }
 
-    /// Start getting `src` onto the screen: play it, serve the cached
-    /// conversion, start a conversion, or record why none of that works.
-    /// Every previous state (player, job, frame, error) is dropped first,
-    /// so a new choice replaces the old film cleanly (the old decoder is
-    /// joined and its sound stopped by the player's own Drop).
+    /// Start getting `src` onto the screen: play it, hand it to the person's
+    /// ffmpeg (its short look runs on a worker; `advance` opens the player on
+    /// its answer), or record why neither works. Every previous state
+    /// (player, look, frame, error) is dropped first, so a new choice
+    /// replaces the old film cleanly (the old decoder and its ffmpeg are
+    /// stopped and its sound stopped by the player's own Drop).
     fn start_ingest(&mut self, src: PathBuf) {
         self.player = None;
-        self.job = None;
-        self.convert_why = None;
+        self.opening = None;
+        self.via_ffmpeg = false;
+        self.ffmpeg_why = None;
         self.error = None;
         self.last = None;
         self.frame_dirty = false;
         self.loops = 0;
         self.resolved = None;
-        self.cache_hit = false;
         self.sound = SoundLink::default();
         self.open_attempted = true;
         // A folder means a DISC (or the drive holding one): `begin_ingest`
         // sends it to the disc path itself, and this flag is only so that a
         // failure LATER is answered in disc terms.
         self.disc_source = src.is_dir();
-        let cache = self.cache_dir();
-        match transcode::begin_ingest(&src, &self.ffmpeg_setting, &cache) {
+        match ffmpeg::begin_ingest(&src, &self.ffmpeg_setting) {
             Ingest::Direct(p) => self.open_player(p),
-            Ingest::Cached(p) => {
-                self.cache_hit = true;
-                self.open_player(p);
-            }
-            Ingest::Transcoding { job, why } => {
-                self.transcodes += 1;
-                self.convert_why = Some(why);
-                self.resolved = Some(job.dst().to_path_buf());
-                self.job = Some(job);
+            Ingest::Stream { opening, why } => {
+                self.via_ffmpeg = true;
+                self.ffmpeg_why = Some(why);
+                self.resolved = Some(src);
+                self.opening = Some(opening);
             }
             Ingest::Failed(msg) => {
                 log::warn!("[Screens] video {:?}: {msg}", self.current_name());
@@ -887,7 +882,7 @@ impl VideoProvider {
 
     /// Open a file the PLAYER chose (the picker, the dev IPC): it becomes
     /// this screen's film, remembered in the config on the next frame, and
-    /// goes through the same probe / cache / convert path as any source.
+    /// goes through the same probe / ffmpeg road as any source.
     pub fn open_path(&mut self, path: &Path) {
         self.chosen = Some(path.to_path_buf());
         self.remember_pending = true;
@@ -927,26 +922,20 @@ impl VideoProvider {
     /// end rewound the clip on the very next tick, `status().position_s`
     /// jumped to 0 and `loops` counted a wrap nobody saw.
     pub fn advance(&mut self) -> bool {
-        if let Some(job) = self.job.as_ref() {
-            if let Some(result) = job.result() {
-                self.job = None;
-                match result {
-                    Ok(dst) => self.open_player(dst),
-                    Err(e) => {
-                        let mut msg = format!("{} could not be converted: {e}", self.current_name());
-                        // A disc that gets this far and still fails is most
-                        // often a copy-protected one whose header flags did
-                        // not say so. Say it plainly rather than leaving a
-                        // decoder error nobody can act on (the line names
-                        // no tool and offers no way around the protection:
-                        // src/media/dvd.rs).
-                        if self.disc_source {
-                            msg.push('\n');
-                            msg.push_str(crate::media::dvd::PROTECTED_HINT);
-                        }
-                        log::warn!("[Screens] video: {msg}");
-                        self.error = Some(msg);
-                    }
+        if let Some(ready) = self.opening.as_mut().and_then(|o| o.poll()) {
+            self.opening = None;
+            match ready {
+                Ready::Stream(source) => self.open_stream_player(source),
+                // A file whose sound only ffmpeg plays, and ffmpeg could not run: silent rather
+                // than not at all.
+                Ready::Direct(path) => {
+                    self.via_ffmpeg = false;
+                    self.open_player(path);
+                }
+                Ready::Failed(msg) => {
+                    let msg = self.with_disc_hint(msg);
+                    log::warn!("[Screens] video: {msg}");
+                    self.error = Some(msg);
                 }
             }
         }
@@ -973,9 +962,21 @@ impl VideoProvider {
         }
         if let Some(e) = p.take_error() {
             log::warn!("[Screens] video {:?}: {e}", self.current_name());
-            self.error = Some(e);
+            self.error = Some(self.with_disc_hint(e));
         }
         fresh
+    }
+
+    /// A disc that gets as far as ffmpeg and still fails is most often a
+    /// copy-protected one whose header flags did not say so. Say it plainly
+    /// rather than leaving a decoder error nobody can act on (the line names
+    /// no tool and offers no way around the protection: src/media/dvd.rs).
+    fn with_disc_hint(&self, mut msg: String) -> String {
+        if self.disc_source {
+            msg.push('\n');
+            msg.push_str(crate::media::dvd::PROTECTED_HINT);
+        }
+        msg
     }
 
     /// Flip between playing and paused (a click on the picture, the
@@ -1005,7 +1006,7 @@ impl VideoProvider {
         self.loops
     }
 
-    /// The open, conversion or decode error, if there is one.
+    /// The open, ffmpeg or decode error, if there is one.
     pub fn error(&self) -> Option<&str> {
         self.error.as_deref()
     }
@@ -1025,7 +1026,7 @@ impl VideoProvider {
     /// because a film on a disc is a folder of numbered files nobody
     /// should have to understand (`folder_offer`, `src/media/dvd.rs`).
     pub fn show_picker(&mut self) {
-        let rules = transcode::ingest_rules();
+        let rules = ffmpeg::ingest_rules();
         let exts: Vec<&str> = rules.video_extensions.iter().map(|s| s.as_str()).collect();
         let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).ok().map(PathBuf::from);
         let start = self
@@ -1060,23 +1061,20 @@ impl VideoProvider {
         }
     }
 
-    /// The conversion's percentage, when one is running.
-    pub fn transcoding_pct(&self) -> Option<f32> {
-        self.job.as_ref().map(|j| j.percent())
+    /// Whether ffmpeg's short look at the file is still running.
+    pub fn opening(&self) -> bool {
+        self.opening.is_some()
     }
 
-    /// What is drawn INSTEAD of a picture, if anything: the error, the
-    /// conversion (with its reason and percentage), the opening state.
+    /// What is drawn INSTEAD of a picture, if anything: the error, ffmpeg
+    /// starting (with the reason it is needed), the opening state.
     pub fn notice_text(&self) -> Option<String> {
         if self.error.is_some() {
             return Some(self.error_text());
         }
-        if let Some(pct) = self.transcoding_pct() {
-            let why = self.convert_why.as_deref().unwrap_or("is not WebM AV1 + Opus");
-            return Some(format!(
-                "{} {why}.\nConverting it once to WebM AV1 + Opus with ffmpeg: {pct:.0}%",
-                self.current_name()
-            ));
+        if self.opening() || (self.via_ffmpeg && self.player.is_none()) {
+            let why = self.ffmpeg_why.as_deref().unwrap_or_default();
+            return Some(humanity_core::i18n::tf("video.ffmpeg_opening", &[("name", &self.current_name()), ("why", &why)]));
         }
         if self.player.is_none() {
             return Some(format!("Opening {}", self.current_name()));
@@ -1084,11 +1082,11 @@ impl VideoProvider {
         None
     }
 
-    /// The strip's right-hand text: the position and length, or the
-    /// conversion percentage.
+    /// The strip's right-hand text: the position and length, or that ffmpeg
+    /// is starting.
     fn right_text(&self) -> String {
-        if let Some(pct) = self.transcoding_pct() {
-            return format!("converting {pct:.0}%");
+        if self.opening() {
+            return humanity_core::i18n::t("video.ffmpeg_starting").to_string();
         }
         match &self.player {
             Some(p) => {
@@ -1332,23 +1330,15 @@ impl ScreenProvider for VideoProvider {
         if let Some(r) = &self.resolved {
             media.insert("resolved".into(), serde_json::json!(r.display().to_string()));
         }
-        // 100 once the file plays (or played directly), the live percentage
-        // while converting, absent while nothing is open.
-        let pct = match (&self.job, &self.player) {
-            (Some(j), _) => Some(j.percent()),
-            (None, Some(_)) => Some(100.0),
-            (None, None) => None,
-        };
-        if let Some(p) = pct {
-            media.insert("transcoding_pct".into(), serde_json::json!(p));
-        }
-        media.insert("cache_hit".into(), serde_json::json!(self.cache_hit));
-        media.insert("transcodes".into(), serde_json::json!(self.transcodes));
+        // ffmpeg's short look is running (true until the player opens on it).
+        media.insert("opening".into(), serde_json::json!(self.opening()));
+        // The film plays through the person's ffmpeg, as it goes.
+        media.insert("ffmpeg".into(), serde_json::json!(self.via_ffmpeg));
         media.insert("disc".into(), serde_json::json!(self.disc_source));
-        // Why a conversion was needed, in the same words the screen shows:
-        // a rig reading this can tell the disc path from the file path.
-        if let Some(w) = &self.convert_why {
-            media.insert("convert_why".into(), serde_json::json!(w));
+        // Why ffmpeg was needed, in the same words the screen shows: a rig
+        // reading this can tell the disc path from the file path.
+        if let Some(w) = &self.ffmpeg_why {
+            media.insert("ffmpeg_why".into(), serde_json::json!(w));
         }
         if let Some(e) = &self.error {
             media.insert("error".into(), serde_json::json!(e));
@@ -1401,7 +1391,7 @@ impl ScreenProvider for VideoProvider {
         if let Some(e) = &self.error {
             return LoadState::Error(e.clone());
         }
-        if self.job.is_some() || (self.open_attempted && self.player.is_none()) {
+        if self.opening.is_some() || (self.open_attempted && self.player.is_none()) {
             return LoadState::Loading;
         }
         if self.player.is_some() {
@@ -1459,17 +1449,13 @@ impl ScreenProvider for VideoProvider {
 impl Drop for VideoProvider {
     /// The screen went away (machine removed, source changed): dropping the
     /// player stops and JOINS its decode thread and stops the kira sound
-    /// (`VideoPlayer::drop`), and dropping a conversion in flight KILLS its
-    /// ffmpeg (`TranscodeJob::drop`), so no decoder or encoder keeps
-    /// running for a wall that no longer exists.
+    /// (`VideoPlayer::drop`), which for a film through ffmpeg also KILLS its
+    /// ffmpegs, so no decoder keeps running for a wall that no longer exists.
+    /// A look still running finishes on its own worker and is thrown away.
     fn drop(&mut self) {
         if let Some(p) = self.player.take() {
             drop(p);
             log::info!("[Screens] video {:?} stopped", self.current_name());
-        }
-        if let Some(j) = self.job.take() {
-            drop(j);
-            log::info!("[Screens] video {:?}: conversion cancelled", self.current_name());
         }
     }
 }
@@ -1491,7 +1477,7 @@ mod tests {
     /// A file the player refuses, reached through the rule's SECOND branch
     /// (the data dir's parent, the repo root).
     const UNSUPPORTED: &str = "tests/fixtures/media/unsupported-vp8-vorbis.webm";
-    /// The transcode fixture: H.264 + AAC in an MP4.
+    /// The ffmpeg-road fixture: H.264 + AAC in an MP4 (Windows's own decoders play it too).
     const MP4: &str = "tests/fixtures/media/moving-box-h264-aac.mp4";
 
     fn data_dir() -> PathBuf {
@@ -1501,6 +1487,11 @@ mod tests {
     fn scratch(name: &str) -> humanity_core::test_temp::TempPath {
         humanity_core::test_temp::dir(&format!("video_{name}"))
     }
+
+    /// Held by every test here that points HUMANITY_DATA_DIR (a process-wide variable) at a
+    /// scratch folder, so one test's `remove_var` never lands in the middle of another's save,
+    /// which would then write the person's real config.json.
+    static DATA_DIR_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// Every piece of text egui laid out in a run, joined; how a test reads
     /// what a page SAYS rather than only that it drew something.
@@ -1799,22 +1790,21 @@ mod tests {
         let mut state = GuiState::default();
         let theme = load_theme();
         let mut core = ScreenCore::new("s", "video:x", 640, 360, &theme);
-        let cache = scratch("vp8");
-        let mut p = VideoProvider::new(UNSUPPORTED).with_cache_dir(cache.to_path_buf());
+        let mut p = VideoProvider::new(UNSUPPORTED);
         p.open_with(&data_dir(), core.size());
         assert!(p.player.is_none(), "a VP8 file never opens as it is");
         let _ = p.plan_frame(&mut core, Instant::now(), true);
         let (drawn, _) = run_draw(&mut core, &mut state, &mut p);
         // In plain words since BUG-228 ("a WebM file with VP8 video"), not the Matroska id V_VP8.
         assert!(drawn.contains("VP8 video") && !drawn.contains("V_VP8"), "the screen names the codec: {drawn:?}");
-        if p.job.is_some() {
-            assert!(drawn.contains("Converting"), "with ffmpeg it converts: {drawn:?}");
+        if p.opening() {
+            assert!(drawn.contains("Starting it with your ffmpeg"), "with ffmpeg it plays through it: {drawn:?}");
             assert_eq!(p.load_state(), LoadState::Loading);
             let resolved = p.status()["media"]["resolved"].as_str().map(str::to_string);
-            assert!(resolved.map_or(false, |r| r.starts_with(&cache.display().to_string())), "{:?}", p.status());
+            assert!(resolved.map_or(false, |r| r.ends_with("unsupported-vp8-vorbis.webm")), "ffmpeg reads the file itself: {:?}", p.status());
         } else {
-            let err = p.error().expect("no conversion means an error");
-            assert!(err.contains(transcode::FFMPEG_HINT), "the fix is named: {err}");
+            let err = p.error().expect("no ffmpeg means an error");
+            assert!(err.contains(ffmpeg::FFMPEG_HINT), "the fix is named: {err}");
             assert!(drawn.contains("Settings > Media"), "{drawn:?}");
         }
         drop(p);
@@ -1880,8 +1870,8 @@ mod tests {
         let s = p.status();
         assert_eq!(s["loops"].as_u64().unwrap(), p.loops());
         assert!(s["playing"].as_bool().unwrap(), "still rolling after the wrap");
-        assert_eq!(s["media"]["transcoding_pct"].as_f64().unwrap(), 100.0, "a direct open reads 100");
-        assert!(!s["media"]["cache_hit"].as_bool().unwrap());
+        assert!(!s["media"]["ffmpeg"].as_bool().unwrap(), "a direct open needs no ffmpeg");
+        assert!(!s["media"]["opening"].as_bool().unwrap());
         assert!(p.error().is_none());
     }
 
@@ -2355,108 +2345,98 @@ mod tests {
         assert!(e.notice_text().unwrap().contains("not found"));
     }
 
-    /// The whole ingest path through the provider, when ffmpeg exists: an
-    /// MP4 opened with `open_path` reports Loading with a rising percentage
-    /// and no player, then Ready with the player on the converted file in
-    /// the scratch cache, frames flow at the fixture's size, the status
-    /// says 100 and no cache hit; opening the SAME file again is a cache
-    /// hit (no second conversion; `transcodes` stays 1) and plays. Skipped
-    /// (printed) without ffmpeg.
+    /// The whole ffmpeg road through the provider, when ffmpeg exists: an
+    /// MP4 (Windows's own decoders off) opened with `open_path` reports
+    /// Loading with no player while ffmpeg's short look runs, says so on the
+    /// screen, then Ready with the player on the SOURCE file (nothing
+    /// converted, nothing written), pictures at the fixture's size, and the
+    /// status naming the ffmpeg road. Opening it again goes the same way.
+    /// Skipped (printed) without ffmpeg.
     #[test]
-    fn open_path_converts_an_mp4_once_then_plays_it_from_the_cache() {
-        if transcode::find_ffmpeg("").is_none() {
+    fn open_path_plays_an_mp4_through_ffmpeg_as_it_goes() {
+        if ffmpeg::find_ffmpeg("").is_none() {
             println!("skipped: no ffmpeg on this machine");
             return;
         }
-        // The conversion path: Windows plays this MP4 directly (media/system_tests.rs), so its
-        // own decoders are off on this thread.
+        // The ffmpeg road: Windows plays this MP4 directly (media/system_tests.rs), so its own
+        // decoders are off on this thread.
         crate::media::system_decoders_off_on_this_thread();
-        let cache = scratch("mp4");
         let mp4 = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join(MP4);
-        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());
+        let mut p = VideoProvider::new(DEMO);
         p.display_px = Some((1280, 720));
-        p.open_path(&mp4);
-        assert!(p.job.is_some(), "an MP4 needs a conversion: {:?}", p.error());
-        assert_eq!(p.load_state(), LoadState::Loading);
-        assert_eq!(p.status()["media"]["transcodes"].as_u64(), Some(1));
-        assert_eq!(p.status()["media"]["chosen"].as_str(), Some(mp4.display().to_string().as_str()));
-        assert!(p.notice_text().unwrap().contains("Converting"), "{:?}", p.notice_text());
-        assert_eq!(p.current_name(), "moving-box-h264-aac.mp4");
+        for round in 0..2 {
+            p.open_path(&mp4);
+            assert!(p.opening(), "an MP4 goes to ffmpeg: {:?}", p.error());
+            assert_eq!(p.load_state(), LoadState::Loading);
+            assert_eq!(p.status()["media"]["chosen"].as_str(), Some(mp4.display().to_string().as_str()));
+            assert!(p.status()["media"]["ffmpeg"].as_bool().unwrap());
+            assert!(p.notice_text().unwrap().contains("Starting it with your ffmpeg"), "{:?}", p.notice_text());
+            assert_eq!(p.current_name(), "moving-box-h264-aac.mp4");
 
-        let deadline = Instant::now() + Duration::from_secs(120);
-        while Instant::now() < deadline && p.player.is_none() && p.error.is_none() {
-            p.advance();
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        assert!(p.error.is_none(), "{:?}", p.error);
-        assert!(p.player.is_some(), "the converted file must open within 120 s");
-        assert_eq!(p.load_state(), LoadState::Ready);
-        let s = p.status();
-        assert_eq!(s["media"]["transcoding_pct"].as_f64(), Some(100.0));
-        assert!(!s["media"]["cache_hit"].as_bool().unwrap());
-        let resolved = PathBuf::from(s["media"]["resolved"].as_str().unwrap());
-        assert!(resolved.starts_with(&cache) && resolved.is_file(), "{}", resolved.display());
-        // Frames flow from the converted clip at the fixture's size.
-        let deadline = Instant::now() + Duration::from_secs(3);
-        let mut frames = 0;
-        while Instant::now() < deadline && frames < 5 {
-            if p.advance() {
-                let f = p.last_frame().unwrap();
-                assert_eq!((f.width, f.height), (320, 180));
-                frames += 1;
+            let deadline = Instant::now() + Duration::from_secs(60);
+            while Instant::now() < deadline && p.player.is_none() && p.error.is_none() {
+                p.advance();
+                std::thread::sleep(Duration::from_millis(5));
             }
-            std::thread::sleep(Duration::from_millis(3));
+            assert!(p.error.is_none(), "{:?}", p.error);
+            assert!(p.player.is_some(), "the player opens on ffmpeg's answer (round {round})");
+            assert_eq!(p.load_state(), LoadState::Ready);
+            assert!(p.player.as_ref().unwrap().info().stream);
+            let s = p.status();
+            assert!(!s["media"]["opening"].as_bool().unwrap());
+            assert_eq!(s["media"]["resolved"].as_str().map(PathBuf::from), Some(mp4.clone()), "the source itself plays: {s}");
+            // Pictures flow from ffmpeg at the fixture's size.
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut frames = 0;
+            while Instant::now() < deadline && frames < 5 {
+                if p.advance() {
+                    let f = p.last_frame().unwrap();
+                    assert_eq!((f.width, f.height), (320, 180));
+                    frames += 1;
+                }
+                std::thread::sleep(Duration::from_millis(3));
+            }
+            assert!(frames >= 5, "pictures from ffmpeg: {frames}");
         }
-        assert!(frames >= 5, "frames from the converted file: {frames}");
-
-        // The same file again: a cache hit, no second conversion.
-        p.open_path(&mp4);
-        assert!(p.job.is_none(), "a cached file spawns no job");
-        assert!(p.player.is_some(), "and opens at once");
-        let s = p.status();
-        assert!(s["media"]["cache_hit"].as_bool().unwrap(), "{s}");
-        assert_eq!(s["media"]["transcodes"].as_u64(), Some(1), "still one conversion");
-        assert_eq!(s["media"]["resolved"].as_str().map(PathBuf::from), Some(resolved));
         drop(p);
     }
 
     /// A DISC on the screen, when ffmpeg exists: handing the provider the
     /// FOLDER (which is what the picker's "Play disc" button and the dev
-    /// IPC hand it) takes the disc road, converts the fixture disc's
-    /// two-part main title as one film, and plays it. The status says it
+    /// IPC hand it) takes the disc road, hands the fixture disc's two-part
+    /// main title to ffmpeg as one film, and plays it. The status says it
     /// was a disc, so a rig can tell this path from the single-file one.
     /// Skipped (printed) without ffmpeg.
     #[test]
     fn open_path_plays_a_whole_video_disc_from_its_folder() {
-        if transcode::find_ffmpeg("").is_none() {
+        if ffmpeg::find_ffmpeg("").is_none() {
             println!("skipped: no ffmpeg on this machine");
             return;
         }
-        let cache = scratch("disc");
         // The folder ABOVE VIDEO_TS, which is what a disc drive looks like.
         let disc = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("tests").join("fixtures").join("media");
-        let mut p = VideoProvider::new(DEMO).with_cache_dir(cache.to_path_buf());
+        let mut p = VideoProvider::new(DEMO);
         p.display_px = Some((1280, 720));
         p.open_path(&disc);
         assert!(p.error.is_none(), "{:?}", p.error);
-        assert!(p.job.is_some(), "a disc needs a conversion");
+        assert!(p.opening(), "a disc goes to ffmpeg");
         let s = p.status();
         assert!(s["media"]["disc"].as_bool().unwrap(), "the status names the disc road: {s}");
-        assert!(s["media"]["convert_why"].as_str().unwrap().contains("video disc"), "{s}");
+        assert!(s["media"]["ffmpeg_why"].as_str().unwrap().contains("video disc"), "{s}");
         assert!(p.notice_text().unwrap().contains("video disc"), "{:?}", p.notice_text());
 
-        let deadline = Instant::now() + Duration::from_secs(180);
+        let deadline = Instant::now() + Duration::from_secs(60);
         while Instant::now() < deadline && p.player.is_none() && p.error.is_none() {
             p.advance();
-            std::thread::sleep(Duration::from_millis(20));
+            std::thread::sleep(Duration::from_millis(5));
         }
         assert!(p.error.is_none(), "{:?}", p.error);
-        assert!(p.player.is_some(), "the disc must open within 180 s");
+        assert!(p.player.is_some(), "the disc must open within 60 s");
         assert_eq!(p.load_state(), LoadState::Ready);
         // Both parts, as one film: one part alone is a second.
         assert!(p.player.as_ref().unwrap().duration_s() > 1.5, "{}", p.player.as_ref().unwrap().duration_s());
         let mut frames = 0;
-        let deadline = Instant::now() + Duration::from_secs(3);
+        let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline && frames < 5 {
             if p.advance() {
                 assert_eq!((p.last_frame().unwrap().width, p.last_frame().unwrap().height), (320, 180));
@@ -2464,7 +2444,7 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(3));
         }
-        assert!(frames >= 5, "frames from the converted disc: {frames}");
+        assert!(frames >= 5, "pictures from the disc: {frames}");
         drop(p);
     }
 
@@ -2477,7 +2457,7 @@ mod tests {
     fn a_folder_that_is_not_a_disc_and_a_protected_disc_are_answered_in_words() {
         let d = scratch("notdisc");
         std::fs::write(d.join("readme.txt"), b"x").unwrap();
-        let mut p = VideoProvider::new(DEMO).with_cache_dir(d.join("cache"));
+        let mut p = VideoProvider::new(DEMO);
         p.display_px = Some((1280, 720));
         p.open_path(&d);
         let err = p.error().expect("a folder with no disc in it cannot play").to_string();
@@ -2503,12 +2483,12 @@ mod tests {
             i += 1;
         }
         std::fs::write(video_ts.join("VTS_01_1.VOB"), &bytes).unwrap();
-        let mut q = VideoProvider::new(DEMO).with_cache_dir(protected.join("cache"));
+        let mut q = VideoProvider::new(DEMO);
         q.display_px = Some((1280, 720));
         q.open_path(&protected);
         let err = q.error().expect("a protected disc cannot play").to_string();
         assert_eq!(err, crate::media::dvd::PROTECTED_MESSAGE);
-        assert!(q.job.is_none(), "nothing is converted");
+        assert!(!q.opening(), "ffmpeg is never started");
         assert!(q.notice_text().unwrap().contains("does not break disc protection"), "{:?}", q.notice_text());
     }
 
@@ -2543,9 +2523,12 @@ mod tests {
         assert!(r.remember_pending);
         let mut st = GuiState::default();
         let scratch_dir = scratch("remember");
-        std::env::set_var("HUMANITY_DATA_DIR", scratch_dir.display().to_string());
-        r.remember("wall_x", &mut st);
-        std::env::remove_var("HUMANITY_DATA_DIR");
+        {
+            let _env = DATA_DIR_ENV.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("HUMANITY_DATA_DIR", scratch_dir.display().to_string());
+            r.remember("wall_x", &mut st);
+            std::env::remove_var("HUMANITY_DATA_DIR");
+        }
         assert!(!r.remember_pending);
         assert_eq!(st.settings.screen_media.get("wall_x"), Some(&demo_abs));
         assert!(scratch_dir.join("config.json").is_file(), "saved through the normal config path");
@@ -2736,6 +2719,124 @@ mod tests {
             (at - duration * 0.75).abs() < duration * 0.06,
             "the film moved to {at} s of {duration} s"
         );
+    }
+
+    /// Make a clip the player cannot decode itself with the machine's ffmpeg: `seconds` of a
+    /// 1280x720 moving test pattern as MPEG-4 Part 2 video with AC-3 sound in Matroska, both
+    /// encoders built into every ffmpeg (no libx264 needed). Neither our decoders nor the
+    /// computer's own take it, so it always goes the ffmpeg road.
+    fn make_ffmpeg_only_clip(ffmpeg: &Path, dir: &Path, seconds: u32) -> PathBuf {
+        let out = dir.join("clip-mpeg4-ac3.mkv");
+        let status = std::process::Command::new(ffmpeg)
+            .args(["-hide_banner", "-loglevel", "error", "-y", "-nostdin", "-f", "lavfi", "-i"])
+            .arg(format!("testsrc2=size=1280x720:rate=30:duration={seconds}"))
+            .args(["-f", "lavfi", "-i"])
+            .arg(format!("sine=frequency=440:duration={seconds}"))
+            .args(["-c:v", "mpeg4", "-q:v", "3", "-c:a", "ac3", "-shortest"])
+            .arg(&out)
+            .status()
+            .expect("ffmpeg runs");
+        assert!(status.success() && out.is_file(), "the clip was made");
+        out
+    }
+
+    /// Every file under `dir`, however deep.
+    fn files_under(dir: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(d) = stack.pop() {
+            for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else {
+                    out.push(p);
+                }
+            }
+        }
+        out
+    }
+
+    /// THE NO-CACHES RULE (CLAUDE.md, 2026-07-16): playing a file the person's ffmpeg has to
+    /// handle writes NOTHING under the data dir. The data dir is pointed at a scratch folder for
+    /// the open (HUMANITY_DATA_DIR, held under `DATA_DIR_ENV` against the other test that sets
+    /// it), the clip plays a few pictures, and the folder must still hold no file at all.
+    ///
+    /// RED first (2026-11-13, the code before this change built with this test): "a playback wrote
+    /// under the data dir: [...\hum_video_nowrite_data_...\media\cache\6b944364...webm]" (the
+    /// whole clip was converted into `<data>/media/cache` before it played).
+    #[test]
+    fn a_playback_writes_nothing_under_the_data_dir() {
+        let Some(ffmpeg) = ffmpeg::find_ffmpeg("") else {
+            println!("skipped: no ffmpeg on this machine");
+            return;
+        };
+        // The ffmpeg road: Windows's own decoders play this clip (MPEG-4 Part 2 and AC-3 in
+        // Matroska), so they are off on this thread.
+        crate::media::system_decoders_off_on_this_thread();
+        let work = scratch("nowrite_src");
+        let clip = make_ffmpeg_only_clip(&ffmpeg, &work, 3);
+        let data = scratch("nowrite_data");
+        let mut p = VideoProvider::new(DEMO);
+        p.display_px = Some((1280, 720));
+        {
+            let _env = DATA_DIR_ENV.lock().unwrap_or_else(|e| e.into_inner());
+            std::env::set_var("HUMANITY_DATA_DIR", data.display().to_string());
+            p.open_path(&clip);
+            std::env::remove_var("HUMANITY_DATA_DIR");
+        }
+        let deadline = Instant::now() + Duration::from_secs(120);
+        let mut pictures = 0;
+        while Instant::now() < deadline && pictures < 5 && p.error.is_none() {
+            if p.advance() {
+                pictures += 1;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(p.error.is_none(), "{:?}", p.error);
+        assert!(pictures >= 5, "the clip played: {pictures} pictures");
+        drop(p);
+        let written = files_under(&data);
+        assert!(written.is_empty(), "a playback wrote under the data dir: {written:?}");
+    }
+
+    /// Time to the first picture of a short clip the person's ffmpeg handles (20 s of 1280x720,
+    /// MPEG-4 Part 2 and AC-3): from `open_path` to the first picture handed to the screen.
+    /// The bound is 2 s. Measured on the dev machine (i7-8700K, 2026-11-13, other agents
+    /// compiling): 0.247 s by the ffmpeg-as-it-plays road, so the bound leaves eight times that
+    /// for a busier machine while staying well under the 5.97 s the old road took.
+    ///
+    /// RED first (2026-11-13, the code before this change built with this test): "the first
+    /// picture took 5.965 s (bound 2 s)" (the whole clip had to become AV1 before its first
+    /// picture).
+    #[test]
+    fn a_short_clip_shows_its_first_picture_quickly() {
+        const BOUND: Duration = Duration::from_secs(2);
+        let Some(ffmpeg) = ffmpeg::find_ffmpeg("") else {
+            println!("skipped: no ffmpeg on this machine");
+            return;
+        };
+        // The ffmpeg road: Windows's own decoders play this clip (MPEG-4 Part 2 and AC-3 in
+        // Matroska), so they are off on this thread.
+        crate::media::system_decoders_off_on_this_thread();
+        let work = scratch("ttff");
+        let clip = make_ffmpeg_only_clip(&ffmpeg, &work, 20);
+        let mut p = VideoProvider::new(DEMO);
+        p.display_px = Some((1280, 720));
+        let t0 = Instant::now();
+        p.open_path(&clip);
+        let mut first = None;
+        while t0.elapsed() < Duration::from_secs(120) && p.error.is_none() {
+            if p.advance() {
+                first = Some(t0.elapsed());
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(p.error.is_none(), "{:?}", p.error);
+        let first = first.expect("a first picture within 120 s");
+        println!("time to the first picture: {:.3} s", first.as_secs_f64());
+        assert!(first < BOUND, "the first picture took {:.3} s (bound {} s)", first.as_secs_f64(), BOUND.as_secs());
     }
 
 }

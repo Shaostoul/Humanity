@@ -282,11 +282,11 @@ catch the bug via a revert-and-retest.
 ### Video Player Core (native, in-world screens rung 5, 2026-09-16)
 A purpose-built player core, no VLC and no ffmpeg at runtime: opens a
 WebM/Matroska file, or an MP4 holding AV1 (since 2026-11-03, BUG-228; any other format is
-converted once by the machine's ffmpeg on ingest, 2026-09-18), decodes AV1 video to RGBA frames and Opus audio to PCM
+decoded as it plays by the machine's own ffmpeg, nothing converted ahead or kept, since 2026-11-13: `src/media/stream.rs`), decodes AV1 video to RGBA frames and Opus audio to PCM
 on background threads, keeps a monotonic audio-led playback clock, and offers
 play / pause / seek-to-start / poll-the-due-frame. Refuses any other codec by
 name (H.264, H.265, AAC, VP8/VP9 and Vorbis are not decoded; other formats
-will be transcoded on ingest). The display is the in-world screen surface
+are decoded by the machine's own ffmpeg as they play). The display is the in-world screen surface
 (next entry). Measured on the dev
 machine in release mode, RGBA conversion included: 1080p AV1 decodes at
 28 fps on one thread and 69 fps with rav1d's threads (the fixture, 320x180,
@@ -340,8 +340,8 @@ must not toggle back", and with the error page reduced to the bare word
 "error" both error-page tests failed at "the page must name the path" and
 "the page names the codec", each quoting the text read back from the drawn
 shapes.
-**A video disc in the drive (2026-09-18).** Press Open, pick the disc from the picker's quick row ("Disc (F:)", shown only while a disc is in), and press **Play disc**: the folder goes to `src/media/dvd.rs`, which finds `VIDEO_TS`, picks the main title (the biggest title set, `_0` menu excluded, parts in order) and converts the whole title as ONE film through ffmpeg's `concat:` protocol, cached like any other conversion. A COPY-PROTECTED commercial disc does not play and never will: HumanityOS does not break disc protection, so a disc whose packets are marked scrambled, or whose files cannot be read, gets one plain sentence saying so (and a disc conversion that fails later gets the same sentence), never a black screen or a bare decoder error. A `.iso` is refused with what to do instead. What plays: a disc you burned, a camcorder disc, an unprotected video disc, or the video files on a data disc.
-- Native: `src/engine/screens/video.rs` (`VideoProvider`, `resolve_media_path`, `letterbox_layout`, `compose_letterbox`, `audio_placement`), `src/media/dvd.rs` (`find_video_ts`, `main_title`, `disc_read`, `begin_disc_ingest`, `disc_roots`), `src/media/transcode.rs` (`concat_input`, `cache_key_parts`), `src/gui/widgets/file_browser.rs` (`folder_offer`, disc drives in `quick_roots`), `src/engine/screens.rs` (`provider_for` arm, `world_update` loop in `frame_surfaces`), `src/gui/screen_surface.rs` (`ScreenWorld`, `ScreenProvider::world_update`, `ScreenSurface::world_update`), `src/engine/ipc.rs` (provider status merge)
+**A video disc in the drive (2026-09-18).** Press Open, pick the disc from the picker's quick row ("Disc (F:)", shown only while a disc is in), and press **Play disc**: the folder goes to `src/media/dvd.rs`, which finds `VIDEO_TS`, picks the main title (the biggest title set, `_0` menu excluded, parts in order) and hands the whole title to ffmpeg as ONE film through its `concat:` protocol, decoded as it plays like any other file ffmpeg plays (nothing converted ahead or kept, since 2026-11-13). A COPY-PROTECTED commercial disc does not play and never will: HumanityOS does not break disc protection, so a disc whose packets are marked scrambled, or whose files cannot be read, gets one plain sentence saying so (and a disc conversion that fails later gets the same sentence), never a black screen or a bare decoder error. A `.iso` is refused with what to do instead. What plays: a disc you burned, a camcorder disc, an unprotected video disc, or the video files on a data disc.
+- Native: `src/engine/screens/video.rs` (`VideoProvider`, `resolve_media_path`, `letterbox_layout`, `compose_letterbox`, `audio_placement`), `src/media/dvd.rs` (`find_video_ts`, `main_title`, `disc_read`, `begin_disc_ingest`, `disc_roots`), `src/media/ffmpeg.rs` (`concat_input`, `begin_ingest`), `src/media/stream.rs` (`StreamSource`, `PipeAudio`), `src/gui/widgets/file_browser.rs` (`folder_offer`, disc drives in `quick_roots`), `src/engine/screens.rs` (`provider_for` arm, `world_update` loop in `frame_surfaces`), `src/gui/screen_surface.rs` (`ScreenWorld`, `ScreenProvider::world_update`, `ScreenSurface::world_update`), `src/engine/ipc.rs` (provider status merge)
 - Web: none by design (the screens live inside the native 3D world).
 - Data: `data/media/demo_colour_bar.webm` + `data/media/README.md` (provenance), `data/machines/home.ron` (`wall_screen_5` in the console room, `video:media/demo_colour_bar.webm`), `data/media/ingest.json` (the picker's extensions, now with the disc ones: vob, m2v, vro; never iso), `tests/fixtures/media/VIDEO_TS/` (a synthetic unencrypted disc, `scripts/make-media-fixtures.sh`)
 - Tests: `src/engine/screens/video.rs` (scheme, path rule, pause toggle, error pages read back from the drawn text, frames + loop over the shipped clip, letterbox layout and compose, placement law; after the 2026-09-17 review: mix composition and epsilon gate, the sound link attaches once at the first mix, the stream starts at the placed mix not full volume, the attach waits for both the player and a device, a playing clip drops queued input, a clip paused on its last frame does not rewind, notices lay out at the def's px, the demo clip is byte-identical to the fixture; plus an ignored device test of the real attach), `src/gui/screen_surface.rs` (the event drop empties the queue and the next run sees none), `src/media/tests.rs` (the ignored looping-audio device test: the loop region wraps and the sound stays playing through two passes, with a one-shot control that stops)
@@ -781,9 +781,9 @@ going with the window. The player is one widget for the Media page and the chat,
 `src/gui/widgets/video_view.rs` (`VideoView`); the chat window is `chat/public_files.rs`
 `draw_video_window`, its sound `sync_video_sound`. The "WebM only, because of patents" line now shows
 only where the computer has no decoders to ask. The website plays a posted video in the page.
-Since 2026-11-03 (BUG-228) Play here takes the in-world screens' road, `transcode::begin_ingest_as`
-on the fetch's worker: played as it is, or converted once with the person's ffmpeg (the copy beside
-the temporary one, deleted with it, "Converting it to play here: 40%"), or refused in plain words
+Since 2026-11-03 (BUG-228) Play here takes the in-world screens' road, `ffmpeg::begin_ingest_as`
+on the fetch's worker: played as it is, or played through the person's ffmpeg as it goes (since
+2026-11-13; nothing converted ahead or written), or refused in plain words
 naming the file by its posted name and what will play it. Offered for MP4 on every computer; the
 patent line is gone.
 **Videos play inside their chat message (2026-11-06).** The operator: "Can we make the videos show in

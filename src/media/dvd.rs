@@ -10,8 +10,8 @@
 //!   around 2017 and 2018, so the codec policy in
 //!   `docs/design/media-player.md` has nothing against them, and nothing
 //!   new ships in our exe either way: the machine's own ffmpeg reads the
-//!   stream and the existing transcode-on-ingest path converts it once into
-//!   the one format the player decodes (WebM AV1 + Opus).
+//!   stream and decodes it as it plays (`stream.rs`), the road every file
+//!   the player does not decode itself takes.
 //! * **A copy-protected commercial disc, we do not touch.** Those discs are
 //!   encrypted. HumanityOS does not break disc protection, and this code
 //!   contains nothing that could: when a disc turns out to be protected the
@@ -34,12 +34,12 @@
 //! 3. **Read a little of it.** `disc_read` looks at the first part's
 //!    packets. A protected disc marks its packets as scrambled (the PES
 //!    scrambling field is not zero) or simply cannot be read at all; either
-//!    way the answer is the honest message, before any conversion starts.
-//! 4. **Convert the whole title as one film.** The parts of a title are one
+//!    way the answer is the honest message, before ffmpeg is started.
+//! 4. **Play the whole title as one film.** The parts of a title are one
 //!    continuous stream cut at a file-size boundary, so they are handed to
-//!    ffmpeg as a chain through its `concat:` protocol and come out as a
-//!    single converted file in the media cache. From there the existing
-//!    player path takes over unchanged.
+//!    ffmpeg as a chain through its `concat:` protocol, which decodes them
+//!    as they play (`stream.rs`): nothing is converted ahead or kept (until
+//!    2026-11-13 the title was converted whole into a media cache first).
 //!
 //! Everything a disc could do that we cannot follow (a menu, several
 //! angles, seamless branching, subtitles) is simply not done: the main
@@ -47,7 +47,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::transcode::{self, Ingest, TranscodeJob, FFMPEG_HINT};
+use super::ffmpeg::{self, Ingest, FFMPEG_HINT};
 
 /// The name of the folder a video disc keeps its film in.
 pub const VIDEO_TS: &str = "VIDEO_TS";
@@ -58,7 +58,7 @@ pub const VIDEO_TS: &str = "VIDEO_TS";
 /// docs, because naming one would be pointing at circumvention.
 pub const PROTECTED_MESSAGE: &str = "This disc is copy protected. HumanityOS does not break disc protection, so it cannot play it. A disc you burned yourself, a camcorder disc, or any unprotected video disc plays here.";
 
-/// The same point, as a line appended to a conversion failure on a disc, so
+/// The same point, as a line appended to ffmpeg failing on a disc, so
 /// a disc that fails LATER (ffmpeg choking on scrambled payload that the
 /// header check did not catch) still gets a plain answer instead of a
 /// decoder error nobody can act on.
@@ -318,14 +318,13 @@ pub fn scrambled_packet(bytes: &[u8]) -> Option<u8> {
 }
 
 /// Get a video disc onto the screen: find its `VIDEO_TS`, pick the main
-/// title, check it can be read, then convert the whole title as one film
-/// (or serve the copy already in the media cache). `ffmpeg_setting` is the
-/// Settings > Media path (empty means find it), `cache_dir` is the media
-/// cache.
+/// title, check it can be read, then hand the whole title to the person's
+/// ffmpeg as one film, to play as it goes. `ffmpeg_setting` is the
+/// Settings > Media path (empty means find it).
 ///
 /// Every failure comes back as `Ingest::Failed` with a sentence a person
 /// can act on, never a panic and never a silent black screen.
-pub fn begin_disc_ingest(chosen: &Path, ffmpeg_setting: &str, cache_dir: &Path) -> Ingest {
+pub fn begin_disc_ingest(chosen: &Path, ffmpeg_setting: &str) -> Ingest {
     let name = disc_name(chosen);
     let Some(video_ts) = find_video_ts(chosen) else {
         return Ingest::Failed(format!(
@@ -346,16 +345,6 @@ pub fn begin_disc_ingest(chosen: &Path, ffmpeg_setting: &str, cache_dir: &Path) 
         title.total_bytes,
         title.parts
     );
-    // The cache first: a disc converted once plays instantly the next time,
-    // with no drive spin-up and no ffmpeg run.
-    let dst = match transcode::cache_path_in_parts(cache_dir, &parts) {
-        Ok(d) => d,
-        Err(e) => return Ingest::Failed(format!("{name}: the disc's files could not be read ({e}).")),
-    };
-    if dst.is_file() && std::fs::metadata(&dst).map(|m| m.len() > 0).unwrap_or(false) {
-        log::info!("[Media] disc {}: cache hit {}", video_ts.display(), dst.display());
-        return Ingest::Cached(dst);
-    }
     match disc_read(&parts[0]) {
         DiscRead::Playable => {}
         DiscRead::CopyProtected => {
@@ -372,16 +361,11 @@ pub fn begin_disc_ingest(chosen: &Path, ffmpeg_setting: &str, cache_dir: &Path) 
         title.title_set,
         parts.len()
     );
-    let Some(ffmpeg) = transcode::find_ffmpeg(ffmpeg_setting) else {
-        return Ingest::Failed(format!("{name} {why}; converting it needs ffmpeg, which was not found. {FFMPEG_HINT}"));
+    let Some(ffmpeg) = ffmpeg::find_ffmpeg(ffmpeg_setting) else {
+        return Ingest::Failed(format!("{name} {why}; playing it needs ffmpeg, which was not found. {FFMPEG_HINT}"));
     };
-    let encoder = match transcode::detect_encoder(&ffmpeg) {
-        Ok(enc) => enc,
-        Err(e) => return Ingest::Failed(format!("{name} {why}; {e} ({}). {FFMPEG_HINT}", ffmpeg.display())),
-    };
-    // One ffmpeg run over the whole chain of parts: see `concat_input`.
-    let src = transcode::concat_input(&parts);
-    Ingest::Transcoding { job: TranscodeJob::spawn(ffmpeg, encoder, src, dst), why }
+    // ffmpeg reads the whole chain of parts as one stream: see `concat_input`.
+    ffmpeg::stream(ffmpeg, ffmpeg::concat_input(&parts), None, &name, why)
 }
 
 /// What to call the disc on screen: the folder's own name, or the drive
@@ -712,13 +696,13 @@ mod tests {
         std::fs::create_dir_all(&video_ts).unwrap();
         std::fs::write(video_ts.join("VTS_01_1.VOB"), &marked).unwrap();
         assert_eq!(disc_read(&video_ts.join("VTS_01_1.VOB")), DiscRead::CopyProtected);
-        match begin_disc_ingest(&d, "", &d.join("cache")) {
+        match begin_disc_ingest(&d, "") {
             Ingest::Failed(msg) => {
                 assert_eq!(msg, PROTECTED_MESSAGE);
                 assert!(msg.contains("copy protected"), "{msg}");
                 assert!(msg.contains("does not break disc protection"), "{msg}");
             }
-            _ => panic!("a protected disc must not be converted"),
+            _ => panic!("a protected disc must not reach ffmpeg"),
         }
     }
 
@@ -743,12 +727,12 @@ mod tests {
     }
 
     /// A folder that is not a disc is refused with a message naming what
-    /// was looked for, before anything is converted.
+    /// was looked for, before ffmpeg is started.
     #[test]
     fn a_folder_that_is_not_a_disc_is_refused_with_a_clear_message() {
         let d = scratch("notadisc");
         std::fs::write(d.join("holiday.mp4"), b"x").unwrap();
-        match begin_disc_ingest(&d, "", &d.join("cache")) {
+        match begin_disc_ingest(&d, "") {
             Ingest::Failed(msg) => {
                 assert!(msg.contains("not a video disc"), "{msg}");
                 assert!(msg.contains(VIDEO_TS), "the message names the folder it looked for: {msg}");
@@ -759,50 +743,44 @@ mod tests {
         let hollow = scratch("hollow");
         std::fs::create_dir_all(hollow.join(VIDEO_TS)).unwrap();
         std::fs::write(hollow.join(VIDEO_TS).join("VTS_01_0.VOB"), b"menu").unwrap();
-        match begin_disc_ingest(&hollow, "", &hollow.join("cache")) {
+        match begin_disc_ingest(&hollow, "") {
             Ingest::Failed(msg) => assert!(msg.contains("no title files"), "{msg}"),
             _ => panic!("a menu is not a film"),
         }
     }
 
-    /// The real thing, when the machine has ffmpeg: the fixture disc is
-    /// converted once into a scratch cache as ONE film covering both parts,
-    /// the result is the format the player decodes (AV1 + Opus), and a
-    /// second open of the same disc is served from the cache with no
-    /// ffmpeg run. Skipped (printed) without ffmpeg.
+    /// The real thing, when the machine has ffmpeg: the fixture disc goes to
+    /// ffmpeg as ONE film covering both parts, to play as it goes, and the
+    /// short look finds the picture and the sound of the whole chain.
+    /// Skipped (printed) without ffmpeg.
     #[test]
-    fn the_fixture_disc_converts_as_one_film_and_then_hits_the_cache() {
-        if transcode::find_ffmpeg("").is_none() {
+    fn the_fixture_disc_plays_through_ffmpeg_as_one_film() {
+        if ffmpeg::find_ffmpeg("").is_none() {
             println!("skipped: no ffmpeg on this machine");
             return;
         }
-        let d = scratch("ingest");
-        let cache = d.join("cache");
         let disc = fixture_video_ts();
-        let dst = match begin_disc_ingest(&disc, "", &cache) {
-            Ingest::Transcoding { job, why } => {
-                assert!(why.contains("video disc"), "the screen is told what it is converting: {why}");
+        let src = match begin_disc_ingest(&disc, "") {
+            Ingest::Stream { opening, why } => {
+                assert!(why.contains("video disc"), "the screen is told what it is playing: {why}");
                 assert!(why.contains("2 part"), "{why}");
-                transcode::wait_for(&job, std::time::Duration::from_secs(180)).unwrap_or_else(|e| panic!("{e}"))
+                match opening.wait(std::time::Duration::from_secs(60)) {
+                    ffmpeg::Ready::Stream(src) => src,
+                    ffmpeg::Ready::Failed(msg) => panic!("{msg}"),
+                    ffmpeg::Ready::Direct(p) => panic!("a disc is never played as it is: {}", p.display()),
+                }
             }
             Ingest::Failed(msg) => panic!("{msg}"),
-            Ingest::Direct(_) | Ingest::Cached(_) => panic!("a fresh scratch cache cannot hit"),
+            Ingest::Direct(p) => panic!("a disc is never played as it is: {}", p.display()),
         };
-        assert!(dst.is_file(), "{}", dst.display());
-        let info = super::super::probe(&dst).expect("the converted disc is what the player accepts");
-        assert_eq!(info.video_codec, super::super::CODEC_AV1);
-        assert_eq!(info.audio_codec.as_deref(), Some(super::super::CODEC_OPUS));
-        assert_eq!((info.width, info.height), (320, 180));
+        assert!(src.input.display().to_string().starts_with("concat:"), "one chain: {}", src.input.display());
+        assert_eq!((src.width, src.height), (320, 180));
+        assert_eq!(src.summary.video_codec, "mpeg2video");
+        assert_eq!(src.summary.audio_codec.as_deref(), Some("ac3"));
         // BOTH parts: one part alone is one second. Anything under 1.5 s
         // means the chain was cut, which is the bug this test is here for.
-        assert!(info.duration_s > 1.5, "both parts converted as one film: {} s", info.duration_s);
-
-        match begin_disc_ingest(&disc, "", &cache) {
-            Ingest::Cached(p) => assert_eq!(p, dst, "the second open is served from the cache"),
-            Ingest::Transcoding { .. } => panic!("a converted disc must not be converted again"),
-            Ingest::Failed(msg) => panic!("{msg}"),
-            Ingest::Direct(p) => panic!("a disc is never played as it is: {}", p.display()),
-        }
+        let duration = src.summary.duration_s.unwrap_or(0.0);
+        assert!(duration > 1.5, "both parts as one film: {duration} s");
     }
 
     /// Asking the machine for its drives must never panic and must never
@@ -865,7 +843,7 @@ mod tests {
                 let first = video_ts.join(&title.parts[0]);
                 match disc_read(&first) {
                     DiscRead::Playable => {
-                        println!("READABLE: this disc would be converted and played")
+                        println!("READABLE: this disc would be played through ffmpeg")
                     }
                     DiscRead::CopyProtected => {
                         println!("REFUSED as copy protected, and the screen would say:");

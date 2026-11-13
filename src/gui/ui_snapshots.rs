@@ -1556,7 +1556,7 @@ fn chat_video_snapshot(name: &str, playing: bool) {
         const SERVER: &str = "http://127.0.0.1:9";
         if !state.chat_messages.iter().any(|m| m.sender_key == "ann0") {
             let dir = folder.to_path_buf();
-            let fake = dir.join(crate::media::transcode::FFMPEG_EXE);
+            let fake = dir.join(crate::media::ffmpeg::FFMPEG_EXE);
             let _ = std::fs::write(&fake, b"not ffmpeg");
             let not_film = dir.join("not-a-film.bin");
             let _ = std::fs::write(&not_film, b"these bytes are no film");

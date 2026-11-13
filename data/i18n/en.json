@@ -342,7 +342,9 @@
     "fp_body_note": "Your head is left out of your own view, so you never see the inside of it. Other players always see your whole body either way.",
     "reduce_motion": "Reduce motion",
     "reduce_motion_hint": "Keeps your first-person view steady at your standing eye height instead of moving with your body's head as you walk, sit or climb. Helps if moving views make you feel unwell.",
-    "reduce_motion_note": "With it off, your view rides your body's head, smoothed so a step does not shake it. With it on, sitting and lying still lower your view, gently."
+    "reduce_motion_note": "With it off, your view rides your body's head, smoothed so a step does not shake it. With it on, sitting and lying still lower your view, gently.",
+    "media_ffmpeg_found": "Found {{path}}. Videos the app cannot play itself play through it as they go.",
+    "media_ffmpeg_hint": "In-world video screens and the app's player play AV1 video with Opus sound themselves, and on Windows an ordinary MP4 through the computer's own decoders. A file in any other format (MKV, MOV, AVI, a video disc ...) plays through ffmpeg, which decodes it as it plays: nothing is converted ahead or saved, and the original is left untouched. Leave this empty to find ffmpeg on the PATH and in the usual install folders; set it when a screen reports ffmpeg was not found. A file path or the folder holding ffmpeg both work."
   },
   "laws": {
     "title": "Laws and rights",
@@ -3795,13 +3797,13 @@
     "this_file": "This file {{why}}.",
     "no_picture": "This file has sound but no picture.",
     "damaged": "The file is damaged or cut short partway through.",
-    "needs_ffmpeg": "{{name}} {{why}}. The app can convert it to play here with ffmpeg, which was not found: {{hint}}.",
-    "cannot_convert": "{{name}} {{why}}. The app could not use ffmpeg to convert it: {{error}} ({{hint}}).",
+    "needs_ffmpeg": "{{name}} {{why}}. The app can play it through ffmpeg, which was not found: {{hint}}.",
     "elsewhere": "Or download it and watch it in another player, such as VLC, which plays almost every kind.",
-    "converting": "Converting it to play here: {{pct}}%",
-    "convert_failed": "{{name}} could not be converted: {{error}}.",
     "stopped": "The video stopped: {{error}}",
-    "volume_hint": "How loud this video plays, on top of the app's own volume. A new video starts at the volume chosen in Settings > Audio."
+    "volume_hint": "How loud this video plays, on top of the app's own volume. A new video starts at the volume chosen in Settings > Audio.",
+    "ffmpeg_failed": "{{name}} {{why}}. The app could not play it through ffmpeg: {{error}} ({{hint}}).",
+    "ffmpeg_opening": "{{name}} {{why}}.\nStarting it with your ffmpeg, which plays it as it goes. Nothing is converted or saved.",
+    "ffmpeg_starting": "starting"
   },
   "files": {
     "places": {
