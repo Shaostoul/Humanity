@@ -56,12 +56,15 @@ pub(crate) fn fake_engine() -> PathBuf {
 fn client(args: &[&str]) -> AiClient {
     let mut all = vec!["--fake".to_string(), "--fake-ms-prefill".into(), "10".into(), "--fake-ms-per-token".into(), "2".into()];
     all.extend(args.iter().map(|s| s.to_string()));
-    AiClient::new(Some(fake_engine()), ClientConfig { args: all, ..ClientConfig::default() })
+    // The fake engine is a separate process started below normal priority: with other worktrees
+    // compiling it missed the 10 s hello and these tests flaked as NoHello(10) many times on
+    // 2026-11-13 (data/coordination/flaky-tests.jsonl). 60 s still fails an engine that never answers.
+    AiClient::new(Some(fake_engine()), ClientConfig { args: all, hello_timeout: Duration::from_secs(60), ..ClientConfig::default() })
 }
 
 /// Poll until `pred` holds, or fail naming what was awaited and the state.
 fn until(c: &mut AiClient, what: &str, pred: impl Fn(&AiClient) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(90);
     while Instant::now() < deadline {
         c.poll();
         if pred(c) {
@@ -69,7 +72,7 @@ fn until(c: &mut AiClient, what: &str, pred: impl Fn(&AiClient) -> bool) {
         }
         std::thread::sleep(Duration::from_millis(10));
     }
-    panic!("waited 20 s for {what}; the state is {:?}", c.state());
+    panic!("waited 90 s for {what}; the state is {:?}", c.state());
 }
 
 fn running(c: &AiClient) -> bool {
@@ -84,7 +87,7 @@ fn ask(c: &mut AiClient) -> u64 {
 
 /// Poll until the request ends; its outcome.
 fn outcome_of(c: &mut AiClient, request: u64) -> Outcome {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(90);
     let mut seen = Vec::new();
     while Instant::now() < deadline {
         c.poll();

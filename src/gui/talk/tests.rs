@@ -147,7 +147,9 @@ fn every_topic_has_its_words_and_every_crew_member_a_card() {
 /// The client against the developer's fake engine (built by the client tests), with `args`.
 fn fake_client(args: &[&str]) -> AiClient {
     let engine = crate::ai::client_tests::fake_engine();
-    let config = ClientConfig { args: args.iter().map(|s| s.to_string()).collect(), ..ClientConfig::default() };
+    // 60 s to say hello, as in ai::client_tests: the fake engine starts below normal priority and
+    // missed 10 s while other worktrees compiled (flaky 2026-11-13, data/coordination/flaky-tests.jsonl).
+    let config = ClientConfig { args: args.iter().map(|s| s.to_string()).collect(), hello_timeout: std::time::Duration::from_secs(60), ..ClientConfig::default() };
     AiClient::new(Some(engine), config)
 }
 
@@ -181,7 +183,7 @@ fn the_box_answers_in_the_shape_with_the_ai_tag() {
     chat.begin(Availability::Offered, Some(&character()), Grants::default(), vec!["Seeds, soil, light and patience.".into()]);
     chat.dev_fake = true;
     chat.ask("What are you growing?");
-    let said = until_said(&mut chat, &mut c, Duration::from_secs(20)).expect("an answer");
+    let said = until_said(&mut chat, &mut c, Duration::from_secs(90)).expect("an answer");
     let Said::Ai { line, action } = said.clone() else { panic!("an AI line: {said:?}") };
     assert!(line.contains("engine") && !line.contains('{'), "the fake's scripted line, out of its JSON: {line:?}");
     assert_eq!(action, None);
@@ -216,7 +218,7 @@ fn an_engine_failure_falls_back_to_a_written_line_in_words() {
     chat.begin(Availability::Offered, Some(&character()), Grants::default(), written.clone());
     chat.dev_fake = true;
     chat.ask("Hello?");
-    let said = until_said(&mut chat, &mut c, Duration::from_secs(20));
+    let said = until_said(&mut chat, &mut c, Duration::from_secs(90));
     let Some(Said::Fallback { line, why }) = said.clone() else { panic!("a crash falls back to a written line: {said:?}") };
     assert!(written.contains(&line), "one of her written lines: {line:?}");
     assert_eq!(why, humanity_core::i18n::t("ai.fallback.crashed"), "why, in words");
@@ -246,7 +248,7 @@ fn a_line_that_breaks_a_rule_is_stopped_as_it_streams() {
     chat.dev_fake = true;
     chat.filter = Some(crate::ai::talk::Filter { max_chars: 300, markers: Vec::new(), rules: vec![crate::ai::talk::Rule { why: "person".into(), phrases: vec!["engine".into()] }] });
     chat.ask("Who are you?");
-    let said = until_said(&mut chat, &mut c, Duration::from_secs(20));
+    let said = until_said(&mut chat, &mut c, Duration::from_secs(90));
     assert_eq!(said, Some(Said::Fallback { line: "The lemon tree won't fruit.".into(), why: humanity_core::i18n::t("ai.talk.filter.person").into() }));
     assert_eq!(c.counters.answered, 1, "only the warm-up was answered: the reply was stopped before its end: {:?}", c.counters);
     c.stop();
