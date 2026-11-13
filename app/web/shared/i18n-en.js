@@ -300,16 +300,16 @@ window.HOS_I18N_EN = {
       "tuning_432": "A = 432 Hz",
       "tuning_440": "A = 440 Hz",
       "tuning_hint": "The pitch every note is tuned to. 432 sounds very slightly lower than the usual 440. A matter of taste: no health effect is claimed.",
-      "style": "Style",
-      "style_hint": "How the music sounds. Mothership calm is the ship's own; other styles change the speed, the rhythm and the instruments. A style is a file, so anyone can make one and share it.",
+      "genre": "Genre",
+      "genre_hint": "How the music sounds. Mothership calm is the ship's own; other genres change the speed, the rhythm and the instruments. A genre is a file, so anyone can make one and share it.",
       "blend_with": "Blend with",
       "blend_none": "None",
-      "blend_with_hint": "Mix in a second style. The slider below sets how much of it you hear.",
-      "blend": "How much of the second style",
-      "blend_hint": "Far left is all your first style, far right all the second; in between, each part of the music takes one or the other.",
-      "places_pick_style": "Let places pick a livelier style",
-      "places_pick_style_hint": "Some places, like a gym or a workshop, may play a livelier style while you are there. Off by default.",
-      "recordings_note": "Some kinds of music sound right only with recorded instruments, like swing-era brass or sung voices. The app uses only recordings that are free to share, and never samples copyrighted recordings: copyright law forbids it.",
+      "blend_with_hint": "Mix in a second genre. The slider below sets how much of it you hear.",
+      "blend": "How much of the second genre",
+      "blend_hint": "Far left is all your first genre, far right all the second; in between, each part of the music takes one or the other.",
+      "places_pick_genre": "Let places pick a livelier genre",
+      "places_pick_genre_hint": "Some places, like a gym or a workshop, may play a livelier genre while you are there. Off by default.",
+      "recordings_note": "Some kinds of music sound right only with recorded instruments, like swing-era brass or sung voices. The app uses only recordings that are free to share. A genre plays the app's own music in that style: it never copies any artist's recordings, melodies or lyrics, because copyright law protects them.",
       "hum": "Ship hum and ambience",
       "ambience_volume": "Ambience Volume",
       "ambience_volume_hint": "Background sounds of places, like the ship's hum. Separate from the music.",
@@ -324,7 +324,8 @@ window.HOS_I18N_EN = {
       "tone_hz_hint": "The tone's pitch in hertz.",
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
-      "tone_volume_hint": "How loud the tone is."
+      "tone_volume_hint": "How loud the tone is.",
+      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}."
     },
     "notifications_volume": "Notifications Volume",
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
@@ -510,7 +511,11 @@ window.HOS_I18N_EN = {
     "to_unit_label": "Unit for the answer",
     "cur_amount_label": "Amount of money",
     "cur_rate_label": "Exchange rate",
-    "cur_result_label": "Amount in the other money"
+    "cur_result_label": "Amount in the other money",
+    "mode_arithmetic": "Arithmetic",
+    "mode_arithmetic_hint": "The keypad: add, take away, multiply and divide, with a history of your sums.",
+    "mode_pulleys": "Pulleys",
+    "mode_pulleys_hint": "Designs a block and tackle: say what you are lifting and who pulls, and it picks the pulleys, sizes every part and draws it."
   },
   "tasks": {
     "title": "Tasks",
@@ -2528,7 +2533,9 @@ window.HOS_I18N_EN = {
       "brain_ready": "{{model}}, checked against the catalog ({{sha}}...)",
       "brain_mismatch": "The installed model does not match the catalog, so it was not loaded: {{detail}}",
       "loaded": "Loaded:",
-      "loaded_value": "{{id}} (SHA-256 {{sha}}...), {{threads}} threads, a memory cap of {{cap}} MB"
+      "loaded_value": "{{id}} (SHA-256 {{sha}}...), {{threads}} threads, a memory cap of {{cap}} MB",
+      "talk_label": "Talk cards",
+      "talk_counts": "{{asked}} asked, {{answered}} answered by AI, {{filtered}} stopped by the filter, {{shape}} refused for their shape, {{fell_back}} fell back, {{timed_out}} timed out"
     },
     "feet_on_world": "Feet on the world",
     "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too."
@@ -4072,7 +4079,11 @@ window.HOS_I18N_EN = {
       "frame_drum": "frame drum",
       "gong": "gong",
       "steel_pan": "steel pan",
-      "handpan": "handpan"
+      "handpan": "handpan",
+      "trumpet": "trumpet",
+      "trombone": "trombone",
+      "clarinet": "clarinet",
+      "double_bass_pizzicato": "plucked double bass"
     },
     "instrument": {
       "upright_piano_small": "Upright piano (small)",
@@ -4117,7 +4128,12 @@ window.HOS_I18N_EN = {
       "steel_pan": "Steel pan",
       "handpan": "Hang (handpan)",
       "big_tom_22": "Big mallet tom, 22 inch",
-      "big_tom_18": "Big mallet tom, 18 inch"
+      "big_tom_18": "Big mallet tom, 18 inch",
+      "trumpet_small": "Trumpet, short notes (small)",
+      "trombone_small": "Old trombone, short notes (small)",
+      "clarinet_small": "Clarinet (small)",
+      "double_bass_pizzicato_small": "Plucked double bass (small)",
+      "guitar_gretsch_small": "Hollowbody electric guitar (Gretsch, small)"
     }
   },
   "chat_video_dock": {
@@ -4193,11 +4209,13 @@ window.HOS_I18N_EN = {
     }
   },
   "music": {
-    "style": {
+    "genre": {
       "mothership_calm": "Mothership calm",
       "mothership_calm_about": "The ship's own music: slow, spacious, pads and a wordless choir, bells, a steel pan and soft deep drums.",
       "lofi": "Lo-fi",
-      "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle."
+      "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle.",
+      "electro_swing": "Electro swing",
+      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, gypsy-jazz guitar, brass stabs and a clarinet calling with the brass answering."
     },
     "mood": {
       "mothership_calm": "Mothership calm",
@@ -4227,7 +4245,14 @@ window.HOS_I18N_EN = {
       "lofi_kick": "Lo-fi kick",
       "lofi_snare": "Lo-fi snare",
       "lofi_hat": "Lo-fi hi-hat",
-      "vinyl_crackle": "Vinyl crackle"
+      "vinyl_crackle": "Vinyl crackle",
+      "house_kick": "House kick",
+      "clap": "Clap",
+      "open_hat": "Open hi-hat",
+      "clarinet": "Clarinet",
+      "swing_horns": "Swing horns",
+      "upright_bass": "Upright bass",
+      "jazz_guitar": "Jazz guitar"
     }
   },
   "not_found": {
@@ -4612,6 +4637,44 @@ window.HOS_I18N_EN = {
     "size": {
       "mb": "{{n}} MB",
       "gb": "{{n}} GB"
+    },
+    "tag": "AI",
+    "tag_hint": "Written by AI on this computer, not by a person",
+    "talk": {
+      "filter": {
+        "person": "it claimed to be a person",
+        "maker": "it named a company or a program as itself",
+        "advice": "it gave real-world advice, which characters leave to the Library's guides",
+        "account_words": "it used an old name for an account word",
+        "harm": "it said something harmful",
+        "sexual": "it said something sexual",
+        "politics": "it talked about real-world politics",
+        "too_long": "the answer was too long",
+        "marker": "the answer had pieces of its own instructions in it"
+      },
+      "shape": {
+        "not_the_shape": "the answer was not in the shape the game asks for",
+        "empty": "the answer was empty",
+        "unknown_action": "the answer asked for something the game does not know",
+        "not_granted": "the answer offered something this character does not offer"
+      },
+      "mode_title": "How characters talk",
+      "mode_intro": "Written lines are always there. With an AI model installed, characters can also answer anything you type, in their own voice. Gameplay is the same either way.",
+      "mode_written": "Written lines only",
+      "mode_written_hint": "Characters say only the lines people wrote for them, even with an AI model installed.",
+      "mode_conversational": "Written lines and Say anything",
+      "mode_conversational_hint": "With an AI model installed, a Say anything box joins the written choices on the talk card.",
+      "brain_title": "Which AI model characters use",
+      "brain_auto": "Automatic: {{model}} on this computer",
+      "brain_auto_hint": "HumanityOS picks by this computer's memory: the larger model when there is room for it.",
+      "brain_pick_hint": "Use this model for every character, whatever this computer has."
+    },
+    "engine_update": {
+      "title": "An update to the AI engine is ready",
+      "words": "An update to the AI engine is ready: version {{version}}, {{size}}. Your AI models stay as they are. Until it is installed, characters use their written lines.",
+      "what": "What changed: Ministral 3 now reads its conversation in the exact format it was trained on.",
+      "get": "Get the update",
+      "get_hint": "Download the new AI engine, check it against what was published, and replace the old one."
     }
   },
   "garment_textures": {
@@ -4901,13 +4964,15 @@ window.HOS_I18N_EN = {
       "simplified": "Simplified",
       "full": "Full"
     },
-    "local_shadows_level_off": "No room light shadows and no sun shadows from the people and furniture near you; no video memory.",
-    "local_shadows_level": "Up to {lights} room lights with shadows, each face up to {face} texels; the sun near you in {sun} cm texels; {taps} comparisons a lookup; {memory} of video memory.",
-    "local_shadows_card": "{card}: {own} of its own memory; this level's shadow maps use {used} ({share}% of it).",
-    "local_shadows_card_warn": "{used} is more than an eighth of this card's {own}: the rest of the world needs that memory, and the game may stutter when the card runs short. A lower level gives it back.",
+    "local_shadows_level_off": "No room light shadows and no sun shadows from the people and furniture near you; no video memory, and nothing for the scene pass once the shading is rebuilt without the shadow lookups (a second or two after choosing Off).",
+    "local_shadows_level": "Up to {{lights}} room lights with shadows, each face up to {{face}} texels; the sun near you in {{sun}} cm texels; {{taps}} comparisons a lookup; {{memory}} of video memory.",
+    "local_shadows_card": "{{card}}: {{own}} of its own memory; this level's shadow maps use {{used}} ({{share}}% of it).",
+    "local_shadows_card_warn": "{{used}} is more than an eighth of this card's {{own}}: the rest of the world needs that memory, and the game may stutter when the card runs short. A lower level gives it back.",
     "local_shadows_card_unknown": "The graphics card has not said how much memory of its own it has, so this level is not checked against it.",
-    "local_shadows_now": "Now: {shadowed} of {lights} room lights cast shadows ({over} more in view without them), in {views} shadow views.",
-    "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes."
+    "local_shadows_now": "Now: {{shadowed}} of {{lights}} room lights cast shadows ({{over}} more in view without them), in {{views}} shadow views.",
+    "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes.",
+    "local_shadows_code_out": "Off costs nothing in the scene pass: the shading has been rebuilt without the shadow lookups.",
+    "local_shadows_code_building": "Rebuilding the shading for this choice in the background, a second or two. Until it is done the shading still carries the shadow lookups, which slow the scene pass a little even with shadows Off."
   },
   "gameplay": {
     "level": {
@@ -4920,7 +4985,9 @@ window.HOS_I18N_EN = {
       "normal": "Normal",
       "slow": "Slow",
       "real_time": "Real time",
-      "fast": "Fast"
+      "fast": "Fast",
+      "gentle": "Gentle",
+      "station_supplied": "Station-supplied"
     },
     "hostile_wildlife": "Hostile wildlife",
     "hostile_wildlife_note": "Turning it down or off takes the predators away at once; turning it up brings them back the next time you enter the world. The Dev spawn page can always place any creature.",
@@ -4962,7 +5029,32 @@ window.HOS_I18N_EN = {
     "mining_drone_off": "Off: the drone's trips are free. Its battery is always full and it never wears out.",
     "mining_drone_simplified": "Simplified: its dock charges it even when the home has no power to spare, and it wears half as fast.",
     "mining_drone_realistic": "Realistic: each trip needs a charge the home really gave, and wears it a full trip.",
-    "level_slider_hint": "Sets any rate between the levels; each level above is a point on this slider."
+    "level_slider_hint": "Sets any rate between the levels; each level above is a point on this slider.",
+    "garden_heading": "Garden and ship",
+    "garden_pests": "Garden pests, diseases and weeds",
+    "garden_pests_note": "Aphids, spider mites, caterpillars, slugs and potato beetles build up on the crops they feed on, gray mold, powdery mildew and downy mildew spread in humid air, and weeds come up from the seed in any soil bed or field. The greenhouse air stays real at every level.",
+    "garden_pests_off": "Off: no pests, diseases or weeds, and no row covers to manage. Every crop grows as if the garden were clean.",
+    "garden_pests_gentle": "Gentle: pests, diseases and weeds come and spread as in Realistic, but each takes half the harvest it would.",
+    "garden_pests_realistic": "Realistic: each pest, disease and weed takes the share of the harvest the extension guides report.",
+    "pollination": "Pollination",
+    "pollination_note": "Indoors there is no wind and no bees, so tomatoes, peppers, squash, cucumbers, strawberries and corn set little or no fruit unless you hand-pollinate them or keep a bumblebee hive with a colony in it (a colony works about ten weeks). A circulation fan helps strawberries. Outdoor fields are pollinated by the wind and wild insects at every level.",
+    "pollination_off": "Off: every crop sets all its fruit, indoors or out. Nothing needs pollinating, nothing is said about it, and a hive's colony does not age.",
+    "pollination_gentle": "Gentle: flowers still need a hand, a hive or a fan, but a crop left unpollinated loses half the fruit it would in Realistic. Its card shows what it will set.",
+    "pollination_realistic": "Realistic: an indoor crop nobody pollinates sets only what the extension guides report for it (a cucumber sets none at all).",
+    "soil_ph": "Soil pH",
+    "soil_ph_note": "Each bed has a pH. Nitrogen fertilizer, stored urine too, slowly turns it acid; lime raises it and sulfur lowers it, over weeks. A tower's nutrient solution is held at its setpoint at every level.",
+    "soil_ph_off": "Off: pH is not modelled. It never drifts, no harvest is lost to it, there is no lime or sulfur to add, and the Garden panel does not show it.",
+    "soil_ph_gentle": "Gentle: pH drifts and lime and sulfur work as in Realistic, but a crop outside the pH it grows best at loses half the harvest it would.",
+    "soil_ph_realistic": "Realistic: a crop outside the pH it grows best at loses the share of its harvest the NRCS relative-yield table gives for each pH unit outside.",
+    "picking": "Picking",
+    "picking_note": "Tomatoes, peppers, cucumbers, strawberries, kale and cut herbs bear for weeks once ripe, and each pick is a share of the season.",
+    "picking_off": "Off: every crop is harvested once when ripe, its whole season in one harvest, and its spot is free to plant again at once.",
+    "picking_forgiving": "Forgiving: picked over the season, and ripe produce waits on the plant until you pick it.",
+    "picking_realistic": "Realistic: picked over the season, and a pick you do not take before the next comes ripe is lost, as real produce goes past its best.",
+    "life_support": "Ship life support",
+    "life_support_note": "Aboard the station every litre the crops breathe out is condensed back out of the air by the air handlers and returned to the tanks, and the crops, the people and the mushrooms trade carbon dioxide and oxygen through the home's air. That happens at every level, so there is no Off: the air is what the garden grows in.",
+    "life_support_station_supplied": "Station-supplied: the ship's reactor supplies whatever your own panels and batteries do not, air machines included, metered on the Home page, so nothing browns out.",
+    "life_support_realistic": "Realistic: your home runs on what it makes and stores, and at full planting the air machines alone use more than the rest of the home."
   },
   "inventory": {
     "status": "Status",
@@ -4999,5 +5091,163 @@ window.HOS_I18N_EN = {
     "slot_empty": "Empty",
     "slot_empty_hint": "Nothing worn here. Equip something from its card in your pack to wear it.",
     "slot_unequip_hint": "Takes this off and puts it back in your pack."
+  },
+  "pulley": {
+    "intro": "Say what you are lifting and who pulls. The designer picks the block and tackle that does it with the least gear, sizes every part from the load, and says what it costs you in rope.",
+    "no_data": "The pulley data (data/pulleys/pulleys.ron) or the steel row of data/materials.csv could not be read, so nothing can be worked out.",
+    "load": "Load",
+    "load_hint": "The mass you want to lift, in kilograms. Drag to change it, or click and type.",
+    "kg": "kg",
+    "lift": "Lift height",
+    "lift_hint": "How far the load has to rise, in metres.",
+    "m": "m",
+    "puller": "Who pulls",
+    "puller_hint": "Who or what pulls the rope: a person, a crew, a winch. Each pulls with a different force and speed, so each gets a different system.",
+    "rope": "Rope",
+    "rope_hint": "What the rope is made of. Steel wire rope is far stronger for its size but needs much bigger wheels.",
+    "rope_size": "Rope size",
+    "rope_size_auto": "Sized for the load",
+    "rope_size_hint": "Leave it sized for the load, or choose a rope you have. A rope too thin for the pull is refused in Realistic mode.",
+    "bearing": "Sheave bearings",
+    "bearing_hint": "How the wheels turn on their pins. Better bearings lose less of your pull to friction at every wheel.",
+    "mode": "Mode",
+    "mode_realistic": "Realistic",
+    "mode_realistic_hint": "Friction at every wheel, the weight of the blocks and rope, and working load limits: a rope pulled past its limit is refused, with the reason.",
+    "mode_simplified": "Simplified",
+    "mode_simplified_hint": "The ideal machine: the advantage is exactly the parts of rope, nothing has weight and nothing fails.",
+    "sources": "Friction from Crosby's published line-pull ratios; rope, block and pulling rules from US Army FM 5-125 and the US Navy's rigging manuals. Rows marked as design values in the data are game estimates.",
+    "result": "The system",
+    "system_direct": "No tackle needed: {{puller}} can lift this straight. One block only turns the rope to where you pull.",
+    "system_simple": "A tackle of {{parts}} parts: a block of {{fixed}} sheaves above and {{moving}} below.",
+    "system_compound": "{{stages}} tackles stacked block on block: {{plan}}.",
+    "beyond_simplified": "Even the strongest tackle falls short of this pull. A winch, a geared hoist or hydraulics is the tool for it.",
+    "refused_rope": "Refused: tackle {{stage}}'s {{d}} mm rope may carry {{wll}}, and this lift puts {{tension}} on it. Use a thicker rope or more parts.",
+    "refused_advantage": "Refused: no tackle within the limits does this. The strongest gives {{best}} times; this needs {{need}} times. Use a winch, a geared hoist or hydraulics.",
+    "stage_line": "Tackle {{n}}: {{parts}} parts, {{fixed}} sheaves above and {{moving}} below, {{rope}} rope over {{sheave}} sheaves, blocks {{len}} long, travelling {{travel}}.",
+    "advantage": "[[Mechanical advantage]]",
+    "advantage_value": "{{real}} real of {{ideal}} ideal ({{eff}}% efficient)",
+    "advantage_hint": "Ideal: the parts of rope holding the load. Real: what is left after each wheel's friction and the gear's own weight.",
+    "pull": "Your pull",
+    "pull_value": "{{force}}, like holding up {{kg}} kg",
+    "pull_hint": "The force the puller must keep up on the rope while the load rises.",
+    "rope_pulled": "Rope you pull",
+    "rope_pulled_hint": "How much rope passes through the puller's hands or onto the winch for the whole lift: the ideal advantage times the height.",
+    "time": "Time to lift",
+    "time_hint": "The rope pulled over the puller's speed. Resetting between strokes takes longer.",
+    "rope_total": "Rope needed",
+    "rope_total_value": "{{len}}, weighing {{mass}}",
+    "rope_total_hint": "All the rope reeved through every block, with enough to reach the puller.",
+    "blocks_mass": "Blocks",
+    "blocks_mass_hint": "What all the blocks weigh, each sized for the load it carries.",
+    "trade": "The trade: for every metre {{load}} rises, {{ideal}} m of rope is pulled. Friction takes {{loss}}% of the effort; it never changes how much rope you pull.",
+    "advice_hoist": "A geared hoist does this with far less rope: {{hoist}} is about {{h}}% efficient (US Army FM 5-125), this tackle {{t}}%.",
+    "advice_more_hands": "This takes about {{min}} minutes of pulling. More people on a line along the ground, or a winch, would be quicker.",
+    "advice_first_layer": "A winch's rating holds only on the first layer of rope on its drum; with the last layer on, it can fall by as much as half (US Army FM 5-125).",
+    "advice_strokes": "That is {{n}} strokes before the rope is all in, each one a reset.",
+    "schematic": "Schematic",
+    "schematic_hint": "The system drawn from the same numbers: the beam and the ground, each block with its [[sheave]]s, every part of rope, the load and the pull.",
+    "parts_label": "{{n}} parts",
+    "pull_label": "{{who}}: {{force}}",
+    "force_n": "{{v}} N",
+    "force_kn": "{{v}} kN",
+    "force_mn": "{{v}} MN",
+    "mass_kg": "{{v}} kg",
+    "mass_t": "{{v}} t",
+    "length_m": "{{v}} m",
+    "length_mm": "{{v}} mm",
+    "time_s": "{{v}} seconds",
+    "time_min": "{{v}} minutes",
+    "time_h": "{{v}} hours",
+    "pullers": {
+      "person": "One person",
+      "crew_of_four": "Four people on a line",
+      "truck_winch": "A truck's winch",
+      "ship_winch": "A ship's winch",
+      "spaceship_hoist": "The hangar hoist (spaceship)"
+    },
+    "ropes": {
+      "manila": "Manila (fibre) rope",
+      "wire_6x19_iwrc": "Steel wire rope (6x19)"
+    },
+    "bearings": {
+      "plain_bore": "Plain bore (most friction)",
+      "bronze_bushed": "Bronze bushings",
+      "anti_friction": "Roller bearings (least friction)"
+    },
+    "hoists": {
+      "spur_gear": "a spur-gear chain hoist",
+      "screw_gear": "a screw-gear chain hoist",
+      "differential": "a differential chain hoist"
+    }
+  },
+  "talk": {
+    "doing": "Now: {{activity}}",
+    "talk_about": "Talk about",
+    "talk_about_hint": "Ask them about the ship, their work, the cause or the way around.",
+    "work": "Work",
+    "work_hint": "The tasks they can give you.",
+    "trade": "Trade",
+    "trade_hint": "Buy and sell with them at the trading post's prices.",
+    "show_way": "Show me the way",
+    "show_way_hint": "They point the way to a place, and your screen marks it until you get there.",
+    "more": "More (E)",
+    "more_hint": "Hear their next line. Pressing E does the same.",
+    "goodbye": "Goodbye (Esc)",
+    "goodbye_hint": "Close this and go back to the game. Walking away does the same.",
+    "back": "Back",
+    "back_hint": "Back to the first choices.",
+    "topic": {
+      "ship": "The ship",
+      "job": "Your job",
+      "cause": "The cause",
+      "directions": "Directions"
+    },
+    "topic_hint": "Hear what they have to say about it. Ask again for more.",
+    "take_task": "Take it on",
+    "take_task_hint": "Add this task to your quests.",
+    "offer": {
+      "taken": "In your quests",
+      "done": "Done",
+      "locked": "First finish: {{name}}"
+    },
+    "ways_intro": "Where to?",
+    "way_hint": "They point the way, and your screen marks the place until you get there.",
+    "guide_on": "Marked on your screen: {{place}}",
+    "guide_clear": "Stop showing the way",
+    "guide_clear_hint": "Take the marker off your screen.",
+    "action": {
+      "offer_task": "Take on: {{task}}",
+      "open_trade": "Trade with {{name}}",
+      "point_way": "Show me the way to {{place}}"
+    },
+    "action_hint": "Suggested in the AI's answer. Nothing happens unless you click it.",
+    "ai": {
+      "say_anything": "Say anything",
+      "box_hint": "Type a question or anything you like and press Enter. The answer is written by AI on this computer, and nothing you type leaves it.",
+      "ask": "Ask",
+      "ask_hint": "Send what you typed.",
+      "stop": "Stop",
+      "stop_hint": "Stop the answer being written.",
+      "preparing": "Getting {{name}} ready to talk...",
+      "writing": "{{name}} is answering...",
+      "local": "{{model}}, running on this computer. Nothing you type leaves it.",
+      "fake_model": "The fake AI engine (Dev page)",
+      "none": "No AI model is installed.",
+      "mismatch": "The AI model on this computer no longer matches what was published, so it was not used ({{detail}}). Settings > AI can get it again.",
+      "ready_timeout": "The AI model took too long to get ready, so only the written lines are offered on this card.",
+      "timeout": "the answer took too long",
+      "unavailable": "The AI cannot answer right now: {{why}}",
+      "no_written_line": "Sorry, I lost my train of thought.",
+      "fell_back": "The AI could not answer ({{why}}), so {{name}} said one of their written lines.",
+      "offer": "Want {{name}} to answer anything you ask? Talking characters ({{size}}) in Settings > AI.",
+      "offer_open": "Open Settings > AI",
+      "offer_open_hint": "See what AI would take on this computer before anything is downloaded.",
+      "offer_dismiss": "Not now",
+      "offer_dismiss_hint": "Hide this offer. It does not come back.",
+      "engine_update": "The AI engine needs an update before {{name}} can answer anything you ask: Settings > AI.",
+      "written_chosen": "Written lines only, as chosen in Settings > AI.",
+      "no_persona": "{{name}} has written lines only.",
+      "timing": "{{tokens}} tokens, first words in {{first}} s, all of it in {{all}} s"
+    }
   }
 };
