@@ -51,6 +51,11 @@ Whether magnets or anything else beat the water shield (thicknesses, materials p
 ship's own mass as shielding, magnetic and electric shields, and a chart of the cited dose curves):
 **[reference/research/2026-11-13-active-shielding/README.md](reference/research/2026-11-13-active-shielding/README.md)**.
 
+Filling out the music (every free instrument library we may ship, ranked by family with its licence
+and size, and what dubstep, house, drum and bass, synthwave and ambient need from the engine's own
+synthesis)? The scan and its recommendation are in
+**[reference/research/2026-11-13-instrument-libraries/README.md](reference/research/2026-11-13-instrument-libraries/README.md)**.
+
 ---
 
 ## The big picture (anyone)

@@ -14,6 +14,12 @@ cleared each as public domain (CC0). On 2026-11-07 he approved three more ("Let'
 Nothing else in that finding was downloaded (not the steel pan's version 2, not the CC BY taiko). Any
 other library needs his yes first.
 
+**See also:** the scan of every other free library we could use, ranked by family with each licence
+quoted and a download list for his permission,
+[`research/2026-11-13-instrument-libraries/README.md`](research/2026-11-13-instrument-libraries/README.md),
+and its licence finding
+[`findings/2026-11-13-free-instrument-libraries.md`](findings/2026-11-13-free-instrument-libraries.md).
+
 **Where they are.** Outside the repository, on the development machine only:
 `E:\HumanityOS\instruments-src\` (`download-log.txt` there has each download's time). Never in git:
 only the small core set the pipeline makes from them (`data/music/`, under 30 MB) is committed, and

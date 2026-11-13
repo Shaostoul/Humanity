@@ -662,3 +662,11 @@ what we will say about it.
   diameter (FM 5-125), sheave and block size rules (FM 5-125, the Navy's Steelworker manual), design
   factors (4 for fibre rope and blocks, 5 for running wire rope), how hard people pull, winch and
   chain hoist ratings. The truck winch maker's page and the eCFR refused automated reading.
+- [`2026-11-13-free-instrument-libraries.md`](2026-11-13-free-instrument-libraries.md),
+  which free multi-sampled instrument libraries may ship in the app or its packs: Karoryfer's whole
+  free catalogue is CC0 only from its releases of 2022-11-04 (CC BY 4.0 and one GPL 3 before),
+  FreePats' CC0 banks, AKWF, LMMS assets, Virtuosity Drums and jSteelDrum version 2 ship anywhere;
+  epic-choir (the first open choir of quality), TinySOL, Greg Sullivan's electric pianos (CC BY 4.0
+  since 2026-10-21) and DrumGizmo's kits need credit; no drum-machine sample set may be redistributed;
+  No Budget Orchestra is a mix of licences, not CC BY-SA. Freesound, kenney.nl and several sample
+  sites refused automated reading.

@@ -424,7 +424,9 @@ notes are all a recording needs.
   a low-pass swept by an LFO in time with the beat: the `lfo_per_beat` field already exists in the
   synth's filter), a sine sub bass, and a build-and-drop structure (a phrase plan of build bars with a
   riser, then the drop: a new `structure` field in the genre). Kept calm-friendly as a choice, never a
-  default.
+  default. What dubstep, house, drum and bass, synthwave and ambient need from the engine (the gaps
+  and the rungs E1 to E7): section 6 of
+  [`2026-11-13-instrument-libraries/README.md`](../reference/research/2026-11-13-instrument-libraries/README.md).
 
 **A person's choice** is in Settings > Music: the genre (the list is the files, so a dropped-in file
 appears), a second genre to **blend** with and a slider (tempo, swing and the recipe move smoothly;
@@ -1018,6 +1020,11 @@ nothing). No CC0 recording of a real taiko exists in what was searched.
 
 **The website** plays no music yet (rung 9), so it has no Instruments list; it mirrors this one when
 it does.
+
+**See also: the next libraries** (2026-11-13). Every other free library we could use, ranked by family
+with its licence quoted, what is already on disk and unused, and a download list awaiting the
+operator's yes: [`../reference/research/2026-11-13-instrument-libraries/README.md`](../reference/research/2026-11-13-instrument-libraries/README.md);
+the licences in [`../reference/findings/2026-11-13-free-instrument-libraries.md`](../reference/findings/2026-11-13-free-instrument-libraries.md).
 
 ## The operator on electro swing (2026-11-13, after v0.1558.0)
 
