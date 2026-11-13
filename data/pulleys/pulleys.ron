@@ -1,0 +1,177 @@
+// Pulleys: the block and tackle as real gear (docs/design/pulleys.md, rung 1, 2026-11-13).
+// Read by crates/humanity-systems/src/pulley/, which carries the model; this file carries the
+// numbers and where each one came from. Every source was read on 2026-11-13 and is quoted in
+// docs/reference/findings/2026-11-13-pulleys-and-rigging.md (the finding numbers F1.. below).
+//
+// UNITS: SI throughout. Forces in newtons, lengths in metres unless a field says mm, masses in kg.
+//
+// A row marked "design value" is a game number nobody has measured: it says so on the screen
+// beside the result (the Calculator's Pulleys panel), and a row only loses the mark when a
+// readable primary source replaces it.
+(
+    // WHO OR WHAT PULLS THE ROPE.
+    //   force_n   - the pull it keeps up, at the hauling end
+    //   speed_m_s - how fast it takes in rope at that pull
+    //   stroke_m  - rope taken in before it must stop and reset: one hand-over-hand pull, a
+    //               walk-away haul's length, or a winch drum's capacity
+    //   hand      - true for people (the advice about crews and geared hoists reads it)
+    pullers: [
+        (
+            id: "person",
+            name_key: "pulley.pullers.person",
+            // F7: FM 5-125, p. 3-22, "about 100 pounds per man" on a vertical pull: 100 lbf = 444.8 N.
+            force_n: 444.8,
+            // Design value: 0.25 m/s is about 110 W at that pull, a pace a fit adult keeps up.
+            speed_m_s: 0.25,
+            // Design value: one hand-over-hand pull.
+            stroke_m: 0.6,
+            hand: true,
+            source: "F7 (force); speed and stroke are design values",
+        ),
+        (
+            id: "crew_of_four",
+            name_key: "pulley.pullers.crew_of_four",
+            // F7: "about 60 pounds per man on a horizontal" pull, four people on one line along
+            // the ground: 4 x 266.9 N.
+            force_n: 1067.6,
+            speed_m_s: 0.25,
+            // Design value: a walk-away haul along open ground.
+            stroke_m: 10.0,
+            hand: true,
+            source: "F7 (force); speed and stroke are design values",
+        ),
+        (
+            id: "truck_winch",
+            name_key: "pulley.pullers.truck_winch",
+            // Design value shaped like a common 12,000 lb (53.4 kN) vehicle winch at about 0.9 m a
+            // minute under full load; the maker's own page refused automated reading (finding,
+            // "Sources we could not reach"), so it stays a design value. F8: the rating holds
+            // only on the drum's first layer of rope.
+            force_n: 53379.0,
+            speed_m_s: 0.015,
+            stroke_m: 28.0,
+            hand: false,
+            source: "design value (finding: the maker's page could not be read); F8 for the first-layer rule",
+        ),
+        (
+            id: "ship_winch",
+            name_key: "pulley.pullers.ship_winch",
+            force_n: 150000.0,
+            speed_m_s: 0.25,
+            stroke_m: 250.0,
+            hand: false,
+            source: "design value: a deck cargo winch",
+        ),
+        (
+            id: "spaceship_hoist",
+            name_key: "pulley.pullers.spaceship_hoist",
+            force_n: 1500000.0,
+            speed_m_s: 0.1,
+            stroke_m: 600.0,
+            hand: false,
+            source: "design value: the fleet's hangar hoist (a game machine, no real counterpart)",
+        ),
+    ],
+
+    // THE ROPE.
+    //   wll_n_per_mm2      - working load limit per square millimetre of diameter: WLL = this x d^2
+    //   design_factor      - breaking strength / working load limit for this rope
+    //   kg_per_m_per_mm2   - mass per metre per square millimetre of diameter
+    //   sheave_ratio       - the smallest sheave (tread) diameter as a multiple of the rope's
+    //   block_length_ratio - the block's length as a multiple of the rope diameter, where a rule
+    //                        gives one (0 = none; the block is then as long as its parts)
+    //   diameters_mm       - the sizes the configurator chooses from, smallest first
+    ropes: [
+        (
+            id: "manila",
+            name_key: "pulley.ropes.manila",
+            // F3: FM 5-125's rule, safe working capacity in tons = D^2 (D in inches): 2,000 lbf
+            // (8,896.4 N) per square inch (645.16 mm^2) = 13.79 N/mm^2.
+            wll_n_per_mm2: 13.79,
+            // F3: "Safe working load may be computed using a safety factor of 4".
+            design_factor: 4.0,
+            // F3: Table 1-1, 1 1/2 inch manila, 0.600 lb per foot = 0.8929 kg/m over 1451.6 mm^2.
+            kg_per_m_per_mm2: 0.0006151,
+            // F5: "the sheave diameter should be about twice the size of the circumference of the
+            // line used": 2 x pi x d.
+            sheave_ratio: 6.283,
+            // F5: "the length of the block used should be about three times the circumference of
+            // the line": 3 x pi x d.
+            block_length_ratio: 9.425,
+            diameters_mm: [6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 28.0, 32.0, 36.0, 40.0, 44.0, 48.0, 56.0, 64.0, 72.0],
+            source: "F3 (strength, design factor, weight), F5 (sheave and block size)",
+        ),
+        (
+            id: "wire_6x19_iwrc",
+            name_key: "pulley.ropes.wire_6x19_iwrc",
+            // F4: FM 5-125's rule, safe working capacity in tons = 8 D^2: 16,000 lbf per square
+            // inch = 110.3 N/mm^2.
+            wll_n_per_mm2: 110.3,
+            // F9: a running rope's design factor of five (our pairing with F4's rule, which the
+            // manual itself warns "will not always agree" with its own table).
+            design_factor: 5.0,
+            // F6: Crosby, 1 inch 6 x 19 IWRC, 1.85 lb per foot = 2.753 kg/m over 645.16 mm^2.
+            kg_per_m_per_mm2: 0.004267,
+            // F4 and F5: the sheave "never less than 20 times the wire-rope diameter".
+            sheave_ratio: 20.0,
+            block_length_ratio: 0.0,
+            diameters_mm: [6.0, 8.0, 9.5, 11.0, 13.0, 14.5, 16.0, 19.0, 22.0, 26.0, 29.0, 32.0, 35.0, 38.0, 45.0, 52.0, 57.0, 64.0, 70.0, 76.0, 83.0, 90.0, 96.0, 102.0],
+            source: "F4 (strength), F9 (design factor), F6 (weight), F4 and F5 (sheave size)",
+        ),
+    ],
+
+    // THE SHEAVE'S BEARING: the share of the rope's pull that comes out the far side of one
+    // sheave when the load is being raised. A tackle's real advantage is the sum of efficiency^k
+    // over its parts (docs/design/pulleys.md, "The physics").
+    bearings: [
+        (
+            id: "plain_bore",
+            name_key: "pulley.bearings.plain_bore",
+            // F1: the Army's field rule, each sheave adds "about 10 percent of the weight of the
+            // load", taken per sheave and compounded: 1 / 1.10 (our derivation; F2 calls a plain
+            // bore "high bearing friction").
+            efficiency: 0.909,
+            source: "F1 (derived), F2 (class)",
+        ),
+        (
+            id: "bronze_bushed",
+            name_key: "pulley.bearings.bronze_bushed",
+            // F6: Crosby's Ratio A for one part of line over a bronze-bushed sheave, .96.
+            efficiency: 0.96,
+            source: "F6",
+        ),
+        (
+            id: "anti_friction",
+            name_key: "pulley.bearings.anti_friction",
+            // F6: Crosby's Ratio B for one part of line over an anti-friction bearing sheave, .98.
+            efficiency: 0.98,
+            source: "F6",
+        ),
+    ],
+
+    // THE BLOCKS AND THE SEARCH.
+    block: (
+        // A row of data/materials.csv: its tensile strength sizes the pins, side plates and
+        // shackles, and its density gives the blocks' mass.
+        material: "steel",
+        // F10: Crosby, a block's design factor is "Generally expressed for blocks as a ratio of 4:1."
+        design_factor: 4.0,
+        // Design value: the most parts one stage reeves (two quadruple blocks).
+        max_parts_per_stage: 8,
+        // Design value: the most tackles stacked block on block.
+        max_stages: 4,
+        // Design value: the gap left between the two blocks of a stage at the top of its travel,
+        // so they never jam together.
+        clearance_m: 0.5,
+        // Design value: rope from the fixed block to where the hauling end is taken in.
+        lead_m: 2.0,
+        source: "F10 (design factor); the rest are design values",
+    ),
+
+    // WHEN SOMETHING ELSE BEATS A TACKLE (the configurator's advice; F11, FM 5-125 p. 3-22).
+    hoists: [
+        (id: "spur_gear_chain_hoist", name_key: "pulley.hoists.spur_gear", efficiency: 0.85, source: "F11"),
+        (id: "screw_gear_chain_hoist", name_key: "pulley.hoists.screw_gear", efficiency: 0.50, source: "F11"),
+        (id: "differential_chain_hoist", name_key: "pulley.hoists.differential", efficiency: 0.35, source: "F11"),
+    ],
+)

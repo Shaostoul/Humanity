@@ -53,7 +53,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Market | `market.rs` | Marketplace: browse, search, create listings. Sidebar category filter, card grid. | everyone | both |
 | Profile | `profile.rs` | Player profile with privacy-tiered sidebar sections. | everyone | both |
 | Chat | `chat.rs` | 3-panel chat: server/channel browser, messages, member list. | everyone | both |
-| Calculator | `calculator.rs` | Full scientific calculator + history. | everyone | both |
+| Calculator | `calculator.rs` (+ `calculator/pulleys.rs`) | Full scientific calculator + history; since 2026-11-13 a second mode, Pulleys, the block-and-tackle designer (docs/design/pulleys.md: the system for any load and puller, sized from the load, with a schematic; native only until its rung 2 web mirror). | everyone | both |
 | Notes | `notes.rs` | Notes app with sidebar, editor, toolbar, autosave. | everyone | both |
 | Calendar | `calendar.rs` | Month view, event dots, add-event form (time/color/desc). | everyone | both |
 | Crafting | `crafting.rs` | Recipes by category, craft queue with progress. From `data/crafting/categories.json`. | everyone | both |

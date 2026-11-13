@@ -647,3 +647,9 @@ what we will say about it.
   but must never copy a band's recordings, melodies, lyrics, riffs or one song's distinctive
   combination of elements, nor use a band's name to suggest it approves. The basis for the electro
   swing genre in `docs/design/music.md` section 7a.
+- [`2026-11-13-pulleys-and-rigging.md`](2026-11-13-pulleys-and-rigging.md),
+  the block and tackle's numbers for docs/design/pulleys.md: friction compounding per sheave
+  (Crosby's line-pull ratios, the Army's 10 percent rule), rope strength by the square of the
+  diameter (FM 5-125), sheave and block size rules (FM 5-125, the Navy's Steelworker manual), design
+  factors (4 for fibre rope and blocks, 5 for running wire rope), how hard people pull, winch and
+  chain hoist ratings. The truck winch maker's page and the eCFR refused automated reading.

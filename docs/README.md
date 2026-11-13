@@ -41,6 +41,8 @@ Working on shadows (room lights, people, furniture, the sun near you)? The plan 
 in **[design/local-light-shadows.md](design/local-light-shadows.md)**. What else the renderer lacks
 (anti-aliasing and upscaling, reflections, skin and cloth, real light units, HDR display, decals,
 relief, depth of field) and the order to build it: **[design/renderer-roadmap.md](design/renderer-roadmap.md)**.
+Building gear that lifts or drags (pulleys, the block and tackle, winches)? The physics, the
+configurator, the geometry drawn from math and the rungs are in **[design/pulleys.md](design/pulleys.md)**.
 
 Sizing the mothership (homes, hangars, farms, livestock, the drum's steel, shielding, power)? The
 sourced, dated numbers are in

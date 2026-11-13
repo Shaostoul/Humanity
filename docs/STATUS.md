@@ -342,6 +342,7 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Bloom post-process | ⚠️ | bloom.rs + bloom.wgsl built and allocated, but nothing calls `BloomPass::apply` (call site removed; `bloom_intensity` 0.0), so no bloom is drawn (v0.90.0, checked 2026-09-25) |
 | Sun direction uniform | ✅ | Data-driven sun direction as shader uniform, not hardcoded (v0.90.8) |
 | Planet registry | ✅ | Unified celestial body management for renderer and terrain (v0.90.8) |
+| Pulleys (block and tackle) | ⚠️ | Rung 1 of 6 built 2026-11-13: the model and configurator (`humanity_systems::pulley`), the rows (`data/pulleys/pulleys.ron`), the Calculator's Pulleys mode with a schematic, the block geometry and collision generator. Planned: web mirror, the gear in the world, lifting through carry, failure (docs/design/pulleys.md, section 8) |
 
 ---
 

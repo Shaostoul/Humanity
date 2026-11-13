@@ -110,6 +110,10 @@ And 367 more items, 580 references (`node scripts/crate-cards.js --interface hum
 
 ## Open work
 
+- **Pulleys** (`pulley/`): rung 1 (the model, the configurator, the block geometry and collision)
+  is done; next the web mirror and synthetic rope rows, then the gear in the world (equipment rows,
+  anchors, the meshes drawn), lifting through the carry rules, and failure. Source:
+  [pulleys.md](../design/pulleys.md), section 8.
 - **FarmingSystem's cost:** F1 (per-tick lookup tables) and F2 (no allocations per crop), about 2.5
   to 3 ms back, then gating the Garden mirror. Source: [PRIORITIES.md](../PRIORITIES.md), TIER 0 NOW
   item 4, and [sim-frame-cost.md](../design/sim-frame-cost.md).

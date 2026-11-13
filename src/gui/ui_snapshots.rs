@@ -6025,3 +6025,16 @@ fn snapshot_hud_room_and_chat_100() {
 fn snapshot_hud_room_and_chat_200() {
     hud_room_and_chat_at("hud_room_and_chat_200", 200.0);
 }
+
+/// The Calculator page's Pulleys mode (docs/design/pulleys.md, rung 1): one person lifting
+/// 1,000 kg 3 m on manila rope through bronze-bushed blocks, the designer's default. Shows the
+/// inputs, the system it picks (two tackles stacked block on block), the figures and the trade in
+/// words, and the schematic drawn from the same numbers.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_calculator_pulleys() {
+    render_page_png("calculator_pulleys", 1280, 1120, |ctx, theme, state| {
+        state.calc_mode = crate::gui::pages::calculator::CalcMode::Pulleys;
+        crate::gui::pages::calculator::draw(ctx, theme, state);
+    });
+}

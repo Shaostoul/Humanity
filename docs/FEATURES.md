@@ -2597,8 +2597,31 @@ Community stats dashboard.
 - Native: `src/gui/pages/civilization.rs`
 
 ### Calculator Page
-Calculator in native UI.
+Calculator in native UI. Two modes since 2026-11-13: Arithmetic (the keypad and history) and
+Pulleys (below).
 - Native: `src/gui/pages/calculator.rs`
+
+### Pulleys: the block-and-tackle designer (native, rung 1, 2026-11-13)
+The Calculator page's Pulleys mode (docs/design/pulleys.md). Give it the load, the lift height,
+who pulls (one person, four people, a truck's winch, a ship's winch, the hangar hoist), the rope
+(manila, 6x19 wire) and the sheave bearings (plain, bronze, roller); it searches about 2,800
+plans of up to four tackles stacked block on block and picks the one with the fewest stages, then
+the fewest sheaves, then the least rope pulled. It shows each tackle's parts, sheaves, rope and
+sheave diameters and block length, the real and ideal advantage, the pull, the rope pulled (ideal
+advantage x lift), the time, the rope and block masses, the trade in words, advice when a geared
+hoist, more hands or a winch's first-layer rule matters, and a schematic drawn from the same
+numbers. Realistic mode: friction compounding per sheave (Crosby's published ratios within 2
+percent), the blocks' and rope's own weight, and a rope over its working load limit refused with
+the numbers; Simplified mode: the ideal machine. Every block dimension (sheave, pin, side plates,
+partitions, shackle, mass) is derived from the rope and the load, with a mesh (boxes, lathed
+sheaves and pins, parallel-transported rope and shackle tubes) and collision boxes and capsules from
+the same numbers, built once per configuration under the reuse switch. No web mirror yet (rung 2).
+- Model: `crates/humanity-systems/src/pulley/` (`tackle.rs` the physics and `recommend`,
+  `geometry.rs` the sizing, mesh, collision and `ShapeStore`, `data.rs` the rows, `tests.rs`)
+- Data: `data/pulleys/pulleys.ron` (pullers, ropes, bearings, block rules, geared hoists, each with
+  its source); finding `docs/reference/findings/2026-11-13-pulleys-and-rigging.md`
+- Native: `src/gui/pages/calculator/pulleys.rs`; snapshot `just snapshot calculator_pulleys`
+- Library: "Force, Levers and Mechanical Advantage" (`docs/user/skills/`) describes it
 
 ### Calendar Page
 Calendar/planner in native UI.

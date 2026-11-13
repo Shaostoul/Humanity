@@ -1168,6 +1168,10 @@ pub struct GuiState {
     pub calc_display: String,
     pub calc_expression: String,
     pub calc_history: Vec<String>,
+    /// Which calculator the Calculator page shows (the keypad, or the pulley designer).
+    pub calc_mode: crate::gui::pages::calculator::CalcMode,
+    /// The Calculator page's pulley designer: its choices and last answer (docs/design/pulleys.md).
+    pub pulley: crate::gui::pages::calculator::pulleys::PulleyPanel,
 
     // ── Calendar state ──
     pub cal_year: i32,
@@ -3460,6 +3464,8 @@ impl Default for GuiState {
             calc_display: "0".to_string(),
             calc_expression: String::new(),
             calc_history: Vec::new(),
+            calc_mode: Default::default(),
+            pulley: Default::default(),
 
             // Calendar defaults
             cal_year: 2026,

@@ -160,3 +160,8 @@ Settings > AI, and Remove all AI takes it away again (`LICENSES.md` has the term
   the first AI model, for talking characters on computers with about 8 GB of memory:
   Apache License 2.0, IBM's own file, unmodified. Thank you for publishing the
   datasets that trained it.
+- **Ministral 3 3B Instruct 2512 by Mistral AI**
+  (https://huggingface.co/mistralai/Ministral-3-3B-Instruct-2512-GGUF) - the stronger
+  AI model for talking characters, beside Granite's quick one: Apache License 2.0,
+  Mistral AI's own file, unmodified, the text model only (the vision projector file is
+  not included).

@@ -368,6 +368,18 @@ running over four sheaves. Friction adds 40 percent of the load, 2,000
 pounds, so the pull is 5,000 plus 2,000, divided by 4: 1,750 pounds, not
 1,250.
 
+**How good the bearings are matters.** A block maker, Crosby, prints the
+load a tackle lifts for each pound of pull on the rope, by the number of
+parts and the kind of bearing in the sheaves. For bronze bushings it
+lists .96 for one part, 3.59 for four and 6.60 for eight; for roller
+("anti-friction") bearings .98, 3.81 and 7.32. Those numbers follow one
+rule (our reading of the table): each sheave passes on only a share of
+the pull, about 96 percent for bronze and 98 for rollers, and the
+shares multiply sheave after sheave. That is why adding parts helps less
+and less: with bronze bushings no single tackle, however many sheaves,
+gives more than about 24, and big advantages come from stacking tackles.
+The Army's 10 percent rule above is the cautious field version.
+
 **Worked example: a sack into a loft** (our example, arithmetic). A 25
 kg sack weighs about 245 N. Hung from a single movable block, with the
 rope then led through a fixed block at the top so you pull downwards,
@@ -564,10 +576,25 @@ The game models gravity and mass, and not much else in this guide.
   walks at 90% of normal speed, never slower than a crawl) and stops you
   jumping, and the HUD says so. In Forgiving mode, the default, being
   over the limit shows a warning and changes nothing else.
+- **The Calculator page designs a block and tackle.** Its Pulleys mode
+  takes the load, the height, who pulls (one person, a crew, a truck's
+  winch, a ship's winch) and the rope, and picks the tackle that does it
+  with the fewest blocks and sheaves: tackles stacked block on block
+  when one is not enough. It works out the friction sheave by sheave by
+  the bearing rule above, the rope you pull (the ideal advantage times
+  the height, whatever the friction), how long it takes, and the size of
+  every rope, sheave and block from the load. In its Realistic mode it
+  counts the weight of the blocks and rope too, and refuses a rope
+  pulled past its working load limit, saying by how much; its
+  Simplified mode is the ideal machine. When a geared hoist or a winch
+  would do better, it says so. One person lifting 1,000 kg 3 m needs two
+  tackles, five parts on six, pulls about 430 N and takes in 90 m of
+  rope.
 - **Levers and wheels are items, not machines.** You can forge a crowbar
   ("Leverage prying bar") and build a wheelbarrow, but nothing in the
-  game uses either to multiply a force, and there are no pulleys, ramps
-  or jacks that change how hard anything is to move.
+  game uses either to multiply a force. The world has no pulleys yet
+  either (the block and tackle as gear in the world is planned), and no
+  ramps or jacks that change how hard anything is to move.
 - **Buildings are not checked for load.** The code has a prototype
   structural check, in which load runs down through framing to the
   foundation and an overloaded member breaks and passes its load to its
@@ -608,9 +635,10 @@ heavy. Do not carry that habit outside.
 
 ## Sources
 
-Grouped by what kind of authority each one is. Every source here is a
-work of the United States federal government, and its own text is in the
-public domain. Regulations were read in the Electronic Code of Federal
+Grouped by what kind of authority each one is. Every source here but
+the one block maker's catalog (listed on its own below) is a work of the
+United States federal government, and its own text is in the public
+domain. Regulations were read in the Electronic Code of Federal
 Regulations on 3 and 4 October 2026; the eCFR is updated in place. Web
 pages and documents were read on 3 and 4 October 2026.
 
@@ -702,7 +730,26 @@ pages and documents were read on 3 and 4 October 2026.
   not where children may climb for them).
   https://www.cpsc.gov/Newsroom/News-Releases/2025/CPSC-AnchorIt-Campaign-Marks-10-Years-Fewer-Furniture-Tip-Overs-Lead-to-Safer-American-Households
 
+### A maker's published data (added 13 November 2026)
+
+Not a government work: a block maker's catalog, read on 13 November 2026
+and quoted in the project's dated finding,
+`docs/reference/findings/2026-11-13-pulleys-and-rigging.md`.
+
+- The Crosby Group. Catalog page 443, "Blocks, Section 15, Applications
+  & Warnings", 2023 (the load lifted per pound of single line pull, Ratio
+  A for bronze-bushed and Ratio B for anti-friction bearing sheaves, by
+  parts of line).
+  https://www.thecrosbygroup.com/wp-content/uploads/catalog/2022/en-US/443.pdf
+
 ### Inside this project
+
+- The Pulleys mode of the Calculator page: the model and the designer in
+  `crates/humanity-systems/src/pulley/`, its rows (pullers, ropes,
+  bearings, block rules, each with its source) in
+  `data/pulleys/pulleys.ron`, the panel in
+  `src/gui/pages/calculator/pulleys.rs`, the design in
+  `docs/design/pulleys.md`.
 
 - Surface gravity per world: the `gravity` field of `data/planets/*.ron`,
   applied to walking, jumping and falling in `src/lib.rs` (the surface

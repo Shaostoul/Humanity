@@ -8,10 +8,25 @@ use crate::gui::widgets;
 use humanity_core::i18n::t;
 use crate::gui::widgets::Hint;
 
+/// The block-and-tackle designer, the page's Pulleys mode (docs/design/pulleys.md).
+pub mod pulleys;
+
+/// Which calculator the page shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CalcMode {
+    /// The keypad, the display and the history.
+    #[default]
+    Arithmetic,
+    /// The pulley designer: a block and tackle for any load and any puller.
+    Pulleys,
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Handle keyboard input
+    // Handle keyboard input: the keypad's, only while the keypad shows (the Pulleys mode's number
+    // boxes take their own typing).
+    let typing = state.calc_mode == CalcMode::Arithmetic;
     ctx.input(|i| {
-        for event in &i.events {
+        for event in i.events.iter().filter(|_| typing) {
             match event {
                 egui::Event::Text(text) => {
                     for ch in text.chars() {
@@ -45,7 +60,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut state.calc_mode, CalcMode::Arithmetic, t("calculator.mode_arithmetic"))
+                    .hint("calculator.mode_arithmetic_hint");
+                ui.selectable_value(&mut state.calc_mode, CalcMode::Pulleys, t("calculator.mode_pulleys"))
+                    .hint("calculator.mode_pulleys_hint");
+            });
             ui.add_space(theme.spacing_sm);
+            if state.calc_mode == CalcMode::Pulleys {
+                ScrollArea::vertical().id_salt("calc_pulleys_scroll").show(ui, |ui| {
+                    pulleys::draw(ui, theme, &mut state.pulley);
+                });
+                return;
+            }
 
             ui.horizontal(|ui| {
                 // Left: calculator pad

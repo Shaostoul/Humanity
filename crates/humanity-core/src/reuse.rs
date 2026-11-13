@@ -29,7 +29,11 @@
 //! (2026-11-09, `humanity_terrain::map_ground`, driven by `engine::map_meshes`): the tiles decoded
 //! from them and each pack's shore field are kept while patches need them, tagged by the pack's
 //! build; while the switch is off a fresh set is published every frame, so every tile and shore
-//! field is decoded again. A new reuse that does not ask is a bug.
+//! field is decoded again. The pulley designer (2026-11-13, docs/design/pulleys.md): the
+//! Calculator's Pulleys mode keeps its last answer under a key of its inputs, and
+//! `humanity_systems::pulley::ShapeStore` keeps the last block-and-tackle shapes under a key of
+//! every number they are built from; with the switch off both are worked out again every time.
+//! A new reuse that does not ask is a bug.
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

@@ -54,6 +54,9 @@ mod crossing_tests;
 pub mod combat;
 pub mod quests;
 pub mod crafting;
+/// Pulleys: the block and tackle as real gear, and the configurator that designs one for any
+/// load and any puller (docs/design/pulleys.md, rung 1, 2026-11-13).
+pub mod pulley;
 pub mod vehicles;
 pub mod livestock;
 /// Farm animals need care: feed from home storage, water from the tanks, and what going

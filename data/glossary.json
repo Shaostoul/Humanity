@@ -13,6 +13,24 @@
     "homestead": "Homesteading & Self-Reliance"
   },
   "terms": {
+    "mechanical advantage": {
+      "term": "Mechanical advantage",
+      "category": "engineering",
+      "definition": "How many times a machine multiplies your pull. A block and tackle with four parts of rope holding the load has an ideal advantage of 4: pull 25 kg worth and you hold up 100. You pay in distance: you pull 4 metres of rope for every metre the load rises, and friction takes some of the force.",
+      "link": "https://en.wikipedia.org/wiki/Mechanical_advantage"
+    },
+    "sheave": {
+      "term": "Sheave",
+      "category": "engineering",
+      "definition": "The grooved wheel inside a pulley block that the rope runs over. Each sheave turns the rope and loses a little of the pull to friction in its bearing.",
+      "link": "https://en.wikipedia.org/wiki/Sheave"
+    },
+    "working load limit": {
+      "term": "Working load limit",
+      "category": "engineering",
+      "definition": "The most a rope, block or hook may be loaded with in normal use: its breaking strength divided by a safety factor (4 for fibre rope and for blocks), so wear, knots and jerks do not break it.",
+      "link": "https://en.wikipedia.org/wiki/Working_load_limit"
+    },
     "orbit": {
       "term": "Orbit",
       "category": "space",
