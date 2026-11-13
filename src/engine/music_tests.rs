@@ -231,7 +231,10 @@ fn the_build_runs_off_the_game_thread() {
     let mut worst = 0.0f64;
     let t0 = Instant::now();
     let mut started = None;
-    for _ in 0..20_000 {
+    // A deadline in time, not a count of frames: under a loaded machine (other worktrees compiling)
+    // the debug build took 21.5 s on 2026-11-13, and later did not finish within 20,000 frames of
+    // about 2 ms (flaky three times that day, data/coordination/flaky-tests.jsonl).
+    while t0.elapsed() < std::time::Duration::from_secs(300) {
         let s = Instant::now();
         let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
         worst = worst.max(s.elapsed().as_secs_f64() * 1000.0);
@@ -244,7 +247,10 @@ fn the_build_runs_off_the_game_thread() {
     let r = started.expect("the score starts once its build is done");
     let build_ms = r.build_ms.expect("the build's time is reported");
     println!("the build took {build_ms:.1} ms on its thread; the score started {:.0} ms after the first frame; the longest frame {worst:.2} ms", t0.elapsed().as_secs_f64() * 1000.0);
-    assert!(worst < 25.0 && worst < build_ms as f64 / 4.0, "no frame waits for the build: the longest frame took {worst:.1} ms (the build {build_ms:.1} ms)");
+    // 100 ms, not 25: a loaded machine stretched one step to 28.06 ms (2026-11-13) with the build on
+    // its thread, while the build run inline stalls a frame for its whole time (3229.8 ms in the red
+    // run), so the bound still tells the two apart thirty times over.
+    assert!(worst < 100.0 && worst < build_ms as f64 / 4.0, "no frame waits for the build: the longest frame took {worst:.1} ms (the build {build_ms:.1} ms)");
     assert_eq!(r.pieces, 1);
 }
 
