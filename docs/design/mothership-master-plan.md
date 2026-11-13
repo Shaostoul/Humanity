@@ -211,6 +211,23 @@ Verbatim, each to one of the coordinator's questions:
 
 **Coordinator's notes (proposals):** heavy-lift transports carry 100-tonne-plus walkers and mining haul trucks (our own designs: BattleTech's Atlas and Dire Wolf and their look belong to their owners, so the game sizes a class, not their mechs); craft from single-seat to 100-plus crew, a C-130-class transport (the Hercules; the B-52 is the Stratofortress) and moorings outside the bays for odd or oversized ships; one sector per housing style on the tram line as a showcase and a choice; livestock get real space and enrichment from the farm band (the research pass sizes it) rather than VR in cages; leisure in the gardens, sport, music and film beside repairs, upgrades, hauling and expeditions to alien stations; engineered rain from the spine on a schedule (fuel cells make water from hydrogen and oxygen, but the oxygen comes from splitting water, so it is a loop, not a new source); towns named by a convention he picks, possibly through the long-form poll; capacity far beyond any population so players always choose; the colony module sized by real minimum-viable-population research plus gene banks; threats real first (meteoroids, solar storms, fire, decompression, reactor faults, disease, crop failure) and the gates as the opening where anything from elsewhere could come through, shielded in transit like his Geller-field example; zombies as an outbreak scenario or a mode.
 
+### 1.5 Decided 2026-11-13: the research pass's twelve
+
+The operator, to the twelve decisions at the end of [the sizes research](../reference/research/2026-11-13-mothership-sizes/README.md), with the coordinator's recommendations (shield: 5 mSv a year): "I'm happy with your recommendations for all 12 things. Let's go with those." So:
+
+1. **Housing:** all five tiers (barracks, dormitory, co-housing cluster, row house, homestead) as home kinds, barracks also as General Services, and one showcase sector per style on the tram line (1.4).
+2. **Homestead plot:** 34 x 55 m per household (a Fibonacci rectangle: its squares 34, 21, 13, 8, 5, 3, 2, 1, 1 are the garden, the workshop and vehicle bay, and the home's rooms, the coordinator's draft C of 2026-11-12), plus a 21 x 34 m one-person homestead. **Redirected the next day (2026-11-13):** "What if we instead go the route of figuring out which rooms we actually need. Like they're unique enough to justify their own room. Like the kitchen or bedroom." So the homes are designed from a ROOM PROGRAM (each room justified by a function needing walls of its own, sized from the standards in the sizes research), laid out on the decided plots; Fibonacci stays only where it genuinely fits, not as a rule the rooms obey: [the home room program](home-room-program.md), phase 1 proposed 2026-11-13 with two drafts and seven questions.
+3. **Transport classes:** S shuttle (19 seats), M ferry (72), C freighter (C-130J size), H heavy lift (one 100-tonne-plus vehicle a bay); Starship-sized craft later.
+4. **Bays:** one S per 2,000 people, one M per 5,000, one C and one H per 10,000, at least one of each; four mooring masts.
+5. **Private craft:** an R44-size four-seater, one for every 20 people. His addition the same day: "We could offer an upgradeable hangar spot for users. Start is a small craft and then upgrading to like 12 and then so forth. That way a player could earn the right to lead a 100 man party on a PvE expedition." So a player's hangar spot grows with what they earn: the four-seater first, then a 12-seat craft, and upward to craft for a 100-person PvE expedition.
+6. **Reactors:** three RITM-200N-class units for Drum 1 (any two carry its 84 MW), two eVinci-class for a lone first sector; fusion later.
+7. **The herd:** hens and bees in the orchards, fish, rabbits, a few goats, at welfare-standard space.
+8. **The shield:** 5 mSv a year, about 10 t/m2 of water in sealed cells on a non-spinning outer shell.
+9. **Drum material:** steel for Drum 1, plates rolled to the curve; basalt composite studied for later drums.
+10. **Cloth:** a row in the planning sheet, 4 kg a person a year, about 40 m2 of flax.
+11. **The colony module:** 5,000 people with a gene bank.
+12. **Trees:** a steady breeze plus gusts, proven in an orchard test.
+
 ## 2. Where the pieces disagree, and how this plan settles them
 
 | Conflict | The sources | This plan (Proposal unless quoted above) |
