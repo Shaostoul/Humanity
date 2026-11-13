@@ -50,9 +50,19 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   megashader): sorted by mesh, one instanced draw a run, the model matrix a per-instance attribute,
   no per-caster binding. Only what vs_main moves (wind classes 19 to 23, the water shell) or cuts out
   (`fs_shadow`) keeps the classic path (`takes_fast_path`). Showcase `shadow_fast` "0" is its red
-  twin: the picture must not change. Each face keeps its own viewport: one draw per mesh across the
-  whole atlas (tile mapping in the vertex shader, a discard outside the tile) was tried and took
-  `gpu.shadow_local` from 0.28 to 10.9 ms, since nothing then clips a face's triangles to the face.
+  twin: the picture must not change. One draw per mesh across the whole atlas FOR EVERY CASTER (tile
+  mapping in the vertex shader, a discard outside the tile) was tried and took `gpu.shadow_local`
+  from 0.28 to 10.9 ms, since nothing then clips a face's triangles to the face. Rung 1b
+  (2026-11-12) measured two more ways and took both out: drawing only the casters wholly inside a
+  face across the atlas (each view's matrix remapped onto its tile) saved no draws, because most
+  draws are unique meshes in one or two faces; replaying a view's unchanged draws from a render
+  bundle saved 4 to 12%, because a replayed draw costs about what a recorded one does (wgpu replays
+  bundles into the command list draw by draw, and the D3D12 calls per draw are the cost, not wgpu's
+  validation). Only FEWER draws cut the CPU: the shadow-caster cull (`shadow_reaches_view`, a
+  caster drawn only if its shadow can reach the view; showcase `shadow_cull` "0" is its red twin),
+  and later rung 2's kept static depth. wgpu 24 has no clip distances (`enable clip_distances` is
+  unimplemented in naga 24, no `CLIP_DISTANCES` feature), so "one draw per light with clip planes"
+  waits for a wgpu upgrade.
 - **Code in `frag_tail` costs even when its branch is never taken.** The room light's atlas lookup
   slows the scene pass by 0.4 to 1.65 ms with shadows OFF (2026-11-11, RTX 4070 at 2560 x 1387:
   the ground hall 13.16 ms against 11.51 with the lookup compiled out, the crowd 8.59 against 7.54),
@@ -60,8 +70,13 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   loop of their own before the clustered loop was tried and was worse (off the same, on 1 ms more).
   Measure every new per-light or per-pixel term the same way, through a hot-reload A/B
   (`probe-hot-ab.js` patches): `gpu.scene` with the term compiled in but switched off, against
-  compiled out. The fix for this one (compiling the atlas out of the PSOs while the level is Off,
-  then a deferred shadow mask) is in `docs/design/local-light-shadows.md` section 9.
+  compiled out. The fix for this one landed in rung 1b (2026-11-12): while Room light shadows is
+  Off the surface, vegetation and terrain PSOs are TWINS with `HAS_SHADOW_ATLAS` false
+  (`pipeline.rs` `ATLAS_TWINS`; a twin's label is its row's plus " (no shadow atlas)", and
+  `pso_row` / `pso_constants` answer it), built on a background thread when the level crosses Off
+  (`Pipeline::want_shadow_atlas`, called from `render_shadow_atlas`); a hot reload builds the variant
+  the frame wants. A new feature switch that costs at Off gets the same treatment: a twin table, not
+  a second registry. Showcase `atlas_code` "1" keeps the lookups in at Off (the red twin).
 
 ## f32 at planet scale
 

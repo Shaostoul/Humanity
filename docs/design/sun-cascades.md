@@ -164,8 +164,11 @@ Budget: the interior frame is about 14 ms and stays at or below 15.5 ms.
    `near_levels` for same-boot A/B. A region-of-interest script beside
    home-clock-metrics.mjs (floor, shelf tops 1 to 4, rack post base, wall).
 1. **Atlas, C1, home casters, PCF and the switch.** Pass: at noon the lowest
-   shelf reads at most the night capture plus 10% (the sun term gone); the
-   open floor unchanged within 2 codes; with `near_levels=0`, sahara-noon-ground,
+   shelf keeps at most a quarter of the light it has without the shadows (the
+   sun term gone; corrected 2026-11-12 from "the night capture plus 10%", which
+   the room's bounced light fails whatever the shadows do:
+   local-light-shadows.md section 10); the planet hut's floor keeps under half;
+   the open floor unchanged within 2 codes; with `near_levels=0`, sahara-noon-ground,
    fuji-forest-ground, moon-surface-200m, ocean-grazing-calm and
    silverdale-osm-ground differ by at most 1 sRGB; `gpu.shadow_near` at most
    0.6 ms and `gpu.scene` up by at most 0.4 ms at 1600x900.

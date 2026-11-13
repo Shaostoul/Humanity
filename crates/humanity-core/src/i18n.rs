@@ -442,4 +442,30 @@ mod tests {
         assert!(languages().first().is_some_and(|(c, _)| *c == "en"), "English is listed first");
         assert!(languages().iter().any(|(c, _)| *c == "es"));
     }
+
+    /// Every placeholder in the English words is `{{name}}`, the form `fill` replaces: a `{name}`
+    /// reaches the screen as written. Found 2026-11-12 (shadows rung 1b): Settings > Graphics > Room
+    /// light shadows showed "Up to {lights} room lights with shadows, each face up to {face}
+    /// texels..." on every level line, the card line and the "Now:" line, since rung 1 shipped. Seen
+    /// red first on those words: "words with a single-brace placeholder", the four
+    /// graphics.local_shadows keys (level, card, card_warn, now).
+    #[test]
+    fn every_placeholder_is_double_braced() {
+        let json = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/data/i18n/en.json")).expect("en.json readable");
+        let pairs = parse_pairs(&json).expect("en.json parses");
+        let single = |s: &str| -> bool {
+            let b = s.as_bytes();
+            (0..b.len()).any(|i| {
+                b[i] == b'{'
+                    && (i == 0 || b[i - 1] != b'{')
+                    && b.get(i + 1).is_some_and(|c| c.is_ascii_lowercase() || *c == b'_')
+                    && s[i + 1..].find('}').is_some_and(|end| {
+                        let name = &s[i + 1..i + 1 + end];
+                        name.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_') && !s[i + 1 + end + 1..].starts_with('}')
+                    })
+            })
+        };
+        let bad: Vec<&str> = pairs.iter().filter(|(_, v)| single(v)).map(|(k, _)| k.as_str()).collect();
+        assert!(bad.is_empty(), "words with a single-brace placeholder (write {{{{name}}}}): {bad:?}");
+    }
 }

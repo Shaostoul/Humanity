@@ -1751,6 +1751,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.local_shadows.fast_off = t == "0";
         log::info!("Showcase: shadow_fast -> {}", !state.renderer.local_shadows.fast_off);
     }
+    // Shadows rung 1b (2026-11-12, docs/design/local-light-shadows.md section 10), the two red twins:
+    // {"shadow_cull":"0"} draws every caster inside a shadow face, whether or not its shadow can reach
+    // the view (the shadow-caster cull's red twin: the picture must stay the same, only the cost
+    // moves); {"atlas_code":"1"} keeps the atlas lookups compiled into the shading at Off, as rung 1
+    // did (what Off cost before). "1" / "0" or "auto" put each back.
+    if let Some(t) = grab("shadow_cull") {
+        state.renderer.local_shadows.cull_off = t == "0";
+        log::info!("Showcase: shadow_cull -> {}", !state.renderer.local_shadows.cull_off);
+    }
+    if let Some(t) = grab("atlas_code") {
+        state.renderer.local_shadows.keep_code = t == "1";
+        log::info!("Showcase: atlas_code -> {}", if state.renderer.local_shadows.keep_code { "kept at Off" } else { "follows the level" });
+    }
     // {"room_gi_vis":"1"} makes every room run DDGI's Chebyshev visibility
     // test, which rung 1 skips because inside a room's own box it is an
     // identity; "0" restores the default. For measuring what the test costs,

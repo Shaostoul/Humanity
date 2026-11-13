@@ -106,6 +106,27 @@ pub struct Pipeline {
     /// try the cloud pair anyway (`fxc_clouds_requested`): the pair is never
     /// built, at boot or on a hot reload, and the frame draws no clouds.
     clouds_off: bool,
+    /// THE SHADOW ATLAS VARIANT (shadows rung 1b, 2026-11-12, docs/design/local-light-shadows.md
+    /// section 9): whether the PSOs that can read the shadow atlas (`ATLAS_TWINS`: the surface,
+    /// vegetation and terrain colour PSOs) were compiled with `HAS_SHADOW_ATLAS` on. Rung 1 measured
+    /// that the lookups cost the scene pass 0.2 to 1.0 ms with shadows OFF, because a shader's
+    /// register count is set by its fullest path, taken or not; so while Room light shadows is Off
+    /// (or low impact holds it off) these PSOs are the twins with the lookups compiled OUT. Either
+    /// variant draws a correct picture at any level (with the atlas compiled in and the level Off the
+    /// table says nothing is shadowed; with it out, nothing is looked up), so the switch is a
+    /// background build that lands when it is ready, never a hitch.
+    atlas_compiled: bool,
+    /// What the frame last asked for (`want_shadow_atlas`): a hot reload or a scene-format switch
+    /// builds this variant.
+    atlas_wanted: bool,
+    /// The other variant compiling in the background: which one it is, where it arrives and when it
+    /// began. Dropping it cancels it (its result then has nowhere to go).
+    atlas_build: Option<(bool, std::sync::mpsc::Receiver<AtlasTwins>, std::time::Instant)>,
+    /// The two megashader modules the current PSOs were compiled from (boot or the last hot
+    /// reload), and the scene format: the variant build compiles exactly the same shader. Held, not
+    /// cached: replaced by every reload, and nothing is kept between runs.
+    modules: (wgpu::ShaderModule, wgpu::ShaderModule),
+    scene_format: wgpu::TextureFormat,
     /// Depth-only sun-shadow variant (v0.899): vs_main with no fragment,
     /// standard-z ortho depth into the 4096^2 shadow map. OPAQUE casters
     /// only - see `shadow_pipeline_alpha` and `shadow_for`.
@@ -786,6 +807,10 @@ impl Pipeline {
             } else {
                 CloudsWhen::Inline
             },
+            // The atlas compiled IN at boot: the default level is Full, and a saved Off swaps in
+            // the twins in the background on the first frame (`want_shadow_atlas`), so the boot
+            // never waits for a variant.
+            true,
         );
 
         Self {
@@ -799,6 +824,11 @@ impl Pipeline {
             shell_transparent_pipeline,
             clouds,
             clouds_off,
+            atlas_compiled: true,
+            atlas_wanted: true,
+            atlas_build: None,
+            modules: (shader.clone(), batch_shader.clone()),
+            scene_format,
             shadow_pipeline,
             shadow_pipeline_alpha,
             patch_render_pipeline,
@@ -1092,7 +1122,16 @@ impl Pipeline {
             &patch_pipeline_layout,
             &emission_pipeline_layout,
             if self.clouds_off { CloudsWhen::Never } else { CloudsWhen::Inline },
+            // The variant the frame asks for: a reload installs it directly, and a variant build
+            // still in flight (from the old module, perhaps for the old format) is cancelled.
+            self.atlas_wanted,
         );
+        if self.atlas_build.take().is_some() {
+            log::info!("[Pipelines] a shader reload replaced the shadow atlas variant still compiling in the background");
+        }
+        self.atlas_compiled = self.atlas_wanted;
+        self.modules = (shader.clone(), batch_shader.clone());
+        self.scene_format = scene_format;
         // Each fresh PSO is paired with the field it replaces, and the pair
         // tables are what the returned counts are read from. The `&mut`
         // borrows are of DISJOINT fields, which Rust allows side by side.
@@ -1321,6 +1360,124 @@ impl Pipeline {
         }
     }
 
+    /// Whether the PSOs that can read the shadow atlas have its lookups compiled in this frame
+    /// (`atlas_compiled`; the Settings line says so, and the A/B rigs read it from the log).
+    pub fn shadow_atlas_compiled(&self) -> bool {
+        self.atlas_compiled
+    }
+
+    /// The variant the frame last asked for (the skinned surface PSO follows it).
+    pub fn shadow_atlas_wanted(&self) -> bool {
+        self.atlas_wanted
+    }
+
+    /// Whether the other variant is compiling in the background right now.
+    pub fn shadow_atlas_building(&self) -> bool {
+        self.atlas_build.is_some()
+    }
+
+    /// Ask for the shadow atlas lookups compiled in (`want`) or out, once a frame (the renderer's
+    /// shadow atlas step, `render_shadow_atlas`). Installs a variant that finished compiling, then
+    /// starts or cancels a background build as `atlas_step` decides. Cheap when nothing changes: one
+    /// `try_recv` at most.
+    pub fn want_shadow_atlas(&mut self, device: &wgpu::Device, want: bool) {
+        self.atlas_wanted = want;
+        if let Some((for_atlas, rx, started)) = self.atlas_build.as_ref() {
+            match rx.try_recv() {
+                Ok(twins) => {
+                    let for_atlas = *for_atlas;
+                    let waited = started.elapsed().as_secs_f32();
+                    let wall = twins.wall_s;
+                    self.install_atlas_twins(twins);
+                    self.atlas_compiled = for_atlas;
+                    self.atlas_build = None;
+                    log::info!(
+                        "[Pipelines] shadow atlas variant installed: lookups compiled {} (the six surface, vegetation and terrain PSOs in {wall:.1} s, landed {waited:.1} s after the request)",
+                        if for_atlas { "in" } else { "out" }
+                    );
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    log::warn!("[Pipelines] the shadow atlas variant build was lost (its thread ended without a result); the current PSOs stay");
+                    self.atlas_build = None;
+                }
+            }
+        }
+        match atlas_step(self.atlas_compiled, want, self.atlas_build.as_ref().map(|b| b.0)) {
+            AtlasStep::Nothing => {}
+            AtlasStep::Cancel => {
+                self.atlas_build = None;
+                log::info!("[Pipelines] the shadow atlas variant build was cancelled: the level went back before it landed");
+            }
+            AtlasStep::Build(atlas) => self.atlas_build = Some(self.spawn_atlas_twins(device, atlas)),
+        }
+    }
+
+    /// Compile the variant `atlas` of every `ATLAS_TWINS` PSO on a thread of its own (each compile on
+    /// its own scoped worker, as `build_all_pipelines` does), from the modules the current PSOs came
+    /// from, into the current scene format.
+    fn spawn_atlas_twins(&self, device: &wgpu::Device, atlas: bool) -> (bool, std::sync::mpsc::Receiver<AtlasTwins>, std::time::Instant) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let device = device.clone();
+        let (shader, batch_shader) = self.modules.clone();
+        let scene_format = self.scene_format;
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("PBR-lite Pipeline Layout (shadow atlas variant)"),
+            bind_group_layouts: &[&self.camera_bind_group_layout, &self.object_bind_group_layout, &self.material_bind_group_layout, &self.texture_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        let patch_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Patch Batch Pipeline Layout (shadow atlas variant)"),
+            bind_group_layouts: &[&self.camera_bind_group_layout, &self.patch_bind_group_layout, &self.material_bind_group_layout, &self.texture_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        let spawned = std::thread::Builder::new().name("shadow-atlas-variant".into()).stack_size(COMPILE_STACK_BYTES).spawn(move || {
+            let t = std::time::Instant::now();
+            let at = |label: &'static str| atlas_label(label, atlas);
+            let pbr = |label: &'static str, state: PsoState| Self::build_class_pso(&device, scene_format, &shader, &layout, label, state);
+            let twins = std::thread::scope(|s| {
+                let surface_render = spawn_compile(s, "surface render (variant)", || pbr(at("PBR-lite Surface Render Pipeline"), OPAQUE_STATE));
+                let surface_transparent = spawn_compile(s, "surface transparent (variant)", || pbr(at("PBR-lite Surface Transparent Pipeline"), TRANSPARENT_STATE));
+                let surface_overlay = spawn_compile(s, "surface overlay (variant)", || pbr(at("PBR-lite Surface Overlay Pipeline"), OVERLAY_STATE));
+                let terrain_render = spawn_compile(s, "terrain render (variant)", || pbr(at("PBR-lite Terrain Render Pipeline"), OPAQUE_STATE));
+                let vegetation_render = spawn_compile(s, "vegetation render (variant)", || pbr(at("PBR-lite Vegetation Render Pipeline"), OPAQUE_STATE));
+                let patch_render = spawn_compile(s, "patch render (variant)", || Self::build_patch_render(&device, scene_format, &batch_shader, &patch_layout, atlas));
+                fn join(h: std::thread::ScopedJoinHandle<'_, wgpu::RenderPipeline>) -> wgpu::RenderPipeline {
+                    h.join().unwrap_or_else(|_| panic!("a shadow atlas variant PSO compile panicked"))
+                }
+                AtlasTwins {
+                    surface_render: join(surface_render),
+                    surface_transparent: join(surface_transparent),
+                    surface_overlay: join(surface_overlay),
+                    terrain_render: join(terrain_render),
+                    vegetation_render: join(vegetation_render),
+                    patch_render: join(patch_render),
+                    wall_s: 0.0,
+                }
+            });
+            let twins = AtlasTwins { wall_s: t.elapsed().as_secs_f32(), ..twins };
+            if tx.send(twins).is_err() {
+                log::info!("[Pipelines] a shadow atlas variant finished after it was no longer wanted (or a reload replaced it); dropped");
+            }
+        });
+        if let Err(e) = spawned {
+            log::warn!("[Pipelines] could not start the shadow atlas variant build ({e}); the current PSOs stay");
+        }
+        log::info!("[Pipelines] compiling the shadow atlas variant in the background: lookups {}", if atlas { "in" } else { "out" });
+        (atlas, rx, std::time::Instant::now())
+    }
+
+    /// Put a finished variant in place: each PSO into the field it replaces, by name.
+    fn install_atlas_twins(&mut self, t: AtlasTwins) {
+        let AtlasTwins { surface_render, surface_transparent, surface_overlay, terrain_render, vegetation_render, patch_render, wall_s: _ } = t;
+        self.surface_render_pipeline = surface_render;
+        self.surface_transparent_pipeline = surface_transparent;
+        self.surface_overlay_pipeline = surface_overlay;
+        self.terrain_render_pipeline = terrain_render;
+        self.vegetation_render_pipeline = vegetation_render;
+        self.patch_render_pipeline = patch_render;
+    }
+
     /// The OVERLAY-state PSO (alpha blend, no cull, depth WRITE) for a
     /// material of `class`. Two users: the editor gizmos (surface) and the
     /// water shell when `water_depth_write` is on (v0.1060). There is
@@ -1355,14 +1512,16 @@ impl Pipeline {
         scene_format: wgpu::TextureFormat,
         batch_shader: &wgpu::ShaderModule,
         layout: &wgpu::PipelineLayout,
+        atlas: bool,
     ) -> wgpu::RenderPipeline {
         // The registry row for this PSO (PSO_REGISTRY) names both the
         // fragment entry it compiles (the terrain class's, `fs_terrain`: the
         // planet-surface block and nothing else) and the switches compiled
         // out of it. Terrain patches never draw an atmosphere, cloud or
         // ocean shell, so the cloud march's per-invocation tables never
-        // reach this pipeline's DXIL.
-        let label = "Patch Batch Render Pipeline";
+        // reach this pipeline's DXIL. `atlas` false builds its twin with the
+        // shadow atlas compiled out too (`ATLAS_TWINS`).
+        let label = atlas_label("Patch Batch Render Pipeline", atlas);
         let constants = pso_constants(label);
         let entry = pso_fragment_entry(label).expect("the patch render PSO compiles a class entry");
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -1561,7 +1720,8 @@ impl Pipeline {
     /// from the class, so it can never disagree with the surface PSO), the opaque state, and
     /// `vs_skinned` (appended to the megashader by the caller) reading a skinned vertex buffer of
     /// its own layout. Built on the skinning path's background thread, never at boot, so it adds
-    /// nothing to the shaders-and-pipelines boot span.
+    /// nothing to the shaders-and-pipelines boot span. `atlas` false builds its twin with the shadow
+    /// atlas compiled out (`ATLAS_TWINS`), while Room light shadows is Off.
     pub(super) fn build_skinned_surface_pso(
         device: &wgpu::Device,
         scene_format: wgpu::TextureFormat,
@@ -1569,8 +1729,9 @@ impl Pipeline {
         pipeline_layout: &wgpu::PipelineLayout,
         attributes: &[wgpu::VertexAttribute],
         stride: u64,
+        atlas: bool,
     ) -> wgpu::RenderPipeline {
-        let label = "PBR-lite Skinned Surface Render Pipeline";
+        let label = atlas_label("PBR-lite Skinned Surface Render Pipeline", atlas);
         let (blend, cull, depth_write) = OPAQUE_STATE;
         let constants = pso_constants(label);
         let entry = pso_fragment_entry(label).expect("the skinned surface PSO compiles a class entry");
@@ -1811,6 +1972,7 @@ impl Pipeline {
         patch_pipeline_layout: &wgpu::PipelineLayout,
         emission_pipeline_layout: &wgpu::PipelineLayout,
         clouds_when: CloudsWhen,
+        atlas: bool,
     ) -> (MegashaderPsos, Deferred<CloudBuild>) {
         // ── Parallel PBR pipeline compile (boot-speed, 2026-07-12) ──
         // Every class PSO bakes its fragment entry into a backend PSO, which
@@ -1920,18 +2082,21 @@ impl Pipeline {
             }
             CloudsWhen::Inline | CloudsWhen::Never => None,
         };
+        // The PSOs that can read the shadow atlas compile as the variant asked for (`ATLAS_TWINS`:
+        // `atlas` false is the twin with the lookups compiled out, while Room light shadows is Off).
+        let at = |label: &'static str| atlas_label(label, atlas);
         let (psos, inline_clouds, timings) = std::thread::scope(|s| {
             let surface_render =
-                spawn_compile(s, "PBR-lite Surface Render Pipeline", || timed("PBR-lite Surface Render Pipeline", |l| pbr(l, OPAQUE_STATE)));
+                spawn_compile(s, "PBR-lite Surface Render Pipeline", || timed(at("PBR-lite Surface Render Pipeline"), |l| pbr(l, OPAQUE_STATE)));
             let surface_transparent = spawn_compile(s, "PBR-lite Surface Transparent Pipeline", || {
-                timed("PBR-lite Surface Transparent Pipeline", |l| pbr(l, TRANSPARENT_STATE))
+                timed(at("PBR-lite Surface Transparent Pipeline"), |l| pbr(l, TRANSPARENT_STATE))
             });
             let surface_overlay =
-                spawn_compile(s, "PBR-lite Surface Overlay Pipeline", || timed("PBR-lite Surface Overlay Pipeline", |l| pbr(l, OVERLAY_STATE)));
+                spawn_compile(s, "PBR-lite Surface Overlay Pipeline", || timed(at("PBR-lite Surface Overlay Pipeline"), |l| pbr(l, OVERLAY_STATE)));
             let terrain_render =
-                spawn_compile(s, "PBR-lite Terrain Render Pipeline", || timed("PBR-lite Terrain Render Pipeline", |l| pbr(l, OPAQUE_STATE)));
+                spawn_compile(s, "PBR-lite Terrain Render Pipeline", || timed(at("PBR-lite Terrain Render Pipeline"), |l| pbr(l, OPAQUE_STATE)));
             let vegetation_render =
-                spawn_compile(s, "PBR-lite Vegetation Render Pipeline", || timed("PBR-lite Vegetation Render Pipeline", |l| pbr(l, OPAQUE_STATE)));
+                spawn_compile(s, "PBR-lite Vegetation Render Pipeline", || timed(at("PBR-lite Vegetation Render Pipeline"), |l| pbr(l, OPAQUE_STATE)));
             let water_transparent = spawn_compile(s, "PBR-lite Water Transparent Pipeline", || {
                 timed("PBR-lite Water Transparent Pipeline", |l| pbr(l, TRANSPARENT_STATE))
             });
@@ -2007,7 +2172,7 @@ impl Pipeline {
             let shadow_alpha = spawn_compile(s, "Sun Shadow Alpha Pipeline", || timed("Sun Shadow Alpha Pipeline", |l| make_shadow(l)));
             let patch_render = spawn_compile(s, "Patch Batch Render Pipeline", || {
                 timed("Patch Batch Render Pipeline", |_| {
-                    Self::build_patch_render(device, scene_format, batch_shader, patch_pipeline_layout)
+                    Self::build_patch_render(device, scene_format, batch_shader, patch_pipeline_layout, atlas)
                 })
             });
             // The last one too gets a worker of its own (2026-10-18). It used
@@ -2274,6 +2439,73 @@ enum CloudsWhen {
     /// compile the cloud march (see `fxc_clouds_requested`). The frame
     /// draws no clouds for the whole run, and says so once in run.log.
     Never,
+}
+
+/// One variant of the PSOs `Pipeline` itself builds from `ATLAS_TWINS` (the skinned surface twin is
+/// the skinning path's own, renderer/skinning.rs), compiled on the variant thread
+/// (`Pipeline::spawn_atlas_twins`), with how long it took.
+struct AtlasTwins {
+    surface_render: wgpu::RenderPipeline,
+    surface_transparent: wgpu::RenderPipeline,
+    surface_overlay: wgpu::RenderPipeline,
+    terrain_render: wgpu::RenderPipeline,
+    vegetation_render: wgpu::RenderPipeline,
+    patch_render: wgpu::RenderPipeline,
+    wall_s: f32,
+}
+
+/// THE SHADOW ATLAS TWINS (shadows rung 1b, 2026-11-12, docs/design/local-light-shadows.md section 9):
+/// every registered PSO that keeps `HAS_SHADOW_ATLAS` live, beside the label of its twin with the
+/// atlas compiled OUT, which the renderer installs while Room light shadows is Off (`Pipeline::
+/// want_shadow_atlas`). A twin is its row's PSO in every other respect: `pso_row` answers a twin's
+/// label with its base row, and `pso_constants` adds the one switch. Pinned to the registry by
+/// `every_atlas_live_pso_has_a_twin_and_only_those`.
+pub const ATLAS_TWINS: &[(&str, &str)] = &[
+    ("PBR-lite Surface Render Pipeline", "PBR-lite Surface Render Pipeline (no shadow atlas)"),
+    ("PBR-lite Surface Transparent Pipeline", "PBR-lite Surface Transparent Pipeline (no shadow atlas)"),
+    ("PBR-lite Surface Overlay Pipeline", "PBR-lite Surface Overlay Pipeline (no shadow atlas)"),
+    ("PBR-lite Terrain Render Pipeline", "PBR-lite Terrain Render Pipeline (no shadow atlas)"),
+    ("PBR-lite Vegetation Render Pipeline", "PBR-lite Vegetation Render Pipeline (no shadow atlas)"),
+    ("Patch Batch Render Pipeline", "Patch Batch Render Pipeline (no shadow atlas)"),
+    ("PBR-lite Skinned Surface Render Pipeline", "PBR-lite Skinned Surface Render Pipeline (no shadow atlas)"),
+];
+
+/// The label to build for `label` in the variant `atlas`: itself with the atlas compiled in, its twin
+/// (`ATLAS_TWINS`) without. Panics for a label with no twin asked for without the atlas: a PSO that
+/// never reads the atlas has no second variant to build.
+pub fn atlas_label(label: &'static str, atlas: bool) -> &'static str {
+    if atlas {
+        return label;
+    }
+    ATLAS_TWINS
+        .iter()
+        .find(|(base, _)| *base == label)
+        .map(|(_, twin)| *twin)
+        .unwrap_or_else(|| panic!("PSO {label:?} has no shadow atlas twin (ATLAS_TWINS, src/renderer/pipeline.rs)"))
+}
+
+/// What `Pipeline::want_shadow_atlas` does about the variant this frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtlasStep {
+    /// The PSOs in place are the wanted variant and nothing is building, or the wanted variant is
+    /// already building.
+    Nothing,
+    /// The PSOs in place are the wanted variant again (the level went back) while the other one is
+    /// still building: drop that build.
+    Cancel,
+    /// Start building this variant (replacing any build of the other).
+    Build(bool),
+}
+
+/// The variant decision, pure so it is tested without a GPU: `compiled` is the variant in place,
+/// `want` the one the level asks for, `building` the variant a background build is making, if any.
+pub fn atlas_step(compiled: bool, want: bool, building: Option<bool>) -> AtlasStep {
+    match (want == compiled, building) {
+        (true, None) => AtlasStep::Nothing,
+        (true, Some(_)) => AtlasStep::Cancel,
+        (false, Some(b)) if b == want => AtlasStep::Nothing,
+        (false, _) => AtlasStep::Build(want),
+    }
 }
 
 /// A class PSO's fixed-function state: (blend, cull, depth write).
@@ -2692,8 +2924,10 @@ pub const PSO_REGISTRY: &[PsoRow] = &[
 /// `PSO_REGISTRY`: a pipeline built from the megashader without a declared
 /// row is exactly the silent regression this registry exists to prevent,
 /// and the panic lands at first boot, where the boot-verify rig catches it.
+/// A shadow atlas twin's label (`ATLAS_TWINS`) answers with its base row.
 pub fn pso_row(label: &str) -> &'static PsoRow {
-    PSO_REGISTRY.iter().find(|r| r.label == label).unwrap_or_else(|| {
+    let base = twin_base(label).unwrap_or(label);
+    PSO_REGISTRY.iter().find(|r| r.label == base).unwrap_or_else(|| {
         panic!(
             "PSO {label:?} is not in PSO_REGISTRY (src/renderer/pipeline.rs): declare which \
              class it serves, which fragment entry it compiles and which branches it \
@@ -2702,13 +2936,23 @@ pub fn pso_row(label: &str) -> &'static PsoRow {
     })
 }
 
+/// The base label of a shadow atlas twin (`ATLAS_TWINS`), or None for any other label.
+fn twin_base(label: &str) -> Option<&'static str> {
+    ATLAS_TWINS.iter().find(|(_, twin)| *twin == label).map(|(base, _)| *base)
+}
+
 /// The pipeline-constant map for one registered PSO: each dead branch's
 /// switch set to 0.0 (wgpu carries every override value as an f64; naga maps
 /// it onto a `bool` override as `value != 0.0`). Switches not named in the
-/// map keep the shader's `= true` default. Panics on an unregistered label
+/// map keep the shader's `= true` default. A shadow atlas twin's map is its
+/// base row's plus `HAS_SHADOW_ATLAS` off. Panics on an unregistered label
 /// (see `pso_row`).
 pub fn pso_constants(label: &str) -> HashMap<String, f64> {
-    pso_row(label).dead.iter().map(|name| ((*name).to_string(), 0.0)).collect()
+    let mut map: HashMap<String, f64> = pso_row(label).dead.iter().map(|name| ((*name).to_string(), 0.0)).collect();
+    if twin_base(label).is_some() {
+        map.insert(FEATURE_SHADOW_ATLAS.to_string(), 0.0);
+    }
+    map
 }
 
 /// The fragment entry one registered PSO compiles: its class's entry, the
@@ -3629,6 +3873,56 @@ mod permutation_tests {
     #[should_panic(expected = "not in PSO_REGISTRY")]
     fn pso_constants_panics_on_an_unregistered_label() {
         let _ = pso_constants("Some Future Pipeline");
+    }
+
+    /// THE SHADOW ATLAS TWINS (shadows rung 1b, 2026-11-12): every registered PSO that keeps
+    /// HAS_SHADOW_ATLAS live has a twin, and nothing else does (a PSO that can read the atlas without
+    /// a twin would keep paying for the lookups at Off: the cost this rung removes); a twin is its
+    /// base PSO in every respect but the one switch. Seen red first (2026-11-12) with the skinned
+    /// surface row left out of ATLAS_TWINS: "the registry's atlas-live PSOs and ATLAS_TWINS differ",
+    /// left six labels, right seven.
+    #[test]
+    fn every_atlas_live_pso_has_a_twin_and_only_those() {
+        let live: Vec<&str> = PSO_REGISTRY.iter().filter(|r| !r.dead.contains(&FEATURE_SHADOW_ATLAS)).map(|r| r.label).collect();
+        let bases: Vec<&str> = ATLAS_TWINS.iter().map(|(b, _)| *b).collect();
+        assert_eq!(bases, live, "the registry's atlas-live PSOs and ATLAS_TWINS differ");
+        for &(base, twin) in ATLAS_TWINS {
+            assert_eq!(twin, format!("{base} (no shadow atlas)"), "{base}: the twin's label says what it is");
+            assert_eq!(atlas_label(base, true), base);
+            assert_eq!(atlas_label(base, false), twin);
+            assert_eq!(pso_row(twin), pso_row(base), "{twin}: its row is its base's");
+            assert_eq!(pso_fragment_entry(twin), pso_fragment_entry(base), "{twin}: the same fragment entry");
+            let mut want = pso_constants(base);
+            assert!(!want.contains_key(FEATURE_SHADOW_ATLAS), "{base}: the base keeps the atlas");
+            want.insert(FEATURE_SHADOW_ATLAS.to_string(), 0.0);
+            assert_eq!(pso_constants(twin), want, "{twin}: its base's constants plus the atlas off");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "has no shadow atlas twin")]
+    fn a_pso_that_never_reads_the_atlas_has_no_twin_to_build() {
+        let _ = atlas_label("PBR-lite Water Transparent Pipeline", false);
+    }
+
+    /// The variant decision (`atlas_step`): build the wanted variant when the one in place differs,
+    /// wait while that build runs, cancel it when the level goes back first, and do nothing when the
+    /// one in place is wanted. Seen red first (2026-11-12) with the cancel arm answering Nothing: "a
+    /// level that goes back cancels the build", left Nothing, right Cancel.
+    #[test]
+    fn the_atlas_variant_is_built_waited_for_and_cancelled() {
+        // In place and wanted.
+        assert_eq!(atlas_step(true, true, None), AtlasStep::Nothing);
+        assert_eq!(atlas_step(false, false, None), AtlasStep::Nothing);
+        // Off chosen: build the twins; Full chosen while they are out: build the atlas back in.
+        assert_eq!(atlas_step(true, false, None), AtlasStep::Build(false));
+        assert_eq!(atlas_step(false, true, None), AtlasStep::Build(true));
+        // The wanted variant is already building: wait for it.
+        assert_eq!(atlas_step(true, false, Some(false)), AtlasStep::Nothing);
+        assert_eq!(atlas_step(false, true, Some(true)), AtlasStep::Nothing);
+        // The level went back before the build landed: the PSOs in place are wanted again.
+        assert_eq!(atlas_step(true, true, Some(false)), AtlasStep::Cancel, "a level that goes back cancels the build");
+        assert_eq!(atlas_step(false, false, Some(true)), AtlasStep::Cancel, "a level that goes back cancels the build");
     }
 
     #[test]

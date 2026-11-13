@@ -113,6 +113,9 @@ struct MiddleDraw {
 struct SkinnedPso {
     pipeline: wgpu::RenderPipeline,
     format: wgpu::TextureFormat,
+    /// Whether the colour PSO has the shadow atlas lookups compiled in (shadows rung 1b: out while
+    /// Room light shadows is Off, `pipeline::ATLAS_TWINS`); it follows `Pipeline::shadow_atlas_wanted`.
+    atlas: bool,
     shadow: wgpu::RenderPipeline,
     shadow_alpha: wgpu::RenderPipeline,
 }
@@ -581,9 +584,11 @@ impl Renderer {
         if let Polled::Lost = sk.vs_pso.poll() {
             log::warn!("Skinning: the vertex-shader skinning PSO build was lost; middle bodies stay on compute skinning");
         }
-        // Built for another scene format (the scene-format A/B switch): build it again for this one,
-        // compute skinning standing in meanwhile.
-        let stale = matches!(sk.vs_pso.ready(), Some(p) if p.format != format) && !sk.vs_pso.is_pending();
+        // Built for another scene format (the scene-format A/B switch), or with the shadow atlas
+        // lookups in while Room light shadows went Off or out while it came back (shadows rung 1b):
+        // build it again for this one, compute skinning standing in meanwhile.
+        let atlas = self.pipeline.shadow_atlas_wanted();
+        let stale = matches!(sk.vs_pso.ready(), Some(p) if p.format != format || p.atlas != atlas) && !sk.vs_pso.is_pending();
         if stale {
             let layout = sk.vs_layout.clone();
             let rebuilt = Skinning::spawn_vs_pso(self, &layout);
@@ -1010,6 +1015,7 @@ impl Skinning {
     fn spawn_vs_pso(r: &Renderer, vs_layout: &wgpu::BindGroupLayout) -> Deferred<SkinnedPso> {
         let device = r.device.clone();
         let format = r.scene_format();
+        let atlas = r.pipeline.shadow_atlas_wanted();
         let camera = r.pipeline.camera_bind_group_layout.clone();
         let material = r.pipeline.material_bind_group_layout.clone();
         let texture = r.pipeline.texture_bind_group_layout.clone();
@@ -1030,12 +1036,12 @@ impl Skinning {
                     bind_group_layouts: &[&camera, &object, &material, &texture],
                     push_constant_ranges: &[],
                 });
-                let pipeline = pipeline::Pipeline::build_skinned_surface_pso(&device, format, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE);
+                let pipeline = pipeline::Pipeline::build_skinned_surface_pso(&device, format, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE, atlas);
                 // Its two shadow twins (2026-11-10, renderer/local_shadows.rs), from the same module.
                 let shadow = pipeline::Pipeline::build_skinned_shadow_pso(&device, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE, false);
                 let shadow_alpha = pipeline::Pipeline::build_skinned_shadow_pso(&device, &module, &layout, &SKINNED_ATTRS, SKINNED_STRIDE, true);
                 log::info!("[Pipelines] vertex-shader skinning PSOs (colour and two shadow) built in {:.1}s (background)", started.elapsed().as_secs_f32());
-                let _ = tx.send(SkinnedPso { pipeline, format, shadow, shadow_alpha });
+                let _ = tx.send(SkinnedPso { pipeline, format, atlas, shadow, shadow_alpha });
             });
         match spawned {
             Ok(_) => Deferred::waiting(rx),

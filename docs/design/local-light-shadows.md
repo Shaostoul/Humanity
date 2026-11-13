@@ -102,8 +102,10 @@ the project's floor is an RX 580 (256 GB/s, about a third of the 4070's raster r
 The CPU side is the one to watch: each face is a separate draw list in rung 1, so the casters in a
 light's reach are drawn up to six times. Measured (section 10), rung 1 is over the CPU line on Full
 in the busiest rooms (about 1.5 to 1.8 ms) even after the fast path halved it, and the scene pass
-pays for the lookup's code even at Off. Rung 1b (section 9) is the fix for both; the cached rung
-(rung 2) is what takes the walls and furniture out of the per-frame draws.
+paid for the lookup's code even at Off. Rung 1b made Off free and culls the casters whose shadow
+cannot reach the view; it also found that the per-draw cost is the D3D12 calls themselves (a draw
+replayed from a bundle costs about what a recorded one does), so only FEWER draws cut it: the cached
+rung (rung 2) is what takes the walls and furniture out of the per-frame draws.
 
 ## 4. Infinite-of-x: a crowded deck with hundreds of lamps
 
@@ -156,20 +158,30 @@ the edge of the budget does not flicker), and it obeys `humanity_core::reuse::en
 frame. Rung 2's static depth reuse is versioned by the home's edit counter and the caster set, and
 with the switch off draws every caster every frame.
 
+Rung 1b (2026-11-12) adds no reuse. A kept recording of each view's unchanged draws (a render
+bundle, kept only while the draws were equal and behind the switch) was built and measured, and
+taken out: a replayed draw cost about what a recorded one does (section 10). The shader variant of
+(a) is not reuse either: the PSOs in place are the only ones held, rebuilt when the level crosses
+Off.
+
 ## 9. The rungs
 
 1. **The atlas** (built 2026-11-10, section 10): the budgeted lamps' cube faces and spot views, the
    near sun tile, every opaque caster, PCF, the Settings control.
-1b. **The scene pass's share** (found 2026-11-11, section 10): (a) at Off, rebuild the surface,
-   vegetation and terrain PSOs with `HAS_SHADOW_ATLAS` false (the pipelines can be rebuilt at run
-   time, as `scene_format_ab.rs` does), so Off costs nothing, with a short hitch when the setting
-   crosses Off; (b) on, move the lookups out of `frag_tail` into a SHADOW MASK: a depth pre-pass,
-   then one compute pass writing each pixel's visibility for the shadowed lights (8 lights in two
-   RGBA8 targets) that the light loop reads with one texture fetch, the deferred shadow mask most
-   forward renderers use. (b) also makes the mask the place where contact shadows (rung 4) land.
-   And (c), on the CPU: one draw per mesh per LIGHT instead of per face, with the face's four clip
-   planes as clip distances (wgpu's `CLIP_DISTANCES`, where the card has it; per face elsewhere),
-   since one draw for the whole atlas without them cost 10.9 ms of GPU.
+1b. **The scene pass's share** (found 2026-11-11; built 2026-11-12, section 10): (a) at Off, the
+   surface, vegetation and terrain PSOs are twins with `HAS_SHADOW_ATLAS` false, built in the
+   background when the level crosses Off (no hitch: either variant draws a correct picture), so Off
+   costs nothing (BUILT); (b) on, move the lookups out of `frag_tail` into a SHADOW MASK: a depth
+   pre-pass, then one compute pass writing each pixel's visibility for the shadowed lights (8 lights
+   in two RGBA8 targets) that the light loop reads with one texture fetch, the deferred shadow mask
+   most forward renderers use; it also makes the mask the place where contact shadows (rung 4)
+   land (NOT built: section 10 says why). And (c), on the CPU: fewer draws or cheaper ones. One
+   draw per mesh per LIGHT with the face's four clip planes as clip distances is not possible on
+   wgpu 24 (no `CLIP_DISTANCES` feature; naga 24 leaves `enable clip_distances` unimplemented);
+   drawing the casters that lie wholly inside a face in one draw per mesh across the atlas was
+   built, measured and taken out (it saved no draws: section 10), and so was replaying each view's
+   unchanged draws from a render bundle (it saved 4 to 12%); what was kept is the shadow-caster cull,
+   a caster drawn into a face only if its shadow can reach the view (BUILT).
 2. **Cached static depth and a larger budget**: per face, the static casters' depth kept and copied in
    each frame, people drawn on top; versioned, behind the switch. Lets Full shadow 16 to 32 lamps and
    use 1024 faces. Then PCSS with each lamp type's size (`light_types.ron`, a new `size_m`).
@@ -286,6 +298,103 @@ shader's register count is set by its fullest path, taken or not; switched on, t
 cost the same at Off and 1 ms more on; so was reading the view matrix column by column (kept: about
 0.15 ms). The fix is a rung of its own (section 9, rung 1b).
 
+### Built: rung 1b (2026-11-12/13)
+
+All numbers: RTX 4070, release builds, the rig at 2560 x 1387, same park per vantage, the frame-cost
+averages copied beside each capture (`HUMANITY_FRAME_COSTS=1`). "Main" is the release build of
+1c4d2b908 (rung 1 merged). Captures and tables: `s1b-*` in the session scratchpad.
+
+**(a) Off is free.** While the level is Off (or low impact holds it off) the surface, vegetation
+and terrain PSOs (and the patch and skinned surface ones) are TWINS compiled with `HAS_SHADOW_ATLAS`
+false (`pipeline.rs` `ATLAS_TWINS`, `atlas_label`; a twin is its registry row in every respect but
+the one switch). `Pipeline::want_shadow_atlas`, called by `render_shadow_atlas` every frame, builds
+the other variant on a background thread when the level crosses Off and installs it when it lands
+(1.3 to 1.5 s in the rig); either variant draws a correct picture meanwhile, so there is no hitch.
+A shader hot reload builds the variant the frame wants. Showcase `atlas_code` "1" keeps the lookups
+in at Off (rung 1's state, the red twin). The scene pass (`gpu.scene`, ms), one boot of this build:
+
+| Vantage | Off (twins) | lookups patched out of the source | Off with the lookups kept (rung 1) | Main: Off | Main: patched out |
+|---|---|---|---|---|---|
+| shadow-hall-chair-night | 11.94 | 11.94 | 13.15 | 13.27 | 12.05 |
+| shadow-racks-night | 8.67 | 8.82 | 9.39 | 9.85 | 8.89 |
+| mess-hall-counter | 8.41 | 8.47 | 9.24 | 9.37 | 8.53 |
+| anim-crowd-near | 8.68 | 7.85 | 8.50 | 8.52 | 8.03 |
+| home-overview-noon | 5.78 | 5.86 | 5.59 | 5.73 | 5.15 |
+
+Where the scene holds still (the hall, the racks, the mess hall) Off now costs exactly what the
+patched-out shader costs, and keeping the lookups costs 0.6 to 1.2 ms, as rung 1 measured. The crowd
+(people walking) and the overview (the sky and terrain moving) vary by 0.5 to 0.8 ms between
+captures of one park, more than the effect. The Settings line now says "Off costs nothing in the
+scene pass" in words once the twins are in, and that the shading is still rebuilding for the second
+or two before; the control's cost row also lists the scene pass (`Shares(["gpu.scene"])`), where
+Simplified and Full sample the atlas.
+
+**(b) The CPU.** Three ways were built and measured; one was kept.
+
+- *Drawing the casters wholly inside a face in one draw per mesh across the atlas* (each view's
+  matrix remapped onto its tile, so no triangle leaves its tile and the GPU does the same work as
+  before): taken out, because it saved no draws. In the ground hall 928 draws with it against 925
+  without (92 of them merged); in the crowd 1,236 against 1,248. The draws are mostly unique meshes
+  (the home's walls, floors and furniture pieces), each in one or two faces and rarely wholly inside
+  one, so a draw per mesh per view is already a draw per caster per view. The plan's "one draw per
+  light with the face's clip planes as clip distances" is not possible on wgpu 24: there is no
+  `CLIP_DISTANCES` feature and naga 24 leaves `enable clip_distances` unimplemented.
+- *Replaying each view's unchanged draws from a render bundle* (kept only while the draws were equal,
+  behind the reuse switch): taken out, because a replayed draw costs about what a recorded one does.
+  The smoothed splits: 0.72 microseconds a draw recorded (the hall, 870 draws) against 0.67 replayed
+  (the crowd, 552 of 582 replayed); the medians of three alternations each moved `cpu.shadow_local`
+  by 0.08 to 0.24 ms (4 to 12%). wgpu's bundles are replayed into the command list draw by draw, so
+  the D3D12 calls per draw (the vertex and index buffer views, the root constants for the first
+  instance and the draw itself) are paid either way; wgpu's validation was not the cost.
+- *The shadow-caster cull* (KEPT, `shadow_reaches_view`): a caster is drawn into a lamp's face only
+  if its shadow, out to the lamp's shadow reach, can fall inside the camera's view (the bounding form
+  of Bittner et al., "Shadow Caster Culling for Efficient Shadow Mapping", I3D 2011: the sphere and
+  the sphere at the reach, widening as the shadow does, tested against the view's planes). Fewer
+  (caster, face) pairs means fewer draws, since most draws are one caster. Showcase `shadow_cull` "0"
+  is its red twin. In these five views it leaves out 0 to 52 of the 1,000 to 4,000 (caster, face)
+  pairs: the faces that miss the view were already skipped whole, and a room seen from above has
+  most of its floor in view, so most shadows land where you look. `gpu.shadow_local` falls a little
+  (the crowd 0.258 to 0.194 ms, the hall 0.281 to 0.267) and `cpu.shadow_local` moves within its
+  noise (medians of three alternations, cull against none: the hall 3.35 / 2.77, the racks 2.47 /
+  2.75, the mess hall 1.79 / 1.93, the crowd 2.12 / 1.73, the overview 2.31 / 2.67; other agents'
+  compiles shared the machine). It costs tens of microseconds and pays where the camera faces away
+  from the lamps that light it, so it stays.
+
+  **So (b)'s target, about 1 ms, is not met at this rung**: `cpu.shadow_local` on Full is still 1.4
+  to 2.9 ms (main, the same views, a quieter machine: the hall 1.95 to 2.21, the mess hall 1.38).
+  The cost is about 0.7 microseconds of D3D12 calls a draw, and the busiest views hold 900 to 1,300
+  draws that no culling at this level removes. Two things would: rung 2 (the static casters' depth
+  kept per face, so the walls and furniture are not drawn every frame), or a shadow geometry arena
+  (every caster mesh's vertices and indices copied once into shared buffers, so a view's draws need
+  no buffer changes and can go out as ONE `multi_draw_indexed_indirect`, which the device already
+  grants for the terrain). Rung 2 is the plan's next rung and removes more; the arena is the cheaper
+  step if rung 2 waits.
+
+The fast path's instances now copy each caster's matrix worked out once rather than once per view
+(the uploads), and the log line's stage times carry a twenty-frame average beside the frame's own
+(one frame's split swings by half on a busy machine).
+
+**(d) The deferred shadow mask: not built, and why.** What Full costs the scene pass over Off is now
+visible whole: 2.0 ms in the hall (13.94 against 11.94), 1.6 at the racks, 1.1 in the mess hall,
+under 0.6 in the crowd and the overview; of the hall's 2.0, 1.2 is the lookup code's presence
+(register pressure) and 0.8 the sampling. A mask would take both out of `frag_tail`, but it needs
+the scene's depth before the scene is shaded, and the engine has no depth pre-pass: one would cost
+roughly 10 to 15% of a 10 to 14 ms scene pass (1 to 2 ms, the opaque geometry drawn twice), plus the
+mask's own compute pass (8 lights, 16 comparisons, 3.5 million pixels: an estimated 0.5 to 1 ms).
+That is about what it would save, so it is not the measured win the brief asked for. It becomes one
+when a depth pre-pass exists for its own sake (contact shadows, rung 4, need one too); measure the
+pre-pass first, then the mask.
+
+**(c) The racks gate, corrected.** `scripts/home-shadow-metrics.mjs --gate` compared the lowest shelf
+at noon against the NIGHT capture plus 10%, which the room's bounced light fails whatever the shadows
+do, and judged the planet hut against sand no longer in frame. It now compares each region with and
+without the shadows (`--before-arm off --arm on` on one boot): the shelf must keep at most a quarter
+of its unshadowed light, the hut's floor under half, the open floor within 2 codes. Main's captures:
+red with both arms shadow-less (shelf keeps 0.959, hut 1.004: FAIL), green with the atlas on (shelf
+0.120, hut 0.123, floor +0.02 codes: PASS); the old criteria on the same shaded captures still fail
+(night cap 0.0016 against the shelf's 0.0463; the "sand" box, now the hut's wall, reads darker than
+the floor).
+
 ## 11. Questions only the operator can answer
 
 1. **How many lamps should Full shadow?** Rung 1 shadows the 8 that matter most where you look
@@ -299,8 +408,9 @@ cost the same at Off and 1 ms more on; so was reading the view matrix column by 
 3. **The default.** Full on every machine (the "max-graphics default" the other lighting controls
    use), Off in low impact. Recommendation: keep Full as the default; the Settings line warns where
    the 64 MB passes an eighth of a card's own memory.
-4. **Off is not free yet, and the Settings cost line does not show it** (measured 2026-11-11,
-   section 10): the scene pass pays for the compiled-in lookup at Off too, and the line counts only
-   the atlas passes. Recommendation: build rung 1b (a), rebuilding the scene PSOs without the atlas
-   when the setting crosses Off (a hitch of the PSO compile at that moment), next, so Off is truly
-   free and the line becomes true; then (b), the shadow mask, which takes the cost out when on.
+4. **Off is free since rung 1b (2026-11-12, section 10)**, with no hitch (the twins compile in the
+   background), and the Settings line says so. What is left is Full's cost while on: about 2 ms of
+   the scene pass in the busiest hall (most of it the lookup code's register pressure) and about
+   2 ms of the processor for the casters' draws there. Recommendation: rung 2 (the static casters'
+   depth kept per face) next, which takes the walls and furniture out of the per-frame draws and so
+   most of the processor cost; the shadow mask only after a depth pre-pass exists for its own sake.

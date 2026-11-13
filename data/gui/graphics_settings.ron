@@ -95,7 +95,10 @@
         (id: "sun_shadows", cost: [Gpu(["gpu.shadow", "gpu.shadow_near"])]),
         // Room light shadows (2026-11-10, renderer/local_shadows.rs): the atlas passes, choosing and
         // drawing the casters, the atlas memory, and each level's own memory worked out beside it.
-        (id: "local_shadows", cost: [Gpu(["gpu.shadow_local", "gpu.shadow_near"]), Cpu(["cpu.shadow_local", "cpu.shadow_near"]), Memory(["vram.shadow_atlas"]), Computed]),
+        // Since shadows rung 1b (2026-11-12) also the scene pass, where the lookups run: Off compiles
+        // them out of the shading (nothing there at Off; the page's own line says so, or that the
+        // shading is still being rebuilt), Simplified and Full sample the atlas inside it.
+        (id: "local_shadows", cost: [Gpu(["gpu.shadow_local", "gpu.shadow_near"]), Cpu(["cpu.shadow_local", "cpu.shadow_near"]), Memory(["vram.shadow_atlas"]), Shares(["gpu.scene"]), Computed]),
         (id: "lights_tiled", cost: [Cpu(["cpu.light_tiles"]), Shares(["gpu.scene"])]),
         (id: "bounced_light_detail", cost: [Computed, Gpu(["gpu.room_probes"])]),
         (id: "shadow_strength", cost: [Free("graphics.free.shader_number")]),

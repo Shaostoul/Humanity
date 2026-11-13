@@ -314,6 +314,14 @@ fn draw_local_shadows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hi
     }
     // What the shadows did this frame (the renderer publishes it with the frame costs).
     if let Some(s) = crate::renderer::local_shadows::published_stats() {
+        // What the shading carries (shadows rung 1b): at Off the lookups are compiled out, so Off
+        // costs the scene pass nothing; for the second or two the other variant takes to build after
+        // a change, the line says the shading still holds the lookups.
+        if s.lookups_building {
+            muted(ui, theme, t("graphics.local_shadows_code_building"));
+        } else if s.atlas == 0 && !s.lookups_compiled {
+            muted(ui, theme, t("graphics.local_shadows_code_out"));
+        }
         if s.atlas > 0 {
             muted(
                 ui,

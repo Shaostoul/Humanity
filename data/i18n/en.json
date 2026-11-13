@@ -4916,13 +4916,15 @@
       "simplified": "Simplified",
       "full": "Full"
     },
-    "local_shadows_level_off": "No room light shadows and no sun shadows from the people and furniture near you; no video memory.",
-    "local_shadows_level": "Up to {lights} room lights with shadows, each face up to {face} texels; the sun near you in {sun} cm texels; {taps} comparisons a lookup; {memory} of video memory.",
-    "local_shadows_card": "{card}: {own} of its own memory; this level's shadow maps use {used} ({share}% of it).",
-    "local_shadows_card_warn": "{used} is more than an eighth of this card's {own}: the rest of the world needs that memory, and the game may stutter when the card runs short. A lower level gives it back.",
+    "local_shadows_level_off": "No room light shadows and no sun shadows from the people and furniture near you; no video memory, and nothing for the scene pass once the shading is rebuilt without the shadow lookups (a second or two after choosing Off).",
+    "local_shadows_level": "Up to {{lights}} room lights with shadows, each face up to {{face}} texels; the sun near you in {{sun}} cm texels; {{taps}} comparisons a lookup; {{memory}} of video memory.",
+    "local_shadows_card": "{{card}}: {{own}} of its own memory; this level's shadow maps use {{used}} ({{share}}% of it).",
+    "local_shadows_card_warn": "{{used}} is more than an eighth of this card's {{own}}: the rest of the world needs that memory, and the game may stutter when the card runs short. A lower level gives it back.",
     "local_shadows_card_unknown": "The graphics card has not said how much memory of its own it has, so this level is not checked against it.",
-    "local_shadows_now": "Now: {shadowed} of {lights} room lights cast shadows ({over} more in view without them), in {views} shadow views.",
-    "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes."
+    "local_shadows_now": "Now: {{shadowed}} of {{lights}} room lights cast shadows ({{over}} more in view without them), in {{views}} shadow views.",
+    "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes.",
+    "local_shadows_code_out": "Off costs nothing in the scene pass: the shading has been rebuilt without the shadow lookups.",
+    "local_shadows_code_building": "Rebuilding the shading for this choice in the background, a second or two. Until it is done the shading still carries the shadow lookups, which slow the scene pass a little even with shadows Off."
   },
   "gameplay": {
     "level": {

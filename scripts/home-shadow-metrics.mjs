@@ -5,14 +5,37 @@
 //   node scripts/home-shadow-metrics.mjs <dir> [<dir> ...]
 //       every PNG in each dir whose name holds a known vantage id is measured
 //       region by region (mean sRGB luma code, mean linear luma, std dev).
-//   node scripts/home-shadow-metrics.mjs --gate <before-dir> <after-dir>
-//       increment 1's acceptance (docs/design/sun-cascades.md section 4):
-//       (a) the lowest shelf top at noon reads at most the night capture of
-//           the same build plus 10% (linear), i.e. the sun term is gone;
+//   node scripts/home-shadow-metrics.mjs --gate <before-dir> <after-dir> [--arm A] [--before-arm B]
+//       increment 1's acceptance (docs/design/sun-cascades.md section 4),
+//       "before" being the same views WITHOUT the near world's sun shadows
+//       (main before the shadow atlas, or showcase local_shadows "0") and
+//       "after" WITH them:
+//       (a) the lowest shelf top at noon keeps at most a quarter of the light
+//           it has without shadows (linear): the sun term is gone, and what
+//           is left is the sky's and the room's bounced light;
 //       (b) the open floor at noon moved by at most 2 sRGB codes;
-//       (c) the planet hut's floor under the roof is darker than the sand in
-//           the sun beside it by at least half the sand's light.
-//       Exit 1 when a gate fails, 2 when a capture is missing.
+//       (c) the planet hut's floor under its roof keeps less than half the
+//           light it has without shadows (linear).
+//       --arm / --before-arm pick the probe-hot-ab arm in each dir (one dir
+//       holding both arms of a same-boot A/B: --gate D D --arm on
+//       --before-arm off). Exit 1 when a gate fails, 2 when a capture is
+//       missing.
+//
+// WHY THESE CRITERIA (corrected 2026-11-12, shadows rung 1b). The first
+// version capped (a) at the NIGHT capture plus 10% and judged (c) against the
+// sand beside the hut. Both went stale once the shadow atlas made the shelves
+// and the hut actually shaded: the lowest shelf fell from 159 to 55 codes
+// (linear 0.376 to 0.047) and still failed the night cap, because what is left
+// is the room's bounced light (with showcase room_gi "0" the shelf reads
+// 0.0039 against the night's 0.0009), which no shadow map occludes and which
+// the night capture, with the sun down, does not have; and the hut vantage now
+// looks at the hut's inside wall with no sand in frame. So both now compare
+// the SAME region with and without the shadows: a ratio of light kept, the
+// thing a shadow changes, instead of a reference that measures something
+// else. Seen red (2026-11-12) with the after arm also shadow-less (the off
+// arm against itself: shelf and hut both keep about all their light) and
+// green with the atlas on; the numbers are in docs/design/local-light-shadows.md
+// section 10.
 //
 // WHY A SCRIPT AND NOT A LOOK. The defect it measures is a 3-code difference
 // (a shelf top under three shelves read 130 against the open floor's 133 at
@@ -128,34 +151,38 @@ function find(dir, fam, clock, arm) {
   return files.length ? path.join(dir, files[0]) : null;
 }
 
-async function gate(beforeDir, afterDir, arm) {
+// The most of its unshadowed light the lowest shelf top may keep at noon (gate a), and the hut's
+// floor under its roof (gate c). Measured 2026-11-11/12: the shelf keeps 0.125 (0.047 of 0.376), the
+// hut floor 0.125 (0.075 of 0.60); without shadows both keep about 1.0.
+export const SHELF_KEEP_MAX = 0.25;
+export const HUT_KEEP_MAX = 0.5;
+
+async function gate(beforeDir, afterDir, arm, beforeArm) {
   const fails = [];
-  const need = (dir, fam, clock) => {
-    const f = find(dir, fam, clock, arm);
+  const need = (dir, fam, clock, which) => {
+    const f = find(dir, fam, clock, which);
     if (!f) {
-      console.error(`missing capture: ${fam}${clock ? "-" + clock : ""} in ${dir}`);
+      console.error(`missing capture: ${fam}${clock ? "-" + clock : ""}${which ? ` (arm ${which})` : ""} in ${dir}`);
       process.exit(2);
     }
     return f;
   };
   const R = REGIONS["home-racks"];
-  const bNoon = (await measure(need(beforeDir, "home-racks", "noon"), R)).regions;
-  const aNoon = (await measure(need(afterDir, "home-racks", "noon"), R)).regions;
-  const aNight = (await measure(need(afterDir, "home-racks", "night"), R)).regions;
-  const shelfCap = aNight.shelf1_low.lin * 1.1;
-  console.log(`lowest shelf top: before ${bNoon.shelf1_low.code.toFixed(1)} (lin ${bNoon.shelf1_low.lin.toFixed(4)}), ` +
-    `after ${aNoon.shelf1_low.code.toFixed(1)} (lin ${aNoon.shelf1_low.lin.toFixed(4)}), night ${aNight.shelf1_low.code.toFixed(1)} (lin ${aNight.shelf1_low.lin.toFixed(4)}); cap lin ${shelfCap.toFixed(4)}`);
-  if (!(aNoon.shelf1_low.lin <= shelfCap)) fails.push("the lowest shelf top at noon is brighter than night + 10%: the sun still reaches it");
+  const bNoon = (await measure(need(beforeDir, "home-racks", "noon", beforeArm), R)).regions;
+  const aNoon = (await measure(need(afterDir, "home-racks", "noon", arm), R)).regions;
+  const shelfKeep = aNoon.shelf1_low.lin / Math.max(bNoon.shelf1_low.lin, 1e-9);
+  console.log(`lowest shelf top at noon: before ${bNoon.shelf1_low.code.toFixed(1)} (lin ${bNoon.shelf1_low.lin.toFixed(4)}), ` +
+    `after ${aNoon.shelf1_low.code.toFixed(1)} (lin ${aNoon.shelf1_low.lin.toFixed(4)}): keeps ${shelfKeep.toFixed(3)} of its light (want at most ${SHELF_KEEP_MAX})`);
+  if (!(shelfKeep <= SHELF_KEEP_MAX)) fails.push(`the lowest shelf top at noon keeps ${shelfKeep.toFixed(3)} of its light: the sun still reaches it`);
   const dFloor = aNoon.floor.code - bNoon.floor.code;
   console.log(`open floor at noon: before ${bNoon.floor.code.toFixed(1)}, after ${aNoon.floor.code.toFixed(1)} (${dFloor >= 0 ? "+" : ""}${dFloor.toFixed(2)} codes, want within 2)`);
   if (!(Math.abs(dFloor) <= 2)) fails.push(`the open floor moved ${dFloor.toFixed(2)} codes`);
-  const hutA = find(afterDir, "planet-built-inside", "", arm);
-  if (hutA) {
-    const hut = (await measure(hutA, REGIONS["planet-built-inside"])).regions;
-    const ratio = hut.floor_under_roof.lin / Math.max(hut.sand_sun.lin, 1e-9);
-    console.log(`planet hut: floor under roof lin ${hut.floor_under_roof.lin.toFixed(4)}, sand in sun lin ${hut.sand_sun.lin.toFixed(4)}, ratio ${ratio.toFixed(3)} (want < 0.5)`);
-    if (!(ratio < 0.5)) fails.push("the hut floor under its roof is not shaded");
-  }
+  const P = REGIONS["planet-built-inside"];
+  const hutB = (await measure(need(beforeDir, "planet-built-inside", "", beforeArm), P)).regions;
+  const hutA = (await measure(need(afterDir, "planet-built-inside", "", arm), P)).regions;
+  const hutKeep = hutA.floor_under_roof.lin / Math.max(hutB.floor_under_roof.lin, 1e-9);
+  console.log(`planet hut floor under its roof: before lin ${hutB.floor_under_roof.lin.toFixed(4)}, after lin ${hutA.floor_under_roof.lin.toFixed(4)}: keeps ${hutKeep.toFixed(3)} (want under ${HUT_KEEP_MAX})`);
+  if (!(hutKeep < HUT_KEEP_MAX)) fails.push(`the hut floor under its roof keeps ${hutKeep.toFixed(3)} of its light: it is not shaded`);
   if (fails.length) {
     console.error("\nFAIL");
     for (const f of fails) console.error("  " + f);
@@ -168,11 +195,14 @@ const args = process.argv.slice(2);
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}` || true) {
   if (args[0] === "--gate") {
     const armAt = args.indexOf("--arm");
-    await gate(args[1], args[2], armAt >= 0 ? args[armAt + 1] : null);
+    const beforeArmAt = args.indexOf("--before-arm");
+    const arm = armAt >= 0 ? args[armAt + 1] : null;
+    // The before dir's arm defaults to the after dir's (two dirs, one arm name each, as before).
+    await gate(args[1], args[2], arm, beforeArmAt >= 0 ? args[beforeArmAt + 1] : arm);
   } else if (args.length) {
     for (const d of args) await report(d);
   } else {
-    console.error("usage: node scripts/home-shadow-metrics.mjs <dir>... | --gate <before-dir> <after-dir> [--arm NAME]");
+    console.error("usage: node scripts/home-shadow-metrics.mjs <dir>... | --gate <before-dir> <after-dir> [--arm NAME] [--before-arm NAME]");
     process.exit(2);
   }
 }

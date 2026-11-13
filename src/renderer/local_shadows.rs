@@ -249,6 +249,32 @@ pub fn sphere_in(planes: &[Vec4; 6], c: Vec3, r: f32) -> bool {
     planes.iter().all(|p| p.truncate().dot(c) + p.w >= -r)
 }
 
+/// THE SHADOW-CASTER CULL (shadows rung 1b, 2026-11-12): whether the shadow a caster throws from a
+/// point or spot light at `light` can fall on anything inside the camera's view (`view`, its six
+/// planes). The shadow of a sphere `(c, r)` at distance d from the light lies inside the cone from
+/// the sphere straight away from the light, widening to r x reach / d at the light's shadow reach
+/// (past which the shader draws no shadow); that cone lies inside the convex hull of the sphere and
+/// the sphere at the far end, and the hull is outside the view exactly when one plane has both
+/// spheres wholly on its outer side (conservative: it keeps some casters it could leave out, never
+/// the reverse). `pad` widens both for the filter's reach in world units. A caster the light sits
+/// inside, or an unbounded one, is always kept. The standard per-light caster cull (Bittner, Mattausch,
+/// Silvennoinen and Wimmer, "Shadow Caster Culling for Efficient Shadow Mapping", I3D 2011, does it
+/// per pixel with occlusion queries; this is its bounding-volume form, no GPU round trip).
+pub fn shadow_reaches_view(view: &[Vec4; 6], light: Vec3, c: Vec3, r: f32, reach: f32, pad: f32) -> bool {
+    if !r.is_finite() {
+        return true;
+    }
+    let to = c - light;
+    let d = to.length();
+    if d <= r + 1e-4 {
+        return true;
+    }
+    let far_d = reach.max(d);
+    let far = light + to * (far_d / d);
+    let (near_r, far_r) = (r + pad, r * far_d / d + pad);
+    !view.iter().any(|p| p.truncate().dot(c) + p.w < -near_r && p.truncate().dot(far) + p.w < -far_r)
+}
+
 /// The cube face a direction from the light falls on: 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z, by its
 /// major axis (ties to x, then y). LOCKSTEP with `shadow_cube_face` in 00-bindings-vertex.wgsl.
 pub fn cube_face_of(d: Vec3) -> usize {
@@ -548,6 +574,14 @@ pub struct ShadowStats {
     pub casters: u32,
     pub near_sun: bool,
     pub atlas: u32,
+    /// Whether the shading has the atlas lookups compiled in this frame (`Pipeline::
+    /// shadow_atlas_compiled`), and whether the other variant is compiling (shadows rung 1b): at Off
+    /// with the lookups still in, the scene pass still pays for them until the build lands.
+    pub lookups_compiled: bool,
+    pub lookups_building: bool,
+    /// (Caster, face) pairs the shadow-caster cull left out this frame (`shadow_reaches_view`,
+    /// shadows rung 1b): casters whose shadow cannot reach anything the camera sees.
+    pub culled: u32,
 }
 
 /// The last frame's stats, for the Settings line (the GUI has no renderer to ask).
@@ -576,6 +610,9 @@ struct Caster {
     /// Casts into the near sun view only (a celestial build piece: the room lights never reach the
     /// celestial pass's fragments).
     sun_only: bool,
+    /// The fast path's instance matrix (the model matrix, column-major), worked out once a caster
+    /// rather than once for every view that draws it.
+    model: [f32; 16],
 }
 
 /// Whether a caster can take the fast path (`assets/shaders/shadow_atlas_instanced.wgsl`): a plain
@@ -784,6 +821,13 @@ pub struct LocalShadows {
     /// Showcase pin `fp_shadow_twin` "0": the first-person body pushes no unfolded twin, so its
     /// shadow loses the head again (the twin's red twin; engine/animation.rs).
     pub twin_off: bool,
+    /// Showcase pin `atlas_code` "1": keep the atlas lookups compiled into the shading even at Off,
+    /// the rung 1 state (the red twin of compiling them out, shadows rung 1b: what Off cost before).
+    pub keep_code: bool,
+    /// Showcase pin `shadow_cull` "0": every caster inside a face's frustum is drawn, whether or not
+    /// its shadow can reach the view (the shadow-caster cull's red twin, shadows rung 1b: the picture
+    /// must not change, only the cost).
+    pub cull_off: bool,
     atlas: Option<(wgpu::Texture, wgpu::TextureView, u32)>,
     dummy_view: wgpu::TextureView,
     sampler: wgpu::Sampler,
@@ -808,6 +852,9 @@ pub struct LocalShadows {
     prev: Vec<(i32, i32, i32)>,
     pub stats: ShadowStats,
     last_log: Option<(std::time::Instant, ShadowStats)>,
+    /// The log line's stage times, smoothed over about twenty frames (microseconds): one frame's split
+    /// is noisy on a busy machine.
+    split_avg: [f32; 5],
 }
 
 impl LocalShadows {
@@ -837,6 +884,8 @@ impl LocalShadows {
             near_pin: None,
             level: DEFAULT_LEVEL.to_string(),
             twin_off: false,
+            keep_code: false,
+            cull_off: false,
             atlas: None,
             dummy_view,
             sampler,
@@ -851,6 +900,7 @@ impl LocalShadows {
             prev: Vec::new(),
             stats: ShadowStats::default(),
             last_log: None,
+            split_avg: [0.0; 5],
         }
     }
 
@@ -1002,15 +1052,22 @@ impl Renderer {
     /// list rides the station: `station_off`).
     pub fn render_shadow_atlas(&mut self, camera: &Camera, lists: &[(&[RenderObject], Vec3, CasterList)]) {
         let level = self.shadow_level_now();
+        // Off compiles the lookups out of the shading (shadows rung 1b, `pipeline::ATLAS_TWINS`): the
+        // variant follows the level, built in the background when it crosses Off. Showcase
+        // `atlas_code` "1" keeps them in at Off, as rung 1 did (its red twin).
+        self.pipeline.want_shadow_atlas(&self.device, level.is_some() || self.local_shadows.keep_code);
+        let lookups_compiled = self.pipeline.shadow_atlas_compiled();
+        let lookups_building = self.pipeline.shadow_atlas_building();
         let side = level.map_or(0, |l| l.atlas);
         if self.ensure_atlas(side) {
             self.rebuild_camera_bind_groups();
         }
         let Some(level) = level else {
             self.write_shadow_table(&[]);
-            self.local_shadows.stats = ShadowStats::default();
+            let stats = ShadowStats { lookups_compiled, lookups_building, ..ShadowStats::default() };
+            self.local_shadows.stats = stats;
             self.local_shadows.prev.clear();
-            publish(ShadowStats::default());
+            publish(stats);
             return;
         };
         let eye = camera.effective_position();
@@ -1082,7 +1139,8 @@ impl Renderer {
                 obj.position = pos;
                 let cutout = mat.casts_cutout_shadow();
                 let fast = !self.local_shadows.fast_off && takes_fast_path(mat.material_type, cutout);
-                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only });
+                let model = if fast { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
+                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model });
                 if casters.len() >= MAX_OBJECTS {
                     break;
                 }
@@ -1153,8 +1211,10 @@ impl Renderer {
         let mut placed: Vec<Vec<Option<(u32, u32)>>> = Vec::new();
         let mut excluded = vec![false; picked.len()];
         let mut settled = false;
+        let mut culled = 0u32;
         for _round in 0..8 {
             face_lists.clear();
+            culled = 0;
             let mut sizes: Vec<u32> = Vec::new();
             if let Some(v) = near_sun {
                 sizes.push(views[v].tile.2);
@@ -1178,7 +1238,14 @@ impl Renderer {
                             .copied()
                             .filter(|&i| {
                                 let c = &casters[i as usize];
-                                sphere_in(&planes, c.centre, c.radius) && big_enough(c.centre, c.radius, l.pos, texel_m, false)
+                                if !(sphere_in(&planes, c.centre, c.radius) && big_enough(c.centre, c.radius, l.pos, texel_m, false)) {
+                                    return false;
+                                }
+                                // Only a caster whose shadow can fall on something in view (the
+                                // filter's few texels of spread as the pad).
+                                let seen = self.local_shadows.cull_off || shadow_reaches_view(&cam_planes, l.pos, c.centre, c.radius, reaches[k], texel_m * margin);
+                                culled += u32::from(!seen);
+                                seen
                             })
                             .collect()
                     } else {
@@ -1309,8 +1376,7 @@ impl Renderer {
         let instances: Vec<[f32; 16]> = order
             .iter()
             .map(|&(ci, k)| {
-                let o = &casters[ci as usize].obj;
-                let mut m = Mat4::from_scale_rotation_translation(o.scale, o.rotation, o.position).to_cols_array();
+                let mut m = casters[ci as usize].model;
                 m[3] = k as f32;
                 m
             })
@@ -1449,20 +1515,27 @@ impl Renderer {
             casters: casters.len() as u32,
             near_sun: near_sun.is_some(),
             atlas: level.atlas,
+            lookups_compiled,
+            lookups_building,
+            culled,
         };
         self.local_shadows.stats = stats;
         publish(stats);
+        for (avg, &us) in self.local_shadows.split_avg.iter_mut().zip(&split_us) {
+            *avg += (us as f32 - *avg) * 0.05;
+        }
         let now = std::time::Instant::now();
         let say = match self.local_shadows.last_log {
             None => true,
             Some((t, s)) => {
                 let quiet = now.duration_since(t).as_secs_f32();
-                quiet > 30.0 || ((s.shadowed != stats.shadowed || s.near_sun != stats.near_sun || s.atlas != stats.atlas) && quiet > 5.0)
+                let changed = s.shadowed != stats.shadowed || s.near_sun != stats.near_sun || s.atlas != stats.atlas || (s.culled > 0) != (stats.culled > 0);
+                quiet > 30.0 || (changed && quiet > 5.0)
             }
         };
         if say {
             log::info!(
-                "[Shadows] atlas {}: {} of {} room lights shadowed ({} in view, {} without for the budget), {} views, {} caster draws of {} casters near ({} casters drawn instanced), near sun {}",
+                "[Shadows] atlas {}: {} of {} room lights shadowed ({} in view, {} without for the budget), {} views, {} caster draws of {} casters near ({} casters drawn instanced; {} caster-face pairs left out, their shadow out of view), near sun {}",
                 stats.atlas,
                 stats.shadowed,
                 stats.lights,
@@ -1472,16 +1545,22 @@ impl Renderer {
                 stats.draws,
                 stats.casters,
                 fast_instances,
+                stats.culled,
                 if stats.near_sun { "on" } else { "off" }
             );
             log::info!("[Shadows] the shadowed lamps, most important first: {}", words.join("; "));
             log::info!(
-                "[Shadows] cpu this frame (microseconds): cull the faces {}, uploads {}, the near bodies' skinning {}, record the draws {}, submit {}",
+                "[Shadows] cpu this frame (microseconds; smoothed over about twenty frames in brackets): cull the faces {} ({:.0}), uploads {} ({:.0}), the near bodies' skinning {} ({:.0}), record the draws {} ({:.0}), submit {} ({:.0})",
                 split_us[0],
+                self.local_shadows.split_avg[0],
                 split_us[1],
+                self.local_shadows.split_avg[1],
                 split_us[2],
+                self.local_shadows.split_avg[2],
                 split_us[3],
-                split_us[4]
+                self.local_shadows.split_avg[3],
+                split_us[4],
+                self.local_shadows.split_avg[4]
             );
             self.local_shadows.last_log = Some((now, stats));
         }
@@ -1770,4 +1849,28 @@ mod tests {
         assert!(!takes_fast_path(16.0, false), "the water shell moves");
         assert!(!takes_fast_path(12.0, false), "terrain is not a scene caster's class");
     }
+
+    /// THE SHADOW-CASTER CULL (shadows rung 1b): a caster is kept when its shadow can fall inside the
+    /// camera's view and left out when every part of it, out to the light's reach, lies outside one
+    /// of the view's planes. Seen red first (2026-11-12) with the far sphere left out of the test
+    /// (only the caster itself checked against the view): "a caster behind the camera whose shadow
+    /// falls in front of it is kept" failed.
+    #[test]
+    fn a_caster_is_drawn_only_when_its_shadow_can_reach_the_view() {
+        // A camera at the origin looking down -z, 90 degrees wide, 0.1 to 100 m.
+        let cam = frustum_planes(&(Mat4::perspective_rh(90f32.to_radians(), 1.0, 0.1, 100.0) * Mat4::look_at_rh(Vec3::ZERO, Vec3::NEG_Z, Vec3::Y)));
+        let reach = 6.0;
+        // In view: kept.
+        assert!(shadow_reaches_view(&cam, Vec3::new(0.0, 2.0, -4.0), Vec3::new(0.0, 0.5, -4.0), 0.4, reach, 0.02), "a caster in view is kept");
+        // Behind the camera, the light further behind: its shadow falls toward the view.
+        assert!(shadow_reaches_view(&cam, Vec3::new(0.0, 0.5, 4.0), Vec3::new(0.0, 0.5, 1.0), 0.4, reach, 0.02), "a caster behind the camera whose shadow falls in front of it is kept");
+        // Behind the camera, the light in front of it: its shadow falls further behind, out of view.
+        assert!(!shadow_reaches_view(&cam, Vec3::new(0.0, 0.5, -1.0), Vec3::new(0.0, 0.5, 2.0), 0.4, reach, 0.02), "a caster whose shadow falls behind the camera is left out");
+        // Off to the side, the light beside it, its shadow going further out: out of view.
+        assert!(!shadow_reaches_view(&cam, Vec3::new(8.0, 0.5, -3.0), Vec3::new(10.0, 0.5, -3.0), 0.4, reach, 0.02), "a caster whose shadow falls out to the side is left out");
+        // The light inside the caster, and an unbounded caster: always kept.
+        assert!(shadow_reaches_view(&cam, Vec3::new(0.0, 0.5, 5.0), Vec3::new(0.0, 0.5, 5.1), 0.4, reach, 0.02), "a caster around the light is kept");
+        assert!(shadow_reaches_view(&cam, Vec3::new(0.0, 0.5, 5.0), Vec3::new(0.0, 0.5, 9.0), f32::INFINITY, reach, 0.02), "an unbounded caster is kept");
+    }
+
 }
