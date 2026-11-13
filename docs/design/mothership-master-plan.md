@@ -229,7 +229,13 @@ The operator, to the twelve decisions at the end of [the sizes research](../refe
    sense to include it"; the data stays at 10 t/m2 until then). He asked why not foam cells beyond the
    thickness, whether one Earth-like field generated from the ship's centre could replace a magnet on
    the shell ("kind of like the warp bubble from Star Trek"), for the OLTARIS link, and what a slag
-   layer means; answered in the journal's entry for the day, decisions pending.
+   layer means; answered in the journal's entry for the day. Decided the same evening: the shell's
+   water sits in **valved compartments** of a few cubic metres (a strike drains one, the water stays
+   pumpable as the ship's reserve and every tank can be inspected), not foam: "Makes the most sense
+   for long term longevity and resiliency." And slag is not a later rung: "Mining technically already
+   exists. Players send out drones to mine." So the drones' ore, smelted, leaves slag that is packed
+   onto the hull outside the water (rock outside, water inside to soak up the secondary neutrons), a
+   loop in which a player's mining thickens the ship's armour.
 9. **Drum material:** steel for Drum 1, plates rolled to the curve; basalt composite studied for later drums.
 10. **Cloth:** a row in the planning sheet, 4 kg a person a year, about 40 m2 of flax.
 11. **The colony module:** 5,000 people with a gene bank.
