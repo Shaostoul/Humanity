@@ -7,6 +7,13 @@ carries planet-scale positions. Before fencing a visual increment, also read CLA
 Moved from `CLAUDE.md` on 2026-10-23 with the wording unchanged; CLAUDE.md keeps a one-line
 version of each rule.
 
+**What the renderer lacks and the order to build it** (anti-aliasing and upscaling first, then
+reflections, then skin and cloth): `docs/design/renderer-roadmap.md`. Its section 1 lists the limits
+every new pass lives in: 14 of the 16 sampled textures a stage already bound in the megashader, 6 of
+8 storage buffers, 32 bytes of colour targets a pass, no sampler LOD bias in wgpu, ray queries in
+wgpu 24 on Vulkan only while Windows runs DirectX 12, and the scene pass clearing depth (so motion
+vectors must come from every pass, not from one depth buffer).
+
 ## The PBR shader files
 
 The PBR shader is a set of numbered files under `assets/shaders/pbr/`, not one megashader file;

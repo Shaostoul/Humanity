@@ -38,7 +38,9 @@ pipeline guides live in **[dev/](dev/)**. Adding or changing a graphics setting?
 one says what you will see differently and what it costs on this computer: the rule,
 the checklist and the audit are in **[design/graphics-settings.md](design/graphics-settings.md)**.
 Working on shadows (room lights, people, furniture, the sun near you)? The plan and its rungs are
-in **[design/local-light-shadows.md](design/local-light-shadows.md)**.
+in **[design/local-light-shadows.md](design/local-light-shadows.md)**. What else the renderer lacks
+(anti-aliasing and upscaling, reflections, skin and cloth, real light units, HDR display, decals,
+relief, depth of field) and the order to build it: **[design/renderer-roadmap.md](design/renderer-roadmap.md)**.
 
 ---
 
