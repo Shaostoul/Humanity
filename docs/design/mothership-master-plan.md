@@ -224,6 +224,12 @@ The operator, to the twelve decisions at the end of [the sizes research](../refe
 6. **Reactors:** three RITM-200N-class units for Drum 1 (any two carry its 84 MW), two eVinci-class for a lone first sector; fusion later.
 7. **The herd:** hens and bees in the orchards, fish, rabbits, a few goats, at welfare-standard space.
 8. **The shield:** 5 mSv a year, about 10 t/m2 of water in sealed cells on a non-spinning outer shell.
+   Same day, after the active-shielding research ([2026-11-13-active-shielding](../reference/research/2026-11-13-active-shielding/README.md)):
+   the floor, soil and stores count toward the 5 mSv once a transport calculation confirms it ("Makes
+   sense to include it"; the data stays at 10 t/m2 until then). He asked why not foam cells beyond the
+   thickness, whether one Earth-like field generated from the ship's centre could replace a magnet on
+   the shell ("kind of like the warp bubble from Star Trek"), for the OLTARIS link, and what a slag
+   layer means; answered in the journal's entry for the day, decisions pending.
 9. **Drum material:** steel for Drum 1, plates rolled to the curve; basalt composite studied for later drums.
 10. **Cloth:** a row in the planning sheet, 4 kg a person a year, about 40 m2 of flax.
 11. **The colony module:** 5,000 people with a gene bank.
