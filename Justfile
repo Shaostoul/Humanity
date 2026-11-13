@@ -498,6 +498,18 @@ ai-engine mode="build":
 ai-catalog *args:
     node scripts/ai-catalog.js {{args}}
 
+# The ai-talk rig (docs/design/embeddable-ai.md 12.1, rung 3): BOOTS the release game in its own portable
+# rig (.probe-rig/ai-talk; one instance machine-wide, and a TIMING rig, so it waits for the operator's
+# GPU-heavy programs rather than run in low impact), opens a talk card with a crew member, and sends a
+# fixed battery of questions through the real engine and each installed brain (the rig's own ai/ folder:
+# the engine from `just ai-engine package`, the models copied once from E:\HumanityOS\ai-src). Records the
+# warm-up, reply times, tokens a second and the game's frames idle and while the engine writes (9.5: at
+# most 5%), and checks every reply passed the fixed shape and the filter or fell back in words. Exit 2 when
+# a check fails. --models granite,ministral, --crew "<name>". Evidence: .probe-rig/ai-talk/runs/<stamp>/.
+[positional-arguments]
+ai-talk *ARGS:
+    node scripts/ai-talk-rig.js "$@"
+
 # Build whole-Earth map packs (docs/design/whole-earth-maps.md 8.2, rung 2): our own Rust builder
 # reads the OSM extract, GEDTM30 and WorldCover on E:\HumanityOS\maps-src and ETOPO from
 # ext_data\etopo2022_15s, and writes data/maps/packs/<tile>.hmpack, each built twice and checked

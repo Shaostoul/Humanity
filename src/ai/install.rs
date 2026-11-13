@@ -355,33 +355,68 @@ pub fn join_parts(parts: &[PathBuf], name: &str, bytes: u64, sha256: &str, downl
     Ok(out)
 }
 
+/// Download, check and unpack the catalog's engine into `engine/<version>/`, then delete every OTHER
+/// engine version folder: this app only ever starts its catalog's version (`paths::installed_engine`),
+/// so an older one would be gigabyte-free but dead weight that Remove all AI is the only way out of
+/// (7.4; 2026-11-12, the first engine update, 1.0.0 to 1.1.0). The progress counts the engine as
+/// the first bytes of the job.
+fn install_engine(base: &str, cat: &AiCatalog, root: &Path, job: &Job) -> Result<(), Failure> {
+    let e = &cat.engine;
+    let downloads = downloads_dir(root);
+    let zip_path = fetch_whole(base, &e.file, e.bytes, &e.sha256, &e.parts, &downloads, job, 0)?;
+    job.set(|p| p.stage = Stage::Installing);
+    let zip = std::fs::read(&zip_path).map_err(|err| Failure::Disk(format!("{}: {err}", zip_path.display())))?;
+    let target = engine_dir(root, &e.version);
+    let staging = target.with_extension("installing");
+    let _ = std::fs::remove_dir_all(&staging);
+    super::zip::unpack(&zip, &staging).map_err(|err| {
+        let _ = std::fs::remove_dir_all(&staging);
+        Failure::BadZip(err)
+    })?;
+    if !staging.join(ENGINE_EXE).is_file() {
+        let _ = std::fs::remove_dir_all(&staging);
+        return Err(Failure::BadZip(format!("the zip has no {ENGINE_EXE}")));
+    }
+    let _ = std::fs::remove_dir_all(&target);
+    std::fs::rename(&staging, &target).map_err(|err| Failure::Disk(format!("{}: {err}", target.display())))?;
+    let _ = std::fs::remove_file(&zip_path);
+    log::info!("[AI] the AI engine {} is installed in {}", e.version, target.display());
+    if let Ok(rd) = std::fs::read_dir(root.join("engine")) {
+        for old in rd.flatten().map(|d| d.path()).filter(|p| p.is_dir() && *p != target) {
+            match std::fs::remove_dir_all(&old) {
+                Ok(()) => log::info!("[AI] removed the engine this app no longer starts: {}", old.display()),
+                Err(err) => log::warn!("[AI] could not remove the old engine {}: {err}", old.display()),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Bring the engine up to the catalog's version while models stay as they are (Settings > AI's "An
+/// update to the AI engine is ready", 7.4): the person's models were installed with an earlier app
+/// whose catalog named an earlier engine. Ends in Done or Failed, as [`install_model`] does.
+pub fn update_engine(base: &str, cat: &AiCatalog, root: &Path, job: &Job) -> Result<(), Failure> {
+    let result = install_engine(base, cat, root, job).map(|()| {
+        let _ = std::fs::remove_dir(downloads_dir(root));
+    });
+    job.set(|p| {
+        p.stage = match &result {
+            Ok(()) => Stage::Done,
+            Err(f) => Stage::Failed(f.clone()),
+        }
+    });
+    result
+}
+
 /// Download and install `model_id`, with the engine first when it is missing. Ends in Done or Failed.
 pub fn install_model(base: &str, cat: &AiCatalog, model_id: &str, root: &Path, job: &Job) -> Result<(), Failure> {
-    let result = (|| {
+    let result: Result<(), Failure> = (|| {
         let model = cat.model(model_id).ok_or_else(|| Failure::Disk(format!("{model_id} is not in the catalog")))?;
         let downloads = downloads_dir(root);
         let mut done = 0u64;
         if installed(cat, root).engine.is_none() {
-            let e = &cat.engine;
-            let zip_path = fetch_whole(base, &e.file, e.bytes, &e.sha256, &e.parts, &downloads, job, done)?;
-            done += e.bytes;
-            job.set(|p| p.stage = Stage::Installing);
-            let zip = std::fs::read(&zip_path).map_err(|err| Failure::Disk(format!("{}: {err}", zip_path.display())))?;
-            let target = engine_dir(root, &e.version);
-            let staging = target.with_extension("installing");
-            let _ = std::fs::remove_dir_all(&staging);
-            super::zip::unpack(&zip, &staging).map_err(|err| {
-                let _ = std::fs::remove_dir_all(&staging);
-                Failure::BadZip(err)
-            })?;
-            if !staging.join(ENGINE_EXE).is_file() {
-                let _ = std::fs::remove_dir_all(&staging);
-                return Err(Failure::BadZip(format!("the zip has no {ENGINE_EXE}")));
-            }
-            let _ = std::fs::remove_dir_all(&target);
-            std::fs::rename(&staging, &target).map_err(|err| Failure::Disk(format!("{}: {err}", target.display())))?;
-            let _ = std::fs::remove_file(&zip_path);
-            log::info!("[AI] the AI engine {} is installed in {}", e.version, target.display());
+            install_engine(base, cat, root, job)?;
+            done += cat.engine.bytes;
         }
         let file = fetch_whole(base, &model.file, model.bytes, &model.sha256, &model.parts, &downloads, job, done)?;
         done += model.bytes;

@@ -37,7 +37,7 @@ use crate::ai::hardware::{self, gb, Hardware, Notice};
 use crate::ai::install::{self, Failure, Installed, ProgressHandle, Stage};
 use crate::ai::{choices, models, paths, shared};
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, Button};
+use crate::gui::widgets::{self, Button, Hint};
 use crate::gui::GuiState;
 
 /// What the section keeps between frames for this run.
@@ -70,7 +70,7 @@ fn line(ui: &mut egui::Ui, theme: &Theme, color: Color32, text: impl Into<String
 
 /// A size in words: GB with two decimals from a tenth of a GB up ("0.95 GB"), MB below it ("13 MB"),
 /// so the engine is never "0.00 GB". GB and MB of 1,024, as Windows counts them.
-fn gb_bytes(bytes: u64) -> String {
+pub(crate) fn gb_bytes(bytes: u64) -> String {
     let gb = bytes as f64 / (1024.0 * 1024.0 * 1024.0);
     if gb >= 0.1 {
         tf("ai.size.gb", &[("n", &format!("{gb:.2}"))])
@@ -104,6 +104,11 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
         line(ui, theme, theme.danger(), tf("ai.catalog_error", &[("detail", e)]));
     }
     draw_engine_trouble(ui, theme);
+    if let (Ok(c), Some(r)) = (&cat, &root) {
+        if have.engine.is_none() && !have.models.is_empty() {
+            draw_engine_update(ui, theme, accent, c, r);
+        }
+    }
 
     widgets::subsection_header(ui, theme, accent, t("ai.your_computer.title"), "");
     widgets::setting_hint(ui, theme, hint, t("ai.your_computer.intro"));
@@ -125,6 +130,11 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
                     let offer = cat.as_ref().ok().and_then(|c| c.for_choice(&choice.id).map(|m| (c.clone(), m.clone())));
                     draw_choice(ui, theme, &all, choice, &hw, offer, root.as_deref(), &have);
                 }
+                if feature.id == "characters" {
+                    if let Ok(c) = &cat {
+                        draw_talk_choices(ui, theme, state, c, &have, &hw);
+                    }
+                }
             }
         }
     }
@@ -143,6 +153,81 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
     }
 }
+
+/// How characters talk (rung 3, embeddable-ai.md 10): Written lines only, or with Say anything; and,
+/// with two brains installed, which one (Automatic picks by this computer's memory).
+fn draw_talk_choices(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, cat: &AiCatalog, have: &Installed, hw: &Hardware) {
+    ui.add_space(theme.spacing_md);
+    ui.label(RichText::new(t("ai.talk.mode_title")).color(theme.text_primary()).strong());
+    muted(ui, theme, t("ai.talk.mode_intro"));
+    let mut mode = state.settings.ai_talk_mode.clone();
+    let (conversational, written) = (crate::gui::talk::chat::TALK_CONVERSATIONAL.to_string(), crate::gui::talk::chat::TALK_WRITTEN.to_string());
+    ui.radio_value(&mut mode, conversational, RichText::new(t("ai.talk.mode_conversational")).color(theme.text_primary())).hint("ai.talk.mode_conversational_hint");
+    ui.radio_value(&mut mode, written, RichText::new(t("ai.talk.mode_written")).color(theme.text_primary())).hint("ai.talk.mode_written_hint");
+    if mode != state.settings.ai_talk_mode {
+        state.settings.ai_talk_mode = mode;
+        state.settings_dirty = true;
+    }
+    let root = paths::ai_root();
+    let brains: Vec<(ModelEntry, std::path::PathBuf)> = cat.models.iter().filter(|m| m.kind == "brain" && have.models.contains_key(&m.id)).map(|m| (m.clone(), root.as_deref().map(|r| install::model_file(r, m)).unwrap_or_default())).collect();
+    if brains.len() < 2 {
+        return;
+    }
+    ui.add_space(theme.spacing_sm);
+    ui.label(RichText::new(t("ai.talk.brain_title")).color(theme.text_primary()).strong());
+    let auto = models::pick_brain(&brains, models::BRAIN_AUTO, hw.memory_total_mb).map(|(m, _)| m.model).unwrap_or_default();
+    let mut pick = state.settings.ai_brain.clone();
+    ui.radio_value(&mut pick, models::BRAIN_AUTO.to_string(), RichText::new(tf("ai.talk.brain_auto", &[("model", &auto)])).color(theme.text_primary())).hint("ai.talk.brain_auto_hint");
+    for (m, _) in &brains {
+        ui.radio_value(&mut pick, m.choice.clone(), RichText::new(&m.model).color(theme.text_primary())).hint("ai.talk.brain_pick_hint");
+    }
+    if pick != state.settings.ai_brain {
+        state.settings.ai_brain = pick;
+        state.settings_dirty = true;
+    }
+}
+
+/// "An update to the AI engine is ready" (7.4; 2026-11-12, the first engine update): models installed
+/// with an earlier app, and not this catalog's engine. Get downloads and checks the new engine and
+/// removes the old one; the models stay.
+fn draw_engine_update(ui: &mut egui::Ui, theme: &Theme, accent: Color32, cat: &Arc<AiCatalog>, root: &Path) {
+    widgets::subsection_header(ui, theme, accent, t("ai.engine_update.title"), "");
+    line(ui, theme, theme.text_primary(), tf("ai.engine_update.words", &[("version", &cat.engine.version), ("size", &gb_bytes(cat.engine.bytes))]));
+    muted(ui, theme, t("ai.engine_update.what"));
+    let (mine, busy) = with_state(|s| match &s.job {
+        Some((id, job)) if id == ENGINE_JOB => (Some(job.clone()), false),
+        Some((_, job)) => (None, job.running()),
+        None => (None, false),
+    });
+    if let Some(job) = mine.as_ref().filter(|j| j.running()) {
+        let p = job.snapshot();
+        let fraction = if p.total > 0 { p.done as f32 / p.total as f32 } else { 0.0 };
+        widgets::progress_bar(ui, theme, fraction, Some(&tf("ai.download.downloading", &[("file", &cat.engine.file), ("done", &gb_bytes(p.done)), ("total", &gb_bytes(p.total))])));
+        return;
+    }
+    if let Some(Stage::Failed(f)) = mine.map(|j| j.snapshot().stage) {
+        line(ui, theme, theme.warning(), t_dyn(f.words_key()));
+    }
+    if Button::primary(t("ai.engine_update.get")).hint("ai.engine_update.get_hint").disabled(busy).show(ui, theme) {
+        let job = install::new_job(cat.engine.bytes);
+        with_state(|s| {
+            s.job = Some((ENGINE_JOB.to_string(), job.clone()));
+            s.message = None;
+        });
+        let (cat, root) = (cat.clone(), root.to_path_buf());
+        shared::client().shutdown_now();
+        let spawned = std::thread::Builder::new().name("ai-engine-update".into()).spawn(move || match install::update_engine(&cat.base_url, &cat, &root, &job) {
+            Ok(()) => log::info!("[AI] the AI engine {} is installed", cat.engine.version),
+            Err(f) => log::warn!("[AI] the AI engine update did not install: {f:?}"),
+        });
+        if let Err(e) = spawned {
+            log::warn!("[AI] could not start the engine update: {e}");
+        }
+    }
+}
+
+/// The download job's id while the engine updates (a model's job carries the model's id).
+const ENGINE_JOB: &str = "engine";
 
 /// A download that finished since the last frame: forget the old checks, so the new file is checked.
 fn finish_job_if_done() {

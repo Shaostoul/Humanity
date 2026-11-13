@@ -13,7 +13,7 @@ use humanity_core::storage::{self, StorageMode};
 
 /// The engine version this app expects (the catalog names it from rung 2, 7.4). The engine reports its
 /// own in its `hello`; a different one is shown on the Dev page, while a different PROTOCOL is refused.
-pub const ENGINE_VERSION: &str = "1.0.0";
+pub const ENGINE_VERSION: &str = "1.1.0";
 
 /// The engine program's file name.
 pub const ENGINE_EXE: &str = if cfg!(windows) { "humanity-ai.exe" } else { "humanity-ai" };

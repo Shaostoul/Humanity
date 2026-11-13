@@ -67,6 +67,9 @@ pub mod gameplay_levels;
 pub mod layers;
 /// The characters' bodies and animation as the pages see them (`GuiState::characters`).
 pub mod characters;
+/// The talk card: walk up to a crew member and press E (embeddable-ai.md rung 3, `GuiState::talk`).
+#[cfg(feature = "native")]
+pub mod talk;
 #[cfg(feature = "native")]
 pub use history::How;
 
@@ -1009,6 +1012,8 @@ pub struct GuiState {
     pub npc_talk_greetings: Vec<String>,
     /// Index of the last dialog[] line shown; None = still on the greeting.
     pub npc_talk_index: Option<usize>,
+    /// The talk card: its choices, "Say anything" box and the way it shows (gui/talk/, 2026-11-12).
+    pub talk: crate::gui::talk::TalkCard,
     /// Transient confirmation shown after a "Save to server" click.
     pub profile_network_saved_note: String,
     // Interests
@@ -3177,6 +3182,10 @@ impl GuiState {
     /// cycle differently. Cycles dialog[]; an NPC that shipped only greetings
     /// cycles those instead, so More always does SOMETHING when lines exist.
     pub fn npc_talk_advance(&mut self) {
+        // The talk card (rung 3) takes E first: a letter while typing, the chosen topic's next line.
+        if self.talk.on_e() {
+            return;
+        }
         let lines = if self.npc_talk_dialog.is_empty() {
             &self.npc_talk_greetings
         } else {
@@ -3391,6 +3400,7 @@ impl Default for GuiState {
             npc_talk_dialog: Vec::new(),
             npc_talk_greetings: Vec::new(),
             npc_talk_index: None,
+            talk: crate::gui::talk::TalkCard::default(),
             profile_network_saved_note: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),
@@ -4439,6 +4449,12 @@ pub struct SettingsState {
     pub track_station: bool,
     /// Maps opens where it was left instead of on you (Maps increment 1, decision 2).
     pub maps_open_where_left: bool,
+    /// Talking characters, embeddable-ai.md 10: gui/talk/chat.rs `TALK_WRITTEN` or `TALK_CONVERSATIONAL`.
+    pub ai_talk_mode: String,
+    /// Which brain: "auto" (`ai::models::pick_brain`) or a choice id the person picked.
+    pub ai_brain: String,
+    /// The talk card's one-time offer of AI was dismissed (5.2 item 4): it stays dismissed.
+    pub ai_talk_offer_dismissed: bool,
     /// Read websites inside HumanityOS (the readable web, 2026-09-16). OFF
     /// by default and independent of the privacy tier: a person who wants
     /// no website access from the app never has any. On, a Browser-page
@@ -4713,6 +4729,9 @@ impl Default for SettingsState {
             ffmpeg_path: String::new(),
             track_station: true,
             maps_open_where_left: false,
+            ai_talk_mode: "conversational".into(),
+            ai_brain: "auto".into(),
+            ai_talk_offer_dismissed: false,
             planet_surface_detail: true,
             water_fft: false,
             water_clarity: default_water_clarity(),

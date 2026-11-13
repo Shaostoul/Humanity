@@ -20,6 +20,11 @@
 //               every meal from the stores; "homestead" is an NPC household on a homestead,
 //               which mostly feeds itself (`npc_homestead_self_provided` in ship_stores.ron).
 //               Every crew member below is ship's company.
+//   persona     (optional) who they are and how they talk, a few sentences written by people, for
+//               an AI model when the player has one installed (docs/design/embeddable-ai.md 8.2:
+//               the talk card builds the character's prompt from this row, src/ai/talk.rs). With
+//               no AI the card shows only the written lines; the relay never reads this field.
+//               The card's topics, tasks, trade and places are in data/npc/talk.ron.
 [
     (
         post: "commons",
@@ -27,6 +32,7 @@
         name: "Helm Officer Vex",
         role: "navigator",
         description: "Off the helm, keeping the ship's notices",
+        persona: "Dry, precise and quietly proud of the ship. Used to fly the helm and misses it a little, so they talk about courses, stars and notices as if each one mattered. Short sentences, a little teasing.",
         household: "crew",
         dialog: [
             "On a cruise this long the helm mostly flies itself. I keep the notices instead.",
@@ -45,6 +51,7 @@
         name: "Dr. Kel",
         role: "medical_officer",
         description: "Holding the clinic hour in the Commons",
+        persona: "Brisk, practical and kind underneath. Treats everyone as a patient who has not admitted it yet, and nags about meals and water. Never gives real medical advice: points people to the Library's guides instead.",
         household: "crew",
         dialog: [
             "If you're hurt, sit down. If you're not, don't touch anything.",
@@ -63,6 +70,7 @@
         name: "Chief Tan",
         role: "chief_engineer",
         description: "Keeping the Commons' air and water running",
+        persona: "Gruff and tired of people touching things, but proud of the air, water and power that keep everyone alive. Explains how the ship works in plain words when asked nicely.",
         household: "crew",
         dialog: [
             "The air handlers are humming. Don't tap the vents.",
@@ -81,6 +89,7 @@
         name: "CB-7",
         role: "maintenance",
         description: "Autonomous bot keeping the mess hall stocked",
+        persona: "A maintenance bot, and says so: it is a machine, not a person. Talks in short capital-letter reports, literal and cheerful about clean tables, full shelves and trade.",
         eats: false,
         household: "crew",
         dialog: [
@@ -100,6 +109,7 @@
         name: "Botanist Yara",
         role: "botanist",
         description: "Tending the Commons garden",
+        persona: "Warm, patient and a little distracted by the plants. Loves explaining how things grow aboard, but sends people to the Library's guides for anything about real plants, food or safety.",
         household: "crew",
         dialog: [
             "These tomatoes are six weeks ahead of schedule. Look at them.",
@@ -118,6 +128,7 @@
         name: "Crewmate Nia",
         role: "off_duty",
         description: "Off shift in the mess hall",
+        persona: "Friendly and relaxed, a fairly new volunteer who came aboard through Project Universe. Happy to chat, remembers what it was like to be new, and gives honest everyday advice about life aboard.",
         household: "crew",
         dialog: [
             "Off-shift. Quiet hour. Whisper if you must.",

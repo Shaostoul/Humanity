@@ -2704,11 +2704,9 @@ mod native_app {
                                     if npc.entity_id != npc_id {
                                         continue;
                                     }
-                                    state.gui_state.npc_talk_name = npc.name.clone();
-                                    state.gui_state.npc_talk_activity = npc.activity.clone();
-                                    state.gui_state.npc_talk_dialog = npc.dialog.clone();
-                                    state.gui_state.npc_talk_greetings = npc.greetings.clone();
-                                    state.gui_state.npc_talk_index = None;
+                                    // The relay's fields, and the card's choices and AI from the data
+                                    // (gui/talk/, embeddable-ai.md rung 3).
+                                    crate::gui::talk::open_for(&mut state.gui_state, npc, &state.data_store, &state.game_world.world);
                                     // Wall-clock nanos as the greeting seed: cheap
                                     // variety, no RNG state to carry (helper wraps).
                                     let seed = std::time::SystemTime::now()
@@ -6389,7 +6387,7 @@ mod native_app {
                     // the card) or despawns, the card closes itself. While it
                     // stays open, the activity line refreshes live so the card
                     // tracks their current chore.
-                    if let Some(npc_id) = state.gui_state.npc_talk_target {
+                    if let Some(npc_id) = state.gui_state.npc_talk_target.filter(|id| *id != crate::gui::talk::DEV_TALK_TARGET) {
                         let cam = state.camera.position;
                         let mut still_near = false;
                         for (_e, (tf, npc)) in state
@@ -14280,6 +14278,7 @@ mod native_app {
                     poll_camera_request(state);
                     crate::engine::ipc::poll_remote_players_request(state, clock_dt); // drawn remote players for verify-copresence
                     crate::engine::ipc::poll_door_points_request(state); // the ship's door points, for verify-copresence (increment 2)
+                    crate::engine::talk::frame(state); // the talk card: its dev IPC, its AI box, the way it shows (engine/talk.rs)
                     crate::engine::movie::poll_request(state);
                     crate::engine::movie::steer(state);
                     crate::engine::ipc::poll_cloudmap_request(state);

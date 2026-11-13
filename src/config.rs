@@ -836,6 +836,15 @@ pub struct AppConfig {
     /// 2026-10-21; off by default, so a config from before it opens on you).
     #[serde(default)]
     pub maps_open_where_left: bool,
+    /// Talking characters: "written" or "conversational" (Settings > AI, embeddable-ai.md 10).
+    #[serde(default = "default_ai_talk_mode")]
+    pub ai_talk_mode: String,
+    /// Which brain the characters use: "auto" or a choice id (Settings > AI).
+    #[serde(default = "default_ai_brain")]
+    pub ai_brain: String,
+    /// The talk card's one-time AI offer was dismissed (5.2 item 4).
+    #[serde(default)]
+    pub ai_talk_offer_dismissed: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves +
     /// land micro-texture on imagery planets (Earth). Orbit view identical
     /// either way (anti-alias faded); applies live via the per-frame
@@ -1137,6 +1146,8 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+fn default_ai_talk_mode() -> String { "conversational".into() }
+fn default_ai_brain() -> String { "auto".into() }
 /// The aim assist's cone for a config written before it existed: the data file's default.
 fn default_screen_aim_cone_deg() -> f32 {
     crate::gui::screen_tuning::tuning().aim.cone_deg_default
@@ -1683,6 +1694,9 @@ impl AppConfig {
             cloud_res_div: state.cloud_dev_res_div.clamp(1, 4),
             track_station: state.settings.track_station,
             maps_open_where_left: state.settings.maps_open_where_left,
+            ai_talk_mode: state.settings.ai_talk_mode.clone(),
+            ai_brain: state.settings.ai_brain.clone(),
+            ai_talk_offer_dismissed: state.settings.ai_talk_offer_dismissed,
             planet_surface_detail: state.settings.planet_surface_detail,
             water_fft: state.settings.water_fft,
             water_clarity: state.settings.water_clarity,
@@ -2011,6 +2025,9 @@ impl AppConfig {
         state.cloud_dev_res_div = self.cloud_res_div.clamp(1, 4);
         state.settings.track_station = self.track_station;
         state.settings.maps_open_where_left = self.maps_open_where_left;
+        state.settings.ai_talk_mode = self.ai_talk_mode.clone();
+        state.settings.ai_brain = self.ai_brain.clone();
+        state.settings.ai_talk_offer_dismissed = self.ai_talk_offer_dismissed;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.water_fft = self.water_fft;
         state.settings.water_clarity = self.water_clarity;

@@ -26,6 +26,10 @@
 //!   installing (the engine unpacked from its zip, [`zip`]) and removing (one model, or all AI) (5.2, 5.3).
 //! - [`models`]: an installed model checked byte for byte before each load, and what the load asks for.
 //!
+//! RUNG 3 (2026-11-12), talking characters:
+//! - [`talk`]: the project's character prompt, the fixed output shape (reply text and at most one
+//!   action the game granted), its check, and the filter of 8.3; the talk card (src/gui/talk/) drives it.
+//!
 //! The server build never compiles any of it (`native` only): the relay never talks to an AI engine
 //! and never learns that a person has one (section 8.1).
 
@@ -39,6 +43,7 @@ pub mod job;
 pub mod models;
 pub mod paths;
 pub mod shared;
+pub mod talk;
 pub mod zip;
 
 /// The client against the real fake engine; its `fake_engine` also serves the Dev > AI snapshot.
@@ -46,6 +51,9 @@ pub mod zip;
 pub(crate) mod client_tests;
 #[cfg(test)]
 mod hardware_tests;
+/// The talk card's AI half: the persona, the fixed shape, the grants, the filter.
+#[cfg(test)]
+mod talk_tests;
 /// Downloads from a server on this computer, resume, the hash refusal, parts, removal, the zip.
 #[cfg(test)]
 mod install_tests;

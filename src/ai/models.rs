@@ -52,15 +52,41 @@ fn stamp(path: &Path) -> (u64, Option<SystemTime>) {
     std::fs::metadata(path).map(|m| (m.len(), m.modified().ok())).unwrap_or((0, None))
 }
 
-/// The installed brain (rung 2 has one: the first in the catalog's order that is installed).
-pub fn installed_brain(cat: &AiCatalog, root: &Path) -> Option<(ModelEntry, PathBuf)> {
+/// Settings > AI's brain choice when it is left to the app (10: "Settings picks by hardware and the
+/// person can override").
+pub const BRAIN_AUTO: &str = "auto";
+
+/// Below this much memory in the computer, Automatic prefers the Quick brain even when the Rich one is
+/// installed (9.1: an 8 GB PC runs Granite; 16 GB and up, Ministral).
+pub const RICH_NEEDS_TOTAL_MB: u64 = 12 * 1024;
+
+/// The installed brains, in the catalog's order.
+pub fn installed_brains(cat: &AiCatalog, root: &Path) -> Vec<(ModelEntry, PathBuf)> {
     let have = install::installed(cat, root);
-    cat.models.iter().filter(|m| m.kind == "brain" && have.models.contains_key(&m.id)).map(|m| (m.clone(), install::model_file(root, m))).next()
+    cat.models.iter().filter(|m| m.kind == "brain" && have.models.contains_key(&m.id)).map(|m| (m.clone(), install::model_file(root, m))).collect()
+}
+
+/// Which installed brain to use: the one whose choice (`characters-rich`, `characters-quick`) the
+/// person picked, when it is installed; otherwise, Automatic: the Rich one when installed and the
+/// computer has [`RICH_NEEDS_TOTAL_MB`] (`total_mb`, None when unknown counts as enough), else the
+/// first installed. None when no brain is installed.
+pub fn pick_brain(brains: &[(ModelEntry, PathBuf)], prefer: &str, total_mb: Option<u64>) -> Option<(ModelEntry, PathBuf)> {
+    if let Some(b) = brains.iter().find(|(m, _)| m.choice == prefer) {
+        return Some(b.clone());
+    }
+    let rich_fits = total_mb.is_none_or(|t| t >= RICH_NEEDS_TOTAL_MB);
+    brains.iter().find(|(m, _)| rich_fits && m.choice == "characters-rich").or_else(|| brains.iter().find(|(m, _)| m.choice != "characters-rich")).or_else(|| brains.first()).cloned()
+}
+
+/// The installed brain to use now (see [`pick_brain`]).
+pub fn installed_brain(cat: &AiCatalog, root: &Path, prefer: &str) -> Option<(ModelEntry, PathBuf)> {
+    pick_brain(&installed_brains(cat, root), prefer, super::hardware::read().memory_total_mb)
 }
 
 /// Get the installed brain ready: checked this run (and unchanged since), or a check started now.
-pub fn prepare_brain(cat: &AiCatalog, root: &Path) -> Prepared {
-    let Some((entry, path)) = installed_brain(cat, root) else { return Prepared::NotInstalled };
+/// `prefer` is Settings > AI's brain choice ([`BRAIN_AUTO`] or a choice id).
+pub fn prepare_brain(cat: &AiCatalog, root: &Path, prefer: &str) -> Prepared {
+    let Some((entry, path)) = installed_brain(cat, root, prefer) else { return Prepared::NotInstalled };
     let mut slot = CHECK.lock().unwrap_or_else(|p| p.into_inner());
     let (len, modified) = stamp(&path);
     match slot.as_ref() {

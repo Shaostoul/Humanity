@@ -3153,6 +3153,36 @@ licence before anything downloads. The engine's prompts never use the GGUF's own
   file), `ministral_installs_in_its_parts_from_a_loopback_server` (`src/ai/install_tests.rs`)
 - Snapshot: `just snapshot settings_ai` (both models' cards, nothing downloaded)
 
+### Embeddable AI, rung 3: the talk card, written for everyone and AI for those who chose it (2026-11-12)
+The card the operator approved on 2026-11-11 (`docs/design/embeddable-ai.md`, section 14 rung 3 as
+built). Walk up to a crew member, look, press E: their name, job and what they are doing; their line;
+and WRITTEN choices from data per role and person: Talk about (the ship, their job, the cause,
+directions), Work (the quests they offer, with their state, and Take it on), Trade (only someone who
+trades), Show me the way (the HUD's tracked-marker ring on the place, with its name and distance,
+until you arrive), Goodbye. Works whole with no AI installed. With a brain installed (Granite or
+Ministral) and "Written lines and Say anything" chosen in Settings > AI, a "Say anything" box: the
+character answers in its persona from the project's own prompt, in the fixed shape (the line and at
+most one action the card grants, offered as a button the player clicks), through the filter on every
+streamed piece, with the AI tag on every AI line, and falls back to its written lines on any failure,
+refusal or timeout, in words. The model is checked, loaded and handed the persona when the card opens
+(warm-up). Local only. The AI engine 1.1.0 formats Ministral in its own `mistral-v7-tekken` shape;
+Settings > AI offers the engine update to anyone whose models came with 1.0.0; and with nothing
+installed the card offers AI once.
+- Native: `src/gui/talk/` (`mod.rs` the card's state and choices, `book.rs` talk.ron and crew.ron,
+  `chat.rs` the box and the engine, `card.rs` drawing), `src/ai/talk.rs` (prompt, grammar, shape check,
+  grants, filter, counts), `src/engine/talk.rs` (the way on the HUD, the talk IPC), `src/ai/models.rs`
+  (`pick_brain`), `src/ai/install.rs` (`update_engine`), Settings > AI (`src/gui/pages/settings/ai.rs`:
+  How characters talk, Which AI model, the engine update), Dev > AI's talk counts,
+  `crates/humanity-systems/src/quests/mod.rs` (`DestinationDef::target`)
+- Engine: `crates/humanity-ai-engine/src/llama/shim.c` (`hai_template_for`), the fake's talk shape
+- Data: `data/npc/talk.ron`, `data/npc/crew.ron` (`persona`), `data/ai/prompts/character.txt`,
+  `data/ai/filter.ron`, `data/ai/catalog.ron` (engine 1.1.0); words under `talk.*` and `ai.talk.*`
+- Settings: `ai_talk_mode`, `ai_brain`, `ai_talk_offer_dismissed` (config.json)
+- Rig: `just ai-talk` (`scripts/ai-talk-rig.js`, timing), `debug/talk_request.json`
+- Tests: `src/ai/talk_tests.rs`, `src/gui/talk/tests.rs`, `an_engine_update_keeps_the_models_and_drops_the_old_engine`,
+  `the_fake_answers_the_talk_cards_shape` and the Tekken check in `ministral_loads_and_answers` (engine)
+- Snapshots: `just snapshot talk_card`, `just snapshot talk_card_ai`
+
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
 - Native: `crates/humanity-core/src/ecs/systems.rs`, `crates/humanity-core/src/ecs/components.rs`

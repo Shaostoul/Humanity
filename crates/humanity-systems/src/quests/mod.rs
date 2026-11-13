@@ -225,6 +225,24 @@ impl DestinationDef {
         }
     }
 
+    /// Where to point a person who asks the way here (the talk card's "Show
+    /// me the way", embeddable-ai.md rung 3, 2026-11-12), resolved the same way
+    /// [`DestinationDef::distance_from`] resolves it: the doorstep of the
+    /// player's own front door on its floor, the middle of the nearest volume's
+    /// floor, or `pos` at the player's own feet. Ship metres, at floor level.
+    /// None when the place does not resolve now (a guest's front door; a kind
+    /// of room the ship does not have).
+    pub fn target(&self, player: glam::Vec3, aboard: Aboard<'_>) -> Option<glam::Vec3> {
+        match &self.at {
+            None => Some(glam::Vec3::new(self.pos.0, humanity_ship::moves::feet_y(player.y), self.pos.1)),
+            Some(DestinationAnchor::OwnFrontDoor { out_m }) => aboard.front_door.map(|d| {
+                let (x, z) = d.doorstep(*out_m);
+                glam::Vec3::new(x, d.floor, z)
+            }),
+            Some(DestinationAnchor::NearestVolume { .. }) => self.volume(aboard, player).map(|v| glam::Vec3::new((v.min.0 + v.max.0) * 0.5, v.floor, (v.min.1 + v.max.1) * 0.5)),
+        }
+    }
+
     /// How far the player (`player`, where their eyes are, ship metres) stands
     /// from this place now, metres across the floor: from `pos` or the
     /// doorstep, or from the edge of a volume's floor (0 on it). A place with a
@@ -1205,6 +1223,18 @@ mod quest_tests {
         assert!(here((89.0, 774.0), guest), "a guest is sent to the one nearest where they stand");
         assert_eq!(dests.destinations[0].volume(guest, glam::Vec3::new(89.0, 1.7, 790.0)).map(|v| v.zone_in_a_sentence()), Some("the South Commons".into()));
         assert!(!here((80.0, 24.0), Aboard { front_door: Some(&cabin_door), places: None }), "no places published, no place");
+
+        // THE WAY POINTS WHERE THE PLACE IS (the talk card's "Show me the way", 2026-11-12): the middle
+        // of the same hall the quests resolve, on its floor; a guest's, the one nearest them; the front
+        // door's doorstep on its floor; nothing where the place does not resolve. Seen red 2026-11-12
+        // with `target` answering the volume's `min` corner: "the cabin is pointed to the middle of the
+        // Commons' mess hall: Some(Vec3(65.0, 0.0, 20.0))".
+        let player = glam::Vec3::new(10.0, 1.7, 30.0);
+        assert_eq!(dests.destinations[0].target(player, aboard), Some(glam::Vec3::new(80.0, 0.0, 24.0)), "the cabin is pointed to the middle of the Commons' mess hall");
+        assert_eq!(dests.destinations[0].target(glam::Vec3::new(89.0, 1.7, 790.0), guest), Some(glam::Vec3::new(89.0, 0.0, 774.0)), "a guest, to the one nearest them");
+        let door_place = DestinationDef { id: "front_door".into(), label: "your front door".into(), pos: (0.0, 0.0), radius: 1.5, at: Some(DestinationAnchor::OwnFrontDoor { out_m: 1.5 }) };
+        assert_eq!(door_place.target(player, aboard), Some(glam::Vec3::new(79.0, 0.0, 89.25)), "the front door's doorstep, on its floor");
+        assert_eq!(door_place.target(player, guest), None, "a guest has no front door aboard");
     }
 
     /// A PLACE ON THE UPPER FLOOR IS NOT REACHED FROM UNDER IT (ship homes

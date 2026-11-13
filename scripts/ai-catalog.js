@@ -21,7 +21,9 @@
  *   node scripts/ai-catalog.js --stage DIR --add ID[,ID]
  *                                              fill DIR with only those models' files (parts, licence,
  *                                              README), to ADD to the release already published, and
- *                                              write the `gh release upload` command for them
+ *                                              write the `gh release upload` command for them; the
+ *                                              id `engine` adds the freshly packaged engine zip (a new
+ *                                              engine version is a new file, 2026-11-12)
  *   node scripts/ai-catalog.js --keep-engine   take the engine's row from the catalog as it stands (the
  *                                              zip already on the release) instead of measuring a fresh
  *                                              `just ai-engine package`: a zip built in another folder
@@ -243,7 +245,13 @@ function stage(cat, dir, add) {
     names.push(name);
   };
   if (add) {
-    for (const id of add) if (!cat.models.some((m) => m.id === id)) fail(`--add: no model ${id} in the recipe`);
+    for (const id of add) if (id !== 'engine' && !cat.models.some((m) => m.id === id)) fail(`--add: no model ${id} in the recipe (or \`engine\`)`);
+    // A new engine version is a new file on the release (its name carries the whole version since
+    // 1.1.0, 2026-11-12), so it is ADDED beside the one an earlier app's catalog vouches for.
+    if (add.includes('engine')) {
+      if (!cat.engine._path) fail('--add engine needs the freshly packaged engine: run `just ai-engine package` and leave out --keep-engine');
+      put(cat.engine.file, (to) => place(cat.engine._path, to, cat.engine));
+    }
   } else {
     if (!cat.engine._path) fail('--stage of the whole release needs the engine zip: package it and run without --keep-engine (or use --add)');
     put(cat.engine.file, (to) => place(cat.engine._path, to, cat.engine));

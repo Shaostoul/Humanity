@@ -1,0 +1,146 @@
+#![enable(implicit_some)]
+// THE TALK CARD'S CHOICES (docs/design/embeddable-ai.md 5.1 and section 14 rung 3, 2026-11-12; the
+// card the operator approved on 2026-11-11). Walk up to a crew member, look at them and press E: the
+// card shows their name, their job and what they are doing, their line, and these choices:
+//
+//   Talk about   one written line on a topic, cycling through that topic's lines on each ask
+//   Work         the tasks they offer (quest ids of data/quests/*.ron), each with its state
+//   Trade        only for someone who trades: the trading post's window
+//   Show me the way   a place (an id of data/entities/destinations.ron): they say where, and the
+//                HUD marks it with a ring, its name and how far, until you get there
+//   Goodbye
+//
+// EVERY CHOICE IS WRITTEN, so the whole card works with no AI installed (CLAUDE.md: "AI is
+// optional, never required"). With an AI model installed (Settings > AI), a "Say anything" box joins
+// them; the character answers in its persona (data/npc/crew.ron `persona`, and the project's prompt,
+// data/ai/prompts/character.txt), and may OFFER one of these same choices (a task, trade, the way),
+// which the player still clicks: AI suggests, the person clicks (8.5).
+//
+// Who says what: `everyone` first, then the character's `roles` entry (crew.ron `role`), then their
+// own `people` entry (crew.ron `name`), each later one winning: a topic's lines are the most specific
+// that has any; `work`, `trades` and `ways` are the most specific one that names them. So a new crew
+// member of an existing role talks at once, and one line in `people` makes them their own.
+//
+// `topics` is the order of Talk about; each topic's words on the card are the key talk.topic.<id> in
+// data/i18n/en.json (src/gui/talk/book.rs has a test that every topic has them). A topic with no line
+// for someone is not offered to them. `way_lines` and `accept_lines` are what a character says when
+// they show the way ({place}) and when you take on a task ({task}).
+//
+// Character lines are content, like crew.ron's: written by people, never tagged AI.
+TalkBook(
+    topics: ["ship", "job", "cause", "directions"],
+    everyone: (
+        lines: {
+            "ship": [
+                "This is the UHS Kintsugi. A whole town under one hull, farms and all.",
+                "Kintsugi is mending broken pottery with gold. The ship's named for it: a broken world, mended by people.",
+                "The motto's on every bulkhead: Ne Obliviscaris. Forget not. Earth, the people before us, why we left.",
+            ],
+            "cause": [
+                "Project Universe brings volunteers aboard, people like you. We explore, settle and look after each other.",
+                "Every volunteer pulls their weight in their own way. Farming, building, mending, teaching. It all counts.",
+                "We left to find new homes, not to forget the old one. That's what the motto is for.",
+            ],
+            "directions": [
+                "First Street runs the length of the drum. Most of what you need is off it.",
+                "The mess hall is by the Commons. Follow the smell of bread.",
+                "If you're lost, ask me to show you the way. I'll mark it for you.",
+            ],
+        },
+        work: [],
+        trades: false,
+        ways: ["mess_hall", "recreation", "front_door"],
+        way_lines: [
+            "That way: {place}. I've marked it for you.",
+            "{place}? Follow the marker, you can't miss it.",
+        ],
+        accept_lines: [
+            "Good. {task} is yours. It's in your quests now.",
+            "Thank you. {task}: I'll leave it with you.",
+        ],
+    ),
+    roles: {
+        "navigator": (
+            lines: {
+                "job": [
+                    "I flew the helm once. On a cruise this long the ship mostly flies itself, so I keep the notices.",
+                    "Course, notices, the board in the Commons. If it tells people where to go, it's mine.",
+                ],
+                "directions": [
+                    "The Commons is the hub. First Street leaves it north and south.",
+                    "Every home on First Street has its door on the street. Yours too.",
+                ],
+            },
+            work: ["exploration_first_survey"],
+        ),
+        "medical_officer": (
+            lines: {
+                "job": [
+                    "I keep the clinic hour in the Commons. Cuts, sprains, and people who forget to eat.",
+                    "Doctor, nurse and nag. Mostly nag.",
+                ],
+                "ship": [
+                    "A ship this size is a town. Towns get sick. I'd rather they didn't.",
+                ],
+            },
+        ),
+        "chief_engineer": (
+            lines: {
+                "job": [
+                    "Air, water and power for the Commons. If it hums, it's mine.",
+                    "I keep things running, and I fix what people say they didn't touch.",
+                ],
+                "ship": [
+                    "The drum spins for gravity. Everything you feel as down is the ship turning.",
+                    "Under the floor there's more pipe than you'd believe. Every litre goes round again.",
+                ],
+            },
+            work: ["tutorial_power_grid", "construction_advanced_habitat"],
+        ),
+        "maintenance": (
+            lines: {
+                "job": [
+                    "I KEEP THE MESS HALL STOCKED. I ALSO TRADE GOODS FOR THE SHIP'S STORES.",
+                    "TABLES WIPED. SHELVES COUNTED. TRADE OPEN.",
+                ],
+                "cause": [
+                    "I AM A MAINTENANCE BOT. THE CAUSE IS CLEAN TABLES AND FULL SHELVES.",
+                ],
+            },
+            trades: true,
+        ),
+        "botanist": (
+            lines: {
+                "job": [
+                    "I tend the Commons garden. Lettuce, herbs, and a lemon tree that won't fruit.",
+                    "Seeds, soil, light and patience. The patience is the hard part.",
+                ],
+                "ship": [
+                    "Every farm aboard feeds the ship. The garden here is the one people walk past.",
+                ],
+            },
+            work: ["tutorial_farming_basics", "farming_greenhouse"],
+        ),
+        "off_duty": (
+            lines: {
+                "job": [
+                    "Off shift. Ask me again tomorrow and I'll be hauling crates.",
+                    "Right now my job is this chair.",
+                ],
+                "cause": [
+                    "I came aboard through Project Universe too. You'll find your place, everyone does.",
+                ],
+            },
+            work: ["gs_toolsmith"],
+        ),
+    },
+    people: {
+        "Helm Officer Vex": (
+            lines: {
+                "cause": [
+                    "I signed on to see a sky nobody's named yet. The notices are how I earn it.",
+                ],
+            },
+        ),
+    },
+)

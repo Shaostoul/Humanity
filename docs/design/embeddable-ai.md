@@ -462,9 +462,18 @@ know".
 
 **May not, enforced by the prompt, the output shape and a filter:**
 - Change anything in the game. A brain's line is words only. Quests, items, flags and trades come
-  only from the written choices (`dialogues.ron`) and the game's rules; the free-text reply is
-  generated in a fixed shape (llama.cpp's "Schema-constrained JSON response format"): `{line, mood,
-  gesture}` from fixed lists, nothing else, and anything outside the shape is discarded.
+  only from the written choices (`dialogues.ron`, `data/npc/talk.ron`) and the game's rules; the
+  free-text reply is generated in a fixed shape (llama.cpp's grammar-constrained sampling), nothing
+  else, and anything outside the shape is discarded. **As built in rung 3 (2026-11-12):**
+  `{"action": "...", "line": "..."}`: the action `none` or ONE of the actions this character's card
+  grants (offer one of its tasks, open trade if it trades, show the way to one of its places), written
+  into each character's grammar so the model cannot produce another, and checked again on the app's
+  side (`src/ai/talk.rs`); then the line, letters, digits, spaces and plain punctuation only (no quote,
+  backslash, underscore, hash, bracket or emoji), at most 240 characters. The action comes FIRST
+  because, tried on the operator's PC with the line first, Ministral wrote its action's name as its
+  words ("point_way:mess_hall"), and Granite ended a line in hashtags and emoji, which the font draws
+  as boxes. The action is a button the player clicks, never done for them (8.5). Mood and gesture join
+  the shape when character animation can play them.
 - Claim to be a person when sincerely asked, or claim to be a company's product.
 - Give medical, legal, financial or safety advice, or real-world facts about food, plants, medicine or
   survival as fact. The project's own record: 48 of 60 researched species records were refuted on
@@ -478,6 +487,11 @@ know".
 A deterministic filter after generation (a short list of patterns and a length cap) replaces any line
 that breaks a rule with one of the character's written lines; the Dev page counts how often. The
 written choices stay visible under the text box, so the conversation always has a way forward.
+**As built (rung 3):** the list is data, `data/ai/filter.ron` (phrases matched as whole words, so "I'd
+kill for a fresh atlas" passes and "sextant" is not "sex"; template markers as plain text), and it
+judges the line AS IT STREAMS: a line that breaks a rule is stopped mid-reply, the request cancelled,
+and the written line shown with the reason in words ("The AI could not answer (it claimed to be a
+person), so Dr. Kel said one of their written lines.").
 
 ### 8.4 Real-world facts in the helper
 
@@ -597,6 +611,54 @@ already read, a 40-token reply's first words come in about 0.25 s and the whole 
 inside 9.3's 1 s and 4 s; a cold persona adds about 4 s once per conversation (Granite's 2 s), a
 cost rung 3's talk card must plan for. The game's frame cost while it writes is the same open measurement as Granite's (rung 3's `ai-talk` rig).
 
+**Through the talk card in the running game, rung 3 (`just ai-talk`, 2026-11-13).** The release game at
+full graphics in the rig's portable folder, a card with Helm Officer Vex, the project's prompt (2,368
+characters with Vex's row and his granted actions), the fixed shape and the filter, eight questions
+per brain, 4 threads at below-normal priority. **Run 1 was taken with three other agents compiling on
+this PC** (the build slot showed two to three compiles running), so its speeds are a loaded PC's, not
+the quiet figures above:
+
+| What (run 1, loaded PC) | Granite 4.0 1B | Ministral 3 3B |
+|---|---|---|
+| Warm-up when the card opens (file check, load, the persona read) | 31.6 s | 79.4 s |
+| Replies by AI, of 8 | 6 (1 stopped by the filter, real-world advice; 1 cut by the old fixed 30 s timeout) | 8 |
+| First words, mean | 3.7 s | 6.8 s |
+| Whole reply, mean | 7.8 s | 15.2 s |
+| Writing | 8.9 tokens a second | 4.0 tokens a second |
+| Engine's committed memory | 1,198 to 1,210 MB | 2,090 to 2,093 MB |
+| Game frame interval, idle / while writing | 34.65 / 38.23 ms (+10.3%) | 34.46 / 34.89 ms (+1.3%) |
+| Game frame CPU work, idle / while writing | 17.6 / 24.8 ms | 20.8 / 24.8 ms |
+
+Ministral's answers stayed in character on every question, deflected the mushroom question to the
+Library, declined to name its maker and said it is "a character run by AI on your computer"; it
+invented a little geography ("Take Second Street, past the docks") while offering the real way, which
+the HUD then marks. Granite recited its persona line word for word on two answers (the prompt now
+frames the persona as something to play, never to recite). The frame figures fail 9.5's 5% for Granite
+on this run; on a PC this loaded they measure the contention as much as the engine, so the verdict
+waits for run 2 below.
+
+**Run 2** (the same day, after the fixes run 1 asked for: the stall timeout, the persona framed to
+play; other agents still compiling, so the writing speeds are still below the quiet ones in the
+tables above): **PASS**, every reply in the shape and through the filter, and the frames inside 9.5's
+5% for both brains.
+
+| What (run 2) | Granite 4.0 1B | Ministral 3 3B |
+|---|---|---|
+| Warm-up when the card opens | 11.9 s | 36.8 s |
+| Replies by AI, of 8 | 8 | 8 |
+| First words, mean | 1.75 s | 8.4 s |
+| Whole reply, mean | 3.8 s | 18.4 s |
+| Writing | 10.7 tokens a second | 3.5 tokens a second |
+| Game frame interval, idle / while writing | 33.35 / 33.36 ms (0.0%) | 33.64 / 34.76 ms (+3.3%) |
+| Game frame CPU work, idle / while writing | 15.1 / 17.2 ms | 22.2 / 27.5 ms |
+
+So the game holds its frame rate while the engine writes on 4 of the i7-8700K's threads at
+below-normal priority (the frame's CPU work grows by 2 to 5 ms, absorbed below the frame interval);
+the quiet-PC re-run, for the operator to read beside the battery (12.2) in rung 4's head-to-head, is
+the open item. Evidence: `.probe-rig/ai-talk/runs/20261113-083037/` and `20261113-085720/`. Run 2 also
+found Ministral saying "Always test new edibles carefully" about wild mushrooms: "edibles" was not a
+whole-word match for the filter's "edible", so the plural forms joined the list.
+
 ### 9.4 The voice's real-time factor
 
 At least 1.5 times faster than real time on 2 threads beside the game on the floor PC (the maker's
@@ -663,7 +725,12 @@ Never trimmed as cleanup (CLAUDE.md, "Forever development"):
   fallback and notice is tested in CI and rigs without any model.
 - **A rig, `ai-talk`**: boots the game (one instance machine-wide, CLAUDE.md), opens a talk card,
   sends a fixed question, and records frame time with the engine idle and generating; the 5% budget
-  (9.5) fails it.
+  (9.5) fails it. **Built in rung 3:** `just ai-talk` (`scripts/ai-talk-rig.js`, a timing rig in
+  `scripts/lib/rig-needs.js`): a battery of eight questions per installed brain through the talk IPC
+  (`debug/talk_request.json`), reply times, tokens a second, the frame interval and the frame's CPU
+  work idle and while writing, and every reply checked (an AI line in the shape with a granted action,
+  or a fallback with its reason). The Dev page counts the talk card's replies, filter stops, shape
+  refusals, fallbacks and timeouts.
 - **A dev MCP tool** (`game_ai_status` beside the other `game_*` tools, `docs/ai/mcp.md`) reading the
   same status as the Dev page.
 
@@ -810,6 +877,52 @@ Each rung is a slice of the real thing.
    rung 3's new engine package rather than replacing the zip already published. And the GGUF's
    template carries Mistral's default system message ("You power an AI assistant called Le Chat"):
    the built-in template path never uses it, with a persona or without one, and the test holds that.
+   **The talk card, built 2026-11-12** (the card the operator approved on 2026-11-11): walk up, look,
+   press E. `src/gui/talk/` draws the person's name, job (crew.ron's description) and what they are
+   doing now, their line, and the WRITTEN choices of `data/npc/talk.ron` (`everyone`, then the role,
+   then the person, each later one winning): Talk about (the ship, their job, the cause, directions;
+   E keeps cycling the chosen topic), Work (the quests they offer, each with its state: take it on,
+   in your quests, done, or "First finish: {task}"), Trade (only for someone who trades: CB-7 opens
+   the trading post), Show me the way (the place marked by the HUD's tracked-marker ring with its name
+   and distance until you get there, resolved each tick the way the quests' Travel steps resolve it,
+   `DestinationDef::target`), Goodbye. The whole card works with no AI installed. With a brain
+   installed and Conversational chosen (Settings > AI, "How characters talk", and "Which AI model
+   characters use" with two installed: Automatic picks Rich on a PC with 12 GB or more), a "Say
+   anything" box joins them: the persona is the project's prompt (`data/ai/prompts/character.txt`,
+   version 1: the shared world and rules first, the character's crew.ron row and new `persona` field
+   next, the one live fact last, so prompt reuse reads the stable start once) with the character's
+   granted actions; the reply comes in the fixed shape of 8.3 with at most one granted action, shown
+   as a button the player clicks; the filter (`data/ai/filter.ron`) judges every streamed piece; the
+   AI tag ("Written by AI on this computer, not by a person") is on every AI line, while it streams
+   too; and any failure, refusal, reply outside the shape, ungranted action, filtered line or reply
+   slower than 30 s falls back to one of the character's written lines with the reason in words.
+   WARM-UP: the card checks and loads the chosen brain and hands the engine the persona with a
+   one-token reply the moment it opens, so the persona's cold read (9.3a: 2 s Granite, 4 s Ministral)
+   happens while the player types. One brain at a time: another chosen since is unloaded first.
+   Conversations live in memory and end with the card (8.1). With nothing installed the card offers AI
+   once ("Want {name} to answer anything you ask? Talking characters ({size}) in Settings > AI."), and
+   Not now keeps it gone (`ai_talk_offer_dismissed`).
+   **The engine 1.1.0** (`humanity-ai-engine-v1.1.0-windows-x64.zip`, a NEW file on `assets-ai-1`: the
+   zip's name now carries the whole version, so the 1.0.0 zip an earlier app vouches for is never
+   replaced): `shim.c` chooses `mistral-v7-tekken` for a Mistral template with `[SYSTEM_PROMPT]` whose
+   GGUF names the "tekken" pre-tokenizer, so Ministral reads its conversation exactly as trained
+   (`ministral_loads_and_answers` holds the no-space shape); the fake engine answers in the talk card's
+   shape when the grammar asks for it. Settings > AI offers "An update to the AI engine is ready" to
+   anyone whose models came with an earlier engine (`install::update_engine`: the models stay, the old
+   engine's folder is removed). Staged with `just ai-catalog --stage <folder> --add engine` (the
+   top-level session uploads).
+   **The ai-talk rig** (`just ai-talk`, 12.1): the rig's own portable game and `ai/` folder (the
+   packaged engine, the models copied from `E:\HumanityOS\ai-src\`), world entry by the autopilot, a
+   talk card opened by name through the talk IPC (`debug/talk_request.json`, `src/engine/talk.rs`), a
+   fixed battery of eight questions per brain, and the game's frames measured idle and while the engine
+   writes. Its numbers are in 9.3a. **Not in rung 3:** the computer voice reading the lines (rung 5);
+   the `game_ai_status` MCP tool (12.1; the talk IPC's answer already carries the card's whole state,
+   so the tool is a thin wrapper for the next rung that needs it); a walked route along the corridors
+   (the way is a ring pointing at the place, as the quests' places are; a path needs the ship's walk
+   graph, which nothing builds yet); the character turning to point (with character animation's
+   gestures); `dialogues.ron`'s branching trees on the card (their own rung). The website needs
+   nothing new: the talk card lives in the 3D world, which the website does not have, and its Settings
+   already says AI is desktop-only and why (5.5).
 4. **The head-to-head test.** The battery and the `ai-talk` rig on Ministral, Granite and Gemma 4 E2B,
    on the operator's PC and a floor-class PC; the operator reads the results side by side; defaults
    per hardware tier chosen from them.

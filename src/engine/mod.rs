@@ -106,6 +106,9 @@ pub mod foot_probe;
 pub mod interact;
 /// The interaction probe: the drawn body measured against what it touches (rung 2b's proof).
 pub mod anchor_probe;
+/// The talk card each frame (embeddable-ai.md rung 3, 2026-11-12): its AI box while it is open, the
+/// way it is showing on the HUD, and its dev IPC for the ai-talk rig (debug/talk_request.json).
+pub mod talk;
 /// The garments' textures read off the frame and packed for the character materials (the look,
 /// 2026-11-09).
 pub mod look_textures;

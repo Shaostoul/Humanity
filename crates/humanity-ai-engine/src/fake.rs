@@ -27,6 +27,10 @@ pub const LINES: &[&str] = &[
     "Nothing typed here leaves this computer, and no model is installed.",
 ];
 
+/// How the talk card's grammar begins (src/ai/talk.rs `grammar` writes it; a test there holds the two
+/// together): the literal opening of its JSON reply, the action first.
+pub const TALK_SHAPE: &str = r#"root ::= "{\"action\":\""#;
+
 /// What the fake label reader reads.
 pub const LABEL_LINES: &[&str] = &["FAKE LABEL", "INGREDIENTS: WATER"];
 
@@ -62,7 +66,7 @@ fn cancelled<W: std::io::Write>(e: &mut Engine<W>, request: u64) -> Flow {
 }
 
 /// A reply: the prefill pause (a tenth of it for a persona reused), then the scripted line word by word.
-pub(crate) fn generate<W: std::io::Write>(e: &mut Engine<W>, rx: &mpsc::Receiver<Incoming>, request: u64, persona: String, turns: usize, max_tokens: u32) -> Flow {
+pub(crate) fn generate<W: std::io::Write>(e: &mut Engine<W>, rx: &mpsc::Receiver<Incoming>, request: u64, persona: String, turns: usize, grammar: Option<&str>, max_tokens: u32) -> Flow {
     let start = Instant::now();
     let reused = e.reuse && e.last_persona.as_deref() == Some(persona.as_str());
     let prefill = if reused { e.opts.ms_prefill / 10 } else { e.opts.ms_prefill };
@@ -73,6 +77,12 @@ pub(crate) fn generate<W: std::io::Write>(e: &mut Engine<W>, rx: &mpsc::Receiver
     let ms_prefill = start.elapsed().as_millis() as u32;
     let writing = Instant::now();
     let line = LINES[turns % LINES.len()];
+    // The talk card's fixed shape (rung 3, 2026-11-12): a grammar that begins with the literal opening
+    // of its JSON line ([`TALK_SHAPE`]) asks for the reply in that shape, so the fake answers its
+    // scripted line in it with no action, and every screen of the card can be tried with no model. Any
+    // other grammar is ignored, as before (the fake has no grammar engine).
+    let shaped = grammar.is_some_and(|g| g.starts_with(TALK_SHAPE)).then(|| format!("{{\"action\":\"none\",\"line\":\"{line}\"}}"));
+    let line = shaped.as_deref().unwrap_or(line);
     let words: Vec<&str> = line.split(' ').collect();
     let n = words.len().min(max_tokens.max(1) as usize);
     for (i, w) in words.iter().take(n).enumerate() {

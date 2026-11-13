@@ -352,6 +352,19 @@ impl AiClient {
         self.send_when_ready(AppMessage::Load { id: id.into(), path: path.into(), sha256: sha256.into(), kind, context, threads, device: Device::Cpu });
     }
 
+    /// The models the engine said it loaded.
+    pub fn loaded_ids(&self) -> Vec<String> {
+        self.loaded.iter().cloned().collect()
+    }
+
+    /// Let a model go (another brain is chosen: 9.1's budget is one brain at a time). Forgotten at
+    /// once; a running engine is told, a stopped one has nothing loaded anyway.
+    pub fn unload(&mut self, id: &str) {
+        if self.loaded.remove(id) && matches!(self.state, State::Running { .. }) {
+            self.write(&AppMessage::Unload { id: id.into() });
+        }
+    }
+
     /// Change the job object's memory cap, MB (9.1): raised to a model's need plus a margin BEFORE its
     /// load, so the load fits; kept for the next start too. Takes effect at once on a running engine.
     pub fn set_memory_cap(&mut self, mb: u64) {
@@ -380,6 +393,12 @@ impl AiClient {
     /// Ask a brain for a reply. Returns the request's number; its [`Outcome`] arrives through
     /// [`AiClient::take_outcomes`] (at once, as a fallback, when the engine cannot be used).
     pub fn generate(&mut self, id: &str, persona: &str, question: &str, max_tokens: u32) -> u64 {
+        self.generate_turns(id, persona, vec![Turn { role: Role::User, text: question.to_string() }], None, max_tokens)
+    }
+
+    /// Ask a brain for a reply to a conversation (`turns`, oldest first, ending with the person's), in a
+    /// fixed shape when `grammar` is given (the talk card's, 8.3). As [`AiClient::generate`].
+    pub fn generate_turns(&mut self, id: &str, persona: &str, turns: Vec<Turn>, grammar: Option<String>, max_tokens: u32) -> u64 {
         let request = self.next_request;
         self.next_request += 1;
         self.counters.requests += 1;
@@ -394,9 +413,16 @@ impl AiClient {
             return request;
         }
         self.in_flight.insert(request, InFlight { text: String::new(), started: Instant::now() });
-        let turns = vec![Turn { role: Role::User, text: question.to_string() }];
-        self.send_when_ready(AppMessage::Generate { id: id.into(), request, persona: persona.into(), turns, grammar: None, max_tokens });
+        self.send_when_ready(AppMessage::Generate { id: id.into(), request, persona: persona.into(), turns, grammar, max_tokens });
         request
+    }
+
+    /// How one request ended, if it has: taken out, leaving every other request's outcome for whoever
+    /// asked it (the talk card takes its own; the Dev page takes all of its own with
+    /// [`AiClient::take_outcomes`]).
+    pub fn take_outcome(&mut self, request: u64) -> Option<Outcome> {
+        let at = self.outcomes.iter().position(|o| o.request() == request)?;
+        self.outcomes.remove(at)
     }
 
     /// Cancel a request (the person walked away). A running engine is told; one not yet running never

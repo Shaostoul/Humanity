@@ -53,6 +53,23 @@ fn the_fake_says_hello_loads_and_answers_word_by_word() {
     assert_eq!(out.last(), Some(&EngineMessage::Ok { to: "shutdown".into() }), "nothing after shutdown");
 }
 
+/// THE TALK CARD'S SHAPE FROM THE FAKE (rung 3, 2026-11-12): a grammar that begins as the talk card's
+/// does is answered with the scripted line in that JSON shape and no action, so the card's screens and
+/// its shape check run with no model; any other grammar is still ignored. Seen red 2026-11-12 with the
+/// grammar test made to never match: "assertion `left == right` failed: the talk shape" (left, the plain
+/// scripted line "A real engine would answer ...").
+#[test]
+fn the_fake_answers_the_talk_cards_shape() {
+    let shaped = |request: u64, grammar: &str| {
+        m(AppMessage::Generate { id: "fake".into(), request, persona: "p".into(), turns: vec![Turn { role: Role::User, text: "hi".into() }], grammar: Some(grammar.into()), max_tokens: 200 })
+    };
+    let talk_grammar = format!("{}\" action \"\\\",\\\"line\\\":\\\"\" line \"\\\"}}\"", crate::fake::TALK_SHAPE);
+    let (_, out) = talk(&fake(), &[load("fake"), shaped(1, &talk_grammar), shaped(2, r#"root ::= "yes" | "no""#)]);
+    let reply = |r: u64| -> String { out.iter().filter_map(|x| if let EngineMessage::Token { request, text } = x { (*request == r).then_some(text.as_str()) } else { None }).collect() };
+    assert_eq!(reply(1), format!("{{\"action\":\"none\",\"line\":\"{}\"}}", crate::fake::LINES[1]), "the talk shape");
+    assert_eq!(reply(2), crate::fake::LINES[1], "another grammar is ignored, as before");
+}
+
 /// With reuse on, the same persona a second time is read in a tenth of the time; with reuse off every
 /// request reads it whole (9.6, the switch's effect the Dev page shows). Seen red 2026-11-09 with the
 /// reuse check left out of `fake::generate`: "reuse on: the second persona is reused: [120, 120]".
@@ -342,6 +359,16 @@ fn ministral_loads_and_answers() {
         assert!(!p.contains("Le Chat") && !p.contains("created by Mistral AI"), "never the repository's default system message: {p:?}");
     }
     assert!(!without.contains("[SYSTEM_PROMPT]"), "no persona, no system prompt at all: {without:?}");
+
+    // THE MODEL'S OWN SHAPE, `mistral-v7-tekken` (rung 3, 2026-11-12): Ministral 3's template puts no
+    // space after a marker, and llama.cpp's detection reads it as `mistral-v7`, which does; shim.c
+    // chooses the Tekken shape for a Tekken-tokenizer model. Seen red 2026-11-12 on the engine 1.0.0
+    // shim: "the Tekken shape, no space after a marker:
+    // \"[SYSTEM_PROMPT] You are Mara, the hydroponics lead.[/SYSTEM_PROMPT][INST] Hello?[/INST]\"".
+    assert!(
+        with.contains("[SYSTEM_PROMPT]You are Mara, the hydroponics lead.[/SYSTEM_PROMPT]") && with.contains("[INST]Hello?[/INST]") && !with.contains("] "),
+        "the Tekken shape, no space after a marker: {with:?}"
+    );
 }
 
 /// A FIXED SHAPE (8.3's "the free-text reply is generated in a fixed shape"): with a grammar, the reply

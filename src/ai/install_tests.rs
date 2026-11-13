@@ -268,8 +268,35 @@ fn a_model_and_the_engine_install_from_a_loopback_server() {
     let have = install::installed(&cat, &root);
     assert!(have.engine.is_some(), "the engine came with the first model");
     assert!(have.models.contains_key("test-model"));
-    assert_eq!(tree(&root), ["engine", "engine/1.0.0", "engine/1.0.0/humanity-ai.exe", "engine/1.0.0/licenses", "engine/1.0.0/licenses/llama.cpp-LICENSE.txt", "models", "models/test-model", "models/test-model/LICENSE.txt", "models/test-model/README.md", "models/test-model/model.gguf"].map(String::from).to_vec(), "nothing else, no downloads folder left");
+    assert_eq!(tree(&root), ["engine", "engine/1.1.0", "engine/1.1.0/humanity-ai.exe", "engine/1.1.0/licenses", "engine/1.1.0/licenses/llama.cpp-LICENSE.txt", "models", "models/test-model", "models/test-model/LICENSE.txt", "models/test-model/README.md", "models/test-model/model.gguf"].map(String::from).to_vec(), "nothing else, no downloads folder left");
     assert_eq!(install::download_total(&cat, &cat.models[0], &root), cat.models[0].download_bytes(), "the engine is not counted again");
+}
+
+/// AN ENGINE UPDATE KEEPS THE MODELS AND DROPS THE OLD ENGINE (rung 3, 2026-11-12, the first engine
+/// update, 1.0.0 to 1.1.0): a model installed with an earlier app's engine; the catalog now names a
+/// newer engine, so Settings > AI offers the update; it installs the new engine, deletes the old
+/// version's folder (this app never starts it) and leaves the model untouched. Seen red 2026-11-12
+/// before `install_engine` cleared other versions: "after the update", left: [\"engine\",
+/// \"engine/0.9.0\", \"engine/0.9.0/humanity-ai.exe\", ..., \"engine/1.1.0\", ...].
+#[test]
+fn an_engine_update_keeps_the_models_and_drops_the_old_engine() {
+    let t = humanity_core::test_temp::dir("ai_engine_update");
+    let root = ai_root(&t);
+    let (cat, files) = fixture(200_000, 1);
+    let server = serve(files, Serve::Normal, "model.gguf".into());
+    install::install_model(&server.base, &cat, "test-model", &root, &install::new_job(1)).expect("it installs");
+    // What an earlier app left: its own engine version, and no engine of this catalog's version.
+    std::fs::rename(root.join("engine").join(super::paths::ENGINE_VERSION), root.join("engine").join("0.9.0")).expect("the old engine");
+    let have = install::installed(&cat, &root);
+    assert!(have.engine.is_none() && have.models.contains_key("test-model"), "a model, and no engine of this catalog's version: the update is offered");
+    let job = install::new_job(cat.engine.bytes);
+    install::update_engine(&server.base, &cat, &root, &job).expect("the engine updates");
+    assert_eq!(job.snapshot().stage, Stage::Done);
+    assert_eq!(
+        tree(&root),
+        ["engine", "engine/1.1.0", "engine/1.1.0/humanity-ai.exe", "engine/1.1.0/licenses", "engine/1.1.0/licenses/llama.cpp-LICENSE.txt", "models", "models/test-model", "models/test-model/LICENSE.txt", "models/test-model/README.md", "models/test-model/model.gguf"].map(String::from).to_vec(),
+        "after the update"
+    );
 }
 
 /// A DOWNLOAD STOPPED HALF WAY CARRIES ON: the server hangs up after 100 KB; the part stays; Get again
@@ -626,7 +653,7 @@ fn granite_through_the_app_end_to_end() {
     let started = Instant::now();
     let request = loop {
         let mut sc = super::shared::client();
-        if let Some(r) = crate::gui::pages::dev_ai::ask_test_question(&mut sc) {
+        if let Some(r) = crate::gui::pages::dev_ai::ask_test_question(&mut sc, super::models::BRAIN_AUTO) {
             break r;
         }
         drop(sc);

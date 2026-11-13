@@ -209,7 +209,7 @@ impl<W: Write> Engine<W> {
                 } else if !self.loaded.iter().any(|(m, _)| m.id == id) {
                     self.refuse(Some(request), ErrorCode::NotLoaded, format!("{id} is not loaded"));
                 } else {
-                    return fake::generate(self, rx, request, persona, turns.len(), max_tokens);
+                    return fake::generate(self, rx, request, persona, turns.len(), grammar.as_deref(), max_tokens);
                 }
             }
             AppMessage::Speak { request, text, .. } => {

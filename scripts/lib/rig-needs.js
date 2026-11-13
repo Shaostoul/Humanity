@@ -110,6 +110,10 @@ const RIGS = Object.freeze({
     kind: "timing",
     why: "how long the game takes to boot",
   },
+  "ai-talk": {
+    kind: "timing",
+    why: "the talk card's AI replies and the game's frame cost while the AI engine writes (embeddable-ai.md 9.5's 5%): a frame time, meaningless in low impact",
+  },
   "perf-report": {
     kind: "timing",
     why: "grades a sweep's frame times (refuses a sweep that ran in low impact)",

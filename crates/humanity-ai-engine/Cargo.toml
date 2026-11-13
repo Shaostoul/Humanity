@@ -25,7 +25,7 @@
 name = "humanity-ai-engine"
 # The engine's own version, not the app's: the app names the engine version it expects (src/ai, and the
 # catalog from rung 2), and a new engine arrives only with an app release that names it (7.4).
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 publish = false
 

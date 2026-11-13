@@ -166,6 +166,14 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             t("dev.ai.counters"),
             tf("dev.ai.counters_value", &[("starts", &k.starts), ("requests", &k.requests), ("answered", &k.answered), ("tokens", &k.tokens), ("fallbacks", &k.fallbacks), ("crashes", &k.crashes), ("failures", &c.failures())]),
         );
+        // The talk card's own counts (12.1: "filter replacements, fallbacks"), this session only.
+        let [asked, answered, filtered, shape, fell_back, timed_out] = crate::ai::talk::COUNTS.read();
+        row(
+            ui,
+            theme,
+            t("dev.ai.talk_label"),
+            tf("dev.ai.talk_counts", &[("asked", &asked), ("answered", &answered), ("filtered", &filtered), ("shape", &shape), ("fell_back", &fell_back), ("timed_out", &timed_out)]),
+        );
         if let Some((tokens, prefill, generate)) = c.last_timing {
             let rate = if generate > 0 { tokens as f32 * 1000.0 / generate as f32 } else { 0.0 };
             row(ui, theme, t("dev.ai.timing"), tf("dev.ai.timing_value", &[("prefill", &prefill), ("generate", &generate), ("rate", &format!("{rate:.1}"))]));
@@ -202,7 +210,7 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 started = true;
             }
             if Button::secondary(t("dev.ai.ask")).hint("dev.ai.ask_hint").disabled(c.engine_path().is_none()).show(ui, theme) {
-                let _ = ask_test_question(&mut c);
+                let _ = ask_test_question(&mut c, &state.settings.ai_brain);
                 started = true;
             }
             if Button::secondary(t("dev.ai.status")).hint("dev.ai.status_hint").disabled(!matches!(c.state(), State::Running { .. })).show(ui, theme) {
@@ -234,7 +242,7 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
         let waiting = dev.pending;
         drop(dev);
-        if waiting && send_pending(&mut c) {
+        if waiting && send_pending(&mut c, &state.settings.ai_brain) {
             started = true;
         }
         if live || started || waiting {
@@ -252,7 +260,7 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// catalog; while that runs the question waits and is sent when it passes), raise the job's memory cap,
 /// load it with this computer's brain threads, and ask. A stopped engine is started by the request.
 /// Returns the request's number, or None while the model is being checked or when there is none.
-pub(crate) fn ask_test_question(c: &mut AiClient) -> Option<u64> {
+pub(crate) fn ask_test_question(c: &mut AiClient, prefer: &str) -> Option<u64> {
     let question = t("dev.ai.test_question").to_string();
     let id = if shared::use_dev_fake() {
         if !c.is_loaded("fake") {
@@ -265,7 +273,7 @@ pub(crate) fn ask_test_question(c: &mut AiClient) -> Option<u64> {
             dev.brain_note = Some(t("dev.ai.brain_none").to_string());
             return None;
         };
-        match models::prepare_brain(&cat, &root) {
+        match models::prepare_brain(&cat, &root, prefer) {
             Prepared::NotInstalled => {
                 dev.brain_note = Some(t("dev.ai.brain_none").to_string());
                 return None;
@@ -305,9 +313,9 @@ pub(crate) fn ask_test_question(c: &mut AiClient) -> Option<u64> {
 }
 
 /// A question that waited for the model's check: send it once the check is done.
-fn send_pending(c: &mut AiClient) -> bool {
+fn send_pending(c: &mut AiClient, prefer: &str) -> bool {
     let pending = DEV.lock().unwrap_or_else(|p| p.into_inner()).pending;
-    pending && ask_test_question(c).is_some()
+    pending && ask_test_question(c, prefer).is_some()
 }
 
 /// For the snapshot: the pretend figure as the Dev page shows it.

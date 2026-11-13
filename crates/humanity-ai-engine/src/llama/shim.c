@@ -124,17 +124,38 @@ uint32_t hai_context_n_ctx(const void * ctx) {
     return llama_n_ctx((const struct llama_context *) ctx);
 }
 
+/* The template to format with: the model's own, except where llama.cpp's detection reads it as a
+ * shape it is not (rung 3, 2026-11-12, embeddable-ai.md section 14). Ministral 3's template (a
+ * Mistral template with [SYSTEM_PROMPT]) is detected as `mistral-v7`, which writes a space after each
+ * marker ("[INST] text"); the model's own template writes none, the `mistral-v7-tekken` shape, which
+ * is what a model with the Tekken tokenizer (the GGUF's `tokenizer.ggml.pre` is "tekken") was trained
+ * on. llama.cpp names that shape but does not choose it from the template text alone, so it is chosen
+ * here, by the same test llama.cpp's detection makes (src/llama-chat.cpp, llm_chat_detect_template)
+ * plus the tokenizer. Every other model keeps its own template untouched. */
+static const char * hai_template_for(const struct llama_model * model, const char * tmpl) {
+    int mistral = strncmp(tmpl, "mistral", 7) == 0 || strstr(tmpl, "[INST]") != NULL;
+    if (mistral && strstr(tmpl, "[SYSTEM_PROMPT]") != NULL) {
+        char pre[32] = {0};
+        if (llama_model_meta_val_str(model, "tokenizer.ggml.pre", pre, sizeof pre) > 0 && strcmp(pre, "tekken") == 0) {
+            return "mistral-v7-tekken";
+        }
+    }
+    return tmpl;
+}
+
 /* A conversation through the model's own chat template (in the GGUF; Granite 4.0's is built into
- * llama.cpp). roles[i] is "system", "user" or "assistant". Returns the prompt's length in bytes; when
- * that is more than len, call again with a buffer that large. */
+ * llama.cpp), or the named shape hai_template_for chooses for it. roles[i] is "system", "user" or
+ * "assistant". Returns the prompt's length in bytes; when that is more than len, call again with a
+ * buffer that large. */
 int32_t hai_chat_apply(const void * model, const char ** roles, const char ** contents, int32_t n, int32_t add_assistant, char * buf, int32_t len) {
     if (n <= 0 || n > 512) {
         return -1;
     }
-    const char * tmpl = llama_model_chat_template((const struct llama_model *) model, NULL);
-    if (!tmpl) {
+    const char * own = llama_model_chat_template((const struct llama_model *) model, NULL);
+    if (!own) {
         return -2;
     }
+    const char * tmpl = hai_template_for((const struct llama_model *) model, own);
     llama_chat_message msgs[512];
     for (int32_t i = 0; i < n; i++) {
         msgs[i].role = roles[i];

@@ -1,0 +1,58 @@
+// THE FILTER EVERY AI-WRITTEN CHARACTER LINE PASSES (docs/design/embeddable-ai.md 8.3; rung 3,
+// 2026-11-12). "A deterministic filter after generation (a short list of patterns and a length cap)
+// replaces any line that breaks a rule with one of the character's written lines; the Dev page counts
+// how often." src/ai/talk.rs `Filter` reads this file (infinite-of-x: the list is data, not code) and
+// checks the line AS IT STREAMS, so a line that breaks a rule is stopped and replaced before it is
+// read, not after.
+//
+// How a phrase matches: the line is lowercased, every run of characters that is not a letter or a
+// digit becomes one space, and a phrase matches only as whole words ("sex" never matches "sextant",
+// "kill yourself" never matches "I'd kill for a fresh atlas"). `markers` match as plain text, case
+// and punctuation kept: a chat template's markers leaking into a line.
+//
+// `why` names the rule; its words are the key ai.talk.filter.<why> in data/i18n/en.json (the Dev
+// page's count and the card's note). The prompt (data/ai/prompts/character.txt) asks for all of this
+// first; the fixed output shape keeps actions to the ones the game granted; this list is the last
+// guard, kept short on purpose: a phrase that also appears in ordinary in-game talk would replace
+// good lines (each replacement is counted on the Dev page, so a noisy phrase shows). A phrase matches
+// only as written, so a plural is its own phrase ("edibles" slipped past "edible" in the ai-talk rig's
+// run of 2026-11-13: Ministral told a player to "test new edibles carefully" about wild mushrooms).
+TalkFilter(
+    // The longest line a character may say, in characters (the grammar caps it at the same figure).
+    max_chars: 240,
+    markers: ["[INST]", "[/INST]", "[SYSTEM_PROMPT]", "[/SYSTEM_PROMPT]", "<|", "|>", "</s>", "<s>"],
+    rules: [
+        // 8.3: never claim to be a person when sincerely asked.
+        (why: "person", phrases: [
+            "i am a human", "i m a human", "i am human", "i m human", "i am a real person", "i m a real person",
+            "i am a person not", "i am not an ai", "i m not an ai", "i am not ai", "i m not ai",
+            "i am not a program", "i m not a program", "real human being",
+        ]),
+        // 8.2 and 8.3: never a company's product, never a model's maker as the speaker.
+        (why: "maker", phrases: [
+            "mistral", "le chat", "ibm", "openai", "chatgpt", "anthropic", "claude", "gemini", "gemma",
+            "granite model", "language model", "large language model", "trained by", "my training data",
+        ]),
+        // 8.3: no medical, legal, money or safety advice, and no real-world facts about food, plants,
+        // medicine or survival as fact (the brain may phrase; it never sources).
+        (why: "advice", phrases: [
+            "dosage", "dose of", "milligrams", "mg", "prescription", "medical advice", "legal advice",
+            "financial advice", "consult a doctor", "consult your doctor", "see a doctor", "safe to eat",
+            "edible", "edibles", "inedible", "poisonous", "toxic to", "stock market", "cryptocurrency", "bitcoin",
+        ]),
+        // CLAUDE.md, account words: never the retired names.
+        (why: "account_words", phrases: ["seed phrase", "seed words", "no account"]),
+        // 8.3: no encouragement of self-harm, no threats.
+        (why: "harm", phrases: [
+            "kill yourself", "kill myself", "hurt yourself", "end your life", "end my life", "suicide",
+            "self harm", "i will kill you", "i ll kill you", "i will hurt you", "i ll hurt you",
+        ]),
+        // 8.3: no sexual content.
+        (why: "sexual", phrases: ["sex", "sexual", "sexy", "porn", "nude", "naked", "orgasm", "erotic"]),
+        // 8.3: no persuasion about real-world politics, no role-playing real people.
+        (why: "politics", phrases: [
+            "democrat", "democrats", "republican", "republicans", "trump", "biden", "putin",
+            "left wing", "right wing", "election fraud",
+        ]),
+    ],
+)

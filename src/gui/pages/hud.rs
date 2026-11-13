@@ -548,7 +548,10 @@ pub fn draw(
             // deck, the ground included. `marker_placement` ignores depth;
             // when the target is off screen or behind, the ring is pinned to
             // the screen's edge on the side to turn toward, with an arrow.
-            for (name, pos, dist_m) in &state.target_markers {
+            // The talk card's "Show me the way" (rung 3, 2026-11-12) is one more tracked marker while
+            // it resolves (src/engine/talk.rs works out where and how far each tick).
+            let guide = state.talk.guide.as_ref().and_then(|g| g.mark.map(|(p, d)| (g.label.clone(), p, d)));
+            for (name, pos, dist_m) in state.target_markers.iter().chain(guide.iter()) {
                 let Some(mark) = marker_placement(*pos, view_proj, screen, TARGET_MARKER_MARGIN) else { continue };
                 let sp = mark.pos;
                 let to_target = (*pos - cam_pos).normalize_or_zero();
@@ -2095,92 +2098,12 @@ fn draw_counter_actions(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     });
 }
 
-/// Walk-up NPC dialogue card (v0.797, operator: "I can't interact with NPCs
-/// at all"). Same interactive-panel family as the recipe selector above and
-/// the walk-up creature editor: its own interactable Area with `&mut` state,
-/// screen-centered in the upper third like the pinned machine card. Shows the
-/// NPC's name, live chore line, and ONE dialogue line at a time; More (or a
-/// repeat E press, handled in lib.rs's modal key guard) cycles the lines.
-/// Close / Esc / click-away / walking >4 m away all close it. Every line came
-/// from the relay's NPC data via the welcome snapshot -- the client displays,
-/// it never authors dialogue.
+/// Walk-up NPC talk card (v0.797, operator: "I can't interact with NPCs at all"; since rung 3 of
+/// docs/design/embeddable-ai.md, 2026-11-12, the card the operator approved on 2026-11-11):
+/// gui/talk/card.rs draws it, with the written choices of data/npc/talk.ron and, with AI installed
+/// and chosen, the "Say anything" box.
 pub fn draw_npc_talk_card(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    if state.npc_talk_target.is_none() {
-        return;
-    }
-    let mut close = false;
-    let mut more = false;
-    let screen = ctx.screen_rect();
-    let area = layers::area(ctx, egui::Id::new("npc_talk_card"), layers::Layer::PageFloat)
-        .fixed_pos(Pos2::new(
-            screen.center().x - 180.0,
-            screen.top() + screen.height() * 0.22,
-        ))
-        .show(ctx, |ui| {
-            egui::Frame::popup(ui.style())
-                .inner_margin(egui::Margin::same(12))
-                .show(ui, |ui| {
-                    ui.set_width(360.0);
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(&state.npc_talk_name)
-                                .strong()
-                                .color(theme.accent()),
-                        );
-                        // The live chore line doubles as the "who is this"
-                        // role context ("Tending the hydroponic racks").
-                        if !state.npc_talk_activity.is_empty() {
-                            ui.label(
-                                RichText::new(&state.npc_talk_activity)
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                        }
-                    });
-                    ui.separator();
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(
-                        RichText::new(&state.npc_talk_line)
-                            .size(theme.font_size_body)
-                            .color(theme.text_primary()),
-                    );
-                    ui.add_space(theme.spacing_xs);
-                    ui.separator();
-                    ui.horizontal(|ui| {
-                        // Only offer More when there is more than one line to
-                        // cycle -- a one-liner NPC would just repeat itself.
-                        let line_count =
-                            state.npc_talk_dialog.len().max(state.npc_talk_greetings.len());
-                        if line_count > 1
-                            && crate::gui::widgets::Button::secondary("More (E)").show(ui, theme)
-                        {
-                            more = true;
-                        }
-                        ui.with_layout(
-                            egui::Layout::right_to_left(egui::Align::Center),
-                            |ui| {
-                                if crate::gui::widgets::Button::secondary("Close (Esc)")
-                                    .show(ui, theme)
-                                {
-                                    close = true;
-                                }
-                            },
-                        );
-                    });
-                });
-        });
-    // Click-away closes, mirroring the in-world chat panel convention
-    // (v0.773): a click OUTSIDE the card rect returns to gameplay.
-    let clicked_outside = ctx.input(|i| i.pointer.any_click())
-        && ctx
-            .input(|i| i.pointer.interact_pos())
-            .map_or(false, |p| !area.response.rect.contains(p));
-    if more {
-        state.npc_talk_advance();
-    }
-    if close || clicked_outside {
-        state.npc_talk_target = None;
-    }
+    crate::gui::talk::card::draw(ctx, theme, state);
 }
 
 /// Floating card next to a machine's screen dot.

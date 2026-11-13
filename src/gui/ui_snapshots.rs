@@ -4691,6 +4691,55 @@ fn snapshot_settings_ai_low_memory() {
     crate::ai::hardware::set_pretend_free_mb(None);
 }
 
+/// THE TALK CARD WITH NOTHING INSTALLED (embeddable-ai.md rung 3, 2026-11-12; CLAUDE.md: AI is
+/// optional): Botanist Yara's name, job and what she is doing, her line, the written choices of
+/// data/npc/talk.ron (Talk about, Work, Show me the way, More, Goodbye; she does not trade), and the
+/// one-time offer of AI with its size.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_talk_card() {
+    render_page_png("talk_card", 1280, 720, |ctx, theme, state| {
+        crate::gui::talk::open_for_test(state, "Botanist Yara", crate::gui::talk::chat::Availability::NoAi);
+        crate::gui::talk::card::draw(ctx, theme, state);
+    });
+}
+
+/// THE TALK CARD WITH AI (rung 3): the "Say anything" box, and a REAL answer through the card's own box
+/// from the developer's fake engine (the shape, the filter, then the line with the AI tag and its
+/// timing), the model named as the fake engine, the written choices still under it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_talk_card_ai() {
+    use crate::gui::talk::chat::{Availability, Chat, Phase, Said};
+    let engine = crate::ai::client_tests::fake_engine();
+    let config = crate::ai::client::ClientConfig { args: vec!["--fake".into(), "--fake-ms-per-token".into(), "2".into()], ..Default::default() };
+    let mut c = crate::ai::client::AiClient::new(Some(engine), config);
+    let character = crate::ai::talk::Character { name: "Botanist Yara".into(), job: "botanist".into(), description: "Tending the Commons garden".into(), post: "the Commons".into(), persona: String::new(), examples: Vec::new(), doing: "Watering the beds".into() };
+    let mut chat = Chat::default();
+    chat.begin(Availability::Offered, Some(&character), crate::ai::talk::Grants::default(), vec!["Seeds, soil, light and patience.".into()]);
+    chat.dev_fake = true;
+    chat.ask("What are you growing?");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let mut said = None;
+    while said.is_none() && std::time::Instant::now() < deadline {
+        c.poll();
+        said = chat.step(&mut c, crate::ai::models::BRAIN_AUTO);
+        std::thread::sleep(std::time::Duration::from_millis(15));
+    }
+    c.stop();
+    let said = said.expect("the fake engine answered before the render");
+    assert!(matches!(said, Said::Ai { .. }), "an AI line: {said:?}");
+    let timing = chat.last;
+    render_page_png("talk_card_ai", 1280, 720, |ctx, theme, state| {
+        crate::gui::talk::open_for_test(state, "Botanist Yara", Availability::Offered);
+        state.talk.chat.phase = Phase::Ready;
+        state.talk.chat.model_name = humanity_core::i18n::t("talk.ai.fake_model").to_string();
+        state.talk.chat.last = timing;
+        state.talk.said = Some(said.clone());
+        crate::gui::talk::card::draw(ctx, theme, state);
+    });
+}
+
 /// Dev > AI (2026-11-09, docs/design/embeddable-ai.md 12.1) with the REAL fake engine running: started
 /// by a test question as a feature would start it, in its job object at below-normal priority, its
 /// answer in this session's log, the counters and timing, and the pretend free memory set to 1.5 GB.
@@ -4702,7 +4751,7 @@ fn snapshot_dev_ai() {
     crate::gui::pages::dev_ai::pretend_for_snapshot(Some(1.5));
     {
         let mut c = crate::ai::shared::client();
-        crate::gui::pages::dev_ai::ask_test_question(&mut c);
+        crate::gui::pages::dev_ai::ask_test_question(&mut c, crate::ai::models::BRAIN_AUTO);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
         while c.counters.answered == 0 && std::time::Instant::now() < deadline {
             c.poll();

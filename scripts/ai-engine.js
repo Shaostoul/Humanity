@@ -60,7 +60,8 @@ function fail(words) {
   process.exit(1);
 }
 
-/** The engine's version, from its Cargo.toml (the catalog and the zip's name carry its major). */
+/** The engine's version, from its Cargo.toml (the catalog and the zip's name carry it whole: since 1.1.0, 2026-11-12,
+ * a new engine is a NEW file on the release, never a replacement for one an earlier app's catalog vouches for). */
 function engineVersion() {
   const m = /^version\s*=\s*"([^"]+)"/m.exec(fs.readFileSync(MANIFEST, 'utf8'));
   if (!m) fail(`no version in ${MANIFEST}`);
@@ -306,7 +307,6 @@ function pack() {
   const src = build();
   const { env } = llamaEnv();
   const version = engineVersion();
-  const major = version.split('.')[0];
   const release = path.join(TARGET, 'release');
   const entries = [];
   const exe = exeName();
@@ -355,7 +355,7 @@ function pack() {
   entries.push({ name: 'README.txt', data: Buffer.from(readme, 'utf8') });
 
   const zip = makeZip(entries);
-  const file = `humanity-ai-engine-v${major}-windows-x64.zip`;
+  const file = `humanity-ai-engine-v${version}-windows-x64.zip`;
   fs.mkdirSync(PACKAGE_DIR, { recursive: true });
   const out = path.join(PACKAGE_DIR, file);
   fs.writeFileSync(out, zip);

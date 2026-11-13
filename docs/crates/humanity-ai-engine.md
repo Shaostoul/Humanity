@@ -89,7 +89,11 @@ just ai-engine test
   HUMANITY_AI_TEST_GGUF, else the operator's Granite on E:, and say SKIPPED when there is none); and
   Ministral 3 3B loads and answers with Mistral's template around the project's persona, never the
   GGUF's default system message (HUMANITY_AI_TEST_MINISTRAL, else the operator's copy on E:,
-  SKIPPED likewise; 2026-11-11). Not in
+  SKIPPED likewise; 2026-11-11), in its own `mistral-v7-tekken` shape with no space after a marker
+  (engine 1.1.0, rung 3, 2026-11-12: `shim.c` `hai_template_for`); the fake answers in the talk card's
+  JSON shape when the grammar asks for it (`the_fake_answers_the_talk_cards_shape`). A changed engine
+  is a new version and a new zip name (`humanity-ai-engine-v<version>-windows-x64.zip`), added to
+  `assets-ai-1` with `just ai-catalog --stage <folder> --add engine`. Not in
   `just verify` (it is not a member of the app's workspace): run it after any change here.
 - **`just ai-engine check`**: both builds type-checked, warnings budget 0 (seen red on a scratch
   unused function). **`just ai-engine measure`**: the design's 9.1 to 9.3 on this computer (an

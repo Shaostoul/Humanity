@@ -2529,7 +2529,9 @@
       "brain_ready": "{{model}}, checked against the catalog ({{sha}}...)",
       "brain_mismatch": "The installed model does not match the catalog, so it was not loaded: {{detail}}",
       "loaded": "Loaded:",
-      "loaded_value": "{{id}} (SHA-256 {{sha}}...), {{threads}} threads, a memory cap of {{cap}} MB"
+      "loaded_value": "{{id}} (SHA-256 {{sha}}...), {{threads}} threads, a memory cap of {{cap}} MB",
+      "talk_label": "Talk cards",
+      "talk_counts": "{{asked}} asked, {{answered}} answered by AI, {{filtered}} stopped by the filter, {{shape}} refused for their shape, {{fell_back}} fell back, {{timed_out}} timed out"
     },
     "feet_on_world": "Feet on the world",
     "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too."
@@ -4631,6 +4633,44 @@
     "size": {
       "mb": "{{n}} MB",
       "gb": "{{n}} GB"
+    },
+    "tag": "AI",
+    "tag_hint": "Written by AI on this computer, not by a person",
+    "talk": {
+      "filter": {
+        "person": "it claimed to be a person",
+        "maker": "it named a company or a program as itself",
+        "advice": "it gave real-world advice, which characters leave to the Library's guides",
+        "account_words": "it used an old name for an account word",
+        "harm": "it said something harmful",
+        "sexual": "it said something sexual",
+        "politics": "it talked about real-world politics",
+        "too_long": "the answer was too long",
+        "marker": "the answer had pieces of its own instructions in it"
+      },
+      "shape": {
+        "not_the_shape": "the answer was not in the shape the game asks for",
+        "empty": "the answer was empty",
+        "unknown_action": "the answer asked for something the game does not know",
+        "not_granted": "the answer offered something this character does not offer"
+      },
+      "mode_title": "How characters talk",
+      "mode_intro": "Written lines are always there. With an AI model installed, characters can also answer anything you type, in their own voice. Gameplay is the same either way.",
+      "mode_written": "Written lines only",
+      "mode_written_hint": "Characters say only the lines people wrote for them, even with an AI model installed.",
+      "mode_conversational": "Written lines and Say anything",
+      "mode_conversational_hint": "With an AI model installed, a Say anything box joins the written choices on the talk card.",
+      "brain_title": "Which AI model characters use",
+      "brain_auto": "Automatic: {{model}} on this computer",
+      "brain_auto_hint": "HumanityOS picks by this computer's memory: the larger model when there is room for it.",
+      "brain_pick_hint": "Use this model for every character, whatever this computer has."
+    },
+    "engine_update": {
+      "title": "An update to the AI engine is ready",
+      "words": "An update to the AI engine is ready: version {{version}}, {{size}}. Your AI models stay as they are. Until it is installed, characters use their written lines.",
+      "what": "What changed: Ministral 3 now reads its conversation in the exact format it was trained on.",
+      "get": "Get the update",
+      "get_hint": "Download the new AI engine, check it against what was published, and replace the old one."
     }
   },
   "garment_textures": {
@@ -5134,6 +5174,76 @@
       "spur_gear": "a spur-gear chain hoist",
       "screw_gear": "a screw-gear chain hoist",
       "differential": "a differential chain hoist"
+    }
+  },
+  "talk": {
+    "doing": "Now: {{activity}}",
+    "talk_about": "Talk about",
+    "talk_about_hint": "Ask them about the ship, their work, the cause or the way around.",
+    "work": "Work",
+    "work_hint": "The tasks they can give you.",
+    "trade": "Trade",
+    "trade_hint": "Buy and sell with them at the trading post's prices.",
+    "show_way": "Show me the way",
+    "show_way_hint": "They point the way to a place, and your screen marks it until you get there.",
+    "more": "More (E)",
+    "more_hint": "Hear their next line. Pressing E does the same.",
+    "goodbye": "Goodbye (Esc)",
+    "goodbye_hint": "Close this and go back to the game. Walking away does the same.",
+    "back": "Back",
+    "back_hint": "Back to the first choices.",
+    "topic": {
+      "ship": "The ship",
+      "job": "Your job",
+      "cause": "The cause",
+      "directions": "Directions"
+    },
+    "topic_hint": "Hear what they have to say about it. Ask again for more.",
+    "take_task": "Take it on",
+    "take_task_hint": "Add this task to your quests.",
+    "offer": {
+      "taken": "In your quests",
+      "done": "Done",
+      "locked": "First finish: {{name}}"
+    },
+    "ways_intro": "Where to?",
+    "way_hint": "They point the way, and your screen marks the place until you get there.",
+    "guide_on": "Marked on your screen: {{place}}",
+    "guide_clear": "Stop showing the way",
+    "guide_clear_hint": "Take the marker off your screen.",
+    "action": {
+      "offer_task": "Take on: {{task}}",
+      "open_trade": "Trade with {{name}}",
+      "point_way": "Show me the way to {{place}}"
+    },
+    "action_hint": "Suggested in the AI's answer. Nothing happens unless you click it.",
+    "ai": {
+      "say_anything": "Say anything",
+      "box_hint": "Type a question or anything you like and press Enter. The answer is written by AI on this computer, and nothing you type leaves it.",
+      "ask": "Ask",
+      "ask_hint": "Send what you typed.",
+      "stop": "Stop",
+      "stop_hint": "Stop the answer being written.",
+      "preparing": "Getting {{name}} ready to talk...",
+      "writing": "{{name}} is answering...",
+      "local": "{{model}}, running on this computer. Nothing you type leaves it.",
+      "fake_model": "The fake AI engine (Dev page)",
+      "none": "No AI model is installed.",
+      "mismatch": "The AI model on this computer no longer matches what was published, so it was not used ({{detail}}). Settings > AI can get it again.",
+      "ready_timeout": "The AI model took too long to get ready, so only the written lines are offered on this card.",
+      "timeout": "the answer took too long",
+      "unavailable": "The AI cannot answer right now: {{why}}",
+      "no_written_line": "Sorry, I lost my train of thought.",
+      "fell_back": "The AI could not answer ({{why}}), so {{name}} said one of their written lines.",
+      "offer": "Want {{name}} to answer anything you ask? Talking characters ({{size}}) in Settings > AI.",
+      "offer_open": "Open Settings > AI",
+      "offer_open_hint": "See what AI would take on this computer before anything is downloaded.",
+      "offer_dismiss": "Not now",
+      "offer_dismiss_hint": "Hide this offer. It does not come back.",
+      "engine_update": "The AI engine needs an update before {{name}} can answer anything you ask: Settings > AI.",
+      "written_chosen": "Written lines only, as chosen in Settings > AI.",
+      "no_persona": "{{name}} has written lines only.",
+      "timing": "{{tokens}} tokens, first words in {{first}} s, all of it in {{all}} s"
     }
   }
 }
