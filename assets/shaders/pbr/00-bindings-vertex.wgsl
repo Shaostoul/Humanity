@@ -66,11 +66,22 @@ struct CameraUniforms {
     // rows 12/13 = east/north basis (12.w reserved for the swirl clock).
     // Appended at the struct TAIL so every byte-offset pad poke stays valid.
     ocean_event: array<vec4<f32>, 14>,
+    // TEMPORAL ANTI-ALIASING (renderer/taa.rs, 2026-11-13), at the tail like the ocean rows:
+    // last frame's UNJITTERED view-projection, re-expressed in this frame's render space (the
+    // floating origin), for the motion target; `view_proj` above is unjittered too.
+    prev_view_proj: mat4x4<f32>,
+    // xy = this frame's jitter in NDC (vs_main adds xy * clip.w after the view-projection),
+    // z = 1 while motion is meaningful (the main view before the resolve; 0 in the shadow passes,
+    // the off-screen views and after the resolve), w = the animation clock LAST frame (the wind
+    // and the waves at the previous time).
+    taa: vec4<f32>,
 };
 
 struct ObjectUniforms {
     model: mat4x4<f32>,
     normal_matrix: mat4x4<f32>,
+    // Last frame's model matrix in this frame's render space (the motion target, renderer/taa.rs).
+    prev_model: mat4x4<f32>,
 };
 
 struct MaterialUniforms {
@@ -404,6 +415,7 @@ const TILE_CAP: u32 = 64u;
 var<private> g_inst_data: vec4<f32> = vec4<f32>(0.0);
 fn obj_model() -> mat4x4<f32> { return object.model; }
 fn obj_normal_matrix() -> mat4x4<f32> { return object.normal_matrix; }
+fn obj_prev_model() -> mat4x4<f32> { return object.prev_model; }
 fn obj_lod_fade() -> f32 { return object.model[0].w; }
 // END OBJECT-SOURCE
 @group(2) @binding(0) var<uniform> material: MaterialUniforms;
@@ -719,6 +731,11 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
+    // Vertex slot 2 (temporal anti-aliasing, renderer/taa.rs; mesh::prev_position_layout): this
+    // vertex's object-space position LAST frame. A compute-skinned near body binds its last-frame
+    // copy (skinned by the previous palette); every other mesh binds its own buffer again, so this
+    // equals `position`.
+    @location(3) prev_position: vec3<f32>,
     // Per-INSTANCE data from vertex buffer slot 1 (step_mode Instance):
     // xyz = batched-patch translation, w = LOD fade. Classic draws bind a
     // 48-byte zero dummy here and never read it; the terrain-batch
@@ -762,6 +779,12 @@ fn vs_model() -> mat4x4<f32> {
     if (g_inst_xform) { return g_inst_model; }
     return obj_model();
 }
+// Last frame's model matrix (the motion target): an instanced grass tiller stands still; a classic
+// object's comes from the motion book (renderer/taa.rs), a terrain patch's is its current one.
+fn vs_prev_model() -> mat4x4<f32> {
+    if (g_inst_xform) { return g_inst_model; }
+    return obj_prev_model();
+}
 fn vs_rot() -> mat4x4<f32> {
     if (g_inst_xform) { return g_inst_rot; }
     return obj_normal_matrix();
@@ -791,7 +814,48 @@ struct VertexOutput {
     // moves through it (operator: "the texture moves differently than the
     // leaves... the bark shifts instead of being static", v0.1086).
     @location(5) wind_offset: vec3<f32>,
+    // TEMPORAL ANTI-ALIASING (renderer/taa.rs): this vertex's clip position now and on the last
+    // frame, both unjittered, as (x, y, w). The fragment divides each and writes the difference
+    // to the motion target (`taa_motion`, `frag_out`).
+    @location(6) motion_cur: vec3<f32>,
+    @location(7) motion_prev: vec3<f32>,
 };
+
+// The jitter (renderer/taa.rs): this frame's sub-pixel offset, added in clip space so it is the
+// same fraction of a pixel at every depth.
+fn taa_jitter(c: vec4<f32>) -> vec4<f32> {
+    return vec4<f32>(c.xy + camera.taa.xy * c.w, c.z, c.w);
+}
+
+// The motion a fragment writes, in UV: where it is now minus where it was (x right, y down), from
+// the two unjittered clip positions. A point behind the camera last frame leaves the screen, so
+// the resolve rejects its history. CPU twin: renderer/taa.rs `motion_uv` (pinned by
+// `the_shader_motion_is_the_twin`).
+fn taa_motion(c: vec3<f32>, p: vec3<f32>) -> vec2<f32> {
+    if (p.z <= 1.0e-6 || c.z <= 1.0e-6) {
+        return vec2<f32>(2.0, 2.0);
+    }
+    let cur = c.xy / c.z;
+    let prev = p.xy / p.z;
+    return (cur - prev) * vec2<f32>(0.5, -0.5);
+}
+
+// What every class entry returns: the colour, and the motion target (renderer/taa.rs): xy the
+// motion, z the responsive mask (how much a BLENDED surface covers the pixel; an opaque one says
+// 0), w = 1 (a surface was drawn here; the clear value 0 is the sky sentinel). An opaque PSO
+// writes all four; a blended one writes only z, as the larger of what is there and its own
+// (taa::scene_targets).
+struct FragOut {
+    @location(0) color: vec4<f32>,
+    @location(1) motion: vec4<f32>,
+};
+
+fn frag_out(in: VertexOutput, c: vec4<f32>, responsive: f32) -> FragOut {
+    var o: FragOut;
+    o.color = c;
+    o.motion = vec4<f32>(taa_motion(in.motion_cur, in.motion_prev), clamp(responsive, 0.0, 1.0), 1.0);
+    return o;
+}
 
 // ── Ocean surface waves (material type 16, v0.876 real-water Stage 1) ──
 //
@@ -1242,6 +1306,192 @@ fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, ca
 const WATER_WELD_MORPH_START: f32 = 1.43;
 const WATER_WELD_MORPH_END: f32 = 1.74;
 
+// THE WIND (the v0.1068 foliage wind and its v0.1079/v0.1089 refinements, moved here from
+// vs_main on 2026-11-13 so TAA can evaluate it twice): the object-space position of a vertex of a
+// wind class at clock `t`. vs_main calls it at this frame's clock for the drawn position and at
+// last frame's (camera.taa.w) for the motion target. Reads vs_model()/vs_rot(), so it is called
+// from vs_main only.
+fn wind_displace(vpos: vec3<f32>, vuv_x: f32, grass_phase: f32, is_grass: bool, wind_class: f32, t: f32) -> vec3<f32> {
+    // ── PER-MESH HEIGHT NORMALISATION (v0.1089) ──────────────────────
+    // Everything below is written in METRES, and the cantilever profile
+    // `hn` divides by a 12 m reference. Object-space height is metres for
+    // a procedural tree (built at t.height_m, instance scale ~1) but MODEL
+    // UNITS for a photoscan: the fir/pine meshes are 0.70-1.27 units tall
+    // and are scaled 15.1-31.4x at draw time (TREE_MODEL_H in lib.rs). Raw
+    // object height would therefore ask a 22 m fir to bend like a 1.27 m
+    // shrub - about 11% of the intended lean, i.e. visually nothing.
+    //
+    // `length(obj_model()[0].xyz)` is the instance's uniform scale (every
+    // tree is pushed with Vec3::splat), so h * s is a metric height valid
+    // for BOTH mesh paths, and dividing the object-space displacement back
+    // by s makes the WORLD displacement depend only on metres. No new
+    // per-material data, no vertex channel, no wiring.
+    let iscale = max(length(vs_model()[0].xyz), 1.0e-4);
+    let h = max(vpos.y, 0.0) * iscale;
+    // Reference height for the cantilever profile. A tree bends against a
+    // 12 m stand; a 35 cm grass blade IS the whole cantilever, so its own
+    // height is the reference - otherwise `hn` sits on its 0.1 floor and
+    // the sward is rigid in a gale.
+    let wind_ref_m = select(12.0, iscale, is_grass);
+    // ── LIVE WIND INPUT (v0.1079) ────────────────────────────────────
+    // light7_cone_inner = (wind_dir_world.xyz, wind_speed_m_s), poked by
+    // the renderer from WeatherState. The light0..7 cone_inner fields are
+    // LEGACY (see the struct comment above: real scene lights moved to the
+    // uncapped storage buffer in v0.782), which is why light4/5/6 already
+    // carry the ocean anchor, sea crest and sea sphere. light7 was the last
+    // free one.
+    //
+    // THE POKE MUST LIVE BESIDE THE SEA POKES in the CELESTIAL-pass
+    // uniform stamp (renderer/mod.rs, the block that re-writes offsets
+    // 528/544/560 after celestial_uniforms() has stamped the whole
+    // buffer). Planet-surface trees are pushed as celestial_objects, so a
+    // poke made only against the main-pass stamp never reaches them.
+    //
+    // FALLBACK, deliberately not a zero: an unwritten or zero slot means
+    // "no publisher yet / weather off", and a zero wind speed would freeze
+    // every plant on the planet - strictly worse than what shipped before.
+    // A 4 m/s default breeze reproduces the pre-v0.1079 look.
+    var wind_w = camera.light7_cone_inner.xyz;
+    var wind_v = camera.light7_cone_inner.w;
+    if (dot(wind_w, wind_w) < 0.25 || wind_v <= 0.0) {
+        wind_w = vec3<f32>(0.86, 0.0, 0.32);
+        wind_v = 4.0;
+    }
+    wind_w = normalize(wind_w);
+    // World wind -> OBJECT space. transpose(normal_matrix) is model^-1 for
+    // the rotation + uniform-scale transforms plants use (the same
+    // identity the water branch uses below and the leaf-detail branch in
+    // 90-fragment-main uses). This is the fix for the fanning stand: the
+    // displacement is applied BEFORE obj_model(), so undoing the instance
+    // yaw here is exactly what makes every tree in a stand lean the SAME
+    // compass direction. Before this the wind vector was a CONSTANT in
+    // object space, so each tree's random yaw (planet_chunks.rs, `az`)
+    // rotated it and neighbours swayed in opposite directions.
+    //
+    // Object +Y IS the trunk axis by construction, so zeroing it leaves a
+    // purely tangential lean: trees bend across the ground, never into or
+    // out of it, at any latitude.
+    var wind_dir = (transpose(vs_rot()) * vec4<f32>(wind_w, 0.0)).xyz;
+    wind_dir.y = 0.0;
+    let wl = length(wind_dir);
+    if (wl < 1.0e-4) {
+        // Wind blowing straight down the trunk axis (only at a pole or on
+        // a tipped-over instance): pick any tangent rather than NaN.
+        wind_dir = vec3<f32>(1.0, 0.0, 0.0);
+    } else {
+        wind_dir = wind_dir / wl;
+    }
+    // Per-plant phase so a stand does not sway in lockstep.
+    //
+    // Built to be EXACTLY 64 m-PERIODIC in both horizontal axes. The
+    // translation below is render space, which re-snaps as the floating
+    // origin rebases; an arbitrary phase would jump at every rebase and
+    // pop the whole forest. With integer harmonics of TAU/64 a rebase by a
+    // multiple of 64 m shifts the phase by a whole number of periods, so
+    // the sway is continuous across it. Same discipline the ocean chop
+    // trains use (CLAUDE.md, f32-at-planet-scale).
+    let o = vs_model()[3].xyz;
+    let k = 6.283185307 / 64.0;
+    // Grass adds its OWN phase from the planet-fixed stream. The
+    // positional term alone spans 0.29 rad/m, and tillers stand 15 cm
+    // apart at peak density, so a whole clump would sway in lockstep -
+    // which is what a stiff mat looks like, not a sward. The stream phase
+    // is a per-tiller constant, so it survives every floating-origin
+    // rebase exactly like the 64 m-periodic term does.
+    let phase = o.x * k * 3.0 + o.z * k * 5.0
+        + select(0.0, grass_phase, is_grass);
+    // TRAVELLING GUST FRONT. A gust is a spatial cell advecting downwind
+    // at roughly the mean wind speed (the visible wave that crosses a
+    // canopy), not a standing pulse - the old envelope used a
+    // position-derived phase with no time-space coupling, so it throbbed
+    // in place.
+    //
+    // The travel direction is SNAPPED to integer harmonics of TAU/64 for
+    // the same reason the per-plant phase is: an arbitrary dot(o, wind)
+    // is not 64 m-periodic and every floating-origin rebase would pop the
+    // whole forest. Rounding the horizontal wind to a x2 integer lattice
+    // gives a 32-64 m gust wavelength and an angular resolution far finer
+    // than anyone can read off a canopy.
+    var nz = round(vec2<f32>(wind_w.x, wind_w.z) * 2.0);
+    if (abs(nz.x) + abs(nz.y) < 0.5) {
+        nz = vec2<f32>(1.0, 0.0);
+    }
+    let kv = nz * k;
+    // Phase = K.x - |K| v t: the crests move downwind at the wind speed.
+    let travel = o.x * kv.x + o.z * kv.y - length(kv) * wind_v * t;
+    let gust = 0.65 + 0.35 * sin(travel);
+    // STATIC LEAN. Drag on a crown goes as v^2, so a stand holds a mean
+    // downwind deflection proportional to the square of the wind speed and
+    // oscillates ABOUT that lean; at Beaufort 8 (17-20 m/s) the textbook
+    // description is "whole trees in motion". A zero-mean sway, which is
+    // all this branch had, renders a hurricane as a calm day.
+    //
+    // hn is a cantilever profile: zero at the foot, growing to the tip, and
+    // normalised against a 12 m reference so a 22 m fir does not fold flat
+    // while an 8 m cherry barely moves. lean_frac is capped at 0.30 so even
+    // a 25 m/s hurricane roll bends the stand hard without laying it down.
+    //
+    // GRASS (type 23) uses the same shape with its own two numbers, and
+    // both have to move together. A 35 cm blade is a slender cantilever
+    // with almost no section modulus: at 10 m/s it lies well over, where
+    // a 20 m fir has barely started. Raising only the CAP would change
+    // nothing - 6.0e-4 * 10^2 is 0.06, so the tree curve never reaches
+    // even the tree cap at grass-relevant speeds. So the coefficient goes
+    // up 10x AND the cap goes to 0.85: 4 m/s (the fallback breeze) leans
+    // ~10%, 10 m/s leans ~60%, and anything past ~12 m/s pins at 0.85,
+    // which is laid over without folding the blade through the ground.
+    let v2 = wind_v * wind_v;
+    let lean_frac = select(
+        min(6.0e-4 * v2, 0.30),
+        min(6.0e-3 * v2, 0.85),
+        is_grass,
+    );
+    let hn = clamp(h / wind_ref_m, 0.1, 1.0);
+    let lean_m = h * hn * lean_frac;
+    // Sway about the lean: a wind-scaled term plus a small calm-air term,
+    // so a still day still breathes instead of freezing. Grass ripples at
+    // roughly twice a tree's period - the visible wave crossing a meadow
+    // is a fast one.
+    let sway_amp = h * (0.020 + 0.55 * hn * lean_frac);
+    let sway_hz = select(0.9 + 0.02 * wind_v, 1.9 + 0.06 * wind_v, is_grass);
+    let sway = sway_amp * sin(t * sway_hz + phase);
+    // Metres of displacement -> OBJECT units (see iscale above).
+    let obj_per_m = 1.0 / iscale;
+    var wind_pos = vpos
+        + wind_dir * ((lean_m + sway) * gust * obj_per_m);
+    // Leaf flutter: blades only (organ bit 19), faster and smaller, partly
+    // across the wind so foliage shimmers rather than shunting sideways.
+    // Foliage class only, and structurally impossible on the other two
+    // transports anyway: a cluster card's uv.x is 2*ao_code + u01 (max 127)
+    // and a bark tube's is a tile coordinate, so bit 19 can never be set on
+    // either - which is exactly why the class, not the packed bit, decides
+    // whether a mesh sways at all.
+    let packed = u32(round(max(vuv_x, 0.0)));
+    if (wind_class >= 1.5 && (packed & 524288u) != 0u) {
+        // Flutter scales with plant size. A flat amplitude made a 0.3 m
+        // strawberry shake as hard as an 18 m oak, and the crop path uses
+        // this same material. fv adds the wind-speed response: leaves are
+        // the first thing to show a rising wind and the last to stop.
+        // Grass: the same amplitudes are metres tuned for a ~10 cm tree
+        // leaf, so a 35 cm blade needs its own weight (1.6/m puts a
+        // full-height blade tip at ~0.56, i.e. ~3 cm of flutter), and it
+        // flutters at roughly TWICE the frequency - a blade is far
+        // lighter and stiffer relative to its length than a leaf on a
+        // petiole, so it buzzes where foliage wafts.
+        let fl = clamp(h * select(0.35, 1.6, is_grass), 0.10, 1.0);
+        let fv = clamp(wind_v / 6.0, 0.35, 3.0);
+        let fmul = select(1.0, 2.0, is_grass);
+        let f = sin(t * (5.1 + 0.15 * wind_v) * fmul + phase * 3.7 + h * 2.3);
+        let g = cos(t * (6.7 + 0.20 * wind_v) * fmul + phase * 2.1 + h * 1.7);
+        wind_pos = wind_pos
+            + wind_dir * (f * 0.055 * gust * fl * fv * obj_per_m)
+            + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl * fv * obj_per_m)
+            + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x)
+                * (g * 0.040 * gust * fl * fv * obj_per_m);
+    }
+    return wind_pos;
+}
+
 @vertex
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     g_inst_data = vertex.inst_pos_fade;
@@ -1281,6 +1531,9 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         g_inst_xform = true;
     }
     var world_pos = vs_model() * vec4<f32>(vertex.position, 1.0);
+    // TAA: this vertex in object space LAST frame (the wind below re-evaluates it at the previous
+    // clock), placed by last frame's model; the water adds its previous displacement.
+    var prev_local = vertex.prev_position;
     // Wind displacement in world space, for the fragment's pre-wind material
     // domain (VertexOutput.wind_offset). Written by the wind branch below for
     // every wind class (v0.1089; it used to be the type-20 branch alone).
@@ -1357,183 +1610,12 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         wind_class = clamp(material.params.w, 0.0, 2.0); // type 19: opt-in
     }
     if (wind_class >= 0.5) {
-        let t = camera.sun_color.w;
-        // ── PER-MESH HEIGHT NORMALISATION (v0.1089) ──────────────────────
-        // Everything below is written in METRES, and the cantilever profile
-        // `hn` divides by a 12 m reference. Object-space height is metres for
-        // a procedural tree (built at t.height_m, instance scale ~1) but MODEL
-        // UNITS for a photoscan: the fir/pine meshes are 0.70-1.27 units tall
-        // and are scaled 15.1-31.4x at draw time (TREE_MODEL_H in lib.rs). Raw
-        // object height would therefore ask a 22 m fir to bend like a 1.27 m
-        // shrub - about 11% of the intended lean, i.e. visually nothing.
-        //
-        // `length(obj_model()[0].xyz)` is the instance's uniform scale (every
-        // tree is pushed with Vec3::splat), so h * s is a metric height valid
-        // for BOTH mesh paths, and dividing the object-space displacement back
-        // by s makes the WORLD displacement depend only on metres. No new
-        // per-material data, no vertex channel, no wiring.
-        let iscale = max(length(vs_model()[0].xyz), 1.0e-4);
-        let h = max(vertex.position.y, 0.0) * iscale;
-        // Reference height for the cantilever profile. A tree bends against a
-        // 12 m stand; a 35 cm grass blade IS the whole cantilever, so its own
-        // height is the reference - otherwise `hn` sits on its 0.1 floor and
-        // the sward is rigid in a gale.
-        let wind_ref_m = select(12.0, iscale, is_grass);
-        // ── LIVE WIND INPUT (v0.1079) ────────────────────────────────────
-        // light7_cone_inner = (wind_dir_world.xyz, wind_speed_m_s), poked by
-        // the renderer from WeatherState. The light0..7 cone_inner fields are
-        // LEGACY (see the struct comment above: real scene lights moved to the
-        // uncapped storage buffer in v0.782), which is why light4/5/6 already
-        // carry the ocean anchor, sea crest and sea sphere. light7 was the last
-        // free one.
-        //
-        // THE POKE MUST LIVE BESIDE THE SEA POKES in the CELESTIAL-pass
-        // uniform stamp (renderer/mod.rs, the block that re-writes offsets
-        // 528/544/560 after celestial_uniforms() has stamped the whole
-        // buffer). Planet-surface trees are pushed as celestial_objects, so a
-        // poke made only against the main-pass stamp never reaches them.
-        //
-        // FALLBACK, deliberately not a zero: an unwritten or zero slot means
-        // "no publisher yet / weather off", and a zero wind speed would freeze
-        // every plant on the planet - strictly worse than what shipped before.
-        // A 4 m/s default breeze reproduces the pre-v0.1079 look.
-        var wind_w = camera.light7_cone_inner.xyz;
-        var wind_v = camera.light7_cone_inner.w;
-        if (dot(wind_w, wind_w) < 0.25 || wind_v <= 0.0) {
-            wind_w = vec3<f32>(0.86, 0.0, 0.32);
-            wind_v = 4.0;
-        }
-        wind_w = normalize(wind_w);
-        // World wind -> OBJECT space. transpose(normal_matrix) is model^-1 for
-        // the rotation + uniform-scale transforms plants use (the same
-        // identity the water branch uses below and the leaf-detail branch in
-        // 90-fragment-main uses). This is the fix for the fanning stand: the
-        // displacement is applied BEFORE obj_model(), so undoing the instance
-        // yaw here is exactly what makes every tree in a stand lean the SAME
-        // compass direction. Before this the wind vector was a CONSTANT in
-        // object space, so each tree's random yaw (planet_chunks.rs, `az`)
-        // rotated it and neighbours swayed in opposite directions.
-        //
-        // Object +Y IS the trunk axis by construction, so zeroing it leaves a
-        // purely tangential lean: trees bend across the ground, never into or
-        // out of it, at any latitude.
-        var wind_dir = (transpose(vs_rot()) * vec4<f32>(wind_w, 0.0)).xyz;
-        wind_dir.y = 0.0;
-        let wl = length(wind_dir);
-        if (wl < 1.0e-4) {
-            // Wind blowing straight down the trunk axis (only at a pole or on
-            // a tipped-over instance): pick any tangent rather than NaN.
-            wind_dir = vec3<f32>(1.0, 0.0, 0.0);
+        let wind_pos = wind_displace(vertex.position, vertex.uv.x, vertex.inst_grass.y, is_grass, wind_class, camera.sun_color.w);
+        // TAA: the same sway at last frame's clock, for the motion target (renderer/taa.rs).
+        if (camera.taa.z > 0.5) {
+            prev_local = wind_displace(vertex.position, vertex.uv.x, vertex.inst_grass.y, is_grass, wind_class, camera.taa.w);
         } else {
-            wind_dir = wind_dir / wl;
-        }
-        // Per-plant phase so a stand does not sway in lockstep.
-        //
-        // Built to be EXACTLY 64 m-PERIODIC in both horizontal axes. The
-        // translation below is render space, which re-snaps as the floating
-        // origin rebases; an arbitrary phase would jump at every rebase and
-        // pop the whole forest. With integer harmonics of TAU/64 a rebase by a
-        // multiple of 64 m shifts the phase by a whole number of periods, so
-        // the sway is continuous across it. Same discipline the ocean chop
-        // trains use (CLAUDE.md, f32-at-planet-scale).
-        let o = vs_model()[3].xyz;
-        let k = 6.283185307 / 64.0;
-        // Grass adds its OWN phase from the planet-fixed stream. The
-        // positional term alone spans 0.29 rad/m, and tillers stand 15 cm
-        // apart at peak density, so a whole clump would sway in lockstep -
-        // which is what a stiff mat looks like, not a sward. The stream phase
-        // is a per-tiller constant, so it survives every floating-origin
-        // rebase exactly like the 64 m-periodic term does.
-        let phase = o.x * k * 3.0 + o.z * k * 5.0
-            + select(0.0, vertex.inst_grass.y, is_grass);
-        // TRAVELLING GUST FRONT. A gust is a spatial cell advecting downwind
-        // at roughly the mean wind speed (the visible wave that crosses a
-        // canopy), not a standing pulse - the old envelope used a
-        // position-derived phase with no time-space coupling, so it throbbed
-        // in place.
-        //
-        // The travel direction is SNAPPED to integer harmonics of TAU/64 for
-        // the same reason the per-plant phase is: an arbitrary dot(o, wind)
-        // is not 64 m-periodic and every floating-origin rebase would pop the
-        // whole forest. Rounding the horizontal wind to a x2 integer lattice
-        // gives a 32-64 m gust wavelength and an angular resolution far finer
-        // than anyone can read off a canopy.
-        var nz = round(vec2<f32>(wind_w.x, wind_w.z) * 2.0);
-        if (abs(nz.x) + abs(nz.y) < 0.5) {
-            nz = vec2<f32>(1.0, 0.0);
-        }
-        let kv = nz * k;
-        // Phase = K.x - |K| v t: the crests move downwind at the wind speed.
-        let travel = o.x * kv.x + o.z * kv.y - length(kv) * wind_v * t;
-        let gust = 0.65 + 0.35 * sin(travel);
-        // STATIC LEAN. Drag on a crown goes as v^2, so a stand holds a mean
-        // downwind deflection proportional to the square of the wind speed and
-        // oscillates ABOUT that lean; at Beaufort 8 (17-20 m/s) the textbook
-        // description is "whole trees in motion". A zero-mean sway, which is
-        // all this branch had, renders a hurricane as a calm day.
-        //
-        // hn is a cantilever profile: zero at the foot, growing to the tip, and
-        // normalised against a 12 m reference so a 22 m fir does not fold flat
-        // while an 8 m cherry barely moves. lean_frac is capped at 0.30 so even
-        // a 25 m/s hurricane roll bends the stand hard without laying it down.
-        //
-        // GRASS (type 23) uses the same shape with its own two numbers, and
-        // both have to move together. A 35 cm blade is a slender cantilever
-        // with almost no section modulus: at 10 m/s it lies well over, where
-        // a 20 m fir has barely started. Raising only the CAP would change
-        // nothing - 6.0e-4 * 10^2 is 0.06, so the tree curve never reaches
-        // even the tree cap at grass-relevant speeds. So the coefficient goes
-        // up 10x AND the cap goes to 0.85: 4 m/s (the fallback breeze) leans
-        // ~10%, 10 m/s leans ~60%, and anything past ~12 m/s pins at 0.85,
-        // which is laid over without folding the blade through the ground.
-        let v2 = wind_v * wind_v;
-        let lean_frac = select(
-            min(6.0e-4 * v2, 0.30),
-            min(6.0e-3 * v2, 0.85),
-            is_grass,
-        );
-        let hn = clamp(h / wind_ref_m, 0.1, 1.0);
-        let lean_m = h * hn * lean_frac;
-        // Sway about the lean: a wind-scaled term plus a small calm-air term,
-        // so a still day still breathes instead of freezing. Grass ripples at
-        // roughly twice a tree's period - the visible wave crossing a meadow
-        // is a fast one.
-        let sway_amp = h * (0.020 + 0.55 * hn * lean_frac);
-        let sway_hz = select(0.9 + 0.02 * wind_v, 1.9 + 0.06 * wind_v, is_grass);
-        let sway = sway_amp * sin(t * sway_hz + phase);
-        // Metres of displacement -> OBJECT units (see iscale above).
-        let obj_per_m = 1.0 / iscale;
-        var wind_pos = vertex.position
-            + wind_dir * ((lean_m + sway) * gust * obj_per_m);
-        // Leaf flutter: blades only (organ bit 19), faster and smaller, partly
-        // across the wind so foliage shimmers rather than shunting sideways.
-        // Foliage class only, and structurally impossible on the other two
-        // transports anyway: a cluster card's uv.x is 2*ao_code + u01 (max 127)
-        // and a bark tube's is a tile coordinate, so bit 19 can never be set on
-        // either - which is exactly why the class, not the packed bit, decides
-        // whether a mesh sways at all.
-        let packed = u32(round(max(vertex.uv.x, 0.0)));
-        if (wind_class >= 1.5 && (packed & 524288u) != 0u) {
-            // Flutter scales with plant size. A flat amplitude made a 0.3 m
-            // strawberry shake as hard as an 18 m oak, and the crop path uses
-            // this same material. fv adds the wind-speed response: leaves are
-            // the first thing to show a rising wind and the last to stop.
-            // Grass: the same amplitudes are metres tuned for a ~10 cm tree
-            // leaf, so a 35 cm blade needs its own weight (1.6/m puts a
-            // full-height blade tip at ~0.56, i.e. ~3 cm of flutter), and it
-            // flutters at roughly TWICE the frequency - a blade is far
-            // lighter and stiffer relative to its length than a leaf on a
-            // petiole, so it buzzes where foliage wafts.
-            let fl = clamp(h * select(0.35, 1.6, is_grass), 0.10, 1.0);
-            let fv = clamp(wind_v / 6.0, 0.35, 3.0);
-            let fmul = select(1.0, 2.0, is_grass);
-            let f = sin(t * (5.1 + 0.15 * wind_v) * fmul + phase * 3.7 + h * 2.3);
-            let g = cos(t * (6.7 + 0.20 * wind_v) * fmul + phase * 2.1 + h * 1.7);
-            wind_pos = wind_pos
-                + wind_dir * (f * 0.055 * gust * fl * fv * obj_per_m)
-                + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl * fv * obj_per_m)
-                + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x)
-                    * (g * 0.040 * gust * fl * fv * obj_per_m);
+            prev_local = wind_pos;
         }
         world_pos = vs_model() * vec4<f32>(wind_pos, 1.0);
         world_pos = vec4<f32>(world_pos.xyz, 1.0);
@@ -1542,6 +1624,9 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         wind_off_w = (vs_model() * vec4<f32>(wind_pos - vertex.position, 0.0)).xyz;
     }
 
+    // TAA: the water vertex last frame (its previous displacement), set in the branch below.
+    var water_prev = world_pos;
+    var disp_prev = 0.0;
     if (material.params.z >= 15.5 && material.params.z < 16.5) {
         let inv_model = transpose(obj_normal_matrix());
         let dir_world = world_pos.xyz - material.base_color.xyz;
@@ -1582,6 +1667,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
             // the chord as it morphs. Applies with NO wave fade gate: far
             // patches are exact spheres, and exact spheres still crack.
             var disp = -weld_w * (dl * dl) / (2.0 * r);
+            disp_prev = disp;
             if (material.params.x < 0.5) {
                 // Distance fade (v0.878.2): waves are invisible beyond a
                 // few km, so fading displacement to zero keeps the far
@@ -1632,6 +1718,12 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     // whole patches on this non-subset lattice).
                     let cell_eff = mix(cell_m, 2.0 * cell_m, weld_w);
                     let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir, cell_eff);
+                    // TAA: the same surface at the previous clock (p64 and p256 are the vertex's
+                    // own planet-frame position modulo the cascades, so they hold for last frame).
+                    var h_prev = h;
+                    if (camera.taa.z > 0.5) {
+                        h_prev = water_disp_height(p_m, p64, p256, camera.taa.w, cam_dist, dir, cell_eff);
+                    }
                     // Ocean disaster events (rung 2): added OUTSIDE the wave
                     // fade - a tsunami must not die at the 2-8 km wave
                     // displacement fade - but INSIDE the shoal gate so a
@@ -1654,6 +1746,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     // off live). The waves are a continuous field sampled
                     // at different rates, so their cross-LOD mismatch is
                     // small; the CHORD SAG above is the real crack.
+                    disp_prev = disp + h_prev * fade * shoal + event_h * shoal;
                     disp = disp + h * fade * shoal + event_h * shoal;
                 }
             } else {
@@ -1664,12 +1757,21 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                 // engine/frame_water.rs `backstop_shader_drop_m` (drawn == sampled).
                 disp = disp - (camera.light5_cone_inner.x + BACKSTOP_CLEARANCE_M);
             }
+            water_prev = vec4<f32>(world_pos.xyz + radial * disp_prev, 1.0);
             world_pos = vec4<f32>(world_pos.xyz + radial * disp, 1.0);
         }
     }
     out.world_position = world_pos.xyz;
     out.wind_offset = wind_off_w;
-    out.clip_position = camera.view_proj * world_pos;
+    let cur_clip = camera.view_proj * world_pos;
+    out.clip_position = taa_jitter(cur_clip);
+    out.motion_cur = cur_clip.xyw;
+    var prev_world = vs_prev_model() * vec4<f32>(prev_local, 1.0);
+    prev_world = vec4<f32>(prev_world.xyz, 1.0);
+    if (material.params.z >= 15.5 && material.params.z < 16.5) {
+        prev_world = water_prev;
+    }
+    out.motion_prev = (camera.prev_view_proj * prev_world).xyw;
     // Water meshes carry the geomorph delta in the normal slot (v0.1041);
     // their geometric normal is the radial, which the water FS re-derives
     // from position anyway - this keeps the interpolated value sane.

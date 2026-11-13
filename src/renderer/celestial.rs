@@ -96,11 +96,8 @@ impl Renderer {
         if objects.is_empty() && transparent.is_empty() {
             return;
         }
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            0,
-            bytemuck::bytes_of(&camera.celestial_uniforms()),
-        );
+        // With temporal anti-aliasing's jitter, previous matrix and previous clock (renderer/taa.rs).
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.celestial_colour_uniform(camera, time_s)));
         // Cloud clock (shader type 15): app-start-relative seconds, parked in
         // sun_color.w -- a documented-unused pad in CameraUniforms, so the
         // animated cloud deck needed NO uniform-layout change (the same
@@ -814,7 +811,7 @@ impl Renderer {
                             &[],
                         );
                     }
-                    pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                    mesh.bind_vertices(&mut pass);
                     pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
                 }
@@ -874,7 +871,7 @@ impl Renderer {
                                 &[],
                             );
                         }
-                        pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                        mesh.bind_vertices(&mut pass);
                         pass.set_index_buffer(
                             mesh.index_buffer.slice(..),
                             wgpu::IndexFormat::Uint32,
@@ -906,6 +903,7 @@ impl Renderer {
                         );
                     }
                     pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
+                    pass.set_vertex_buffer(2, arena.vertex_buf.slice(..));
                     pass.set_vertex_buffer(1, arena.instance_buf.slice(..));
                     pass.set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                     // Per-draw loop stays here even with indirect support:
@@ -1515,7 +1513,7 @@ impl Renderer {
                         load: wgpu::LoadOp::Load, // preserve the star background
                         store: wgpu::StoreOp::Store,
                     },
-                })],
+                }), self.motion_attachment(taa::MotionLoad::Clear)],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
@@ -1546,7 +1544,7 @@ impl Renderer {
             // queue-write/submission-ordering subtlety, not logic; the
             // ~1-2 ms is not worth a broken sky. Do not re-attempt without
             // a boot+ground-level-sky probe check.
-            self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
+            self.upload_object_uniforms_motion(objects.iter().chain(transparent.iter()), Some((true, objects.len()))); // TAA motion book
 
             // The classic opaque list: planet bodies (terrain class), near
             // trees (surface and vegetation classes), props. One walk per
@@ -1585,6 +1583,7 @@ impl Renderer {
                     );
                 }
                 render_pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
+                render_pass.set_vertex_buffer(2, arena.vertex_buf.slice(..));
                 render_pass.set_vertex_buffer(1, arena.instance_buf.slice(..));
                 render_pass
                     .set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
@@ -1639,6 +1638,7 @@ impl Renderer {
                         render_pass.set_bind_group(2, &material.bind_group, &[]);
                         render_pass.set_bind_group(3, &self.default_texture_bind_group, &[]);
                         render_pass.set_vertex_buffer(0, gm.vertex_buffer.slice(..));
+                        render_pass.set_vertex_buffer(2, gm.vertex_buffer.slice(..));
                         render_pass.set_vertex_buffer(1, gbuf.slice(..));
                         render_pass.set_index_buffer(
                             gm.index_buffer.slice(..),
@@ -1707,7 +1707,7 @@ impl Renderer {
                         load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Store,
                     },
-                })],
+                }), self.motion_attachment(taa::MotionLoad::Load)],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
@@ -1827,7 +1827,7 @@ impl Renderer {
                             &[],
                         );
                     }
-                    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                    mesh.bind_vertices(&mut render_pass);
                     render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
                 }

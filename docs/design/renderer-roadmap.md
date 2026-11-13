@@ -34,7 +34,7 @@ four corrections (marked).
 
 | Area | State | Evidence |
 |---|---|---|
-| Anti-aliasing | **none**: no MSAA in the 3D world, no TAA, no FXAA or SMAA, no motion vectors, no render scale | every world pipeline `sample_count: 1`; `billboard_bake.rs`: "this engine has no MSAA anywhere"; only the Settings model preview (`gui/model_view/gpu.rs`) multisamples |
+| Anti-aliasing | **none** (temporal anti-aliasing built 2026-11-13, rung 1a: section 12): no MSAA in the 3D world, no TAA, no FXAA or SMAA, no motion vectors, no render scale | every world pipeline `sample_count: 1`; `billboard_bake.rs`: "this engine has no MSAA anywhere"; only the Settings model preview (`gui/model_view/gpu.rs`) multisamples |
 | Temporal history | clouds only, and indexed by direction, not screen | `45-cloud-temporal.wgsl`: "No previous view-proj plumbing, no disocclusion vectors" |
 | Indirect specular (reflections) | **none anywhere except the water** (correction: not only indoors) | `80-fragment-shared.wgsl`: `ambient = albedo * indirect * ao`, diffuse only; outdoors a metal or a wet surface reflects no sky; room probes carry irradiance only (`room_probes.rs`); the water samples the sky table itself |
 | Material lobes | one GGX lobe plus foliage transmission and the hair's Marschner lobes; no subsurface, sheen, clearcoat or anisotropy | `50-brdf.wgsl`; grep finds none of them |
@@ -591,6 +591,76 @@ same-boot A/B, adds its Settings row with its cost line, and ships its red-twin 
    1b. Card hair to hashed alpha under Temporal (fixes the player's fringe on a planet); far foliage
        to hashed alpha and dithered crossfades.
    1c. Edges only (SMAA 1x) as the Simplified mode.
+
+### Rung 1a as built (2026-11-13)
+
+`src/renderer/taa.rs`, `assets/shaders/taa.wgsl`; engine rules in [docs/ai/renderer.md](../ai/renderer.md)
+(Temporal anti-aliasing). What it contains, against section 2 and 3's plan:
+
+- **Motion from every opaque pass.** Every scene pass carries the motion target beside its colour,
+  and every megashader PSO takes its two targets from `taa::scene_targets` (a lint over the pipeline
+  builders, `pipeline::taa_motion_tests`, fails on one without). The camera writes it through each
+  pass's own previous view-projection; the FLOATING ORIGIN is folded into that matrix: the celestial
+  pass's from the locked body's placement (`taa::frame_delta`; on a planet render space is centred on the
+  eye and turned with the planet, so without it every pixel streaked), the scene pass's from the home's
+  offset (the scene list is the home moved by the station offset; taking the planet's delta for it gave
+  a parked room 4 pixels of false motion, caught in the Dev page's motion view); wind-moved vegetation evaluates the wind at the
+  previous clock as well (`wind_displace`, moved out of `vs_main`); the ocean its displacement at the
+  previous clock (the depth-writing water PSO); an object that moved its previous model matrix
+  (`MotionBook`: kept by mesh for meshes drawn once a frame, which includes every near body's region
+  meshes, so a person's walk is in it). BODIES, all drawn tiers: a PREVIOUS PALETTE (`skin_upload_prev`)
+  holds each person's rows from the last frame, found by their key, their placement carried into this
+  frame's render space; the near tier's compute pass skins every vertex by it as well into a last-frame
+  copy that its region meshes bind at vertex slot 2 (`mesh::prev_position_layout`; every other mesh
+  binds its own buffer there), and the middle tier's `vs_skinned` skins by it directly. The FAR tier
+  (baked animation, the plan's "previous frame index") does not exist in the engine yet; it writes
+  motion through the same palette when it lands.
+- **Deviation: the motion target is Rgba16Float, not Rg16Float.** z carries the responsive mask and w
+  the sky sentinel, so neither needs an attachment of its own (8 bytes a pixel, 30 MB at 2560 x 1440).
+- **Jitter**: Halton 2,3, eight phases, added in clip space after an unjittered `view_proj`, so every
+  shader that reads `view_proj` for anything else is untouched. Not jittered: the shadow passes, the
+  cloud octahedral pass, the off-screen views (camera screens, the hi-res capture), and everything
+  drawn after the resolve.
+- **The resolve and the sharpen** (section 3.2): a compute resolve after the transparent pass
+  (closest-depth motion over the 3 x 3, a five-tap Catmull-Rom history fetch, variance clipping in
+  YCoCg at gamma 1.25, a blend floor of 1/16 that rises with motion and under the responsive mask) and
+  a contrast-adaptive sharpen as a fragment pass back into the scene target, so the target needs no
+  storage usage. The overlay, the lines and the particles draw after it, unjittered. Karis's luminance
+  weighting is in the shader behind one flag, off while the target holds display values (increment 5
+  of hdr-scene-target.md turns it on).
+- **The sky sentinel and the responsive mask** (section 2, 3.2): cleared motion (w = 0) reprojects
+  through the celestial camera's turn alone; blended surfaces (glass, the water's surface, the
+  atmosphere, the cloud shell) write their coverage into z with a Max blend.
+- **The reuse switch**: with it off the history and the motion book are discarded every frame and the
+  picture aliases as Off does. **The deterministic capture**: a rig window capture resets the history
+  and waits `SETTLE_FRAMES` (16) resolved frames.
+- **Geometric specular anti-aliasing** (Kaplanyan et al. 2016, Tokuyoshi and Kaplanyan 2019): where the surface normal turns fast inside a pixel the GGX lobe is widened by the normal's screen-space change (alpha squared plus min(2 x 0.25 x |dn|^2, 0.18)), taken in `frag_prologue` before any non-uniform branch and used by `evaluate_light`. It rides Temporal in 1a (`camera.taa.z`), so Off draws exactly the pre-1a picture; it uses the geometric normal, so normal-map sparkle is not yet filtered (a later refinement filters the mapped normal).
+- **Dev page > Image**: the motion target, the history's weight and the responsive mask in place of the
+  picture (showcase `taa_view`).
+- **Settings > Graphics > Image**: Anti-aliasing (Off, Temporal; Temporal by default) and Sharpening
+  (0.35 by default), with the cost rows of section 3.6 (`gpu.taa`, `vram.taa_history`, the motion's
+  share of `gpu.scene` and `gpu.celestial`), the history's memory at the window's size against the
+  card's own, and the vendor-upscaler sentence of section 3.6. No card is refused (section 3.7).
+
+**Measured** (same boot, 2026-11-13, through `probe-hot-ab.js` with showcase-only arms alternating Off and Temporal three times each at one park per vantage (medians of three), the RTX 4070 at 2560 x 1387 (the rig window), GPU timestamps; CPU stages were wall-clock under other agents' compiles and are not quoted):
+
+| Vantage | `gpu.taa` (Temporal) | `gpu.scene` Off / Temporal | `gpu.celestial` Off / Temporal | GPU passes summed, Off / Temporal |
+|---|---|---|---|---|
+| shadow-hall-chair-night (the ground hall) | 0.275 ms (0.274, 0.275, 0.276) | 13.47 / 13.46 | 0.09 / 0.09 | 19.53 / 19.79 |
+| anim-crowd-near (fifty people) | 0.279 ms (0.278, 0.279, 0.282) | 8.74 / 8.79 | 0.06 / 0.06 | 15.35 / 15.66 |
+| horizon-line-3km (a planet horizon) | 0.248 ms (0.249, 0.248, 0.246) | 0.46 / 0.46 | 8.85 / 8.97 | 29.51 / 29.88 |
+| anim-look-face-female (hair close up) | 0.275 ms (0.282, 0.275, 0.275) | 9.41 / 9.40 | 0.06 / 0.06 | 15.52 / 15.77 |
+
+The resolve and the sharpen together cost 0.25 to 0.28 ms at 2560 x 1387, under section 3.4's estimate of 0.3 to 0.5 ms, and the history holds 54.2 MiB (two Rgba16Float frames). The scene and world surface passes are the same in both arms within the run-to-run spread, as they must be: the motion target is written in both (the PSOs carry it whatever the mode), so this A/B prices the resolve, not the motion; the world surface pass's 0.12 ms at the horizon is the geometric specular anti-aliasing's derivatives (on only under Temporal) or noise. What the motion target costs against a build without it was NOT measured in one boot (two builds, two boots); section 2's estimate (about 0.1 ms, 30 MB here) stands until a rung measures it. Captures: Off against Temporal at all four vantages, the motion view and the history weight view (the session's scratchpad, named in the rung's report).
+
+**What 1a leaves for 1b and 1c.** 1b: the card hair stays two passes (the opaque core and the blended
+fringe, which writes only the responsive mask, so the fringe is held less in the history but still
+trails a little and still cannot appear on the player's body on a planet); far foliage keeps its hard
+alpha cut and the level-of-detail crossfade its Bayer dither. Both become hashed alpha under Temporal
+in 1b. 1c: "Edges only" (SMAA 1x) is not in the modes list yet (`taa::MODES` is Off and Temporal), so
+there is no Simplified mode for anti-aliasing until 1c. Also left: the motion target is written at Off
+too (the PSOs have it whatever the mode; its cost at Off is the row above), the far tier's motion (no
+far tier yet), and the camera screens stay without anti-aliasing by design (section 3.2).
 2. **Upscaling**: render scale as data, TAAU in the same resolve, the texture bias; then port one
    FSR 3.1 pass and compare it with our TAAU on the hair, foliage and crowd vantages against a 4x
    supersampled capture, and port the rest only if it wins.

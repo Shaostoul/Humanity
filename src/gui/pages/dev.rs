@@ -36,6 +36,27 @@ fn draw_characters_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     });
 }
 
+/// The Image card (2026-11-13, renderer/taa.rs, docs/design/renderer-roadmap.md section 3.9): what
+/// temporal anti-aliasing sees, drawn in place of the picture: the motion target, how much of each
+/// pixel is history, and the responsive mask. Inspection tooling, permanent (the forever-dev rule).
+fn draw_image_card(ui: &mut egui::Ui, theme: &Theme) {
+    use humanity_core::i18n::t;
+    use crate::gui::widgets::Hint;
+    use crate::renderer::taa;
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new(t("dev.image")).size(theme.font_size_body).strong().color(theme.text_primary()));
+        ui.horizontal_wrapped(|ui| {
+            let now = taa::dev_view();
+            for (v, key) in [(0, "dev.taa_view.picture"), (1, "dev.taa_view.motion"), (2, "dev.taa_view.history"), (3, "dev.taa_view.responsive")] {
+                if ui.selectable_label(now == v, RichText::new(t(key)).size(theme.font_size_small)).hint("dev.taa_view_hint").clicked() {
+                    taa::set_dev_view(v);
+                }
+            }
+        });
+        ui.label(RichText::new(t("dev.taa_view_note")).size(theme.font_size_small).color(theme.text_muted()));
+    });
+}
+
 /// One spawnable species row, loaded once from creatures.csv for the list.
 struct SpeciesRow {
     id: String,
@@ -141,6 +162,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
             // ── Characters (2026-11-09): the skeleton overlay ──
             draw_characters_card(ui, theme, state);
+            draw_image_card(ui, theme);
             ui.add_space(theme.spacing_sm);
 
             // Status + cleanup.

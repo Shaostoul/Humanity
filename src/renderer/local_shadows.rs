@@ -1451,7 +1451,7 @@ impl Renderer {
                     }
                     for r in &runs[k] {
                         let Some(mesh) = self.meshes.get(r.mesh) else { continue };
-                        pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                        mesh.bind_vertices(&mut pass);
                         pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         pass.draw_indexed(mesh.indices(), mesh.base_vertex, r.first..r.first + r.count);
                         draws += 1;
@@ -1488,7 +1488,7 @@ impl Renderer {
                         }
                         if bound_mesh != c.obj.mesh {
                             bound_mesh = c.obj.mesh;
-                            pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                            mesh.bind_vertices(&mut pass);
                             pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         }
                         pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);

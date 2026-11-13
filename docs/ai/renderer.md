@@ -78,6 +78,43 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   the frame wants. A new feature switch that costs at Off gets the same treatment: a twin table, not
   a second registry. Showcase `atlas_code` "1" keeps the lookups in at Off (the red twin).
 
+## Temporal anti-aliasing: the motion target and the jitter (rung 1a, 2026-11-13)
+
+- **Every scene pass carries TWO colour attachments**: the scene colour and the MOTION target
+  (`taa::MOTION_FORMAT`, Rgba16Float: xy = UV offset from last frame, z = the responsive mask, w = 1
+  where a surface was drawn, 0 = the sky sentinel). The celestial opaque pass clears it
+  (`Renderer::motion_attachment(MotionLoad::Clear)`), the scene opaque pass clears it only when no
+  celestial pass ran (`ClearIfFirst`), every other pass loads it. **A PSO that draws in one of those
+  passes takes its targets from `taa::scene_targets(format, blend, writes_depth)`**: a depth-writing
+  PSO writes all of the motion, a blended one only the mask (Max). `pipeline::taa_motion_tests`
+  (`every_scene_pso_writes_motion`) scans every builder in `src/renderer` that compiles a registry
+  fragment entry and fails on one without it. An off-screen view (camera screens, the hi-res
+  capture) swaps a view-sized motion target in with its depth (`begin_view_depth`).
+- **Every class entry returns `FragOut`** (`frag_out(in, colour, responsive)`, 00-bindings-vertex.wgsl):
+  a new return in a class entry wraps its colour the same way. `vs_main` and `vs_skinned` add the
+  jitter in clip space (`taa_jitter`) AFTER `camera.view_proj`, which stays unjittered, and hand the
+  fragment the unjittered clip position now and last frame (`motion_cur`, `motion_prev`).
+- **Last frame's position** is `camera.prev_view_proj` (this frame's render space: the celestial pass
+  folds in the locked body's placement, `taa::frame_delta`; the scene pass the home's offset, since the
+  scene list is the home moved by `station_off`) times `vs_prev_model()` (the motion book's model for a
+  mesh drawn once a frame, `ObjectUniforms::prev_model`) times the vertex last frame (vertex slot 2,
+  `mesh::prev_position_layout`: a near body's last-frame skin, every other mesh's own buffer again; the
+  wind at `camera.taa.w`, the previous clock; the water at the previous clock). Bodies take last frame's
+  pose from the PREVIOUS PALETTE (`skin_upload_prev`, each person's rows found by the key the engine
+  passes to `skin_push_palette`). A new vs_main draw site binds slot 2 next to slot 0 or fails wgpu's
+  validation at its first draw. **Check a motion change on the Dev page's Image card** (showcase
+  `taa_view` "1"): a parked camera's still surfaces must read black (a wrong origin delta lit a whole
+  room, 2026-11-13).
+- **Jitter and motion are stamped only into the main view's colour passes before the resolve**
+  (`Renderer::colour_uniform`, the celestial pass's write, `taa_camera`): the shadow passes' camera
+  buffers come from `Camera::uniforms()`, which fills `prev_view_proj = view_proj` and `taa = 0`. A new
+  colour pass drawn before the resolve writes its camera through `colour_uniform`; one after it (or a
+  shadow view) must not, or it jitters.
+- **The resolve** (`taa_resolve`, after the transparent pass, before the overlay, lines and particles)
+  is timed as `gpu.taa` (compute resolve plus the sharpen pass, summed). With
+  `humanity_core::reuse::enabled()` false the history and the motion book are discarded every frame.
+  A rig window capture waits `taa::SETTLE_FRAMES` resolved frames after a reset (`poll_screenshot_request`).
+
 ## f32 at planet scale
 
 - **f32 at planet scale is a defect class.** On the CPU, keep planet positions AND unit directions in f64 (`DVec3`) all the way to a terrain or data sampler, and downcast only at a coarse-data boundary (base heightmap cells are 460+ m, so `.as_vec3()` is fine THERE and nowhere earlier): an f32 unit vector quantizes ground position at ~0.4-0.8 m, an f32 global-grid coordinate at ~3.6 m. Check the whole chain: a CALLER that narrows to f32 undoes an f64-upgraded function (the buoyancy float). On the GPU (f32 by hardware), keep magnitudes small near the camera (floating origin, anchor-relative patch verts, drawn-shell units); a shader phase or UV from a planet-radius f32 dot (`dot(dir * r, d)`) carries ~0.5 m quantization that moves with the camera, so evaluate it in the camera-anchored 64 m-modulus domain (`anchw + dvw`) with wavelengths that DIVIDE 64 and axis-aligned directions, so anchor re-snaps shift phase by whole numbers and the CPU f64 twin matches mod 1 (ocean chop W4/W5/W6 and its lockstep test are the worked example).

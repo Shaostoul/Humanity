@@ -111,6 +111,19 @@ fn frag_prologue(in: VertexOutput) -> FragSetup {
     // types whose uv carries a packed integer; those never read it.
     let uv_dx = dpdx(in.uv);
     let uv_dy = dpdy(in.uv);
+    // GEOMETRIC SPECULAR ANTI-ALIASING (renderer roadmap rung 1a, 2026-11-13; Kaplanyan et al. 2016,
+    // "Filtering Distributions of Normals for Shading Antialiasing", HPG; Tokuyoshi and Kaplanyan
+    // 2019, "Improved Geometric Specular Antialiasing", I3D): where the surface normal turns fast
+    // inside a pixel, a sharp highlight falls between pixel centres one frame and on one the next,
+    // so it sparkles. The normal's screen-space change widens the GGX lobe by that much (the kernel
+    // added to alpha squared, at the papers' screen-space variance 0.25 and clamp 0.18), so the
+    // highlight covers the pixel it is in. Taken here, with the other derivatives, before any
+    // non-uniform branch. On while temporal anti-aliasing runs (camera.taa.z), so Off draws exactly
+    // the picture from before rung 1a.
+    let gsaa_n = normalize(in.world_normal);
+    let gsaa_dx = dpdx(gsaa_n);
+    let gsaa_dy = dpdy(gsaa_n);
+    g_gsaa_kernel = select(0.0, min(2.0 * 0.25 * (dot(gsaa_dx, gsaa_dx) + dot(gsaa_dy, gsaa_dy)), 0.18), camera.taa.z > 0.5);
     // LOD crossfade (v0.920): model[0].w carries the per-object fade (see
     // RenderObject::fade). 0 = normal. Positive f = fading IN: keep pixels
     // whose 4x4 Bayer threshold is below f. Negative -f = fading OUT: keep

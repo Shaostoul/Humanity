@@ -39,6 +39,18 @@ pub fn vertex_layout() -> wgpu::VertexBufferLayout<'static> {
     }
 }
 
+/// Vertex buffer slot 2: the vertex's position LAST frame (temporal anti-aliasing's motion target,
+/// renderer/taa.rs), read from a buffer in the `Vertex` layout: a compute-skinned near body's
+/// last-frame copy (`Mesh::prev_vertex_buffer`), or the mesh's own vertex buffer again for every
+/// mesh that does not deform. Location 3, the position at offset 0 of each 32-byte vertex.
+pub fn prev_position_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[wgpu::VertexAttribute { offset: 0, shader_location: 3, format: wgpu::VertexFormat::Float32x3 }],
+    }
+}
+
 /// Vertex buffer slot 1: per-INSTANCE data (draw-batching increment 2,
 /// widened for grass strands in v0.1091). THREE vec4s per instance:
 ///
@@ -140,6 +152,11 @@ impl GrassInstance {
 /// GPU-resident mesh with vertex and index buffers.
 pub struct Mesh {
     pub vertex_buffer: wgpu::Buffer,
+    /// The same vertices LAST frame, in the same layout, for the motion target of temporal
+    /// anti-aliasing (renderer/taa.rs): bound at vertex slot 2, whose position `vs_main` reads as
+    /// the vertex's previous place. Only a compute-skinned near body has one (its pose moves its
+    /// vertices); every other mesh's vertices stand still, and slot 2 binds `vertex_buffer` itself.
+    pub prev_vertex_buffer: Option<wgpu::Buffer>,
     pub index_buffer: wgpu::Buffer,
     pub index_count: u32,
     /// Where its indices start in `index_buffer`, and what is added to each before a vertex is read
@@ -181,8 +198,15 @@ impl Mesh {
 
     /// A mesh id that draws nothing, over a few bytes of `buffer` (made with VERTEX and INDEX), so it
     /// holds on to no other memory.
+    /// Bind this mesh's vertices for a `vs_main` draw: slot 0, and slot 2 with where they were last
+    /// frame for temporal anti-aliasing's motion target (`prev_vertex_buffer`, or the same buffer).
+    pub fn bind_vertices(&self, pass: &mut wgpu::RenderPass<'_>) {
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        pass.set_vertex_buffer(2, self.prev_vertex_buffer.as_ref().unwrap_or(&self.vertex_buffer).slice(..));
+    }
+
     pub fn nothing(buffer: &wgpu::Buffer) -> Self {
-        Mesh { vertex_buffer: buffer.clone(), index_buffer: buffer.clone(), index_count: 0, first_index: 0, base_vertex: 0, bounds: [0.0; 4] }
+        Mesh { vertex_buffer: buffer.clone(), prev_vertex_buffer: None, index_buffer: buffer.clone(), index_count: 0, first_index: 0, base_vertex: 0, bounds: [0.0; 4] }
     }
 
     /// Build a mesh from raw vertex and index data.
@@ -199,6 +223,7 @@ impl Mesh {
         });
         Self {
             vertex_buffer,
+            prev_vertex_buffer: None,
             index_buffer,
             index_count: indices.len() as u32,
             first_index: 0,

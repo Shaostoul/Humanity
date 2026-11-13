@@ -84,6 +84,10 @@ impl Renderer {
         let (tex, view) = Self::create_depth_texture(&self.device, width, height);
         self.depth_texture = tex;
         self.depth_view = view;
+        // The motion target follows the depth buffer (renderer/taa.rs).
+        let (mt, mv) = super::taa::create_motion_texture(&self.device, width, height);
+        self.motion_texture = mt;
+        self.motion_view = mv;
         // The scene target follows the window (scene_target.rs; it keeps
         // its own format, which is not the display's from increment 3 on),
         // and bloom with it.

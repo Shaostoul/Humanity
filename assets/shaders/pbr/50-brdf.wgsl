@@ -1,5 +1,13 @@
 // ── Cook-Torrance BRDF Evaluation ──
 
+// Geometric specular anti-aliasing (frag_prologue sets the kernel; 0 = off): the GGX alpha squared
+// widened by how fast the normal turns inside the pixel, back as a perceptual roughness.
+var<private> g_gsaa_kernel: f32 = 0.0;
+fn gsaa_roughness(roughness: f32) -> f32 {
+    let a2 = roughness * roughness * roughness * roughness;
+    return sqrt(sqrt(clamp(a2 + g_gsaa_kernel, 0.0, 1.0)));
+}
+
 fn evaluate_light(
     light_dir: vec3<f32>,
     light_color: vec3<f32>,
@@ -19,9 +27,10 @@ fn evaluate_light(
     let n_dot_h = max(dot(normal, h), 0.0);
     let h_dot_v = max(dot(h, view_dir), 0.0);
 
-    // Cook-Torrance specular BRDF
-    let ndf = distribution_ggx(n_dot_h, roughness);
-    let geo = geometry_smith(n_dot_v, n_dot_l, roughness);
+    // Cook-Torrance specular BRDF, the roughness widened where the normal aliases (gsaa_roughness).
+    let spec_r = gsaa_roughness(roughness);
+    let ndf = distribution_ggx(n_dot_h, spec_r);
+    let geo = geometry_smith(n_dot_v, n_dot_l, spec_r);
     let fresnel = fresnel_schlick(h_dot_v, f0);
 
     let numerator = ndf * geo * fresnel;

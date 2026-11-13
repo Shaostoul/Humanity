@@ -843,6 +843,11 @@ mod sky_dome_tests {
         let main = read("assets/shaders/pbr/90-fragment-main.wgsl");
         let shell = main.split("fn fs_shell(").nth(1).expect("fs_shell");
         let shell = &shell[..shell.find("\n}").unwrap_or(shell.len())];
-        assert!(shell.contains("return vec4<f32>(c.rgb * c.a, c.a);"), "fs_shell does not premultiply the fallback dome");
+        // Since temporal anti-aliasing (2026-11-13) the class entries return through frag_out, so the
+        // premultiplied colour is held a line first (`let fo_c = ...;`, then `return frag_out(...)`).
+        assert!(
+            shell.contains("return vec4<f32>(c.rgb * c.a, c.a);") || shell.contains("let fo_c = vec4<f32>(c.rgb * c.a, c.a);"),
+            "fs_shell does not premultiply the fallback dome"
+        );
     }
 }

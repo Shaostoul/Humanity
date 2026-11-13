@@ -22,6 +22,16 @@ const SKIN_MORPH_SLOTS: u32 = 2u;
 
 @group(1) @binding(1) var<storage, read> skin_palette: array<vec4<f32>>;
 @group(1) @binding(2) var<storage, read> skin_morphs: array<vec4<f32>>;
+// The previous palette (temporal anti-aliasing, renderer/skinning.rs `skin_upload_prev`): this
+// frame's layout holding each person's rows from the last frame, the placement carried into this
+// frame's render space.
+@group(1) @binding(3) var<storage, read> skin_prev_palette: array<vec4<f32>>;
+
+// One previous-palette matrix applied to a point.
+fn skin_apply_prev(m: u32, p: vec4<f32>) -> vec3<f32> {
+    let b = m * 3u;
+    return vec3<f32>(dot(skin_prev_palette[b], p), dot(skin_prev_palette[b + 1u], p), dot(skin_prev_palette[b + 2u], p));
+}
 
 struct SkinnedVertexInput {
     @location(0) position: vec3<f32>,
@@ -85,7 +95,23 @@ fn vs_skinned(v: SkinnedVertexInput, @builtin(instance_index) model_index: u32, 
     var out: VertexOutput;
     out.world_position = world;
     out.wind_offset = vec3<f32>(0.0, 0.0, 0.0);
-    out.clip_position = camera.view_proj * vec4<f32>(world, 1.0);
+    // TAA (renderer/taa.rs): jittered like vs_main, and placed where it was last frame by the
+    // previous palette (the same shape, last frame's joints and placement).
+    var pp = skin_apply_prev(jb + v.joints.x, pos) * v.weights.x;
+    if (v.weights.y > 0.0) {
+        pp = pp + skin_apply_prev(jb + v.joints.y, pos) * v.weights.y;
+    }
+    if (v.weights.z > 0.0) {
+        pp = pp + skin_apply_prev(jb + v.joints.z, pos) * v.weights.z;
+    }
+    if (v.weights.w > 0.0) {
+        pp = pp + skin_apply_prev(jb + v.joints.w, pos) * v.weights.w;
+    }
+    let prev_world = skin_apply_prev(model_index, vec4<f32>(pp, 1.0));
+    let cur_clip = camera.view_proj * vec4<f32>(world, 1.0);
+    out.clip_position = taa_jitter(cur_clip);
+    out.motion_cur = cur_clip.xyw;
+    out.motion_prev = (camera.prev_view_proj * vec4<f32>(prev_world, 1.0)).xyw;
     out.world_normal = wn;
     out.uv = v.uv;
     out.pack = v.uv;

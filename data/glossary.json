@@ -2351,6 +2351,12 @@
       "category": "gaming",
       "definition": "How far away, in meters, objects are still drawn. Raising it shows more of the world and makes the graphics card work harder."
     },
+    "anti_aliasing": {
+      "term": "Anti-aliasing",
+      "category": "gaming",
+      "definition": "Smoothing the stair-steps a screen's square pixels put on slanted edges, and the shimmer of things thinner than a pixel. Temporal anti-aliasing draws each frame a fraction of a pixel to one side and blends it with the last few frames, so over time each pixel sees several sample points.",
+      "link": "https://en.wikipedia.org/wiki/Temporal_anti-aliasing"
+    },
     "ambient_occlusion": {
       "term": "Ambient Occlusion",
       "category": "gaming",

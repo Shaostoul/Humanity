@@ -340,6 +340,56 @@ fn draw_local_shadows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hi
     }
 }
 
+/// Anti-aliasing (2026-11-13, renderer/taa.rs, docs/design/renderer-roadmap.md section 3.6): the
+/// modes with what each changes, the history's video memory at this window's size against the card's
+/// own (the hardware-notice rule: compute shaders and float textures every card runs, so no card is
+/// refused), the sharpening under Temporal, and why the vendor upscalers are not offered.
+fn draw_anti_aliasing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate::gui::HintDisplay) {
+    use crate::gui::widgets::Hint;
+    use crate::renderer::bounced_light_detail::{adapter_memory, mb_words};
+    use crate::renderer::taa;
+    group_label(ui, theme, "graphics.anti_aliasing");
+    egui::Grid::new("anti_aliasing_modes").num_columns(2).show(ui, |ui| {
+        for id in taa::MODES {
+            let sel = state.settings.anti_aliasing == *id;
+            let name = t_dyn(&format!("graphics.anti_aliasing_choice.{id}"));
+            if ui.selectable_label(sel, RichText::new(name).size(theme.font_size_small)).hint("graphics.anti_aliasing_choice_hint").clicked() && !sel {
+                state.settings.anti_aliasing = id.to_string();
+                state.settings_dirty = true;
+            }
+            muted(ui, theme, t_dyn(&format!("graphics.anti_aliasing_says.{id}")));
+            ui.end_row();
+        }
+    });
+    graphics_hint(ui, theme, hint, "anti_aliasing");
+    if state.settings.anti_aliasing == "temporal" {
+        // The history at this window's size, in physical pixels.
+        let px = ui.ctx().screen_rect().size() * ui.ctx().pixels_per_point();
+        let (w, h) = (px.x.round().max(1.0) as u32, px.y.round().max(1.0) as u32);
+        let used = taa::Taa::history_bytes_at(w, h);
+        let size = format!("{w} x {h}");
+        match adapter_memory().and_then(|a| a.dedicated_bytes.filter(|b| *b > 0).map(|b| (a.name.clone(), b))) {
+            Some((card, own)) => {
+                let share = used as f64 / own as f64 * 100.0;
+                muted(
+                    ui,
+                    theme,
+                    tf("graphics.anti_aliasing_card", &[("card", &card), ("own", &mb_words(own)), ("used", &mb_words(used)), ("share", &format!("{share:.1}")), ("size", &size)]),
+                );
+                if used * 8 > own {
+                    warn(ui, theme, tf("graphics.anti_aliasing_card_warn", &[("used", &mb_words(used)), ("own", &mb_words(own))]));
+                }
+            }
+            None => muted(ui, theme, tf("graphics.anti_aliasing_memory", &[("used", &mb_words(used)), ("size", &size)])),
+        }
+        if widgets::labeled_slider(ui, theme, t("graphics.sharpening"), &mut state.settings.sharpening, 0.0..=1.0) {
+            state.settings_dirty = true;
+        }
+        graphics_hint(ui, theme, hint, "sharpening");
+    }
+    muted(ui, theme, t("graphics.anti_aliasing_vendor"));
+}
+
 pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let hint = state.settings.hint_display;
     // The section accent drives every subsection header below, so the whole
@@ -609,6 +659,9 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate
             };
             ui.label(RichText::new(line).color(theme.text_muted()).size(theme.font_size_small).italics());
         }
+        // Image (2026-11-13, docs/design/renderer-roadmap.md section 3.6): how the picture is finished.
+        widgets::subsection_header(ui, theme, accent, t("graphics.section_image"), "");
+        draw_anti_aliasing(ui, theme, state, hint);
         widgets::subsection_header(ui, theme, accent, t("graphics.section_light"), "");
         // Lighting passes (v0.907): the three surface-lighting features
         // gained user controls. All apply live next frame.

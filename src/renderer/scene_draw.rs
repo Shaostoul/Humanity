@@ -56,6 +56,14 @@ impl Renderer {
     /// was private while all three lived in one file, and this is one of the
     /// two privacy widenings the v0.1319 move cost.
     pub(super) fn upload_object_uniforms<'a>(&self, objects: impl Iterator<Item = &'a RenderObject>) {
+        self.upload_object_uniforms_motion(objects, None);
+    }
+
+    /// `upload_object_uniforms` with each object's PREVIOUS model matrix for the motion target
+    /// (renderer/taa.rs): `motion` is (the celestial list?, how many leading objects are this
+    /// view's opaque colour draws), whose previous models come from the motion book; every other
+    /// object (shadow casters, the transparent list, an off-screen view) carries its own model.
+    pub(super) fn upload_object_uniforms_motion<'a>(&self, objects: impl Iterator<Item = &'a RenderObject>, motion: Option<(bool, usize)>) {
         const ALIGN: usize = 256;
         let mut staging: Vec<u8> = Vec::with_capacity(ALIGN * 1024);
         for (i, obj) in objects.enumerate() {
@@ -72,9 +80,12 @@ impl Renderer {
             // free per-object metadata (see RenderObject::fade).
             let mut model = clean;
             model.x_axis.w = obj.fade;
+            let list = motion.filter(|(_, n)| i < *n).map(|(celestial, _)| celestial);
+            let prev = self.taa_prev_model(obj.mesh, clean, list);
             let uniforms = ObjectUniforms {
                 model: model.to_cols_array_2d(),
                 normal_matrix: normal_matrix.to_cols_array_2d(),
+                prev_model: prev.to_cols_array_2d(),
             };
             // Pad the previous slot out to the 256-byte dynamic-offset
             // alignment, then append this 128-byte block.
@@ -84,6 +95,15 @@ impl Renderer {
         if !staging.is_empty() {
             self.queue.write_buffer(&self.object_buffer, 0, &staging);
         }
+    }
+
+    /// The camera uniform for one of the main view's colour passes: the lit uniform with this
+    /// frame's jitter and previous view-projection (renderer/taa.rs `taa_camera`; none for an
+    /// off-screen view or after the resolve).
+    pub(super) fn colour_uniform(&self, camera: &Camera) -> camera::CameraUniforms {
+        let mut u = self.lit_uniform(camera.uniforms());
+        self.taa_camera(&mut u, false);
+        u
     }
 
     /// Render a frame with the given camera and objects.
@@ -105,7 +125,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
+            bytemuck::bytes_of(&self.colour_uniform(camera)),
         );
 
         let output = self.surface.get_current_texture()?;
@@ -135,7 +155,7 @@ impl Renderer {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
-                })],
+                }), self.motion_attachment(taa::MotionLoad::Clear)],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
@@ -152,7 +172,7 @@ impl Renderer {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
             // One batched object-uniform upload (v0.891).
-            self.upload_object_uniforms(objects.iter());
+            self.upload_object_uniforms_motion(objects.iter(), Some((false, objects.len())));
 
             // The list may carry surfaces, vegetation and terrain (P3): one
             // pass per class present, each through its own class PSO.
@@ -262,7 +282,7 @@ impl Renderer {
                         &[],
                     );
                 }
-                pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                mesh.bind_vertices(pass);
                 pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
             }
@@ -289,7 +309,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
+            bytemuck::bytes_of(&self.colour_uniform(camera)),
         );
 
         let mut encoder = self
@@ -312,7 +332,7 @@ impl Renderer {
                         load: wgpu::LoadOp::Load, // preserve star background
                         store: wgpu::StoreOp::Store,
                     },
-                })],
+                }), self.motion_attachment(taa::MotionLoad::ClearIfFirst)],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
@@ -328,8 +348,8 @@ impl Renderer {
             render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
-            // One batched object-uniform upload (v0.891).
-            self.upload_object_uniforms(objects.iter());
+            // One batched object-uniform upload (v0.891), with the motion book's previous models.
+            self.upload_object_uniforms_motion(objects.iter(), Some((false, objects.len())));
 
             // The list may carry surfaces, vegetation and terrain (P3): one
             // pass per class present, each through its own class PSO.
@@ -363,7 +383,7 @@ impl Renderer {
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
+            bytemuck::bytes_of(&self.colour_uniform(camera)),
         );
 
         let mut encoder = self
@@ -383,7 +403,7 @@ impl Renderer {
                         load: wgpu::LoadOp::Load, // blend over the scene
                         store: wgpu::StoreOp::Store,
                     },
-                })],
+                }), self.motion_attachment(taa::MotionLoad::Load)],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
                     depth_ops: Some(wgpu::Operations {
@@ -445,7 +465,7 @@ impl Renderer {
                         &[],
                     );
                 }
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                mesh.bind_vertices(&mut render_pass);
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
             }
@@ -474,7 +494,7 @@ impl Renderer {
         if objects.is_empty() {
             return;
         }
-        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())));
+        self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&self.colour_uniform(camera)));
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Overlay Encoder") });
@@ -486,7 +506,7 @@ impl Renderer {
                     view,
                     resolve_target: None,
                     ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
-                })],
+                }), self.motion_attachment(taa::MotionLoad::Load)],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_view,
                     // CLEAR depth (reverse-Z far = 0.0) so gizmos ignore the world but still depth-sort
@@ -536,7 +556,7 @@ impl Renderer {
                         &[],
                     );
                 }
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                mesh.bind_vertices(&mut render_pass);
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
             }

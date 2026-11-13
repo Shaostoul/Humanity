@@ -60,6 +60,8 @@
         "vram.meshes": "graphics.pass.meshes",
         "vram.grass": "graphics.pass.grass",
         "vram.particles": "graphics.pass.particles_memory",
+        "gpu.taa": "graphics.pass.taa",
+        "vram.taa_history": "graphics.pass.taa_history",
     },
     settings: [
         // ── General ──
@@ -91,6 +93,12 @@
         (id: "grass_density", cost: [Shares(["gpu.scene"]), Memory(["vram.grass"])]),
         (id: "grass_detail", cost: [Shares(["gpu.scene"])]),
         (id: "water_detail_depth", cost: [Shares(["gpu.celestial_t"])]),
+        // ── Image (2026-11-13, renderer/taa.rs) ──
+        // Anti-aliasing: the resolve and sharpen (gpu.taa, measured), the motion every opaque pass
+        // writes (inside the scene and world surface passes), the history's memory.
+        (id: "anti_aliasing", cost: [Gpu(["gpu.taa"]), Shares(["gpu.scene", "gpu.celestial"]), Memory(["vram.taa_history"])]),
+        // Sharpening runs inside the resolve's second step.
+        (id: "sharpening", cost: [Gpu(["gpu.taa"])]),
         // ── Light and sky ──
         (id: "sun_shadows", cost: [Gpu(["gpu.shadow", "gpu.shadow_near"])]),
         // Room light shadows (2026-11-10, renderer/local_shadows.rs): the atlas passes, choosing and

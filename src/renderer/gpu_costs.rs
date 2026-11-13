@@ -570,6 +570,8 @@ impl Renderer {
         // Engine-global textures and render targets.
         let targets = self.scene_target_bytes()
             + texture_bytes(&self.depth_texture)
+            // The motion target beside the depth (renderer/taa.rs).
+            + texture_bytes(&self.motion_texture)
             + texture_bytes(&self.tree_atlas_texture)
             + texture_bytes(&self.water_fft_texture)
             + texture_bytes(&self.weather_map_tex)
@@ -581,6 +583,8 @@ impl Renderer {
         // The shadow atlas (2026-11-10, renderer/local_shadows.rs): the depth atlas, its table and
         // its views' camera buffers.
         set_vram("vram.shadow_atlas", self.local_shadows.vram_bytes());
+        // Temporal anti-aliasing's history (2026-11-13, renderer/taa.rs): two frames, none while Off.
+        set_vram("vram.taa_history", self.taa.history_bytes());
 
         // Particles: the two billboard vertex pools plus the GPU-simulated
         // pool's draw buffer (its private state buffer lands in the untracked

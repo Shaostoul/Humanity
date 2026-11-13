@@ -141,6 +141,9 @@ fn obj_normal_matrix() -> mat4x4<f32> {
     return batch.rot;
 }
 fn obj_lod_fade() -> f32 { return g_inst_data.w; }
+// Terrain patches never move on their own: last frame's model is this frame's (the camera's
+// and the floating origin's motion ride the previous view-projection, renderer/taa.rs).
+fn obj_prev_model() -> mat4x4<f32> { return obj_model(); }
 // END OBJECT-SOURCE"#;
 
 /// Derive the terrain-batch shader variant from an assembled classic

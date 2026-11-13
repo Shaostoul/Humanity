@@ -94,6 +94,9 @@ struct NearSlot {
     params: wgpu::Buffer,
     bind: wgpu::BindGroup,
     out: wgpu::Buffer,
+    /// The same vertices skinned by LAST frame's pose (the previous palette), in the same layout:
+    /// vertex slot 2 of the region meshes, for the motion target (renderer/taa.rs).
+    prev: wgpu::Buffer,
     meshes: Vec<usize>,
     regions: usize,
 }
@@ -138,6 +141,17 @@ pub struct Skinning {
     palette: wgpu::Buffer,
     palette_rows: u64,
     staging: Vec<[f32; 4]>,
+    /// THE PREVIOUS PALETTE (temporal anti-aliasing, renderer/taa.rs): this frame's layout filled
+    /// with each person's rows from the last frame (found by their key), the model rows carried into
+    /// this frame's render space, so both skinning paths can place a vertex where it was. A person
+    /// new this frame (or the history discarded) gets this frame's rows: no motion of their own.
+    prev_palette: wgpu::Buffer,
+    /// (key, first row, rows) of each body pushed this frame (`skin_push_palette`).
+    keys: Vec<(u64, u32, u32)>,
+    /// The last frame's staging and where each key's rows were in it (reuse data: dropped whenever
+    /// the history is, `skin_upload_prev`).
+    last_staging: Vec<[f32; 4]>,
+    last_keys: std::collections::HashMap<u64, (u32, u32)>,
     /// Near places per body (a place keeps the body it was made for).
     slots: Vec<Vec<NearSlot>>,
     /// (body, slot, model matrix index) of each near body skinned this frame.
@@ -169,6 +183,8 @@ struct OwnPool {
     sources: wgpu::Buffer,
     /// Each pooled vertex skinned this frame (the ordinary `Vertex`): the near places' output.
     outputs: wgpu::Buffer,
+    /// The same skinned by last frame's pose (`NearSlot::prev`).
+    prev_outputs: wgpu::Buffer,
     /// Every pooled person's indices, relative to their own first vertex (drawn with `base_vertex`).
     indices: wgpu::Buffer,
     /// The morph binding of a pooled body (an own mesh has no shape targets: its shape is in its
@@ -272,6 +288,7 @@ impl Renderer {
         };
         let sources = buffer("Own Mesh Pool Vertices", vcap * SkinnedVertex::BYTES as u64, wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST);
         let outputs = buffer("Own Mesh Pool Skinned", vcap * OUT_VERTEX_BYTES, wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE);
+        let prev_outputs = buffer("Own Mesh Pool Skinned Last Frame", vcap * OUT_VERTEX_BYTES, wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE);
         let indices = buffer("Own Mesh Pool Indices", icap * 4, wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST);
         let zero_morphs = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Own Mesh Pool Morphs"),
@@ -285,16 +302,16 @@ impl Renderer {
         self.skin_reserve_palette(palette_bodies);
         let sk = self.skinning.as_mut().expect("checked above");
         for _ in 0..book.handles() {
-            let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &zero_morphs);
+            let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &sk.prev_palette, &zero_morphs);
             let params = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Own Mesh Skinning Params"),
                 size: 16,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
-            let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &sources, &outputs, &params, &zero_morphs);
+            let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, (&sk.palette, &sk.prev_palette), &sources, (&outputs, &prev_outputs), &params, &zero_morphs);
             sk.bodies.push(SkinnedBody { vertices: sources.clone(), base_vertex: 0, vertex_count: 0, joint_count: 0, regions: Vec::new(), morphs: zero_morphs.clone(), vs_bind });
-            sk.slots.push(vec![NearSlot { params, bind, out: outputs.clone(), meshes: Vec::new(), regions: 0 }]);
+            sk.slots.push(vec![NearSlot { params, bind, out: outputs.clone(), prev: prev_outputs.clone(), meshes: Vec::new(), regions: 0 }]);
         }
         // The shared bodies' near places for a full near tier.
         let mut shared_place_bytes = 0u64;
@@ -309,7 +326,7 @@ impl Renderer {
             }
         }
         let sk = self.skinning.as_mut().expect("checked above");
-        sk.own = Some(OwnPool { book, sources, outputs, indices, zero_morphs, first_body, shared_place_bytes });
+        sk.own = Some(OwnPool { book, sources, outputs, prev_outputs, indices, zero_morphs, first_body, shared_place_bytes });
         Some(t0.elapsed().as_secs_f32() * 1000.0)
     }
 
@@ -336,6 +353,12 @@ impl Renderer {
         if rows > sk.palette_rows {
             sk.palette = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Pose Palette"),
+                size: rows * ROW_BYTES,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            sk.prev_palette = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Pose Palette Last Frame"),
                 size: rows * ROW_BYTES,
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -417,12 +440,13 @@ impl Renderer {
             self.queue.write_buffer(&own.indices, held.istart as u64 * 4, bytemuck::cast_slice(&indices));
         }
         let outputs = own.outputs.clone();
+        let prev_outputs = own.prev_outputs.clone();
         let b = &mut sk.bodies[body];
         b.base_vertex = held.vstart;
         b.vertex_count = vertices.len() as u32;
         b.joint_count = model.joints.len() as u32;
         b.regions = regions;
-        self.fill_near_slot_over(body, 0, &outputs);
+        self.fill_near_slot_over(body, 0, &outputs, &prev_outputs);
     }
 
     /// What the own-mesh pool holds (None before it is made).
@@ -443,9 +467,10 @@ impl Renderer {
         let Some(sk) = self.skinning.as_ref() else { return 0 };
         let first_pooled = sk.own.as_ref().map_or(sk.bodies.len(), |o| o.first_body);
         let shared: u64 = sk.bodies[..first_pooled].iter().map(|b| b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _, _)| ib.size()).sum::<u64>()).sum();
-        let places: u64 = sk.slots[..first_pooled].iter().flatten().map(|s| s.out.size() + s.params.size()).sum();
-        let pooled = sk.own.as_ref().map_or(0, |o| o.sources.size() + o.outputs.size() + o.indices.size() + o.zero_morphs.size() + (sk.slots.len() - o.first_body) as u64 * 16);
-        shared + places + pooled
+        let places: u64 = sk.slots[..first_pooled].iter().flatten().map(|s| s.out.size() + s.prev.size() + s.params.size()).sum();
+        let pooled = sk.own.as_ref().map_or(0, |o| o.sources.size() + o.outputs.size() + o.prev_outputs.size() + o.indices.size() + o.zero_morphs.size() + (sk.slots.len() - o.first_body) as u64 * 16);
+        // The previous palette beside the palette (temporal anti-aliasing).
+        shared + places + pooled + sk.prev_palette.size()
     }
 
     /// The buffers the skinned bodies' near places draw from (their region meshes are in the mesh
@@ -492,7 +517,7 @@ impl Renderer {
             usage: wgpu::BufferUsages::STORAGE,
         });
         let sk = self.skinning.as_ref().expect("made by the caller");
-        let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &morphs);
+        let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &sk.prev_palette, &morphs);
         SkinnedBody { vertices: vb, base_vertex: 0, vertex_count: vertices.len() as u32, joint_count: model.joints.len() as u32, regions, morphs, vs_bind }
     }
 
@@ -529,6 +554,7 @@ impl Renderer {
     pub fn skin_begin_frame(&mut self) {
         if let Some(sk) = self.skinning.as_mut() {
             sk.staging.clear();
+            sk.keys.clear();
             sk.jobs.clear();
             sk.middle.clear();
             sk.shadow_only.clear();
@@ -540,13 +566,37 @@ impl Renderer {
     /// (`MORPH_SLOTS` matrices: which shape targets and how much), then its joints' rows (three per
     /// joint). Returns the model matrix's index; the morph block starts one after, the joints
     /// `1 + MORPH_SLOTS` after.
-    pub fn skin_push_palette(&mut self, model_rows: [[f32; 4]; 3], morph_rows: &[[f32; 4]; MORPH_SLOTS as usize * 3], joint_rows: &[[f32; 4]]) -> u32 {
+    /// `key` names who this is from frame to frame (the engine's figure key), so the previous palette
+    /// can carry their rows from the last frame (temporal anti-aliasing's motion target).
+    pub fn skin_push_palette(&mut self, key: u64, model_rows: [[f32; 4]; 3], morph_rows: &[[f32; 4]; MORPH_SLOTS as usize * 3], joint_rows: &[[f32; 4]]) -> u32 {
         let Some(sk) = self.skinning.as_mut() else { return 0 };
-        let index = (sk.staging.len() / 3) as u32;
+        let start = sk.staging.len();
+        let index = (start / 3) as u32;
         sk.staging.extend_from_slice(&model_rows);
         sk.staging.extend_from_slice(morph_rows);
         sk.staging.extend_from_slice(joint_rows);
+        sk.keys.push((key, start as u32, (sk.staging.len() - start) as u32));
         index
+    }
+
+    /// THE PREVIOUS PALETTE (temporal anti-aliasing, renderer/taa.rs), uploaded at the frame's start
+    /// once the floating origin is known (`taa_begin_frame`): this frame's staging with each person's
+    /// rows replaced by theirs from the last frame when they were drawn then with the same row count,
+    /// the model rows carried into this frame's render space by `new_from_old`. `keep` false (no TAA,
+    /// a cut, the reuse switch off) uploads this frame's rows: nobody moves on their own.
+    pub(super) fn skin_upload_prev(&mut self, new_from_old: Mat4, keep: bool) {
+        let Some(sk) = self.skinning.as_mut() else { return };
+        if sk.staging.is_empty() {
+            sk.last_staging.clear();
+            sk.last_keys.clear();
+            return;
+        }
+        let prev = prev_palette_rows(&sk.staging, &sk.keys, &sk.last_staging, &sk.last_keys, new_from_old, keep);
+        if prev.len() as u64 <= sk.palette_rows {
+            self.queue.write_buffer(&sk.prev_palette, 0, bytemuck::cast_slice(&prev));
+        }
+        sk.last_staging.clone_from(&sk.staging);
+        sk.last_keys = sk.keys.iter().map(|&(k, s, n)| (k, (s, n))).collect();
     }
 
     /// Skin a body by compute this frame in its near place `slot` (made on first use; places are
@@ -633,6 +683,12 @@ impl Renderer {
             let grown = rows.next_power_of_two().max(256);
             sk.palette = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Pose Palette"),
+                size: grown * ROW_BYTES,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            sk.prev_palette = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Pose Palette Last Frame"),
                 size: grown * ROW_BYTES,
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -787,13 +843,19 @@ impl Renderer {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
             mapped_at_creation: false,
         });
+        let prev = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Skinned Body Output Last Frame"),
+            size: (b.vertex_count as u64).max(1) * OUT_VERTEX_BYTES,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
+            mapped_at_creation: false,
+        });
         let params = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Skinning Params"),
             size: 16,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, &sk.palette, &b.vertices, &out, &params, &b.morphs);
+        let bind = Skinning::compute_bind_group(&self.device, &sk.compute_layout, (&sk.palette, &sk.prev_palette), &b.vertices, (&out, &prev), &params, &b.morphs);
         // Buffer handles are shared clones (wgpu 24), so the region meshes and this place draw the
         // same GPU memory; collected before the registry is borrowed to add them.
         let regions: Vec<(wgpu::Buffer, u32, u32)> = b.regions.clone();
@@ -801,16 +863,18 @@ impl Renderer {
         let n = regions.len();
         let meshes = regions
             .into_iter()
-            .map(|(index_buffer, first_index, index_count)| self.add_mesh(Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex, bounds: BODY_BOUNDS }))
+            .map(|(index_buffer, first_index, index_count)| {
+                self.add_mesh(Mesh { vertex_buffer: out.clone(), prev_vertex_buffer: Some(prev.clone()), index_buffer, index_count, first_index, base_vertex, bounds: BODY_BOUNDS })
+            })
             .collect();
-        NearSlot { params, bind, out, meshes, regions: n }
+        NearSlot { params, bind, out, prev, meshes, regions: n }
     }
 
     /// Point near place `slot` of `body` at the body's current regions over the output buffer
     /// `out` it already has (a pooled body written at new ranges): its region meshes replaced in
     /// place, a mesh id added only when the body has more regions than the place has ever had (a
     /// registry entry, no GPU memory), spare ids drawing nothing. No allocation.
-    fn fill_near_slot_over(&mut self, body: usize, slot: usize, out: &wgpu::Buffer) {
+    fn fill_near_slot_over(&mut self, body: usize, slot: usize, out: &wgpu::Buffer, prev: &wgpu::Buffer) {
         let Some(sk) = self.skinning.as_ref() else { return };
         let b = &sk.bodies[body];
         let Some(s) = sk.slots[body].get(slot) else { return };
@@ -820,7 +884,7 @@ impl Renderer {
         let mut ids = s.meshes.clone();
         let n = regions.len();
         for (k, (index_buffer, first_index, index_count)) in regions.into_iter().enumerate() {
-            let mesh = Mesh { vertex_buffer: out.clone(), index_buffer, index_count, first_index, base_vertex, bounds: BODY_BOUNDS };
+            let mesh = Mesh { vertex_buffer: out.clone(), prev_vertex_buffer: Some(prev.clone()), index_buffer, index_count, first_index, base_vertex, bounds: BODY_BOUNDS };
             if k < ids.len() {
                 self.replace_mesh(ids[k], mesh);
             } else {
@@ -835,6 +899,46 @@ impl Renderer {
         s.meshes = ids;
         s.regions = n;
     }
+}
+
+/// THE PREVIOUS PALETTE'S ROWS (`Renderer::skin_upload_prev`), pure so it is tested without a GPU:
+/// this frame's `staging` with each key's rows replaced by its rows in `last` when it was there with
+/// the same count, the first three (its model matrix) carried by `new_from_old`. `keep` false gives
+/// this frame's rows back unchanged.
+fn prev_palette_rows(
+    staging: &[[f32; 4]],
+    keys: &[(u64, u32, u32)],
+    last: &[[f32; 4]],
+    last_keys: &std::collections::HashMap<u64, (u32, u32)>,
+    new_from_old: Mat4,
+    keep: bool,
+) -> Vec<[f32; 4]> {
+    let mut prev = staging.to_vec();
+    if !keep {
+        return prev;
+    }
+    for &(key, start, rows) in keys {
+        let Some(&(ls, lr)) = last_keys.get(&key) else { continue };
+        if lr != rows || rows < 3 {
+            continue;
+        }
+        let (s, l, n) = (start as usize, ls as usize, rows as usize);
+        if l + n > last.len() || s + n > prev.len() {
+            continue;
+        }
+        prev[s..s + n].copy_from_slice(&last[l..l + n]);
+        let carried = carry_model_rows(new_from_old, [prev[s], prev[s + 1], prev[s + 2]]);
+        prev[s..s + 3].copy_from_slice(&carried);
+    }
+    prev
+}
+
+/// Three palette rows of a model matrix (an affine 3 x 4, row by row, as `skin_apply` dots them)
+/// carried by `m` (last frame's render space to this frame's, renderer/taa.rs).
+fn carry_model_rows(m: Mat4, rows: [[f32; 4]; 3]) -> [[f32; 4]; 3] {
+    let model = Mat4::from_cols_array_2d(&[rows[0], rows[1], rows[2], [0.0, 0.0, 0.0, 1.0]]).transpose();
+    let t = (m * model).transpose().to_cols_array_2d();
+    [t[0], t[1], t[2]]
 }
 
 /// A body's morph targets as the shaders read them: for target k and vertex i (the primitives'
@@ -881,6 +985,9 @@ impl Skinning {
                 },
                 // The body's morph targets.
                 storage_entry(4, wgpu::ShaderStages::COMPUTE, true),
+                // The previous palette and the vertices skinned by it (temporal anti-aliasing).
+                storage_entry(5, wgpu::ShaderStages::COMPUTE, true),
+                storage_entry(6, wgpu::ShaderStages::COMPUTE, false),
             ],
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -907,6 +1014,12 @@ impl Skinning {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let prev_palette = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Pose Palette Last Frame"),
+            size: palette_rows * ROW_BYTES,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let vs_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Skinned Object Layout"),
             entries: &[
@@ -923,9 +1036,15 @@ impl Skinning {
                 storage_entry(1, wgpu::ShaderStages::VERTEX, true),
                 // The body's morph targets.
                 storage_entry(2, wgpu::ShaderStages::VERTEX, true),
+                // The previous palette (temporal anti-aliasing's motion target).
+                storage_entry(3, wgpu::ShaderStages::VERTEX, true),
             ],
         });
-        let identity = ObjectUniforms { model: Mat4::IDENTITY.to_cols_array_2d(), normal_matrix: Mat4::IDENTITY.to_cols_array_2d() };
+        let identity = ObjectUniforms {
+            model: Mat4::IDENTITY.to_cols_array_2d(),
+            normal_matrix: Mat4::IDENTITY.to_cols_array_2d(),
+            prev_model: Mat4::IDENTITY.to_cols_array_2d(),
+        };
         let vs_object = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Skinned Object Identity"),
             contents: bytemuck::bytes_of(&identity),
@@ -945,6 +1064,10 @@ impl Skinning {
             palette,
             palette_rows,
             staging: Vec::new(),
+            prev_palette,
+            keys: Vec::new(),
+            last_staging: Vec::new(),
+            last_keys: std::collections::HashMap::new(),
             slots: Vec::new(),
             jobs: Vec::new(),
             dispatch_pending: std::cell::Cell::new(false),
@@ -962,10 +1085,10 @@ impl Skinning {
     fn rebind_palette(&mut self, device: &wgpu::Device) {
         for b in 0..self.bodies.len() {
             let body = &self.bodies[b];
-            let vs_bind = Skinning::vs_bind_group(device, &self.vs_layout, &self.vs_object, &self.palette, &body.morphs);
+            let vs_bind = Skinning::vs_bind_group(device, &self.vs_layout, &self.vs_object, &self.palette, &self.prev_palette, &body.morphs);
             let binds: Vec<wgpu::BindGroup> = self.slots[b]
                 .iter()
-                .map(|slot| Skinning::compute_bind_group(device, &self.compute_layout, &self.palette, &body.vertices, &slot.out, &slot.params, &body.morphs))
+                .map(|slot| Skinning::compute_bind_group(device, &self.compute_layout, (&self.palette, &self.prev_palette), &body.vertices, (&slot.out, &slot.prev), &slot.params, &body.morphs))
                 .collect();
             self.bodies[b].vs_bind = vs_bind;
             for (slot, bind) in self.slots[b].iter_mut().zip(binds) {
@@ -975,12 +1098,14 @@ impl Skinning {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// `palettes` is (this frame's, last frame's), `outs` the vertices skinned by each.
+    #[allow(clippy::too_many_arguments)]
     fn compute_bind_group(
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
-        palette: &wgpu::Buffer,
+        palettes: (&wgpu::Buffer, &wgpu::Buffer),
         source: &wgpu::Buffer,
-        out: &wgpu::Buffer,
+        outs: (&wgpu::Buffer, &wgpu::Buffer),
         params: &wgpu::Buffer,
         morphs: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
@@ -988,16 +1113,18 @@ impl Skinning {
             label: Some("Compute Skinning Bind Group"),
             layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: palette.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 0, resource: palettes.0.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 1, resource: source.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: out.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 2, resource: outs.0.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 3, resource: params.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 4, resource: morphs.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 5, resource: palettes.1.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 6, resource: outs.1.as_entire_binding() },
             ],
         })
     }
 
-    fn vs_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, object: &wgpu::Buffer, palette: &wgpu::Buffer, morphs: &wgpu::Buffer) -> wgpu::BindGroup {
+    fn vs_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, object: &wgpu::Buffer, palette: &wgpu::Buffer, prev_palette: &wgpu::Buffer, morphs: &wgpu::Buffer) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Skinned Object Bind Group"),
             layout,
@@ -1005,6 +1132,7 @@ impl Skinning {
                 wgpu::BindGroupEntry { binding: 0, resource: object.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 1, resource: palette.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 2, resource: morphs.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 3, resource: prev_palette.as_entire_binding() },
             ],
         })
     }
@@ -1109,6 +1237,41 @@ mod tests {
     /// four u16, weights at 40 as four unorm16, a 48-byte stride.
     /// Seen red 2026-11-08 with the weights declared Float32x4 (the layout would have run past
     /// the vertex's 48 bytes).
+    /// The previous palette (temporal anti-aliasing): a person found by key gets LAST frame's rows at
+    /// THIS frame's place in the palette, their placement carried into this frame's render space;
+    /// someone new keeps this frame's rows; `keep` false (a cut, the reuse switch off) changes nothing.
+    /// Seen red 2026-11-13 with the copy reading this frame's place in `last` (`l` taken from `start`):
+    /// the two people swapped places in the palette and each was given the other's last pose.
+    #[test]
+    fn the_previous_palette_follows_each_person_by_key() {
+        let row = |v: f32| [v, v, v, v];
+        let ident = |t: f32| [[1.0, 0.0, 0.0, t], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]];
+        // Last frame: A at rows 0..4 (model at x = 1, one joint row 10), B at rows 4..8 (x = 2, 20).
+        let mut last = Vec::new();
+        last.extend_from_slice(&ident(1.0));
+        last.push(row(10.0));
+        last.extend_from_slice(&ident(2.0));
+        last.push(row(20.0));
+        let last_keys: std::collections::HashMap<u64, (u32, u32)> = [(7u64, (0u32, 4u32)), (9, (4, 4))].into_iter().collect();
+        // This frame: B first, then A, then C (new).
+        let mut now = Vec::new();
+        now.extend_from_slice(&ident(2.5));
+        now.push(row(21.0));
+        now.extend_from_slice(&ident(1.5));
+        now.push(row(11.0));
+        now.extend_from_slice(&ident(3.0));
+        now.push(row(30.0));
+        let keys = [(9u64, 0u32, 4u32), (7, 4, 4), (5, 8, 4)];
+        let shift = Mat4::from_translation(Vec3::new(-0.25, 0.0, 0.0));
+        let prev = super::prev_palette_rows(&now, &keys, &last, &last_keys, shift, true);
+        assert_eq!(prev[3], row(20.0), "B's joint row is B's from last frame");
+        assert!((prev[0][3] - 1.75).abs() < 1e-6, "B's placement last frame (x = 2), carried by -0.25: {:?}", prev[0]);
+        assert_eq!(prev[7], row(10.0), "A's joint row is A's");
+        assert!((prev[4][3] - 0.75).abs() < 1e-6, "A's placement: {:?}", prev[4]);
+        assert_eq!(&prev[8..12], &now[8..12], "someone new moves with nobody's past");
+        assert_eq!(super::prev_palette_rows(&now, &keys, &last, &last_keys, shift, false), now, "keep false: this frame's rows");
+    }
+
     #[test]
     fn the_skinned_vertex_layout_matches_the_skinned_vertex() {
         let end = |a: &wgpu::VertexAttribute| a.offset + a.format.size();

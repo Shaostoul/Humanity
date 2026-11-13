@@ -2,7 +2,7 @@
 
 use super::camera::CameraUniforms;
 use super::deferred_build::{Deferred, Polled};
-use super::mesh::{instance_layout, vertex_layout};
+use super::mesh::{instance_layout, prev_position_layout, vertex_layout};
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
 
@@ -12,6 +12,9 @@ use std::collections::HashMap;
 pub struct ObjectUniforms {
     pub model: [[f32; 4]; 4],
     pub normal_matrix: [[f32; 4]; 4],
+    /// Last frame's model matrix in this frame's render space, for the motion target
+    /// (renderer/taa.rs `MotionBook`); the model itself for anything not known to have moved.
+    pub prev_model: [[f32; 4]; 4],
 }
 
 /// GPU-side material uniforms (matches shader MaterialUniforms).
@@ -1530,7 +1533,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[vertex_layout(), instance_layout()],
+                buffers: &[vertex_layout(), instance_layout(), prev_position_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1539,11 +1542,8 @@ impl Pipeline {
             fragment: Some(wgpu::FragmentState {
                 module: batch_shader,
                 entry_point: Some(entry),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: scene_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                // The scene colour and the motion target (opaque: all of it), renderer/taa.rs.
+                targets: &super::taa::scene_targets(scene_format, wgpu::BlendState::REPLACE, true),
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1609,7 +1609,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[vertex_layout(), instance_layout()],
+                buffers: &[vertex_layout(), instance_layout(), prev_position_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1669,7 +1669,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: shader,
                 entry_point: Some("vs_main"),
-                buffers: &[vertex_layout(), instance_layout()],
+                buffers: &[vertex_layout(), instance_layout(), prev_position_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1678,11 +1678,9 @@ impl Pipeline {
             fragment: Some(wgpu::FragmentState {
                 module: shader,
                 entry_point: Some(entry),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: scene_format,
-                    blend: Some(blend),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                // The scene colour and the motion target: all of it from a depth-writing PSO, the
+                // responsive mask alone from a blended one (renderer/taa.rs `scene_targets`).
+                targets: &super::taa::scene_targets(scene_format, blend, depth_write),
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -1754,11 +1752,8 @@ impl Pipeline {
             fragment: Some(wgpu::FragmentState {
                 module: shader,
                 entry_point: Some(entry),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: scene_format,
-                    blend: Some(blend),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
+                // The scene colour and the motion target (opaque), renderer/taa.rs.
+                targets: &super::taa::scene_targets(scene_format, blend, depth_write),
                 compilation_options: wgpu::PipelineCompilationOptions {
                     constants: &constants,
                     ..Default::default()
@@ -2029,7 +2024,7 @@ impl Pipeline {
                 vertex: wgpu::VertexState {
                     module: shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[vertex_layout(), instance_layout()],
+                    buffers: &[vertex_layout(), instance_layout(), prev_position_layout()],
                     compilation_options: wgpu::PipelineCompilationOptions {
                         constants: &constants,
                         ..Default::default()
@@ -3265,17 +3260,22 @@ mod permutation_tests {
             );
             let after = &main[at + guard.len()..];
             let call = format!("return {func}(");
+            // Since temporal anti-aliasing (2026-11-13) a class entry returns its colour through
+            // `frag_out` (the motion target beside it), so the dispatch may be held a line first:
+            // `let fo_c = {func}(...);` then `return frag_out(in, fo_c, ...)`.
+            let held = format!("let fo_c = {func}(");
             let next_line = after.lines().nth(1).unwrap_or("").trim();
             assert!(
-                next_line.starts_with(&call),
-                "the line after {guard:?} must be the {call:?} return, found {next_line:?}"
+                next_line.starts_with(&call) || next_line.starts_with(&held),
+                "the line after {guard:?} must be the {call:?} return (or {held:?}), found {next_line:?}"
             );
+            let (needle, skip) = if next_line.starts_with(&call) { (call.as_str(), "return ".len()) } else { (held.as_str(), "let fo_c = ".len()) };
             // Where the guarded call's function name begins, as a byte offset
             // into `main`.
             let guarded_at = at
                 + guard.len()
-                + after.find(&call).expect("the call was found on the next line")
-                + "return ".len();
+                + after.find(needle).expect("the call was found on the next line")
+                + skip;
 
             // The bare token, not `return cloud_layer(`: EVERY whole-word use
             // of the function name before fs_shadow, minus its `fn`
@@ -4269,4 +4269,235 @@ pub struct ShadowAtlasBinding<'a> {
     pub atlas: &'a wgpu::TextureView,
     pub sampler: &'a wgpu::Sampler,
     pub table: &'a wgpu::Buffer,
+}
+
+/// TEMPORAL ANTI-ALIASING'S MOTION LINT (2026-11-13, renderer/taa.rs): every megashader PSO that
+/// draws colour into the scene takes its targets from `taa::scene_targets`, so it writes the motion
+/// target (all of it when it writes depth, the responsive mask when it blends). A new opaque pass
+/// built with a single colour target would write no motion: its surfaces would reproject by the
+/// background's motion and smear. This scans the PIPELINE LIST (every builder in src/renderer that
+/// asks the registry for a fragment entry) rather than trusting a list typed here.
+#[cfg(test)]
+mod taa_motion_tests {
+    use super::source_tests_support::matching_brace;
+    use super::*;
+
+    /// The builders in `code` that compile a registry fragment entry with colour targets, each with
+    /// whether its targets come from `scene_targets`. A builder whose targets are `&[]` (a shadow
+    /// PSO) has no colour and is skipped.
+    fn colour_builders(code: &str) -> Vec<(String, bool)> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        while let Some(i) = code[at..].find("fn ") {
+            let start = at + i;
+            at = start + 3;
+            let name: String = code[start + 3..].chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect();
+            // '\u{7b}' is the opening brace: a bare one in a character literal would unbalance
+            // `matching_brace` over this very module (seen 2026-11-13, "unbalanced braces").
+            let Some(open_rel) = code[start..].find('\u{7b}') else { break };
+            // A signature runs to its first brace; a `;` first is a declaration without a body.
+            if code[start..start + open_rel].contains(';') {
+                continue;
+            }
+            let open = start + open_rel;
+            let close = matching_brace(code, open);
+            let body = &code[open..close];
+            if body.contains("pso_fragment_entry(") && body.contains("create_render_pipeline") {
+                let flat: String = body.split_whitespace().collect();
+                if !flat.contains("targets:&[],") {
+                    out.push((name, flat.contains("scene_targets(")));
+                }
+            }
+            at = close;
+        }
+        out
+    }
+
+    /// `code` without its `#[cfg(test)] mod` blocks (a test that quotes a builder is not one). The
+    /// opening brace is searched for as `'{'`: a bare brace in a character literal would
+    /// unbalance `matching_brace` over this very module (seen 2026-11-13, "unbalanced braces").
+    fn strip_test_modules(code: &str) -> String {
+        let mut out = String::new();
+        let mut at = 0;
+        while let Some(i) = code[at..].find("#[cfg(test)]") {
+            let start = at + i;
+            let after = &code[start + 12..];
+            let trimmed = after.trim_start();
+            if !trimmed.starts_with("mod ") {
+                out.push_str(&code[at..start + 12]);
+                at = start + 12;
+                continue;
+            }
+            out.push_str(&code[at..start]);
+            // `mod name;` (a module in a file of its own) has no body here: skip just the line.
+            let semi = after.find(';').unwrap_or(usize::MAX);
+            let brace = after.find('\u{7b}').unwrap_or(usize::MAX);
+            if semi < brace {
+                at = start + 12 + semi + 1;
+                continue;
+            }
+            let open = start + 12 + brace;
+            at = matching_brace(code, open) + 1;
+        }
+        out.push_str(&code[at..]);
+        out
+    }
+
+    /// `code` with the inside of every string and character literal blanked to spaces (lengths and
+    /// line breaks kept), so a brace in `"{"` or a character literal cannot unbalance
+    /// `matching_brace` (seen 2026-11-13: "unbalanced braces" from the other test modules' `find`
+    /// calls). Raw strings (`r#"..."#`) included; a lifetime (`'a`) is left alone.
+    fn blank_literals(code: &str) -> String {
+        // One pass over the source: line and block comments (nested), strings, raw and byte strings,
+        // and character literals all blanked to spaces, so neither a quote in a comment nor a brace
+        // in a literal can mislead the brace matching. Checked against every file in src/renderer
+        // (a twin of this pass balanced all of them, 2026-11-13).
+        let b = code.as_bytes();
+        let mut out = b.to_vec();
+        let blank = |out: &mut Vec<u8>, from: usize, to: usize| {
+            for o in out.iter_mut().take(to).skip(from) {
+                if *o != b'\n' && *o != b'\r' {
+                    *o = b' ';
+                }
+            }
+        };
+        let ident = |k: usize| b[k].is_ascii_alphanumeric() || b[k] == b'_';
+        let at = |k: usize| b.get(k).copied().unwrap_or(0);
+        let mut i = 0;
+        while i < b.len() {
+            let c = b[i];
+            if c == b'/' && at(i + 1) == b'/' {
+                let mut j = i;
+                while j < b.len() && b[j] != b'\n' {
+                    j += 1;
+                }
+                blank(&mut out, i, j);
+                i = j;
+                continue;
+            }
+            if c == b'/' && at(i + 1) == b'*' {
+                let (mut depth, mut j) = (1, i + 2);
+                while j < b.len() && depth > 0 {
+                    if b[j] == b'/' && at(j + 1) == b'*' {
+                        depth += 1;
+                        j += 2;
+                    } else if b[j] == b'*' && at(j + 1) == b'/' {
+                        depth -= 1;
+                        j += 2;
+                    } else {
+                        j += 1;
+                    }
+                }
+                blank(&mut out, i, j);
+                i = j;
+                continue;
+            }
+            if (c == b'r' || c == b'b') && (i == 0 || !ident(i - 1)) {
+                let mut j = i + 1;
+                if c == b'b' && at(j) == b'r' {
+                    j += 1;
+                }
+                let mut hashes = 0;
+                while at(j) == b'#' {
+                    hashes += 1;
+                    j += 1;
+                }
+                if at(j) == b'"' && (c == b'r' || at(i + 1) == b'r') {
+                    let close: String = std::iter::once('"').chain(std::iter::repeat('#').take(hashes)).collect();
+                    let body = j + 1;
+                    let end = code[body..].find(&close).map_or(b.len(), |e| body + e);
+                    blank(&mut out, body, end);
+                    i = end + close.len();
+                    continue;
+                }
+            }
+            if c == b'"' {
+                let mut j = i + 1;
+                while j < b.len() && b[j] != b'"' {
+                    j += if b[j] == b'\\' { 2 } else { 1 };
+                }
+                blank(&mut out, i + 1, j.min(b.len()));
+                i = j + 1;
+                continue;
+            }
+            if c == b'\'' {
+                if at(i + 1) == b'\\' {
+                    if let Some(e) = code[i + 2..].find('\'') {
+                        blank(&mut out, i + 1, i + 2 + e);
+                        i = i + 3 + e;
+                        continue;
+                    }
+                }
+                // One UTF-8 character then a quote is a character literal; anything else a lifetime.
+                let lead = at(i + 1);
+                let n = if lead >= 0xf0 { 4 } else if lead >= 0xe0 { 3 } else if lead >= 0xc0 { 2 } else { 1 };
+                if at(i + 1 + n) == b'\'' {
+                    blank(&mut out, i + 1, i + 1 + n);
+                    i += 2 + n;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+        String::from_utf8(out).unwrap_or_else(|_| code.to_string())
+    }
+
+    /// The scanner reports a builder that hands its PSO one colour target (a positive control, so a
+    /// scanner that matches nothing cannot pass by accident).
+    #[test]
+    fn the_scanner_finds_a_builder_without_motion() {
+        let synthetic = "fn build_new_pass(d: &D) -> P {\n    let entry = pso_fragment_entry(label);\n    d.create_render_pipeline(&Desc { fragment: Some(F { targets: &[Some(ColorTargetState { format: scene_format })] }) })\n}\n\
+                         fn build_ok(d: &D) -> P {\n    let entry = pso_fragment_entry(label);\n    d.create_render_pipeline(&Desc { fragment: Some(F { targets: &super::taa::scene_targets(f, b, true) }) })\n}\n\
+                         fn build_shadow(d: &D) -> P {\n    let entry = pso_fragment_entry(label);\n    d.create_render_pipeline(&Desc { fragment: Some(F { targets: &[], }) })\n}\n";
+        let found = colour_builders(synthetic);
+        assert_eq!(found, vec![("build_new_pass".to_string(), false), ("build_ok".to_string(), true)]);
+    }
+
+    /// Every colour PSO builder of the megashader writes the motion target. Seen red 2026-11-13 with
+    /// `build_class_pso` handed its old single colour target: "build_class_pso builds a scene PSO
+    /// without the motion target".
+    #[test]
+    fn every_scene_pso_writes_motion() {
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/renderer");
+        let mut builders = Vec::new();
+        for e in std::fs::read_dir(&dir).expect("src/renderer").flatten() {
+            let p = e.path();
+            if p.extension().and_then(|x| x.to_str()) != Some("rs") {
+                continue;
+            }
+            let code = strip_test_modules(&blank_literals(&std::fs::read_to_string(&p).expect("read")));
+            for (name, ok) in colour_builders(&code) {
+                assert!(ok, "{name} ({}) builds a scene PSO without the motion target: take its targets from taa::scene_targets", p.display());
+                builders.push(name);
+            }
+        }
+        builders.sort();
+        // The three that exist today: the class PSOs (opaque, transparent, overlay, the clouds), the
+        // terrain batch and the vertex-skinned bodies. Fewer means the scanner lost one.
+        for want in ["build_class_pso", "build_patch_render", "build_skinned_surface_pso"] {
+            assert!(builders.iter().any(|b| b == want), "{want} not found among {builders:?}");
+        }
+    }
+
+    /// The motion each fixed-function state writes: a depth-writing PSO (opaque, overlay) all four
+    /// channels, replaced; a blended one only the responsive mask, as the larger value.
+    #[test]
+    fn the_motion_follows_the_state() {
+        let f = wgpu::TextureFormat::Rgba16Float;
+        for (state, writes_all) in [(OPAQUE_STATE, true), (OVERLAY_STATE, true), (TRANSPARENT_STATE, false), (SHELL_TRANSPARENT_STATE, false)] {
+            let (blend, _, depth_write) = state;
+            let t = super::super::taa::scene_targets(f, blend, depth_write);
+            let colour = t[0].as_ref().expect("colour");
+            assert_eq!(colour.blend, Some(blend));
+            let motion = t[1].as_ref().expect("every scene PSO has the motion target");
+            assert_eq!(motion.format, super::super::taa::MOTION_FORMAT);
+            if writes_all {
+                assert_eq!(motion.write_mask, wgpu::ColorWrites::ALL);
+                assert_eq!(motion.blend, None);
+            } else {
+                assert_eq!(motion.write_mask, wgpu::ColorWrites::BLUE, "a blended surface writes only the responsive mask");
+                assert_eq!(motion.blend.map(|b| b.color.operation), Some(wgpu::BlendOperation::Max));
+            }
+        }
+    }
 }

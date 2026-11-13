@@ -30,6 +30,11 @@ const STICKY_PIN_RESETS = Object.freeze({
   // compiled into the shading at Off: the two red twins.
   shadow_cull: "1",
   atlas_code: "0",
+  // Temporal anti-aliasing (2026-11-13, renderer/taa.rs): {"taa":"off"} is its red twin (the
+  // picture must equal the pre-TAA one), "auto" hands it back to Settings > Graphics; taa_view "0"
+  // shows the picture again after a Dev view (1 motion, 2 history weight, 3 responsive mask).
+  taa: "auto",
+  taa_view: "0",
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",

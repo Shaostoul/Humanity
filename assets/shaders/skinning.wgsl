@@ -38,6 +38,16 @@ struct SkinParams {
 @group(0) @binding(2) var<storage, read_write> skinned: array<f32>;
 @group(0) @binding(3) var<uniform> params: SkinParams;
 @group(0) @binding(4) var<storage, read> morphs: array<vec4<f32>>;
+// TEMPORAL ANTI-ALIASING (renderer/taa.rs): the previous palette (each person's rows from the last
+// frame, renderer/skinning.rs `skin_upload_prev`) and the vertices skinned by it, in the same layout
+// as `skinned`: the region meshes' vertex slot 2, where each vertex WAS for the motion target.
+@group(0) @binding(5) var<storage, read> prev_palette: array<vec4<f32>>;
+@group(0) @binding(6) var<storage, read_write> prev_skinned: array<f32>;
+
+fn joint_apply_prev(joint: u32, p: vec4<f32>) -> vec3<f32> {
+    let b = (params.joint_base + joint) * 3u;
+    return vec3<f32>(dot(prev_palette[b], p), dot(prev_palette[b + 1u], p), dot(prev_palette[b + 2u], p));
+}
 
 // One joint's skinning matrix applied to a point (w = 1) or a direction (w = 0).
 fn joint_apply(joint: u32, p: vec4<f32>) -> vec3<f32> {
@@ -97,7 +107,21 @@ fn cs_skin(@builtin(global_invocation_id) gid: vec3<u32>) {
     } else {
         n = vec3<f32>(0.0, 1.0, 0.0);
     }
+    // Last frame's pose, positions only (the motion target needs no normal).
+    var q = joint_apply_prev(j01 & 0xffffu, pos) * w01.x;
+    if (w01.y > 0.0) {
+        q = q + joint_apply_prev(j01 >> 16u, pos) * w01.y;
+    }
+    if (w23.x > 0.0) {
+        q = q + joint_apply_prev(j23 & 0xffffu, pos) * w23.x;
+    }
+    if (w23.y > 0.0) {
+        q = q + joint_apply_prev(j23 >> 16u, pos) * w23.y;
+    }
     let o = (params.vertex_base + i) * 8u;
+    prev_skinned[o] = q.x;
+    prev_skinned[o + 1u] = q.y;
+    prev_skinned[o + 2u] = q.z;
     skinned[o] = p.x;
     skinned[o + 1u] = p.y;
     skinned[o + 2u] = p.z;

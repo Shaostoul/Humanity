@@ -146,6 +146,9 @@ pub mod texture_pool;
 /// Extracted from capture.rs on 2026-09-19 - see the file's header for why.
 pub mod view_depth;
 pub mod water;
+/// Temporal anti-aliasing: the motion target, the jitter, the resolve and the sharpen (renderer
+/// roadmap rung 1a, 2026-11-13, docs/design/renderer-roadmap.md sections 2 and 3).
+pub mod taa;
 
 /// Sun shadow map resolution, texels per side. Module constants (v0.1104)
 /// rather than locals inside the render loop, because the megashader's
@@ -321,6 +324,15 @@ pub struct Renderer {
     /// window's depth buffer is never recreated per view. See
     /// `view_depth::ViewDepth` and `begin_view_depth` / `end_view_depth`.
     view_depth: view_depth::ViewDepth,
+    /// The MOTION target (renderer/taa.rs): where each surface was on screen last frame, written
+    /// beside the colour by every scene pass, at the size of the current depth buffer (swapped with
+    /// it for an off-screen view, `begin_view_depth`).
+    motion_texture: wgpu::Texture,
+    motion_view: wgpu::TextureView,
+    /// The off-screen views' motion target, parked or active exactly as `view_depth` is.
+    view_motion: Option<(wgpu::Texture, wgpu::TextureView)>,
+    /// Temporal anti-aliasing (renderer/taa.rs): the setting, the history, this frame's jitter.
+    pub taa: taa::Taa,
     pipeline: Pipeline,
     /// Megashader hot-reload state (v0.924): (path, last seen mtime) of the
     /// on-disk pbr_simple.wgsl; None in stripped installs (feature dormant).
@@ -1286,6 +1298,7 @@ impl Renderer {
 
         // Depth buffer
         let (depth_texture, depth_view) = Self::create_depth_texture(&device, width, height);
+        let (motion_texture, motion_view) = taa::create_motion_texture(&device, width, height);
 
         // The scene target and the present pass (scene_target.rs). Every
         // scene pipeline below is built for `scene_format`, never for the
@@ -1407,6 +1420,8 @@ impl Renderer {
                 fill_direction: [-0.5, 0.3, -0.3, 0.6],
                 fill_color: [0.4, 0.5, 0.7, 0.0],
                 ocean_event: [[0.0; 4]; 14],
+                prev_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+                taa: [0.0; 4],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -2018,6 +2033,10 @@ impl Renderer {
             depth_texture,
             depth_view,
             view_depth: view_depth::ViewDepth::None,
+            motion_texture,
+            motion_view,
+            view_motion: None,
+            taa: taa::Taa::default(),
             pipeline,
             #[cfg(feature = "native")]
             shader_hot,

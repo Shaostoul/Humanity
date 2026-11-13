@@ -58,6 +58,18 @@ pub(crate) enum FigureKey {
     Crowd(u32),
 }
 
+/// The u64 a figure's palette rows are known by from frame to frame (renderer `skin_push_palette`):
+/// a hash of who they are, the same every frame of a run.
+fn figure_motion_key(k: FigureKey) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    k.hash(&mut h);
+    h.finish()
+}
+
+/// Mixed into a figure's motion key for its shadow-only twin, so the two sets of rows never meet.
+const SHADOW_TWIN_MOTION_KEY: u64 = 0x5348_4144_4f57_0001;
+
 /// One person to draw this frame.
 #[derive(Debug, Clone)]
 pub(crate) struct Person {
@@ -2650,8 +2662,11 @@ pub(crate) fn draw_people(
         rt.rows.clear();
         pose::palette_rows(skel, &rt.model, &mut rt.rows);
         let morph = pose::morph_rows(gpu_weights, body.model.vertex_count() as u32);
-        let index = renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rt.rows);
-        let shadow_index = shadow_rows.map(|rows| renderer.skin_push_palette(pose::affine_rows(&world), &morph, &rows));
+        // The person's key lets the renderer find their rows on the last frame, for the motion target
+        // of temporal anti-aliasing (renderer/taa.rs; the previous palette, renderer/skinning.rs).
+        let motion_key = figure_motion_key(p.key);
+        let index = renderer.skin_push_palette(motion_key, pose::affine_rows(&world), &morph, &rt.rows);
+        let shadow_index = shadow_rows.map(|rows| renderer.skin_push_palette(motion_key ^ SHADOW_TWIN_MOTION_KEY, pose::affine_rows(&world), &morph, &rows));
         // The interaction probe (showcase `anchor_probe`, rung 2b): the drawn body against what it
         // touches, near bodies in an interaction, and the first-person eye.
         if let Some(aprobe) = aprobe.as_mut() {

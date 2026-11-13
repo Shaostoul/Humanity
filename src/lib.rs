@@ -14842,6 +14842,11 @@ mod native_app {
                                     1.0 - state.gui_state.settings.water_clarity.clamp(0.0, 1.0);
                                 state.renderer.ssao_strength =
                                     state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
+                                // Anti-aliasing and its sharpening (renderer/taa.rs).
+                                if state.renderer.taa.mode != state.gui_state.settings.anti_aliasing {
+                                    state.renderer.taa.mode = state.gui_state.settings.anti_aliasing.clone();
+                                }
+                                state.renderer.taa.sharpen = state.gui_state.settings.sharpening.clamp(0.0, 1.0);
                                 // (tree_card_hide_m is owned by the near-tree
                                 // draw loop since v0.914 - it tracks the
                                 // radius models actually cover each frame.)
@@ -14939,6 +14944,11 @@ mod native_app {
                                         glass_mat == Some(o.material),
                                     )
                                 });
+                                // Pass 0.85: TEMPORAL ANTI-ALIASING's frame start (renderer/taa.rs): this
+                                // frame's jitter, last frame's matrices in this frame's render space, and
+                                // whether the history survives. The scene list is the home moved by the station
+                                // offset (applied to it just below, Pass 2), so that offset is the scene's origin.
+                                state.renderer.taa_begin_frame(&state.camera, state.station_off);
                                 // Pass 0.9: THE SHADOW ATLAS (2026-11-10, renderer/local_shadows.rs): the room
                                 // lights' shadows and the near sun view, drawn from the scene's casters (the home's
                                 // list rides the station) and the celestial build pieces, BEFORE the celestial pass,
@@ -15030,6 +15040,10 @@ mod native_app {
                                 // Pass 2.5: transparent surfaces (glass windows) blended over
                                 // the opaque scene so you can see through them. (v0.456)
                                 state.renderer.render_transparent_onto(&state.camera, &transparent_objects, &view, main_view);
+                                // Pass 2.55: THE TAA RESOLVE (renderer/taa.rs): blend this frame into the
+                                // history and sharpen it back into the scene target. Everything after it (the
+                                // overlay, the lines, the particles) writes no motion and draws unjittered.
+                                state.renderer.taa_resolve();
                                 // Pass 2.6: editor gizmos on top (depth off), visible through walls. (v0.560)
                                 state.renderer.render_overlay_onto(&state.camera, &overlay_objects, &view, main_view);
                                 // Pass 2.7: door auto-open rings as constant-width lines (v0.565).

@@ -48,6 +48,10 @@ impl Renderer {
         let (tex, view) = Self::create_depth_texture(&self.device, width, height);
         self.depth_texture = tex;
         self.depth_view = view;
+        // The motion target follows the depth buffer (renderer/taa.rs).
+        let (mt, mv) = super::taa::create_motion_texture(&self.device, width, height);
+        self.motion_texture = mt;
+        self.motion_view = mv;
     }
 
     /// Bind a VIEW-SIZED depth buffer for the passes that follow, leaving the
@@ -89,6 +93,17 @@ impl Renderer {
         let window_tex = std::mem::replace(&mut self.depth_texture, spare.0);
         let window_view = std::mem::replace(&mut self.depth_view, spare.1);
         self.view_depth = ViewDepth::Active(window_tex, window_view);
+        // The motion target goes with the depth buffer: the view's passes write one of its size
+        // (the scene PSOs have a motion target, renderer/taa.rs), which nothing reads.
+        let spare_motion = match self.view_motion.take() {
+            Some((t, v)) if t.width() == width && t.height() == height => (t, v),
+            _ => super::taa::create_motion_texture(&self.device, width, height),
+        };
+        let wt = std::mem::replace(&mut self.motion_texture, spare_motion.0);
+        let wv = std::mem::replace(&mut self.motion_view, spare_motion.1);
+        self.view_motion = Some((wt, wv));
+        // The view's own target starts uncleared; the window's state comes back at the end.
+        self.taa.saved_cleared.set(self.taa.motion_cleared.replace(false));
     }
 
     /// Give back the view buffers a view kept parked (its depth buffer and
@@ -98,6 +113,8 @@ impl Renderer {
     pub fn release_view_buffers(&mut self) {
         if matches!(self.view_depth, ViewDepth::Parked(..)) {
             self.view_depth = ViewDepth::None;
+            // The parked motion target goes with it (an active view holds the window's here).
+            self.view_motion = None;
         }
         self.release_view_scratch();
     }
@@ -117,6 +134,14 @@ impl Renderer {
         if retain {
             self.view_depth = ViewDepth::Parked(view_tex, view_view);
         }
+        if let Some((wt, wv)) = self.view_motion.take() {
+            let vt = std::mem::replace(&mut self.motion_texture, wt);
+            let vv = std::mem::replace(&mut self.motion_view, wv);
+            if retain {
+                self.view_motion = Some((vt, vv));
+            }
+        }
+        self.taa.motion_cleared.set(self.taa.saved_cleared.get());
     }
 }
 

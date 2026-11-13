@@ -520,6 +520,12 @@ impl Renderer {
         }
     }
 
+    /// Whether an off-screen view (a camera screen, the hi-res screenshot) is being drawn: its
+    /// passes take no jitter and write no motion that anything reads (renderer/taa.rs).
+    pub(super) fn offscreen_view_active(&self) -> bool {
+        self.view_scene.state != ViewSceneState::Idle
+    }
+
     /// Bytes held by the scene targets (the window's and a parked view
     /// scratch), for the Performance page's render-target slice.
     pub(super) fn scene_target_bytes(&self) -> u64 {

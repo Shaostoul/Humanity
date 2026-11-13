@@ -931,8 +931,15 @@ const TERRAIN_TERMINATOR_HI: f32 = 0.004;
 // cutouts across all classes: it carries no heavyweight storage, and the
 // shadow pass has no class routing to gain from a split.
 
+// TAA (renderer/taa.rs): how much a surface-class fragment covers the pixel as a BLENDED surface,
+// for the responsive mask: its alpha when the material is translucent (glass, a hologram), 0 for
+// an opaque material (the opaque PSOs draw it, whatever alpha its shading returns).
+fn surface_cover(a: f32) -> f32 {
+    return select(0.0, a, material.base_color.a < 0.999);
+}
+
 @fragment
-fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_surface(in: VertexOutput) -> FragOut {
     var s = frag_prologue(in);
     // The fs_main names, so the moved block text below is verbatim (see the
     // FragSetup note in 80-fragment-shared.wgsl).
@@ -1213,7 +1220,8 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
         if (d.a <= 0.0 && max(cor_out.r, max(cor_out.g, cor_out.b)) < 1.0e-5) {
             discard;
         }
-        return vec4<f32>(rgb, a);
+        let fo_c = vec4<f32>(rgb, a);
+        return frag_out(in, fo_c, surface_cover(fo_c.a));
     }
 
     // ── A PANE IS LIT FROM THE SIDE IT IS SEEN FROM (2026-10-21) ──
@@ -1346,11 +1354,12 @@ fn fs_surface(in: VertexOutput) -> @location(0) vec4<f32> {
     s.screen_emitter = screen_emitter;
     s.out_alpha = out_alpha;
     s.emissive_strength = emissive_strength;
-    return frag_tail(in, s);
+    let fo_c = frag_tail(in, s);
+    return frag_out(in, fo_c, surface_cover(fo_c.a));
 }
 
 @fragment
-fn fs_terrain(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_terrain(in: VertexOutput) -> FragOut {
     var s = frag_prologue(in);
     // The fs_main names, so the moved block text below is verbatim (see the
     // FragSetup note in 80-fragment-shared.wgsl).
@@ -1780,11 +1789,11 @@ fn fs_terrain(in: VertexOutput) -> @location(0) vec4<f32> {
     s.screen_emitter = screen_emitter;
     s.out_alpha = out_alpha;
     s.emissive_strength = emissive_strength;
-    return frag_tail(in, s);
+    return frag_out(in, frag_tail(in, s), 0.0);
 }
 
 @fragment
-fn fs_vegetation(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_vegetation(in: VertexOutput) -> FragOut {
     var s = frag_prologue(in);
     // The fs_main names, so the moved block text below is verbatim (see the
     // FragSetup note in 80-fragment-shared.wgsl).
@@ -2290,24 +2299,26 @@ fn fs_vegetation(in: VertexOutput) -> @location(0) vec4<f32> {
     s.screen_emitter = screen_emitter;
     s.out_alpha = out_alpha;
     s.emissive_strength = emissive_strength;
-    return frag_tail(in, s);
+    return frag_out(in, frag_tail(in, s), 0.0);
 }
 
 @fragment
-fn fs_water(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_water(in: VertexOutput) -> FragOut {
     let s = frag_prologue(in);
     let material_type = s.material_type;
     // The ocean shell is a whole program of its own (ocean_shell above:
     // FFT tile sampling, water_shade, the sky mirror and Fresnel) and never
     // takes the BRDF path.
     if (HAS_OCEAN_BRANCH && material_type >= 15.5 && material_type < 16.5) {
-        return ocean_shell(in);
+        let fo_c = ocean_shell(in);
+        return frag_out(in, fo_c, fo_c.a);
     }
-    return frag_tail(in, s);
+    let fo_c = frag_tail(in, s);
+    return frag_out(in, fo_c, fo_c.a);
 }
 
 @fragment
-fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> FragOut {
     var s = frag_prologue(in);
     // The fs_main names, so the moved block text below is verbatim (see the
     // FragSetup note in 80-fragment-shared.wgsl).
@@ -2332,7 +2343,8 @@ fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loc
     // Type 14 short-circuits the whole PBR surface path: an atmosphere is a
     // participating MEDIUM and takes no colour from a BRDF.
     if (HAS_ATMOSPHERE_BRANCH && material_type >= 13.5 && material_type < 14.5) {
-        return atmosphere_scattering(in.world_position, front_facing, in.clip_position.xy);
+        let fo_c = atmosphere_scattering(in.world_position, front_facing, in.clip_position.xy);
+        return frag_out(in, fo_c, fo_c.a);
     }
     if (material_type >= 12.5 && material_type < 13.5) {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
@@ -2365,20 +2377,23 @@ fn fs_shell(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loc
     // SHELL_TRANSPARENT_STATE, for the type-14 air, which lets the Moon show
     // through it): the shared tail returns straight alpha, so premultiply here.
     let c = frag_tail(in, s);
-    return vec4<f32>(c.rgb * c.a, c.a);
+    let fo_c = vec4<f32>(c.rgb * c.a, c.a);
+    return frag_out(in, fo_c, fo_c.a);
 }
 
 @fragment
-fn fs_cloud(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+fn fs_cloud(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> FragOut {
     let s = frag_prologue(in);
     let material_type = s.material_type;
     // The cloud deck is a self-lit coverage field marched per fragment
     // (40-clouds.wgsl and 41-cloud-bodies.wgsl, with their per-invocation
     // tables): the one program whose fragments genuinely pay for the march.
     if (HAS_CLOUD_BRANCH && material_type >= 14.5 && material_type < 15.5) {
-        return cloud_layer(in.world_position, front_facing);
+        let fo_c = cloud_layer(in.world_position, front_facing);
+        return frag_out(in, fo_c, fo_c.a);
     }
-    return frag_tail(in, s);
+    let fo_c = frag_tail(in, s);
+    return frag_out(in, fo_c, fo_c.a);
 }
 
 // ── SHADOW-PASS FRAGMENT (v0.1106) ──────────────────────────────────────

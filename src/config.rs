@@ -706,6 +706,13 @@ pub struct AppConfig {
     /// the design's level, Full (`renderer::local_shadows::DEFAULT_LEVEL`).
     #[serde(default = "default_local_shadows")]
     pub local_shadows: String,
+    /// Anti-aliasing (2026-11-13, Settings > Graphics > Image, renderer/taa.rs): "temporal" (the
+    /// default, the operator's answer of 2026-11-12) or "off". An unknown id falls back to Temporal.
+    #[serde(default = "default_anti_aliasing")]
+    pub anti_aliasing: String,
+    /// Sharpening after the temporal blend, 0..1 (renderer/taa.rs `DEFAULT_SHARPENING`).
+    #[serde(default = "default_sharpening")]
+    pub sharpening: f32,
     #[serde(default = "default_shadow_strength")]
     pub shadow_strength: f32,
     /// The camera aperture the Sun's glare is the diffraction of, millimetres (Settings > Graphics
@@ -1167,6 +1174,8 @@ fn default_fps_background() -> u32 { 30 }
 fn default_cloud_quality() -> String { "high".to_string() }
 fn default_bounced_light_detail() -> String { crate::renderer::bounced_light_detail::DEFAULT_DETAIL.to_string() }
 fn default_local_shadows() -> String { crate::renderer::local_shadows::DEFAULT_LEVEL.to_string() }
+fn default_anti_aliasing() -> String { crate::renderer::taa::DEFAULT_MODE.to_string() }
+fn default_sharpening() -> f32 { crate::renderer::taa::DEFAULT_SHARPENING }
 fn default_furniture_detail() -> String { crate::gui::furniture_detail::DEFAULT_LEVEL.to_string() }
 fn default_garment_textures() -> String { crate::gui::garment_textures::DEFAULT_LEVEL.to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
@@ -1666,6 +1675,8 @@ impl AppConfig {
             veg_tree_card_m: state.settings.veg_tree_card_m,
             sun_shadows: state.settings.sun_shadows,
             local_shadows: state.settings.local_shadows.clone(),
+            anti_aliasing: state.settings.anti_aliasing.clone(),
+            sharpening: state.settings.sharpening,
             shadow_strength: state.settings.shadow_strength,
             sun_aperture_mm: state.settings.sun_aperture_mm,
             time_speed: state.settings.time_speed,
@@ -1985,6 +1996,13 @@ impl AppConfig {
             log::warn!("config: unknown local_shadows {:?}, falling back to {}", self.local_shadows, default_local_shadows());
             default_local_shadows()
         };
+        state.settings.anti_aliasing = if crate::renderer::taa::is_mode(&self.anti_aliasing) {
+            self.anti_aliasing.clone()
+        } else {
+            log::warn!("config: unknown anti_aliasing {:?}, falling back to {}", self.anti_aliasing, default_anti_aliasing());
+            default_anti_aliasing()
+        };
+        state.settings.sharpening = self.sharpening.clamp(0.0, 1.0);
         state.settings.shadow_strength = self.shadow_strength;
         // Held to what the glare takes; a hand-edited config's nonsense back to the default.
         state.settings.sun_aperture_mm = if self.sun_aperture_mm.is_finite() {

@@ -99,6 +99,12 @@
 //!   off). The converted videos once kept on disk in `<data dir>/media/cache` were not put behind
 //!   the switch: they are gone, a film plays through the person's ffmpeg as it goes
 //!   (`media::stream`, 2026-11-13).
+//! - `src/renderer/taa.rs`: temporal anti-aliasing (2026-11-13, renderer roadmap rung 1a). The
+//!   history and the per-object motion book are discarded every frame with the switch off
+//!   (`history_kept`, `MotionBook::turn`), so the picture aliases exactly as Off does.
+//! - `src/renderer/skinning.rs`: `last_staging`, `last_keys` (the bodies' previous palette for the
+//!   motion target: with the switch off `skin_upload_prev` uploads this frame's rows, so nobody moves
+//!   on their own).
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

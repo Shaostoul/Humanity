@@ -153,6 +153,12 @@ pub struct CameraUniforms {
     /// `Renderer::ocean_event_rows` after the full uniform write. CPU twin +
     /// layout doc: crates/humanity-terrain/src/ocean_events.rs (PinnedOceanEvents).
     pub ocean_event: [[f32; 4]; 14],
+    /// Last frame's UNJITTERED view-projection in this frame's render space, for the motion
+    /// target (renderer/taa.rs, 2026-11-13). The camera fills it with `view_proj` (no motion); the
+    /// renderer stamps the real one for the main view's colour passes (`Renderer::taa_camera`).
+    pub prev_view_proj: [[f32; 4]; 4],
+    /// xy = the jitter in NDC, z = 1 while motion is meaningful, w = last frame's animation clock.
+    pub taa: [f32; 4],
 }
 
 // ── Camera mode enum ─────────────────────────────────────────
@@ -576,8 +582,9 @@ impl Camera {
     /// Uses default directional sun/fill lights matching the former shader constants.
     pub fn uniforms(&self) -> CameraUniforms {
         let pos = self.effective_position();
+        let vp = self.view_projection_matrix().to_cols_array_2d();
         CameraUniforms {
-            view_proj: self.view_projection_matrix().to_cols_array_2d(),
+            view_proj: vp,
             view_pos: [pos.x, pos.y, pos.z, 1.0],
             light_positions: [[0.0; 4]; 8],
             light_colors: [[0.0; 4]; 8],
@@ -593,6 +600,8 @@ impl Camera {
             // Ocean disaster events: dead calm until the renderer pokes the
             // live rows (row 11 w = 0 means the shader skips the field).
             ocean_event: [[0.0; 4]; 14],
+            prev_view_proj: vp,
+            taa: [0.0; 4],
         }
     }
 
@@ -604,6 +613,7 @@ impl Camera {
         let proj = self.celestial_projection();
         let mut u = self.uniforms();
         u.view_proj = (proj * self.view_matrix()).to_cols_array_2d();
+        u.prev_view_proj = u.view_proj;
         u
     }
 
@@ -627,8 +637,9 @@ impl Camera {
             light_spot[i] = [l.dir.x, l.dir.y, l.dir.z, l.cos_outer];
             light_cone_inner[i] = [l.cos_inner, 0.0, 0.0, 0.0];
         }
+        let vp = self.view_projection_matrix().to_cols_array_2d();
         CameraUniforms {
-            view_proj: self.view_projection_matrix().to_cols_array_2d(),
+            view_proj: vp,
             view_pos: [pos.x, pos.y, pos.z, 1.0],
             light_positions,
             light_colors,
@@ -644,6 +655,8 @@ impl Camera {
             // Ocean disaster events: dead calm until the renderer pokes the
             // live rows (row 11 w = 0 means the shader skips the field).
             ocean_event: [[0.0; 4]; 14],
+            prev_view_proj: vp,
+            taa: [0.0; 4],
         }
     }
 
@@ -1855,7 +1868,8 @@ mod uniform_layout_tests {
     #[test]
     fn ocean_event_block_sits_at_the_struct_tail() {
         assert_eq!(std::mem::offset_of!(CameraUniforms, ocean_event), 672);
-        assert_eq!(std::mem::size_of::<CameraUniforms>(), 672 + 14 * 16);
+        // + the TAA tail (2026-11-13): the previous view-projection (64) and the jitter row (16).
+        assert_eq!(std::mem::size_of::<CameraUniforms>(), 672 + 14 * 16 + 64 + 16);
     }
 }
 

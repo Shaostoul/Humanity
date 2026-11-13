@@ -775,6 +775,8 @@ impl StarRenderer {
             fill_direction: [0.0; 4],
             fill_color: [0.0; 4],
             ocean_event: [[0.0; 4]; 14],
+            prev_view_proj: star_vp.to_cols_array_2d(),
+            taa: [0.0; 4],
         };
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniforms));
     }

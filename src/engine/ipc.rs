@@ -461,9 +461,35 @@ pub(crate) fn poll_screenshot_request(
     // v0.810: the request MAY carry {"width":W,"height":H} for a hi-res
     // offscreen capture; any other content, an empty file included, keeps
     // the original v0.639 contract (window-size swapchain grab).
-    let Some(size) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
-        return;
+    // THE DETERMINISTIC CAPTURE (temporal anti-aliasing, renderer/taa.rs; renderer-roadmap.md 3.9): a
+    // window capture throws the history away and waits for `taa::SETTLE_FRAMES` resolved frames, so
+    // the picture does not depend on the frames before the request (where the camera was a moment
+    // ago, how long it has been parked). The hi-res capture draws off-screen without TAA and is
+    // taken at once.
+    static HELD: std::sync::Mutex<Option<ScreenshotSize>> = std::sync::Mutex::new(None);
+    let held = HELD.lock().ok().and_then(|mut h| h.take());
+    let size = match held {
+        Some(s) => s,
+        None => {
+            let Some(s) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
+                return;
+            };
+            if matches!(s, ScreenshotSize::Window) && state.renderer.taa_on() {
+                state.renderer.taa_reset();
+                if let Ok(mut h) = HELD.lock() {
+                    *h = Some(s);
+                }
+                return;
+            }
+            s
+        }
     };
+    if matches!(size, ScreenshotSize::Window) && !state.renderer.taa_settled() {
+        if let Ok(mut h) = HELD.lock() {
+            *h = Some(size);
+        }
+        return;
+    }
     execute_screenshot_capture(state, frame_texture, size, lists);
 }
 
@@ -1757,6 +1783,31 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         };
         log::info!("Showcase: local_shadows -> {:?} (None = Settings > Graphics)", state.renderer.local_shadows.pin);
+    }
+    // TEMPORAL ANTI-ALIASING'S PINS (2026-11-13, renderer/taa.rs): {"taa":"off"} (or "0") draws without
+    // it, the red twin (the picture must equal the pre-TAA one), {"taa":"temporal"} pins it on, "auto"
+    // or "1" hands it back to Settings > Graphics. {"taa_view":"1"} shows the motion target, "2" the
+    // history's weight, "3" the responsive mask, "0" the picture (the Dev page's Image card).
+    // {"taa_reset":"1"} throws the history away once.
+    if let Some(t) = grab("taa") {
+        state.renderer.taa.pin = match t.as_str() {
+            "auto" | "1" => None,
+            "0" => Some("off".to_string()),
+            id if crate::renderer::taa::is_mode(id) => Some(id.to_string()),
+            other => {
+                log::warn!("Showcase: taa wants \"off\", \"temporal\", \"0\", \"1\" or \"auto\", not {other:?}");
+                state.renderer.taa.pin.clone()
+            }
+        };
+        log::info!("Showcase: taa -> {:?} (None = Settings > Graphics)", state.renderer.taa.pin);
+    }
+    if let Some(t) = grab("taa_view") {
+        crate::renderer::taa::set_dev_view(t.parse().unwrap_or(0));
+        log::info!("Showcase: taa_view -> {}", crate::renderer::taa::dev_view());
+    }
+    if grab("taa_reset").is_some() {
+        state.renderer.taa_reset();
+        log::info!("Showcase: taa_reset");
     }
     if let Some(t) = grab("near_levels") {
         state.renderer.local_shadows.near_pin = match t.as_str() {

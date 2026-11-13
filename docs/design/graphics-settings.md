@@ -149,6 +149,19 @@ that place and those settings: the line on the page is the reading where the per
 - On a card without GPU timers the passes with a processor-side twin read that twin and the rest say
   they cannot be timed.
 
+## Anti-aliasing and Sharpening (2026-11-13)
+
+Settings > Graphics > Image (renderer roadmap rung 1a, `src/renderer/taa.rs`). Anti-aliasing is a
+choice of modes from `taa::MODES` (Off, Temporal; "Edges only" joins in rung 1c), each with its own
+line saying what you will see (`graphics.anti_aliasing_says.<id>`); under Temporal the page works out
+the history's video memory at this window's size (two frames of 8 bytes a pixel: 54 MiB at 2560 x
+1387) against the card's own and warns past an eighth, and Sharpening (0 to 1) appears. Cost rows:
+`anti_aliasing` is `Gpu(["gpu.taa"])` (the resolve and the sharpen, measured 0.25 to 0.28 ms on the
+RTX 4070 at 2560 x 1387), `Shares(["gpu.scene", "gpu.celestial"])` (the motion every opaque pass
+writes) and `Memory(["vram.taa_history"])`; `sharpening` is `Gpu(["gpu.taa"])`. The page also says
+plainly why DLSS, XeSS and FSR 4 are not offered: the project's own open-source rule, not a law, a
+patent or a platform holder's rule.
+
 ## Garment textures
 
 Section 16 of `docs/design/character-animation.md` holds the levels' build. In short: the converter

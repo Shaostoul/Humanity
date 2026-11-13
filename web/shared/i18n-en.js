@@ -2540,7 +2540,16 @@ window.HOS_I18N_EN = {
       "talk_counts": "{{asked}} asked, {{answered}} answered by AI, {{filtered}} stopped by the filter, {{shape}} refused for their shape, {{fell_back}} fell back, {{timed_out}} timed out"
     },
     "feet_on_world": "Feet on the world",
-    "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too."
+    "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too.",
+    "image": "Image",
+    "taa_view_hint": "Shows what temporal anti-aliasing sees instead of the picture.",
+    "taa_view": {
+      "picture": "Picture",
+      "motion": "Motion",
+      "history": "History weight",
+      "responsive": "Responsive mask"
+    },
+    "taa_view_note": "Motion: red is movement right, green down, blue where something moves left or up; dark blue is sky. History weight: white is carried from earlier frames, black is this frame only. Responsive mask: where see-through surfaces lower the history. Needs Anti-aliasing on Temporal."
   },
   "dev_journal": {
     "title": "Play journal",
@@ -4789,7 +4798,9 @@ window.HOS_I18N_EN = {
       "shadow_local": "the room lights' shadow pass",
       "shadow_local_cpu": "choosing the room lights and drawing their shadows",
       "shadow_near_cpu": "choosing what casts in the sun near you",
-      "shadow_atlas": "the shadow atlas"
+      "shadow_atlas": "the shadow atlas",
+      "taa": "the anti-aliasing blend and sharpen",
+      "taa_history": "the anti-aliasing history"
     },
     "window_mode": "Window mode",
     "window_mode_hint": "How the game's window sits on your screen. Windowed fullscreen fills the screen and keeps the title bar and taskbar; borderless drops the title bar; exclusive gives the whole screen to the game (true fullscreen). A change applies at once.",
@@ -4974,7 +4985,25 @@ window.HOS_I18N_EN = {
     "local_shadows_now": "Now: {{shadowed}} of {{lights}} room lights cast shadows ({{over}} more in view without them), in {{views}} shadow views.",
     "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes.",
     "local_shadows_code_out": "Off costs nothing in the scene pass: the shading has been rebuilt without the shadow lookups.",
-    "local_shadows_code_building": "Rebuilding the shading for this choice in the background, a second or two. Until it is done the shading still carries the shadow lookups, which slow the scene pass a little even with shadows Off."
+    "local_shadows_code_building": "Rebuilding the shading for this choice in the background, a second or two. Until it is done the shading still carries the shadow lookups, which slow the scene pass a little even with shadows Off.",
+    "section_image": "Image",
+    "anti_aliasing": "Anti-aliasing",
+    "anti_aliasing_hint": "Smooths the stair-steps on edges ([[anti-aliasing|anti_aliasing]]). Temporal also steadies thin things that shimmer (hair, grass, leaves, far railings) by blending each frame with the last few, which softens the picture slightly; Off blends nothing, so edges stair-step and thin things shimmer as they move.",
+    "anti_aliasing_choice_hint": "Choose how the picture's edges are smoothed.",
+    "anti_aliasing_choice": {
+      "off": "Off",
+      "temporal": "Temporal"
+    },
+    "anti_aliasing_says": {
+      "off": "Stair-stepped edges; thin things shimmer as they move.",
+      "temporal": "Smooth edges; hair, grass and leaves hold still. A little softer (Sharpening below)."
+    },
+    "anti_aliasing_card": "Its history takes {{used}} at {{size}}: {{share}}% of {{card}}'s {{own}}.",
+    "anti_aliasing_card_warn": "That is more than an eighth of this card's memory ({{used}} of {{own}}); Off gives it back.",
+    "anti_aliasing_memory": "Its history takes {{used}} at {{size}}.",
+    "anti_aliasing_vendor": "DLSS, XeSS and FSR 4 are not offered: each is a program that may not be modified (DLSS runs only on NVIDIA cards), and HumanityOS uses only open source for its core. That is this project's own rule, not a law, a patent or a platform holder's rule.",
+    "sharpening": "Sharpening",
+    "sharpening_hint": "Restores the crispness the blending softens; too much draws bright edges. 0 turns it off."
   },
   "gameplay": {
     "level": {
