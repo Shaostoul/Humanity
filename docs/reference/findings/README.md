@@ -647,6 +647,15 @@ what we will say about it.
   but must never copy a band's recordings, melodies, lyrics, riffs or one song's distinctive
   combination of elements, nor use a band's name to suggest it approves. The basis for the electro
   swing genre in `docs/design/music.md` section 7a.
+- [`2026-11-13-active-shielding.md`](2026-11-13-active-shielding.md),
+  a negative finding: superconducting magnets (and electric or plasma fields) cannot replace or
+  usefully thin the mothership drum's water shield. With their structure modelled they cut the
+  cosmic-ray dose by about a fifth to two thirds (SR2S, Vuolo et al. 2016; MAARSS 2012;
+  Hesse-Withbroe and Arquilla 2025), never the factor of about 100 the drum needs; they remove the
+  solar-storm hazard (Musenich et al. 2018), which 10 m of water already does; a field adds less the
+  thicker the passive shield (OLTARIS, Globus and Strout 2017); NASA SP-413 rejected them in 1977.
+  ICNIRP's static-field limits (400 mT public, 0.5 mT for implants) quoted. The basis for keeping
+  the passive shell in the master plan's 3.16.
 - [`2026-11-13-pulleys-and-rigging.md`](2026-11-13-pulleys-and-rigging.md),
   the block and tackle's numbers for docs/design/pulleys.md: friction compounding per sheave
   (Crosby's line-pull ratios, the Army's 10 percent rule), rope strength by the square of the

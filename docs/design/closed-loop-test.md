@@ -541,7 +541,7 @@ Readiness (0, 0) means not assessed: named, and refused by the tests until sourc
 | Food grown on electrolytic acetate | Food | 3 to 4 | laboratory; about fourfold over photosynthesis in sunlight | none yet (no electricity per kg read) |
 | LEDs at their calculated limit | Food | 6 to 8 | 3.4 and 4.1 umol/J calculated limits | food power 7.7 kW (3.4) or 6.4 kW (4.1) |
 | **Full mineral recycling (MELiSSA-style)** | Nutrients | 4 to 5 | pilot plant with animals | phosphorus about 1 g a person a year |
-| Active (magnetic) shielding | Habitat | 2 to 3 | rejected by SP-413 in 1977 | none |
+| Active (magnetic) shielding | Habitat | 2 to 3 | rejected by SP-413 in 1977; re-read 2026-11-13 ([active-shielding research](../reference/research/2026-11-13-active-shielding/README.md)): tens of percent off the cosmic-ray dose, less behind thick shields | none |
 | Medicine on demand; capturing matter on the way | Materials | not assessed | not sourced | none until sourced |
 
 ### 7.3 What matters most, and why fusion is not first

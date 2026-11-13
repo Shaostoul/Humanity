@@ -901,6 +901,14 @@ the jump that moves the ships is the one game fiction, and it plays no part in t
 | Mass | the shield (10 t/m2 of water for 5 mSv a year, decided in 1.5; the sizes research, section 7, corrected the old 4.5 t/m2, which gives about 55) dominates, held in a non-rotating shell around the drums so it carries no spin and loads no drum (F1's "unattached" design) | about 5,220 t a person in 1 km drums (2,650 at the old 4.5 t/m2) |
 | Where it comes from | the main asteroid belt holds about 2.4 x 10^21 kg (F7) | a billion people's fleet is about two millionths of it; ten billion's about two hundred-thousandths |
 
+**See also: [the active-shielding research](../reference/research/2026-11-13-active-shielding/README.md)**
+(2026-11-13), on whether anything beats the water shield. Drum 1's steel is 17.5 cm and the shell
+10 m of water (about 11.5 m in foam cells); magnets cut the cosmic-ray dose by tens of percent, not
+the factor of about 100 needed, and add less the thicker the water, so they are not proposed for
+the drums (a [dated negative finding](../reference/findings/2026-11-13-active-shielding.md)); the
+ship's own floor, soil and stores are probably worth 2 to 3 t/m2 of the water, to be confirmed by a
+transport calculation before the 10 t/m2 here changes.
+
 **Which drums.** Drum 1 keeps its decided 250 m radius. For the billions the study compares two
 drum sizes, each as long as the stability limit allows:
 

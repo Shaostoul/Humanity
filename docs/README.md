@@ -47,6 +47,9 @@ configurator, the geometry drawn from math and the rungs are in **[design/pulley
 Sizing the mothership (homes, hangars, farms, livestock, the drum's steel, shielding, power)? The
 sourced, dated numbers are in
 **[reference/research/2026-11-13-mothership-sizes/README.md](reference/research/2026-11-13-mothership-sizes/README.md)**.
+Whether magnets or anything else beat the water shield (thicknesses, materials per kilogram, the
+ship's own mass as shielding, magnetic and electric shields, and a chart of the cited dose curves):
+**[reference/research/2026-11-13-active-shielding/README.md](reference/research/2026-11-13-active-shielding/README.md)**.
 
 ---
 
