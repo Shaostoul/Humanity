@@ -969,7 +969,7 @@ if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
             } else {
                 state.start_time.elapsed().as_secs_f32()
             };
-            let knob = state.renderer.cloud_profile_knob;
+            let knob = state.renderer.cloud_profile_knob_now();
             let calib_key = state.renderer.cloud_profile_calib_key(quality);
             // The plan accepts the FIRST
             // cloud body of the frame

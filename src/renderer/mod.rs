@@ -2371,12 +2371,17 @@ impl Renderer {
         // that never invalidated would make the slider LOOK like it worked -
         // the harvest responds instantly - while the OLD mesh stayed on screen
         // until the next restart. That is a bug shaped exactly like the fix,
-        // which is the kind that survives longest.
+        // which is the kind that survives longest. Keeping the mesh while the
+        // key matches is a reuse, so with the reuse switch off
+        // (`humanity_core::reuse`) it is built again on every frame.
         let key = humanity_terrain::planet_chunks::grass_detail_key();
-        if self.grass_mesh.is_some() && self.grass_mesh_key == key {
+        let have = self.grass_mesh.as_ref().map(|_| self.grass_mesh_key);
+        if humanity_core::reuse::keeps(have, key, humanity_core::reuse::enabled()) {
             return;
         }
         let first = self.grass_mesh.is_none();
+        // The log line below is for a new mesh, not for each reuse-off rebuild.
+        let rekeyed = have != Some(key);
         let (builder, stats) = humanity_terrain::planet_chunks::grass_tiller_mesh();
         self.grass_mesh = Some(Mesh::from_vertices(
             &self.device,
@@ -2392,13 +2397,15 @@ impl Renderer {
             self.grass_material =
                 self.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.92, 23.0);
         }
-        log::info!(
-            "[Grass] shared tiller mesh: {} blades x {} segments, {} triangles, {} verts",
-            stats.blades,
-            stats.segments,
-            stats.triangles,
-            builder.vertices.len()
-        );
+        if rekeyed {
+            log::info!(
+                "[Grass] shared tiller mesh: {} blades x {} segments, {} triangles, {} verts",
+                stats.blades,
+                stats.segments,
+                stats.triangles,
+                builder.vertices.len()
+            );
+        }
     }
 
     /// Replace this frame's grass instance set. Empty = the layer draws
@@ -2468,11 +2475,16 @@ impl Renderer {
     /// Cheap to call per frame: no-ops unless the params changed since the
     /// last upload (a body switch or a live atmosphere edit). CPU generation
     /// is ~milliseconds; the textures are rewritten in place so bind groups
-    /// never rebuild.
+    /// never rebuild. Keeping the tables while the params match is a reuse,
+    /// so with the reuse switch off (`humanity_core::reuse`) they are
+    /// generated and uploaded again on every frame (`reuse::keeps`). That
+    /// costs far more than "milliseconds": cpu.atmo_luts read 66 ms a frame
+    /// at ocean-storm-low with reuse off (2026-11-13, a machine shared with
+    /// builds), the largest share of what the switch costs on a planet.
     pub fn update_atmo_luts(&mut self, params: atmo_luts::TransLutParams) {
         let _cost = frame_costs::stage("cpu.atmo_luts");
         let queue = &self.queue;
-        if self.atmo_lut_params == Some(params) {
+        if humanity_core::reuse::keeps(self.atmo_lut_params, params, humanity_core::reuse::enabled()) {
             return;
         }
         let write = |tex: &wgpu::Texture, texels: &[[f32; 4]], w: u32, h_px: u32| {

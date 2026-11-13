@@ -29,7 +29,17 @@
 //! (2026-11-09, `humanity_terrain::map_ground`, driven by `engine::map_meshes`): the tiles decoded
 //! from them and each pack's shore field are kept while patches need them, tagged by the pack's
 //! build; while the switch is off a fresh set is published every frame, so every tile and shore
-//! field is decoded again. The pulley designer (2026-11-13, docs/design/pulleys.md): the
+//! field is decoded again. The clouds and the rooms' bounced light (2026-11-13): the clouds'
+//! accumulated picture from earlier frames is dropped on every frame
+//! (`renderer::cloud_resolve::drops_history`), the sun-shadow atlas is re-anchored and baked
+//! whole on every frame instead of an eighth at a time (`cloud_temporal::CloudLightState::plan`),
+//! and the far rung's profile, which cannot be built in one frame, steps aside
+//! (`cloud_temporal::cloud_fr_knob_with_reuse`); the room probes forget which rooms hold them,
+//! so every resident room is seeded from this frame's ambient colour, and every traced probe takes
+//! its fresh estimate whole (`renderer::room_probes`, "THE REUSE SWITCH"). The atmosphere's
+//! lookup tables and the shared grass mesh, kept while their inputs match, are built again on
+//! every frame (`keeps`, the helper for a reuse tagged with a version).
+//! The pulley designer (2026-11-13, docs/design/pulleys.md): the
 //! Calculator's Pulleys mode keeps its last answer under a key of its inputs, and
 //! `humanity_systems::pulley::ShapeStore` keeps the last block-and-tackle shapes under a key of
 //! every number they are built from; with the switch off both are worked out again every time.
@@ -63,6 +73,14 @@ pub fn enabled() -> bool {
     }
 }
 
+/// May a reuse TAGGED WITH A VERSION keep what it built for `have` now that its source says
+/// `want`? Only while the two match exactly and reuse is on. `reuse` is `enabled()` at the call
+/// site (`keeps(self.key, key, reuse::enabled())`); it is a parameter so a test can drive both
+/// arms without flipping the switch for every test in the process.
+pub fn keeps<K: PartialEq>(have: Option<K>, want: K, reuse: bool) -> bool {
+    reuse && have == Some(want)
+}
+
 /// Turn every reuse on or off, from the Dev page.
 pub fn set_enabled(on: bool) {
     STATE.store(if on { ON } else { OFF }, Ordering::Relaxed);
@@ -81,5 +99,17 @@ mod tests {
         assert!(!super::enabled());
         super::set_enabled(true);
         assert!(super::enabled());
+    }
+
+    /// A version-tagged reuse keeps what it built only for the same version and only with reuse
+    /// on; with reuse off it builds again even for the version it has (so the check can fail).
+    /// Seen red 2026-11-13 with `keeps` ignoring `reuse`: "reuse off: built again for the same
+    /// version".
+    #[test]
+    fn with_reuse_off_a_versioned_reuse_builds_again_for_the_same_version() {
+        assert!(!super::keeps(Some(7u32), 7, false), "reuse off: built again for the same version");
+        assert!(super::keeps(Some(7u32), 7, true), "reuse on: kept for the same version");
+        assert!(!super::keeps(Some(6u32), 7, true), "a new version: built again");
+        assert!(!super::keeps(None, 7u32, true), "nothing built yet: built");
     }
 }

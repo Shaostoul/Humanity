@@ -491,6 +491,29 @@ evicting for fragmentation; residency that looks ahead of the player's motion;
 hardware ray-traced GI on cards that support it, the probes and the ambient
 colour kept as its fallback.
 
+### The reuse switch (2026-11-13)
+
+The probes are data kept across frames three ways: each probe blends its new
+estimate into what it held (the hysteresis), only a slice of the resident probes
+is traced each frame (the round-robin), and which rooms hold probes is decided
+against last frame's placements (the residency's hysteresis and fades). So they
+obey the one "turn off all reuse" switch (CLAUDE.md's reuse rule,
+`humanity_core::reuse`, the Dev page, `HUMANITY_NO_REUSE=1`). With it off, each
+frame works the probes out from scratch: the residency forgets every placement
+(`Residency::begin_frame`), so the nearest rooms are placed again and every
+resident probe is seeded from this frame's ambient colour, and every traced
+probe takes its fresh 64-ray estimate whole (`settled_hysteresis` is 0, the
+update's `misc.x`), its bounce read from those seeds. A traced probe is then this
+frame's estimate and an untraced one this frame's ambient colour: nothing older.
+It reads like the converged probes apart from per-frame ray noise (the twin: one
+reuse-off frame from a cold atlas lands 3% from the converged mean, and a
+lamp switched off leaves nothing one frame later, where reuse on keeps most of
+it), and costs a seed of every resident probe each frame, at most
+`MAX_SEEDS_PER_FRAME` (rooms past it show their ambient colour, as an
+out-of-atlas room always does). Measured 2026-11-13 at home-racks-noon, reuse on
+against off: gpu.room_probes 0.24 to 0.40 ms, cpu.room_probes 0.71 to 0.99 ms,
+and the room looks the same in the two captures.
+
 ## 4. Measured
 
 All same-boot A/B with the dev switch, 2026-09-27. Pictures at 1600x900

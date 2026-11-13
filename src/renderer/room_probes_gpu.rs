@@ -55,8 +55,8 @@ use super::light::{gpu_packed, gpu_packed_with_slabs};
 use super::room_probes::{
     assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, room_ambient, run_plane,
     slabs_touched, AtlasLayout, DirectSource, GiHeaderGpu, GiParamsGpu, GiRoomGpu, OccluderSlab, ProbeBudget, Residency,
-    ResidencyStep, RoomBox, Sun, HEADER_BYTES, HYSTERESIS, MAX_AMBIENT_ROOMS, MAX_SEEDS_PER_FRAME, NORMAL_BIAS_M,
-    ROOM_BYTES, SKY_LIGHTING_EXPOSURE,
+    ResidencyStep, RoomBox, Sun, HEADER_BYTES, MAX_AMBIENT_ROOMS, MAX_SEEDS_PER_FRAME, NORMAL_BIAS_M,
+    ROOM_BYTES, SKY_LIGHTING_EXPOSURE, settled_hysteresis,
 };
 use super::{pipeline, Renderer};
 
@@ -148,6 +148,9 @@ pub struct RoomGi {
     /// read them).
     pub last_updated: u32,
     pub last_seeded: u32,
+    /// (resident rooms, resident probes, rooms waiting) at the last residency
+    /// log line (`log_residency`; it only throttles the log).
+    last_residency_log: Option<(usize, u32, usize)>,
     /// The update's bind groups (`make_bind_groups`); None = build them.
     bind_groups: Option<(wgpu::BindGroup, wgpu::BindGroup)>,
     /// Every SOLID floor slab of the ship in the HOME frame, adjacent ones
@@ -390,6 +393,7 @@ impl RoomGi {
             rebind: false,
             last_updated: 0,
             last_seeded: 0,
+            last_residency_log: None,
             bind_groups: None,
             slabs: Vec::new(),
             slabs_off: false,
@@ -674,9 +678,17 @@ impl RoomGi {
     }
 
     /// One line when the resident set changed, so the rig log shows the
-    /// probes following the player.
-    fn log_residency(&self, step: &ResidencyStep) {
+    /// probes following the player. With the reuse switch off every resident
+    /// room comes in again on every frame, so the line is written only when
+    /// the resident set's size or the rooms waiting differ from the last line.
+    fn log_residency(&mut self, step: &ResidencyStep, reuse: bool) {
         if !step.changed() {
+            return;
+        }
+        let key = (self.residency.resident_rooms(), self.residency.resident_probes(), step.waiting.len());
+        let same = self.last_residency_log == Some(key);
+        self.last_residency_log = Some(key);
+        if !reuse && same {
             return;
         }
         log::info!(
@@ -794,9 +806,18 @@ impl Renderer {
             .map(|(i, _)| i);
         // PROBE STREAMING: which rooms hold probes this frame (room_probes::
         // Residency). Only while the probes are being updated at all; a room
-        // that came in is seeded below, in this frame's pass.
-        let step = if on && near { gi.residency.step(&render_rooms, &gi.probes, eye) } else { ResidencyStep::default() };
-        gi.log_residency(&step);
+        // that came in is seeded below, in this frame's pass. With the reuse
+        // switch off the residency forgets every placement first, so every
+        // resident room comes in, and is seeded, on every frame
+        // (room_probes::Residency::begin_frame, "THE REUSE SWITCH").
+        let reuse = humanity_core::reuse::enabled();
+        let step = if on && near {
+            gi.residency.begin_frame(reuse);
+            gi.residency.step(&render_rooms, &gi.probes, eye)
+        } else {
+            ResidencyStep::default()
+        };
+        gi.log_residency(&step, reuse);
         // The room table, in PICK ORDER (room_probes::pick_order): the header,
         // then every room with its light range. `slot_of[i]` is room i's row.
         let order = pick_order(&render_rooms, eye);
@@ -960,7 +981,9 @@ impl Renderer {
             sun_dir: [sun_dir.x, sun_dir.y, sun_dir.z, si],
             sun_color: [sc[0], sc[1], sc[2], if sky_up.is_some() && self.sky_view_uniform.is_some() { 1.0 } else { 0.0 }],
             sky_up: [up.x, up.y, up.z, SKY_LIGHTING_EXPOSURE],
-            misc: [HYSTERESIS, 0.0, NORMAL_BIAS_M, 0.0],
+            // 0 with the reuse switch off: each traced probe takes its fresh
+            // estimate whole (room_probes::settled_hysteresis).
+            misc: [settled_hysteresis(reuse), 0.0, NORMAL_BIAS_M, 0.0],
             counts: [traced, gi.scratch_layout.irr_per_row, gi.scratch_layout.depth_per_row, gi.scratch_layout.depth_y0],
         };
         self.queue.write_buffer(&gi.params_buf, 0, bytemuck::bytes_of(&params));
@@ -1330,7 +1353,7 @@ mod tests {
             sun_dir: [sun.dir.x, sun.dir.y, sun.dir.z, sun.intensity],
             sun_color: [sun.color[0], sun.color[1], sun.color[2], 0.0],
             sky_up: [0.0, 1.0, 0.0, SKY_LIGHTING_EXPOSURE],
-            misc: [HYSTERESIS, 0.0, NORMAL_BIAS_M, 0.0],
+            misc: [settled_hysteresis(true), 0.0, NORMAL_BIAS_M, 0.0],
             counts: [0, gi.scratch_layout.irr_per_row, gi.scratch_layout.depth_per_row, gi.scratch_layout.depth_y0],
         };
         queue.write_buffer(&gi.params_buf, 0, bytemuck::bytes_of(&params));

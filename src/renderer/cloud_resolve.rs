@@ -36,6 +36,15 @@ pub struct CloudResolveFrame {
     pub motion: Option<CloudResolveMotion>,
 }
 
+/// Does the resolve drop its history this frame (`CloudResolveFrame::snap`)? On a teleport (no
+/// history is valid), under the dev bisect `cloud_temporal_off`, and on EVERY frame while the
+/// reuse switch is off (CLAUDE.md's reuse rule, `humanity_core::reuse`): the accumulation pair is
+/// data kept across frames, so with reuse off the clouds are this frame's march alone, the raw
+/// jittered picture (noisier, otherwise the same clouds).
+pub fn drops_history(teleport: bool, temporal_off: bool, reuse: bool) -> bool {
+    teleport || temporal_off || !reuse
+}
+
 /// The per-frame content-motion split for the resolve's reprojection
 /// (v0.1251). A planet-fixed content point p satisfies
 /// p_prev = C + M * (p - C), where M is the frame-to-frame spin rotation
@@ -295,5 +304,19 @@ impl CloudResolvePass {
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &bind_group, &[]);
         pass.draw(0..3, 0..1);
+    }
+}
+#[cfg(test)]
+mod tests {
+    /// The reuse switch: with reuse off the resolve drops its history on every frame, whatever
+    /// the motion; with it on, only on a teleport or under the dev bisect (so the check can fail).
+    /// Seen red 2026-11-13 with `drops_history` ignoring the switch: "reuse off: the history is
+    /// dropped every frame".
+    #[test]
+    fn with_reuse_off_the_clouds_keep_no_history() {
+        assert!(super::drops_history(false, false, false), "reuse off: the history is dropped every frame");
+        assert!(!super::drops_history(false, false, true), "reuse on, nothing moved: the history is kept");
+        assert!(super::drops_history(true, false, true), "a teleport drops it");
+        assert!(super::drops_history(false, true, true), "the dev bisect drops it");
     }
 }

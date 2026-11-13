@@ -444,11 +444,11 @@ impl Renderer {
             // Stash the resolve pass's camera state (12e): the SAME motion
             // delta the octa pads carry + the prev basis, consumed by
             // run_cloud_screen_passes this frame. Snap on the teleport
-            // sentinel (w = 9: no history is valid).
+            // sentinel (w = 9) and every frame reuse is off (`drops_history`).
             self.cloud_resolve_frame.set(cloud_resolve::CloudResolveFrame {
                 prev_dpos: [delta_pads[0], delta_pads[1], delta_pads[2]],
                 prev_basis: prev,
-                snap: resolve_teleport || self.cloud_temporal_off,
+                snap: cloud_resolve::drops_history(resolve_teleport, self.cloud_temporal_off, humanity_core::reuse::enabled()),
                 motion: self.cloud_resolve_motion.take(),
             });
         }
@@ -1143,7 +1143,7 @@ impl Renderer {
                         }
                         log::info!(
                             "[CloudProfile] knob={} top_bound={} active={} ground=({},{}) flags={}{} global={}{}@{:.0}/passes={} calib={} trunc={} mb={:.1}",
-                            self.cloud_profile_knob,
+                            self.cloud_profile_knob_now(),
                             // D3 dev bit: printed so a capture's log proves which arm ran.
                             self.cloud_top_bound,
                             self.cloud_profile_active().is_some(),
@@ -1168,7 +1168,7 @@ impl Renderer {
                     None => {
                         log::info!(
                             "[CloudProfile] knob={} top_bound={} active=false (no atlas) fed={}",
-                            self.cloud_profile_knob,
+                            self.cloud_profile_knob_now(),
                             // D3 dev bit: the gate runs it at knob 0, so THIS branch is the one that logs it.
                             self.cloud_top_bound,
                             self.cloud_profile_frame.is_some(),
@@ -1194,7 +1194,7 @@ impl Renderer {
             ) {
                 let slot = objects.len() + i;
                 if slot < MAX_OBJECTS
-                    && self.cloud_profile_knob != cloud_temporal::CLOUD_FR_KNOB_OFF
+                    && self.cloud_profile_knob_now() != cloud_temporal::CLOUD_FR_KNOB_OFF
                     && self.cloud_profile_frame.is_some()
                 {
                     self.upload_object_uniforms(objects.iter().chain(transparent.iter()));

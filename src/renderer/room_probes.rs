@@ -1038,6 +1038,32 @@ pub fn blend_weight_h(count: f32, hysteresis: f32) -> f32 {
     1.0 - warm.min(hysteresis)
 }
 
+// ── THE REUSE SWITCH (CLAUDE.md's reuse rule, `humanity_core::reuse`, 2026-11-13) ──
+//
+// The probes are data kept across frames three ways: each probe blends its new estimate into
+// what it held (the hysteresis), only a slice of the resident probes is traced each frame (the
+// round-robin), and which rooms hold probes is decided against last frame's placements (the
+// residency's hysteresis and fades). With the switch OFF the frame works the probes out from
+// scratch: the residency forgets every placement (`Residency::begin_frame`), so the nearest rooms
+// are placed again and every resident probe is SEEDED from this frame's ambient colour (worked
+// out from the rooms' own lamps and windows every frame), and every traced probe takes its fresh
+// 64-ray estimate whole (`settled_hysteresis`), its bounce read from those seeds. A traced probe
+// is then this frame's estimate, an untraced one this frame's ambient colour: nothing older. It
+// looks like the converged probes apart from the per-frame ray noise (no temporal smoothing),
+// and costs a seed of every resident probe each frame (at most `MAX_SEEDS_PER_FRAME`; rooms past
+// it show their ambient colour, as an out-of-atlas room always does).
+
+/// The settled hysteresis the update runs at: `HYSTERESIS`, or 0 while the reuse switch is off,
+/// so a probe takes its new estimate whole (`blend_weight_h(_, 0.0)` is 1) and keeps nothing of
+/// what it held. The GPU's `GiParamsGpu::misc.x`, the twin's `Twin::frame`.
+pub fn settled_hysteresis(reuse: bool) -> f32 {
+    if reuse {
+        HYSTERESIS
+    } else {
+        0.0
+    }
+}
+
 // ── THE ROOM'S AMBIENT COLOUR (2026-10-21, docs/design/room-gi.md) ──
 //
 // WHAT IT IS FOR. The operator asked (2026-10-20) why a room needs thousands of
@@ -1395,6 +1421,16 @@ pub struct Residency {
 impl Residency {
     pub fn new(cap: u32, rooms: usize) -> Self {
         Residency { cap, slots: vec![None; rooms] }
+    }
+
+    /// Start a frame, before `step`. With the reuse switch off every placement is forgotten, so
+    /// `step` places the nearest rooms afresh and lists every one as entered (seeded this frame
+    /// from its ambient colour); no fade, no residency hysteresis, nothing carried from the last
+    /// frame. With it on, nothing changes.
+    pub fn begin_frame(&mut self, reuse: bool) {
+        if !reuse {
+            *self = Residency::new(self.cap, self.slots.len());
+        }
     }
 
     /// Where room `i`'s probes are this frame, for its table row.
@@ -1849,6 +1885,24 @@ impl Twin {
             }
         }
         self.atlas = next;
+    }
+
+    /// One frame as `Renderer::update_room_gi` runs it, with every probe traced: the ambient
+    /// colours first; then, with the reuse switch off, every room seeded from them (the GPU's
+    /// forgotten residency puts every resident room in `entered`) and the update taking its fresh
+    /// estimate whole (`settled_hysteresis`), so nothing in the atlas is older than this frame.
+    /// With it on, the update blends into what the probes held, at the twin's `hysteresis`.
+    pub fn frame(&mut self, reuse: bool) {
+        self.update_ambient();
+        let kept = self.hysteresis;
+        if !reuse {
+            for ri in 0..self.rooms.len() {
+                self.seed(ri);
+            }
+            self.hysteresis = settled_hysteresis(false);
+        }
+        self.update_all();
+        self.hysteresis = kept;
     }
 
     /// Radiance arriving back along ray `d` from probe position `p` in room
@@ -3307,5 +3361,88 @@ mod tests {
         let workshop = lamps[3];
         let wt: Vec<OccluderSlab> = slabs_touched(&workshop, &slabs).iter().map(|&i| slabs[i]).collect();
         assert_eq!(run_plane(&layered_rows(&wt, workshop.pos)), RUN_MANY_LAYERS, "two layers: no shortcut");
+    }
+    /// THE REUSE SWITCH, the residency and the blend: with reuse off every resident room is
+    /// placed again, and so seeded, on every frame, and a probe takes its new estimate whole;
+    /// with it on, a room placed once stays placed (nothing enters on a later frame) and the
+    /// settled blend keeps 97% of what the probe held (so the check can fail). Seen red
+    /// 2026-11-13 with `begin_frame` keeping the placements: "reuse off: frame 1 places and seeds
+    /// both rooms again, left: [], right: [0, 1]".
+    #[test]
+    fn with_reuse_off_every_resident_room_is_seeded_again_every_frame() {
+        let rooms = vec![
+            grey_box(Vec3::ZERO, Vec3::new(4.0, 3.0, 4.0), 0.5),
+            grey_box(Vec3::new(5.0, 0.0, 0.0), Vec3::new(9.0, 3.0, 4.0), 0.5),
+        ];
+        let probes: Vec<u32> = rooms
+            .iter()
+            .map(|r| {
+                let c = probe_counts(r.size(), PROBE_SPACING_M);
+                c[0] * c[1] * c[2]
+            })
+            .collect();
+        let eye = Vec3::new(2.0, 1.5, 2.0);
+        for reuse in [false, true] {
+            let mut res = Residency::new(10_000, rooms.len());
+            res.begin_frame(reuse);
+            let first = res.step(&rooms, &probes, eye);
+            assert_eq!(first.entered.len(), 2, "the first frame places both rooms (reuse {reuse})");
+            for frame in 1..4 {
+                res.begin_frame(reuse);
+                let mut entered = res.step(&rooms, &probes, eye).entered;
+                entered.sort();
+                if reuse {
+                    assert!(entered.is_empty(), "reuse on: frame {frame} places nothing again");
+                } else {
+                    assert_eq!(entered, vec![0, 1], "reuse off: frame {frame} places and seeds both rooms again");
+                }
+                assert_eq!(res.resident_rooms(), 2, "both rooms hold probes on frame {frame}");
+            }
+        }
+        assert_eq!(blend_weight_h(SEED_COUNT, settled_hysteresis(false)), 1.0, "reuse off: a seeded probe takes its estimate whole");
+        assert_eq!(blend_weight_h(MAX_UPDATE_COUNT, settled_hysteresis(false)), 1.0, "reuse off: a settled one too");
+        assert!((blend_weight_h(MAX_UPDATE_COUNT, settled_hysteresis(true)) - (1.0 - HYSTERESIS)).abs() < 1e-6);
+    }
+
+    /// THE REUSE SWITCH, the light itself: one frame after a lamp is switched off, with reuse off
+    /// the probes hold none of its light (no history, and this frame's ambient colour is dark),
+    /// while with reuse on most of it lingers in the history (so the check can fail); and with the
+    /// lamp on, one reuse-off frame from a cold atlas reads like the converged probes, apart from
+    /// the per-frame ray noise. Seen red 2026-11-13 with `Twin::frame` ignoring the switch:
+    /// "reuse false: 0.9555 of the lamp's light left one frame after it went off", "reuse off:
+    /// nothing of the lamp is left one frame later, left: Vec3(0.159, 0.143, 0.127)".
+    #[test]
+    fn with_reuse_off_a_lamp_switched_off_leaves_no_light_in_the_probes() {
+        let room = grey_box(Vec3::ZERO, Vec3::new(6.0, 3.0, 5.0), 0.55);
+        let lamp = RoomLight::point(Vec3::new(1.5, 2.7, 1.5), [1.0, 0.9, 0.8], 9.0, 10.0);
+        let lit_room = || {
+            let mut t = Twin::new(vec![(room.clone(), DirectSource::Scene { lights: vec![lamp], sun: None })]);
+            t.hysteresis = 0.9;
+            for _ in 0..120 {
+                t.frame(true);
+            }
+            t
+        };
+        let converged = lit_room().room_mean(0);
+        assert!(converged.min_element() > 0.0);
+        for reuse in [false, true] {
+            let mut t = lit_room();
+            t.rooms[0].direct = DirectSource::Scene { lights: vec![], sun: None };
+            t.frame(reuse);
+            let left = t.room_mean(0);
+            println!("reuse {reuse}: {:.4} of the lamp's light left one frame after it went off", left.x / converged.x);
+            if reuse {
+                assert!(left.x > 0.5 * converged.x, "reuse on: the history keeps most of the light ({left} of {converged})");
+            } else {
+                assert_eq!(left, Vec3::ZERO, "reuse off: nothing of the lamp is left one frame later");
+            }
+        }
+        let mut cold = Twin::new(vec![(room.clone(), DirectSource::Scene { lights: vec![lamp], sun: None })]);
+        cold.frame(false);
+        let fresh = cold.room_mean(0);
+        let off_by = ((fresh - converged).abs() / converged).max_element();
+        println!("one reuse-off frame from cold: {fresh} against converged {converged}, off by {off_by:.3}");
+        // Measured 2026-11-13: off by 0.030 (the room mean, every channel).
+        assert!(off_by < 0.06, "a reuse-off frame reads like the converged probes ({fresh} against {converged})");
     }
 }

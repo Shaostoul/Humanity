@@ -485,11 +485,19 @@ impl CloudLightState {
     /// along east or north from the anchor. After a move the ground point
     /// sits at the centre, so a camera parked near a boundary cannot
     /// chatter the windows.
-    pub fn plan(&mut self, frame: CloudLightFrame) -> CloudLightPlan {
+    ///
+    /// The reuse switch (`reuse` = `humanity_core::reuse::enabled()`, CLAUDE.md's reuse rule):
+    /// the atlas is data kept across frames (the rolling eighths, the anchor's hysteresis), so
+    /// with reuse off EVERY frame re-anchors at that frame's ground point, which orders a full
+    /// bake: nothing the march reads was baked on an earlier frame. The picture is the same; a
+    /// full bake costs about eight partial ones (gpu.cloud_light 3.0 ms to 24.0 ms a frame at
+    /// ocean-storm-low and home-racks-noon, 2026-11-13).
+    pub fn plan(&mut self, frame: CloudLightFrame, reuse: bool) -> CloudLightPlan {
         let mut out = CloudLightPlan::default();
         let ground = frame.ground_local_m;
         let need_anchor = match self.anchor_fine_m {
             None => true,
+            Some(_) if !reuse => true,
             Some(a) => {
                 let (e, _u, n) = cloud_lc_frame(a);
                 let d = ground - a;
@@ -741,7 +749,7 @@ impl Renderer {
         }
         self.ensure_cloud_light();
         if let Some(lc) = self.cloud_light_cache.as_mut() {
-            lc.state.plan(frame);
+            lc.state.plan(frame, humanity_core::reuse::enabled());
         }
     }
 
@@ -935,7 +943,7 @@ mod cloud_light_tests {
         // And the pads carry that same scale: cell_h in p-units equals
         // cell_h_m * 0.001 * upkm.
         let mut st = CloudLightState::default();
-        st.plan(frame_at(anchor, DVec3::new(0.3, 1.0, 0.5)));
+        st.plan(frame_at(anchor, DVec3::new(0.3, 1.0, 0.5)), true);
         let (fine, coarse) = st.pads();
         let want_fine = (CLOUD_LC_FINE_CELL_H_M as f64 * 0.001 * upkm_shader) as f32;
         let want_coarse = (CLOUD_LC_COARSE_CELL_H_M as f64 * 0.001 * upkm_shader) as f32;
@@ -1057,7 +1065,7 @@ mod cloud_light_tests {
         let mut st = CloudLightState::default();
         // First plan: anchors placed, full bake pending, not counted as a
         // re-anchor.
-        let p0 = st.plan(frame_at(anchor, sun));
+        let p0 = st.plan(frame_at(anchor, sun), true);
         assert_eq!(p0, CloudLightPlan::default());
         assert!(st.full_pending.get());
         assert!(st.ready());
@@ -1066,12 +1074,12 @@ mod cloud_light_tests {
         let half_w = CLOUD_LC_FINE_NX as f64 * cell * 0.5;
         let limit = half_w * 0.5 + CLOUD_LC_REANCHOR_HYST_CELLS * cell;
         // Inside the inner half plus the margin: no move.
-        let p1 = st.plan(frame_at(anchor + e * (limit - 100.0), sun));
+        let p1 = st.plan(frame_at(anchor + e * (limit - 100.0), sun), true);
         assert!(!p1.reanchored && !st.full_pending.get());
         assert_eq!(st.anchor_fine_m.unwrap(), anchor);
         // Just past it along north: move, full bake ordered.
         let far = anchor + n * (limit + 100.0);
-        let p2 = st.plan(frame_at(far, sun));
+        let p2 = st.plan(frame_at(far, sun), true);
         assert!(p2.reanchored && st.full_pending.get());
         let a2 = st.anchor_fine_m.unwrap();
         assert!((a2.length() - R_M).abs() < 1.0e-3, "anchor must sit on the sphere");
@@ -1086,14 +1094,14 @@ mod cloud_light_tests {
             let axis = sun.cross(DVec3::Y).normalize();
             glam::DQuat::from_axis_angle(axis, deg.to_radians()) * sun
         };
-        let p3 = st.plan(frame_at(far, tilt(1.9)));
+        let p3 = st.plan(frame_at(far, tilt(1.9)), true);
         assert!(!p3.sun_reref && !st.full_pending.get());
-        let p4 = st.plan(frame_at(far, tilt(2.1)));
+        let p4 = st.plan(frame_at(far, tilt(2.1)), true);
         assert!(p4.sun_reref && !st.full_pending.get() && !p4.reanchored);
         assert_eq!(st.sun_rerefs, 1);
         // The reference is now the 2.1 degree sun: 1 more degree does not
         // trip it again.
-        let p5 = st.plan(frame_at(far, tilt(3.0)));
+        let p5 = st.plan(frame_at(far, tilt(3.0)), true);
         assert!(!p5.sun_reref && !st.full_pending.get());
     }
 
@@ -1106,7 +1114,7 @@ mod cloud_light_tests {
         st.mark_stale();
         assert!(!st.full_pending.get(), "nothing planned, nothing stale");
         let mut st = st;
-        st.plan(frame_at(DVec3::new(R_M, 0.0, 0.0), DVec3::new(0.3, 1.0, 0.5)));
+        st.plan(frame_at(DVec3::new(R_M, 0.0, 0.0), DVec3::new(0.3, 1.0, 0.5)), true);
         // Drain the creation bake, then one partial.
         st.take_bake_rects();
         assert_eq!(st.take_bake_rects().len(), 2);
@@ -1117,6 +1125,37 @@ mod cloud_light_tests {
         let rects = st.take_bake_rects();
         assert_eq!(rects[0].2, CLOUD_LC_COARSE_X0, "full fine rect");
         assert!(!st.full_pending.get());
+    }
+
+    /// The reuse switch (CLAUDE.md's reuse rule, `humanity_core::reuse`): with reuse off the
+    /// atlas is anchored at THIS frame's ground point and baked whole on every frame, so nothing
+    /// the march reads was baked on an earlier one; with it on, one creation bake and then the
+    /// rolling eighths (so the check can fail). Seen red 2026-11-13 with `plan` ignoring the
+    /// switch: "reuse off: anchored at this frame's ground point (frame 1)".
+    #[test]
+    fn with_reuse_off_the_sun_cache_is_baked_whole_every_frame() {
+        let anchor = DVec3::new(R_M, 0.0, 0.0);
+        let (e, _u, _n) = cloud_lc_frame(anchor);
+        let sun = DVec3::new(0.3, 1.0, 0.5);
+        for reuse in [false, true] {
+            let mut st = CloudLightState::default();
+            for k in 0..16 {
+                // The camera drifts 10 m a frame, well inside the re-anchor hysteresis.
+                let ground = anchor + e * (10.0 * k as f64);
+                st.plan(frame_at(ground, sun), reuse);
+                st.take_bake_rects();
+                if !reuse {
+                    let here = ground.normalize() * R_M;
+                    assert!((st.anchor_fine_m.unwrap() - here).length() < 1.0e-3, "reuse off: anchored at this frame's ground point (frame {k})");
+                }
+            }
+            let bakes = (st.full_bakes.get(), st.partial_bakes.get());
+            if reuse {
+                assert_eq!(bakes, (1, 15), "reuse on: one creation bake, then the rolling eighths");
+            } else {
+                assert_eq!(bakes, (16, 0), "reuse off: the atlas is baked whole on every frame");
+            }
+        }
     }
 
     /// The bake schedule: a full bake covers the whole atlas once, then
@@ -1325,6 +1364,20 @@ pub const CLOUD_FR_KNOB_FORCE5: i32 = 7;
 pub const CLOUD_FR_KNOB_HARD: i32 = 8;
 /// The reference bake (dev only, slow: 128 frames per level).
 pub const CLOUD_FR_KNOB_REF: i32 = 9;
+
+/// The knob the far rung RUNS at this frame: the chosen one, or `CLOUD_FR_KNOB_OFF` while the
+/// reuse switch is off (CLAUDE.md's reuse rule, `humanity_core::reuse`). The profile is data
+/// kept across frames that cannot be built in one (a level's fill takes 8 frames, the global's
+/// pass 2 to 60 s), so with reuse off it steps aside: no atlas is read or baked, and the march
+/// draws the field the profile prefilters (the knob-off A/B twin, bit-identical to today's
+/// field; from orbit that is the point-sampled speckle the profile exists to remove).
+pub fn cloud_fr_knob_with_reuse(knob: i32, reuse: bool) -> i32 {
+    if reuse {
+        knob
+    } else {
+        CLOUD_FR_KNOB_OFF
+    }
+}
 
 /// D3 (the marched field empties from above, 2026-09-06): flags-pad bit 12
 /// (4096) of `light2_color.w` = the BUILT-BODY TOP BOUND dev bit. When it is
@@ -2135,10 +2188,17 @@ impl Renderer {
     /// The profile the march may READ this frame: the knob is on, the frame
     /// was fed, the atlas exists and some level or the global is valid.
     pub(crate) fn cloud_profile_active(&self) -> Option<&CloudProfileCache> {
-        if self.cloud_profile_knob == CLOUD_FR_KNOB_OFF || self.cloud_profile_frame.is_none() {
+        if self.cloud_profile_knob_now() == CLOUD_FR_KNOB_OFF || self.cloud_profile_frame.is_none() {
             return None;
         }
         self.cloud_profile_cache.as_ref().filter(|pc| pc.state.any_valid())
+    }
+
+    /// The far rung's knob as it runs this frame (`cloud_fr_knob_with_reuse`): every reader of
+    /// `cloud_profile_knob` that decides whether the profile is planned, baked or read goes
+    /// through this, so the reuse switch turns the whole profile off at one place.
+    pub fn cloud_profile_knob_now(&self) -> i32 {
+        cloud_fr_knob_with_reuse(self.cloud_profile_knob, humanity_core::reuse::enabled())
     }
 
     /// The calibration key: a hash of (tier, interior saturation, the
@@ -2957,5 +3017,17 @@ mod cloud_profile_tests {
         let mut st = CloudProfileState::default();
         st.plan(f);
         assert!(st.truncated_texels_estimate() > 0, "a 78 km global cell exceeds 512 candidates");
+    }
+    /// The reuse switch: with reuse off every knob runs as OFF (the profile steps aside: it is
+    /// kept across frames and cannot be built in one), with it on the chosen knob runs (so the
+    /// check can fail). Seen red 2026-11-13 with the knob passed through whatever the switch:
+    /// "reuse off: knob 1 runs as off, left: 1, right: 0".
+    #[test]
+    fn with_reuse_off_the_far_rung_profile_steps_aside() {
+        for knob in [CLOUD_FR_KNOB_ON, CLOUD_FR_KNOB_FORCE0, CLOUD_FR_KNOB_HARD, CLOUD_FR_KNOB_REF] {
+            assert_eq!(cloud_fr_knob_with_reuse(knob, false), CLOUD_FR_KNOB_OFF, "reuse off: knob {knob} runs as off");
+            assert_eq!(cloud_fr_knob_with_reuse(knob, true), knob, "reuse on: knob {knob} runs");
+        }
+        assert_eq!(cloud_fr_knob_with_reuse(CLOUD_FR_KNOB_OFF, true), CLOUD_FR_KNOB_OFF);
     }
 }
