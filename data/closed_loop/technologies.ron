@@ -78,12 +78,14 @@
         (
             id: "passive_shielding", loop_id: Habitat, era: Today, trl: (low: 9, high: 9),
             name: "Mass shielding (water, regolith, the ship's own stores) around where people live",
-            trl_note: "Physics proven by the Earth's own atmosphere (about 10 t/m2); SP-413 sized 4.5 t/m2 for 5 mSv a year. Using the ship's water and food stores as part of the shield is an option this test should model; not sourced.",
+            trl_note: "Physics proven by the Earth's own atmosphere (about 10 t/m2). SP-413 sized 4.5 t/m2 for 5 mSv a year in 1975; NASA's OLTARIS tool (Globus and Strout 2017) gives about 55 mSv a year behind that much water, so the shield was corrected on 2026-11-13 to about 10 t/m2 of water for the 5 mSv a year the operator chose (master plan 1.5). Using the ship's water and food stores as part of the shield is an option this test should model; not sourced.",
             performance: [
-                (kind: Estimate, quantity: "Shield for 5 mSv a year", value: 4.5, unit: "t/m2", display: "4.5 t/m2 (922 lb/sq ft)", source: "sp-413",
-                    quote: "a thickness of shield of 4.5 t/m^2 is sufficient"),
+                (kind: Estimate, quantity: "Water shield for 20 mSv a year in deep space", value: 7.0, unit: "t/m2", display: "6 to 7 t/m2 of water (16.1 mSv a year behind 7)", source: "nss-2017-shielding",
+                    quote: "6-7 tonnes of water or polyethylene radiation shielding per square meter of hull is sufficient in deep space"),
+                (kind: Derived, quantity: "Water shield for 5 mSv a year", value: 10.0, unit: "t/m2", display: "about 10 t/m2 of water (2,048 lb/sq ft)", source: "nss-2017-shielding",
+                    quote: "The OLTARIS table's last rows (43, 26.5 and 16.1 mSv a year at 5, 6 and 7 t/m2) fall about x0.6 per extra t/m2; extended: 8 t/m2 about 10 mSv, 9 about 6, 10 about 3.5 (the sizes research's helper F, recommendation a); its README puts 5 mSv at 9 to 10 t/m2. Low confidence past 7 t/m2."),
             ],
-            changes: [(figure: "ship.habitat.shield_mass", to: 7.78e11, unit: "t")],
+            changes: [(figure: "ship.habitat.shield_mass", to: 1.73e12, unit: "t")],
         ),
         (
             id: "phosphorus_recovery", loop_id: Nutrients, era: Today, trl: (low: 0, high: 0),

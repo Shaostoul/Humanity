@@ -28,6 +28,18 @@ without saying so, and that several of the new cases could not fail, or would fa
 All of it was re-read and applied (section 11.3): the ship now needs about 10.8 kW a person and 67
 m2 of radiator, and its hull-side fins serve about 2.3 billion people.
 
+**Shield correction, 2026-11-13.** The mothership sizes research
+([section 7](../reference/research/2026-11-13-mothership-sizes/README.md)) read the modern
+shielding study this plan asked for: Globus and Strout (NSS Space Settlement Journal, April 2017),
+computed with NASA's OLTARIS tool, give 16.1 mSv a year behind 7 t/m2 of water in deep space, and
+on SP-413's figure: "Unfortunately, the 4.5 tonnes per square meter of hull estimate is quite
+low." By their table 4.5 t/m2 gives about 55 mSv a year, not the 5 this plan attached to it. The
+operator chose 5 mSv a year inside, about 10 t/m2 of water
+([master plan 1.5](mothership-master-plan.md), item 8; 10 t/m2 extends the table past its last
+row, so it is a low-confidence estimate). The shield figures here and in `data/closed_loop/` moved
+with it: the whole-hull shield from 780 billion t (95 t a person) to 1.73 trillion t (211 t a
+person).
+
 Read with: [ship-life-support.md](ship-life-support.md) (the homes' measured air and water),
 [homestead-solo-design.md](homestead-solo-design.md) and `data/home_outline.json` (one person, done
 properly), [headless-sim-runner.md](headless-sim-runner.md) (the runner this test runs on),
@@ -85,7 +97,7 @@ stars).
 | Oxygen | 0.62 to 0.76 kg (1.4 to 1.7 lb) a day, made by the crops | |
 | Phosphorus lost at an assumed 20% / 99% / 99.9% retention | 0.9 kg / 11 g / 1.1 g a year | 7.2 million t / 90,000 t / 9,000 t a year |
 | Reactor fuel, fission (net 20%) / fusion carried (assumed 33%) | 21 kg / 3.8 kg a year | 170,000 t / 31,500 t a year |
-| Shield over the whole hull at 4.5 t/m2 | 95 t (105 short tons) | 780 billion t |
+| Shield over the whole hull at 10 t/m2 of water (5 mSv a year; corrected 2026-11-13 from 4.5) | 211 t (232 short tons) | 1.73 trillion t |
 
 **The research options that matter most**, in order of what they change (section 7):
 
@@ -232,8 +244,9 @@ Measurable proxies, not a model of happiness:
 - **Space**: projected area per person (SP-413's literature survey: "there should be at least 40
   m^2 of projected area per inhabitant"; its design used 47 m2 for living plus 20 for farming) and
   volume per person.
-- **Radiation dose** a year and over a life (behind 4.5 t/m2, 922 lb/sq ft, SP-413's 5 mSv a year,
-  about 400 mSv a life; unshielded deep space 1.8 mSv a day, past NASA's 600 mSv career limit,
+- **Radiation dose** a year and over a life (behind about 10 t/m2 of water, 2,048 lb/sq ft, the
+  5 mSv a year the operator chose on 2026-11-13, about 400 mSv a life; SP-413's 4.5 t/m2 gives
+  about 55 mSv a year behind water, by the sizes research's section 7; unshielded deep space 1.8 mSv a day, past NASA's 600 mSv career limit,
   kept in NASA-STD-3001 Volume 1 Revision C of 2023, in one year).
 - **Gravity** (spin rate) and **light** (a day-night cycle for people as well as plants).
 - **Work**: hours a person a week spent keeping the loops running (maintenance, farming), from the
@@ -495,11 +508,13 @@ There is no mine between the stars. (The first pass used data/home_outline.json'
 grown about twice as large as its resident eats to trade grain, and got 17 million t a year.)
 
 ### 6.7 Habitat: shielding, spin, and what is open
-Shielding over the whole hull at SP-413's 4.5 t/m2 is 780 billion t, 95 t (105 short tons) a person;
-shielding only the inhabited rings needs less. Rotation is gentle at 50 km. **Open, and not sourced
-in this pass**: whether any material can carry a 50 km-radius ring at 1 g with its decks, soil, air
-and people (the hoop stress grows with the radius), the leak rate of a 500 km hull, and a modern
-shielding study to replace SP-413's 1975 one.
+Shielding over the whole hull at 10 t/m2 of water, the 5 mSv a year shield chosen on 2026-11-13, is
+1.73 trillion t, 211 t (232 short tons) a person (at SP-413's 4.5 t/m2 it was 780 billion t, 95 t a
+person, but that shield gives about 55 mSv a year: the note at the top); shielding only the
+inhabited rings needs less. Rotation is gentle at 50 km. **Open, and not sourced in this pass**:
+whether any material can carry a 50 km-radius ring at 1 g with its decks, soil, air and people (the
+hoop stress grows with the radius) and the leak rate of a 500 km hull. The modern shielding study
+that replaces SP-413's 1975 one was read on 2026-11-12 by the sizes research (section 7).
 
 ---
 
@@ -517,7 +532,7 @@ Readiness (0, 0) means not assessed: named, and refused by the tests until sourc
 | Electrolysis, sorbent bed, contaminant control | Air | 9 | on the ISS | backup 7 to 9 kWh a day |
 | Crops under electric light, whole diet | Food | 5 to 6 | BIOS-3, Lunar Palace 365 (ground); fixtures 2.5 to 3.0 umol/J demonstrated | the 9.4 kW |
 | Fission | Energy | 6 to 9 | a floating plant supplies Pevek since 2020, 20% net (23.3% gross); 1,000 years of breeding never done | fuel about 170,000 t a year; 52 m2 a person of radiator for its own heat |
-| Mass shielding | Habitat | 9 | the Earth's air | 4.5 t/m2 |
+| Mass shielding | Habitat | 9 | the Earth's air; NASA's OLTARIS tool (Globus and Strout 2017) | 10 t/m2 of water for 5 mSv a year (corrected 2026-11-13 from SP-413's 4.5) |
 | Phosphorus recovery on Earth | Nutrients | not assessed | not sourced | none until sourced |
 | **Fusion (D-T)** | Energy | **3 to 4** | NIF 8.6 MJ from 2.08 MJ on target (2025); ITER D-T planned 2039 | fuel carried about 0.31 of fission's per joule; habitat power unchanged; plant waste heat unproven |
 | Methane pyrolysis | Air | 4 to 5 | ground prototypes, theoretical more than 86% oxygen recovery | oxygen water draw 0.18 kg a day |
@@ -816,7 +831,8 @@ now confirmed as current practice by a 2023 humanitarian guideline (fsc-2023) bu
 WHO, UNHCR, IFRC and WFP edition itself.
 
 **Still uncertain from the first pass**: Lunar Palace 365's undefined 98.2%; the phosphate reserve
-range (50 to 292 years); SP-413's 1975 shielding; every population threshold above a household
+range (50 to 292 years); SP-413's 1975 shielding (settled 2026-11-13: the shield correction at the
+top); every population threshold above a household
 except the genetic ones and the chip supply chain.
 
 **Still unknown** (phase 2 must source these before a test asserts them): recovery rates and

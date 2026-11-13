@@ -42,10 +42,10 @@
             note: "The surface every radiator, shield and window competes for.",
         ),
         (
-            id: "ship.habitat.shield_mass", loop_id: Habitat, quantity: "Passive shield over the whole hull at 4.5 t/m2", value: 7.78e11, low: Some(7.78e11), high: Some(1.73e12),
-            unit: "t", display: "780 billion t (860 billion short tons), 95 t (105 short tons) per person; at Earth's 10 t/m2, 1.7 trillion t", basis: World, data_year: None, source: ["ship.habitat.hull_area", "person.radiation.shield"],
-            quote: "1.728e11 m2 x 4.5 t/m2 = 7.78e11 t; x 10 t/m2 = 1.73e12 t",
-            check: (status: Uncertain, against: [], note: "Rests on SP-413's 1975 shield calculation (Uncertain in person.ron) and on shielding the outer hull only. A ship that shields only its inhabited rings needs less."),
+            id: "ship.habitat.shield_mass", loop_id: Habitat, quantity: "Passive water shield over the whole hull at 10 t/m2 (5 mSv a year)", value: 1.73e12, low: Some(1.56e12), high: Some(2.07e12),
+            unit: "t", display: "1.73 trillion t (1.9 trillion short tons), 211 t (232 short tons) per person; 9 to 12 t/m2 gives 1.56 to 2.07 trillion t", basis: World, data_year: None, source: ["ship.habitat.hull_area", "person.radiation.shield"],
+            quote: "1.728e11 m2 x 10 t/m2 = 1.73e12 t; x 9 t/m2 = 1.56e12 t; x 12 t/m2 = 2.07e12 t; 1.728e12 t / 8.2e9 people = 211 t",
+            check: (status: Uncertain, against: [], note: "Rests on the 10 t/m2 shield for 5 mSv a year (person.radiation.shield, corrected 2026-11-13 from SP-413's 4.5 t/m2, which gave 7.78e11 t, 95 t a person, but about 55 mSv a year) and on shielding the outer hull only. A ship that shields only its inhabited rings needs less."),
             note: "",
         ),
         (
@@ -306,7 +306,7 @@
         (
             loop_id: Habitat, metric: "Not a fraction: space, shielding, gravity, dose",
             value: None, low: None, high: None, from: ["ship.habitat.hull_volume", "ship.habitat.shield_mass", "person.radiation.deep_space", "ship.habitat.spin"], verdict: Partly,
-            meaning: "The lore's hull gives 479,000 m3 a person, 275 times a 1975 settlement design, so space is not short. Shielding to 5 mSv a year is 95 t a person over the whole hull. Unshielded deep space gives 1.8 mSv a day, a career limit in a year.",
+            meaning: "The lore's hull gives 479,000 m3 a person, 275 times a 1975 settlement design, so space is not short. Shielding to 5 mSv a year is about 10 t/m2 of water, 211 t a person over the whole hull. Unshielded deep space gives 1.8 mSv a day, a career limit in a year.",
             to_close: "Shield what people live in, spin for gravity, and measure people's health and social life with the proxies in docs/design/closed-loop-test.md section 3.7.",
         ),
     ],

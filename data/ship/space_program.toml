@@ -134,9 +134,14 @@ spine_segments = [
     [1500.0, 1850.0, 5.0],  # drum engineering: reactors, air, water, waste
     [1850.0, 2000.0, 5.0],  # aft hub: freight lifts, utility risers
 ]
-# The shell over the drum: radiation shielding by mass per square metre of hull (closed-loop-test.md,
-# 4.5 t/m2). Reported, not checked: it is hull, not floor.
-shield_t_per_m2 = 4.5
+# The shell over the drum: radiation shielding by mass per square metre of hull, water in sealed
+# cells on a non-spinning outer shell. Decided 2026-11-13 (master plan 1.5, item 8): sized for
+# 5 mSv a year inside, about 10 t/m2 of water. The sizes research (docs/reference/research/
+# 2026-11-13-mothership-sizes/README.md, section 7, from Globus and Strout's OLTARIS table, NSS
+# 2017) corrected the old 4.5 t/m2, which gives about 55 mSv a year behind water, not 5; 7 t/m2
+# gives 16.1. 10 t/m2 for about 5 is that table extended past its last row (low confidence).
+# Reported, not checked: it is hull, not floor. [scale] uses the same value.
+shield_t_per_m2 = 10.0
 
 # The ship's farms. The operator, 2026-11-07, on one level of farms or two: "Let's start with one
 # but, allow for two or more." Every row marked `farm = true` stacks into this many levels on the
@@ -754,10 +759,11 @@ air_kpa = 101.325
 # What the rim carries per m2 of floor besides air: floors, buildings, beds, water, people.
 # Proposal: no sourced figure.
 contents_t_per_m2 = 1.0
-# The radiation shield (closed-loop-test.md, 4.5 t/m2) as a NON-rotating shell around the drums,
-# the "unattached stationary shielding" design Jensen 2024 reports from NASA's 1979 study, so the
-# shield carries no spin load and the drums carry no shield. Proposal.
-shield_t_per_m2 = 4.5
+# The radiation shield, the same 10 t/m2 of water as [drum] (decided 2026-11-13 for 5 mSv a year;
+# the sizes research, section 7, corrected the old 4.5 t/m2), as a NON-rotating shell around the
+# drums, the "unattached stationary shielding" design Jensen 2024 reports from NASA's 1979 study,
+# so the shield carries no spin load and the drums carry no shield. The shell is a Proposal.
+shield_t_per_m2 = 10.0
 # A free-flying cylinder spins stably about its long axis only up to about 1.3 radii long
 # (Globus et al. 2007, reproduced by Jensen 2024's thin-shell analysis).
 stability_l_over_r = 1.3

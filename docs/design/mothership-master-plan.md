@@ -43,7 +43,8 @@ the entire homestead and start fresh to make sure we get all the weird artifacts
 - **A billion and ten billion** (his aim, 2026-11-07; 3.16) are a FLEET, not one ship: 2 million
   and 20 million sectors, in about 204 and 2,033 ships of 332 km, each 246 drums of 1 km radius
   and 4.9 million people. One spine for them all would be 67,500 km long and could not carry its
-  own manoeuvring loads. About 2,650 t a person, a millionth of the asteroid belt for a billion.
+  own manoeuvring loads. About 5,220 t a person (most of it the 10 t/m2 shield chosen for 5 mSv a
+  year, 1.5), about two millionths of the asteroid belt for a billion.
   The game never builds more than the sector you stand in; everything else streams as data.
 - **Where people live.** Homes stand on the drum floor at 1 g, grouped in neighbourhoods of a
   few hundred people around a node (a commons with a mess hall, a recreation room, washrooms, a
@@ -190,7 +191,7 @@ Before the wipe he raised the sizes of the hangar and the places beyond the home
 
 Queued for the research pass after the 2026-11-13 reset, each answer sourced and dated (CLAUDE.md): the closed loop (pollinators, decomposers, nitrogen and carbon sources when the only input is rock powder; Biosphere 2, MELiSSA and BIOS-3 as references), the housing tiers, the drum's structure (hoop stress from spin, air pressure, floor and shielding loads; steel, titanium, aluminium, basalt and carbon fibre; plate sizes and whether to roll or facet them), reactor sizing and siting (power per person including farm lighting, small modular and micro reactors, fuel use, vault shielding and the catastrophe case), and photovoltaic surfaces (efficiency of transparent and painted PV, and that panels inside the ship only recapture the ship's own lamp light).
 
-**Answered 2026-11-13: [the mothership sizes research](../reference/research/2026-11-13-mothership-sizes/README.md)**, every number sourced, dated and quoted, with the operator's decisions listed at its end. The headlines: the hangar as four bays from defined transport classes (an S-92-sized shuttle 1,140 m2, an ATR 72-sized ferry 1,520 m2, a C-130 class freighter 3,290 m2, a heavy lift for one 100-tonne-plus vehicle 5,950 m2 of deck), now in the space program; housing tiers from barracks (6.7 m2 of sleeping floor) to a homestead (372 m2 of soil beds or 40 to 65 m2 under lamps per person to feed one), and a 34 x 55 m household plot that would let Drum 1 hold 10,875; livestock space from welfare standards (a pasture-raised hen 10 m2); rock powder supplies no nitrogen or carbon, which come from carbonaceous asteroids and legumes; the drum's steel 14 cm for air alone and 17.5 cm with soil at a pressure-vessel allowable; a **correction**: 4.5 t/m2 of shield gives about 55 mSv a year, and 7 t/m2 of water gives 16; three RITM-200N-class reactors for a full Drum 1 in unpressurised vaults; basalt fibre not for clothing, linen at about 80 m2 of flax a person; a colony module of at least 2,000 and planned at 5,000 people (1.4); burning hydrogen is a water loop, not a source, and rain from the spine lands tens to hundreds of metres to one side (1.4).
+**Answered 2026-11-13: [the mothership sizes research](../reference/research/2026-11-13-mothership-sizes/README.md)**, every number sourced, dated and quoted, with the operator's decisions listed at its end. The headlines: the hangar as four bays from defined transport classes (an S-92-sized shuttle 1,140 m2, an ATR 72-sized ferry 1,520 m2, a C-130 class freighter 3,290 m2, a heavy lift for one 100-tonne-plus vehicle 5,950 m2 of deck), now in the space program; housing tiers from barracks (6.7 m2 of sleeping floor) to a homestead (372 m2 of soil beds or 40 to 65 m2 under lamps per person to feed one), and a 34 x 55 m household plot that would let Drum 1 hold 10,875; livestock space from welfare standards (a pasture-raised hen 10 m2); rock powder supplies no nitrogen or carbon, which come from carbonaceous asteroids and legumes; the drum's steel 14 cm for air alone and 17.5 cm with soil at a pressure-vessel allowable; a **correction**: 4.5 t/m2 of shield gives about 55 mSv a year, and 7 t/m2 of water gives 16 (he chose 5 mSv, about 10 t/m2: 1.5, carried into 3.16); three RITM-200N-class reactors for a full Drum 1 in unpressurised vaults; basalt fibre not for clothing, linen at about 80 m2 of flax a person; a colony module of at least 2,000 and planned at 5,000 people (1.4); burning hydrogen is a water loop, not a source, and rain from the spine lands tens to hundreds of metres to one side (1.4).
 
 ### 1.4 His answers on the world aboard (2026-11-12, directions)
 
@@ -897,16 +898,16 @@ the jump that moves the ships is the one game fiction, and it plays no part in t
 | How long a drum can be | spin stability: a free cylinder spins stably only up to 1.3 radii long (F2) | 325 m at 250 m radius (Drum 1 is 2,000 m: question 1b); 1,300 m at 1 km |
 | How long a ship can be | the spine carries every drum ahead of or behind the thrusters during a 0.05 g manoeuvre; held to a tenth of the ship's mass, a carbon composite spine may be 333 km | ships of 332 km |
 | How a spine is pushed | Euler buckling: pushed from the stern, a spine sized for that load buckles past about 1.4 km between braces (computed) | the manoeuvring thrusters pull from the bow, or each drum carries its own |
-| Mass | the shield (4.5 t/m2, closed-loop-test.md) dominates, held in a non-rotating shell around the drums so it carries no spin and loads no drum (F1's "unattached" design) | about 2,650 t a person in 1 km drums |
-| Where it comes from | the main asteroid belt holds about 2.4 x 10^21 kg (F7) | a billion people's fleet is a millionth of it; ten billion's a hundred-thousandth |
+| Mass | the shield (10 t/m2 of water for 5 mSv a year, decided in 1.5; the sizes research, section 7, corrected the old 4.5 t/m2, which gives about 55) dominates, held in a non-rotating shell around the drums so it carries no spin and loads no drum (F1's "unattached" design) | about 5,220 t a person in 1 km drums (2,650 at the old 4.5 t/m2) |
+| Where it comes from | the main asteroid belt holds about 2.4 x 10^21 kg (F7) | a billion people's fleet is about two millionths of it; ten billion's about two hundred-thousandths |
 
 **Which drums.** Drum 1 keeps its decided 250 m radius. For the billions the study compares two
 drum sizes, each as long as the stability limit allows:
 
 | Drum | Spin | Length | Floor | Sectors | People | Mass of one drum |
 |---|---|---|---|---|---|---|
-| Drum 1's radius, 250 m | 1.89 rpm | 325 m | 0.511 km2 | 2 | 1,000 | 3.2 x 10^6 t |
-| **The bulk drum, 1 km** | **0.95 rpm** | **1,300 m** | **8.17 km2** | **40** | **20,000** | **4.8 x 10^7 t** |
+| Drum 1's radius, 250 m | 1.89 rpm | 325 m | 0.511 km2 | 2 | 1,000 | 6.4 x 10^6 t |
+| **The bulk drum, 1 km** | **0.95 rpm** | **1,300 m** | **8.17 km2** | **40** | **20,000** | **9.5 x 10^7 t** |
 
 The 1 km drum is recommended for the bulk of the population: it spins under NASA's 1975 "1 rpm"
 (3.13), holds four times the people per kilometre of spine, and its carbon rim is still thin. Its
@@ -927,12 +928,15 @@ same two tests (it is past the spine's length and many radii long).
 | Sectors | 9,840 | 2,000,000 | 20,000,000 |
 | People | 4.92 million | 1 billion | 10 billion |
 | Length | 332 km | 204 ships of 332 km | 2,033 ships of 332 km |
-| Mass | 1.3 x 10^10 t | 2.65 x 10^12 t | 2.65 x 10^13 t |
-| As one rock (2,000 kg/m3) | about 2.3 km across | 13.6 km across | 29.4 km across |
+| Mass | 2.6 x 10^10 t | 5.22 x 10^12 t | 5.22 x 10^13 t |
+| As one rock (2,000 kg/m3) | about 2.9 km across | 17.1 km across | 36.8 km across |
 
 (In drums of Drum 1's radius it would take about 1,127 and 11,262 ships of 888,000 people each.)
-**Every new sector is about 1.3 million tonnes, one rock about 110 m across**, most of it shield:
-crushed rock and slag, the bulk the fleet's mining (drone-mining.md, at industrial scale, not the
+The shield sets the mass, not the ship count: the spine's longest length does not depend on what
+it carries, so moving the shield from 4.5 to 10 t/m2 (1.5) about doubled every mass above and
+changed no count of ships, drums or sectors.
+**Every new sector is about 2.6 million tonnes, one rock about 135 m across**, most of it the
+shield's water, the bulk the fleet's mining (drone-mining.md, at industrial scale, not the
 personal drone) brings in. Growing the fleet is a fleet project, a row in the fleet ledger.
 
 **The ship's drums turn in pairs** (Proposal): two drums spinning opposite ways cancel each other's

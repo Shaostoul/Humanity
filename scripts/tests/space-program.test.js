@@ -47,6 +47,13 @@
 // the scratch script rs-red-bow.js: with the parking spot put back to the unsourced 150 m2 the
 // no-homestead limit came out 14,600 instead of 11,500 and the sector's bow 19,282 m2 instead of
 // 20,532; with the Class M, C and H bay rows removed, 13,500 and 9,772.
+//
+// 2026-11-13 (the shield correction, master plan 1.5 item 8): "the shield the operator decided"
+// seen red with the scratch script sh-red-shield.js: with both shield_t_per_m2 put back to the
+// old 4.5 it failed with "[drum] shield: expected 10 t/m2, got 4.5"; with only [scale]'s, "[scale]
+// and [drum] carry the same shield"; with both at 4.5 and those two pins dropped from a copy,
+// "Drum 1's shield: expected about 35.3 million t, got 15.9", and with that line dropped too,
+// "mass a person in 1 km drums: expected about 5,219 t, got 2653".
 
 'use strict';
 
@@ -116,7 +123,7 @@ function fixture() {
   return {
     defaults: { population: 50, neighbourhood_people: 20, indoor_circulation: 1.4, structure_allowance: 0.1 },
     sector: { residents: 500 },
-    drum: { drum_radius_m: 250, drum_length_m: 2000, drum_usable: 1, spine_radius_m: 30, spine_usable: 0.8, spine_segments: [[0, 2000, 5]], shield_t_per_m2: 4.5 },
+    drum: { drum_radius_m: 250, drum_length_m: 2000, drum_usable: 1, spine_radius_m: 30, spine_usable: 0.8, spine_segments: [[0, 2000, 5]], shield_t_per_m2: 10 },
     farms: { levels: 1 },
     bow: { radius_m: 60, length_m: 300, deck_spacing_m: 15, usable: 0.7 },
     home: [
@@ -317,6 +324,24 @@ test('the shipped numbers the master plan quotes', () => {
   assert.ok(s.halfRingLength <= s.stableLength, `two half-ring sectors make a drum of ${s.halfRingLength} m, inside ${s.stableLength}`);
   assert.ok(s.best.walksOk, 'some layout meets both walking rules');
   assert.strictEqual(sp.maxPopulation(prog, null, { farmLevels: 2 }), 9031, 'two levels of farms');
+});
+
+// The operator chose 5 mSv a year inside, about 10 t/m2 of water (master plan 1.5, item 8,
+// 2026-11-13; the sizes research, section 7, corrected the old 4.5 t/m2). The masses below are
+// the ones the master plan (section 0 and 3.16) and closed-loop-test.md quote; the ship counts do
+// not depend on the shield (the spine's longest length does not depend on what it carries).
+test('the shield the operator decided, and the masses the master plan quotes from it', () => {
+  const prog = sp.loadProgram();
+  assert.strictEqual(prog.drum.shield_t_per_m2, 10, `[drum] shield: expected 10 t/m2, got ${prog.drum.shield_t_per_m2}`);
+  assert.strictEqual(prog.scale.shield_t_per_m2, prog.drum.shield_t_per_m2, '[scale] and [drum] carry the same shield');
+  const drum1Shield = sp.drumRoom(prog).shield_t / 1e6;
+  assert.ok(Math.abs(drum1Shield - 35.3) < 0.1, `Drum 1's shield: expected about 35.3 million t, got ${drum1Shield.toFixed(1)}`);
+  const s = sp.scaleStudy(prog, null);
+  const bulk = s.classes.find((c) => c.id === 'r1000');
+  const perPerson = bulk.fleets[0].perPersonT;
+  assert.ok(Math.abs(perPerson - 5219) < 5, `mass a person in 1 km drums: expected about 5,219 t, got ${Math.round(perPerson)}`);
+  assert.ok(Math.abs(bulk.fleets[0].fleetKg / 1e15 - 5.22) < 0.01, `a billion's fleet: expected 5.22 x 10^12 t, got ${(bulk.fleets[0].fleetKg / 1e15).toFixed(2)}`);
+  assert.strictEqual(bulk.fleets[0].ships, 204, 'the shield does not change the ship count');
 });
 
 test('the bow the master plan quotes: a bay for every transport class, a parking spot that fits its craft', () => {

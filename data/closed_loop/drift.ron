@@ -109,8 +109,8 @@
         ),
         (
             id: "radiation_dose", loop_id: Habitat, name: "Radiation dose accumulated over a lifetime aboard",
-            model: Linear(per_year: 5.0, unit: "mSv a year behind SP-413's 4.5 t/m2 shield"),
-            parameters_source: ["sp-413", "person.radiation.deep_space", "nasa-std-3001-rev-c"],
+            model: Linear(per_year: 5.0, unit: "mSv a year behind the 10 t/m2 water shield (the target chosen 2026-11-13; SP-413's 4.5 t/m2 gives about 55)"),
+            parameters_source: ["person.radiation.shield", "nss-2017-shielding", "person.radiation.deep_space", "nasa-std-3001-rev-c"],
             results: "About 400 mSv over an 80-year life behind the design shield; about 660 mSv in ONE year unshielded, past NASA's 600 mSv career limit.",
             represents: "A dose per person per year by where they live; the shield is a habitat property the home's construction sets.",
             note: "",

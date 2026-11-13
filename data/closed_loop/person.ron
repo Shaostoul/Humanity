@@ -179,10 +179,10 @@
             note: "Behind the thin shielding of a robotic cruise stage, near solar minimum-to-moderate activity in 2011 to 2012.",
         ),
         (
-            id: "person.radiation.shield", loop_id: Habitat, quantity: "Passive shield mass to bring cosmic rays to 5 mSv a year", value: 4.5, low: Some(4.5), high: Some(10.0),
-            unit: "t/m2", display: "4.5 t/m2 (922 lb/sq ft); the Earth's air is about 10 t/m2", basis: PerUnit, data_year: Some(1975), source: ["sp-413"],
-            quote: "The Earth's atmosphere supplies about 10 t/m^2 of mass shielding and is very effective. Only half this much is needed to bring the dosage level of cosmic rays down to 0.5 rem/yr. In fact when calculations are made in the context of particular geometries, it is found that because many of the incident particles pass through walls at slanting angles a thickness of shield of 4.5 t/m^2 is sufficient.",
-            check: (status: Uncertain, against: [], note: "A 1975 calculation. No modern shielding transport study was read in this pass; phase 2 should read one before the test asserts a shield mass. Kept as the order of magnitude."),
+            id: "person.radiation.shield", loop_id: Habitat, quantity: "Passive water shield mass to bring cosmic rays to 5 mSv a year (the operator's chosen target, 2026-11-13)", value: 10.0, low: Some(9.0), high: Some(12.0),
+            unit: "t/m2", display: "about 10 t/m2 of water (2,048 lb/sq ft, 10 m deep) for 5 mSv a year; 7 t/m2 gives 16 mSv, SP-413's 4.5 t/m2 about 55", basis: PerUnit, data_year: Some(2017), source: ["nss-2017-shielding", "sp-413"],
+            quote: "6-7 tonnes of water or polyethylene radiation shielding per square meter of hull is sufficient in deep space",
+            check: (status: Corrected, against: ["sp-413"], note: "CORRECTED 2026-11-13 by the mothership sizes research (docs/reference/research/2026-11-13-mothership-sizes/README.md, section 7). The first pass read SP-413's 1975 figure, 4.5 t/m2 for 5 mSv a year ('a thickness of shield of 4.5 t/m^2 is sufficient'). Globus and Strout's OLTARIS table (deep space, solar minimum) gives 67 mSv a year behind 4 t/m2 of water, 43 behind 5 and 16.1 behind 7, so 4.5 t/m2 gives about 55; of SP-413's figure they write 'Unfortunately, the 4.5 tonnes per square meter of hull estimate is quite low.' The operator chose 5 mSv a year (master plan 1.5, item 8): about 10 t/m2, the table extended past its last row (9 to 12 t/m2 by the research's two extrapolations), so the range is kept wide and the figure is low confidence."),
             note: "",
         ),
 

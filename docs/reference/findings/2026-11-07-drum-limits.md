@@ -5,6 +5,18 @@ public sources, done so the game's ship is sized by real limits. **It is not eng
 and nobody who wrote it is a structural or aerospace engineer. Anyone designing a real structure
 should go to the primary sources and to a professional.
 
+**Note added 2026-11-13: one input moved; the readings below are unchanged.** The shield this
+finding computed with, 4.5 t/m2 (the project's closed-loop figure, from NASA SP-413), was corrected
+by [the mothership sizes research](../research/2026-11-13-mothership-sizes/README.md), section 7:
+by NASA's OLTARIS tool (Globus and Strout 2017) it gives about 55 mSv a year behind water, not 5.
+The operator chose 5 mSv a year, about 10 t/m2 of water
+([master plan 1.5](../../design/mothership-master-plan.md), item 8). The same scale study, rerun
+on 2026-11-13: a billion people need about 5.22 x 10^12 t (about 5,220 t a person, two millionths
+of the main belt, one rock about 17 km across), and a 1 km drum's shield (8.5 x 10^7 t) outweighs
+its carbon rim about 75 times. The limits (hoop stress, spin stability, the spine's length,
+buckling) and the ship counts do not depend on the shield and stand. The masses below are as
+computed on 2026-11-07, at 4.5 t/m2.
+
 ## The question
 
 What physical limits decide how large a 1 g spinning drum can be (hoop stress for steel, aramid and
@@ -211,7 +223,7 @@ contents (a Proposal), both pressing outward at 1 g.
 | Whether a long drum held on bearings around a non-rotating spine (a "dual-spin" body) escapes the free-body 1.3-radius rule, and under what damping | Likins, "Attitude Stability Criteria for Dual Spin Spacecraft", J. Spacecraft and Rockets 4: 1638-1643 (1967), and its successors, read in full | a library copy or the AIAA paper |
 | The structure allowance for floors, beds and buildings on the rim (the 1 t/m2 here) | a mass breakdown from NASA SP-413's structures chapter, read for this question | an hour with the 1977 study |
 | The density of the steel and the resin, here assumed | a manufacturer's data sheet giving density | minutes |
-| A shield thinner than 4.5 t/m2 | the radiation finding the master plan still owes | a research pass |
+| A shield thinner than 4.5 t/m2 | the radiation finding the master plan still owes | a research pass (done 2026-11-13: the shield must be thicker, about 10 t/m2 of water for 5 mSv a year; the note at the top) |
 | How fast people tolerate a drum spinning (Drum 1 at 1.89 rpm against SP-413's 1 rpm) | the rotation-tolerance studies the master plan names in 3.13 | a research pass |
 
 ## Sources that could not be reached
