@@ -642,3 +642,13 @@ same-boot A/B, adds its Settings row with its cost line, and ships its red-twin 
    sky look (brighter or dimmer where today's multipliers were guessed), and the lamps' brightness then
    follows their real watts. Recommendation: accept the one-time change, in one rung right after the
    one tonemap, with before-and-after captures of the canonical vantages for you to judge.
+
+## His answers (operator, 2026-11-12)
+
+- **Scope:** "Let's make sure we properly fully develop everything and include everything." Every gap in this plan is to be built, in the order above.
+- **DLSS, XeSS or FSR 4 as an optional download:** "I agree with you." (No before v1.0.)
+- **Temporal anti-aliasing on by default:** "Yes."
+- **Render scale:** "I run my TV at 2560x1440 because it gets 120fps. 4k gets 60fps. I prefer the higher framerate. I prefer native resolution with no upscaling." So the default is native resolution with no upscaling; upscaling is built as a choice for cards that need it, its cost line showing what it saves.
+- **Depth of field and motion blur:** "Agreed. Both off by default."
+- **HDR display output:** "I don't but, I could. My brother's OLED on his laptop does HDR." Build it as Automatic (on when Windows reports HDR), testable on an HDR laptop; it stays in the plan, after the single tonemap.
+- **The one-time re-tune when lights move to real units:** "Yes." With before-and-after captures of the standard viewpoints.

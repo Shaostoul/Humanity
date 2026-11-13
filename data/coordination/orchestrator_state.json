@@ -12,6 +12,10 @@
   "recent_decisions": [
     {
       "date": "2026-11-12",
+      "decision": "Operator answers: renderer roadmap scope \"properly fully develop everything and include everything\" (all gaps built in order); no DLSS/XeSS/FSR 4 before v1.0; TAA on by default; native resolution with no upscaling by default (he runs 2560x1440 at 120 fps; upscaling built as an option); DOF and motion blur off by default; HDR output as Automatic (he could enable HDR, his brother's OLED laptop has it); accept the one-time light re-tune. Town names: each housing sector starts with a plain default name (style and number, e.g. \"Barracks Housing 455B\") and only its residents may rename it by signed poll. Danger: real skills first, fantasy later. Our own walkers only (\"Only what we can legally use\"). Recorded in renderer-roadmap.md and mothership-master-plan.md 1.4."
+    },
+    {
+      "date": "2026-11-12",
       "decision": "Renderer roadmap merged (e2e5405d1): TAA with motion vectors and our own upscaling first, then reflections, skin/cloth/eyes, real light units with exposure, bloom and HDR after the single tonemap, then decals and the rest. Audit corrections: bloom built but never called, exposure fixed per shader, no reflections outdoors either, AO covers only the planet layer. Six operator questions asked (DLSS/XeSS/FSR 4 optional download: recommended no before v1.0; TAA on by default: yes; render scale default native; DOF and motion blur off by default; does he run Windows HDR on the TV; accept a one-time re-tune when lights move to real units)."
     },
     {
@@ -1311,7 +1315,7 @@
     "Renderer: finer terrain costs about +6 ms per patch drawn and every depth-15+ patch carries the forest (maps 2b measurements, whole-earth-maps.md 6.4); batching patch draws would let the full-detail reach widen past 100 m."
   ],
   "how_to_resume": "1. `just brief` (version/CI/signing). 2. docs/PRIORITIES.md \"Active focus\" - the top item is fully specified, start implementing rather than investigating. 3. This file for WHY. Note the ONE-GPU rule: `tasklist //FI \"IMAGENAME eq HumanityOS.exe\"` before booting any rig, and never boot beside the operator instance.",
-  "last_updated": "2026-11-13T06:41:24.530Z",
+  "last_updated": "2026-11-13T06:53:27.004Z",
   "focus": "v0.1111.1 shipped (the 2026-08-03/04 vegetation marathon, v0.1109.4-v0.1111.1). Landed: leaf tufts stopped being cubes (golden-angle azimuths + solved per-card tilts, measured 100% parallel pairs on conifers and 67% perpendicular on broadleaves before); distant cards stopped out-shining mesh trees (4-8x, three multiplying causes, then the residual 28% conifer excess traced to the odd component of the shading normals and cancelled at source - all species now 1.00 flat across the sky); standing still stopped depending on the frame rate (the frame-lock sampled terrain one frame of planetary spin behind the player, 33,360 m/s of ground slip, so altitude read as a function of fps and flipped stand height by 2.45 m); the card-hide radius stopped promising models that never drew (BUG-068); forest density stopped being a process-global read separately by two streams (BUG-069); and the card cutoff is now clamped to the terrain reach that actually exists. Foliage-card arrangement extracted to renderer/tree_cards.rs under the size ratchet, and the ratchet budget came DOWN.",
   "overnight_plan_2026_08_01": {
     "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
