@@ -149,7 +149,7 @@ pub(crate) fn report(state: &EngineState) -> Option<serde_json::Value> {
             .or_insert_with(|| DrawnPatchSurface::new_single_shot(def, &src, leaf.depth).with_map(map.clone()));
         Some((leaf.depth, s.radius_at(dir)))
     };
-    let harvest_depth = state.near_tree_depth;
+    let harvest_depth = state.near_tree_inputs.depth;
     let mut harvest = DrawnPatchSurface::new(def, &src, harvest_depth.max(1)).with_map(map.clone());
     let mut harvest_base = DrawnPatchSurface::new(def, &src, harvest_depth.max(1)).with_map(None);
     let tiles_any = earth.then_some(&state.terrain_tiles);

@@ -31,11 +31,20 @@ use std::collections::HashMap;
 /// `decoration_mesh_cache` lookup, so a steady-state frame walks the name list
 /// and returns. Called from the near-tree draw block each frame precisely so a
 /// species that streams in later still gets its mesh.
+///
+/// WHAT THE REUSE SWITCH DOES HERE (2026-11-13). The procedural meshes, their cluster sprites and
+/// bark, and the sprite atlas are a pure function of the code and the tree registry, which is read
+/// once per run (a `OnceLock`): building them again would build the same thing, so they are not a
+/// reuse that can go stale. The photoscan glTFs are read once per run the same way. What CAN go
+/// stale is the MISS: a model that failed to load (a sentinel, `usize::MAX`) was never tried again
+/// in the session. With the switch off the caller passes `retry_failed` on its schedule
+/// ([`failed_model_retry_due`]) and every failed model is tried again.
 pub(crate) fn ensure_near_tree_models(
     renderer: &mut Renderer,
     asset_manager: &AssetManager,
     decoration_mesh_cache: &mut HashMap<String, (usize, usize)>,
     tree_atlas_attempted: &mut bool,
+    retry_failed: bool,
 ) {
     // Lazy-load all six conifer shapes (3 fir +
     // 3 pine variants) plus their _bark trunk
@@ -47,6 +56,16 @@ pub(crate) fn ensure_near_tree_models(
         for v in 1..=3 {
             for suffix in ["", "_bark"] {
                 tree_names.push(format!("{base}_v{v}{suffix}"));
+            }
+        }
+    }
+    // The reuse switch off: the misses are forgotten on the caller's schedule and tried again.
+    let mut retried: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if retry_failed {
+        for name in &tree_names {
+            if decoration_mesh_cache.get(name).is_some_and(|&(mi, _)| mi == usize::MAX) {
+                decoration_mesh_cache.remove(name);
+                retried.insert(name.clone());
             }
         }
     }
@@ -354,9 +373,12 @@ pub(crate) fn ensure_near_tree_models(
                 // mi == usize::MAX on the model key
                 // and switches the species to its
                 // procedural twin (use_proc).
-                log::warn!(
-                    "near-tree model {name} failed: {e}"
-                );
+                // A retry (the reuse switch off) that fails again says so quietly.
+                if retried.contains(name) {
+                    log::debug!("near-tree model {name} failed again: {e}");
+                } else {
+                    log::warn!("near-tree model {name} failed: {e}");
+                }
                 decoration_mesh_cache.insert(
                     name.to_string(),
                     (usize::MAX, usize::MAX),
@@ -448,5 +470,31 @@ pub(crate) fn ensure_near_tree_models(
             tree_parse_ms,
             None,
         );
+    }
+}
+
+/// With the reuse switch off, how often a near-tree model that failed to load is tried again,
+/// seconds (the same schedule as the animation data's re-read with the switch off).
+pub(crate) const FAILED_MODEL_RETRY_S: f32 = 3.0;
+
+/// Are the failed near-tree models tried again this frame? Never with reuse on; with it off, once
+/// every [`FAILED_MODEL_RETRY_S`] since the last try (`last_try_s`, seconds since start).
+pub(crate) fn failed_model_retry_due(reuse: bool, now_s: f32, last_try_s: f32) -> bool {
+    !reuse && now_s - last_try_s >= FAILED_MODEL_RETRY_S
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// THE NEGATIVE CACHE: a model that failed to load was never tried again in the session. With
+    /// the reuse switch off it is tried again every few seconds, and not every frame (a release
+    /// build has no photoscans at all, so every try fails). Seen red 2026-11-13 with the miss kept
+    /// for the session: "reuse off never retried the failed models".
+    #[test]
+    fn with_reuse_off_failed_tree_models_are_tried_again_on_a_schedule() {
+        assert!(failed_model_retry_due(false, 10.0, 10.0 - FAILED_MODEL_RETRY_S), "reuse off never retried the failed models");
+        assert!(!failed_model_retry_due(false, 10.0, 9.0), "not every frame");
+        assert!(!failed_model_retry_due(true, 1000.0, 0.0), "reuse on keeps the miss");
     }
 }

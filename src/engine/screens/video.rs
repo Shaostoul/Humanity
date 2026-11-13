@@ -421,6 +421,7 @@ pub struct ScreenActions {
 // positions are not knowable in advance.
 #[cfg(test)]
 thread_local! {
+    // reuse: not a reuse: a test hook's record of the last layout.
     static LAST_SEEK_RECT: std::cell::RefCell<Option<egui::Rect>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -433,6 +434,7 @@ pub(crate) fn test_last_seek_rect() -> Option<egui::Rect> {
 // Where the volume bar last laid itself out (2026-11-06), for the same reason.
 #[cfg(test)]
 thread_local! {
+    // reuse: not a reuse: a test hook's record of the last layout.
     static LAST_VOLUME_RECT: std::cell::RefCell<Option<egui::Rect>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -670,6 +672,8 @@ pub struct VideoProvider {
     /// The newest frame taken from the player, kept while paused.
     last: Option<VideoFrame>,
     /// `last` has not been uploaded to the frame texture yet.
+    // reuse: an event (a new frame to upload); the kept picture it gates obeys the switch in
+    // `plan_frame`, which uploads `last` on every tick with the switch off.
     frame_dirty: bool,
     /// How many times the clip has wrapped back to its start.
     loops: u64,
@@ -706,6 +710,7 @@ pub struct VideoProvider {
     /// percentage ticking up).
     last_notice: Option<String>,
     /// The last open was served from the media cache (no ffmpeg run).
+    // reuse: a record for the status line; the media cache itself is `cache_dir`.
     cache_hit: bool,
     /// How many conversions this provider started.
     transcodes: u64,
@@ -1141,7 +1146,10 @@ impl VideoProvider {
     /// the core's queued input is dropped (`ScreenCore::drop_pending_events`):
     /// the look ray keeps reporting the pointer and only a run drains the
     /// queue. On a tick that draws, the run consumes them.
-    pub fn plan_frame(&mut self, core: &mut ScreenCore, now: Instant) -> FrameDraw {
+    ///
+    /// `reuse` is `humanity_core::reuse::enabled()`: with the switch off a tick never keeps the
+    /// picture (`FrameDraw::Keep`), it composes and uploads the last frame again (2026-11-13).
+    pub fn plan_frame(&mut self, core: &mut ScreenCore, now: Instant, reuse: bool) -> FrameDraw {
         let first = self.display_px.is_none();
         self.ensure_open(core.size());
         if self.display_px.is_none() {
@@ -1160,12 +1168,15 @@ impl VideoProvider {
             || notice != self.last_notice
             || core.find_pending()
             || first;
-        if !changed {
+        if !changed && reuse {
             core.drop_pending_events();
             return FrameDraw::Keep;
         }
         self.strip_shown = strip;
-        FrameDraw::Compose { px: self.surface_px(), upload: self.frame_dirty, strip }
+        // With the reuse switch off the texture's picture is not trusted either: the last frame
+        // goes up again.
+        let upload = self.frame_dirty || (!reuse && self.last.is_some());
+        FrameDraw::Compose { px: self.surface_px(), upload, strip }
     }
 
     /// Put `last` on the GPU: (re)allocate the frame texture at the clip's
@@ -1279,7 +1290,7 @@ impl ScreenProvider for VideoProvider {
         self.adopt_remembered(&screen_id, gui_state);
         // The decision is GPU-free and tested (`plan_frame`); this is only
         // the GPU work it asks for.
-        match self.plan_frame(&mut surface.core, Instant::now()) {
+        match self.plan_frame(&mut surface.core, Instant::now(), humanity_core::reuse::enabled()) {
             FrameDraw::Keep => {}
             FrameDraw::Compose { px, upload, strip: _ } => {
                 if upload {
@@ -1585,7 +1596,7 @@ mod tests {
             core.pointer_moved((0.2 + i as f32 * 0.05, 0.4));
         }
         let t0 = Instant::now();
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Unmute");
         let rect = rect.unwrap_or_else(|| panic!("the demo has sound, so the strip offers Unmute: {drawn:?}"));
 
@@ -1593,14 +1604,14 @@ mod tests {
         let uv = (rect.center().x / w as f32, rect.center().y / h as f32);
         core.button(uv, true);
         core.button(uv, false);
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (_, actions) = run_draw(&mut core, &mut state, &mut p);
         assert!(actions.sound, "the click reached the Unmute button");
         p.apply_actions(actions, None);
         assert!(p.sound_on, "Unmute turned the sound on");
         assert_eq!(p.status()["sound_on"], serde_json::json!(true));
 
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Mute");
         assert!(rect.is_some(), "with the sound on the strip offers Mute: {drawn:?}");
     }
@@ -1629,7 +1640,7 @@ mod tests {
             core.pointer_moved((0.2 + i as f32 * 0.05, 0.4));
         }
         let t0 = Instant::now();
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (drawn, _, rect) = run_draw_find(&mut core, &mut state, &mut p, "Unmute");
         let rect = rect.unwrap_or_else(|| panic!("the strip offers Unmute: {drawn:?}"));
         let (w, h) = core.size();
@@ -1639,16 +1650,16 @@ mod tests {
             core.button(uv, false);
         };
         press(&mut core, rect.center());
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (_, actions) = run_draw(&mut core, &mut state, &mut p);
         p.apply_actions(actions, None);
         assert!(p.sound_on, "Unmute turned the sound on");
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let _ = run_draw(&mut core, &mut state, &mut p);
         let bar = LAST_VOLUME_RECT.with(|r| *r.borrow()).expect("the strip drew its volume bar");
         let knob = theme.slider_thumb_radius;
         press(&mut core, egui::pos2(bar.left() + knob + (bar.width() - 2.0 * knob) * 0.25, bar.center().y));
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (_, actions) = run_draw(&mut core, &mut state, &mut p);
         let put = actions.volume.expect("the press reached the volume bar");
         p.apply_actions(actions, None);
@@ -1764,7 +1775,7 @@ mod tests {
         assert!(!p.advance(), "nothing to advance without a player");
         assert_eq!(p.load_state(), LoadState::Error(err.clone()));
 
-        match p.plan_frame(&mut core, Instant::now()) {
+        match p.plan_frame(&mut core, Instant::now(), true) {
             FrameDraw::Compose { strip, .. } => assert!(strip, "no picture: the strip is up"),
             other => panic!("an error draws, got {other:?}"),
         }
@@ -1792,7 +1803,7 @@ mod tests {
         let mut p = VideoProvider::new(UNSUPPORTED).with_cache_dir(cache.to_path_buf());
         p.open_with(&data_dir(), core.size());
         assert!(p.player.is_none(), "a VP8 file never opens as it is");
-        let _ = p.plan_frame(&mut core, Instant::now());
+        let _ = p.plan_frame(&mut core, Instant::now(), true);
         let (drawn, _) = run_draw(&mut core, &mut state, &mut p);
         // In plain words since BUG-228 ("a WebM file with VP8 video"), not the Matroska id V_VP8.
         assert!(drawn.contains("VP8 video") && !drawn.contains("V_VP8"), "the screen names the codec: {drawn:?}");
@@ -2166,7 +2177,7 @@ mod tests {
         // for the run.
         sweep(&mut core);
         assert_eq!(core.pending_events(), 25);
-        match p.plan_frame(&mut core, t0) {
+        match p.plan_frame(&mut core, t0, true) {
             FrameDraw::Compose { strip, px, .. } => {
                 assert!(strip, "a moving pointer shows the strip");
                 assert_eq!(px, (1280, 720), "the demo draws at the display's size");
@@ -2199,7 +2210,7 @@ mod tests {
         }
         let later = t0 + STRIP_HOLD + Duration::from_secs(1);
         core.pointer_gone();
-        let _ = p.plan_frame(&mut core, later);
+        let _ = p.plan_frame(&mut core, later, true);
         let _ = run_draw(&mut core, &mut state, &mut p);
         assert!(p.last.is_some(), "paused at the start, the first picture is in hand");
         // `run_draw` has no GPU, so it cannot upload the picture the way the
@@ -2223,7 +2234,7 @@ mod tests {
         // The strip was up and is not wanted now, so one last draw is owed:
         // the screen has to be repainted WITHOUT it. A film whose strip has
         // already come down is the quiet case, and it is the next tick.
-        match p.plan_frame(&mut core, far) {
+        match p.plan_frame(&mut core, far, true) {
             FrameDraw::Compose { strip, .. } => assert!(!strip, "the strip comes down on this draw"),
             other => panic!("taking the strip down is a draw, got {other:?}"),
         }
@@ -2231,16 +2242,23 @@ mod tests {
         sweep(&mut core);
         core.pointer_gone();
         assert_eq!(
-            p.plan_frame(&mut core, far + Duration::from_secs(1)),
+            p.plan_frame(&mut core, far + Duration::from_secs(1), true),
             FrameDraw::Keep,
             "unwatched, nothing new: no draw"
         );
         assert_eq!(core.pending_events(), 0, "an unwatched tick drops the backlog");
+        // THE REUSE SWITCH (2026-11-13): the same quiet tick with it off keeps nothing; it
+        // composes and uploads the last frame again. Seen red 2026-11-13 with the switch ignored:
+        // "reuse off kept the picture".
+        match p.plan_frame(&mut core, far + Duration::from_secs(2), false) {
+            FrameDraw::Compose { upload, .. } => assert!(upload, "reuse off composed without uploading the frame again"),
+            other => panic!("reuse off kept the picture, got {other:?}"),
+        }
 
         // Paused: always draws, keeps its events for the run.
         p.want_playing = false;
         sweep(&mut core);
-        match p.plan_frame(&mut core, far + Duration::from_secs(2)) {
+        match p.plan_frame(&mut core, far + Duration::from_secs(2), true) {
             FrameDraw::Compose { strip, .. } => assert!(strip, "paused: the strip is up"),
             other => panic!("paused must draw, got {other:?}"),
         }
@@ -2318,7 +2336,7 @@ mod tests {
         // The surface may sit at another size from a previous draw.
         core.set_size(320, 180);
         p.on_button((0.5, 0.5), true);
-        match p.plan_frame(&mut core, Instant::now()) {
+        match p.plan_frame(&mut core, Instant::now(), true) {
             FrameDraw::Compose { px, strip, .. } => {
                 assert_eq!(px, (1280, 720), "the paused picture is laid out at the def's px");
                 assert!(strip);
@@ -2330,7 +2348,7 @@ mod tests {
         let mut e = VideoProvider::new("media/nothing.webm");
         e.open_with(&data_dir(), core.size());
         core.set_size(320, 180);
-        match e.plan_frame(&mut core, Instant::now()) {
+        match e.plan_frame(&mut core, Instant::now(), true) {
             FrameDraw::Compose { px, .. } => assert_eq!(px, (1024, 600)),
             other => panic!("an open error must draw, got {other:?}"),
         }
@@ -2690,7 +2708,7 @@ mod tests {
             core.pointer_moved((0.2 + i as f32 * 0.05, 0.4));
         }
         let t0 = Instant::now();
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let _ = run_draw(&mut core, &mut state, &mut p);
         let rect = test_last_seek_rect().expect("the strip drew a seek bar");
         assert!(rect.width() > 100.0, "the bar spans the strip rather than collapsing: {rect:?}");
@@ -2701,7 +2719,7 @@ mod tests {
         let uv = (x / w as f32, rect.center().y / h as f32);
         core.button(uv, true);
         core.button(uv, false);
-        p.plan_frame(&mut core, t0);
+        p.plan_frame(&mut core, t0, true);
         let (_, actions) = run_draw(&mut core, &mut state, &mut p);
 
         let asked = actions.seek_to.expect("the click on the bar asked for a seek");

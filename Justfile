@@ -773,6 +773,10 @@ live-publish *ARGS:
 # admin_action_coverage (2026-10-22, docs/design/in-app-ops.md): every /api/admin
 # route and every chat command the relay answers is in data/admin/actions.json (the
 # registry both apps and an AI read) or named as a member command with its reason.
+# reuse_switch_lint (2026-11-13, CLAUDE.md's reuse rule): every reuse-shaped field or static
+# (a cache, a memo, a dirty flag, a last_* holding built data) is in
+# crates/humanity-core/src/reuse.rs's list of sites or says in a `reuse:` comment why it is not
+# a reuse; the sites found unanswered when it was built are its backlog, which only shrinks.
 #
 # Compiled standalone with rustc so they never link the native bin, which dodges
 # the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
@@ -788,7 +792,7 @@ lints:
     # the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after (measured 2026-10-23).
     # ONE line holds every lint (2026-10-30): two sessions had each added a lint by copying the whole
     # line, so the other 19 ran twice in every `just lints`. Add a lint to the end of this line.
-    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint repo_root_lint settings_used_lint page_change_lint layer_lint simready_lint no_ai_in_app_lint
+    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint repo_root_lint settings_used_lint page_change_lint layer_lint simready_lint no_ai_in_app_lint reuse_switch_lint
     @node scripts/check-encoding.js --all > /dev/null && echo ">> lint ok: check-encoding --all" || { echo "LINT FAILED: check-encoding --all"; node scripts/check-encoding.js --all; exit 1; }
     # The How-to data (docs/design/how-to.md): every how-to through the checker, every gate seen red
     # on its fixture (tests/fixtures/how_to/broken.json), the index current. A second of node, no compile.

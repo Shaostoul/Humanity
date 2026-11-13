@@ -511,20 +511,25 @@ pub(crate) fn push_render_objects(state: &mut crate::engine::state::EngineState,
             |id| reg.map(|r| r.class_for(id).to_string()).unwrap_or_default(),
         )
     };
-    let changed = (0..3).any(|k| (volumes[k] - state.stock_pile_cache.0[k]).abs() > 0.01);
-    if changed {
+    // Kept while the volume and the home are as they were, and only with reuse on (2026-11-13:
+    // the home's edits are in the key, since the piles stand in the storage zones' floor).
+    let key = crate::engine::home_reuse::StockKey { volumes, edits: state.home_draw.edits };
+    if !crate::engine::home_reuse::stock_layout_kept(&state.stock_pile_cache.0, &key, humanity_core::reuse::enabled()) {
         let counts = unit_counts(volumes);
         let want: u32 = counts.iter().sum();
         let slots = home_storage_slots(state, want);
-        log::info!(
-            "Stock piles: {:.0} L stored = {} crates, {} sacks, {} barrels; {} shown in the storage zones",
-            volumes.iter().sum::<f32>(),
-            counts[CRATE],
-            counts[SACK],
-            counts[BARREL],
-            slots.len()
-        );
-        state.stock_pile_cache = (volumes, assign_kinds(slots, counts));
+        // Said when it changed, not on every layout the reuse switch asks for.
+        if state.stock_pile_cache.0.volumes != key.volumes || state.stock_pile_cache.1.len() != slots.len() {
+            log::info!(
+                "Stock piles: {:.0} L stored = {} crates, {} sacks, {} barrels; {} shown in the storage zones",
+                volumes.iter().sum::<f32>(),
+                counts[CRATE],
+                counts[SACK],
+                counts[BARREL],
+                slots.len()
+            );
+        }
+        state.stock_pile_cache = (key, assign_kinds(slots, counts));
     }
     for (p, kind) in &state.stock_pile_cache.1 {
         let (scale, mesh, material) = match *kind {

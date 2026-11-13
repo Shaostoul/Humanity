@@ -69,7 +69,11 @@ And 265 more items, 995 references (`node scripts/crate-cards.js --interface hum
 - **No caches kept across runs; in-memory reuse only when it cannot go stale, and it asks
   `reuse::enabled()`.** The switch itself lives here ([reuse.rs](../../crates/humanity-core/src/reuse.rs): "Turn off all
   reuse" in the Dev tab's Performance section, `HUMANITY_NO_REUSE=1` for a rig). A new reuse that
-  does not ask is a bug. Source: [CLAUDE.md](../../CLAUDE.md), "No caches kept across runs during development".
+  does not ask is a bug, and `tests/reuse_switch_lint.rs` (in `just lints`, 2026-11-13) fails on
+  one: a field or static named like a cache, a memo, a dirty flag or a `last_*` holding built data
+  must be in reuse.rs's list of sites or carry a `reuse:` comment saying why it is not a reuse.
+  Where every frame is far over a frame, the switch puts the reuse on a short schedule instead
+  (reuse.rs lists which). Source: [CLAUDE.md](../../CLAUDE.md), "No caches kept across runs during development".
 - **Data, not code.** Anything that can exist more than once is a data file under `data/`, read
   through `data_parse` and `embedded_data`. Source: [infinite-of-x.md](../design/infinite-of-x.md).
 - **Words come from the word source by key.** `i18n` reads `data/i18n/en.json`; new words are added

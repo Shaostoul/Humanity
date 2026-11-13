@@ -67,3 +67,21 @@ fn the_least_recently_used_tiles_go_first() {
     let all_now: Vec<(TileKey, u64)> = used.iter().map(|(k, _)| (*k, 7)).collect();
     assert!(to_evict(&all_now, 7, CACHE_BYTES).is_empty(), "a tile used this frame was let go");
 }
+
+/// THE REUSE SWITCH (2026-11-13): a tile not kept yet is baked first either way; once every wanted
+/// tile is kept, reuse on bakes nothing more, and reuse off bakes the one baked longest ago again
+/// (a round of the plan's tiles, one a frame). Seen red 2026-11-13 with the kept tiles reused
+/// whatever the switch said: "reuse off baked nothing once every tile was kept".
+#[test]
+fn with_reuse_off_the_oldest_plan_tile_is_baked_again() {
+    let key = |x| TileKey { level: 0, z: 3, x, y: 0 };
+    let want = [key(0), key(1), key(2), TileKey { level: 1, z: 3, x: 9, y: 0 }];
+    let baked: HashMap<TileKey, u64> = [(key(0), 40), (key(2), 12)].into_iter().collect();
+    let at = |k: &TileKey| baked.get(k).copied();
+    assert_eq!(tile_to_bake(&want, 0, at, true), Some(key(1)), "an unbaked tile first, reuse on");
+    assert_eq!(tile_to_bake(&want, 0, at, false), Some(key(1)), "an unbaked tile first, reuse off");
+    let all: HashMap<TileKey, u64> = [(key(0), 40), (key(1), 55), (key(2), 12)].into_iter().collect();
+    let at_all = |k: &TileKey| all.get(k).copied();
+    assert_eq!(tile_to_bake(&want, 0, at_all, true), None, "reuse on keeps every kept tile");
+    assert_eq!(tile_to_bake(&want, 0, at_all, false), Some(key(2)), "reuse off baked nothing once every tile was kept");
+}

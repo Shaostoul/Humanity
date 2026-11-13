@@ -114,3 +114,13 @@ fn hostile_wildlife_off_few_and_normal() {
     assert!(few > 0 && few < normal, "Few spawns fewer predators than Normal ({few} against {normal})");
     assert_eq!((calm_off, calm_few), (calm_normal, calm_normal), "the peaceful wilds are the same at every level");
 }
+
+/// THE REUSE SWITCH (2026-11-13): the orbit rings are worked out once per world entry with reuse
+/// on, and again every second with it off. Seen red 2026-11-13 with the rings kept for the visit
+/// whatever the switch said: "reuse off kept the orbit rings".
+#[test]
+fn with_reuse_off_the_orbit_rings_follow_the_clock() {
+    assert!(orbit_paths_due(false, ORBIT_PATHS_REUSE_OFF_S), "reuse off kept the orbit rings");
+    assert!(!orbit_paths_due(false, ORBIT_PATHS_REUSE_OFF_S * 0.5), "not every frame");
+    assert!(!orbit_paths_due(true, f32::MAX), "reuse on: once per world entry");
+}

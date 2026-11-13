@@ -140,6 +140,9 @@ pub(crate) struct EngineState {
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
     /// must log once and stop, not re-parse 12 GLTFs every frame.
     pub(crate) tree_atlas_attempted: bool,
+    /// When the failed near-tree models were last tried again, seconds since start (the reuse
+    /// switch off retries them every few seconds: `near_tree_models::failed_model_retry_due`).
+    pub(crate) near_tree_retry_s: f32,
     /// Ambient particle simulation (v0.966): drifting leaves near trees,
     /// space dust for motion reference in the void. CPU-ticked each frame,
     /// drawn by the renderer's particle post-pass.
@@ -317,6 +320,8 @@ pub(crate) struct EngineState {
     /// under the reserved id "_flat". LOD switches therefore never
     /// regenerate a mesh that was already built this session; only a
     /// first visit to a (body, level) pair pays the build cost.
+    // reuse: not a reuse that can go stale: a unit icosphere per subdivision level, a pure
+    // function of its key.
     pub(crate) planet_mesh_cache: std::collections::HashMap<(String, u32), usize>,
     /// Background sky-sphere builds in flight (v0.930): key = (body, level),
     /// worker delivers the CPU mesh via the channel; frame thread uploads.
@@ -386,6 +391,9 @@ pub(crate) struct EngineState {
     /// draw time; the body id anchors the direction-of-motion trail fade
     /// (v0.790) to the body's live position on its ring.
     pub(crate) solar_orbit_paths: Vec<(Vec<glam::DVec3>, String, String, String)>,
+    /// When the orbit rings were last worked out (world entry, and the reuse switch's schedule:
+    /// `world_load::refresh_orbit_paths`).
+    pub(crate) solar_orbit_paths_at: Option<std::time::Instant>,
     /// Homestead floor meshes (mesh_idx, material_idx) per room.
     pub(crate) homestead_floors: Vec<(usize, usize)>,
     /// Placeholder world objects (mesh_idx, material_idx, world position) drawn
@@ -471,15 +479,14 @@ pub(crate) struct EngineState {
     /// drawn ground's own LOD. Re-harvest when the LOD under the camera
     /// changes, or the bases sit on the wrong mesh.
     pub(crate) near_grass_depth: u8,
-    /// The drawn-terrain LOD the near-TREE harvest last anchored to (v0.1097,
-    /// the floating-trees fix): a depth change while standing still must
-    /// re-harvest or bases stay on the previous mesh until the player walks.
-    pub(crate) near_tree_depth: u8,
-    /// Forest density the near-TREE harvest last ran at (v0.1111). A slider
-    /// move changes what the next card bake emits immediately, but the harvest
-    /// only re-runs every 12 m of walking, so without this the models lag the
-    /// cards by up to a walk and the gap is full of orphaned cards.
-    pub(crate) near_tree_density: f32,
+    /// What the near-TREE harvest last ran from, for its gate
+    /// (`humanity_terrain::near_tree_gate`): the drawn-terrain LOD it anchored
+    /// to (v0.1097, the floating-trees fix: a depth change while standing
+    /// still must re-harvest or bases stay on the previous mesh), the forest
+    /// density (v0.1111: without it the models lag the cards by up to a walk),
+    /// and its reach and cap from the two Settings sliders (2026-11-13: without
+    /// them a slider move showed nothing until the player walked 12 m).
+    pub(crate) near_tree_inputs: humanity_terrain::near_tree_gate::HarvestInputs,
     /// Session-seconds of the last grass harvest (the re-harvest rate limit).
     pub(crate) near_grass_at_s: f32,
     /// Scratch instance buffer for the per-frame grass upload, kept between
@@ -597,7 +604,7 @@ pub(crate) struct EngineState {
     /// against the stored volume it was built for.
     pub(crate) stock_pile_mesh: Option<[usize; 2]>, // [unit box, unit barrel]
     pub(crate) stock_pile_mats: Option<[usize; 6]>, // [crate, gauge back, water, burlap, cask, vessel gauge]
-    pub(crate) stock_pile_cache: ([f32; 3], Vec<(glam::Vec3, usize)>),
+    pub(crate) stock_pile_cache: (crate::engine::home_reuse::StockKey, Vec<(glam::Vec3, usize)>),
     /// Animal in reach + look cone (v0.751): drives the "[E] collect" prompt.
     pub(crate) targeted_livestock: Option<hecs::Entity>,
     /// E pressed on a targeted animal; the frame bridge settles the collect.

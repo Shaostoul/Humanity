@@ -368,6 +368,7 @@ pub struct Screens {
     pub press: Option<aim::PressHold>,
     /// Where the pointing ray met the hovered screen's plane this frame (surface index, pixels):
     /// what a press records as its start.
+    // reuse: not a reuse: this frame's input, written every frame.
     pub last_raw: Option<(usize, egui::Pos2)>,
 }
 

@@ -183,6 +183,7 @@ pub(crate) fn counter_press(raw: Option<&str>) -> bool {
 // and what came of it, for the probe's `home_session.last_verb`: a rig reads why a verb did
 // nothing without reading run.log. Thread-local: the poll and the probe run on the main thread.
 thread_local! {
+    // reuse: not a reuse: a record of what the last verb did, for the probe to report.
     static LAST_HOME_VERB: std::cell::RefCell<Option<serde_json::Value>> = const { std::cell::RefCell::new(None) };
 }
 

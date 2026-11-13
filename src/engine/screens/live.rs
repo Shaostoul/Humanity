@@ -297,6 +297,7 @@ pub struct LiveProvider {
     retry_at: Option<Instant>,
     /// Why the last viewer ended, and the sentence it wrote, shown on the
     /// status page until a new viewer connects. See [`live_status`].
+    // reuse: not a reuse: a record of what happened, not data built to be drawn again.
     last_error: LastError,
     /// Frames written into the surface so far.
     frames_written: u64,

@@ -673,15 +673,18 @@ impl StarRenderer {
     /// Apply the Sky settings to the constellation figures (v0.786): the
     /// visibility toggle + the theme's `constellation_line` color. The GPU
     /// buffer is only rebuilt when the color actually changes (colors are
-    /// baked per-vertex), so calling this every frame is nearly free.
+    /// baked per-vertex), so calling this every frame is nearly free. With
+    /// the reuse switch off (`reuse` false, 2026-11-13) it is rebuilt every
+    /// call (`constellation_kept`).
     pub fn set_constellation_style(
         &mut self,
         device: &wgpu::Device,
         show: bool,
         rgba: [f32; 4],
+        reuse: bool,
     ) {
         self.show_constellations = show;
-        if rgba == self.constellation_rgba || self.constellation_verts.is_empty() {
+        if constellation_kept(self.constellation_rgba, rgba, reuse) || self.constellation_verts.is_empty() {
             return;
         }
         self.constellation_rgba = rgba;
@@ -2417,9 +2420,25 @@ fn fs_main(input: StarOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
+/// Is the constellation line buffer, baked in colour `have`, kept for colour `want`? Only with
+/// reuse on and the same colour.
+fn constellation_kept(have: [f32; 4], want: [f32; 4], reuse: bool) -> bool {
+    humanity_core::reuse::keeps(Some(have), want, reuse)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// THE REUSE SWITCH (2026-11-13): the baked line colour is kept only with it on. Seen red
+    /// 2026-11-13 with the colour as the whole test: "reuse off kept the constellation buffer".
+    #[test]
+    fn with_reuse_off_the_constellation_buffer_is_rebuilt() {
+        let c = [0.2, 0.3, 0.4, 1.0];
+        assert!(constellation_kept(c, c, true));
+        assert!(!constellation_kept(c, [0.2, 0.3, 0.5, 1.0], true), "a new colour rebuilds");
+        assert!(!constellation_kept(c, c, false), "reuse off kept the constellation buffer");
+    }
 
     #[test]
     fn sky_rot_view_matches_look_at_at_small_coords() {

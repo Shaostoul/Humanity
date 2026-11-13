@@ -180,6 +180,8 @@ struct GpuTile {
     _texture: wgpu::Texture,
     id: egui::TextureId,
     used: u64,
+    /// The frame it was baked on: with the reuse switch off the oldest is baked again first.
+    baked: u64,
 }
 
 /// The tiles and what they were baked from (`MapViewGpu::tiles`).
@@ -299,7 +301,17 @@ fn check_edits(state: &mut EngineState, level: &ShipLevel) {
     report.dirty = dirty;
 }
 
-/// Bake the first tile the page wants that is not kept yet (at most one a frame).
+/// Which tile to bake this frame (at most one): the first the page wants that is not kept yet.
+/// With the reuse switch off (2026-11-13), once every wanted tile is kept, the one baked longest ago
+/// is baked again, so the plan's tiles are made afresh in turn, one a frame, and none is older
+/// than one round of them (a schedule: the light, the plants and anything an edit check missed
+/// all show within it).
+pub(crate) fn tile_to_bake(want: &[TileKey], level: i32, baked_at: impl Fn(&TileKey) -> Option<u64>, reuse: bool) -> Option<TileKey> {
+    let mine = || want.iter().filter(|k| k.level == level);
+    mine().find(|k| baked_at(k).is_none()).or_else(|| (!reuse).then(|| mine().min_by_key(|k| baked_at(k))).flatten()).copied()
+}
+
+/// Bake the tile `tile_to_bake` picks (at most one a frame).
 fn bake_one(state: &mut EngineState, level: &ShipLevel) {
     let frame = state.map_view.tiles.frame;
     let want = state.gui_state.maps.tiles.want.clone();
@@ -308,7 +320,8 @@ fn bake_one(state: &mut EngineState, level: &ShipLevel) {
             t.used = frame;
         }
     }
-    let Some(key) = want.iter().find(|k| k.level == level.ordinal && !state.map_view.tiles.tiles.contains_key(k)).copied() else {
+    let reuse = humanity_core::reuse::enabled();
+    let Some(key) = tile_to_bake(&want, level.ordinal, |k| state.map_view.tiles.tiles.get(k).map(|t| t.baked), reuse) else {
         return;
     };
     let Some(me) = state.gui_state.maps.me.clone() else { return };
@@ -334,7 +347,9 @@ fn bake_one(state: &mut EngineState, level: &ShipLevel) {
     state.renderer.mark_view_frame();
     let id = state.egui_renderer.register_native_texture(&state.renderer.device, &view, wgpu::FilterMode::Linear);
     let tiles = &mut state.map_view.tiles;
-    tiles.tiles.insert(key, GpuTile { _texture: texture, id, used: frame });
+    if let Some(old) = tiles.tiles.insert(key, GpuTile { _texture: texture, id, used: frame, baked: frame }) {
+        state.egui_renderer.free_texture(&old.id); // baked again (the reuse switch off)
+    }
     tiles.baked += 1;
     state.gui_state.maps.tiles.last_bake_ms = started.elapsed().as_secs_f32() * 1000.0;
 }

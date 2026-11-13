@@ -1800,6 +1800,7 @@ mod native_app {
                 animation: Default::default(),
                 interact: Default::default(),
                 tree_atlas_attempted: false,
+                near_tree_retry_s: 0.0,
                 particle_system: {
                     let mut ps = crate::renderer::particles::ParticleSystem::new();
                     ps.load_defs(&data_dir);
@@ -1883,6 +1884,7 @@ mod native_app {
                 sun_material: 0,
                 solar_body_materials: [0; 8],
                 solar_orbit_paths: Vec::new(),
+                solar_orbit_paths_at: None,
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
@@ -1902,8 +1904,7 @@ mod native_app {
                 near_grass: Vec::new(),
                 near_grass_center: glam::DVec3::splat(f64::MAX),
                 near_grass_depth: 0,
-                near_tree_depth: 0,
-                near_tree_density: 0.0,
+                near_tree_inputs: Default::default(),
                 near_grass_at_s: -1.0,
                 grass_instances: Vec::new(),
                 grow_positions: Vec::new(),
@@ -1934,7 +1935,7 @@ mod native_app {
                 vehicle_mats: None,
                 stock_pile_mesh: None,
                 stock_pile_mats: None,
-                stock_pile_cache: ([0.0; 3], Vec::new()),
+                stock_pile_cache: (Default::default(), Vec::new()),
                 targeted_livestock: None,
                 pending_livestock_harvest: None,
                 livestock_mesh: None,
@@ -7259,6 +7260,7 @@ mod native_app {
                     }
                     // Pipe markings (2026-10-04): Settings or a showcase pin changed the mode.
                     crate::engine::pipe_markers::rebuild_if_mode_changed(state);
+                    crate::engine::home_reuse::frame(state); // the reuse switch off: the home rebuilt on its schedule
                     // Interior-wall edit (v0.534): the editor mutated gui_state.home_structure
                     // (added/removed a wall, moved a corner, changed an opening). Rebuild the home
                     // mesh live so the change shows immediately; persistence waits for Save.
@@ -10420,6 +10422,7 @@ mod native_app {
                                         asset_manager: &state.asset_manager,
                                         decoration_mesh_cache: &mut state.decoration_mesh_cache,
                                         tree_atlas_attempted: &mut state.tree_atlas_attempted,
+                                        near_tree_retry_s: &mut state.near_tree_retry_s,
                                         gui_state: &state.gui_state,
                                         planet_albedos: &state.planet_albedos,
                                         start_time: &state.start_time,
@@ -10427,8 +10430,7 @@ mod native_app {
                                         near_trees_center: &mut state.near_trees_center,
                                         near_tree_new: &mut state.near_tree_new,
                                         near_tree_born_s: &mut state.near_tree_born_s,
-                                        near_tree_depth: &mut state.near_tree_depth,
-                                        near_tree_density: &mut state.near_tree_density,
+                                        near_tree_inputs: &mut state.near_tree_inputs,
                                     },
                                     crate::engine::frame_near_trees::NearTreeView {
                                         cam_local,
@@ -11248,6 +11250,7 @@ mod native_app {
                         // Color from the THEME (v0.786 sky settings; default =
                         // the near-black #020305 the rings always used). Mode
                         // from Settings > Graphics: off / planets / +moons.
+                        crate::engine::world_load::refresh_orbit_paths(state); // the reuse switch off: on its schedule
                         let oc = state.theme.orbit_line();
                         let orbit_rgba: [f32; 4] = [
                             oc.r() as f32 / 255.0,
@@ -14540,6 +14543,7 @@ mod native_app {
                                             cc.b() as f32 / 255.0,
                                             cc.a() as f32 / 255.0,
                                         ],
+                                        humanity_core::reuse::enabled(),
                                     );
                                     // Milky Way glow (2026-07-10): toggle +
                                     // intensity, applied live (the uniform

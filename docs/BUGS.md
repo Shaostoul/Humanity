@@ -7707,3 +7707,24 @@ he noticed the "2+ hour task".
 - **Symptom**: every level line of Room light shadows (Simplified, Full), the card line, its memory warning and the "Now:" line showed "{lights}", "{face}", "{sun}", "{taps}", "{memory}" and the rest as written, since rung 1 of the shadow atlas shipped (2026-11-10): the words that state what each level costs said nothing.
 - **Cause**: the four `graphics.local_shadows_*` words in data/i18n/en.json used `{name}`; `tf` (crates/humanity-core/src/i18n.rs `fill`) replaces `{{name}}` only and leaves anything else as written. No other word in en.json had the single-brace form.
 - **Fix** (shadows rung 1b): the four words now use `{{name}}`. Guard: `i18n::tests::every_placeholder_is_double_braced` (humanity-core) fails on any English word holding a `{name}`; seen red on the four words, green after. Picture: tests/snapshots/graphics_settings.png now reads "Up to 8 room lights with shadows, each face up to 512 texels; the sun near you in 1.6 cm texels; 16 comparisons a lookup; 64 MB of video memory."
+
+## BUG-294: the sea's backstop shell stands in the wave troughs after the sea rises (FIXED 2026-11-13)
+
+- **Symptom** (found by reading, the reuse switch's second wave): the coarse backstop layer under the wave shell, there so a tear in the displaced surface shows water colour, can show through the troughs as flat tiles once the waves grow after the patch was built: wind rising, a storm, an ocean event pinned by the showcase.
+- **Cause**: the backstop's drop under the surface (`-(live crest + 0.5 m)`, v0.1051) was baked into each patch's MESH when it was built (`build_water_patch_mesh_at`'s lift), and built patches are kept while they are drawn. A patch built under a 0.3 m crest kept its 0.8 m drop under a 3 m crest.
+- **Fix** (src/engine/frame_water.rs, assets/shaders/pbr/00-bindings-vertex.wgsl): the backstop is built on the sea sphere like the wave shell, and the vertex shader lowers it by this frame's crest plus `BACKSTOP_CLEARANCE_M` (0.5 m) every frame. The kept mesh now depends on nothing that moves.
+- **Tests** (src/engine/frame_water_tests.rs): `a_backstop_built_on_a_calm_day_clears_a_storms_troughs` (red: "the backstop sits 0.80 m down under a 3.0 m crest") and `the_backstop_drop_is_the_shaders`, which holds the shader's constant and branch to the CPU twin (red before the shader had them).
+
+## BUG-295: the tree model distance and near-tree budget sliders change nothing until the player walks 12 m (FIXED 2026-11-13)
+
+- **Symptom** (found by reading): moving Settings > Graphics' tree model distance or near-tree budget while standing still left the photoscanned and procedural near trees as they were, out to the old distance and count, until the player walked 12 m.
+- **Cause**: the near-tree harvest re-runs on movement, a drawn-depth change or a density change (`humanity_terrain::near_tree_gate`); the harvest's reach (`tree_model_distance + 60 m`) and its cap (from `near_tree_budget`) size it but were not in the gate.
+- **Fix**: the gate takes what a harvest is made from as one value, `HarvestInputs` (depth, density, reach, cap), kept beside the set in `EngineState::near_tree_inputs`; a reach or cap change re-harvests (`ReachChanged`), rate limited like the density so a slider drag is four harvests a second, not sixty.
+- **Tests** (crates/humanity-terrain/src/near_tree_gate.rs): `a_reach_slider_move_reharvests_without_walking` (red: "the distance slider moved, parked: no harvest").
+
+## BUG-296: the stock piles stay where a storage zone used to be after an edit that keeps the stored volume (FIXED 2026-11-13)
+
+- **Symptom** (found by reading): the crates, sacks and barrels drawn in the storage zones are laid out in the zones' free floor; moving or shrinking a storage zone in the editor, with the same things stored, left the piles where the zone had been.
+- **Cause**: the layout (`EngineState::stock_pile_cache`) was laid out again only when the stored volume changed by more than 0.01 L (src/engine/stock_piles.rs).
+- **Fix**: the layout's key is the volume AND the home's edit count (`HomeDraw::edits`, bumped by every shell upload and machine rebuild), `engine::home_reuse::StockKey`; with the reuse switch off it is laid out every frame.
+- **Tests** (src/engine/home_reuse.rs): `the_stock_piles_follow_an_edit_that_keeps_the_volume` (red: "an edit kept the old layout").

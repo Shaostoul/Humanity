@@ -897,6 +897,10 @@ fn ocean_shoal_top() -> f32 {
 // builder. LOCKSTEP with WATER_CELL_CODE_SCALE in planet_chunks.rs.
 const WATER_CELL_CODE_SCALE: f32 = 65536.0;
 
+// How far under the live crest the water's BACKSTOP shell sits, metres. LOCKSTEP with
+// BACKSTOP_CLEARANCE_M in engine/frame_water.rs (`the_backstop_drop_is_the_shaders`).
+const BACKSTOP_CLEARANCE_M: f32 = 0.5;
+
 // ── MEASURED Nyquist gate (v0.1049) ──
 // ocean_train_fade above is really a Nyquist gate written in DISTANCE: it
 // dies at 60 * lambda because the vertex spacing there is ASSUMED to be
@@ -1652,6 +1656,13 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     // small; the CHORD SAG above is the real crack.
                     disp = disp + h * fade * shoal + event_h * shoal;
                 }
+            } else {
+                // The BACKSTOP's drop (2026-11-13): under this frame's crest by the clearance.
+                // It was baked into each kept patch from the crest at build time, so a sea that
+                // rose after (wind, a storm, an ocean event folded into the crest) left the kept
+                // patches standing in the new troughs. CPU twin:
+                // engine/frame_water.rs `backstop_shader_drop_m` (drawn == sampled).
+                disp = disp - (camera.light5_cone_inner.x + BACKSTOP_CLEARANCE_M);
             }
             world_pos = vec4<f32>(world_pos.xyz + radial * disp, 1.0);
         }

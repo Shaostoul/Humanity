@@ -53,6 +53,14 @@ pub enum NearTreeRecompute {
     /// The harvest density (the slider, or a drawn patch's own bake density)
     /// changed.
     DensityChanged,
+    /// The harvest's REACH changed: the tree model distance slider (how far
+    /// out it walks) or the near-tree budget (how many trees it keeps). Until
+    /// 2026-11-13 neither was in the gate, so a slider move showed nothing
+    /// until the player walked 12 m.
+    ReachChanged,
+    /// The reuse switch is off (`humanity_core::reuse::enabled()`, the Dev
+    /// page): the set is harvested again every frame instead of kept.
+    ReuseOff,
 }
 
 impl NearTreeRecompute {
@@ -62,30 +70,48 @@ impl NearTreeRecompute {
             NearTreeRecompute::Moved => "moved",
             NearTreeRecompute::DepthChanged => "depth changed",
             NearTreeRecompute::DensityChanged => "density changed",
+            NearTreeRecompute::ReachChanged => "reach changed",
+            NearTreeRecompute::ReuseOff => "reuse off",
         }
     }
+}
+
+/// What a harvest was made from, kept beside the set it made so the next
+/// frame can tell whether any of it changed.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct HarvestInputs {
+    /// The max drawn patch depth (the bases sit on that mesh).
+    pub depth: u8,
+    /// The harvest density. Compared with a tolerance rather than `!=` so a
+    /// NaN can never compare unequal to itself every frame.
+    pub density: f32,
+    /// How far out the harvest walks, metres (the tree model distance slider
+    /// plus the fade margin).
+    pub reach_m: f64,
+    /// The most trees it keeps (from the near-tree budget slider).
+    pub cap: usize,
 }
 
 /// Decide whether the harvest re-runs this frame, and why.
 ///
 /// * `moved_m`: planet-local camera displacement since the last harvest
 ///   (`f64::MAX`-ish before the first one, which reads as "moved").
-/// * `drawn_depth` / `last_depth`: the max drawn patch depth now and at the
-///   last harvest.
-/// * `density` / `last_density`: the harvest density now and at the last
-///   harvest. Compared with a tolerance rather than `!=` so a NaN can never
-///   compare unequal to itself every frame.
+/// * `now` / `last`: what a harvest would be made from now, and what the
+///   kept one was made from.
 /// * `since_last_s`: seconds since the last harvest.
+/// * `reuse`: `humanity_core::reuse::enabled()`; false harvests every frame.
 pub fn near_tree_recompute_reason(
     moved_m: f64,
-    drawn_depth: u8,
-    last_depth: u8,
-    density: f32,
-    last_density: f32,
+    now: HarvestInputs,
+    last: HarvestInputs,
     since_last_s: f32,
+    reuse: bool,
 ) -> Option<NearTreeRecompute> {
     if moved_m > NEAR_TREE_REHARVEST_M {
         return Some(NearTreeRecompute::Moved);
+    }
+    if !reuse {
+        return Some(NearTreeRecompute::ReuseOff);
     }
     // A change-driven re-harvest waits out the interval; a NaN interval
     // (should never happen) counts as "not yet", never as "due".
@@ -93,11 +119,14 @@ pub fn near_tree_recompute_reason(
     if !change_due {
         return None;
     }
-    if drawn_depth != last_depth {
+    if now.depth != last.depth {
         return Some(NearTreeRecompute::DepthChanged);
     }
-    if (density - last_density).abs() > 1.0e-6 {
+    if (now.density - last.density).abs() > 1.0e-6 {
         return Some(NearTreeRecompute::DensityChanged);
+    }
+    if (now.reach_m - last.reach_m).abs() > 1.0e-6 || now.cap != last.cap {
+        return Some(NearTreeRecompute::ReachChanged);
     }
     None
 }
@@ -106,13 +135,63 @@ pub fn near_tree_recompute_reason(
 mod tests {
     use super::*;
 
+    /// The depth and density cases, with the reach unchanged and reuse on.
+    fn reason(moved: f64, depth: u8, last_depth: u8, density: f32, last_density: f32, since: f32) -> Option<NearTreeRecompute> {
+        let reach = |depth, density| HarvestInputs { depth, density, reach_m: 260.0, cap: 640 };
+        near_tree_recompute_reason(moved, reach(depth, density), reach(last_depth, last_density), since, true)
+    }
+
+    /// THE SLIDERS REAL BUG (2026-11-13): the tree model distance and the
+    /// near-tree budget size the harvest, but neither was in the gate, so a
+    /// slider move changed nothing on screen until the player walked 12 m.
+    /// A parked player who moves either slider gets a new harvest once the
+    /// change interval has passed (rate limited like the density, since a
+    /// drag moves the value every frame). Seen red 2026-11-13 with the two
+    /// left out: "the distance slider moved, parked: no harvest".
+    #[test]
+    fn a_reach_slider_move_reharvests_without_walking() {
+        let last = HarvestInputs { depth: 9, density: 0.5, reach_m: 260.0, cap: 640 };
+        let farther = HarvestInputs { reach_m: 460.0, ..last };
+        let more = HarvestInputs { cap: 1280, ..last };
+        let since = NEAR_TREE_CHANGE_MIN_INTERVAL_S;
+        assert_eq!(
+            near_tree_recompute_reason(0.0, farther, last, since, true),
+            Some(NearTreeRecompute::ReachChanged),
+            "the distance slider moved, parked: no harvest"
+        );
+        assert_eq!(
+            near_tree_recompute_reason(0.0, more, last, since, true),
+            Some(NearTreeRecompute::ReachChanged),
+            "the budget slider moved, parked: no harvest"
+        );
+        assert_eq!(near_tree_recompute_reason(0.0, farther, last, since - 0.01, true), None, "rate limited like the density");
+        assert_eq!(near_tree_recompute_reason(0.0, last, last, 60.0, true), None, "nothing moved: kept");
+    }
+
+    /// With the reuse switch off the set is harvested again every frame,
+    /// parked or not. Seen red 2026-11-13 with the switch ignored: "reuse
+    /// off kept the harvest".
+    #[test]
+    fn with_reuse_off_the_harvest_runs_every_frame() {
+        let last = HarvestInputs { depth: 9, density: 0.5, reach_m: 260.0, cap: 640 };
+        for since in [0.0_f32, 0.016, 5.0] {
+            assert_eq!(
+                near_tree_recompute_reason(0.0, last, last, since, false),
+                Some(NearTreeRecompute::ReuseOff),
+                "reuse off kept the harvest"
+            );
+        }
+        assert_eq!(NearTreeRecompute::ReuseOff.label(), "reuse off");
+        assert_eq!(NearTreeRecompute::ReachChanged.label(), "reach changed");
+    }
+
     /// A parked camera with nothing changed never re-harvests, however long
     /// it stands there: this is the per-frame log flood the gate exists to
     /// stop.
     #[test]
     fn parked_and_unchanged_never_recomputes() {
         for since in [0.0_f32, 0.1, 1.0, 60.0] {
-            assert_eq!(near_tree_recompute_reason(0.0, 9, 9, 0.5, 0.5, since), None);
+            assert_eq!(reason(0.0, 9, 9, 0.5, 0.5, since), None);
         }
     }
 
@@ -121,14 +200,14 @@ mod tests {
     #[test]
     fn movement_recomputes_at_once() {
         assert_eq!(
-            near_tree_recompute_reason(NEAR_TREE_REHARVEST_M + 0.01, 9, 9, 0.5, 0.5, 0.0),
+            reason(NEAR_TREE_REHARVEST_M + 0.01, 9, 9, 0.5, 0.5, 0.0),
             Some(NearTreeRecompute::Moved)
         );
         // Exactly at the threshold is "not yet" (strict), the same as before.
-        assert_eq!(near_tree_recompute_reason(NEAR_TREE_REHARVEST_M, 9, 9, 0.5, 0.5, 0.0), None);
+        assert_eq!(reason(NEAR_TREE_REHARVEST_M, 9, 9, 0.5, 0.5, 0.0), None);
         // The first harvest ever: the centre is at f64::MAX, so "moved".
         assert_eq!(
-            near_tree_recompute_reason(f64::MAX, 0, 0, 0.5, 0.5, 0.0),
+            reason(f64::MAX, 0, 0, 0.5, 0.5, 0.0),
             Some(NearTreeRecompute::Moved)
         );
     }
@@ -140,9 +219,9 @@ mod tests {
     fn depth_change_is_rate_limited() {
         let just_after = NEAR_TREE_CHANGE_MIN_INTERVAL_S;
         let too_soon = NEAR_TREE_CHANGE_MIN_INTERVAL_S - 0.01;
-        assert_eq!(near_tree_recompute_reason(0.0, 10, 9, 0.5, 0.5, too_soon), None);
+        assert_eq!(reason(0.0, 10, 9, 0.5, 0.5, too_soon), None);
         assert_eq!(
-            near_tree_recompute_reason(0.0, 10, 9, 0.5, 0.5, just_after),
+            reason(0.0, 10, 9, 0.5, 0.5, just_after),
             Some(NearTreeRecompute::DepthChanged)
         );
     }
@@ -152,12 +231,12 @@ mod tests {
     /// `!=` would have.
     #[test]
     fn density_change_is_rate_limited_and_nan_safe() {
-        assert_eq!(near_tree_recompute_reason(0.0, 9, 9, 0.7, 0.5, 0.1), None);
+        assert_eq!(reason(0.0, 9, 9, 0.7, 0.5, 0.1), None);
         assert_eq!(
-            near_tree_recompute_reason(0.0, 9, 9, 0.7, 0.5, 0.3),
+            reason(0.0, 9, 9, 0.7, 0.5, 0.3),
             Some(NearTreeRecompute::DensityChanged)
         );
-        assert_eq!(near_tree_recompute_reason(0.0, 9, 9, f32::NAN, f32::NAN, 5.0), None);
+        assert_eq!(reason(0.0, 9, 9, f32::NAN, f32::NAN, 5.0), None);
     }
 
     /// Depth wins over density when both changed (either is a full
@@ -168,7 +247,7 @@ mod tests {
         assert_eq!(NearTreeRecompute::DepthChanged.label(), "depth changed");
         assert_eq!(NearTreeRecompute::DensityChanged.label(), "density changed");
         assert_eq!(
-            near_tree_recompute_reason(0.0, 10, 9, 0.7, 0.5, 1.0),
+            reason(0.0, 10, 9, 0.7, 0.5, 1.0),
             Some(NearTreeRecompute::DepthChanged)
         );
     }

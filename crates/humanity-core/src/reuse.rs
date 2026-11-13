@@ -45,6 +45,56 @@
 //! every number they are built from; with the switch off both are worked out again every time.
 //! A new reuse that does not ask is a bug.
 //!
+//! THE ENGINE AND THE HOME, part A of the second wave (2026-11-13). Where every frame would be far
+//! over a frame, the switch puts the reuse on a short SCHEDULE instead, so nothing is older than
+//! the schedule: the rule's other allowed form.
+//! - `src/engine/frame_water.rs`: the sea's two shells. The kept selection is walked again every
+//!   frame (`selection_kept`), and every drawn patch of both shells is built again on its turn, a
+//!   slice a frame, once every 30 frames (`patch_rebuild_due`; every frame would be about a
+//!   thousand patch builds a frame). Their meshes depend on nothing that moves since the backstop's
+//!   drop went to the vertex shader (the real bug this wave found: the drop was baked into each
+//!   kept patch from the crest at build time, so a sea that rose after left the backstop in the
+//!   troughs). The patches themselves are `ChunkState`'s (`planet_chunks.rs`), shared with the
+//!   terrain, which is not answered yet (tests/reuse_switch_lint.rs, the backlog).
+//! - `src/engine/frame_near_trees.rs`: `decoration_mesh_cache`, and the near-tree harvest
+//!   (`near_tree_inputs`): with the switch off the set is harvested every frame
+//!   (`humanity_terrain::near_tree_gate`, `ReuseOff`); with it on, the gate now also watches the
+//!   tree model distance and the near-tree budget (the second real bug: neither slider showed
+//!   anything until the player walked 12 m). The near-tree models (`engine::near_tree_models`): a
+//!   model that failed to load is tried again every 3 s (`failed_model_retry_due`); the procedural
+//!   meshes, sprites and atlas are a pure function of the code and the tree registry, which is read
+//!   once per run, and the photoscans are read once per run the same way: not reuses that can go
+//!   stale, so they stay.
+//! - `src/engine/state.rs`: `decoration_mesh_cache` (above; world decorations' models are read once
+//!   per run the same way), `stock_pile_cache` (the stock piles' layout, laid out every frame with
+//!   the switch off; keyed by the stored volume AND the home's edits since the third real bug: an
+//!   edit that moved a storage zone and kept the volume left the piles where it used to be),
+//!   `hero_plant_missing` (the garden's models found missing, forgotten on each full rebuild),
+//!   `plant_mesh_sig` (the garden's signature, zeroed for each full rebuild),
+//!   `machine_model_materials` (a model's picture uploaded again with the switch off,
+//!   `home_reuse::model_material_kept`), `solar_orbit_paths` (the orbit rings, worked out again
+//!   from the clock every second, `world_load::orbit_paths_due`).
+//! - `src/engine/home_reuse.rs`: the home and the garden. The home is rebuilt every 5 s while
+//!   aboard (with every machine drawn afresh a rebuild measured 301 to 637 ms, far over a frame;
+//!   the doors keep their state across it):
+//!   the shell, the editor's storey cut-away, the hull, the machines with their Furniture detail
+//!   bodies, the pipes and their markings, all through `rebuild_homestead`, past the edit flags
+//!   (lib.rs), `furniture_detail::needs_rebuild` and `pipe_markers::rebuild_if_mode_changed`.
+//!   The whole garden is built again every 2 s once the last full rebuild has finished (about
+//!   400 ms of the worker).
+//! - `src/engine/home_meshes.rs`: `reuse_off_at` and `full_at` (when the schedules last ran).
+//! - `src/engine/map_view.rs`: `last_key` (the Maps world layer, rendered every frame with the
+//!   switch off, `world_layer_due`).
+//! - `src/engine/map_tiles.rs`: `tiles` (the plan tiles: with the switch off, once every wanted
+//!   tile is baked, the one baked longest ago is baked again, one a frame, `tile_to_bake`).
+//! - `src/engine/screens/video.rs`: `FrameDraw::Keep` (a quiet tick keeps nothing with the switch
+//!   off; it composes and uploads the last frame again, `plan_frame`).
+//! - `src/renderer/stars.rs`: `constellation_rgba` (the line buffer rebuilt every frame with the
+//!   switch off, `constellation_kept`).
+//! - `src/engine/screens/camera.rs`: `last_render` (camera screens). Already a schedule: each
+//!   renders at most every 100 ms and at most one a frame (`CAMERA_INTERVAL`, `pick_due`), so a
+//!   picture is never older than its turn; it stays as it is.
+//!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.
 

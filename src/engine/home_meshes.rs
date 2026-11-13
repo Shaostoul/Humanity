@@ -61,6 +61,8 @@ pub(crate) struct HomeDraw {
     /// Counts every upload of the home's shell and every rebuild of its machines (Maps increment
     /// 3): the plan tiles (engine/map_tiles.rs) look for what an edit touched only when it moves.
     pub(crate) edits: u64,
+    /// When the reuse switch last rebuilt the home (`engine::home_reuse::frame`).
+    pub(crate) reuse_off_at: Option<std::time::Instant>,
 }
 
 impl HomeDraw {
@@ -1036,8 +1038,9 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
             (Some(mp), Some((rgba, w, h))) => {
                 let (rgba, w, h) = crate::gui::furniture_detail::shrink_rgba(rgba, w, h, divisor);
                 texture_bytes.insert(mp.clone(), w as u64 * h as u64 * 4);
+                let reuse = humanity_core::reuse::enabled();
                 Some(match state.machine_model_materials.get(mp).copied() {
-                    Some((ma, drawn_at)) if drawn_at == divisor => ma,
+                    Some((ma, drawn_at)) if crate::engine::home_reuse::model_material_kept(drawn_at, divisor, reuse) => ma,
                     Some((ma, _)) => {
                         state.renderer.set_material_albedo_texture(ma, &rgba, w, h);
                         state.machine_model_materials.insert(mp.clone(), (ma, divisor));
@@ -1306,6 +1309,16 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     }
     state.grow_positions.len().hash(&mut h);
     let sig = h.finish().max(1);
+    // The reuse switch off (2026-11-13): on its schedule the whole garden is built again, every
+    // machine's plants, the data files read again and the models found missing tried again, as
+    // when the world loads (`engine::home_reuse`).
+    let since_full_s = state.garden_draw.plants.full_at.map_or(f32::MAX, |t| t.elapsed().as_secs_f32());
+    if crate::engine::home_reuse::garden_full_rebuild_due(humanity_core::reuse::enabled(), state.garden_draw.plants.idle(), since_full_s) {
+        state.plant_mesh_sig = 0;
+        state.hero_plant_missing.clear();
+        state.garden_draw.plants.forget_signatures();
+        state.garden_draw.plants.full_at = Some(std::time::Instant::now());
+    }
     let frame_ms = hitch_probe_frame();
     let changed = sig != state.plant_mesh_sig;
     if !changed && state.garden_draw.plants.idle() {
@@ -1936,6 +1949,8 @@ pub(crate) struct PlantPass {
     /// Received, not yet taken (the upload budget ran out).
     inbox: std::collections::VecDeque<crate::engine::plant_pass::WorkerMsg>,
     /// `EngineState::plant_objects` needs recollecting.
+    // reuse: asks for the draw list to be gathered again from the groups, whose own reuse obeys
+    // the switch (`home_reuse::garden_full_rebuild_due`).
     objects_dirty: bool,
     /// Totals of the rebuild in progress, for run.log.
     batch: PlantBatch,
@@ -1946,6 +1961,8 @@ pub(crate) struct PlantPass {
     /// The last plan's milliseconds: crop snapshot, signatures and jobs,
     /// the rest.
     plan_split: [f64; 3],
+    /// When the reuse switch's last full rebuild started (`home_reuse::garden_full_rebuild_due`).
+    full_at: Option<std::time::Instant>,
 }
 
 /// The data files a plan reads (2026-09-27): the visual recipes and the
@@ -2014,6 +2031,14 @@ impl PlantPass {
             while let Ok(msg) = rx.try_recv() {
                 self.inbox.push_back(msg);
             }
+        }
+    }
+
+    /// Forget what every machine's plants were built from, so the next plan builds them all
+    /// again (each keeps drawing its old plants until the new ones are up).
+    fn forget_signatures(&mut self) {
+        for g in self.groups.values_mut() {
+            g.sig = 0;
         }
     }
 

@@ -57,3 +57,13 @@ fn a_point_on_the_hull_lands_where_the_symbols_say() {
         }
     }
 }
+
+/// THE REUSE SWITCH (2026-11-13): with it on, the world layer's last render is kept until the view
+/// changes or the rest refresh comes round; with it off, it is rendered every frame. Seen red
+/// 2026-11-13 with the switch ignored: "reuse off kept the world layer".
+#[test]
+fn with_reuse_off_the_world_layer_renders_every_frame() {
+    assert!(world_layer_due(true, true), "a changed view renders");
+    assert!(!world_layer_due(true, false), "reuse on keeps an unchanged view");
+    assert!(world_layer_due(false, false), "reuse off kept the world layer");
+}

@@ -197,11 +197,11 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
         mv.last_move = Some(now);
     }
     let half = mv.last_move.is_some_and(|t| now.duration_since(t) < REFINE_AFTER);
-    let due = moved
+    let changed = moved
         || mv.last_key.map_or(true, |k| (k.size, k.draw_ship, k.sky_only, k.level, k.edits) != (key.size, key.draw_ship, key.sky_only, key.level, key.edits))
         || (mv.last_half && !half)
         || mv.last_render.map_or(true, |t| now.duration_since(t) >= REST_REFRESH);
-    if !due {
+    if !world_layer_due(humanity_core::reuse::enabled(), changed) {
         return;
     }
     let size = if half { ((full.0 / 2).max(8), (full.1 / 2).max(8)) } else { full };
@@ -237,6 +237,13 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
     world.ship_drawn = draw_ship;
     world.sky_only = sky_only;
     world.rendered_seq = state.gui_state.maps.frame_seq;
+}
+
+/// Is the world layer rendered again this frame? While the reuse switch is on, the last render is
+/// kept until the view changes or [`REST_REFRESH`] passes (`changed`); with it off (2026-11-13) it
+/// is rendered every frame the page draws it.
+pub(crate) fn world_layer_due(reuse: bool, changed: bool) -> bool {
+    changed || !reuse
 }
 
 /// The texture for this render (full or half), made or remade at `size`

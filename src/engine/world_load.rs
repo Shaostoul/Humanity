@@ -622,32 +622,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
     // degree every 19 days, so a J2000 ring would miss the Moon by up to 10
     // degrees of latitude. Cached once per world entry; a session moves it a
     // few hundredths of a degree.
-    let ring_sim_t = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0)
-        - 946_728_000.0; // Unix secs at J2000.0 epoch
-    for b in humanity_core::cosmos::sol_bodies() {
-        // Cache EVERY orbiting body's ring, tagged planet/moon so the Sky
-        // settings filter at draw time (v0.786). Direct sun-orbiters =
-        // planets/dwarfs; everything else = a moon around its planet.
-        // (Fixes the latent v0.262 bug where the lone intended moon ring
-        // never drew: the guard checked id "moon" but the data id is
-        // "luna".) Sun has no orbit (sample empty) → skipped naturally.
-        let Some(parent) = b.parent.clone() else { continue };
-        let kind = if parent == "sun" { "planet" } else { "moon" };
-        let pts_au = humanity_core::cosmos::sample_orbit_points(b, 96, ring_sim_t);
-        if pts_au.len() < 3 { continue; }
-        // Keep the vertices in f64 (v0.791): they are ~1.5e11 m and the
-        // per-frame offset is the same magnitude with the opposite sign,
-        // so an f32 cache left tens-of-km cancellation jitter near the
-        // body -- one of the two reasons Earth sat visibly off its ring.
-        let pts_m: Vec<glam::DVec3> = pts_au
-            .iter()
-            .map(|p| *p * humanity_core::cosmos::M_PER_AU)
-            .collect();
-        state.solar_orbit_paths.push((pts_m, parent, kind.to_string(), b.id.clone()));
-    }
+    state.solar_orbit_paths = solar_orbit_paths_now();
+    state.solar_orbit_paths_at = Some(std::time::Instant::now());
     log::info!("Map-sync: cached {} FPS orbit paths (thin lines)", state.solar_orbit_paths.len());
 
     // ── Load CSV game-data registries into the runtime DataStore ──
@@ -1364,6 +1340,61 @@ pub(crate) fn replace_home_air(world: &mut hecs::World, own_air: bool, metabolic
     }
     if own_air {
         spawn_home_air_space(world, metabolic_kcal_per_day, volume_m3);
+    }
+}
+
+
+/// Every orbiting body's ring as it lies now (`load_world` says why now): ellipse points in
+/// parent-frame metres, the parent's id, "planet" or "moon", and the body's id.
+pub(crate) fn solar_orbit_paths_now() -> Vec<(Vec<glam::DVec3>, String, String, String)> {
+    let mut out = Vec::new();
+    let ring_sim_t = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+        - 946_728_000.0; // Unix secs at J2000.0 epoch
+    for b in humanity_core::cosmos::sol_bodies() {
+        // Cache EVERY orbiting body's ring, tagged planet/moon so the Sky
+        // settings filter at draw time (v0.786). Direct sun-orbiters =
+        // planets/dwarfs; everything else = a moon around its planet.
+        // (Fixes the latent v0.262 bug where the lone intended moon ring
+        // never drew: the guard checked id "moon" but the data id is
+        // "luna".) Sun has no orbit (sample empty) → skipped naturally.
+        let Some(parent) = b.parent.clone() else { continue };
+        let kind = if parent == "sun" { "planet" } else { "moon" };
+        let pts_au = humanity_core::cosmos::sample_orbit_points(b, 96, ring_sim_t);
+        if pts_au.len() < 3 { continue; }
+        // Keep the vertices in f64 (v0.791): they are ~1.5e11 m and the
+        // per-frame offset is the same magnitude with the opposite sign,
+        // so an f32 cache left tens-of-km cancellation jitter near the
+        // body -- one of the two reasons Earth sat visibly off its ring.
+        let pts_m: Vec<glam::DVec3> = pts_au
+            .iter()
+            .map(|p| *p * humanity_core::cosmos::M_PER_AU)
+            .collect();
+        out.push((pts_m, parent, kind.to_string(), b.id.clone()));
+    }
+    out
+}
+
+/// With the reuse switch off, how often the orbit rings are worked out again from the clock,
+/// seconds (a schedule rather than every frame: every orbiting body's 96 ellipse points).
+pub(crate) const ORBIT_PATHS_REUSE_OFF_S: f32 = 1.0;
+
+/// Are the orbit rings worked out again this frame? Never with reuse on (once per world entry: a
+/// session moves them a few hundredths of a degree); with it off, every
+/// [`ORBIT_PATHS_REUSE_OFF_S`].
+pub(crate) fn orbit_paths_due(reuse: bool, since_s: f32) -> bool {
+    !reuse && since_s >= ORBIT_PATHS_REUSE_OFF_S
+}
+
+/// Once a frame before the rings draw: with the reuse switch off, work them out again on their
+/// schedule (`orbit_paths_due`).
+pub(crate) fn refresh_orbit_paths(state: &mut EngineState) {
+    let since = state.solar_orbit_paths_at.map_or(f32::MAX, |t| t.elapsed().as_secs_f32());
+    if orbit_paths_due(humanity_core::reuse::enabled(), since) {
+        state.solar_orbit_paths = solar_orbit_paths_now();
+        state.solar_orbit_paths_at = Some(std::time::Instant::now());
     }
 }
 

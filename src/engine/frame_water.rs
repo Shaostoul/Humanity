@@ -245,15 +245,11 @@ pub(crate) fn push_water_shells(
                 e.last_used = frame;
             }
         }
-        // v0.1051: track the LIVE crest. The
-        // backstop only has to sit below the
-        // wave troughs; pinning it to a 12 m
-        // worst case would park it 12 m down on
-        // a glassy day, where the gap between
-        // the two shells becomes its own
-        // artifact at the waterline.
-        let drop_m =
-            -(state.renderer.sea_crest_m as f64 + 0.5);
+        // v0.1051: the drop tracks the LIVE crest (a 12 m worst case parks it 12 m down on a
+        // glassy day, its own artifact at the waterline). Since 2026-11-13 the vertex shader
+        // applies it every frame (`backstop_shader_drop_m`), not the kept mesh.
+        let drop_m = backstop_build_lift_m();
+        let hm = state.planet_heightmaps.get(&b.id).map(|a| a.as_ref());
         let mut builds = 0usize;
         for id in &bsel.build_requests {
             if builds >= 4 {
@@ -263,39 +259,7 @@ pub(crate) fn push_water_shells(
                 continue;
             }
             let (mesh, anchor, band, bytes) =
-                match chunks::build_water_patch_mesh_at(
-                    d,
-                    om,
-                    state
-                        .planet_heightmaps
-                        .get(&b.id)
-                        .map(|a| a.as_ref()),
-                    id,
-                    drop_m,
-                ) {
-                    Some(pm) => (
-                        Mesh::from_planet_surface(
-                            &state.renderer.device,
-                            &pm.mesh,
-                        ),
-                        pm.anchor,
-                        pm.band,
-                        chunks::PATCH_MESH_BYTES,
-                    ),
-                    None => {
-                        let c = chunks::patch_corners(id);
-                        let a = (c[0] + c[1] + c[2]).normalize()
-                            * d.radius;
-                        (
-                            Mesh::placeholder(
-                                &state.renderer.device,
-                            ),
-                            a,
-                            chunks::water_band(d.radius),
-                            256,
-                        )
-                    }
-                };
+                build_shell_patch(&state.renderer, d, om, hm, id, Some(drop_m));
             builds += 1;
             let slot = if let Some(idx) =
                 state.planet_patch_free_slots.pop()
@@ -306,6 +270,15 @@ pub(crate) fn push_water_shells(
                 state.renderer.add_mesh(mesh)
             };
             bs.insert(*id, slot, bytes, anchor, band);
+        }
+        // The reuse switch off: every drawn patch built again on its turn (`patch_rebuild_due`).
+        let reuse = humanity_core::reuse::enabled();
+        for id in bsel.draws.iter().filter(|id| patch_rebuild_due(id, frame, reuse)) {
+            if let Some(e) = bs.cache.get_mut(id) {
+                let (mesh, anchor, band, _) = build_shell_patch(&state.renderer, d, om, hm, id, Some(drop_m));
+                state.renderer.replace_mesh(e.mesh, mesh);
+                (e.anchor, e.band) = (anchor, band);
+            }
         }
         for id in &bsel.draws {
             if let Some(e) = bs.cache.get(id) {
@@ -433,13 +406,17 @@ pub(crate) fn push_water_shells(
     // altitude changes the pixel error of a patch
     // hundreds of metres away by nothing, so this
     // tolerance costs no visible detail.
-    let wparked = state.camera.surface_mode
-        && (cam_local - ws.last_sel_cam).length() < 3.0
-        && cam_fwd_local.dot(ws.last_sel_fwd) > 0.99999
-        && !ws.sel_dirty
-        && ws.last_selection.as_ref().is_some_and(|s| {
-            s.build_requests.is_empty() && s.fully_covered
-        });
+    // The kept selection is a reuse: with the switch off the walk runs every frame.
+    let wparked = selection_kept(
+        humanity_core::reuse::enabled(),
+        state.camera.surface_mode
+            && (cam_local - ws.last_sel_cam).length() < 3.0
+            && cam_fwd_local.dot(ws.last_sel_fwd) > 0.99999
+            && !ws.sel_dirty
+            && ws.last_selection.as_ref().is_some_and(|s| {
+                s.build_requests.is_empty() && s.fully_covered
+            }),
+    );
     let wsel = if wparked {
         ws.last_selection.clone().expect("wparked implies stored")
     } else {
@@ -496,6 +473,7 @@ pub(crate) fn push_water_shells(
             wsel.stats.max_leaf_depth,
         );
     }
+    let whm = state.planet_heightmaps.get(&b.id).map(|a| a.as_ref());
     let mut wbuilds = 0usize;
     for id in &wsel.build_requests {
         // v0.1047: 8 -> 24 per frame (the
@@ -514,29 +492,7 @@ pub(crate) fn push_water_shells(
         // placeholder so selection stops
         // requesting them (drawing it is a
         // no-op triangle at the anchor).
-        let (mesh, anchor, band, bytes) =
-            match chunks::build_water_patch_mesh(d, om, state.planet_heightmaps.get(&b.id).map(|a| a.as_ref()), id) {
-                Some(pm) => (
-                    Mesh::from_planet_surface(
-                        &state.renderer.device,
-                        &pm.mesh,
-                    ),
-                    pm.anchor,
-                    pm.band,
-                    chunks::PATCH_MESH_BYTES,
-                ),
-                None => {
-                    let c = chunks::patch_corners(id);
-                    let a = (c[0] + c[1] + c[2]).normalize()
-                        * d.radius;
-                    (
-                        Mesh::placeholder(&state.renderer.device),
-                        a,
-                        chunks::water_band(d.radius),
-                        256,
-                    )
-                }
-            };
+        let (mesh, anchor, band, bytes) = build_shell_patch(&state.renderer, d, om, whm, id, None);
         let slot = if let Some(idx) =
             state.planet_patch_free_slots.pop()
         {
@@ -547,6 +503,15 @@ pub(crate) fn push_water_shells(
         };
         ws.insert(*id, slot, bytes, anchor, band);
         wbuilds += 1;
+    }
+    // The reuse switch off: every drawn patch built again on its turn (`patch_rebuild_due`).
+    let reuse = humanity_core::reuse::enabled();
+    for id in wsel.draws.iter().filter(|id| patch_rebuild_due(id, frame, reuse)) {
+        if let Some(e) = ws.cache.get_mut(id) {
+            let (mesh, anchor, band, _) = build_shell_patch(&state.renderer, d, om, whm, id, None);
+            state.renderer.replace_mesh(e.mesh, mesh);
+            (e.anchor, e.band) = (anchor, band);
+        }
     }
     if wbuilds > 0 {
         ws.sel_dirty = true; // v0.928 parked skip
@@ -716,3 +681,69 @@ pub(crate) fn push_water_shells(
         }
     }
 }
+
+/// Build one patch of a water shell: the wave shell's (`lift_m` None, at the sea radius) or the
+/// backstop's (`Some(lift)`, that many metres off it). An all-land patch gets a degenerate
+/// placeholder so the selection stops requesting it (drawing it is a no-op triangle at the
+/// anchor). Returns the mesh, its anchor, its measured band and its byte estimate for the LRU cap.
+fn build_shell_patch(
+    renderer: &Renderer,
+    d: &PlanetDef,
+    om: &humanity_terrain::ocean_mask::OceanMask,
+    hm: Option<&humanity_terrain::planet_heightmap::PlanetHeightmap>,
+    id: &chunks::PatchId,
+    lift_m: Option<f64>,
+) -> (Mesh, DVec3, chunks::RadialBand, usize) {
+    let built = match lift_m {
+        Some(lift) => chunks::build_water_patch_mesh_at(d, om, hm, id, lift),
+        None => chunks::build_water_patch_mesh(d, om, hm, id),
+    };
+    match built {
+        Some(pm) => (Mesh::from_planet_surface(&renderer.device, &pm.mesh), pm.anchor, pm.band, chunks::PATCH_MESH_BYTES),
+        None => {
+            let c = chunks::patch_corners(id);
+            let a = (c[0] + c[1] + c[2]).normalize() * d.radius;
+            (Mesh::placeholder(&renderer.device), a, chunks::water_band(d.radius), 256)
+        }
+    }
+}
+
+/// How far under the live crest the backstop sits, metres (the shader applies it; this and its twin
+/// below are for the tests). LOCKSTEP with the shader's (`the_backstop_drop_is_the_shaders`).
+#[cfg(test)]
+pub(crate) const BACKSTOP_CLEARANCE_M: f64 = 0.5;
+
+/// The radial lift the backstop's MESH is built at: none, so what is kept depends on nothing that
+/// moves (until 2026-11-13 the live crest was baked in here: BUG-294).
+pub(crate) fn backstop_build_lift_m() -> f64 {
+    0.0
+}
+
+/// What the vertex shader lowers a backstop vertex by, metres, for this frame's crest (the CPU
+/// twin of the shader's backstop branch): a rising sea takes the backstop down the same frame.
+#[cfg(test)]
+pub(crate) fn backstop_shader_drop_m(live_crest_m: f32) -> f64 {
+    live_crest_m as f64 + BACKSTOP_CLEARANCE_M
+}
+
+/// Is the stored selection used again this frame instead of a fresh walk? Only with reuse on.
+fn selection_kept(reuse: bool, parked: bool) -> bool {
+    reuse && parked
+}
+
+/// With the reuse switch off, each drawn water patch is built again once every this many frames,
+/// a slice a frame (every frame would be about a thousand patch builds a frame).
+pub(crate) const WATER_REUSE_OFF_PERIOD: u64 = 30;
+
+/// Is this drawn patch built again this frame? Never with reuse on (its mesh is a function of the
+/// patch, the planet and its bathymetry only, none of which changes while the world is loaded);
+/// with reuse off, on its turn of [`WATER_REUSE_OFF_PERIOD`].
+pub(crate) fn patch_rebuild_due(id: &chunks::PatchId, frame: u64, reuse: bool) -> bool {
+    // A patch's turn is a hash of its id, so neighbours spread over the period.
+    let h = (id.path ^ ((id.depth as u64) << 56) ^ ((id.face as u64) << 61)).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    !reuse && (h >> 32) % WATER_REUSE_OFF_PERIOD == frame % WATER_REUSE_OFF_PERIOD
+}
+
+#[cfg(test)]
+#[path = "frame_water_tests.rs"]
+mod tests;

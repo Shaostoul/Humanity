@@ -75,6 +75,9 @@ pub mod editor;
 pub mod frame_lock;
 pub mod geom;
 pub mod home_meshes;
+/// The home's reuses and the reuse switch (2026-11-13): when the home, its garden and its stock
+/// piles are built again with the switch off, as pure functions the tests run without a world.
+pub mod home_reuse;
 /// The pipes' marker bands in the 3D home: one merged mesh per band colour, and the
 /// Settings / showcase mode switch (2026-10-04; the placement and colours are ship::pipe_marking).
 pub mod pipe_markers;

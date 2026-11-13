@@ -77,6 +77,7 @@ fn open_audio() -> Option<humanity_core::audio::AudioManager> {
 /// and never grab the cursor. Cached: the answer cannot change mid-run and
 /// both call sites (window creation, cursor policy) must agree.
 pub fn launch_in_background() -> bool {
+    // reuse: not a reuse: read once per run from the environment, which cannot change mid-run.
     static CACHE: OnceLock<bool> = OnceLock::new();
     *CACHE.get_or_init(|| {
         if std::env::var("HUMANITY_TAKE_FOCUS").is_ok() {

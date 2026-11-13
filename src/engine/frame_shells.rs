@@ -72,6 +72,8 @@ pub(crate) struct ShellState<'a> {
     pub renderer: &'a mut Renderer,
     /// Icosphere meshes keyed by (body id, subdivision level), shared with the
     /// surface path so a shell re-uses a level already built this session.
+    // reuse: not a reuse that can go stale: a unit icosphere per subdivision level, a pure
+    // function of its key.
     pub planet_mesh_cache: &'a mut HashMap<(String, u32), usize>,
     /// One cloud material per (body, quality tier).
     pub planet_cloud_materials: &'a mut HashMap<(String, u8), usize>,

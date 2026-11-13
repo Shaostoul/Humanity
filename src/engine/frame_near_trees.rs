@@ -40,11 +40,11 @@
 //! itself:
 //!
 //! - seven ASSIGNMENTS: `*state.near_trees = ...` and the same for
-//!   near_tree_depth, near_tree_density, near_tree_new, near_tree_born_s, and
+//!   near_tree_inputs, near_tree_new, near_tree_born_s, and
 //!   near_trees_center twice (once on recompute, once on the clear-on-leave);
 //! - six READS in by-value positions: `*state.near_trees_center - cam_local`,
-//!   the two `- *state.near_tree_born_s` subtractions, the two gate arguments
-//!   `*state.near_tree_depth` / `*state.near_tree_density`, and the
+//!   the two `- *state.near_tree_born_s` subtractions, the gate argument
+//!   `*state.near_tree_inputs`, and the
 //!   `(*.., *..)` tuple that snapshots them for the log line;
 //! - one REBORROW: `&mut *celestial_objects`, because the sink is chosen
 //!   between the caller's list and a local one and the parameter is already a
@@ -83,6 +83,9 @@ pub(crate) struct NearTreeState<'a> {
     pub decoration_mesh_cache: &'a mut HashMap<String, (usize, usize)>,
     /// One-shot guard so the sprite-atlas bake is attempted once per run.
     pub tree_atlas_attempted: &'a mut bool,
+    /// When the failed near-tree models were last tried again (seconds since start; the reuse
+    /// switch off retries them, `near_tree_models::failed_model_retry_due`).
+    pub near_tree_retry_s: &'a mut f32,
     /// Read for the Settings tree knobs (model distance, near-tree budget).
     pub gui_state: &'a GuiState,
     /// Surface imagery, used to tint harvested trees to their ground.
@@ -99,12 +102,12 @@ pub(crate) struct NearTreeState<'a> {
     pub near_tree_new: &'a mut Vec<bool>,
     /// When the current set was born, for that fade.
     pub near_tree_born_s: &'a mut f32,
-    /// The terrain LOD depth the current set's bases were anchored to. A depth
-    /// change under a standing player has to re-harvest or the trees float.
-    pub near_tree_depth: &'a mut u8,
-    /// The vegetation density the current set was harvested at, so a slider
-    /// move re-harvests instead of orphaning cards.
-    pub near_tree_density: &'a mut f32,
+    /// What the current set was harvested from: the terrain LOD depth its
+    /// bases were anchored to (a depth change under a standing player has to
+    /// re-harvest or the trees float), the vegetation density (a slider move
+    /// re-harvests instead of orphaning cards), and the reach and cap the two
+    /// Settings sliders gave it.
+    pub near_tree_inputs: &'a mut humanity_terrain::near_tree_gate::HarvestInputs,
 }
 
 /// Where the camera is, how this planet is oriented, and what the terrain
@@ -229,18 +232,25 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
     // says which term did it.
     let since_last_s = state.start_time.elapsed().as_secs_f32()
         - *state.near_tree_born_s;
+    // What a harvest would be made from now, the two Settings sliders
+    // (its reach and its cap) included since 2026-11-13.
+    let harvest_now = humanity_terrain::near_tree_gate::HarvestInputs {
+        depth: tree_draw_depth,
+        density: veg_harvest_density,
+        reach_m: tree_dist + 60.0,
+        cap: chunks::near_tree_harvest_cap(near_tree_draw_budget),
+    };
     let recompute_why =
         humanity_terrain::near_tree_gate::near_tree_recompute_reason(
             moved,
-            tree_draw_depth,
-            *state.near_tree_depth,
-            veg_harvest_density,
-            *state.near_tree_density,
+            harvest_now,
+            *state.near_tree_inputs,
             since_last_s,
+            humanity_core::reuse::enabled(),
         );
     if let Some(why) = recompute_why {
         let (prev_depth, prev_density) =
-            (*state.near_tree_depth, *state.near_tree_density);
+            (state.near_tree_inputs.depth, state.near_tree_inputs.density);
         let src = chunks::ElevationSource::Heightmap {
             hm,
             detail: &cs.detail,
@@ -270,17 +280,16 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
         // this depth (computed above the gate
         // so a standing-still LOD change also
         // re-harvests).
-        *state.near_tree_depth = tree_draw_depth;
-        *state.near_tree_density = veg_harvest_density;
+        *state.near_tree_inputs = harvest_now;
         *state.near_trees = chunks::near_tree_instances_at_density(
             d,
             &src,
             state.planet_albedos.get(&b.id).map(|a| a.as_ref()),
             cam_local.normalize(),
-            tree_dist + 60.0,
-            tree_draw_depth,
-            veg_harvest_density,
-            chunks::near_tree_harvest_cap(near_tree_draw_budget),
+            harvest_now.reach_m,
+            harvest_now.depth,
+            harvest_now.density,
+            harvest_now.cap,
         );
         *state.near_tree_new = state
             .near_trees
@@ -329,11 +338,21 @@ if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
     // mesh. Four named borrows rather than
     // &mut state: cs (above) holds
     // planet_chunk_states.
+    let now_s = state.start_time.elapsed().as_secs_f32();
+    let retry_failed = crate::engine::near_tree_models::failed_model_retry_due(
+        humanity_core::reuse::enabled(),
+        now_s,
+        *state.near_tree_retry_s,
+    );
+    if retry_failed {
+        *state.near_tree_retry_s = now_s;
+    }
     ensure_near_tree_models(
         &mut state.renderer,
         &state.asset_manager,
         &mut state.decoration_mesh_cache,
         &mut state.tree_atlas_attempted,
+        retry_failed,
     );
     // Per-variant model heights from the split
     // report (metres): scale = target / model.
