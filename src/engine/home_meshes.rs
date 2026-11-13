@@ -3345,6 +3345,9 @@ pub(crate) fn render_door_panels(
         .query::<(&humanity_core::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
         .iter()
         .map(|(_e, (t, r))| (t.position - Vec3::Y * remote_eye, Vec3::new(r.velocity.x, 0.0, r.velocity.z).length()))
+        // The dev crowd's walkers open doors as they come to them, as another player does (crowd
+        // navigation rung 1, engine/crowd_walk.rs): the mesh walks them through automatic doors.
+        .chain(crate::engine::crowd_walk::door_actors(state))
         .collect();
     let others: Vec<Vec3> = others_moving.iter().map(|o| o.0).collect();
     let animals: Vec<Vec3> = state

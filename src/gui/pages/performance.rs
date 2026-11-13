@@ -588,6 +588,12 @@ mod tests {
              animation.rs), which is the Characters row; a row of its own would count it twice",
         ),
         (
+            "cpu.crowd_nav",
+            "the crowd's walk on the navigation mesh (crowd navigation rung 1, engine/crowd_walk.rs): \
+             the mesh made sure of and every walker stepped, run INSIDE cpu.animation, the Characters \
+             row; a row of its own would count it twice",
+        ),
+        (
             "cpu.frame_total",
             "the whole frame (RedrawRequested entry to the last submit); the CPU pie's \
              rows are its parts, so a row would count everything twice",

@@ -1515,7 +1515,7 @@
     },
     {
       "id": "anim-crowd-near-boxes",
-      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running in circles: the near tier (16 compute-skinned) and the middle tier. The rung 0 baseline: the old box figures.",
+      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running to destinations round the tables (on the navigation mesh since crowd navigation rung 1, 2026-11-13): the near tier (16 compute-skinned) and the middle tier. The rung 0 baseline: the old box figures.",
       "expect": "Fifty amber box figures in a dense ring.",
       "_why": "Character animation rung 0 (docs/design/character-animation.md section 10): today's box figures measured first, so every later rung has a baseline. The boxes arm of a same-boot A/B (showcase `figures`), run beside its bodies twin; HUMANITY_FRAME_COSTS=1 writes the costs beside the capture.",
       "regressions": [
@@ -1542,7 +1542,7 @@
     },
     {
       "id": "anim-crowd-near",
-      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running in circles: the near tier (16 compute-skinned) and the middle tier. Rung 1: the skinned, animated body.",
+      "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead of the camera at its east end, standing, walking, jogging and running to destinations round the tables (on the navigation mesh since crowd navigation rung 1, 2026-11-13): the near tier (16 compute-skinned) and the middle tier. Rung 1: the skinned, animated body.",
       "expect": "Fifty people, women and men; those within 15 m in real clothes, shoes and hair (each their own outfit), those further in tinted regions: some standing at idle, some walking, some running, each facing the way it goes, none stepping in unison with its neighbours.",
       "_why": "Character animation rung 1 (2026-11-08): the same scene with the skinned, animated body (engine/animation.rs, renderer/skinning.rs). Compare with its `-boxes` twin; the costs to read are cpu.animation, cpu.skinning, gpu.skinning and gpu.scene.",
       "regressions": [
@@ -1567,6 +1567,62 @@
         }
       ],
       "final_settle_s": 4
+    },
+    {
+      "id": "crowd-nav-mess-hall",
+      "desc": "A hundred people walking in the Commons' mess hall, each to destinations within 8 m of a point 14 m ahead, on the navigation mesh: round the dining tables and chairs, round each other, never through them. Crowd navigation rung 1.",
+      "expect": "A hundred people walking among the mess hall's tables and chairs, each heading somewhere and stopping a moment there, going round the furniture and stepping round each other; nobody inside a table, a chair, a wall or another person.",
+      "_why": "Crowd navigation rung 1 (2026-11-13, docs/design/crowd-navigation.md; engine/crowd_walk.rs, crates/humanity-ship/src/crowd_nav/): the crowd verb's walkers on the navigation mesh. The costs to read are cpu.crowd_nav (inside cpu.animation) and the log's 'Crowd: navigation mesh built' line.",
+      "regressions": [
+        "no person stands or walks inside a table, a chair, a counter or a wall",
+        "no two people overlap",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "94,1.6,24,-1.5708,-0.05",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "100,8,1.34,0,14,nav"
+        }
+      ],
+      "final_settle_s": 10
+    },
+    {
+      "id": "crowd-nav-doors",
+      "desc": "Sixty people walking round the Commons' small rooms at their north end, each to destinations within 7 m of a point 12 m ahead: in and out through the rooms' doors, round the walls between. Crowd navigation rung 1.",
+      "expect": "People walking in and out of the small rooms through their doorways, never through a wall; the doors they use open as they come.",
+      "_why": "Crowd navigation rung 1 (2026-11-13, docs/design/crowd-navigation.md): the walkers' paths go through doors (the mesh's portals in the doorways) and the walkers are door actors (engine/home_meshes.rs).",
+      "regressions": [
+        "no person walks through a wall",
+        "no person stands or walks inside furniture",
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "86,1.6,52,-2.297,-0.08",
+        "time": 20.15
+      },
+      "showcase": {
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 8,
+      "final_showcase": [
+        {
+          "crowd": "60,6,1.34,0,12,nav:7"
+        }
+      ],
+      "final_settle_s": 12
     },
     {
       "id": "anim-crowd-middle-boxes",
@@ -1929,7 +1985,7 @@
     {
       "id": "anim-crowd-near-figure",
       "desc": "Fifty stand-ins in the Commons' mess hall, 6 to 14 m ahead (16 near, the rest middle), drawn with the procedural test figure: the third arm of the same-boot comparison beside anim-crowd-near (MakeHuman) and anim-crowd-near-boxes.",
-      "expect": "Fifty jointed test figures in amber tops, standing, walking and running in circles.",
+      "expect": "Fifty jointed test figures in amber tops, standing, walking and running round the tables.",
       "_why": "Character animation rung 1, the real bodies (2026-11-09): MakeHuman's body against the test figure, same scene, same boot (showcase figures test_figure).",
       "regressions": [
         "every figure is the jointed test figure, never a box",

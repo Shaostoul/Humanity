@@ -95,6 +95,9 @@ pub mod music;
 /// Characters on screen: every humanoid as one skinned, animated body (character animation rung
 /// 1, 2026-11-08, crates/humanity-animation and renderer/skinning.rs).
 pub mod animation;
+/// The dev crowd walking somewhere on the navigation mesh, through doors, round furniture and each
+/// other (crowd navigation rung 1, 2026-11-13, docs/design/crowd-navigation.md).
+pub mod crowd_walk;
 /// The ground under a person's feet for humanity-animation's feet (character animation rung 2a,
 /// 2026-11-09): the footing aboard, the drawn terrain on a planet.
 pub mod feet_ground;

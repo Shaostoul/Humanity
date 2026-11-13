@@ -953,18 +953,44 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // point `ahead` m in front of the feet under the camera, walking circles at `speed` m/s
     // (below 0: a mix of standing, walking, jogging and running; 0 with `turn` rad/s: turning on
     // the spot). {"crowd":"0"} clears them (the rigs' release between vantages).
+    // The sixth field, `walk` (crowd navigation rung 1, 2026-11-13, engine/crowd_walk.rs): aboard,
+    // where the walls are, the walking ones walk on the navigation mesh by default, each to
+    // destinations within `radius` of the centre, through doors, round furniture and each other;
+    // "nav:<roam_m>" roams that far instead, and "circle" keeps the old circles (a measurement that
+    // wants people at known places). Off the ship they walk circles, as before.
     if let Some(spec) = grab("crowd") {
-        let ahead = spec.split(',').nth(4).and_then(|s| s.trim().parse::<f32>().ok()).unwrap_or(0.0);
+        let fields: Vec<&str> = spec.split(',').map(str::trim).collect();
+        let numbers = fields.iter().take(5).copied().collect::<Vec<_>>().join(",");
+        let walk = fields.get(5).copied().unwrap_or("nav");
+        let ahead = fields.get(4).and_then(|s| s.parse::<f32>().ok()).unwrap_or(0.0);
+        let radius = fields.get(1).and_then(|s| s.parse::<f32>().ok()).unwrap_or(6.0).max(0.5);
+        let roam = match walk.strip_prefix("nav") {
+            Some("") => Some(radius),
+            Some(r) => r.strip_prefix(':').and_then(|r| r.parse::<f32>().ok()).filter(|r| r.is_finite() && *r > 0.0),
+            None => None,
+        };
         let feet = state.camera.position - Vec3::new(0.0, state.controller.eye_height(), 0.0);
         let origin = feet + state.camera.forward_xz() * ahead;
-        match crate::engine::animation::parse_crowd(&spec, origin) {
+        match crate::engine::animation::parse_crowd(&numbers, origin).filter(|_| walk == "circle" || roam.is_some()) {
             Some(mut c) => {
-                log::info!("Showcase: crowd -> {} stand-ins around {origin:?}", c.len());
                 let now = state.animation.clock();
                 c.iter_mut().for_each(|f| f.born = now);
+                let walking = roam.filter(|_| crate::engine::crowd_walk::can_walk_here(state));
+                if let Some(roam) = walking {
+                    state.animation.walk.params = crate::engine::crowd_walk::load_params();
+                    crate::engine::crowd_walk::make_walkers(&mut c, origin, roam, now);
+                }
+                log::info!(
+                    "Showcase: crowd -> {} stand-ins around {origin:?}, {}",
+                    c.len(),
+                    match walking {
+                        Some(r) => format!("walking on the navigation mesh within {r} m"),
+                        None => "on circles".to_string(),
+                    }
+                );
                 state.animation.crowd = c;
             }
-            None => log::warn!("Showcase: crowd wants \"N[,radius,speed,turn,ahead]\" (N up to 2000), not {spec:?}"),
+            None => log::warn!("Showcase: crowd wants \"N[,radius,speed,turn,ahead[,nav|nav:<roam_m>|circle]]\" (N up to 2000), not {spec:?}"),
         }
     }
     // {"figure_path":"x,y,z;x,y,z;...;speed"}: one more stand-in walking that path back and forth

@@ -167,6 +167,10 @@ pub(crate) enum CrowdMotion {
     Circle { centre: Vec3, radius: f32, speed: f32 },
     Turn { at: Vec3, rate: f32 },
     Path { points: Vec<Vec3>, speed: f32 },
+    /// Walking somewhere on the navigation mesh, through doors, round furniture and the others
+    /// (crowd navigation rung 1, engine/crowd_walk.rs): its place is the walker's, stepped each
+    /// frame.
+    Nav(Box<crate::engine::crowd_walk::NavWalker>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -534,6 +538,9 @@ pub(crate) struct AnimationRuntime {
     /// what varied shapes cost.
     pub(crate) varied_shapes: bool,
     pub(crate) crowd: Vec<CrowdFigure>,
+    /// The navigation mesh the crowd's walkers walk on, and what built it (crowd navigation rung
+    /// 1, engine/crowd_walk.rs).
+    pub(crate) walk: crate::engine::crowd_walk::CrowdWalk,
     pub(crate) report: Report,
     /// The box figure's meshes and the crew's amber material, for the dev crowd in the boxes arm.
     box_meshes: Option<(usize, usize, usize)>,
@@ -602,6 +609,7 @@ impl Default for AnimationRuntime {
             fallback_only: false,
             varied_shapes: true,
             crowd: Vec::new(),
+            walk: Default::default(),
             report: Report::default(),
             box_meshes: None,
             skeleton_meshes: None,
@@ -854,6 +862,7 @@ pub(crate) fn crowd_place(fig: &CrowdFigure, clock: f32) -> (Vec3, f32) {
         }
         CrowdMotion::Turn { at, rate } => (*at, fig.phase * std::f32::consts::TAU + clock * rate),
         CrowdMotion::Path { points, speed } => path_place(points, *speed, fig.phase, clock),
+        CrowdMotion::Nav(w) => (w.feet(), w.agent.facing),
     }
 }
 
@@ -2018,6 +2027,9 @@ pub(crate) fn draw_people(
     let show_skeletons = state.gui_state.characters.show_skeletons;
     let dt = if dt.is_finite() { dt.clamp(0.0, 0.25) } else { 0.0 };
     state.animation.clock += dt;
+    // The crowd's walkers take their step on the navigation mesh before anyone is placed (crowd
+    // navigation rung 1), in both arms of the A/B.
+    crate::engine::crowd_walk::step(state, dt);
     if !state.animation.draws_bodies() {
         state.animation.report.people = 0;
         // Nothing of the last bodies frame may be drawn again (the middle list lives on the

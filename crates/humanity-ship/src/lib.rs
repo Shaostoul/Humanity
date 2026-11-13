@@ -76,6 +76,10 @@ pub mod structure;
 /// (ship homes increment 7 review). Walls block across their own heights, solid slabs block.
 pub mod sight;
 pub mod wall_collision;
+/// People who walk somewhere, through doors, round furniture and each other (crowd navigation
+/// rung 1, 2026-11-13, docs/design/crowd-navigation.md): the navigation mesh built from the walls,
+/// doors, floors and furniture, the path over it, and the avoidance between people.
+pub mod crowd_nav;
 pub mod room_types;
 
 // Data-driven machine layout for the 3D home (pure data, relay-safe). The renderer

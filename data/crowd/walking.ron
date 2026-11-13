@@ -1,0 +1,35 @@
+// How people walk together: the dev crowd today, every walker aboard as crowd navigation's rungs
+// arrive (docs/design/crowd-navigation.md; read by engine/crowd_walk.rs each time the `crowd` verb
+// makes a crowd, into humanity_ship::crowd_nav::CrowdParams). Any number left out takes the code's
+// default. Each number's source is in the design, sections 5 and 7.
+(
+    // How far ahead people look for each other, seconds (ORCA's time horizon). Pedestrians react
+    // to the time until they would collide, little past about 3 s (Karamouzas, Skinner and Guy,
+    // Physical Review Letters 113, 238701, 2014).
+    tau: 2.5,
+    // How far ahead they look at the edge of the walk (walls, furniture), seconds.
+    tau_obs: 0.6,
+    // How far away a neighbour is still watched, metres, and the most watched at once.
+    neighbour_m: 4.0,
+    max_neighbours: 10,
+    // Room kept round a body beyond its 0.25 m radius from another person, metres. Hall's
+    // personal distance is about 0.45 to 1.2 m between people talking; walkers passing strangers
+    // accept far less. Rung 3 makes this follow how crowded it is (Fruin's levels of service).
+    personal_m: 0.05,
+    // How fast a walker changes velocity (m/s2) and turns to face the way it walks (rad/s).
+    accel: 6.0,
+    turn_rate: 6.0,
+    // How near a destination counts as there, and a path's corner as passed, metres.
+    arrive_m: 0.35,
+    corner_m: 0.3,
+    // How often a walker plans its path again after others push it off, seconds.
+    replan_s: 1.5,
+    // A walker that has gone less than stuck_m metres in stuck_s seconds (a jam in a doorway)
+    // gives its destination up and picks another; rung 2's doorway queue replaces this.
+    stuck_s: 4.0,
+    stuck_m: 0.3,
+    // How long a walker stands at a destination before the next, seconds (from, to).
+    dwell_s: (1.0, 6.0),
+    // Walkers with no destination pick one in their roam.
+    wander: true,
+)

@@ -3591,6 +3591,32 @@ clamping reader at the relay and the app, left out when idle.
   red twins, `anim-fp-legs-no-body`, `anim-crowd-{near,middle}-2b-off`; the rig's judge
   `scripts/lib/anchor-probe-check.js`
 
+### Crowd navigation: people who walk somewhere (rung 1, 2026-11-13)
+People walk to destinations through doors, round furniture and round each other
+(`docs/design/crowd-navigation.md`, every rung planned there). A NAVIGATION MESH of one storey of a
+region is built from what the walk collides with (the walls and doors as `wall_collision`
+segments by the walk's own height rule, every placed machine and piece of furniture as a turned
+footprint, the floors of the ship's zones, corridors and slabs from its layout): 0.1 m cells whose
+centres keep a body's 0.25 m radius clear, merged into convex rectangles joined by portals, rebuilt
+only when the fingerprint of what it was built from changes (a table moved), and every frame with
+the Dev page's "Turn off all reuse" switch off. Paths are A* over the rectangles, string-pulled by
+the funnel algorithm; people avoid each other by ORCA (optimal reciprocal collision avoidance) and
+keep off the walk's edge; a body's centre never enters furniture or a wall. The dev crowd's walkers
+(the `crowd` verb, aboard) use it and open automatic doors as they come; the relay's crew adopt it
+next (design section 9). No doorway queueing yet (rung 2): a walker stuck 4 s gives its destination
+up.
+- Native: `crates/humanity-ship/src/crowd_nav/` (`mesh.rs`, `path.rs`, `avoid.rs`, `crowd.rs`,
+  `floor.rs`; in the relay's build too), `src/engine/crowd_walk.rs` (the dev crowd on it; its cost
+  is the stage `cpu.crowd_nav` inside `cpu.animation`), the crowd as door actors in
+  `src/engine/home_meshes.rs`
+- Data: `data/crowd/walking.ron` (time horizon, neighbours, personal space, dwell, give-up; each
+  number's source in the design)
+- Dev: the `crowd` verb's sixth field (`nav`, `nav:<roam_m>`, or `circle` for the old circles);
+  vantages `crowd-nav-mess-hall` and `crowd-nav-doors`; tests `crowd_nav::tests::*` (a path through
+  the door, no body in furniture over a minute, two walkers head-on pass, the mesh rebuilt only when
+  furniture moves, the crowd's region holding while it walks, the shipped ship's Commons to the
+  home)
+
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`
 column: `item:amount:regrow_seconds`). Starter herd (chickens/goats/sheep) placed by
