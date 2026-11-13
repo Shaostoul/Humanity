@@ -161,6 +161,12 @@ that must keep loading old player saves; realistic-first (build the 2030 techniq
 the real thing); every deep system has a full-realism and a simplified mode; compute and bandwidth
 are a hard budget; never trim dev or teaching tools.
 
+### 1.3 His thoughts on home styles and sizes (2026-11-12, open)
+
+Before the wipe he raised the sizes of the hangar and the places beyond the home, and the home's style. Verbatim: "I'm a bit mixed about the current house design. I kinda feel like we should go back to the fibonacci styled home. I'm not really sure though. We also gotta figure out how big the other places should be not the player home." Then, after top-down drafts of 21 x 13, 34 x 21 and 55 x 34 Fibonacci homes: "The fibonacci idea is great for one person but, as you said when multiple people are involved it kinda breaks. Also, it gets huge fast. Initially I chose 34x34 for the garden because, that's what I read is supposedly the amount of land required to have a full garden for food year round for one person. However we're in a spaceship and space is limited. I figure from that everything below makes sense for a home and everything above the garden makes sense for utilitarian stuff. Like the garage and everything after is like ranches of ever increasing size. However I'm not sure how that'd fit on a spaceship well."
+
+**Proposal** (the coordinator's, not decided): keep Fibonacci as the scale ladder of the COMMUNITY rather than of one house: squares of 13 m and below are your home; 21 and 34 are a cluster's shared workshop and garden (about 15 people); 55 and 89 a neighbourhood's workshop hall and park or farm (about 167); 144 the sector's civic heart (500). Ranch-scale land belongs to the ship's farm band or to planets, not to homes. Home styles to draft and compare: courtyard house, row houses on the drum's curve, a cluster of homes around shared space, a modular grid, a honeycomb. The planning sheet shows why: at today's mix 16 homesteads (40 people) take about 103,000 m2 of drum floor and the other 460 people about 11,000 m2 (`node scripts/space-program.js`, 2026-11-12). Open: his choice of style, and every size checked against real references (the research pass queued for after the reset, including the hangar sized from a defined transport and the garden from sourced per-person food-growing areas for soil and for controlled-environment farms).
+
 ## 2. Where the pieces disagree, and how this plan settles them
 
 | Conflict | The sources | This plan (Proposal unless quoted above) |
