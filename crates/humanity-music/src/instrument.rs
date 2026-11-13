@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// One instrument.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Instrument {
-    /// Stable id: the file name, and what moods and styles name.
+    /// Stable id: the file name, and what moods and genres name.
     pub id: String,
     /// Its name, by key in data/i18n/en.json (a community file may give plain words instead).
     #[serde(default)]

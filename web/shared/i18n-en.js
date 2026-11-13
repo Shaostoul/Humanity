@@ -300,16 +300,16 @@ window.HOS_I18N_EN = {
       "tuning_432": "A = 432 Hz",
       "tuning_440": "A = 440 Hz",
       "tuning_hint": "The pitch every note is tuned to. 432 sounds very slightly lower than the usual 440. A matter of taste: no health effect is claimed.",
-      "style": "Style",
-      "style_hint": "How the music sounds. Mothership calm is the ship's own; other styles change the speed, the rhythm and the instruments. A style is a file, so anyone can make one and share it.",
+      "genre": "Genre",
+      "genre_hint": "How the music sounds. Mothership calm is the ship's own; other genres change the speed, the rhythm and the instruments. A genre is a file, so anyone can make one and share it.",
       "blend_with": "Blend with",
       "blend_none": "None",
-      "blend_with_hint": "Mix in a second style. The slider below sets how much of it you hear.",
-      "blend": "How much of the second style",
-      "blend_hint": "Far left is all your first style, far right all the second; in between, each part of the music takes one or the other.",
-      "places_pick_style": "Let places pick a livelier style",
-      "places_pick_style_hint": "Some places, like a gym or a workshop, may play a livelier style while you are there. Off by default.",
-      "recordings_note": "Some kinds of music sound right only with recorded instruments, like swing-era brass or sung voices. The app uses only recordings that are free to share, and never samples copyrighted recordings: copyright law forbids it.",
+      "blend_with_hint": "Mix in a second genre. The slider below sets how much of it you hear.",
+      "blend": "How much of the second genre",
+      "blend_hint": "Far left is all your first genre, far right all the second; in between, each part of the music takes one or the other.",
+      "places_pick_genre": "Let places pick a livelier genre",
+      "places_pick_genre_hint": "Some places, like a gym or a workshop, may play a livelier genre while you are there. Off by default.",
+      "recordings_note": "Some kinds of music sound right only with recorded instruments, like swing-era brass or sung voices. The app uses only recordings that are free to share. A genre plays the app's own music in that style: it never copies any artist's recordings, melodies or lyrics, because copyright law protects them.",
       "hum": "Ship hum and ambience",
       "ambience_volume": "Ambience Volume",
       "ambience_volume_hint": "Background sounds of places, like the ship's hum. Separate from the music.",
@@ -324,7 +324,8 @@ window.HOS_I18N_EN = {
       "tone_hz_hint": "The tone's pitch in hertz.",
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
-      "tone_volume_hint": "How loud the tone is."
+      "tone_volume_hint": "How loud the tone is.",
+      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}."
     },
     "notifications_volume": "Notifications Volume",
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
@@ -4072,7 +4073,11 @@ window.HOS_I18N_EN = {
       "frame_drum": "frame drum",
       "gong": "gong",
       "steel_pan": "steel pan",
-      "handpan": "handpan"
+      "handpan": "handpan",
+      "trumpet": "trumpet",
+      "trombone": "trombone",
+      "clarinet": "clarinet",
+      "double_bass_pizzicato": "plucked double bass"
     },
     "instrument": {
       "upright_piano_small": "Upright piano (small)",
@@ -4117,7 +4122,12 @@ window.HOS_I18N_EN = {
       "steel_pan": "Steel pan",
       "handpan": "Hang (handpan)",
       "big_tom_22": "Big mallet tom, 22 inch",
-      "big_tom_18": "Big mallet tom, 18 inch"
+      "big_tom_18": "Big mallet tom, 18 inch",
+      "trumpet_small": "Trumpet, short notes (small)",
+      "trombone_small": "Old trombone, short notes (small)",
+      "clarinet_small": "Clarinet (small)",
+      "double_bass_pizzicato_small": "Plucked double bass (small)",
+      "guitar_gretsch_small": "Hollowbody electric guitar (Gretsch, small)"
     }
   },
   "chat_video_dock": {
@@ -4193,11 +4203,13 @@ window.HOS_I18N_EN = {
     }
   },
   "music": {
-    "style": {
+    "genre": {
       "mothership_calm": "Mothership calm",
       "mothership_calm_about": "The ship's own music: slow, spacious, pads and a wordless choir, bells, a steel pan and soft deep drums.",
       "lofi": "Lo-fi",
-      "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle."
+      "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle.",
+      "electro_swing": "Electro swing",
+      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, gypsy-jazz guitar, brass stabs and a clarinet calling with the brass answering."
     },
     "mood": {
       "mothership_calm": "Mothership calm",
@@ -4227,7 +4239,14 @@ window.HOS_I18N_EN = {
       "lofi_kick": "Lo-fi kick",
       "lofi_snare": "Lo-fi snare",
       "lofi_hat": "Lo-fi hi-hat",
-      "vinyl_crackle": "Vinyl crackle"
+      "vinyl_crackle": "Vinyl crackle",
+      "house_kick": "House kick",
+      "clap": "Clap",
+      "open_hat": "Open hi-hat",
+      "clarinet": "Clarinet",
+      "swing_horns": "Swing horns",
+      "upright_bass": "Upright bass",
+      "jazz_guitar": "Jazz guitar"
     }
   },
   "not_found": {

@@ -726,7 +726,7 @@ pub struct AppConfig {
     /// A config written before it reads as every second, the default.
     #[serde(default = "default_garden_update_s")]
     pub garden_update_s: f32,
-    /// Settings > Music (2026-11-06, docs/design/music.md section 15): music on or off, the style
+    /// Settings > Music (2026-11-06, docs/design/music.md section 15): music on or off, the genre
     /// and a blend, the tuning (A = 432 Hz by default), the ship's hum and its level, the tones. One
     /// object; every field has its default, so a config from before reads with the defaults.
     #[serde(default)]

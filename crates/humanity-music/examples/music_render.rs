@@ -1,4 +1,4 @@
-//! `just music-render <mood> <style> <seconds> [options]`: render the REAL music engine offline to a
+//! `just music-render <mood> <genre> <seconds> [options]`: render the REAL music engine offline to a
 //! WAV and report how it measures (docs/design/music.md, section 16). Permanent dev tooling.
 //!
 //! The WAV is written where `--out` says, else into the system temp folder; never into the repo.
@@ -11,12 +11,13 @@
 //!   --a4 432|440          the tuning (432 by default)
 //!   --seed N              the composer's seed (20261106 by default)
 //!   --out PATH            where the WAV goes
-//!   --blend STYLE:T       blend toward a second style by T (0..1)
+//!   --blend GENRE:T       blend toward a second genre by T (0..1)
 //!   --intensity V         a steady intensity (0.3 by default)
 //!   --ramp "S:V,S:V,..."  intensity over time: seconds:value points, linear between them
 //!   --hum                 mix the ship's hum under it at its default level (Ship hum level 0.35)
 //!   --breach              the hum's alarm follows the intensity above 0.35 (implies --hum)
-//!   --stems               also print each role's loudness against the whole (calm moods)
+//!   --stems               also print each role's loudness against the whole, and the genre's drums
+//!                         (calm moods)
 //!   --rate HZ             the sample rate (48000)
 //!   --fade S              fade the file out over its last S seconds (6 by default; 0 for none)
 
@@ -27,7 +28,7 @@ use humanity_music::bed::{hum_place, BedContext, BedEngine};
 use humanity_music::mood::RoleKind;
 use humanity_music::render::write_wav;
 use humanity_music::score::{MusicContext, ScoreEngine};
-use humanity_music::style::Style;
+use humanity_music::genre::Genre;
 use humanity_music::{MusicLibrary, Resolved, SampleLibrary};
 
 fn arg<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
@@ -123,14 +124,14 @@ fn goertzel_peak(frames: &[[f32; 2]], rate: f64, t0: f64, t1: f64, lo: f64, hi: 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let pos: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
-    // Positional: mood, style, seconds (options' values are skipped by looking them up by name).
+    // Positional: mood, genre, seconds (options' values are skipped by looking them up by name).
     let opt_vals: Vec<&str> = ["--a4", "--seed", "--out", "--blend", "--intensity", "--ramp", "--rate", "--fade"].iter().filter_map(|o| arg(&args, o)).collect();
     let pos: Vec<&str> = pos.into_iter().map(|s| s.as_str()).filter(|s| !opt_vals.contains(s)).collect();
     if pos.len() < 3 {
-        eprintln!("usage: music-render <mood> <style> <seconds> [--a4 432] [--seed N] [--out PATH] [--blend STYLE:T] [--intensity V] [--ramp S:V,...] [--hum] [--breach] [--stems]");
+        eprintln!("usage: music-render <mood> <genre> <seconds> [--a4 432] [--seed N] [--out PATH] [--blend GENRE:T] [--intensity V] [--ramp S:V,...] [--hum] [--breach] [--stems]");
         std::process::exit(2);
     }
-    let (mood_id, style_id) = (pos[0], pos[1]);
+    let (mood_id, genre_id) = (pos[0], pos[1]);
     let seconds: f64 = pos[2].parse().expect("seconds");
     let a4: f32 = arg(&args, "--a4").map(|v| v.parse().expect("--a4")).unwrap_or(432.0);
     let seed: u64 = arg(&args, "--seed").map(|v| v.parse().expect("--seed")).unwrap_or(20261106);
@@ -144,19 +145,19 @@ fn main() {
     let data = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data");
     let lib = MusicLibrary::load(&data).unwrap_or_else(|e| panic!("the music data: {e}"));
     let mood = lib.mood_index(mood_id).unwrap_or_else(|| panic!("no mood {mood_id:?}; moods: {:?}", lib.moods.iter().map(|m| &m.id).collect::<Vec<_>>()));
-    let style = lib.style_index(style_id).unwrap_or_else(|| panic!("no style {style_id:?}; styles: {:?}", lib.styles.iter().map(|m| &m.id).collect::<Vec<_>>()));
-    let (style_b, blend) = match arg(&args, "--blend").and_then(|b| b.split_once(':')) {
-        Some((s, t)) => (lib.style_index(s).unwrap_or_else(|| panic!("no style {s:?}")), t.parse::<f32>().expect("blend")),
-        None => (style, 0.0),
+    let genre = lib.genre_index(genre_id).unwrap_or_else(|| panic!("no genre {genre_id:?}; genres: {:?}", lib.genres.iter().map(|m| &m.id).collect::<Vec<_>>()));
+    let (genre_b, blend) = match arg(&args, "--blend").and_then(|b| b.split_once(':')) {
+        Some((s, t)) => (lib.genre_index(s).unwrap_or_else(|| panic!("no genre {s:?}")), t.parse::<f32>().expect("blend")),
+        None => (genre, 0.0),
     };
-    let out = arg(&args, "--out").map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join(format!("humanityos-music-{mood_id}-{style_id}-{}.wav", a4 as u32)));
-    let ctx_at = |t: f64| MusicContext { gain: 1.0, a4_hz: a4, mood: mood as u16, style_a: style as u16, style_b: style_b as u16, blend, intensity: ramp_at(&ramp, t, steady), duck_db: 0.0 };
+    let out = arg(&args, "--out").map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join(format!("humanityos-music-{mood_id}-{genre_id}-{}.wav", a4 as u32)));
+    let ctx_at = |t: f64| MusicContext { gain: 1.0, a4_hz: a4, mood: mood as u16, genre_a: genre as u16, genre_b: genre_b as u16, blend, intensity: ramp_at(&ramp, t, steady), duck_db: 0.0 };
 
     // (frames, mean us, worst us, limiter samples, the 99.9th percentile block us)
-    let render = |lib: &MusicLibrary, style: usize| -> (Vec<[f32; 2]>, f64, f64, u64, f64) {
+    let render = |lib: &MusicLibrary, genre: usize| -> (Vec<[f32; 2]>, f64, f64, u64, f64) {
         let res = Resolved::new(lib, &SampleLibrary::new()).expect("resolve");
         let mut ctx = ctx_at(0.0);
-        ctx.style_a = style as u16;
+        ctx.genre_a = genre as u16;
         let mut eng = ScoreEngine::new(res, rate, seed, ctx);
         let total = (seconds * rate as f64) as usize;
         let mut frames = vec![[0.0f32; 2]; total];
@@ -166,9 +167,9 @@ fn main() {
         while i < total {
             let n = 128.min(total - i);
             let mut c = ctx_at(i as f64 / rate as f64);
-            c.style_a = style as u16;
+            c.genre_a = genre as u16;
             if blend == 0.0 {
-                c.style_b = style as u16;
+                c.genre_b = genre as u16;
             }
             eng.set_context(c);
             let t0 = std::time::Instant::now();
@@ -186,7 +187,7 @@ fn main() {
     };
 
     let t_start = std::time::Instant::now();
-    let (mut music, mean_us, worst_us, limited, p999_us) = render(&lib, style);
+    let (mut music, mean_us, worst_us, limited, p999_us) = render(&lib, genre);
     let wall = t_start.elapsed().as_secs_f64();
     let music_m = measure(&music, rate as u32, 3.0);
     let mut hum_report = String::new();
@@ -239,7 +240,7 @@ fn main() {
     let mix = measure_between(&music, rate as u32, 3.0, fade_s);
     let clipped = write_wav(&out, &music, rate as u32).expect("write the WAV");
     let block_ms = 128.0 / rate as f64 * 1000.0;
-    println!("music-render: mood {mood_id}, style {style_id}{}, {seconds} s at A4 = {a4} Hz, seed {seed}, {} Hz", if blend > 0.0 { format!(" blended {blend:.2} toward {}", lib.styles[style_b].id) } else { String::new() }, rate);
+    println!("music-render: mood {mood_id}, genre {genre_id}{}, {seconds} s at A4 = {a4} Hz, seed {seed}, {} Hz", if blend > 0.0 { format!(" blended {blend:.2} toward {}", lib.genres[genre_b].id) } else { String::new() }, rate);
     println!("  {}", out.display());
     println!("  integrated loudness {:.1} LUFS, true peak {:.2} dBTP, loudness range {:.1} LU, largest one-second change of short-term loudness {:.2} LU, clipped samples {clipped}, limiter samples {limited}", mix.integrated, mix.true_peak, mix.range, mix.max_step);
     if hum {
@@ -260,19 +261,35 @@ fn main() {
     let found = goertzel_peak(&music, rate as f64, (seconds * 0.3).min(20.0), (seconds * 0.3).min(20.0) + 20.0f64.min(seconds * 0.6), d2 - 3.0, d2 + 3.0, 0.01);
     println!("  tuning: A4 = {:.3} Hz by note_hz; the drone's D2 found in the mix at {found:.2} Hz (expected {d2:.2})", humanity_music::note_hz(69.0, a4));
     if args.iter().any(|a| a == "--stems") {
+        // Each role alone: the genre under test with every other role silenced and its drums
+        // dropped (a genre that adds a role keeps only that one), then its drums alone. For the
+        // default genre, which changes nothing, that is each of the mood's own roles.
+        let base = lib.genres[genre].clone();
+        let mut stems: Vec<(String, Genre)> = Vec::new();
         for role in RoleKind::ALL {
+            let mut g = base.clone();
+            g.id = format!("stem-{role:?}");
+            g.roles_off = RoleKind::ALL.iter().copied().filter(|r| *r != role).collect();
+            g.roles_add.retain(|a| a.role == role);
+            g.drums.clear();
+            stems.push((format!("{role:?}"), g));
+        }
+        if !base.drums.is_empty() {
+            let mut g = base.clone();
+            g.id = "stem-drums".to_string();
+            g.roles_off = RoleKind::ALL.to_vec();
+            g.roles_add.clear();
+            stems.push(("drums".to_string(), g));
+        }
+        for (name, g) in stems {
             let mut l2 = lib.clone();
-            let id = format!("stem-{role:?}");
-            l2.styles.push(Style {
-                id: id.clone(),
-                roles_off: RoleKind::ALL.iter().copied().filter(|r| *r != role).collect(),
-                ..ron::from_str::<Style>(&format!("(id: \"{id}\")")).expect("an empty style")
-            });
-            let si = l2.style_index(&id).unwrap();
+            let id = g.id.clone();
+            l2.genres.push(g);
+            let si = l2.genre_index(&id).unwrap();
             let (stem, mean, _, _, _) = render(&l2, si);
             let m = measure(&stem, rate as u32, 3.0);
             if m.integrated.is_finite() {
-                println!("  stem {role:?}: {:+.1} LU against all the music ({:.1} LUFS); {:.4} ms a block with the reverb", m.integrated - music_m.integrated, m.integrated, mean / 1000.0);
+                println!("  stem {name}: {:+.1} LU against all the music ({:.1} LUFS); {:.4} ms a block with the reverb", m.integrated - music_m.integrated, m.integrated, mean / 1000.0);
             }
         }
     }

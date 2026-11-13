@@ -1,0 +1,37 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "double_bass_pizzicato_small",
+    words: "instrument_packs.instrument.double_bass_pizzicato_small",
+    part: "double_bass_pizzicato",
+    rank: 20,
+    kind: Sampler((
+        folder: "double_bass_pizzicato_small",
+        pitched: true,
+        source_a4_hz: 440.0,
+        tuning_note: "not measured: a plucked double bass's low, fast-dying notes defeat the pitch measure (it locked onto 10 to 25 Hz or an octave off on 5 of 14 notes and pulled the median 30 cents flat); the library's other instruments measure within 5 cents of A = 440 (trumpet +4.6, trombone +0.7, clarinet +3.7), and its file names are an octave under the sounding pitch; A4 = 440 Hz assumed, names 1 octave(s) off",
+        release_s: 0.3,
+        normalized: false,
+        zones: [
+            (file: "BKCtbss_Pizz_E0_v1_rr1.ogg", key: 28, lo_key: 24, hi_key: 29, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(41.203), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_Fs0_v1_rr1.ogg", key: 30, lo_key: 30, hi_key: 30, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(46.249), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_G0_v1_rr1.ogg", key: 31, lo_key: 31, hi_key: 32, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(48.999), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_As0_v1_rr1.ogg", key: 34, lo_key: 33, hi_key: 35, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(58.27), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_C1_v1_rr1.ogg", key: 36, lo_key: 36, hi_key: 37, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(65.406), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_D1_v1_rr1.ogg", key: 38, lo_key: 38, hi_key: 39, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(73.416), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_E1_v1_rr1.ogg", key: 40, lo_key: 40, hi_key: 41, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(82.407), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_Fs1_v1_rr1.ogg", key: 42, lo_key: 42, hi_key: 43, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(92.499), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_Gs1_v1_rr1.ogg", key: 44, lo_key: 44, hi_key: 44, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(103.826), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_A1_v1_rr1.ogg", key: 45, lo_key: 45, hi_key: 47, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(110.0), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_Cs2_v1_rr1.ogg", key: 49, lo_key: 48, hi_key: 50, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(138.591), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_E2_v1_rr1.ogg", key: 52, lo_key: 51, hi_key: 54, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(164.814), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_Gs2_v1_rr1.ogg", key: 56, lo_key: 55, hi_key: 57, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(207.652), measured_hz: None, loop_start: None, loop_end: None),
+            (file: "BKCtbss_Pizz_B2_v1_rr1.ogg", key: 59, lo_key: 58, hi_key: 63, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(246.942), measured_hz: None, loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "C1", high: "D#4"),
+    reverb_send: 0.2,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "VSCO 2 Community Edition", url: "https://github.com/sgossner/VSCO-2-CE", version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)", fetched: "2026-11-06"),
+    credit: "From VS Chamber Orchestra 2: Community Edition by Versilian Studios (https://versilian-studios.com/vsco-community/): recorded by Sam Gossner (Versilian Studios) and Simon Dalzell (Ivy Audio), sample cutting by Elan Hickler (Soundemote). Public domain (CC0 1.0).",
+)

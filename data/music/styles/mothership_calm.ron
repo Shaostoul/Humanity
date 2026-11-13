@@ -1,7 +1,0 @@
-// "Mothership calm", the default style aboard: it changes nothing, so each mood plays as its file
-// writes it (docs/design/music.md, section 7a).
-Style(
-    id: "mothership_calm",
-    words: "music.style.mothership_calm",
-    about_words: "music.style.mothership_calm_about",
-)

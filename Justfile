@@ -536,8 +536,8 @@ loudness:
 #   just music-render mothership_calm mothership_calm 90
 #   just music-render mothership_calm mothership_calm 80 --ramp "0:0,20:0,32:0.95,55:0.95,62:0" --breach
 # Render the live music offline to a WAV and report how it measures
-music-render mood style seconds *args:
-    cargo run -q -p humanity-music --example music-render -- {{mood}} {{style}} {{seconds}} {{args}}
+music-render mood genre seconds *args:
+    cargo run -q -p humanity-music --example music-render -- {{mood}} {{genre}} {{seconds}} {{args}}
 
 # Full local verification: both feature builds + lib tests + the GUI lints.
 # Mirrors what CI cares about (the relay build is the one CI deploys with).

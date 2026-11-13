@@ -1,0 +1,17 @@
+// An upright (double) bass played pizzicato, synthesised (docs/design/music.md, section 7a): a
+// plucked string (Karplus-Strong) with a dark tone, a strong low body and a medium decay; a finger
+// lifted stops it. A stand-in for electro swing's walking bass: the double_bass_pizzicato part
+// (data/music/parts.ron) plays a recorded pizzicato bass instead wherever one is installed.
+Instrument(
+    id: "upright_bass",
+    words: "music.instrument.upright_bass",
+    kind: Plucked((
+        decay_s: 1.4,
+        brightness: 0.32,
+        body_hz: 95.0,
+        body_level: 0.45,
+        damping_on_release: 3.0,
+    )),
+    level_db: -8.0,
+    reverb_send: 0.06,
+)

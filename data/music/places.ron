@@ -22,10 +22,10 @@ Places(
         (room: Some("hydroponics"), hours: Some((5.0, 21.0)), mood: "garden_morning"),
         (room: Some("observatory"), mood: "night_watch"),
     ],
-    // A livelier style for a place, used ONLY if the person allows it (Settings > Music, "Let places
-    // pick a livelier style"; off by default).
-    style_suggestions: [
-        (room: Some("gym"), style: "lofi"),
-        (room: Some("workshop"), style: "lofi"),
+    // A livelier genre for a place, used ONLY if the person allows it (Settings > Music, "Let places
+    // pick a livelier genre"; off by default).
+    genre_suggestions: [
+        (room: Some("gym"), genre: "lofi"),
+        (room: Some("workshop"), genre: "lofi"),
     ],
 )

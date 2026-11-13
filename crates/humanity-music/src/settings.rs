@@ -23,13 +23,13 @@ pub struct MusicSettings {
     pub music_on_pages: bool,
     /// The tuning every note follows.
     pub tuning: Tuning,
-    /// The style (a file's id in data/music/styles).
-    pub style: String,
-    /// A second style to blend toward ("" = none) and how far (0..1).
+    /// The genre (a file's id in data/music/genres).
+    pub genre: String,
+    /// A second genre to blend toward ("" = none) and how far (0..1).
     pub blend_with: String,
     pub blend: f32,
-    /// Let places (a gym, a workshop) pick a livelier style while you are there.
-    pub places_pick_style: bool,
+    /// Let places (a gym, a workshop) pick a livelier genre while you are there.
+    pub places_pick_genre: bool,
     /// Background sounds of places (the ship's hum), separate from the music, 0..1.
     pub ambience_volume: f32,
     /// The ship's hum aboard, and its level among the background sounds: the hum follows the
@@ -49,10 +49,10 @@ impl Default for MusicSettings {
             music_on: true,
             music_on_pages: true,
             tuning: Tuning::A432,
-            style: crate::library::DEFAULT_STYLE.to_string(),
+            genre: crate::library::DEFAULT_GENRE.to_string(),
             blend_with: String::new(),
             blend: 0.0,
-            places_pick_style: false,
+            places_pick_genre: false,
             ambience_volume: 0.6,
             ship_hum: true,
             ship_hum_level: 0.35,

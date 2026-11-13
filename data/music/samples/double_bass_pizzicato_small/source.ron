@@ -1,0 +1,27 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "VSCO 2 Community Edition",
+    url: "https://github.com/sgossner/VSCO-2-CE",
+    version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "vsco-2-ce/VSCO-2-CE-440300901dfe9275fd84e0b7763af1f8443ae62e.tar.gz",
+    archive_sha256: "2050dfd58513fd8058765c3a567636b148206da297a35c8b52f2ec4344035316",
+    kept: [
+        (file: "BKCtbss_Pizz_E0_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_E0_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_Fs0_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_F#0_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_G0_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_G0_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_As0_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_A#0_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_C1_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_C1_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_D1_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_D1_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_E1_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_E1_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_Fs1_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_F#1_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_Gs1_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_G#1_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_A1_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_A1_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_Cs2_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_C#2_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_E2_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_E2_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_Gs2_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_G#2_v1_rr1.wav"),
+        (file: "BKCtbss_Pizz_B2_v1_rr1.ogg", from: "Strings/Solo Contrabass/Pizz/BKCtbss_Pizz_B2_v1_rr1.wav"),
+    ],
+)

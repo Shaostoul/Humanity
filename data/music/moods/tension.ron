@@ -1,6 +1,6 @@
 // "Tension": danger building (intensity 0.35 to 0.7: a hull breach, a meteor storm closing in,
 // docs/design/music.md section 7b). D Phrygian, the flat second's dread; the key stays on D, so the
-// ship's hum stays in tune with it. An URGENT mood: it plays as written in every style. Taiko on the
+// ship's hum stays in tune with it. An URGENT mood: it plays as written in every genre. Taiko on the
 // beat, a second taiko joining past 0.5, a pulsing eighth-note bass, the celesta as an alarm figure (a
 // minor third rocking), a dark pad, a low choir. The tempo rises with the intensity, 84 to 100 bpm.
 Mood(
@@ -36,7 +36,7 @@ Mood(
         (instrument: "taiko", note: "D2", velocity: 0.75, patterns: ["x...x...x...x...", "x...x...x..xx..."]),
         (instrument: "taiko", note: "A1", velocity: 0.65, min_intensity: 0.5, patterns: ["..x...x...x...xx", "..x..xx...x...x."]),
     ],
-    bass_pattern: Some("x.x.x.x.x.x.x.x."),
+    bass_patterns: ["x.x.x.x.x.x.x.x."],
     roles: [
         (role: Pad, instrument: "dark_pad", part: Some("strings_low"), low: "A2", high: "A4", voices: 4),
         (role: Bass, instrument: "pulse_bass", low: "D1", high: "C#2"),

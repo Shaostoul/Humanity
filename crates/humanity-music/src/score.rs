@@ -1,8 +1,8 @@
-//! The score: the composer, the voice pool, the reverb, the style's recipe, the level and the
+//! The score: the composer, the voice pool, the reverb, the genre's recipe, the level and the
 //! limiter, rendering into a plain stereo buffer (docs/design/music.md, section 4.2).
 //!
 //! The game sends a small `Copy` [`MusicContext`] (kira's latest-value channel, kira_sound.rs); the
-//! score reads it at the start of each block, steers the composer with it (the mood, the style or
+//! score reads it at the start of each block, steers the composer with it (the mood, the genre or
 //! blend, the tuning, applied at the next phrase) and moves its output gain toward the context's
 //! with a 1.5 s time constant (so music fades rather than cuts). On top of that gain, the DUCK
 //! (`MusicContext::duck_db`, docs/design/music.md section 8, rung 4): other sound wins, so the game
@@ -29,9 +29,9 @@ pub struct MusicContext {
     pub a4_hz: f32,
     /// The mood the place asks for (an index in the library's moods).
     pub mood: u16,
-    /// The style, the second style of a blend, and the blend (0 = all `style_a`).
-    pub style_a: u16,
-    pub style_b: u16,
+    /// The genre, the second genre of a blend, and the blend (0 = all `genre_a`).
+    pub genre_a: u16,
+    pub genre_b: u16,
     pub blend: f32,
     /// 0..1: how much is going on (layers join at their `min_intensity`).
     pub intensity: f32,
@@ -49,7 +49,7 @@ pub const DUCK_UP_S: f32 = 0.5;
 
 impl Default for MusicContext {
     fn default() -> Self {
-        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, style_a: 0, style_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0 }
+        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0 }
     }
 }
 
@@ -126,7 +126,7 @@ pub struct ScoreEngine {
 }
 
 impl ScoreEngine {
-    /// A score over `res` at `rate` Hz with `seed`, starting in the context's mood and style.
+    /// A score over `res` at `rate` Hz with `seed`, starting in the context's mood and genre.
     pub fn new(res: Resolved, rate: f32, seed: u64, ctx: MusicContext) -> Self {
         let steer = steer_of(&ctx);
         let composer = Composer::new(rate, seed, steer);
@@ -248,7 +248,7 @@ impl ScoreEngine {
                 self.reverb_t60 = t60;
                 self.reverb.set_t60(t60);
             }
-            // The style's tape wow and flutter: one pitch multiplier for every voice this chunk.
+            // The genre's tape wow and flutter: one pitch multiplier for every voice this chunk.
             let wow = if recipe.wow_cents > 0.0 { self.wow.advance(recipe.wow_hz, n, rate) * recipe.wow_cents } else { 0.0 };
             let flutter = if recipe.flutter_cents > 0.0 { self.flutter.advance(recipe.flutter_hz, n, rate) * recipe.flutter_cents } else { 0.0 };
             let pitch_mul = 2f32.powf((wow + flutter) / 1200.0);
@@ -307,5 +307,5 @@ impl ScoreEngine {
 }
 
 fn steer_of(ctx: &MusicContext) -> Steer {
-    Steer { mood: ctx.mood, style_a: ctx.style_a, style_b: ctx.style_b, blend: ctx.blend, intensity: ctx.intensity, a4: ctx.a4_hz }
+    Steer { mood: ctx.mood, genre_a: ctx.genre_a, genre_b: ctx.genre_b, blend: ctx.blend, intensity: ctx.intensity, a4: ctx.a4_hz }
 }

@@ -1,0 +1,15 @@
+// Electro swing's clap on beats 2 and 4: band-passed noise around 1.3 kHz with a fast decay and a
+// little room. A drum machine's clap, so synthesis is the real thing here.
+Instrument(
+    id: "clap",
+    words: "music.instrument.clap",
+    kind: Noise((
+        filter: (kind: BandPass, cutoff_hz: 1300.0, q: 1.1),
+        envelope: (attack_s: 0.001, decay_s: 0.2, sustain: 0.0, release_s: 0.1),
+        tone_hz: 220.0,
+        tone_level: 0.15,
+        tone_decay_s: 0.03,
+    )),
+    level_db: -12.0,
+    reverb_send: 0.25,
+)

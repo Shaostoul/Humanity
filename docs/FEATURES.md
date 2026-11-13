@@ -2927,16 +2927,19 @@ mood's chord graph with voice leading, varies motifs and never repeats a phrase 
 synthesised voices (pads, a formant choir, celesta bells, the STEEL PAN, membrane DEEP DRUMS and
 taiko, FM electric piano, plucked bass and harp, noise drums, vinyl crackle) with a reverb and a
 limiter, levelled to the music category's loudness. Six moods (mothership calm, menu, garden
-morning, night watch, tension, action), places and the ship's hour choosing among them; STYLES as
-data over the moods (mothership calm, lo-fi; a blend slider; places that may pick a livelier style;
-community styles are files); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
+morning, night watch, tension, action), places and the ship's hour choosing among them; GENRES as
+data over the moods, chosen in Settings > Music's genre selector (mothership calm, lo-fi, and since 2026-11-12
+ELECTRO SWING at 128 bpm: swung eighths over a house kick, a walking upright bass, gypsy-jazz comping,
+brass stabs, clarinet calls answered by trombone, its own minor-key jazz progressions, played by the
+core set's recorded trumpet, trombone, clarinet, pizzicato bass and guitar; a blend slider; places that may pick a livelier genre;
+community genres are files); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
 bar-line transitions, taiko ostinatos, brass stabs; the Dev page's knob and the `music_intensity` /
 `music_breach` showcase verbs); the ship's hum (brown noise with resonances on the key at 432, louder
 and darker toward the drive at the stern, softer in small rooms, silent off the ship, a stressed
 breach alarm with a klaxon tuned to the key); the optional tones (off by default, honest words);
 Settings > Music; `just music-render` renders offline. Since 2026-11-07 (BUG-266 to 270): the build
 (the data read, the recordings decoded) runs on its own thread and a new score takes over at a
-phrase (after an instrument install, a change of style, and every phrase with "turn off all reuse"
+phrase (after an instrument install, a change of genre, and every phrase with "turn off all reuse"
 off); the music sits 12 dB under a playing chat video's sound and 6 dB under on a page opened from
 the world; the moods' pads, bells and drones and lo-fi's keys, lead and melody play recorded
 instruments where installed. Rungs 5 to 10 (the self-meter, voice-call ducking, the website...) are
@@ -2945,9 +2948,9 @@ planned in `docs/design/music.md`.
   `intensity.rs`, `kira_sound.rs`, card `docs/crates/humanity-music.md`), `src/engine/music.rs` (the
   frame wiring), `src/gui/pages/settings_music.rs`, `src/gui/pages/dev_music.rs`,
   `crates/humanity-core/src/audio/mod.rs` (`AudioManager::play_data`, the ambience volume)
-- Data: `data/music/instruments/*.ron`, `data/music/moods/*.ron`, `data/music/styles/*.ron`,
+- Data: `data/music/instruments/*.ron`, `data/music/moods/*.ron`, `data/music/genres/*.ron`,
   `data/music/places.ron`, `data/music/intensity.ron`, `data/music/tones.ron`, `data/audio/hum_sources.ron`
-- Tools: `just music-render <mood> <style> <seconds>`, the example `crates/humanity-music/examples/music_render.rs`
+- Tools: `just music-render <mood> <genre> <seconds>`, the example `crates/humanity-music/examples/music_render.rs`
 
 ### Sound levels: each shipped sound's own level (2026-11-06)
 Settings > Audio > "Sound levels": every sound the game ships (each `data/sounds.toml` entry whose

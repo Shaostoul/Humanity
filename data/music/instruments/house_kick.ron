@@ -1,0 +1,19 @@
+// Electro swing's kick (docs/design/music.md, section 7a): a house kick, four on the floor. One skin
+// mode whose pitch falls from four times its note in 45 ms (the punch), a weak second mode, and a
+// short bright click on top. Electronic by nature, so synthesis is the genuine article here, not a
+// stand-in.
+Instrument(
+    id: "house_kick",
+    words: "music.instrument.house_kick",
+    kind: Membrane((
+        modes: [(1.0, 1.0, 0.42), (1.594, 0.08, 0.1)],
+        pitch_drop: 3.0,
+        pitch_drop_s: 0.045,
+        noise: 0.22,
+        noise_hz: 3500.0,
+        noise_decay_s: 0.006,
+        attack_s: 0.001,
+    )),
+    level_db: -5.0,
+    reverb_send: 0.03,
+)

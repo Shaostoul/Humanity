@@ -2,7 +2,8 @@
 
 **Status (2026-11-06): rungs 1 to 3 BUILT** (the score plays aboard, the hum and the Ambience
 category, the composer and the moods, with the deep drums and the steel pan), **the first rung of
-STYLES** (section 7a: lo-fi, blends, places that may pick a style) and **the first rung of DANGER
+GENRES** (section 7a: lo-fi, blends, places that may pick a genre; since 2026-11-12 the genre selector's
+electro swing at 128 bpm) and **the first rung of DANGER
 AND ACTION** (section 7b: tension and action moods the game's intensity raises, the hum's breach
 alarm, the Dev page's knob). The engine is `crates/humanity-music` (its card:
 [docs/crates/humanity-music.md](../crates/humanity-music.md)); what was measured is in sections 13,
@@ -278,12 +279,12 @@ beyond the table above, `Membrane` (a struck skin), `Fm` (two-operator FM), `Plu
   garden's harp; the rest of the score stays synthesised until a mood names more parts. A recording
   with exact keys (the Hang, `handpan`: only its nine D-minor notes, as its makers ask) plays the keys
   it has and every other key on its synthesised fallback (the steel pan voice), so no note goes
-  silent; no style uses the handpan yet. `parts.ron`'s synthesised voices are instruments of the
+  silent; no genre uses the handpan yet. `parts.ron`'s synthesised voices are instruments of the
   score (a test holds them to it).
 
 ## 7. Moods and compositions as data
 
-`data/music/moods/<id>.ron`. A mood is a style the composer improvises in:
+`data/music/moods/<id>.ron`. A mood is what the music is about here, the frame the composer improvises in:
 
 - `words` (its name, by key), `keys` (allowed key centres and modes, for example D Lydian, B
   Aeolian), `chord_graph` (chords as degrees with weighted moves between them, plus cadences),
@@ -315,15 +316,15 @@ mood's `no_repeat_s` (ten minutes by default). Places: the most specific rule wi
 garden morning. A room is matched by a word in its id or name (`RoomBounds` carries no type key; a
 `type_key` there would be cleaner).
 
-## 7a. Styles: tailoring the music to different tastes
+## 7a. Genres: tailoring the music to different tastes
 
 The operator, 2026-11-06: "Your procedural idea is actually really cool. I'm curious how we could
 tailor it to different tastes. Like what if someone likes dubstep or electroswing or whatever." And
 then: "Loving this idea."
 
-**A style is a layer of data over a mood** (`data/music/styles/<id>.ron`): the mood says where you
-are and what the music is about; the style says how it sounds. Every field is optional, so the
-default style, "Mothership calm", changes nothing. A style may set:
+**A genre is a layer of data over a mood** (`data/music/genres/<id>.ron`): the mood says where you
+are and what the music is about; the genre says how it sounds. Every field is optional, so the
+default genre, "Mothership calm", changes nothing. A genre may set:
 
 | Part | What it is | Lo-fi (built) |
 |---|---|---|
@@ -334,38 +335,111 @@ default style, "Mothership calm", changes nothing. A style may set:
 | Harmony rules | every chord its diatonic seventh, or plain triads, chord lengths | sevenths, 1 to 2 bars |
 | Palette | which instrument plays each role; roles turned off or added | FM electric piano, soft lead, round plucked bass, vinyl crackle; no choir, drone or deep drums |
 | Sound-design recipe | tape wow and flutter, a low-pass over the mix, saturation, the reverb's share | wow 7 cents, low-pass 5.2 kHz, drier |
-| Level | so the style still renders at the music category's loudness | +4.9 dB |
+| Level | so the genre still renders at the music category's loudness | +4.9 dB |
 
 **Why lo-fi first** (the brief asked for electroswing or a gentle lo-fi before dubstep): the default
 world is calm and lo-fi is calm too, and every timbre it needs synthesises well here (an FM electric
-piano, a plucked bass, soft drums, crackle, tape wow). Electroswing leans on recorded swing-era brass
-and clarinet, and dubstep's drop on a loud, dense mix, so both wait for later rungs.
+piano, a plucked bass, soft drums, crackle, tape wow). Electroswing leaned on recorded swing-era brass
+and clarinet, so it came second, once the core set could carry them (below); dubstep's drop, on a
+loud, dense mix, waits for a later rung.
 
-**Designed, not built yet:**
+**The genre selector (2026-11-12).** The operator: "for the procedural music, let's add a genre
+selector. That way we can change how it sounds. I'd like to hear how the math interprets electro
+swing music similar to the band Caravan Palance." and "Let's have ours be 128bpm". Settings > Music
+already offered "styles" (the ship's own score and lo-fi), so the concept took his word, GENRE,
+everywhere (the names rule): `data/music/genres/`, `genre.rs`, the settings' `genre` and
+`places_pick_genre`, the words keys. The ship's own score, "Mothership calm", is the first genre and
+the default (A = 432 Hz stays the tuning setting it was, beside the genre, for every genre).
 
-- **Electroswing**: swing eighths around 120 to 130 bpm (swing 0.66), a walking upright bass (a new
-  bass behaviour: chord tones and passing notes on every beat), brass and clarinet stabs on the
-  off-beats, a four-on-the-floor kick under the swing, vinyl crackle, a little tape. Honest limit: the
-  brass and clarinet need CC0 recordings to sound right; synthesised stand-ins play until a pack is
-  approved.
+**Electro swing (built 2026-11-12, `data/music/genres/electro_swing.ron`)**, the third genre: swing-era
+jazz laid over house music, as the genre is generally understood.
+
+| Part | Electro swing |
+|---|---|
+| Tempo, meter | 128 bpm (the operator's number), 4/4 |
+| Groove | swung eighths: the second eighth of each beat at 0.64 of it (straight is 0.5, a triplet 0.667), 4 ms of human timing |
+| Drums (house) | a kick four on the floor, a clap on 2 and 4, an open hi-hat on every off-beat, a jazz ride's "ding, ding-a ding" on the closed hat; synthesised, which for house drums is the genuine article |
+| Bass | an upright bass that WALKS (`w` steps: the root on a chord's first beat, chord tones and scale steps heading for the next chord, a half step into its root on the beat before, now and then its fifth) or plays a TWO-FEEL (root on 1, fifth on 3); a phrase picks |
+| Comping | a gypsy-jazz (manouche) guitar's "la pompe": a chord on every beat, 2 and 4 accented, strummed low to high in 9 ms and choked after 0.3 of a beat |
+| Brass | horn STABS pushing the off-beats (the choir role's voice-led upper chord tones struck short on a pattern: the "and" of 2 and 4, the Charleston, an anticipation into the next bar) |
+| Melody | CALL AND RESPONSE: the clarinet calls on one chord, the trombone answers on the next with the same rhythm from another chord tone, ending a step lower; riffs in the minor blues scale, short punched notes |
+| Harmony (its own progressions) | D harmonic minor (G for a section), so the hum stays in tune: minor sixth chords (i6, iv6), ii-V-i (E half-diminished, A7 or A7 flat nine, D minor six), diminished passing chords (D sharp diminished between i and ii, C sharp diminished leading home), the iv, D7 into it, B flat seven sliding into A7; chords one or two bars; phrases end on i6 or on V7 (a turnaround) |
+| Dynamics | each phrase at its own level, 0.75 to 1 of full (a softer breakdown, a louder chorus) |
+| Recipe, level | a little vinyl crackle and wow, saturation 0.15, a drier room (reverb x 0.5); +1.6 dB: -18 LUFS within 1 LU over 60 s, with the core set's recordings (-17.8 measured) and with its stand-ins alone |
+
+The genre layer grew these, all data any genre may use: its own `progressions` (key centres and a
+chord graph) and `motifs` in place of the mood's in calm moods; `beats_per_bar`; lists of
+`pad_patterns`, `bass_patterns` and `stab_patterns` a phrase picks from; `comping` (strum and hold);
+`stab_hold_beats`; `call_and_response`; `motif_scale` (two scales joined the modes: the harmonic
+minor and the minor blues); a motif's `hold` per note; `dynamics`. A DANGER mood still plays as
+written in every genre (its own keys, chords, tempo and drums): the intensity raises tension and
+action over electro swing exactly as over the ship's score, and on settling the genre's own harmony
+and 128 bpm come back (a test walks every genre through it). Places still choose the mood (its
+reverb, its level); in electro swing a mood's own voices and chords give way to the genre's, so the
+ship sounds like one band wherever you are. A later rung could let a place lean the band (a quieter
+two-feel set at night).
+
+**What is captured, and what is not (copyright).** Only the GENRE's general characteristics: the
+tempo, the swing, the house kit, the walking bass, la pompe, minor-key jazz harmony, stabs, call and
+response. Never any band's recordings, melodies, lyrics, riffs or one song's distinctive combination
+of elements, and never a band's name in the app (the operator's mention stays a quotation in the
+data file's comment and here). The dated finding
+[`2026-11-12-music-genre-copyright.md`](../reference/findings/2026-11-12-music-genre-copyright.md)
+sets out why from the primary sources: copyright protects a composition (words included) and a sound
+recording; it leaves ideas and methods, scales, standard chord progressions and a genre's
+commonplace building blocks free. Its riffs are short scale fragments the composer varies live, so it
+improvises in the style rather than quoting anyone.
+
+**Instruments, and what plays them.** Four new parts (`trumpet`, `trombone`, `clarinet`,
+`double_bass_pizzicato`) and the `guitar` part each play the best recording installed and a
+synthesised stand-in without one (`swing_horns`: detuned saws with a filter that snaps open;
+`clarinet`: odd harmonics from a square wave, a breath filter and vibrato; `upright_bass` and
+`jazz_guitar`: plucked strings, dark and bright). Out of the box they are RECORDINGS: the core set
+that ships inside the app gained a small trumpet (short notes), an old trombone (short notes), a
+clarinet, a pizzicato double bass (VS Chamber Orchestra 2 Community Edition) and the Gretsch
+hollowbody (Karoryfer), 1.8 MB together, from libraries the operator already approved and downloaded
+whole on 2026-11-06 (`docs/reference/instrument-sources.md`), so no new download was needed. The
+pizzicato bass's pitch is taken from its file names at A = 440 (the pitch measure locks onto
+sub-harmonics on its low, fast-dying notes; the library's other instruments measure within 5 cents of
+440). Settings > Music shows the chosen genre's sentence and says plainly which of its parts play a
+synthesised stand-in (a genre's `roles_add` and palette parts with no installed recording).
+
+**Not yet: a manouche guitar.** The guitar that comps is a hollowbody electric, an honest stand-in for
+the steel-string Selmer-Maccaferri acoustic of gypsy jazz. A search on 2026-11-12 found no CC0
+multi-sample of that guitar. The CC0 candidates, best first: a Martin HD-28 steel-string flat-top
+(Jeff Learman, in sfzinstruments' "Discord-SFZ-GM-Bank", the SFZ header reads "License: Creative
+Commons CC0"; plucked notes a minor third apart from E2 to B5, one layer, no mutes or strums; size not
+stated); Karoryfer's Shinyguitar archtop (GitHub lists CC0-1.0, an old KVR listing says GPL 3 so the
+repository's LICENSE must be checked; 352 MB, 846 samples, acoustic and pickup programs); the Ganjo
+banjo-guitar (CC0 legal code; MIDI 38 to 72, up to 11 round robins; a bright layer for the chop);
+FreePats' Spanish Classical Guitar (nylon, CC0, 4.5 MiB, its page calls the recording conditions "far
+from ideal"). Rejected: the Pianobook MDM guitars (the best mutes, but their EULA forbids
+redistribution), the Philharmonia guitar (not as samples), FreePats' FSS steel-string (GPL 3 with an
+exception), several sets with no stated licence. Freesound refuses automated reading (its robots.txt),
+so its CC0 packs need a person's look. Any of these is a new download, so each waits for the
+operator's yes; the engine already builds the chop from plucked notes (strum and hold), so plucked
+notes are all a recording needs.
+
 - **Dubstep**: a half-time feel around 140 bpm (snare on beat 3), a wobble bass (a saw stack through
   a low-pass swept by an LFO in time with the beat: the `lfo_per_beat` field already exists in the
   synth's filter), a sine sub bass, and a build-and-drop structure (a phrase plan of build bars with a
-  riser, then the drop: a new `structure` field in the style). Kept calm-friendly as a choice, never a
+  riser, then the drop: a new `structure` field in the genre). Kept calm-friendly as a choice, never a
   default.
 
-**A person's choice** is in Settings > Music: the style (the list is the files, so a dropped-in file
-appears), a second style to **blend** with and a slider (tempo, swing and the recipe move smoothly;
-each role takes the second style's instrument with a chance equal to the blend; both styles' drums
-play, each at its share), and **"Let places pick a livelier style"** (off by default): with it on, a
-place in `places.ron`'s `style_suggestions` (a gym, a workshop) plays its style while you are there.
+**A person's choice** is in Settings > Music: the genre (the list is the files, so a dropped-in file
+appears), a second genre to **blend** with and a slider (tempo, swing and the recipe move smoothly;
+each role takes the second genre's instrument with a chance equal to the blend; both genres' drums
+play, each at its share), and **"Let places pick a livelier genre"** (off by default): with it on, a
+place in `places.ron`'s `genre_suggestions` (a gym, a workshop) plays its genre while you are there.
 
-**Community styles** are files: anyone can write one and share it, as a mod. A file with no words key
+**Community genres** are files: anyone can write one and share it, as a mod. A file with no words key
 in en.json gives its name in plain words (`name`, `about`).
 
 **What we will not do, and why** (said in Settings too): genres built on RECORDED timbres (swing-era
 brass, vocal chops) need samples; the app uses only recordings free to share (CC0), and **never
-samples copyrighted recordings, because copyright law forbids it** (a law, not a platform rule).
+samples copyrighted recordings without permission, because copyright law forbids it** (a law, not a
+platform rule); a genre never copies any artist's recordings, melodies or lyrics (the 2026-11-12
+finding above).
 Public-domain recordings (old 78s) might be usable, but that needs a dated legal finding first
 (CLAUDE.md, "Research a legal question, then write it down and date it"); none has been written,
 and nothing here decides it.
@@ -392,7 +466,7 @@ meteor storm puncturing a bunch of holes through the ship or an alien invasion."
   **Action** (D Phrygian power chords, the soft-metal colour): the big drum on the downbeats, a taiko
   ostinato, a backbeat, the taiko's sixteenths from 0.85, low brass stabs on a pattern, a galloping
   bass, the bells' alarm, the choir only at the very peak; 118 to 132 bpm. Both are URGENT moods:
-  they play as written in every style (danger sounds like danger), and the style keeps only its
+  they play as written in every genre (danger sounds like danger), and the genre keeps only its
   recipe and level.
 - **The hum strains in a breach** (`hum_sources.ron`'s `alarm`): louder by 5 dB, its low-pass opened,
   its resonances wavering 25 cents, and a distant two-tone klaxon tuned to the key (A4 and D5, 432.0
@@ -401,7 +475,7 @@ meteor storm puncturing a bunch of holes through the ship or an alien invasion."
 - **Loudness**: a danger peak sits louder than calm (tension about -17 LUFS, action about -16.5,
   calm -18) and under the same -1 dBTP ceiling; the limiter catches the drums' transients (under 1%
   of samples in the meteor storm render).
-- **Later rungs**: a danger palette per style (lo-fi's own tension), game systems setting the
+- **Later rungs**: a danger palette per genre (lo-fi's own tension), game systems setting the
   intensity, a "dread" band under tension for slow threats, stingers per event kind.
 
 ## 8. Adaptivity: what steers it
@@ -541,7 +615,7 @@ per channel included; in Rust, a budget of 0.02 ms per 128-frame block (section 
   frame only starts it, polls it and starts the score when it is done.
 - **A new score takes over at a phrase**: a build that finishes while a score plays starts at the
   playing score's next phrase boundary and the old one fades out (the score's 1.5 s fade). Builds are
-  asked for when what is installed changes (a pack installed or removed, BUG-266), when the styles in
+  asked for when what is installed changes (a pack installed or removed, BUG-266), when the genres in
   use change (only their parts' recordings are decoded), and, with the Dev page's "turn off all
   reuse" switch off, once every phrase (BUG-267), so nothing stale survives a phrase.
 
@@ -592,7 +666,7 @@ block size and timing the worst block, and on the operator's machine by the Dev 
 calm 0.034 ms a block on average (0.054 ms at the 99th percentile), night watch 0.029, garden
 morning 0.016, menu 0.031, lo-fi 0.028, action at 0.9 0.116 (0.165): the recordings cost less than
 the synthesised voices they replace. **Memory**: recordings are kept as 16-bit frames and only the
-parts the styles in use can sound are decoded, 54.7 MiB in the default style and 30.6 MiB with
+parts the genres in use can sound are decoded, 54.7 MiB in the default genre and 30.6 MiB with
 lo-fi, under the 64 MB above (all ten core instruments as 32-bit floats would be 182.7 MiB). The
 calm moods measure 1 to 2 LU under the music target with them (-19.1 to -20.2 LUFS; they are
 levelled at -18 with the synthesised voices): rung 5's self-meter is the fix.
@@ -633,7 +707,9 @@ the app may say more (no "healing", no "432 Hz is natural", no "brown noise help
 
 **As built (2026-11-06):** Settings > Music is its own section (`SettingsCategory::Music`,
 `src/gui/pages/settings_music.rs`): Music on, Music on the app's pages, Tuning (A = 432 Hz default),
-Style, Blend with and its slider, Let places pick a livelier style, the recordings note, Ambience
+Genre (the genre selector, renamed from Style on 2026-11-12; under it the chosen genre's one sentence
+and, where any of its parts has no recording installed, the line naming the synthesised stand-ins),
+Blend with and its slider, Let places pick a livelier genre, the recordings note, Ambience
 Volume, Ship hum and its level, Tones (off by default) with its tone and volume. Every word by key
 (`settings.music.*` in data/i18n/en.json), every control with its hint. Saved as config.json's
 `music` object (`humanity_music::MusicSettings`). The website plays no music yet (rung 9), so it has
@@ -658,7 +734,7 @@ danger knob (intensity slider, hull-breach toggle, "Restart the music", which re
 and the readout (mood and the place's mood, key, tempo, phrase and bar, voices, the audio thread's
 mean and worst block, the hum's level, cutoff and alarm, the zone, the seed); the showcase verbs
 `music_intensity` and `music_breach` (engine/ipc.rs) reach the knob from a rig. `just music-render
-<mood> <style> <seconds>` is built (`--ramp` automates the intensity, `--breach` the alarm,
+<mood> <genre> <seconds>` is built (`--ramp` automates the intensity, `--breach` the alarm,
 `--stems` gives each role's loudness against the whole). `music_state` on the IPC and the force
 buttons wait for rung 5.
 - **The sketch** (`scripts/music-sketch.js`, section 19) stays as the reference the engine's first
@@ -829,10 +905,12 @@ listed in docs/crates/humanity-music.md, "How to test it".
 
 Added with the build (2026-11-06):
 
-7. **Which style next: electroswing or dubstep?** Recommendation: **electroswing**, once a CC0
+7. **Which genre next: electroswing or dubstep?** ANSWERED 2026-11-12: the operator asked for electro
+   swing at 128 bpm (built, section 7a; its brass, clarinet and bass came from the already-approved
+   CC0 libraries, so it needed no new download). The original recommendation: **electroswing**, once a CC0
    brass and clarinet set is approved (its groove, walking bass and four-on-the-floor are ready to
    write as data now; without recordings the brass is a synthesised stand-in). Dubstep after, as an
-   opt-in style, never a place's default.
+   opt-in genre, never a place's default.
 8. **Public-domain recordings (old 78s) as sample sources?** Recommendation: **not without a dated
    legal finding first** (copyright terms for sound recordings differ from compositions and by
    country); nothing has been decided here.
@@ -910,7 +988,7 @@ the vibraphone, their drones the double bass (the strings pack); lo-fi's comping
 its lead a guitar (the guitars pack) and its melody the handpan, low (the percussion pack's Hang,
 with the steel pan for its missing notes and without the pack: `fallback_part`). A sustained part's
 recordings made without loop points are held by a crossfaded loop and levelled over a chord's
-length. Parts no mood or style plays yet are marked `not_used_yet` in `parts.ron`, and Settings >
+length. Parts no mood or genre plays yet are marked `not_used_yet` in `parts.ron`, and Settings >
 Audio > Instruments says so for them; a data test holds the marks to the music. Danger (action)
 keeps its brass stabs and taiko: no CC0 recordings of those were found, and rung 8's guitar is the
 soft-metal colour's own work.

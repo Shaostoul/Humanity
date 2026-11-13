@@ -2,7 +2,7 @@
 //!
 //! - `data/music/instruments/*.ron`: one instrument per file (instrument.rs)
 //! - `data/music/moods/*.ron`: one mood per file (mood.rs)
-//! - `data/music/styles/*.ron`: one style per file, a community style a dropped-in file (style.rs)
+//! - `data/music/genres/*.ron`: one genre per file, a community genre a dropped-in file (genre.rs)
 //! - `data/music/places.ron`: which mood plays where and when (places.rs)
 //! - `data/audio/hum_sources.ron`: where the ship hums from (bed.rs)
 //! - `data/music/tones.ron`: the named tones of the optional tones layer
@@ -20,14 +20,14 @@ use crate::instrument::{Instrument, SampleLibrary};
 use crate::mood::Mood;
 use crate::places::Places;
 use crate::resolved::Resolved;
-use crate::style::Style;
+use crate::genre::Genre;
 
 /// Every music data file.
 #[derive(Clone, Debug)]
 pub struct MusicLibrary {
     pub instruments: Vec<Instrument>,
     pub moods: Vec<Mood>,
-    pub styles: Vec<Style>,
+    pub genres: Vec<Genre>,
     pub places: Places,
     pub hum: HumSources,
     /// The named tones Settings offers for the optional tones layer, hertz (data/music/tones.ron:
@@ -43,8 +43,8 @@ struct Tones {
     named_hz: Vec<f32>,
 }
 
-/// The style a person hears unless they choose another.
-pub const DEFAULT_STYLE: &str = "mothership_calm";
+/// The genre a person hears unless they choose another.
+pub const DEFAULT_GENRE: &str = "mothership_calm";
 /// The mood where nothing else is asked for.
 pub const DEFAULT_MOOD: &str = "mothership_calm";
 
@@ -80,7 +80,7 @@ impl MusicLibrary {
         let music = data_dir.join("music");
         let instruments: Vec<Instrument> = read_dir_ron::<Instrument>(&music.join("instruments"))?.into_iter().map(|(_, i)| i).collect();
         let moods: Vec<Mood> = read_dir_ron::<Mood>(&music.join("moods"))?.into_iter().map(|(_, m)| m).collect();
-        let styles: Vec<Style> = read_dir_ron::<Style>(&music.join("styles"))?.into_iter().map(|(_, s)| s).collect();
+        let genres: Vec<Genre> = read_dir_ron::<Genre>(&music.join("genres"))?.into_iter().map(|(_, s)| s).collect();
         let places_path = music.join("places.ron");
         let places: Places = ron::from_str(&std::fs::read_to_string(&places_path).map_err(|e| format!("{}: {e}", places_path.display()))?)
             .map_err(|e| format!("{}: {e}", places_path.display()))?;
@@ -93,7 +93,7 @@ impl MusicLibrary {
         let intensity_path = music.join("intensity.ron");
         let intensity: crate::intensity::IntensityMap = ron::from_str(&std::fs::read_to_string(&intensity_path).map_err(|e| format!("{}: {e}", intensity_path.display()))?)
             .map_err(|e| format!("{}: {e}", intensity_path.display()))?;
-        let mut lib = MusicLibrary { instruments, moods, styles, places, hum, tones: tones.named_hz, intensity };
+        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity };
         lib.order();
         lib.check()?;
         Ok(lib)
@@ -102,7 +102,7 @@ impl MusicLibrary {
     /// Put the defaults first (index 0 is what a context of zeros plays) and the rest by id.
     fn order(&mut self) {
         self.moods.sort_by(|a, b| (a.id != DEFAULT_MOOD, &a.id).cmp(&(b.id != DEFAULT_MOOD, &b.id)));
-        self.styles.sort_by(|a, b| (a.id != DEFAULT_STYLE, &a.id).cmp(&(b.id != DEFAULT_STYLE, &b.id)));
+        self.genres.sort_by(|a, b| (a.id != DEFAULT_GENRE, &a.id).cmp(&(b.id != DEFAULT_GENRE, &b.id)));
         self.instruments.sort_by(|a, b| a.id.cmp(&b.id));
     }
 
@@ -122,12 +122,12 @@ impl MusicLibrary {
         }
         unique("instrument", self.instruments.iter().map(|i| i.id.as_str()))?;
         unique("mood", self.moods.iter().map(|i| i.id.as_str()))?;
-        unique("style", self.styles.iter().map(|i| i.id.as_str()))?;
+        unique("genre", self.genres.iter().map(|i| i.id.as_str()))?;
         if self.moods.is_empty() {
             return Err("data/music/moods has no mood".into());
         }
-        if self.styles.is_empty() {
-            return Err("data/music/styles has no style".into());
+        if self.genres.is_empty() {
+            return Err("data/music/genres has no genre".into());
         }
         for r in &self.places.rules {
             if self.mood_index(&r.mood).is_none() {
@@ -137,9 +137,9 @@ impl MusicLibrary {
         if self.mood_index(&self.places.default_mood).is_none() {
             return Err(format!("places.ron: default_mood {:?} is not a mood", self.places.default_mood));
         }
-        for s in &self.places.style_suggestions {
-            if self.style_index(&s.style).is_none() {
-                return Err(format!("places.ron: style {:?} is not a style", s.style));
+        for s in &self.places.genre_suggestions {
+            if self.genre_index(&s.genre).is_none() {
+                return Err(format!("places.ron: genre {:?} is not a genre", s.genre));
             }
         }
         for b in &self.intensity.bands {
@@ -161,9 +161,9 @@ impl MusicLibrary {
         self.moods.iter().position(|m| m.id == id)
     }
 
-    /// A style's index by id.
-    pub fn style_index(&self, id: &str) -> Option<usize> {
-        self.styles.iter().position(|s| s.id == id)
+    /// A genre's index by id.
+    pub fn genre_index(&self, id: &str) -> Option<usize> {
+        self.genres.iter().position(|s| s.id == id)
     }
 
     /// An instrument's index by id.

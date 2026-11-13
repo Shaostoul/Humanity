@@ -1,0 +1,29 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "clarinet_small",
+    words: "instrument_packs.instrument.clarinet_small",
+    part: "clarinet",
+    rank: 20,
+    kind: Sampler((
+        folder: "clarinet_small",
+        pitched: true,
+        source_a4_hz: 440.93,
+        tuning_note: "measured: median of 6 samples, +3.7 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 0.3,
+        normalized: false,
+        zones: [
+            (file: "DCClar_susLong_D2_v2_rr1_sum.ogg", key: 50, lo_key: 46, hi_key: 54, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(147.143), measured_hz: Some(147.128), loop_start: None, loop_end: None),
+            (file: "DCClar_susLong_As2_v2_rr1_sum.ogg", key: 58, lo_key: 55, hi_key: 61, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(233.575), measured_hz: Some(233.18), loop_start: None, loop_end: None),
+            (file: "DCClar_susLong_F3_v2_rr1_sum.ogg", key: 65, lo_key: 62, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(349.966), measured_hz: Some(350.491), loop_start: None, loop_end: None),
+            (file: "DCClar_susLong_D4_v2_rr1_sum.ogg", key: 74, lo_key: 70, hi_key: 78, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(588.571), measured_hz: Some(588.643), loop_start: None, loop_end: None),
+            (file: "DCClar_susLong_As4_v2_rr1_sum.ogg", key: 82, lo_key: 79, hi_key: 86, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(934.298), measured_hz: Some(935.0), loop_start: None, loop_end: None),
+            (file: "DCClar_susLong_Fs5_v2_rr1_sum.ogg", key: 90, lo_key: 87, hi_key: 94, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1483.106), measured_hz: Some(1397.453), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "A#2", high: "A#6"),
+    reverb_send: 0.3,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "VSCO 2 Community Edition", url: "https://github.com/sgossner/VSCO-2-CE", version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)", fetched: "2026-11-06"),
+    credit: "From VS Chamber Orchestra 2: Community Edition by Versilian Studios (https://versilian-studios.com/vsco-community/): recorded by Sam Gossner (Versilian Studios) and Simon Dalzell (Ivy Audio), sample cutting by Elan Hickler (Soundemote). Public domain (CC0 1.0).",
+)

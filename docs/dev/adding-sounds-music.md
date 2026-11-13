@@ -14,12 +14,12 @@ the crate card docs/crates/humanity-music.md). To add music you add DATA, no cod
   with a synthesised `fallback`, so music plays without the pack.
 - **A mood** (where and what): `data/music/moods/`: keys, chords and the moves between them, phrase
   and chord lengths, tempo, which instrument plays each role, motifs.
-- **A style** (how it sounds): `data/music/styles/`: tempo, groove, drum patterns as text, harmony
-  rules, a palette, a sound-design recipe. A community style is a file too.
+- **A genre** (how it sounds): `data/music/genres/`: tempo, groove, drum patterns as text, harmony
+  rules, a palette, a sound-design recipe. A community genre is a file too.
 - **Where a mood plays**: `data/music/places.ron`; **danger bands**: `data/music/intensity.ron`; **the
   ship's hum sources**: `data/audio/hum_sources.ron`.
-- Then `just validate-data` (the music data must resolve), `just music-render <mood> <style> 60` to
-  hear it and see its loudness, and re-level the mood or style (`level_db`) if it moved off -18 LUFS.
+- Then `just validate-data` (the music data must resolve), `just music-render <mood> <genre> 60` to
+  hear it and see its loudness, and re-level the mood or genre (`level_db`) if it moved off -18 LUFS.
 
 `AudioManager::play_music` (looping a file) still exists for a recorded track, and the
 `[music.*]` entries in `data/sounds.toml` still name files that do not exist; the live score does

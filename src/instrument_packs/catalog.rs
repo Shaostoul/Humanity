@@ -110,7 +110,7 @@ pub struct Part {
     /// plays now, a recording or its synthesised voice. None: the role's own synthesised voice.
     #[serde(default)]
     pub fallback_part: Option<String>,
-    /// No mood or style plays this part yet (its instruments install and wait): Settings > Audio >
+    /// No mood or genre plays this part yet (its instruments install and wait): Settings > Audio >
     /// Instruments says so, and a data test fails when a part no music names is not marked, or a
     /// marked one is named (data_tests.rs).
     #[serde(default)]

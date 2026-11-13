@@ -1,0 +1,96 @@
+// "Electro swing" (docs/design/music.md, section 7a). The operator, 2026-11-12: "for the procedural
+// music, let's add a genre selector. That way we can change how it sounds. I'd like to hear how the
+// math interprets electro swing music similar to the band Caravan Palance." and "Let's have ours be
+// 128bpm".
+//
+// What is captured is the GENRE's character, never a band's recordings, melodies or lyrics (those
+// are copyrighted; a style of music is not): swing-era jazz laid over house music. So: 128 bpm with
+// swung eighths (the second eighth of each beat lands at 0.64 of it, between straight 0.5 and a
+// triplet's 0.667); a four-on-the-floor house kick, a clap on 2 and 4, an open hi-hat on every
+// off-beat and a jazz ride's "ding, ding-a ding" on the closed hat; an upright bass that walks
+// (chord tones and passing notes on every beat, a half step into each new chord) or plays a two-feel
+// (root and fifth); a gypsy-jazz (manouche) guitar's "la pompe" comping, a short strummed chop on
+// every beat with 2 and 4 accented; brass stabs pushing the off-beats; clarinet lines CALLING and
+// the brass ANSWERING the bar after (call and response), their riffs in the minor blues scale;
+// minor-key jazz harmony in D minor (so the ship's hum stays in tune with it): minor sixth chords,
+// ii-V-i (E half-diminished, A7 or A7 flat nine, D minor six), diminished passing chords (D sharp
+// diminished between D minor and E half-diminished, C sharp diminished leading home), the iv chord,
+// a secondary dominant into it, and the B flat seven sliding into A7; each phrase at its own
+// dynamic level, a little vinyl crackle and a drier, punchier room than the ship's halls.
+//
+// Instruments: the house drums are electronic, so synthesis is the genuine article. The clarinet,
+// the brass, the upright bass and the guitar are parts of the score (data/music/parts.ron): each
+// plays the best recording installed for its part and a synthesised stand-in without one, as
+// Settings > Music says.
+Genre(
+    id: "electro_swing",
+    words: "music.genre.electro_swing",
+    about_words: "music.genre.electro_swing_about",
+    tempo_bpm: Some((128.0, 128.0)),
+    beat_felt: Some(true),
+    beats_per_bar: Some(4),
+    groove: Some((swing: 0.64, subdivision: 2, syncopation: 0.08, humanize_ms: 4.0)),
+    drums: [
+        (instrument: "house_kick", note: "A1", velocity: 0.95, patterns: ["x.x.x.x.", "x.x.x.x.", "x.x.x.xo"]),
+        (instrument: "clap", note: "D3", velocity: 0.7, patterns: ["..x...x.", "..x...x.", "..x...xg"]),
+        (instrument: "open_hat", note: "D5", velocity: 0.5, patterns: [".x.x.x.x"]),
+        (instrument: "lofi_hat", note: "D5", velocity: 0.35, patterns: ["x.xxx.xx", "x.xxx.x.", "x.x.x.xx"]),
+    ],
+    pad_patterns: ["o.x.o.x.", "o.xgo.xg", "o.x.o.xg"],
+    comping: (strum_ms: 9.0, hold_beats: 0.3),
+    bass_patterns: ["w.w.w.w.", "w.w.w.w.", "x...5..."],
+    stab_patterns: ["...x...x", ".......x", "x..x....", "..x...x."],
+    stab_hold_beats: 0.3,
+    progressions: Some((
+        keys: [(root: "D", mode: HarmonicMinor, weight: 1.0), (root: "G", mode: HarmonicMinor, weight: 0.35)],
+        chords: [
+            (name: "i6", root: 0, notes: [0, 3, 7, 9]),
+            (name: "iv6", root: 5, notes: [0, 3, 7, 9]),
+            (name: "ii_half_dim", root: 4, notes: [0, 3, 6, 10]),
+            (name: "V7", root: 7, notes: [0, 4, 7, 10]),
+            (name: "V7b9", root: 7, notes: [0, 4, 7, 10, 13]),
+            (name: "bVI7", root: 8, notes: [0, 4, 7, 10]),
+            (name: "V7_of_iv", root: 0, notes: [0, 4, 7, 10]),
+            (name: "dim_passing", root: 1, notes: [0, 3, 6, 9]),
+            (name: "dim_leading", root: 11, notes: [0, 3, 6, 9]),
+        ],
+        moves: [
+            ("i6", "iv6", 3.0), ("i6", "ii_half_dim", 2.0), ("i6", "dim_passing", 1.5), ("i6", "V7_of_iv", 1.5), ("i6", "bVI7", 1.0), ("i6", "V7", 1.0),
+            ("iv6", "i6", 2.0), ("iv6", "ii_half_dim", 2.0), ("iv6", "V7", 2.0), ("iv6", "bVI7", 1.0),
+            ("ii_half_dim", "V7", 4.0), ("ii_half_dim", "V7b9", 2.0),
+            ("V7", "i6", 5.0), ("V7", "dim_leading", 1.0),
+            ("V7b9", "i6", 5.0),
+            ("bVI7", "V7", 4.0),
+            ("V7_of_iv", "iv6", 4.0),
+            ("dim_passing", "ii_half_dim", 3.0),
+            ("dim_leading", "i6", 3.0),
+        ],
+        cadences: ["i6", "V7"],
+        start: "i6",
+    )),
+    harmony: (chord_bars: Some((1, 2))),
+    motif_scale: Some(Blues),
+    // Short riffs: scale steps of the minor blues from a chord tone, lengths in beats (an off-beat
+    // lands swung), and how much of each length the note sounds (short and punched, or held).
+    motifs: [
+        (steps: [0, 1, 2, 1, 0], beats: [0.5, 0.5, 0.5, 0.5, 1.0], hold: [0.7, 0.7, 0.7, 0.7, 0.6]),
+        (steps: [0, 2, 4, 3], beats: [0.5, 0.5, 1.0, 1.0], hold: [0.8, 0.8, 0.5, 0.8]),
+        (steps: [4, 3, 2, 0], beats: [1.0, 0.5, 0.5, 1.0], hold: [0.5, 0.8, 0.8, 0.7]),
+        (steps: [0, 0, 2, 0], beats: [0.5, 1.0, 0.5, 1.0], hold: [0.5, 0.4, 0.8, 0.6]),
+        (steps: [2, 1, 0, -1, 0], beats: [0.5, 0.5, 0.5, 0.5, 2.0], hold: [0.8, 0.8, 0.8, 0.8, 0.7]),
+        (steps: [0, 3, 2, 3, 4], beats: [0.5, 0.5, 0.5, 0.5, 1.0], hold: [0.6, 0.6, 0.6, 0.6, 0.5]),
+    ],
+    call_and_response: true,
+    dynamics: Some((0.75, 1.0)),
+    roles_off: [Drone, Percussion],
+    roles_add: [
+        (role: Pad, instrument: "jazz_guitar", part: Some("guitar"), low: "D3", high: "D5", voices: 4),
+        (role: Bass, instrument: "upright_bass", part: Some("double_bass_pizzicato"), low: "E1", high: "D3"),
+        (role: Choir, instrument: "swing_horns", part: Some("trumpet"), low: "F3", high: "D5", voices: 3, density: 0.6, level_db: 4.0),
+        (role: Melody, instrument: "clarinet", part: Some("clarinet"), low: "D4", high: "D6", density: 0.65, level_db: 4.0),
+        (role: Bells, instrument: "swing_horns", part: Some("trombone"), low: "D3", high: "D5", density: 0.5, level_db: 2.0),
+        (role: Texture, instrument: "vinyl_crackle", low: "C4", high: "C4", level_db: -6.0),
+    ],
+    recipe: (wow_cents: 2.0, wow_hz: 0.55, flutter_cents: 0.5, flutter_hz: 7.0, saturation: 0.15, reverb_scale: 0.5),
+    level_db: 1.6,
+)

@@ -1,17 +1,17 @@
-//! Styles as data (docs/design/music.md, section 7a): `data/music/styles/<id>.ron`, laid over a mood.
+//! Genres as data (docs/design/music.md, section 7a): `data/music/genres/<id>.ron`, laid over a mood.
 //!
 //! The operator, 2026-11-06: "Your procedural idea is actually really cool. I'm curious how we could
 //! tailor it to different tastes. Like what if someone likes dubstep or electroswing or whatever."
-//! A style says HOW the music sounds: its tempo range, its groove (swing, the grid, syncopation,
+//! A genre says HOW the music sounds: its tempo range, its groove (swing, the grid, syncopation,
 //! drum patterns written as text), its harmony rules, which instrument plays each role (its
 //! palette), its sound-design recipe (tape wow, a low-pass, saturation), and its level. Every field
 //! is optional over the mood: "Mothership calm" changes nothing, so the mood plays as written.
 //!
-//! A person picks a style in Settings > Music, and may BLEND two (a slider between them: tempo,
-//! swing and the recipe move smoothly, each role takes the second style's instrument with a chance
-//! equal to the blend, and both styles' drums play, each at its share). Places may suggest a livelier
-//! style (a gym, a workshop) only if the person allows it. A style is a file, so anyone can make one
-//! and share it (a mod): drop it in data/music/styles/ and it is in the list.
+//! A person picks a genre in Settings > Music, and may BLEND two (a slider between them: tempo,
+//! swing and the recipe move smoothly, each role takes the second genre's instrument with a chance
+//! equal to the blend, and both genres' drums play, each at its share). Places may suggest a livelier
+//! genre (a gym, a workshop) only if the person allows it. A genre is a file, so anyone can make one
+//! and share it (a mod): drop it in data/music/genres/ and it is in the list.
 //!
 //! Honest limits (said in Settings too): genres built on RECORDED timbres (swing-era brass and
 //! clarinet, vocal chops) need samples, and the app only uses recordings free to share (CC0); it
@@ -77,7 +77,7 @@ fn default_drum_note() -> String {
     "D2".to_string()
 }
 
-/// Harmony rules the style lays over the mood's chords.
+/// Harmony rules the genre lays over the mood's chords.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct HarmonyRule {
     /// Every chord gets its diatonic seventh if it lacks one (jazz and lo-fi colour).
@@ -135,16 +135,44 @@ pub struct PaletteEntry {
     pub high: Option<String>,
 }
 
-/// A style.
+/// A genre's chord vocabulary and progressions: its key centres and a weighted chord graph, the
+/// shape a mood writes them in (mood.rs): chords as a root in semitones above the key centre and
+/// notes above that root, moves between named chords with weights, the chords a phrase may end on.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Style {
+pub struct Progressions {
+    pub keys: Vec<crate::mood::KeyCentre>,
+    pub chords: Vec<crate::mood::ChordDef>,
+    pub moves: Vec<(String, String, f32)>,
+    pub cadences: Vec<String>,
+    pub start: String,
+}
+
+/// How a struck pad sounds.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct Comping {
+    /// Milliseconds between one string and the next, lowest first (0: all at once).
+    #[serde(default)]
+    pub strum_ms: f32,
+    /// How long each strike rings, beats (0: until the next strike); a gypsy-jazz guitar's chop is
+    /// short.
+    #[serde(default)]
+    pub hold_beats: f32,
+}
+
+fn quarter() -> f32 {
+    0.25
+}
+
+/// A genre.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Genre {
     pub id: String,
-    /// Its name by key; a community style with no key in en.json gives plain words in `name`.
+    /// Its name by key; a community genre with no key in en.json gives plain words in `name`.
     #[serde(default)]
     pub words: String,
     #[serde(default)]
     pub name: String,
-    /// One sentence on what it sounds like, by key (or plain words in `about` for a community style).
+    /// One sentence on what it sounds like, by key (or plain words in `about` for a community genre).
     #[serde(default)]
     pub about_words: String,
     #[serde(default)]
@@ -158,24 +186,60 @@ pub struct Style {
     pub groove: Option<Groove>,
     #[serde(default)]
     pub drums: Vec<DrumPart>,
-    /// The pad restruck on this pattern instead of held (an electric piano comping); `x` strikes.
+    /// Beats in a bar over the mood's (its meter: 4 for 4/4, 3 for a waltz).
     #[serde(default)]
-    pub pad_pattern: Option<String>,
-    /// The bass on this pattern instead of held: `x` the root, `5` the fifth, `o` the octave.
+    pub beats_per_bar: Option<u32>,
+    /// The pad restruck on one of these patterns instead of held (an electric piano comping, a
+    /// guitar's "la pompe"); `x` strikes, `o` softer. A phrase picks one.
     #[serde(default)]
-    pub bass_pattern: Option<String>,
+    pub pad_patterns: Vec<String>,
+    /// How the pad's strikes sound: a strum (low string to high) and how long each chord rings.
+    #[serde(default)]
+    pub comping: Comping,
+    /// The bass on one of these patterns instead of held: `x` the root, `5` the fifth, `o` the
+    /// octave, `3` the third, `w` a WALKING step (the root on a chord's first beat, chord tones
+    /// and scale steps toward the next chord, a half-step approach on the beat before it). A phrase
+    /// picks one (a two-feel verse, a walking chorus).
+    #[serde(default)]
+    pub bass_patterns: Vec<String>,
+    /// The choir role's voicing (the upper chord tones, voice-led) struck SHORT on one of these
+    /// patterns instead of held: a horn section's stabs. A phrase picks one; it plays on the chords
+    /// the plan gives the choir role.
+    #[serde(default)]
+    pub stab_patterns: Vec<String>,
+    /// How long each stab rings, beats.
+    #[serde(default = "quarter")]
+    pub stab_hold_beats: f32,
+    /// The genre's own key centres and chord graph (its chord vocabulary and progressions), in
+    /// place of the mood's in every calm mood; a danger mood keeps its own.
+    #[serde(default)]
+    pub progressions: Option<Progressions>,
+    /// Its own motif bank, in place of the mood's in calm moods (empty: the mood's).
+    #[serde(default)]
+    pub motifs: Vec<crate::mood::Motif>,
+    /// The scale its motifs walk (the minor blues for swing riffs); else the key's pentatonic.
+    #[serde(default)]
+    pub motif_scale: Option<crate::tuning::Mode>,
+    /// Call and response: the melody role plays a motif (the call) and on the next chord the bells
+    /// role answers it, the same rhythm from another chord tone, resolving down.
+    #[serde(default)]
+    pub call_and_response: bool,
+    /// Each phrase plays at a dynamic level in this range (velocity times 0..1): a softer breakdown,
+    /// a louder chorus. None: every phrase at full.
+    #[serde(default)]
+    pub dynamics: Option<(f32, f32)>,
     #[serde(default)]
     pub harmony: HarmonyRule,
     #[serde(default)]
     pub palette: Vec<PaletteEntry>,
-    /// Roles the style silences (lo-fi has no choir), and roles it adds over the mood's.
+    /// Roles the genre silences (lo-fi has no choir), and roles it adds over the mood's.
     #[serde(default)]
     pub roles_off: Vec<RoleKind>,
     #[serde(default)]
     pub roles_add: Vec<crate::mood::RoleSpec>,
     #[serde(default)]
     pub recipe: Recipe,
-    /// Level over the mood's, dB, so the style still renders at the music category's loudness.
+    /// Level over the mood's, dB, so the genre still renders at the music category's loudness.
     #[serde(default)]
     pub level_db: f32,
     /// Instruments it would rather have recorded (it plays synthesised stand-ins until a CC0 pack
@@ -184,8 +248,8 @@ pub struct Style {
     pub needs_recordings: Vec<String>,
 }
 
-impl Style {
-    /// The palette's instrument for `role`, if the style swaps it.
+impl Genre {
+    /// The palette's instrument for `role`, if the genre swaps it.
     pub fn palette_for(&self, role: RoleKind) -> Option<&PaletteEntry> {
         self.palette.iter().find(|p| p.role == role)
     }

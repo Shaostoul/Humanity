@@ -640,3 +640,10 @@ what we will say about it.
   authorship is unrecorded), Khronos glTF Sample Assets (per model: 62 CC0, 45 CC BY 4.0, 9 not
   usable, logos never licensed) and Smithsonian Open Access (CC0 per record; its terms page refused
   automated reading).
+- [`2026-11-12-music-genre-copyright.md`](2026-11-12-music-genre-copyright.md),
+  what copyright protects in music (the composition, words included, and the sound recording) and
+  what it leaves free (ideas and methods, scales, standard chord progressions, a genre's commonplace
+  building blocks), so a genre in the live score may compose from a style's general characteristics
+  but must never copy a band's recordings, melodies, lyrics, riffs or one song's distinctive
+  combination of elements, nor use a band's name to suggest it approves. The basis for the electro
+  swing genre in `docs/design/music.md` section 7a.

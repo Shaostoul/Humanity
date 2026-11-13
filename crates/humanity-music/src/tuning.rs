@@ -123,6 +123,11 @@ pub enum Mode {
     Locrian,
     MajorPentatonic,
     MinorPentatonic,
+    /// The harmonic minor (the raised seventh a minor key's V7 chord leans on; the electro swing
+    /// genre's walking bass).
+    HarmonicMinor,
+    /// The minor blues scale: the minor pentatonic with its flat fifth, the swing riff's colour.
+    Blues,
 }
 
 impl Mode {
@@ -138,6 +143,8 @@ impl Mode {
             Mode::Locrian => &[0, 1, 3, 5, 6, 8, 10],
             Mode::MajorPentatonic => &[0, 2, 4, 7, 9],
             Mode::MinorPentatonic => &[0, 3, 5, 7, 10],
+            Mode::HarmonicMinor => &[0, 2, 3, 5, 7, 8, 11],
+            Mode::Blues => &[0, 3, 5, 6, 7, 10],
         }
     }
 
@@ -146,6 +153,7 @@ impl Mode {
     pub fn pentatonic(self) -> Mode {
         match self {
             Mode::Ionian | Mode::Lydian | Mode::Mixolydian | Mode::MajorPentatonic => Mode::MajorPentatonic,
+            Mode::Blues => Mode::Blues,
             _ => Mode::MinorPentatonic,
         }
     }

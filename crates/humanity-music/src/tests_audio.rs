@@ -29,13 +29,13 @@ pub(crate) fn heavy() -> std::sync::MutexGuard<'static, ()> {
     HEAVY.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn ctx(lib: &crate::MusicLibrary, mood: &str, style: &str, intensity: f32) -> MusicContext {
-    let s = lib.style_index(style).unwrap() as u16;
-    MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, style_a: s, style_b: s, blend: 0.0, intensity, duck_db: 0.0 }
+fn ctx(lib: &crate::MusicLibrary, mood: &str, genre: &str, intensity: f32) -> MusicContext {
+    let s = lib.genre_index(genre).unwrap() as u16;
+    MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity, duck_db: 0.0 }
 }
 
-fn score(lib: &crate::MusicLibrary, mood: &str, style: &str, seed: u64) -> ScoreEngine {
-    ScoreEngine::new(Resolved::new(lib, &SampleLibrary::new()).unwrap(), RATE, seed, ctx(lib, mood, style, 0.3))
+fn score(lib: &crate::MusicLibrary, mood: &str, genre: &str, seed: u64) -> ScoreEngine {
+    ScoreEngine::new(Resolved::new(lib, &SampleLibrary::new()).unwrap(), RATE, seed, ctx(lib, mood, genre, 0.3))
 }
 
 struct Levels {
@@ -224,7 +224,10 @@ fn the_steel_pan_and_deep_drum_render_their_partials_and_decay() {
 /// THE SCORE RENDERS AT THE MUSIC CATEGORY'S LOUDNESS under the true-peak ceiling
 /// (data/audio/loudness.toml, the app's one meter): 60 s of mothership calm within 1 LU of the music
 /// target (-18 LUFS) with a true peak at or under -1 dBTP and no one-second change of short-term
-/// loudness over 3.5 LU; the lo-fi style the same; the danger moods louder but under the ceiling too.
+/// loudness over 3.5 LU; the lo-fi and electro swing genres the same (electro swing RED first,
+/// 2026-11-12, with its level 2.1 dB under the one then set: "mothership_calm/electro_swing: -20.1
+/// LUFS, the target -18.0"; src/engine/music_tests.rs holds it there with its recordings too); the
+/// danger moods louder but under the ceiling too.
 /// RED first (2026-11-06) with mothership calm's level back at 0 dB, before it was set: "mothership_calm/mothership_calm: -20.1 LUFS, the target -18.0".
 /// (With the intensity bands switched off, tension read as calm: "tension/mothership_calm: -18.1
 /// LUFS, the target -17.0", so the danger moods are reached through their bands here.)
@@ -234,20 +237,20 @@ fn the_score_renders_at_the_music_target_under_the_true_peak_ceiling() {
     let lib = shipped();
     let targets = LoudnessTargets::load(&data_dir()).unwrap();
     let music = targets.target_lufs("music");
-    for (mood, style, intensity, over) in [("mothership_calm", "mothership_calm", 0.3, 0.0), ("mothership_calm", "lofi", 0.3, 0.0), ("tension", "mothership_calm", 0.5, 1.0), ("action", "mothership_calm", 0.9, 1.5)] {
-        let mut s = ScoreEngine::new(Resolved::new(&lib, &SampleLibrary::new()).unwrap(), RATE, 20261106, ctx(&lib, mood, style, intensity));
+    for (mood, genre, intensity, over) in [("mothership_calm", "mothership_calm", 0.3, 0.0), ("mothership_calm", "lofi", 0.3, 0.0), ("mothership_calm", "electro_swing", 0.3, 0.0), ("tension", "mothership_calm", 0.5, 1.0), ("action", "mothership_calm", 0.9, 1.5)] {
+        let mut s = ScoreEngine::new(Resolved::new(&lib, &SampleLibrary::new()).unwrap(), RATE, 20261106, ctx(&lib, mood, genre, intensity));
         if lib.moods[lib.mood_index(mood).unwrap()].urgent {
             // A danger mood is reached through its band: drive the intensity from the start.
-            let mut c = ctx(&lib, mood, style, intensity);
+            let mut c = ctx(&lib, mood, genre, intensity);
             c.mood = 0;
             s.set_context(c);
         }
         let r = render_score(&mut s, RATE, 60.0);
         let l = levels(&r.frames, 8.0);
-        assert!((l.integrated - (music + over)).abs() <= 1.0, "{mood}/{style}: {:.1} LUFS, the target {:.1}", l.integrated, music + over);
-        assert!(l.true_peak <= targets.ceiling_dbtp, "{mood}/{style}: true peak {:.2} dBTP", l.true_peak);
+        assert!((l.integrated - (music + over)).abs() <= 1.0, "{mood}/{genre}: {:.1} LUFS, the target {:.1}", l.integrated, music + over);
+        assert!(l.true_peak <= targets.ceiling_dbtp, "{mood}/{genre}: true peak {:.2} dBTP", l.true_peak);
         if over == 0.0 {
-            assert!(l.max_step <= 3.5, "{mood}/{style}: a one-second step of {:.2} LU", l.max_step);
+            assert!(l.max_step <= 3.5, "{mood}/{genre}: a one-second step of {:.2} LU", l.max_step);
         }
     }
 }
@@ -482,7 +485,7 @@ mod counting {
 }
 
 /// `ScoreEngine::render` AND `BedEngine::render` ALLOCATE NOTHING (kira: a sound's methods "should not
-/// allocate or deallocate memory"): two minutes of the calm score through mood, style and intensity
+/// allocate or deallocate memory"): two minutes of the calm score through mood, genre and intensity
 /// changes (the danger moods, the stinger, the riser, a blend with lo-fi, a sampled instrument from a
 /// bank), and the hum with its alarm, counted by a counting allocator on this thread. RED first with
 /// `SampleSet::pick` gathering its candidates into a Vec (as first written): "render allocated 58
@@ -507,14 +510,14 @@ fn render_allocates_nothing() {
         s.render(&mut buf);
         bed.render(&mut buf);
     }
-    let lofi = lib.style_index("lofi").unwrap() as u16;
+    let lofi = lib.genre_index("lofi").unwrap() as u16;
     counting::COUNT.with(|c| c.set(0));
     counting::ON.with(|o| o.set(true));
     let blocks = (120.0 * RATE / 128.0) as usize;
     for k in 0..blocks {
         let t = k as f32 / blocks as f32;
         let mut c = ctx(&lib, "mothership_calm", "mothership_calm", if (0.3..0.6).contains(&t) { 0.95 } else if t < 0.15 { 0.0 } else { 0.5 });
-        c.style_b = lofi;
+        c.genre_b = lofi;
         c.blend = if t > 0.8 { 0.6 } else { 0.0 };
         s.set_context(c);
         s.render(&mut buf);
@@ -706,4 +709,112 @@ fn a_sampled_instrument_retunes_by_rate_and_falls_back_without_its_pack() {
     let pad = r2.moods[calm].roles[crate::mood::RoleKind::Pad.index()].as_ref().unwrap().inst as usize;
     assert_eq!(lib2.instruments[pad].id, "electric_piano", "without its pack the piano plays its fallback");
     let _ = without;
+}
+
+/// Note onsets in a rendered buffer (seconds): the mix summed to mono and filtered to a band (`high`:
+/// two one-pole high-passes at 6 kHz, where the hi-hats' and the clap's tops live; else two one-pole
+/// low-passes at 120 Hz, the kick and the bass), its energy in 1 ms frames, and an onset where the
+/// energy jumps to four times what it was 4 to 8 ms before and above 2% of the loudest frame, at most
+/// one in 60 ms.
+fn onsets(frames: &[[f32; 2]], rate: f32, high: bool) -> Vec<f64> {
+    let dt = 1.0 / rate as f64;
+    let rc = |fc: f64| 1.0 / (2.0 * std::f64::consts::PI * fc);
+    let (mut y1, mut y2, mut x1p, mut x2p) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+    let a_hp = rc(6000.0) / (rc(6000.0) + dt);
+    let a_lp = dt / (rc(120.0) + dt);
+    let hop = (rate / 1000.0) as usize;
+    let mut energy = Vec::with_capacity(frames.len() / hop + 1);
+    let mut acc = 0.0f64;
+    for (i, f) in frames.iter().enumerate() {
+        let x = 0.5 * (f[0] + f[1]) as f64;
+        let y = if high {
+            y1 = a_hp * (y1 + x - x1p);
+            x1p = x;
+            y2 = a_hp * (y2 + y1 - x2p);
+            x2p = y1;
+            y2
+        } else {
+            y1 += a_lp * (x - y1);
+            y2 += a_lp * (y1 - y2);
+            y2
+        };
+        acc += y * y;
+        if (i + 1) % hop == 0 {
+            energy.push(acc);
+            acc = 0.0;
+        }
+    }
+    let peak = energy.iter().copied().fold(0.0, f64::max);
+    let mut out = Vec::new();
+    let mut last = -1.0f64;
+    for i in 8..energy.len() {
+        let before = energy[i - 8..i - 4].iter().copied().fold(0.0, f64::max);
+        let t = i as f64 * hop as f64 / rate as f64;
+        if energy[i] > 4.0 * before && energy[i] > 0.02 * peak && t - last > 0.06 {
+            out.push(t);
+            last = t;
+        }
+    }
+    out
+}
+
+/// ELECTRO SWING RENDERS AT 128 BPM WITH ITS SWING, MEASURED IN THE SOUND (2026-11-12; the operator:
+/// "Let's have ours be 128bpm"): 30 s of the real engine playing the electro swing genre over the
+/// calm mood, its note onsets found in the rendered buffer, not in the composer's own bookkeeping.
+/// The beat: the low band's onsets (the four-on-the-floor kick, the bass on the beats) fitted to a
+/// grid by least squares: 128 bpm within 0.5. The swing: the high band's onsets (the hats, the clap's
+/// top) folded onto that beat, the off-beats' place in the beat measured against the on-beats':
+/// 0.64 within 0.03, the genre file's own number, and well clear of straight eighths (0.5). RED first
+/// (2026-11-12), three ways: the engine ignoring the genre's swing (`resolve_eff` swinging 0.5): "the
+/// off-beats land at 0.501 of the beat, the genre says 0.640"; the engine ignoring the genre's tempo
+/// (the mood's 56 to 64): "the kick says 56.4 bpm, the genre says 128"; and the genre FILE with straight
+/// eighths (`swing: 0.5`): "swung, not straight: 0.501".
+#[test]
+fn electro_swing_renders_at_128_bpm_with_its_swing() {
+    let _g = heavy();
+    let lib = shipped();
+    let g = &lib.genres[lib.genre_index("electro_swing").expect("the electro swing genre")];
+    let (bpm, _) = g.tempo_bpm.expect("electro swing has its tempo");
+    assert_eq!(bpm, 128.0, "the operator's 128 bpm");
+    let swing = g.groove.expect("electro swing has its groove").swing as f64;
+    let mut s = score(&lib, "mothership_calm", "electro_swing", 20261112);
+    let r = render_score(&mut s, RATE, 30.0);
+    // Skip the first two seconds (the first phrase's set-up).
+    let skip = |v: Vec<f64>| v.into_iter().filter(|&t| t > 2.0).collect::<Vec<f64>>();
+    let low = skip(onsets(&r.frames, RATE, false));
+    let high = skip(onsets(&r.frames, RATE, true));
+    assert!(low.len() > 20 && high.len() > 30, "{} low and {} high onsets", low.len(), high.len());
+    // The beat: the median gap between low onsets, then a least-squares grid through them.
+    let mut gaps: Vec<f64> = low.windows(2).map(|w| w[1] - w[0]).collect();
+    gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let guess = gaps[gaps.len() / 2];
+    let t0 = low[0];
+    let on_grid: Vec<(f64, f64)> = low
+        .iter()
+        .filter_map(|&t| {
+            let n = ((t - t0) / guess).round();
+            (((t - t0) / guess - n).abs() < 0.12).then_some((n, t))
+        })
+        .collect();
+    let k = on_grid.len() as f64;
+    let (sn, st) = on_grid.iter().fold((0.0, 0.0), |a, &(n, t)| (a.0 + n, a.1 + t));
+    let (mn, mt) = (sn / k, st / k);
+    let (num, den) = on_grid.iter().fold((0.0, 0.0), |a, &(n, t)| (a.0 + (n - mn) * (t - mt), a.1 + (n - mn) * (n - mn)));
+    let beat = num / den;
+    let origin = mt - beat * mn;
+    let measured_bpm = 60.0 / beat;
+    assert!((measured_bpm - bpm as f64).abs() < 0.5, "the kick says {measured_bpm:.1} bpm, the genre says {bpm}");
+    // The swing: where the high band's onsets fall in the beat.
+    let phase = |t: f64| ((t - origin) / beat).rem_euclid(1.0);
+    let mut on: Vec<f64> = high.iter().map(|&t| phase(t)).filter(|&p| !(0.15..=0.85).contains(&p)).map(|p| if p > 0.5 { p - 1.0 } else { p }).collect();
+    let mut off: Vec<f64> = high.iter().map(|&t| phase(t)).filter(|&p| (0.45..0.85).contains(&p)).collect();
+    assert!(on.len() > 10 && off.len() > 10, "{} on-beat and {} off-beat onsets", on.len(), off.len());
+    let median = |v: &mut Vec<f64>| {
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v[v.len() / 2]
+    };
+    let measured_swing = median(&mut off) - median(&mut on);
+    println!("electro swing, measured in the sound: {measured_bpm:.2} bpm, the off-beats at {measured_swing:.3} of the beat");
+    assert!((measured_swing - swing).abs() < 0.03, "the off-beats land at {measured_swing:.3} of the beat, the genre says {swing:.3}");
+    assert!(measured_swing > 0.58, "swung, not straight: {measured_swing:.3}");
 }

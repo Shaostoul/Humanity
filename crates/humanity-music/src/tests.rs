@@ -1,5 +1,5 @@
 //! The music crate's tests that need no sound rendered: the pitch table, the shipped data, the
-//! places, the composer's properties over an hour, the style layer and the intensity bands. Each
+//! places, the composer's properties over an hour, the genre layer and the intensity bands. Each
 //! was seen failing first; the red is in its comment. The rendering tests are in tests_audio.rs.
 
 use std::path::{Path, PathBuf};
@@ -52,9 +52,9 @@ pub(crate) fn run(c: &mut Composer, res: &Resolved, seconds: f64, rec: &mut Reco
     }
 }
 
-pub(crate) fn steer(lib: &MusicLibrary, mood: &str, style: &str) -> Steer {
-    let s = lib.style_index(style).unwrap() as u16;
-    Steer { mood: lib.mood_index(mood).unwrap() as u16, style_a: s, style_b: s, blend: 0.0, intensity: 0.3, a4: 432.0 }
+pub(crate) fn steer(lib: &MusicLibrary, mood: &str, genre: &str) -> Steer {
+    let s = lib.genre_index(genre).unwrap() as u16;
+    Steer { mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity: 0.3, a4: 432.0 }
 }
 
 /// THE PITCH TABLE AT A = 432 Hz: every note of D Lydian from D2 to D6 (the calm mood's scale,
@@ -91,25 +91,25 @@ fn the_pitch_table_at_432_holds_every_scale_note() {
 }
 
 /// THE SHIPPED MUSIC DATA PARSES AND RESOLVES (in `just validate-data`): every instrument, mood,
-/// style, the places, the tones, the intensity bands and the hum sources read, every name in them
+/// genre, the places, the tones, the intensity bands and the hum sources read, every name in them
 /// resolves, and the defaults are first. RED first (2026-11-06), before the music's words were in
-/// en.json: "music.style.mothership_calm has no words in en.json".
+/// en.json: "music.genre.mothership_calm has no words in en.json".
 #[test]
 fn the_shipped_music_data_parses() {
     let lib = shipped();
     assert_eq!(lib.moods[0].id, crate::library::DEFAULT_MOOD);
-    assert_eq!(lib.styles[0].id, crate::library::DEFAULT_STYLE);
+    assert_eq!(lib.genres[0].id, crate::library::DEFAULT_GENRE);
     for id in ["mothership_calm", "menu", "garden_morning", "night_watch", "tension", "action"] {
         assert!(lib.mood_index(id).is_some(), "mood {id}");
     }
     for id in ["steel_pan", "deep_drum", "taiko", "taiko_hit", "brass_stab"] {
         assert!(lib.instrument_index(id).is_some(), "instrument {id}");
     }
-    assert!(lib.style_index("lofi").is_some());
+    assert!(lib.genre_index("lofi").is_some());
     assert!(!lib.hum.sources.is_empty(), "the hum has its sources");
     assert_eq!(lib.tones.len(), 9);
     Resolved::new(&lib, &SampleLibrary::new()).expect("resolves");
-    // Every words key the music data names has English (a style's name in Settings, an
+    // Every words key the music data names has English (a genre's name in Settings, an
     // instrument's in the instrument list).
     let en: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(data_dir().join("i18n/en.json")).unwrap()).unwrap();
     let has = |key: &str| {
@@ -119,7 +119,7 @@ fn the_shipped_music_data_parses() {
         }
         v.as_str().is_some_and(|s| !s.is_empty())
     };
-    for k in lib.styles.iter().flat_map(|s| [s.words.clone(), s.about_words.clone()]).chain(lib.moods.iter().map(|m| m.words.clone())).chain(lib.instruments.iter().map(|i| i.words.clone())) {
+    for k in lib.genres.iter().flat_map(|s| [s.words.clone(), s.about_words.clone()]).chain(lib.moods.iter().map(|m| m.words.clone())).chain(lib.instruments.iter().map(|i| i.words.clone())) {
         assert!(k.is_empty() || has(&k), "{k} has no words in en.json");
     }
 }
@@ -144,8 +144,8 @@ fn places_map_each_zone_purpose_to_a_mood() {
     assert_eq!(at("residence", "", 23.0), "night_watch");
     assert_eq!(at("residence", "greenhouse", 8.0), "garden_morning");
     assert_eq!(at("", "", 3.0), "night_watch");
-    assert_eq!(lib.places.style_for(&Place { zone: "residence", room_id: "gym", room_name: "gym", hour: 10.0 }), Some("lofi"));
-    assert_eq!(lib.places.style_for(&Place { zone: "residence", room_id: "bedroom", room_name: "bedroom", hour: 10.0 }), None);
+    assert_eq!(lib.places.genre_for(&Place { zone: "residence", room_id: "gym", room_name: "gym", hour: 10.0 }), Some("lofi"));
+    assert_eq!(lib.places.genre_for(&Place { zone: "residence", room_id: "bedroom", room_name: "bedroom", hour: 10.0 }), None);
 }
 
 /// The first phrase that repeats one played within `window` seconds before it: (its index, its
@@ -272,17 +272,17 @@ fn voice_leading_moves_no_voice_more_than_a_fourth() {
     assert!(checked > 300, "{checked} voicings checked");
 }
 
-/// THE STYLE LAYER CHANGES TEMPO, GROOVE AND PALETTE BY DATA ALONE: a test style written here (no
+/// THE GENRE LAYER CHANGES TEMPO, GROOVE AND PALETTE BY DATA ALONE: a test genre written here (no
 /// code) laid over the shipped calm mood plays at its 120 bpm, swings its off-beats to 0.66 of the
 /// beat, plays its drum pattern, and moves the pad to its palette's instrument and off the choir;
-/// the default style leaves the mood as written (56 to 64 bpm, no drums, the saw pad). RED first
-/// (2026-11-06) with `resolve_eff` taking the tempo from the mood alone: "the test style's tempo:
+/// the default genre leaves the mood as written (56 to 64 bpm, no drums, the saw pad). RED first
+/// (2026-11-06) with `resolve_eff` taking the tempo from the mood alone: "the test genre's tempo:
 /// 59.8 bpm, wanted 120".
 #[test]
-fn a_style_changes_tempo_groove_and_palette_by_data_alone() {
+fn a_genre_changes_tempo_groove_and_palette_by_data_alone() {
     let mut lib = shipped();
-    let test_style: crate::style::Style = ron::from_str(
-        r#"Style(
+    let test_genre: crate::genre::Genre = ron::from_str(
+        r#"Genre(
             id: "test_swing",
             name: "Test swing",
             tempo_bpm: Some((120.0, 120.0)),
@@ -293,8 +293,8 @@ fn a_style_changes_tempo_groove_and_palette_by_data_alone() {
             roles_off: [Choir],
         )"#,
     )
-    .expect("the test style parses");
-    lib.styles.push(test_style);
+    .expect("the test genre parses");
+    lib.genres.push(test_genre);
     let res = Resolved::new(&lib, &SampleLibrary::new()).unwrap();
     let hat = lib.instrument_index("lofi_hat").unwrap() as u16;
     let ep = lib.instrument_index("electric_piano").unwrap() as u16;
@@ -304,7 +304,7 @@ fn a_style_changes_tempo_groove_and_palette_by_data_alone() {
     let mut c = Composer::new(48000.0, 11, steer(&lib, "mothership_calm", "test_swing"));
     let mut rec = Recorder::default();
     run(&mut c, &res, 60.0, &mut rec);
-    assert!((c.tempo() - 120.0).abs() < 1e-3, "the test style's tempo: {:.1} bpm, wanted 120", c.tempo());
+    assert!((c.tempo() - 120.0).abs() < 1e-3, "the test genre's tempo: {:.1} bpm, wanted 120", c.tempo());
     let hats: Vec<f64> = rec.notes.iter().filter(|(_, n)| n.inst == hat).map(|(t, _)| *t).collect();
     assert!(hats.len() > 100, "{} hat hits", hats.len());
     // Beat 0.5 s at 120 bpm: on-beats every 0.5 s, off-beats 0.33 s after them (0.66 of the beat).
@@ -319,7 +319,7 @@ fn a_style_changes_tempo_groove_and_palette_by_data_alone() {
     let mut c = Composer::new(48000.0, 11, steer(&lib, "mothership_calm", "mothership_calm"));
     let mut rec = Recorder::default();
     run(&mut c, &res, 60.0, &mut rec);
-    assert!((56.0..=64.0).contains(&c.tempo()), "the default style keeps the mood's tempo: {}", c.tempo());
+    assert!((56.0..=64.0).contains(&c.tempo()), "the default genre keeps the mood's tempo: {}", c.tempo());
     assert!(!rec.notes.iter().any(|(_, n)| n.inst == hat), "no drums in calm");
     assert!(rec.notes.iter().filter(|(_, n)| n.role == RoleKind::Pad.index() as u8).all(|(_, n)| n.inst == saw));
 }
@@ -420,4 +420,106 @@ fn a_band_edge_has_hysteresis() {
     assert_eq!(band_for(&f, 1, 0.33, 0.08), 1, "just under is not enough to fall");
     assert_eq!(band_for(&f, 1, 0.30, 0.08), 0);
     assert_eq!(band_for(&f, 0, 0.95, 0.08), 2, "straight to the top");
+}
+
+/// EVERY GENRE HAS ITS WORDS AND ITS INSTRUMENT ROLES (2026-11-12, the genre selector; the operator:
+/// "for the procedural music, let's add a genre selector"): the genres load from their files
+/// (data/music/genres/*.ron, the default first, electro swing among them); every genre has its name
+/// and its one sentence in English (or plain words, for a community file); every genre but the
+/// default (which changes nothing, so it plays the mood's own roles) names the instruments its roles
+/// play; every instrument a genre names (drums, palette, added roles) is an instrument of the score
+/// with its words, and every part it names is a part of the instrument library (parts.ron); and
+/// electro swing's roles are the ones its design names: a walking upright bass, gypsy-jazz guitar
+/// comping, brass stabs, clarinet calls answered by brass, and the house kit (a four-on-the-floor
+/// kick, a clap, an open hi-hat on every off-beat). RED first (2026-11-12), before
+/// data/music/genres/electro_swing.ron existed: "no genre electro_swing in [\"mothership_calm\",
+/// \"lofi\"]".
+#[test]
+fn every_genre_has_its_words_and_instrument_roles() {
+    let lib = shipped();
+    let en: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(data_dir().join("i18n/en.json")).unwrap()).unwrap();
+    let has = |key: &str| {
+        let mut v = &en;
+        for part in key.split('.') {
+            v = &v[part];
+        }
+        v.as_str().is_some_and(|s| !s.is_empty())
+    };
+    let parts = std::fs::read_to_string(data_dir().join("music/parts.ron")).unwrap();
+    let ids: Vec<&str> = lib.genres.iter().map(|g| g.id.as_str()).collect();
+    assert_eq!(ids[0], crate::library::DEFAULT_GENRE, "the default genre is first");
+    let es = lib.genres.iter().find(|g| g.id == "electro_swing").unwrap_or_else(|| panic!("no genre electro_swing in {ids:?}"));
+    for g in &lib.genres {
+        assert!((!g.words.is_empty() && has(&g.words)) || !g.name.is_empty(), "{}: its name has no words", g.id);
+        assert!((!g.about_words.is_empty() && has(&g.about_words)) || !g.about.is_empty(), "{}: its one sentence has no words", g.id);
+        let mut named: Vec<(&str, Option<&str>)> = g.drums.iter().map(|d| (d.instrument.as_str(), None)).collect();
+        named.extend(g.palette.iter().map(|p| (p.instrument.as_str(), p.part.as_deref())));
+        named.extend(g.roles_add.iter().map(|r| (r.instrument.as_str(), r.part.as_deref())));
+        if g.id != crate::library::DEFAULT_GENRE {
+            assert!(!g.palette.is_empty() || !g.roles_add.is_empty(), "{}: names no instrument for any role", g.id);
+        }
+        for (inst, part) in named {
+            let i = lib.instrument_index(inst).unwrap_or_else(|| panic!("{}: {inst:?} is not an instrument of the score", g.id));
+            assert!(has(&lib.instruments[i].words), "{}: the instrument {inst} has no words", g.id);
+            if let Some(p) = part {
+                assert!(parts.contains(&format!("(id: \"{p}\"")), "{}: the part {p} is not in parts.ron", g.id);
+            }
+        }
+    }
+    let role = |r: RoleKind| es.roles_add.iter().find(|a| a.role == r).unwrap_or_else(|| panic!("electro swing adds its {r:?}"));
+    assert_eq!(role(RoleKind::Bass).part.as_deref(), Some("double_bass_pizzicato"), "an upright bass");
+    assert_eq!(role(RoleKind::Pad).part.as_deref(), Some("guitar"), "the guitar comps");
+    assert_eq!(role(RoleKind::Choir).part.as_deref(), Some("trumpet"), "brass stabs");
+    assert_eq!(role(RoleKind::Melody).part.as_deref(), Some("clarinet"), "clarinet lines");
+    assert_eq!(role(RoleKind::Bells).part.as_deref(), Some("trombone"), "brass answers");
+    assert!(es.call_and_response, "call and response");
+    assert!(!es.stab_patterns.is_empty(), "the stabs have their patterns");
+    assert!(es.bass_patterns.iter().any(|p| p.contains('w')), "the bass walks");
+    let drum = |id: &str| es.drums.iter().find(|d| d.instrument == id).unwrap_or_else(|| panic!("electro swing's {id}"));
+    assert!(drum("house_kick").patterns.iter().all(|p| p.starts_with("x.x.x.x")), "four on the floor");
+    assert!(drum("open_hat").patterns.iter().all(|p| p == ".x.x.x.x"), "the open hat on every off-beat");
+    drum("clap");
+}
+
+/// DANGER RISES AND SETTLES IN EVERY GENRE (2026-11-12; the brief: "The score's own math (danger
+/// rising and settling) keeps working in every genre"): for each shipped genre, calm at 0; at 0.5 the
+/// tension band plays tension AS WRITTEN (its own D Phrygian and its 84 to 100 bpm, whatever the
+/// genre's harmony); at 0.9 action; back at 0 the score settles into the calm mood with the genre's
+/// own tempo and harmony again (electro swing: 128 bpm in its harmonic minor keys). RED first
+/// (2026-11-12) with a genre's progressions let into the danger moods (start_phrase's `calm` forced
+/// true): "electro_swing: tension plays its own harmony: Phrygian, got HarmonicMinor".
+#[test]
+fn danger_rises_and_settles_in_every_genre() {
+    let _heavy = crate::tests_audio::heavy();
+    let lib = shipped();
+    let res = Resolved::new(&lib, &SampleLibrary::new()).unwrap();
+    let calm_mood = lib.mood_index("mothership_calm").unwrap();
+    for g in &lib.genres {
+        let mut c = Composer::new(48000.0, 7, steer(&lib, "mothership_calm", &g.id));
+        let mut rec = Recorder::default();
+        c.steer.intensity = 0.0;
+        run(&mut c, &res, 30.0, &mut rec);
+        assert_eq!(c.band(), 0, "{}: calm", g.id);
+        c.steer.intensity = 0.5;
+        run(&mut c, &res, 30.0, &mut rec);
+        assert_eq!(c.band(), 1, "{}: tension", g.id);
+        assert_eq!(c.mood(), lib.mood_index("tension").unwrap(), "{}: the tension mood", g.id);
+        assert_eq!(c.mode(), crate::tuning::Mode::Phrygian, "{}: tension plays its own harmony: Phrygian, got {:?}", g.id, c.mode());
+        assert!((84.0..=100.0).contains(&c.tempo()), "{}: tension's tempo {:.1}", g.id, c.tempo());
+        c.steer.intensity = 0.9;
+        run(&mut c, &res, 30.0, &mut rec);
+        assert_eq!(c.band(), 2, "{}: action", g.id);
+        assert_eq!(c.mood(), lib.mood_index("action").unwrap(), "{}: the action mood", g.id);
+        c.steer.intensity = 0.0;
+        run(&mut c, &res, 40.0, &mut rec);
+        assert_eq!(c.band(), 0, "{}: settled", g.id);
+        assert_eq!(c.mood(), calm_mood, "{}: back in the calm mood", g.id);
+        let (lo, hi) = g.tempo_bpm.unwrap_or(lib.moods[calm_mood].tempo_bpm);
+        assert!(c.tempo() >= lo - 1e-3 && c.tempo() <= hi + 1e-3, "{}: back at its tempo, {:.1} bpm", g.id, c.tempo());
+        let modes: Vec<crate::tuning::Mode> = match &g.progressions {
+            Some(p) => p.keys.iter().map(|k| k.mode).collect(),
+            None => lib.moods[calm_mood].keys.iter().map(|k| k.mode).collect(),
+        };
+        assert!(modes.contains(&c.mode()), "{}: back in its own harmony, got {:?}", g.id, c.mode());
+    }
 }

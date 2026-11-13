@@ -1,0 +1,21 @@
+// A swing horn section, synthesised (docs/design/music.md, section 7a): two detuned saws through a
+// low-pass that opens hard on each note and closes again (a trumpet's or trombone's bright "bwap"),
+// a little drive and vibrato. A stand-in for electro swing's brass stabs and riffs: the trumpet and
+// trombone parts (data/music/parts.ron) play recorded brass instead wherever it is installed.
+Instrument(
+    id: "swing_horns",
+    words: "music.instrument.swing_horns",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw, detune_cents: -7.0, pan: -0.3),
+            (wave: Saw, detune_cents: 7.0, pan: 0.3),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 650.0, q: 1.1, key_track: 0.8, env_hz: 3600.0)),
+        envelope: (attack_s: 0.018, decay_s: 0.22, sustain: 0.45, release_s: 0.1),
+        vibrato: Some((5.5, 6.0)),
+        drive: 0.25,
+    )),
+    level_db: -21.0,
+    reverb_send: 0.22,
+    pan_spread: 0.3,
+)

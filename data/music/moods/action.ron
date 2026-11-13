@@ -39,8 +39,8 @@ Mood(
         (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..x"]),
         (instrument: "taiko", note: "A2", velocity: 0.5, min_intensity: 0.85, patterns: ["xgxgxgxgxgxgxgxg"]),
     ],
-    pad_pattern: Some("x.....x.x.....x."),
-    bass_pattern: Some("x.xxx.xxx.xxx.x."),
+    pad_patterns: ["x.....x.x.....x."],
+    bass_patterns: ["x.xxx.xxx.xxx.x."],
     roles: [
         (role: Pad, instrument: "brass_stab", low: "D3", high: "D4", voices: 4),
         (role: Bass, instrument: "pulse_bass", low: "D1", high: "C#2"),

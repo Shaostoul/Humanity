@@ -16,7 +16,7 @@
 //! Inside a band, the mood's own data does the rest: its tempo can follow the intensity
 //! (`tempo_follows_intensity`), its roles and drum parts join at their `min_intensity` (taiko
 //! ostinatos double at the peak, the brass stabs arrive), and an URGENT mood plays as written
-//! whatever the person's style (danger sounds like danger in every style; the style's tape colour
+//! whatever the person's genre (danger sounds like danger in every genre; the genre's tape colour
 //! still applies).
 
 use serde::{Deserialize, Serialize};

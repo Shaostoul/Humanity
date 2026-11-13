@@ -1,5 +1,6 @@
 //! From gui/ui_snapshots.rs: the snapshots and toasts that set a page up the way the engine does
-//! (the guest notice, `home_plot::guest_arrival`; the Maps feed, `map_feed::frame_update`). They
+//! (the guest notice, `home_plot::guest_arrival`; the Maps feed, `map_feed::frame_update`; Settings >
+//! Music's genres, `music::genre_choices`). They
 //! render through the GUI's snapshot harness (`render_page_png`); `just snapshot <name>` finds them
 //! here too (scripts/snapshot-name.js).
 
@@ -174,4 +175,41 @@ fn snapshot_maps_ship_plan() {
         crate::gui::pages::maps::draw(ctx, theme, state);
     });
     crate::gui::pages::maps::set_clock_for_snapshot(None);
+}
+
+/// Settings > Music's GENRE SELECTOR (2026-11-12; the operator: "for the procedural music, let's add
+/// a genre selector"): the genres as the engine reads them from data/music/genres (the ship's own,
+/// lo-fi, electro swing) with this machine's stand-ins, electro swing chosen, its one sentence under
+/// the choices, the blend and the places switch, and the recordings note.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_music() {
+    settings_music_at("settings_music", None);
+}
+
+/// The same with no recordings to be found (a data folder holding only parts.ron, as if the core set
+/// failed to load): the line under electro swing names each of its parts a synthesised stand-in plays.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_settings_music_stand_ins() {
+    let bare = humanity_core::test_temp::dir("snap_music_bare");
+    std::fs::create_dir_all(bare.join("music")).unwrap();
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    std::fs::copy(data.join("music/parts.ron"), bare.join("music/parts.ron")).unwrap();
+    settings_music_at("settings_music_stand_ins", Some(&bare));
+}
+
+fn settings_music_at(name: &str, recordings_from: Option<&std::path::Path>) {
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let lib = humanity_music::MusicLibrary::load(&data).expect("the music data");
+    let stand_ins = crate::engine::music::genre_stand_ins(recordings_from.unwrap_or(&data), &lib);
+    let genres = crate::engine::music::genre_choices(&lib, &stand_ins);
+    render_page_png(name, 1100, 1500, |ctx, theme, state| {
+        state.music_dev.readout.genres = genres.clone();
+        state.settings.music.genre = "electro_swing".to_string();
+        theme.apply_to_egui(ctx);
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::settings_music::draw(ui, theme, state, theme.nav_dev()));
+        });
+    });
 }

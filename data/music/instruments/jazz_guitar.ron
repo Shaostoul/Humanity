@@ -1,0 +1,19 @@
+// A steel-string jazz guitar for gypsy-jazz comping ("la pompe"), synthesised (docs/design/music.md,
+// section 7a): a bright plucked string with a small wooden body, choked fast when it is let go, so a
+// strummed chord ends in the short chop of the style. A stand-in: the guitar part
+// (data/music/parts.ron) plays a recorded guitar instead wherever one is installed (today the
+// guitars pack's hollowbody electrics; a manouche acoustic would need a new CC0 recording).
+Instrument(
+    id: "jazz_guitar",
+    words: "music.instrument.jazz_guitar",
+    kind: Plucked((
+        decay_s: 1.2,
+        brightness: 0.8,
+        body_hz: 220.0,
+        body_level: 0.25,
+        damping_on_release: 10.0,
+    )),
+    level_db: -14.0,
+    reverb_send: 0.2,
+    pan_spread: 0.25,
+)

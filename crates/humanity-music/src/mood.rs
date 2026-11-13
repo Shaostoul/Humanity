@@ -2,8 +2,8 @@
 //! composer improvises in: its keys, its chords and the weighted moves between them, how long its
 //! phrases and chords last, its tempo, which instruments play which roles, and its motifs.
 //!
-//! A STYLE (style.rs) is laid over a mood: the mood says where you are and what the music is about
-//! (calm aboard, a garden morning, the night watch), the style says how it sounds (the ship's own
+//! A GENRE (genre.rs) is laid over a mood: the mood says where you are and what the music is about
+//! (calm aboard, a garden morning, the night watch), the genre says how it sounds (the ship's own
 //! calm, lo-fi, and one day electroswing or dubstep).
 
 use serde::{Deserialize, Serialize};
@@ -13,9 +13,9 @@ use crate::tuning::Mode;
 /// What a part of the score does. Each role behaves its own way in the composer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RoleKind {
-    /// The voice-led chord, held (or restruck on a style's comp pattern).
+    /// The voice-led chord, held (or restruck on a genre's comp pattern).
     Pad,
-    /// The chord's root low down, held (or on a style's bass pattern).
+    /// The chord's root low down, held (or on a genre's bass pattern).
     Bass,
     /// The key's root with its fifth, held while the key lasts.
     Drone,
@@ -69,7 +69,7 @@ pub struct ChordDef {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RoleSpec {
     pub role: RoleKind,
-    /// An instrument id (data/music/instruments/<id>.ron): the synthesised voice it plays. A style's
+    /// An instrument id (data/music/instruments/<id>.ron): the synthesised voice it plays. A genre's
     /// palette may swap it.
     pub instrument: String,
     /// The part of the score it plays (data/music/parts.ron, the instrument library's): when a
@@ -115,6 +115,10 @@ pub struct Pulse {
 pub struct Motif {
     pub steps: Vec<i32>,
     pub beats: Vec<f32>,
+    /// How much of its beats each note sounds, 0..1 (a swing riff's short, punched notes); empty:
+    /// each note nearly its whole length.
+    #[serde(default)]
+    pub hold: Vec<f32>,
 }
 
 /// A mood.
@@ -158,8 +162,8 @@ pub struct Mood {
     pub reverb_t60_s: f32,
     #[serde(default = "default_wet")]
     pub reverb_wet: f32,
-    /// A danger or action mood (intensity.rs): it plays as written whatever the person's style (its
-    /// tempo, groove, drums, patterns and instruments); the style's recipe (tape colour) still applies.
+    /// A danger or action mood (intensity.rs): it plays as written whatever the person's genre (its
+    /// tempo, groove, drums, patterns and instruments); the genre's recipe (tape colour) still applies.
     #[serde(default)]
     pub urgent: bool,
     /// The tempo follows the intensity across the mood's band (low end at the band's start, high at
@@ -168,15 +172,15 @@ pub struct Mood {
     pub tempo_follows_intensity: bool,
     /// The mood's own groove and drums (an urgent mood's taiko ostinatos), its pad struck on a pattern
     /// (brass stabs) and its bass on a pattern (a pulsing ostinato). A calm mood leaves them empty and
-    /// a style supplies them.
+    /// a genre supplies them.
     #[serde(default)]
-    pub groove: Option<crate::style::Groove>,
+    pub groove: Option<crate::genre::Groove>,
     #[serde(default)]
-    pub drums: Vec<crate::style::DrumPart>,
+    pub drums: Vec<crate::genre::DrumPart>,
     #[serde(default)]
-    pub pad_pattern: Option<String>,
+    pub pad_patterns: Vec<String>,
     #[serde(default)]
-    pub bass_pattern: Option<String>,
+    pub bass_patterns: Vec<String>,
 }
 
 fn four() -> u32 {

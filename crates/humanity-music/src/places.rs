@@ -3,7 +3,7 @@
 //! A rule matches a zone purpose (residence, commons, street, bay, agriculture, corridor), a room
 //! (by its id or name), and a stretch of the ship's day; the most specific matching rule wins (a
 //! room beats a zone beats the hour alone), and the composer moves to its mood at the next phrase.
-//! The same file lists the places that may suggest a livelier STYLE (a gym, a workshop), which the
+//! The same file lists the places that may suggest a livelier GENRE (a gym, a workshop), which the
 //! game uses only if the person allows it in Settings > Music.
 
 use serde::{Deserialize, Serialize};
@@ -24,14 +24,14 @@ pub struct PlaceRule {
     pub mood: String,
 }
 
-/// A place that suggests a style.
+/// A place that suggests a genre.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StyleSuggestion {
+pub struct GenreSuggestion {
     #[serde(default)]
     pub zone: Option<String>,
     #[serde(default)]
     pub room: Option<String>,
-    pub style: String,
+    pub genre: String,
 }
 
 /// The places file.
@@ -41,7 +41,7 @@ pub struct Places {
     pub default_mood: String,
     pub rules: Vec<PlaceRule>,
     #[serde(default)]
-    pub style_suggestions: Vec<StyleSuggestion>,
+    pub genre_suggestions: Vec<GenreSuggestion>,
 }
 
 /// Where the player is, as the places rules read it.
@@ -102,10 +102,10 @@ impl Places {
         best.map(|(_, m)| m).unwrap_or(self.default_mood.as_str())
     }
 
-    /// The style a place suggests, if any (a room's beats a zone's).
-    pub fn style_for(&self, place: &Place) -> Option<&str> {
-        let room = self.style_suggestions.iter().find(|s| s.room.as_deref().is_some_and(|r| room_matches(r, place)));
-        let zone = || self.style_suggestions.iter().find(|s| s.room.is_none() && s.zone.as_deref().is_some_and(|z| z.eq_ignore_ascii_case(place.zone)));
-        room.or_else(zone).map(|s| s.style.as_str())
+    /// The genre a place suggests, if any (a room's beats a zone's).
+    pub fn genre_for(&self, place: &Place) -> Option<&str> {
+        let room = self.genre_suggestions.iter().find(|s| s.room.as_deref().is_some_and(|r| room_matches(r, place)));
+        let zone = || self.genre_suggestions.iter().find(|s| s.room.is_none() && s.zone.as_deref().is_some_and(|z| z.eq_ignore_ascii_case(place.zone)));
+        room.or_else(zone).map(|s| s.genre.as_str())
     }
 }

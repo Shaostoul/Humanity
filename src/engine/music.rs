@@ -19,7 +19,7 @@
 //! installed or removed: `instrument_packs::ui::installed_generation`), so a new pack is heard from
 //! the next phrase, and, with the Dev page's "turn off all reuse" switch off, once every phrase, so
 //! every phrase after the next is played from data and recordings read again, nothing kept: the
-//! moods, styles and places files, the instruments and their samples (decoded again, the bank keeping
+//! moods, genres and places files, the instruments and their samples (decoded again, the bank keeping
 //! nothing). With reuse on, the bank keeps decoded recordings between builds until what is installed
 //! changes or the music has been let go.
 //!
@@ -234,24 +234,27 @@ pub(crate) struct Built {
     /// What plays each part the music names, and what could not be decoded.
     pub plays: Vec<(String, crate::instrument_packs::score::PartPlays)>,
     pub problems: Vec<String>,
+    /// Per genre: the parts it names that no installed recording plays (their words keys).
+    pub stand_ins: Vec<Vec<String>>,
     /// How long it took on the worker, milliseconds.
     pub took_ms: f32,
 }
 
 /// Build the music from `data_dir`: read every data file, and with `with_score` choose the best
-/// installed recording of each part the styles in use (`styles`, ids) can sound, decode it through
+/// installed recording of each part the genres in use (`genres`, ids) can sound, decode it through
 /// `bank`, level it and resolve the score. On the worker thread (the game thread never waits for it).
-pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut SampleBank, styles: &[String]) -> Result<Built, String> {
+pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut SampleBank, genres: &[String]) -> Result<Built, String> {
     let t0 = Instant::now();
     let lib = MusicLibrary::load(data_dir)?;
+    let stand_ins = genre_stand_ins(data_dir, &lib);
     if !with_score {
-        return Ok(Built { lib: Arc::new(lib), score: None, plays: Vec::new(), problems: Vec::new(), took_ms: t0.elapsed().as_secs_f32() * 1000.0 });
+        return Ok(Built { lib: Arc::new(lib), score: None, plays: Vec::new(), problems: Vec::new(), stand_ins, took_ms: t0.elapsed().as_secs_f32() * 1000.0 });
     }
     let mut with_parts = lib.clone();
     let attached = match crate::instrument_packs::catalog::Parts::load(data_dir) {
         Ok(parts) => {
             let installed = crate::instrument_packs::library::InstrumentLibrary::load(data_dir);
-            let mut ids: Vec<usize> = styles.iter().filter_map(|id| lib.style_index(id)).collect();
+            let mut ids: Vec<usize> = genres.iter().filter_map(|id| lib.genre_index(id)).collect();
             if ids.is_empty() {
                 ids.push(0);
             }
@@ -260,7 +263,50 @@ pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut Sampl
         Err(e) => crate::instrument_packs::score::Attached { problems: vec![format!("data/music/parts.ron did not load, so every part is synthesised: {e}")], ..Default::default() },
     };
     let res = Resolved::new(&with_parts, &attached.samples)?;
-    Ok(Built { lib: Arc::new(lib), score: Some(res), plays: attached.plays, problems: attached.problems, took_ms: t0.elapsed().as_secs_f32() * 1000.0 })
+    Ok(Built { lib: Arc::new(lib), score: Some(res), plays: attached.plays, problems: attached.problems, stand_ins, took_ms: t0.elapsed().as_secs_f32() * 1000.0 })
+}
+
+/// Settings > Music's genre choices: each genre's id and words, with its stand-ins (`stand_ins`, per
+/// genre, from [`genre_stand_ins`]).
+pub(crate) fn genre_choices(lib: &MusicLibrary, stand_ins: &[Vec<String>]) -> Vec<crate::gui::pages::dev_music::GenreChoice> {
+    lib.genres
+        .iter()
+        .enumerate()
+        .map(|(i, x)| crate::gui::pages::dev_music::GenreChoice {
+            id: x.id.clone(),
+            words: x.words.clone(),
+            name: x.name.clone(),
+            about_words: x.about_words.clone(),
+            about: x.about.clone(),
+            stand_ins: stand_ins.get(i).cloned().unwrap_or_default(),
+        })
+        .collect()
+}
+
+/// For each genre, the parts it names (its added roles' and its palette's) that no installed
+/// recording plays, as their words keys, each once: Settings > Music says synthesised stand-ins play
+/// them until a recording is installed (docs/design/music.md section 7a). Empty for a genre that
+/// names no part (the default plays the mood's own).
+pub(crate) fn genre_stand_ins(data_dir: &Path, lib: &MusicLibrary) -> Vec<Vec<String>> {
+    let Ok(parts) = crate::instrument_packs::catalog::Parts::load(data_dir) else { return vec![Vec::new(); lib.genres.len()] };
+    let installed = crate::instrument_packs::library::InstrumentLibrary::load(data_dir);
+    lib.genres
+        .iter()
+        .map(|g| {
+            let mut out: Vec<String> = Vec::new();
+            for p in g.roles_add.iter().filter_map(|r| r.part.as_ref()).chain(g.palette.iter().filter_map(|e| e.part.as_ref())) {
+                if matches!(installed.choose(p, &parts), Some(crate::instrument_packs::library::Choice::Sampled(_))) {
+                    continue;
+                }
+                if let Some(w) = parts.part(p).map(|x| x.words.clone()) {
+                    if !out.contains(&w) {
+                        out.push(w);
+                    }
+                }
+            }
+            out
+        })
+        .collect()
 }
 
 /// A playing score, as the runtime drives it: kira's handle in the app, an offline renderer in tests.
@@ -313,33 +359,33 @@ impl<B: kira::backend::Backend> Mixer for humanity_core::audio::AudioManager<B> 
 type BuildResult = (Result<Built, String>, SampleBank);
 
 /// A build on the worker: its thread, whether it builds a score, and the install generation and the
-/// styles it was asked with.
+/// genres it was asked with.
 struct Building {
     handle: JoinHandle<BuildResult>,
     generation: u64,
-    styles: Vec<String>,
+    genres: Vec<String>,
 }
 
 /// A built score waiting to start.
 struct Ready {
     res: Resolved,
-    /// The data it was built from (its mood and style indices are this data's).
+    /// The data it was built from (its mood and genre indices are this data's).
     lib: Arc<MusicLibrary>,
     generation: u64,
-    styles: Vec<String>,
+    genres: Vec<String>,
     /// The playing score's phrase when it arrived: it takes over after that phrase.
     at_phrase: u64,
 }
 
-/// The styles the music plays from (ids): the person's style, or the place's livelier one where they
-/// allow it, and a blend's second style while the blend leans any way toward it.
-pub(crate) fn styles_in_use(lib: Option<&MusicLibrary>, inp: &Inputs) -> Vec<String> {
+/// The genres the music plays from (ids): the person's genre, or the place's livelier one where they
+/// allow it, and a blend's second genre while the blend leans any way toward it.
+pub(crate) fn genres_in_use(lib: Option<&MusicLibrary>, inp: &Inputs) -> Vec<String> {
     let s = &inp.settings;
-    let mut a = s.style.clone();
-    if s.places_pick_style {
+    let mut a = s.genre.clone();
+    if s.places_pick_genre {
         if let Some(lib) = lib {
             let p = Place { zone: &inp.place.zone, room_id: &inp.place.room_id, room_name: &inp.place.room_name, hour: inp.place.hour };
-            if let Some(id) = lib.places.style_for(&p) {
+            if let Some(id) = lib.places.genre_for(&p) {
                 a = id.to_string();
             }
         }
@@ -354,9 +400,11 @@ pub(crate) fn styles_in_use(lib: Option<&MusicLibrary>, inp: &Inputs) -> Vec<Str
 /// What the frame keeps between frames.
 #[derive(Default)]
 pub(crate) struct MusicRuntime {
-    /// The newest music data (the hum's sources, the places, the styles for Settings).
+    /// The newest music data (the hum's sources, the places, the genres for Settings).
     lib: Option<Arc<MusicLibrary>>,
-    /// The data the playing score was built from (its mood and style indices).
+    /// Per genre of `lib`: the parts no installed recording plays (Settings' stand-ins line).
+    stand_ins: Vec<Vec<String>>,
+    /// The data the playing score was built from (its mood and genre indices).
     score_lib: Option<Arc<MusicLibrary>>,
     load_error: Option<String>,
     score: Option<Box<dyn ScorePlay>>,
@@ -374,9 +422,9 @@ pub(crate) struct MusicRuntime {
     bank: Option<SampleBank>,
     /// A built score waiting to start.
     ready: Option<Ready>,
-    /// The install generation and the styles the playing score was built from.
+    /// The install generation and the genres the playing score was built from.
     score_generation: u64,
-    score_styles: Vec<String>,
+    score_genres: Vec<String>,
     /// The playing score's phrase when the last rebuild was asked (reuse off: one per phrase).
     asked_at_phrase: Option<u64>,
     /// With reuse off and no score, seconds since the data was last read.
@@ -388,7 +436,7 @@ pub(crate) struct MusicRuntime {
 
 impl MusicRuntime {
     /// Start a build on the worker thread (the bank goes with it and comes back with the result).
-    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, styles: Vec<String>) {
+    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>) {
         if self.building.is_some() {
             return;
         }
@@ -399,13 +447,13 @@ impl MusicRuntime {
             bank.clear();
         }
         let dir = data_dir.to_path_buf();
-        let asked = styles.clone();
+        let asked = genres.clone();
         let handle = std::thread::Builder::new().name("music-build".into()).spawn(move || {
             let r = build(&dir, a4, with_score, &mut bank, &asked);
             (r, bank)
         });
         match handle {
-            Ok(handle) => self.building = Some(Building { handle, generation, styles }),
+            Ok(handle) => self.building = Some(Building { handle, generation, genres }),
             Err(e) => {
                 log::warn!("[Music] the music's build thread did not start: {e}");
             }
@@ -418,7 +466,7 @@ impl MusicRuntime {
         if !finished {
             return;
         }
-        let Some(Building { handle, generation, styles }) = self.building.take() else { return };
+        let Some(Building { handle, generation, genres }) = self.building.take() else { return };
         match handle.join() {
             Ok((result, bank)) => {
                 self.bank = Some(bank);
@@ -434,8 +482,9 @@ impl MusicRuntime {
                         self.load_error = None;
                         let lib = built.lib.clone();
                         self.lib = Some(built.lib);
+                        self.stand_ins = built.stand_ins;
                         if let Some(res) = built.score {
-                            self.ready = Some(Ready { res, lib, generation, styles, at_phrase: current_phrase });
+                            self.ready = Some(Ready { res, lib, generation, genres, at_phrase: current_phrase });
                         }
                     }
                     Err(e) => {
@@ -468,23 +517,23 @@ impl MusicRuntime {
         let want_bed = g.hum || g.tones;
         // What to build: a score when one is wanted (and a device plays it) and none plays or waits,
         // again when what is installed changed, and with reuse off once every phrase; otherwise the
-        // data alone, when none has been read (Settings > Music lists its styles from it, music
+        // data alone, when none has been read (Settings > Music lists its genres from it, music
         // played or not; the hum reads its sources from it), and with reuse off every few seconds.
         self.since_read_s += inp.dt;
-        let styles = styles_in_use(self.lib.as_deref(), inp);
+        let genres = genres_in_use(self.lib.as_deref(), inp);
         if self.building.is_none() && self.ready.is_none() {
-            // What is installed changed, or the styles in use did (a style or a blend chosen in
+            // What is installed changed, or the genres in use did (a genre or a blend chosen in
             // Settings, a place's suggestion): the parts that can sound, so the recordings to hold.
-            let changed = self.score.is_some() && (self.score_generation != inp.generation || self.score_styles != styles);
+            let changed = self.score.is_some() && (self.score_generation != inp.generation || self.score_genres != genres);
             let next_phrase = !inp.reuse && phrase.is_some_and(|p| self.asked_at_phrase.is_none_or(|a| p > a));
             let unread = self.lib.is_none() && (self.load_error.is_none() || inp.restart);
             if mixer.is_some() && ((g.music && self.score.is_none()) || changed || next_phrase) {
                 self.asked_at_phrase = phrase;
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, styles.clone());
+                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone());
             } else if unread || (!inp.reuse && self.score.is_none() && self.since_read_s >= REREAD_S) {
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, styles.clone());
+                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone());
             }
         }
         let Some(mixer) = mixer else {
@@ -504,7 +553,7 @@ impl MusicRuntime {
             _ => false,
         };
         if take_over {
-            if let Some(Ready { res, lib, generation, styles, .. }) = self.ready.take() {
+            if let Some(Ready { res, lib, generation, genres, .. }) = self.ready.take() {
                 let ctx = Self::context_of(&lib, inp, &g, a4);
                 let seed = self.seed.wrapping_add(self.pieces.wrapping_mul(0x9e37_79b9));
                 match mixer.play_score(ScoreEngine::new(res, START_RATE, seed, ctx)) {
@@ -518,7 +567,7 @@ impl MusicRuntime {
                         self.score = Some(h);
                         self.score_lib = Some(lib);
                         self.score_generation = generation;
-                        self.score_styles = styles;
+                        self.score_genres = genres;
                         self.asked_at_phrase = None;
                         self.pieces += 1;
                     }
@@ -589,29 +638,29 @@ impl MusicRuntime {
         self.readout_lists(readout)
     }
 
-    /// The score's context from `lib` (the data the score was built from: its mood and style
+    /// The score's context from `lib` (the data the score was built from: its mood and genre
     /// indices are that data's).
     fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32) -> MusicContext {
         let s = &inp.settings;
         let p = Place { zone: &inp.place.zone, room_id: &inp.place.room_id, room_name: &inp.place.room_name, hour: inp.place.hour };
         let mood = lib.mood_index(lib.places.mood_for(&p)).unwrap_or(0) as u16;
-        let mut style_a = lib.style_index(&s.style).unwrap_or(0) as u16;
-        if s.places_pick_style {
-            if let Some(i) = lib.places.style_for(&p).and_then(|id| lib.style_index(id)) {
-                style_a = i as u16;
+        let mut genre_a = lib.genre_index(&s.genre).unwrap_or(0) as u16;
+        if s.places_pick_genre {
+            if let Some(i) = lib.places.genre_for(&p).and_then(|id| lib.genre_index(id)) {
+                genre_a = i as u16;
             }
         }
-        let (style_b, blend) = match lib.style_index(&s.blend_with) {
+        let (genre_b, blend) = match lib.genre_index(&s.blend_with) {
             Some(i) if !s.blend_with.is_empty() && s.blend > 0.0 => (i as u16, s.blend.clamp(0.0, 1.0)),
-            _ => (style_a, 0.0),
+            _ => (genre_a, 0.0),
         };
-        MusicContext { gain: g.music_gain, a4_hz: a4, mood, style_a, style_b, blend, intensity: inp.intensity.clamp(0.0, 1.0), duck_db: g.duck_db }
+        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity: inp.intensity.clamp(0.0, 1.0), duck_db: g.duck_db }
     }
 
-    /// The readout's lists (Settings > Music's styles and tones) and the build's state.
+    /// The readout's lists (Settings > Music's genres and tones) and the build's state.
     fn readout_lists(&self, mut readout: MusicReadout) -> MusicReadout {
         if let Some(lib) = self.lib.as_ref() {
-            readout.styles = lib.styles.iter().map(|x| (x.id.clone(), x.words.clone(), x.name.clone())).collect();
+            readout.genres = genre_choices(lib, &self.stand_ins);
             readout.tones = lib.tones.clone();
         }
         readout.load_error = self.load_error.clone();

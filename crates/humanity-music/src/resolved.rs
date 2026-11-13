@@ -10,7 +10,7 @@ use crate::dsp::db_to_amp;
 use crate::instrument::{Instrument, InstrumentKind, SampleBank, SampleLibrary};
 use crate::library::MusicLibrary;
 use crate::mood::{Motif, Pulse, RoleKind, RoleSpec};
-use crate::style::{hit_velocity, Groove, HarmonyRule, Recipe};
+use crate::genre::{hit_velocity, Comping, Groove, HarmonyRule, Recipe};
 use crate::tuning::{parse_note, pitch_class, Mode};
 
 /// A pattern written as text, as velocities per grid step (`|` and spaces are for the eye only).
@@ -43,15 +43,50 @@ pub struct RChord {
     pub notes: Vec<i32>,
 }
 
-/// A mood ready to play.
+/// Key centres and a chord graph ready to play: a mood's, or a genre's own progressions.
 #[derive(Clone, Debug)]
-pub struct RMood {
+pub struct RHarmony {
     pub keys: Vec<(i32, Mode, f32)>,
     pub chords: Vec<RChord>,
     /// Per chord: the chords it moves to, with weights.
     pub moves: Vec<Vec<(usize, f32)>>,
     pub cadence: Vec<bool>,
     pub start: usize,
+}
+
+/// Resolve key centres and a chord graph (a mood's or a genre's), checking every name.
+fn harmony_of(keys_in: &[crate::mood::KeyCentre], chords: &[crate::mood::ChordDef], moves_in: &[(String, String, f32)], cadences: &[String], start: &str, owner: &str) -> Result<RHarmony, String> {
+    let mut keys = Vec::new();
+    for k in keys_in {
+        keys.push((pitch_class(&k.root).ok_or_else(|| format!("{owner}: key {:?} is not a note letter", k.root))?, k.mode, k.weight));
+    }
+    if keys.is_empty() {
+        return Err(format!("{owner}: no keys"));
+    }
+    if chords.is_empty() {
+        return Err(format!("{owner}: no chords"));
+    }
+    let chord = |name: &str| chords.iter().position(|c| c.name == name).ok_or_else(|| format!("{owner}: chord {name:?} is not one of its chords"));
+    let mut moves = vec![Vec::new(); chords.len()];
+    for (a, b, w) in moves_in {
+        moves[chord(a)?].push((chord(b)?, *w));
+    }
+    for (i, mv) in moves.iter().enumerate() {
+        if mv.is_empty() {
+            return Err(format!("{owner}: chord {:?} moves nowhere (every chord needs a move out)", chords[i].name));
+        }
+    }
+    let mut cadence = vec![false; chords.len()];
+    for c in cadences {
+        cadence[chord(c)?] = true;
+    }
+    Ok(RHarmony { keys, chords: chords.iter().map(|c| RChord { root: c.root, notes: c.notes.clone() }).collect(), moves, cadence, start: chord(start)? })
+}
+
+/// A mood ready to play.
+#[derive(Clone, Debug)]
+pub struct RMood {
+    pub harmony: RHarmony,
     pub phrase_bars: Vec<u32>,
     pub chord_bars: (u32, u32),
     pub tempo: (f32, f32),
@@ -67,8 +102,8 @@ pub struct RMood {
     pub tempo_follows_intensity: bool,
     pub groove: Option<Groove>,
     pub drums: Vec<RDrum>,
-    pub pad_pattern: Option<Vec<f32>>,
-    pub bass_pattern: Option<Vec<u8>>,
+    pub pad_patterns: Vec<Vec<f32>>,
+    pub bass_patterns: Vec<Vec<u8>>,
 }
 
 /// The intensity bands ready to play (intensity.rs).
@@ -95,15 +130,25 @@ pub struct RDrum {
     pub min_intensity: f32,
 }
 
-/// A style ready to play.
+/// A genre ready to play.
 #[derive(Clone, Debug)]
-pub struct RStyle {
+pub struct RGenre {
     pub tempo: Option<(f32, f32)>,
     pub beat_felt: Option<bool>,
     pub groove: Groove,
     pub drums: Vec<RDrum>,
-    pub pad_pattern: Option<Vec<f32>>,
-    pub bass_pattern: Option<Vec<u8>>,
+    pub pad_patterns: Vec<Vec<f32>>,
+    pub comping: Comping,
+    pub bass_patterns: Vec<Vec<u8>>,
+    pub stab_patterns: Vec<Vec<f32>>,
+    pub stab_hold_beats: f32,
+    pub beats_per_bar: Option<u32>,
+    /// Its own key centres and chord graph, played in calm moods in place of the mood's.
+    pub progressions: Option<RHarmony>,
+    pub motifs: Vec<Motif>,
+    pub motif_scale: Option<Mode>,
+    pub call_and_response: bool,
+    pub dynamics: Option<(f32, f32)>,
     pub harmony: HarmonyRule,
     /// Per role: the palette's instrument, its level change (dB) and its own register (MIDI low,
     /// high), if it has one.
@@ -120,7 +165,7 @@ pub struct Resolved {
     /// Instrument i's installed recordings (None: not a sampler, or its pack is not installed).
     pub banks: Vec<Option<Arc<dyn SampleBank>>>,
     pub moods: Vec<RMood>,
-    pub styles: Vec<RStyle>,
+    pub genres: Vec<RGenre>,
     pub intensity: RIntensity,
 }
 
@@ -160,7 +205,7 @@ impl Resolved {
                 pulse: r.pulse.clone(),
             })
         };
-        let drums_of = |parts: &[crate::style::DrumPart], owner: &str| -> Result<Vec<RDrum>, String> {
+        let drums_of = |parts: &[crate::genre::DrumPart], owner: &str| -> Result<Vec<RDrum>, String> {
             let mut out = Vec::new();
             for d in parts {
                 out.push(RDrum {
@@ -176,30 +221,7 @@ impl Resolved {
         let mut moods = Vec::new();
         for m in &lib.moods {
             let owner = format!("mood {}", m.id);
-            let mut keys = Vec::new();
-            for k in &m.keys {
-                keys.push((pitch_class(&k.root).ok_or_else(|| format!("{owner}: key {:?} is not a note letter", k.root))?, k.mode, k.weight));
-            }
-            if keys.is_empty() {
-                return Err(format!("{owner}: no keys"));
-            }
-            if m.chords.is_empty() {
-                return Err(format!("{owner}: no chords"));
-            }
-            let chord = |name: &str| m.chord_index(name).ok_or_else(|| format!("{owner}: chord {name:?} is not one of its chords"));
-            let mut moves = vec![Vec::new(); m.chords.len()];
-            for (a, b, w) in &m.moves {
-                moves[chord(a)?].push((chord(b)?, *w));
-            }
-            for (i, mv) in moves.iter().enumerate() {
-                if mv.is_empty() {
-                    return Err(format!("{owner}: chord {:?} moves nowhere (every chord needs a move out)", m.chords[i].name));
-                }
-            }
-            let mut cadence = vec![false; m.chords.len()];
-            for c in &m.cadences {
-                cadence[chord(c)?] = true;
-            }
+            let harmony = harmony_of(&m.keys, &m.chords, &m.moves, &m.cadences, &m.start, &owner)?;
             let mut roles: [Option<RRole>; 8] = Default::default();
             for r in &m.roles {
                 roles[r.role.index()] = Some(role(r, &owner)?);
@@ -213,11 +235,7 @@ impl Resolved {
                 }
             }
             moods.push(RMood {
-                keys,
-                chords: m.chords.iter().map(|c| RChord { root: c.root, notes: c.notes.clone() }).collect(),
-                moves,
-                cadence,
-                start: chord(&m.start)?,
+                harmony,
                 phrase_bars: m.phrase_bars.clone(),
                 chord_bars: m.chord_bars,
                 tempo: m.tempo_bpm,
@@ -233,14 +251,19 @@ impl Resolved {
                 tempo_follows_intensity: m.tempo_follows_intensity,
                 groove: m.groove,
                 drums: drums_of(&m.drums, &owner)?,
-                pad_pattern: m.pad_pattern.as_deref().map(pattern),
-                bass_pattern: m.bass_pattern.as_deref().map(bass_pattern),
+                pad_patterns: m.pad_patterns.iter().map(|p| pattern(p)).collect(),
+                bass_patterns: m.bass_patterns.iter().map(|p| bass_pattern(p)).collect(),
             });
         }
-        let mut styles = Vec::new();
-        for s in &lib.styles {
-            let owner = format!("style {}", s.id);
+        let mut genres = Vec::new();
+        for s in &lib.genres {
+            let owner = format!("genre {}", s.id);
             let drums = drums_of(&s.drums, &owner)?;
+            for (i, mo) in s.motifs.iter().enumerate() {
+                if mo.steps.is_empty() || mo.steps.len() != mo.beats.len() || (!mo.hold.is_empty() && mo.hold.len() != mo.steps.len()) {
+                    return Err(format!("{owner}: motif {i} needs as many beats (and holds, if any) as steps"));
+                }
+            }
             let mut palette: [Option<(u16, f32, Option<(i32, i32)>)>; 8] = Default::default();
             for p in &s.palette {
                 let register = match (&p.low, &p.high) {
@@ -258,13 +281,25 @@ impl Resolved {
             for r in &s.roles_add {
                 roles_add[r.role.index()] = Some(role(r, &owner)?);
             }
-            styles.push(RStyle {
+            genres.push(RGenre {
                 tempo: s.tempo_bpm,
                 beat_felt: s.beat_felt,
                 groove: s.groove.unwrap_or_default(),
                 drums,
-                pad_pattern: s.pad_pattern.as_deref().map(pattern),
-                bass_pattern: s.bass_pattern.as_deref().map(bass_pattern),
+                pad_patterns: s.pad_patterns.iter().map(|p| pattern(p)).collect(),
+                comping: s.comping,
+                bass_patterns: s.bass_patterns.iter().map(|p| bass_pattern(p)).collect(),
+                stab_patterns: s.stab_patterns.iter().map(|p| pattern(p)).collect(),
+                stab_hold_beats: s.stab_hold_beats.max(0.02),
+                beats_per_bar: s.beats_per_bar.map(|b| b.clamp(2, 12)),
+                progressions: match &s.progressions {
+                    Some(pr) => Some(harmony_of(&pr.keys, &pr.chords, &pr.moves, &pr.cadences, &pr.start, &owner)?),
+                    None => None,
+                },
+                motifs: s.motifs.clone(),
+                motif_scale: s.motif_scale,
+                call_and_response: s.call_and_response,
+                dynamics: s.dynamics.map(|(a, b)| (a.clamp(0.0, 1.0), b.clamp(a.clamp(0.0, 1.0), 1.0))),
                 harmony: s.harmony,
                 palette,
                 roles_off,
@@ -294,7 +329,7 @@ impl Resolved {
                 s.fallback_index = index.get(s.fallback.as_str()).map(|&i| map[i]);
             }
         }
-        Ok(Resolved { instruments, banks, moods, styles, intensity })
+        Ok(Resolved { instruments, banks, moods, genres, intensity })
     }
 
     /// The mood band `b` plays (None: the place's own).

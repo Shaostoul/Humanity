@@ -1,0 +1,31 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "trombone_small",
+    words: "instrument_packs.instrument.trombone_small",
+    part: "trombone",
+    rank: 20,
+    kind: Sampler((
+        folder: "trombone_small",
+        pitched: true,
+        source_a4_hz: 440.17,
+        tuning_note: "measured: median of 8 samples, +0.7 cents from A = 440; names 1 octave(s) off C4 = 60",
+        release_s: 0.25,
+        normalized: false,
+        zones: [
+            (file: "Trombone_Short_F1_v2_1.ogg", key: 41, lo_key: 37, hi_key: 43, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(87.341), measured_hz: Some(87.328), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_A1_v2_1.ogg", key: 45, lo_key: 44, hi_key: 46, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(110.043), measured_hz: Some(110.068), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_C2_v2_1.ogg", key: 48, lo_key: 47, hi_key: 49, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(130.863), measured_hz: Some(130.757), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_Ds2_v2_1.ogg", key: 51, lo_key: 50, hi_key: 53, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(155.624), measured_hz: Some(155.743), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_G2_v2_1.ogg", key: 55, lo_key: 54, hi_key: 56, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(196.073), measured_hz: Some(196.243), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_As2_v2_1.ogg", key: 58, lo_key: 57, hi_key: 60, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(233.172), measured_hz: Some(233.001), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_D3_v2_1.ogg", key: 62, lo_key: 61, hi_key: 63, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(293.778), measured_hz: Some(293.707), loop_start: None, loop_end: None),
+            (file: "Trombone_Short_F3_v2_1.ogg", key: 65, lo_key: 64, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(349.363), measured_hz: Some(349.416), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "C#2", high: "A4"),
+    reverb_send: 0.3,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "VSCO 2 Community Edition", url: "https://github.com/sgossner/VSCO-2-CE", version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)", fetched: "2026-11-06"),
+    credit: "From VS Chamber Orchestra 2: Community Edition by Versilian Studios (https://versilian-studios.com/vsco-community/): recorded by Sam Gossner (Versilian Studios) and Simon Dalzell (Ivy Audio), sample cutting by Elan Hickler (Soundemote). Public domain (CC0 1.0).",
+)

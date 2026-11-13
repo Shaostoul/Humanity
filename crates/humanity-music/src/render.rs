@@ -98,9 +98,9 @@ pub fn note_rms_between(res: &crate::Resolved, inst: u16, midi: f32, a4: f32, fr
     (sum / (2 * counted.max(1)) as f64).sqrt() as f32
 }
 
-/// A default context for offline renders: full gain, A = 432, the given mood and style.
-pub fn context(mood: u16, style: u16) -> MusicContext {
-    MusicContext { mood, style_a: style, style_b: style, ..Default::default() }
+/// A default context for offline renders: full gain, A = 432, the given mood and genre.
+pub fn context(mood: u16, genre: u16) -> MusicContext {
+    MusicContext { mood, genre_a: genre, genre_b: genre, ..Default::default() }
 }
 
 /// A default bed context: aboard, in an open space, D, A = 432, gain 1.

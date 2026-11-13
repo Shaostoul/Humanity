@@ -6,7 +6,7 @@
 //!
 //! The algorithms are published ones: polyBLEP band limiting (Valimaki and Huovilainen, 2007), the
 //! topology-preserving state variable filter (Zavalishin, "The Art of VA Filter Design", 2012),
-//! a Jot-style feedback delay network with a Hadamard mix (Jot and Chaigne, 1991), the same as the
+//! a Jot-genre feedback delay network with a Hadamard mix (Jot and Chaigne, 1991), the same as the
 //! direction sketch scripts/music-sketch.js, which this crate's first rung was compared against.
 
 use std::f32::consts::PI;

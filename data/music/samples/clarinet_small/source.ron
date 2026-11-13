@@ -1,0 +1,19 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "VSCO 2 Community Edition",
+    url: "https://github.com/sgossner/VSCO-2-CE",
+    version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "vsco-2-ce/VSCO-2-CE-440300901dfe9275fd84e0b7763af1f8443ae62e.tar.gz",
+    archive_sha256: "2050dfd58513fd8058765c3a567636b148206da297a35c8b52f2ec4344035316",
+    kept: [
+        (file: "DCClar_susLong_D2_v2_rr1_sum.ogg", from: "Woodwinds/Clarinet/susLong/DCClar_susLong_D2_v2_rr1_sum.wav"),
+        (file: "DCClar_susLong_As2_v2_rr1_sum.ogg", from: "Woodwinds/Clarinet/susLong/DCClar_susLong_A#2_v2_rr1_sum.wav"),
+        (file: "DCClar_susLong_F3_v2_rr1_sum.ogg", from: "Woodwinds/Clarinet/susLong/DCClar_susLong_F3_v2_rr1_sum.wav"),
+        (file: "DCClar_susLong_D4_v2_rr1_sum.ogg", from: "Woodwinds/Clarinet/susLong/DCClar_susLong_D4_v2_rr1_sum.wav"),
+        (file: "DCClar_susLong_As4_v2_rr1_sum.ogg", from: "Woodwinds/Clarinet/susLong/DCClar_susLong_A#4_v2_rr1_sum.wav"),
+        (file: "DCClar_susLong_Fs5_v2_rr1_sum.ogg", from: "Woodwinds/Clarinet/susLong/DCClar_susLong_F#5_v2_rr1_sum.wav"),
+    ],
+)

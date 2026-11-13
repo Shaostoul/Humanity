@@ -4225,7 +4225,7 @@ pub enum SettingsCategory {
     Notifications,
     Wallet,
     Audio,
-    Music, // the live music, its style and tuning, the ship's hum, the tones (2026-11-06)
+    Music, // the live music, its genre and tuning, the ship's hum, the tones (2026-11-06)
     Graphics,
     Gameplay,
     Controls,

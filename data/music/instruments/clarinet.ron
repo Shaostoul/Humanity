@@ -1,0 +1,22 @@
+// A clarinet, synthesised (docs/design/music.md, section 7a): a clarinet's tube is closed at one end,
+// so its low register sounds mostly ODD harmonics, which a square wave has; a low-pass that follows
+// the note and opens a little with the breath, a soft 30 ms attack and a gentle vibrato. A stand-in
+// for electro swing's clarinet lines: the clarinet part (data/music/parts.ron) plays a recorded
+// clarinet instead wherever one is installed.
+Instrument(
+    id: "clarinet",
+    words: "music.instrument.clarinet",
+    kind: Synth((
+        oscillators: [
+            (wave: Square),
+            (wave: Square, detune_cents: 5.0, level: 0.25),
+            (wave: Sine, semitones: 12.0, level: 0.12),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 900.0, q: 0.7, key_track: 0.9, env_hz: 700.0)),
+        envelope: (attack_s: 0.03, decay_s: 0.25, sustain: 0.75, release_s: 0.1),
+        vibrato: Some((5.2, 7.0)),
+    )),
+    level_db: -21.0,
+    reverb_send: 0.25,
+    pan_spread: 0.25,
+)

@@ -3,11 +3,11 @@
 ## What it is for
 
 The game's own music, composed live, and the ship's hum (docs/design/music.md). A composer
-improvises within a mood and a style (chord graphs with voice leading, motifs it varies, phrases it
+improvises within a mood and a genre (chord graphs with voice leading, motifs it varies, phrases it
 never repeats within ten minutes, danger moods the game's intensity raises), a pool of synthesised
 voices plays it (pads, a formant choir, modal bells and the steel pan, membrane deep drums and taiko,
 FM keys, plucked strings, noise, and the sampler seam the instrument library fills), and a reverb,
-the style's recipe and a limiter finish it; the hum and the optional tones are a second sound. It is
+the genre's recipe and a limiter finish it; the hum and the optional tones are a second sound. It is
 a crate of its own because it is pure (no device, no GPU, no I/O on the hot path: it renders into a
 plain buffer, so tests run faster than real time and `just music-render` works offline, and it can
 compile to WebAssembly for the website later) and because it is edited often while the music grows,
@@ -17,15 +17,15 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-music/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/style.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
+  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
   - `feature = "kira"`: `crates/humanity-music/src/kira_sound.rs`
   - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`
-- **Size:** 7,028 lines in 20 files, 1,134 of them in 2 test files.
+- **Size:** 7,569 lines in 20 files, 1,346 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 20, engine 13.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 25 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 28 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -64,14 +64,14 @@ And 6 more items, 6 references (`node scripts/crate-cards.js --interface humanit
   `process` allocate and free nothing (a counting-allocator test, `render_allocates_nothing`, holds
   it); everything is made in the constructors, and a `SampleBank` is kept alive by its owner so no
   recording is freed there. Source: kira 0.12's `Sound` docs; music.md section 4.2.
-- **Instruments, moods, styles, places, intensity bands, tones and hum sources are data**
-  (`data/music/`, `data/audio/hum_sources.ron`); kinds are code. A new sound, mood or style is a file.
+- **Instruments, moods, genres, places, intensity bands, tones and hum sources are data**
+  (`data/music/`, `data/audio/hum_sources.ron`); kinds are code. A new sound, mood or genre is a file.
   Source: [infinite-of-x.md](../design/infinite-of-x.md); CLAUDE.md, Infinite-of-X.
 - **The budget is a gate.** The calm score averages at most 0.05 ms per 128-frame block, the hum
   0.02 ms (`the_audio_thread_cost_per_block_is_within_the_budget`); measure a change with
   `just music-render` before and after. Source: music.md section 14; CLAUDE.md, "Compute and
   bandwidth are a hard budget".
-- **Loudness by the app's one meter.** Each mood and style is levelled (its `level_db`) so it renders
+- **Loudness by the app's one meter.** Each mood and genre is levelled (its `level_db`) so it renders
   at the music category's target in data/audio/loudness.toml (-18 LUFS), the hum at the ambient
   one (-26), every output under -1 dBTP; re-measure after changing an instrument's level. Source:
   [loudness.md](../design/loudness.md); music.md section 13.
@@ -85,8 +85,9 @@ And 6 more items, 6 references (`node scripts/crate-cards.js --interface humanit
 
 - **Its lib tests:** the `just test-lib --crate humanity-music` line above. `src/tests.rs` holds the
   ones that render nothing (the pitch table, the shipped data, places, an hour of the composer for
-  repeats and voice leading, the style layer, the intensity bands); `src/tests_audio.rs` the ones that
-  render and measure (tuning in the audio, the steel pan's and deep drum's partials and decay, the
+  repeats and voice leading, the genre layer, every genre's words and roles, danger rising and settling
+  in every genre, the intensity bands); `src/tests_audio.rs` the ones that
+  render and measure (electro swing's 128 bpm and swing found in the rendered sound, tuning in the audio, the steel pan's and deep drum's partials and decay, the
   hum and its alarm, loudness and true peak with humanity_core's BS.1770 meter, determinism, the
   cost per block, no allocation, the sampler seam, the duck, a sustain held past its recording by a
   crossfaded loop). The crate is optimised in dev and test builds (the root Cargo.toml), so its
@@ -99,7 +100,7 @@ And 6 more items, 6 references (`node scripts/crate-cards.js --interface humanit
   reuse switch, and the ignored `the_score_with_recordings_measured` (each mood with the core set's
   recordings attached: loudness, true peak, cost per block, decoded memory).
 - **The shipped data:** `the_shipped_music_data_parses` runs in `just validate-data`.
-- **Listen and measure offline:** `just music-render <mood> <style> <seconds>` (options: `--ramp`
+- **Listen and measure offline:** `just music-render <mood> <genre> <seconds>` (options: `--ramp`
   for an intensity over time, `--hum`, `--breach`, `--blend`, `--stems` for each role's loudness
   against the whole, `--a4 440`); the WAV goes to the temp folder or `--out`, never the repo.
 - **On a real sound device:** the ignored tests `kira_sound::device_tests` (run with `cargo test -p
@@ -112,8 +113,9 @@ And 6 more items, 6 references (`node scripts/crate-cards.js --interface humanit
 
 - **Rungs 4 to 10 of the music** (the menu mood on the title screens, voice-call ducking, the self-meter and `music_state` on the IPC,
   sampled instruments, stingers and gaps, the soft-metal guitar and the soprano, the website,
-  making music in the app), and the styles' later rungs (electroswing, dubstep, a danger palette
-  per style). Source: [music.md](../design/music.md), sections 7a, 7b and 20.
+  making music in the app), and the genres' later rungs (dubstep, a danger palette per genre, a
+  place leaning a genre; electro swing was built 2026-11-12, a manouche guitar recording waits for a
+  CC0 source). Source: [music.md](../design/music.md), sections 7a, 7b and 20.
 - **Recorded instruments play by part** (2026-11-06): roles name parts, and
   `src/instrument_packs/score.rs` (the instrument library's module, in the engine) attaches the best
   installed recording of each into this crate's `SampleSet` (16-bit frames, `SAMPLE_SCALE`); since

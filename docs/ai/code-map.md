@@ -228,8 +228,9 @@
 ## crates/humanity-music/src/
 
 - `bed.rs` (466): The ship's ambient bed: the hum, and the optional tones (docs/design/music.md, sections 10 and 11). Main items: HumSource, HumSources, AlarmSpec, HumPlace, BedContext, BedStatus, BedEngine, hum_place.
-- `composer.rs` (1278): The composer (docs/design/music.md, section 4.2 and rung 3): improvises within a mood and a style, sample-accurate, on the audio thread. Main items: Event, Sink, Steer, Composer, nearest_pc_in, voice_lead.
+- `composer.rs` (1497): The composer (docs/design/music.md, section 4.2 and rung 3): improvises within a mood and a genre, sample-accurate, on the audio thread. Main items: Event, Sink, Steer, Composer, nearest_pc_in, voice_lead.
 - `dsp.rs` (515): The building blocks every voice and effect is made of: band-limited oscillators, a state variable filter, envelopes, smoothers, rotating phasors for decaying partials, an 8-line feedback delay netw... Main items: Smoother, SvfCoefs, Svf, Env, Phasor, Lfo, Fdn, Limiter (+4 more).
+- `genre.rs` (283): Genres as data (docs/design/music.md, section 7a): `data/music/genres/<id>.ron`, laid over a mood. Main items: Groove, DrumPart, HarmonyRule, Recipe, PaletteEntry, Progressions, Comping, Genre, hit_velocity, step_offset_in_beat.
 - `instrument.rs` (441): Instruments as data (docs/design/music.md, section 6): `data/music/instruments/<id>.ron`, one file per instrument. Main items: Instrument, InstrumentKind, EnvSpec, Wave, OscSpec, FilterKind, FilterSpec, SynthSpec (+13 more).
 - `intensity.rs` (97): Danger and action: the score rising with the game's intensity (docs/design/music.md, section 7b). Main items: Band, Gesture, IntensityMap, band_for.
 - `kira_sound.rs` (325): The score and the bed on the sound card: kira 0.12 `Sound`s over the pure engines (docs/design/music.md, section 4.2). Main items: ScoreSoundData, ScoreHandle, BedSoundData, BedHandle.
@@ -242,7 +243,6 @@
 - `rng.rs` (90): The composer's and the voices' randomness: a seeded generator, so the same seed composes the same music note for note (tests, rigs and `HUMANITY_MUSIC_SEED`), and nothing allocates. Main items: Rng.
 - `score.rs` (312): The score: the composer, the voice pool, the reverb, the style's recipe, the level and the limiter, rendering into a plain stereo buffer (docs/design/music.md, section 4.2). Main items: MusicContext, MusicStatus, ScoreEngine, DUCK_DOWN_S, DUCK_UP_S.
 - `settings.rs` (67): The person's music settings (Settings > Music, docs/design/music.md section 15), saved in the app's config.json as one `music` object. Main items: MusicSettings.
-- `style.rs` (220): Styles as data (docs/design/music.md, section 7a): `data/music/styles/<id>.ron`, laid over a mood. Main items: Groove, DrumPart, HarmonyRule, Recipe, PaletteEntry, Style, hit_velocity, step_offset_in_beat.
 - `tests_audio.rs` (710): The music crate's tests that render sound and measure it: tuning in the rendered audio, the steel pan's and the deep drum's partials and decay, the hum (off the ship, near the drive, in a small roo... Main items: heavy.
 - `tuning.rs` (185): Pitch: the ONE place a frequency is made (docs/design/music.md, section 9). Main items: Tuning, Mode, note_hz, note_hz_f64, pitch_class, parse_note, note_name, scale_step (+2 more).
 - `voice.rs` (887): The voice pool: 64 voices made once, each a note being played by one instrument kind. Main items: BlockParams, NoteOn, Voice, VoicePool, MAX_VOICES.

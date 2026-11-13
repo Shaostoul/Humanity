@@ -1,5 +1,5 @@
 //! The composer (docs/design/music.md, section 4.2 and rung 3): improvises within a mood and a
-//! style, sample-accurate, on the audio thread.
+//! genre, sample-accurate, on the audio thread.
 //!
 //! It plans a PHRASE at a time (8 or 16 bars): the chords, walked along the mood's weighted chord
 //! graph and ending on one of its cadences; which motif plays on each chord, transposed to a chord
@@ -7,16 +7,16 @@
 //! drums' heartbeat pulses, which drum pattern each part plays. A phrase it played within the mood's
 //! `no_repeat_s` (10 minutes by default) is re-planned, so the score never repeats a phrase in that
 //! window (a test renders an hour and checks). Chords are VOICE-LED: each pad and choir voice moves
-//! to the nearest chord tone, never further than a fourth. The mood and the style change only at a
+//! to the nearest chord tone, never further than a fourth. The mood and the genre change only at a
 //! phrase boundary, and the key only at a section's end (every fourth phrase), so nothing jumps.
 //!
 //! What it decides goes to a [`Sink`]: the score's sink starts and stops voices; a test's sink
 //! records, so an hour is "played" in milliseconds with no sound at all.
 
-use crate::mood::RoleKind;
-use crate::resolved::{RMood, RRole, Resolved};
+use crate::genre::{step_offset_in_beat, Comping, HarmonyRule, Recipe};
+use crate::mood::{Motif, RoleKind};
+use crate::resolved::{RHarmony, RMood, RRole, Resolved};
 use crate::rng::Rng;
-use crate::style::{step_offset_in_beat, HarmonyRule, Recipe};
 use crate::tuning::{scale_step, Mode};
 use crate::voice::NoteOn;
 
@@ -46,9 +46,9 @@ pub trait Sink {
 #[derive(Clone, Copy, Debug)]
 pub struct Steer {
     pub mood: u16,
-    pub style_a: u16,
-    /// The second style of a blend, and how far toward it (0 = all `style_a`).
-    pub style_b: u16,
+    pub genre_a: u16,
+    /// The second genre of a blend, and how far toward it (0 = all `genre_a`).
+    pub genre_b: u16,
     pub blend: f32,
     pub intensity: f32,
     pub a4: f32,
@@ -86,9 +86,11 @@ struct Plan {
     pulse: bool,
     patterns: [u8; 8],
     hash: u64,
+    /// The phrase's dynamic level (velocity times this): a genre's `dynamics` range, else 1.
+    vel_scale: f32,
 }
 
-/// One role's effective setup for the phrase (the mood's, under the style's palette and blend).
+/// One role's effective setup for the phrase (the mood's, under the genre's palette and blend).
 #[derive(Clone, Copy, Debug)]
 struct EffRole {
     inst: u16,
@@ -101,12 +103,12 @@ struct EffRole {
 
 #[derive(Clone, Copy, Debug)]
 struct EffDrum {
-    style: u16,
+    genre: u16,
     part: u8,
     weight: f32,
 }
 
-/// The style (or blend) as it applies to this phrase.
+/// The genre (or blend) as it applies to this phrase.
 #[derive(Clone, Copy, Debug)]
 struct Eff {
     roles: [Option<EffRole>; 8],
@@ -116,8 +118,18 @@ struct Eff {
     syncopation: f32,
     humanize_ms: f32,
     drums: [Option<EffDrum>; 8],
-    pad_pattern: Option<u16>,
-    bass_pattern: Option<u16>,
+    pad_patterns: Option<u16>,
+    bass_patterns: Option<u16>,
+    stab_patterns: Option<u16>,
+    /// How many pad, bass and stab patterns there are to choose from (a choice among several is
+    /// part of what a phrase sounds like, so it is in the phrase's fingerprint).
+    pattern_counts: [u8; 3],
+    comping: Comping,
+    stab_hold_beats: f32,
+    beats_per_bar: u32,
+    call_and_response: bool,
+    motif_scale: Option<Mode>,
+    dynamics: Option<(f32, f32)>,
     harmony: HarmonyRule,
     pub recipe: Recipe,
     level_db: f32,
@@ -137,6 +149,10 @@ pub struct Composer {
     rng: Rng,
     pub steer: Steer,
     mood: usize,
+    /// Whose chord graph and whose motifs play: the dominant genre's own (its index) in a calm
+    /// mood, else the mood's (`MOOD_SRC`).
+    harm_src: u16,
+    motif_src: u16,
     key_idx: usize,
     key_pc: i32,
     mode: Mode,
@@ -197,6 +213,8 @@ impl Composer {
             rng: Rng::new(seed),
             steer,
             mood: steer.mood as usize,
+            harm_src: MOOD_SRC,
+            motif_src: MOOD_SRC,
             key_idx: 0,
             key_pc: 2,
             mode: Mode::Lydian,
@@ -297,7 +315,7 @@ impl Composer {
         self.bar_in_phrase
     }
 
-    /// The recipe and level the style gives the mix this phrase.
+    /// The recipe and level the genre gives the mix this phrase.
     pub fn mix(&self, res: &Resolved) -> (Recipe, f32) {
         let mood_level = res.moods.get(self.mood).map(|m| m.level_db).unwrap_or(0.0);
         match &self.eff {
@@ -385,8 +403,16 @@ impl Composer {
             syncopation: 0.0,
             humanize_ms: 0.0,
             drums: [None; 8],
-            pad_pattern: None,
-            bass_pattern: None,
+            pad_patterns: None,
+            bass_patterns: None,
+            stab_patterns: None,
+            pattern_counts: [0; 3],
+            comping: Comping::default(),
+            stab_hold_beats: 0.25,
+            beats_per_bar: 4,
+            call_and_response: false,
+            motif_scale: None,
+            dynamics: None,
             harmony: HarmonyRule::default(),
             recipe: Recipe { reverb_scale: 1.0, ..Default::default() },
             level_db: 0.0,
@@ -394,9 +420,9 @@ impl Composer {
         })
     }
 
-    fn steps_per_bar(&self, res: &Resolved) -> u32 {
-        let bpb = res.moods.get(self.mood).map(|m| m.beats_per_bar).unwrap_or(4);
-        bpb * self.eff().subdivision.max(1)
+    fn steps_per_bar(&self) -> u32 {
+        let e = self.eff();
+        e.beats_per_bar.max(1) * e.subdivision.max(1)
     }
 
     fn on_step(&mut self, res: &Resolved, sink: &mut dyn Sink) {
@@ -409,17 +435,17 @@ impl Composer {
         if self.step_in_beat == 0 && self.beat_in_bar == 0 {
             self.on_bar(res, sink);
         }
-        let bpb = res.moods.get(self.mood).map(|m| m.beats_per_bar).unwrap_or(4);
         let eff = self.eff();
+        let bpb = eff.beats_per_bar.max(1);
         let sub = eff.subdivision.max(1);
         let step_of_bar = self.beat_in_bar * sub + self.step_in_beat;
-        let spb = self.steps_per_bar(res);
+        let spb = self.steps_per_bar();
         let now = self.pos;
         let rate = self.rate;
         // Drums.
         if eff.beat_felt {
             for d in eff.drums.iter().flatten() {
-                let Some(part) = drum_part(res, self.mood, d.style, d.part) else { continue };
+                let Some(part) = drum_part(res, self.mood, d.genre, d.part) else { continue };
                 // A part joins at its intensity, live on the beat (the taiko's doubled ostinato).
                 if part.patterns.is_empty() || self.steer.intensity < part.min_intensity {
                     continue;
@@ -437,7 +463,7 @@ impl Composer {
                     let jitter = (self.rng.bipolar() * eff.humanize_ms * 0.001 * rate as f32) as i64;
                     let at = (now as i64 + jitter.max(0)) as u64;
                     let tag = self.next_tag();
-                    let note = NoteOn { inst: part.inst, role: 255, midi: part.midi as f32, a4: self.steer.a4, vel: (v * part.velocity * d.weight).min(1.0), pan: 0.0, hold_s: 0.0, tag, level: 1.0 };
+                    let note = NoteOn { inst: part.inst, role: 255, midi: part.midi as f32, a4: self.steer.a4, vel: (v * part.velocity * d.weight * (0.6 + 0.4 * self.plan.vel_scale)).min(1.0), pan: 0.0, hold_s: 0.0, tag, level: 1.0 };
                     if at > now {
                         self.schedule(at, note);
                     } else {
@@ -446,9 +472,12 @@ impl Composer {
                 }
             }
         }
-        // The pad restruck on the style's comp pattern.
-        if let (Some(si), Some(pad)) = (eff.pad_pattern, eff.roles[RoleKind::Pad.index()]) {
-            if let Some(pat) = pattern_src(res, self.mood, si, false).and_then(|(p, _)| p) {
+        // The pad restruck on the genre's comp pattern (strummed low to high, and short, if the genre
+        // says so: a gypsy-jazz guitar's chop).
+        if let (Some(si), Some(pad)) = (eff.pad_patterns, eff.roles[RoleKind::Pad.index()]) {
+            let pats = pad_pats(res, self.mood, si);
+            if !pats.is_empty() {
+                let pat = &pats[self.plan.patterns[5] as usize % pats.len()];
                 if !pat.is_empty() {
                     let v = pat[((step_of_bar as usize * pat.len()) / spb as usize).min(pat.len() - 1)];
                     if v > 0.0 {
@@ -456,10 +485,18 @@ impl Composer {
                             sink.note_off(self.pads.tags[k]);
                         }
                         self.pads.n = 0;
+                        let strum = (eff.comping.strum_ms.max(0.0) as f64 * 0.001 * rate) as u64;
+                        let hold_s = (eff.comping.hold_beats.max(0.0) as f64 * self.beat_len / rate) as f32;
                         for k in 0..self.pad_voicing.n {
                             let tag = self.next_tag();
                             let midi = self.pad_voicing.notes[k];
-                            sink.note_on(NoteOn { inst: pad.inst, role: RoleKind::Pad.index() as u8, midi: midi as f32, a4: self.steer.a4, vel: 0.55 + 0.35 * v + self.rng.range(-0.05, 0.05), pan: 0.0, hold_s: 0.0, tag, level: pad.level });
+                            let vel = ((0.55 + 0.35 * v + self.rng.range(-0.05, 0.05)) * self.plan.vel_scale).clamp(0.0, 1.0);
+                            let note = NoteOn { inst: pad.inst, role: RoleKind::Pad.index() as u8, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s, tag, level: pad.level };
+                            if strum > 0 && k > 0 {
+                                self.schedule(now + strum * k as u64, note);
+                            } else {
+                                sink.note_on(note);
+                            }
                             self.pads.notes[k] = midi;
                             self.pads.tags[k] = tag;
                             self.pads.n = k + 1;
@@ -468,24 +505,49 @@ impl Composer {
                 }
             }
         }
-        // The bass on the style's pattern.
-        if let (Some(si), Some(bass)) = (eff.bass_pattern, eff.roles[RoleKind::Bass.index()]) {
-            if let Some(pat) = pattern_src(res, self.mood, si, true).and_then(|(_, b)| b) {
+        // A horn section's stabs: the choir role's voicing (the upper chord tones, voice-led) struck
+        // short on the genre's pattern, on the chords the plan gives that role.
+        if let (Some(si), Some(ch)) = (eff.stab_patterns, eff.roles[RoleKind::Choir.index()]) {
+            let pats = stab_pats(res, si);
+            if !pats.is_empty() && self.plan.choir[self.slot.min(MAX_SLOTS - 1)] && self.choir_voicing.n > 0 {
+                let pat = &pats[self.plan.patterns[7] as usize % pats.len()];
+                if !pat.is_empty() {
+                    let v = pat[((step_of_bar as usize * pat.len()) / spb as usize).min(pat.len() - 1)];
+                    if v > 0.0 {
+                        let hold_s = (eff.stab_hold_beats as f64 * self.beat_len / rate) as f32;
+                        for k in 0..self.choir_voicing.n {
+                            let tag = self.next_tag();
+                            let vel = ((0.6 + 0.4 * v) * self.plan.vel_scale * self.rng.range(0.9, 1.0)).min(1.0);
+                            sink.note_on(NoteOn { inst: ch.inst, role: RoleKind::Choir.index() as u8, midi: self.choir_voicing.notes[k] as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s, tag, level: ch.level });
+                        }
+                    }
+                }
+            }
+        }
+        // The bass on the genre's pattern.
+        if let (Some(si), Some(bass)) = (eff.bass_patterns, eff.roles[RoleKind::Bass.index()]) {
+            let pats = bass_pats(res, self.mood, si);
+            if !pats.is_empty() {
+                let pat = &pats[self.plan.patterns[6] as usize % pats.len()];
                 if !pat.is_empty() {
                     let c = pat[((step_of_bar as usize * pat.len()) / spb as usize).min(pat.len() - 1)];
                     let root = self.chord_root_pc(res);
+                    let prev = if self.bass.n > 0 { self.bass.notes[0] } else { (bass.low + bass.high) / 2 };
+                    let walking = matches!(c, b'w' | b'W');
                     let off = match c {
                         b'x' | b'X' => Some(0),
                         b'5' => Some(7),
                         b'o' => Some(12),
                         b'3' => Some(if self.chord_has(root, 3) { 3 } else { 4 }),
+                        b'w' | b'W' => Some(self.walking_step(res, root, prev, bass.low, bass.high, bpb)),
                         _ => None,
                     };
                     if let Some(off) = off {
                         for k in 0..self.bass.n {
                             sink.note_off(self.bass.tags[k]);
                         }
-                        let target = nearest_pc_in(root + off, bass.low, bass.high, if self.bass.n > 0 { self.bass.notes[0] } else { (bass.low + bass.high) / 2 });
+                        // A walking step is already a note in the register; the rest are intervals.
+                        let target = if walking { off } else { nearest_pc_in(root + off, bass.low, bass.high, prev) };
                         let tag = self.next_tag();
                         sink.note_on(NoteOn { inst: bass.inst, role: RoleKind::Bass.index() as u8, midi: target as f32, a4: self.steer.a4, vel: 0.8 + self.rng.range(-0.08, 0.08), pan: 0.0, hold_s: 0.0, tag, level: bass.level });
                         self.bass = Held { notes: [target, 0, 0, 0, 0, 0, 0, 0], tags: [tag, 0, 0, 0, 0, 0, 0, 0], n: 1 };
@@ -512,7 +574,79 @@ impl Composer {
     }
 
     fn chord_root_pc(&self, res: &Resolved) -> i32 {
-        res.moods.get(self.mood).and_then(|m| m.chords.get(self.chord)).map(|c| (self.key_pc + c.root).rem_euclid(12)).unwrap_or(self.key_pc)
+        self.harmony(res).and_then(|h| h.chords.get(self.chord)).map(|c| (self.key_pc + c.root).rem_euclid(12)).unwrap_or(self.key_pc)
+    }
+
+    /// The key centres and chord graph playing: the genre's own progressions, or the mood's.
+    fn harmony<'a>(&self, res: &'a Resolved) -> Option<&'a RHarmony> {
+        if self.harm_src != MOOD_SRC {
+            if let Some(h) = res.genres.get(self.harm_src as usize).and_then(|g| g.progressions.as_ref()) {
+                return Some(h);
+            }
+        }
+        res.moods.get(self.mood).map(|m| &m.harmony)
+    }
+
+    /// The motif bank playing: the genre's own, or the mood's.
+    fn motifs<'a>(&self, res: &'a Resolved) -> &'a [Motif] {
+        if self.motif_src != MOOD_SRC {
+            if let Some(g) = res.genres.get(self.motif_src as usize).filter(|g| !g.motifs.is_empty()) {
+                return &g.motifs;
+            }
+        }
+        res.moods.get(self.mood).map(|m| m.motifs.as_slice()).unwrap_or(&[])
+    }
+
+    /// One step of a walking bass (a note in the register `low..=high`): the chord's root on its
+    /// first beat (and usually on each bar's first beat); on the last beat before a new chord, a half
+    /// step into that chord's root from the side the line is on (now and then its fifth, the
+    /// dominant's way in); between, chord tones and scale steps heading for the next root.
+    fn walking_step(&mut self, res: &Resolved, root: i32, prev: i32, low: i32, high: i32, bpb: u32) -> i32 {
+        let slot = self.slot.min(MAX_SLOTS - 1);
+        let last_bar = self.bars_into_chord >= self.plan.bars[slot] as u32;
+        let next_root = if last_bar && self.slot + 1 < self.plan.n {
+            self.harmony(res).and_then(|h| h.chords.get(self.plan.chords[self.slot + 1] as usize)).map(|c| (self.key_pc + c.root).rem_euclid(12)).unwrap_or(root)
+        } else {
+            root
+        };
+        if self.beat_in_bar == 0 && (self.bars_into_chord <= 1 || self.rng.chance(0.7)) {
+            return nearest_pc_in(root, low, high, prev);
+        }
+        let goal = nearest_pc_in(next_root, low, high, prev);
+        if last_bar && self.beat_in_bar + 1 == bpb {
+            if self.rng.chance(0.25) {
+                return nearest_pc_in(next_root + 7, low, high, prev);
+            }
+            let approach = if prev <= goal { goal - 1 } else { goal + 1 };
+            return approach.clamp(low, high);
+        }
+        let mut dir = if goal > prev {
+            1
+        } else if goal < prev {
+            -1
+        } else if self.rng.chance(0.5) {
+            1
+        } else {
+            -1
+        };
+        if prev + dir * 2 > high {
+            dir = -1;
+        } else if prev + dir * 2 < low {
+            dir = 1;
+        }
+        // A chord tone that way within a fourth, else a step of the key's scale.
+        if self.rng.chance(0.6) {
+            for d in 1..=5 {
+                let cand = prev + dir * d;
+                if cand < low || cand > high {
+                    break;
+                }
+                if self.chord_pcs[..self.chord_n].contains(&cand.rem_euclid(12)) {
+                    return cand;
+                }
+            }
+        }
+        scale_step(prev, dir, self.key_pc, self.mode).clamp(low, high)
     }
 
     fn chord_has(&self, root: i32, interval: i32) -> bool {
@@ -569,14 +703,14 @@ impl Composer {
 
     fn resolve_eff(&mut self, res: &Resolved) -> Eff {
         let mood = &res.moods[self.mood];
-        let a = res.styles.get(self.steer.style_a as usize);
-        let b = if self.steer.blend > 0.001 { res.styles.get(self.steer.style_b as usize) } else { None };
+        let a = res.genres.get(self.steer.genre_a as usize);
+        let b = if self.steer.blend > 0.001 { res.genres.get(self.steer.genre_b as usize) } else { None };
         let t = if b.is_some() { self.steer.blend.clamp(0.0, 1.0) } else { 0.0 };
         let lerp = |x: f32, y: f32| x + (y - x) * t;
         let mut roles: [Option<EffRole>; 8] = [None; 8];
         let base = |r: &RRole| EffRole { inst: r.inst, low: r.low, high: r.high, voices: r.voices, density: r.density, level: r.level };
         for k in 0..8 {
-            let pick = |s: Option<&crate::resolved::RStyle>| -> Option<EffRole> {
+            let pick = |s: Option<&crate::resolved::RGenre>| -> Option<EffRole> {
                 let off = s.is_some_and(|s| s.roles_off[k]);
                 let mut r = match (&mood.roles[k], s.and_then(|s| s.roles_add[k].as_ref())) {
                     (_, Some(add)) => Some(base(add)),
@@ -598,8 +732,8 @@ impl Composer {
             roles[k] = if b.is_none() {
                 ra
             } else {
-                // Each role takes the second style's instrument with a chance equal to the blend;
-                // a role one style lacks plays while the blend leans to the style that has it.
+                // Each role takes the second genre's instrument with a chance equal to the blend;
+                // a role one genre lacks plays while the blend leans to the genre that has it.
                 match (ra, rb) {
                     (Some(x), Some(y)) => Some(if self.rng.chance(t) { y } else { x }),
                     (Some(x), None) => (t < 0.5).then_some(x),
@@ -619,14 +753,14 @@ impl Composer {
         let felt_b = b.and_then(|s| s.beat_felt).unwrap_or(felt_a);
         let mut drums: [Option<EffDrum>; 8] = [None; 8];
         let mut k = 0;
-        for (si, w) in [(self.steer.style_a, 1.0 - t), (self.steer.style_b, t)] {
+        for (si, w) in [(self.steer.genre_a, 1.0 - t), (self.steer.genre_b, t)] {
             if w < 0.15 {
                 continue;
             }
-            if let Some(s) = res.styles.get(si as usize) {
+            if let Some(s) = res.genres.get(si as usize) {
                 for p in 0..s.drums.len().min(8) {
                     if k < 8 {
-                        drums[k] = Some(EffDrum { style: si, part: p as u8, weight: w });
+                        drums[k] = Some(EffDrum { genre: si, part: p as u8, weight: w });
                         k += 1;
                     }
                 }
@@ -635,8 +769,8 @@ impl Composer {
                 break;
             }
         }
-        let dominant = if t >= 0.5 { self.steer.style_b } else { self.steer.style_a };
-        let dom = res.styles.get(dominant as usize);
+        let dominant = if t >= 0.5 { self.steer.genre_b } else { self.steer.genre_a };
+        let dom = res.genres.get(dominant as usize);
         let ra = a.map(|s| s.recipe).unwrap_or(Recipe { reverb_scale: 1.0, ..Default::default() });
         let rb = b.map(|s| s.recipe).unwrap_or(ra);
         let recipe = Recipe {
@@ -661,49 +795,69 @@ impl Composer {
             syncopation: lerp(ga.syncopation, gb.syncopation),
             humanize_ms: lerp(ga.humanize_ms, gb.humanize_ms),
             drums,
-            pad_pattern: dom.and_then(|s| s.pad_pattern.as_ref()).map(|_| dominant),
-            bass_pattern: dom.and_then(|s| s.bass_pattern.as_ref()).map(|_| dominant),
+            pad_patterns: dom.filter(|s| !s.pad_patterns.is_empty()).map(|_| dominant),
+            bass_patterns: dom.filter(|s| !s.bass_patterns.is_empty()).map(|_| dominant),
+            stab_patterns: dom.filter(|s| !s.stab_patterns.is_empty()).map(|_| dominant),
+            pattern_counts: [0; 3],
+            comping: dom.map(|s| s.comping).unwrap_or_default(),
+            stab_hold_beats: dom.map(|s| s.stab_hold_beats).unwrap_or(0.25),
+            beats_per_bar: dom.and_then(|s| s.beats_per_bar).unwrap_or(mood.beats_per_bar),
+            call_and_response: dom.is_some_and(|s| s.call_and_response),
+            motif_scale: dom.and_then(|s| s.motif_scale),
+            dynamics: dom.and_then(|s| s.dynamics),
             harmony: dom.map(|s| s.harmony).unwrap_or_default(),
             recipe,
             level_db: lerp(a.map(|s| s.level_db).unwrap_or(0.0), b.map(|s| s.level_db).unwrap_or(0.0)),
             tempo: (lerp(tempo_a.0, tempo_b.0), lerp(tempo_a.1, tempo_b.1)),
         };
-        // The mood's own drums and patterns: an urgent mood's always, a calm one's where the style has
-        // none (a mood that wants a gentle pulse under a style that brings no rhythm).
-        let style_has_drums = eff.drums.iter().any(|d| d.is_some());
-        if !mood.drums.is_empty() && (mood.urgent || !style_has_drums) {
+        // The mood's own drums and patterns: an urgent mood's always, a calm one's where the genre has
+        // none (a mood that wants a gentle pulse under a genre that brings no rhythm).
+        let genre_has_drums = eff.drums.iter().any(|d| d.is_some());
+        if !mood.drums.is_empty() && (mood.urgent || !genre_has_drums) {
             eff.drums = [None; 8];
             for p in 0..mood.drums.len().min(8) {
-                eff.drums[p] = Some(EffDrum { style: MOOD_SRC, part: p as u8, weight: 1.0 });
+                eff.drums[p] = Some(EffDrum { genre: MOOD_SRC, part: p as u8, weight: 1.0 });
             }
-            if let Some(g) = mood.groove.filter(|_| !style_has_drums || mood.urgent) {
+            if let Some(g) = mood.groove.filter(|_| !genre_has_drums || mood.urgent) {
                 eff.subdivision = g.subdivision.clamp(1, 8);
                 eff.swing = g.swing;
                 eff.syncopation = g.syncopation;
                 eff.humanize_ms = g.humanize_ms;
             }
         }
-        if mood.pad_pattern.is_some() && (mood.urgent || eff.pad_pattern.is_none()) {
-            eff.pad_pattern = Some(MOOD_SRC);
+        if !mood.pad_patterns.is_empty() && (mood.urgent || eff.pad_patterns.is_none()) {
+            eff.pad_patterns = Some(MOOD_SRC);
         }
-        if mood.bass_pattern.is_some() && (mood.urgent || eff.bass_pattern.is_none()) {
-            eff.bass_pattern = Some(MOOD_SRC);
+        if !mood.bass_patterns.is_empty() && (mood.urgent || eff.bass_patterns.is_none()) {
+            eff.bass_patterns = Some(MOOD_SRC);
         }
         if mood.urgent {
-            // Danger plays as written in every style: the mood's roles, tempo, beat and groove; the
-            // style keeps only its recipe (tape colour) and level.
+            // Danger plays as written in every genre: the mood's roles, tempo, beat and groove; the
+            // genre keeps only its recipe (tape colour) and level.
             for k in 0..8 {
                 eff.roles[k] = mood.roles[k].as_ref().filter(|m| self.steer.intensity >= m.min_intensity).map(base);
             }
             eff.tempo = mood.tempo;
             eff.beat_felt = mood.beat_felt;
             eff.harmony = HarmonyRule::default();
+            eff.beats_per_bar = mood.beats_per_bar;
+            eff.stab_patterns = None;
+            eff.comping = Comping::default();
+            eff.call_and_response = false;
+            eff.motif_scale = None;
+            eff.dynamics = None;
             let g = mood.groove.unwrap_or_default();
             eff.subdivision = g.subdivision.clamp(1, 8);
             eff.swing = g.swing;
             eff.syncopation = g.syncopation;
             eff.humanize_ms = g.humanize_ms;
         }
+        let count = |n: usize| n.min(255) as u8;
+        eff.pattern_counts = [
+            count(eff.pad_patterns.map(|s| pad_pats(res, self.mood, s).len()).unwrap_or(0)),
+            count(eff.bass_patterns.map(|s| bass_pats(res, self.mood, s).len()).unwrap_or(0)),
+            count(eff.stab_patterns.map(|s| stab_pats(res, s).len()).unwrap_or(0)),
+        ];
         eff
     }
 
@@ -764,28 +918,37 @@ impl Composer {
         let first = self.phrase_count == 0;
         let target = res.band_mood(self.band).unwrap_or(self.steer.mood as usize).min(res.moods.len().saturating_sub(1));
         let mood_changed = first || target != self.mood;
+        // Whose chord graph and motifs play: the dominant genre's own in a calm mood, else the
+        // mood's (a danger mood always plays its own, so danger sounds like danger in every genre).
+        let dominant = if self.steer.blend >= 0.5 && res.genres.get(self.steer.genre_b as usize).is_some() { self.steer.genre_b } else { self.steer.genre_a };
+        let calm = res.moods.get(target).is_some_and(|m| !m.urgent);
+        let g = res.genres.get(dominant as usize).filter(|_| calm);
+        let harm_src = if g.is_some_and(|g| g.progressions.is_some()) { dominant } else { MOOD_SRC };
+        let motif_src = if g.is_some_and(|g| !g.motifs.is_empty()) { dominant } else { MOOD_SRC };
+        let harm_changed = first || harm_src != self.harm_src || (harm_src == MOOD_SRC && mood_changed);
         let prev_key = self.key_pc;
-        if mood_changed {
-            self.mood = target;
-            let m = &res.moods[self.mood];
-            // The new mood's key nearest the old one around the circle of fifths (its home key on
+        self.mood = target;
+        self.harm_src = harm_src;
+        self.motif_src = motif_src;
+        let Some(harm) = self.harmony(res) else { return };
+        if harm_changed {
+            // The new harmony's key nearest the old one around the circle of fifths (its home key on
             // the first phrase), so a move between moods is a step, not a leap.
             self.key_idx = if first {
                 0
             } else {
-                (0..m.keys.len()).min_by_key(|&i| fifths_distance(m.keys[i].0, prev_key)).unwrap_or(0)
+                (0..harm.keys.len()).min_by_key(|&i| fifths_distance(harm.keys[i].0, prev_key)).unwrap_or(0)
             };
         } else if self.phrase_count % 4 == 0 {
             // A section's end: now and then the key moves to a related one (by the keys' weights).
-            let m = &res.moods[self.mood];
-            if m.keys.len() > 1 && self.rng.chance(0.3) {
+            if harm.keys.len() > 1 && self.rng.chance(0.3) {
                 let cur = self.key_idx;
-                let pick = self.rng.weighted(m.keys.iter().enumerate().map(|(i, k)| if i == cur { 0.0 } else { k.2 }));
+                let pick = self.rng.weighted(harm.keys.iter().enumerate().map(|(i, k)| if i == cur { 0.0 } else { k.2 }));
                 self.key_idx = pick;
             }
         }
         let m = &res.moods[self.mood];
-        let (kpc, kmode, _) = m.keys[self.key_idx.min(m.keys.len() - 1)];
+        let (kpc, kmode, _) = harm.keys[self.key_idx.min(harm.keys.len() - 1)];
         self.key_pc = kpc;
         self.mode = kmode;
         let eff = self.resolve_eff(res);
@@ -806,14 +969,15 @@ impl Composer {
         // The plan, re-made while it repeats one played within the window.
         let now_s = self.seconds() as f32;
         let window = m.no_repeat_s;
-        let start_chord = if mood_changed { m.start } else { self.chord };
-        let mut plan = self.make_plan(m, start_chord, !mood_changed, eff);
+        let motifs = self.motifs(res);
+        let start_chord = if harm_changed { harm.start } else { self.chord };
+        let mut plan = self.make_plan(m, harm, motifs, start_chord, !harm_changed, eff);
         for _ in 0..24 {
             let seen = self.history.iter().any(|&(h, t)| h == plan.hash && now_s - t < window);
             if !seen {
                 break;
             }
-            plan = self.make_plan(m, start_chord, !mood_changed, eff);
+            plan = self.make_plan(m, harm, motifs, start_chord, !harm_changed, eff);
         }
         self.history[self.hist_w] = (plan.hash, now_s);
         self.hist_w = (self.hist_w + 1) % HISTORY;
@@ -839,7 +1003,7 @@ impl Composer {
             }
             self.drone_root = want_root;
         }
-        // The texture runs under everything while the style has one.
+        // The texture runs under everything while the genre has one.
         match (eff.roles[RoleKind::Texture.index()], self.texture.n) {
             (Some(t), 0) => {
                 let tag = self.next_tag();
@@ -864,12 +1028,12 @@ impl Composer {
         self.change_chord(res, sink, c);
     }
 
-    fn make_plan(&mut self, m: &RMood, start: usize, continuing: bool, eff: Eff) -> Plan {
+    fn make_plan(&mut self, m: &RMood, harm: &RHarmony, motifs: &[Motif], start: usize, continuing: bool, eff: Eff) -> Plan {
         let mut p = Plan::default();
         let bars_total = m.phrase_bars[self.rng.int(0, m.phrase_bars.len() as i32 - 1) as usize].clamp(1, 64);
         let (lo, hi) = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
         let (lo, hi) = (lo.max(1), hi.max(lo.max(1)));
-        let mut cur = if continuing { self.walk(m, start, false) } else { start };
+        let mut cur = if continuing { self.walk(harm, start, false) } else { start };
         let mut used = 0u32;
         while used < bars_total && p.n < MAX_SLOTS {
             let mut bars = self.rng.int(lo as i32, hi as i32) as u32;
@@ -882,15 +1046,35 @@ impl Composer {
             used += bars;
             if used < bars_total {
                 let last = used + lo > bars_total || used + hi >= bars_total;
-                cur = self.walk(m, cur, last);
+                cur = self.walk(harm, cur, last);
             }
         }
         // Motifs, the choir, the pulse, the drum patterns.
         let dens = |r: RoleKind| eff.roles[r.index()].map(|x| x.density).unwrap_or(0.0);
         let (db, dm, dc, dp) = (dens(RoleKind::Bells), dens(RoleKind::Melody), dens(RoleKind::Choir), dens(RoleKind::Percussion));
+        let mut last_call: Option<MotifPlan> = None;
         for i in 0..p.n {
             let mut mp = MotifPlan::default();
-            if !m.motifs.is_empty() {
+            if eff.call_and_response && !motifs.is_empty() {
+                // Call and response: the melody role calls on one chord; on the next the bells role
+                // answers with the same motif and rhythm from another chord tone, ending a step lower.
+                if let Some(call) = last_call.take().filter(|_| eff.roles[RoleKind::Bells.index()].is_some()) {
+                    mp = call;
+                    mp.role = RoleKind::Bells.index() as u8 + 1;
+                    mp.anchor = (call.anchor + 1) % 4;
+                    mp.vary = -1;
+                    mp.vel = call.vel * 0.95;
+                } else if eff.roles[RoleKind::Melody.index()].is_some() && self.rng.chance(dm) {
+                    mp.role = RoleKind::Melody.index() as u8 + 1;
+                    mp.motif = self.rng.int(0, motifs.len() as i32 - 1) as u8;
+                    mp.start_halfbeats = self.rng.int(0, 2) as u8;
+                    mp.anchor = self.rng.int(0, 3) as u8;
+                    mp.vary = self.rng.int(0, 1) as i8;
+                    mp.loosen = self.rng.chance(0.2);
+                    mp.vel = self.rng.range(0.7, 1.0);
+                    last_call = Some(mp);
+                }
+            } else if !motifs.is_empty() {
                 let role = if eff.roles[RoleKind::Bells.index()].is_some() && self.rng.chance(db) {
                     Some(RoleKind::Bells)
                 } else if eff.roles[RoleKind::Melody.index()].is_some() && self.rng.chance(dm) {
@@ -900,7 +1084,7 @@ impl Composer {
                 };
                 if let Some(r) = role {
                     mp.role = r.index() as u8 + 1;
-                    mp.motif = self.rng.int(0, m.motifs.len() as i32 - 1) as u8;
+                    mp.motif = self.rng.int(0, motifs.len() as i32 - 1) as u8;
                     mp.start_halfbeats = self.rng.int(1, 6) as u8;
                     mp.anchor = self.rng.int(0, 3) as u8;
                     mp.vary = self.rng.int(-1, 1) as i8;
@@ -915,6 +1099,10 @@ impl Composer {
         for k in 0..8 {
             p.patterns[k] = self.rng.int(0, 7) as u8;
         }
+        p.vel_scale = match eff.dynamics {
+            Some((lo, hi)) => self.rng.range(lo, hi.max(lo)),
+            None => 1.0,
+        };
         // The fingerprint of what will SOUND: the key, the chords and their lengths, the motifs and
         // their variations, the choir where there is one, the pulse where there are drums for it,
         // the patterns of the drum parts that play. (A choice nobody hears, a pattern for a part the
@@ -934,15 +1122,23 @@ impl Composer {
         for k in 0..drum_parts {
             h = fnv(h, p.patterns[k] as u64);
         }
+        for (k, &n) in eff.pattern_counts.iter().enumerate() {
+            if n > 1 {
+                h = fnv(h, (p.patterns[5 + k] as usize % n as usize) as u64 | (k as u64) << 8);
+            }
+        }
+        if eff.dynamics.is_some() {
+            h = fnv(h, (p.vel_scale * 8.0) as u64);
+        }
         p.hash = h;
         p
     }
 
     /// One step along the chord graph from `cur`; `cadence` asks for a phrase-ending chord.
-    fn walk(&mut self, m: &RMood, cur: usize, cadence: bool) -> usize {
-        let moves = &m.moves[cur.min(m.moves.len() - 1)];
-        if cadence && moves.iter().any(|(c, w)| m.cadence[*c] && *w > 0.0) {
-            let i = self.rng.weighted(moves.iter().map(|(c, w)| if m.cadence[*c] { *w } else { 0.0 }));
+    fn walk(&mut self, h: &RHarmony, cur: usize, cadence: bool) -> usize {
+        let moves = &h.moves[cur.min(h.moves.len() - 1)];
+        if cadence && moves.iter().any(|(c, w)| h.cadence[*c] && *w > 0.0) {
+            let i = self.rng.weighted(moves.iter().map(|(c, w)| if h.cadence[*c] { *w } else { 0.0 }));
             return moves[i].0;
         }
         let i = self.rng.weighted(moves.iter().map(|(_, w)| *w));
@@ -950,11 +1146,12 @@ impl Composer {
     }
 
     fn change_chord(&mut self, res: &Resolved, sink: &mut dyn Sink, chord: usize) {
-        let m = &res.moods[self.mood];
-        let Some(c) = m.chords.get(chord) else { return };
+        let Some(harm) = self.harmony(res) else { return };
+        let Some(c) = harm.chords.get(chord) else { return };
+        let motifs = self.motifs(res);
         self.chord = chord;
         let eff = self.eff();
-        // The chord's pitch classes under the style's harmony rules.
+        // The chord's pitch classes under the genre's harmony rules.
         let root_pc = (self.key_pc + c.root).rem_euclid(12);
         let mut pcs = [0i32; 8];
         let mut n = 0;
@@ -978,7 +1175,7 @@ impl Composer {
         }
         self.chord_pcs = pcs;
         self.chord_n = n;
-        let beats = self.plan.bars[self.slot] as f32 * m.beats_per_bar as f32;
+        let beats = self.plan.bars[self.slot] as f32 * eff.beats_per_bar as f32;
         let mask = pcs[..n].iter().fold(0u16, |acc, &p| acc | 1 << p);
         sink.event(Event::Chord { chord: chord as u16, pcs: mask, at_s: self.seconds(), beats });
         let at_s = self.seconds();
@@ -988,7 +1185,7 @@ impl Composer {
             let notes = voice_lead(&prev.notes[..prev.n], pad.voices as usize, &pcs[..n], root_pc, pad.low, pad.high);
             self.pad_voicing = Held { notes, tags: [0; 8], n: pad.voices as usize };
             sink.event(Event::Voicing { role: RoleKind::Pad.index() as u8, notes, n: pad.voices, at_s });
-            if eff.pad_pattern.is_none() {
+            if eff.pad_patterns.is_none() {
                 let held = self.pads;
                 let mut next = Held::default();
                 for k in 0..pad.voices as usize {
@@ -1022,6 +1219,18 @@ impl Composer {
         // Choir: on the chords the plan gave it, upper chord tones, voice-led.
         let choir_on = self.plan.choir[self.slot.min(MAX_SLOTS - 1)];
         match eff.roles[RoleKind::Choir.index()] {
+            Some(ch) if choir_on && eff.stab_patterns.is_some() => {
+                // Stabs: the voicing is led and remembered here; the genre's pattern strikes it short
+                // (on_step), so nothing is held.
+                let led = self.choir_voicing;
+                let notes = voice_lead(&led.notes[..led.n], ch.voices as usize, &pcs[..n], root_pc, ch.low, ch.high);
+                self.choir_voicing = Held { notes, tags: [0; 8], n: ch.voices as usize };
+                sink.event(Event::Voicing { role: RoleKind::Choir.index() as u8, notes, n: ch.voices, at_s });
+                for k in 0..self.choir.n {
+                    sink.note_off(self.choir.tags[k]);
+                }
+                self.choir.n = 0;
+            }
             Some(ch) if choir_on => {
                 let prev = self.choir;
                 let led = self.choir_voicing;
@@ -1057,8 +1266,8 @@ impl Composer {
                 self.choir.n = 0;
             }
         }
-        // Bass, held (a style's pattern plays it on its steps instead).
-        if let (Some(b), None) = (eff.roles[RoleKind::Bass.index()], eff.bass_pattern) {
+        // Bass, held (a genre's pattern plays it on its steps instead).
+        if let (Some(b), None) = (eff.roles[RoleKind::Bass.index()], eff.bass_patterns) {
             let prev = if self.bass.n > 0 { self.bass.notes[0] } else { (b.low + b.high) / 2 };
             let target = nearest_within(prev, &[root_pc, (root_pc + 7) % 12], 5).unwrap_or_else(|| nearest_pc_in(root_pc, b.low, b.high, prev));
             if self.bass.n == 0 || self.bass.notes[0] != target {
@@ -1074,11 +1283,11 @@ impl Composer {
         let mp = self.plan.motifs[self.slot.min(MAX_SLOTS - 1)];
         if mp.role > 0 {
             let role_idx = (mp.role - 1) as usize;
-            if let (Some(r), Some(motif)) = (eff.roles[role_idx], m.motifs.get(mp.motif as usize)) {
+            if let (Some(r), Some(motif)) = (eff.roles[role_idx], motifs.get(mp.motif as usize)) {
                 // Anchor: one of the chord's tones placed in the role's register.
                 let tone = pcs[(mp.anchor as usize) % n.max(1)];
                 let anchor = nearest_pc_in(tone, r.low, (r.high - 7).max(r.low), (r.low + r.high) / 2);
-                let scale = self.mode.pentatonic();
+                let scale = eff.motif_scale.unwrap_or(self.mode.pentatonic());
                 let chord_beats = beats;
                 let mut beat = mp.start_halfbeats as f32 * 0.5;
                 let first = scale_step(anchor, motif.steps[0], self.key_pc, scale).min(r.high);
@@ -1091,17 +1300,17 @@ impl Composer {
                     let midi = scale_step(anchor, step, self.key_pc, scale).clamp(r.low, r.high);
                     let at = self.pos + self.beats_to_samples(beat, eff) as u64;
                     let tag = self.next_tag();
-                    let vel = (mp.vel * self.rng.range(0.85, 1.0)).min(1.0);
+                    let vel = (mp.vel * self.rng.range(0.85, 1.0) * self.plan.vel_scale).min(1.0);
                     let len = bt * if mp.loosen && k == 1 { 1.5 } else { 1.0 };
                     let pan = self.rng.range(-0.45, 0.45);
-                    self.schedule(at, NoteOn { inst: r.inst, role: role_idx as u8, midi: midi as f32, a4: self.steer.a4, vel, pan, hold_s: (len * self.beat_len as f32 / self.rate as f32) * 0.95, tag, level: r.level });
+                    self.schedule(at, NoteOn { inst: r.inst, role: role_idx as u8, midi: midi as f32, a4: self.steer.a4, vel, pan, hold_s: (len * self.beat_len as f32 / self.rate as f32) * motif.hold.get(k).copied().unwrap_or(0.95), tag, level: r.level });
                     beat += len;
                 }
             }
         }
     }
 
-    /// A position in beats from now as samples, with the style's swing on the off-steps.
+    /// A position in beats from now as samples, with the genre's swing on the off-steps.
     fn beats_to_samples(&self, beats: f32, eff: Eff) -> f64 {
         let whole = beats.floor();
         let frac = beats - whole;
@@ -1113,28 +1322,39 @@ impl Composer {
     }
 }
 
-/// A drum part's or a pattern's source meaning "the mood's own", not a style's.
+/// A drum part's or a pattern's source meaning "the mood's own", not a genre's.
 const MOOD_SRC: u16 = u16::MAX;
 
-/// A drum part from the mood (`MOOD_SRC`) or a style.
-fn drum_part(res: &Resolved, mood: usize, style: u16, part: u8) -> Option<&crate::resolved::RDrum> {
-    if style == MOOD_SRC {
+/// A drum part from the mood (`MOOD_SRC`) or a genre.
+fn drum_part(res: &Resolved, mood: usize, genre: u16, part: u8) -> Option<&crate::resolved::RDrum> {
+    if genre == MOOD_SRC {
         res.moods.get(mood)?.drums.get(part as usize)
     } else {
-        res.styles.get(style as usize)?.drums.get(part as usize)
+        res.genres.get(genre as usize)?.drums.get(part as usize)
     }
 }
 
-/// The pad and bass patterns of the mood (`MOOD_SRC`) or a style.
-#[allow(clippy::type_complexity)]
-fn pattern_src(res: &Resolved, mood: usize, src: u16, _bass: bool) -> Option<(Option<&Vec<f32>>, Option<&Vec<u8>>)> {
+/// The pad patterns of the mood (`MOOD_SRC`) or a genre.
+fn pad_pats(res: &Resolved, mood: usize, src: u16) -> &[Vec<f32>] {
     if src == MOOD_SRC {
-        let m = res.moods.get(mood)?;
-        Some((m.pad_pattern.as_ref(), m.bass_pattern.as_ref()))
+        res.moods.get(mood).map(|m| m.pad_patterns.as_slice()).unwrap_or(&[])
     } else {
-        let s = res.styles.get(src as usize)?;
-        Some((s.pad_pattern.as_ref(), s.bass_pattern.as_ref()))
+        res.genres.get(src as usize).map(|s| s.pad_patterns.as_slice()).unwrap_or(&[])
     }
+}
+
+/// The bass patterns of the mood (`MOOD_SRC`) or a genre.
+fn bass_pats(res: &Resolved, mood: usize, src: u16) -> &[Vec<u8>] {
+    if src == MOOD_SRC {
+        res.moods.get(mood).map(|m| m.bass_patterns.as_slice()).unwrap_or(&[])
+    } else {
+        res.genres.get(src as usize).map(|s| s.bass_patterns.as_slice()).unwrap_or(&[])
+    }
+}
+
+/// A genre's stab patterns (a mood has none).
+fn stab_pats(res: &Resolved, src: u16) -> &[Vec<f32>] {
+    res.genres.get(src as usize).map(|s| s.stab_patterns.as_slice()).unwrap_or(&[])
 }
 
 /// Distance between two pitch classes around the circle of fifths (0..6).

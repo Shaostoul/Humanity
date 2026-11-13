@@ -1,0 +1,7 @@
+// "Mothership calm", the default genre aboard: it changes nothing, so each mood plays as its file
+// writes it (docs/design/music.md, section 7a).
+Genre(
+    id: "mothership_calm",
+    words: "music.genre.mothership_calm",
+    about_words: "music.genre.mothership_calm_about",
+)

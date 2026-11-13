@@ -1,5 +1,5 @@
 //! The bridge from the instrument library into the live score (crates/humanity-music; docs/design/
-//! music.md, rung 6 and section 23): for every PART the moods' roles and the styles' roles and
+//! music.md, rung 6 and section 23): for every PART the moods' roles and the genres' roles and
 //! palettes name (`part: Some("strings_high")`, the ids of `data/music/parts.ron`), the best recorded
 //! instrument installed ([`InstrumentLibrary::choose`]) is decoded into the engine's sample bank and
 //! plays that role, levelled to the synthesised voice it replaces so the mood's balance holds; with
@@ -61,7 +61,7 @@ pub fn recorded_id(definition_id: &str) -> String {
     format!("recorded:{definition_id}")
 }
 
-/// Every part `music` names: its moods' roles, its styles' added roles and their palettes, each
+/// Every part `music` names: its moods' roles, its genres' added roles and their palettes, each
 /// once, with the synthesised instrument the first naming gives it and the middle of its register
 /// (MIDI; a palette entry with no register of its own, middle C). The parts Settings > Audio >
 /// Instruments can truthfully say the music plays.
@@ -71,7 +71,7 @@ pub fn named_parts(music: &MusicLibrary) -> Vec<(String, String, i32)> {
         let lo = humanity_music::tuning::parse_note(lo).unwrap_or(48);
         (lo + humanity_music::tuning::parse_note(hi).unwrap_or(lo)) / 2
     };
-    let roles = music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.styles.iter().flat_map(|s| s.roles_add.iter()));
+    let roles = music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.genres.iter().flat_map(|s| s.roles_add.iter()));
     for r in roles {
         if let Some(p) = &r.part {
             if !named.iter().any(|(n, _, _)| n == p) {
@@ -79,7 +79,7 @@ pub fn named_parts(music: &MusicLibrary) -> Vec<(String, String, i32)> {
             }
         }
     }
-    for e in music.styles.iter().flat_map(|s| s.palette.iter()) {
+    for e in music.genres.iter().flat_map(|s| s.palette.iter()) {
         if let Some(p) = &e.part {
             if !named.iter().any(|(n, _, _)| n == p) {
                 let m = match (&e.low, &e.high) {
@@ -93,15 +93,15 @@ pub fn named_parts(music: &MusicLibrary) -> Vec<(String, String, i32)> {
     named
 }
 
-/// The parts that can SOUND with `styles` playing (indices into `music.styles`: the person's style,
-/// a blend's second, a place's suggestion): each calm mood's roles as those styles lay them out (an
-/// added role in place of the mood's, a role a style silences left out, a palette entry's part in
+/// The parts that can SOUND with `genres` playing (indices into `music.genres`: the person's genre,
+/// a blend's second, a place's suggestion): each calm mood's roles as those genres lay them out (an
+/// added role in place of the mood's, a role a genre silences left out, a palette entry's part in
 /// place of the role's), every urgent mood's roles as written (danger plays as written in every
-/// style), and the styles' added roles. What [`attach`] decodes, so recordings no playing style can
+/// genre), and the genres' added roles. What [`attach`] decodes, so recordings no playing genre can
 /// reach are never held in memory (music.md section 14's 64 MB: the piano is decoded only while
-/// lo-fi plays, the strings only while a style that keeps the pads does). Each once, as
+/// lo-fi plays, the strings only while a genre that keeps the pads does). Each once, as
 /// [`named_parts`] gives them.
-pub fn sounding_parts(music: &MusicLibrary, styles: &[usize]) -> Vec<(String, String, i32)> {
+pub fn sounding_parts(music: &MusicLibrary, genres: &[usize]) -> Vec<(String, String, i32)> {
     let mut named: Vec<(String, String, i32)> = Vec::new();
     let mut add = |part: &Option<String>, inst: &str, lo: &str, hi: &str| {
         if let Some(p) = part {
@@ -118,7 +118,7 @@ pub fn sounding_parts(music: &MusicLibrary, styles: &[usize]) -> Vec<(String, St
                 add(&r.part, &r.instrument, &r.low, &r.high);
                 continue;
             }
-            for s in styles.iter().filter_map(|&i| music.styles.get(i)) {
+            for s in genres.iter().filter_map(|&i| music.genres.get(i)) {
                 if s.roles_add.iter().any(|a| a.role == r.role) || s.roles_off.contains(&r.role) {
                     continue;
                 }
@@ -129,7 +129,7 @@ pub fn sounding_parts(music: &MusicLibrary, styles: &[usize]) -> Vec<(String, St
             }
         }
     }
-    for s in styles.iter().filter_map(|&i| music.styles.get(i)) {
+    for s in genres.iter().filter_map(|&i| music.genres.get(i)) {
         for a in &s.roles_add {
             add(&a.part, &a.instrument, &a.low, &a.high);
         }
@@ -139,12 +139,12 @@ pub fn sounding_parts(music: &MusicLibrary, styles: &[usize]) -> Vec<(String, St
 
 /// Point every role and palette entry of `music` that names `part` at the score's instrument `id`.
 fn point(music: &mut MusicLibrary, part: &str, id: &str) {
-    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.styles.iter_mut().flat_map(|s| s.roles_add.iter_mut())) {
+    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.genres.iter_mut().flat_map(|s| s.roles_add.iter_mut())) {
         if r.part.as_deref() == Some(part) {
             r.instrument = id.to_string();
         }
     }
-    for e in music.styles.iter_mut().flat_map(|s| s.palette.iter_mut()) {
+    for e in music.genres.iter_mut().flat_map(|s| s.palette.iter_mut()) {
         if e.part.as_deref() == Some(part) {
             e.instrument = id.to_string();
         }
@@ -177,16 +177,16 @@ fn depth(part: &str, parts: &Parts) -> usize {
     n
 }
 
-/// Attach the best installed recording of every part that can sound with `styles` playing
+/// Attach the best installed recording of every part that can sound with `genres` playing
 /// ([`sounding_parts`]; None: every part `music` names, [`named_parts`]): decode it
 /// through `bank` into a `SampleSet`, add it to `music` as a `Sampler` instrument whose fallback is
 /// what plays the part without it (its fallback part's instrument, else the role's synthesised one),
 /// point those roles and palette entries at it, and level it to the synthesised voice it replaces
 /// (RMS of one note at velocity 1, at A = `a4`). A part with no recording plays its fallback part's
 /// instrument when it has one.
-pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: &Parts, a4: f32, bank: &mut SampleBank, styles: Option<&[usize]>) -> Attached {
+pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: &Parts, a4: f32, bank: &mut SampleBank, genres: Option<&[usize]>) -> Attached {
     let mut out = Attached::default();
-    let mut named = match styles {
+    let mut named = match genres {
         Some(s) => sounding_parts(music, s),
         None => named_parts(music),
     };

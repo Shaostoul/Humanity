@@ -1,9 +1,9 @@
 //! Settings > Music (docs/design/music.md, sections 7a, 10, 11 and 15): the game's live music, its
-//! style, the tuning, the ship's hum and the optional tones. Every word by key, every control with
+//! genre, the tuning, the ship's hum and the optional tones. Every word by key, every control with
 //! its hint. The values live in `SettingsState::music` (humanity_music::MusicSettings) and are saved
 //! in config.json as one `music` object.
 //!
-//! The style list is the music's own data (data/music/styles/*.ron, community styles included: a
+//! The genre list is the music's own data (data/music/genres/*.ron, community genres included: a
 //! file dropped there is in the list), read by the engine on its music thread from the first frame,
 //! music played or not, with or without an audio device (engine/music.rs; BUG-273: it was read only
 //! when a sound started, so until the music had played once the list held the default alone), and
@@ -13,7 +13,7 @@
 //!
 //! The words about tuning, tones and the hum are exactly the design's (section 15): no health claim
 //! anywhere ("Some people find these tones calming; there is no good evidence that they heal").
-//! What the app will not do and why (CLAUDE.md, "Saying what we will not build"): some styles need
+//! What the app will not do and why (CLAUDE.md, "Saying what we will not build"): some genres need
 //! recorded instruments, and the app never samples copyrighted recordings, because copyright LAW
 //! forbids it.
 //!
@@ -24,13 +24,14 @@ use egui::{Color32, RichText};
 use humanity_core::i18n::{t, t_dyn};
 use humanity_music::Tuning;
 
+use crate::gui::pages::dev_music::GenreChoice;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{with_hint, Hint};
 use crate::gui::{widgets, GuiState};
 
-/// A style's name for a person: its words by key, else the plain name a community file gives, else
+/// A genre's name for a person: its words by key, else the plain name a community file gives, else
 /// its id.
-pub fn style_label(id: &str, words: &str, name: &str) -> String {
+pub fn genre_label(id: &str, words: &str, name: &str) -> String {
     if !words.is_empty() {
         let w = t_dyn(words);
         if w != words {
@@ -48,10 +49,10 @@ pub fn style_label(id: &str, words: &str, name: &str) -> String {
 pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Color32) {
     let hint = state.settings.hint_display;
     let mut dirty = false;
-    let styles = if state.music_dev.readout.styles.is_empty() {
-        vec![(humanity_music::library::DEFAULT_STYLE.to_string(), "music.style.mothership_calm".to_string(), String::new())]
+    let genres = if state.music_dev.readout.genres.is_empty() {
+        vec![GenreChoice { id: humanity_music::library::DEFAULT_GENRE.to_string(), words: "music.genre.mothership_calm".to_string(), about_words: "music.genre.mothership_calm_about".to_string(), ..Default::default() }]
     } else {
-        state.music_dev.readout.styles.clone()
+        state.music_dev.readout.genres.clone()
     };
     let tones = if state.music_dev.readout.tones.is_empty() { vec![528.0] } else { state.music_dev.readout.tones.clone() };
     let m = &mut state.settings.music;
@@ -76,18 +77,30 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
         widgets::setting_hint(ui, theme, hint, t("settings.music.tuning_hint"));
     });
 
-    widgets::subsection_header(ui, theme, accent, t("settings.music.style"), "");
+    widgets::subsection_header(ui, theme, accent, t("settings.music.genre"), "");
     widgets::card(ui, theme, |ui| {
-        widgets::setting_hint(ui, theme, hint, t("settings.music.style_hint"));
+        widgets::setting_hint(ui, theme, hint, t("settings.music.genre_hint"));
         ui.horizontal_wrapped(|ui| {
-            for (id, words, name) in &styles {
-                let selected = &m.style == id;
-                if ui.radio(selected, RichText::new(style_label(id, words, name)).color(theme.text_primary())).hint("settings.music.style_hint").clicked() && !selected {
-                    m.style = id.clone();
+            for g in &genres {
+                let selected = m.genre == g.id;
+                if ui.radio(selected, RichText::new(genre_label(&g.id, &g.words, &g.name)).color(theme.text_primary())).hint("settings.music.genre_hint").clicked() && !selected {
+                    m.genre = g.id.clone();
                     dirty = true;
                 }
             }
         });
+        // What the chosen genre sounds like, and which of its instruments play synthesised stand-ins
+        // until a free recording of them is installed (said plainly, never silently).
+        if let Some(g) = genres.iter().find(|g| g.id == m.genre) {
+            let about = genre_label("", &g.about_words, &g.about);
+            if !about.is_empty() {
+                ui.label(RichText::new(about).color(theme.text_secondary()));
+            }
+            if !g.stand_ins.is_empty() {
+                let parts: Vec<String> = g.stand_ins.iter().map(|k| t_dyn(k).to_string()).collect();
+                ui.label(RichText::new(t("settings.music.genre_stand_ins").replace("{{parts}}", &parts.join(", "))).size(theme.font_size_small).color(theme.text_muted()));
+            }
+        }
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(t("settings.music.blend_with")).color(theme.text_secondary()));
         ui.horizontal_wrapped(|ui| {
@@ -96,10 +109,10 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
                 m.blend_with.clear();
                 dirty = true;
             }
-            for (id, words, name) in styles.iter().filter(|(id, _, _)| *id != m.style) {
-                let selected = &m.blend_with == id;
-                if ui.radio(selected, RichText::new(style_label(id, words, name)).color(theme.text_primary())).hint("settings.music.blend_with_hint").clicked() && !selected {
-                    m.blend_with = id.clone();
+            for g in genres.iter().filter(|g| g.id != m.genre) {
+                let selected = m.blend_with == g.id;
+                if ui.radio(selected, RichText::new(genre_label(&g.id, &g.words, &g.name)).color(theme.text_primary())).hint("settings.music.blend_with_hint").clicked() && !selected {
+                    m.blend_with = g.id.clone();
                     dirty = true;
                 }
             }
@@ -109,8 +122,8 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
             dirty |= with_hint(ui, "settings.music.blend_hint", |ui| widgets::labeled_slider(ui, theme, t("settings.music.blend"), &mut m.blend, 0.0..=1.0));
             widgets::setting_hint(ui, theme, hint, t("settings.music.blend_hint"));
         }
-        dirty |= with_hint(ui, "settings.music.places_pick_style_hint", |ui| widgets::toggle(ui, theme, t("settings.music.places_pick_style"), &mut m.places_pick_style));
-        widgets::setting_hint(ui, theme, hint, t("settings.music.places_pick_style_hint"));
+        dirty |= with_hint(ui, "settings.music.places_pick_genre_hint", |ui| widgets::toggle(ui, theme, t("settings.music.places_pick_genre"), &mut m.places_pick_genre));
+        widgets::setting_hint(ui, theme, hint, t("settings.music.places_pick_genre_hint"));
         ui.label(RichText::new(t("settings.music.recordings_note")).size(theme.font_size_small).color(theme.text_muted()));
     });
 
@@ -154,7 +167,7 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
 #[cfg(test)]
 mod tests {
     /// Every word Settings > Music asks for is in English (the i18n lint holds the literal keys too;
-    /// this holds the tuning's, which are built from data) and a style with no words shows its plain
+    /// this holds the tuning's, which are built from data) and a genre with no words shows its plain
     /// name. RED first with the 440 tuning's key missing from en.json: "settings.music.tuning_440 has
     /// no words".
     #[test]
@@ -168,7 +181,7 @@ mod tests {
             }
             assert!(v.as_str().is_some_and(|s| !s.is_empty()), "{key} has no words");
         }
-        assert_eq!(super::style_label("chiptune", "", "Chiptune"), "Chiptune");
-        assert_eq!(super::style_label("chiptune", "", ""), "chiptune");
+        assert_eq!(super::genre_label("chiptune", "", "Chiptune"), "Chiptune");
+        assert_eq!(super::genre_label("chiptune", "", ""), "chiptune");
     }
 }

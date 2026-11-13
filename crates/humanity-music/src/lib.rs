@@ -10,8 +10,8 @@
 //! (composer.rs) walks a mood's chord graph with voice leading, plans phrases with motifs it varies,
 //! and never repeats a phrase within ten minutes; a pool of synthesised voices (voice.rs: pads, a
 //! formant choir, modal bells and STEEL PAN, membrane DEEP DRUMS, FM keys, plucked strings, noise and
-//! the sampler seam for CC0 recordings) plays it; a reverb, a style's sound-design recipe and a
-//! limiter finish it (score.rs). Moods, styles, instruments, places and hum sources are data files
+//! the sampler seam for CC0 recordings) plays it; a reverb, a genre's sound-design recipe and a
+//! limiter finish it (score.rs). Moods, genres, instruments, places and hum sources are data files
 //! (data/music/, data/audio/hum_sources.ron). Every pitch comes from one function at A = 432 Hz by
 //! default (tuning.rs). The ship's hum and the optional tones are a second sound (bed.rs).
 //!
@@ -33,7 +33,7 @@ pub mod resolved;
 pub mod rng;
 pub mod score;
 pub mod settings;
-pub mod style;
+pub mod genre;
 pub mod tuning;
 pub mod voice;
 

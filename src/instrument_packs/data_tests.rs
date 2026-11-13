@@ -41,7 +41,7 @@ fn the_instrument_data_parses_and_every_sample_has_its_licence() {
         let kind = inst.map(|i| format!("{:?}", i.kind).split('(').next().unwrap_or("").to_ascii_lowercase());
         assert_eq!(kind.as_deref(), Some(p.synth.kind.as_str()), "part {}: its voice {} is a {} instrument of the score", p.id, p.synth.preset, p.synth.kind);
     }
-    for r in music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.styles.iter().flat_map(|s| s.roles_add.iter())) {
+    for r in music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.genres.iter().flat_map(|s| s.roles_add.iter())) {
         if let Some(part) = &r.part {
             assert!(part_ids.contains(part.as_str()), "a role names the part {part}, which parts.ron does not list");
         }
@@ -103,12 +103,12 @@ fn the_instrument_data_parses_and_every_sample_has_its_licence() {
 }
 
 /// EVERY PART THE INSTRUMENTS LIST IS PLAYED BY THE MUSIC OR SAYS IT IS NOT YET (BUG-266): each part
-/// `parts.ron` and `packs.ron` list is named by a mood's role or a style's added role or palette
+/// `parts.ron` and `packs.ron` list is named by a mood's role or a genre's added role or palette
 /// (`score::named_parts`, what the score attaches recordings to), unless `parts.ron` marks it
 /// `not_used_yet` (Settings > Audio > Instruments then says the music does not use it yet); a
 /// marked part the music does name fails too, so the mark cannot go stale; and a `fallback_part` is a
 /// part. RED first (2026-11-07) against the data before the fix (only harp, steel_pan and deep_drum
-/// named, no marks): "packs.ron and parts.ron list parts no mood or style plays, unmarked: [\"bass_strings\",
+/// named, no marks): "packs.ron and parts.ron list parts no mood or genre plays, unmarked: [\"bass_strings\",
 /// \"bowed_vibraphone\", ...]".
 #[test]
 fn every_part_listed_is_played_or_marked_not_used_yet() {
@@ -125,7 +125,7 @@ fn every_part_listed_is_played_or_marked_not_used_yet() {
         .collect();
     let marked = |id: &str| parts.part(id).is_some_and(|p| p.not_used_yet);
     let unmarked: Vec<&String> = listed.iter().filter(|p| !named.contains(*p) && !marked(p)).collect();
-    assert!(unmarked.is_empty(), "packs.ron and parts.ron list parts no mood or style plays, unmarked: {unmarked:?}");
+    assert!(unmarked.is_empty(), "packs.ron and parts.ron list parts no mood or genre plays, unmarked: {unmarked:?}");
     let stale: Vec<&String> = listed.iter().filter(|p| named.contains(*p) && marked(p)).collect();
     assert!(stale.is_empty(), "parts marked not_used_yet that the music does play: {stale:?}");
     for p in &parts.parts {
@@ -145,12 +145,12 @@ fn every_part_listed_is_played_or_marked_not_used_yet() {
 fn sustained_recordings_get_a_crossfaded_loop() {
     let data = data();
     let mut music = humanity_music::MusicLibrary::load(&data).expect("the music");
-    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.styles.iter_mut().flat_map(|s| s.roles_add.iter_mut())) {
+    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.genres.iter_mut().flat_map(|s| s.roles_add.iter_mut())) {
         if !matches!(r.part.as_deref(), Some("strings_high" | "glockenspiel")) {
             r.part = None;
         }
     }
-    for e in music.styles.iter_mut().flat_map(|s| s.palette.iter_mut()) {
+    for e in music.genres.iter_mut().flat_map(|s| s.palette.iter_mut()) {
         e.part = None;
     }
     let parts = Parts::load(&data).expect("parts.ron");

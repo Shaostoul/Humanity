@@ -22,7 +22,7 @@ const MAX_MODES: usize = 8;
 /// What every voice needs to know for one block.
 pub struct BlockParams<'a> {
     pub rate: f32,
-    /// A pitch multiplier over every note (a style's tape wow and flutter; 1 = none).
+    /// A pitch multiplier over every note (a genre's tape wow and flutter; 1 = none).
     pub pitch_mul: f32,
     /// Beats per second (a filter swept in time with the music).
     pub beat_hz: f32,

@@ -1,4 +1,4 @@
-// "Lo-fi", the first extra style (docs/design/music.md, section 7a): the style seam's working rung.
+// "Lo-fi", the first extra genre (docs/design/music.md, section 7a): the genre seam's working rung.
 // Chosen before electroswing or dubstep because the default world is calm and lo-fi is calm too
 // (70 to 82 bpm), and because every timbre it needs synthesises well here (an FM electric piano, a
 // round plucked bass, soft synthesised drums, vinyl crackle, tape wow): electroswing leans on recorded
@@ -13,10 +13,10 @@
 // melody the handpan part, low (D3 to A4, the Hang's own nine notes): the percussion pack's Hang
 // where it has the note, the steel pan for the rest and without the pack. Each falls back to the
 // synthesised voice named beside it.
-Style(
+Genre(
     id: "lofi",
-    words: "music.style.lofi",
-    about_words: "music.style.lofi_about",
+    words: "music.genre.lofi",
+    about_words: "music.genre.lofi_about",
     tempo_bpm: Some((70.0, 82.0)),
     beat_felt: Some(true),
     groove: Some((swing: 0.6, subdivision: 4, syncopation: 0.2, humanize_ms: 9.0)),
@@ -25,8 +25,8 @@ Style(
         (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..g"]),
         (instrument: "lofi_hat", note: "D5", velocity: 0.45, patterns: ["x.x.x.x.x.x.x.x.", "x.xgx.x.x.xgx.x.", "x.x.x.xxx.x.x.x."]),
     ],
-    pad_pattern: Some("x.........x....."),
-    bass_pattern: Some("x.......5.....x."),
+    pad_patterns: ["x.........x....."],
+    bass_patterns: ["x.......5.....x."],
     harmony: (sevenths: true, chord_bars: Some((1, 2))),
     palette: [
         (role: Pad, instrument: "electric_piano", part: Some("piano")),

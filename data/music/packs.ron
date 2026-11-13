@@ -16,8 +16,13 @@ PackCatalog(
             (id: "cellos_small", part: "strings_low"),
             (id: "steel_pan_small", part: "steel_pan"),
             (id: "bass_drum_small", part: "deep_drum"),
+            (id: "trumpet_small", part: "trumpet"),
+            (id: "trombone_small", part: "trombone"),
+            (id: "clarinet_small", part: "clarinet"),
+            (id: "double_bass_pizzicato_small", part: "double_bass_pizzicato"),
+            (id: "guitar_gretsch_small", part: "guitar"),
         ],
-        bytes: 6562325,
+        bytes: 8231765,
     ),
     packs: [
         (

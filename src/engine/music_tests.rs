@@ -113,7 +113,7 @@ fn quick_music(tag: &str) -> humanity_core::test_temp::TempPath {
             }
         }
     };
-    for d in ["instruments", "moods", "styles"] {
+    for d in ["instruments", "moods", "genres"] {
         copy(&repo.join("music").join(d), &t.join("data/music").join(d));
     }
     for f in ["intensity.ron", "packs.ron", "parts.ron", "places.ron", "tones.ron"] {
@@ -298,61 +298,66 @@ fn an_install_reaches_the_playing_music_at_the_next_phrase() {
     assert!(mix.scores.first().is_some_and(|s| s.lock().unwrap().finished()), "the old score fades out and ends");
 }
 
-/// SETTINGS > MUSIC LISTS EVERY STYLE FROM THE DATA, MUSIC PLAYED OR NOT (BUG-273): with no audio
+/// SETTINGS > MUSIC LISTS EVERY GENRE FROM THE DATA, MUSIC PLAYED OR NOT (BUG-273): with no audio
 /// device and nothing playing, the music's data is read on the worker and the readout lists every
-/// style file (lo-fi beside the default) and the tones. RED first (2026-11-07) against the old frame
-/// (the data read only when a sound started): "every style is listed (left: [], right: [lofi,
+/// genre file (lo-fi beside the default) and the tones. RED first (2026-11-07) against the old frame
+/// (the data read only when a sound started): "every genre is listed (left: [], right: [lofi,
 /// mothership_calm])".
 #[test]
-fn every_style_is_listed_before_any_music_plays() {
+fn every_genre_is_listed_before_any_music_plays() {
     let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let mut inp = inputs(&data);
     inp.hearing = Hearing::Page;
     let mut rt = MusicRuntime::default();
     let mut r = rt.step(None, &inp);
     for _ in 0..1000 {
-        if !r.styles.is_empty() {
+        if !r.genres.is_empty() {
             break;
         }
         rt.wait_for_build();
         r = rt.step(None, &inp);
     }
-    let ids: Vec<String> = r.styles.iter().map(|(id, _, _)| id.clone()).collect();
-    let mut files: Vec<String> = std::fs::read_dir(data.join("music/styles")).unwrap().flatten().map(|e| e.path().file_stem().unwrap().to_string_lossy().to_string()).collect();
+    let ids: Vec<String> = r.genres.iter().map(|g| g.id.clone()).collect();
+    let mut files: Vec<String> = std::fs::read_dir(data.join("music/genres")).unwrap().flatten().map(|e| e.path().file_stem().unwrap().to_string_lossy().to_string()).collect();
     files.sort();
     let mut sorted = ids.clone();
     sorted.sort();
-    assert_eq!(sorted, files, "every style is listed");
-    assert_eq!(ids.first().map(String::as_str), Some(humanity_music::library::DEFAULT_STYLE), "the default first");
+    assert_eq!(sorted, files, "every genre is listed");
+    assert_eq!(ids.first().map(String::as_str), Some(humanity_music::library::DEFAULT_GENRE), "the default first");
     assert!(!r.tones.is_empty(), "and the tones");
     assert!(r.score.is_none() && !rt.building());
 }
 
 /// THE SCORE WITH THE CORE SET'S RECORDINGS, MEASURED (BUG-266; music.md section 14): each calm
-/// mood in the default style, and lo-fi, built as the game builds it (the recordings of the parts
-/// those styles sound, decoded and levelled) and rendered for 60 s offline in 128-frame blocks,
+/// mood in the default genre, and lo-fi, built as the game builds it (the recordings of the parts
+/// those genres sound, decoded and levelled) and rendered for 60 s offline in 128-frame blocks,
 /// with the app's BS.1770 meter: integrated loudness, true peak, the cost per block (mean and 99th
 /// percentile) and the decoded recordings' memory. Not a gate (the cost of a debug build's
 /// surroundings varies); the renderer and the voices are the music crate's, optimised in every
 /// build. Run by hand: node scripts/lib-tests.js the_score_with_recordings_measured --ignored --nocapture
+/// With HUMANITY_MUSIC_WAV_DIR set, each render is also written there as a WAV
+/// (`<mood>-<genre>.wav`), so a person can listen to the score as the app plays it, recordings and
+/// all (music-render, in the music crate, plays the synthesised voices alone).
 #[test]
 #[ignore = "a measurement printed for the record; run: node scripts/lib-tests.js the_score_with_recordings_measured --ignored --nocapture"]
 fn the_score_with_recordings_measured() {
     use humanity_core::audio::loudness::LoudnessMeter;
     let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-    for (mood, style) in [("mothership_calm", "mothership_calm"), ("night_watch", "mothership_calm"), ("garden_morning", "mothership_calm"), ("menu", "mothership_calm"), ("mothership_calm", "lofi"), ("action", "mothership_calm")] {
+    for (mood, genre) in [("mothership_calm", "mothership_calm"), ("night_watch", "mothership_calm"), ("garden_morning", "mothership_calm"), ("menu", "mothership_calm"), ("mothership_calm", "lofi"), ("mothership_calm", "electro_swing"), ("action", "mothership_calm")] {
         let mut bank = SampleBank::new();
-        let built = build(&data, 432.0, true, &mut bank, &[style.to_string()]).expect("builds");
+        let built = build(&data, 432.0, true, &mut bank, &[genre.to_string()]).expect("builds");
         let lib = built.lib.clone();
         let recorded: Vec<String> = built.plays.iter().filter(|(_, p)| matches!(p, crate::instrument_packs::score::PartPlays::Recorded { .. })).map(|(p, _)| p.clone()).collect();
-        let si = lib.style_index(style).unwrap() as u16;
+        let si = lib.genre_index(genre).unwrap() as u16;
         let intensity = if mood == "action" { 0.9 } else { 0.3 };
-        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, style_a: si, style_b: si, blend: 0.0, intensity, duck_db: 0.0 };
+        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: si, genre_b: si, blend: 0.0, intensity, duck_db: 0.0 };
         let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
         let mut meter = LoudnessMeter::new(48000, 2);
         let mut buf = [[0.0f32; 2]; 128];
         let mut times = Vec::new();
         let mut voices = 0u16;
+        let wav_dir = std::env::var_os("HUMANITY_MUSIC_WAV_DIR").map(PathBuf::from);
+        let mut frames: Vec<[f32; 2]> = Vec::new();
         for _ in 0..(60.0 * 48000.0 / 128.0) as usize {
             let t0 = Instant::now();
             e.render(&mut buf);
@@ -361,19 +366,68 @@ fn the_score_with_recordings_measured() {
             for f in &buf {
                 meter.push_frame(f);
             }
+            if wav_dir.is_some() {
+                frames.extend_from_slice(&buf);
+            }
         }
         meter.finish();
+        if let Some(dir) = &wav_dir {
+            let path = dir.join(format!("{mood}-{genre}.wav"));
+            humanity_music::render::write_wav(&path, &frames, 48000).expect("the WAV is written");
+            println!("  written: {}", path.display());
+        }
         let mean = times.iter().sum::<f64>() / times.len() as f64;
         times.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let p99 = times[times.len() * 99 / 100];
         println!(
-            "{mood}/{style}: {:.1} LUFS, true peak {:.2} dBTP, {mean:.4} ms mean and {p99:.4} ms at the 99th percentile per 128-frame block, {voices} voices at most, recordings {:.1} MiB decoded (built in {:.0} ms), recorded parts {recorded:?}",
+            "{mood}/{genre}: {:.1} LUFS, true peak {:.2} dBTP, {mean:.4} ms mean and {p99:.4} ms at the 99th percentile per 128-frame block, {voices} voices at most, recordings {:.1} MiB decoded (built in {:.0} ms), recorded parts {recorded:?}",
             meter.integrated().unwrap_or(f64::NEG_INFINITY),
             meter.true_peak_dbtp(),
             bank.bytes() as f64 / 1048576.0,
             built.took_ms
         );
     }
+}
+
+/// ELECTRO SWING PLAYS RECORDINGS OUT OF THE BOX (2026-11-12): built as the game builds it, with
+/// nothing installed beyond the core set that ships inside the app, the electro swing genre's
+/// trumpet, trombone, clarinet, plucked double bass and guitar each play a RECORDING (the core set's
+/// small trumpet, old trombone, clarinet, pizzicato bass and Gretsch, all CC0 from libraries already
+/// approved and downloaded), not a synthesised stand-in, and Settings' stand-ins line for it is
+/// empty; 60 s of it rendered offline (the music crate's loudness test's seed and length: a phrase
+/// lasts 15 to 30 s at 128 bpm and each plays at its own dynamic level, so 20 s of one seed read 1.6 LU
+/// away from 60 s of another) sit at the music target within 1 LU under the -1 dBTP ceiling, as its
+/// synthesised stand-ins do in the crate's test. RED first (2026-11-12) with the core set's
+/// trumpet definition moved aside: "electro swing's trumpet plays Synth { instrument: \"swing_horns\" }".
+#[test]
+fn electro_swing_plays_recordings_out_of_the_box() {
+    use crate::instrument_packs::score::PartPlays;
+    use humanity_core::audio::loudness::LoudnessMeter;
+    let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let mut bank = SampleBank::new();
+    let built = build(&data, 432.0, true, &mut bank, &["electro_swing".to_string()]).expect("builds");
+    for part in ["trumpet", "trombone", "clarinet", "double_bass_pizzicato", "guitar"] {
+        let plays = built.plays.iter().find(|(p, _)| p == part).map(|(_, p)| p.clone());
+        assert!(matches!(plays, Some(PartPlays::Recorded { .. })), "electro swing's {part} plays {}", plays.map(|p| format!("{p:?}")).unwrap_or_else(|| "nothing".into()));
+    }
+    let lib = built.lib.clone();
+    let gi = lib.genre_index("electro_swing").unwrap();
+    assert!(built.stand_ins[gi].is_empty(), "no stand-ins with the core set: {:?}", built.stand_ins[gi]);
+    let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi as u16, genre_b: gi as u16, blend: 0.0, intensity: 0.3, duck_db: 0.0 };
+    let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
+    let mut meter = LoudnessMeter::new(48000, 2);
+    let mut buf = [[0.0f32; 2]; 128];
+    for _ in 0..(60.0 * 48000.0 / 128.0) as usize {
+        e.render(&mut buf);
+        for f in &buf {
+            meter.push_frame(f);
+        }
+    }
+    meter.finish();
+    let lufs = meter.integrated().unwrap_or(f64::NEG_INFINITY);
+    println!("electro swing with the core set's recordings: {lufs:.1} LUFS, true peak {:.2} dBTP", meter.true_peak_dbtp());
+    assert!((lufs + 18.0).abs() <= 1.0, "electro swing with its recordings: {lufs:.1} LUFS, the target -18");
+    assert!(meter.true_peak_dbtp() <= -1.0, "true peak {:.2} dBTP", meter.true_peak_dbtp());
 }
 
 /// THE MUSIC STARTS WHEN HUMANITYOS STARTS AND STAYS ON THE PAGES (2026-11-11, the operator: "we

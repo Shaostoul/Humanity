@@ -16,6 +16,20 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::with_hint;
 use crate::gui::{widgets, GuiState};
 
+/// A genre as Settings > Music offers it.
+#[derive(Clone, Debug, Default)]
+pub struct GenreChoice {
+    pub id: String,
+    /// Its name and its one sentence by key; a community genre with no key gives plain words.
+    pub words: String,
+    pub name: String,
+    pub about_words: String,
+    pub about: String,
+    /// The parts it names (an upright bass, a clarinet) that no installed recording plays, as their
+    /// words keys: synthesised stand-ins play them, and Settings says so.
+    pub stand_ins: Vec<String>,
+}
+
 /// What the engine reports about the music this frame.
 #[derive(Clone, Debug, Default)]
 pub struct MusicReadout {
@@ -29,8 +43,8 @@ pub struct MusicReadout {
     pub zone: String,
     pub hum_level_db: f32,
     pub seed: u64,
-    /// The styles Settings offers: (id, words key, plain name for a community style).
-    pub styles: Vec<(String, String, String)>,
+    /// The genres Settings offers, each with its words and its stand-ins.
+    pub genres: Vec<GenreChoice>,
     /// The named tones Settings offers, hertz.
     pub tones: Vec<f32>,
     pub load_error: Option<String>,
@@ -51,7 +65,7 @@ pub struct MusicDev {
     pub intensity: f32,
     /// The hull-breach alarm in the ship's hum.
     pub breach: bool,
-    /// Read the music's files again and start it afresh (after editing a mood or a style).
+    /// Read the music's files again and start it afresh (after editing a mood or a genre).
     pub restart_requested: bool,
     pub readout: MusicReadout,
 }

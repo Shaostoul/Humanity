@@ -237,7 +237,7 @@ mod device_tests {
     /// data, resolving it, and decoding the core set's recordings through kira (as the engine's build
     /// does, `src/instrument_packs/samples.rs`), for the three folders the music used before
     /// 2026-11-07 (the harp, the steel pan, the bass drum: the game thread's stall at world entry
-    /// until then) and the seven the default style sounds now (adding the violins, cellos,
+    /// until then) and the seven the default genre sounds now (adding the violins, cellos,
     /// glockenspiel and vibraphone: the work the worker thread does now). Printed for the record, not
     /// a gate. Run: cargo test --release -p humanity-music --lib decode_cost -- --ignored --nocapture
     #[test]
@@ -268,7 +268,7 @@ mod device_tests {
         let (now_ms, nf, nn) = decode(&["concert_harp_small", "steel_pan_small", "bass_drum_small", "violins_small", "cellos_small", "glockenspiel_small", "vibraphone_small"]);
         println!("the music's data read and resolved: {load_ms:.1} ms");
         println!("before (harp, steel pan, bass drum): {bf} files decoded in {before_ms:.0} ms, {:.1} MiB as 32-bit floats", bn as f64 * 8.0 / 1048576.0);
-        println!("now (the default style's seven): {nf} files decoded in {now_ms:.0} ms, {:.1} MiB as 16-bit", nn as f64 * 4.0 / 1048576.0);
+        println!("now (the default genre's seven): {nf} files decoded in {now_ms:.0} ms, {:.1} MiB as 16-bit", nn as f64 * 4.0 / 1048576.0);
     }
 
     /// THE HUM PLAYS ON A DEVICE (rung 2), at its level aboard, and fades away off the ship. RED first

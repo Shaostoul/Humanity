@@ -96,7 +96,9 @@ every sample folder it makes, so it travels with the samples into the app and in
   Dalzell where applicable" with a link to the homepage. These are requests beside the CC0 licence,
   not conditions of it. HumanityOS gives the samples away free and credits them, with that link, in
   every instrument definition made from them.
-- Used for: the core set's violins and cellos; the strings pack's sections, double bass, solo violin
+- Used for: the core set's violins and cellos, and since 2026-11-12 its small trumpet (short notes),
+  old trombone (short notes), clarinet and pizzicato double bass (the electro swing genre's brass,
+  clarinet and upright bass, docs/design/music.md section 7a; no new download); the strings pack's sections, double bass, solo violin
   and pizzicato; the percussion pack's large hand drum (from the library's "VSCO 1 Percussion",
   which its readme offers "on a strictly "as-is" basis").
 
@@ -120,7 +122,7 @@ every sample folder it makes, so it travels with the samples into the app and in
   [`karoryfer-black-and-green-guitars-readme.txt`](instrument-licences/karoryfer-black-and-green-guitars-readme.txt).
   Line endings of the two copies were made plain LF; the words are unchanged.
 - Used for: the guitars pack (a green Gretsch Anniversary and a black Hofner Club, recorded by
-  Brian Wood).
+  Brian Wood), and since 2026-11-12 the core set's small Gretsch (the guitar part out of the box).
 
 ## 5. jSteelDrum version 1 (Jeff Learman): a C tenor steel pan
 
