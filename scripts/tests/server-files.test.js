@@ -73,12 +73,22 @@ function run(w, role, env = {}) {
   // A CR in a copy checked out on Windows would stop bash, so a CRLF copy is run as LF.
   const lfCopy = path.join(w.root, "install-server-files.sh");
   fs.writeFileSync(lfCopy, lf(read(INSTALLER)));
+  // HANG_GUARD_MS is a guard against a hung installer, never a speed check: nothing here asserts how
+  // long a run takes. It was 60 s until 2026-11-14, when one run took 25 to 35 s with other worktrees
+  // compiling (Git Bash starts every `install`, `cmp` and `md5sum` as a whole emulated process) and a
+  // busier machine passed 60 s: spawnSync killed bash, status came back null and the test failed with
+  // nothing wrong in the installer. 300 s still ends a real hang, and says so in words. Red evidence,
+  // 2026-11-14: a copy of the installer that sleeps first (HOS_INSTALLER, with HOS_HANG_GUARD_MS=5000
+  // so the red run is quick) fails "the installer did not finish within 5 s (a hang)"; the role
+  // filter taken out still fails "the follower is never installed on the main server" (below).
+  const HANG_GUARD_MS = Number(process.env.HOS_HANG_GUARD_MS) || 300000;
   const r = spawnSync(bashPath(), ["-c", 'export PATH="$STUB_DIR:$PATH"; exec bash "$INSTALLER" "$REPO_DIR" "$ROLE"'], {
     encoding: "utf8",
-    timeout: 60000,
+    timeout: HANG_GUARD_MS,
     env: { ...process.env, STUB_DIR: px(w.bin), STUB_LOG: px(w.log), INSTALL_ROOT: px(w.sys), INSTALLER: px(lfCopy), REPO_DIR: px(ROOT), ROLE: role, ...env },
   });
-  return { status: r.status, out: `${r.stdout || ""}${r.stderr || ""}` };
+  const hung = r.error && r.error.code === "ETIMEDOUT" ? `\nthe installer did not finish within ${HANG_GUARD_MS / 1000} s (a hang)` : "";
+  return { status: r.status, out: `${r.stdout || ""}${r.stderr || ""}${hung}` };
 }
 const logLines = (w) => (fs.existsSync(w.log) ? read(w.log).split(/\r?\n/).filter(Boolean) : []);
 const at = (w, dest) => path.join(w.sys, ...dest.split("/").filter(Boolean));

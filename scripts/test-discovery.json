@@ -1,0 +1,13 @@
+{
+  "_what": "The tests that discovery deliberately leaves out, each with its reason (2026-11-14). `just rig-tests` (scripts/rig-tests.js) runs every scripts/tests/*.test.js and `just lints` (scripts/run-lints.js --all) every tests/*.rs, minus the names below. A new test needs no list edit: drop the file in and it runs. Add a name here only when a test must NOT run there, and say why. A name here with no file fails both runners, so this list cannot rot.",
+  "rig_tests": {
+    "exclude": {
+      "second-player-relay.test.js": "Boots a throwaway relay (a copy of target/release/HumanityOS.exe, --headless, its own port and database) and skips when that build is older than the source; rig-tests is pure node with nothing booted. It runs in `just verify-second-player`."
+    }
+  },
+  "lints": {
+    "exclude": {
+      "federation_two_relays": "A cargo integration test, not a lint: it runs two whole relays in one process, so it links the engine crate and cannot compile as a standalone `rustc --test` program."
+    }
+  }
+}

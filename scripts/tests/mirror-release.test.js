@@ -212,15 +212,20 @@ class FakeGitHub {
       return;
     }
     if (b.trickle && conn <= (b.trickleConns || 1)) {
-      // A crawl, not a silence: 64 bytes every 100 ms, until the client hangs up.
+      // A crawl, not a silence: 64 bytes every 100 ms, until the client hangs up. With `hold`
+      // ({ released: false }), one byte a tick and never the last until the test sets released:
+      // the file finishes when the TEST says so, not after a time a loaded machine can outrun.
       let off = 0;
       const timer = setInterval(() => {
         if (off >= rest.length) {
           clearInterval(timer);
           return res.end();
         }
-        res.write(rest.subarray(off, off + (b.trickleBytes || 64)));
-        off += b.trickleBytes || 64;
+        let n = b.trickleBytes || 64;
+        if (b.hold) n = b.hold.released ? rest.length - off : Math.min(1, rest.length - off - 1);
+        if (n <= 0) return;
+        res.write(rest.subarray(off, off + n));
+        off += n;
       }, 100);
       res.on("close", () => clearInterval(timer));
       return;
@@ -564,23 +569,44 @@ test("the dry run fetches and verifies the data manifest only, publishes nothing
 // Seen red with the check after the lock taken out (`if os.path.isdir(published):` inside the lock
 // became `if False:`): the third run, having waited, fetched everything again and could not rename
 // onto the first's folder (exit 1, "[WinError 183] ...").
+// THE LOCK'S TIMING (2026-11-14): the first run used to hold the lock for "about 5 s" (its slowest
+// file at 640 B/s), and the second and third runs had to start Python, ask the fake GitHub and reach
+// the lock inside those 5 s; on a loaded machine (other worktrees compiling) a Python start alone
+// can take seconds, so the first run sometimes finished first and the test failed for no fault of
+// the puller. Now the slowest file is HELD (one byte a tick, never the last) until the test has seen
+// the second run refuse and the third say it is waiting, and only then released; every wait is a
+// deadline in time (60 s), not a count of polls. Red evidence, 2026-11-14, against a copy of the
+// puller (HOS_MIRROR_SCRIPT) with `_try_lock` returning True at once: the second run exited 1, not
+// 8, as before the change: the hold changes when the first run ends, never what the lock must do.
+async function until(what, ms, cond) {
+  const end = Date.now() + ms;
+  while (!cond()) {
+    if (Date.now() > end) assert.fail(`not within ${ms / 1000} s: ${what}`);
+    await new Promise((res) => setTimeout(res, 50));
+  }
+}
+
 test("a second run while one holds the lock waits, and with --lock-wait 0 refuses: exit 8", async () => {
   const w = await world();
   const slow = "HumanityOS-windows-x64.tar.gz";
-  // The first run's slowest file arrives at 640 B/s with the speed floor off: about 5 s holding the lock.
-  w.gh.behaviour[slow] = { trickle: true, trickleConns: 99, trickleBytes: 64 };
+  // The first run's slowest file is held until the test releases it, the speed floor off.
+  const hold = { released: false };
+  w.gh.behaviour[slow] = { trickle: true, trickleConns: 99, hold };
   w.release.files.get(slow).data = w.release.files.get(slow).data.subarray(0, 3200);
-  const first = runPuller(w, [...FAST, "--speed-limit", "0", "--speed-time", "10"]);
+  const first = runPuller(w, [...FAST, "--speed-limit", "0", "--speed-time", "10"], { timeout: 300000 });
   const firstChild = w.child;
-  // Wait until the first run is fetching (it holds the lock from before its first fetch).
-  for (let i = 0; i < 100 && !w.gh.cdnRequests().length; i++) await new Promise((res) => setTimeout(res, 100));
-  assert.ok(w.gh.cdnRequests().length, "the first run started fetching");
-  const second = await runPuller(w, [...FAST, "--lock-wait", "0"]);
+  // Wait until the first run is fetching the held file (it holds the lock from before its first fetch).
+  await until("the first run started fetching the held file", 60000, () => w.gh.cdnRequests().some((q) => q.path.endsWith(slow)));
+  const second = await runPuller(w, [...FAST, "--lock-wait", "0"], { timeout: 120000 });
   assert.strictEqual(second.code, 8, second.out);
   assert.match(second.out, new RegExp(`another run holds the lock \\(pid ${firstChild.pid} mirroring v0\\.9\\.0 since `));
   // A third, willing to wait: it waits for the first, then finds the folder the first published,
-  // verifies it and fetches nothing.
-  const third = runPuller(w, [...FAST, "--lock-wait", "30"]);
+  // verifies it and fetches nothing. The first is released once the third says it is waiting.
+  const third = runPuller(w, [...FAST, "--lock-wait", "120"], { timeout: 300000 });
+  let thirdSoFar = "";
+  w.child.stdout.on("data", (d) => (thirdSoFar += d));
+  await until("the third run waiting for the lock", 60000, () => /waiting for another run to finish/.test(thirdSoFar));
+  hold.released = true;
   const r = await first;
   assert.strictEqual(r.code, 0, r.out);
   assertPublished(w);

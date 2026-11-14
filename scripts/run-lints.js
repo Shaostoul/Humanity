@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Run the std-only lint programs (`just lints`), each compiled once per content (2026-10-22).
 //
-// Usage: node scripts/run-lints.js <lint name>...      e.g. emdash_lint theme_token_lint
-//        (the Justfile's `lints` recipe passes the full list; that list is the authority)
+// Usage: node scripts/run-lints.js --all               every tests/*.rs (what `just lints` runs)
+//        node scripts/run-lints.js --all --list        print that list and stop
+//        node scripts/run-lints.js <lint name>...      e.g. emdash_lint theme_token_lint
+//        (--all leaves out only scripts/test-discovery.json's "lints" excludes, each with its reason)
 //
 // Each name is tests/<name>.rs, compiled with `rustc --test --edition 2021 -A warnings` the way
 // the recipe always did (never through cargo, so the native bin is never linked: the Windows
@@ -40,9 +42,25 @@ const rootAt = argv.indexOf("--root");
 const ROOT = rootAt >= 0 ? path.resolve(argv.splice(rootAt, 2)[1]) : path.resolve(__dirname, "..");
 const noCache = argv.includes("--no-cache");
 const timing = argv.includes("--timing");
-const names = argv.filter((a) => !a.startsWith("--"));
+// --all (2026-11-14, `just lints`): every tests/*.rs minus scripts/test-discovery.json's "lints"
+// excludes, each with its reason. The recipe used to be one hand-kept line of names that every
+// agent adding a lint edited, so parallel merges conflicted on it (scripts/lib/test-discovery.js).
+let names = argv.filter((a) => !a.startsWith("--"));
+if (argv.includes("--all")) {
+  const D = require("./lib/test-discovery.js");
+  const found = D.discover({ dir: path.join(ROOT, "tests"), suffix: ".rs", exclude: D.excludes("lints"), stripSuffix: true });
+  if (found.problems.length) {
+    for (const p of found.problems) console.log("LINT FAILED: run-lints --all: " + p);
+    process.exit(1);
+  }
+  names = found.names;
+  if (argv.includes("--list")) {
+    console.log(names.join("\n"));
+    process.exit(0);
+  }
+}
 if (!names.length) {
-  console.error("run-lints: name the lints to run (tests/<name>.rs), e.g. node scripts/run-lints.js emdash_lint");
+  console.error("run-lints: name the lints to run (tests/<name>.rs), e.g. node scripts/run-lints.js emdash_lint, or --all");
   process.exit(2);
 }
 
@@ -83,7 +101,7 @@ async function main() {
   if (missing.length) {
     for (const n of missing) {
       console.log(`LINT FAILED: ${n}`);
-      console.log(`  tests/${n}.rs does not exist (a name in the Justfile's lints list with no file)`);
+      console.log(`  tests/${n}.rs does not exist (a name given with no file)`);
     }
     process.exit(1);
   }
@@ -100,7 +118,10 @@ async function main() {
     const b = builds[i];
     const r = runs[i];
     if (b.scratch) fs.rmSync(b.scratch, { recursive: true, force: true });
-    if (!b.ok) failed.push({ n: names[i], text: `  tests/${names[i]}.rs did not compile:\n${b.stderr}` });
+    const hint = argv.includes("--all")
+      ? " (a cargo integration test that links the crate is not a lint: add it to scripts/test-discovery.json's lints excludes, with its reason)"
+      : "";
+    if (!b.ok) failed.push({ n: names[i], text: `  tests/${names[i]}.rs did not compile${hint}:\n${b.stderr}` });
     else if (r.status !== 0) failed.push({ n: names[i], text: r.out });
     else console.log(`>> lint ok: ${names[i]}`);
   }

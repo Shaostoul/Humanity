@@ -234,36 +234,55 @@ fn the_world_behind_a_page_is_6_db_down_and_a_video_ducks_the_music() {
 /// with `start_build` running `build` inline, as the old frame did: "no frame waits for the build:
 /// the longest frame took 3229.8 ms (the build 3229.5 ms)" (a debug build, its decoder unoptimised;
 /// BUG-270 in docs/BUGS.md has the release measurement).
+///
+/// UP TO THREE TAKES (2026-11-14): after the time deadline below, the bound still failed four times
+/// on 2026-11-13 (data/coordination/flaky-tests.jsonl): longest frames of 103, 118, 134 and 307 ms
+/// with the build on its thread for 17 to 39 s while other worktrees compiled. Those are the OS
+/// taking the core away from the test thread somewhere in a 20 to 40 s run, which no fixed bound
+/// can rule out. So a take whose longest frame is over the bound is taken again from scratch (a
+/// fresh runtime and build), up to three takes, and the test passes on the first take that holds.
+/// That repeats the MEASUREMENT, not the assertion: the build run inline stalls the frame that runs
+/// it for the build's whole time in EVERY take, so it can never find a passing take. Red evidence,
+/// 2026-11-14, with `start_build` waiting for its build thread before returning (the build inline
+/// in effect): takes of 3103, 3172 and 3233 ms longest frames, "no frame waits for the build: in
+/// none of three takes; the last: the longest frame took 3232.7 ms (the build 3231.3 ms)".
 #[test]
 fn the_build_runs_off_the_game_thread() {
     let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-    let mut rt = MusicRuntime::default();
-    let mut mix = Offline::default();
     let inp = inputs(&data);
-    let mut worst = 0.0f64;
-    let t0 = Instant::now();
-    let mut started = None;
-    // A deadline in time, not a count of frames: under a loaded machine (other worktrees compiling)
-    // the debug build took 21.5 s on 2026-11-13, and later did not finish within 20,000 frames of
-    // about 2 ms (flaky three times that day, data/coordination/flaky-tests.jsonl).
-    while t0.elapsed() < std::time::Duration::from_secs(300) {
-        let s = Instant::now();
-        let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
-        worst = worst.max(s.elapsed().as_secs_f64() * 1000.0);
-        if r.score.is_some() {
-            started = Some(r);
-            break;
+    let mut last = String::new();
+    for take in 1..=3 {
+        let mut rt = MusicRuntime::default();
+        let mut mix = Offline::default();
+        let mut worst = 0.0f64;
+        let t0 = Instant::now();
+        let mut started = None;
+        // A deadline in time, not a count of frames: under a loaded machine (other worktrees
+        // compiling) the debug build took 21.5 s on 2026-11-13, and later did not finish within
+        // 20,000 frames of about 2 ms (flaky three times that day, data/coordination/flaky-tests.jsonl).
+        while t0.elapsed() < std::time::Duration::from_secs(300) {
+            let s = Instant::now();
+            let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
+            worst = worst.max(s.elapsed().as_secs_f64() * 1000.0);
+            if r.score.is_some() {
+                started = Some(r);
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
         }
-        std::thread::sleep(std::time::Duration::from_millis(2));
+        let r = started.expect("the score starts once its build is done");
+        let build_ms = r.build_ms.expect("the build's time is reported");
+        println!("take {take}: the build took {build_ms:.1} ms on its thread; the score started {:.0} ms after the first frame; the longest frame {worst:.2} ms", t0.elapsed().as_secs_f64() * 1000.0);
+        assert_eq!(r.pieces, 1);
+        // 100 ms, not 25: a loaded machine stretched one step to 28.06 ms (2026-11-13) with the build
+        // on its thread, while the build run inline stalls a frame for its whole time (3229.8 ms in
+        // the red run), so the bound still tells the two apart thirty times over.
+        if worst < 100.0 && worst < build_ms as f64 / 4.0 {
+            return;
+        }
+        last = format!("the longest frame took {worst:.1} ms (the build {build_ms:.1} ms)");
     }
-    let r = started.expect("the score starts once its build is done");
-    let build_ms = r.build_ms.expect("the build's time is reported");
-    println!("the build took {build_ms:.1} ms on its thread; the score started {:.0} ms after the first frame; the longest frame {worst:.2} ms", t0.elapsed().as_secs_f64() * 1000.0);
-    // 100 ms, not 25: a loaded machine stretched one step to 28.06 ms (2026-11-13) with the build on
-    // its thread, while the build run inline stalls a frame for its whole time (3229.8 ms in the red
-    // run), so the bound still tells the two apart thirty times over.
-    assert!(worst < 100.0 && worst < build_ms as f64 / 4.0, "no frame waits for the build: the longest frame took {worst:.1} ms (the build {build_ms:.1} ms)");
-    assert_eq!(r.pieces, 1);
+    panic!("no frame waits for the build: in none of three takes; the last: {last}");
 }
 
 /// WITH REUSE OFF, NOTHING STALE SURVIVES A PHRASE (BUG-267): the score playing, a mood file edited

@@ -6,7 +6,9 @@
  *
  * Words go in as a JSON fragment shaped like en.json itself:
  *   { "calculator": { "title": "Calculator", "clear_hint": "Empties the display." } }
- * New keys are added at the end of their object; an existing key with the SAME
+ * New keys go in at their sorted place within their object (insertKey says why:
+ * two agents' additions to one group then merge in git without a conflict), and
+ * nothing already in the file moves; an existing key with the SAME
  * words is left alone; an existing key with DIFFERENT words is refused (two
  * pages would be fighting over one key) unless --replace says the change is
  * meant. Several people and agents add words at once in this repo, so the
@@ -48,16 +50,50 @@ function withLock(fn) {
   try { return fn(); } finally { try { fs.rmdirSync(LOCK); } catch { /* fine */ } }
 }
 
+/**
+ * Put a NEW key into `obj` at its sorted place among the keys already there, leaving their order
+ * alone (2026-11-14). Until then a new key went at the END of its group, so two agents adding
+ * words to one group both edited the same last lines (and the comma on the line before them) and
+ * every such pair of branches conflicted in git. Now the key goes immediately BEFORE the smallest
+ * existing key that sorts after it (plain code-unit order, the same on every machine), so two
+ * agents' keys land at different lines unless nothing already in the group sorts between them;
+ * and an insertion before an existing line never edits that line. Only a key that sorts after
+ * everything goes after the largest key (the end, in a sorted group). In a sorted group this is
+ * plain sorted order; in an unsorted one nothing moves, the new key just finds a neighbour.
+ * scripts/tests/i18n-add-merge.test.js merges two such branches with real git.
+ * (JavaScript keeps integer-like keys such as "512" first in any object, as it always did here.)
+ */
+function insertKey(obj, key, value) {
+  const keys = Object.keys(obj);
+  let succ = null;
+  let pred = null;
+  for (const e of keys) {
+    if (e > key && (succ === null || e < succ)) succ = e;
+    if (e < key && (pred === null || e > pred)) pred = e;
+  }
+  // The keys from the insertion point on are taken out and put back after the new one.
+  const at = succ !== null ? keys.indexOf(succ) : pred !== null ? keys.indexOf(pred) + 1 : keys.length;
+  const moved = keys.slice(at).map((e) => [e, obj[e]]);
+  for (const [e] of moved) delete obj[e];
+  obj[key] = value;
+  for (const [e, v] of moved) obj[e] = v;
+}
+
+/** en.json's text for an object: two-space JSON and one newline at the end. */
+function serialize(en) {
+  return JSON.stringify(en, null, 2) + '\n';
+}
+
 /** Merge `frag` into `base` in place. Returns { added, same, conflicts }. */
 function merge(base, frag, replace, prefix = '', out = { added: [], same: [], conflicts: [] }) {
   for (const [k, v] of Object.entries(frag)) {
     const key = prefix ? prefix + '.' + k : k;
     if (v && typeof v === 'object' && !Array.isArray(v)) {
-      if (base[k] === undefined) base[k] = {};
+      if (base[k] === undefined) insertKey(base, k, {});
       if (typeof base[k] !== 'object') { out.conflicts.push(key + ' (a word here, an object in the fragment)'); continue; }
       merge(base[k], v, replace, key, out);
     } else if (typeof v === 'string') {
-      if (base[k] === undefined) { base[k] = v; out.added.push(key); }
+      if (base[k] === undefined) { insertKey(base, k, v); out.added.push(key); }
       else if (base[k] === v) out.same.push(key);
       else if (typeof base[k] === 'object') out.conflicts.push(key + ' (an object in en.json, a word in the fragment)');
       else if (replace) { base[k] = v; out.added.push(key + ' (replaced)'); }
@@ -87,7 +123,7 @@ function main() {
     const all = { added: [], same: [], conflicts: [] };
     for (const f of frags) merge(en, f, replace, '', all);
     if (all.conflicts.length) return all;
-    fs.writeFileSync(EN_PATH, JSON.stringify(en, null, 2) + '\n');
+    fs.writeFileSync(EN_PATH, serialize(en));
     return all;
   });
   if (result.conflicts.length) {
@@ -101,4 +137,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { merge };
+module.exports = { merge, insertKey, serialize };

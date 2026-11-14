@@ -160,7 +160,8 @@ fn the_raw_picture_header_is_read() {
 ///
 /// RED first (2026-11-13): with the reader kept open instead of closed (what a converter writing
 /// to a file amounts to: nothing ties it to the app), "ffmpeg still running 10 s after its reader
-/// went".
+/// went". Red again at the 60 s deadline (2026-11-14, the reader kept open the same way): "ffmpeg
+/// still running 60 s after its reader went".
 #[test]
 fn a_crash_leaves_no_ffmpeg_running() {
     let Some(ffmpeg) = find_ffmpeg("") else {
@@ -180,7 +181,11 @@ fn a_crash_leaves_no_ffmpeg_running() {
     let slot = running.child.clone();
     std::mem::forget(running); // the crash: no Drop, no kill
     drop(reader); // ... but the OS closes our end of the pipe
-    let deadline = Instant::now() + Duration::from_secs(10);
+    // 60 s, not 10 (2026-11-14): a hang guard, not a promptness check. ffmpeg notices the closed pipe
+    // on its next write, and on a machine shared with other worktrees' compiles that write can wait
+    // behind them; the defect guarded never exits at all (the red run below waited out the deadline),
+    // so a minute tells the two apart as surely as ten seconds did, and a loaded machine passes.
+    let deadline = Instant::now() + Duration::from_secs(60);
     let mut exited = false;
     while Instant::now() < deadline {
         if lock(&slot).as_mut().unwrap().try_wait().unwrap().is_some() {
@@ -192,7 +197,7 @@ fn a_crash_leaves_no_ffmpeg_running() {
     if !exited {
         let _ = lock(&slot).as_mut().unwrap().kill();
     }
-    assert!(exited, "ffmpeg still running 10 s after its reader went");
+    assert!(exited, "ffmpeg still running 60 s after its reader went");
     let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
     left.sort();
     assert_eq!(left, vec!["clip.mkv".to_string()], "ffmpeg wrote nothing");
@@ -220,15 +225,20 @@ fn a_film_plays_through_ffmpeg_and_seeks() {
     let mut player = crate::media::VideoPlayer::open_stream(src.clone()).expect("opens");
     assert!(player.info().stream && player.info().audio_track.is_some());
     assert!((player.duration_s() - 6.0).abs() < 0.2, "{}", player.duration_s());
+    // 120 s, not 30 (2026-11-14): a hang guard, never a speed check (nothing here judges how fast a
+    // picture comes). Each wait starts an ffmpeg process that opens, probes and decodes the clip, and
+    // with other worktrees compiling a process start and its first picture can take many seconds; a
+    // player that never delivers a picture fails at any deadline, so a longer one only stops a loaded
+    // machine from failing a working player.
     let wait_frame = |player: &mut crate::media::VideoPlayer| {
-        let deadline = Instant::now() + Duration::from_secs(30);
+        let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             if let Some(f) = player.poll() {
                 return f;
             }
             std::thread::sleep(Duration::from_millis(2));
         }
-        panic!("no picture within 30 s: {:?}", player.take_error());
+        panic!("no picture within 120 s: {:?}", player.take_error());
     };
     let first = wait_frame(&mut player);
     assert_eq!((first.width, first.height), (320, 240));

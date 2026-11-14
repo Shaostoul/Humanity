@@ -511,6 +511,13 @@ test("a task made on one device arrives on my other device and never on anyone e
   chatSaves(phoneStore, phoneDb, me);
   const phone = await loadTasksPage({ storage: phoneStore, idb: phoneDb });
   await signedIn(phone, [note]);
+  // Waited for by a deadline in time (2026-11-14), not only signedIn's 40 event-loop turns: opening
+  // the note is real asynchronous work (ML-KEM and AES-GCM through WebCrypto's thread pool), and
+  // during a rig-tests run beside other worktrees' compiles 40 turns once came before it finished:
+  // "my phone has it", actual []. A note that never arrives still fails, after 15 s. Red evidence,
+  // 2026-11-14, with the phone's mailbox handed nothing: "timed out waiting for the note to reach
+  // my phone".
+  await until(() => phone.mine().length > 0, "the note to reach my phone");
   assert.deepEqual(phone.mine().map((t) => t.title), ["Renew the passport"], "my phone has it");
   // And a deletion made on the laptop arrives live.
   const id = laptop.mine()[0].id;

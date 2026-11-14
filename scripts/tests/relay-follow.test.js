@@ -201,10 +201,20 @@ function setLatest(w, tag) {
 }
 
 // One run of the follower, from its installed copy, as the unit runs it.
+//
+// FOLLOW_HANG_GUARD_MS guards against a hung follower, never a speed check: nothing here asserts how
+// long a run takes. It was 180 s until 2026-11-14; one run took 30 to 40 s with other worktrees
+// compiling (each test here makes one or two, and Git Bash starts every git, tar and install as a
+// whole emulated process), so a busier machine could pass it, and spawnSync then killed bash and the
+// test failed on a null status with nothing wrong in the follower (scripts/tests/server-files.test.js
+// had the same at 60 s). 600 s still ends a real hang, and says so in words; HOS_FOLLOW_HANG_GUARD_MS
+// shortens it for a red run. Red evidence, 2026-11-14: with HOS_FOLLOW_HANG_GUARD_MS=3000 the first
+// test fails "the follower did not finish within 3 s (a hang)".
+const FOLLOW_HANG_GUARD_MS = Number(process.env.HOS_FOLLOW_HANG_GUARD_MS) || 600000;
 function follow(w, env = {}) {
   const r = spawnSync(bashPath(), ["-c", 'export PATH="$STUB_DIR:$PATH"; exec bash "$FOLLOWER_PATH"'], {
     encoding: "utf8",
-    timeout: 180000,
+    timeout: FOLLOW_HANG_GUARD_MS,
     env: {
       ...process.env,
       REPO: px(w.repo),
@@ -226,7 +236,8 @@ function follow(w, env = {}) {
       ...env,
     },
   });
-  return { status: r.status, out: `${r.stdout || ""}${r.stderr || ""}` };
+  const hung = r.error && r.error.code === "ETIMEDOUT" ? `\nthe follower did not finish within ${FOLLOW_HANG_GUARD_MS / 1000} s (a hang)` : "";
+  return { status: r.status, out: `${r.stdout || ""}${r.stderr || ""}${hung}` };
 }
 
 const logLines = (w) => (exists(w.log) ? read(w.log).split(/\r?\n/).filter(Boolean) : []);

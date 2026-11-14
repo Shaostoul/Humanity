@@ -929,10 +929,11 @@ test("10. the nav: Apps beside Play with the four squares, in the phone menu, li
   for (const f of ["library.html"]) {
     assert.match(readText(path.join(WEB, "pages", f)), /<a href="\/apps">Apps<\/a> page/, f + " links to the Apps page");
   }
-  const just = readText(path.join(ROOT, "Justfile"));
-  const rig = just.match(/\nrig-tests:\n\s+node --test ([^\n]+)/);
-  assert.ok(rig && rig[1].includes("scripts/tests/apps-web.test.js"), "the Justfile runs this file");
-  assert.ok(!rig[1].includes("tools-web.test.js"), "and not the old one");
+  // rig-tests DISCOVERS its files since 2026-11-14 (scripts/rig-tests.js): ask it, not the Justfile.
+  const D = require(path.join(ROOT, "scripts", "lib", "test-discovery.js"));
+  const rig = D.discover({ dir: path.join(ROOT, "scripts", "tests"), suffix: ".test.js", exclude: D.excludes("rig_tests") }).names;
+  assert.ok(rig.includes("apps-web.test.js"), "rig-tests runs this file");
+  assert.ok(!fs.existsSync(path.join(ROOT, "scripts", "tests", "tools-web.test.js")) && !rig.includes("tools-web.test.js"), "and not the old one");
 });
 
 // ── 11. A hue ───────────────────────────────────────────────────────────

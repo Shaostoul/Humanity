@@ -419,25 +419,46 @@ fn the_hum_strains_and_the_klaxon_sounds_in_a_breach() {
 /// the gate takes the best of five shorter runs, the least disturbed being the engine's own cost.
 /// (Before that the engine had come down from 0.088 ms: the reverb's lines as fixed arrays and its
 /// modulation once per 16 samples, the choir's vibrato once a block, voices ended 60 dB down.)
+///
+/// THE SLOW TAIL ON A LOADED MACHINE (2026-11-14, data/coordination/flaky-tests.jsonl, three
+/// entries): the 99th percentile failed at 0.2619 and 0.3355 ms while other agents compiled, with
+/// the mean at 0.046 ms, well inside its budget. A block's time on a shared core is the engine's
+/// cost PLUS whatever the OS takes away mid-block (a real audio thread runs at a raised priority;
+/// this test thread does not), and one 10 s run has 3750 blocks, so a few dozen preempted blocks
+/// fill its slowest 1%. So each seed's 10 s is now rendered REPS times from scratch, and each
+/// block's time is its FASTEST of those renders: the same block of the same seed does the same
+/// work every time (the engine is deterministic), while a preemption has to strike that very
+/// block in every render to survive the minimum. That is a repeat of the MEASUREMENT, not of the
+/// assertion: a block that is expensive because of the engine is expensive in every render and
+/// keeps its time. Measured 2026-11-14 with 12 compiles running: 0.0393 ms on average, 0.0522 ms at
+/// the 99th percentile. Red evidence the same day: with an extra 0.4 ms of busy work put in every
+/// 50th block inside the timed span (2% of blocks, as an occasional expensive voice start would
+/// be), the gate still fails: "the calm score: 0.4379 ms at the 99th percentile (budget 0.25)";
+/// with 0.03 ms more in every block, "the calm score: 0.0703 ms a block on average (budget
+/// 0.0500)". The mean keeps its trimmed slowest 2% and the best of the five seeds, as before.
 #[test]
 fn the_audio_thread_cost_per_block_is_within_the_budget() {
     let _heavy = heavy();
     let lib = shipped();
+    const REPS: usize = 5;
+    let blocks = (10.0 * RATE / 128.0) as usize;
     let mut best = (f64::MAX, f64::MAX);
     for seed in [1u64, 2, 3, 4, 5] {
-        let mut s = score(&lib, "mothership_calm", "mothership_calm", seed);
-        render_score(&mut s, RATE, 2.0);
-        let mut times = Vec::new();
-        for _ in 0..(10.0 * RATE / 128.0) as usize {
-            let mut buf = [[0f32; 2]; 128];
-            let t0 = std::time::Instant::now();
-            s.render(&mut buf);
-            times.push(t0.elapsed().as_secs_f64() * 1000.0);
+        let mut fastest = vec![f64::MAX; blocks];
+        for _ in 0..REPS {
+            let mut s = score(&lib, "mothership_calm", "mothership_calm", seed);
+            render_score(&mut s, RATE, 2.0);
+            for t in fastest.iter_mut() {
+                let mut buf = [[0f32; 2]; 128];
+                let t0 = std::time::Instant::now();
+                s.render(&mut buf);
+                *t = t.min(t0.elapsed().as_secs_f64() * 1000.0);
+            }
         }
+        let mut times = fastest;
         times.sort_by(|a, b| a.total_cmp(b));
-        // The mean without the slowest 2% of blocks: those are the OS handing the core to another
-        // process mid-block (a real audio thread runs at a raised priority; this test thread does
-        // not), and the 99th percentile below still holds the slow tail to its own budget.
+        // The mean without the slowest 2% of blocks, and the 99th percentile holding the slow tail
+        // to its own budget.
         let kept = &times[..(times.len() as f64 * 0.98) as usize];
         let mean = kept.iter().sum::<f64>() / kept.len() as f64;
         let p99 = times[(times.len() as f64 * 0.99) as usize];

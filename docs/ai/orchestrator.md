@@ -199,3 +199,21 @@ context) and `git apply --cached that.patch`; (3) `git checkout-index -a
 tree - that is EXACTLY what CI and the tag build will see, and it catches the
 half-a-refactor-committed failure the working-tree build cannot. Never commit a
 shared file wholesale while another session's hunks are in it.
+
+**A merge conflict in a GENERATED file is resolved by regenerating it, never by
+hand (2026-11-14).** Resolve its SOURCE first, then run the generator and stage
+what it writes; the checks compare against a fresh generation, so a hand-merged
+copy fails them (or, worse, passes with words that match neither side). The
+common ones: `web/shared/i18n-en.js` (from `data/i18n/en.json`: `node
+scripts/gen-i18n.js`), `app/web/` (`just bundle-web`), `web/shared/theme.css` and
+the theme presets (`just theme`), the navigation block in `web/shared/shell.js`
+(`node scripts/gen-navigation.js`), `web/sitemap.xml` (`node
+scripts/gen-sitemap.js`), `docs/ai/code-map.md` (`just code-map`),
+`data/roadmap.json` (`node scripts/roadmap-to-json.js`), `data/library/` (`node
+scripts/build-library.js`). `data/i18n/en.json` is a source: keep both sides'
+keys. Since 2026-11-14 `scripts/i18n-add.js` puts each new key at its sorted
+place in its group instead of at the end, so two agents' additions to one group
+land on different lines and merge cleanly (`scripts/tests/i18n-add-merge.test.js`
+proves it with real git); words written into en.json by hand should follow the
+same rule. Test lists need no merging at all: `just rig-tests` and `just lints`
+discover their files (`scripts/test-discovery.json` holds the few left out).

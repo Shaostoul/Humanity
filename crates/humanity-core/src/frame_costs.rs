@@ -1011,11 +1011,21 @@ mod tests {
     /// records almost none, though its clock time is the same. Windows only (elsewhere the column
     /// is empty). Proven able to fail: with `close_span` recording the clock time into the thread
     /// column, the "asleep" assertion fires.
+    ///
+    /// ON A LOADED MACHINE (2026-11-14, data/coordination/flaky-tests.jsonl, two entries): "working:
+    /// 1.51 of 4.01 ms" and "1.16 of 6.81 ms": other worktrees' compiles took the core away in the
+    /// middle of the 4 ms spin, so the spinning thread really did run for under half its clock time.
+    /// The measurement is now taken up to five times, each from a reset, and the test passes on the
+    /// first take where both hold; it fails with the last take's numbers. That repeats the
+    /// MEASUREMENT, not the assertion: with the clock time written into the thread column, the
+    /// sleeping span reads its whole clock time in EVERY take, and with nothing written there the
+    /// working span reads none in every take, so neither bug can find a passing take. Red evidence,
+    /// 2026-11-14, with `close_span` recording the clock time into the thread column: "no take of
+    /// five held (the last: asleep: 10.3104 of 10.3104 ms)".
     #[cfg(windows)]
     #[test]
     fn a_spans_cpu_time_leaves_out_a_pause() {
         let _g = serial();
-        reset_for_test();
         let spin = |ms: u64| {
             let t = Instant::now();
             let mut x = 0u64;
@@ -1023,19 +1033,31 @@ mod tests {
                 x = std::hint::black_box(x.wrapping_add(1));
             }
         };
-        // Twice working first, so the rate is learned from an unpaused stretch.
-        span_begin("cpu.span.test_work");
-        spin(4);
-        span("cpu.span.test_work2");
-        spin(4);
-        span("cpu.span.test_sleep");
-        std::thread::sleep(Duration::from_millis(8));
-        span_end();
         let acc = |id: &str| store().lock().unwrap().thread_accum.iter().find(|e| e.id == id).map(|e| e.value).unwrap_or(0.0);
         let wall = |id: &str| store().lock().unwrap().cpu_accum.iter().find(|e| e.id == id).map(|e| e.value).unwrap_or(0.0);
-        assert!(acc("cpu.span.test_work2") > 0.5 * wall("cpu.span.test_work2"), "working: {} of {} ms", acc("cpu.span.test_work2"), wall("cpu.span.test_work2"));
-        assert!(acc("cpu.span.test_sleep") < 0.25 * wall("cpu.span.test_sleep"), "asleep: {} of {} ms", acc("cpu.span.test_sleep"), wall("cpu.span.test_sleep"));
+        let mut last = String::new();
+        for _take in 0..5 {
+            reset_for_test();
+            // Twice working first, so the rate is learned from an unpaused stretch.
+            span_begin("cpu.span.test_work");
+            spin(4);
+            span("cpu.span.test_work2");
+            spin(4);
+            span("cpu.span.test_sleep");
+            std::thread::sleep(Duration::from_millis(8));
+            span_end();
+            let (work, work_wall) = (acc("cpu.span.test_work2"), wall("cpu.span.test_work2"));
+            let (asleep, asleep_wall) = (acc("cpu.span.test_sleep"), wall("cpu.span.test_sleep"));
+            let working_ok = work > 0.5 * work_wall;
+            let asleep_ok = asleep < 0.25 * asleep_wall;
+            if working_ok && asleep_ok {
+                reset_for_test();
+                return;
+            }
+            last = if !working_ok { format!("working: {work} of {work_wall} ms") } else { format!("asleep: {asleep} of {asleep_wall} ms") };
+        }
         reset_for_test();
+        panic!("no take of five held (the last: {last})");
     }
 
     /// THE WORST FRAME IS KEPT BESIDE THE AVERAGE (Stutter, 2026-10-30): one 17 ms frame among

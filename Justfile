@@ -579,7 +579,6 @@ verify:
     just verify-relay-compiles
     just lints
     just rig-tests
-    node --test scripts/tests/obj-to-plant-gltf.test.js
     @echo "-- cross-language KATs: a browser and the relay must encode identically --"
     just vote-kat
     just mod-kat
@@ -790,9 +789,11 @@ lints:
     # target/lint-cache/ (never a shared /tmp name: on 2026-10-20 two sessions overwrote each other's
     # programs), four compiled and four run at a time, and EVERY lint runs: a red one no longer hides
     # the ones behind it. 32.7 s before, 7.4 s cold and 3.9 s warm after (measured 2026-10-23).
-    # ONE line holds every lint (2026-10-30): two sessions had each added a lint by copying the whole
-    # line, so the other 19 ran twice in every `just lints`. Add a lint to the end of this line.
-    node scripts/run-lints.js emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint account_sql_lint rig_pin_lint snapshot_recipe_lint recipe_sources_lint byproduct_use_lint scene_format_lint terminology_lint schema_alter_order_lint bind_group_entry_lint admin_action_coverage i18n_lint gpu_test_gate_lint repo_root_lint settings_used_lint page_change_lint layer_lint simready_lint no_ai_in_app_lint reuse_switch_lint
+    # DISCOVERY (2026-11-14): --all runs every tests/*.rs, minus scripts/test-discovery.json's
+    # excludes (each with its reason). The hand-kept line of names before it was a merge-conflict
+    # magnet, and on 2026-10-30 two sessions had each copied it, so 19 lints ran twice. Add a lint
+    # by adding its file.
+    node scripts/run-lints.js --all
     @node scripts/check-encoding.js --all > /dev/null && echo ">> lint ok: check-encoding --all" || { echo "LINT FAILED: check-encoding --all"; node scripts/check-encoding.js --all; exit 1; }
     # The How-to data (docs/design/how-to.md): every how-to through the checker, every gate seen red
     # on its fixture (tests/fixtures/how_to/broken.json), the index current. A second of node, no compile.
@@ -823,203 +824,20 @@ lints:
 check-encoding *ARGS:
     node scripts/check-encoding.js {{ARGS}}
 
-# The RIG's own tests: the measuring instruments, checked the way the code they
-# measure is checked. Pure node, no GPU, under a second, so it runs inside
-# `just verify` rather than waiting for someone to remember it.
+# The RIG's own tests and every other pure-node test: the measuring instruments, the
+# web mirrors' checks, the judges the rigs grade with, checked the way the code they
+# measure is checked. Nothing booted, no GPU, so it runs inside `just verify`.
 #
-# Covers today: the one-machine guard (scripts/lib/machine-guard.js) and
-# perf-report's refusal to grade a contaminated capture. Both exist because on
-# 2026-09-18 two separate readings came back wrong and looked right: a second
-# builder's instance arrived mid-sweep and its 9 ms of stolen GPU sat in a
-# comparison table as data (docs/design/frame-cost-arc.md, "V1 outcome"), and a
-# concurrent cargo/rustc build read 6.6 fps at the limb against a 15 ms GPU sum.
-# And the cloud grain measure (scripts/terminator-grain.js): on 2026-09-22 the
-# old grain metric ranked a 3x3 box blur as the best fix at the dusk line, so
-# its test proves on synthetic captures that a blur is judged "same", that
-# averaging independent noise is judged BETTER, and that each of the measure's
-# two locks goes red when the other is switched off. That one takes a few
-# seconds (it blurs and re-scores six controls per run), not under one.
-# And the co-presence judge (scripts/lib/copresence-judge.js): smooth samples
-# pass, and round one's stop-go drawing, a figure that never appears, a step
-# back, a snap, a drift off the line, a walk out of view and a figure covered
-# by a window in the screenshot each FAIL; and its plot checks (increment 1b):
-# the 1a shape (no plots handed out, the game's camera still on p1), two
-# players on one plot, and a walker drawn outside its plot each FAIL. BUG-161:
-# a capture starved by builds (400 ms frames, and the four real 2026-10-05
-# recordings) reads CONTAMINATED, never PASS and never FAIL, while a wrong
-# speed on a quiet or a busy machine still FAILS; and the guard's build hold
-# lowers only builds, puts each back (on an error and Ctrl+C too), and is
-# proven once on a real rustc it starts itself (Windows; about a second).
-# And the station park check (scripts/lib/station-park-check.js, BUG-132): a
-# {"station":"home"} park on its pose passes, and the two misses BUG-132
-# wrote (the pose plus the Earth-to-home offset, and a kilometre out), a camera
-# not riding the station and a wrong look each FAIL.
-# And the freshness gate every rig runs before it boots (scripts/check-fresh-exe.js,
-# BUG-133): a build of the same tree passes, one changed source byte, a build of
-# another tree (even a NEWER one), no stamp, two stamps and a garbled stamp each
-# REFUSE, line endings alone do not count, --allow-other-build passes loudly and
-# is recorded, and every rig reaches the gate through runFreshGate. Its node
-# fingerprint is pinned to the number build.rs produced on the same fixture, and
-# when a build script sits under target/ the test runs it on the fixture too.
-# And the throwaway relay's loopback-only check (scripts/lib/throwaway-relay.js,
-# 2026-10-03): its env sets BIND_ADDRESS=127.0.0.1 whatever the shell says,
-# netstat/ss/lsof output is read for the right PID only, every wildcard
-# spelling and an empty listing are REFUSED, and a real 127.0.0.1 listener is
-# read from the OS and passed. A dev relay on 0.0.0.0 raises a Windows Firewall
-# prompt for every new temp path; see docs/INCIDENT-PLAYBOOK.md.
-# And the web chat's erase choice (scripts/tests/erase-sign-up-again.test.js, BUG-135,
-# 2026-10-04): only the person's Enter under the erase note says sign_up_again, on that one
-# socket, never a reload's auto-connect or an automatic reconnect.
-# And the sticky showcase pins the rigs release before every vantage (scripts/tests/
-# showcase-pins.test.js, 2026-10-04): one shared list, pipe_marking included.
-# And the shared-build judge (scripts/lib/shared-build-judge.js, ship homes increment 5,
-# 2026-10-05): a made-up `verify-shared-build` run that went right passes every check, each
-# broken one (the builder's build kept inside the game's plot, a piece drawn late or off where
-# it was built, planks spent twice, a wall not in the picture, ...) fails its own check and no
-# other, and the same run saved to a folder is judged by `--dry-verdict`.
-# And the household judge (scripts/lib/household-judge.js, ship homes increment 5b, 2026-10-12): a
-# made-up `verify-household` run that went right passes every check, each broken one (the game
-# walking through her shut corridor, a permit naming another server, a key in a relay permit-check
-# line, Ada's build with a permit taken back KEPT, ...) fails its own check and no other, the probe's
-# household fields are read in one place (PROBE), and the rig's corridor walks stay at walking pace.
-# And the starts judge (scripts/lib/starts-judge.js, ship homes increment 6, 2026-10-12): a made-up
-# `verify-starts` run, built from the tree's own data, that went right passes every check, each
-# broken one (the home's things carried into the server's save, the counter's offline meal in a
-# server's world, a key on the relay's home-chosen line, home again to the default home, ...) fails
-# its own check and no other, the counter's words and the probe's field names are the game's own,
-# and the same run saved to a folder is judged by `--dry-verdict`.
-# And the probe sweep's ground_probe judgement (scripts/tests/tree-ground-check.test.js,
-# BUG-156, 2026-10-05): trees floating over the drawn ground, or an eye off it, fail.
-# And the friendship pass words (scripts/tests/friend-pass.test.js, passes v2, 2026-10-09):
-# the web builder (web/shared/friend-pass.js) is held to the relay's pinned preimage, and the web
-# chat client gives, keeps and withdraws passes as native does (friend-pass-web.test.js).
-# And "who can reach me" on the web (reach-web.test.js, step B, 2026-10-09): Safety shows the relay's
-# reach_settings, reach_set goes out per kind, refusals offer a contact request that carries my pass.
-# And calls through the server on the web (calls-through-server.test.js, step E, 2026-10-09): no Google
-# STUN under web/, rooms and calls ask call_credentials and connect relay only, no credentials says so.
-# And an admin erasing another person's data on the web (admin-erase-web.test.js, 10i, 2026-10-10):
-# offered only to an admin or the owner and never on an admin's row, Erase needs the exact name, the
-# frame is the spec's, the receipt is shown, and the erased person's client says an admin did it.
-# And what kind of file a received file is on the web (file-risk-web.test.js, 2026-10-17): the
-# website's checker (web/shared/file-risk.js) answers the shared cases the desktop app's twin
-# answers (scripts/tests/fixtures/file-risk-cases.json), from data/safety/file_risks.json.
-# And files dragged from the computer onto the website (drop-files-web.test.js, 2026-10-17): the
-# overlay's words while they are over a page, the Media page's and Shared Files' drops taking their
-# picker's path, the reasons where a drop would do nothing (the chat's drops: private-files-web.test.js).
-# And the encoding check (check-encoding.test.js, 2026-10-19): a PowerShell round trip of a tracked
-# file, a gained byte-order mark, UTF-16 and one garbled added line are each refused in a throwaway
-# repo, every character U+0080..U+FFFF garbled by ICU's decoder is caught, and --fix restores it.
-# And `just tag` (tag-release.test.js, 2026-10-19): an empty, malformed or uncommitted version, a tag
-# already here or on origin, origin unreachable, HEAD not on origin/main and a missing notes file each
-# REFUSE with nothing tagged; pushes and gh are recorded by an allowlist runner, never made.
-# And the falls judge (scripts/lib/falls-judge.js, 2026-10-20): a made-up `verify-falls` run, built
-# from the tree's falls.ron, gravity and stairs, that went right passes every check; the run a build
-# with the lib.rs landing hand-off taken out reports (the camera drops 3 m, the body does not move)
-# fails, a Forgiving leg that never fell is not a pass, a placement's drop that hurts and a ladder
-# that does not hold on fail, the two REAL runs in tests/fixtures/falls/ (green, and that red build)
-# are judged as they were, and the same runs saved to a folder are judged by `--dry-verdict`.
-# And the request writer every rig uses (scripts/lib/write-request.js, 2026-10-20): a reader that
-# races it the way the game polls (read, delete, every frame) sees nothing or the whole request, never
-# part of one, and the same reader catches a plain fs.writeFileSync empty, so the race can fail
-# (write-request.test.js); and no script under scripts/ writes a request file any other way, the
-# names checked against the game's own request constants (request-writes.test.js). A plain write lost
-# verify-falls' `illness` request on 2026-10-20 and a Forgiving leg ran in Realistic.
-# And the storeys judge (scripts/lib/storeys-judge.js, 2026-10-21): a made-up `verify-storeys` run,
-# built from the homestead's own stair, slabs, zones, elevator and ladder, that went right passes
-# every check; the shape the running game takes when the floor slabs never reach the walk (up the
-# treads, then 3 m down past the top, the HUD naming the hall downstairs) fails, and so does a wall,
-# guard, gate or landing door that does not hold, a wall upstairs that stops a body downstairs, a
-# jump through the slab, an elevator that does not ride or jumps its rider, the HUD naming the wrong
-# storey, and a placement passed off as a walk; a layout that moved what the route walks refuses
-# before anything boots; the two REAL runs in tests/fixtures/storeys/ are judged as they were.
-# And the machine-wide rig boot lock (scripts/lib/boot-lock.js, 2026-10-21): two rigs woken by the
-# same build ending (real processes, same moment) never boot together; another rig's held lock is a
-# busy machine to the guard; a lock whose holder was killed, or whose pid now belongs to another
-# process, is taken over; spawnGame will not start a game without it; probe-sweep waits for it.
-# And verify-runtime's two clocks (verify-runtime-gate.test.js): a machine wait longer than the gate
-# does not trip it, a game that hangs after it starts still does (node, stamped, as the "game");
-# a machine that never goes quiet is REFUSED (exit 1), not FAIL; a build alone does not hold the sweep,
-# --wait-builds makes it wait for one, low free memory holds it; an
-# unknown flag or a non-number time is refused, not ignored. Every lock here is the test's own file.
-# And the DXC pair from a worktree (dxc-dlls.test.js, 2026-10-21): a worktree's rig finds the pair in
-# the main checkout's root (found as `git rev-parse --git-common-dir` finds it, checked against git),
-# dxc-beside-exe.js too, and a rig whose game boots on FXC ends its output with a banner saying so.
-# And the lint runner (scripts/run-lints.js, run-lints.test.js, 2026-10-23): on a throwaway checkout,
-# three tiny lints with two red run in full and both reds are named (the old loop stopped at the first),
-# a lint made red after it was cached is compiled again rather than replaying its green program (seen
-# red with a cache key that ignored the source), a program built for one checkout is not reused by
-# another, and a lint that does not compile fails with rustc's message.
-# And the build slot (scripts/build-slot/hos-build-slot.rs, build-slot.test.js, 2026-10-23): three
-# compiles started at once, each of which dies if another runs beside it (a stand-in rustc), all pass
-# through the slot one after another, and with the slot off the same three die (the red control, every
-# run; a slot mutated to admit everything fails it); a REAL rustc under REAL cargo, capped by a job
-# object into running out of memory, is retried to success and fails with one attempt allowed; an
-# ordinary error is shown, not retried; the health check names a missing, stale or foreign wrapper.
-# And the lib-test run policy (scripts/lib-tests.js, lib-tests-policy.test.js, 2026-10-23), on a
-# throwaway repository with a tiny real test program: a full pass is recorded and the same tree is
-# refused until a tracked or untracked file changes or --force (seen red with an identity that ignored
-# changed files); a test that fails once and passes alone is FLAKY (banner, ledger line, the run
-# passes, only that test rerun); a real failure fails again alone and fails the run (seen red with a
-# rerun that called everything flaky); -q by default and a failure's message still shown.
-# And the disk guard's old-build pruning (scripts/lib/stale-artifacts.js, stale-artifacts.test.js,
-# 2026-10-23): on a made-up target folder, builds of our crate untouched for 3 days beyond the newest
-# six go, today's and the newest six stay, a dependency's old copies all stay (seen red with every
-# crate pruned, and with the newest-six rule taken out), and the guard deletes them for real while a
-# build is "running" (seen red with the step skipped when busy).
-# And what each rig needs from the machine (rig-needs.test.js, 2026-10-22): every rig that starts the
-# game is in scripts/lib/rig-needs.js and plans its boot through it; a behaviour rig runs in low
-# impact beside the operator's GPU-heavy program and a picture or timing rig refuses low impact.
-# And the dev MCP bridge (scripts/mcp-server.js, 2026-10-22, docs/ai/mcp.md): over real stdio it
-# answers both protocol eras, lists the game's tools from src/engine/mcp/tools.json, forwards one to a
-# double of the game's endpoint with the token and headers, and game_boot adds only the two switches.
-# And the website's How-to page (scripts/tests/how-to-web.test.js, 2026-10-23, docs/design/how-to.md):
-# its four files, Short and Full, a run kept and read back, a timer, search by symptom, a deep link,
-# and its rules held to the desktop's (each test seen red under its own mutation).
-# And the crate cards' check (scripts/tests/crate-cards.test.js, 2026-10-31): a missing card, a
-# missing or misordered heading, a stray card, a block out of place and a malformed request each
-# fail, a block whose numbers all moved still passes (each seen red with its check switched off).
-# And the website's skill XP table (scripts/tests/xp-curve-web.test.js, BUG-248, 2026-11-04): both
-# pages read data/skills/xp_curve.json, the game's rule, and their offline copies are that table.
-# And the mothership's space program (scripts/tests/space-program.test.js, 2026-11-06,
-# docs/design/mothership-master-plan.md 3.12): the TOML reader, the totals worked by hand, and the
-# shipped data/ship/space_program.toml and its apartment block template checked (each seen red);
-# since 2026-11-07 also the 500-person sector, the farm levels, the comfortable garden's floor held
-# to the garden program's own, hoop stress, the night-noise distance and the fleet for 1 and 10 billion.
-# And the survival garden (scripts/tests/survival-garden.test.js, 2026-11-07, survival-garden.md):
-# the simplex worked by hand, the mushroom room's growing medium (residue, substrate, the cap it
-# puts on the mushrooms, the vitamin D fallback), the shipped settings and the design doc's
-# generated block kept current (each seen red).
-# And the instrument pipeline (scripts/tests/instrument-packs.test.js, 2026-11-06, music.md rung 6):
-# a fixture library of tones becomes a core set and one pack with the right definitions, the measured
-# source tuning (A = 442 with octave-low names), the licence beside the samples, a checksum the
-# catalog carries, byte-identical on a rebuild; a changed library download is refused. Needs ffmpeg.
-# And its .7z reader (scripts/tests/sevenzip.test.js, 2026-11-13): a folder that is a chain of two
-# coders (Deflate and the Delta filter, FreePats' ukulele) in either order, checksum checked.
-# And the packs' files against the catalog (scripts/tests/instrument-packs-staged.test.js, 2026-11-13):
-# every pack in packs.ron is a file of its size and SHA-256 in the staging folder, under GitHub's 2 GiB
-# per asset (skipped where no staging folder exists).
-# And the coasts (scripts/tests/shore-probe-check.test.js, 2026-11-09, whole-earth-maps.md 5.5): the
-# shore_probe judge on made-up transects, a wall, a dry harbour, ends on the wrong side, a coast on
-# the 5.5 km ocean mask alone, a seam along the water, and checks of nothing (each seen red).
-# And the release mirror's puller (scripts/tests/mirror-release.test.js, 2026-11-09, BUG-288): the
-# server-side script that pulls each release from GitHub, run under Python against a fake GitHub on
-# 127.0.0.1 (stalls, crawls, corrupt files, cut-off and Range-ignoring connections, an incomplete
-# release, the rate limit, a published folder that differs, the lock) and the manifest script on a
-# scratch folder. Needs Python 3.9+. HOS_MIRROR_LIVE=1 adds a dry run against the real release.
-# And the road beds and building pads (scripts/tests/bed-probe-check.test.js, 2026-11-09,
-# whole-earth-maps.md 6.1 and 6.2): the bed_probe judge on made-up cross-sections and footings, rung
-# 2's floating ribbon and buried skirt, and a flat street or lot that proves nothing (each seen red).
-# And the feet on the world (scripts/tests/foot-probe-check.test.js, 2026-11-09, character-animation.md
-# section 4): the foot_probe judge on made-up readouts, rung 1's feet through the treads, a hovering
-# foot, and a stair vantage on flat floor that proves nothing (each seen red).
-# And our BC7 encoder (scripts/tests/bc7.test.js, 2026-11-10, the look's garment textures): every block it
-# writes decodes to the texels it measured, in every mode it writes (seen red).
-# And what a release's download carries (scripts/tests/release-files.test.js, 2026-11-10): the one
-# list the bundle, the data archive and the data manifest are made from carries every file the
-# character data names and every garment thumbnail, and none of the garments' source PNGs (each seen red).
-# Add a file here whenever a rig script grows a judgement of its own.
-rig-tests:
-    node --test scripts/tests/machine-guard.test.js scripts/tests/perf-report.test.js scripts/tests/terminator-grain.test.js scripts/tests/make-clips.test.js scripts/tests/voice-rejoin.test.js scripts/tests/p2p-sync-own-devices.test.js scripts/tests/p2p-direct-offers.test.js scripts/tests/link-preview-pictures.test.js scripts/tests/erase-sign-up-again.test.js scripts/tests/backup-rotate.test.js scripts/tests/second-player.test.js scripts/tests/sealed-dm.test.js scripts/tests/copresence-judge.test.js scripts/tests/dxc-dlls.test.js scripts/tests/station-park-check.test.js scripts/tests/check-fresh-exe.test.js scripts/tests/check-delivery.test.js scripts/tests/throwaway-relay.test.js scripts/tests/rig-boot.test.js scripts/tests/compiled-in.test.js scripts/tests/game-launch.test.js scripts/tests/rig-exe-copy.test.js scripts/tests/showcase-pins.test.js scripts/tests/rig-gameplay.test.js scripts/tests/clean-test-temp.test.js scripts/tests/shared-build-judge.test.js scripts/tests/household-judge.test.js scripts/tests/starts-judge.test.js scripts/tests/tree-ground-check.test.js scripts/tests/friend-pass.test.js scripts/tests/friend-pass-web.test.js scripts/tests/reach-web.test.js scripts/tests/block-web.test.js scripts/tests/server-list-backoff.test.js scripts/tests/report-web.test.js scripts/tests/outside-help-web.test.js scripts/tests/calls-through-server.test.js scripts/tests/warnings-web.test.js scripts/tests/protected-web.test.js scripts/tests/admin-erase-web.test.js scripts/tests/group-report-web.test.js scripts/tests/trade-page-web.test.js scripts/tests/private-files-web.test.js scripts/tests/video-poster-web.test.js scripts/tests/video-volume-web.test.js scripts/tests/sound-levels-web.test.js scripts/tests/files-web.test.js scripts/tests/files-web-round2.test.js scripts/tests/strip-metadata.test.js scripts/tests/files-web-round3.test.js scripts/tests/files-web-round4.test.js scripts/tests/upload-clean-web.test.js scripts/tests/files-in-messages-web.test.js scripts/tests/kept-files-web.test.js scripts/tests/files-web-files.test.js scripts/tests/describe-agree.test.js scripts/tests/relay-follow.test.js scripts/tests/server-files.test.js scripts/tests/watchdog-target.test.js scripts/tests/build-leftovers.test.js scripts/tests/file-transfer-web.test.js scripts/tests/file-transfer-chat-web.test.js scripts/tests/profile-copy-web.test.js scripts/tests/chat-home.test.js scripts/tests/choice-web.test.js scripts/tests/library-order-web.test.js scripts/tests/files-web-round5.test.js scripts/tests/server-strip-web.test.js scripts/tests/files-web-item.test.js scripts/tests/files-takedown-web.test.js scripts/tests/phrase-cover-web.test.js scripts/tests/model-view-web.test.js scripts/tests/file-risk-web.test.js scripts/tests/drop-files-web.test.js scripts/tests/post-in-chat-web.test.js scripts/tests/files-card-web.test.js scripts/tests/check-encoding.test.js scripts/tests/tag-release.test.js scripts/tests/apps-web.test.js scripts/tests/files-web-panes.test.js scripts/tests/files-web-places.test.js scripts/tests/web-theme-light.test.js scripts/tests/web-root-retired.test.js scripts/tests/falls-judge.test.js scripts/tests/write-request.test.js scripts/tests/request-writes.test.js scripts/tests/storeys-judge.test.js scripts/tests/map-centre-check.test.js scripts/tests/boot-lock.test.js scripts/tests/verify-runtime-gate.test.js scripts/tests/recovery-web.test.js scripts/tests/map-overview-check.test.js scripts/tests/sol-orbits-web.test.js scripts/tests/chat-rows-web.test.js scripts/tests/run-lints.test.js scripts/tests/build-slot.test.js scripts/tests/lib-tests-policy.test.js scripts/tests/stale-artifacts.test.js scripts/tests/backups-admin-web.test.js scripts/tests/rig-needs.test.js scripts/tests/dev-claude-web.test.js scripts/tests/map-ship-check.test.js scripts/tests/level-picker-web.test.js scripts/tests/mcp-server.test.js scripts/tests/how-to-web.test.js scripts/tests/i18n-web.test.js scripts/tests/hints-web.test.js scripts/tests/glossary-terms.test.js scripts/tests/contrast.test.js scripts/tests/a11y-web.test.js scripts/tests/first-minutes.test.js scripts/tests/notes-crypto-web.test.js scripts/tests/calculator-degrees-web.test.js scripts/tests/wallet-api-web.test.js scripts/tests/line-status-web.test.js scripts/tests/line-limit-web.test.js scripts/tests/timestamps-web.test.js scripts/tests/over-limit-web.test.js scripts/tests/play-journal-bridge.test.js scripts/tests/identity-unlock-web.test.js scripts/tests/check-library-dashes.test.js scripts/tests/check-crate-layers.test.js scripts/tests/crate-cards.test.js scripts/tests/view-toggle-web.test.js scripts/tests/wip-strip-web.test.js scripts/tests/wip-mute-web.test.js scripts/tests/notify-rules-web.test.js scripts/tests/notify-prefs-web.test.js scripts/tests/notify-list-web.test.js scripts/tests/notify-rung3-web.test.js scripts/tests/tray-judge.test.js scripts/tests/wip-strip-room-web.test.js scripts/tests/z-index-scale-web.test.js scripts/tests/onboarding-chains-web.test.js scripts/tests/warnings-ratchet.test.js scripts/tests/run-sources.test.js scripts/tests/tasks-mine-web.test.js scripts/tests/front-door-web.test.js scripts/tests/robots-web.test.js scripts/tests/page-meta-web.test.js scripts/tests/not-found-web.test.js scripts/tests/chat-access-web.test.js scripts/tests/feedback.test.js scripts/tests/chat-channels-web.test.js scripts/tests/chat-links-web.test.js scripts/tests/navigation-web.test.js scripts/tests/privacy-web.test.js scripts/tests/xp-curve-web.test.js scripts/tests/push-subscribe-web.test.js scripts/tests/space-program.test.js scripts/tests/survival-garden.test.js scripts/tests/self-mail-web.test.js scripts/tests/upload-keep-web.test.js scripts/tests/instrument-packs.test.js scripts/tests/sevenzip.test.js scripts/tests/instrument-packs-staged.test.js scripts/tests/browser-webrtc.test.js scripts/tests/owner-only-unit.test.js scripts/tests/sync-sealed-web.test.js scripts/tests/no-github-web.test.js scripts/tests/room-files-web.test.js scripts/tests/gen-test-figure.test.js scripts/tests/gen-makehuman-body.test.js scripts/tests/gen-makehuman-look.test.js scripts/tests/bc7.test.js scripts/tests/gen-quaternius-clips.test.js scripts/tests/simready-pack.test.js scripts/tests/shore-probe-check.test.js scripts/tests/bed-probe-check.test.js scripts/tests/foot-probe-check.test.js scripts/tests/anchor-probe-check.test.js scripts/tests/mirror-release.test.js scripts/tests/release-files.test.js scripts/tests/draw-homes.test.js
+# DISCOVERY (2026-11-14): it runs EVERY scripts/tests/*.test.js. This was one hand-kept
+# line of 174 names (and 195 lines of comments above it) that every agent adding a test
+# edited, so parallel merges conflicted on it, and hurried conflict fixes dropped names:
+# seven tests whose headers said "in `just rig-tests`" ran nowhere. Add a test by adding
+# its file; its own header says what it proves. A test that must NOT run here (it boots
+# something) goes in scripts/test-discovery.json with its reason. `node scripts/rig-tests.js
+# --list` prints the set. Other --flags pass to node --test (--test-name-pattern=...).
+# Every pure-node test, scripts/tests/*.test.js found by discovery (scripts/rig-tests.js)
+rig-tests *ARGS:
+    node scripts/rig-tests.js {{ARGS}}
 
 # The scripted second player (scripts/second-player.js) against a REAL relay.
 # NOT pure node, so NOT in rig-tests or `just verify` (rig-tests keeps the
@@ -1264,7 +1082,6 @@ preflight:
     node scripts/check-schema-paths.js
     node scripts/check-ai-catalog.js
     node scripts/check-library-quotes.js
-    node --test scripts/tests/check-library-quotes.test.js
     node scripts/check-web-sites.js
     node scripts/verify-screens.js --self-test
     just verify
