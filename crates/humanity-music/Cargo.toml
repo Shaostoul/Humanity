@@ -27,6 +27,9 @@ kira = ["dep:kira"]
 [dependencies]
 serde = { workspace = true }
 ron = { workspace = true }
+# The person's favourites file (favourite.rs, docs/design/music-page.md section 7): JSON, the format of
+# config.json beside it, so a person can read and mend it with any text editor.
+serde_json = { workspace = true }
 log = { workspace = true }
 kira = { workspace = true, optional = true }
 
@@ -35,8 +38,6 @@ kira = { workspace = true, optional = true }
 # docs/design/loudness.md): one meter for the whole app, so the music is held to the same numbers as
 # every other sound.
 humanity-core = { path = "../humanity-core", default-features = false }
-# Reads data/i18n/en.json in the data test (every words key the music data names has English).
-serde_json = { workspace = true }
 
 [[example]]
 # `just music-render <mood> <style> <seconds>`: renders the real engine offline to a WAV (never in the repo)

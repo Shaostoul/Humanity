@@ -94,6 +94,9 @@ fn inputs(data: &Path) -> Inputs {
         reuse: true,
         generation: 0,
         restart: false,
+        page_choice: None,
+        favourites: Arc::default(),
+        analyse: false,
     }
 }
 
@@ -431,6 +434,49 @@ fn a_new_piece_begins_after_its_minutes_and_a_rebuild_carries_the_piece_on() {
     assert!(after.form_pos > before.form_pos && after.form_pos <= before.form_pos + 2, "and carries its form on: phrase {} of the piece, then {}", before.form_pos, after.form_pos);
 }
 
+/// A FAVOURITE ASSIGNED TO DANGER PLAYS WHEN THE MOOD TURNS TO DANGER (docs/design/music-page.md
+/// section 7; the operator, 2026-11-13: "maybe seed X has a particular sound I love and want to
+/// [for] combat"): calm, the session's own piece plays; the intensity rising into the tension band,
+/// the favourite kept as tension's "my music" takes over (its seed, its genre) within a few seconds;
+/// falling back to calm, new pieces again. And the Music page's choice, while it is open, plays in
+/// place of both.
+///
+/// Seen RED (2026-11-13), before the runtime knew favourites: "not reached in 3000 frames" at the
+/// danger step (the session's piece played on through danger).
+#[test]
+fn a_favourite_assigned_to_danger_plays_when_the_mood_turns_to_danger() {
+    use humanity_music::favourite::{Favourite, Favourites};
+    let t = quick_music("music_my_danger");
+    let data = t.join("data");
+    let mut inp = inputs(&data);
+    let mut favs = Favourites::default();
+    let id = favs.add(Favourite { id: 0, name: "Fight".into(), genre: "lofi".into(), mood: "tension".into(), seed: 777, tune: Default::default() });
+    favs.assign("tension", Some(id));
+    inp.favourites = Arc::new(favs);
+    let mut rt = MusicRuntime { seed: 20261113, ..Default::default() };
+    let mut mix = Offline::default();
+    let calm = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.seconds > 0.5)).score.unwrap();
+    assert_eq!(calm.piece_seed, 20261113, "calm: the session's own piece");
+    inp.intensity = 0.5;
+    let before = mix.now_s;
+    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed == 777 && s.seconds > 0.0));
+    assert!(mix.now_s - before < 6.0, "the favourite takes over within a few seconds: {:.1} s", mix.now_s - before);
+    assert_eq!(rt.score_genres, vec!["lofi".to_string()], "in the favourite's genre");
+    // The danger mood comes at a bar line once the score has begun its first phrase.
+    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.mood == "tension" && r.score.is_some_and(|s| s.piece_seed == 777));
+    inp.intensity = 0.0;
+    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed != 777 && s.seconds > 0.0));
+    assert_eq!(rt.score_genres, vec![MusicSettings::default().genre], "calm again: the person's genre, a new piece");
+    // The Music page open with Play here: its choice plays, danger or not.
+    inp.intensity = 0.5;
+    let tune = humanity_music::tune::Tune { transpose: 2, ..Default::default() };
+    inp.page_choice = Some(MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 31, tune });
+    let r = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed == 31 && s.seconds > 0.0));
+    assert_eq!(rt.score_genres, vec!["electro_swing".to_string()]);
+    assert_eq!(r.mood, "mothership_calm", "the page's mood, not the game's danger");
+    assert!(r.playing.as_ref().is_some_and(|p| p.choice.as_ref() == inp.page_choice.as_ref()), "the readout says what plays, for the page's piano roll");
+}
+
 /// SETTINGS > MUSIC LISTS EVERY GENRE FROM THE DATA, MUSIC PLAYED OR NOT (BUG-273): with no audio
 /// device and nothing playing, the music's data is read on the worker and the readout lists every
 /// genre file (lo-fi beside the default) and the tones. RED first (2026-11-07) against the old frame
@@ -483,7 +529,7 @@ fn the_score_with_recordings_measured() {
         let recorded: Vec<String> = built.plays.iter().filter(|(_, p)| matches!(p, crate::instrument_packs::score::PartPlays::Recorded { .. })).map(|(p, _)| p.clone()).collect();
         let si = lib.genre_index(genre).unwrap() as u16;
         let intensity = if mood == "action" { 0.9 } else { 0.3 };
-        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: si, genre_b: si, blend: 0.0, intensity, duck_db: 0.0 };
+        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: si, genre_b: si, blend: 0.0, intensity, duck_db: 0.0, ..Default::default() };
         let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
         let mut meter = LoudnessMeter::new(48000, 2);
         let mut buf = [[0.0f32; 2]; 128];
@@ -548,7 +594,7 @@ fn electro_swing_plays_recordings_out_of_the_box() {
     let lib = built.lib.clone();
     let gi = lib.genre_index("electro_swing").unwrap();
     assert!(built.stand_ins[gi].is_empty(), "no stand-ins with the core set: {:?}", built.stand_ins[gi]);
-    let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi as u16, genre_b: gi as u16, blend: 0.0, intensity: 0.3, duck_db: 0.0 };
+    let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi as u16, genre_b: gi as u16, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
     let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
     let mut meter = LoudnessMeter::new(48000, 2);
     let mut buf = [[0.0f32; 2]; 128];
@@ -640,7 +686,7 @@ fn pieces_to_listen_to() {
         let built = build(&data, 432.0, true, &mut bank, &[genre.to_string()]).expect("builds");
         let lib = built.lib.clone();
         let gi = lib.genre_index(genre).unwrap() as u16;
-        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi, genre_b: gi, blend: 0.0, intensity: 0.3, duck_db: 0.0 };
+        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi, genre_b: gi, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
         let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, seed, ctx);
         let mut frames: Vec<[f32; 2]> = Vec::new();
         let mut buf = [[0.0f32; 2]; 128];

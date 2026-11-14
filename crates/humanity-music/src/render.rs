@@ -40,6 +40,115 @@ pub fn render_score(engine: &mut ScoreEngine, rate: f32, seconds: f64) -> Render
     Rendered { frames, rate, block_us_mean: sum / blocks.max(1) as f64, block_us_worst: worst, blocks }
 }
 
+/// Fade the last `fade_s` seconds of `frames` out with a raised cosine (a listening file ends; the
+/// game's score never does). `just music-render` and the Music page's export both end this way.
+pub fn fade_out(frames: &mut [[f32; 2]], rate: f32, fade_s: f64) {
+    let fade_n = (fade_s.max(0.0) * rate as f64) as usize;
+    let len = frames.len();
+    for (k, f) in frames.iter_mut().enumerate().skip(len.saturating_sub(fade_n)) {
+        let x = (k + fade_n - len) as f32 / fade_n.max(1) as f32;
+        let g = 0.5 + 0.5 * (std::f32::consts::PI * x).cos();
+        f[0] *= g;
+        f[1] *= g;
+    }
+}
+
+/// The fade a listening file of `seconds` ends with: 6 s, or a quarter of a short file.
+pub fn default_fade_s(seconds: f64) -> f64 {
+    6.0f64.min(seconds / 4.0)
+}
+
+/// The WAV a favourite exports to (docs/design/music-page.md section 8): its piece rendered with `res`
+/// (the instruments the game plays it with) for `seconds` in the score's 128-frame blocks, the
+/// default fade, at 48 kHz, written to `path` AS IT RENDERS (an hour of it would be 1.4 GB held in
+/// memory). The file is byte for byte what rendering it all, [`fade_out`] and [`write_wav`] give, as
+/// `just music-render` does (a test holds the two paths to it). Returns how many samples clipped (0
+/// from a levelled score).
+pub fn export_favourite(res: crate::Resolved, lib: &crate::MusicLibrary, fav: &crate::favourite::Favourite, a4: f32, seconds: f64, path: &std::path::Path) -> Result<usize, String> {
+    let ctx = fav.context(lib, a4)?;
+    let rate = EXPORT_RATE;
+    let mut engine = ScoreEngine::new(res, rate, fav.seed, ctx);
+    let total = (seconds * rate as f64) as usize;
+    let fade_n = (default_fade_s(seconds) * rate as f64) as usize;
+    let err = |e: std::io::Error| format!("{} could not be written: {e}", path.display());
+    let mut w = WavWriter::create(path, rate as u32, total).map_err(err)?;
+    let mut buf = [[0.0f32; 2]; BLOCK];
+    let mut i = 0;
+    while i < total {
+        let n = BLOCK.min(total - i);
+        engine.render(&mut buf[..n]);
+        // The fade, as fade_out gives it over the whole file.
+        for (j, f) in buf[..n].iter_mut().enumerate() {
+            let k = i + j;
+            if k + fade_n >= total {
+                let x = (k + fade_n - total) as f32 / fade_n.max(1) as f32;
+                let g = 0.5 + 0.5 * (std::f32::consts::PI * x).cos();
+                f[0] *= g;
+                f[1] *= g;
+            }
+        }
+        w.write(&buf[..n]).map_err(err)?;
+        i += n;
+    }
+    w.finish().map_err(err)
+}
+
+/// A 16-bit PCM WAV written frame by frame, with triangular dither as [`write_wav`] does (the export).
+pub struct WavWriter {
+    out: std::io::BufWriter<std::fs::File>,
+    rng: crate::rng::Rng,
+    clipped: usize,
+}
+
+impl WavWriter {
+    /// A WAV at `path` that will hold `frames` stereo frames at `rate` Hz (the header says so).
+    pub fn create(path: &std::path::Path, rate: u32, frames: usize) -> std::io::Result<WavWriter> {
+        use std::io::Write;
+        let mut out = std::io::BufWriter::new(std::fs::File::create(path)?);
+        let data_len = (frames * 4) as u32;
+        out.write_all(b"RIFF")?;
+        out.write_all(&(36 + data_len).to_le_bytes())?;
+        out.write_all(b"WAVEfmt ")?;
+        out.write_all(&16u32.to_le_bytes())?;
+        out.write_all(&1u16.to_le_bytes())?;
+        out.write_all(&2u16.to_le_bytes())?;
+        out.write_all(&rate.to_le_bytes())?;
+        out.write_all(&(rate * 4).to_le_bytes())?;
+        out.write_all(&4u16.to_le_bytes())?;
+        out.write_all(&16u16.to_le_bytes())?;
+        out.write_all(b"data")?;
+        out.write_all(&data_len.to_le_bytes())?;
+        Ok(WavWriter { out, rng: crate::rng::Rng::new(0xd1_7e4), clipped: 0 })
+    }
+
+    /// Write `frames`, dithered to 16 bits.
+    pub fn write(&mut self, frames: &[[f32; 2]]) -> std::io::Result<()> {
+        use std::io::Write;
+        for f in frames {
+            for &x in f {
+                let d = self.rng.f32() - self.rng.f32();
+                let mut s = (x * 32767.0 + d).round();
+                if !(-32768.0..=32767.0).contains(&s) {
+                    self.clipped += 1;
+                    s = s.clamp(-32768.0, 32767.0);
+                }
+                self.out.write_all(&(s as i16).to_le_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Finish the file; how many samples clipped.
+    pub fn finish(mut self) -> std::io::Result<usize> {
+        use std::io::Write;
+        self.out.flush()?;
+        Ok(self.clipped)
+    }
+}
+
+/// The rate exports are written at (what the game plays at, and every player reads).
+pub const EXPORT_RATE: f32 = 48000.0;
+
 /// Render `seconds` of a bed in 128-frame blocks.
 pub fn render_bed(engine: &mut BedEngine, rate: f32, seconds: f64) -> Rendered {
     let total = (seconds * rate as f64) as usize;

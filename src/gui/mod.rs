@@ -323,13 +323,10 @@ pub enum GuiPage {
     Maps,
     Market,
     Profile,
-    // v0.1147: GuiPage::Civilization DELETED (operator call 2026-08-17,
-    // nav-map open item 7): the standalone "Community Dashboard" page was
-    // reachable only through one onboarding link, while the Humanity tab's
-    // Mission Dashboard (built FROM civilization.rs's helpers) is the real
-    // surface. The module stays; only the page variant died.
+    // v0.1147: GuiPage::Civilization removed (its Mission Dashboard lives in the Humanity tab; docs/PAGES.md).
     Chat,
     Calculator,
+    Music, // explore, tune, keep, export and see the game's music (docs/design/music-page.md)
     Notes,
     Calendar,
     Crafting,
@@ -541,6 +538,7 @@ pub struct GuiState {
     /// Search box text on the Dev page's species list.
     pub dev_spawn_filter: String,
     pub music_dev: crate::gui::pages::dev_music::MusicDev, // the Dev page's Music card (engine/music.rs)
+    pub music_page: crate::gui::pages::music::MusicPage, // the Music page: choice, tune, favourites, export, piano roll
     /// Live count of Creature entities, mirrored from the ECS each frame so the
     /// Dev page can show "N creatures in the world" without a world handle.
     pub dev_creature_count: usize,
@@ -3221,6 +3219,7 @@ impl Default for GuiState {
             pending_dev_despawn_creatures: false,
             dev_spawn_filter: String::new(),
             music_dev: Default::default(),
+            music_page: Default::default(),
             dev_creature_count: 0,
             planet_tuner: Default::default(),
             dev_edit_target: None,

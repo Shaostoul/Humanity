@@ -45,7 +45,8 @@ use humanity_music::places::Place;
 use humanity_music::{hum_place, BedContext, BedEngine, BedStatus, MusicContext, MusicLibrary, MusicSettings, MusicStatus, Resolved, ScoreEngine};
 
 use crate::engine::state::EngineState;
-use crate::gui::pages::dev_music::MusicReadout;
+use crate::gui::pages::dev_music::{MusicChoice, MusicReadout};
+use humanity_music::favourite::Favourites;
 use crate::gui::GuiPage;
 use crate::instrument_packs::samples::SampleBank;
 
@@ -111,6 +112,14 @@ pub(crate) struct Inputs {
     pub generation: u64,
     /// The Dev card's "start the music afresh".
     pub restart: bool,
+    /// The Music page's choice while it is open with "Play here" on (docs/design/music-page.md
+    /// section 4): its genre, mood, seed and tuning play in place of new pieces.
+    pub page_choice: Option<MusicChoice>,
+    /// The person's favourites (their own file, music/favourites.json): a mood's "my music" plays
+    /// in that mood in place of new pieces (section 7).
+    pub favourites: Arc<Favourites>,
+    /// The Music page is open: the score measures its spectrum and role meters for it.
+    pub analyse: bool,
 }
 
 /// What plays this frame and how loud: Settings' choices, where the music is heard from, and the duck.
@@ -372,6 +381,10 @@ enum Take {
     /// The same piece rebuilt (the data read again with reuse off, a pack installed): the same seed,
     /// carried on from the phrase it was at, at the next phrase.
     Refresh,
+    /// What plays in place of new pieces changed (the Music page's choice: another seed, mood, key,
+    /// tempo or lead voice; a mood's "my music" coming in or going): its piece, at the next BAR line,
+    /// like a genre change (docs/design/music-page.md section 4).
+    Choice,
 }
 
 /// A build on the worker: its thread, whether it builds a score, and the install generation and the
@@ -457,6 +470,47 @@ pub(crate) struct MusicRuntime {
     piece_n: u64,
     piece_seed: u64,
     piece_s: f32,
+    /// What the playing score plays in place of new pieces (the Music page's choice or a mood's "my
+    /// music"; None: a new piece), its seed, its context when it began and a copy of what it plays
+    /// from: the Music page writes the same piece down from them (MusicReadout::playing).
+    score_choice: Option<MusicChoice>,
+    score_seed: u64,
+    score_ctx0: Option<MusicContext>,
+    score_res: Option<Arc<Resolved>>,
+    /// The Music page's export on its own thread.
+    export: Option<JoinHandle<Result<PathBuf, String>>>,
+}
+
+/// Whether two "in place of new pieces" choices compose the same piece (both none, or the same seed,
+/// genre, mood and composing half of the tuning).
+fn same_choice(a: Option<&MusicChoice>, b: Option<&MusicChoice>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => a.composes_like(b),
+        _ => false,
+    }
+}
+
+/// The mood the game asks for now (an id): the mood an intensity band names when the danger
+/// intensity is in it (tension, action), else the place's own. A mood's "my music" plays in it.
+pub(crate) fn mood_now(lib: &MusicLibrary, inp: &Inputs) -> String {
+    let band = lib.intensity.bands.iter().filter(|b| b.from <= inp.intensity).max_by(|a, b| a.from.total_cmp(&b.from));
+    if let Some(m) = band.and_then(|b| b.mood.as_ref()) {
+        return m.clone();
+    }
+    let p = Place { zone: &inp.place.zone, room_id: &inp.place.room_id, room_name: &inp.place.room_name, hour: inp.place.hour };
+    lib.places.mood_for(&p).to_string()
+}
+
+/// What plays in place of new pieces now: the Music page's choice while it is open with Play here
+/// on, else the favourite that is the music for the mood the game is in.
+pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs) -> Option<MusicChoice> {
+    if let Some(c) = &inp.page_choice {
+        return Some(c.clone());
+    }
+    let lib = lib?;
+    let fav = inp.favourites.for_mood(&mood_now(lib, inp))?;
+    crate::gui::pages::music::my_music_choice(fav, lib)
 }
 
 impl MusicRuntime {
@@ -551,7 +605,12 @@ impl MusicRuntime {
         if self.score.is_some() && g.music {
             self.piece_s += inp.dt;
         }
-        let genres = genres_in_use(self.lib.as_deref(), inp);
+        // In place of new pieces: the Music page's choice, or the mood's "my music" (music-page.md).
+        let choice = choice_now(self.lib.as_deref(), inp);
+        let genres = match &choice {
+            Some(c) => vec![c.genre.clone()],
+            None => genres_in_use(self.lib.as_deref(), inp),
+        };
         // A score built for genres no longer in use (another was chosen while it was building, or
         // while it waited for its bar line) is not played: the build for the genres now starts at
         // once below (BUG-297: it played the stale score a phrase, then built again).
@@ -563,8 +622,10 @@ impl MusicRuntime {
             // suggestion), the piece is due to change, or what is installed changed: the parts that
             // can sound, so the recordings to hold.
             let genre_changed = self.score.is_some() && self.score_genres != genres;
+            let choice_changed = self.score.is_some() && !same_choice(self.score_choice.as_ref(), choice.as_ref());
+            // A chosen piece plays on (a new piece every few minutes is for new pieces only).
             let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;
-            let piece_due = self.score.is_some() && piece_len_s > 0.0 && self.piece_s >= piece_len_s;
+            let piece_due = choice.is_none() && self.score.is_some() && piece_len_s > 0.0 && self.piece_s >= piece_len_s;
             let installed = self.score.is_some() && self.score_generation != inp.generation;
             let next_phrase = !inp.reuse && phrase.is_some_and(|p| self.asked_at_phrase.is_none_or(|a| p > a));
             let unread = self.lib.is_none() && (self.load_error.is_none() || inp.restart);
@@ -572,12 +633,14 @@ impl MusicRuntime {
                 Take::Start
             } else if genre_changed {
                 Take::Genre
+            } else if choice_changed {
+                Take::Choice
             } else if piece_due {
                 Take::Piece
             } else {
                 Take::Refresh
             };
-            if mixer.is_some() && ((g.music && self.score.is_none()) || genre_changed || piece_due || installed || next_phrase) {
+            if mixer.is_some() && ((g.music && self.score.is_none()) || genre_changed || choice_changed || piece_due || installed || next_phrase) {
                 self.asked_at_phrase = phrase;
                 self.since_read_s = 0.0;
                 self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone(), take);
@@ -600,20 +663,23 @@ impl MusicRuntime {
         // is never taken over before its phrase 2, unless the person chose another genre).
         let take_over = match (&self.ready, phrase) {
             (Some(_), None) => g.music,
-            (Some(r), Some(_)) if r.take == Take::Genre => bar.is_some_and(|b| b > r.at_bar),
+            (Some(r), Some(_)) if matches!(r.take, Take::Genre | Take::Choice) => bar.is_some_and(|b| b > r.at_bar),
             (Some(r), Some(p)) => p > r.at_phrase.max(1),
             _ => false,
         };
         if take_over {
             if let Some(Ready { res, lib, generation, genres, take, .. }) = self.ready.take() {
-                let ctx = Self::context_of(&lib, inp, &g, a4, &genres);
+                let ctx = Self::context_of(&lib, inp, &g, a4, &genres, choice.as_ref());
                 // A rebuild of the same piece keeps its seed and carries on from the phrase the old
-                // score just began; anything else is a new piece, the next seed.
-                let resume = (take == Take::Refresh && self.score.is_some()).then(|| st.map(|s| s.form_pos)).flatten();
-                let seed = match resume {
-                    Some(_) => self.piece_seed,
-                    None => self.seed.wrapping_add(self.piece_n.wrapping_mul(0x9e37_79b9)),
+                // score just began; a chosen piece (the Music page's, a mood's "my music") plays its
+                // own seed; anything else is a new piece, the next seed.
+                let resume = (take == Take::Refresh && self.score.is_some() && same_choice(self.score_choice.as_ref(), choice.as_ref())).then(|| st.map(|s| s.form_pos)).flatten();
+                let seed = match (resume, &choice) {
+                    (Some(_), _) => self.piece_seed,
+                    (None, Some(c)) => c.seed,
+                    (None, None) => self.seed.wrapping_add(self.piece_n.wrapping_mul(0x9e37_79b9)),
                 };
+                let res_copy = Arc::new(res.clone());
                 let engine = match resume {
                     Some(at) => ScoreEngine::resume(res, START_RATE, seed, ctx, at),
                     None => ScoreEngine::new(res, START_RATE, seed, ctx),
@@ -633,10 +699,16 @@ impl MusicRuntime {
                         self.asked_at_phrase = None;
                         self.pieces += 1;
                         if resume.is_none() {
-                            self.piece_n += 1;
+                            if choice.is_none() {
+                                self.piece_n += 1;
+                            }
                             self.piece_seed = seed;
                             self.piece_s = 0.0;
+                            self.score_ctx0 = Some(ctx);
                         }
+                        self.score_choice = choice.clone();
+                        self.score_seed = seed;
+                        self.score_res = Some(res_copy);
                     }
                     Err(e) => log::warn!("[Music] the score did not start: {e}"),
                 }
@@ -659,11 +731,14 @@ impl MusicRuntime {
         if let (Some(h), Some(lib)) = (self.score.as_mut(), self.score_lib.clone()) {
             // The playing score keeps the genres it was built for: a newly chosen genre arrives as a
             // new score at the next bar line, with its recordings, not as this score's stand-ins.
-            let ctx = Self::context_of(&lib, inp, &g, a4, &self.score_genres);
+            let ctx = Self::context_of(&lib, inp, &g, a4, &self.score_genres, choice.as_ref());
             h.set_context(ctx);
             let st = h.status();
             key_pc = st.key_pc;
             readout.score = Some(st);
+            if let (Some(res), Some(ctx0)) = (self.score_res.clone(), self.score_ctx0) {
+                readout.playing = Some(crate::gui::pages::dev_music::Playing { choice: self.score_choice.clone(), seed: self.score_seed, ctx: ctx0, res, lib: lib.clone() });
+            }
             readout.mood = lib.moods.get(st.mood as usize).map(|m| m.id.clone()).unwrap_or_default();
         }
         // The bed: the hum and the tones, from the newest data.
@@ -712,16 +787,20 @@ impl MusicRuntime {
     /// The score's context from `lib` (the data the score was built from: its mood and genre
     /// indices are that data's), playing `genres` (ids, as [`genres_in_use`] gives them: the genre,
     /// then a blend's second).
-    fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32, genres: &[String]) -> MusicContext {
+    /// A chosen piece (`choice`) brings its tuning, and the Music page's its own mood and intensity.
+    fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32, genres: &[String], choice: Option<&MusicChoice>) -> MusicContext {
         let s = &inp.settings;
         let p = Place { zone: &inp.place.zone, room_id: &inp.place.room_id, room_name: &inp.place.room_name, hour: inp.place.hour };
-        let mood = lib.mood_index(lib.places.mood_for(&p)).unwrap_or(0) as u16;
+        let chosen_mood = choice.and_then(|c| c.mood.as_deref()).and_then(|m| lib.mood_index(m));
+        let mood = chosen_mood.unwrap_or_else(|| lib.mood_index(lib.places.mood_for(&p)).unwrap_or(0)) as u16;
+        let intensity = choice.and_then(|c| c.intensity).unwrap_or(inp.intensity).clamp(0.0, 1.0);
+        let tune = choice.map(|c| c.tune).unwrap_or_default();
         let genre_a = genres.first().and_then(|id| lib.genre_index(id)).unwrap_or(0) as u16;
         let (genre_b, blend) = match genres.get(1).and_then(|id| lib.genre_index(id)) {
             Some(i) if s.blend > 0.0 => (i as u16, s.blend.clamp(0.0, 1.0)),
             _ => (genre_a, 0.0),
         };
-        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity: inp.intensity.clamp(0.0, 1.0), duck_db: g.duck_db }
+        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity, duck_db: g.duck_db, tune, analyse: inp.analyse }
     }
 
     /// The readout's lists (Settings > Music's genres and tones) and the build's state.
@@ -730,10 +809,44 @@ impl MusicRuntime {
             readout.genres = genre_choices(lib, &self.stand_ins);
             readout.tones = lib.tones.clone();
             readout.piece_minutes = lib.piece_minutes.clone();
+            readout.lib = Some(lib.clone());
         }
         readout.load_error = self.load_error.clone();
         readout.build_ms = self.build_ms;
         readout
+    }
+
+    /// Start the Music page's export on its own thread (one at a time): the music's data read and
+    /// the favourite's genre's recordings decoded afresh (nothing borrowed from the playing score),
+    /// then its piece rendered and written as it renders (render::export_favourite).
+    pub(crate) fn start_export(&mut self, job: crate::gui::pages::music::ExportJob, data_dir: PathBuf, a4: f32) {
+        if self.export.is_some() {
+            return;
+        }
+        let spawned = std::thread::Builder::new().name("music-export".into()).spawn(move || -> Result<PathBuf, String> {
+            let mut bank = SampleBank::default();
+            let built = build(&data_dir, a4, true, &mut bank, std::slice::from_ref(&job.favourite.genre))?;
+            let res = built.score.ok_or_else(|| "the music did not resolve".to_string())?;
+            if let Some(dir) = job.path.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| format!("{} could not be made: {e}", dir.display()))?;
+            }
+            let clipped = humanity_music::render::export_favourite(res, &built.lib, &job.favourite, a4, job.minutes.max(0.1) as f64 * 60.0, &job.path)?;
+            log::info!("[Music] exported {:?} ({} min, seed {}) to {} ({clipped} samples clipped)", job.favourite.name, job.minutes, job.favourite.seed, job.path.display());
+            Ok(job.path)
+        });
+        match spawned {
+            Ok(h) => self.export = Some(h),
+            Err(e) => log::warn!("[Music] the export thread did not start: {e}"),
+        }
+    }
+
+    /// The export's result once it is done.
+    pub(crate) fn poll_export(&mut self) -> Option<Result<PathBuf, String>> {
+        if !self.export.as_ref().is_some_and(|h| h.is_finished()) {
+            return None;
+        }
+        let h = self.export.take()?;
+        Some(h.join().unwrap_or_else(|_| Err("the export stopped unexpectedly".to_string())))
     }
 
     /// Whether a build is in flight (tests).
@@ -766,6 +879,21 @@ pub(crate) fn frame(state: &mut EngineState) {
     let (h, kept) = hearing(state.music.was_in_world, state.music.over_world, state.world_loaded, page);
     state.music.over_world = kept;
     state.music.was_in_world = h == Hearing::World;
+    // The person's favourites, read once (so a mood's "my music" plays without the Music page ever
+    // being opened), and the page's choice while it is open.
+    state.gui_state.music_page.load_favourites();
+    let on_page = page == GuiPage::Music;
+    let page_choice = if on_page { state.gui_state.music_page.choice(state.music.lib.as_deref(), &state.gui_state.settings.music.genre) } else { None };
+    // The page's export: started on its own thread, and its result handed back to the page.
+    if let Some(job) = state.gui_state.music_page.export_request.take() {
+        state.music.start_export(job, state.data_dir.clone(), state.gui_state.settings.music.tuning.a4_hz());
+    }
+    if let Some(done) = state.music.poll_export() {
+        state.gui_state.music_page.export_status = match done {
+            Ok(path) => crate::gui::pages::music::ExportStatus::Done { path },
+            Err(why) => crate::gui::pages::music::ExportStatus::Failed { why },
+        };
+    }
     let inputs = Inputs {
         settings: state.gui_state.settings.music.clone(),
         master: state.gui_state.settings.master_volume,
@@ -781,6 +909,9 @@ pub(crate) fn frame(state: &mut EngineState) {
         reuse: humanity_core::reuse::enabled(),
         generation: crate::instrument_packs::ui::installed_generation(),
         restart: std::mem::take(&mut state.gui_state.music_dev.restart_requested),
+        page_choice,
+        favourites: state.gui_state.music_page.favourites.clone(),
+        analyse: on_page,
     };
     let readout = {
         let EngineState { music, audio, .. } = &mut *state;

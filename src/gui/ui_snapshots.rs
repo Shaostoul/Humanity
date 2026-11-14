@@ -6087,3 +6087,53 @@ fn snapshot_calculator_pulleys() {
         crate::gui::pages::calculator::draw(ctx, theme, state);
     });
 }
+
+/// The Music page (2026-11-13, docs/design/music-page.md): an electro swing piece playing (seed
+/// 4242) twenty seconds in, the visualizer mid-beat with its part meters and spectrum, the piece in
+/// words, the tune controls with the bass 3 dB down and the texture muted, two favourites (one the
+/// music for tension), and the piano roll of the bars around the playhead with chord symbols and
+/// section letters. The piece is the real one, written down by the composer run dry.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music() {
+    use humanity_music::favourite::{Favourite, Favourites, SavedTune};
+    use std::sync::Arc;
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let lib = Arc::new(humanity_music::MusicLibrary::load(&data).expect("the music data"));
+    let res = Arc::new(humanity_music::Resolved::new(&lib, &humanity_music::SampleLibrary::new()).expect("resolve"));
+    render_page_png("music", 1280, 2500, |ctx, theme, state| {
+        if state.music_page.seed == 0 {
+            let g = lib.genre_index("electro_swing").unwrap();
+            let mood = lib.mood_index("mothership_calm").unwrap() as u16;
+            let mut tune = humanity_music::tune::Tune::default();
+            tune.level_db[1] = -3.0;
+            tune.mute = 1 << 7;
+            let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, ..Default::default() };
+            let r = &mut state.music_dev.readout;
+            r.device = true;
+            r.lib = Some(lib.clone());
+            r.genres = lib.genres.iter().map(|x| crate::gui::pages::dev_music::GenreChoice { id: x.id.clone(), words: x.words.clone(), name: x.name.clone(), about_words: x.about_words.clone(), about: x.about.clone(), stand_ins: Vec::new() }).collect();
+            let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune };
+            r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res: res.clone(), lib: lib.clone() });
+            let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
+            status.roles = [0.6, 0.9, 0.0, 0.0, 0.4, 0.8, 0.0, 0.0];
+            for (k, b) in status.bands.iter_mut().enumerate() {
+                *b = 0.12 * (1.0 - (k as f32 - 3.0).abs() / 8.0).max(0.02);
+            }
+            r.score = Some(status);
+            let p = &mut state.music_page;
+            p.genre = "electro_swing".into();
+            p.mood = "mothership_calm".into();
+            p.set_seed(4242);
+            p.export_dir_override = Some(std::path::PathBuf::from(r"C:\Users\you\Music\HumanityOS"));
+            p.tune = tune;
+            let mut favs = Favourites::default();
+            favs.add(Favourite { id: 0, name: "Car, Tuesday".into(), genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4242, tune: SavedTune::from_tune(&tune, &lib, g) });
+            let fight = favs.add(Favourite { id: 0, name: "Boss fight".into(), genre: "lofi".into(), mood: "tension".into(), seed: 31, tune: SavedTune::default() });
+            favs.assign("tension", Some(fight));
+            p.favourites = Arc::new(favs);
+            p.fav_loaded = true;
+        }
+        crate::gui::pages::music::draw(ctx, theme, state);
+    });
+}

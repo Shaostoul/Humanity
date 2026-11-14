@@ -131,6 +131,28 @@ pub enum Mode {
 }
 
 impl Mode {
+    /// The mode's id, for its words (`music.mode.<id>`, the Music page's "D harmonic minor").
+    pub fn id(self) -> &'static str {
+        match self {
+            Mode::Ionian => "ionian",
+            Mode::Dorian => "dorian",
+            Mode::Phrygian => "phrygian",
+            Mode::Lydian => "lydian",
+            Mode::Mixolydian => "mixolydian",
+            Mode::Aeolian => "aeolian",
+            Mode::Locrian => "locrian",
+            Mode::MajorPentatonic => "major_pentatonic",
+            Mode::MinorPentatonic => "minor_pentatonic",
+            Mode::HarmonicMinor => "harmonic_minor",
+            Mode::Blues => "blues",
+        }
+    }
+
+    /// Whether its third is minor (a key spelled with flats then: D minor's B flat, not A sharp).
+    pub fn is_minor(self) -> bool {
+        self.steps().get(2).is_some_and(|&s| s == 3) || matches!(self, Mode::MinorPentatonic | Mode::Blues)
+    }
+
     /// The semitones of each scale note above the key centre.
     pub fn steps(self) -> &'static [i32] {
         match self {

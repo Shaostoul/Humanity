@@ -23,6 +23,7 @@
 pub mod bed;
 pub mod composer;
 pub mod dsp;
+pub mod favourite;
 pub mod instrument;
 pub mod intensity;
 pub mod library;
@@ -34,7 +35,9 @@ pub mod resolved;
 pub mod rng;
 pub mod score;
 pub mod settings;
+pub mod sheet;
 pub mod genre;
+pub mod tune;
 pub mod tuning;
 pub mod voice;
 
@@ -67,3 +70,5 @@ mod tests;
 mod tests_audio;
 #[cfg(test)]
 mod tests_piece;
+#[cfg(test)]
+mod tests_page;

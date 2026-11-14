@@ -38,6 +38,18 @@ pub struct MusicContext {
     /// How far under itself the score sits now, dB (0 = not ducked; negative, down): other sound
     /// wins (a chat video's sound, the world heard from a page). Moved toward with its own ramp.
     pub duck_db: f32,
+    /// What the person changed on the Music page (crate::tune; the default changes nothing).
+    pub tune: crate::tune::Tune,
+    /// The Music page is open and reading the analyser (the spectrum and the role meters in the
+    /// status): measured only then, so the score costs nothing extra the rest of the time.
+    pub analyse: bool,
+}
+
+/// The spectrum's bands: octaves centred on 31.25 Hz times a power of two, 31 Hz to 16 kHz.
+pub const BANDS: usize = 10;
+/// A band's centre, Hz.
+pub fn band_hz(k: usize) -> f32 {
+    31.25 * (1u32 << k.min(BANDS - 1)) as f32
 }
 
 /// The duck's time constant going down, seconds: within 1 dB of a 12 dB duck in 0.3 s (docs/design/
@@ -49,7 +61,7 @@ pub const DUCK_UP_S: f32 = 0.5;
 
 impl Default for MusicContext {
     fn default() -> Self {
-        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0 }
+        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0, tune: crate::tune::Tune::default(), analyse: false }
     }
 }
 
@@ -85,16 +97,40 @@ pub struct MusicStatus {
     /// The highest sample this score has sent, and how often the limiter acted.
     pub peak: f32,
     pub limited: u64,
+    /// Where in the bar the music is, in beats (2.4: the third beat, 40% through), and the beats a
+    /// bar has (the Music page's beat pulse).
+    pub beat: f32,
+    pub beats_per_bar: u8,
+    /// With the context's `analyse` on (the Music page open): each octave band's level (RMS of the
+    /// output through a band-pass, quick to rise and slow to fall), and each role's activity (the
+    /// velocity of its last note, falling away over about a third of a second). Zero otherwise.
+    pub bands: [f32; BANDS],
+    pub roles: [f32; crate::tune::ROLES],
 }
 
 struct PoolSink<'a> {
     pool: &'a mut VoicePool,
     res: &'a Resolved,
     rate: f32,
+    /// Each role's gain from the person's tune (0: muted, or another role soloed), and the role
+    /// meters the notes push up.
+    gains: [f32; crate::tune::ROLES],
+    meter: &'a mut [f32; crate::tune::ROLES],
 }
 
 impl Sink for PoolSink<'_> {
-    fn note_on(&mut self, note: NoteOn) {
+    fn note_on(&mut self, mut note: NoteOn) {
+        // A muted role's notes never reach a voice (the composer composed them all the same, so the
+        // piece is unchanged); a role's level scales its notes.
+        let role = note.role as usize;
+        if role < crate::tune::ROLES {
+            let g = self.gains[role];
+            if g <= 0.0 {
+                return;
+            }
+            note.level *= g;
+            self.meter[role] = self.meter[role].max(note.vel.clamp(0.0, 1.0));
+        }
         self.pool.note_on(note, &self.res.instruments, &self.res.banks, self.rate);
     }
     fn note_off(&mut self, tag: u32) {
@@ -132,6 +168,20 @@ pub struct ScoreEngine {
     send_r: [f32; CHUNK],
     status: MusicStatus,
     stopping: bool,
+    /// The analyser (only while the context's `analyse` is on): a band-pass per octave band, and
+    /// the role meters.
+    an: [Svf; BANDS],
+    an_c: [SvfCoefs; BANDS],
+    meter: [f32; crate::tune::ROLES],
+}
+
+/// The analyser's band-pass filters at `rate` (octave bands: Q about 1.4).
+fn band_coefs(rate: f32) -> [SvfCoefs; BANDS] {
+    let mut c = [SvfCoefs::default(); BANDS];
+    for (k, x) in c.iter_mut().enumerate() {
+        *x = SvfCoefs::new(band_hz(k).min(rate * 0.45), 1.414, rate);
+    }
+    c
 }
 
 impl ScoreEngine {
@@ -162,6 +212,9 @@ impl ScoreEngine {
             send_r: [0.0; CHUNK],
             status: MusicStatus::default(),
             stopping: false,
+            an: [Svf::default(); BANDS],
+            an_c: band_coefs(rate),
+            meter: [0.0; crate::tune::ROLES],
         }
     }
 
@@ -193,6 +246,7 @@ impl ScoreEngine {
         self.composer.set_rate(rate);
         self.reverb.set_rate(rate);
         self.limiter = Limiter::new(-1.0, rate);
+        self.an_c = band_coefs(rate);
         let (g, l, d) = (self.gain.value, self.level.value, self.duck.value);
         self.gain = Smoother::new(g, 1.5, rate);
         self.level = Smoother::new(l, 4.0, rate);
@@ -247,10 +301,11 @@ impl ScoreEngine {
             self.duck_down = down;
             self.duck.set_time(if down { DUCK_DOWN_S } else { DUCK_UP_S }, rate);
         }
+        let gains = self.ctx.tune.gains();
         let mut done = 0;
         while done < out.len() {
             {
-                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate };
+                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter };
                 self.composer.process(&self.res, &mut sink);
             }
             let n = (out.len() - done).min(self.composer.until_next()).min(CHUNK);
@@ -323,9 +378,45 @@ impl ScoreEngine {
         s.gain = self.gain.value;
         s.duck = self.duck.value;
         s.limited = self.limiter.engaged;
+        s.beat = self.composer.beat_pos();
+        s.beats_per_bar = self.composer.beats_per_bar().min(255) as u8;
+        self.analyse(out);
+    }
+
+    /// The Music page's analyser over the block just rendered (nothing unless the context asks):
+    /// each octave band's RMS, quick up and slow down, and the role meters falling away.
+    fn analyse(&mut self, out: &[[f32; 2]]) {
+        let s = &mut self.status;
+        if !self.ctx.analyse || out.is_empty() {
+            s.bands = [0.0; BANDS];
+            s.roles = [0.0; crate::tune::ROLES];
+            self.meter = [0.0; crate::tune::ROLES];
+            return;
+        }
+        let mut acc = [0.0f32; BANDS];
+        for f in out {
+            let m = 0.5 * (f[0] + f[1]);
+            for k in 0..BANDS {
+                let y = self.an[k].bp(&self.an_c[k], m);
+                acc[k] += y * y;
+            }
+        }
+        let n = out.len() as f32;
+        // Falling: about a quarter of a second for the bands, a third for the meters.
+        let fall = (-n / (self.rate * 0.25)).exp();
+        for k in 0..BANDS {
+            let v = (acc[k] / n).sqrt();
+            s.bands[k] = if v > s.bands[k] { v } else { s.bands[k] * fall + v * (1.0 - fall) };
+        }
+        let fall_m = (-n / (self.rate * 0.33)).exp();
+        s.roles = self.meter;
+        for m in self.meter.iter_mut() {
+            *m *= fall_m;
+        }
     }
 }
 
-fn steer_of(ctx: &MusicContext) -> Steer {
-    Steer { mood: ctx.mood, genre_a: ctx.genre_a, genre_b: ctx.genre_b, blend: ctx.blend, intensity: ctx.intensity, a4: ctx.a4_hz }
+/// The composer's steer from a score's context (the sheet's dry run steers it the same way).
+pub(crate) fn steer_of(ctx: &MusicContext) -> Steer {
+    Steer { mood: ctx.mood, genre_a: ctx.genre_a, genre_b: ctx.genre_b, blend: ctx.blend, intensity: ctx.intensity, a4: ctx.a4_hz, tune: ctx.tune }
 }

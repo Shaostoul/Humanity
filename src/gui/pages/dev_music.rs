@@ -30,6 +30,45 @@ pub struct GenreChoice {
     pub stand_ins: Vec<String>,
 }
 
+/// What the music plays in place of new pieces: the Music page's choice while it is open, or a
+/// favourite that is a mood's "my music" (docs/design/music-page.md sections 4 and 7).
+#[derive(Clone, Debug, PartialEq)]
+pub struct MusicChoice {
+    /// The genre's id, and the mood heard (None: the game's own mood, as for "my music").
+    pub genre: String,
+    pub mood: Option<String>,
+    /// The intensity it is heard at (None: the game's own).
+    pub intensity: Option<f32>,
+    pub seed: u64,
+    pub tune: humanity_music::tune::Tune,
+}
+
+impl MusicChoice {
+    /// Whether `other` composes the same piece (a level or a mute is heard at once; anything else
+    /// starts the piece again with the change, at the next bar).
+    pub fn composes_like(&self, other: &MusicChoice) -> bool {
+        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune)
+    }
+}
+
+/// The piece the score plays, as the Music page needs it to write it down and name it: what it was
+/// built for, its seed, its context when it began, and the data and instruments it plays from.
+#[derive(Clone)]
+pub struct Playing {
+    /// The choice it plays (None: a new piece of the person's genre).
+    pub choice: Option<MusicChoice>,
+    pub seed: u64,
+    pub ctx: humanity_music::MusicContext,
+    pub res: std::sync::Arc<humanity_music::Resolved>,
+    pub lib: std::sync::Arc<humanity_music::MusicLibrary>,
+}
+
+impl std::fmt::Debug for Playing {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Playing").field("choice", &self.choice).field("seed", &self.seed).finish_non_exhaustive()
+    }
+}
+
 /// What the engine reports about the music this frame.
 #[derive(Clone, Debug, Default)]
 pub struct MusicReadout {
@@ -60,6 +99,10 @@ pub struct MusicReadout {
     /// "A new piece" choices, minutes (data/music/pieces.ron; 0 = Never).
     pub next_piece_s: Option<f32>,
     pub piece_minutes: Vec<f32>,
+    /// The piece playing (None: nothing plays).
+    pub playing: Option<Playing>,
+    /// The music's data as last read (the Music page lists genres, moods and lead voices from it).
+    pub lib: Option<std::sync::Arc<humanity_music::MusicLibrary>>,
 }
 
 /// The Music card's state: the knob and the readout.

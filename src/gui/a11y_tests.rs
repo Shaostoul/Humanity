@@ -86,6 +86,7 @@ fn tab_walk_of(max: usize, state: GuiState, mut draw: impl FnMut(&egui::Context,
 /// The pages the ELI5 pass converted (words by key, a hint on every control).
 const CONVERTED: &[GuiPage] = &[
     GuiPage::Calculator,
+    GuiPage::Music,
     GuiPage::Notes,
     GuiPage::Tasks,
     GuiPage::Calendar,
@@ -112,6 +113,9 @@ const UNNAMED_TODAY: &[(GuiPage, usize)] = &[
     (GuiPage::Humanity, 2),
     (GuiPage::Laws, 191),
     (GuiPage::Market, 1),
+    // Two stops egui reports with no widget type and no name (2026-11-13); every control the page
+    // builds is named and hinted.
+    (GuiPage::Music, 2),
     (GuiPage::Notes, 1),
     (GuiPage::Tasks, 2),
 ];

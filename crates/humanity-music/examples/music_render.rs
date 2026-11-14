@@ -20,6 +20,8 @@
 //!                         (calm moods)
 //!   --rate HZ             the sample rate (48000)
 //!   --fade S              fade the file out over its last S seconds (6 by default; 0 for none)
+//!   --favourite CODE      render a Music page favourite from its share code instead (then only the
+//!                         seconds are positional): the page's export of it, synthesised instruments
 
 use std::path::PathBuf;
 
@@ -123,6 +125,21 @@ fn goertzel_peak(frames: &[[f32; 2]], rate: f64, t0: f64, t1: f64, lo: f64, hi: 
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // A favourite (the Music page's share code): rendered through the very function the page's
+    // export calls (render::export_favourite), so the file is the page's export of it, byte for
+    // byte, with the synthesised instruments (docs/design/music-page.md section 8).
+    if let Some(code) = arg(&args, "--favourite") {
+        let seconds: f64 = args.iter().find(|a| !a.starts_with("--") && a.as_str() != code && a.parse::<f64>().is_ok()).map(|s| s.parse().unwrap()).unwrap_or(60.0);
+        let fav = humanity_music::favourite::from_share_code(code).unwrap_or_else(|e| panic!("the share code: {e:?}"));
+        let data = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data");
+        let lib = MusicLibrary::load(&data).unwrap_or_else(|e| panic!("the music data: {e}"));
+        let a4: f32 = arg(&args, "--a4").map(|v| v.parse().expect("--a4")).unwrap_or(432.0);
+        let out = arg(&args, "--out").map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join(format!("humanityos-favourite-{}.wav", fav.seed)));
+        let res = Resolved::new(&lib, &SampleLibrary::new()).expect("resolve");
+        let clipped = humanity_music::render::export_favourite(res, &lib, &fav, a4, seconds, &out).unwrap_or_else(|e| panic!("{e}"));
+        println!("music-render: the favourite {:?} ({} in {}, seed {}), {seconds} s, written to {} ({clipped} samples clipped)", fav.name, fav.genre, fav.mood, fav.seed, out.display());
+        return;
+    }
     let pos: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
     // Positional: mood, genre, seconds (options' values are skipped by looking them up by name).
     let opt_vals: Vec<&str> = ["--a4", "--seed", "--out", "--blend", "--intensity", "--ramp", "--rate", "--fade"].iter().filter_map(|o| arg(&args, o)).collect();
@@ -151,7 +168,7 @@ fn main() {
         None => (genre, 0.0),
     };
     let out = arg(&args, "--out").map(PathBuf::from).unwrap_or_else(|| std::env::temp_dir().join(format!("humanityos-music-{mood_id}-{genre_id}-{}.wav", a4 as u32)));
-    let ctx_at = |t: f64| MusicContext { gain: 1.0, a4_hz: a4, mood: mood as u16, genre_a: genre as u16, genre_b: genre_b as u16, blend, intensity: ramp_at(&ramp, t, steady), duck_db: 0.0 };
+    let ctx_at = |t: f64| MusicContext { gain: 1.0, a4_hz: a4, mood: mood as u16, genre_a: genre as u16, genre_b: genre_b as u16, blend, intensity: ramp_at(&ramp, t, steady), duck_db: 0.0, ..Default::default() };
 
     // (frames, mean us, worst us, limiter samples, the 99.9th percentile block us)
     let render = |lib: &MusicLibrary, genre: usize| -> (Vec<[f32; 2]>, f64, f64, u64, f64) {
@@ -228,15 +245,8 @@ fn main() {
     }
     // A listening file ends with a fade (the game's own score never ends; a WAV does): the last
     // `--fade` seconds (6 by default, 0 for none), a raised cosine, measured as written.
-    let fade_s: f64 = arg(&args, "--fade").map(|v| v.parse().expect("--fade")).unwrap_or(6.0f64.min(seconds / 4.0));
-    let fade_n = (fade_s * rate as f64) as usize;
-    let len = music.len();
-    for (k, f) in music.iter_mut().enumerate().skip(len.saturating_sub(fade_n)) {
-        let x = (k + fade_n - len) as f32 / fade_n.max(1) as f32;
-        let g = 0.5 + 0.5 * (std::f32::consts::PI * x).cos();
-        f[0] *= g;
-        f[1] *= g;
-    }
+    let fade_s: f64 = arg(&args, "--fade").map(|v| v.parse().expect("--fade")).unwrap_or(humanity_music::render::default_fade_s(seconds));
+    humanity_music::render::fade_out(&mut music, rate, fade_s);
     let mix = measure_between(&music, rate as u32, 3.0, fade_s);
     let clipped = write_wav(&out, &music, rate as u32).expect("write the WAV");
     let block_ms = 128.0 / rate as f64 * 1000.0;

@@ -17,15 +17,15 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-music/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
+  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
   - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
-  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_piece.rs`
-- **Size:** 8,834 lines in 23 files, 1,572 of them in 3 test files.
+  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`
+- **Size:** 10,238 lines in 27 files, 1,894 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 2.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 22, engine 13.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 49, engine 15.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 31 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 39 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -35,23 +35,23 @@ just test-lib --crate humanity-music
 
 | Item | References | From |
 |---|---:|---|
+| `MusicLibrary` | 7 | gui 6, engine 1 |
 | `MusicSettings` | 4 | gui 3, engine 1 |
 | `tuning::parse_note` | 4 | gui 4 |
-| `MusicLibrary` | 3 | gui 2, engine 1 |
+| `MusicStatus` | 3 | gui 2, engine 1 |
+| `Resolved` | 3 | gui 2, engine 1 |
+| `library::DEFAULT_MOOD` | 3 | gui 3 |
+| `tune::Tune` | 3 | gui 3 |
 | `BedStatus` | 2 | engine 1, gui 1 |
-| `MusicStatus` | 2 | engine 1, gui 1 |
-| `Resolved` | 2 | engine 1, gui 1 |
+| `MusicContext` | 2 | engine 1, gui 1 |
+| `favourite` | 2 | gui 2 |
 | `instrument::SAMPLE_SCALE` | 2 | gui 2 |
+| `tune::ROLES` | 2 | gui 2 |
 | `BedContext` | 1 | engine 1 |
 | `BedEngine` | 1 | engine 1 |
-| `MusicContext` | 1 | engine 1 |
 | `SampleLibrary` | 1 | gui 1 |
-| `ScoreEngine` | 1 | engine 1 |
-| `Tuning` | 1 | gui 1 |
-| `decode::decode_file` | 1 | gui 1 |
-| `decode::decode_files` | 1 | gui 1 |
 
-And 8 more items, 8 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
+And 24 more items, 24 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -80,6 +80,14 @@ And 8 more items, 8 references (`node scripts/crate-cards.js --interface humanit
 - **No caches across runs.** The data files are read each time a sound starts; nothing the engine
   computes is kept between runs. Source: CLAUDE.md, "No caches kept across runs".
 - **Never networked.** Each player's game composes its own music. Source: music.md section 14.
+- **A favourite is the person's data, saved by ids** (`favourite.rs`): a genre's, a mood's, a role's
+  and a lead voice's id, never a list position, so it plays the same after a data file gains an
+  entry; written through a temporary file and a rename; an unreadable file moved aside, never written
+  over. A change to `SavedTune` or the share code's layout keeps `a_favourite_saved_and_loaded_plays_the_same_piece`
+  and `a_share_code_round_trips_and_a_mistyped_one_is_refused` green. Source: [music-page.md](../design/music-page.md) section 7.
+- **The sheet is the score's own loop** (`sheet.rs`): `transcribe` cuts time where `ScoreEngine::render`
+  does (128-frame blocks, chunks of at most 64 samples), so its notes are the score's to the sample;
+  a change to the score's chunking changes both. Source: music-page.md section 9.
 
 ## How to test it
 

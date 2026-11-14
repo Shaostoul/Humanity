@@ -77,6 +77,7 @@
         { "id": "notes", "label": "nav.notes", "hint": "nav.notes_hint", "icon": "edit", "page": "notes", "web": "/notes" },
         { "id": "calendar", "label": "nav.calendar", "hint": "nav.calendar_hint", "icon": "calendar", "page": "calendar", "web": "/calendar" },
         { "id": "calculator", "label": "nav.calculator", "hint": "nav.calculator_hint", "icon": "grid", "page": "calculator", "web": "/calculator" },
+        { "id": "music", "label": "nav.music", "hint": "nav.music_hint", "icon": "music", "page": "music", "web": "/music" },
         { "id": "browser", "label": "nav.browser", "hint": "nav.browser_hint", "icon": "website", "page": "browser", "web": "/web" }
       ]
     },

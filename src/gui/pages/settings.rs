@@ -1775,6 +1775,26 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                 }
             });
 
+            // The Music page's part colours (docs/design/music-page.md section 9).
+            ui.add_space(theme.spacing_sm);
+            let music_rows: [*mut _; humanity_music::tune::ROLES] = [
+                &mut theme.music_role_pad as *mut _,
+                &mut theme.music_role_bass as *mut _,
+                &mut theme.music_role_drone as *mut _,
+                &mut theme.music_role_choir as *mut _,
+                &mut theme.music_role_bells as *mut _,
+                &mut theme.music_role_melody as *mut _,
+                &mut theme.music_role_percussion as *mut _,
+                &mut theme.music_role_texture as *mut _,
+            ];
+            for (k, ptr) in music_rows.into_iter().enumerate() {
+                let label = humanity_core::i18n::t("music_page.theme_role").replace("{{part}}", crate::gui::pages::music::role_words(k));
+                let color_tuple = unsafe { &mut *ptr };
+                if color_row(ui, &label, color_tuple, label_color) {
+                    any_color_changed = true;
+                }
+            }
+
             ui.add_space(theme.spacing_md);
             ui.horizontal(|ui| {
                 let now = ui.ctx().input(|i| i.time);

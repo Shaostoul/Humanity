@@ -28,8 +28,9 @@ pub enum Event {
     /// (its letter + 1, 0 with no form), which time through the form, and whether it is a section
     /// RETURNING the first time through (its tune again, on purpose).
     Phrase { hash: u64, at_s: f64, mood: u16, key_pc: i32, section: u8, chorus: u32, returning: bool },
-    /// A chord began: which, its pitch classes as a 12-bit mask, how many beats it lasts.
-    Chord { chord: u16, pcs: u16, at_s: f64, beats: f32 },
+    /// A chord began: which, its root's pitch class, its pitch classes as a 12-bit mask, how many
+    /// beats it lasts (the Music page names it from the root and the mask: "Dm6", "A7").
+    Chord { chord: u16, root: i8, pcs: u16, at_s: f64, beats: f32 },
     /// A role's voicing changed (pads and choir): its notes, lowest first.
     Voicing { role: u8, notes: [i32; 8], n: u8, at_s: f64 },
     /// A motif began on a role.
@@ -55,6 +56,9 @@ pub struct Steer {
     pub blend: f32,
     pub intensity: f32,
     pub a4: f32,
+    /// What the person changed on the Music page (crate::tune): the key, the tempo, the swing and
+    /// the lead voices are read here when a phrase is planned; the levels and mutes act in the score.
+    pub tune: crate::tune::Tune,
 }
 
 const PENDING: usize = 128;
@@ -407,6 +411,17 @@ impl Composer {
         (self.rate / self.beat_len) as f32
     }
 
+    /// Where in the bar the music is, in beats (2.4: the third beat, 40% through it), and how many
+    /// beats a bar has: the Music page's beat pulse reads them from the score, not from the sound.
+    pub fn beat_pos(&self) -> f32 {
+        let phase = ((self.pos as f64 - self.beat_start) / self.beat_len.max(1.0)).clamp(0.0, 0.999);
+        self.beat_in_bar as f32 + phase as f32
+    }
+
+    pub fn beats_per_bar(&self) -> u32 {
+        self.eff.as_ref().map(|e| e.beats_per_bar).unwrap_or(4)
+    }
+
     /// Samples until the next thing to decide (at least 1).
     pub fn until_next(&self) -> usize {
         let mut t = (self.next_step - self.pos as f64).ceil().max(1.0);
@@ -704,6 +719,18 @@ impl Composer {
     /// roles on one voice), each from the genre's leads for that role by weight and the piece's draw.
     fn lead_roles(&self, g: &crate::resolved::RGenre) -> [Option<EffRole>; 8] {
         let mut out: [Option<EffRole>; 8] = [None; 8];
+        for (k, &i) in self.lead_picks(g).iter().enumerate() {
+            if let Some((_, r, _)) = g.leads.get(i as usize) {
+                out[k] = Some(EffRole { inst: r.inst, low: r.low, high: r.high, voices: r.voices, density: r.density, level: r.level });
+            }
+        }
+        out
+    }
+
+    /// Which of `g`'s lead entries (indices in its `leads`) each role plays in this piece
+    /// ([`crate::tune::PIECE`]: none): the Music page names the lead and the answering voice from it.
+    pub fn lead_picks(&self, g: &crate::resolved::RGenre) -> [u16; 8] {
+        let mut out = [crate::tune::PIECE; 8];
         if g.leads.is_empty() {
             return out;
         }
@@ -722,10 +749,12 @@ impl Composer {
             if !g.leads.iter().any(|e| w(e) > 0.0) {
                 continue;
             }
-            let i = crate::piece::pick(self.piece.lead_draw[k], g.leads.iter().map(w));
-            let r = &g.leads[i].1;
-            out[k] = Some(EffRole { inst: r.inst, low: r.low, high: r.high, voices: r.voices, density: r.density, level: r.level });
-            taken[t] = r.inst;
+            // The person's choice on the Music page (an entry of this genre's leads for this role),
+            // else the piece's draw.
+            let chosen = self.steer.tune.lead[k] as usize;
+            let i = if chosen < g.leads.len() && g.leads[chosen].0 == k { chosen } else { crate::piece::pick(self.piece.lead_draw[k], g.leads.iter().map(w)) };
+            out[k] = i as u16;
+            taken[t] = g.leads[i].1.inst;
         }
         out
     }
@@ -1112,9 +1141,14 @@ impl Composer {
         }
         let m = &res.moods[self.mood];
         let (kpc, kmode, _) = harm.keys[self.key_idx.min(harm.keys.len() - 1)];
-        self.key_pc = kpc;
+        // The person's transposition (the Music page's Key) moves every key the piece plays, its
+        // bridge's included, so the piece keeps its shape.
+        self.key_pc = (kpc + self.steer.tune.transpose.clamp(-6, 6) as i32).rem_euclid(12);
         self.mode = kmode;
-        let eff = self.resolve_eff(res);
+        let mut eff = self.resolve_eff(res);
+        if self.steer.tune.swing >= 0.0 {
+            eff.swing = self.steer.tune.swing.clamp(0.5, 0.75);
+        }
         self.eff = Some(eff);
         // Tempo: across the band for a mood that follows the intensity; in a form, the piece's own
         // place in the range; else chosen per phrase within the range.
@@ -1126,9 +1160,11 @@ impl Composer {
             let x = ((self.steer.intensity - lo) / (hi - lo)).clamp(0.0, 1.0);
             eff.tempo.0 + (eff.tempo.1 - eff.tempo.0) * x
         } else if section.is_some() {
-            eff.tempo.0 + (eff.tempo.1.max(eff.tempo.0) - eff.tempo.0) * self.piece.tempo_t
+            self.steer.tune.tempo_for(eff.tempo.0 + (eff.tempo.1.max(eff.tempo.0) - eff.tempo.0) * self.piece.tempo_t, eff.tempo)
         } else {
-            self.rng.range(eff.tempo.0, eff.tempo.1.max(eff.tempo.0))
+            // The draw happens whatever the person chose, so a tempo change leaves the rest alone.
+            let drawn = self.rng.range(eff.tempo.0, eff.tempo.1.max(eff.tempo.0));
+            self.steer.tune.tempo_for(drawn, eff.tempo)
         }
         .clamp(20.0, 240.0);
         self.beat_len = self.rate * 60.0 / self.tempo as f64;
@@ -1356,7 +1392,7 @@ impl Composer {
         self.chord_n = n;
         let beats = self.plan.bars[self.slot] as f32 * eff.beats_per_bar as f32;
         let mask = pcs[..n].iter().fold(0u16, |acc, &p| acc | 1 << p);
-        sink.event(Event::Chord { chord: chord as u16, pcs: mask, at_s: self.seconds(), beats });
+        sink.event(Event::Chord { chord: chord as u16, root: root_pc as i8, pcs: mask, at_s: self.seconds(), beats });
         let at_s = self.seconds();
         // Pads: voice-led.
         if let Some(pad) = eff.roles[RoleKind::Pad.index()] {

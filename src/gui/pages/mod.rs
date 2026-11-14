@@ -9,6 +9,8 @@ pub mod settings_garden;
 pub mod settings_gameplay;
 /// Settings > Music: the live music, its genre, the tuning, the ship's hum, the tones (2026-11-06).
 pub mod settings_music;
+// The Music page (docs/design/music-page.md): explore, tune, keep, export and see the game's music.
+pub mod music;
 pub mod inventory;
 pub mod chat;
 pub mod chat_text;

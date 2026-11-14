@@ -54,7 +54,7 @@ pub(crate) fn run(c: &mut Composer, res: &Resolved, seconds: f64, rec: &mut Reco
 
 pub(crate) fn steer(lib: &MusicLibrary, mood: &str, genre: &str) -> Steer {
     let s = lib.genre_index(genre).unwrap() as u16;
-    Steer { mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity: 0.3, a4: 432.0 }
+    Steer { mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity: 0.3, a4: 432.0, tune: Default::default() }
 }
 
 /// THE PITCH TABLE AT A = 432 Hz: every note of D Lydian from D2 to D6 (the calm mood's scale,
@@ -168,7 +168,7 @@ pub(crate) fn repeated_stretch(rec: &Recorder, total_s: f64) -> (Option<(f64, f6
     let mut evs: Vec<(f64, u64)> = Vec::new();
     for e in &rec.events {
         match e {
-            Event::Chord { chord, pcs, at_s, beats } => evs.push((*at_s, (*chord as u64) << 32 | (*pcs as u64) << 8 | (*beats as u64))),
+            Event::Chord { chord, pcs, at_s, beats, .. } => evs.push((*at_s, (*chord as u64) << 32 | (*pcs as u64) << 8 | (*beats as u64))),
             Event::Motif { role, first_note, at_s } => evs.push((*at_s, 1 << 60 | (*role as u64) << 16 | (*first_note as u64 & 0xff))),
             _ => {}
         }

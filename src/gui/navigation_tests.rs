@@ -94,7 +94,7 @@ fn every_page_in_the_rows_exists() {
         ("play", vec!["characters", "quests", "inventory", "crafting"]),
         ("chat", vec!["watch", "studio", "files", "guilds"]),
         ("own_life", vec!["profile", "tasks", "maps", "wallet", "market", "trade"]),
-        ("apps", vec!["notes", "calendar", "calculator", "browser"]),
+        ("apps", vec!["notes", "calendar", "calculator", "music", "browser"]),
         ("library", vec!["how_to"]),
         ("dev", vec!["bugs", "testing", "performance", "planet_tuner", "claude", "journal", "ai"]),
         ("settings", vec!["server_settings"]),

@@ -306,6 +306,24 @@ pub struct Theme {
     /// Source-name label text painted at the center of each source rectangle.
     #[serde(default = "default_studio_source_label")]
     pub studio_source_label: C,
+    /// The Music page's part colours (docs/design/music-page.md section 9): each role's notes in the
+    /// piano roll and its column in the visualizer, one a role.
+    #[serde(default = "default_music_role_pad")]
+    pub music_role_pad: C,
+    #[serde(default = "default_music_role_bass")]
+    pub music_role_bass: C,
+    #[serde(default = "default_music_role_drone")]
+    pub music_role_drone: C,
+    #[serde(default = "default_music_role_choir")]
+    pub music_role_choir: C,
+    #[serde(default = "default_music_role_bells")]
+    pub music_role_bells: C,
+    #[serde(default = "default_music_role_melody")]
+    pub music_role_melody: C,
+    #[serde(default = "default_music_role_percussion")]
+    pub music_role_percussion: C,
+    #[serde(default = "default_music_role_texture")]
+    pub music_role_texture: C,
     /// The "Away: h:mm:ss" AFK timer text in the studio controls bar.
     #[serde(default = "default_studio_afk")]
     pub studio_afk: C,
@@ -647,6 +665,14 @@ impl Theme {
     pub fn studio_source_timer(&self) -> Color32 { Self::c32(&self.studio_source_timer) }
     pub fn studio_source_border(&self) -> Color32 { Self::c32(&self.studio_source_border) }
     pub fn studio_source_label(&self) -> Color32 { Self::c32(&self.studio_source_label) }
+    pub fn music_role_pad(&self) -> Color32 { Self::c32(&self.music_role_pad) }
+    pub fn music_role_bass(&self) -> Color32 { Self::c32(&self.music_role_bass) }
+    pub fn music_role_drone(&self) -> Color32 { Self::c32(&self.music_role_drone) }
+    pub fn music_role_choir(&self) -> Color32 { Self::c32(&self.music_role_choir) }
+    pub fn music_role_bells(&self) -> Color32 { Self::c32(&self.music_role_bells) }
+    pub fn music_role_melody(&self) -> Color32 { Self::c32(&self.music_role_melody) }
+    pub fn music_role_percussion(&self) -> Color32 { Self::c32(&self.music_role_percussion) }
+    pub fn music_role_texture(&self) -> Color32 { Self::c32(&self.music_role_texture) }
     pub fn studio_afk(&self) -> Color32 { Self::c32(&self.studio_afk) }
     pub fn studio_meter_bg(&self) -> Color32 { Self::c32(&self.studio_meter_bg) }
 
@@ -936,6 +962,14 @@ fn default_studio_source_text()       -> C { (0.92549020, 0.94117647, 0.94509804
 fn default_studio_source_timer()      -> C { (0.90196078, 0.49411765, 0.13333334, 1.0) } // #E67E22 — orange
 fn default_studio_source_border()     -> C { (1.0, 1.0, 1.0, 1.0) }                      // white
 fn default_studio_source_label()      -> C { (1.0, 1.0, 1.0, 1.0) }                      // white
+fn default_music_role_pad()           -> C { (0.45, 0.62, 0.90, 1.0) }                   // soft blue
+fn default_music_role_bass()          -> C { (0.58, 0.45, 0.88, 1.0) }                   // violet
+fn default_music_role_drone()         -> C { (0.40, 0.68, 0.66, 1.0) }                   // teal
+fn default_music_role_choir()         -> C { (0.90, 0.56, 0.72, 1.0) }                   // rose
+fn default_music_role_bells()         -> C { (0.95, 0.80, 0.36, 1.0) }                   // gold
+fn default_music_role_melody()        -> C { (0.98, 0.58, 0.30, 1.0) }                   // orange
+fn default_music_role_percussion()    -> C { (0.70, 0.70, 0.74, 1.0) }                   // grey
+fn default_music_role_texture()       -> C { (0.52, 0.72, 0.46, 1.0) }                   // green
 fn default_studio_afk()               -> C { (0.60784314, 0.34901961, 0.71372549, 1.0) } // #9B59B6 — purple
 fn default_studio_meter_bg()          -> C { (0.11764706, 0.11764706, 0.15686275, 1.0) } // #1E1E28 — dark trough
 
@@ -1129,6 +1163,14 @@ fn default_theme() -> Theme {
         studio_source_timer: default_studio_source_timer(),
         studio_source_border: default_studio_source_border(),
         studio_source_label: default_studio_source_label(),
+        music_role_pad: default_music_role_pad(),
+        music_role_bass: default_music_role_bass(),
+        music_role_drone: default_music_role_drone(),
+        music_role_choir: default_music_role_choir(),
+        music_role_bells: default_music_role_bells(),
+        music_role_melody: default_music_role_melody(),
+        music_role_percussion: default_music_role_percussion(),
+        music_role_texture: default_music_role_texture(),
         studio_afk: default_studio_afk(),
         studio_meter_bg: default_studio_meter_bg(),
         max_messages: default_max_messages(),

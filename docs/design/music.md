@@ -778,6 +778,10 @@ people talk" and Music on the menus wait for rungs 4 and 7.
 
 ## 16. Dev tooling (permanent)
 
+**The Music page** (2026-11-13) is the person's side of this: explore pieces by genre, mood and
+seed, tune them, keep favourites ("my music" for a mood, share codes), save them as WAV, and see the
+music (a beat visualizer and a piano roll). Its design and rungs: [music-page.md](music-page.md).
+
 - **The Dev page's Music panel**: current mood and its weights, key, chord, phrase position, tempo,
   intensity, the context inputs, active voices, the audio thread's average and worst block time,
   the live loudness (momentary, short-term, integrated) against target, the seed; buttons to force a

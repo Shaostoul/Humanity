@@ -3000,6 +3000,35 @@ planned in `docs/design/music.md`.
   `data/music/places.ron`, `data/music/intensity.ron`, `data/music/tones.ron`, `data/audio/hum_sources.ron`
 - Tools: `just music-render <mood> <genre> <seconds>`, the example `crates/humanity-music/examples/music_render.rs`
 
+### The Music page: explore, tune, keep, export and see the music (2026-11-13)
+The operator, 2026-11-13: "a dedicated music page to try infinite seeds and variations and genres and
+what not ... set some as permanent ... see the song in some sort of music sheet kind of thing and have
+a visualizer that moves around to the beat." Apps > Music (docs/design/music-page.md, rung 1):
+EXPLORE the game's pieces by genre, mood (the danger moods heard with their stingers and drums) and
+seed (previous, next, random under a million, typed), with the piece in words ("D harmonic minor,
+AABA, 128 beats a minute", its lead voices, the section and chord now); TUNE it (a key transposition
+that moves the bridge too, a tempo within the genre's range or a tenth either way of a one-tempo
+genre, each lead role's voice, each part's level and mute: a mute never changes what is composed);
+KEEP favourites (the person's own `music/favourites.json` beside config.json, saved by ids, written
+through a temporary file, an unreadable file moved aside), a favourite as "my music" for any mood (a
+danger mood's plays when the game turns dangerous), share codes (`HOSM1-` and Crockford base32 with a
+checksum); SAVE a favourite as a WAV file of 1 to 60 minutes ending in a fade, rendered on its own
+thread with the instruments the game plays, into `Music\HumanityOS` in the home folder; SEE it: a
+beat pulse, a meter per part and a ten-band spectrum read from the score (the analyser runs only
+while the page is open, about 0.007 ms a block), and a piano roll of the bars around the playhead
+with chord symbols and section letters, the real piece written down by the composer run dry. While
+the page is open with Play here on, the game's one score plays its choice, taking over at the next
+bar. Web: `/music`, the shell and the favourites kept as share codes in the browser, with the
+reason it cannot play them (the engine runs in the app; a WebAssembly build is rung 5).
+- Native: `src/gui/pages/music/` (`mod.rs` state and favourites, `controls.rs`, `view.rs` the
+  visualizer and the piano roll), `src/engine/music.rs` (the page's choice, my music, the export
+  thread), `crates/humanity-music/src/tune.rs`, `sheet.rs`, `favourite.rs`, `render.rs`
+  (`render_piece`, `export_favourite`), `score.rs` (the analyser)
+- Web: `web/pages/music.html`, `web/pages/music-app.js`
+- Tools: `just music-render x x <seconds> --favourite <share code>` renders a favourite exactly as
+  the page exports it
+- Data: the part colours `music_role_*` in `data/gui/theme.ron`; words `music_page.*`, `music.mode.*`
+
 ### Sound levels: each shipped sound's own level (2026-11-06)
 Settings > Audio > "Sound levels": every sound the game ships (each `data/sounds.toml` entry whose
 file exists), grouped by kind, each with its name by key (`sound_names.<id>`), a level slider from

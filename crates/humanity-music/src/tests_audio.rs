@@ -31,7 +31,7 @@ pub(crate) fn heavy() -> std::sync::MutexGuard<'static, ()> {
 
 fn ctx(lib: &crate::MusicLibrary, mood: &str, genre: &str, intensity: f32) -> MusicContext {
     let s = lib.genre_index(genre).unwrap() as u16;
-    MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity, duck_db: 0.0 }
+    MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity, duck_db: 0.0, ..Default::default() }
 }
 
 fn score(lib: &crate::MusicLibrary, mood: &str, genre: &str, seed: u64) -> ScoreEngine {

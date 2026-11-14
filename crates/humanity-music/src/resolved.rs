@@ -255,7 +255,9 @@ pub struct RGenre {
     pub level_db: f32,
 }
 
-/// Everything a score plays from.
+/// Everything a score plays from. Clone is cheap (the recordings are shared): the runtime keeps a
+/// copy of the playing score's so the Music page can write the same piece down (sheet.rs).
+#[derive(Clone)]
 pub struct Resolved {
     pub instruments: Vec<Instrument>,
     /// Instrument i's installed recordings (None: not a sampler, or its pack is not installed).
