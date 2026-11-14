@@ -3742,6 +3742,19 @@ Placeholder block bodies sized from real species mass.
   `src/gui/pages/herd.rs`; data: `data/livestock/care.ron`, `hay_0` (items.csv, trade_goods.ron,
   30 bales in the seeded Barn).
 
+### Forage flora and resource nodes (v0.978, v0.982)
+Rooted, stationary rows of `data/creatures.csv` that regrow their `renewable_product` and
+collect by the same walk-up `[E]` bridge as livestock (volume-gated into the pack; what does not
+fit stays ready at the source). Forage flora (v0.978): berry bushes (`fruit_berries_0`) and wild
+flax (`fiber_flax_0`) past the outdoor fields. Resource nodes (v0.982, so the tech tree stops
+hanging off the vendor): fallen logs, stone outcrops, clay pits, salt flats and sand pits; ore
+outcrops and rare ore veins (2026-10-04, first-hour audit B5) feed the Survey and Expedition
+quests. Each collect grants farming XP (not foraging or mining: noted as a skill gap in
+`docs/design/activities.md`). (Entry added 2026-11-14 by the activities catalog: the feature
+shipped without one.)
+- Native: `crates/humanity-systems/src/livestock.rs` (spawn and collect), `src/lib.rs` (the collect bridge)
+- Data: `data/entities/wild_spawns.ron`, `data/creatures.csv`
+
 ### Abilities (v0.753)
 AbilityRegistry parses all 110 `data/abilities.csv` rows (renamed from spells.csv;
 new `flavor` column: real | tech | fantasy). AbilitySystem drains `ability_request`

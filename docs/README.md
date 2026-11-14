@@ -43,6 +43,10 @@ in **[design/local-light-shadows.md](design/local-light-shadows.md)**. What else
 relief, depth of field) and the order to build it: **[design/renderer-roadmap.md](design/renderer-roadmap.md)**.
 Building gear that lifts or drags (pulleys, the block and tackle, winches)? The physics, the
 configurator, the geometry drawn from math and the rungs are in **[design/pulleys.md](design/pulleys.md)**.
+Building or planning something a player does in the game (cooking, mining, building, driving, music:
+the "minigames" that make up the one game)? Every activity with its true build status, the anatomy
+each one shares, the skill gaps and the suggested order are in
+**[design/activities.md](design/activities.md)** (the data: `data/gameplay/activities.json`).
 
 Sizing the mothership (homes, hangars, farms, livestock, the drum's steel, shielding, power)? The
 sourced, dated numbers are in
