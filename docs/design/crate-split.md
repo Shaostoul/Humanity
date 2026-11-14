@@ -508,3 +508,14 @@ The target: one job per file, about 300 to 800 lines, a ceiling of 2,000 for eve
 4. The rest over 2,000 lines (machines, farming, planet_chunks, ship and home structure, chat, construction, home_plot, home_meshes, the relay API and storage).
 
 About 50 files over 2,000 lines become about 300 to 350.
+
+## More crates beyond the ten (proposed 2026-11-14)
+
+The operator, 2026-11-14: "Are there any other things we should make their own crate?" Measured that day; each candidate is desktop-only or server-only (so the other build never compiles it), changes on its own work stream, and needs no engine state:
+
+- **Split the planned humanity-gui** (about 184,000 lines, the largest planned crate): humanity-widgets (src/gui/widgets, 46 files, 17,942 lines: the universal widgets, the theme and the layers every page uses), humanity-media (src/media, 7,993 lines: video and audio playback, the ffmpeg stream, AV1, discs), humanity-web-reader (src/web_reader, 2,184 lines, our own HTML reader, pure and testable); the pages stay in humanity-gui.
+- **humanity-packs**: the three near-identical downloadable asset-pack systems (src/instrument_packs 2,590 lines, src/model_packs 391, src/gui/garment_textures 440) merged into one crate for download, verification, install and catalogs, which also removes the duplication.
+- **humanity-ai**: src/ai (4,510 lines: the client, talking characters, the installer), desktop-only and optional (CLAUDE.md: AI is optional); the engine program is already a separate build.
+- **The renderer in three** at rung 3: humanity-renderer (the device, pipelines, passes, shadows, TAA), humanity-sky (clouds 10,184 lines, stars 3,550, atmosphere, sky and celestial about 4,200: about 18,000) and humanity-vegetation (tree meshes 7,687, billboards 4,885: about 12,600), each edited by different work.
+- **humanity-storage** out of the relay at rung 3: src/relay/storage, 34,369 lines (about a third of the server), the SQLite layer and its schema.
+- **Not a crate:** the dev control link (src/engine/ipc.rs) reaches into every system; it gets the file split instead.
