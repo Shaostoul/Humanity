@@ -192,3 +192,33 @@ fn a_pack_says_what_it_adds_and_counts_its_waves() {
     let empty = tf("instrument_packs.holds", &[("list", &"")]);
     assert!(!text.lines().any(|l| l.trim() == empty.trim()), "no empty Holds line for a pack of waves alone:\n{text}");
 }
+
+/// EVERY REAL PACK IS LISTED WITH WHAT IT ADDS AND ITS SIZE (2026-11-13, the full packs): drawn from
+/// the shipped data/music/packs.ron, Settings shows each pack's name, its about sentence and its
+/// size; a pack of many instruments (the full percussion pack holds hundreds) says how many it holds
+/// and keeps the list of them, and what each would play, folded until opened, so the page stays a
+/// page. RED first (2026-11-13), against the packs.ron written before the full packs were built:
+/// "pack keys says what it adds" (the first packs had no about line); and with the folded list opened
+/// by default (a mutant, put back): "pack keys's list is folded until opened".
+#[test]
+fn every_real_pack_shows_what_it_adds_and_its_size() {
+    let data = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data");
+    let catalog = PackCatalog::load(&data).expect("data/music/packs.ron");
+    let mut p = packs();
+    p.catalog = Some(catalog.clone());
+    let text = all(&draw(&mut p, vec![vec![]]));
+    for pack in &catalog.packs {
+        assert!(text.contains(t_dyn(&pack.words)), "pack {} is listed by name:\n{text}", pack.id);
+        let about = pack.about.as_deref().unwrap_or_else(|| panic!("pack {} says what it adds", pack.id));
+        assert!(text.contains(t_dyn(about)), "pack {}'s about line is shown", pack.id);
+        let size = tf("instrument_packs.size", &[("mb", &super::instruments::mb(pack.bytes))]);
+        assert!(text.contains(&size), "pack {} shows its size ({size})", pack.id);
+        if pack.instruments.len() > super::instruments::LIST_OPEN_MAX {
+            let count = tf("instrument_packs.holds_count", &[("count", &pack.instruments.len().to_string())]);
+            assert!(text.contains(&count), "pack {} says how many instruments it holds ({count})", pack.id);
+            // Each line of the list starts "<instrument>: " (use.would_play and the rest).
+            let first = format!("{}: ", t_dyn(&format!("instrument_packs.instrument.{}", pack.instruments[0].id)));
+            assert!(!text.lines().any(|l| l.trim_start().starts_with(&first)), "pack {}'s list is folded until opened", pack.id);
+        }
+    }
+}

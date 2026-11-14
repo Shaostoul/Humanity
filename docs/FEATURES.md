@@ -3043,6 +3043,13 @@ War Tuba, Fashionbass, the honky-tonk Piano FB, a jazz guitar), Brushes and jazz
 Swirly), Folk and world (bagpipe, steel pan version 2), Synth waves (all 4,358 AKWF waves), and two
 credited CC BY packs, Electric pianos (Greg Sullivan) and Choir (epic-choir), credited on the Credits
 page and in their licence lines. 37 new parts wait marked `not_used_yet` until a genre names them.
+**The full packs (2026-11-13**, the operator: "I'm interested in having all the instruments"): Keys,
+Strings, Mallets, Guitars, Percussion and Folk at version 2 and a new Orchestral winds and brass pack
+hold the WHOLE of VSCO 2, VCSL, Big Rusty Drums, Black And Green Guitars, the full KW piano, the Hang,
+jSteelDrum 1 and the Martin: 417 instruments, every way of playing, velocity layer and round robin, up
+to 30 s a sample, 649 MiB in all (`music.md` section 23). The catalog records each instrument's layers,
+round robins, samples and seconds and which core instrument it is the whole recording of (`full_of`);
+Settings folds a set of more than 12 instruments under a counted header.
 - Native: `src/instrument_packs/` (catalog, definition, install, library, samples, tar, ui, waves),
   `src/gui/pages/settings/instruments.rs`, `instrument_packs::ui::tick` in `src/lib.rs`
 - Data: `data/music/packs.ron` (generated), `data/music/parts.ron`, `data/music/instruments/*.ron`

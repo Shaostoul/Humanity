@@ -234,3 +234,80 @@ fn sustained_recordings_get_a_crossfaded_loop() {
     let (range, xfade, _) = zone("glockenspiel_small", 84);
     assert!(range.is_none() && xfade == 0, "a struck bell rings out: {range:?}");
 }
+
+/// The libraries whose whole recordings the full packs hold (2026-11-13, the operator: "I'm
+/// interested in having all the instruments"), by the name their definitions carry.
+const FULL_LIBRARIES: &[&str] = &[
+    "VSCO 2 Community Edition",
+    "Versilian Community Sample Library (VCSL)",
+    "Karoryfer Black And Green Guitars",
+    "FreePats Upright Piano KW (small set)",
+    "jSteelDrum (version 1), a C tenor steel pan",
+    "Martin HD-28 steel-string guitar (Discord SFZ GM Bank, 026 Acoustic Guitar (steel))",
+];
+
+/// A FULL PACK HOLDS MORE THAN THE CORE SET'S CUT (2026-11-13). The core set keeps a small cut of a
+/// recording (one loudness layer, one take, every second or third key, a few seconds of each note);
+/// the full packs keep every velocity layer and round robin the library has, up to 30 s of each
+/// sample. So every core instrument made from those libraries has its whole recording in a pack
+/// (`full_of` in packs.ron), and that pack's instrument has more layers, more round robins or more
+/// samples than the core one, or, where the core set already kept every sample (the Martin's 15
+/// notes, the tenor saxophone, the wine glasses), more seconds of them. Every pack instrument also
+/// carries what it holds (the pipeline writes it from the definition it built). RED first
+/// (2026-11-13), against the packs.ron written before the full packs were built: "bass_drum_small
+/// (Versilian Community Sample Library (VCSL)): no pack holds its whole recording (full_of)".
+#[test]
+fn full_packs_hold_more_than_the_core_cut() {
+    let data = data();
+    let catalog = PackCatalog::load(&data).expect("packs.ron");
+    let core = InstrumentLibrary::load_roots(&[(data.join("music"), None)]);
+    let pack_refs: Vec<_> = catalog.packs.iter().flat_map(|p| p.instruments.iter().map(move |r| (p, r))).collect();
+    for a in &core.instruments {
+        if !FULL_LIBRARIES.contains(&a.def.source.library.as_str()) {
+            continue;
+        }
+        let id = &a.def.id;
+        let Some((pack, full)) = pack_refs.iter().find(|(_, r)| r.full_of.as_deref() == Some(id.as_str())) else {
+            panic!("{id} ({}): no pack holds its whole recording (full_of)", a.def.source.library);
+        };
+        let zones = &a.sampler().zones;
+        let core_layers = {
+            let mut by_key: std::collections::BTreeMap<(u8, u8), BTreeSet<(u8, u8)>> = Default::default();
+            for z in zones {
+                by_key.entry((z.lo_key, z.hi_key)).or_default().insert((z.lo_vel, z.hi_vel));
+            }
+            by_key.values().map(|s| s.len() as u32).max().unwrap_or(0)
+        };
+        let core_rr = zones.iter().map(|z| z.rr as u32).max().unwrap_or(0);
+        let core_zones = zones.len() as u32;
+        let more = full.layers > core_layers || full.round_robins > core_rr || full.zones > core_zones;
+        if !more {
+            // The core set kept every sample: the pack's are longer.
+            let core_seconds: f32 = zones
+                .iter()
+                .map(|z| {
+                    let (rate, frames) = humanity_music::decode::decode_file(&a.samples_dir.join(&z.file)).expect("a core sample decodes");
+                    frames.len() as f32 / rate as f32
+                })
+                .sum();
+            // Strictly more, beyond rounding: the tails the core set cut, given back (the Martin's
+            // 15 notes are short already, so its whole recording is about a second longer).
+            assert!(
+                full.zones == core_zones && full.seconds > core_seconds + 0.5,
+                "{id}: pack {}'s {} keeps no more than the core cut ({} layers, {} round robins, {} samples, {:.1} s against {core_layers}, {core_rr}, {core_zones}, {core_seconds:.1} s)",
+                pack.id,
+                full.id,
+                full.layers,
+                full.round_robins,
+                full.zones,
+                full.seconds
+            );
+        }
+    }
+    for (pack, r) in &pack_refs {
+        assert!(r.layers > 0 && r.round_robins > 0 && r.zones > 0 && r.seconds > 0.0, "pack {}: {} says what it holds", pack.id, r.id);
+        if let Some(f) = &r.full_of {
+            assert!(catalog.core.instruments.iter().any(|c| &c.id == f), "pack {}: {} is the whole recording of {f}, a core instrument", pack.id, r.id);
+        }
+    }
+}

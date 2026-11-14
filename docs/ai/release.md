@@ -211,7 +211,13 @@ agent's job; **uploading them is the top-level session's step** (a standing perm
    Two packs are not public domain (2026-11-13): Choir and Electric pianos are CC BY 4.0, so their
    licence text names the makers and `data/credits.ron` credits them (a data test holds each credited
    pack to its row). Since 2026-11-13 a pack can also hold wave sets (`waves/<id>/`, plain PCM single
-   cycles: the Synth waves pack).
+   cycles: the Synth waves pack). Since the full packs (2026-11-13: Keys, Strings, Mallets, Guitars,
+   Percussion and Folk at version 2, and Orchestral winds and brass) a whole run reads about 12,000
+   samples; `--packs-out <folder>` writes the packs somewhere else (a staging folder), and
+   `HUMANITY_INSTRUMENT_PACKS_OUT=<folder> node --test scripts/tests/instrument-packs-staged.test.js`
+   checks every pack in `packs.ron` against the files there (size and SHA-256, each under GitHub's
+   2 GiB per asset) before they are uploaded. A pack at a new version is a new file name, so the
+   upload adds it beside the old one; the old version's file can stay until nobody needs it.
 
 2. Upload (the top-level session; the first time creates the release, later times replace the assets):
 

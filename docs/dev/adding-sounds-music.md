@@ -14,6 +14,12 @@ the crate card docs/crates/humanity-music.md). To add music you add DATA, no cod
   with a synthesised `fallback`, so music plays without the pack. A recorded instrument comes from a
   recipe in `scripts/instrument-recipes.json` (`just instrument-packs`; the libraries and their
   licences in `docs/reference/instrument-sources.md`), and plays a part of `data/music/parts.ron`.
+  A core recipe thins (`keep`: layers, round robins, every n-th key) and cuts short (`max_seconds`);
+  a full-pack recipe (2026-11-13) has no `keep` and keeps up to 30 s, and names the core instrument
+  it is the whole recording of (`full_of`, which a data test holds to more layers, round robins or
+  seconds). A recipe's `pattern` may be a list when a library names one way of playing two ways.
+  The catalog (`data/music/packs.ron`) records each instrument's layers, round robins, samples and
+  seconds from what was built.
 - **Single-cycle waves** for the synthesiser (2026-11-13, AKWF): a `wavesets` recipe in the same
   file keeps the library's PCM WAVs byte for byte in `data/music/waves/<id>/` (or a pack's `waves/`);
   nothing plays them until the wavetable rung (music.md, the electronic rungs).

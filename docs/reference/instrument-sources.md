@@ -247,6 +247,55 @@ corrects). The piano and the vibraphone leads play the core set's upright piano 
 already there (sections 1 and 2; the keys and mallets packs' grands and full vibraphone when
 installed). The core set is 10.2 MiB of its 30 MiB with them.
 
+## 10. The full packs (2026-11-13, no download)
+
+The operator, 2026-11-13: "I'm interested in having all the instruments." The core set stays small
+and public domain; seven optional packs now hold the WHOLE of the libraries above (sections 1 to 8):
+every instrument and way of playing, every velocity layer and round robin, up to 30 s of each sample
+(the core set keeps 4 to 10 s of a cut). Nothing new was downloaded: everything came from the
+archives already recorded in sections 1 to 8, whose sizes and checksums the pipeline checks again
+before reading them.
+
+**Each licence, read again from its own file on 2026-11-13** (the file inside the download, not this
+document's copy):
+
+| Library | Its licence file | What it says (quoted) |
+|---|---|---|
+| VSCO 2 CE (section 3) | `LICENSE` in the commit archive, 6,555 bytes | "CC0 1.0 Universal" |
+| VCSL (section 2) | `LICENSE` in the commit archive, 7,048 bytes | "Creative Commons Legal Code", "CC0 1.0 Universal" |
+| Big Rusty Drums (section 7) | `LICENSE` in `Big_Rusty_Drums_1100.zip`, 7,168 bytes | "Creative Commons Legal Code", "CC0 1.0 Universal" |
+| Black And Green Guitars (section 4) | `LICENSE` in `Karoryfer_Black_And_Green_Guitars_1000.zip`, 7,168 bytes (the same file as Big Rusty Drums') | "Creative Commons Legal Code", "CC0 1.0 Universal" |
+| FreePats Upright Piano KW, the full set (section 1) | `UprightPianoKW-SFZ+FLAC-20220221/cc0.txt` in the .7z, 7,048 bytes | "Creative Commons Legal Code", "CC0 1.0 Universal" |
+| FreePats Hang in D minor (section 6) | `Hang-D-minor SFZ+FLAC-20220330/LICENSE.txt` in the .7z, 7,048 bytes | "Creative Commons Legal Code", "CC0 1.0 Universal" |
+| jSteelDrum 1 (section 5) | `LICENSE` in the commit archive, 183 bytes | "This is free and unencumbered software released into the public domain according to Creative Commons CC0" |
+| Martin HD-28 (section 8) | the header of `026-Acoustic Guitar (steel).sfz` | "License: Creative Commons CC0" |
+
+All eight are public domain: no credit is required, and each pack still carries each library's
+licence text beside every instrument's samples and says "Public domain (CC0 1.0)" in Settings.
+
+**What they became** (the table, with what each pack adds: [`music.md`](../design/music.md) section
+23, "The full packs"): Keys 222.7 MiB (25 instruments), Strings 67.6 MiB (22), Orchestral winds and
+brass 104.8 MiB (49, new), Mallets and bells 39.2 MiB (15), Guitars 41.2 MiB (7), Percussion and deep
+drums 130.8 MiB (260) and Folk and world 42.5 MiB (39): 649 MiB in seven archives, each well under
+GitHub's 2 GiB per release asset, so none is split. Sizes and SHA-256: `data/music/packs.ron`.
+
+**What was left out, and why** (no instrument was left out for size):
+
+- **Release samples** (VCSL's `Releases` folders, the Steinway's `Rel`, the Black And Green
+  Guitars' `rel`, Big Rusty Drums' pedal and snare release noises): the music engine plays no
+  release-triggered samples yet; they are not notes.
+- **Recordings that are the same file or the same recording twice**: VSCO 2's `VSCO 1 Percussion`
+  is VCSL's `Legacy` percussion byte for byte (checked with `cmp`); VSCO 2's `Percussion`, `Glock`,
+  `Marimba`, `Xylo`, `Timpani`, `Harp`, `Keys/Organ` and `Keys/Upright Piano` were re-cut into VCSL
+  (its README: "This set shall include the bulk of the VSCO 2 CE sample set"), so VCSL's cut is the
+  one kept. VCSL's other `Legacy` folders (older VSCO 1 takes of instruments it has newer recordings
+  of: agogo, claves, guiro, shakers, bell tree, three tambourines, triangles, snares, toms, a bass
+  drum) are left out; the mark tree and the vibraslap, which exist only as `Legacy`, are kept.
+- **Effects that are not playable notes**: VSCO 2's `Miscellania Raw` (raw effect recordings, which
+  its readme offers "as-is"), the dan tranh's glissandi and effects, the didgeridoo's recorded
+  phrases, the pipe organ's blower, the Knight piano's pedal noises, the guitars' two feedback
+  backgrounds (`fb`).
+
 ## What the app gets from them
 
 The pipeline keeps what each instrument needs and encodes it as Ogg Vorbis; nothing is retuned on

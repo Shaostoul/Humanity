@@ -297,7 +297,10 @@ function sfzCandidates(recipe, lib) {
 
 function patternCandidates(recipe, lib) {
   const dirs = [].concat(recipe.from.dir);
-  const re = new RegExp(recipe.from.pattern);
+  // One pattern, or several (2026-11-13, the full packs: takes of one way of playing that a library
+  // names two ways, with and without a velocity word); a file takes the first that matches.
+  const res = [].concat(recipe.from.pattern).map((p) => new RegExp(p));
+  const re = { exec: (s) => res.reduce((m, r) => m || r.exec(s), null) };
   const out = [];
   for (const rel of lib.list()) {
     const d = path.posix.dirname(rel);
@@ -710,8 +713,50 @@ function filesUnder(root, rel, out) {
   return out;
 }
 
-function catalogRon(recipes, packs, coreBytes, coreIds) {
-  const refs = (ids) => ids.map((id) => ({ id, part: recipes.instruments.find((r) => r.id === id).part }));
+/**
+ * What an instrument holds, for the catalog (2026-11-13, the full packs): its samples, the most
+ * velocity layers and round robins any key has, and the seconds of recording, so the list can say
+ * what a pack adds before it is downloaded and a test can hold a full pack's instrument to more than
+ * the core set's cut of the same recording.
+ */
+function instrumentStats(zones) {
+  const layers = new Map();
+  for (const z of zones) {
+    const k = `${z.lo_key}:${z.hi_key}`;
+    if (!layers.has(k)) layers.set(k, new Set());
+    layers.get(k).add(`${z.lo_vel}:${z.hi_vel}`);
+  }
+  return {
+    zones: zones.length,
+    layers: Math.max(...[...layers.values()].map((s) => s.size)),
+    round_robins: Math.max(...zones.map((z) => z.rr)),
+    seconds: Math.round(zones.reduce((n, z) => n + z.frames / z.rate, 0) * 10) / 10,
+  };
+}
+
+/** The stats an earlier run wrote into the catalog, for the sets this run did not rebuild. */
+function previousStats(catalogText) {
+  const m = new Map();
+  const re = /\(id: "([^"]+)", part: "[^"]*", layers: (\d+), round_robins: (\d+), zones: (\d+), seconds: ([\d.]+)/g;
+  for (const x of catalogText.matchAll(re)) m.set(x[1], { layers: Number(x[2]), round_robins: Number(x[3]), zones: Number(x[4]), seconds: Number(x[5]) });
+  return m;
+}
+
+function catalogRon(recipes, packs, coreBytes, coreIds, stats) {
+  const refs = (ids) => ids.map((id) => {
+    const r = recipes.instruments.find((x) => x.id === id);
+    const s = stats.get(id) || { layers: 0, round_robins: 0, zones: 0, seconds: 0 };
+    return {
+      id,
+      part: r.part,
+      layers: s.layers,
+      round_robins: s.round_robins,
+      zones: s.zones,
+      seconds: B.f(s.seconds),
+      // The core instrument this one is the whole recording of (a full pack's).
+      full_of: r.full_of ? B.some(r.full_of) : null,
+    };
+  });
   // A pack's wave sets, with the count each recipe promises (checked when it is built).
   const waveRefs = (pack) => (recipes.wavesets || []).filter((w) => w.pack === pack).map((w) => ({ id: w.id, count: w.count }));
   const cat = B.struct('PackCatalog', {
@@ -793,7 +838,7 @@ async function main(argv) {
       // A sample over full scale would clip when played (a mix of microphones can sum past 1.0).
       const hot = zones.filter((z) => z.peak > 1.0).length;
       if (hot) throw new Error(`instrument ${recipe.id}: ${hot} sample(s) peak over full scale; lower the mix gains`);
-      built.push({ recipe, root, bytes: dirBytes(staging) });
+      built.push({ recipe, root, bytes: dirBytes(staging), stats: instrumentStats(zones) });
     }
     const builtWaves = [];
     for (const ws of (recipes.wavesets || []).filter((w) => !args.only || args.only.has(w.id))) {
@@ -864,7 +909,9 @@ async function main(argv) {
     }
     if (args.writeCatalog) {
       fs.mkdirSync(path.dirname(args.catalog), { recursive: true });
-      fs.writeFileSync(args.catalog, catalogRon(recipes, packs, coreBytes, coreIds));
+      const stats = previousStats(fs.existsSync(args.catalog) ? fs.readFileSync(args.catalog, 'utf8') : '');
+      for (const b of built) stats.set(b.recipe.id, b.stats);
+      fs.writeFileSync(args.catalog, catalogRon(recipes, packs, coreBytes, coreIds, stats));
       log(`catalog: ${args.catalog}`);
     }
     return { coreBytes, packs };

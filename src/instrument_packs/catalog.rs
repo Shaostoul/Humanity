@@ -37,6 +37,22 @@ pub struct CoreSet {
 pub struct InstrumentRef {
     pub id: String,
     pub part: String,
+    /// What it holds, written by the pipeline from the definition it built (2026-11-13, the full
+    /// packs): the most velocity layers and round robins any of its keys has, its samples, and the
+    /// seconds of recording. 0 in a hand-written test catalog.
+    #[serde(default)]
+    pub layers: u32,
+    #[serde(default)]
+    pub round_robins: u32,
+    #[serde(default)]
+    pub zones: u32,
+    #[serde(default)]
+    pub seconds: f32,
+    /// The core instrument this one is the whole recording of: a full pack keeps every velocity
+    /// layer and round robin the library has, where the core set keeps a small cut of the same
+    /// recording (a test holds the pack's to more).
+    #[serde(default)]
+    pub full_of: Option<String>,
 }
 
 /// A wave set a set holds (2026-11-13, AKWF): single-cycle waves for the synthesiser's wavetable

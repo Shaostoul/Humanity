@@ -1111,6 +1111,39 @@ and in the pack's licence line). The 37 new parts are marked `not_used_yet`: whi
 is the next genre pass's choice (the electronic rungs, and electro swing and lo-fi for the brushes, the
 honky-tonk piano and the electric pianos), not a change to the synthesis.
 
+**The full packs (2026-11-13).** The operator: "I'm interested in having all the instruments." The
+core set stays small and public domain; the packs built from the first libraries now hold them WHOLE:
+every instrument and way of playing in VSCO 2, VCSL, Big Rusty Drums and Black And Green Guitars,
+the full FreePats upright piano, the Hang, jSteelDrum 1 and the Martin, with every velocity layer and
+round robin and up to 30 s of each sample (a recipe with no `keep`). Nothing was downloaded; what was
+left out (release samples, which the engine does not play yet; recordings VCSL re-cut from VSCO 2;
+effects that are not notes) and each licence, read again from its own file, are in
+[`instrument-sources.md`](../reference/instrument-sources.md) section 10. All public domain.
+
+| Pack | Size | Instruments | Samples | What it adds |
+|---|---|---|---|---|
+| **Keys** (version 2) | 222.7 MiB | 25 | 1,343 | Steinway B grand with and without the sustain pedal, Kawai grand and its earlier recording, the full KW upright, the Knight, Yamaha and No. 1 uprights, five harpsichords (two with a second register), the pipe organ (two registrations and its pedals), the Renaissance organ (three stops), the TX81Z's FM piano, "Piano 1" and Clavisynth |
+| **Strings** (version 2) | 67.6 MiB | 22 | 789 | violin, viola and cello sections and the double bass, each held, plucked, spiccato and tremolo (the bass also without vibrato); the solo violin the same; the concert harp whole |
+| **Orchestral winds and brass** (new) | 104.8 MiB | 49 | 1,479 | French horn (held, staccato, muted), trumpet (held, with vibrato, staccato, harmon and straight mutes), tenor trombone and the old trombone (held, vibrato, short, buzzed, falls), tuba, flute (four ways), piccolo, oboe, clarinet, bassoon, tenor saxophone and saxello (each held, without vibrato, staccato) and four baroque recorders |
+| **Mallets and bells** (version 2) | 39.2 MiB | 15 | 689 | the vibraphone with soft and hard mallets and bowed, xylophone with three mallets, a second set of tubular bells, the tubular glockenspiel, the bell tree's bells, and the steel pan with all 443 of its takes |
+| **Guitars** (version 2) | 41.2 MiB | 7 | 1,411 | both hollowbody electrics with every layer and take (430 samples each), staccato, the Gretsch's hammer-ons, the Hofner behind the bridge, and the Martin uncut |
+| **Percussion and deep drums** (version 2) | 130.8 MiB | 260 | 2,607 | Big Rusty Drums whole: 89 ways of playing its kick, snare, hi-hat, four toms and six cymbals (sticks, brushes, mallets, rims, chokes), mixed from its close and overhead microphones; and every VCSL drum and small percussion instrument and way of playing it (concert snares, toms and bass drum, timpani hits and rolls, congas, bongos, darbuka, frame drums, cymbals, gongs, triangles, shakers, whistles and the rest) |
+| **Folk and world** (version 2) | 42.5 MiB | 39 | 756 | beside the bagpipe and steel pan 2: the Hang, folk harp, strumstick, dan tranh, psaltery (bowed and plucked), kalimbas from Kenya and Tanzania, three Zimbabwean and Mozambican mbiras, balafon, ocarinas, three harmonicas and the didgeridoo |
+
+Each pack instrument that is the whole recording of a core one names it (`full_of`), and the catalog
+records what each instrument holds (velocity layers, round robins, samples, seconds); a data test holds
+every such pair to more layers, round robins or samples, or, for the Martin and the tenor saxophone
+whose 15 and 19 notes the core set already kept, to longer ones. All 350 new parts are marked
+`not_used_yet`: a part per way of playing, shared where instruments are alternatives (the harpsichords,
+the kalimbas, the mbiras, a kit's kick). Settings folds the list of a set of more than 12 instruments
+under a header that counts them (the percussion pack's 260 made the page a scroll through every take).
+
+**Memory, for a later rung.** A part's recording is decoded whole into memory when a score uses it
+(16-bit stereo at 48 kHz, 192 kB a second): the full Steinway is 2,687 s of samples, about 490 MiB,
+the Kawai about 440 MiB, the Gretsch about 380 MiB. Nothing plays them yet beyond the piano, the
+guitar and the parts the moods already name; streaming long samples from disk, or a smaller decoded
+cut, is the fix before the music plays many full instruments at once.
+
 ## The operator on electro swing (2026-11-13, after v0.1558.0)
 
 - **Switching genre is too slow.** "I clicked to enable electro swing but, the transition was really slow, felt like it took a minute or so." A bug to fix: a genre change should be heard within seconds, crossfading at the next bar.

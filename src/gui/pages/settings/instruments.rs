@@ -13,7 +13,7 @@ use egui::{Color32, RichText};
 use humanity_core::i18n::{t, t_dyn, t_marked, t_marked_dyn, tf};
 
 use crate::gui::theme::Theme;
-use crate::gui::widgets::{self, Button};
+use crate::gui::widgets::{self, with_hint, Button};
 use crate::gui::HintDisplay;
 use crate::instrument_packs::catalog::{InstrumentRef, PackEntry, WaveSetRef};
 use crate::instrument_packs::install::{Failure, Stage};
@@ -42,11 +42,18 @@ fn warn(ui: &mut egui::Ui, theme: &Theme, color: Color32, text: impl Into<String
     ui.label(RichText::new(text.into()).color(color).size(theme.font_size_small));
 }
 
-/// What a set holds: its instruments, then each wave set and its count (2026-11-13: AKWF's single
-/// cycles, which no music plays yet, and the line says so). A set of waves alone has no
-/// instrument line.
+/// A set of more instruments than this says how many it holds, and keeps their names, and what
+/// each plays, folded until opened (2026-11-13: the full percussion pack holds hundreds, and listed
+/// open they made the page a scroll through every take of every drum).
+pub(crate) const LIST_OPEN_MAX: usize = 12;
+
+/// What a set holds: its instruments (named, or counted when there are many), then each wave set
+/// and its count (2026-11-13: AKWF's single cycles, which no music plays yet, and the line says
+/// so). A set of waves alone has no instrument line.
 fn holds(ui: &mut egui::Ui, theme: &Theme, instruments: &[InstrumentRef], waves: &[WaveSetRef]) {
-    if !instruments.is_empty() {
+    if instruments.len() > LIST_OPEN_MAX {
+        muted(ui, theme, tf("instrument_packs.holds_count", &[("count", &instruments.len().to_string())]));
+    } else if !instruments.is_empty() {
         muted(ui, theme, tf("instrument_packs.holds", &[("list", &names(instruments))]));
     }
     for w in waves {
@@ -82,7 +89,7 @@ pub(crate) fn draw_instruments(ui: &mut egui::Ui, theme: &Theme, hint: HintDispl
         muted(ui, theme, tf("instrument_packs.size", &[("mb", &mb(catalog.core.bytes))]));
         licence_line(ui, theme, t_marked("instrument_packs.licence.cc0"));
         muted(ui, theme, t("instrument_packs.core_status"));
-        draw_uses(ui, theme, packs, &catalog.core.instruments, true);
+        draw_uses(ui, theme, packs, "core", &catalog.core.instruments, true);
         for entry in &catalog.packs {
             ui.add_space(theme.spacing_md);
             draw_pack(ui, theme, entry, packs);
@@ -170,15 +177,32 @@ fn draw_pack(ui: &mut egui::Ui, theme: &Theme, entry: &PackEntry, packs: &mut Pa
             warn(ui, theme, theme.danger(), tf("instrument_packs.remove_failed", &[("detail", e)]));
         }
     }
-    draw_uses(ui, theme, packs, &entry.instruments, installed.is_some());
+    draw_uses(ui, theme, packs, &entry.id, &entry.instruments, installed.is_some());
 }
 
 /// For each instrument: the part it plays, and whether the music uses it now, has a better one, or
 /// (its pack not installed) what plays that part instead; and, for a part no mood or style of the
 /// music names (`PacksUi::used_parts`), that the music does not use that part yet (BUG-266: every
 /// listed instrument was said to "play the part" whenever it was the best for it, heard or not).
-fn draw_uses(ui: &mut egui::Ui, theme: &Theme, packs: &PacksUi, refs: &[InstrumentRef], installed: bool) {
-    muted(ui, theme, t("instrument_packs.uses_title"));
+fn draw_uses(ui: &mut egui::Ui, theme: &Theme, packs: &PacksUi, set_id: &str, refs: &[InstrumentRef], installed: bool) {
+    if refs.is_empty() {
+        return;
+    }
+    if refs.len() <= LIST_OPEN_MAX {
+        muted(ui, theme, t("instrument_packs.uses_title"));
+        uses_lines(ui, theme, packs, refs, installed);
+        return;
+    }
+    // Many instruments: folded, under a header that says how many (each set's own fold, by its id).
+    let title = tf("instrument_packs.uses_list", &[("count", &refs.len().to_string())]);
+    ui.push_id(("instrument_uses", set_id), |ui| {
+        with_hint(ui, "instrument_packs.uses_list_hint", |ui| {
+            widgets::collapsible_section(ui, &title, false, |ui| uses_lines(ui, theme, packs, refs, installed))
+        });
+    });
+}
+
+fn uses_lines(ui: &mut egui::Ui, theme: &Theme, packs: &PacksUi, refs: &[InstrumentRef], installed: bool) {
     for r in refs {
         let name = instrument_name(&r.id);
         let part_name = t_dyn(&format!("instrument_packs.part.{}", r.part));

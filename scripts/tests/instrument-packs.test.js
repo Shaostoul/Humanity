@@ -178,8 +178,10 @@ test('the pipeline turns a fixture library into a core set and a checked pack', 
     const catalog = fs.readFileSync(out.catalog, 'utf8');
     assert.match(catalog, new RegExp(`sha256: "${sha}"`), 'the catalog\'s sha256 is the tar\'s');
     assert.match(catalog, new RegExp(`bytes: ${tar.length},`), 'the catalog\'s size is the tar\'s');
-    assert.match(catalog, /\(id: "fixture_grand", part: "piano"\)/);
-    assert.match(catalog, /core: \(\s*words: "instrument_packs\.pack\.core",\s*instruments: \[\s*\(id: "fixture_upright", part: "piano"\)/);
+    // Each instrument with what it holds (2026-11-13, the full packs): the fixture grand has two
+    // velocity layers at each of its three keys, one take each.
+    assert.match(catalog, /\(id: "fixture_grand", part: "piano", layers: 2, round_robins: 1, zones: 6, seconds: [\d.]+, full_of: None\)/);
+    assert.match(catalog, /core: \(\s*words: "instrument_packs\.pack\.core",\s*instruments: \[\s*\(id: "fixture_upright", part: "piano", layers: 1, round_robins: 1, zones: 3,/);
     const inTar = B.readTar(tar).map((e) => e.path);
     for (const want of ['pack.ron', 'instruments/fixture_grand.ron', 'instruments/fixture_drum.ron', 'samples/fixture_grand/LICENSE.txt', 'samples/fixture_grand/source.ron', 'samples/fixture_drum/LICENSE.txt']) {
       assert.ok(inTar.includes(want), `the pack holds ${want}`);
@@ -423,4 +425,23 @@ test('a wave set: single cycles kept byte for byte, in the core set and in a pac
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
+});
+
+// A WAY OF PLAYING NAMED TWO WAYS (2026-11-13, the full packs): VCSL writes some takes of one
+// stroke with a velocity word and some without (a hi-hat's "HiHat_Close_rr1" beside
+// "HiHat_HitC_v2_rr1"), so a recipe's pattern may be a list; a file takes the first that matches,
+// and a file no pattern matches is left out. RED first (2026-11-13) with the list read as one
+// pattern (the array passed to `new RegExp`, which joins it with commas): "SyntaxError: Invalid
+// regular expression" (the joined patterns repeat their named groups).
+test('a recipe may give several file patterns', () => {
+  const files = ['Cowbell1_Hit_v1_rr1_Mid.wav', 'Cowbell1_Hit_rr2_Mid.wav', 'Cowbell1_Muted_v1_rr1_Mid.wav'];
+  const lib = { list: () => files.map((f) => 'Cowbell/' + f) };
+  const recipe = {
+    pitched: false,
+    key: 56,
+    from: { dir: 'Cowbell', pattern: ['^Cowbell\\d_Hit_(?<vel>v\\d)_rr(?<rr>\\d)_Mid\\.wav$', '^Cowbell\\d_Hit_rr(?<rr>\\d)_Mid\\.wav$'] },
+  };
+  const cands = pipeline.patternCandidates(recipe, lib);
+  assert.deepStrictEqual(cands.map((c) => path.posix.basename(c.file)), files.slice(0, 2), 'both spellings are taken (got ' + cands.length + ')');
+  assert.deepStrictEqual(cands.map((c) => [c.layerToken, c.rr, c.key]), [['v1', 1, 56], ['', 2, 56]]);
 });
