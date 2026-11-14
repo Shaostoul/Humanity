@@ -63,6 +63,25 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   and later rung 2's kept static depth. wgpu 24 has no clip distances (`enable clip_distances` is
   unimplemented in naga 24, no `CLIP_DISTANCES` feature), so "one draw per light with clip planes"
   waits for a wgpu upgrade.
+- **The plain casters are GPU-DRIVEN since 2026-11-13** (`renderer/shadow_gpu.rs`,
+  `assets/shaders/shadow_cull.wgsl`; `docs/design/local-light-shadows.md` section 10): their meshes
+  live in ONE arena (copied on the GPU from each mesh's own buffers, which is why
+  `Mesh::from_vertices` makes them `COPY_SRC`; keyed by the serial `add_mesh` and `replace_mesh` give
+  each slot, `Renderer::mesh_serials`), a compute pass culls every caster against every drawn face by
+  the processor's own rule and writes the indirect arguments, and each face is ONE
+  `multi_draw_indexed_indirect_count`. **The cull's rule is written three times and kept equal**:
+  `local_shadows::face_keeps` / `sun_keeps` (the per-draw loop, and which faces get a tile),
+  `keeps` in the shader, and its Rust twin `shadow_gpu::gpu_keeps`; change one, change all three
+  (`the_gpu_test_keeps_exactly_the_casters_the_processor_rule_keeps`). The instance matrix is a
+  VERTEX ATTRIBUTE, never `@builtin(instance_index)`: DX12 hands an indirect draw's first instance to
+  attribute fetch but not to the builtin on this adapter (`patch_arena`'s header). A mesh whose
+  vertices change after it is made (the compute-skinned bodies, `prev_vertex_buffer`) or that is a
+  range of shared buffers stays on the per-draw loop: the arena would hold last frame's copy. Showcase
+  `shadow_gpu` "0" is the red twin; a device without the three features (`shadow_gpu::
+  required_features`) runs the per-draw loop and Settings names what it lacks. Measured:
+  `cpu.shadow_local` in the hall 2.52 to 1.54 ms, the plain casters' 933 instances in 46 commands;
+  what is left on the processor is the per-draw loop (cutouts, swaying classes, skinned bodies) and
+  the fixed share (skinning, uploads, submit).
 - **Code in `frag_tail` costs even when its branch is never taken.** The room light's atlas lookup
   slows the scene pass by 0.4 to 1.65 ms with shadows OFF (2026-11-11, RTX 4070 at 2560 x 1387:
   the ground hall 13.16 ms against 11.51 with the lookup compiled out, the crowd 8.59 against 7.54),

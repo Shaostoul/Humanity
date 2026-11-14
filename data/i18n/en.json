@@ -5861,7 +5861,15 @@
     "anti_aliasing_memory": "Its history takes {{used}} at {{size}}.",
     "anti_aliasing_vendor": "DLSS, XeSS and FSR 4 are not offered: each is a program that may not be modified (DLSS runs only on NVIDIA cards), and HumanityOS uses only open source for its core. That is this project's own rule, not a law, a patent or a platform holder's rule.",
     "sharpening": "Sharpening",
-    "sharpening_hint": "Restores the crispness the blending softens; too much draws bright edges. 0 turns it off."
+    "sharpening_hint": "Restores the crispness the blending softens; too much draws bright edges. 0 turns it off.",
+    "local_shadows_gpu_driven": "Your graphics card finds which objects cast into each shadow and draws them from a list it makes itself, so the processor sends one instruction per shadow view instead of one per object.",
+    "local_shadows_gpu_pinned": "The processor is sending each shadowed object's draw one by one (a developer comparison of the two ways); the shadows look the same.",
+    "local_shadows_gpu_missing": "This graphics card lacks {{missing}}, so it cannot draw shadows from a list it makes itself. The processor sends each shadowed object's draw instead, about a microsecond each: the shadows look the same and cost the processor more.",
+    "local_shadows_feature": {
+      "multi_draw_indirect": "drawing many objects from one instruction",
+      "indirect_count": "reading how many to draw from its own memory",
+      "first_instance": "starting such a draw partway through a list"
+    }
   },
   "gameplay": {
     "level": {

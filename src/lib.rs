@@ -14966,6 +14966,10 @@ mod native_app {
                                 // so the terrain under a person and everything in the home sample this frame's maps.
                                 {
                                     use crate::renderer::local_shadows::CasterList;
+                                    // Its own span (2026-11-13): the shadow atlas's processor time measured on
+                                    // this thread alone, which a busy machine does not inflate as it does the
+                                    // wall-clock cpu.shadow_* stages.
+                                    humanity_core::frame_costs::span("cpu.span.shadow_atlas");
                                     let so = state.station_off;
                                     state.renderer.render_shadow_atlas(
                                         &state.camera,
@@ -14976,6 +14980,7 @@ mod native_app {
                                             (&celestial_objects, Vec3::ZERO, CasterList::CelestialSurfaces),
                                         ],
                                     );
+                                    humanity_core::frame_costs::span("cpu.span.world_passes");
                                 }
                                 // The 5th argument is this pass's ANIMATION CLOCK: live wall time unless the rig
                                 // pinned it (showcase_request {"anim_clock":"300"}). The pass stamps it into

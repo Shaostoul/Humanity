@@ -130,6 +130,8 @@ pub mod shader_loader;
 pub mod shadow_cutout;
 /// Shadows from the room lights and the sun near you (2026-11-10, docs/design/local-light-shadows.md).
 pub mod local_shadows;
+/// The shadow atlas's GPU-driven casters: the arena, the compute cull and the indirect draws (2026-11-13).
+pub mod shadow_gpu;
 /// Where the stars are (the catalogue's sky turned into the world by the
 /// date) and how much of them twilight leaves (2026-10-04, BUG-139).
 pub mod sky_frame;
@@ -394,6 +396,8 @@ pub struct Renderer {
     object_bind_group: wgpu::BindGroup,
     // Registered meshes and materials
     pub meshes: Vec<Mesh>,
+    /// Each mesh slot's serial, bumped by `add_mesh` and `replace_mesh` (renderer/shadow_gpu.rs).
+    mesh_serials: shadow_gpu::MeshSerials,
     pub materials: Vec<Material>,
     // ── The scene target and the present pass (renderer/scene_target.rs) ──
     /// Every scene pass draws here; `present_scene` copies it to the display.
@@ -1225,7 +1229,7 @@ impl Renderer {
         // fail device creation, which is the v0.782 boot-killer class. Without
         // it the Performance page falls back to CPU-side pass timing.
         // ... and block compression for the garment textures (BC7, the same intersection: texture_pool).
-        let granted_indirect = (adapter.features() & (indirect_features | wgpu::Features::TIMESTAMP_QUERY)) | texture_pool::block_compression_feature(adapter.features());
+        let granted_indirect = (adapter.features() & (indirect_features | wgpu::Features::TIMESTAMP_QUERY | shadow_gpu::required_features())) | texture_pool::block_compression_feature(adapter.features());
         // Can this backend hand us a compiled-pipeline blob to keep between
         // boots? That is the standard answer to a slow PSO build, and it is
         // the first thing anyone looking at the `[Pipelines]` line will
@@ -2074,6 +2078,7 @@ impl Renderer {
             object_buffer,
             object_bind_group,
             meshes: Vec::new(),
+            mesh_serials: Default::default(),
             materials: Vec::new(),
             scene,
             present: present_pass,
@@ -2343,6 +2348,7 @@ impl Renderer {
     pub fn add_mesh(&mut self, mesh: Mesh) -> usize {
         let idx = self.meshes.len();
         self.meshes.push(mesh);
+        self.mesh_serials.added();
         idx
     }
 
@@ -2606,6 +2612,7 @@ impl Renderer {
     pub fn replace_mesh(&mut self, idx: usize, mesh: Mesh) {
         if let Some(slot) = self.meshes.get_mut(idx) {
             *slot = mesh;
+            self.mesh_serials.replaced(idx);
         }
     }
 

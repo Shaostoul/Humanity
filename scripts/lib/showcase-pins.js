@@ -25,6 +25,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   fp_shadow_twin: "1",
   // The shadow atlas's instanced caster path (2026-11-11): "0" draws every caster the classic way.
   shadow_fast: "1",
+  // The GPU-driven shadow casters (2026-11-13, renderer/shadow_gpu.rs): "0" sends every plain caster's
+  // draw from the processor, as before (the red twin).
+  shadow_gpu: "1",
   // Shadows rung 1b (2026-11-12): "0" draws every caster inside a shadow face whether or not its
   // shadow can reach the view (no shadow-caster cull), and atlas_code "1" keeps the atlas lookups
   // compiled into the shading at Off: the two red twins.

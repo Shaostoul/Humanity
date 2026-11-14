@@ -108,6 +108,11 @@
 //! - `src/renderer/skinning.rs`: `last_staging`, `last_keys` (the bodies' previous palette for the
 //!   motion target: with the switch off `skin_upload_prev` uploads this frame's rows, so nobody moves
 //!   on their own).
+//! - `src/renderer/shadow_gpu.rs`: `book` (the shadow atlas's GPU-driven casters, 2026-11-13: each
+//!   plain caster's mesh copied once into one shared vertex and index buffer, tagged by the serial
+//!   the renderer gives a mesh on every `add_mesh` and `replace_mesh`, so a replaced mesh is copied
+//!   again; with the switch off `ArenaBook::begin_frame` forgets every range, and every mesh a caster
+//!   draws is copied in again that frame).
 //!
 //! The switch is the Dev tab's Performance section ("Turn off all reuse"), for this run only, and
 //! `HUMANITY_NO_REUSE=1` for a rig or a scripted run.

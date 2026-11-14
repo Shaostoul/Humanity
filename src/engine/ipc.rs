@@ -1840,6 +1840,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.local_shadows.fast_off = t == "0";
         log::info!("Showcase: shadow_fast -> {}", !state.renderer.local_shadows.fast_off);
     }
+    // {"shadow_gpu":"0"}: the plain shadow casters go through the per-draw loop even where the
+    // device could cull and draw them itself (the GPU-driven path's red twin, 2026-11-13,
+    // renderer/shadow_gpu.rs: the picture must stay the same, only the cost moves); "1" or "auto" puts
+    // the GPU-driven path back.
+    if let Some(t) = grab("shadow_gpu") {
+        state.renderer.local_shadows.gpu_off = t == "0";
+        log::info!("Showcase: shadow_gpu -> {}", !state.renderer.local_shadows.gpu_off);
+    }
     // Shadows rung 1b (2026-11-12, docs/design/local-light-shadows.md section 10), the two red twins:
     // {"shadow_cull":"0"} draws every caster inside a shadow face, whether or not its shadow can reach
     // the view (the shadow-caster cull's red twin: the picture must stay the same, only the cost

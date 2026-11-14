@@ -214,12 +214,13 @@ impl Mesh {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Mesh Vertex Buffer"),
             contents: bytemuck::cast_slice(vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            // COPY_SRC: the shadow atlas's GPU arena copies a caster's mesh in on the GPU (shadow_gpu.rs).
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Mesh Index Buffer"),
             contents: bytemuck::cast_slice(indices),
-            usage: wgpu::BufferUsages::INDEX,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC,
         });
         Self {
             vertex_buffer,

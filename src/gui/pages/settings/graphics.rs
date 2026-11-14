@@ -336,6 +336,18 @@ fn draw_local_shadows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hi
                     ],
                 ),
             );
+            // Who sends the shadow casters' draws (the hardware-notice rule, 2026-11-13,
+            // renderer/shadow_gpu.rs): the graphics card from its own list, or the processor one by one
+            // on a card without the features, named.
+            use crate::renderer::shadow_gpu::{mask_ids, DrawPath};
+            match s.path {
+                DrawPath::Gpu => muted(ui, theme, t("graphics.local_shadows_gpu_driven")),
+                DrawPath::CpuPinned => muted(ui, theme, t("graphics.local_shadows_gpu_pinned")),
+                DrawPath::CpuNoFeature => {
+                    let missing: Vec<String> = mask_ids(s.gpu_missing).iter().map(|id| t_dyn(&format!("graphics.local_shadows_feature.{id}")).to_string()).collect();
+                    muted(ui, theme, tf("graphics.local_shadows_gpu_missing", &[("missing", &missing.join(", "))]));
+                }
+            }
         }
     }
 }

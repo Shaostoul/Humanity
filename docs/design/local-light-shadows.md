@@ -158,6 +158,13 @@ the edge of the budget does not flicker), and it obeys `humanity_core::reuse::en
 frame. Rung 2's static depth reuse is versioned by the home's edit counter and the caster set, and
 with the switch off draws every caster every frame.
 
+The GPU-driven casters (2026-11-13, section 10) keep ONE thing across frames: the arena, each plain
+caster's mesh copied into shared buffers, tagged by the serial the renderer gives a mesh on every
+`add_mesh` and `replace_mesh`, so a replaced mesh is copied again. With the switch off the arena
+forgets every range at the start of each frame and every mesh drawn is copied in again
+(`ArenaBook::begin_frame`; listed in `humanity_core::reuse`). The casters, the views and every
+draw are worked out again every frame.
+
 Rung 1b (2026-11-12) adds no reuse. A kept recording of each view's unchanged draws (a render
 bundle, kept only while the draws were equal and behind the switch) was built and measured, and
 taken out: a replayed draw cost about what a recorded one does (section 10). The shader variant of
@@ -182,6 +189,11 @@ Off.
    built, measured and taken out (it saved no draws: section 10), and so was replaying each view's
    unchanged draws from a render bundle (it saved 4 to 12%); what was kept is the shadow-caster cull,
    a caster drawn into a face only if its shadow can reach the view (BUILT).
+1c. **GPU-driven casters** (built 2026-11-13, section 10): the plain casters' meshes in one arena, a
+   compute pass culling every caster against every face by the same rule and writing the indirect
+   arguments, ONE `multi_draw_indexed_indirect_count` per face; the per-draw loop on devices without
+   the features, said in Settings. Next on this line: the compute-skinned bodies drawn from the
+   own-mesh pool the same way, and the main scene pass going GPU-driven.
 2. **Cached static depth and a larger budget**: per face, the static casters' depth kept and copied in
    each frame, people drawn on top; versioned, behind the switch. Lets Full shadow 16 to 32 lamps and
    use 1024 faces. Then PCSS with each lamp type's size (`light_types.ron`, a new `size_m`).
@@ -404,6 +416,90 @@ same-boot A/B passes again: shelf 0.203, floor +0.02 codes. The film casts no sh
 a frosted sheet passing some 80% of the light face-on is the "partial caster" of section 2's item 9, a rung of
 its own (a transmittance atlas beside the depth atlas).
 
+### Built: GPU-driven casters (2026-11-13)
+
+The operator, told that the casters still cost 1.4 to 2.9 ms of the processor at Full: "The CPU
+cost? Shouldn't shadows and all other renderer stuff be on the GPU?" The cost was the D3D12 calls a
+draw (rung 1b, above), so the fix is fewer commands, and GPU-driven rendering is the standard way to
+get them (Haar and Aaltonen, "GPU-Driven Rendering Pipelines", SIGGRAPH 2015; Wihlidal, "Optimizing
+the Graphics Pipeline with Compute", GDC 2016; the base virtual shadow maps build on).
+
+- **The arena** (`renderer/shadow_gpu.rs`, `ArenaBook` and `GpuCasters`): each plain caster's mesh
+  (the fast path's casters) copied once, on the GPU, from its own buffers into ONE vertex buffer and
+  ONE index buffer (the terrain arena's range allocator; 1 M vertices and 4 M indices to start,
+  doubling, the old contents copied across). Keyed by the serial the renderer gives a mesh slot on
+  every `add_mesh` and `replace_mesh` (`Renderer::mesh_serials`): a replaced mesh is copied into a
+  new range and its old range freed. `Mesh::from_vertices` now makes its buffers `COPY_SRC` so the
+  GPU may copy them; a mesh made another way stays on the per-draw loop.
+- **The cull** (`assets/shaders/shadow_cull.wgsl`, one compute pass of three dispatches): every
+  caster against every drawn face (and the near sun tile) by the processor's own rule, written
+  once more in the shader (`keeps`) and in Rust (`shadow_gpu::gpu_keeps`), held equal to
+  `local_shadows::face_keeps` / `sun_keeps` by a test over 2,000 casters; each (face, mesh) with
+  casters takes a run of the instance buffer and writes its `DrawIndexedIndirect` arguments, then
+  the instances are written (each caster's model matrix with the face's index in its spare w, as
+  the fast path's shader reads it). Timed under `gpu.shadow_local` with the room light pass.
+- **The draw**: per face its viewport, its scissor and ONE `multi_draw_indexed_indirect_count` over
+  its section of the argument buffer, through the fast path's own pipeline. The processor still
+  picks the lights, packs the tiles and decides which faces need one: it tests a face's casters
+  until the first one passes (the GPU draws them all), so a face gets its tile exactly when it did.
+- **What stays on the per-draw loop**: cutouts and the swaying classes (their shapes come from the
+  megashader), and the compute-skinned near bodies, whose vertices the skinning writes again every
+  frame into the own-mesh pool, so an arena copy would be a frame stale. The pool already holds every
+  near body in one set of buffers, so the bodies can be drawn from it the same way in a later step.
+- **The fallback and its notice**: the path needs multi-draw indirect, its count variant and a first
+  instance in indirect draws (`shadow_gpu::required_features`, asked of the adapter at start as the
+  terrain's indirect draws are: requested only where offered, so no device is refused). Without
+  them every caster goes through the per-draw loop as before, the boot log says which feature is
+  missing, and Settings > Graphics says under Room light shadows, in words, what the card lacks and
+  that the processor sends each draw instead (the shadows look the same). With them it says the
+  card finds and draws the casters from its own list. Showcase `shadow_gpu` "0" is the red twin.
+- **Also in this step**: the per-draw loop's casters are sorted by material and mesh in each face,
+  so a run of one binds it once; the log line splits the processor's time into culling the faces,
+  the uploads, the near bodies' skinning, the arena's copies and the cull's commands, recording and
+  submitting, counts the classic draws (and how many are cutouts) and the skinned body draws, and is
+  said again 4 s after the path changes; `cpu.span.shadow_atlas` gives the whole atlas's time on its
+  own thread, which a busy machine does not inflate as it does the wall-clock stages.
+
+**Measured** (2026-11-13/14, RTX 4070, release build, the rig at 2560 x 1387, one boot, the two
+paths alternated three times per vantage (`shadow_gpu` "1" / "0"), medians of three; captures
+`gs3-*` in the session scratchpad; other agents compiled during it, less than during `gs1`/`gs2`,
+whose medians agree within 0.3 ms):
+
+| Vantage | `cpu.shadow_local` per-draw loop | GPU-driven | thread time (`cpu.span.shadow_atlas`) loop / GPU | `gpu.shadow_local` loop / GPU | draws a frame loop / GPU |
+|---|---|---|---|---|---|
+| shadow-hall-chair-night | 2.52 | 1.54 (-39%) | 2.75 / 1.74 | 0.263 / 0.263 | 1,017 / 301 |
+| shadow-racks-night | 1.88 | 1.07 (-43%) | 2.07 / 1.26 | 0.203 / 0.201 | |
+| mess-hall-counter | 1.09 | 0.87 (-20%) | 1.21 / 0.99 | 0.118 / 0.124 | |
+| anim-crowd-near | 1.44 | 1.29 (-10%) | 1.56 / 1.42 | 0.183 / 0.199 | 711 / about 260 |
+| home-overview-noon | 2.85 | 1.65 (-42%) | 3.06 / 1.82 | 0.576 / 0.582 | |
+
+`gpu.shadow_local` includes the cull's compute pass on the GPU-driven arm and is within 9% of the
+loop's everywhere (the crowd's 0.183 to 0.199 is the largest; its three captures span 0.18 to 0.24).
+The pictures are the same: the share of pixels more than 4 codes apart, GPU-driven against the
+loop, is the share two captures of the GPU-driven path show (the hall 1.60% against 1.30%, the
+person in it idling; the racks at night 0.50% against 0.50%; the crowd 2.92% against 2.91%; the sun
+through the racks 1.35% against 1.44%), and a diff of the hall shows only the moving person and
+anti-aliasing's edges. The racks gate (`home-shadow-metrics.mjs --gate`, atlas off against on)
+passes on both paths: the shelf keeps 0.122 of its light on the GPU-driven path and 0.125 on the
+loop, the hut's floor 0.123 and 0.124, the open floor moves 0.00 and 0.02 codes. With
+`HUMANITY_NO_REUSE=1` the log shows 80 to 145 meshes copied into the arena every frame (0 with
+reuse on, once the home is in), costing 0.43 to 0.53 ms.
+
+**Where the processor's time goes now** (the hall, GPU-driven, smoothed): culling the faces 0.08 ms,
+the uploads 0.3, the near bodies' skinning 0.12 (moved into this stage by rung 1, not shadow work),
+the arena and the cull's commands 0.11, recording 0.9, submitting 0.2. The recording is now almost
+all the per-draw loop's: 163 classic draws in the hall (106 of them cutouts, card hair and cluster
+cards, the rest the classes the megashader's vertex stage moves) and the skinned bodies' draws
+(13 in the hall; 400 to 570 a frame in the captures where the dev crowd's middle tier fills
+the lit faces, each body drawn once per face it falls in). **So
+the target, under 0.3 ms, is not met by this step**: the plain casters' draws are gone (933 casters
+in 46 commands in the hall), and what is left is the casters this step left on the loop, plus the
+fixed share (skinning, the uploads, the submit). The next steps, in the order they pay: the skinned
+bodies drawn from the own-mesh pool and the middle tier's palettes the same way (the crowds); the
+cutouts through the arena with their alpha read from a texture array; then the moving classes
+(their vertex stage's sway written once more for the arena, lockstep-tested). Rung 2's kept static
+depth would remove most of what is left of the plain casters' GPU work too.
+
 ## 11. Questions only the operator can answer
 
 1. **How many lamps should Full shadow?** Rung 1 shadows the 8 that matter most where you look
@@ -423,3 +519,9 @@ its own (a transmittance atlas beside the depth atlas).
    2 ms of the processor for the casters' draws there. Recommendation: rung 2 (the static casters'
    depth kept per face) next, which takes the walls and furniture out of the per-frame draws and so
    most of the processor cost; the shadow mask only after a depth pre-pass exists for its own sake.
+   **Updated 2026-11-13**: the GPU-driven casters (section 10) took the processor's share in the
+   hall from 2.5 to 1.5 ms; what is left is the casters still drawn one at a time (cutouts, the
+   swaying classes, the skinned bodies) and a fixed 0.6 ms (skinning, uploads, submit).
+   Recommendation now: carry the GPU-driven path to the skinned bodies and the cutouts first (they
+   are most of what is left on the processor, and the crowds are where it grows), then rung 2,
+   which saves GPU time rather than processor time once the draws are the GPU's own.

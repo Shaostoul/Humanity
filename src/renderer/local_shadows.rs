@@ -27,7 +27,10 @@
 //! 4. Culls the casters per view by bounding sphere (`Mesh::bounds`) and draws them, depth only (the
 //!    sun shadow PSOs: standard Z, `Less`, no culling), cutouts through `fs_shadow` (card hair, the
 //!    cluster cards), skinned middle bodies and the first-person body's unfolded twin through the
-//!    skinned shadow PSOs (renderer/skinning.rs).
+//!    skinned shadow PSOs (renderer/skinning.rs). Since 2026-11-13 the plain casters are GPU-DRIVEN
+//!    where the device allows (renderer/shadow_gpu.rs): their meshes in one arena, a compute pass
+//!    culling them by the same rule (`face_keeps`, `sun_keeps`) and ONE indirect multi-draw per face;
+//!    the rest keep the per-draw loop.
 //! 5. Writes the table the shader reads (`pack_table`, group 0 binding 10) and submits, so the
 //!    celestial pass (terrain) and the scene pass (everything in the home) sample this frame's maps.
 //!
@@ -273,6 +276,45 @@ pub fn shadow_reaches_view(view: &[Vec4; 6], light: Vec3, c: Vec3, r: f32, reach
     let far = light + to * (far_d / d);
     let (near_r, far_r) = (r + pad, r * far_d / d + pad);
     !view.iter().any(|p| p.truncate().dot(c) + p.w < -near_r && p.truncate().dot(far) + p.w < -far_r)
+}
+
+/// THE CASTER RULE FOR A LIGHT'S FACE (rungs 1 and 1b): a caster (`c`, `r`; an infinite radius is
+/// unbounded) is drawn into the face whose planes are `face` when it lies within the light's shadow
+/// reach, touches the face's frustum, covers at least a texel at its distance (`texel_m` per metre)
+/// and, unless the cull is pinned off, its shadow can fall inside the camera's view (`cam`, the
+/// filter's `margin` texels as the pad). The GPU-driven cull applies the same rule
+/// (`shadow_gpu::gpu_keeps`, assets/shaders/shadow_cull.wgsl); the tests hold the three equal.
+#[allow(clippy::too_many_arguments)]
+pub fn face_keeps(face: &[Vec4; 6], cam: &[Vec4; 6], light: Vec3, reach: f32, texel_m: f32, margin: f32, cull_off: bool, c: Vec3, r: f32) -> bool {
+    face_test(face, cam, light, reach, texel_m, margin, cull_off, c, r) == FaceTest::Kept
+}
+
+/// What `face_keeps` decided, with the shadow-caster cull's share told apart (the log line counts it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceTest {
+    /// Out of the light's reach, outside the face, or under a texel.
+    Out,
+    /// In the face, but its shadow cannot reach the view (`shadow_reaches_view`).
+    Culled,
+    Kept,
+}
+
+/// `face_keeps`, saying which test left a caster out.
+#[allow(clippy::too_many_arguments)]
+pub fn face_test(face: &[Vec4; 6], cam: &[Vec4; 6], light: Vec3, reach: f32, texel_m: f32, margin: f32, cull_off: bool, c: Vec3, r: f32) -> FaceTest {
+    if !((!r.is_finite() || c.distance(light) < reach + r) && sphere_in(face, c, r) && big_enough(c, r, light, texel_m, false)) {
+        return FaceTest::Out;
+    }
+    if cull_off || shadow_reaches_view(cam, light, c, r, reach, texel_m * margin) {
+        FaceTest::Kept
+    } else {
+        FaceTest::Culled
+    }
+}
+
+/// The caster rule for the near sun tile: touches its frustum and covers a texel (`texel_m`, flat).
+pub fn sun_keeps(planes: &[Vec4; 6], texel_m: f32, c: Vec3, r: f32) -> bool {
+    sphere_in(planes, c, r) && big_enough(c, r, Vec3::ZERO, texel_m, true)
 }
 
 /// The cube face a direction from the light falls on: 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z, by its
@@ -580,8 +622,20 @@ pub struct ShadowStats {
     pub lookups_compiled: bool,
     pub lookups_building: bool,
     /// (Caster, face) pairs the shadow-caster cull left out this frame (`shadow_reaches_view`,
-    /// shadows rung 1b): casters whose shadow cannot reach anything the camera sees.
+    /// shadows rung 1b): casters whose shadow cannot reach anything the camera sees. Counts the pairs
+    /// the processor tested; the GPU-driven cull's own are not read back.
     pub culled: u32,
+    /// How the plain casters were drawn (`shadow_gpu::DrawPath`), the Settings notice's answer.
+    pub path: shadow_gpu::DrawPath,
+    /// Views drawn from the GPU's own list (one command each), the casters it culled, the meshes
+    /// in its arena, and the plain casters left on the per-draw loop (skinned bodies, meshes that
+    /// cannot be copied).
+    pub gpu_views: u32,
+    pub gpu_casters: u32,
+    pub gpu_meshes: u32,
+    pub fast_left: u32,
+    /// The features the device lacks for the GPU-driven path (`shadow_gpu::missing_mask`), for the notice.
+    pub gpu_missing: u8,
 }
 
 /// The last frame's stats, for the Settings line (the GUI has no renderer to ask).
@@ -613,6 +667,9 @@ struct Caster {
     /// The fast path's instance matrix (the model matrix, column-major), worked out once a caster
     /// rather than once for every view that draws it.
     model: [f32; 16],
+    /// Culled and drawn by the graphics card (`shadow_gpu`): a fast caster whose mesh is in the
+    /// arena. Its batch (one per arena mesh this frame) when it is.
+    arena: Option<u32>,
 }
 
 /// Whether a caster can take the fast path (`assets/shaders/shadow_atlas_instanced.wgsl`): a plain
@@ -848,13 +905,25 @@ pub struct LocalShadows {
     /// Showcase pin `shadow_fast` "0": every caster takes the classic path (the fast path's red twin:
     /// the picture must not change, only the cost).
     pub fast_off: bool,
+    /// The GPU-driven casters (renderer/shadow_gpu.rs): the arena, the cull, the indirect draws.
+    pub gpu: shadow_gpu::GpuCasters,
+    /// Showcase pin `shadow_gpu` "0": the plain casters go through the per-draw loop even where the
+    /// device could cull and draw them itself (the GPU-driven path's red twin: the picture must not
+    /// change, only the cost).
+    pub gpu_off: bool,
+    /// Which mesh is which batch this frame (by mesh id; u32::MAX = none), cleared after each frame
+    /// for the entries it set. Reuse: scratch memory only, nothing in it outlives the frame.
+    batch_scratch: Vec<u32>,
     /// Last frame's shadowed lights (the hysteresis; empty with reuse off).
     prev: Vec<(i32, i32, i32)>,
     pub stats: ShadowStats,
     last_log: Option<(std::time::Instant, ShadowStats)>,
     /// The log line's stage times, smoothed over about twenty frames (microseconds): one frame's split
     /// is noisy on a busy machine.
-    split_avg: [f32; 5],
+    split_avg: [f32; 6],
+    /// When the draw path last changed (a showcase A/B): the log line is said again a few seconds
+    /// later, once the smoothed stage times hold only frames of the new path.
+    path_changed: Option<std::time::Instant>,
 }
 
 impl LocalShadows {
@@ -879,6 +948,12 @@ impl LocalShadows {
         });
         let table_rows = 256u64;
         let table = Self::table_buffer(device, table_rows);
+        let gpu = shadow_gpu::GpuCasters::new(device);
+        if gpu.available {
+            log::info!("[Shadows] GPU-driven casters: SUPPORTED (the graphics card culls the shadow casters and draws each face from its own list)");
+        } else {
+            log::info!("[Shadows] GPU-driven casters: unsupported, this device lacks {}: the per-draw loop draws every caster", gpu.missing.join(", "));
+        }
         LocalShadows {
             pin: None,
             near_pin: None,
@@ -897,10 +972,14 @@ impl LocalShadows {
             view_groups: Vec::new(),
             fast: FastPath::new(device),
             fast_off: false,
+            gpu,
+            gpu_off: false,
+            batch_scratch: Vec::new(),
             prev: Vec::new(),
             stats: ShadowStats::default(),
             last_log: None,
-            split_avg: [0.0; 5],
+            split_avg: [0.0; 6],
+            path_changed: None,
         }
     }
 
@@ -939,7 +1018,7 @@ impl LocalShadows {
     /// Video memory: the atlas, the table and the views' camera buffers.
     pub fn vram_bytes(&self) -> u64 {
         let atlas = self.atlas.as_ref().map_or(0, |a| a.2 as u64 * a.2 as u64 * 4);
-        atlas + self.table.size() + self.view_cams.as_ref().map_or(0, |b| b.size()) + self.fast.vram_bytes()
+        atlas + self.table.size() + self.view_cams.as_ref().map_or(0, |b| b.size()) + self.fast.vram_bytes() + self.gpu.vram_bytes()
     }
 
     /// The atlas side in use (0 = none).
@@ -1062,9 +1141,10 @@ impl Renderer {
         if self.ensure_atlas(side) {
             self.rebuild_camera_bind_groups();
         }
+        let path = shadow_gpu::draw_path(if self.local_shadows.gpu.available { shadow_gpu::required_features() } else { wgpu::Features::empty() }, self.local_shadows.gpu_off);
         let Some(level) = level else {
             self.write_shadow_table(&[]);
-            let stats = ShadowStats { lookups_compiled, lookups_building, ..ShadowStats::default() };
+            let stats = ShadowStats { lookups_compiled, lookups_building, path, gpu_missing: self.local_shadows.gpu.missing_mask, ..ShadowStats::default() };
             self.local_shadows.stats = stats;
             self.local_shadows.prev.clear();
             publish(stats);
@@ -1103,6 +1183,13 @@ impl Renderer {
         //       in render space with their bounding spheres. ──
         let near_cost = frame_costs::stage("cpu.shadow_near");
         let mut casters: Vec<Caster> = Vec::new();
+        // The GPU-driven path's arena: with reuse off it forgets every mesh now, so each is copied in
+        // again this frame (shadow_gpu, THE REUSE SWITCH).
+        let gpu_on = path == shadow_gpu::DrawPath::Gpu;
+        if gpu_on {
+            self.local_shadows.gpu.book.begin_frame(humanity_core::reuse::enabled());
+        }
+        let mut fast_left = 0u32;
         for &(list, off, kind) in lists {
             for o in list.iter() {
                 let Some(mesh) = self.meshes.get(o.mesh) else { continue };
@@ -1140,9 +1227,51 @@ impl Renderer {
                 let cutout = mat.casts_cutout_shadow();
                 let fast = !self.local_shadows.fast_off && takes_fast_path(mat.material_type, cutout);
                 let model = if fast { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
-                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model });
+                // A plain caster whose mesh can live in the arena is culled and drawn by the GPU;
+                // the rest of the fast ones stay on the per-draw loop (shadow_gpu's header says why).
+                let mut arena = None;
+                if gpu_on && fast {
+                    let serial = self.mesh_serials.get(o.mesh);
+                    if shadow_gpu::arena_eligible(mesh) && self.local_shadows.gpu.place(&self.device, o.mesh, serial, mesh).is_some() {
+                        arena = Some(0);
+                    } else {
+                        fast_left += 1;
+                    }
+                }
+                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, arena });
                 if casters.len() >= MAX_OBJECTS {
                     break;
+                }
+            }
+        }
+
+        // The GPU-driven casters' batches: one per arena mesh, numbered as first met.
+        let mut batches: Vec<shadow_gpu::CullBatch> = Vec::new();
+        let mut gpu_casters = 0u32;
+        if gpu_on {
+            let scratch = &mut self.local_shadows.batch_scratch;
+            if scratch.len() < self.meshes.len() {
+                scratch.resize(self.meshes.len(), u32::MAX);
+            }
+            for c in casters.iter_mut() {
+                if c.arena.is_none() {
+                    continue;
+                }
+                let m = c.obj.mesh;
+                if scratch[m] == u32::MAX {
+                    let Some(slot) = self.local_shadows.gpu.book.slot(m) else {
+                        c.arena = None;
+                        continue;
+                    };
+                    scratch[m] = batches.len() as u32;
+                    batches.push(slot.batch());
+                }
+                c.arena = Some(scratch[m]);
+                gpu_casters += 1;
+            }
+            for c in &casters {
+                if c.arena.is_some() {
+                    scratch[c.obj.mesh] = u32::MAX;
                 }
             }
         }
@@ -1150,17 +1279,23 @@ impl Renderer {
         // ── 3. The near sun view. ──
         let mut views: Vec<AtlasView> = Vec::new();
         let mut view_casters: Vec<Vec<u32>> = Vec::new();
+        // Whether a view has GPU-driven casters (drawn from the GPU's own list), and which light (by
+        // rank) a face belongs to, for the instance buffer's bound.
+        let mut view_gpu: Vec<bool> = Vec::new();
+        let mut view_light: Vec<Option<usize>> = Vec::new();
         let mut near_sun: Option<usize> = None;
         if let (Some(vp), Some(planes)) = (sun_view, sun_planes.as_ref()) {
             let list: Vec<u32> = (0..casters.len() as u32)
                 .filter(|&i| {
                     let c = &casters[i as usize];
-                    sphere_in(planes, c.centre, c.radius) && big_enough(c.centre, c.radius, eye, sun_texel, true)
+                    c.arena.is_none() && sun_keeps(planes, sun_texel, c.centre, c.radius)
                 })
                 .collect();
             near_sun = Some(views.len());
             views.push(AtlasView { view_proj: vp, tile: (0, 0, level.sun_tile), origin: toward_sun.normalize(), ortho: true, texel_m: sun_texel, range: f32::INFINITY });
             view_casters.push(list);
+            view_gpu.push(gpu_casters > 0);
+            view_light.push(None);
         }
         drop(near_cost);
 
@@ -1169,7 +1304,7 @@ impl Renderer {
         // Where cpu.shadow_local goes, for the log line (the dev answer to "what does it spend on?"):
         // culling the faces, the uploads, the near bodies' skinning, recording the draws, the submit.
         let mut mark = std::time::Instant::now();
-        let mut split_us = [0u32; 5];
+        let mut split_us = [0u32; 6];
         let mut lap = |i: usize, mark: &mut std::time::Instant| {
             let now = std::time::Instant::now();
             split_us[i] = now.duration_since(*mark).as_micros() as u32;
@@ -1207,7 +1342,7 @@ impl Renderer {
         // do not all fit is halved and the atlas packed again; a light that does not fit at its
         // smallest is left out (unshadowed) and the rest packed without it, so a light is either
         // wholly in the atlas or not at all (a face with casters and no tile would read lit).
-        let mut face_lists: Vec<Vec<(Mat4, Vec<u32>)>> = Vec::new();
+        let mut face_lists: Vec<Vec<(Mat4, Vec<u32>, bool)>> = Vec::new();
         let mut placed: Vec<Vec<Option<(u32, u32)>>> = Vec::new();
         let mut excluded = vec![false; picked.len()];
         let mut settled = false;
@@ -1231,31 +1366,33 @@ impl Renderer {
                     } else {
                         cube_face_view(l.pos, f, reaches[k], faces[k], margin)
                     };
-                    let list: Vec<u32> = if view_touches(&vp, &cam_planes) {
+                    // The casters this face draws on the per-draw loop, and whether any GPU-driven
+                    // caster passes the same rule (the GPU draws those; one is enough for the face to
+                    // need its tile, so the rest of them are not tested here).
+                    let mut list: Vec<u32> = Vec::new();
+                    let mut any_gpu = false;
+                    if view_touches(&vp, &cam_planes) {
                         let planes = frustum_planes(&vp);
-                        in_reach[k]
-                            .iter()
-                            .copied()
-                            .filter(|&i| {
-                                let c = &casters[i as usize];
-                                if !(sphere_in(&planes, c.centre, c.radius) && big_enough(c.centre, c.radius, l.pos, texel_m, false)) {
-                                    return false;
-                                }
-                                // Only a caster whose shadow can fall on something in view (the
-                                // filter's few texels of spread as the pad).
-                                let seen = self.local_shadows.cull_off || shadow_reaches_view(&cam_planes, l.pos, c.centre, c.radius, reaches[k], texel_m * margin);
-                                culled += u32::from(!seen);
-                                seen
-                            })
-                            .collect()
-                    } else {
-                        Vec::new()
-                    };
-                    if !list.is_empty() && !excluded[k] {
+                        for &i in &in_reach[k] {
+                            let c = &casters[i as usize];
+                            if any_gpu && c.arena.is_some() {
+                                continue;
+                            }
+                            // Only a caster whose shadow can fall on something in view (the filter's
+                            // few texels of spread as the pad).
+                            match face_test(&planes, &cam_planes, l.pos, reaches[k], texel_m, margin, self.local_shadows.cull_off, c.centre, c.radius) {
+                                FaceTest::Out => {}
+                                FaceTest::Culled => culled += 1,
+                                FaceTest::Kept if c.arena.is_some() => any_gpu = true,
+                                FaceTest::Kept => list.push(i),
+                            }
+                        }
+                    }
+                    if (!list.is_empty() || any_gpu) && !excluded[k] {
                         sizes.push(faces[k]);
                         owner.push((k, f));
                     }
-                    fl.push((vp, list));
+                    fl.push((vp, list, any_gpu));
                 }
                 face_lists.push(fl);
             }
@@ -1301,16 +1438,18 @@ impl Renderer {
             }
             let (Some(p), Some(fl)) = (placed.get(k), face_lists.get(k)) else { continue };
             // Every face with a caster must have its tile, or the light stays unshadowed.
-            if fl.iter().zip(p.iter()).any(|((_, list), at)| !list.is_empty() && at.is_none()) {
+            if fl.iter().zip(p.iter()).any(|((_, list, any_gpu), at)| (!list.is_empty() || *any_gpu) && at.is_none()) {
                 continue;
             }
             let l = &lights[li];
             let first = views.len();
             let texel_m = 2.0 * tan_half_of(k, li, faces[k]) / faces[k] as f32;
-            for (f, (vp, list)) in fl.iter().enumerate() {
+            for (f, (vp, list, any_gpu)) in fl.iter().enumerate() {
                 let tile = p[f].map_or((0, 0, 0), |(x, y)| (x, y, faces[k]));
                 views.push(AtlasView { view_proj: *vp, tile, origin: l.pos, ortho: false, texel_m, range: reaches[k] });
                 view_casters.push(if tile.2 > 0 { list.clone() } else { Vec::new() });
+                view_gpu.push(tile.2 > 0 && *any_gpu);
+                view_light.push(Some(k));
             }
             lookups.push((li, kinds[k] * KIND_STRIDE + first as u32 + 1));
             shadowed_keys.push(light_key(l));
@@ -1382,6 +1521,36 @@ impl Renderer {
             })
             .collect();
         self.local_shadows.fast.upload(&self.device, &self.queue, &fast_views, &instances);
+        // The GPU-driven casters: every plain caster in the arena once, every drawn view that has
+        // one, and the instance buffer sized for every candidate pair (a face's casters within its
+        // light's reach, every caster for the sun tile), so the cull can never run past it.
+        let mut gpu_index: Vec<Option<u32>> = vec![None; views.len()];
+        if gpu_on && !batches.is_empty() {
+            let arena_in_reach: Vec<u64> = in_reach.iter().map(|l| l.iter().filter(|&&i| casters[i as usize].arena.is_some()).count() as u64).collect();
+            let mut cull_views: Vec<shadow_gpu::CullView> = Vec::new();
+            let mut bound = 0u64;
+            for &k in &drawn {
+                if !view_gpu[k] {
+                    continue;
+                }
+                gpu_index[k] = Some(cull_views.len() as u32);
+                match view_light[k] {
+                    None => {
+                        cull_views.push(shadow_gpu::CullView::sun(&view_planes[k], eye, views[k].texel_m, k as u32));
+                        bound += gpu_casters as u64;
+                    }
+                    Some(r) => {
+                        cull_views.push(shadow_gpu::CullView::face(&view_planes[k], views[k].origin, views[k].range, views[k].texel_m, k as u32));
+                        bound += arena_in_reach[r];
+                    }
+                }
+            }
+            let cull_casters: Vec<shadow_gpu::CullCaster> = casters.iter().filter_map(|c| c.arena.map(|b| shadow_gpu::CullCaster::new(c.model, c.centre, c.radius, b, c.sun_only))).collect();
+            let params = shadow_gpu::CullParams { cam: cam_planes.map(|p| p.to_array()), cull_off: u32::from(self.local_shadows.cull_off), margin, ..Default::default() };
+            self.local_shadows.gpu.upload(&self.device, &self.queue, params, &cull_views, &cull_casters, &batches, bound);
+        } else {
+            self.local_shadows.gpu.n_views = 0;
+        }
         // The classic path: only the casters a drawn view holds and the fast path does not get a
         // uniform slot (the rest were culled), so the upload and its matrix inverses scale with what
         // is drawn, not with the scene.
@@ -1398,11 +1567,27 @@ impl Renderer {
         self.upload_object_uniforms(used.iter().map(|&ci| &casters[ci].obj));
         lap(1, &mut mark);
 
+        // The per-draw loop's casters of each view in (material, mesh) order, so a run of one mesh or one
+        // material binds it once (the depth is the same in any order).
+        for list in view_casters.iter_mut() {
+            list.sort_by_key(|&ci| {
+                let c = &casters[ci as usize];
+                (c.obj.material, c.obj.mesh)
+            });
+        }
         // ── 6. Draw: this frame's skinning first (the near bodies' vertices), then each view. ──
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Shadow Atlas Encoder") });
         self.encode_skinning(&mut encoder);
         lap(2, &mut mark);
+        // The arena's copies and the GPU's cull, before either atlas pass reads what they write.
+        let cull_timer = if self.local_shadows.gpu.n_views > 0 { self.gpu_timers.as_ref().and_then(|t| t.compute_writes("gpu.shadow_local")) } else { None };
+        let gpu_copies = self.local_shadows.gpu.encode(&mut encoder, &self.meshes, cull_timer);
+        lap(3, &mut mark);
+        let mut classic_draws = 0u32;
+        let mut classic_cutouts = 0u32;
+        let mut skinned_draws = 0u32;
         let mut draws = 0u32;
+        let mut gpu_views = 0u32;
         let mut fast_instances = 0u32;
         let atlas_view = &self.local_shadows.atlas.as_ref().expect("allocated above").1;
         // Two passes so each has its own timer: the near sun tile (clears the atlas), then the
@@ -1431,24 +1616,46 @@ impl Renderer {
                 ..Default::default()
             });
             cleared = true;
-            // Whether the fast path's pipeline and bindings are the pass's current state (the classic
-            // path's views change them).
+            // Whether the fast path's pipeline and view group are the pass's current state (the
+            // classic path's views change them), whether its instances are at slot 1, and whether the
+            // GPU-driven path's arena and instances are bound (a fast run or a classic draw changes
+            // them).
             let mut fast_bound = false;
+            let mut fast_instances_bound = false;
+            let mut arena_bound = false;
             for &k in ks {
                 let v = &views[k];
                 let (x, y, s) = v.tile;
                 pass.set_viewport(x as f32, y as f32, s as f32, s as f32, 0.0, 1.0);
                 pass.set_scissor_rect(x, y, s, s);
-                // The fast path first: one instanced draw per run of one mesh, no per-caster binding
-                // (the instance carries the caster's matrix and this view's index).
+                // The GPU-driven casters first: ONE command for the face, the draws the cull wrote.
+                if let Some(g) = gpu_index[k] {
+                    let fp = &self.local_shadows.fast;
+                    if !fast_bound {
+                        pass.set_pipeline(&fp.pso);
+                        pass.set_bind_group(0, &fp.group, &[]);
+                        fast_bound = true;
+                    }
+                    if self.local_shadows.gpu.draw_view(&mut pass, g, &mut arena_bound) {
+                        fast_instances_bound = false;
+                        draws += 1;
+                        gpu_views += 1;
+                    }
+                }
+                // The fast path: one instanced draw per run of one mesh, no per-caster binding (the
+                // instance carries the caster's matrix and this view's index).
                 if !runs[k].is_empty() {
                     let fp = &self.local_shadows.fast;
                     if !fast_bound {
                         pass.set_pipeline(&fp.pso);
                         pass.set_bind_group(0, &fp.group, &[]);
-                        pass.set_vertex_buffer(1, fp.instances.slice(..));
                         fast_bound = true;
                     }
+                    if !fast_instances_bound {
+                        pass.set_vertex_buffer(1, fp.instances.slice(..));
+                        fast_instances_bound = true;
+                    }
+                    arena_bound = false;
                     for r in &runs[k] {
                         let Some(mesh) = self.meshes.get(r.mesh) else { continue };
                         mesh.bind_vertices(&mut pass);
@@ -1464,6 +1671,8 @@ impl Renderer {
                     continue;
                 }
                 fast_bound = false;
+                fast_instances_bound = false;
+                arena_bound = false;
                 pass.set_bind_group(0, &self.local_shadows.view_groups[k], &[]);
                 pass.set_bind_group(1, &self.object_bind_group, &[0]);
                 for cutout in [false, true] {
@@ -1493,16 +1702,20 @@ impl Renderer {
                         }
                         pass.draw_indexed(mesh.indices(), mesh.base_vertex, 0..1);
                         draws += 1;
+                        classic_draws += 1;
+                        classic_cutouts += u32::from(cutout);
                     }
                 }
                 // The skinned bodies the scene list does not hold: the middle tier and the
                 // first-person body's unfolded twin (renderer/skinning.rs).
-                draws += self.draw_skinned_shadow(&mut pass, |c, r| body_in(k, c, r));
+                let bodies_drawn = self.draw_skinned_shadow(&mut pass, |c, r| body_in(k, c, r));
+                draws += bodies_drawn;
+                skinned_draws += bodies_drawn;
             }
         }
-        lap(3, &mut mark);
-        self.queue.submit(std::iter::once(encoder.finish()));
         lap(4, &mut mark);
+        self.queue.submit(std::iter::once(encoder.finish()));
+        lap(5, &mut mark);
         drop(local_cost);
 
         let stats = ShadowStats {
@@ -1518,6 +1731,12 @@ impl Renderer {
             lookups_compiled,
             lookups_building,
             culled,
+            path,
+            gpu_views,
+            gpu_casters,
+            gpu_meshes: batches.len() as u32,
+            fast_left,
+            gpu_missing: self.local_shadows.gpu.missing_mask,
         };
         self.local_shadows.stats = stats;
         publish(stats);
@@ -1529,8 +1748,16 @@ impl Renderer {
             None => true,
             Some((t, s)) => {
                 let quiet = now.duration_since(t).as_secs_f32();
-                let changed = s.shadowed != stats.shadowed || s.near_sun != stats.near_sun || s.atlas != stats.atlas || (s.culled > 0) != (stats.culled > 0);
-                quiet > 30.0 || (changed && quiet > 5.0)
+                let changed = s.shadowed != stats.shadowed || s.near_sun != stats.near_sun || s.atlas != stats.atlas || (s.culled > 0) != (stats.culled > 0) || s.path != stats.path;
+                if s.path != stats.path {
+                    self.local_shadows.path_changed = Some(now);
+                }
+                // Said again 4 s after a path change, once the smoothed times hold only the new path.
+                let settled = self.local_shadows.path_changed.is_some_and(|t| now.duration_since(t).as_secs_f32() > 4.0);
+                if settled {
+                    self.local_shadows.path_changed = None;
+                }
+                quiet > 30.0 || (changed && quiet > 5.0) || settled
             }
         };
         if say {
@@ -1549,8 +1776,23 @@ impl Renderer {
                 if stats.near_sun { "on" } else { "off" }
             );
             log::info!("[Shadows] the shadowed lamps, most important first: {}", words.join("; "));
+            let g = &self.local_shadows.gpu;
             log::info!(
-                "[Shadows] cpu this frame (microseconds; smoothed over about twenty frames in brackets): cull the faces {} ({:.0}), uploads {} ({:.0}), the near bodies' skinning {} ({:.0}), record the draws {} ({:.0}), submit {} ({:.0})",
+                "[Shadows] GPU-driven casters ({:?}): {} views drawn from the GPU's own list (one command each), {} casters of {} meshes culled on the GPU, {} plain casters left on the per-draw loop, {} meshes copied into the arena this frame; the arena holds {} meshes ({:.1} MB with the cull's buffers); {} classic caster draws ({} of them cutouts, the rest moved by the megashader's vertex stage) and {} skinned body draws on the per-draw loop",
+                stats.path,
+                stats.gpu_views,
+                stats.gpu_casters,
+                stats.gpu_meshes,
+                stats.fast_left,
+                gpu_copies,
+                g.book.len(),
+                g.vram_bytes() as f64 / 1_048_576.0,
+                classic_draws,
+                classic_cutouts,
+                skinned_draws
+            );
+            log::info!(
+                "[Shadows] cpu this frame (microseconds; smoothed over about twenty frames in brackets): cull the faces {} ({:.0}), uploads {} ({:.0}), the near bodies' skinning {} ({:.0}), the arena's copies and the GPU cull's commands {} ({:.0}), record the draws {} ({:.0}), submit {} ({:.0})",
                 split_us[0],
                 self.local_shadows.split_avg[0],
                 split_us[1],
@@ -1560,7 +1802,9 @@ impl Renderer {
                 split_us[3],
                 self.local_shadows.split_avg[3],
                 split_us[4],
-                self.local_shadows.split_avg[4]
+                self.local_shadows.split_avg[4],
+                split_us[5],
+                self.local_shadows.split_avg[5]
             );
             self.local_shadows.last_log = Some((now, stats));
         }
