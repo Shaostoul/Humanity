@@ -1841,6 +1841,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.taa.hashed = t != "0";
         log::info!("Showcase: taa_hashed -> {}", state.renderer.taa.hashed);
     }
+    // The tree card stage's depth floor (BUG-301, engine/tree_card_stage.rs): {"card_floor":"0"}
+    // draws the ground to the planet's own cap again, so without the tile tier there is no card
+    // stage (the red twin, and the cost A/B's other arm); "1" or "auto" puts the floor back.
+    if let Some(t) = grab("card_floor") {
+        crate::engine::tree_card_stage::set_floor_on(t != "0");
+        log::info!("Showcase: card_floor -> {}", crate::engine::tree_card_stage::floor_on());
+    }
     if let Some(t) = grab("near_levels") {
         state.renderer.local_shadows.near_pin = match t.as_str() {
             "auto" | "1" => None,
@@ -2666,6 +2673,8 @@ pub(crate) fn execute_screenshot_capture(
             serde_json::json!([state.camera.yaw, state.camera.pitch]),
         );
         obj.insert("station_ride".to_string(), serde_json::json!(state.station_ride));
+        // The tree card stage at this frame (BUG-301): probe-sweep's `min_tree_cards` gate reads it.
+        obj.insert("tree_cards".to_string(), crate::engine::tree_card_stage::done_json());
     }
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(DONE_PATH, done.to_string());

@@ -43,12 +43,12 @@ fn a_patch_built_again_in_place_keeps_the_byte_count_honest() {
     let id = PatchId::root(2);
     let band = RadialBand { min_r_m: 1.0, max_r_m: 2.0 };
     cs.frame = 5;
-    cs.insert_built(id, 3, None, 1000, DVec3::ZERO, band, 0.0);
+    cs.insert_built(id, 3, None, 1000, DVec3::ZERO, band, 0.0, 0);
     assert_eq!(cs.cache[&id].built_frame, 5);
     assert_eq!(cs.take_for_rebuild(&id), Some((3, None)));
     assert_eq!(cs.total_bytes, 0);
     cs.frame = 9;
-    cs.insert_built(id, 4, None, 1200, DVec3::ZERO, band, 0.0);
+    cs.insert_built(id, 4, None, 1200, DVec3::ZERO, band, 0.0, 0);
     assert_eq!((cs.total_bytes, cs.cache[&id].built_frame), (1200, 9));
     assert_eq!(cs.take_for_rebuild(&PatchId::root(3)), None, "a patch not built is not taken");
 }

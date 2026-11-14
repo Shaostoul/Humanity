@@ -1066,6 +1066,8 @@ pub struct ChunkParams {
     pub occluder_r_m: Option<f64>,
     /// Where patches may refine past `max_depth` (the installed map packs' tiles).
     pub deep: DeepTiles,
+    /// Where patches may refine past `max_depth` for the tree cards' depth-15 ground (BUG-301).
+    pub card_floor: crate::tree_card_stage::CardFloor,
 }
 
 /// Tiles whose patches may refine to `max_depth` when it is deeper than the selection's own cap
@@ -1086,13 +1088,10 @@ pub struct DeepTiles {
 
 impl ChunkParams {
     /// The depth cap for one patch whose nearest point is `dist_m` from the camera:
-    /// `deep.max_depth` inside a deep tile within reach, else `max_depth`.
+    /// `deep.max_depth` inside a deep tile within reach, else `max_depth`; raised by the card floor.
     pub fn max_depth_for(&self, id: &PatchId, dist_m: f64) -> u8 {
-        if self.deep.max_depth > self.max_depth && dist_m <= self.deep.within_m && self.deep.tiles.iter().any(|t| t == id || t.is_ancestor_of(id)) {
-            self.deep.max_depth
-        } else {
-            self.max_depth
-        }
+        let deep = self.deep.max_depth > self.max_depth && dist_m <= self.deep.within_m && self.deep.tiles.iter().any(|t| t == id || t.is_ancestor_of(id));
+        self.card_floor.cap(if deep { self.deep.max_depth } else { self.max_depth }, dist_m)
     }
 }
 
@@ -1587,6 +1586,8 @@ pub struct PatchMesh {
     /// setting, so without this the two answer to different densities the
     /// moment the slider moves - see `ChunkState::harvest_tree_density`.
     pub tree_density: f32,
+    /// Trees this patch carries as cards (BUG-301: what `tree_card_stage::tally` counts).
+    pub card_trees: u32,
 }
 
 #[inline]
@@ -1793,7 +1794,7 @@ pub fn build_patch_mesh_at_density(
     let map = crate::map_ground::snapshot();
     // Stays 0.0 unless the vegetation pass below actually emits cards (this
     // patch is too shallow for trees, or polar). See `PatchMesh::tree_density`.
-    let mut card_tree_density = 0.0f32;
+    let (mut card_tree_density, mut card_trees) = (0.0f32, 0u32);
 
     // ── Unique grid samples: THE NESTED LATTICE (whole-Earth maps rung 2,
     // docs/design/whole-earth-maps.md 4.2) ──
@@ -2362,6 +2363,7 @@ pub fn build_patch_mesh_at_density(
                             // ((r5 >> 11) % 3).
                             let variant = ((r5 >> 11) % 3) as u32;
                             let tile = crate::tree_registry::tile_of(sp_i, variant);
+                            card_trees += 1;
                             if let (true, Some(tile)) = (albedo.is_some(), tile) {
                                 emit_sprite_card(base, up, side_a, h, tile, &mut vertices, &mut indices);
                                 emit_sprite_card(base, up, side_b, h, tile, &mut vertices, &mut indices);
@@ -2458,6 +2460,7 @@ pub fn build_patch_mesh_at_density(
         mesh: SurfaceMeshData { vertices, indices },
         anchor,
         tree_density: card_tree_density,
+        card_trees,
         band: RadialBand {
             // The skirt hangs skirt_depth below the lowest grid vertex;
             // include it so culling never clips a visible apron. A meter
@@ -2528,6 +2531,8 @@ pub struct PatchEntry {
     /// Forest density this patch's tree cards were baked at (0.0 = no cards).
     /// Copied from `PatchMesh::tree_density`; read by `harvest_tree_density`.
     pub tree_density: f32,
+    /// Trees this patch carries as cards (`PatchMesh::card_trees`; the card stage's counter).
+    pub card_trees: u32,
     /// Frame stamp of the build this mesh came from: with the reuse switch off the drawn patches
     /// built longest ago are built again first (`reuse_off_rebuilds`).
     pub built_frame: u64,
@@ -2579,6 +2584,8 @@ pub struct ChunkState {
     pub last_sel_fwd: DVec3,
     pub last_sel_split_px: f32,
     pub last_sel_budget: f32,
+    /// reuse: a parked-skip KEY like the two above (BUG-301, the card floor), not built data.
+    pub last_sel_card_floor: crate::tree_card_stage::CardFloor,
     /// Set by builds, evictions, tile arrivals - anything that changes what
     /// a fresh selection would decide.
     /// reuse: the parked selection's invalidation flag; the switch is asked where the parked skip
@@ -2727,6 +2734,7 @@ impl ChunkState {
             last_sel_fwd: DVec3::ZERO,
             last_sel_split_px: 0.0,
             last_sel_budget: 0.0,
+            last_sel_card_floor: Default::default(),
             sel_dirty: false,
         }
     }
@@ -2799,7 +2807,7 @@ impl ChunkState {
         anchor: DVec3,
         band: RadialBand,
     ) {
-        self.insert_built(id, mesh, slot, bytes, anchor, band, 0.0);
+        self.insert_built(id, mesh, slot, bytes, anchor, band, 0.0, 0);
     }
 
     /// Insert a freshly BUILT patch, carrying everything the mesh knows -
@@ -2815,10 +2823,11 @@ impl ChunkState {
         anchor: DVec3,
         band: RadialBand,
         tree_density: f32,
+        card_trees: u32,
     ) {
         if let Some(old) = self.cache.insert(
             id,
-            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame, tree_density, built_frame: self.frame },
+            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame, tree_density, card_trees, built_frame: self.frame },
         ) {
             // Should not happen (selection never requests a built patch),
             // but never leak the byte count if it does.
@@ -3189,7 +3198,7 @@ pub(crate) mod tests {
     fn params_for(def: &PlanetDef) -> ChunkParams {
         ChunkParams {
             occluder_r_m: None,
-            deep: Default::default(),
+            deep: Default::default(), card_floor: Default::default(),
             radius_m: def.radius,
             band: band_for(def),
             max_depth: MAX_PATCH_DEPTH,

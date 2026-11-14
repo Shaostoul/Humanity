@@ -47,6 +47,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   // Hashed alpha under Temporal (rung 1b, 2026-11-13, renderer/hashed_alpha.rs): "0" keeps the hair's
   // two passes, the far cards' hard cut and the Bayer crossfade (the red twin); "1" puts it back.
   taa_hashed: "1",
+  // The tree card stage's depth floor (BUG-301, engine/tree_card_stage.rs): "0" draws the ground to
+  // the planet's own cap, so without the tile tier there is no card stage (the red twin).
+  card_floor: "1",
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",

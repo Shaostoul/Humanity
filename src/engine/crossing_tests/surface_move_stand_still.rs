@@ -299,6 +299,7 @@ fn drawn_depth_at(
     let params = pc::ChunkParams {
         occluder_r_m: None,
         deep: Default::default(),
+        card_floor: Default::default(),
         radius_m: def.radius,
         band: pc::RadialBand {
             min_r_m: def.radius

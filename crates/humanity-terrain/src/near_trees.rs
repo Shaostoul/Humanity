@@ -1856,7 +1856,7 @@ mod tree_stream_agreement_tests {
         // What the frame loop knows: this patch is on screen, and the mesh says
         // what its cards are.
         let mut cs = ChunkState::new(def.terrain_seed);
-        cs.insert_built(id, 0, None, 1, pm.anchor, pm.band, pm.tree_density);
+        cs.insert_built(id, 0, None, 1, pm.anchor, pm.band, pm.tree_density, pm.card_trees);
         cs.last_drawn.insert(id);
 
         let models_at = |density: f32| -> Vec<DVec3> {

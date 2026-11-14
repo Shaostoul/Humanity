@@ -165,6 +165,8 @@
         "CARD SHADOWS ARE TREE-SHAPED: no rectangular dark patch on open ground with no visible tree. MEASURED v0.1105.1: both shadow pipelines were `fragment: None` (pipeline.rs:564, :709), so a 21 m card cast a solid 21 m board. The geometry: a card is sized `s = frame_m * h / h_nominal` (fir frame 23.1 m, nominal 22.0 m), so a 20 m fir is a 21x21 m quad whose baked sprite is only about 15-25% opaque inside that frame - the caster was 4-7x the true silhouette and threw a solid rectangle roughly 36 m downsun at a 30 degree sun. Operator report: \"we would get weird chunks that would not spawn trees visually but they were still affecting the light. As I would move around the chunk that is unloaded would change\" - the moving half of that is the LOD crossfade dither, which discarded in colour and not in shadow, so a patch fading OUT kept casting at full strength until the swap finished. WHAT TO LOOK FOR: walk a straight line across open ground beside a stand and watch the shade. Every shadow edge must follow a crown outline; no shaded rectangle may sit where no tree stands, and none may appear or vanish as a patch changes LOD. This is the same failure the CANOPY CASTS DAPPLE gate predicted in its straight-edge half - read them together. FIXED v0.1106 by `fs_shadow` in assets/shaders/pbr/90-fragment-main.wgsl, which mirrors four fs_main discards (LOD dither, type 19 photoscan alpha < 0.35, type 21 cluster card alpha < 0.5, type 12 sprite-atlas alpha < 0.5) and deliberately omits the two eye-distance card gates. The classic path SPLITS - \"Sun Shadow Pipeline\" stays depth-only for opaque casters, \"Sun Shadow Alpha Pipeline\" carries the fragment stage - while the patch path always carries it, because a chunk ground and its cards share one index range. CI twin: renderer::pipeline::shadow_cutout_tests fails if a threshold changes on one side only. STILL OPEN AT v0.1106, do not read this gate as fully closed: the type 19 / type 21 branches of fs_shadow sample the per-material albedo at group(3) binding 0, and the shadow pass binds the 1x1 WHITE fallback there (the per-material group 3 also carries the real shadow map at binding 6, which wgpu will not let a pass sample while writing it). Alpha 1 means those two never discard yet, so NEAR-TREE foliage quads still stamp their full rectangle. Closing it needs a shadow-safe per-material group 3 (same entries, dummy depth at binding 6) bound per draw in the classic caster loop."
       ],
       "_fidelity_note": "2026-08-01 (v0.1085 vegetation domain pass): this vantage was measured in detail - canopy/sky median-luma ratio 0.237, 36.7% of solid canopy pixels both dark (luma<30) and achromatic (chroma<12), crown top-third/bottom-third luma 1.30 / 0.92 / 0.65 / 0.67 across four boxes, forest-floor 8x8 tile-mean SD 1.3 (2-4 m) and 1.9 (3-8 m), plus leaf-normal statistics from a bit-exact replica of the generator RNG (74.4-78.3% of camera-facing blade faces are undersides against 61.2% for a spherical leaf-angle distribution). DO NOT paste any of those numbers into the gates above. Two independent reasons: the capture was 1280x720 while the gates here are specified at 2560 wide and the backlit-canopy gate is provably resolution dependent (0.448/22.8% at 2560 vs 0.211/35.3% at 1280 on the SAME build), and the frame contained 62 photoscan fir/pine that a shipped build does not have (see the FIR AND PINE regression above). Re-baseline at 2560 in a --shipped-assets rig before any of it becomes a gate. DONE 2026-08-02 (v0.1095 window-size fix + probe-sweep --width/--shipped-assets): the 2560 readings are now written into the backlit-canopy, crown-gap, crown-gradient, dapple and canopy-overdraw entries above, taken in BOTH rigs, and the two that were only ever guesses are marked as such. Sweeps of record: dev rig .probe-rig/sweeps/20260802-071455 (v0.1095) and /20260802-075832 (v0.1096); shipped rig %LOCALAPPDATA%/HumanityOS-probe-rig-shipped/sweeps/20260802-072046 and /20260802-080437, both logging 6 procedural-fallback lines so fir and pine are genuinely the shipped geometry. panics=0 on all four, 2560x1387 on all eight captures.",
+      "min_tree_cards": 1000,
+      "_min_tree_cards_note": "BUG-301 (2026-11-14): the card stage must draw here. probe-sweep fails the vantage when fewer than this many tree cards sit in the window the fragment stage keeps (hide radius to far cutoff), read from the counter in the screenshot's done file (scripts/lib/tree-cards-check.js), or when the card sprites are not baked. Measured 2026-11-14 at the rig's settings (forest density 0.6, card distance 1,500 m): 61,579 cards in the window of 121,491 carried by 428 card patches, with the floor off (the stage as it was) 0 of 0 and the deepest drawn patch 13. 1,000 is far under any real stage and far over the bug's 0, so a lower forest density does not trip it. No release ever drew a card, and from BUG-287 (2026-11-09) no dev boot did either, while this vantage passed verify-runtime with a bare slope behind the near models: nothing looked.",
       "perf_floor_fps": 9,
       "_perf_floor_note": "Restated 18 -> 9 at v0.1081. The 18 was written against 25 s captures of a half-streamed forest; this vantage's own _settle_note records the settled truth as 93.7 ms +/- 5.8 = 10.7 fps, and fresh v0.1080.1 captures returned 10 fps. The floor was already violated before anyone touched foliage, so at 18 the next writer to add a shader term gets blamed for a pre-existing miss. 9 fps is a real floor under the measured settled state. Do NOT use this vantage for A/B frame-time work even now that hold_altitude pins the pose - use ground-storm-inslab (50.7 +/- 1.8 ms, n=3), which is the reproducible perf vantage. CAVEAT ADDED v0.1081.1, READ BEFORE TRUSTING ANY NUMBER IN THIS NOTE: src/lib.rs:2882 clamps the frame delta with .min(0.1) and the SAME clamped dt stamps the perf counters at :11551 and :11555, which src/engine/ipc.rs:549-550 writes into screenshot_done.json and scripts/probe-sweep.js:269-270 records. fps therefore saturates at exactly 10.0 and frame_ms at exactly 100.0, so a 9 fps floor CANNOT FAIL and every figure above (93.7 ms, 10.7 fps, 50.7 ms) is a censored sample biased toward 100 ms. Timed off the log instead, between consecutive 60-frame [ChunkDiag] lines (src/lib.rs:8909), this forest runs about 131 ms / 7.6 fps where the rig reported 99.1. Unclamp the counters (keep the clamp for the simulation dt, stamp fps and the ring from a raw_dt, and report the ring's MEDIAN alongside its mean), then re-measure and restate this whole note. See docs/design/vegetation-cards-every-species.md precondition P2."
     },
@@ -185,6 +187,8 @@
         "look_offset_deg": 55
       },
       "_camera_note": "altitude_km 0.15 -> 0.6 and look_offset_deg 72 -> 55 (v0.1082, after a 1.0/52 detour). The vantage AS FIRST WRITTEN NEVER GOT ABOVE THE CANOPY: at altitude_km 0.15 it captured \"Alt: 0 m\" and framed identically to fuji-forest-ground, so all three of its above-canopy gates were unevaluable and read as passing only because nothing evaluated them. poll_camera_request (src/engine/ipc.rs) parks above a SAMPLED ground radius which under-reads the DRAWN Fuji surface by about 320 m. Transfer function measured at this lat/lon: requested 0.15 -> Alt 0 m, 0.30 -> 0, 0.60 -> 353, 1.20 -> 880. Over water the same path is exact (ocean-700m captures Alt 713 m), so this is land-only. WHY 0.6 AND NOT 1.0: the runtime verifier flew the 1.0/52 aim (834 m eye) and its one clear frame showed a BARE slope with zero trees, because at that altitude the lower-two-thirds band sits BEYOND the 1500 m card cutoff (independently confirming the NO-VEGETATION-RING defect). 0.6/55 is the MEASURED pose that produced the crown-structure baselines with canopy visibly in frame at a 353 m eye - use the pose that was measured to work, not an interpolated one.",
+      "min_tree_cards": 1000,
+      "_min_tree_cards_note": "BUG-301 (2026-11-14): the card stage must draw here. probe-sweep fails the vantage when fewer than this many tree cards sit in the window the fragment stage keeps (hide radius to far cutoff), read from the counter in the screenshot's done file (scripts/lib/tree-cards-check.js), or when the card sprites are not baked. Measured 2026-11-14: 63,627 cards in the window of 109,175 carried by 385 card patches; floor off 0. No release ever drew a card, and from BUG-287 (2026-11-09) no dev boot did either, while this vantage passed verify-runtime with a bare slope behind the near models: nothing looked.",
       "hold_altitude": true,
       "settle_s": 75,
       "expect": "A forested slope filling the lower two-thirds of the frame, seen from well above the canopy: individual crowns readable as separate ragged silhouettes with a clear sunlit-top / shaded-flank split, the canopy mass reading DARKER than the open ground beyond it. (Forest-to-the-horizon is NOT expected yet: the 1500 m card cutoff hard-ends the vegetation - that is the NO-VEGETATION-RING gate's defect, fixed by the Bayer fade, and only after that fix should this expect be upgraded. look_offset_deg is measured from straight down, so 55 aims about 35 degrees below the horizon. showcase `time` is a GLOBAL clock; local solar hour = time + lon/15, so lon 138.8 needs time 2.9 for local noon - see _clock_note.)",
@@ -196,6 +200,73 @@
         "NO VEGETATION RING at the card cutoff: across the cutoff radius on a single continuous slope, the mean luminance step must be under 15% and the local (8x8 px) SD ratio under 2.0. MEASURED 2026-07-31 at v0.1081 from an 880 m eye: inside 29.9 mean luma / local SD 8.13, outside 45.5 / 1.18 - a 34% step and a 6.9x texture step, with the boundary tracking the camera. The card stage hard-discards with no fade at 90-fragment-main.wgsl:805 (sprite branch) and :842 (coloured branch) on tree_card_far_m, 1500 m; the fix is the 4x4 Bayer dissolve already used for grass at :853-866, over the last ~250 m of the card range.",
         "NO black slabs either: the v0.896 failure this replaced. A card normal blended toward the card facing must never reach N.L = 0 under an overhead sun, and a two-sided card must not go dark on its back face"
       ]
+    },
+    {
+      "id": "fuji-forest-far",
+      "desc": "About 350 m above the Fuji forest, looking out toward the horizon: the whole tree card stage in one frame, from the near models to where the cards end at the Tree silhouette distance.",
+      "_why": "Added 2026-11-14 for BUG-301. fuji-forest-ground sees the stage up a slope and fuji-forest-hillside looks down into it; neither frames the stage's FAR END, the dissolve over the last tenth of the card distance that temporal anti-aliasing rung 1b added (hashed alpha, renderer/hashed_alpha.rs card_far_coverage). Requested 0.6 km with a near-horizontal aim (78 deg from straight down); the HUD read Alt 619 m on 2026-11-14 (fuji-forest-hillside read the same that day, against the 353 m its _camera_note measured in v0.1082), which puts the 1.5 km card end a little above the middle of the frame.",
+      "showcase": {
+        "time": "2.9",
+        "sea": "0.3",
+        "weather": "clear"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 35.3,
+        "lon": 138.8,
+        "altitude_km": 0.6,
+        "look_offset_deg": 78
+      },
+      "hold_altitude": true,
+      "settle_s": 75,
+      "min_tree_cards": 1000,
+      "_min_tree_cards_note": "BUG-301 (2026-11-14): the card stage must draw here. probe-sweep fails the vantage when fewer than this many tree cards sit in the window the fragment stage keeps (hide radius to far cutoff), read from the counter in the screenshot's done file (scripts/lib/tree-cards-check.js), or when the card sprites are not baked. Measured 2026-11-14: 47,156 cards in the window of 85,306 carried by 301 card patches; floor off 0. No release ever drew a card, and from BUG-287 (2026-11-09) no dev boot did either, while this vantage passed verify-runtime with a bare slope behind the near models: nothing looked.",
+      "expect": "Forest from the near 3D models out across the slope, carried by baked silhouette cards (ragged crown outlines, never rectangles) with no bare band between the models and the cards, and no hard ring where the cards end: under Temporal anti-aliasing the stage dissolves over its last tenth, at Off it ends at a hard cut. Beyond the card distance the ground carries its colour alone."
+    },
+    {
+      "id": "black-forest-far",
+      "desc": "About 350 m above the central Black Forest (Schwarzwald), looking out across the hills: the card stage on a second forest, far from Fuji.",
+      "_why": "Added 2026-11-14 for BUG-301, so the card gate is not one site's accident: a different latitude, imagery and relief from the Fuji vantages. Local noon is time + lon/15, so time 11.45 at lon 8.15.",
+      "showcase": {
+        "time": "11.45",
+        "sea": "0.3",
+        "weather": "clear"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 48.05,
+        "lon": 8.15,
+        "altitude_km": 0.6,
+        "look_offset_deg": 78
+      },
+      "hold_altitude": true,
+      "settle_s": 75,
+      "min_tree_cards": 1000,
+      "_min_tree_cards_note": "BUG-301 (2026-11-14): the card stage must draw here. probe-sweep fails the vantage when fewer than this many tree cards sit in the window the fragment stage keeps (hide radius to far cutoff), read from the counter in the screenshot's done file (scripts/lib/tree-cards-check.js), or when the card sprites are not baked. Measured 2026-11-14: 40,962 cards in the window of 58,717 carried by 266 card patches; floor off 0. No release ever drew a card, and from BUG-287 (2026-11-09) no dev boot did either, while this vantage passed verify-runtime with a bare slope behind the near models: nothing looked.",
+      "expect": "Wooded hills from the near 3D models out toward the horizon, the forest carried past the models by baked silhouette cards, with no bare band where the models end and no hard ring where the cards end under Temporal anti-aliasing."
+    },
+    {
+      "id": "fuji-forest-ground-no-floor",
+      "desc": "CONTROL for the tree card gate: fuji-forest-ground with the card floor switched off (showcase card_floor 0), which is the card stage exactly as it was before BUG-301 on a game without the tile tier: none.",
+      "_why": "Added 2026-11-14 for BUG-301. A gate that has never failed proves nothing (memory feedback_checks_that_cannot_fail): this vantage passes ONLY by failing min_tree_cards with a reading present (tree_cards_expect: fail), so a done file that stopped carrying the counter, or a gate that stopped comparing, turns it red. It holds while the 460 m tile tier is absent, which is every release and every rig today; with the tier installed the ground reaches depth 15 without the floor and this control draws cards and fails, saying so.",
+      "showcase": {
+        "time": "2.9",
+        "weather": "clear",
+        "sea": "0.3",
+        "card_floor": "0"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 35.3,
+        "lon": 138.8,
+        "altitude_km": 0.03,
+        "look_offset_deg": 80
+      },
+      "settle_s": 75,
+      "hold_altitude": true,
+      "min_tree_cards": 1000,
+      "tree_cards_expect": "fail",
+      "expect": "The bare slope of BUG-301: the near 3D models and nothing behind them."
     },
     {
       "id": "fuji-grass-underfoot",

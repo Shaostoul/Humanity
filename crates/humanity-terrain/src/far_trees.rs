@@ -627,12 +627,15 @@ mod tests {
             TREE_MIN_DEPTH,
         };
         let def = forest_def();
-        // The tile-tier depth cap: the ONLY configuration in which depth-15
-        // ground exists at all (a base-only planet caps at MAX_PATCH_DEPTH =
-        // 13, two levels short of TREE_MIN_DEPTH, so it has no cards ever).
+        // The tile-tier depth cap. A base-only planet caps at MAX_PATCH_DEPTH =
+        // 13, two levels short of TREE_MIN_DEPTH: until BUG-301 (2026-11-14)
+        // that meant no cards ever without the tile tier, and the card floor
+        // (`tree_card_stage::CardFloor`, its own test) now supplies depth 15
+        // within the card distance. This test keeps the tier's deeper ground.
         let params = ChunkParams {
             occluder_r_m: None,
             deep: Default::default(),
+            card_floor: Default::default(),
             radius_m: def.radius,
             band: RadialBand {
                 min_r_m: def.radius - 200.0,

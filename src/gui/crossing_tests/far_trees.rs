@@ -39,6 +39,7 @@ fn the_clamp_is_quiet_at_the_shipped_card_default_and_bites_at_the_ceiling() {
     let params = ChunkParams {
         occluder_r_m: None,
         deep: Default::default(),
+        card_floor: Default::default(),
         radius_m: def.radius,
         band: RadialBand {
             min_r_m: def.radius - 200.0,

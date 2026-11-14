@@ -215,7 +215,7 @@ pub(crate) fn push_water_shells(
         let bkey = format!("{}::water_backstop", b.id);
         let bparams = chunks::ChunkParams {
             occluder_r_m: None,
-            deep: Default::default(),
+            deep: Default::default(), card_floor: Default::default(), // water: no map tiles, no tree cards
             radius_m: d.radius,
             band: chunks::water_band(d.radius),
             max_depth: 11,
@@ -341,7 +341,7 @@ pub(crate) fn push_water_shells(
             let margin = 4.1 + 80_000.0 * (1.0 - ramp as f64);
             Some(d.radius - margin)
         },
-        deep: Default::default(),
+        deep: Default::default(), card_floor: Default::default(), // water: no map tiles, no tree cards
         radius_m: d.radius,
         band: chunks::water_band(d.radius),
         // Per-type LOD control (v0.965): the

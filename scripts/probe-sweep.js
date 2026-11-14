@@ -191,6 +191,9 @@ const SP2 = require("./lib/shore-probe-check.js");
 // The bed_probe vantage check (whole-Earth maps, the rung between 2 and 3): a road's cross-section
 // or a building's footing, judged against the mesher's own rules.
 const BP2 = require("./lib/bed-probe-check.js");
+// The tree card gate (BUG-301): a vantage with `min_tree_cards` must draw its card stage, read from
+// the counter every screenshot's done file carries (`tree_cards`).
+const TC = require("./lib/tree-cards-check.js");
 // The foot_probe vantage check (character animation rung 2a): every near body's drawn feet against
 // the ground under them.
 const FP2 = require("./lib/foot-probe-check.js");
@@ -1184,6 +1187,15 @@ async function main() {
             throw new Error(stationMisses.join(" | "));
           }
         }
+        // TREE CARDS (BUG-301, 2026-11-14): the card counter at the capture rides in the manifest
+        // for every vantage, and a vantage with `min_tree_cards` is judged on it (the verdict below).
+        // No forest vantage looked at whether the card stage drew anything, so five days of bare
+        // slopes behind the near models passed verify-runtime.
+        {
+          const tcv = TC.judgeTreeCards(v, shot);
+          rec.tree_cards = { judged: tcv.judged, ok: tcv.ok, message: tcv.message, reading: shot.tree_cards === undefined ? null : shot.tree_cards };
+          if (tcv.judged) log(`  tree cards: ${tcv.message}`);
+        }
         // PAIRED capture (environment program increment 2): a vantage
         // with `captures: 2` shoots again after `pair_gap_s`, producing
         // <id>-b.png. Stills cannot prove a temporal property, but a
@@ -1488,6 +1500,10 @@ async function main() {
           // from these, not the manifest fps (2026-09-05, perf day 0).
           const fcv = path.join(RIG, "debug", "frame_costs.json");
           if (fs.existsSync(fcv)) fs.copyFileSync(fcv, path.join(OUT, `${v.id}-costs.json`));
+        }
+        if (rec.ok && rec.tree_cards && rec.tree_cards.judged && !rec.tree_cards.ok) {
+          rec.ok = false;
+          rec.error = `TREE CARDS: ${rec.tree_cards.message}`;
         }
         if (rec.ok && rec.ground_probe && !rec.ground_probe.ok) {
           rec.ok = false;

@@ -189,7 +189,11 @@ async function shoot(v, arm) {
   fs.copyFileSync(path.join(RIG, shot.path), path.join(OUT, dest));
   const fc = path.join(DEBUG, "frame_costs.json");
   if (fs.existsSync(fc)) fs.copyFileSync(fc, path.join(OUT, `${arm}__${v.id}-costs.json`));
-  log(`  ${dest}  (${shot.fps ?? "?"} fps)`);
+  // The done file whole: the game's own readings at the capture (the tree card counter, BUG-301).
+  fs.writeFileSync(path.join(OUT, `${arm}__${v.id}-done.json`), JSON.stringify(shot, null, 1));
+  const tc = shot.tree_cards;
+  const cards = tc ? `, tree cards ${tc.in_window} in window of ${tc.cards}, deepest ${tc.max_drawn_depth}` : "";
+  log(`  ${dest}  (${shot.fps ?? "?"} fps${cards})`);
 }
 
 (async () => {

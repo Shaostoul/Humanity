@@ -6,7 +6,8 @@ Planets as shapes and numbers. It holds the planet's surface and heights (`plane
 `planet_heightmap`, `procedural_heightmap`), the level-of-detail patches and their meshes as plain
 data (`planet_chunks`, `drawn_surface`, `terrain_tiles`), the oceans and water (`ocean_fft`,
 `ocean_waves`, `water_patches`), the plants' and trees' geometry (`plant_mesh`, `tree_registry`,
-`near_trees`, `far_trees`, `grass`), the whole-Earth map: its tile key (`map_tiles`), its pack
+`near_trees`, `far_trees`, `grass`, and `tree_card_stage`: the depth floor that gives the tree
+cards their ground without the tile tier, and the per-frame card counter, BUG-301), the whole-Earth map: its tile key (`map_tiles`), its pack
 format (`map_pack`), its data files (`map_levels`), the packs drawn into the ground (`map_ground`:
 the shore band, tile residency, the built-over mask; its child `map_beds`, the road beds and
 building pads), the offline builder (`map_build`, behind the

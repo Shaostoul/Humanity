@@ -9922,6 +9922,9 @@ mod native_app {
                                     // An installed map pack's tile earns the 1 m ladder with or
                                     // without the tile tier (whole-Earth maps, rung 2b).
                                     deep: crate::engine::map_meshes::deep_tiles(&b.id),
+                                    // The tree card stage's depth-15 ground within the card
+                                    // distance, tile tier or not (BUG-301).
+                                    card_floor: crate::engine::tree_card_stage::floor_for(d, &state.gui_state.settings),
                                     split_px,
                                     px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
                                     max_leaves: patch_budget,
@@ -9958,6 +9961,7 @@ mod native_app {
                                         && cam_fwd_local.dot(cs.last_sel_fwd) > 0.99999
                                         && cs.last_sel_split_px == split_now
                                         && cs.last_sel_budget == budget_now
+                                        && cs.last_sel_card_floor == params.card_floor
                                         && !cs.sel_dirty
                                         && cs.last_selection.as_ref().is_some_and(|s| {
                                             s.build_requests.is_empty() && s.fully_covered
@@ -9977,6 +9981,7 @@ mod native_app {
                                     cs.last_sel_fwd = cam_fwd_local;
                                     cs.last_sel_split_px = split_now;
                                     cs.last_sel_budget = budget_now;
+                                    cs.last_sel_card_floor = params.card_floor;
                                     cs.sel_dirty = false;
                                     cs.last_selection = Some(sel.clone());
                                     sel
@@ -10217,6 +10222,7 @@ mod native_app {
                                                 pm.anchor,
                                                 pm.band,
                                                 pm.tree_density,
+                                                pm.card_trees,
                                             );
                                         } else {
                                             // Arena full: classic per-patch
@@ -10244,6 +10250,7 @@ mod native_app {
                                                 pm.anchor,
                                                 pm.band,
                                                 pm.tree_density,
+                                                pm.card_trees,
                                             );
                                         }
                                         patch_builds_this_frame += 1;
@@ -10483,6 +10490,9 @@ mod native_app {
                                     d,
                                     &mut celestial_objects,
                                 );
+                                // The card stage's counter (BUG-301): the [TreeCards] line and the done file's reading,
+                                // taken here because the near trees have just set this frame's hide radius.
+                                crate::engine::tree_card_stage::note(cs, d.radius, state.renderer.tree_card_hide_m, state.renderer.tree_card_far_m, state.renderer.tree_atlas_ready);
                                 // ── Near-field GRASS STRANDS (v0.1091) ──
                                 //
                                 // TWO CLOCKS, and the split is the whole

@@ -146,6 +146,24 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   end dissolving over its last tenth) and the level-of-detail crossfade in `frag_prologue`. The
   threshold's CPU twin is pinned by `the_shader_hash_is_the_twin`.
 
+## The tree card stage needs depth-15 ground (BUG-301, 2026-11-14)
+
+- **The far tree cards (type 12's sprite branch in `fs_terrain`) are baked into terrain patches at
+  depth >= `TREE_MIN_DEPTH` (15) and nowhere else**, and the planet's own cap without the 460 m tile
+  tier is 13. `humanity_terrain::tree_card_stage::CardFloor` (built by
+  `engine/tree_card_stage.rs` `floor_for`, passed as `ChunkParams::card_floor`) raises the cap to 15
+  within the "Tree silhouette distance" on a breathable world with trees on; without it no release
+  and no rig drew a single card, and every forest capture looked like a bare slope behind the
+  near models. Anything that changes the patch depth caps, `TREE_MIN_DEPTH` or the card distance
+  must keep the floor's test (`a_game_without_the_tile_tier_still_has_a_card_stage`) green.
+- **Count the cards before judging a picture of them**: the `[TreeCards]` log line (1 Hz) and the
+  `tree_cards` object in every screenshot's done file give the drawn patches, the card patches, the
+  cards, the cards inside the kept window (hide radius to far cutoff), the deepest drawn patch and
+  whether the sprite atlas is baked. A vantage with `min_tree_cards` fails probe-sweep without them
+  (`scripts/lib/tree-cards-check.js`; verify-runtime's `fuji-forest-ground` carries it), and the
+  showcase `card_floor` "0" is the red twin (`fuji-forest-ground-no-floor`, a control that passes
+  only by failing).
+
 ## f32 at planet scale
 
 - **f32 at planet scale is a defect class.** On the CPU, keep planet positions AND unit directions in f64 (`DVec3`) all the way to a terrain or data sampler, and downcast only at a coarse-data boundary (base heightmap cells are 460+ m, so `.as_vec3()` is fine THERE and nowhere earlier): an f32 unit vector quantizes ground position at ~0.4-0.8 m, an f32 global-grid coordinate at ~3.6 m. Check the whole chain: a CALLER that narrows to f32 undoes an f64-upgraded function (the buoyancy float). On the GPU (f32 by hardware), keep magnitudes small near the camera (floating origin, anchor-relative patch verts, drawn-shell units); a shader phase or UV from a planet-radius f32 dot (`dot(dir * r, d)`) carries ~0.5 m quantization that moves with the camera, so evaluate it in the camera-anchored 64 m-modulus domain (`anchw + dvw`) with wavelengths that DIVIDE 64 and axis-aligned directions, so anchor re-snaps shift phase by whole numbers and the CPU f64 twin matches mod 1 (ocean chop W4/W5/W6 and its lockstep test are the worked example).

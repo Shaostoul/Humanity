@@ -216,6 +216,9 @@ pub mod frame_water;
 /// Near-field 3D trees: the gated harvest, the per-tree draw plan, and the
 /// card-hide promise the far LOD depends on (extracted from lib.rs, v0.1320).
 pub mod frame_near_trees;
+/// The tree card stage in the frame loop: the depth floor the planet selection asks for, its
+/// showcase switch, and the per-frame card counter the done file and the rig's gate read (BUG-301).
+pub mod tree_card_stage;
 /// The rig's readout of the ground under the near trees and the eye, against
 /// the ground actually drawn there (BUG-156, 2026-10-05).
 pub mod tree_ground;

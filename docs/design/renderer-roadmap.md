@@ -728,7 +728,12 @@ adds no shimmer of its own; the crowd's walkers show no stipple on their hair.
 **What 1b leaves.** The far tree cards could not be judged on screen: no sprite card drew at the
 forest vantages in any arm, Off included, at the rig's settings (the near models stood to about
 93 m and the slope beyond was bare), so that branch is proven by the twin and the shader validation
-only. The hair's sun and room-light shadows still cast the core alone (the shadow passes have no
+only. (Judged 2026-11-14 once BUG-301 put the stage back: no release had ever drawn it, because the
+cards need depth-15 patches and only the tile tier reached them. At `fuji-forest-far` the cards thin
+out over the last tenth under Temporal and run to a hard edge at Off, and the dissolve is still:
+consecutive captures there differ by a mean of 0.07 codes under Temporal against 0.08 at Off. The
+stage costs 7 to 10 ms of `gpu.celestial` at the forest vantages, so the forest rows of the table
+above are frames without any card.) The hair's sun and room-light shadows still cast the core alone (the shadow passes have no
 history; section 3.3's "casts with its true coverage" needs a pattern that PCF, not a history,
 averages). Stacked hair cards share one threshold per pixel, so two overlapping half-transparent
 layers cover like one; Wyman and McGuire's object-space hash would decorrelate them, at the price of

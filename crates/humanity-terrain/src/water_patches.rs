@@ -311,6 +311,7 @@ pub fn build_water_patch_mesh_at(
         anchor,
         // Water shells never carry tree cards.
         tree_density: 0.0,
+        card_trees: 0,
         band: water_band(radius_m),
     })
 }
