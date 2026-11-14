@@ -1761,6 +1761,7 @@ mod native_app {
             crate::updater::Updater::cleanup_old_versions();
             // A restart after an update comes back behind when this launch was (launch_focus).
             gui_state.updater.relaunch_behind = crate::engine::launch_focus::launch_in_background();
+            gui_state.updater.relaunch_quiet = crate::engine::launch_focus::quiet_asked();
 
             // Auto-check for updates on startup (if enabled)
             if gui_state.updater.channel == crate::updater::UpdateChannel::AlwaysLatest {

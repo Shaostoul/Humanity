@@ -4218,7 +4218,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                         // Use a batch script to wait for this process to exit
                         // before launching the new binary. This avoids the race
                         // where the old process hasn't fully released the exe.
-                        match crate::updater::create_restart_script(&target, state.updater.relaunch_behind) {
+                        match crate::updater::create_restart_script(&target, state.updater.relaunch_behind, state.updater.relaunch_quiet) {
                             Ok(bat) => {
                                 humanity_core::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
                                 use std::os::windows::process::CommandExt;

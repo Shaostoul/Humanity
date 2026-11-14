@@ -127,6 +127,11 @@ pub struct Updater {
     /// rung 0, part B (2026-10-31), so it is handed the answer instead of asking. False until then,
     /// a person's launch.
     pub relaunch_behind: bool,
+    /// This instance's launcher ASKED for a quiet boot (a developer's script: engine/launch_focus.rs
+    /// `quiet_asked`), so a restart after an update comes back quiet and hidden too; a background
+    /// launch nobody asked to be quiet comes back visible (BUG-302). Filled in by the engine beside
+    /// `relaunch_behind`, for the same reason: this crate does not reach the engine.
+    pub relaunch_quiet: bool,
 }
 
 #[cfg(feature = "native")]
@@ -142,6 +147,7 @@ impl Updater {
             rx: None,
             exe_path: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("HumanityOS.exe")),
             relaunch_behind: false,
+            relaunch_quiet: false,
         }
     }
 
@@ -748,14 +754,14 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
 /// the new exe. The script deletes itself after running. `behind`: this
 /// instance was launched behind the window in front (`Updater::relaunch_behind`).
 #[cfg(all(feature = "native", target_os = "windows"))]
-pub fn create_restart_script(exe_path: &std::path::Path, behind: bool) -> Result<PathBuf, String> {
+pub fn create_restart_script(exe_path: &std::path::Path, behind: bool, quiet: bool) -> Result<PathBuf, String> {
     let bat_path = exe_path.with_extension("restart.bat");
     let exe_str = exe_path.to_string_lossy();
     // The relaunched exe's parent is cmd.exe, which the focus policy
     // (engine/launch_focus.rs) reads as a script launch -> background. So
     // the restart script must carry this instance's OWN focus state
     // forward (restart_focus_line).
-    let focus_line = restart_focus_line(behind, crate::engine::launch_focus::quiet_asked()).map(|l| format!("{l}\r\n")).unwrap_or_default();
+    let focus_line = restart_focus_line(behind, quiet).map(|l| format!("{l}\r\n")).unwrap_or_default();
     let script = format!(
         "@echo off\r\ntimeout /t 2 /nobreak >nul\r\n{}start \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
         focus_line, exe_str
