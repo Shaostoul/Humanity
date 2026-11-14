@@ -236,6 +236,13 @@ screen change. A `chat` action is sent as a chat command by the desktop app
 and copied for the person to paste by the website (the admin page has no
 chat of its own).
 
+**Run on the person's own device (2026-11-14):** the organisation actions, category `orgs`
+(`orgs.found`, `orgs.invite`, `orgs.accept` and the rest, docs/design/organisations.md):
+`"run": "device"` with the `org_permission` each needs. The person's app signs the change and
+every member's app checks it against the organisation's own roles; the run endpoint refuses them
+(`runs_here()` is false) and both apps' "Every admin action" lists say where they run. Held by
+`every_organisation_change_is_a_registry_action_that_runs_on_the_device`.
+
 **Runs here today (24):** `alerts.list/add/update/set_enabled/remove/test`,
 `federation.list/add/add_key/trust/pause/resume/recheck/remove/connect/channel`,
 `log.recent`, and `members.kick/mute/unmute/ban/unban/mod/unmod` (the very

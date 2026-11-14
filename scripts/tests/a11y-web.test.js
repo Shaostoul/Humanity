@@ -22,7 +22,7 @@ const A = require(path.join(ROOT, 'scripts', 'a11y-web.js'));
 const W = require(path.join(ROOT, 'scripts', 'i18n-web.js'));
 const BUDGET = path.join(__dirname, 'fixtures', 'a11y-web-budget.txt');
 
-const CONVERTED = ['calculator', 'notes', 'tasks', 'calendar', 'crafting', 'laws', 'wallet', 'donate', 'bugs', 'guilds', 'governance', 'humanity', 'civilization', 'market'];
+const CONVERTED = ['calculator', 'notes', 'tasks', 'calendar', 'crafting', 'laws', 'wallet', 'donate', 'bugs', 'guilds', 'governance', 'humanity', 'civilization', 'market', 'orgs'];
 
 function readBudget() {
   const out = {};

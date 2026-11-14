@@ -455,7 +455,8 @@ missing is one place where they come together for a group:
 - **Decisions** through the signed voting that exists.
 - **Printable material** (flyers, newsletters) through Typst.
 
-All of it runs on servers, groups and signed objects that already exist. Tag: Today.
+All of it runs on servers, groups and signed objects that already exist. Tag: Today. **The whole
+plan, its rungs and rung 1 as built (2026-11-14): [`organisations.md`](organisations.md).**
 
 ## 11. The suggested order
 

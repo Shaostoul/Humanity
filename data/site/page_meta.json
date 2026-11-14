@@ -28,6 +28,7 @@
     { "file": "web/pages/humanity.html", "path": "/humanity", "description": "page_meta.humanity" },
     { "file": "web/pages/identity.html", "path": "/identity", "description": "page_meta.identity" },
     { "file": "web/pages/music.html", "path": "/music", "description": "page_meta.music" },
+    { "file": "web/pages/orgs.html", "path": "/orgs", "description": "page_meta.orgs" },
     { "file": "web/pages/inventory.html", "path": "/inventory", "description": "page_meta.inventory" },
     { "file": "web/pages/laws.html", "path": "/laws", "description": "laws.meta_description" },
     { "file": "web/pages/library.html", "path": "/library", "description": "page_meta.library" },

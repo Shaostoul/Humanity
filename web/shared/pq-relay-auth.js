@@ -238,6 +238,26 @@
   }
 
   /**
+   * The key the Organisations page keeps its logs under in this browser (2026-11-14,
+   * docs/design/organisations.md section 3): AES-256-GCM from HKDF-SHA-256 of the seed, empty salt,
+   * info `hum/orgs-web/v1`, non-extractable, the way getPqTasksKey makes the tasks key.
+   */
+  async function getPqOrgsKey() {
+    const seed = await _loadSeed();
+    if (!seed) return null;
+    try {
+      const base = await crypto.subtle.importKey('raw', seed, 'HKDF', false, ['deriveKey']);
+      return await crypto.subtle.deriveKey(
+        { name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(0),
+          info: new TextEncoder().encode('hum/orgs-web/v1') },
+        base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    } catch (e) {
+      console.warn('pq-relay-auth: could not derive the organisations key', e);
+      return null;
+    }
+  }
+
+  /**
    * My own DM keys, from the seed: the Kyber768 (ML-KEM-768) pair every device of
    * mine derives the same way (pqDeriveKyber in /chat/pq.js), so a page can seal
    * a note to myself and open the ones my other devices sent
@@ -320,6 +340,7 @@
   window.getPqIdentity = getPqIdentity;
   window.getPqDmStoreKey = getPqDmStoreKey;
   window.getPqTasksKey = getPqTasksKey;
+  window.getPqOrgsKey = getPqOrgsKey;
   window.getPqDmKeys = getPqDmKeys;
   window.pqRecoveryPhraseIn = pqRecoveryPhraseIn;
 })();

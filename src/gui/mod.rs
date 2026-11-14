@@ -114,6 +114,7 @@ pub(crate) mod personal_store;
 /// Tasks of my own (docs/design/tasks.md, 2026-11-02): kept on this device encrypted, carried to my
 /// other devices by sealed notes to myself (engine/mine_tasks.rs), never readable by a server.
 pub mod mine_tasks;
+pub mod orgs_store; // the organisations an identity belongs to, encrypted on this device (docs/design/organisations.md)
 pub use state_types::*;
 /// The P2P trade types (`gui/trade_types.rs`, 2026-09-29).
 mod trade_types;
@@ -335,11 +336,8 @@ pub enum GuiPage {
     Guilds,
     Trade,
     BugReport,
-    // v0.415.0: removed the Resources and Onboarding GuiPage variants. The
-    // Resources directory was retired into the Library (v0.374-375) and the
-    // standalone onboarding page into the Mission Dashboard + Quests page
-    // (v0.373); first boot now lands on Humanity. Saved config strings
-    // ("resources" / "onboarding") migrate in config_str_to_page below.
+    Orgs, // organisations: members, roles, invitations, the directory, the audit log (docs/design/organisations.md)
+    // v0.415.0 removed Resources (into the Library) and Onboarding (into Humanity and Quests); their config strings migrate in config_str_to_page.
     Library,
     Donate,
     Studio,
@@ -540,6 +538,7 @@ pub struct GuiState {
     pub dev_spawn_filter: String,
     pub music_dev: crate::gui::pages::dev_music::MusicDev, // the Dev page's Music card (engine/music.rs)
     pub music_page: crate::gui::pages::music::MusicPage, // the Music page: choice, tune, favourites, export, piano roll
+    pub orgs_page: crate::gui::pages::orgs::OrgsPage, // the Organisations page: its logs, forms and the text to copy
     /// Live count of Creature entities, mirrored from the ECS each frame so the
     /// Dev page can show "N creatures in the world" without a world handle.
     pub dev_creature_count: usize,
@@ -3221,6 +3220,7 @@ impl Default for GuiState {
             dev_spawn_filter: String::new(),
             music_dev: Default::default(),
             music_page: Default::default(),
+            orgs_page: Default::default(),
             dev_creature_count: 0,
             planet_tuner: Default::default(),
             dev_edit_target: None,

@@ -109,9 +109,14 @@ pub struct ActionDef {
     pub confirm_word: Option<String>,
     #[serde(default)]
     pub inputs: Vec<InputDef>,
-    /// `"here"`: runs through `POST /api/admin/actions/run`.
+    /// `"here"`: runs through `POST /api/admin/actions/run`. `"device"`: the person's own app signs
+    /// it (the organisation actions, docs/design/organisations.md); no server runs it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run: Option<String>,
+    /// For a `"device"` organisation action: the organisation permission it needs
+    /// (data/orgs/roles.json), checked by every member's app, never by a server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub org_permission: Option<String>,
     /// The chat command that does the same, its inputs in braces: `/server-add {url} {name}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chat: Option<String>,
@@ -154,6 +159,11 @@ impl ActionDef {
     /// Runs through `POST /api/admin/actions/run`.
     pub fn runs_here(&self) -> bool {
         self.run.as_deref() == Some("here")
+    }
+
+    /// Runs on the person's own device (an organisation action): never through the run endpoint.
+    pub fn runs_on_device(&self) -> bool {
+        self.run.as_deref() == Some("device")
     }
 
     /// Changes nothing (not written to the admin log).

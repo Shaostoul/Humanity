@@ -444,6 +444,8 @@
         if (navigator.clipboard) navigator.clipboard.writeText(text);
         say('Copied ' + text + ': paste it in Chat (in the channel it is for). This one is still a chat command.', true);
       }, '', 'This action is still a chat command: copy it, then send it in Chat.');
+    } else if (a.run === 'device') {
+      go = el('span', { cls: 'fed-help', text: window.i18n.t('orgs.registry_device') });
     } else {
       go = el('span', { cls: 'fed-help', text: 'Runs at ' + a.route + ': its panel is elsewhere on this page.' });
     }

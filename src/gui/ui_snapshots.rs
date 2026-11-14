@@ -6168,3 +6168,60 @@ fn snapshot_music() {
         crate::gui::pages::music::draw(ctx, theme, state);
     });
 }
+
+/// One organisation for the Organisations snapshots (docs/design/organisations.md): founded by the
+/// signed-in owner, with an admin, a driver, a member who keeps their name to organisers (then
+/// removed by someone who may not), a custom role and an open invitation, so the members, the
+/// roles and the record all show.
+fn orgs_snapshot_page(state: &mut GuiState, tab: crate::gui::pages::orgs::Tab) {
+    use crate::gui::pages::orgs::{OrgsPage, View};
+    use humanity_protocol::org::{Act, Directory, Listing, Role};
+    let seed = |n: u8| [n; 32];
+    let key = |n: u8| humanity_protocol::pq_crypto::DilithiumKeypair::from_seed(&humanity_protocol::pq_crypto::derive_dilithium_seed(&seed(n))).public_key();
+    let me = hex::encode(key(1));
+    let mut page = OrgsPage::with_store(crate::gui::orgs_store::OrgStore::load_at(&seed(1), None), &me);
+    let org = page.found(&seed(1), "Cart crew", "Saturday can collection and the Tuesday delivery route.", Directory::Members).expect("founds");
+    let join = |page: &mut OrgsPage, by: u8, who: u8, role: &str, name: &str, level: Listing| {
+        let (inv, _) = page.sign(&seed(by), &org, Act::Invite { who: key(who), role: role.into(), until: u64::MAX / 2 }).unwrap();
+        page.sign(&seed(who), &org, Act::Accept { invite: inv.object_id().unwrap().to_hex() }).unwrap();
+        page.sign(&seed(who), &org, Act::Listing { name: name.into(), level }).unwrap();
+    };
+    page.sign(&seed(1), &org, Act::Listing { name: "Alex".into(), level: Listing::Members }).unwrap();
+    join(&mut page, 1, 2, "admin", "Ana", Listing::Members);
+    page.sign(&seed(1), &org, Act::RoleSet { role: Role { id: "driver".into(), name: "Driver".into(), rank: 20, perms: vec!["calendar.edit".into()] } }).unwrap();
+    join(&mut page, 2, 3, "driver", "Mo", Listing::Members);
+    join(&mut page, 2, 4, "member", "Sam", Listing::Organisers);
+    page.sign(&seed(3), &org, Act::Remove { who: key(4) }).unwrap();
+    page.sign(&seed(2), &org, Act::Invite { who: key(5), role: "member".into(), until: u64::MAX / 2 }).unwrap();
+    page.view = View::Org;
+    page.selected = Some(org);
+    page.tab = tab;
+    state.profile_public_key = me;
+    state.private_key_bytes = Some(seed(1).to_vec());
+    state.orgs_page = page;
+}
+
+/// The Organisations page (rung 1, 2026-11-14): one organisation's members as its owner sees them.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_orgs() {
+    render_page_png("orgs", 1280, 1300, |ctx, theme, state| {
+        if state.orgs_page.selected.is_none() {
+            orgs_snapshot_page(state, crate::gui::pages::orgs::Tab::Members);
+        }
+        crate::gui::pages::orgs::draw(ctx, theme, state);
+    });
+}
+
+/// The Organisations page's record of changes (the audit log), newest first, a refused change
+/// marked "Not applied" with its reason.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_orgs_log() {
+    render_page_png("orgs_log", 1280, 1100, |ctx, theme, state| {
+        if state.orgs_page.selected.is_none() {
+            orgs_snapshot_page(state, crate::gui::pages::orgs::Tab::Log);
+        }
+        crate::gui::pages::orgs::draw(ctx, theme, state);
+    });
+}

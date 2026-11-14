@@ -77,10 +77,11 @@ fn the_registry_holds_together() {
         if a.is_destructive() {
             assert!(a.confirm_word.as_deref().is_some_and(|w| !w.trim().is_empty()), "{} is destructive and has no confirm_word", a.id);
         }
-        assert!(a.runs_here() || a.chat.is_some() || a.route.is_some(), "{} has no way to run", a.id);
+        assert!(a.runs_here() || a.runs_on_device() || a.chat.is_some() || a.route.is_some(), "{} has no way to run", a.id);
         if let Some(run) = &a.run {
-            assert_eq!(run, "here", "{}: run is \"here\" or absent", a.id);
+            assert!(run == "here" || run == "device", "{}: run is \"here\", \"device\" or absent", a.id);
         }
+        assert_eq!(a.runs_on_device(), a.category == "orgs", "{}: exactly the organisation actions run on the device", a.id);
         if a.runs_here() {
             assert!(matches!(a.role.as_str(), "admin" | "mod"), "{} runs here, so it is for admins or moderators", a.id);
         }
@@ -107,6 +108,50 @@ fn the_registry_holds_together() {
     }
     for res in &r.reserved {
         assert!(res.prefix.ends_with('.') && !res.for_whom.is_empty(), "a reserved prefix ends with a dot and says whom it is for");
+    }
+}
+
+/// The organisation actions (docs/design/organisations.md) are in the registry so the apps and an AI
+/// can enumerate them, every change the organisation log knows has one, each runs on the person's
+/// own device for anyone (the organisation's roles decide, checked by every member's app), each
+/// permission it names is in data/orgs/roles.json, and the run endpoint never runs one.
+///
+/// Red first, 2026-11-14: before the `orgs.*` entries, "the change `invite` has no orgs.invite
+/// action" failed.
+#[test]
+fn every_organisation_change_is_a_registry_action_that_runs_on_the_device() {
+    use humanity_protocol::org::{Act, Directory, Listing, Role};
+    let r = registry();
+    let book = humanity_protocol::org::role_book_from_json(
+        &std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/orgs/roles.json")).unwrap(),
+    )
+    .unwrap();
+    let role = Role { id: "x".into(), name: String::new(), rank: 0, perms: vec![] };
+    let acts = [
+        Act::Invite { who: vec![], role: String::new(), until: 0 },
+        Act::Withdraw { invite: String::new() },
+        Act::Accept { invite: String::new() },
+        Act::Remove { who: vec![] },
+        Act::Leave,
+        Act::Assign { who: vec![], role: String::new() },
+        Act::RoleSet { role },
+        Act::RoleDrop { role: String::new() },
+        Act::Listing { name: String::new(), level: Listing::Members },
+        Act::Settings { name: None, about: None, directory: Some(Directory::Members) },
+    ];
+    for act in &acts {
+        let id = format!("orgs.{}", act.word());
+        assert!(r.actions.iter().any(|a| a.id == id), "the change `{}` has no {id} action", act.word());
+    }
+    let orgs: Vec<&ActionDef> = r.actions.iter().filter(|a| a.category == "orgs").collect();
+    assert!(orgs.iter().any(|a| a.id == "orgs.found") && orgs.iter().any(|a| a.id == "orgs.log") && orgs.iter().any(|a| a.id == "orgs.directory"));
+    for a in orgs {
+        assert!(a.runs_on_device() && !a.runs_here(), "{} runs on the device, never here", a.id);
+        assert_eq!(a.role, "member", "{}: anyone may try it; the organisation's roles decide", a.id);
+        assert!(a.chat.is_none() && a.route.is_none(), "{}: no server route or command", a.id);
+        if let Some(p) = &a.org_permission {
+            assert!(book.permissions.contains(p), "{} names {p}, which data/orgs/roles.json does not list", a.id);
+        }
     }
 }
 

@@ -14,7 +14,7 @@
   "roles": {
     "admin": "An admin (or the owner) of this server.",
     "mod": "A moderator, an admin or the owner.",
-    "member": "Anyone signed in. Only for the claim, which works only while a server has no admin yet."
+    "member": "Anyone signed in: the claim (which works only while a server has no admin yet), and the organisation actions, which the person's own app signs and every member's app checks against that organisation's roles."
   },
 
   "danger_levels": {
@@ -40,7 +40,8 @@
     { "id": "maintenance", "label": "Server maintenance", "description": "Clearing history and tidying up after accounts nobody uses." },
     { "id": "backups", "label": "Backups", "description": "Copies of this server's database: the ones kept beside it, the continuous copy sent somewhere else, proving a copy restores, and other servers' copies kept here." },
     { "id": "system", "label": "System", "description": "The server's health, and its data folder." },
-    { "id": "log", "label": "Admin log", "description": "What admins changed here, when, and who did it." }
+    { "id": "log", "label": "Admin log", "description": "What admins changed here, when, and who did it." },
+    { "id": "orgs", "label": "Organisations", "description": "Organisations people run on HumanityOS (docs/design/organisations.md). These run on the person's own device (\"run\": \"device\"): their app signs the change with their key, and every member's app checks it against the organisation's own roles (org_permission names the permission needed). No server runs, stores or sees them, so the run endpoint refuses them." }
   ],
 
   "actions": [
@@ -717,6 +718,466 @@
       "danger": "caution",
       "inputs": [],
       "chat": "/gc"
+    },
+    {
+      "id": "orgs.found",
+      "label": "Start an organisation",
+      "description": "Signs a new organisation with you as its owner; it starts with the roles in data/orgs/roles.json.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "name",
+          "label": "Name",
+          "kind": "text",
+          "required": true,
+          "max_len": 80
+        },
+        {
+          "name": "about",
+          "label": "About",
+          "kind": "text",
+          "max_len": 500
+        },
+        {
+          "name": "directory",
+          "label": "Who can see the member list",
+          "kind": "choice",
+          "choices": [
+            "members",
+            "organisers",
+            "public"
+          ]
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.open",
+      "label": "Open a text",
+      "description": "Merges an invitation, an acceptance or an update someone sent you into your copy of that organisation, checking every signature.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "text",
+          "label": "The text",
+          "kind": "text",
+          "required": true,
+          "max_len": 2000000
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.accept",
+      "label": "Accept an invitation",
+      "description": "Signs your acceptance of an invitation addressed to you. Nobody can accept for you; you are a member only once you do.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "invite",
+          "label": "Invitation",
+          "kind": "text",
+          "required": true,
+          "max_len": 64
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.invite",
+      "label": "Invite a person",
+      "description": "Signs an invitation to one person for a role ranked below yours, open for some days. Gives the text to send them.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "who",
+          "label": "Their key",
+          "kind": "text",
+          "required": true,
+          "hint": "The person's public key, 3,904 hex characters.",
+          "max_len": 3904
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "kind": "text",
+          "required": true,
+          "hint": "A role id, such as member or admin, ranked below yours.",
+          "max_len": 32
+        },
+        {
+          "name": "days",
+          "label": "Days to answer",
+          "kind": "number",
+          "min": 1,
+          "max": 60
+        }
+      ],
+      "run": "device",
+      "org_permission": "members.invite"
+    },
+    {
+      "id": "orgs.withdraw",
+      "label": "Withdraw an invitation",
+      "description": "Cancels an invitation before it is accepted.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "invite",
+          "label": "Invitation",
+          "kind": "text",
+          "required": true,
+          "max_len": 64
+        }
+      ],
+      "run": "device",
+      "org_permission": "members.invite"
+    },
+    {
+      "id": "orgs.remove",
+      "label": "Remove a member",
+      "description": "Takes a member ranked below you out of the organisation. They need a new invitation to come back.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "caution",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "who",
+          "label": "Their key",
+          "kind": "text",
+          "required": true,
+          "hint": "The person's public key, 3,904 hex characters.",
+          "max_len": 3904
+        }
+      ],
+      "run": "device",
+      "org_permission": "members.remove"
+    },
+    {
+      "id": "orgs.leave",
+      "label": "Leave an organisation",
+      "description": "Takes you out of the organisation. The owner cannot leave.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "caution",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.assign",
+      "label": "Give a member a role",
+      "description": "Gives a member ranked below you another role ranked below yours.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "who",
+          "label": "Their key",
+          "kind": "text",
+          "required": true,
+          "hint": "The person's public key, 3,904 hex characters.",
+          "max_len": 3904
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "kind": "text",
+          "required": true,
+          "hint": "A role id, such as member or admin, ranked below yours.",
+          "max_len": 32
+        }
+      ],
+      "run": "device",
+      "org_permission": "roles.assign"
+    },
+    {
+      "id": "orgs.role_set",
+      "label": "Add or change a role",
+      "description": "Defines a custom role: its name, its rank (below yours) and its permissions (only ones you hold).",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "id",
+          "label": "Role id",
+          "kind": "text",
+          "required": true,
+          "max_len": 32
+        },
+        {
+          "name": "name",
+          "label": "Role name",
+          "kind": "text",
+          "required": true,
+          "max_len": 40
+        },
+        {
+          "name": "rank",
+          "label": "Rank",
+          "kind": "number",
+          "required": true,
+          "min": 0,
+          "max": 99
+        },
+        {
+          "name": "perms",
+          "label": "Permissions",
+          "kind": "text",
+          "hint": "Permission ids from data/orgs/roles.json, separated by commas.",
+          "max_len": 1000
+        }
+      ],
+      "run": "device",
+      "org_permission": "roles.define"
+    },
+    {
+      "id": "orgs.role_drop",
+      "label": "Remove a role",
+      "description": "Deletes a custom role ranked below yours; its holders become members.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "caution",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "role",
+          "label": "Role",
+          "kind": "text",
+          "required": true,
+          "hint": "A role id, such as member or admin, ranked below yours.",
+          "max_len": 32
+        }
+      ],
+      "run": "device",
+      "org_permission": "roles.define"
+    },
+    {
+      "id": "orgs.listing",
+      "label": "Set how you are listed",
+      "description": "Your name in this organisation and who sees it: members, or organisers only.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "name",
+          "label": "Your name here",
+          "kind": "text",
+          "max_len": 60
+        },
+        {
+          "name": "level",
+          "label": "Who sees your name",
+          "kind": "choice",
+          "choices": [
+            "members",
+            "organisers"
+          ]
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.settings",
+      "label": "Change the settings",
+      "description": "The organisation's name, its description and who can see the member list.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "safe",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        },
+        {
+          "name": "name",
+          "label": "Name",
+          "kind": "text",
+          "max_len": 80
+        },
+        {
+          "name": "about",
+          "label": "About",
+          "kind": "text",
+          "max_len": 500
+        },
+        {
+          "name": "directory",
+          "label": "Who can see the member list",
+          "kind": "choice",
+          "choices": [
+            "members",
+            "organisers",
+            "public"
+          ]
+        }
+      ],
+      "run": "device",
+      "org_permission": "org.settings"
+    },
+    {
+      "id": "orgs.directory",
+      "label": "Read the member list",
+      "description": "The members you may see: everyone named unless they keep their name to organisers. An organisers-only list needs directory.see_all.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "read",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.log",
+      "label": "Read the record of changes",
+      "description": "Every membership and role change, newest first, each signed by the person who made it. Members only.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "read",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.share",
+      "label": "Share the latest",
+      "description": "Makes the text holding every change, for sending to members so their apps catch up.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "read",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        }
+      ],
+      "run": "device"
+    },
+    {
+      "id": "orgs.forget",
+      "label": "Forget an organisation on this device",
+      "description": "Removes your copy of its record from this device only; its members keep theirs.",
+      "category": "orgs",
+      "role": "member",
+      "danger": "caution",
+      "inputs": [
+        {
+          "name": "org",
+          "label": "Organisation",
+          "kind": "text",
+          "required": true,
+          "hint": "The organisation's id (64 hex characters), shown on its page.",
+          "max_len": 64
+        }
+      ],
+      "run": "device"
     }
   ]
 }

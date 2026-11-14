@@ -70,6 +70,7 @@ pub mod civilization;
 pub mod wallet;
 pub mod crafting;
 pub mod guilds;
+pub mod orgs;
 pub mod trade;
 pub mod bugs;
 // v0.415.0: resources module removed (retired into the Library, v0.374-375).

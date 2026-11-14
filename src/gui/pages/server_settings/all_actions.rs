@@ -213,6 +213,8 @@ fn draw_form(
                     }
                 }
             }
+        } else if a.runs_on_device() {
+            ui.label(RichText::new(humanity_core::i18n::t("orgs.registry_device")).size(theme.font_size_small).color(theme.text_muted()));
         } else if let Some(route) = &a.route {
             ui.label(RichText::new(format!("Runs at {route}: the panels for it are elsewhere on this page.")).size(theme.font_size_small).color(theme.text_muted()));
         }

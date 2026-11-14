@@ -54,7 +54,8 @@
         { "id": "watch", "label": "nav.watch", "hint": "nav.watch_hint", "icon": "video", "page": "watch", "web": "/watch" },
         { "id": "studio", "label": "nav.studio", "hint": "nav.studio_hint", "icon": "monitor", "page": "studio", "web": null, "desktop_only": true },
         { "id": "files", "label": "nav.files", "hint": "nav.files_hint", "icon": "image", "page": "files", "web": "/files" },
-        { "id": "guilds", "label": "nav.guilds", "hint": "nav.guilds_hint", "icon": "crown", "page": "guilds", "web": "/guilds" }
+        { "id": "guilds", "label": "nav.guilds", "hint": "nav.guilds_hint", "icon": "crown", "page": "guilds", "web": "/guilds" },
+        { "id": "orgs", "label": "nav.orgs", "hint": "nav.orgs_hint", "icon": "users", "page": "orgs", "web": "/orgs" }
       ]
     },
     {

@@ -1378,6 +1378,25 @@ Direct player-to-player item exchange with dual confirmation.
 
 ## Social
 
+### Organisations: members, roles, invitations, a private directory, a signed audit log (both, rung 1, 2026-11-14)
+A group that runs itself, its membership proven by signed entries its members hold, never by a
+server table. An `org_v1` founding and an append-only log of `org_entry_v1` changes (invite,
+withdraw, accept, remove, leave, assign, role_set, role_drop, listing, settings), each signed with
+its maker's Dilithium3 key; every app folds the log the same way (rank: you act only below your own
+role; a role grants exactly its permissions). Roles as data: owner, admin, member and custom roles
+(`data/orgs/roles.json`, with every permission, the later rungs' ones carried but not yet
+enforced). Invitations work only when the invitee signs their acceptance; an invitation carries only
+its proof chain, never a private member list. The directory has a level for the list (members,
+organisers, anyone) and for each member (named to members, or to organisers only); the record of
+changes is for members. Kept encrypted on each member's device (desktop file, browser storage);
+the relay refuses `org_` objects. Rung 1 carries changes as text to copy; rung 2 sends sealed
+messages. Every action is in the admin action registry as `orgs.*`, `"run": "device"`. The
+whole plan and its nine rungs: `docs/design/organisations.md`.
+- Rules: `crates/humanity-protocol/src/org.rs` (+ `org_tests.rs`), web twin `web/shared/org-log.js`; frozen cross-language log `scripts/tests/fixtures/org-log-v1.json` (`scripts/gen-org-fixture.mjs`), tests `scripts/tests/org-log-web.test.js`
+- Native: `src/gui/pages/orgs.rs` (+ `orgs_tests.rs`), `src/gui/orgs_store.rs`; Chat > Organisations
+- Web: `web/pages/orgs.html`, `web/pages/orgs-app.js`, `getPqOrgsKey` in `web/shared/pq-relay-auth.js`
+- Server: the refusal in `src/relay/storage/signed_objects.rs` (`is_organisation_object`), `src/relay/storage/orgs_guard_tests.rs`; registry `data/admin/actions.json` (`orgs.*`)
+
 ### Guild System
 Create, join, search, and manage guilds with invite codes.
 - Web: `web/pages/guilds.html`

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="page_titles.orgs">Organisations, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="page_meta.orgs" content="Start or join an organisation: members, roles, invitations the invitee accepts, a member list with privacy levels and a signed record of every change, kept on members' devices.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="page_titles.orgs" content="Organisations, HumanityOS">
+  <meta property="og:description" data-i18n-content="page_meta.orgs" content="Start or join an organisation: members, roles, invitations the invitee accepts, a member list with privacy levels and a signed record of every change, kept on members' devices.">
+  <meta property="og:url" content="https://united-humanity.us/orgs">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* Organisations, the website's mirror of the desktop page (src/gui/pages/orgs.rs;
+       docs/design/organisations.md). The rules are web/shared/org-log.js, the twin of
+       crates/humanity-protocol/src/org.rs. Theme tokens only. */
+    body { background: var(--bg); color: var(--text); line-height: 1.55; margin: 0; }
+    .og { max-width: 52rem; margin: 0 auto; padding: var(--space-xl) 16px var(--space-3xl); }
+    .og h1 { margin: 0 0 var(--space-sm); color: var(--text-strong); }
+    .og h2 { font-size: var(--text-lg); margin: var(--space-lg) 0 var(--space-sm); color: var(--accent); }
+    .og .muted { color: var(--text-muted); }
+    .og .small { font-size: var(--text-sm); }
+    .og .row { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+    .og .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); margin: var(--space-sm) 0; }
+    .og label { display: block; margin: var(--space-sm) 0 var(--space-xs); color: var(--text-secondary); }
+    .og input[type=text], .og input[type=number], .og textarea { width: 100%; box-sizing: border-box; padding: var(--space-sm); background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: inherit; }
+    .og textarea { min-height: 7rem; font-family: var(--font-mono, monospace); font-size: var(--text-sm); }
+    .og button { padding: var(--space-sm) var(--space-md); background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+    .og button:hover, .og button:focus-visible { border-color: var(--border-focus); }
+    .og button.primary { background: var(--accent); color: var(--text-on-accent, var(--bg)); border-color: var(--accent); }
+    .og button.danger { border-color: var(--danger); color: var(--danger); }
+    .og button.active { border-color: var(--accent); color: var(--accent); }
+    .og button:disabled { opacity: 0.5; cursor: default; }
+    .og .msg { color: var(--text-secondary); font-size: var(--text-sm); min-height: 1.4em; }
+    .og .log-line { font-size: var(--text-sm); color: var(--text-secondary); border-bottom: 1px solid var(--border); padding: var(--space-xs) 0; }
+    .og .log-line.refused { color: var(--text-muted); }
+    .og .name { font-weight: 600; color: var(--text-strong); }
+    .og [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/shared/shell.js" data-active="orgs"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/pq-identity.js"></script>
+<script src="/chat/pq.js?v=1"></script>
+<script src="/shared/pq-relay-auth.js?v=2"></script>
+<main class="og" id="page-app">
+  <h1 data-i18n="orgs.title">Organisations</h1>
+  <p data-i18n="orgs.intro">A group that runs itself: members, roles, invitations, a member list and a record of every change. Kept on your members' devices, never on a server.</p>
+  <p class="muted small" data-i18n="orgs.store.web">On the website your organisations are kept in this browser only.</p>
+  <div class="row">
+    <button type="button" id="og-found" class="primary" data-i18n="orgs.found_button" data-i18n-tip="orgs.found_button_hint" data-tip-desc="Make a new organisation with you as its owner.">Start an organisation</button>
+    <button type="button" id="og-open" data-i18n="orgs.open_button" data-i18n-tip="orgs.open_button_hint" data-tip-desc="Paste an invitation, an acceptance or an update someone sent you.">Open a text</button>
+    <button type="button" id="og-mykey" data-i18n="orgs.web_your_key" data-i18n-tip="orgs.web_your_key_hint" data-tip-desc="Copies your public key so an organiser can invite you.">Your key, for someone who wants to invite you</button>
+  </div>
+  <p class="msg" id="og-msg" role="status"></p>
+  <div id="og-view"></div>
+</main>
+<script src="/pages/orgs-app.js"></script>
+</body>
+</html>

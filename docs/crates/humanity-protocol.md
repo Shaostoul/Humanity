@@ -102,6 +102,8 @@ And 49 more items, 85 references (`node scripts/crate-cards.js --interface human
   `net/dm_pq.rs`), [friend-pass.test.js](../../scripts/tests/friend-pass.test.js),
   [recovery-web.test.js](../../scripts/tests/recovery-web.test.js) (against `recovery.rs`),
   [profile-copy-web.test.js](../../scripts/tests/profile-copy-web.test.js),
+  [org-log-web.test.js](../../scripts/tests/org-log-web.test.js) (organisations: both apps fold the
+  frozen log the website signed, `org::tests::the_frozen_log_folds_as_recorded`),
   [strip-metadata.test.js](../../scripts/tests/strip-metadata.test.js) and
   [describe-agree.test.js](../../scripts/tests/describe-agree.test.js) (both apps say the same words
   about a file's hidden information).

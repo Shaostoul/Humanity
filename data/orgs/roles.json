@@ -1,0 +1,33 @@
+{
+  "_purpose": "Organisations (docs/design/organisations.md): every permission an organisation's role can grant, and the roles a new organisation starts with. A new organisation copies these roles into its signed founding, so changing this file changes only organisations founded afterwards. The words are keys in data/i18n/en.json (orgs.perm.<id with dots as _> and orgs.role.<id>). enforced_from names the rung whose fold first enforces the permission; until then it is carried in roles and shown, and does nothing.",
+  "permissions": [
+    { "id": "members.invite", "enforced_from": 1 },
+    { "id": "members.remove", "enforced_from": 1 },
+    { "id": "roles.assign", "enforced_from": 1 },
+    { "id": "roles.define", "enforced_from": 1 },
+    { "id": "org.settings", "enforced_from": 1 },
+    { "id": "directory.see_all", "enforced_from": 1 },
+    { "id": "calendar.edit", "enforced_from": 3 },
+    { "id": "announce.post", "enforced_from": 3 },
+    { "id": "signups.manage", "enforced_from": 4 },
+    { "id": "bookings.manage", "enforced_from": 4 },
+    { "id": "files.edit", "enforced_from": 5 },
+    { "id": "tables.edit", "enforced_from": 5 },
+    { "id": "tasks.edit", "enforced_from": 5 },
+    { "id": "votes.open", "enforced_from": 6 }
+  ],
+  "roles": [
+    {
+      "id": "owner", "rank": 100,
+      "perms": ["members.invite", "members.remove", "roles.assign", "roles.define", "org.settings", "directory.see_all", "calendar.edit", "announce.post", "signups.manage", "bookings.manage", "files.edit", "tables.edit", "tasks.edit", "votes.open"]
+    },
+    {
+      "id": "admin", "rank": 50,
+      "perms": ["members.invite", "members.remove", "roles.assign", "directory.see_all", "calendar.edit", "announce.post", "signups.manage", "bookings.manage", "files.edit", "tables.edit", "tasks.edit", "votes.open"]
+    },
+    {
+      "id": "member", "rank": 10,
+      "perms": []
+    }
+  ]
+}

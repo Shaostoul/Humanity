@@ -64,6 +64,12 @@ pub fn author_fingerprint(pubkey: &[u8]) -> String {
     bytes[..16].iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Whether `object_type` is one of an organisation's objects (`org_v1`, `org_entry_v1`, and any
+/// later `org_` type), which no server keeps (docs/design/organisations.md, section 3).
+pub fn is_organisation_object(object_type: &str) -> bool {
+    object_type.starts_with("org_")
+}
+
 /// Compute the hex-encoded `object_id` (64-char BLAKE3 hex) for an `Object`.
 pub fn compute_object_id(object: &Object) -> CoreResult<String> {
     Ok(object.object_id()?.to_hex())
@@ -78,6 +84,13 @@ impl Storage {
         object: &Object,
         source_server: Option<&str>,
     ) -> Result<bool, rusqlite::Error> {
+        // An organisation's log lives only on its members' devices (docs/design/organisations.md,
+        // section 3): a server never keeps one in the clear, from a submission or from gossip.
+        if is_organisation_object(&object.object_type) {
+            return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(
+                "an organisation's log is kept on its members' devices, never on a server".into(),
+            ))));
+        }
         // Validate signature first — never store an unverifiable object.
         object.verify_signature().map_err(|e| {
             rusqlite::Error::ToSqlConversionFailure(Box::new(SignedObjectError(format!(
@@ -687,3 +700,7 @@ mod tests {
     #[allow(dead_code)]
     fn _path_unused() -> PathBuf { PathBuf::new() }
 }
+
+#[cfg(test)]
+#[path = "orgs_guard_tests.rs"]
+mod orgs_guard_tests;

@@ -41,6 +41,9 @@ pub mod market_payloads;
 pub mod moderation;
 pub mod merkle_disclosure;
 pub mod object;
+/// Organisations (2026-11-14, docs/design/organisations.md): the founding, the signed log of
+/// changes and its fold, the directory and the audit log. web/shared/org-log.js is its twin.
+pub mod org;
 pub mod pq_crypto;
 /// The copy of a person's profile that other servers keep (BUG-191, 2026-10-12): the public copy
 /// rule, the words its owner's app signs, the limits, when to ask, and the time on it. Shared by
