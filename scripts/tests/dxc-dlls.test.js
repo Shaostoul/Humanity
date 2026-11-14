@@ -319,7 +319,9 @@ function rigOnNode({ withPair }) {
   `;
   // A rig is not a test: spawnGame keeps the banner out of `node --test` runs (NODE_TEST_CONTEXT),
   // so this stand-in rig runs without that variable, as a real rig does.
-  const env = { ...process.env, HUMANITY_RIG_LOCK: path.join(dir, "rig-boot.lock") };
+  // Its boot-ledger line goes to the rig's own folder, never the machine's ledger (lib/boot-ledger.js):
+  // the stand-in is named like the game, and without NODE_TEST_CONTEXT it would count as a boot.
+  const env = { ...process.env, HUMANITY_RIG_LOCK: path.join(dir, "rig-boot.lock"), HUMANITY_BOOT_LEDGER_FILE: path.join(dir, "boots.jsonl") };
   delete env.NODE_TEST_CONTEXT;
   const r = spawnSync(process.execPath, ["-e", script], { encoding: "utf8", timeout: 60000, windowsHide: true, env });
   fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });

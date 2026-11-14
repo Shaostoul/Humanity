@@ -134,6 +134,12 @@ pub mod ipc_parse;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;
+/// A developer's script boot hidden from the operator's screen (2026-11-14): DWM-cloaked and kept
+/// off the taskbar and Alt+Tab while every frame is still drawn; HUMANITY_RIG_VISIBLE=1 opts out.
+pub mod rig_window;
+/// The machine-wide boot ledger (2026-11-14): a developer's boot the rigs' launcher did not record
+/// (`just launch-bg`) appends its one line at exit (`%LOCALAPPDATA%\HumanityOS\dev\boots.jsonl`).
+pub mod boot_ledger;
 /// LOW IMPACT (HUMANITY_LOW_IMPACT, 2026-10-22): the game a behaviour rig boots while the operator
 /// uses his PC: minimum graphics, a low frame cap and a small window, never saved, nothing the game
 /// does changed. Which rigs ask for it, and when: scripts/lib/rig-needs.js.

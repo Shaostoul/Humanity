@@ -329,6 +329,9 @@ pub(crate) fn show(state: &mut EngineState, focus: bool) {
 pub(crate) fn about_to_wait(state: &mut EngineState, event_loop: &ActiveEventLoop) -> bool {
     #[cfg(windows)]
     remember_main_window(&state.window);
+    // The hidden-boot window's dev request (show it behind / hide it again mid-run, for a one-boot
+    // A/B/A measurement): engine/rig_window.rs. Answers only a hidden script boot.
+    crate::engine::rig_window::poll_request(&state.window);
     // Another program's close that reached no CloseRequested (posted to winit's own window, as
     // taskkill does while the app's window is hidden): quit, saved.
     if OUTSIDE_CLOSE.swap(false, Ordering::SeqCst) {

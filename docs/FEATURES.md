@@ -5560,6 +5560,30 @@ passes it did not cover.
 - Tests: `scripts/tests/rig-needs.test.js`, `machine-guard.test.js`, `game-launch.test.js`,
   `perf-report.test.js` (`just rig-tests`); `src/engine/low_impact.rs` tests (`just test-lib low_impact`)
 
+### Hidden Rig Windows and the Boot Ledger (2026-11-14)
+A developer's script boot no longer shows on the operator's screen, and every boot is counted. A
+background boot asked to be quiet (`HUMANITY_NO_FOCUS` or the `no_focus.txt` marker: every rig,
+since `spawnGame` always sets it, and `just launch-bg`) is DWM-cloaked ("not visible to the user",
+"still composed by DWM": every frame is still drawn and the dev screenshots still come out) and made
+a tool window (no taskbar button, no Alt+Tab entry) before its first show, at exactly the client
+size a shown boot gets. A human launch, and a background launch nobody asked to be quiet (a
+person's launcher, Steam, a terminal), are never hidden. `HUMANITY_RIG_VISIBLE=1` keeps a rig's
+window visible behind the others; nothing an agent sets gives a boot the focus. Every probe-sweep
+asks the window itself once the world is up (`DWMWA_CLOAKED`, the extended style, the taskbar
+buttons naming it) and exits 2 when a boot meant to be hidden is not. Every boot appends one line
+(when, checkout, script, rig, purpose, duration, how it ended, hidden or not) to the machine-wide
+`%LOCALAPPDATA%\HumanityOS\dev\boots.jsonl`, written by the launcher (a log, never read back);
+`node scripts/boot-ledger.js` prints the last day per worktree and per rig, with the repeats.
+Mechanism, the option table and the proof: `docs/ai/game-boots.md`.
+- Engine: `src/engine/rig_window.rs` (the rule and the Win32 calls), `src/engine/launch_focus.rs`
+  (`quiet_asked`, `show_window_behind`), `src/engine/boot_ledger.rs` (a boot no launcher recorded,
+  held across `run()` by `src/main.rs`)
+- Rigs: `scripts/lib/boot-ledger.js`, `scripts/lib/game-launch.js` (point 8),
+  `scripts/lib/window-state.js` + `window-state.ps1`, `scripts/probe-sweep.js` (the window check),
+  `scripts/mcp-server.js` (finishes a `game_boot` line on close), `scripts/boot-ledger.js` (report)
+- Tests: `scripts/tests/boot-ledger.test.js`, `window-state.test.js` (`just rig-tests`);
+  `src/engine/rig_window.rs` and `boot_ledger.rs` tests (`just test-lib rig_window`, `boot_ledger`)
+
 ### Headless UI Snapshots
 Renders native egui pages to PNGs via an offscreen egui-wgpu + wgpu pipeline (no extra dependency; egui_kittest was rejected over an accesskit / egui-winit 0.31.1 incompatibility), so the native UI can be reviewed without launching the app. Output lands in `tests/snapshots/`.
 - Native: `src/gui/ui_snapshots.rs`

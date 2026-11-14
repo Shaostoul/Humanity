@@ -118,6 +118,97 @@ Windows, which activates the window and defeats `with_active(false)` a few lines
 after it was set. That was a real bug: every probe-rig boot stole focus despite
 asking not to.
 
+## A script's boot is hidden from the screen (2026-11-14)
+
+The operator, 2026-11-14: "It appears the game often loads up then cycles through a bunch of static
+scenes then turns off. What's happening? Is a test being ran or something?" Those were agents'
+rigs. A background boot never took the focus, but it was still a full-screen window at the bottom
+of the Z order and a button on his taskbar, seen whenever he uncovered the desktop.
+
+**Now a developer's quiet boot is invisible to him while it still draws every frame**
+(`src/engine/rig_window.rs`). A boot that is in the background AND was asked to be quiet
+(`HUMANITY_NO_FOCUS` or the `no_focus.txt` marker: every rig, because `spawnGame` in
+`scripts/lib/game-launch.js` always sets it, and `just launch-bg`) is, before its first show:
+
+1. **Cloaked** by the Desktop Window Manager. Microsoft's
+   [DWMWINDOWATTRIBUTE](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute)
+   reference (page dated 2024-01-21, read 2026-11-14), `DWMWA_CLOAK`: "Cloaks the window such that
+   it is not visible to the user. The window is still composed by DWM."
+2. **A tool window** (`WS_EX_TOOLWINDOW` set, `WS_EX_APPWINDOW`, which winit puts on every window,
+   cleared), because a cloaked window KEEPS its taskbar button: measured on this PC (Windows 10
+   19045) with a cloaked test window, which still added "<title> - 1 running window" to the
+   taskbar, while cloaked plus tool window added none. Microsoft's
+   [Extended Window Styles](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles)
+   (dated 2025-07-14), `WS_EX_TOOLWINDOW`: "A tool window does not appear in the taskbar or in the
+   dialog that appears when the user presses ALT+TAB." The style is set while the window is still
+   hidden, as [The Taskbar](https://learn.microsoft.com/en-us/windows/win32/shell/taskbar) page asks:
+   "you must hide the window first (by calling ShowWindow with SW_HIDE), change the window style,
+   and then show the window."
+
+The client keeps exactly the size a shown boot gets (the frame is measured with the ordinary style,
+then the client is framed with the thinner tool frame), so picture rigs photograph the same pixels.
+
+| Option | Frame still presents at full rate | Dev screenshots still come out | Taskbar button | In Alt+Tab | Verdict |
+|---|---|---|---|---|---|
+| Behind the other windows (v0.1095 until this change) | yes | yes | yes | yes | seen whenever the desktop is uncovered |
+| Minimized | no: a zero-size surface, wgpu stops drawing (the old `src/lib.rs` note: minimizing "can suspend the swapchain and break the offscreen screenshot capture") | no | yes | yes | rejected |
+| Off every monitor | not measured (Windows may treat it as occluded) | not measured | yes | yes | rejected: still on the taskbar and in Alt+Tab |
+| `ITaskbarList::DeleteTab` (winit `set_skip_taskbar`) | yes (style untouched) | yes | no, until the shell adds it back at the next show | yes | rejected: half a fix |
+| Layered window at alpha 0 | not measured (a layered window changes how a swapchain presents) | not measured | yes | yes | rejected |
+| DWM cloak alone | yes ("still composed by DWM") | yes | **yes (measured)** | not measured | rejected: the button stays |
+| **DWM cloak + tool window** | **yes (measured, below)** | **yes (measured, below)** | **no (measured)** | **no (documented)** | **chosen** |
+
+**The proof (2026-11-14, one boot, `home-racks-night`, hidden / visible / hidden in the same run
+through the dev request below, 15 one-second frame-cost samples per phase with
+`HUMANITY_FRAME_COSTS=1`):**
+
+| Phase | Window, as Windows reports it | Taskbar buttons naming it | Frame ms (median) | GPU ms (median) | CPU spans ms (median) |
+|---|---|---|---|---|---|
+| A1 hidden | cloaked=1, ex_style 0x00000190 (tool window), not foreground | 0 (of 2 window buttons seen) | 42.0 | 18.80 | 31.7 |
+| B visible (behind, never activated) | cloaked=0, ex_style 0x00040110 (app window), not foreground | 1 (of 3) | 41.0 | 18.97 | 32.5 |
+| A2 hidden | cloaked=1, ex_style 0x00000190, not foreground | 0 (of 2) | 38.5 | 18.82 | 32.9 |
+
+The client was 2560x1387 in every phase, the same as a shown boot. Every frame-cost difference
+between the phases is smaller than the gap between the two hidden phases, so it is noise. The
+captures are NOT pixel-identical, but the scene itself changes between captures in one run: A1
+against B differs by a mean of 0.60/255 (0.98% of pixels by more than 8), while A1 against A2,
+both hidden, differs by 1.99/255 (4.4%). The window state adds no difference beyond the scene's own
+drift, and the pictures look the same. The B phase's taskbar button (1 of 3) is the read's
+in-place positive control: the same read that finds no button for a hidden boot finds the button
+of a shown one.
+
+**The dev request behind it:** drop `debug/window_request.json` as `{"visible": true}` or
+`{"visible": false}` in a hidden boot's folder and the game shows its window the ordinary
+background way (the bottom of the Z order, never activated, never on top) or hides it again,
+answering in `debug/window_done.json` with what the window then reports (`src/engine/rig_window.rs`
+`poll_request`). Only a hidden script boot answers it, so it can never show or move a person's own
+window. Keep a visible phase as short as its measurement needs.
+
+**Who is never hidden:** a human launch (`just play`, `just launch`, a double-click) is foreground,
+and a background launch nobody asked to be quiet (a person's launcher, Steam, a terminal) stays
+visible behind, as before: hiding it would leave a person with a game running and nothing to see.
+
+**The escape hatch: `HUMANITY_RIG_VISIBLE=1`** in a rig's environment keeps its window visible
+behind the others, for a rig that genuinely needs one on screen (one testing the taskbar button,
+Alt+Tab, or the window frame a person sees). It never brings the window forward or gives it the
+focus: that stays the operator's alone (`tests/focus_optin_lint.rs`; the focus decision never
+reads `HUMANITY_RIG_VISIBLE`, pinned by a test in `rig_window.rs`).
+
+**Checked on every probe-sweep boot:** once the world is up, `scripts/lib/window-state.js` asks the
+window itself from outside the game (`DwmGetWindowAttribute` `DWMWA_CLOAKED`, `GWL_EXSTYLE`, the
+client size, and the taskbar buttons that name it, through UI Automation, with a count of all
+window buttons as the read's positive control) and the sweep exits 2 when a boot meant to be hidden
+is not. `node scripts/lib/window-state.js <pid> --taskbar` asks it by hand. Experiments on window
+behaviour create their windows already cloaked and as tool windows, and prove properties by
+reading the window's state, never by showing a window on his screen.
+
+**Every boot is counted (the boot ledger).** Each boot a developer's script starts appends one line
+to `%LOCALAPPDATA%\HumanityOS\dev\boots.jsonl` (when, which checkout, which script and rig, what
+for, how long, how it ended, hidden or not), written by the launcher (`spawnGame`; the dev MCP's
+close finishes a `game_boot` line; the game itself for a quiet boot no launcher recorded, such as
+`just launch-bg`). It is a log, never read back by the game. `node scripts/boot-ledger.js` prints
+the last day per worktree and per rig, with the repeats.
+
 ## No tray icon from a script's boot (2026-10-31)
 
 An instance a script started (`launch_focus::launch_in_background`) makes no

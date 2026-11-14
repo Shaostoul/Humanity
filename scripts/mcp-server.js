@@ -324,8 +324,14 @@ function gameStatus() {
   return P.textResult(head + more, st);
 }
 
-/** Close a game by pid: a graceful close (it saves), forced after 15 s. */
-async function closePid(pid) {
+/** Close a game by pid: a graceful close (it saves), forced after 15 s. `why` names the close in the
+ *  boot ledger: game_boot's sweep left its line pending in the rig folder (lib/boot-ledger.js), and
+ *  this close finishes it. */
+async function closePid(pid, why = "closed") {
+  const finish = (how) => {
+    require("./lib/boot-ledger.js").finishPending(path.join(RIG, "debug"), `closed by the dev MCP (${why}): ${how}`, { pid });
+    return how;
+  };
   try {
     execFileSync("taskkill", ["/PID", String(pid)], { stdio: "ignore" });
   } catch {}
@@ -334,15 +340,15 @@ async function closePid(pid) {
     try {
       execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
     } catch {}
-    return "forced after 15 s";
+    return finish("forced after 15 s");
   }
-  return "closed";
+  return finish("closed");
 }
 
 async function gameClose() {
   const e = findEndpoint();
   if (!e) return P.textResult("No game with the dev MCP endpoint is running: nothing to close.");
-  const how = await closePid(e.pid);
+  const how = await closePid(e.pid, "game_close");
   try {
     fs.unlinkSync(e.file);
   } catch {}
@@ -356,7 +362,7 @@ function startIdleClose() {
     const e = findEndpoint();
     if (!idleCloseDue({ ours: isOurs(e), idleMin: IDLE_MIN, now: Date.now(), lastCall: lastGameCall, booting })) return;
     log(`closing the game (pid ${e.pid}): no game tool call for ${IDLE_MIN} min`);
-    await closePid(e.pid);
+    await closePid(e.pid, `idle ${IDLE_MIN} min`);
   }, 60000);
   t.unref();
 }
@@ -685,7 +691,7 @@ function main() {
     // another bridge booted in the same rig (two sessions) is left to that bridge and the idle close.
     if (bootedPid && pidAlive(bootedPid)) {
       log(`closing the game (pid ${bootedPid}): the client closed the session`);
-      await closePid(bootedPid);
+      await closePid(bootedPid, "session ended");
     }
     process.exit(0);
   });

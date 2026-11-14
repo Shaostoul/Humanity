@@ -70,6 +70,15 @@
 //      spawn); one that has not said so within lowImpactConfirmMs (5 min) is
 //      stopped and the rig refuses (exit 1): a build from before the switch would
 //      otherwise run at full graphics beside his game for the whole check.
+//
+//   8. The boot was seen and nobody could say whose it was (2026-11-14, the operator: "It appears
+//      the game often loads up then cycles through a bunch of static scenes then turns off. What's
+//      happening?"). spawnGame always sets HUMANITY_NO_FOCUS, the developer's quiet-boot signal, so
+//      the game hides its window from the screen (src/engine/rig_window.rs: cloaked, no taskbar
+//      button, every frame still drawn; HUMANITY_RIG_VISIBLE=1 in the rig's env keeps it visible
+//      behind), and it writes the boot's one line to the machine-wide ledger (lib/boot-ledger.js,
+//      %LOCALAPPDATA%\HumanityOS\dev\boots.jsonl: when, which checkout, which script and rig, what
+//      for, how long, how it ended). `node scripts/boot-ledger.js` prints the last day.
 
 const fs = require("fs");
 const path = require("path");
@@ -79,6 +88,7 @@ const { requireBootCopy } = require("./src-fingerprint.js");
 const MG = require("./machine-guard.js");
 const RG = require("./rig-gameplay.js");
 const DXC = require("./dxc-dlls.js");
+const BL = require("./boot-ledger.js");
 
 /** The checkout these scripts belong to (where a missing DXC pair is to go, or its main checkout). */
 const REPO = path.resolve(__dirname, "..", "..");
@@ -154,7 +164,11 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
  *            machine guard's WAIT_MIN_DEFAULT),
  *            lowImpact (the HUMANITY_LOW_IMPACT value lib/rig-needs.js planBoot chose, or
  *            null for full graphics; point 7), lowImpactConfirmMs (how long the game has to
- *            confirm it, LOW_IMPACT_CONFIRM_MS) }
+ *            confirm it, LOW_IMPACT_CONFIRM_MS),
+ *            purpose (what the boot is for, for the boot ledger: the vantages, a game_boot; the
+ *            environment's HUMANITY_BOOT_PURPOSE otherwise), keepOpen (the rig leaves the game
+ *            running when it ends, as probe-sweep --keep-open does: its ledger line waits, pending,
+ *            for whoever closes it; point 8) }
  * Refuses (exit 1, nothing started) unless `exe` is byte-identical to the exe the
  * gate judged. Always sets HUMANITY_NO_HANDOFF=1. Pins the Dev play mode, the
  * default home every launch, the rig's server and no saved servers into the config
@@ -176,7 +190,9 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
 function spawnGame(exe, args, opts = {}) {
   const rigName = opts.rigName || "rig";
   requireBootCopy(exe, opts.fresh, rigName);
-  const env = { ...(opts.env || process.env), HUMANITY_NO_HANDOFF: "1" };
+  // HUMANITY_NO_FOCUS always (point 8): a rig's boot is a developer's quiet boot, hidden from the
+  // operator's screen by the game itself, whatever env the rig passed.
+  const env = { ...(opts.env || process.env), HUMANITY_NO_HANDOFF: "1", HUMANITY_NO_FOCUS: "1" };
   // LOW IMPACT (point 7): only the rig asks, never the shell it was started from.
   delete env[LOW_IMPACT_ENV];
   if (opts.lowImpact) env[LOW_IMPACT_ENV] = String(opts.lowImpact);
@@ -203,6 +219,12 @@ function spawnGame(exe, args, opts = {}) {
   // with a throwaway relay (one more HumanityOS.exe, ours) would wait on itself.
   const lk = MG.waitForFree({ procs: false, label: `${rigName}: boot lock`, rig: rigName, log, timeoutMs: opts.lockWaitMs });
   if (!lk.free) MG.refuseBusy(lk, { rig: rigName, hint: ["Another rig has held the boot lock all that time: wait for it, then run again."] });
+  // THE BOOT LEDGER (point 8). A boot this folder's last rig left running and nobody closed through
+  // the ledger is written now, its end unknown; then this boot is announced to the game as recorded
+  // by its launcher, so the game writes no line of its own.
+  const ledgerDir = path.join(opts.cwd || path.dirname(exe), "debug");
+  BL.flushStalePending(ledgerDir, env);
+  env[BL.OWNER_ENV] = "spawnGame";
   let child;
   try {
     child = spawn(exe, args || [], {
@@ -269,9 +291,47 @@ function spawnGame(exe, args, opts = {}) {
       return `the game ${w.exit} (see run.log)`;
     },
   };
+  // THE BOOT'S LEDGER LINE (point 8): written once, when the game exits or the rig's process ends,
+  // whichever comes first; a boot the rig keeps open waits, pending, for whoever closes it.
+  const ledgerStart = BL.startRecord({
+    checkout: REPO,
+    script: process.argv[1] ? path.basename(process.argv[1]) : null,
+    rig: rigName,
+    via: env[BL.VIA_ENV],
+    purpose: opts.purpose || env[BL.PURPOSE_ENV],
+    pid: child.pid,
+    exe,
+    hidden: BL.meantHidden(env),
+    lowImpact: opts.lowImpact,
+    writer: "spawnGame",
+  });
+  // No process: no boot to record. Nor a stand-in (the rig tests start node as their "game"): only
+  // an exe named like the game is a boot, unless a test named its own ledger file to read back.
+  const recordable = MG.isGameName(path.basename(exe)) || !!(env[BL.FILE_ENV] || process.env[BL.FILE_ENV]);
+  let ledgerDone = !child.pid || !recordable;
+  const writeLedger = (ended) => {
+    if (ledgerDone) return;
+    ledgerDone = true;
+    BL.append(BL.finishRecord(ledgerStart, ended), env);
+  };
+  // Registered on the next turn, so it runs AFTER the exit handler a rig adds straight after this
+  // call (probe-sweep's, which stops the game): by then expectExit() says whether the rig stopped it.
+  setImmediate(() =>
+    process.on("exit", () => {
+      if (ledgerDone) return;
+      if (w.exit) return writeLedger(expected ? `stopped by the rig (${w.exit})` : w.exit);
+      if (opts.keepOpen && !expected) {
+        ledgerDone = true;
+        BL.writePending(ledgerDir, ledgerStart);
+        return;
+      }
+      writeLedger(expected ? "stopped by the rig" : "rig ended (the game was still running at that moment)");
+    })
+  );
   child.on("exit", (code, signal) => {
     w.exit = signal ? `was ended by ${signal}` : `exited with code ${code}`;
     w.code = code;
+    writeLedger(expected ? `stopped by the rig (${w.exit})` : w.exit);
     if (expected) return;
     // Not asked for: look for a hand-off before anything else happens.
     const r = reapHandoff(child.pid, pattern);

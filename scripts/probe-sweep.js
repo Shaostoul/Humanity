@@ -133,6 +133,10 @@ const { STICKY_PIN_RESETS, DIAG_RESETS, holdsStickyPin } = require("./lib/showca
 const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require("./lib/src-fingerprint.js");
 // Starting the game, and what a run.log must not say (BUG-133).
 const GL = require("./lib/game-launch.js");
+const BL = require("./lib/boot-ledger.js");
+const WSt = require("./lib/window-state.js");
+/** What the game's window reported once the world was up (filled after world entry; the manifest's `window`). */
+const windowCheck = {};
 // The rig's gameplay settings (the Dev mode, the default home every launch): spawnGame pins
 // them; the sweep pins them first too, so its settings record says what the game runs with.
 const RG = require("./lib/rig-gameplay.js");
@@ -770,6 +774,10 @@ async function main() {
     cwd: RIG,
     detached: true,
     stdio: "ignore",
+    // The boot ledger's line (lib/boot-ledger.js): what this boot was for, and whether it stays up
+    // after the sweep (then whoever closes it finishes the line).
+    purpose: ONLY.length ? `vantages: ${ONLY.join(",")}` : "every vantage",
+    keepOpen: KEEP_OPEN,
     // Never steal the operator's foreground focus (v0.1016): raw-input
     // mouse-look only reaches the FOCUSED window, so a rig launch used to
     // kill the operator's aim mid-game (their "mouse stopped aiming,
@@ -842,6 +850,19 @@ async function main() {
     req("autopilot_request.json", {}); // no server_url: the pinned one stands. An empty one let the game fill in the live server and dial it (2026-10-05, BUG-160)
     const ap = await waitFile("autopilot_done.json", 180000);
     if (!ap || ap.ok !== true) throw new Error(`autopilot failed: ${JSON.stringify(ap)}`);
+
+    // HIDDEN FROM THE OPERATOR'S SCREEN (2026-11-14, src/engine/rig_window.rs). Asked of the window
+    // itself, from outside the game (lib/window-state.js: DWM's cloak read-back, the extended style,
+    // the taskbar buttons that name it), once the world is up. A boot of this tree that shows fails
+    // the sweep; HUMANITY_RIG_VISIBLE=1 asks for a visible one, and another build (an archive from
+    // before the hiding) is only reported.
+    windowCheck.want_hidden = BL.meantHidden(process.env);
+    Object.assign(windowCheck, WSt.judge(WSt.readWindowState(pid, { taskbar: true })));
+    log(`window: ${windowCheck.hidden ? "HIDDEN from the screen" : windowCheck.on_screen ? "ON THE SCREEN" : "not hidden"} (${windowCheck.why})${windowCheck.want_hidden ? "" : " [HUMANITY_RIG_VISIBLE asked for a visible window]"}`);
+    if (windowCheck.want_hidden && windowCheck.hidden === false && !OTHER_BUILD) {
+      windowCheck.failed = true;
+      log("  !! THIS BOOT WAS MEANT TO BE HIDDEN from the operator's screen and is not (src/engine/rig_window.rs): the sweep will exit 2.");
+    }
 
     // Warm-up teleport (v0.930 async sky-sphere builds): the FIRST teleport
     // into a cold scene arrives before the heavy atmosphere shell + terrain
@@ -1615,6 +1636,9 @@ async function main() {
     // lib/game-launch.js). FXC's pipeline build takes minutes: every boot time
     // and frame time in a sweep on it is FXC's before it is the build's.
     shader_compiler: game.shader_compiler,
+    // Whether the game's window was hidden from the operator's screen, as the window itself reports
+    // (lib/window-state.js; src/engine/rig_window.rs). failed: meant hidden and not.
+    window: windowCheck,
     captured: results.filter((r) => r.ok).length,
     total: results.length,
     // ONE-MACHINE provenance for this run. `contaminated` counts vantages whose
@@ -1673,6 +1697,7 @@ async function main() {
     manifest.captured === manifest.total &&
     panics === 0 &&
     builtinData.length === 0 &&
+    !windowCheck.failed &&
     (shipped_ok === null || shipped_ok);
   process.exit(clean ? 0 : 2);
 }

@@ -123,6 +123,9 @@ fn main() {
             if let Some(newer) = find_newer_exe() {
                 launch_and_exit(&newer);
             }
+            // A developer's quiet boot no launcher recorded writes its boot-ledger line on the way
+            // out (engine/boot_ledger.rs; a person's own launch writes nothing).
+            let _boot = humanity_engine::engine::boot_ledger::EngineBoot::start();
             humanity_engine::run();
         }
         #[cfg(not(feature = "native"))]

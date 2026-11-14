@@ -84,15 +84,29 @@ pub fn launch_in_background() -> bool {
             log::info!("focus: HUMANITY_TAKE_FOCUS set -> foreground");
             return false;
         }
-        let marker = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.join("no_focus.txt").exists()))
-            .unwrap_or(false);
-        if std::env::var("HUMANITY_NO_FOCUS").is_ok() || marker {
+        if quiet_asked() {
             log::info!("focus: HUMANITY_NO_FOCUS/marker -> background");
             return true;
         }
         decide_from_parent()
+    })
+}
+
+/// True when the launcher ASKED for a quiet boot: HUMANITY_NO_FOCUS in the environment, or the
+/// no_focus.txt marker beside the exe (a rig sandbox). Only a developer's script does either (every
+/// rig through scripts/lib/game-launch.js spawnGame, and `just launch-bg`), so it is also the
+/// signal that hides a background window from the screen (engine::rig_window) and records the boot
+/// in the machine-wide ledger (engine::boot_ledger). A background launch WITHOUT it (a person's
+/// launcher, Steam, a terminal) stays visible behind the other windows, as before.
+pub fn quiet_asked() -> bool {
+    // reuse: not a reuse: read once per run from the environment and the exe's folder, which do not change mid-run.
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| {
+        let marker = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("no_focus.txt").exists()))
+            .unwrap_or(false);
+        std::env::var("HUMANITY_NO_FOCUS").is_ok() || marker
     })
 }
 
@@ -233,6 +247,14 @@ fn parent_process_name() -> Option<String> {
 /// touches the foreground.
 #[cfg(all(feature = "native", target_os = "windows"))]
 pub fn show_window_behind(window: &winit::window::Window) {
+    show_window_behind_as(window, crate::engine::rig_window::hide_from_screen());
+}
+
+/// `show_window_behind`, with whether to hide the window from the screen given. `hide` false is the
+/// ordinary background show (behind, never activated); engine::rig_window's dev request uses both
+/// sides to show a hidden boot's window for a moment and hide it again in the same run.
+#[cfg(all(feature = "native", target_os = "windows"))]
+pub fn show_window_behind_as(window: &winit::window::Window, hide: bool) {
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
     const SW_SHOWNOACTIVATE: i32 = 4;
     const HWND_BOTTOM: isize = 1;
@@ -284,15 +306,33 @@ pub fn show_window_behind(window: &winit::window::Window) {
         return;
     };
     let hwnd = h.hwnd.get();
+    // A developer's script boot (a rig, `just launch-bg`) is HIDDEN from the screen as well
+    // (engine::rig_window, 2026-11-14): cloaked and kept off the taskbar BEFORE the first show, so
+    // not one frame of it ever reaches the operator's screen. Every frame is still drawn.
+    // The ordinary frame's style (without the tool-window bit a hidden window carries, should it be
+    // hidden already), for sizing the client the way a shown window's is.
+    let ordinary_ex_style = unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 } & !crate::engine::rig_window::WS_EX_TOOLWINDOW;
+    if hide {
+        crate::engine::rig_window::hide_before_show(hwnd);
+    }
     unsafe {
+        // To the bottom of the Z order while still hidden, so the show itself can never put it in
+        // front of the operator's windows even for one frame (2026-11-14).
+        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 
         // A rig's LOW IMPACT window (engine::low_impact, 2026-10-22) keeps the small size it was
         // created at: the fewest pixels to draw while the operator uses his PC. Bottom of the Z
         // order, never activated, as below; only the maximize-sizing is skipped.
         if let Some((w, h)) = crate::engine::low_impact::window() {
+            if hide {
+                // The tool-window frame is thinner than the ordinary one: put the client back to the
+                // size it was created at, so a hidden low-impact game draws what a shown one does.
+                crate::engine::rig_window::fit_client(hwnd, None, w as i32, h as i32);
+            }
             SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
             log::info!("focus: shown via SW_SHOWNOACTIVATE at bottom of Z order, at the low-impact size {w}x{h} (not maximized)");
+            crate::engine::rig_window::log_state(hwnd, hide);
             return;
         }
 
@@ -313,6 +353,7 @@ pub fn show_window_behind(window: &winit::window::Window) {
                 "focus: SPI_GETWORKAREA failed -- window left at its created size, \
                  captures will NOT match a foreground launch"
             );
+            crate::engine::rig_window::log_state(hwnd, hide);
             return;
         }
 
@@ -321,8 +362,10 @@ pub fn show_window_behind(window: &winit::window::Window) {
         // rect needs, so `border` is the resize-border thickness and
         // `caption` is the title-bar height. A maximized window inflates by
         // `border` on every edge (borders off-screen, caption on-screen).
+        // The ORDINARY extended style (read before a hidden boot made it a tool window), so a hidden
+        // window's client is sized exactly as a shown one's: the same pixels, the same screenshots.
         let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-        let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        let ex_style = ordinary_ex_style;
         let mut adj = RectI32::default();
         let (border, caption) = if AdjustWindowRectEx(&mut adj, style, 0, ex_style) != 0 {
             let b = adj.right.max(0);
@@ -341,6 +384,12 @@ pub fn show_window_behind(window: &winit::window::Window) {
             wa_h + border * 2,
             SWP_NOACTIVATE,
         );
+        if hide {
+            // The same client rect a shown window gets (the work area under the caption), framed by
+            // the hidden window's thinner tool-window frame.
+            crate::engine::rig_window::fit_client(hwnd, Some((wa.left, wa.top + caption)), wa_w, wa_h - caption);
+        }
+        crate::engine::rig_window::log_state(hwnd, hide);
         log::info!(
             "focus: shown via SW_SHOWNOACTIVATE at bottom of Z order, \
              maximized-without-activating to the work area \
