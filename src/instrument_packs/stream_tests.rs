@@ -133,6 +133,24 @@ fn the_settings_figure_is_what_the_score_holds() {
     assert_eq!(long.unread, 0);
 }
 
+/// LETTING GO OF THE RECORDINGS LETS GO OF THE STREAMING THREAD (the batch critic, 2026-11-14):
+/// `SampleBank::clear` (the music's idle let-go, and every build with the reuse switch off) drops the
+/// bank's rings, so their worker thread ends once the last playing note gives its ring back, instead of
+/// waking every few milliseconds for the rest of the run with the music off.
+///
+/// Seen red 2026-11-14 on the code before the fix (clear kept `streamer`): "the rings outlive the let-go:
+/// 4194304 bytes still held".
+#[test]
+fn letting_go_of_the_recordings_lets_go_of_the_streaming_thread() {
+    let mut bank = SampleBank::new();
+    bank.configure(shipped_streaming());
+    assert!(bank.stream_for(Path::new("no-such-recording.flac"), None).is_some(), "the streaming thread starts");
+    assert!(bank.stream_memory() > 0, "the rings are made");
+    bank.clear();
+    assert_eq!(bank.stream_memory(), 0, "the rings outlive the let-go: {} bytes still held", bank.stream_memory());
+    assert_eq!(bank.streams(), (0, 0), "no rings are left after the let-go");
+}
+
 /// The repo's `data/music` and `data/audio` copied into a temp data folder (its installed packs left
 /// behind), where a pack can be installed beside it.
 pub(crate) fn music_data(tag: &str) -> humanity_core::test_temp::TempPath {

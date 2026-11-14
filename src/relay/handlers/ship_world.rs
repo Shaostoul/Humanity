@@ -112,6 +112,17 @@ pub fn shared_rooms(ship: &ShipStructure) -> Vec<ShipRoom> {
         rooms[a].doors.push(DoorDef { connects_to: c.to_zone.clone(), direction: there.to_string() });
         rooms[b].doors.push(DoorDef { connects_to: c.from_zone.clone(), direction: back.to_string() });
     }
+    // Zones open to each other where their shells touch (Row Street, its alleys and its green:
+    // `open_span_joins`, no corridor), each way once, as the client's place list joins them.
+    for zi in 0..ship.zones.len().min(rooms.len()) {
+        for (zj, _) in ship.open_span_joins(zi) {
+            if zj >= rooms.len() || rooms[zi].doors.iter().any(|d| d.connects_to == zone_ids[zj]) {
+                continue;
+            }
+            let (ca, cb) = (centre_xz(&rooms[zi]), centre_xz(&rooms[zj]));
+            rooms[zi].doors.push(DoorDef { connects_to: zone_ids[zj].clone(), direction: compass(cb.0 - ca.0, cb.1 - ca.1).to_string() });
+        }
+    }
     // The plots' doors: a home's corridor opens on a shared zone.
     for p in &ship.plots {
         let Some(zi) = zone_ids.iter().position(|i| *i == p.door.zone) else { continue };
@@ -541,6 +552,35 @@ mod tests {
         assert_eq!(world.room_for_position([90.0, 1.7, 50.0]).map(|r| r.id).as_deref(), Some("commons"));
         assert_eq!(world.room_for_position([70.0, 1.7, 150.0]).map(|r| r.id).as_deref(), Some("street-1"));
         assert_eq!(world.room_for_position([53.5, 1.7, 40.5]).map(|r| r.id), None, "p1's door is in no room of the ship");
+    }
+
+    /// ROW STREET'S OPEN JOINS ARE EXITS (the batch critic, 2026-11-14): the street, its alleys and
+    /// the green join one another through open stretches of their shells (`open_span_joins`), not
+    /// corridors, so the relay's room graph must list them as exits, as the client's place list
+    /// (humanity-systems quests::ShipPlaces) already does; otherwise game_look in Row Green says it
+    /// has no way out.
+    ///
+    /// Seen red 2026-11-14 on the room graph before the fix (corridors, plot doors and labelled
+    /// volumes only): "row-green-1 has no exit to an alley: []".
+    #[test]
+    fn row_streets_open_joins_are_exits() {
+        let ship = ship();
+        let rooms = shared_rooms(&ship);
+        let exits = |id: &str| -> Vec<String> {
+            rooms.iter().find(|r| r.id == id).map(|r| r.doors.iter().map(|d| d.connects_to.clone()).collect()).unwrap_or_default()
+        };
+        let green = exits("row-green-1");
+        assert!(green.iter().any(|c| c.starts_with("row-alley-")), "row-green-1 has no exit to an alley: {green:?}");
+        let alley = exits("row-alley-1");
+        assert!(alley.iter().any(|c| c == "row-street-1") && alley.iter().any(|c| c == "row-green-1"), "row-alley-1 joins the street and the green: {alley:?}");
+        let street = exits("row-street-1");
+        assert!(street.iter().any(|c| c.starts_with("row-alley-")), "row-street-1 lists its alleys: {street:?}");
+        for r in &rooms {
+            let mut seen = std::collections::HashSet::new();
+            for d in &r.doors {
+                assert!(seen.insert(d.connects_to.clone()), "{} lists its exit to {} twice", r.id, d.connects_to);
+            }
+        }
     }
 
     /// A FIGURE ABOVE A PLOT'S TOP IS NOT ON IT (ship homes increment 7): the relay's `plot_at`

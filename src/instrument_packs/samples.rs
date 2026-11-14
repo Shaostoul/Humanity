@@ -204,6 +204,10 @@ impl SampleBank {
         self.kept.clear();
         self.kept_attacks.clear();
         self.prefetched.clear();
+        // The rings too: their worker thread ends once the last playing note gives its ring back,
+        // instead of waking every few milliseconds with the music off (the batch critic,
+        // 2026-11-14). A later streamed note makes a fresh pool.
+        self.streamer = None;
     }
 
     /// Decode the files a build is about to ask for, on a few threads at once (a genre change's

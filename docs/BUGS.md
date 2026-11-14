@@ -7771,3 +7771,27 @@ he noticed the "2+ hour task".
   - `tree_card_stage::tests::a_game_without_the_tile_tier_still_has_a_card_stage` (a base-only selection with the floor the frame loop builds draws depth-15 ground out to the card distance and no deeper; red before `max_depth_for` applied the floor: "a base-only game drew no depth-15 ground, so it has no tree card stage; deepest drawn 13, card reach 0 m"), `the_floor_is_off_where_no_tree_can_stand_and_never_lowers_a_cap`, `the_tally_counts_the_cards_the_draw_list_carries` (red on the anchor distance: "a card patch on high ground counted out of the window"), and the engine's `the_showcase_pin_turns_the_floor_off_and_on`.
   - **The rig's gate**: the game writes the counter into every screenshot's done file (`tree_cards`: drawn patches, card patches, cards, cards in the kept window, deepest drawn patch, hide radius, far cutoff, atlas baked, floor) and a `[TreeCards]` line once a second; probe-sweep fails a vantage with `min_tree_cards` when fewer cards sit in the window or the sprite atlas is not baked (`scripts/lib/tree-cards-check.js`). `fuji-forest-ground` (so verify-runtime), `fuji-forest-hillside`, `fuji-forest-far` and `black-forest-far` carry 1,000. Red on today's code path: `fuji-forest-ground-no-floor`, the control (`card_floor` "0", `tree_cards_expect` "fail"), failed the count as it must, "0 cards in the kept window of 0 carried by 0 of 3111 drawn patches (deepest 13; ... far 100 m; ... floor off)", and passes only by failing. `scripts/tests/tree-cards-check.test.js` (red with the count taken from the cards carried instead of the cards in the window: "cards carried but all discarded passed the gate").
 - **Lesson**: a stage that needs a deeper level than the default install builds is a stage that does not exist for players, and the developer's machine had been hiding it with a stray folder for months. When a pipeline stage depends on another subsystem's configuration, count what the stage drew on the configuration players have, and make a picture's gate read that count rather than trust that the picture contains it.
+
+## BUG-302: an in-app update brought a person's background-launched game back hidden (FIXED 2026-11-14, found 2026-11-14)
+
+**Found by** the batch critic over v0.1559.0..47658aab9. Not operator-reported; nobody updates in-app today (the updater offers only signed releases).
+- **Symptom**: a person who started HumanityOS from a terminal, a .bat file or another launcher (it opens behind the other windows, visible) and then updated in-app got the restarted game back invisible: DWM-cloaked, no taskbar button, no Alt+Tab entry, silent, and impossible to click into; only Task Manager could end it, and it wrote a developer line to the boot ledger.
+- **Cause**: the restart script (`updater::create_restart_script`) wrote `set HUMANITY_NO_FOCUS=1` for every background launch. Since 8278f84f7 (hidden rig boots) NO_FOCUS also means "a developer asked for a quiet boot", which `engine::rig_window` hides.
+- **Fix**: `updater::restart_focus_line(behind, quiet)`: a foreground game comes back foreground (TAKE_FOCUS), a quiet developer boot comes back quiet (NO_FOCUS), and a background launch nobody asked to be quiet sets neither, so its cmd.exe parent brings it back behind the other windows and visible, as it started.
+- **Held by**: `updater::tests::an_update_never_hides_a_persons_game` (seen red with the old rule: "a person's background launch comes back hidden: Some(\"set HUMANITY_NO_FOCUS=1\")").
+
+## BUG-303: the relay's room graph gave Row Street's alleys and green no exits (FIXED 2026-11-14, found 2026-11-14)
+
+**Found by** the batch critic. Not operator-reported.
+- **Symptom**: game_look and game_perceive in Row Green said it had no exits, and on Row Street listed no alleys, while the place list the same ship gives the characters' dialogue joined them.
+- **Cause**: `relay::handlers::ship_world::shared_rooms` built exits from corridors, plot doors and labelled volumes only; Row Street's joins are open stretches of the zones' shells (`ShipStructure::open_span_joins`), not corridors.
+- **Fix**: `shared_rooms` adds each zone's open-span joins as exits, each way once, after the corridors.
+- **Held by**: `relay::handlers::ship_world::tests::row_streets_open_joins_are_exits` (seen red: "row-green-1 has no exit to an alley: []"), which also checks no room lists an exit twice.
+
+## BUG-304: the music's streaming thread never ended once a long recording had streamed (FIXED 2026-11-14, found 2026-11-14)
+
+**Found by** the batch critic. Not operator-reported.
+- **Symptom**: after the first streamed note, a worker thread woke every few milliseconds for the rest of the run, with the music off and every score gone, holding its rings (about 4 MiB).
+- **Cause**: the worker loops while its pool has another owner, and `SampleBank::clear` (the music's idle let-go, and every build with the reuse switch off) dropped the decoded recordings but kept the bank's `streamer`.
+- **Fix**: `SampleBank::clear` drops the streamer too; the worker ends once the last playing note gives its ring back, and a later streamed note makes a fresh pool.
+- **Held by**: `instrument_packs::stream_tests::letting_go_of_the_recordings_lets_go_of_the_streaming_thread` (seen red: "the rings outlive the let-go: 4194304 bytes still held").

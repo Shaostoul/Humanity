@@ -754,21 +754,31 @@ pub fn create_restart_script(exe_path: &std::path::Path, behind: bool) -> Result
     // The relaunched exe's parent is cmd.exe, which the focus policy
     // (engine/launch_focus.rs) reads as a script launch -> background. So
     // the restart script must carry this instance's OWN focus state
-    // forward: a foreground app that updates comes back foreground, a
-    // background rig that updates stays behind.
-    let focus_line = if behind {
-        "set HUMANITY_NO_FOCUS=1"
-    } else {
-        "set HUMANITY_TAKE_FOCUS=1"
-    };
+    // forward (restart_focus_line).
+    let focus_line = restart_focus_line(behind, crate::engine::launch_focus::quiet_asked()).map(|l| format!("{l}\r\n")).unwrap_or_default();
     let script = format!(
-        "@echo off\r\ntimeout /t 2 /nobreak >nul\r\n{}\r\nstart \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
+        "@echo off\r\ntimeout /t 2 /nobreak >nul\r\n{}start \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
         focus_line, exe_str
     );
     std::fs::write(&bat_path, script)
         .map_err(|e| format!("Failed to write restart script: {}", e))?;
     humanity_core::debug::push_debug(format!("Updater: created restart script at {}", bat_path.display()));
     Ok(bat_path)
+}
+
+/// The line the restart script sets before it starts the new exe, carrying this instance's focus
+/// state forward (its parent will be cmd.exe, which engine/launch_focus.rs reads as a script
+/// launch): a foreground app comes back foreground; a quiet developer boot (a rig, `just
+/// launch-bg`) comes back quiet and hidden; and a background launch nobody asked to be quiet (a
+/// terminal, a .bat, Steam) sets nothing, so it comes back behind the other windows and VISIBLE, as
+/// it started (the batch critic, 2026-11-14: NO_FOCUS also hides the window since 8278f84f7).
+#[cfg(all(feature = "native", target_os = "windows"))]
+pub fn restart_focus_line(behind: bool, quiet: bool) -> Option<&'static str> {
+    match (behind, quiet) {
+        (false, _) => Some("set HUMANITY_TAKE_FOCUS=1"),
+        (true, true) => Some("set HUMANITY_NO_FOCUS=1"),
+        (true, false) => None,
+    }
 }
 
 /// Read the restart target path from restart_target.txt (written before the
@@ -897,6 +907,23 @@ mod tests {
         u.available_releases = vec![release("v0.1549.0", false), release("v0.1543.0", true)];
         u.evaluate_update();
         assert!(matches!(u.state, UpdateState::UpToDate), "only an unsigned release is newer, so nothing is offered: {:?}", u.state);
+    }
+
+    /// AN UPDATE NEVER HIDES A PERSON'S GAME (the batch critic, 2026-11-14): a game a person started
+    /// from a terminal, a .bat or another launcher opens behind the other windows but visible; after
+    /// an in-app update its restart script must not set HUMANITY_NO_FOCUS, which since 8278f84f7 also
+    /// hides the window (engine::rig_window), with no taskbar button and no sound. Only a quiet
+    /// developer boot comes back quiet; a foreground game comes back foreground.
+    ///
+    /// Seen red 2026-11-14 with the rule before the fix (every background launch got NO_FOCUS).
+    #[cfg(all(feature = "native", target_os = "windows"))]
+    #[test]
+    fn an_update_never_hides_a_persons_game() {
+        let l = restart_focus_line(true, false);
+        assert_eq!(l, None, "a person's background launch comes back hidden: {l:?}");
+        assert_eq!(restart_focus_line(true, true), Some("set HUMANITY_NO_FOCUS=1"), "a quiet developer boot stays quiet");
+        assert_eq!(restart_focus_line(false, false), Some("set HUMANITY_TAKE_FOCUS=1"), "a foreground game comes back foreground");
+        assert_eq!(restart_focus_line(false, true), Some("set HUMANITY_TAKE_FOCUS=1"), "foreground wins over quiet, as launch_in_background reads it");
     }
 
     #[test]
