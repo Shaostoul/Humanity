@@ -68,6 +68,10 @@ pub(crate) struct GroupJob {
     pub layout: GroupLayout,
     /// Sorted by slot, then species, as the frame always drew them.
     pub crops: Vec<CropDraw>,
+    /// The share of a plot's clumps drawn (2026-11-14): 1 for every machine of your own; a
+    /// neighbour's far garden draws a quarter, each clump widened to cover the same ground
+    /// (`engine::neighbour_gardens::FAR_SHARE`).
+    pub cap_share: f32,
 }
 
 /// One machine's finished plant geometry, not yet on the GPU.
@@ -435,7 +439,12 @@ pub(crate) fn build_group(
                         probe.vertices.len()
                     }
                 };
-                let draw_cap = plot_draw_cap(visuals.plot_visual_cap, visuals.plot_vertex_budget, per_plant);
+                let mut draw_cap = plot_draw_cap(visuals.plot_visual_cap, visuals.plot_vertex_budget, per_plant);
+                if job.cap_share < 1.0 {
+                    // Fewer clumps over the same plot (0 is no cap: the plants it holds).
+                    let full = if draw_cap == 0 { c.holds } else { draw_cap.min(c.holds) };
+                    draw_cap = ((full as f32 * job.cap_share.max(0.0)).round() as u32).max(1);
+                }
                 let layout = plot_plants(rect.size, c.holds, draw_cap, seed);
                 // A clump is its plants' floor wide at one plant's height.
                 let mut vis_clump = vis.clone();
@@ -515,6 +524,7 @@ mod tests {
                 base: Vec3::new(1.0, 0.0, 2.0),
             },
             crops: (0..n).map(|s| crop("kale", s, 0.5, 1)).collect(),
+            cap_share: 1.0,
         }
     }
 
@@ -530,6 +540,7 @@ mod tests {
                 rects: plot_rects((2.0, 0.4, 1.0), 2, false),
             },
             crops: vec![crop("potato", 0, 0.5, 4), crop(model_crop, 1, 1.0, 6)],
+            cap_share: 1.0,
         }
     }
 
@@ -657,6 +668,7 @@ mod tests {
                 crop("shiitake", 2, 1.0, 2),
                 crop("button_mushroom", 3, 1.0, 7),
             ],
+            cap_share: 1.0,
         };
         let mut asked = Vec::new();
         let got = build_group(&rack, &vis, &mut |name| {

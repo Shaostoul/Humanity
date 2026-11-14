@@ -18,7 +18,7 @@ fn boxed(open: Vec<OpenSpan>) -> HomeStructure {
 }
 
 fn span(a: (f32, f32), b: (f32, f32), height: f32) -> OpenSpan {
-    OpenSpan { a, b, height, material: 2 }
+    OpenSpan { a, b, height, material: 2, thickness: None }
 }
 
 /// Each edge reads in the winding a corridor's cut uses, either way round, and a span that is not
@@ -129,4 +129,64 @@ fn touching_zones_open_over_the_same_stretch_are_joined_for_the_walk() {
     let blocks = |z: f32| walk.iter().any(|w| (w.a.0 - 10.0).abs() < 1e-3 && (w.b.0 - 10.0).abs() < 1e-3 && w.a.1.min(w.b.1) < z && w.a.1.max(w.b.1) > z);
     assert!(!blocks(6.0), "the walk crosses where a and b are joined");
     assert!(blocks(3.0), "the walk does not cross where only a is open");
+}
+
+/// The xz footprints of every triangle of a body's walls mesh that stands above its floor, moved
+/// by `o` (the body's origin in ship metres): what a downward look at the strip meets.
+fn wall_tops(h: &HomeStructure, o: (f32, f32)) -> Vec<(f32, f32, f32, f32)> {
+    let m = h.generate_meshes();
+    let mut out = Vec::new();
+    for (v, idx, _) in &m.material_walls {
+        for t in idx.chunks(3) {
+            let p: Vec<[f32; 3]> = t.iter().map(|&i| v[i as usize].position).collect();
+            if p.iter().map(|q| q[1]).fold(f32::MIN, f32::max) < 0.02 {
+                continue;
+            }
+            let (x0, x1) = (p.iter().map(|q| q[0]).fold(f32::MAX, f32::min), p.iter().map(|q| q[0]).fold(f32::MIN, f32::max));
+            let (z0, z1) = (p.iter().map(|q| q[2]).fold(f32::MAX, f32::min), p.iter().map(|q| q[2]).fold(f32::MIN, f32::max));
+            out.push((x0 + o.0, x1 + o.0, z0 + o.1, z1 + o.1));
+        }
+    }
+    out
+}
+
+/// NOTHING IS OPEN BESIDE A ROW STREET GATE (2026-11-14, the Row Street follow-up). A plot's gate
+/// is a door in a corridor of the shortest run a corridor may have, 0.25 m, so the street's edge
+/// and the plot's front line stand 0.25 m apart, and there is no floor between them (a corridor
+/// is only its own width). Beside each gate the street's kerb and the front garden wall, each
+/// 0.2 m thick on its own line, left a 5 cm slot down to the deck below along every frontage.
+/// Now the front wall is a brick and a half (0.33 m) and meets the kerb: from above, every point
+/// of the strip beside a gate is under the kerb or the wall. Read from the files on disk, as the
+/// game loads them: the street from the ship file, each plot's shipped design.
+///
+/// Seen red 2026-11-14 before the walls were thickened: "r1: the strip beside the gate is open
+/// at (93.125, 302.05)".
+#[test]
+fn nothing_is_open_beside_a_row_street_gate() {
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let ship = ShipStructure::load_ship_file(&data).expect("the shipped ship file");
+    let street = ship.zones.iter().find(|z| z.id == "row-street-1").expect("Row Street");
+    let street_x1 = street.origin.0 + street.body.width;
+    let kerb = wall_tops(&street.body, (street.origin.0, street.origin.2));
+    let mut checked = 0;
+    for p in ship.plots.iter().filter(|p| p.door.zone == street.id) {
+        let path = data.join(format!("homes/shipped/{}.ron", p.kind));
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let design: crate::ship_structure::HomeDesign = ron::from_str(&text).expect("the shipped design parses");
+        let wall = wall_tops(&design.body, (p.origin.0, p.origin.2));
+        let covered = |x: f32, z: f32| kerb.iter().chain(&wall).any(|&(x0, x1, z0, z1)| x >= x0 && x <= x1 && z >= z0 && z <= z1);
+        let (gate0, gate1) = (p.door.lat - p.door.width * 0.5, p.door.lat + p.door.width * 0.5);
+        assert!(p.origin.0 - street_x1 > 0.2, "{}: the strip is the corridor's run", p.id);
+        let mut z = p.origin.2 + 0.05;
+        while z < p.origin.2 + p.size.2 - 0.05 {
+            if z < gate0 - 0.05 || z > gate1 + 0.05 {
+                for x in [street_x1 + 0.02, street_x1 + 0.09, street_x1 + 0.125, street_x1 + 0.2, p.origin.0 - 0.01] {
+                    assert!(covered(x, z), "{}: the strip beside the gate is open at ({x}, {z})", p.id);
+                    checked += 1;
+                }
+            }
+            z += 0.25;
+        }
+    }
+    assert!(checked > 1000, "every Row Street frontage was looked at ({checked} points)");
 }

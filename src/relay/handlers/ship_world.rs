@@ -214,19 +214,29 @@ impl GameWorld {
         self.rooms.first().map(|r| room_point(r, None)).unwrap_or([0.0, 1.0, 0.0])
     }
 
+    /// The rooms the explore quest asks a player to visit: every room of the ship but its
+    /// passages (2026-11-14: a zone whose purpose is "corridor", Row Street's alleys, is a way
+    /// through and no place, as the characters' map already had it).
+    fn quest_places(&self) -> impl Iterator<Item = &ShipRoom> + '_ {
+        self.rooms.iter().filter(|r| r.room_type != humanity_ship::ship_structure::PASSAGE_PURPOSE)
+    }
+
     /// The explore quest a fresh player starts on (`spawn_player`): visit every room of the
     /// ship, then find your home. `start_room` (the room they spawn in, if any) counts as
     /// visited. The home step is added by `set_home_plot`, once the relay knows their plot.
     pub(crate) fn explore_quest(&self, start_room: Option<&str>) -> serde_json::Value {
-        let places: Vec<serde_json::Value> = self.rooms.iter().map(|r| serde_json::json!({ "id": r.id, "name": r.name })).collect();
+        let places: Vec<serde_json::Value> = self.quest_places().map(|r| serde_json::json!({ "id": r.id, "name": r.name })).collect();
+        let total = places.len();
+        // A player who arrives in a passage has visited no place.
+        let start = start_room.filter(|id| self.quest_places().any(|r| r.id == *id));
         serde_json::json!({
             "id": "explore_ship",
             "title": "Find your bearings",
             "description": "Visit every shared place aboard the ship, then find your way back to your own home.",
-            "visited": start_room.map(|r| vec![r.to_string()]).unwrap_or_default(),
+            "visited": start.map(|r| vec![r.to_string()]).unwrap_or_default(),
             "places": places,
             "home_plot": null,
-            "total_rooms": self.rooms.len(),
+            "total_rooms": total,
             "complete": false,
             "reward": {
                 "xp": 100,
@@ -241,7 +251,7 @@ impl GameWorld {
     /// its "find your home" step, or take the step away from a guest. Called on every join
     /// (handle_game_join), so a plot handed out afresh or given back is what the quest reads.
     pub fn set_home_plot(&mut self, player_id: u64, plot: Option<&PlotArrival>) {
-        let rooms = self.rooms.len();
+        let rooms = self.quest_places().count();
         let Some(e) = self.entities.get_mut(&player_id) else { return };
         let Some(obj) = e.components.as_object_mut() else { return };
         let plot_json = plot.map(|p| {
@@ -266,6 +276,10 @@ impl GameWorld {
     /// handle_game_position_update for every accepted move.
     pub fn quest_step_at(&mut self, player_id: u64, position: [f32; 3]) -> (Option<QuestProgress>, Option<(String, String)>) {
         if let Some(room) = self.room_for_position(position) {
+            // A passage (Row Street's alleys) is a way through, no place to visit or be greeted in.
+            if room.room_type == humanity_ship::ship_structure::PASSAGE_PURPOSE {
+                return (None, None);
+            }
             let progress = self.record_room_visit(player_id, &room.id);
             let greeting = if progress.is_some() { self.pick_room_greeting(&room.id) } else { None };
             return (progress, greeting);
@@ -276,7 +290,7 @@ impl GameWorld {
     /// The "find your home" step: Some(progress) the first time the player stands on the plot
     /// their entity names (`home_plot`) after visiting every room on their explore quest.
     fn record_home_found(&mut self, player_id: u64, position: [f32; 3]) -> Option<QuestProgress> {
-        let rooms: Vec<String> = self.rooms.iter().map(|r| r.id.clone()).collect();
+        let rooms: Vec<String> = self.quest_places().map(|r| r.id.clone()).collect();
         let e = self.entities.get_mut(&player_id)?;
         let plot = e.components.get("home_plot").filter(|p| !p.is_null())?.clone();
         let num = |v: &serde_json::Value, k: usize| v.get(k).and_then(|x| x.as_f64()).unwrap_or(f64::NAN) as f32;
@@ -1194,13 +1208,14 @@ mod tests {
         world.set_home_plot(id, Some(&p2));
         let q = &world.entities[&id].components["current_quest"];
         assert_eq!(q["home_plot"], "p2");
-        assert_eq!(q["total_rooms"].as_u64(), Some(world.rooms.len() as u64 + 1), "every room and their home");
+        // Every place (a passage is none, `the_explore_quest_lists_no_passage`) and their home.
+        let rooms: Vec<String> = world.quest_places().map(|r| r.id.clone()).collect();
+        assert_eq!(q["total_rooms"].as_u64(), Some(rooms.len() as u64 + 1), "every place and their home");
         assert_eq!(q["visited"].as_array().map(|v| v.len()), Some(0), "arriving at their own door visits no room");
 
         let (none, _) = world.quest_step_at(id, home);
         assert!(none.is_none(), "standing on their own plot before visiting the ship counted: {none:?}");
 
-        let rooms: Vec<String> = world.rooms.iter().map(|r| r.id.clone()).collect();
         for (n, r) in rooms.iter().enumerate() {
             let at = inside(&world, r);
             let (got, _) = world.quest_step_at(id, at);
@@ -1233,6 +1248,32 @@ mod tests {
             }
         }
         assert!(finished, "a guest's quest finishes with the last room");
+    }
+
+    /// A PASSAGE IS NO PLACE TO VISIT (2026-11-14, the Row Street follow-up). Row Street's five
+    /// alleys are zones whose purpose is "corridor": ways through, which the characters' map
+    /// already names no place (quests/mod.rs `ShipPlaces`). The explore quest listed them as
+    /// places to visit anyway, so "visit every shared place" asked a player to walk down five
+    /// alleys. Now the quest lists and counts only the places, and stepping into an alley counts
+    /// no visit; the world still knows the alleys as rooms (where a figure stands).
+    ///
+    /// Seen red 2026-11-14 before the change: "the quest lists the passage row-alley-1 as a place
+    /// to visit".
+    #[test]
+    fn the_explore_quest_lists_no_passage() {
+        let mut world = GameWorld::new();
+        let passages: Vec<ShipRoom> = world.rooms.iter().filter(|r| r.room_type == "corridor").cloned().collect();
+        assert_eq!(passages.len(), 5, "the shipped ship's passages are Row Street's five alleys");
+        let id = world.spawn_player("e11e0005", [0.0, 1.0, 0.0]);
+        let q = world.entities[&id].components["current_quest"].clone();
+        let places: Vec<String> = q["places"].as_array().unwrap().iter().map(|p| p["id"].as_str().unwrap().to_string()).collect();
+        for p in &passages {
+            assert!(!places.contains(&p.id), "the quest lists the passage {} as a place to visit", p.id);
+        }
+        assert_eq!(q["total_rooms"].as_u64(), Some(places.len() as u64), "the quest counts the places it lists");
+        assert_eq!(places.len(), world.rooms.len() - passages.len(), "every room but the passages is a place");
+        let (got, greeting) = world.quest_step_at(id, room_point(&passages[0], None));
+        assert!(got.is_none() && greeting.is_none(), "stepping into {} counted a visit: {got:?}", passages[0].id);
     }
 
     /// A player with no place named arrives in the Commons (the guest spot), which counts as

@@ -514,6 +514,7 @@
                 b: (0.0, 6.5),
                 height: 0.9,
                 material: 2,
+                thickness: Some(0.33),
             ),
             (
                 a: (14.0, 0.0),

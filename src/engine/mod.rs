@@ -247,6 +247,12 @@ pub mod map_meshes;
 /// Room GI rung 1 (2026-09-27): the ship's rooms into probe boxes, and the
 /// per-frame hook before the scene pass. The probes live in renderer::room_probes*.
 pub mod room_gi;
+/// Neighbours' rooms lit in your game (2026-11-14, Row Street's open green): the rooms and lamps of
+/// the neighbours near the eye into the room GI as ambient-only rooms.
+pub mod neighbour_rooms;
+/// Neighbours' gardens drawn in your game (2026-11-14): each design's planted yard baked once at
+/// two levels and drawn at every neighbour plot near the eye.
+pub mod neighbour_gardens;
 /// Settings > Graphics > Furniture detail (2026-11-09), the engine's half: the per-frame rebuild of
 /// the home's bodies when the level or the model packs change (the levels are gui::furniture_detail).
 pub mod furniture_detail;

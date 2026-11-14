@@ -413,7 +413,7 @@ built off the main thread into one mesh a machine (engine/plant_pass.rs), never 
 neighbour is drawn without machines (crates/humanity-ship/src/neighbours.rs), so the neighbours'
 yards draw no plants yet: their gardens through the instanced, levelled vegetation path (one baked
 garden a design, moved to each plot, a cheaper level past the near range) is the rung that plants
-them.
+them (built 2026-11-14: "The follow-up", below).
 
 **The frame cost at the terrace, gardens planted** (2026-11-13, the release build, a probe sweep from
 the two-bedroom dev start on r1 with its three beds of potatoes planted, `HUMANITY_FRAME_COSTS=1`, at
@@ -432,17 +432,116 @@ room GI, src/renderer/room_probes.rs, lights a fragment from its own room's prob
 neighbour has none) and its lamps are off: in the open view the neighbours' house backs and yards are
 near black beside your own lit yard. Inside a closed shell that never showed. The rung: a neighbour's
 rooms given light, at a cost that scales with how many are in view (its design's rooms, culled by
-distance), before the open green looks like one green.
+distance), before the open green looks like one green (built 2026-11-14: "The follow-up", below).
 
 **What it cannot hold yet, and the rung that adds each.**
 
 | Not yet | The rung that adds it |
 |---|---|
 | Stepping onto a neighbour's lawn or the green from any yard but your own | A neighbour's walls in your walk with its doors drawn shut for you (the open plots' walking path, for every plot open toward you) |
-| The neighbours lit: their house backs and yards near black in the open view | A neighbour's rooms given light (room GI probes or an ambient of their own, culled by distance) |
-| The neighbours' gardens planted in the open view | Each design's planted yard baked once and drawn per plot through the instanced, levelled vegetation path |
-| A 0.25 m gap between the street's kerb and each front garden wall, over the deck below, beside each gate | A plot that touches its street opening straight onto it, with no tube |
+| A near neighbour's lamps lighting its rooms directly (pools under each lamp), and its rooms holding probes | Its lamps in the fragment loop once each one's party-wall shadow is assured (the shadow atlas budget), then its rooms resident in the probe streaming |
+| The neighbours' towers, fields and racks planted (only their soil beds are) | Each medium's bake per design under a vertex budget (a homestead's fields would bake millions of vertices) |
+| A plot that opens straight onto its street, with no gate corridor | A corridor of no run (the door through two touching shells), which every door, the walk, the crowd and the relay's arrivals resolve through |
 | The kitchens, bathrooms, basins (one in each friends' bedroom), most furniture | The four machine files, room by room |
 | Lawns and paving (the gardens' floor is the deck's) | A floor material by zone |
 | A plot that faces the other way, so two terraces share one green back to back | A plot that can turn (or a mirrored design) |
 | An opening quest and storage seed of their own | Each start's opening and seed |
+
+### The follow-up: the neighbours lit and planted, the gate strip closed (2026-11-14)
+
+Four things section 10 left open, done the same week.
+
+**The neighbours lit** (src/engine/neighbour_rooms.rs). Every neighbour whose plot is within 72 m of
+the eye (a lit one stays lit until 80 m, so a walk at the boundary does not lay the room table out
+again every step) hands the room GI its design's rooms, found once per design in its own metres and
+moved to its plot, and its switched-on lamps (`Renderer::set_room_gi_neighbours`). They are
+AMBIENT-ONLY rooms: each shows the room's ambient colour, one colour a room worked out on the GPU
+every frame (`cs_ambient`) from the sky through its glass lid and its lamps, and never holds probes,
+so the probe budget stays with the rooms around the player. A neighbour's lamps light only their
+rooms' ambient colour and never the fragment loop, so no screen tile gains a light (the tiles hold
+64), no party wall leaks one into your house (a lamp 1 m from the wall reaches 7 m) and no shadow
+slot is spent. Because the fragment does not light those lamps, the ambient colour carries their
+first arrival as well as their bounce (`room_probes::room_ambient_with_unlit`: the lamp's direct
+flux over every face but a glass lid, per unit of that area, as E / pi; the room's run ends with
+them and their count rides in the room's flags, `ROOM_UNLIT_SHIFT`); counted as bounce only, a
+neighbour's room read about half as bright as it is. The technique is the room GI's own lowest
+level, the integrating-sphere relation in progressive radiosity's ambient-term form (Cohen, Chen,
+Wallace and Greenberg, SIGGRAPH 1988), which is what any room shows while its probes are not
+resident: a rung of the real architecture, not a stand-in. Interior mapping (van Dongen 2008), the
+usual way games show lit rooms behind many windows, paints a room that is not there; these rooms
+are real geometry and need light, not a picture. The budget, stated before it was built: at most
+256 neighbour rooms, whole plots nearest first; one 64-thread workgroup of `cs_ambient` a room a
+frame (about 1.5 us each, 0.073 ms for the home's 48 rooms on 2026-10-21), a 160-byte table row and
+one ambient texel each, so under 0.4 ms and 40 KB; each lit plot is one row of the room table that
+a fragment's room pick tests before walking its rooms (`room_probes::table_order`, below, "The
+frame cost"). Showcase `{"neighbour_rooms":"0"}` turns the neighbours' light and gardens off, the
+same-boot A/B.
+
+**The neighbours planted** (src/engine/neighbour_gardens.rs). Each neighbour design's soil beds (its
+machines file's grow machines whose medium has plots on the ground) are planted with the crop the
+showcase sows in that machine (data/world/showcase.ron), and the whole yard is baked as ONE job of
+the garden's own worker per design and level (`plant_pass`, through the main plant pass, so stage
+models and materials are shared), its beds one box mesh more, and drawn at every neighbour plot of
+that design near the eye: a draw a mesh a plot, whatever the plant count. Within 30 m the near
+level, every clump the bed draws for you; out to 72 m the far level, a quarter of the clumps each
+widened to cover the same ground (`GroupJob::cap_share`); beyond, nothing. Cosmetic only: nothing of
+a neighbour's garden is simulated, saved or sent, and no garden state that syncs is read or written.
+
+**The gate strip** (the operator's question was judged, not taken). Each gate is a door in a corridor
+of the shortest run a corridor may have, 0.25 m, so the street's edge and each plot's front line
+stand 0.25 m apart with no floor between them; beside each gate the street's kerb and the front
+wall, each 0.2 m thick on its own line, left a 5 cm slot down to the deck along every frontage. The
+row houses agent suggested a plot that opens straight onto its street with no gate corridor. That
+is a corridor of no run, and every door, the walk, the crowd, the relay's arrivals and the door
+points resolve through the corridor's geometry, which reads which way a tube runs from its two
+ends: a week's change across the ship crate for a 5 cm slot. Closed instead in the data: an open
+span may say how thick what marks its line is (`OpenSpan::thickness`), and each row house's front
+garden wall is a brick and a half, 0.33 m (215 + 10 + 102.5 mm), so it meets the kerb. The
+no-corridor door stays in the table above as the rung for when a plot needs it.
+
+**The explore quest** (src/relay/handlers/ship_world.rs `quest_places`). A passage (a zone whose
+purpose is "corridor", `PASSAGE_PURPOSE`: the five Row Alleys) is a way through and no place, as
+the characters' map already had it: the quest no longer lists or counts one, and stepping into an
+alley counts no visit and earns no greeting.
+
+**The frame cost** (2026-11-14, the release build, `HUMANITY_FRAME_COSTS=1` at 2560 x 1387, the
+two-bedroom dev start on r1, each vantage taken with `neighbour_rooms` 0 and then 1 in the same
+boot; noon and night each on its own boot, at the station's global hours 20.15 and 8.15 as
+home-clock-noon and home-clock-night have them). The GPU is the reading that holds. The FIRST boot
+measured what the room pick cost as built: `gpu.scene` +1.2 to +2.4 ms at the five vantages with
+`cs_ambient` (`gpu.room_probes`) unchanged, and `cpu.room_probes` +0.6 to +2.6 ms. Every fragment
+outside every room (the green, the street, the yards, the houses' outside walls: most of the open
+view) walked every row of the room table for the nearest room within the pick margin, and the
+neighbours put 175 to 201 rooms there; the CPU sorted the whole table through `pick_order`, whose
+containment step is quadratic, every frame. So each lit plot became one row of the table (its rooms'
+union box, after the rooms) that the pick tests before walking its rooms, exactly the old answer
+(docs/design/room-gi.md, "Each plot is one row of the table"), and `pick_order` runs over the own
+rooms only. Measured again, GPU in all, off then on:
+
+| Vantage | Noon | Night |
+|---|---|---|
+| The green, looking at terrace A's backs | 13.69 -> 14.21 ms (+0.52) | 13.75 -> 14.24 ms (+0.49) |
+| r1's yard, along the yards | 13.93 -> 14.26 ms (+0.33) | 13.96 -> 14.31 ms (+0.35) |
+| Row Street, along the fronts | 13.98 -> 14.16 ms (+0.18) | 14.05 -> 14.23 ms (+0.18) |
+| The green's middle, looking south (the 72 m edge) | 13.03 -> 13.27 ms (+0.24) | 13.06 -> 13.35 ms (+0.29) |
+| r2's gate, close up | 16.00 -> 16.25 ms (+0.25) | 16.10 -> 16.31 ms (+0.21) |
+
+`cs_ambient` adds 0.01 to 0.02 ms for up to 201 rooms (0.23 -> 0.24 ms), so what is left (+0.2 to
++0.5 ms, nearly all `gpu.scene`) is the neighbours' gardens drawn and their rooms' fragments taking
+the ambient colour, largest where the most beds are in view. `cpu.room_probes` now adds 0.0 to
+0.2 ms. The noon boot's captures were clean; at night 4 of 10 were marked contaminated by other
+agents' compiles (only the gpu figures hold there).
+
+**Seen in the game.** At noon the terrace from the green reads as one street: every neighbour's
+house back and yard is lit (a house back went from 3 to 82 of 255 in sRGB, your own reads 64), its
+windows show lit rooms and its beds are planted the length of the terrace; at night every window
+glows and the backs and yards stay dark, as a street does with no lamps outside. No light crosses a
+party wall: each window shows only its own room's colour. One gap remains at noon, and it is not
+the room light: a neighbour's yard floor reads about 80 of 255 where your own yard and the green
+read 199. Same-boot switches at r1's yard pinned it: with room GI off your yard still reads 195
+(it is the sun itself) and a neighbour's 9, and with the near sun view off (`{"near_levels":"0"}`)
+or the sun's shadows off a neighbour's yard reads 201, as sunlit as yours; the floor slabs change
+nothing. So the near sun view (the shadow atlas, which draws the homes near you) puts a neighbour's
+yard in shade that your own yard does not get, most likely from what it draws of the neighbour over
+the yard (its ceilings: crates/humanity-ship/src/neighbours.rs bakes two ceiling buffers), not yet
+traced. It reads as shade along the houses rather than a hole; the fix is the next step, not a rung.

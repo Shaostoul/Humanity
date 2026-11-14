@@ -422,7 +422,7 @@ impl ShipPlaces {
         let label = |z: &humanity_ship::ship_structure::ShipZone| if z.label.is_empty() { z.id.clone() } else { z.label.clone() };
         // A zone whose purpose is "corridor" (Row Street's alleys, 2026-11-13) is a way through, not a
         // place: it is not listed, and the zones it joins are joined to each other through it.
-        let passage = |z: &humanity_ship::ship_structure::ShipZone| z.purpose == "corridor";
+        let passage = |z: &humanity_ship::ship_structure::ShipZone| z.is_passage();
         let zones = ship.zones.iter().filter(|z| z.id != HOME_ZONE_ID && !passage(z)).map(label).collect();
         // Every way between two zones: a corridor, or two zones open to each other where they touch
         // (`ShipStructure::open_span_joins`), each pair once, the home left out.

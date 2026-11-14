@@ -514,6 +514,43 @@ out-of-atlas room always does). Measured 2026-11-13 at home-racks-noon, reuse on
 against off: gpu.room_probes 0.24 to 0.40 ms, cpu.room_probes 0.71 to 0.99 ms,
 and the room looks the same in the two captures.
 
+### The neighbours' rooms: ambient-only rooms and unlit lamps (2026-11-14)
+
+Row Street's open green showed what a closed shell hid: a neighbour is drawn
+without rooms, so its yard and house back took no indirect light at all. Since
+2026-11-14 the neighbours within 72 m of the eye hand the table their designs'
+rooms and lamps (`engine::neighbour_rooms`, `Renderer::set_room_gi_neighbours`;
+docs/design/home-room-program.md section 10, "The follow-up"). They come AFTER
+the own rooms (`RoomGi::own_count`), are laid out with them, and never hold
+probes (their probe count is 0, so `Residency::step` never wants one): each
+shows its ambient colour. Their lamps are UNLIT: assigned to the room they stand
+in like any light, packed last in its run, their count in bits 8 and up of the
+room's flags (`ROOM_UNLIT_SHIFT`, WGSL `GI_UNLIT_SHIFT`), and kept out of the
+fragment loop. Since nothing else lights them, `cs_ambient` adds their first
+arrival to the colour (the twin: `room_ambient_with_unlit`, held by
+`an_unlit_lamp_lights_its_room_with_its_first_arrival` on a grid four times finer
+than the colour's own). The next rung for a near neighbour is its lamps in the
+fragment loop once its party wall's shadow is assured, and then its rooms
+resident, when the probes would need the unlit lamps' first arrival the same way.
+
+**Each plot is one row of the table (the pick's cost, 2026-11-14).** The first
+boot measured what the flat walk cost: a fragment outside every room (the green,
+the street, a yard, a house's outside wall) walks every row for the nearest room
+within the margin, and the neighbours put 175 to 201 rooms there, +1.2 to +2.4 ms
+of `gpu.scene` with `cs_ambient` unchanged. So the table is laid out by
+`room_probes::table_order`: the own rooms in `pick_order`, then each lit plot,
+nearest the eye first, its rooms together in the order its design keeps them (a
+room inside another's box ahead of it, worked out once a design); after all the
+rooms, a row per plot (`pack_plot`: its rooms' union box, counts.x its first
+room's row, counts.y how many), counted in the header's gmax.w. The pick
+(`gi_pick_room`, the twin `pick_room_counted`) walks the own rooms, then tests
+each plot's box once and walks its rooms only when the box is nearer than the
+best room so far: exactly the flat walk's answer over the same order, about one
+box a plot from the green. The floor slabs' rows follow the plot rows. Plots
+never nest in each other or in a zone, so the containment rule needs no step
+across them, and `pick_order` (quadratic in rooms, every frame) runs over the own
+rooms only. Held by `a_fragment_outside_every_room_tests_each_plot_once`.
+
 ## 4. Measured
 
 All same-boot A/B with the dev switch, 2026-09-27. Pictures at 1600x900

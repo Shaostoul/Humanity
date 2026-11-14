@@ -1932,6 +1932,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.room_gi.force_visibility = t == "1";
         log::info!("Showcase: room_gi_vis -> {}", state.renderer.room_gi.force_visibility);
     }
+    // {"neighbour_rooms":"0"} leaves the neighbours' rooms and lamps out of the room GI (their
+    // houses and yards dark again, as before 2026-11-14), "1" puts them back: a same-boot A/B of
+    // what lighting them costs (engine/neighbour_rooms.rs).
+    if let Some(t) = grab("neighbour_rooms") {
+        state.renderer.room_gi.neighbours_off = t == "0";
+        log::info!("Showcase: neighbour_rooms -> {}", !state.renderer.room_gi.neighbours_off);
+    }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
     // detail scale, so one run can capture both sides of that change.
     if let Some(t) = grab("cloud_chord_foot") {

@@ -115,6 +115,8 @@ fn apply_detail(state: &mut EngineState) {
 /// Once a frame, before the scene pass (lib.rs).
 pub(crate) fn before_scene(state: &mut EngineState) {
     apply_detail(state);
+    // The neighbours near the eye, their rooms and lamps (2026-11-14, Row Street's open green).
+    crate::engine::neighbour_rooms::before_scene(state);
     // The sky table's up is the celestial pass's (`aerial_up`, world frame);
     // the rooms live in the HULL frame, the same turn the sun direction takes.
     let sky_up = state.renderer.sky_view_uniform.is_some().then(|| {
@@ -165,8 +167,16 @@ fn room_box(ship: Option<&ShipStructure>, r: &RoomInfo) -> RoomBox {
     let Some(z) = ship.zip(zone).map(|(s, zi)| &s.zones[zi]) else {
         return RoomBox { min, max, refl: [[DEFAULT_REFL; 3]; 6], lid_transmittance: 0.0 };
     };
-    let body = &z.body;
-    let o = z.origin_vec();
+    room_box_in(&z.body, z.origin_vec(), r)
+}
+
+/// Room `r` (ship metres) of the body standing at `o` as a probe box: its faces snapped out to the
+/// walls behind them and given their reflectance, its floor and lid from the body's slabs and roof.
+/// `room_box` for a zone of the ship; `engine::neighbour_rooms` for a neighbour's design at its plot
+/// (its rooms found in the design's own metres, so `o` is zero there and the box moved after).
+pub fn room_box_in(body: &HomeStructure, o: Vec3, r: &RoomInfo) -> RoomBox {
+    let min = r.center - r.dimensions * 0.5;
+    let max = r.center + r.dimensions * 0.5;
     let shell = surface_refl(HomeStructure::material_color(body.shell_material));
     // Only the walls standing in this room's storey face it: a wall overlaps
     // the room's height by at least what parts a storey into rooms

@@ -1319,6 +1319,11 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         ((c.health / 10.0) as u32).hash(&mut h);
     }
     state.grow_positions.len().hash(&mut h);
+    // The neighbours' gardens are planned with the rest: a ship loaded after the first plan, and
+    // the showcase switch that turns them off, plan again (`neighbour_gardens::jobs`).
+    crate::engine::neighbour_gardens::neighbour_kinds(state.gui_state.ship_structure.as_ref()).hash(&mut h);
+    state.renderer.room_gi.neighbours_off.hash(&mut h);
+    crate::engine::neighbour_gardens::prepare(state);
     let sig = h.finish().max(1);
     // The reuse switch off (2026-11-13): on its schedule the whole garden is built again, every
     // machine's plants, the data files read again and the models found missing tried again, as
@@ -1635,7 +1640,18 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
                 CropDraw { def_id: def_id.clone(), slot: *slot, t, wilt, dead, holds }
             })
             .collect();
-        jobs.push(GroupJob { key: cfg_id.clone(), sig: group_sig, layout, crops });
+        jobs.push(GroupJob { key: cfg_id.clone(), sig: group_sig, layout, crops, cap_share: 1.0 });
+    }
+    // The neighbours' gardens (2026-11-14, Row Street's open green): each design's planted yard as
+    // one job a level, built by the same worker, drawn at each neighbour plot near the eye
+    // (`neighbour_gardens::push_draws`), never at the origin where it is built.
+    for nj in crate::engine::neighbour_gardens::jobs(state) {
+        live.insert(nj.key.clone());
+        pass.wanted.insert(nj.key.clone(), nj.sig);
+        if pass.groups.get(&nj.key).is_some_and(|g| g.sig == nj.sig) || pass.queued(&nj.key, nj.sig) {
+            continue;
+        }
+        jobs.push(nj);
     }
     let t_groups = std::time::Instant::now();
     // Where the plan's time went, for the slow-frame line: the crop
@@ -1770,6 +1786,8 @@ fn drain_plant_work(state: &mut EngineState, pass: &mut PlantPass, t0: std::time
         state.plant_objects = pass
             .groups
             .iter()
+            // A neighbour's garden is built at the origin and drawn at its plots instead.
+            .filter(|(key, _)| !key.starts_with(crate::engine::neighbour_gardens::GROUP_PREFIX))
             .flat_map(|(key, g)| {
                 let foot = feet.get(key).copied().unwrap_or(Vec3::ZERO);
                 g.slots.iter().map(move |&(mesh, material)| (mesh, material, foot))
@@ -2105,6 +2123,12 @@ impl PlantPass {
             matches!(m, crate::engine::plant_pass::WorkerMsg::Group(g) if g.key == key && g.sig == sig)
         })
     }
+
+    /// The meshes uploaded for `key` (mesh, material), if any: a neighbour design's garden
+    /// (`neighbour_gardens::push_draws` draws them at each plot).
+    pub(crate) fn slots_of(&self, key: &str) -> Option<Vec<(usize, usize)>> {
+        self.groups.get(key).map(|g| g.slots.clone())
+    }
 }
 
 /// One machine's plant meshes and what they were built from.
@@ -2392,6 +2416,7 @@ pub(crate) fn tents_shown(tents: &[TentDraw], cut: impl Into<crate::engine::edit
 pub(crate) fn push_home_plants(state: &EngineState, out: &mut Vec<RenderObject>) {
     let cut = &state.home_draw.cut;
     out.extend(plant_draws(&state.plant_objects, cut.clone()));
+    crate::engine::neighbour_gardens::push_draws(state, out);
     for &(mesh, material, pos, yaw, scl, _anchor) in &state.decoration_objects {
         if !cut.hides(pos) {
             out.push(RenderObject {
@@ -3297,8 +3322,9 @@ pub(crate) fn open_plot_lights(ship: &ShipStructure) -> Vec<crate::renderer::lig
 /// Every switched-on light of `lights` (placed in a body's own metres) as the lights the renderer
 /// draws, offset by `o`, the body's origin: a point, a spot, or a strip's line segments, each
 /// resolved through light_types.ron with its per-instance overrides. A light of an unknown type
-/// is left out. `home_lights` for each zone, `open_plot_lights` for an open plot's design.
-fn placed_room_lights(lights: &[humanity_ship::home_structure::PlacedLight], o: Vec3) -> Vec<crate::renderer::light::RoomLight> {
+/// is left out. `home_lights` for each zone, `open_plot_lights` for an open plot's design, and
+/// `engine::neighbour_rooms` for the lamps of the neighbours whose rooms are lit in your game.
+pub(crate) fn placed_room_lights(lights: &[humanity_ship::home_structure::PlacedLight], o: Vec3) -> Vec<crate::renderer::light::RoomLight> {
     use crate::renderer::light::{LightKind, RoomLight};
     lights.iter().filter(|l| l.on).filter_map(move |l| {
         let t = crate::renderer::light::light_type(&l.type_id)?;

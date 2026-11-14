@@ -209,10 +209,20 @@ pub struct ShipZone {
     pub body: HomeStructure,
 }
 
+/// The purpose of a PASSAGE (2026-11-13, Row Street's alleys): a zone that is a way through and no
+/// place of its own. The characters' map names no such place (quests `ShipPlaces`), and since
+/// 2026-11-14 the explore quest asks nobody to visit one (src/relay/handlers/ship_world.rs).
+pub const PASSAGE_PURPOSE: &str = "corridor";
+
 impl ShipZone {
     /// This zone's origin as a Vec3 (the world position of its box min corner).
     pub fn origin_vec(&self) -> Vec3 {
         Vec3::new(self.origin.0, self.origin.1, self.origin.2)
+    }
+
+    /// True for a passage (`PASSAGE_PURPOSE`): a way through, not a place.
+    pub fn is_passage(&self) -> bool {
+        self.purpose == PASSAGE_PURPOSE
     }
 }
 

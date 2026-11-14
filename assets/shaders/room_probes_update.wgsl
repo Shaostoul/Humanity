@@ -146,8 +146,17 @@ fn gi_trace_box(p: vec3<f32>, d: vec3<f32>, bmin: vec3<f32>, bmax: vec3<f32>) ->
 // Irradiance the room's own lights deliver at h facing n: the fragment loop
 // in 80-fragment-shared.wgsl without the BRDF (room_probes::light_irradiance).
 fn gi_lights_irradiance(ri: u32, h: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
-    let first = room_gi.rooms[ri].lights.x;
-    let count = room_gi.rooms[ri].lights.y;
+    return gi_lights_run(room_gi.rooms[ri].lights.x, room_gi.rooms[ri].lights.y, h, n);
+}
+
+// How many of the LAST lights of a room's run the fragment loop does not light
+// (a neighbour's lamps, 2026-11-14): bits 8 and up of the room's flags
+// (room_probes::ROOM_UNLIT_SHIFT). cs_ambient adds their first arrival.
+const GI_UNLIT_SHIFT: u32 = 8u;
+
+// The same for `count` lights of the list from `first` (a room's run, or the
+// unlit part at its end).
+fn gi_lights_run(first: u32, count: u32, h: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     var e = vec3<f32>(0.0);
     for (var k = 0u; k < count; k = k + 1u) {
         let l = gi_lights[first + k];
@@ -434,8 +443,9 @@ fn gi_box_form_factor(size: vec3<f32>, i: u32, j: u32) -> f32 {
 }
 
 // The six faces' direct flux and the sky's mean radiance, summed by the
-// workgroup: wg_amb[k * 64] for face k, wg_amb[6 * 64] for the sky.
-var<workgroup> wg_amb: array<vec3<f32>, 448>;
+// workgroup: wg_amb[k * 64] for face k, wg_amb[6 * 64] for the sky, and
+// wg_amb[7 * 64] the unlit lamps' first arrival over the counted faces.
+var<workgroup> wg_amb: array<vec3<f32>, 512>;
 
 // THE ROOM'S AMBIENT COLOUR from the summed flux (room_probes::ambient_from_faces):
 // the six-face radiosity solve, then the area-weighted mean over the opaque
@@ -516,7 +526,10 @@ fn gi_ambient_from_faces(ri: u32, sky_mean: vec3<f32>) -> vec3<f32> {
 // face by face, and thread 0 solves the six faces' radiosity and writes the
 // room's colour into the scratch's last row at the room's own index. The
 // direct light at a cell is exactly cs_trace's at a hit (the room's own
-// lights, the sun through a glass lid).
+// lights, the sun through a glass lid). A room with UNLIT lamps (a neighbour's,
+// the last of its run, their count in its flags) also takes their first
+// arrival: their flux over every face but a glass lid, per unit of that area,
+// as E / pi (room_probes::room_ambient_with_unlit).
 @compute @workgroup_size(64)
 fn cs_ambient(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) li: u32) {
     let ri = wg.x;
@@ -524,29 +537,49 @@ fn cs_ambient(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_in
     let bmax = room_gi.rooms[ri].bmax.xyz;
     let sun = gi_params.sun_dir.xyz;
     let sun_e = gi_params.sun_color.rgb * gi_params.sun_dir.w;
+    let run = room_gi.rooms[ri].lights;
+    let unlit = run.z >> GI_UNLIT_SHIFT;
+    let glass = room_gi.rooms[ri].bmax.w > 0.0;
+    var first = vec3<f32>(0.0);
     for (var f = 0u; f < 6u; f = f + 1u) {
         let h = gi_amb_cell_point(bmin, bmax, f, li);
         let n = gi_face_normal(f);
+        let cell_area = gi_face_area(bmin, bmax, f) / f32(GI_AMB_CELLS);
         var e = gi_lights_irradiance(ri, h, n);
         e = e + sun_e * max(dot(n, sun), 0.0) * gi_sun_path(ri, h, n);
-        wg_amb[f * 64u + li] = e * (gi_face_area(bmin, bmax, f) / f32(GI_AMB_CELLS));
+        wg_amb[f * 64u + li] = e * cell_area;
+        if (unlit > 0u && !(f == 3u && glass)) {
+            first = first + gi_lights_run(run.x + run.y - unlit, unlit, h, n) * cell_area;
+        }
     }
     var sky = vec3<f32>(0.0);
-    if (room_gi.rooms[ri].bmax.w > 0.0) {
+    if (glass) {
         sky = gi_sky(gi_amb_sky_dir(li));
     }
     wg_amb[384u + li] = sky;
+    wg_amb[448u + li] = first;
     workgroupBarrier();
     for (var s = 32u; s > 0u; s = s >> 1u) {
         if (li < s) {
-            for (var k = 0u; k < 7u; k = k + 1u) {
+            for (var k = 0u; k < 8u; k = k + 1u) {
                 wg_amb[k * 64u + li] = wg_amb[k * 64u + li] + wg_amb[k * 64u + li + s];
             }
         }
         workgroupBarrier();
     }
     if (li == 0u) {
-        let amb = gi_ambient_from_faces(ri, wg_amb[384] / f32(GI_AMB_SKY_DIRS));
+        var amb = gi_ambient_from_faces(ri, wg_amb[384] / f32(GI_AMB_SKY_DIRS));
+        if (unlit > 0u) {
+            var area = 0.0;
+            for (var f = 0u; f < 6u; f = f + 1u) {
+                if (!(f == 3u && glass)) {
+                    area = area + gi_face_area(bmin, bmax, f);
+                }
+            }
+            if (area > 1.0e-6) {
+                amb = amb + wg_amb[448] / (area * GI_PI);
+            }
+        }
         let row = i32(textureDimensions(gi_scratch_out).y) - 1;
         textureStore(gi_scratch_out, vec2<i32>(i32(room_gi.rooms[ri].lights.w), row), vec4<f32>(amb, 1.0));
     }

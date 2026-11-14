@@ -288,7 +288,7 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
                 Some(sp) if sp.height > 1e-3 => py0 + sp.height.min(py1 - py0),
                 Some(_) => continue,
             };
-            let half = if span.is_some() { crate::home_structure::OPEN_SPAN_THICKNESS_M * 0.5 } else { st };
+            let half = span.map_or(st, |sp| sp.drawn_thickness() * 0.5);
             let pa = (a.0 + u.0 * s, a.1 + u.1 * s);
             let pb = (a.0 + u.0 * e, a.1 + u.1 * e);
             let piece: Vec<Opened> = cuts.iter().filter(|c| c.from < e && c.to > s).map(|c| Opened { from: c.from.max(s) - s, to: c.to.min(e) - s, y0: c.y0, y1: c.y1 }).collect();

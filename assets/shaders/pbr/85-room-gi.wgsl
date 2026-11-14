@@ -43,7 +43,8 @@ const GI_CRUSH: f32 = 0.2;
 struct GiHeader {
     // xyz = min corner of every room (render space), w = 1 while room GI is on.
     gmin: vec4<f32>,
-    // xyz = max corner of every room.
+    // xyz = max corner of every room, w = how many NEIGHBOURS' PLOT rows follow
+    // the rooms (gi_pick_room; 0 with no neighbour lit).
     gmax: vec4<f32>,
     // x = room count, y = resident probe count, z = irradiance tiles per
     // atlas row, w = depth tiles per atlas row.
@@ -216,8 +217,15 @@ fn gi_sample_room(ri: u32, p: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     return r * r;
 }
 
+// The pick's distance from q to box i (0 inside it).
+fn gi_box_distance(i: u32, q: vec3<f32>) -> f32 {
+    let bmin = room_gi.rooms[i].bmin.xyz;
+    let bmax = room_gi.rooms[i].bmax.xyz;
+    return length(max(max(bmin - q, q - bmax), vec3<f32>(0.0)));
+}
+
 // Which room a surface at p facing n belongs to, or -1 (room GI off, outside
-// every room, or the outside of the hull). room_probes::pick_room.
+// every room, or the outside of the hull). room_probes::pick_room_counted.
 fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
     let h = room_gi.header;
     if (h.gmin.w < 0.5) {
@@ -234,18 +242,48 @@ fn gi_pick_room(p: vec3<f32>, n: vec3<f32>) -> i32 {
     // FIRST box that contains the point is the answer; only a point outside
     // every box (a doorway, a wall's thickness) walks them all for the nearest
     // one within the margin.
+    //
+    // NEIGHBOURS' PLOTS (2026-11-14): the own rooms come first; then each lit
+    // neighbour's rooms together, and after all the rooms a row per plot
+    // (gmax.w of them: its rooms' union box, counts.x its first room's row,
+    // counts.y how many). A plot whose box is no nearer than the best so far
+    // can hold no better room, so it is skipped whole: a fragment on the green
+    // or the street tests each plot's box once instead of every neighbour's
+    // room (175 to 201 on Row Street, +1.2 to +2.4 ms of gpu.scene). The same
+    // answer as walking every row.
+    let plots = u32(h.gmax.w);
+    var own_end = h.info.x;
+    if (plots > 0u) {
+        own_end = room_gi.rooms[h.info.x].counts.x;
+    }
     var best = -1;
     var best_d = GI_PICK_MARGIN + 1.0e-3;
-    for (var i = 0u; i < h.info.x; i = i + 1u) {
-        let bmin = room_gi.rooms[i].bmin.xyz;
-        let bmax = room_gi.rooms[i].bmax.xyz;
-        let d = length(max(max(bmin - q, q - bmax), vec3<f32>(0.0)));
+    for (var i = 0u; i < own_end; i = i + 1u) {
+        let d = gi_box_distance(i, q);
         if (d <= 0.0) {
             return i32(i);
         }
         if (d < best_d) {
             best = i32(i);
             best_d = d;
+        }
+    }
+    for (var k = 0u; k < plots; k = k + 1u) {
+        let g = h.info.x + k;
+        if (gi_box_distance(g, q) >= best_d) {
+            continue;
+        }
+        let first = room_gi.rooms[g].counts.x;
+        let end = first + room_gi.rooms[g].counts.y;
+        for (var i = first; i < end; i = i + 1u) {
+            let d = gi_box_distance(i, q);
+            if (d <= 0.0) {
+                return i32(i);
+            }
+            if (d < best_d) {
+                best = i32(i);
+                best_d = d;
+            }
         }
     }
     return best;
@@ -290,14 +328,15 @@ fn room_gi_ambient(tag: f32) -> vec3<f32> {
 // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
 //
 // A solid floor slab keeps lamp light and sunlight on its own side. The slabs
-// ride in the room table AFTER the rooms, as GiRoom-sized rows of which only
+// ride in the room table AFTER the rooms and the neighbours' plot rows (P =
+// gmax.w of them, gi_pick_room), as GiRoom-sized rows of which only
 // bmin.xyz and bmax.xyz (the slab's box, render space) are read:
-//   rows [info.x, info.x + atlas.w)   the sun's list: every solid slab once,
+//   rows [info.x + P, info.x + P + atlas.w)   the sun's list: every solid slab once,
 //     grouped into layers behind a layer row each (slab_sun_blocked);
 //   then, per scene light, the RUN of slabs its range reaches, copied and
 //     layered the same way (slab_blocks_light), which
 //   the light names as (first, count) in cone_inner.yz, first counted from
-//   info.x + atlas.w (light::gpu_packed_with_slabs, room_probes_gpu).
+//   info.x + P + atlas.w (light::gpu_packed_with_slabs, room_probes_gpu).
 // Glass slabs pass light and have no row. No layout change: the table is the
 // one every pipeline already binds at group 0 binding 7.
 //
@@ -373,7 +412,7 @@ fn slab_blocks_light(p: vec3<f32>, q: vec3<f32>, run: vec4<f32>) -> bool {
         return false;
     }
     let count = u32(run.z);
-    let base = room_gi.header.info.x + room_gi.header.atlas.w + u32(run.y);
+    let base = room_gi.header.info.x + u32(room_gi.header.gmax.w) + room_gi.header.atlas.w + u32(run.y);
     var k = 0u;
     loop {
         if (k >= count) {
@@ -424,7 +463,7 @@ fn slab_sun_blocked(p: vec3<f32>, d: vec3<f32>) -> bool {
         if (k >= h.atlas.w) {
             break;
         }
-        let lr = h.info.x + k;
+        let lr = h.info.x + u32(h.gmax.w) + k;
         let n = room_gi.rooms[lr].counts.x;
         let lmin = room_gi.rooms[lr].bmin.xyz;
         let lmax = room_gi.rooms[lr].bmax.xyz;

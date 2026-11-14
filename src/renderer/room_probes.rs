@@ -968,20 +968,93 @@ pub fn merge_slabs(mut slabs: Vec<OccluderSlab>) -> Vec<OccluderSlab> {
 /// (`pick_order`): the first box that contains the point wins; a point in no
 /// box takes the nearest one within the pick margin.
 pub fn pick_room(rooms: &[RoomBox], p: Vec3, n: Vec3) -> Option<usize> {
+    pick_room_counted(rooms, &[], p, n).0
+}
+
+/// A NEIGHBOUR'S PLOT in the room table (2026-11-14, the Row Street follow-up's frame cost): the
+/// union of its rooms' boxes and where those rooms sit in the table, one row of its own after the
+/// rooms (`pack_plot`). The pick tests a plot's box once and walks its rooms only when the point
+/// could be in one of them. Without it every fragment outside every room (the green, the street,
+/// a yard, a house's outside wall: most of the open view) walked every neighbour's room: 175 to 201
+/// rooms from the green, measured +1.2 to +2.4 ms of `gpu.scene` at Row Street's vantages.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PlotRun {
+    /// The union of the plot's room boxes.
+    pub min: Vec3,
+    pub max: Vec3,
+    /// The plot's first room's row in the table, and how many rooms follow it in a run.
+    pub first: usize,
+    pub count: usize,
+}
+
+/// `pick_room` over a table laid out by `table_order`: the own rooms walked one by one, then each
+/// neighbour's plot tested as a whole and walked only when its box is nearer than the best room so
+/// far (inside it, or within the pick margin). Exactly the flat walk's answer over the same table
+/// order: a room in a skipped plot is at least as far as the plot's box, so it could neither
+/// contain the point nor beat the best. Also returns how many boxes it tested (the GPU's cost per
+/// fragment). GPU twin: `gi_pick_room` (85-room-gi.wgsl). LOCKSTEP.
+pub fn pick_room_counted(table: &[RoomBox], plots: &[PlotRun], p: Vec3, n: Vec3) -> (Option<usize>, usize) {
     let q = p + n * ROOM_PICK_OFFSET_M;
     let mut best: Option<usize> = None;
     let mut best_d = ROOM_PICK_MARGIN_M + 1.0e-3;
-    for (i, r) in rooms.iter().enumerate() {
-        let d = r.outside_distance(q);
-        if d <= 0.0 {
-            return Some(i);
+    let mut tested = 0usize;
+    let own_end = plots.first().map_or(table.len(), |g| g.first.min(table.len()));
+    let runs = std::iter::once(0..own_end).chain(plots.iter().map(|g| g.first.min(table.len())..(g.first + g.count).min(table.len())));
+    for (k, run) in runs.enumerate() {
+        if k > 0 {
+            let g = &plots[k - 1];
+            tested += 1;
+            if (g.min - q).max(q - g.max).max(Vec3::ZERO).length() >= best_d {
+                continue;
+            }
         }
-        if d < best_d {
-            best = Some(i);
-            best_d = d;
+        for i in run {
+            tested += 1;
+            let d = table[i].outside_distance(q);
+            if d <= 0.0 {
+                return (Some(i), tested);
+            }
+            if d < best_d {
+                best = Some(i);
+                best_d = d;
+            }
         }
     }
-    best
+    (best, tested)
+}
+
+/// The room table's order each frame and its neighbours' plots (2026-11-14). `rooms` holds the
+/// `own` rooms (the ship's zones and the home) and then the neighbours' rooms in `runs`, how many
+/// each lit plot has, in the order `Renderer::set_room_gi_neighbours` handed them. The own rooms
+/// come first in `pick_order`; then each plot, nearest the eye first, its rooms together in the
+/// order its design keeps them (`engine::neighbour_rooms::design_rooms`: a room inside another's
+/// box ahead of it, worked out once a design). Plots never nest in each other or in a zone (the
+/// ship tiles its deck with them), so the containment rule needs no step across them, and the
+/// whole-table `pick_order` (quadratic in rooms, every frame: 175 to 201 rooms on Row Street) runs
+/// over the own rooms only. Returns the order (`order[row]` = room index) and the plots, whose
+/// `first` counts rows of that order.
+pub fn table_order(rooms: &[RoomBox], own: usize, runs: &[usize], eye: Vec3) -> (Vec<usize>, Vec<PlotRun>) {
+    let own = own.min(rooms.len());
+    let mut order = pick_order(&rooms[..own], eye);
+    // Each plot's span of `rooms`, its union box and how far the eye is from it. Rooms past the
+    // runs (none while the runs cover the neighbours) make one plot more, so every room has a row.
+    let mut spans: Vec<(f32, usize, usize, Vec3, Vec3)> = Vec::with_capacity(runs.len() + 1);
+    let mut at = own;
+    for len in runs.iter().copied().chain(std::iter::once(usize::MAX)) {
+        let end = at.saturating_add(len).min(rooms.len());
+        if end > at {
+            let (lo, hi) = rooms[at..end].iter().fold((Vec3::splat(f32::MAX), Vec3::splat(f32::MIN)), |(a, b), r| (a.min(r.min), b.max(r.max)));
+            spans.push(((lo - eye).max(eye - hi).max(Vec3::ZERO).length(), at, end, lo, hi));
+        }
+        at = end;
+    }
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+    let mut plots = Vec::with_capacity(spans.len());
+    for (_, start, end, lo, hi) in spans {
+        plots.push(PlotRun { min: lo, max: hi, first: order.len(), count: end - start });
+        order.extend(start..end);
+    }
+    (order, plots)
 }
 
 /// The order the room table is written in each frame, which is the order the
@@ -1303,12 +1376,42 @@ pub fn ambient_from_faces(room: &RoomBox, phi: [Vec3; 6], sky_mean: Vec3) -> Vec
 /// d through a glass lid (zero for a closed lid; the twin passes zero, the GPU
 /// reads the frame's sky-view table), then `ambient_from_faces`. `cs_ambient`.
 pub fn room_ambient(room: &RoomBox, direct: &DirectSource, sky: impl Fn(Vec3) -> Vec3) -> Vec3 {
+    room_ambient_with_unlit(room, direct, &[], sky)
+}
+
+/// THE ROOM'S AMBIENT COLOUR WITH UNLIT LAMPS (2026-11-14, the Row Street follow-up: a
+/// neighbour's rooms lit in your game, `engine::neighbour_rooms`). A lamp the fragment loop does
+/// NOT light (a neighbour's, handed over by `Renderer::set_room_gi_neighbours`) still lights its
+/// room: straight onto the walls first (its FIRST ARRIVAL), then by bouncing. The bounce is in the
+/// ambient colour whatever the lamp; the first arrival is what the fragment adds for a lamp it
+/// lights, so for an unlit lamp the ambient colour carries that too: the lamp's direct flux over
+/// the faces the mean is taken over (every face but a glass lid) per unit of their area, as E / pi.
+/// `direct` is the room's lit sources, `unlit` its unlit lamps; both bounce. With none unlit it
+/// is `room_ambient` exactly. GPU: `cs_ambient`, the unlit count in the room's flags
+/// (`ROOM_UNLIT_SHIFT`), the unlit lamps the last of the room's run.
+pub fn room_ambient_with_unlit(room: &RoomBox, direct: &DirectSource, unlit: &[RoomLight], sky: impl Fn(Vec3) -> Vec3) -> Vec3 {
+    let unlit_src = DirectSource::Scene { lights: unlit.to_vec(), sun: None };
     let mut phi = [Vec3::ZERO; 6];
+    let (mut first, mut area) = (Vec3::ZERO, 0.0f32);
     for (face, flux) in phi.iter_mut().enumerate() {
         let n = face_normal(face);
         let cell_area = face_area(room, face) / AMBIENT_CELLS as f32;
+        // The mean is over the faces the fragment can stand on: not a glass lid.
+        let counted = !(face == FACE_LID && room.lid_transmittance > 0.0);
         for cell in 0..AMBIENT_CELLS {
-            *flux += direct_irradiance(room, direct, face_cell_point(room, face, cell), n) * cell_area;
+            let h = face_cell_point(room, face, cell);
+            let mut e = direct_irradiance(room, direct, h, n);
+            if !unlit.is_empty() {
+                let eu = direct_irradiance(room, &unlit_src, h, n);
+                e += eu;
+                if counted {
+                    first += eu * cell_area;
+                }
+            }
+            *flux += e * cell_area;
+        }
+        if counted {
+            area += face_area(room, face);
         }
     }
     let sky_mean = if room.lid_transmittance > 0.0 {
@@ -1316,7 +1419,11 @@ pub fn room_ambient(room: &RoomBox, direct: &DirectSource, sky: impl Fn(Vec3) ->
     } else {
         Vec3::ZERO
     };
-    ambient_from_faces(room, phi, sky_mean)
+    let amb = ambient_from_faces(room, phi, sky_mean);
+    if unlit.is_empty() || area <= 1.0e-6 {
+        return amb;
+    }
+    amb + first / (area * std::f32::consts::PI)
 }
 
 // ── PROBE STREAMING (2026-10-21, docs/design/room-gi.md "Probe streaming") ──
@@ -1699,6 +1806,12 @@ pub const ROOM_BYTES: u64 = std::mem::size_of::<GiRoomGpu>() as u64;
 /// everywhere.
 pub const ROOM_FLAG_VISIBILITY: u32 = 1;
 
+/// Where the UNLIT count sits in `GiRoomGpu::lights[2]` (WGSL `GI_UNLIT_SHIFT`, 2026-11-14): bits
+/// 8 and up say how many of the LAST lights of the room's run the fragment loop does not light (a
+/// neighbour's lamps, `room_ambient_with_unlit`), so `cs_ambient` adds their first arrival to the
+/// room's ambient colour. Bit 0 stays `ROOM_FLAG_VISIBILITY`.
+pub const ROOM_UNLIT_SHIFT: u32 = 8;
+
 /// Where a room stands in the probe atlas this frame, for its table row:
 /// its first probe and its probe weight (`GiRoomGpu::bmin.w`). A room that is
 /// not resident is `NOT_RESIDENT`: weight 0, its ambient colour alone.
@@ -1742,6 +1855,19 @@ pub fn pack_slab(s: &OccluderSlab) -> GiRoomGpu {
     GiRoomGpu {
         bmin: [s.min.x, s.min.y, s.min.z, 0.0],
         bmax: [s.max.x, s.max.y, s.max.z, 0.0],
+        ..GiRoomGpu::default()
+    }
+}
+
+/// Pack one neighbour's plot (`PlotRun`) as a row of the room table, after the rooms and before
+/// the floor slabs: bmin.xyz and bmax.xyz its rooms' union box, counts.x its first room's row and
+/// counts.y how many rooms follow (85-room-gi.wgsl `gi_pick_room`; the header's gmax.w counts
+/// these rows).
+pub fn pack_plot(g: &PlotRun) -> GiRoomGpu {
+    GiRoomGpu {
+        bmin: [g.min.x, g.min.y, g.min.z, 0.0],
+        bmax: [g.max.x, g.max.y, g.max.z, 0.0],
+        counts: [g.first as u32, g.count as u32, 0, 0],
         ..GiRoomGpu::default()
     }
 }
@@ -1792,6 +1918,10 @@ pub struct TwinRoom {
     /// The room's probe weight (`GiRoomGpu::bmin.w`): 1 = its probes alone
     /// (every twin room starts so), 0 = its ambient colour alone.
     pub weight: f32,
+    /// Lamps the fragment loop does not light (a neighbour's, 2026-11-14): the ambient colour
+    /// carries their first arrival as well as their bounce (`room_ambient_with_unlit`). Only an
+    /// ambient-only room has any, so the probe trace never meets them.
+    pub unlit: Vec<RoomLight>,
 }
 
 impl TwinRoom {
@@ -1821,7 +1951,7 @@ impl Twin {
             .into_iter()
             .map(|(room, direct)| {
                 let counts = probe_counts(room.size(), PROBE_SPACING_M);
-                let r = TwinRoom { room, counts, first_probe: first, direct, visibility: false, weight: 1.0 };
+                let r = TwinRoom { room, counts, first_probe: first, direct, visibility: false, weight: 1.0, unlit: Vec::new() };
                 first += r.probe_count();
                 r
             })
@@ -1929,7 +2059,7 @@ impl Twin {
     pub fn update_ambient(&mut self) {
         for ri in 0..self.rooms.len() {
             let r = &self.rooms[ri];
-            let a = room_ambient(&r.room, &r.direct, |_| Vec3::ZERO);
+            let a = room_ambient_with_unlit(&r.room, &r.direct, &r.unlit, |_| Vec3::ZERO);
             let idx = self.layout.amb_y0 as usize * self.layout.width as usize + ri;
             self.atlas[idx] = [a.x, a.y, a.z, 1.0];
         }
@@ -2635,6 +2765,68 @@ mod tests {
         assert_eq!(room_ambient(&b, &scene(1), none), Vec3::ZERO, "room B holds no light at all");
         let off = DirectSource::Scene { lights: vec![], sun: None };
         assert_eq!(room_ambient(&a, &off, none), Vec3::ZERO, "the lamp off: room A is dark at once");
+    }
+
+    /// AN UNLIT LAMP LIGHTS ITS ROOM WITH ITS FIRST ARRIVAL TOO (2026-11-14, the Row Street
+    /// follow-up: a neighbour's rooms lit in your game). A lamp the fragment loop lights adds its
+    /// first arrival in the fragment, so the ambient colour carries only its bounce; a lamp the
+    /// fragment does NOT light (a neighbour's) must bring both through the ambient colour, or a
+    /// neighbour's lit room reads about half as bright as it is. The difference between the two is
+    /// the lamp's direct irradiance averaged over the room's faces, measured here on a grid four
+    /// times finer than the ambient colour's own (a check the function cannot pass by copying
+    /// itself), as E / pi. Under a glass lid the lid is no face of that mean.
+    ///
+    /// Seen red 2026-11-14 with the unlit lamps not read (a stub): "the unlit lamp adds
+    /// [-0.312918, -0.28162616, -0.25033444] over the lit one's bounce, want about [0.31149468,
+    /// 0.28034443, 0.24919565] (lid T 0)": the room went dark, and the first arrival it lacked is
+    /// about as large as the bounce, as the integrating sphere says at a reflectance of 0.5.
+    #[test]
+    fn an_unlit_lamp_lights_its_room_with_its_first_arrival() {
+        let none = |_: Vec3| Vec3::ZERO;
+        let lamp = RoomLight::point(Vec3::new(1.2, 2.3, 1.7), [1.0, 0.9, 0.8], 10.0, 14.0);
+        for room in [grey_box(Vec3::ZERO, Vec3::new(3.0, 2.5, 4.0), 0.5), glass_box(Vec3::ZERO, Vec3::new(3.0, 2.5, 4.0), 0.5, 0.65, 0.2)] {
+            let bounce = room_ambient(&room, &DirectSource::Scene { lights: vec![lamp], sun: None }, none);
+            let dark = DirectSource::Scene { lights: vec![], sun: None };
+            let got = room_ambient_with_unlit(&room, &dark, &[lamp], none);
+            // The first arrival, averaged over every face but a glass lid on a 32 x 32 grid.
+            let (mut flux, mut area) = (Vec3::ZERO, 0.0f32);
+            for face in 0..6 {
+                if face == FACE_LID && room.lid_transmittance > 0.0 {
+                    continue;
+                }
+                let (n, a) = (face_normal(face), face_area(&room, face));
+                let (u, v) = match face {
+                    FACE_NEG_X | FACE_POS_X => (Vec3::Z, Vec3::Y),
+                    FACE_FLOOR | FACE_LID => (Vec3::X, Vec3::Z),
+                    _ => (Vec3::X, Vec3::Y),
+                };
+                // Inward normals: a face at the box's max side faces back toward its min.
+                let size = room.size();
+                let base = match face {
+                    FACE_POS_X => room.min + size * Vec3::X,
+                    FACE_LID => room.min + size * Vec3::Y,
+                    FACE_POS_Z => room.min + size * Vec3::Z,
+                    _ => room.min,
+                };
+                for i in 0..32 {
+                    for j in 0..32 {
+                        let h = base + u * size * ((i as f32 + 0.5) / 32.0) + v * size * ((j as f32 + 0.5) / 32.0);
+                        flux += light_irradiance(&lamp, &[], h, n) * (a / 1024.0);
+                    }
+                }
+                area += a;
+            }
+            let want = flux / (area * std::f32::consts::PI);
+            let added = got - bounce;
+            assert!(
+                (added - want).abs().max_element() < 0.03 * want.max_element(),
+                "the unlit lamp adds {added} over the lit one's bounce, want about {want} (lid T {})",
+                room.lid_transmittance
+            );
+        }
+        // A room with no lamp at all stays dark, unlit lamps or not.
+        let dark = DirectSource::Scene { lights: vec![], sun: None };
+        assert_eq!(room_ambient_with_unlit(&grey_box(Vec3::ZERO, Vec3::ONE, 0.5), &dark, &[], none), Vec3::ZERO);
     }
 
     /// THE SKY THROUGH A GLASS LID is in the ambient colour, and only through

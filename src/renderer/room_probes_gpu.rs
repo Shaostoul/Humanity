@@ -51,12 +51,12 @@
 use glam::Vec3;
 
 use super::bounced_light_detail::{mb_words, probe_memory_bytes};
-use super::light::{gpu_packed, gpu_packed_with_slabs};
+use super::light::{gpu_packed, gpu_packed_with_slabs, RoomLight};
 use super::room_probes::{
-    assign_lights, lattice_for, layered_rows, light_anchor, pack_room, pick_order, ray_rotation, room_ambient, run_plane,
+    assign_lights, lattice_for, layered_rows, light_anchor, pack_plot, pack_room, ray_rotation, room_ambient, run_plane,
     slabs_touched, AtlasLayout, DirectSource, GiHeaderGpu, GiParamsGpu, GiRoomGpu, OccluderSlab, ProbeBudget, Residency,
     ResidencyStep, RoomBox, Sun, HEADER_BYTES, MAX_AMBIENT_ROOMS, MAX_SEEDS_PER_FRAME, NORMAL_BIAS_M,
-    ROOM_BYTES, SKY_LIGHTING_EXPOSURE, settled_hysteresis,
+    ROOM_BYTES, ROOM_UNLIT_SHIFT, SKY_LIGHTING_EXPOSURE, settled_hysteresis, table_order,
 };
 use super::{pipeline, Renderer};
 
@@ -104,8 +104,25 @@ pub struct RoomGi {
     /// rung 1 skips because inside a box it is an identity. For A/B of the
     /// test's cost and proof that it changes nothing yet.
     pub force_visibility: bool,
+    /// The third dev switch (showcase `{"neighbour_rooms":"0"}`, 2026-11-14): the neighbours'
+    /// rooms and lamps are left out (`engine::neighbour_rooms` hands none), so a same-boot A/B
+    /// measures what lighting them costs.
+    pub neighbours_off: bool,
+    /// How many of `rooms` are this game's own (the ship's zones and the home): the rest are the
+    /// NEIGHBOURS' (`neighbours`, `Renderer::set_room_gi_neighbours`), AMBIENT-ONLY rooms that
+    /// never hold probes, lit by their sky and by `unlit`, lamps the fragment loop does not light.
+    own_count: usize,
+    neighbours: Vec<RoomBox>,
+    /// How many of `neighbours` each lit plot has, in order: each plot is one row of the room
+    /// table that the pick tests before walking its rooms (`room_probes::table_order`).
+    neighbour_runs: Vec<usize>,
+    unlit: Vec<RoomLight>,
+    /// Each neighbour room's lamps, indices into `unlit` (`assign_lights` in the home frame, the
+    /// same as in render space: the station offset moves rooms and lamps alike), worked out when
+    /// they are handed over, so the frame does not test every lamp against every room.
+    unlit_owned: Vec<Vec<usize>>,
     /// The rooms in the HOME frame (render space adds the station offset each
-    /// frame), their lattices and each one's probe count.
+    /// frame), their lattices and each one's probe count: the own rooms, then the neighbours'.
     rooms: Vec<RoomBox>,
     counts: Vec<[u32; 3]>,
     probes: Vec<u32>,
@@ -357,6 +374,12 @@ impl RoomGi {
         Self {
             off: false,
             force_visibility: false,
+            neighbours_off: false,
+            own_count: 0,
+            neighbours: Vec::new(),
+            neighbour_runs: Vec::new(),
+            unlit: Vec::new(),
+            unlit_owned: Vec::new(),
             rooms: Vec::new(),
             counts: Vec::new(),
             probes: Vec::new(),
@@ -442,10 +465,28 @@ impl RoomGi {
     /// matters because the construction editor rebuilds the home on every
     /// drag frame.
     fn set_rooms(&mut self, device: &wgpu::Device, rooms: Vec<RoomBox>) {
-        if rooms == self.rooms {
+        if self.own_count == rooms.len() && rooms[..] == self.rooms[..self.own_count.min(self.rooms.len())] {
             return;
         }
-        self.relayout(device, rooms);
+        self.own_count = rooms.len();
+        let all = rooms.into_iter().chain(self.neighbours.iter().cloned()).collect();
+        self.relayout(device, all);
+    }
+
+    /// The neighbours' rooms and their lamps (home frame), every frame (`engine::neighbour_rooms`).
+    /// The lamps are kept as they come; the rooms are laid out again only when they changed, after
+    /// the own rooms, which keep their probes (`Residency::carried_over`).
+    fn set_neighbours(&mut self, device: &wgpu::Device, rooms: Vec<RoomBox>, runs: Vec<usize>, lamps: Vec<RoomLight>) {
+        self.unlit_owned = assign_lights(&rooms, &lamps);
+        self.unlit = lamps;
+        if rooms == self.neighbours && runs == self.neighbour_runs {
+            return;
+        }
+        self.neighbour_runs = runs;
+        let own = self.own_count.min(self.rooms.len());
+        let all = self.rooms[..own].iter().cloned().chain(rooms.iter().cloned()).collect();
+        self.neighbours = rooms;
+        self.relayout(device, all);
     }
 
     /// A new Bounced light detail level (Settings, or the dev request
@@ -476,7 +517,10 @@ impl RoomGi {
             rooms.truncate(MAX_AMBIENT_ROOMS);
         }
         let lattice = lattice_for(&rooms, self.budget);
-        let probes: Vec<u32> = (0..rooms.len()).map(|i| lattice.probes_in(i)).collect();
+        // A neighbour's room never holds probes (none is ever wanted, `Residency::step`): it shows
+        // its ambient colour, so the budget stays with the rooms around the player.
+        let own = self.own_count;
+        let probes: Vec<u32> = (0..rooms.len()).map(|i| if i < own { lattice.probes_in(i) } else { 0 }).collect();
         let cap = self.budget.max_probes;
         if self.layout.probes != cap {
             self.layout = AtlasLayout::for_probes(cap);
@@ -706,11 +750,33 @@ impl RoomGi {
     }
 }
 
+/// `l` moved by `off`: its position, and a LINE light's second end, which rides in `dir` (the
+/// `cos_outer <= -1.5` sentinel; BUG-061, lib.rs moves the scene lights the same way).
+fn light_shifted(l: &RoomLight, off: Vec3) -> RoomLight {
+    let mut m = *l;
+    m.pos += off;
+    if m.cos_outer <= -1.5 {
+        m.dir += off;
+    }
+    m
+}
+
 impl Renderer {
     /// Hand room GI the ship's rooms (home frame), after every home build or
     /// edit. See `engine::room_gi::rooms_changed`.
     pub fn set_room_gi_rooms(&mut self, rooms: Vec<RoomBox>) {
         self.room_gi.set_rooms(&self.device, rooms);
+        if self.room_gi.rebind {
+            self.rebuild_camera_bind_groups();
+        }
+    }
+
+    /// Hand room GI the NEIGHBOURS near the eye (home frame), every frame: their rooms, which
+    /// take their ambient colour and never probes, and their lamps, which light only those rooms'
+    /// ambient colour, never the fragment loop (`engine::neighbour_rooms`, 2026-11-14). A no-op
+    /// for the rooms while they are unchanged.
+    pub fn set_room_gi_neighbours(&mut self, rooms: Vec<RoomBox>, runs: Vec<usize>, lamps: Vec<RoomLight>) {
+        self.room_gi.set_neighbours(&self.device, rooms, runs, lamps);
         if self.room_gi.rebind {
             self.rebuild_camera_bind_groups();
         }
@@ -821,26 +887,42 @@ impl Renderer {
             ResidencyStep::default()
         };
         gi.log_residency(&step, reuse);
-        // The room table, in PICK ORDER (room_probes::pick_order): the header,
-        // then every room with its light range. `slot_of[i]` is room i's row.
-        let order = pick_order(&render_rooms, eye);
+        // The room table, in PICK ORDER (room_probes::table_order): the header,
+        // then every room with its light range, the own rooms first in
+        // `pick_order` and then the neighbours' plots, nearest first, each
+        // plot's rooms together; then a row per plot (its rooms' union box,
+        // `pack_plot`), which the pick tests before walking the plot's rooms.
+        // `slot_of[i]` is room i's row.
+        let (order, plots) = table_order(&render_rooms, gi.own_count, &gi.neighbour_runs, eye);
         let mut slot_of = vec![0u32; render_rooms.len()];
         for (slot, &i) in order.iter().enumerate() {
             slot_of[i] = slot as u32;
         }
         let owned = assign_lights(&render_rooms, &self.cur_lights);
+        // The neighbours' lamps (2026-11-14), in render space, each to the room it stands in; they
+        // go LAST in that room's run and their count into its flags, so cs_ambient adds their first
+        // arrival (the fragment loop never lights them).
+        let render_unlit: Vec<RoomLight> = gi.unlit.iter().map(|l| light_shifted(l, station_off)).collect();
+        let no_lamps: Vec<usize> = Vec::new();
+        let own = gi.own_count;
+        let unlit_of = |i: usize| -> &Vec<usize> { if i < own { &no_lamps } else { gi.unlit_owned.get(i - own).unwrap_or(&no_lamps) } };
         let mut packed_lights: Vec<[f32; 16]> = Vec::new();
         let mut table: Vec<GiRoomGpu> = Vec::with_capacity(render_rooms.len().max(1));
         for &i in &order {
             let first_light = packed_lights.len() as u32;
             packed_lights.extend(owned[i].iter().map(|&k| gpu_packed(&self.cur_lights[k])));
+            packed_lights.extend(unlit_of(i).iter().map(|&k| gpu_packed(&render_unlit[k])));
+            let unlit = unlit_of(i).len() as u32;
             // Rung 1 traces only each room's box, where DDGI's visibility test
             // is an identity, so no room asks for it unless the dev switch
             // forces it (room_probes::ROOM_FLAG_VISIBILITY).
             let vis = gi.force_visibility;
             let at = gi.residency.placement(i);
-            table.push(pack_room(&render_rooms[i], i as u32, gi.counts[i], at, first_light, owned[i].len() as u32, vis));
+            let mut row = pack_room(&render_rooms[i], i as u32, gi.counts[i], at, first_light, owned[i].len() as u32 + unlit, vis);
+            row.lights[2] |= unlit << ROOM_UNLIT_SHIFT;
+            table.push(row);
         }
+        table.extend(plots.iter().map(pack_plot));
         // ── FLOORS BETWEEN STOREYS (ship homes increment 7, lane L) ──
         // After the rooms: every solid floor slab once (the sun's list, its
         // count in the header's atlas.w), then each scene light's RUN of the
@@ -893,7 +975,7 @@ impl Renderer {
             }
         }
         gi.last_slab_rows = sun_list.len() as u32;
-        gi.last_run_rows = (table.len() - render_rooms.len() - sun_list.len()) as u32;
+        gi.last_run_rows = (table.len() - render_rooms.len() - plots.len() - sun_list.len()) as u32;
         if table.is_empty() {
             table.push(GiRoomGpu::default());
         }
@@ -918,7 +1000,7 @@ impl Renderer {
         gi.slab_runs_live = runs.iter().any(|r| r.1 > 0);
         let header = GiHeaderGpu {
             gmin: [gmin.x, gmin.y, gmin.z, if on { 1.0 } else { 0.0 }],
-            gmax: [gmax.x, gmax.y, gmax.z, 0.0],
+            gmax: [gmax.x, gmax.y, gmax.z, plots.len() as f32],
             info: [render_rooms.len() as u32, gi.residency.resident_probes(), gi.layout.irr_per_row, gi.layout.depth_per_row],
             atlas: [gi.layout.width, gi.layout.height, gi.layout.depth_y0, sun_list.len() as u32],
         };

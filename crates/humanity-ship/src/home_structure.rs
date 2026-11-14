@@ -88,7 +88,7 @@ pub const OPEN_SPAN_THICKNESS_M: f32 = 0.2;
 /// `a` and `b` are body-local (x, z) points on ONE edge of the box, as a wall's are; `height` is
 /// what stands on the line instead of the shell: 0 nothing (a neighbour's plot already marks it),
 /// a few centimetres a mowing strip set in the lawn, about 0.15 m a kerb, about 0.9 m a front
-/// garden wall; drawn [`OPEN_SPAN_THICKNESS_M`] thick in `material`.
+/// garden wall; drawn `thickness` thick (None: [`OPEN_SPAN_THICKNESS_M`]) in `material`.
 ///
 /// OPEN TO THE EYE, NOT TO THE WALK: the mesh and the sight blockers leave the shell out over the
 /// span, but the walk keeps the line (`wall_collision`'s perimeter is unchanged), because the
@@ -104,6 +104,13 @@ pub struct OpenSpan {
     pub height: f32,
     #[serde(default = "default_concrete")]
     pub material: u32,
+    /// How thick what marks the line is drawn, metres; None: [`OPEN_SPAN_THICKNESS_M`]. A row
+    /// house's front garden wall is a brick and a half, 0.33 m (215 + 10 + 102.5 mm), so it meets
+    /// the street's kerb across the gap a gate's corridor runs through (2026-11-14, the Row Street
+    /// follow-up: a 5 cm slot down to the deck showed between the kerb and the wall beside each
+    /// gate). The mesh and the sight blockers read it; the walk keeps the line itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thickness: Option<f32>,
 }
 
 fn default_concrete() -> u32 {
@@ -111,6 +118,11 @@ fn default_concrete() -> u32 {
 }
 
 impl OpenSpan {
+    /// How thick what marks this span's line is drawn: `thickness`, else the usual 0.2 m.
+    pub fn drawn_thickness(&self) -> f32 {
+        self.thickness.unwrap_or(OPEN_SPAN_THICKNESS_M)
+    }
+
     /// The span as (edge, from, to) in the perimeter winding a [`ShellCut`] uses (0: z=0 running
     /// +x, 1: x=w running +z, 2: z=d running -x, 3: x=0 running -z), `from < to`; None when its
     /// two ends are not on one edge of a `w` x `d` box, or it has no length.
@@ -1259,7 +1271,7 @@ impl HomeStructure {
                 let (pa, pb) = if whole { (a, b) } else { (a + u * s, a + u * e) };
                 let (top, thick, mat) = match span {
                     None => (h, shell_t, self.shell_material),
-                    Some(sp) if sp.height > 1e-3 => (sp.height.min(h), OPEN_SPAN_THICKNESS_M, sp.material),
+                    Some(sp) if sp.height > 1e-3 => (sp.height.min(h), sp.drawn_thickness(), sp.material),
                     Some(_) => continue,
                 };
                 let g = by_mat.entry(mat).or_insert_with(|| (Vec::new(), Vec::new()));

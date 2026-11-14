@@ -2406,7 +2406,8 @@ mod tests {
         );
         let q = &w["current_quest"];
         assert_eq!(q["home_plot"], "p1", "their quest names their plot: {q}");
-        assert_eq!(q["total_rooms"], 16, "fifteen rooms and home: {q}");
+        // Since 2026-11-14 the five alleys are passages, never places to visit (ship_world::quest_places).
+        assert_eq!(q["total_rooms"], 11, "ten places and home: {q}");
 
         let plots = humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
         let commons = (65.0, 20.0, 99.0, 75.0);
@@ -2441,33 +2442,39 @@ mod tests {
         // From their door, through the Commons, its recreation room and mess hall, First Street,
         // the cabin block's hall and its washroom, and home.
         let door = game_spawn_on("p1");
+        // (where, the room, the quest's last step, whether stepping in counts a visit)
         let walk = [
-            ([66.0, 1.7, 40.0], "commons", false),
-            ([70.5, 1.7, 67.5], "recreation", false),
-            ([75.0, 1.7, 24.0], "mess-hall", false),
-            ([70.0, 1.7, 100.0], "street-1", false),
-            ([78.5, 1.7, 100.0], "cabins-1", false),
-            ([78.5, 1.7, 132.0], "washroom-1", false),
+            ([66.0, 1.7, 40.0], "commons", false, true),
+            ([70.5, 1.7, 67.5], "recreation", false, true),
+            ([75.0, 1.7, 24.0], "mess-hall", false, true),
+            ([70.0, 1.7, 100.0], "street-1", false, true),
+            ([78.5, 1.7, 100.0], "cabins-1", false, true),
+            ([78.5, 1.7, 132.0], "washroom-1", false, true),
             // Since 2026-11-13 Row Street, its alleys and its green (the relay checks a leg's speed,
-            // not its walls, so each walk is a straight line).
-            ([89.0, 1.7, 320.0], "row-street-1", false),
-            ([100.0, 1.7, 301.0], "row-alley-1", false),
-            ([117.0, 1.7, 320.0], "row-green-1", false),
-            ([100.0, 1.7, 336.0], "row-alley-2", false),
-            ([100.0, 1.7, 377.0], "row-alley-3", false),
-            ([100.0, 1.7, 407.0], "row-alley-4", false),
-            ([100.0, 1.7, 435.0], "row-alley-5", false),
-            (door, "home", true),
+            // not its walls, so each walk is a straight line). Since 2026-11-14 an alley is a
+            // passage and counts no visit (ship_world::quest_places): walked through without
+            // waiting, so the next counted room's progress must be the very next message.
+            ([89.0, 1.7, 320.0], "row-street-1", false, true),
+            ([100.0, 1.7, 301.0], "row-alley-1", false, false),
+            ([117.0, 1.7, 320.0], "row-green-1", false, true),
+            ([100.0, 1.7, 336.0], "row-alley-2", false, false),
+            ([100.0, 1.7, 377.0], "row-alley-3", false, false),
+            ([100.0, 1.7, 407.0], "row-alley-4", false, false),
+            ([100.0, 1.7, 435.0], "row-alley-5", false, false),
+            (door, "home", true, true),
         ];
         // Walked, not jumped (increment 4: the relay corrects a move faster than anyone can go):
         // legs of at most 15 m half a second apart, 30 m/s, under the 31.25 m/s the relay allows.
         let mut at = door;
-        for (p, step, last) in walk {
+        for (p, step, last, counts) in walk {
             // Half a second before each walk as between its legs: the relay judges a leg's
             // speed by the time since the last one.
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             walk_steps(&mut sock, at, p).await;
             at = p;
+            if !counts {
+                continue;
+            }
             let got = next_game_of(&mut sock, &["game_quest_progress", "game_quest_completed"]).await;
             let got = got.unwrap_or_else(|| panic!("no quest progress for the step into {step} at {p:?}"));
             assert_eq!(got["step_id"], step, "{got}");
