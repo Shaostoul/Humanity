@@ -145,6 +145,66 @@ pub struct Progressions {
     pub moves: Vec<(String, String, f32)>,
     pub cadences: Vec<String>,
     pub start: String,
+    /// The harmonic grammar a piece's sections are generated from (docs/design/music.md section
+    /// 7c); None: each section is a walk of the chord graph above.
+    #[serde(default)]
+    pub grammar: Option<Grammar>,
+}
+
+/// A chord's harmonic function, for the grammar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Function {
+    Tonic,
+    Subdominant,
+    Dominant,
+}
+
+/// A harmonic grammar: each named chord's function; SHAPES, runs of functions written as letters
+/// ("T S D T"), by weight; and the chances of the style's embellishments.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Grammar {
+    pub functions: Vec<(String, Function)>,
+    pub shapes: Vec<(String, f32)>,
+    /// Before a chord, its secondary dominant (the seventh chord a fifth above it).
+    #[serde(default)]
+    pub secondary_dominants: f32,
+    /// A dominant played as the seventh chord a tritone away.
+    #[serde(default)]
+    pub tritone_substitutes: f32,
+    /// Before a chord, the diminished seventh chord a half step under it.
+    #[serde(default)]
+    pub passing_diminished: f32,
+}
+
+/// One form a piece may take: its sections' letters in order ("AABA"), and its weight.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FormSpec {
+    pub form: String,
+    #[serde(default = "one_f32")]
+    pub weight: f32,
+}
+
+fn one_f32() -> f32 {
+    1.0
+}
+
+/// How a piece makes its own riffs (crate::piece::make_motifs).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotifRules {
+    /// How many riffs a piece makes, and how many notes each.
+    pub count: usize,
+    pub notes: (usize, usize),
+    /// Rhythm cells, note lengths in beats, strung together.
+    pub cells: Vec<Vec<f32>>,
+    /// The contours a riff may follow, by weight.
+    pub contours: Vec<(crate::piece::Contour, f32)>,
+    /// The chance a step is a leap (three or four scale steps).
+    #[serde(default)]
+    pub leap: f32,
+    /// How far a riff may go from its first note, scale steps down and up.
+    pub range: (i32, i32),
+    /// How much of each note sounds, a range.
+    pub hold: (f32, f32),
 }
 
 /// How a struck pad sounds.
@@ -246,6 +306,19 @@ pub struct Genre {
     /// supplies them): shown honestly in Settings.
     #[serde(default)]
     pub needs_recordings: Vec<String>,
+    /// A piece's section lengths in bars, over the mood's phrase lengths (one is drawn per section).
+    #[serde(default)]
+    pub phrase_bars: Option<Vec<u32>>,
+    /// The forms a piece may take, by weight (empty: no form, every phrase walked afresh).
+    #[serde(default)]
+    pub forms: Vec<FormSpec>,
+    /// How a piece makes its own riffs (None: the `motifs` bank above).
+    #[serde(default)]
+    pub motif_rules: Option<MotifRules>,
+    /// Voices a piece chooses among for a role, by each one's `weight` (the melody's call, the
+    /// answer): each in place of the genre's added role for that role, never two roles on one voice.
+    #[serde(default)]
+    pub leads: Vec<crate::mood::RoleSpec>,
 }
 
 impl Genre {

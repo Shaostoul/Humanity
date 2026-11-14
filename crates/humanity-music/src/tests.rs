@@ -150,8 +150,10 @@ fn places_map_each_zone_purpose_to_a_mood() {
 
 /// The first phrase that repeats one played within `window` seconds before it: (its index, its
 /// time, the earlier one's time).
-fn repeated_phrase(rec: &Recorder, window: f64) -> Option<(usize, f64, f64)> {
-    let phrases: Vec<(u64, f64)> = rec.events.iter().filter_map(|e| if let Event::Phrase { hash, at_s, .. } = e { Some((*hash, *at_s)) } else { None }).collect();
+pub(crate) fn repeated_phrase(rec: &Recorder, window: f64) -> Option<(usize, f64, f64)> {
+    // A section RETURNING the first time through its piece's form repeats its tune on purpose
+    // (docs/design/music.md section 7c), so it is not counted.
+    let phrases: Vec<(u64, f64)> = rec.events.iter().filter_map(|e| if let Event::Phrase { hash, at_s, returning: false, .. } = e { Some((*hash, *at_s)) } else { None }).collect();
     for (i, &(h, t)) in phrases.iter().enumerate() {
         if let Some(&(_, t2)) = phrases[..i].iter().find(|&&(h2, t2)| h == h2 && t - t2 < window) {
             return Some((i, t, t2));
@@ -162,7 +164,7 @@ fn repeated_phrase(rec: &Recorder, window: f64) -> Option<(usize, f64, f64)> {
 
 /// The first two-minute stretch (from a chord change: its chord and motif events, times relative to
 /// it) that repeats an earlier one: (its start, the earlier start), and how many were checked.
-fn repeated_stretch(rec: &Recorder, total_s: f64) -> (Option<(f64, f64)>, usize) {
+pub(crate) fn repeated_stretch(rec: &Recorder, total_s: f64) -> (Option<(f64, f64)>, usize) {
     let mut evs: Vec<(f64, u64)> = Vec::new();
     for e in &rec.events {
         match e {
@@ -468,7 +470,7 @@ fn every_genre_has_its_words_and_instrument_roles() {
     }
     let role = |r: RoleKind| es.roles_add.iter().find(|a| a.role == r).unwrap_or_else(|| panic!("electro swing adds its {r:?}"));
     assert_eq!(role(RoleKind::Bass).part.as_deref(), Some("double_bass_pizzicato"), "an upright bass");
-    assert_eq!(role(RoleKind::Pad).part.as_deref(), Some("guitar"), "the guitar comps");
+    assert_eq!(role(RoleKind::Pad).part.as_deref(), Some("acoustic_guitar"), "the steel-string guitar comps (the Martin, 2026-11-13)");
     assert_eq!(role(RoleKind::Choir).part.as_deref(), Some("trumpet"), "brass stabs");
     assert_eq!(role(RoleKind::Melody).part.as_deref(), Some("clarinet"), "clarinet lines");
     assert_eq!(role(RoleKind::Bells).part.as_deref(), Some("trombone"), "brass answers");

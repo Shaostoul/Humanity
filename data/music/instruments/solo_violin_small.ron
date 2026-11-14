@@ -1,0 +1,38 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "solo_violin_small",
+    words: "instrument_packs.instrument.solo_violin_small",
+    part: "solo_violin",
+    rank: 20,
+    kind: Sampler((
+        folder: "solo_violin_small",
+        pitched: true,
+        source_a4_hz: 439.73,
+        tuning_note: "measured: median of 15 samples, -1.0 cents from A = 440",
+        release_s: 0.4,
+        normalized: false,
+        zones: [
+            (file: "LLVln_ArcoVib_G3_p.ogg", key: 55, lo_key: 51, hi_key: 56, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(195.877), measured_hz: Some(195.691), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_A3_p.ogg", key: 57, lo_key: 57, hi_key: 58, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(219.865), measured_hz: Some(220.216), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_C4_p.ogg", key: 60, lo_key: 59, hi_key: 62, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(261.465), measured_hz: Some(264.209), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_E4_p.ogg", key: 64, lo_key: 63, hi_key: 65, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(329.425), measured_hz: Some(330.608), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_G4_p.ogg", key: 67, lo_key: 66, hi_key: 68, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(391.755), measured_hz: Some(391.673), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_A4_p.ogg", key: 69, lo_key: 69, hi_key: 70, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(439.73), measured_hz: Some(439.138), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_C5_p.ogg", key: 72, lo_key: 71, hi_key: 74, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(522.93), measured_hz: Some(522.065), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_E5_p.ogg", key: 76, lo_key: 75, hi_key: 77, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(658.851), measured_hz: Some(663.707), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_G5_p.ogg", key: 79, lo_key: 78, hi_key: 80, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(783.51), measured_hz: Some(783.663), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_A5_p.ogg", key: 81, lo_key: 81, hi_key: 82, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(879.46), measured_hz: Some(878.536), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_C6_p.ogg", key: 84, lo_key: 83, hi_key: 86, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1045.86), measured_hz: Some(1043.658), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_E6_p.ogg", key: 88, lo_key: 87, hi_key: 89, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1317.701), measured_hz: Some(1315.233), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_G6_p.ogg", key: 91, lo_key: 90, hi_key: 92, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1567.02), measured_hz: Some(1571.217), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_A6_p.ogg", key: 93, lo_key: 93, hi_key: 94, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1758.92), measured_hz: Some(1758.933), loop_start: None, loop_end: None),
+            (file: "LLVln_ArcoVib_C7_p.ogg", key: 96, lo_key: 95, hi_key: 100, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(2091.72), measured_hz: Some(2098.894), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "D#3", high: "E7"),
+    reverb_send: 0.35,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "VSCO 2 Community Edition", url: "https://github.com/sgossner/VSCO-2-CE", version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)", fetched: "2026-11-06"),
+    credit: "From VS Chamber Orchestra 2: Community Edition by Versilian Studios (https://versilian-studios.com/vsco-community/): recorded by Sam Gossner (Versilian Studios) and Simon Dalzell (Ivy Audio), sample cutting by Elan Hickler (Soundemote). Public domain (CC0 1.0).",
+)

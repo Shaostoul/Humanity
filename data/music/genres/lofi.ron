@@ -28,6 +28,9 @@ Genre(
     pad_patterns: ["x.........x....."],
     bass_patterns: ["x.......5.....x."],
     harmony: (sevenths: true, chord_bars: Some((1, 2))),
+    // A piece's sections are eight bars, in one of these forms (docs/design/music.md section 7c).
+    phrase_bars: Some([8]),
+    forms: [(form: "AABA", weight: 2.0), (form: "ABAB", weight: 1.5), (form: "AABB", weight: 1.0)],
     palette: [
         (role: Pad, instrument: "electric_piano", part: Some("piano")),
         (role: Bells, instrument: "soft_lead", level_db: -2.0, part: Some("guitar")),

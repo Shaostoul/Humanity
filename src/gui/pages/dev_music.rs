@@ -56,6 +56,10 @@ pub struct MusicReadout {
     pub pieces: u64,
     /// How far under itself the score sits now, dB (a chat video playing, the world behind a page).
     pub duck_db: f32,
+    /// Seconds until the next piece begins (None: Never, or nothing playing), and Settings > Music's
+    /// "A new piece" choices, minutes (data/music/pieces.ron; 0 = Never).
+    pub next_piece_s: Option<f32>,
+    pub piece_minutes: Vec<f32>,
 }
 
 /// The Music card's state: the knob and the readout.
@@ -104,6 +108,12 @@ pub fn draw_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 line(ui, t("dev.music.mood"), format!("{} ({} {})", r.mood, t("dev.music.place_asks"), r.place_mood));
                 line(ui, t("dev.music.key"), format!("{}  {:.1} bpm  {} {}  {} {}", NOTE_NAMES[(s.key_pc as i32).rem_euclid(12) as usize], s.tempo_bpm, t("dev.music.phrase"), s.phrase, t("dev.music.bar"), s.bar + 1));
                 line(ui, t("dev.music.voices"), format!("{}  {} {:.3} ms  {} {:.3} ms", s.voices, t("dev.music.mean"), s.block_us_mean / 1000.0, t("dev.music.worst"), s.block_us_worst / 1000.0));
+                // The piece (docs/design/music.md section 7c): its seed (HUMANITY_MUSIC_SEED sets
+                // the first one for a rig), the section of its form and the time through it, and
+                // when the next piece begins.
+                let section = if s.section == 0 { "-".to_string() } else { ((b'A' + s.section - 1) as char).to_string() };
+                let next = r.next_piece_s.map_or("-".to_string(), |x| format!("{}:{:02}", (x as u32) / 60, (x as u32) % 60));
+                line(ui, t("dev.music.piece"), format!("{} {}  {} {}  {} {}  {} {next}", t("dev.music.piece_seed"), s.piece_seed, t("dev.music.piece_section"), section, t("dev.music.piece_chorus"), s.chorus + 1, t("dev.music.piece_next")));
             }
             None => line(ui, t("dev.music.mood"), t("dev.music.silent").to_string()),
         }

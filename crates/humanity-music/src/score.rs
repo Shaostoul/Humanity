@@ -61,6 +61,15 @@ pub struct MusicStatus {
     pub chord: u16,
     pub phrase: u64,
     pub bar: u32,
+    /// Bars begun since the score started (the runtime takes over at the next bar line on a genre
+    /// change, BUG-297).
+    pub bars: u64,
+    /// The piece playing (crate::piece): its seed, the section of its form (its letter + 1, 0 with
+    /// no form), which time through the form, and the piece's phrase index now playing.
+    pub piece_seed: u64,
+    pub section: u8,
+    pub chorus: u32,
+    pub form_pos: u64,
     pub tempo_bpm: f32,
     pub voices: u16,
     pub seconds: f64,
@@ -154,6 +163,14 @@ impl ScoreEngine {
             status: MusicStatus::default(),
             stopping: false,
         }
+    }
+
+    /// The same piece as a score that played it, carried on from the piece's phrase `played` (the
+    /// runtime's rebuild mid-piece: the data read again with reuse off, a pack installed).
+    pub fn resume(res: Resolved, rate: f32, seed: u64, ctx: MusicContext, played: u64) -> Self {
+        let mut s = Self::new(res, rate, seed, ctx);
+        s.composer.resume_at(played);
+        s
     }
 
     /// A new context from the game (read at the start of the next block).
@@ -297,6 +314,9 @@ impl ScoreEngine {
         s.chord = self.composer.chord() as u16;
         s.phrase = self.composer.phrases();
         s.bar = self.composer.bar();
+        s.bars = self.composer.bars();
+        s.piece_seed = self.composer.piece_seed();
+        (s.section, s.chorus, s.form_pos) = self.composer.section();
         s.tempo_bpm = self.composer.tempo();
         s.voices = self.pool.active() as u16;
         s.seconds = self.composer.seconds();

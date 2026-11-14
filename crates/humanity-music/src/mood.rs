@@ -96,6 +96,9 @@ pub struct RoleSpec {
     /// Percussion only: hits every `every_bars` bars, each (beat offset in the bar, velocity).
     #[serde(default)]
     pub pulse: Option<Pulse>,
+    /// A genre's lead voices only: how often a piece picks this one, by weight (1 when not given).
+    #[serde(default = "one")]
+    pub weight: f32,
 }
 
 fn one_u8() -> u8 {

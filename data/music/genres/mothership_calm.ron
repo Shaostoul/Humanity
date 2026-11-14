@@ -1,7 +1,11 @@
-// "Mothership calm", the default genre aboard: it changes nothing, so each mood plays as its file
-// writes it (docs/design/music.md, section 7a).
+// "Mothership calm", the default genre aboard: it changes nothing in how a mood sounds, so each mood
+// plays as its file writes it (docs/design/music.md, section 7a). It gives a piece its FORM (section
+// 7c): the order its sections play in, a letter a section, by weight. A letter that returns plays its
+// chords again (walked from the mood's own chord graph with the piece's leanings), and its tune the
+// first time through the form; a new piece, a new seed, every few minutes.
 Genre(
     id: "mothership_calm",
     words: "music.genre.mothership_calm",
     about_words: "music.genre.mothership_calm_about",
+    forms: [(form: "AABA", weight: 2.0), (form: "ABAB", weight: 1.0), (form: "ABAC", weight: 0.8)],
 )

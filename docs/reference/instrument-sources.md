@@ -203,6 +203,50 @@ every sample folder it makes, so it travels with the samples into the app and in
   tom, and the 18-inch), each the close microphone and the overheads mixed, as the library's own
   programs do.
 
+## 8. Martin HD-28 steel-string guitar (Discord SFZ GM Bank, "026-Acoustic Guitar (steel)")
+
+- Approved by the operator 2026-11-13 ("Let's do it"), for that ONE folder of
+  https://github.com/sfzinstruments/Discord-SFZ-GM-Bank (the repository is 179 MB of a whole General
+  MIDI bank; only this instrument was approved, so nothing else of it was fetched).
+- Licence: the repository has no licence file (GitHub reports none); the instrument's own SFZ,
+  `Discord GM/Melodic/026-Acoustic Guitar (steel).sfz`, read 2026-11-13 through the GitHub API at
+  commit `7a9c478fe331f94f246d33332f0adedb25bbbe27` (2024-03-04), opens with this header, quoted
+  exactly:
+
+  ```
+  // GM Acoustic Guitar
+  // 2017 Martin HD28 Vintage Series
+  // Author: Jeff Learman, for Kinwie's Discord SFZ GM: https://github.com/kinwie/Discord-SFZ-GM-Bank
+  // License: Creative Commons CC0
+  ```
+
+  The pipeline copies those four lines as the instrument's `LICENSE.txt` (`licence_lines: 4`).
+- Downloaded 2026-11-13 from `https://raw.githubusercontent.com/sfzinstruments/Discord-SFZ-GM-Bank/7a9c478fe331f94f246d33332f0adedb25bbbe27/Discord%20GM/Melodic/`,
+  file by file (the folder last changed 2021-10-01, commit `2b58d62da87d9cf16dcb6299abd1d298b67bfc4b`),
+  into `E:\HumanityOS\instruments-src\discord-sfz-gm-martin-hd28\`, 17 files, 3,158,269 bytes; logged
+  in `download-log.txt`. Every file's size and SHA-256 is in its library entry in
+  `scripts/instrument-recipes.json` (a folder of files rather than one archive; the pipeline refuses a
+  changed or missing file), and **all 16 files of the folder match their git blob hash** in that
+  commit's tree.
+- What it is: plucked notes a minor third apart from E2 to B5 (15 WAV files, one layer, no mutes or
+  strums), a steel-string flat-top, the nearest CC0 sound found to the Selmer-Maccaferri of gypsy
+  jazz (docs/design/music.md section 7a).
+- Worth knowing: the pitch measure locks onto the F5 sample's second harmonic (an octave up); the
+  key follows the file name's MIDI number, as for the steel pan. Measured median -8.5 cents from
+  A = 440 (the engine plays each sample from its own tuning).
+- Used for: the core set's steel-string guitar (`guitar_martin_small`, 337 KB, all 15 notes up to
+  4 s), the `acoustic_guitar` part: electro swing's comping guitar, la pompe.
+
+## 9. Further instruments from the libraries already here (2026-11-13, no download)
+
+From VSCO 2 CE (section 3) and VCSL (section 2), into the core set for electro swing's leads:
+`solo_violin_small` (VSCO 2 CE `Strings/Solo Violin/Arco Vib`, the soft layer, 15 notes, 984 KB),
+the hot-club violin; `tenor_saxophone_small` (VCSL `Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato`,
+19 notes, 1.2 MB; its file names sit an octave under the sounding pitch, which the pitch measure
+corrects). The piano and the vibraphone leads play the core set's upright piano and vibraphone
+already there (sections 1 and 2; the keys and mallets packs' grands and full vibraphone when
+installed). The core set is 10.2 MiB of its 30 MiB with them.
+
 ## What the app gets from them
 
 The pipeline keeps what each instrument needs and encodes it as Ogg Vorbis; nothing is retuned on

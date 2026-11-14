@@ -20,9 +20,12 @@ PackCatalog(
             (id: "trombone_small", part: "trombone"),
             (id: "clarinet_small", part: "clarinet"),
             (id: "double_bass_pizzicato_small", part: "double_bass_pizzicato"),
+            (id: "guitar_martin_small", part: "acoustic_guitar"),
+            (id: "solo_violin_small", part: "solo_violin"),
+            (id: "tenor_saxophone_small", part: "tenor_saxophone"),
             (id: "guitar_gretsch_small", part: "guitar"),
         ],
-        bytes: 8231765,
+        bytes: 10726894,
     ),
     packs: [
         (

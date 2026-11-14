@@ -17,15 +17,15 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-music/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
-  - `feature = "kira"`: `crates/humanity-music/src/kira_sound.rs`
-  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`
-- **Size:** 7,569 lines in 20 files, 1,346 of them in 2 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 1.
+  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
+  - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
+  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_piece.rs`
+- **Size:** 8,834 lines in 23 files, 1,572 of them in 3 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 2.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 20, engine 13.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 22, engine 13.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 28 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 31 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -48,10 +48,10 @@ just test-lib --crate humanity-music
 | `SampleLibrary` | 1 | gui 1 |
 | `ScoreEngine` | 1 | engine 1 |
 | `Tuning` | 1 | gui 1 |
-| `hum_place` | 1 | engine 1 |
-| `instrument` | 1 | gui 1 |
+| `decode::decode_file` | 1 | gui 1 |
+| `decode::decode_files` | 1 | gui 1 |
 
-And 6 more items, 6 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
+And 8 more items, 8 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -90,11 +90,14 @@ And 6 more items, 6 references (`node scripts/crate-cards.js --interface humanit
   render and measure (electro swing's 128 bpm and swing found in the rendered sound, tuning in the audio, the steel pan's and deep drum's partials and decay, the
   hum and its alarm, loudness and true peak with humanity_core's BS.1770 meter, determinism, the
   cost per block, no allocation, the sampler seam, the duck, a sustain held past its recording by a
-  crossfaded loop). The crate is optimised in dev and test builds (the root Cargo.toml), so its
-  timing tests measure the game's speed.
+  crossfaded loop); `src/tests_piece.rs` the pieces (music.md section 7c: two seeds make two pieces
+  and one seed the same piece twice, an hour of pieces repeats no two-minute stretch in any genre,
+  every piece stays inside its genre's rules). The crate is optimised in dev and test builds (the
+  root Cargo.toml), so its timing tests measure the game's speed.
 - **What starting the score costs, optimised:** the ignored `kira_sound::device_tests::
   decode_cost_of_starting_the_score` (`cargo test --release -p humanity-music --lib decode_cost --
-  --ignored --nocapture`): the data read and the core set decoded as the engine's build does.
+  --ignored --nocapture`): the data read and the core set decoded as the engine's build does, and
+  electro swing's recordings decoded one after another and on `decode::decode_files`' threads.
 - **The engine's side** (`src/engine/music_tests.rs`): where the music is heard from, the gains and
   ducks, the build on its worker thread, a new score taking over at a phrase after an install, the
   reuse switch, and the ignored `the_score_with_recordings_measured` (each mood with the core set's

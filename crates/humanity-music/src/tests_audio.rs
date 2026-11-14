@@ -148,12 +148,22 @@ fn a_rendered_a4_measures_432_hz() {
         let hz = zero_cross_hz(&x[(0.25 * RATE) as usize..]);
         assert!((hz - a4 as f64).abs() < 0.01, "A4 at {a4} rendered {hz:.3} Hz");
     }
+    // The drone sits on the key's root in its register; since 2026-11-13 a piece draws its key from
+    // the mood's keys by its seed, so the root is the one this seed's piece plays (D Lydian's D2 is
+    // 72.08 Hz at 432).
     let lib = shipped();
     let mut s = score(&lib, "mothership_calm", "mothership_calm", 3);
     let r = render_score(&mut s, RATE, 40.0);
+    let key = s.status().key_pc as i32;
+    let drone = s.resolved().moods[lib.mood_index("mothership_calm").unwrap()].roles[crate::mood::RoleKind::Drone.index()].clone().expect("the calm mood has a drone");
+    let root = crate::composer::nearest_pc_in(key, drone.low, drone.high, drone.low);
+    let want = crate::tuning::note_hz(root as f32, 432.0) as f64;
     let m = mono(&r.frames[(20.0 * RATE) as usize..]);
-    let d2 = peak_between(&m, 69.0, 75.0, 0.01);
-    assert!((d2 - 72.08).abs() < 0.03, "the drone's D2 in the mix: {d2:.2} Hz");
+    let found = peak_between(&m, want * 0.96, want * 1.04, 0.01);
+    assert!((found - want).abs() < 0.03, "the drone's root in the mix: {found:.2} Hz, its note {want:.2} Hz");
+    if key == 2 {
+        assert!((want - 72.08).abs() < 0.01, "D2 at 432 is 72.08 Hz: {want:.2}");
+    }
 }
 
 /// THE STEEL PAN AND THE DEEP DRUM render their partials and decay (operator, 2026-11-06: "Could we
@@ -777,7 +787,21 @@ fn electro_swing_renders_at_128_bpm_with_its_swing() {
     let (bpm, _) = g.tempo_bpm.expect("electro swing has its tempo");
     assert_eq!(bpm, 128.0, "the operator's 128 bpm");
     let swing = g.groove.expect("electro swing has its groove").swing as f64;
-    let mut s = score(&lib, "mothership_calm", "electro_swing", 20261112);
+    // A piece whose call is the clarinet, the voice this measure was made with: since 2026-11-13 a
+    // piece chooses its lead, and a piano or vibraphone lead adds sharp onsets of its own to both
+    // bands (seed 20261112's piece read 128.6 bpm and its off-beats at 0.697).
+    let res = Resolved::new(&lib, &SampleLibrary::new()).unwrap();
+    let mut seed = 20261112u64;
+    loop {
+        let mut c = crate::composer::Composer::new(RATE, seed, crate::tests::steer(&lib, "mothership_calm", "electro_swing"));
+        crate::tests::run(&mut c, &res, 3.0, &mut crate::tests::Recorder::default());
+        let melody = c.role_instruments()[crate::mood::RoleKind::Melody.index()].and_then(|i| res.instruments.get(i as usize)).map(|i| i.id.clone());
+        if melody.as_deref() == Some("clarinet") || seed > 20261112 + 64 {
+            break;
+        }
+        seed += 1;
+    }
+    let mut s = score(&lib, "mothership_calm", "electro_swing", seed);
     let r = render_score(&mut s, RATE, 30.0);
     // Skip the first two seconds (the first phrase's set-up).
     let skip = |v: Vec<f64>| v.into_iter().filter(|&t| t > 2.0).collect::<Vec<f64>>();

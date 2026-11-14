@@ -27,6 +27,7 @@ pub mod instrument;
 pub mod intensity;
 pub mod library;
 pub mod mood;
+pub mod piece;
 pub mod places;
 pub mod render;
 pub mod resolved;
@@ -37,6 +38,8 @@ pub mod genre;
 pub mod tuning;
 pub mod voice;
 
+#[cfg(feature = "kira")]
+pub mod decode;
 #[cfg(feature = "kira")]
 pub mod kira_sound;
 
@@ -62,3 +65,5 @@ pub fn session_seed() -> u64 {
 mod tests;
 #[cfg(test)]
 mod tests_audio;
+#[cfg(test)]
+mod tests_piece;

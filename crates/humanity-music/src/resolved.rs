@@ -52,6 +52,96 @@ pub struct RHarmony {
     pub moves: Vec<Vec<(usize, f32)>>,
     pub cadence: Vec<bool>,
     pub start: usize,
+    /// A genre's harmonic grammar (its chords above include the derived ones it can reach).
+    pub grammar: Option<crate::piece::RGrammar>,
+}
+
+/// A form's letters as section numbers (A = 0), checking each is a letter.
+fn forms_of(forms: &[crate::genre::FormSpec], owner: &str) -> Result<Vec<(Vec<u8>, f32)>, String> {
+    let mut out = Vec::new();
+    for f in forms {
+        let letters: Vec<u8> = f.form.chars().filter(|c| !c.is_whitespace()).map(|c| c.to_ascii_uppercase()).map(|c| if c.is_ascii_uppercase() { Ok(c as u8 - b'A') } else { Err(format!("{owner}: form {:?} holds {c:?}, not a letter", f.form)) }).collect::<Result<_, _>>()?;
+        if letters.is_empty() || letters.len() > crate::piece::MAX_FORM {
+            return Err(format!("{owner}: form {:?} needs 1 to {} sections", f.form, crate::piece::MAX_FORM));
+        }
+        out.push((letters, f.weight.max(0.0)));
+    }
+    Ok(out)
+}
+
+/// Resolve a genre's grammar over its harmony `h` (whose chords are `defs`): each named chord's
+/// function, the shapes, and the derived chords (each chord's secondary dominant, each dominant's
+/// tritone substitute, the diminished seventh a half step under each chord) added to `h`'s chords,
+/// a derived chord that is already one of them (V7 of the tonic is the V7) found rather than added.
+/// A derived chord moves only into the chord it leads to.
+fn grammar_of(h: &mut RHarmony, defs: &[crate::mood::ChordDef], g: &crate::genre::Grammar, owner: &str) -> Result<crate::piece::RGrammar, String> {
+    use crate::genre::Function;
+    use crate::piece::{FN_DOM, FN_NONE, FN_SUB, FN_TONIC};
+    let named = defs.len();
+    let mut func = vec![FN_NONE; named];
+    for (name, f) in &g.functions {
+        let i = defs.iter().position(|c| &c.name == name).ok_or_else(|| format!("{owner}: the grammar names chord {name:?}, not one of its chords"))?;
+        func[i] = match f {
+            Function::Tonic => FN_TONIC,
+            Function::Subdominant => FN_SUB,
+            Function::Dominant => FN_DOM,
+        };
+    }
+    for want in [FN_TONIC, FN_SUB, FN_DOM] {
+        if !func.contains(&want) {
+            return Err(format!("{owner}: the grammar needs a tonic, a subdominant and a dominant chord"));
+        }
+    }
+    let mut shapes = Vec::new();
+    for (text, w) in &g.shapes {
+        let s: Vec<u8> = text
+            .split_whitespace()
+            .map(|t| match t {
+                "T" => Ok(FN_TONIC),
+                "S" => Ok(FN_SUB),
+                "D" => Ok(FN_DOM),
+                _ => Err(format!("{owner}: grammar shape {text:?}: {t:?} is not T, S or D")),
+            })
+            .collect::<Result<_, _>>()?;
+        if s.is_empty() {
+            return Err(format!("{owner}: an empty grammar shape"));
+        }
+        shapes.push((s, w.max(0.0)));
+    }
+    if shapes.is_empty() {
+        return Err(format!("{owner}: the grammar has no shapes"));
+    }
+    let find_or_add = |h: &mut RHarmony, func: &mut Vec<u8>, root: i32, notes: &[i32], to: usize| -> u16 {
+        let root = root.rem_euclid(12);
+        if let Some(i) = h.chords.iter().position(|c| c.root.rem_euclid(12) == root && c.notes == notes) {
+            return i as u16;
+        }
+        h.chords.push(RChord { root, notes: notes.to_vec() });
+        h.moves.push(vec![(to, 1.0)]);
+        h.cadence.push(false);
+        func.push(FN_NONE);
+        (h.chords.len() - 1) as u16
+    };
+    let (mut sec_dom, mut tritone, mut passing) = (vec![None; named], vec![None; named], vec![None; named]);
+    for i in 0..named {
+        let root = h.chords[i].root;
+        sec_dom[i] = Some(find_or_add(h, &mut func, root + 7, &[0, 4, 7, 10], i));
+        passing[i] = Some(find_or_add(h, &mut func, root - 1, &[0, 3, 6, 9], i));
+        if func[i] == FN_DOM {
+            // The tritone substitute resolves where the dominant does: down a half step to the
+            // chord a fifth under the dominant.
+            let to = h.moves[i].first().map(|m| m.0).unwrap_or(h.start);
+            tritone[i] = Some(find_or_add(h, &mut func, root + 6, &[0, 4, 7, 10], to));
+        }
+    }
+    // The derived chords that turned out to be named chords keep their own functions; new ones are
+    // embellishments only (no function: a shape never lands on one).
+    let n = h.chords.len();
+    sec_dom.resize(n, None);
+    tritone.resize(n, None);
+    passing.resize(n, None);
+    func.resize(n, FN_NONE);
+    Ok(crate::piece::RGrammar { func, shapes, sec_dom, tritone, passing, p_sec: g.secondary_dominants.clamp(0.0, 1.0), p_tri: g.tritone_substitutes.clamp(0.0, 1.0), p_pass: g.passing_diminished.clamp(0.0, 1.0) })
 }
 
 /// Resolve key centres and a chord graph (a mood's or a genre's), checking every name.
@@ -80,7 +170,7 @@ fn harmony_of(keys_in: &[crate::mood::KeyCentre], chords: &[crate::mood::ChordDe
     for c in cadences {
         cadence[chord(c)?] = true;
     }
-    Ok(RHarmony { keys, chords: chords.iter().map(|c| RChord { root: c.root, notes: c.notes.clone() }).collect(), moves, cadence, start: chord(start)? })
+    Ok(RHarmony { keys, chords: chords.iter().map(|c| RChord { root: c.root, notes: c.notes.clone() }).collect(), moves, cadence, start: chord(start)?, grammar: None })
 }
 
 /// A mood ready to play.
@@ -145,6 +235,12 @@ pub struct RGenre {
     pub beats_per_bar: Option<u32>,
     /// Its own key centres and chord graph, played in calm moods in place of the mood's.
     pub progressions: Option<RHarmony>,
+    /// A piece's section lengths over the mood's, its forms (letters 0 = A, by weight), its riff
+    /// rules and its lead voices per role (role index, the voice, its weight): crate::piece.
+    pub phrase_bars: Option<Vec<u32>>,
+    pub forms: Vec<(Vec<u8>, f32)>,
+    pub motif_rules: Option<crate::piece::RMotifRules>,
+    pub leads: Vec<(usize, RRole, f32)>,
     pub motifs: Vec<Motif>,
     pub motif_scale: Option<Mode>,
     pub call_and_response: bool,
@@ -293,8 +389,32 @@ impl Resolved {
                 stab_hold_beats: s.stab_hold_beats.max(0.02),
                 beats_per_bar: s.beats_per_bar.map(|b| b.clamp(2, 12)),
                 progressions: match &s.progressions {
-                    Some(pr) => Some(harmony_of(&pr.keys, &pr.chords, &pr.moves, &pr.cadences, &pr.start, &owner)?),
+                    Some(pr) => {
+                        let mut h = harmony_of(&pr.keys, &pr.chords, &pr.moves, &pr.cadences, &pr.start, &owner)?;
+                        if let Some(g) = &pr.grammar {
+                            h.grammar = Some(grammar_of(&mut h, &pr.chords, g, &owner)?);
+                        }
+                        Some(h)
+                    }
                     None => None,
+                },
+                phrase_bars: s.phrase_bars.clone().filter(|b| !b.is_empty()).map(|b| b.into_iter().map(|x| x.clamp(1, 64)).collect()),
+                forms: forms_of(&s.forms, &owner)?,
+                motif_rules: s.motif_rules.as_ref().map(|r| crate::piece::RMotifRules {
+                    count: r.count,
+                    notes: r.notes,
+                    cells: r.cells.iter().filter(|c| !c.is_empty()).cloned().collect(),
+                    contours: r.contours.clone(),
+                    leap: r.leap.clamp(0.0, 1.0),
+                    range: r.range,
+                    hold: r.hold,
+                }),
+                leads: {
+                    let mut out = Vec::new();
+                    for r in &s.leads {
+                        out.push((r.role.index(), role(r, &owner)?, r.weight.max(0.0)));
+                    }
+                    out
                 },
                 motifs: s.motifs.clone(),
                 motif_scale: s.motif_scale,

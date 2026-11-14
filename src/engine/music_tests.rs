@@ -15,6 +15,8 @@ use super::*;
 #[derive(Default)]
 struct Offline {
     scores: Vec<Arc<Mutex<ScoreEngine>>>,
+    /// Seconds of audio rendered so far (the tests' clock).
+    now_s: f64,
 }
 
 struct OfflineScore(Arc<Mutex<ScoreEngine>>);
@@ -62,6 +64,7 @@ impl Offline {
     fn render(&mut self, seconds: f32) {
         let mut buf = vec![[0.0f32; 2]; 1024];
         let blocks = (seconds * 48000.0 / 1024.0).ceil() as usize;
+        self.now_s += (blocks * 1024) as f64 / 48000.0;
         for s in &self.scores {
             let mut e = s.lock().unwrap();
             if e.finished() {
@@ -98,6 +101,13 @@ fn inputs(data: &Path) -> Inputs {
 /// milliseconds) with the calm mood made quick: two-bar phrases at 120 bpm, so a phrase passes in
 /// four seconds of audio.
 fn quick_music(tag: &str) -> humanity_core::test_temp::TempPath {
+    let t = music_alone(tag);
+    edit_mood(&t.join("data"), |s| s.replace("phrase_bars: [8, 16]", "phrase_bars: [2]").replace("chord_bars: (2, 3)", "chord_bars: (1, 1)").replace("tempo_bpm: (56.0, 64.0)", "tempo_bpm: (120.0, 120.0)"));
+    t
+}
+
+/// The music's data alone (no recordings), its moods as shipped.
+fn music_alone(tag: &str) -> humanity_core::test_temp::TempPath {
     let repo = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let t = humanity_core::test_temp::dir(tag);
     let copy = |from: &Path, to: &Path| {
@@ -116,12 +126,11 @@ fn quick_music(tag: &str) -> humanity_core::test_temp::TempPath {
     for d in ["instruments", "moods", "genres"] {
         copy(&repo.join("music").join(d), &t.join("data/music").join(d));
     }
-    for f in ["intensity.ron", "packs.ron", "parts.ron", "places.ron", "tones.ron"] {
+    for f in ["intensity.ron", "packs.ron", "parts.ron", "pieces.ron", "places.ron", "tones.ron"] {
         std::fs::copy(repo.join("music").join(f), t.join("data/music").join(f)).unwrap();
     }
     std::fs::create_dir_all(t.join("data/audio")).unwrap();
     std::fs::copy(repo.join("audio/hum_sources.ron"), t.join("data/audio/hum_sources.ron")).unwrap();
-    edit_mood(&t.join("data"), |s| s.replace("phrase_bars: [8, 16]", "phrase_bars: [2]").replace("chord_bars: (2, 3)", "chord_bars: (1, 1)").replace("tempo_bpm: (56.0, 64.0)", "tempo_bpm: (120.0, 120.0)"));
     t
 }
 
@@ -304,6 +313,124 @@ fn an_install_reaches_the_playing_music_at_the_next_phrase() {
     assert!(mix.scores.first().is_some_and(|s| s.lock().unwrap().finished()), "the old score fades out and ends");
 }
 
+/// How long a genre change takes to reach the output may be, seconds of audio: the playing score's
+/// next bar line (4.3 s at the calm mood's slowest, 56 bpm), the new score's fade to half its level
+/// (a 1.5 s time constant: 1.04 s), and room for the build (the core set's electro swing recordings
+/// decode in tens of milliseconds in an optimised build, BUG-297).
+const GENRE_CHANGE_HEARD_S: f64 = 6.0;
+
+/// Play the calm mood `into_s` seconds, choose electro swing, and step until a score PLAYS electro
+/// swing (its phrase at the genre's 128 bpm; the calm mood is 56 to 64) at half its level or more;
+/// the seconds of audio from the choice to that. (What the score is told is not evidence: the
+/// playing score hears of the choice at once, and a first version of this check, reading the
+/// context, passed against the slow runtime at 0.0 s.)
+fn genre_change_heard_after(data: &Path, into_s: f32, reuse: bool, seed: u64) -> f64 {
+    let mut inp = inputs(data);
+    inp.reuse = reuse;
+    let mut rt = MusicRuntime { seed, ..Default::default() };
+    let mut mix = Offline::default();
+    run_until(&mut rt, &mut mix, &inp, 600, |r| r.score.is_some());
+    run(&mut rt, &mut mix, &inp, (into_s * 60.0) as usize);
+    inp.settings.genre = "electro_swing".into();
+    let t0 = mix.now_s;
+    for _ in 0..(150 * 60) {
+        rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
+        let heard = mix.scores.iter().any(|s| {
+            let e = s.lock().unwrap();
+            let st = e.status();
+            !e.finished() && (st.tempo_bpm - 128.0).abs() < 0.5 && st.gain >= 0.5 * e.context().gain
+        });
+        if heard {
+            return mix.now_s - t0;
+        }
+        rt.wait_for_build();
+        mix.render(inp.dt);
+    }
+    f64::INFINITY
+}
+
+/// A GENRE CHANGE IS HEARD WITHIN SECONDS (BUG-297, the operator 2026-11-13: "I clicked to enable
+/// electro swing but, the transition was really slow, felt like it took a minute or so."). From the
+/// calm mood as it ships (8 to 16 bar phrases at 56 to 64 bpm), electro swing is chosen at several
+/// moments into the piece, with the reuse switch on and off, and a score of electro swing must play
+/// at half its level within [`GENRE_CHANGE_HEARD_S`] of the choice: the new score takes over at the
+/// playing one's next bar line, crossfading, and a build begun for the old genre is not played.
+/// RED first (2026-11-13) against the runtime of v0.1558 (the playing score switched genre only at
+/// its next phrase, with stand-ins, and the rebuilt score took over a phrase after that, never before
+/// the playing score's second): "a genre change is heard within 6 s: the worst 62.4 s ([(3.0, t,
+/// 58.4), (3.0, f, 62.4), (11.0, t, 52.3), (11.0, f, 48.5), (23.0, t, 2.2), (23.0, f, 35.0), (41.0,
+/// t, 40.6), (41.0, f, 13.8)])" (a session seed then; the seeds are fixed now).
+#[test]
+fn a_genre_change_is_heard_within_seconds() {
+    let t = music_alone("music_genre_change");
+    let data = t.join("data");
+    let mut times = Vec::new();
+    for (k, into_s) in [3.0f32, 11.0, 23.0, 41.0].into_iter().enumerate() {
+        for reuse in [true, false] {
+            times.push((into_s, reuse, genre_change_heard_after(&data, into_s, reuse, 20261113 + k as u64)));
+        }
+    }
+    let worst = times.iter().map(|t| t.2).fold(0.0f64, f64::max);
+    println!("a genre change heard after (seconds into the piece, reuse, seconds): {times:.1?}");
+    assert!(worst <= GENRE_CHANGE_HEARD_S, "a genre change is heard within {GENRE_CHANGE_HEARD_S} s: the worst {worst:.1} s ({times:.1?})");
+}
+
+/// A NEW PIECE EVERY FEW MINUTES, AT A PHRASE; THE SAME PIECE CARRIED ON BY A REBUILD (2026-11-13,
+/// docs/design/music.md section 7c): with "A new piece" at a quarter of a minute, the quick calm mood
+/// (a phrase every 4 s) begins a new piece, a new seed, after its 15 s, each new score starting as
+/// the old one begins a phrase; with Never one piece plays the whole minute; and a rebuild that is
+/// not a new piece (a pack installed) keeps the piece's seed and carries on its form from the phrase
+/// it was at. RED first (2026-11-13) with the piece timer taken out: "a new piece after its minutes:
+/// 2 seeds in 60 s ([0, 20261113])" (the 0 a status read before the first block; skipped since).
+#[test]
+fn a_new_piece_begins_after_its_minutes_and_a_rebuild_carries_the_piece_on() {
+    let t = quick_music("music_pieces");
+    let data = t.join("data");
+    let seeds_over = |minutes: f32, seconds: f32| -> (Vec<u64>, Vec<bool>) {
+        let mut inp = inputs(&data);
+        inp.settings.piece_minutes = minutes;
+        let mut rt = MusicRuntime { seed: 20261113, ..Default::default() };
+        let mut mix = Offline::default();
+        let mut seeds: Vec<u64> = Vec::new();
+        let mut at_phrase: Vec<bool> = Vec::new();
+        for _ in 0..(seconds * 60.0) as usize {
+            let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
+            if let Some(s) = r.score {
+                if s.piece_seed != 0 && seeds.last() != Some(&s.piece_seed) {
+                    seeds.push(s.piece_seed);
+                    // The old score had just begun a phrase when the new one started: it is in the
+                    // first bar of its phrase (a frame is 17 ms; a bar here is 2 s).
+                    let old_bar = mix.scores.len().checked_sub(2).map(|i| mix.scores[i].lock().unwrap().status().bar);
+                    at_phrase.push(old_bar.is_none_or(|b| b == 0));
+                }
+            }
+            rt.wait_for_build();
+            mix.render(inp.dt);
+        }
+        (seeds, at_phrase)
+    };
+    let (seeds, at_phrase) = seeds_over(0.25, 60.0);
+    assert!(seeds.len() >= 3, "a new piece after its minutes: {} seeds in 60 s ({seeds:?})", seeds.len());
+    let mut uniq = seeds.clone();
+    uniq.dedup();
+    assert_eq!(uniq.len(), seeds.len(), "each piece a new seed: {seeds:?}");
+    assert!(at_phrase.iter().all(|&x| x), "each new piece at a phrase: {at_phrase:?}");
+    assert_eq!(seeds[0], 20261113, "the first piece's seed is the session's (HUMANITY_MUSIC_SEED for a rig)");
+    let (never, _) = seeds_over(0.0, 60.0);
+    assert_eq!(never.len(), 1, "Never: one piece the whole minute ({never:?})");
+    // A pack installed mid-piece: a new score, the same piece, carried on from where it was.
+    let mut inp = inputs(&data);
+    inp.settings.piece_minutes = 0.0;
+    let mut rt = MusicRuntime { seed: 77, ..Default::default() };
+    let mut mix = Offline::default();
+    let before = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.form_pos >= 2)).score.unwrap();
+    inp.generation = 1;
+    // (A new score reports its status once it has rendered a block.)
+    let after = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.pieces >= 2 && r.score.is_some_and(|s| s.blocks > 0 || s.seconds > 0.0)).score.unwrap();
+    assert_eq!(after.piece_seed, before.piece_seed, "a rebuild keeps the piece's seed");
+    assert!(after.form_pos > before.form_pos && after.form_pos <= before.form_pos + 2, "and carries its form on: phrase {} of the piece, then {}", before.form_pos, after.form_pos);
+}
+
 /// SETTINGS > MUSIC LISTS EVERY GENRE FROM THE DATA, MUSIC PLAYED OR NOT (BUG-273): with no audio
 /// device and nothing playing, the music's data is read on the worker and the readout lists every
 /// genre file (lo-fi beside the default) and the tones. RED first (2026-11-07) against the old frame
@@ -412,7 +539,9 @@ fn electro_swing_plays_recordings_out_of_the_box() {
     let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let mut bank = SampleBank::new();
     let built = build(&data, 432.0, true, &mut bank, &["electro_swing".to_string()]).expect("builds");
-    for part in ["trumpet", "trombone", "clarinet", "double_bass_pizzicato", "guitar"] {
+    // (Since 2026-11-13 the comping guitar is the Martin steel-string, part `acoustic_guitar`, and a
+    // piece's lead voices are among the violin, the tenor saxophone, the vibraphone and the piano.)
+    for part in ["trumpet", "trombone", "clarinet", "double_bass_pizzicato", "acoustic_guitar", "solo_violin", "tenor_saxophone", "vibraphone", "piano"] {
         let plays = built.plays.iter().find(|(p, _)| p == part).map(|(_, p)| p.clone());
         assert!(matches!(plays, Some(PartPlays::Recorded { .. })), "electro swing's {part} plays {}", plays.map(|p| format!("{p:?}")).unwrap_or_else(|| "nothing".into()));
     }
@@ -489,5 +618,41 @@ fn the_music_starts_with_the_app_and_a_script_launch_stays_silent() {
         let r = silent.step(None, &inp);
         assert!(!r.device && r.score.is_none(), "an instance with no sound device plays nothing");
         silent.wait_for_build();
+    }
+}
+
+/// PIECES TO LISTEN TO (2026-11-13, docs/design/music.md section 7c): 60 s of two electro swing
+/// pieces (two seeds) and one of the ship's own genre, built as the game builds them (the core set's
+/// recordings) and written as WAVs into HUMANITY_MUSIC_WAV_DIR (`m2-<genre>-seed-<seed>.wav`), with
+/// each piece's key, form, tempo and lead voice printed. Not a gate. Run by hand:
+/// HUMANITY_MUSIC_WAV_DIR=<dir> node scripts/lib-tests.js pieces_to_listen_to --ignored --nocapture
+#[test]
+#[ignore = "writes WAVs for a person to listen to; run: node scripts/lib-tests.js pieces_to_listen_to --ignored --nocapture"]
+fn pieces_to_listen_to() {
+    let Some(dir) = std::env::var_os("HUMANITY_MUSIC_WAV_DIR").map(PathBuf::from) else {
+        println!("HUMANITY_MUSIC_WAV_DIR is not set: nothing written");
+        return;
+    };
+    let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    for (genre, seed) in [("electro_swing", 20261113u64), ("electro_swing", 4242), ("mothership_calm", 20261113)] {
+        let mut bank = SampleBank::new();
+        let built = build(&data, 432.0, true, &mut bank, &[genre.to_string()]).expect("builds");
+        let lib = built.lib.clone();
+        let gi = lib.genre_index(genre).unwrap() as u16;
+        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi, genre_b: gi, blend: 0.0, intensity: 0.3, duck_db: 0.0 };
+        let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, seed, ctx);
+        let mut frames: Vec<[f32; 2]> = Vec::new();
+        let mut buf = [[0.0f32; 2]; 128];
+        for _ in 0..(60.0 * 48000.0 / 128.0) as usize {
+            e.render(&mut buf);
+            frames.extend_from_slice(&buf);
+        }
+        let path = dir.join(format!("m2-{}-seed-{seed}.wav", genre.replace('_', "-")));
+        humanity_music::render::write_wav(&path, &frames, 48000).expect("the WAV is written");
+        let c = e.composer();
+        let melody = c.role_instruments()[humanity_music::mood::RoleKind::Melody.index()].and_then(|i| e.instruments().get(i as usize)).map(|i| i.id.clone()).unwrap_or_default();
+        let form: String = c.piece_form().iter().map(|&l| (b'A' + l) as char).collect();
+        println!("{}: {genre}, seed {seed}: key {} {:?}, form {form}, {:.0} bpm, melody {melody}", path.display(), names[c.key_pc().rem_euclid(12) as usize], c.mode(), c.tempo());
     }
 }

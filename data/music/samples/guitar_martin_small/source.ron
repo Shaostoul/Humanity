@@ -1,0 +1,28 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "Martin HD-28 steel-string guitar (Discord SFZ GM Bank, 026 Acoustic Guitar (steel))",
+    url: "https://github.com/sfzinstruments/Discord-SFZ-GM-Bank/tree/7a9c478fe331f94f246d33332f0adedb25bbbe27/Discord%20GM/Melodic/026-Acoustic%20Guitar%20(steel)",
+    version: "commit 7a9c478fe331f94f246d33332f0adedb25bbbe27 (2024-03-04; the folder last changed 2021-10-01)",
+    licence: "CC0 1.0 (the instrument's SFZ header: \"License: Creative Commons CC0\")",
+    fetched: "2026-11-13",
+    archive: "discord-sfz-gm-martin-hd28",
+    archive_sha256: "",
+    kept: [
+        (file: "MartinGM2_040__E2_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_040__E2_1.wav"),
+        (file: "MartinGM2_043__G2_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_043__G2_1.wav"),
+        (file: "MartinGM2_046_Bb2_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_046_Bb2_1.wav"),
+        (file: "MartinGM2_049_Db3_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_049_Db3_1.wav"),
+        (file: "MartinGM2_052__E3_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_052__E3_1.wav"),
+        (file: "MartinGM2_055__G3_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_055__G3_1.wav"),
+        (file: "MartinGM2_058_Bb3_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_058_Bb3_1.wav"),
+        (file: "MartinGM2_061_Db4_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_061_Db4_1.wav"),
+        (file: "MartinGM2_064__E4_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_064__E4_1.wav"),
+        (file: "MartinGM2_068_Ab4_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_068_Ab4_1.wav"),
+        (file: "MartinGM2_071__B4_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_071__B4_1.wav"),
+        (file: "MartinGM2_074__D5_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_074__D5_1.wav"),
+        (file: "MartinGM2_077__F5_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_077__F5_1.wav"),
+        (file: "MartinGM2_080_Ab5_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_080_Ab5_1.wav"),
+        (file: "MartinGM2_083__B5_1.ogg", from: "026-Acoustic Guitar (steel)/MartinGM2_083__B5_1.wav"),
+    ],
+)

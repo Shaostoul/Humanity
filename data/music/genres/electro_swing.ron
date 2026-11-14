@@ -42,11 +42,19 @@ Genre(
     stab_patterns: ["...x...x", ".......x", "x..x....", "..x...x."],
     stab_hold_beats: 0.3,
     progressions: Some((
-        keys: [(root: "D", mode: HarmonicMinor, weight: 1.0), (root: "G", mode: HarmonicMinor, weight: 0.35)],
+        // The keys a piece may be in (a piece draws one by weight; its bridge may move to another).
+        // The ship's hum follows whatever key plays.
+        keys: [
+            (root: "D", mode: HarmonicMinor, weight: 1.0), (root: "G", mode: HarmonicMinor, weight: 0.8), (root: "A", mode: HarmonicMinor, weight: 0.7),
+            (root: "C", mode: HarmonicMinor, weight: 0.6), (root: "E", mode: HarmonicMinor, weight: 0.5), (root: "F", mode: HarmonicMinor, weight: 0.4),
+        ],
         chords: [
             (name: "i6", root: 0, notes: [0, 3, 7, 9]),
+            (name: "i_minmaj7", root: 0, notes: [0, 3, 7, 11]),
+            (name: "iv_m7", root: 5, notes: [0, 3, 7, 10]),
+            (name: "VI_maj7", root: 8, notes: [0, 4, 7, 11]),
             (name: "iv6", root: 5, notes: [0, 3, 7, 9]),
-            (name: "ii_half_dim", root: 4, notes: [0, 3, 6, 10]),
+            (name: "ii_half_dim", root: 2, notes: [0, 3, 6, 10]),
             (name: "V7", root: 7, notes: [0, 4, 7, 10]),
             (name: "V7b9", root: 7, notes: [0, 4, 7, 10, 13]),
             (name: "bVI7", root: 8, notes: [0, 4, 7, 10]),
@@ -64,12 +72,68 @@ Genre(
             ("V7_of_iv", "iv6", 4.0),
             ("dim_passing", "ii_half_dim", 3.0),
             ("dim_leading", "i6", 3.0),
+            ("i6", "i_minmaj7", 1.0), ("i_minmaj7", "iv6", 2.0), ("i_minmaj7", "ii_half_dim", 1.5), ("i_minmaj7", "iv_m7", 1.0),
+            ("iv_m7", "V7", 2.0), ("iv_m7", "i6", 1.5), ("iv6", "VI_maj7", 0.8), ("VI_maj7", "ii_half_dim", 2.0), ("VI_maj7", "V7", 2.0),
         ],
         cadences: ["i6", "V7"],
         start: "i6",
+        // A piece's chord walk (docs/design/music.md section 7c): each section of its form is
+        // generated from this grammar rather than walked from the moves above. A SHAPE is a run of
+        // functions (T the tonic, S the subdominant side, D the dominant), each slot one chord of
+        // that function, the last a cadence; then the embellishments of swing-era harmony, each with
+        // its chance: a secondary dominant (the seventh chord a fifth above the chord that follows,
+        // in the last bar of the chord before), a tritone substitute (a dominant played as the
+        // seventh chord a tritone away, sliding down a half step into its target) and a passing
+        // diminished chord (a half step under the chord that follows). These are the commonplace
+        // building blocks of the style, never any tune's own changes.
+        grammar: Some((
+            functions: [
+                ("i6", Tonic), ("i_minmaj7", Tonic), ("iv6", Subdominant), ("iv_m7", Subdominant), ("ii_half_dim", Subdominant),
+                ("bVI7", Subdominant), ("VI_maj7", Subdominant), ("V7", Dominant), ("V7b9", Dominant),
+            ],
+            shapes: [
+                ("T S D T", 3.0), ("T T S D", 2.0), ("T S T D", 1.5), ("T D T D", 1.0), ("T S S D", 1.0), ("S D T T", 0.8), ("T T D D", 0.6), ("T S D D", 0.8),
+            ],
+            secondary_dominants: 0.3,
+            tritone_substitutes: 0.2,
+            passing_diminished: 0.25,
+        )),
     )),
+    // A piece's sections are eight bars each (the swing era's 32-bar song is four of them), and its
+    // FORM, by weight: the order they play in, a letter a section. A letter that returns plays its
+    // chords again, and its tune the first time through the form; after that the band improvises
+    // over the same chords until the next piece.
+    phrase_bars: Some([8]),
+    forms: [(form: "AABA", weight: 3.0), (form: "ABAB", weight: 1.5), (form: "AABB", weight: 1.0), (form: "ABAC", weight: 1.0)],
     harmony: (chord_bars: Some((1, 2))),
     motif_scale: Some(Blues),
+    // Each piece makes its own riffs from these rules (the motifs below are what plays without
+    // them): how many, how many notes each, rhythm cells in beats strung together, the melodic
+    // contours a riff may take by weight, its steps in the minor blues scale (mostly steps of one
+    // or two, now and then a leap), how far from its starting chord tone it may go, and how much of
+    // each note sounds.
+    motif_rules: Some((
+        count: 5,
+        notes: (3, 6),
+        cells: [[0.5, 0.5], [1.0], [0.5, 0.5, 1.0], [1.0, 0.5, 0.5], [0.5, 1.0, 0.5], [1.5, 0.5], [0.5, 0.5, 0.5, 0.5]],
+        contours: [(Rise, 1.0), (Fall, 1.5), (Arch, 1.5), (Valley, 1.0), (Hover, 0.8), (Zigzag, 0.6)],
+        leap: 0.15,
+        range: (-3, 6),
+        hold: (0.45, 0.85),
+    )),
+    // The voices a piece chooses for its melody (the call) and its answer, by weight, from what the
+    // core set plays: the clarinet, the hot-club violin, the tenor saxophone, the vibraphone and the
+    // piano call; the trombone, the violin and the trumpet answer (never the same voice as the call).
+    leads: [
+        (role: Melody, instrument: "clarinet", part: Some("clarinet"), low: "D4", high: "D6", density: 0.65, level_db: 4.0, weight: 2.0),
+        (role: Melody, instrument: "soft_lead", part: Some("solo_violin"), low: "G4", high: "D6", density: 0.65, level_db: 4.0, weight: 1.5),
+        (role: Melody, instrument: "clarinet", part: Some("tenor_saxophone"), low: "D3", high: "D5", density: 0.6, level_db: 4.0, weight: 1.5),
+        (role: Melody, instrument: "celesta", part: Some("vibraphone"), low: "F4", high: "F6", density: 0.6, level_db: 2.0, weight: 1.0),
+        (role: Melody, instrument: "electric_piano", part: Some("piano"), low: "D4", high: "D6", density: 0.6, level_db: 2.0, weight: 1.0),
+        (role: Bells, instrument: "swing_horns", part: Some("trombone"), low: "D3", high: "D5", density: 0.5, level_db: 2.0, weight: 2.0),
+        (role: Bells, instrument: "soft_lead", part: Some("solo_violin"), low: "G4", high: "D6", density: 0.5, level_db: 2.0, weight: 1.0),
+        (role: Bells, instrument: "swing_horns", part: Some("trumpet"), low: "F4", high: "D6", density: 0.5, level_db: 2.0, weight: 1.0),
+    ],
     // Short riffs: scale steps of the minor blues from a chord tone, lengths in beats (an off-beat
     // lands swung), and how much of each length the note sounds (short and punched, or held).
     motifs: [
@@ -84,7 +148,7 @@ Genre(
     dynamics: Some((0.75, 1.0)),
     roles_off: [Drone, Percussion],
     roles_add: [
-        (role: Pad, instrument: "jazz_guitar", part: Some("guitar"), low: "D3", high: "D5", voices: 4),
+        (role: Pad, instrument: "jazz_guitar", part: Some("acoustic_guitar"), low: "D3", high: "D5", voices: 4),
         (role: Bass, instrument: "upright_bass", part: Some("double_bass_pizzicato"), low: "E1", high: "D3"),
         (role: Choir, instrument: "swing_horns", part: Some("trumpet"), low: "F3", high: "D5", voices: 3, density: 0.6, level_db: 4.0),
         (role: Melody, instrument: "clarinet", part: Some("clarinet"), low: "D4", high: "D6", density: 0.65, level_db: 4.0),

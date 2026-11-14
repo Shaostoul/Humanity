@@ -294,7 +294,7 @@ pub(crate) fn genre_stand_ins(data_dir: &Path, lib: &MusicLibrary) -> Vec<Vec<St
         .iter()
         .map(|g| {
             let mut out: Vec<String> = Vec::new();
-            for p in g.roles_add.iter().filter_map(|r| r.part.as_ref()).chain(g.palette.iter().filter_map(|e| e.part.as_ref())) {
+            for p in g.roles_add.iter().chain(g.leads.iter()).filter_map(|r| r.part.as_ref()).chain(g.palette.iter().filter_map(|e| e.part.as_ref())) {
                 if matches!(installed.choose(p, &parts), Some(crate::instrument_packs::library::Choice::Sampled(_))) {
                     continue;
                 }
@@ -358,12 +358,29 @@ impl<B: kira::backend::Backend> Mixer for humanity_core::audio::AudioManager<B> 
 /// A build in flight on the worker thread: what it was asked for, and the bank lent to it.
 type BuildResult = (Result<Built, String>, SampleBank);
 
+/// Why a score is being built, which says when it takes over and with which seed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Take {
+    /// Nothing plays: it starts at once, a new piece.
+    Start,
+    /// The person chose another genre (or a place's genre took over): a new piece, at the playing
+    /// score's next BAR line, crossfading (BUG-297: it waited for the next phrase, up to a minute).
+    Genre,
+    /// The piece has played its minutes (Settings > Music, "A new piece"): the next seed, at the
+    /// playing score's next phrase.
+    Piece,
+    /// The same piece rebuilt (the data read again with reuse off, a pack installed): the same seed,
+    /// carried on from the phrase it was at, at the next phrase.
+    Refresh,
+}
+
 /// A build on the worker: its thread, whether it builds a score, and the install generation and the
-/// genres it was asked with.
+/// genres it was asked with, and why.
 struct Building {
     handle: JoinHandle<BuildResult>,
     generation: u64,
     genres: Vec<String>,
+    take: Take,
 }
 
 /// A built score waiting to start.
@@ -373,8 +390,11 @@ struct Ready {
     lib: Arc<MusicLibrary>,
     generation: u64,
     genres: Vec<String>,
-    /// The playing score's phrase when it arrived: it takes over after that phrase.
+    /// The playing score's phrase and bar count when it arrived: it takes over after that phrase
+    /// (or that bar, for a genre change).
     at_phrase: u64,
+    at_bar: u64,
+    take: Take,
 }
 
 /// The genres the music plays from (ids): the person's genre, or the place's livelier one where they
@@ -432,11 +452,16 @@ pub(crate) struct MusicRuntime {
     /// How many scores have started this run, and the last build's time on the worker.
     pieces: u64,
     build_ms: Option<f32>,
+    /// Pieces begun this run (each new piece's seed is the session's plus this times the golden
+    /// ratio's constant), the playing piece's seed, and how long it has played, seconds.
+    piece_n: u64,
+    piece_seed: u64,
+    piece_s: f32,
 }
 
 impl MusicRuntime {
     /// Start a build on the worker thread (the bank goes with it and comes back with the result).
-    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>) {
+    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>, take: Take) {
         if self.building.is_some() {
             return;
         }
@@ -453,7 +478,7 @@ impl MusicRuntime {
             (r, bank)
         });
         match handle {
-            Ok(handle) => self.building = Some(Building { handle, generation, genres }),
+            Ok(handle) => self.building = Some(Building { handle, generation, genres, take }),
             Err(e) => {
                 log::warn!("[Music] the music's build thread did not start: {e}");
             }
@@ -461,12 +486,12 @@ impl MusicRuntime {
     }
 
     /// Take a finished build, if there is one.
-    fn poll_build(&mut self, current_phrase: u64) {
+    fn poll_build(&mut self, current_phrase: u64, current_bar: u64) {
         let finished = self.building.as_ref().is_some_and(|b| b.handle.is_finished());
         if !finished {
             return;
         }
-        let Some(Building { handle, generation, genres }) = self.building.take() else { return };
+        let Some(Building { handle, generation, genres, take }) = self.building.take() else { return };
         match handle.join() {
             Ok((result, bank)) => {
                 self.bank = Some(bank);
@@ -484,7 +509,7 @@ impl MusicRuntime {
                         self.lib = Some(built.lib);
                         self.stand_ins = built.stand_ins;
                         if let Some(res) = built.score {
-                            self.ready = Some(Ready { res, lib, generation, genres, at_phrase: current_phrase });
+                            self.ready = Some(Ready { res, lib, generation, genres, at_phrase: current_phrase, at_bar: current_bar, take });
                         }
                     }
                     Err(e) => {
@@ -511,29 +536,54 @@ impl MusicRuntime {
         }
         let g = gains(inp);
         let mut readout = MusicReadout { device: mixer.is_some(), duck_db: g.duck_db, pieces: self.pieces, ..Default::default() };
-        let phrase = self.score.as_mut().map(|h| h.status().phrase);
-        self.poll_build(phrase.unwrap_or(0));
+        let st = self.score.as_mut().map(|h| h.status());
+        let phrase = st.map(|s| s.phrase);
+        let bar = st.map(|s| s.bars);
+        self.poll_build(phrase.unwrap_or(0), bar.unwrap_or(0));
         let a4 = inp.settings.tuning.a4_hz();
         let want_bed = g.hum || g.tones;
         // What to build: a score when one is wanted (and a device plays it) and none plays or waits,
-        // again when what is installed changed, and with reuse off once every phrase; otherwise the
-        // data alone, when none has been read (Settings > Music lists its genres from it, music
-        // played or not; the hum reads its sources from it), and with reuse off every few seconds.
+        // again when the genres in use change, when the piece has played its minutes, when what is
+        // installed changed, and with reuse off once every phrase; otherwise the data alone, when
+        // none has been read (Settings > Music lists its genres from it, music played or not; the hum
+        // reads its sources from it), and with reuse off every few seconds.
         self.since_read_s += inp.dt;
+        if self.score.is_some() && g.music {
+            self.piece_s += inp.dt;
+        }
         let genres = genres_in_use(self.lib.as_deref(), inp);
+        // A score built for genres no longer in use (another was chosen while it was building, or
+        // while it waited for its bar line) is not played: the build for the genres now starts at
+        // once below (BUG-297: it played the stale score a phrase, then built again).
+        if self.ready.as_ref().is_some_and(|r| r.genres != genres) {
+            self.ready = None;
+        }
         if self.building.is_none() && self.ready.is_none() {
-            // What is installed changed, or the genres in use did (a genre or a blend chosen in
-            // Settings, a place's suggestion): the parts that can sound, so the recordings to hold.
-            let changed = self.score.is_some() && (self.score_generation != inp.generation || self.score_genres != genres);
+            // The genres in use changed (a genre or a blend chosen in Settings, a place's
+            // suggestion), the piece is due to change, or what is installed changed: the parts that
+            // can sound, so the recordings to hold.
+            let genre_changed = self.score.is_some() && self.score_genres != genres;
+            let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;
+            let piece_due = self.score.is_some() && piece_len_s > 0.0 && self.piece_s >= piece_len_s;
+            let installed = self.score.is_some() && self.score_generation != inp.generation;
             let next_phrase = !inp.reuse && phrase.is_some_and(|p| self.asked_at_phrase.is_none_or(|a| p > a));
             let unread = self.lib.is_none() && (self.load_error.is_none() || inp.restart);
-            if mixer.is_some() && ((g.music && self.score.is_none()) || changed || next_phrase) {
+            let take = if self.score.is_none() {
+                Take::Start
+            } else if genre_changed {
+                Take::Genre
+            } else if piece_due {
+                Take::Piece
+            } else {
+                Take::Refresh
+            };
+            if mixer.is_some() && ((g.music && self.score.is_none()) || genre_changed || piece_due || installed || next_phrase) {
                 self.asked_at_phrase = phrase;
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone());
+                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone(), take);
             } else if unread || (!inp.reuse && self.score.is_none() && self.since_read_s >= REREAD_S) {
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone());
+                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone(), Take::Start);
             }
         }
         let Some(mixer) = mixer else {
@@ -545,21 +595,33 @@ impl MusicRuntime {
         if self.seed == 0 {
             self.seed = humanity_music::session_seed().max(1);
         }
-        // A built score starts at once when none plays, else at the playing one's next phrase.
-        // (A new score's first phrase always plays whole: it is never taken over before phrase 2.)
+        // A built score starts at once when none plays; a new genre at the playing one's next bar
+        // line; anything else at its next phrase (and a new score's first phrase plays whole: it
+        // is never taken over before its phrase 2, unless the person chose another genre).
         let take_over = match (&self.ready, phrase) {
             (Some(_), None) => g.music,
+            (Some(r), Some(_)) if r.take == Take::Genre => bar.is_some_and(|b| b > r.at_bar),
             (Some(r), Some(p)) => p > r.at_phrase.max(1),
             _ => false,
         };
         if take_over {
-            if let Some(Ready { res, lib, generation, genres, .. }) = self.ready.take() {
-                let ctx = Self::context_of(&lib, inp, &g, a4);
-                let seed = self.seed.wrapping_add(self.pieces.wrapping_mul(0x9e37_79b9));
-                match mixer.play_score(ScoreEngine::new(res, START_RATE, seed, ctx)) {
+            if let Some(Ready { res, lib, generation, genres, take, .. }) = self.ready.take() {
+                let ctx = Self::context_of(&lib, inp, &g, a4, &genres);
+                // A rebuild of the same piece keeps its seed and carries on from the phrase the old
+                // score just began; anything else is a new piece, the next seed.
+                let resume = (take == Take::Refresh && self.score.is_some()).then(|| st.map(|s| s.form_pos)).flatten();
+                let seed = match resume {
+                    Some(_) => self.piece_seed,
+                    None => self.seed.wrapping_add(self.piece_n.wrapping_mul(0x9e37_79b9)),
+                };
+                let engine = match resume {
+                    Some(at) => ScoreEngine::resume(res, START_RATE, seed, ctx, at),
+                    None => ScoreEngine::new(res, START_RATE, seed, ctx),
+                };
+                match mixer.play_score(engine) {
                     Ok(h) => {
                         if self.score.is_some() {
-                            log::info!("[Music] a new score takes over at the phrase (seed {seed})");
+                            log::info!("[Music] a new score takes over ({take:?}, seed {seed})");
                         } else {
                             log::info!("[Music] the score starts (seed {seed}, A4 = {a4} Hz)");
                         }
@@ -570,6 +632,11 @@ impl MusicRuntime {
                         self.score_genres = genres;
                         self.asked_at_phrase = None;
                         self.pieces += 1;
+                        if resume.is_none() {
+                            self.piece_n += 1;
+                            self.piece_seed = seed;
+                            self.piece_s = 0.0;
+                        }
                     }
                     Err(e) => log::warn!("[Music] the score did not start: {e}"),
                 }
@@ -590,7 +657,9 @@ impl MusicRuntime {
         }
         let mut key_pc = 2i8;
         if let (Some(h), Some(lib)) = (self.score.as_mut(), self.score_lib.clone()) {
-            let ctx = Self::context_of(&lib, inp, &g, a4);
+            // The playing score keeps the genres it was built for: a newly chosen genre arrives as a
+            // new score at the next bar line, with its recordings, not as this score's stand-ins.
+            let ctx = Self::context_of(&lib, inp, &g, a4, &self.score_genres);
             h.set_context(ctx);
             let st = h.status();
             key_pc = st.key_pc;
@@ -635,23 +704,21 @@ impl MusicRuntime {
         readout.zone = inp.place.zone.clone();
         readout.seed = self.seed;
         readout.pieces = self.pieces;
+        let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;
+        readout.next_piece_s = (self.score.is_some() && piece_len_s > 0.0).then(|| (piece_len_s - self.piece_s).max(0.0));
         self.readout_lists(readout)
     }
 
     /// The score's context from `lib` (the data the score was built from: its mood and genre
-    /// indices are that data's).
-    fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32) -> MusicContext {
+    /// indices are that data's), playing `genres` (ids, as [`genres_in_use`] gives them: the genre,
+    /// then a blend's second).
+    fn context_of(lib: &MusicLibrary, inp: &Inputs, g: &Gains, a4: f32, genres: &[String]) -> MusicContext {
         let s = &inp.settings;
         let p = Place { zone: &inp.place.zone, room_id: &inp.place.room_id, room_name: &inp.place.room_name, hour: inp.place.hour };
         let mood = lib.mood_index(lib.places.mood_for(&p)).unwrap_or(0) as u16;
-        let mut genre_a = lib.genre_index(&s.genre).unwrap_or(0) as u16;
-        if s.places_pick_genre {
-            if let Some(i) = lib.places.genre_for(&p).and_then(|id| lib.genre_index(id)) {
-                genre_a = i as u16;
-            }
-        }
-        let (genre_b, blend) = match lib.genre_index(&s.blend_with) {
-            Some(i) if !s.blend_with.is_empty() && s.blend > 0.0 => (i as u16, s.blend.clamp(0.0, 1.0)),
+        let genre_a = genres.first().and_then(|id| lib.genre_index(id)).unwrap_or(0) as u16;
+        let (genre_b, blend) = match genres.get(1).and_then(|id| lib.genre_index(id)) {
+            Some(i) if s.blend > 0.0 => (i as u16, s.blend.clamp(0.0, 1.0)),
             _ => (genre_a, 0.0),
         };
         MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity: inp.intensity.clamp(0.0, 1.0), duck_db: g.duck_db }
@@ -662,6 +729,7 @@ impl MusicRuntime {
         if let Some(lib) = self.lib.as_ref() {
             readout.genres = genre_choices(lib, &self.stand_ins);
             readout.tones = lib.tones.clone();
+            readout.piece_minutes = lib.piece_minutes.clone();
         }
         readout.load_error = self.load_error.clone();
         readout.build_ms = self.build_ms;

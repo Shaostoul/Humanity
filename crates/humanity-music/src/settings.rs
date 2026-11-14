@@ -41,6 +41,8 @@ pub struct MusicSettings {
     pub tones_on: bool,
     pub tone_hz: f32,
     pub tone_volume: f32,
+    /// How often a new piece begins, minutes (0: never; the choices are data/music/pieces.ron).
+    pub piece_minutes: f32,
 }
 
 impl Default for MusicSettings {
@@ -59,6 +61,7 @@ impl Default for MusicSettings {
             tones_on: false,
             tone_hz: 528.0,
             tone_volume: 0.3,
+            piece_minutes: 4.0,
         }
     }
 }

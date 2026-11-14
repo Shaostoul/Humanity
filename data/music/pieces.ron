@@ -1,0 +1,6 @@
+// How often a new piece of music begins (docs/design/music.md, section 7c): the choices Settings >
+// Music offers under "A new piece", in minutes, as data; 0 is "Never" (the same piece plays on). A
+// piece is a seed: its key, its chords, its riffs, its form and its lead voices. The operator,
+// 2026-11-13: "So it generates a track based on the seed and then we can vary the seed X amount of
+// minutes to mix up the music?"
+Pieces(minutes: [2.0, 3.0, 4.0, 6.0, 10.0, 0.0])

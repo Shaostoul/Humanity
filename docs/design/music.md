@@ -446,6 +446,59 @@ Public-domain recordings (old 78s) might be usable, but that needs a dated legal
 (CLAUDE.md, "Research a legal question, then write it down and date it"); none has been written,
 and nothing here decides it.
 
+## 7c. Pieces: variety by seed (built 2026-11-13)
+
+The operator, 2026-11-13: "we don't want the same electro swing song for hours on end, we
+definitely want variety to the music. Even different chords and what not. Are we able to have like
+procedural seeds for music? So it generates a track based on the seed and then we can vary the seed
+X amount of minutes to mix up the music?"
+
+**A piece is a seed** (`crates/humanity-music/src/piece.rs`). A score plays one piece, and its seed
+draws, within the genre's rules (every rule is data in the genre's file):
+
+| What | From the genre's data | Electro swing |
+|---|---|---|
+| The key | its `keys`, by weight; a bridge may move to another (about a third of pieces) | D, G, A, C, E or F harmonic minor |
+| The tempo | its tempo range (the piece keeps one tempo) | 128, its range being 128 to 128 |
+| The form | its `forms`, by weight: the order its sections play in, a letter a section | AABA, ABAB, AABB, ABAC |
+| Each section's chords | its `grammar` (below), or for a genre with only a chord graph, a walk of that graph with this piece's own leanings (each move's weight times 0.3 to 1.7, fixed by the seed) | shapes of tonic, subdominant and dominant chords plus the style's embellishments |
+| Its riffs | its `motif_rules`: how many, notes each, rhythm cells strung together, contours by weight, steps of its scale with a leap now and then, a range, how much of each note sounds | five riffs of 3 to 6 notes in the minor blues |
+| Its lead voices | its `leads`, by weight, one per role, never two roles on one voice | the call: clarinet, violin, tenor saxophone, vibraphone or piano; the answer: trombone, violin or trumpet |
+| Section lengths | its `phrase_bars` over the mood's | eight bars (the swing era's 32-bar song is four of them) |
+
+**The grammar** (a genre's `progressions.grammar`): each chord's function (tonic, subdominant side,
+dominant) and SHAPES, runs of functions such as "T S D T", by weight. A section takes a shape, fills
+each slot with a chord of that function (leaning by the seed, avoiding the chord just played), ends
+on a tonic (the form's last section) or, as a turnaround, a tonic or a dominant; then, each by its
+chance, a secondary dominant (the seventh chord a fifth above the next chord, in the last bar
+before it), a tritone substitute (a dominant played as the seventh chord a tritone away) and a
+passing diminished chord (a half step under the next chord). The derived chords are made when the
+data is resolved (a derived chord that is already one of the named ones, the V7 of the tonic, is
+that chord), so the generator only picks indices and allocates nothing on the audio thread. These
+are the commonplace building blocks of the style (the 2026-11-12 finding); no tune's changes or
+melody is written anywhere.
+
+**Sections that return.** The same letter is the same chords all piece (each section has its own
+seed, from the piece's seed and the harmony playing). The first time through the form a letter
+also keeps its tune (its riffs drawn from the section's seed), so the second A is the first A
+again; after that the band improvises new riffs over the same chords, the second half of each
+section reharmonised for that time through (its own seed), re-drawn while a phrase repeats one in
+the mood's `no_repeat_s`, so even "Never" plays no two minutes twice in an hour. A danger mood plays
+free, as written, and the form picks up where it was when the danger settles.
+
+**A new piece every few minutes** (Settings > Music, "A new piece": every 2, 3, 4, 6 or 10 minutes,
+or Never; the choices are `data/music/pieces.ron`, 4 minutes by default): the runtime builds the
+next piece (the next seed) while the old one plays and starts it at the old one's next phrase, the
+two crossfading (each score's 1.5 s fade). A rebuild that is not a new piece (the data read again
+with reuse off, a pack installed) carries on the SAME piece from the phrase it was at
+(`ScoreEngine::resume`). The first piece's seed is the session's seed (`HUMANITY_MUSIC_SEED` for
+rigs); each next piece's is the session's plus the piece's number times the golden ratio's constant.
+The Dev page's Music card shows the playing piece's seed, its section and time through the form,
+and the time to the next piece.
+
+The ship's own score ("Mothership calm") and lo-fi have forms too, their sections walked from their
+chord graphs; only electro swing has a grammar, generated riffs and leads so far.
+
 ## 7b. Danger and action: the score rising with the game
 
 The operator, 2026-11-06: "Let's also see what we can generate for high octane situations like a
@@ -615,6 +668,11 @@ per channel included; in Rust, a budget of 0.02 ms per 128-frame block (section 
   recordings and resolving them took the game thread about half a second at world entry (445 ms to
   decode main's 35 recordings, optimised); now `engine::music::build` runs on its own thread and the
   frame only starts it, polls it and starts the score when it is done.
+- **A new genre is heard at the next bar** (BUG-297, 2026-11-13: it took up to a minute): choosing
+  another genre builds a new piece for it at once, and it takes over at the playing score's next bar
+  line, crossfading; until then the playing score keeps its own genre (no stand-ins), and a build for
+  a genre no longer chosen is dropped. The build decodes its recordings on up to four threads
+  (`decode::decode_files`), nothing kept past the build.
 - **A new score takes over at a phrase**: a build that finishes while a score plays starts at the
   playing score's next phrase boundary and the old one fades out (the score's 1.5 s fade). Builds are
   asked for when what is installed changes (a pack installed or removed, BUG-266), when the genres in
@@ -1032,6 +1090,7 @@ the licences in [`../reference/findings/2026-11-13-free-instrument-libraries.md`
 - **Variety, by seed.** "Like we don't want the same electro swing song for hours on end, we definitely want variety to the music. Even different chords and what not. Are we able to have like procedural seeds for music? So it generates a track based on the seed and then we can vary the seed X amount of minutes to mix up the music?" The composer is already seeded (section 4.2), but a genre's fixed progressions and motifs make its hours sound alike. So: a piece is a seed; each new piece draws its key, its chord walk, freshly generated motifs, its form (sections that return) and its lead instrument from that seed within the genre's rules; a new piece every few minutes (a setting, with Never), crossfading at a phrase.
 - **The manouche guitar download is approved.** "Let's do it." (the Martin HD-28 steel-string SFZ, CC0 in its own header, github.com/sfzinstruments/Discord-SFZ-GM-Bank, folder "026-Acoustic Guitar (steel)").
 - **More instruments.** "Any other instruments we can add?" From the libraries already approved and on disk (no new download): solo violin (the hot-club violin), tenor saxophone, grand and upright pianos, vibraphone, harmonica, marimba, glockenspiel and the orchestral strings and winds VSCO 2 CE holds.
+- **Built 2026-11-13:** the switch heard at the next bar (BUG-297: 2 to 62 s before, 1.3 to 3.2 s after); pieces by seed (section 7c); the Martin as electro swing's comping guitar, and a solo violin and a tenor saxophone in the core set beside its upright piano and vibraphone, all four choosable lead voices (`docs/reference/instrument-sources.md` sections 8 and 9).
 - **Fill out the libraries, and electronic genres.** "I'd like to find what free libraries we can to really fill out the music potential. We'll even want to consider how we could make music like dubstep." A research pass scans every free library (licences quoted) and what dubstep, house, drum and bass and the like need from our own synthesis (docs/reference/research/2026-11-13-instrument-libraries/, in progress); each download is still asked first.
 - **The downloads approved, and the recommendations.** On the research's list of eleven: "Let's go for it and see what kind of procedural music we can make." and "Let's go with your recommendations": credit-only (CC BY) libraries allowed in optional packs, never in the core set; AKWF and Swirly Drums first, then Sneakybass and the FreePats set; deep, sub-led dubstep first, heavier styles later as their own choices; share-alike libraries left out.
 - **What makes dubstep sound goopy or wet?** (he asked, 2026-11-13). Answered: resonant filter sweeps and formant (vowel) filters morphing, pitch glide, comb filters and phasers (moving notches), FM index and wavetable sweeps, multiband upward-and-downward compression that brings up the squelch, distortion then filtering, resampling, and in mixing "wet" is the reverb, delay and chorus share; short pitch-dropping resonant blips for drips. These join the electronic rungs (E2: formant, comb and phaser, glide, resonance; E3: multiband compression).

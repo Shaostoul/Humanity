@@ -71,7 +71,7 @@ pub fn named_parts(music: &MusicLibrary) -> Vec<(String, String, i32)> {
         let lo = humanity_music::tuning::parse_note(lo).unwrap_or(48);
         (lo + humanity_music::tuning::parse_note(hi).unwrap_or(lo)) / 2
     };
-    let roles = music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.genres.iter().flat_map(|s| s.roles_add.iter()));
+    let roles = music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.genres.iter().flat_map(|s| s.roles_add.iter().chain(s.leads.iter())));
     for r in roles {
         if let Some(p) = &r.part {
             if !named.iter().any(|(n, _, _)| n == p) {
@@ -130,7 +130,7 @@ pub fn sounding_parts(music: &MusicLibrary, genres: &[usize]) -> Vec<(String, St
         }
     }
     for s in genres.iter().filter_map(|&i| music.genres.get(i)) {
-        for a in &s.roles_add {
+        for a in s.roles_add.iter().chain(s.leads.iter()) {
             add(&a.part, &a.instrument, &a.low, &a.high);
         }
     }
@@ -139,7 +139,7 @@ pub fn sounding_parts(music: &MusicLibrary, genres: &[usize]) -> Vec<(String, St
 
 /// Point every role and palette entry of `music` that names `part` at the score's instrument `id`.
 fn point(music: &mut MusicLibrary, part: &str, id: &str) {
-    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.genres.iter_mut().flat_map(|s| s.roles_add.iter_mut())) {
+    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.genres.iter_mut().flat_map(|s| s.roles_add.iter_mut().chain(s.leads.iter_mut()))) {
         if r.part.as_deref() == Some(part) {
             r.instrument = id.to_string();
         }
@@ -191,6 +191,16 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
         None => named_parts(music),
     };
     named.sort_by_key(|(p, _, _)| depth(p, parts));
+    // Every recording this build will ask for, decoded several at once first (BUG-297).
+    let mut want = Vec::new();
+    for (part, _, _) in &named {
+        if let Some(Choice::Sampled(a)) = instruments.choose(part, parts) {
+            for z in &a.sampler().zones {
+                want.push(a.zone_path(&z.file));
+            }
+        }
+    }
+    bank.prefetch(&want);
     // The synthesised voices, resolved once, to level each recording against.
     let synth = Resolved::new(music, &SampleLibrary::new()).ok();
     // What each part attached so far plays: the score's instrument id.
@@ -298,5 +308,6 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
         out.plays.push((part.clone(), plays.clone()));
         plays_as.insert(part, (id, plays));
     }
+    bank.end_build();
     out
 }

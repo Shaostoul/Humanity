@@ -1,0 +1,32 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "Versilian Community Sample Library (VCSL)",
+    url: "https://github.com/sgossner/VCSL",
+    version: "commit c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e (2026-01-14)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "vcsl/VCSL-c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e.tar.gz",
+    archive_sha256: "e4f9ed1fd698306627bc4911c7b7c8db2506cf3d00d486b630723855cc4ed529",
+    kept: [
+        (file: "BrettTenor_Vib_Main_As1_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_A#1_var2.wav"),
+        (file: "BrettTenor_Vib_Main_C2_var4.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_C2_var4.wav"),
+        (file: "BrettTenor_Vib_Main_D2_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_D2_var2.wav"),
+        (file: "BrettTenor_Vib_Main_E2_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_E2_var2.wav"),
+        (file: "BrettTenor_Vib_Main_Fs2_var3.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_F#2_var3.wav"),
+        (file: "BrettTenor_Vib_Main_As2_var4.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_A#2_var4.wav"),
+        (file: "BrettTenor_Vib_Main_C3_var1.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_C3_var1.wav"),
+        (file: "BrettTenor_Vib_Main_D3_var1.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_D3_var1.wav"),
+        (file: "BrettTenor_Vib_Main_E3_var3.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_E3_var3.wav"),
+        (file: "BrettTenor_Vib_Main_Fs3_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_F#3_var2.wav"),
+        (file: "BrettTenor_Vib_Main_As3_var3.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_A#3_var3.wav"),
+        (file: "BrettTenor_Vib_Main_C4_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_C4_var2.wav"),
+        (file: "BrettTenor_Vib_Main_D4_var1.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_D4_var1.wav"),
+        (file: "BrettTenor_Vib_Main_E4_var4.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_E4_var4.wav"),
+        (file: "BrettTenor_Vib_Main_G4_var3.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_G4_var3.wav"),
+        (file: "BrettTenor_Vib_Main_Gs4_var3.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_G#4_var3.wav"),
+        (file: "BrettTenor_Vib_Main_As4_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_A#4_var2.wav"),
+        (file: "BrettTenor_Vib_Main_C5_var2.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_C5_var2.wav"),
+        (file: "BrettTenor_Vib_Main_D5_var3.ogg", from: "Aerophones/Reed Aerophones/Tenor Saxophone/Vibrato/BrettTenor_Vib_Main_D5_var3.wav"),
+    ],
+)

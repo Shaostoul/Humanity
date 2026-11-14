@@ -28,8 +28,8 @@ pub struct DecodedSample {
 
 /// Decode an audio file (Ogg Vorbis, FLAC, WAV: whatever kira and symphonia read).
 pub fn decode_file(path: &Path) -> Result<DecodedSample, String> {
-    let data = kira::sound::static_sound::StaticSoundData::from_file(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(DecodedSample { sample_rate: data.sample_rate, frames: Arc::new(humanity_music::instrument::frames16(data.frames.iter().map(|f| [f.left, f.right]))) })
+    let (sample_rate, frames) = humanity_music::decode::decode_file(path)?;
+    Ok(DecodedSample { sample_rate, frames: Arc::new(frames) })
 }
 
 /// Decoded samples by path, kept while reuse is on.
@@ -39,6 +39,10 @@ pub struct SampleBank {
     /// Tests set this instead of flipping the process-wide switch under other tests running at the
     /// same time (the garden mirror's way). None in the app: the Dev page's switch decides.
     pub(crate) reuse_override: Option<bool>,
+    /// Decoded for the build in progress, several files at once ([`SampleBank::prefetch`]), each
+    /// taken by the build's own request for it and the rest let go at [`SampleBank::end_build`]:
+    /// never kept from one build to the next, so it is not reuse (BUG-297).
+    prefetched: HashMap<PathBuf, Arc<DecodedSample>>,
 }
 
 impl SampleBank {
@@ -54,6 +58,12 @@ impl SampleBank {
             self.kept.clear();
         } else if let Some(s) = self.kept.get(path) {
             return Ok(s.clone());
+        }
+        if let Some(s) = self.prefetched.remove(path) {
+            if reuse {
+                self.kept.insert(path.to_path_buf(), s.clone());
+            }
+            return Ok(s);
         }
         let s = Arc::new(decode_file(path)?);
         if reuse {
@@ -75,6 +85,32 @@ impl SampleBank {
     /// Let go of every kept sample (what is installed changed, or no music has played for a while).
     pub fn clear(&mut self) {
         self.kept.clear();
+        self.prefetched.clear();
+    }
+
+    /// Decode the files a build is about to ask for, on a few threads at once (a genre change's
+    /// cold decode, BUG-297: electro swing's 51 files one after another took about four times as
+    /// long), skipping what is kept (reuse on). A file that fails is left for [`SampleBank::get`]
+    /// to decode again and report.
+    pub fn prefetch(&mut self, paths: &[PathBuf]) {
+        let reuse = self.reuse_override.unwrap_or_else(humanity_core::reuse::enabled);
+        let mut want: Vec<PathBuf> = Vec::new();
+        for p in paths {
+            if !(reuse && self.kept.contains_key(p)) && !self.prefetched.contains_key(p) && !want.contains(p) {
+                want.push(p.clone());
+            }
+        }
+        let decoded = humanity_music::decode::decode_files(&want, humanity_music::decode::decode_threads());
+        for (p, r) in want.into_iter().zip(decoded) {
+            if let Ok((sample_rate, frames)) = r {
+                self.prefetched.insert(p, Arc::new(DecodedSample { sample_rate, frames: Arc::new(frames) }));
+            }
+        }
+    }
+
+    /// The build is done: anything prefetched and not asked for goes.
+    pub fn end_build(&mut self) {
+        self.prefetched.clear();
     }
 }
 

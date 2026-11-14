@@ -55,6 +55,12 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
         state.music_dev.readout.genres.clone()
     };
     let tones = if state.music_dev.readout.tones.is_empty() { vec![528.0] } else { state.music_dev.readout.tones.clone() };
+    // "A new piece" choices (data/music/pieces.ron, 0 = Never), and the person's own value if it is
+    // not among them (a hand-edited config), so it shows as chosen.
+    let mut piece_choices = if state.music_dev.readout.piece_minutes.is_empty() { vec![4.0, 0.0] } else { state.music_dev.readout.piece_minutes.clone() };
+    if !piece_choices.iter().any(|c| (c - state.settings.music.piece_minutes).abs() < 1e-3) {
+        piece_choices.push(state.settings.music.piece_minutes);
+    }
     let m = &mut state.settings.music;
 
     widgets::subsection_header(ui, theme, accent, t("settings.music.music"), "");
@@ -124,6 +130,21 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
         }
         dirty |= with_hint(ui, "settings.music.places_pick_genre_hint", |ui| widgets::toggle(ui, theme, t("settings.music.places_pick_genre"), &mut m.places_pick_genre));
         widgets::setting_hint(ui, theme, hint, t("settings.music.places_pick_genre_hint"));
+        // A new piece (docs/design/music.md section 7c): how often the next seed begins.
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new(t("settings.music.new_piece")).color(theme.text_secondary()));
+        ui.horizontal_wrapped(|ui| {
+            for &minutes in &piece_choices {
+                let selected = (m.piece_minutes - minutes).abs() < 1e-3;
+                let words = if minutes <= 0.0 { t("settings.music.new_piece_never").to_string() } else { t("settings.music.new_piece_every").replace("{{minutes}}", &format!("{minutes:.0}")) };
+                if ui.radio(selected, RichText::new(words).color(theme.text_primary())).hint("settings.music.new_piece_hint").clicked() && !selected {
+                    m.piece_minutes = minutes;
+                    dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("settings.music.new_piece_hint"));
+        ui.label(RichText::new(t("settings.music.new_piece_what")).size(theme.font_size_small).color(theme.text_muted()));
         ui.label(RichText::new(t("settings.music.recordings_note")).size(theme.font_size_small).color(theme.text_muted()));
     });
 

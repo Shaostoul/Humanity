@@ -15,6 +15,7 @@
 
 use crate::genre::{step_offset_in_beat, Comping, HarmonyRule, Recipe};
 use crate::mood::{Motif, RoleKind};
+use crate::piece::{GenMotif, Piece, Section, MAX_PIECE_MOTIFS};
 use crate::resolved::{RHarmony, RMood, RRole, Resolved};
 use crate::rng::Rng;
 use crate::tuning::{scale_step, Mode};
@@ -23,8 +24,10 @@ use crate::voice::NoteOn;
 /// What the composer reports besides notes (for tests, the status and the Dev page).
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
-    /// A phrase began: its plan's hash, when, in which mood and key.
-    Phrase { hash: u64, at_s: f64, mood: u16, key_pc: i32 },
+    /// A phrase began: its plan's hash, when, in which mood and key; the piece's section it plays
+    /// (its letter + 1, 0 with no form), which time through the form, and whether it is a section
+    /// RETURNING the first time through (its tune again, on purpose).
+    Phrase { hash: u64, at_s: f64, mood: u16, key_pc: i32, section: u8, chorus: u32, returning: bool },
     /// A chord began: which, its pitch classes as a 12-bit mask, how many beats it lasts.
     Chord { chord: u16, pcs: u16, at_s: f64, beats: f32 },
     /// A role's voicing changed (pads and choir): its notes, lowest first.
@@ -193,6 +196,18 @@ pub struct Composer {
     band: usize,
     pending_band: Option<(usize, u64)>,
     bars_total: u64,
+    /// The piece this score plays (its seed's draws, its form and its place in it), the riffs it
+    /// made and whose rules they came from (`u16::MAX`: none), its home key in the harmony playing,
+    /// and the section the phrase now playing is (letter, time through the form, a return).
+    piece: Piece,
+    gen_motifs: [GenMotif; MAX_PIECE_MOTIFS],
+    gen_n: usize,
+    gen_src: u16,
+    home_key: usize,
+    section: Option<(u8, u64, bool)>,
+    /// Tests only: every time through the form plays its sections exactly as the first (tune and
+    /// chords), the looping piece the hour test's detector must catch.
+    verbatim: bool,
 }
 
 /// FNV-1a over a few numbers (a phrase plan's fingerprint).
@@ -251,6 +266,59 @@ impl Composer {
             band: 0,
             pending_band: None,
             bars_total: 0,
+            piece: Piece::new(seed),
+            gen_motifs: [GenMotif::default(); MAX_PIECE_MOTIFS],
+            gen_n: 0,
+            gen_src: u16::MAX,
+            home_key: 0,
+            section: None,
+            verbatim: false,
+        }
+    }
+
+    /// Tests only: loop the form verbatim (see `verbatim`).
+    #[cfg(test)]
+    pub(crate) fn play_verbatim(&mut self) {
+        self.verbatim = true;
+    }
+
+    /// Carry on the piece from its phrase `played` (a score rebuilt mid-piece, its data read again
+    /// or a pack installed, takes over where the old one was: the same seed, the same form).
+    pub fn resume_at(&mut self, played: u64) {
+        self.piece.played = played;
+    }
+
+    /// The piece's seed.
+    pub fn piece_seed(&self) -> u64 {
+        self.piece.seed
+    }
+
+    /// The riffs this piece made (empty: its genre has no riff rules) and its form's letters (A = 0).
+    pub fn piece_motifs(&self) -> &[GenMotif] {
+        &self.gen_motifs[..self.gen_n]
+    }
+
+    pub fn piece_form(&self) -> &[u8] {
+        &self.piece.form[..self.piece.form_len]
+    }
+
+    /// The instrument each role plays this phrase (None: the role is silent).
+    pub fn role_instruments(&self) -> [Option<u16>; 8] {
+        let mut out = [None; 8];
+        if let Some(e) = &self.eff {
+            for (k, r) in e.roles.iter().enumerate() {
+                out[k] = r.map(|r| r.inst);
+            }
+        }
+        out
+    }
+
+    /// The section playing: its letter + 1 (0: no form), which time through the form, and the
+    /// piece's phrase index of it.
+    pub fn section(&self) -> (u8, u32, u64) {
+        match self.section {
+            Some((l, c, _)) => (l + 1, c.min(u32::MAX as u64) as u32, self.piece.played.saturating_sub(1)),
+            None => (0, 0, self.piece.played.saturating_sub(1)),
         }
     }
 
@@ -313,6 +381,11 @@ impl Composer {
     /// The bar within the phrase.
     pub fn bar(&self) -> u32 {
         self.bar_in_phrase
+    }
+
+    /// Bars begun since the score started (a new genre takes over at the next bar line, BUG-297).
+    pub fn bars(&self) -> u64 {
+        self.bars_total
     }
 
     /// The recipe and level the genre gives the mix this phrase.
@@ -597,6 +670,66 @@ impl Composer {
         res.moods.get(self.mood).map(|m| m.motifs.as_slice()).unwrap_or(&[])
     }
 
+    /// Whether the riffs playing are the ones this piece made.
+    fn own_motifs(&self) -> bool {
+        self.gen_n > 0 && self.motif_src == self.gen_src
+    }
+
+    /// How many riffs there are to choose from: the piece's own, else the bank's.
+    fn motif_count(&self, res: &Resolved) -> usize {
+        if self.own_motifs() {
+            self.gen_n
+        } else {
+            self.motifs(res).len()
+        }
+    }
+
+    /// Riff `i`: the piece's own, else the bank's (copied into the same fixed shape).
+    fn motif_view(&self, res: &Resolved, i: usize) -> Option<GenMotif> {
+        if self.own_motifs() {
+            return (i < self.gen_n).then(|| self.gen_motifs[i]);
+        }
+        let m = self.motifs(res).get(i)?;
+        let n = m.steps.len().min(m.beats.len()).min(crate::piece::MAX_MOTIF_NOTES);
+        let mut g = GenMotif { n, ..Default::default() };
+        for k in 0..n {
+            g.steps[k] = m.steps[k];
+            g.beats[k] = m.beats[k];
+            g.hold[k] = m.hold.get(k).copied().unwrap_or(0.95);
+        }
+        Some(g)
+    }
+
+    /// The voices this piece chose for `g`'s lead roles (the call first, then the others, never two
+    /// roles on one voice), each from the genre's leads for that role by weight and the piece's draw.
+    fn lead_roles(&self, g: &crate::resolved::RGenre) -> [Option<EffRole>; 8] {
+        let mut out: [Option<EffRole>; 8] = [None; 8];
+        if g.leads.is_empty() {
+            return out;
+        }
+        let mut taken = [u16::MAX; 8];
+        let mut order = [0usize; 8];
+        order[0] = RoleKind::Melody.index();
+        let mut n = 1;
+        for k in 0..8 {
+            if k != order[0] {
+                order[n] = k;
+                n += 1;
+            }
+        }
+        for (t, &k) in order.iter().enumerate() {
+            let w = |e: &(usize, RRole, f32)| if e.0 == k && !taken.contains(&e.1.inst) { e.2 } else { 0.0 };
+            if !g.leads.iter().any(|e| w(e) > 0.0) {
+                continue;
+            }
+            let i = crate::piece::pick(self.piece.lead_draw[k], g.leads.iter().map(w));
+            let r = &g.leads[i].1;
+            out[k] = Some(EffRole { inst: r.inst, low: r.low, high: r.high, voices: r.voices, density: r.density, level: r.level });
+            taken[t] = r.inst;
+        }
+        out
+    }
+
     /// One step of a walking bass (a note in the register `low..=high`): the chord's root on its
     /// first beat (and usually on each bar's first beat); on the last beat before a new chord, a half
     /// step into that chord's root from the side the line is on (now and then its fifth, the
@@ -709,8 +842,14 @@ impl Composer {
         let lerp = |x: f32, y: f32| x + (y - x) * t;
         let mut roles: [Option<EffRole>; 8] = [None; 8];
         let base = |r: &RRole| EffRole { inst: r.inst, low: r.low, high: r.high, voices: r.voices, density: r.density, level: r.level };
+        // The piece's lead voices in each genre (in place of that genre's added role for the role).
+        let leads_a = a.map(|s| self.lead_roles(s)).unwrap_or([None; 8]);
+        let leads_b = b.map(|s| self.lead_roles(s)).unwrap_or([None; 8]);
         for k in 0..8 {
-            let pick = |s: Option<&crate::resolved::RGenre>| -> Option<EffRole> {
+            let pick = |s: Option<&crate::resolved::RGenre>, leads: &[Option<EffRole>; 8]| -> Option<EffRole> {
+                if let Some(l) = leads[k] {
+                    return Some(l);
+                }
                 let off = s.is_some_and(|s| s.roles_off[k]);
                 let mut r = match (&mood.roles[k], s.and_then(|s| s.roles_add[k].as_ref())) {
                     (_, Some(add)) => Some(base(add)),
@@ -727,8 +866,8 @@ impl Composer {
                 }
                 Some(r)
             };
-            let ra = pick(a);
-            let rb = if b.is_some() { pick(b) } else { None };
+            let ra = pick(a, &leads_a);
+            let rb = if b.is_some() { pick(b, &leads_b) } else { None };
             roles[k] = if b.is_none() {
                 ra
             } else {
@@ -924,20 +1063,44 @@ impl Composer {
         let calm = res.moods.get(target).is_some_and(|m| !m.urgent);
         let g = res.genres.get(dominant as usize).filter(|_| calm);
         let harm_src = if g.is_some_and(|g| g.progressions.is_some()) { dominant } else { MOOD_SRC };
-        let motif_src = if g.is_some_and(|g| !g.motifs.is_empty()) { dominant } else { MOOD_SRC };
+        let motif_src = if g.is_some_and(|g| !g.motifs.is_empty() || g.motif_rules.is_some()) { dominant } else { MOOD_SRC };
         let harm_changed = first || harm_src != self.harm_src || (harm_src == MOOD_SRC && mood_changed);
         let prev_key = self.key_pc;
         self.mood = target;
         self.harm_src = harm_src;
         self.motif_src = motif_src;
+        // The piece (crate::piece): its form comes from the dominant genre (a calm mood only; danger
+        // plays free), its riffs from that genre's rules, both from the piece's seed.
+        if let Some(gg) = g {
+            if self.piece.form_genre != dominant {
+                self.piece.choose_form(dominant, &gg.forms);
+            }
+            if let Some(rules) = gg.motif_rules.as_ref().filter(|_| self.gen_src != dominant) {
+                let mut r = Rng::new(crate::piece::mix(self.piece.seed, 0x707 + dominant as u64));
+                self.gen_n = crate::piece::make_motifs(rules, &mut r, &mut self.gen_motifs);
+                self.gen_src = dominant;
+            }
+        }
+        let section = if calm { self.piece.section(self.piece.played) } else { None };
         let Some(harm) = self.harmony(res) else { return };
         if harm_changed {
-            // The new harmony's key nearest the old one around the circle of fifths (its home key on
-            // the first phrase), so a move between moods is a step, not a leap.
+            // A piece's first phrase: the key its seed draws from the harmony's keys by weight. A
+            // later change of harmony: the new harmony's key nearest the old one around the circle
+            // of fifths, so a move between moods is a step, not a leap.
             self.key_idx = if first {
-                0
+                crate::piece::pick(self.piece.key_draw, harm.keys.iter().map(|k| k.2))
             } else {
                 (0..harm.keys.len()).min_by_key(|&i| fifths_distance(harm.keys[i].0, prev_key)).unwrap_or(0)
+            };
+            self.home_key = self.key_idx;
+        } else if let Some((letter, _, _)) = section {
+            // In a form: the A sections in the piece's home key; another section (the bridge) in a
+            // second key when this piece's seed says its bridge moves (about a third of pieces).
+            self.key_idx = if letter != 0 && harm.keys.len() > 1 && self.piece.bridge_moves < 0.35 {
+                let home = self.home_key;
+                crate::piece::pick(crate::piece::unit(crate::piece::mix(self.piece.seed, 0xb2 + letter as u64)), harm.keys.iter().enumerate().map(|(i, k)| if i == home { 0.0 } else { k.2 }))
+            } else {
+                self.home_key
             };
         } else if self.phrase_count % 4 == 0 {
             // A section's end: now and then the key moves to a related one (by the keys' weights).
@@ -953,7 +1116,8 @@ impl Composer {
         self.mode = kmode;
         let eff = self.resolve_eff(res);
         self.eff = Some(eff);
-        // Tempo, chosen per phrase within the range.
+        // Tempo: across the band for a mood that follows the intensity; in a form, the piece's own
+        // place in the range; else chosen per phrase within the range.
         self.tempo = if res.moods[self.mood].tempo_follows_intensity {
             // Across the band: its slow end where the band starts, its fast end where the next begins.
             let froms = &res.intensity.froms;
@@ -961,24 +1125,67 @@ impl Composer {
             let hi = froms.get(self.band + 1).copied().unwrap_or(1.0).max(lo + 1e-3);
             let x = ((self.steer.intensity - lo) / (hi - lo)).clamp(0.0, 1.0);
             eff.tempo.0 + (eff.tempo.1 - eff.tempo.0) * x
+        } else if section.is_some() {
+            eff.tempo.0 + (eff.tempo.1.max(eff.tempo.0) - eff.tempo.0) * self.piece.tempo_t
         } else {
             self.rng.range(eff.tempo.0, eff.tempo.1.max(eff.tempo.0))
         }
         .clamp(20.0, 240.0);
         self.beat_len = self.rate * 60.0 / self.tempo as f64;
-        // The plan, re-made while it repeats one played within the window.
         let now_s = self.seconds() as f32;
         let window = m.no_repeat_s;
-        let motifs = self.motifs(res);
+        let n_motifs = self.motif_count(res);
         let start_chord = if harm_changed { harm.start } else { self.chord };
-        let mut plan = self.make_plan(m, harm, motifs, start_chord, !harm_changed, eff);
-        for _ in 0..24 {
-            let seen = self.history.iter().any(|&(h, t)| h == plan.hash && now_s - t < window);
-            if !seen {
-                break;
+        let plan = match section {
+            Some((letter, chorus, _)) => {
+                // A section of the piece: its chords from its own seed (the same letter is the same
+                // chords all piece), its tune too the first time through the form; after that the
+                // riffs are improvised over the same chords, re-drawn while they repeat a phrase
+                // played within the window.
+                let harmony_id = if harm_src == MOOD_SRC { 0x1000 + self.mood as u64 } else { harm_src as u64 };
+                let mut sec_rng = Rng::new(self.piece.section_seed(harmony_id, letter));
+                let choices = g.and_then(|g| g.phrase_bars.as_deref()).unwrap_or(&m.phrase_bars);
+                let bars = choices[sec_rng.int(0, choices.len() as i32 - 1) as usize].clamp(1, 64);
+                let chord_bars = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
+                let last_of_form = self.piece.form_len > 0 && (self.piece.played % self.piece.form_len as u64) as usize == self.piece.form_len - 1;
+                let seed = self.piece.seed;
+                let mut sec = section_chords(harm, &mut sec_rng, seed, letter, bars, chord_bars, last_of_form);
+                if chorus > 0 && !self.verbatim {
+                    // A later time through: the first half as before, the second half reharmonised
+                    // (its own seed for this time through), so the section stays recognisable and
+                    // the hour never plays the same two minutes twice.
+                    let mut alt_rng = Rng::new(crate::piece::mix(self.piece.section_seed(harmony_id, letter), chorus));
+                    let alt = section_chords(harm, &mut alt_rng, seed, letter, bars, chord_bars, last_of_form);
+                    sec = crate::piece::splice(&sec, &alt, sec.total_bars() / 2);
+                }
+                let mut plan = self.make_plan(m, harm, n_motifs, start_chord, false, eff, Some((sec, (chorus == 0 || self.verbatim).then_some(sec_rng))));
+                for _ in 0..24 {
+                    let seen = chorus > 0 && !self.verbatim && self.history.iter().any(|&(h, t)| h == plan.hash && now_s - t < window);
+                    if !seen {
+                        break;
+                    }
+                    plan = self.make_plan(m, harm, n_motifs, start_chord, false, eff, Some((sec, None)));
+                }
+                plan
             }
-            plan = self.make_plan(m, harm, motifs, start_chord, !harm_changed, eff);
+            None => {
+                // No form (a danger mood, a genre without one): every phrase walked afresh, re-made
+                // while it repeats one played within the window.
+                let mut plan = self.make_plan(m, harm, n_motifs, start_chord, !harm_changed, eff, None);
+                for _ in 0..24 {
+                    let seen = self.history.iter().any(|&(h, t)| h == plan.hash && now_s - t < window);
+                    if !seen {
+                        break;
+                    }
+                    plan = self.make_plan(m, harm, n_motifs, start_chord, !harm_changed, eff, None);
+                }
+                plan
+            }
+        };
+        if calm {
+            self.piece.played += 1;
         }
+        self.section = section;
         self.history[self.hist_w] = (plan.hash, now_s);
         self.hist_w = (self.hist_w + 1) % HISTORY;
         self.plan = plan;
@@ -987,7 +1194,8 @@ impl Composer {
         self.slot = 0;
         self.bars_into_chord = 0;
         self.phrase_count += 1;
-        sink.event(Event::Phrase { hash: plan.hash, at_s: self.seconds(), mood: self.mood as u16, key_pc: self.key_pc });
+        let (sec_letter, chorus, returning) = section.map(|(l, c, r)| (l + 1, c.min(u32::MAX as u64) as u32, r && c == 0)).unwrap_or((0, 0, false));
+        sink.event(Event::Phrase { hash: plan.hash, at_s: self.seconds(), mood: self.mood as u16, key_pc: self.key_pc, section: sec_letter, chorus, returning });
         // The drone follows the key.
         let drone = eff.roles[RoleKind::Drone.index()];
         let want_root = drone.map(|d| nearest_pc_in(self.key_pc, d.low, d.high, d.low)).unwrap_or(-1);
@@ -1028,71 +1236,48 @@ impl Composer {
         self.change_chord(res, sink, c);
     }
 
-    fn make_plan(&mut self, m: &RMood, harm: &RHarmony, motifs: &[Motif], start: usize, continuing: bool, eff: Eff) -> Plan {
+    /// A phrase's plan. `sec`: a section of the piece, its chords already made and, the first time
+    /// through the form, the section's own generator for its tune (so a returning section plays the
+    /// same tune); None: the chords walked afresh from `start`.
+    fn make_plan(&mut self, m: &RMood, harm: &RHarmony, n_motifs: usize, start: usize, continuing: bool, eff: Eff, sec: Option<(Section, Option<Rng>)>) -> Plan {
         let mut p = Plan::default();
-        let bars_total = m.phrase_bars[self.rng.int(0, m.phrase_bars.len() as i32 - 1) as usize].clamp(1, 64);
-        let (lo, hi) = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
-        let (lo, hi) = (lo.max(1), hi.max(lo.max(1)));
-        let mut cur = if continuing { self.walk(harm, start, false) } else { start };
-        let mut used = 0u32;
-        while used < bars_total && p.n < MAX_SLOTS {
-            let mut bars = self.rng.int(lo as i32, hi as i32) as u32;
-            if used + bars > bars_total || p.n == MAX_SLOTS - 1 {
-                bars = bars_total - used;
-            }
-            p.chords[p.n] = cur as u16;
-            p.bars[p.n] = bars.min(255) as u8;
-            p.n += 1;
-            used += bars;
-            if used < bars_total {
-                let last = used + lo > bars_total || used + hi >= bars_total;
-                cur = self.walk(harm, cur, last);
+        let mut theme: Option<Rng> = None;
+        if let Some((s, tune)) = sec {
+            p.n = s.n.min(MAX_SLOTS);
+            p.chords[..p.n].copy_from_slice(&s.chords[..p.n]);
+            p.bars[..p.n].copy_from_slice(&s.bars[..p.n]);
+            theme = tune;
+        } else {
+            let bars_total = m.phrase_bars[self.rng.int(0, m.phrase_bars.len() as i32 - 1) as usize].clamp(1, 64);
+            let (lo, hi) = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
+            let (lo, hi) = (lo.max(1), hi.max(lo.max(1)));
+            let mut cur = if continuing { self.walk(harm, start, false) } else { start };
+            let mut used = 0u32;
+            while used < bars_total && p.n < MAX_SLOTS {
+                let mut bars = self.rng.int(lo as i32, hi as i32) as u32;
+                if used + bars > bars_total || p.n == MAX_SLOTS - 1 {
+                    bars = bars_total - used;
+                }
+                p.chords[p.n] = cur as u16;
+                p.bars[p.n] = bars.min(255) as u8;
+                p.n += 1;
+                used += bars;
+                if used < bars_total {
+                    let last = used + lo > bars_total || used + hi >= bars_total;
+                    cur = self.walk(harm, cur, last);
+                }
             }
         }
-        // Motifs, the choir, the pulse, the drum patterns.
+        // Motifs (from the section's own generator for a tune, else improvised), the choir, the
+        // pulse, the drum patterns.
         let dens = |r: RoleKind| eff.roles[r.index()].map(|x| x.density).unwrap_or(0.0);
-        let (db, dm, dc, dp) = (dens(RoleKind::Bells), dens(RoleKind::Melody), dens(RoleKind::Choir), dens(RoleKind::Percussion));
+        let (dc, dp) = (dens(RoleKind::Choir), dens(RoleKind::Percussion));
         let mut last_call: Option<MotifPlan> = None;
         for i in 0..p.n {
-            let mut mp = MotifPlan::default();
-            if eff.call_and_response && !motifs.is_empty() {
-                // Call and response: the melody role calls on one chord; on the next the bells role
-                // answers with the same motif and rhythm from another chord tone, ending a step lower.
-                if let Some(call) = last_call.take().filter(|_| eff.roles[RoleKind::Bells.index()].is_some()) {
-                    mp = call;
-                    mp.role = RoleKind::Bells.index() as u8 + 1;
-                    mp.anchor = (call.anchor + 1) % 4;
-                    mp.vary = -1;
-                    mp.vel = call.vel * 0.95;
-                } else if eff.roles[RoleKind::Melody.index()].is_some() && self.rng.chance(dm) {
-                    mp.role = RoleKind::Melody.index() as u8 + 1;
-                    mp.motif = self.rng.int(0, motifs.len() as i32 - 1) as u8;
-                    mp.start_halfbeats = self.rng.int(0, 2) as u8;
-                    mp.anchor = self.rng.int(0, 3) as u8;
-                    mp.vary = self.rng.int(0, 1) as i8;
-                    mp.loosen = self.rng.chance(0.2);
-                    mp.vel = self.rng.range(0.7, 1.0);
-                    last_call = Some(mp);
-                }
-            } else if !motifs.is_empty() {
-                let role = if eff.roles[RoleKind::Bells.index()].is_some() && self.rng.chance(db) {
-                    Some(RoleKind::Bells)
-                } else if eff.roles[RoleKind::Melody.index()].is_some() && self.rng.chance(dm) {
-                    Some(RoleKind::Melody)
-                } else {
-                    None
-                };
-                if let Some(r) = role {
-                    mp.role = r.index() as u8 + 1;
-                    mp.motif = self.rng.int(0, motifs.len() as i32 - 1) as u8;
-                    mp.start_halfbeats = self.rng.int(1, 6) as u8;
-                    mp.anchor = self.rng.int(0, 3) as u8;
-                    mp.vary = self.rng.int(-1, 1) as i8;
-                    mp.loosen = self.rng.chance(0.3);
-                    mp.vel = self.rng.range(0.6, 1.0);
-                }
-            }
-            p.motifs[i] = mp;
+            p.motifs[i] = match theme.as_mut() {
+                Some(t) => draw_motif(t, &eff, n_motifs, &mut last_call),
+                None => draw_motif(&mut self.rng, &eff, n_motifs, &mut last_call),
+            };
             p.choir[i] = self.rng.chance(dc);
         }
         p.pulse = self.rng.chance(dp);
@@ -1135,20 +1320,14 @@ impl Composer {
     }
 
     /// One step along the chord graph from `cur`; `cadence` asks for a phrase-ending chord.
+    /// (Each move's weight leans by this piece's seed, crate::piece::lean.)
     fn walk(&mut self, h: &RHarmony, cur: usize, cadence: bool) -> usize {
-        let moves = &h.moves[cur.min(h.moves.len() - 1)];
-        if cadence && moves.iter().any(|(c, w)| h.cadence[*c] && *w > 0.0) {
-            let i = self.rng.weighted(moves.iter().map(|(c, w)| if h.cadence[*c] { *w } else { 0.0 }));
-            return moves[i].0;
-        }
-        let i = self.rng.weighted(moves.iter().map(|(_, w)| *w));
-        moves[i].0
+        crate::piece::walk(&h.moves, &h.cadence, &mut self.rng, self.piece.seed, cur, cadence)
     }
 
     fn change_chord(&mut self, res: &Resolved, sink: &mut dyn Sink, chord: usize) {
         let Some(harm) = self.harmony(res) else { return };
         let Some(c) = harm.chords.get(chord) else { return };
-        let motifs = self.motifs(res);
         self.chord = chord;
         let eff = self.eff();
         // The chord's pitch classes under the genre's harmony rules.
@@ -1283,27 +1462,27 @@ impl Composer {
         let mp = self.plan.motifs[self.slot.min(MAX_SLOTS - 1)];
         if mp.role > 0 {
             let role_idx = (mp.role - 1) as usize;
-            if let (Some(r), Some(motif)) = (eff.roles[role_idx], motifs.get(mp.motif as usize)) {
+            if let (Some(r), Some(motif)) = (eff.roles[role_idx], self.motif_view(res, mp.motif as usize).filter(|m| m.n > 0)) {
                 // Anchor: one of the chord's tones placed in the role's register.
                 let tone = pcs[(mp.anchor as usize) % n.max(1)];
                 let anchor = nearest_pc_in(tone, r.low, (r.high - 7).max(r.low), (r.low + r.high) / 2);
                 let scale = eff.motif_scale.unwrap_or(self.mode.pentatonic());
                 let chord_beats = beats;
                 let mut beat = mp.start_halfbeats as f32 * 0.5;
-                let first = scale_step(anchor, motif.steps[0], self.key_pc, scale).min(r.high);
+                let first = clamp_in_scale(scale_step(anchor, motif.steps[0], self.key_pc, scale), r.low, r.high, self.key_pc, scale);
                 sink.event(Event::Motif { role: role_idx as u8, first_note: first, at_s });
-                for (k, (&st, &bt)) in motif.steps.iter().zip(motif.beats.iter()).enumerate() {
+                for (k, (&st, &bt)) in motif.steps[..motif.n].iter().zip(motif.beats[..motif.n].iter()).enumerate() {
                     if beat >= chord_beats {
                         break;
                     }
-                    let step = st + if k == motif.steps.len() - 1 { mp.vary as i32 } else { 0 };
-                    let midi = scale_step(anchor, step, self.key_pc, scale).clamp(r.low, r.high);
+                    let step = st + if k == motif.n - 1 { mp.vary as i32 } else { 0 };
+                    let midi = clamp_in_scale(scale_step(anchor, step, self.key_pc, scale), r.low, r.high, self.key_pc, scale);
                     let at = self.pos + self.beats_to_samples(beat, eff) as u64;
                     let tag = self.next_tag();
                     let vel = (mp.vel * self.rng.range(0.85, 1.0) * self.plan.vel_scale).min(1.0);
                     let len = bt * if mp.loosen && k == 1 { 1.5 } else { 1.0 };
                     let pan = self.rng.range(-0.45, 0.45);
-                    self.schedule(at, NoteOn { inst: r.inst, role: role_idx as u8, midi: midi as f32, a4: self.steer.a4, vel, pan, hold_s: (len * self.beat_len as f32 / self.rate as f32) * motif.hold.get(k).copied().unwrap_or(0.95), tag, level: r.level });
+                    self.schedule(at, NoteOn { inst: r.inst, role: role_idx as u8, midi: midi as f32, a4: self.steer.a4, vel, pan, hold_s: (len * self.beat_len as f32 / self.rate as f32) * motif.hold[k], tag, level: r.level });
                     beat += len;
                 }
             }
@@ -1324,6 +1503,88 @@ impl Composer {
 
 /// A drum part's or a pattern's source meaning "the mood's own", not a genre's.
 const MOOD_SRC: u16 = u16::MAX;
+
+/// A section's chords in `harm`: from its grammar when it has one, else walked from its chord graph
+/// (section A from the graph's start, another letter from a step away), `bars` bars long.
+fn section_chords(harm: &RHarmony, rng: &mut Rng, seed: u64, letter: u8, bars: u32, chord_bars: (u32, u32), end_home: bool) -> Section {
+    match harm.grammar.as_ref() {
+        Some(gr) => crate::piece::grammar_section(harm.chords.len(), gr, rng, seed, bars, chord_bars, end_home),
+        None => {
+            let start = if letter == 0 { harm.start } else { crate::piece::walk(&harm.moves, &harm.cadence, rng, seed, harm.start, false) };
+            crate::piece::graph_section(&harm.moves, &harm.cadence, rng, seed, start, bars, chord_bars)
+        }
+    }
+}
+
+/// A scale note brought inside `lo..=hi` by scale steps (a riff's note past the role's register
+/// moves back along the scale; a plain clamp could land between scale notes: with D6 the top of the
+/// register, a riff in C blues would have played a D, outside the scale).
+fn clamp_in_scale(m: i32, lo: i32, hi: i32, key_pc: i32, mode: Mode) -> i32 {
+    let mut m = m;
+    let mut guard = 0;
+    while m > hi && guard < 24 {
+        m = scale_step(m, -1, key_pc, mode);
+        guard += 1;
+    }
+    while m < lo && guard < 48 {
+        m = scale_step(m, 1, key_pc, mode);
+        guard += 1;
+    }
+    if m > hi || m < lo {
+        m.clamp(lo, hi)
+    } else {
+        m
+    }
+}
+
+/// One chord's motif in a plan, drawn with `rng` from `n_motifs` riffs. Call and response: the
+/// melody role calls on one chord (`last_call` remembers it); on the next the bells role answers
+/// with the same riff and rhythm from another chord tone, ending a step lower. Otherwise the bells
+/// or the melody, by their densities, now and then plays a riff.
+fn draw_motif(rng: &mut Rng, eff: &Eff, n_motifs: usize, last_call: &mut Option<MotifPlan>) -> MotifPlan {
+    let dens = |r: RoleKind| eff.roles[r.index()].map(|x| x.density).unwrap_or(0.0);
+    let (db, dm) = (dens(RoleKind::Bells), dens(RoleKind::Melody));
+    let mut mp = MotifPlan::default();
+    if n_motifs == 0 {
+        return mp;
+    }
+    if eff.call_and_response {
+        if let Some(call) = last_call.take().filter(|_| eff.roles[RoleKind::Bells.index()].is_some()) {
+            mp = call;
+            mp.role = RoleKind::Bells.index() as u8 + 1;
+            mp.anchor = (call.anchor + 1) % 4;
+            mp.vary = -1;
+            mp.vel = call.vel * 0.95;
+        } else if eff.roles[RoleKind::Melody.index()].is_some() && rng.chance(dm) {
+            mp.role = RoleKind::Melody.index() as u8 + 1;
+            mp.motif = rng.int(0, n_motifs as i32 - 1) as u8;
+            mp.start_halfbeats = rng.int(0, 2) as u8;
+            mp.anchor = rng.int(0, 3) as u8;
+            mp.vary = rng.int(0, 1) as i8;
+            mp.loosen = rng.chance(0.2);
+            mp.vel = rng.range(0.7, 1.0);
+            *last_call = Some(mp);
+        }
+    } else {
+        let role = if eff.roles[RoleKind::Bells.index()].is_some() && rng.chance(db) {
+            Some(RoleKind::Bells)
+        } else if eff.roles[RoleKind::Melody.index()].is_some() && rng.chance(dm) {
+            Some(RoleKind::Melody)
+        } else {
+            None
+        };
+        if let Some(r) = role {
+            mp.role = r.index() as u8 + 1;
+            mp.motif = rng.int(0, n_motifs as i32 - 1) as u8;
+            mp.start_halfbeats = rng.int(1, 6) as u8;
+            mp.anchor = rng.int(0, 3) as u8;
+            mp.vary = rng.int(-1, 1) as i8;
+            mp.loosen = rng.chance(0.3);
+            mp.vel = rng.range(0.6, 1.0);
+        }
+    }
+    mp
+}
 
 /// A drum part from the mood (`MOOD_SRC`) or a genre.
 fn drum_part(res: &Resolved, mood: usize, genre: u16, part: u8) -> Option<&crate::resolved::RDrum> {

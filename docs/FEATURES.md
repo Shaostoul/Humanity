@@ -2965,8 +2965,15 @@ morning, night watch, tension, action), places and the ship's hour choosing amon
 data over the moods, chosen in Settings > Music's genre selector (mothership calm, lo-fi, and since 2026-11-12
 ELECTRO SWING at 128 bpm: swung eighths over a house kick, a walking upright bass, gypsy-jazz comping,
 brass stabs, clarinet calls answered by trombone, its own minor-key jazz progressions, played by the
-core set's recorded trumpet, trombone, clarinet, pizzicato bass and guitar; a blend slider; places that may pick a livelier genre;
-community genres are files); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
+core set's recorded trumpet, trombone, clarinet, pizzicato bass and, since 2026-11-13, a Martin
+steel-string guitar; a blend slider; places that may pick a livelier genre;
+community genres are files); PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
+seed that draws its key, tempo, form (AABA and the like, sections that return), each section's chords
+(electro swing's from a harmonic grammar of functions, secondary dominants, tritone substitutes and
+passing diminished chords), its own riffs (motif rules) and its lead voices (clarinet, hot-club violin,
+tenor saxophone, vibraphone or piano; trombone, violin or trumpet answering), a new piece every few
+minutes (Settings > Music, "A new piece", Never included) crossfading at a phrase, the seed on the
+Dev page and `HUMANITY_MUSIC_SEED`; a genre change heard at the next bar (BUG-297); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
 bar-line transitions, taiko ostinatos, brass stabs; the Dev page's knob and the `music_intensity` /
 `music_breach` showcase verbs); the ship's hum (brown noise with resonances on the key at 432, louder
 and darker toward the drive at the stern, softer in small rooms, silent off the ship, a stressed

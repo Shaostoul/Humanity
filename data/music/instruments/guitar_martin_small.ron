@@ -1,0 +1,38 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "guitar_martin_small",
+    words: "instrument_packs.instrument.guitar_martin_small",
+    part: "acoustic_guitar",
+    rank: 20,
+    kind: Sampler((
+        folder: "guitar_martin_small",
+        pitched: true,
+        source_a4_hz: 437.85,
+        tuning_note: "measured: median of 15 samples, -8.5 cents from A = 440",
+        release_s: 0.3,
+        normalized: false,
+        zones: [
+            (file: "MartinGM2_040__E2_1.ogg", key: 40, lo_key: 36, hi_key: 41, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(82.004), measured_hz: Some(82.089), loop_start: None, loop_end: None),
+            (file: "MartinGM2_043__G2_1.ogg", key: 43, lo_key: 42, hi_key: 44, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(97.52), measured_hz: Some(97.618), loop_start: None, loop_end: None),
+            (file: "MartinGM2_046_Bb2_1.ogg", key: 46, lo_key: 45, hi_key: 47, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(115.971), measured_hz: Some(116.264), loop_start: None, loop_end: None),
+            (file: "MartinGM2_049_Db3_1.ogg", key: 49, lo_key: 48, hi_key: 50, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(137.914), measured_hz: Some(138.068), loop_start: None, loop_end: None),
+            (file: "MartinGM2_052__E3_1.ogg", key: 52, lo_key: 51, hi_key: 53, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(164.008), measured_hz: Some(164.5), loop_start: None, loop_end: None),
+            (file: "MartinGM2_055__G3_1.ogg", key: 55, lo_key: 54, hi_key: 56, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(195.04), measured_hz: Some(195.439), loop_start: None, loop_end: None),
+            (file: "MartinGM2_058_Bb3_1.ogg", key: 58, lo_key: 57, hi_key: 59, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(231.943), measured_hz: Some(231.734), loop_start: None, loop_end: None),
+            (file: "MartinGM2_061_Db4_1.ogg", key: 61, lo_key: 60, hi_key: 62, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(275.828), measured_hz: Some(275.83), loop_start: None, loop_end: None),
+            (file: "MartinGM2_064__E4_1.ogg", key: 64, lo_key: 63, hi_key: 66, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(328.017), measured_hz: Some(327.733), loop_start: None, loop_end: None),
+            (file: "MartinGM2_068_Ab4_1.ogg", key: 68, lo_key: 67, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(413.275), measured_hz: Some(412.847), loop_start: None, loop_end: None),
+            (file: "MartinGM2_071__B4_1.ogg", key: 71, lo_key: 70, hi_key: 72, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(491.47), measured_hz: Some(490.648), loop_start: None, loop_end: None),
+            (file: "MartinGM2_074__D5_1.ogg", key: 74, lo_key: 73, hi_key: 75, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(584.46), measured_hz: Some(582.818), loop_start: None, loop_end: None),
+            (file: "MartinGM2_077__F5_1.ogg", key: 77, lo_key: 76, hi_key: 78, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(695.044), measured_hz: Some(1388.33), loop_start: None, loop_end: None),
+            (file: "MartinGM2_080_Ab5_1.ogg", key: 80, lo_key: 79, hi_key: 81, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(826.551), measured_hz: Some(824.298), loop_start: None, loop_end: None),
+            (file: "MartinGM2_083__B5_1.ogg", key: 83, lo_key: 82, hi_key: 87, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(982.94), measured_hz: Some(979.087), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "C2", high: "D#6"),
+    reverb_send: 0.3,
+    licence: (name: "CC0 1.0 (the instrument's SFZ header: \"License: Creative Commons CC0\")", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "Martin HD-28 steel-string guitar (Discord SFZ GM Bank, 026 Acoustic Guitar (steel))", url: "https://github.com/sfzinstruments/Discord-SFZ-GM-Bank/tree/7a9c478fe331f94f246d33332f0adedb25bbbe27/Discord%20GM/Melodic/026-Acoustic%20Guitar%20(steel)", version: "commit 7a9c478fe331f94f246d33332f0adedb25bbbe27 (2024-03-04; the folder last changed 2021-10-01)", fetched: "2026-11-13"),
+    credit: "A 2017 Martin HD-28 Vintage Series steel-string guitar, sampled by Jeff Learman for Kinwie's Discord SFZ GM Bank (github.com/sfzinstruments/Discord-SFZ-GM-Bank). Public domain (CC0, as the instrument's SFZ header states).",
+)

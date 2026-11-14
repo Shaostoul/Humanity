@@ -325,7 +325,12 @@ window.HOS_I18N_EN = {
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
       "tone_volume_hint": "How loud the tone is.",
-      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}."
+      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}.",
+      "new_piece": "A new piece",
+      "new_piece_hint": "Each piece of music is made from a seed: its key, its chords, its riffs, the order its parts play in and its lead instrument. This is how often a new piece begins. It begins at the end of a musical phrase and fades in over the old one. Never keeps the same piece playing.",
+      "new_piece_every": "Every {{minutes}} minutes",
+      "new_piece_never": "Never",
+      "new_piece_what": "What this changes: how long one piece plays before the next. Nothing else changes, and it costs nothing extra."
     },
     "notifications_volume": "Notifications Volume",
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
@@ -2466,7 +2471,12 @@ window.HOS_I18N_EN = {
       "seed": "Seed",
       "build": "Build:",
       "pieces": "pieces",
-      "duck": "duck"
+      "duck": "duck",
+      "piece": "Piece",
+      "piece_seed": "Seed",
+      "piece_section": "Section",
+      "piece_chorus": "Time through the form",
+      "piece_next": "Next piece in"
     },
     "characters": "Characters",
     "show_skeletons": "Show skeletons",
@@ -4094,7 +4104,9 @@ window.HOS_I18N_EN = {
       "trumpet": "trumpet",
       "trombone": "trombone",
       "clarinet": "clarinet",
-      "double_bass_pizzicato": "plucked double bass"
+      "double_bass_pizzicato": "plucked double bass",
+      "acoustic_guitar": "steel-string acoustic guitar",
+      "tenor_saxophone": "tenor saxophone"
     },
     "instrument": {
       "upright_piano_small": "Upright piano (small)",
@@ -4144,7 +4156,10 @@ window.HOS_I18N_EN = {
       "trombone_small": "Old trombone, short notes (small)",
       "clarinet_small": "Clarinet (small)",
       "double_bass_pizzicato_small": "Plucked double bass (small)",
-      "guitar_gretsch_small": "Hollowbody electric guitar (Gretsch, small)"
+      "guitar_gretsch_small": "Hollowbody electric guitar (Gretsch, small)",
+      "guitar_martin_small": "Steel-string acoustic guitar (Martin HD-28, small)",
+      "solo_violin_small": "Solo violin (small)",
+      "tenor_saxophone_small": "Tenor saxophone (small)"
     }
   },
   "chat_video_dock": {
@@ -4226,7 +4241,7 @@ window.HOS_I18N_EN = {
       "lofi": "Lo-fi",
       "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle.",
       "electro_swing": "Electro swing",
-      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, gypsy-jazz guitar, brass stabs and a clarinet calling with the brass answering."
+      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, a steel-string guitar strumming, brass stabs, and a lead (clarinet, violin, saxophone, vibraphone or piano) calling with another voice answering. Each piece has its own key, chords and riffs."
     },
     "mood": {
       "mothership_calm": "Mothership calm",

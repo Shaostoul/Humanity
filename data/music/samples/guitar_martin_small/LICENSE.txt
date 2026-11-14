@@ -1,0 +1,4 @@
+// GM Acoustic Guitar
+// 2017 Martin HD28 Vintage Series
+// Author: Jeff Learman, for Kinwie's Discord SFZ GM: https://github.com/kinwie/Discord-SFZ-GM-Bank
+// License: Creative Commons CC0

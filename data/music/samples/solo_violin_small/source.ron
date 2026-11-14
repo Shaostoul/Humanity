@@ -1,0 +1,28 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "VSCO 2 Community Edition",
+    url: "https://github.com/sgossner/VSCO-2-CE",
+    version: "commit 440300901dfe9275fd84e0b7763af1f8443ae62e (2020-08-05)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-06",
+    archive: "vsco-2-ce/VSCO-2-CE-440300901dfe9275fd84e0b7763af1f8443ae62e.tar.gz",
+    archive_sha256: "2050dfd58513fd8058765c3a567636b148206da297a35c8b52f2ec4344035316",
+    kept: [
+        (file: "LLVln_ArcoVib_G3_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G3_p.wav"),
+        (file: "LLVln_ArcoVib_A3_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A3_p.wav"),
+        (file: "LLVln_ArcoVib_C4_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C4_p.wav"),
+        (file: "LLVln_ArcoVib_E4_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E4_p.wav"),
+        (file: "LLVln_ArcoVib_G4_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G4_p.wav"),
+        (file: "LLVln_ArcoVib_A4_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A4_p.wav"),
+        (file: "LLVln_ArcoVib_C5_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C5_p.wav"),
+        (file: "LLVln_ArcoVib_E5_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E5_p.wav"),
+        (file: "LLVln_ArcoVib_G5_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G5_p.wav"),
+        (file: "LLVln_ArcoVib_A5_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A5_p.wav"),
+        (file: "LLVln_ArcoVib_C6_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C6_p.wav"),
+        (file: "LLVln_ArcoVib_E6_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_E6_p.wav"),
+        (file: "LLVln_ArcoVib_G6_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_G6_p.wav"),
+        (file: "LLVln_ArcoVib_A6_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_A6_p.wav"),
+        (file: "LLVln_ArcoVib_C7_p.ogg", from: "Strings/Solo Violin/Arco Vib/LLVln_ArcoVib_C7_p.wav"),
+    ],
+)

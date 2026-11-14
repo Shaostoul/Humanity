@@ -163,6 +163,25 @@ function sha256File(p) {
  * when it was downloaded (docs/reference/instrument-sources.md); a changed download is refused.
  */
 function openLibrary(id, lib, srcRoot, log) {
+  if (lib.files) {
+    // A folder of files downloaded one by one (only the part of a repository that was approved, the
+    // Martin HD-28 of 2026-11-13): each file's size and SHA-256 were recorded at the download, and a
+    // changed or missing file is refused, as a changed archive is.
+    const base = path.join(srcRoot, lib.dir);
+    for (const f of lib.files) {
+      const p = path.join(base, f.name);
+      if (!fs.existsSync(p)) throw new Error(`library ${id}: ${p} is missing (see docs/reference/instrument-sources.md)`);
+      const bytes = fs.statSync(p).size;
+      if (bytes !== f.bytes) throw new Error(`library ${id}: ${p} is ${bytes} bytes, the download was ${f.bytes}`);
+      const got = sha256File(p);
+      if (got !== f.sha256) throw new Error(`library ${id}: ${p} has SHA-256 ${got}, the download had ${f.sha256}`);
+    }
+    return {
+      list: () => lib.files.map((f) => f.name),
+      read: (rel) => fs.readFileSync(path.join(base, rel)),
+      input: (rel) => path.join(base, rel),
+    };
+  }
   const archive = path.join(srcRoot, lib.archive);
   if (!fs.existsSync(archive)) throw new Error(`library ${id}: ${archive} is missing (see docs/reference/instrument-sources.md)`);
   const bytes = fs.statSync(archive).size;
@@ -563,7 +582,7 @@ function sourceRon(recipe, lib, zones) {
     version: lib.version,
     licence: lib.licence_name,
     fetched: lib.fetched,
-    archive: lib.archive,
+    archive: lib.archive || lib.dir,
     archive_sha256: lib.sha256 || '',
     kept: zones.map((z) => ({ file: z.outName, from: z.file })),
   });
@@ -653,7 +672,10 @@ async function main(argv) {
       for (const s of done) if (s.key == null) fs.rmSync(path.join(staging, s.outName), { force: true });
       // The library's licence text, word for word; its line endings made plain LF (Karoryfer's mixes
       // CRLF and LF, which the repository's encoding check refuses).
-      const licenceText = files.read(lib.licence_file).toString('utf8').replace(/\r\n?/g, '\n');
+      // A library whose licence is a line in a file's header (the Martin's SFZ) keeps only that
+      // header: licence_lines, its first lines.
+      let licenceText = files.read(lib.licence_file).toString('utf8').replace(/\r\n?/g, '\n');
+      if (lib.licence_lines) licenceText = licenceText.split('\n').slice(0, lib.licence_lines).join('\n') + '\n';
       writeInstrumentFiles(root, recipe, lib, zones, tune, licenceText);
       const off = zones.filter((z) => z.measured && Math.abs(1200 * Math.log2(z.measured / B.noteHz(z.key, tune.a4 || 440))) > 30).length;
       log(`  ${zones.length} zones, ${tune.how}${off ? `; ${off} sample(s) measured more than 30 cents off their key` : ''}`);

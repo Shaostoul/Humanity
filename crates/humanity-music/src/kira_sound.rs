@@ -269,6 +269,20 @@ mod device_tests {
         println!("the music's data read and resolved: {load_ms:.1} ms");
         println!("before (harp, steel pan, bass drum): {bf} files decoded in {before_ms:.0} ms, {:.1} MiB as 32-bit floats", bn as f64 * 8.0 / 1048576.0);
         println!("now (the default genre's seven): {nf} files decoded in {now_ms:.0} ms, {:.1} MiB as 16-bit", nn as f64 * 4.0 / 1048576.0);
+        // A genre change's cold decode (BUG-297): electro swing's recorded parts, one file after
+        // another (the build until 2026-11-13) and on the threads `decode::decode_files` uses now.
+        let folders = ["trumpet_small", "trombone_small", "clarinet_small", "double_bass_pizzicato_small", "guitar_gretsch_small"];
+        let paths: Vec<std::path::PathBuf> = folders
+            .iter()
+            .flat_map(|f| std::fs::read_dir(data.join("music/samples").join(f)).unwrap().flatten().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "ogg" || x == "flac" || x == "wav"))
+            .collect();
+        for threads in [1, crate::decode::decode_threads()] {
+            let t0 = std::time::Instant::now();
+            let r = crate::decode::decode_files(&paths, threads);
+            assert!(r.iter().all(|x| x.is_ok()));
+            println!("electro swing's recordings: {} files decoded in {:.0} ms on {threads} thread(s)", paths.len(), t0.elapsed().as_secs_f64() * 1000.0);
+        }
     }
 
     /// THE HUM PLAYS ON A DEVICE (rung 2), at its level aboard, and fades away off the ship. RED first

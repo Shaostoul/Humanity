@@ -206,6 +206,7 @@ fn settings_music_at(name: &str, recordings_from: Option<&std::path::Path>) {
     let genres = crate::engine::music::genre_choices(&lib, &stand_ins);
     render_page_png(name, 1100, 1500, |ctx, theme, state| {
         state.music_dev.readout.genres = genres.clone();
+        state.music_dev.readout.piece_minutes = lib.piece_minutes.clone();
         state.settings.music.genre = "electro_swing".to_string();
         theme.apply_to_egui(ctx);
         egui::CentralPanel::default().show(ctx, |ui| {

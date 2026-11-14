@@ -6,6 +6,7 @@
 //! - `data/music/places.ron`: which mood plays where and when (places.rs)
 //! - `data/audio/hum_sources.ron`: where the ship hums from (bed.rs)
 //! - `data/music/tones.ron`: the named tones of the optional tones layer
+//! - `data/music/pieces.ron`: how often a new piece may begin (Settings > Music's choices)
 //! - `data/music/intensity.ron`: the intensity bands, the stinger and the riser (intensity.rs)
 //!
 //! Every file is read every time a score starts (no copy kept across runs: CLAUDE.md, the no-caches
@@ -35,12 +36,20 @@ pub struct MusicLibrary {
     pub tones: Vec<f32>,
     /// How the game's intensity becomes danger and action music (data/music/intensity.ron).
     pub intensity: crate::intensity::IntensityMap,
+    /// Settings > Music's "A new piece" choices, minutes (0: never; data/music/pieces.ron).
+    pub piece_minutes: Vec<f32>,
 }
 
 /// data/music/tones.ron.
 #[derive(Clone, Debug, serde::Deserialize)]
 struct Tones {
     named_hz: Vec<f32>,
+}
+
+/// data/music/pieces.ron.
+#[derive(Clone, Debug, serde::Deserialize)]
+struct Pieces {
+    minutes: Vec<f32>,
 }
 
 /// The genre a person hears unless they choose another.
@@ -93,7 +102,13 @@ impl MusicLibrary {
         let intensity_path = music.join("intensity.ron");
         let intensity: crate::intensity::IntensityMap = ron::from_str(&std::fs::read_to_string(&intensity_path).map_err(|e| format!("{}: {e}", intensity_path.display()))?)
             .map_err(|e| format!("{}: {e}", intensity_path.display()))?;
-        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity };
+        let pieces_path = music.join("pieces.ron");
+        let pieces: Pieces = ron::from_str(&std::fs::read_to_string(&pieces_path).map_err(|e| format!("{}: {e}", pieces_path.display()))?)
+            .map_err(|e| format!("{}: {e}", pieces_path.display()))?;
+        if pieces.minutes.is_empty() || pieces.minutes.iter().any(|m| !(0.0..=600.0).contains(m)) {
+            return Err(format!("{}: the choices must be 0 (never) to 600 minutes, and at least one", pieces_path.display()));
+        }
+        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes };
         lib.order();
         lib.check()?;
         Ok(lib)
