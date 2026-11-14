@@ -3177,7 +3177,16 @@ pub(crate) fn elevator_car_poses(
 pub(crate) fn push_home_machines(state: &EngineState, out: &mut Vec<RenderObject>) {
     let cut = &state.home_draw.cut;
     let shown = |at: Vec3| !cut.hides(at);
-    for &(mesh, material, pos, yaw) in &state.machine_objects {
+    // A chair pulled out to sit on, being pushed back in, or left out is drawn where it is
+    // (`interact::InteractRuntime::chairs`, BUG-298).
+    let slid: Vec<(usize, Vec3)> = state
+        .interact
+        .chairs
+        .iter()
+        .filter_map(|c| state.gui_state.machine_labels.iter().position(|l| l.machine_id == c.machine_id).map(|i| (i, c.offset())))
+        .collect();
+    for (i, &(mesh, material, pos, yaw)) in state.machine_objects.iter().enumerate() {
+        let pos = pos + slid.iter().find(|s| s.0 == i).map_or(Vec3::ZERO, |s| s.1);
         if shown(pos) {
             out.push(RenderObject {
                 fade: 0.0,

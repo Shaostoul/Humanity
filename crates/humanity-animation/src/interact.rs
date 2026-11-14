@@ -124,6 +124,10 @@ fn d_reach() -> f32 {
     1.5
 }
 
+fn d_tuck() -> bool {
+    true
+}
+
 /// One anchor: a row of `data/characters/interactions.ron`.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct AnchorDef {
@@ -152,6 +156,16 @@ pub struct AnchorDef {
     /// of the person (the length of a workbench they can work along).
     #[serde(default)]
     pub span_m: Option<f32>,
+    /// A seat's: how far it slides back along its own +Z (away from the way it faces) when the
+    /// person sits at it while it is tucked in, its approach crowded by the desk or the table it
+    /// stands under, metres (the game's `engine::interact::plan_seat`). 0, the default: it is never
+    /// moved (a couch).
+    #[serde(default)]
+    pub pull_out_m: f32,
+    /// A seat's: pushed back in where it stood once the person is up (true, the default), or left
+    /// where it was pulled out to (false).
+    #[serde(default = "d_tuck")]
+    pub tuck_after: bool,
 }
 
 impl AnchorDef {
@@ -1037,6 +1051,8 @@ mod tests {
             root_driven: true,
             reach_m: 1.5,
             span_m: None,
+            pull_out_m: 0.0,
+            tuck_after: true,
         };
         let clips = ClipSet::default();
         let w0 = weights(&def, Phase::Enter, 0.0, &clips, 0.8, 0.4);

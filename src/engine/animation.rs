@@ -1644,7 +1644,7 @@ fn crowd_act_in(state: &EngineState, lib: &CharacterLibrary, c: &CrowdFigure, cl
             return None;
         };
         let start = (a.placed.approach(def), a.placed.root(def).1);
-        let e = crate::engine::interact::Engaged { placed: a.placed, phase, t: pt, from: start, leave: false, approach_s: 0.0 };
+        let e = crate::engine::interact::Engaged { placed: a.placed, phase, t: pt, from: start, leave: false, approach_s: 0.0, seat: Default::default() };
         if def.root_driven {
             let (feet, facing) = crate::engine::interact::engaged_root(lib, &e, bi);
             p.feet = feet;

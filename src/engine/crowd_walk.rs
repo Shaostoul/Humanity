@@ -46,6 +46,8 @@ pub(crate) struct CrowdWalk {
     /// The furniture's footprints and the machine rebuild count they were read at.
     furniture: Vec<Footprint>,
     furniture_stamp: Option<u64>,
+    /// The chairs drawn off their placements when it was read (each id and offset).
+    furniture_moved: Vec<(String, Vec3)>,
     /// How the walkers walk (data/crowd/walking.ron, read each time a crowd is made).
     pub(crate) params: CrowdParams,
 }
@@ -104,25 +106,39 @@ pub(crate) fn door_actors(state: &EngineState) -> impl Iterator<Item = (Vec3, f3
 }
 
 /// Every placed machine and piece of furniture as a turned box on the floor, the way it is drawn
-/// (`Footprint::of_placed`).
-fn furniture_of(state: &EngineState) -> Vec<Footprint> {
+/// (`Footprint::of_placed`), a chair drawn off its placement where it is drawn (`moved`: each
+/// machine id and its offset, `interact::InteractRuntime::chairs`).
+fn furniture_of(state: &EngineState, moved: &[(String, Vec3)]) -> Vec<Footprint> {
     let Some(placed) = crate::engine::home_meshes::placements_now(state) else {
         return Vec::new();
     };
-    placed.iter().map(Footprint::of_placed).collect()
+    placed
+        .iter()
+        .map(|p| {
+            let f = Footprint::of_placed(p);
+            match moved.iter().find(|m| m.0 == p.id) {
+                Some((_, by)) => Footprint { centre: (f.centre.0 + by.x, f.centre.1 + by.z), ..f },
+                None => f,
+            }
+        })
+        .collect()
 }
 
 /// The furniture's footprints made current: read again when the machines were rebuilt
-/// (`HomeDraw::edits`), and every frame with the Dev page's "Turn off all reuse" switch off. The
-/// one list the crowd's mesh and the player's walk read (2026-11-13: the player stops at furniture
-/// the way the crowd does, docs/design/crowd-navigation.md, "His answers").
+/// (`HomeDraw::edits`) or a chair moved (pulled out to sit on, pushed back in: BUG-298), and every
+/// frame with the Dev page's "Turn off all reuse" switch off. The one list the crowd's mesh and
+/// the player's walk read (2026-11-13: the player stops at furniture the way the crowd does,
+/// docs/design/crowd-navigation.md, "His answers").
 pub(crate) fn refresh_furniture(state: &mut EngineState) {
     let stamp = state.home_draw.edits;
-    if !humanity_core::reuse::enabled() || state.animation.walk.furniture_stamp != Some(stamp) {
-        let furniture = furniture_of(state);
+    let moved: Vec<(String, Vec3)> = state.interact.chairs.iter().map(|c| (c.machine_id.clone(), c.offset())).collect();
+    let walk = &state.animation.walk;
+    if !humanity_core::reuse::enabled() || walk.furniture_stamp != Some(stamp) || walk.furniture_moved != moved {
+        let furniture = furniture_of(state, &moved);
         let walk = &mut state.animation.walk;
         walk.furniture = furniture;
         walk.furniture_stamp = Some(stamp);
+        walk.furniture_moved = moved;
     }
 }
 
@@ -323,7 +339,8 @@ mod tests {
     /// furniture the body stands within the anchor's `reach_m` of it, which is all E needs to grant
     /// it (engine/interact.rs `press_e`): a desk a chair is tucked under may crowd the approach
     /// (chair_5's stands 0.245 m off, chair_22's 0.964 m: their approaches were authored under the
-    /// desk), never beyond reach. And seated or lying, the hold reads no furniture.
+    /// desk), never beyond reach (where they then stand up to is `plan_seat`'s, BUG-298, the test
+    /// below). And seated or lying, the hold reads no furniture.
     /// RED, 2026-11-13, with every footprint taken at twice its size in `Footprint::walls`: "the
     /// bed_lie approach of bed_1 is held 1.139 m short of it by its own footprint".
     #[test]
@@ -364,6 +381,138 @@ mod tests {
             }
         }
         assert!(seats >= 4 && beds >= 1, "the shipped ship has chairs, a couch and a bed to reach ({seats} seats, {beds} beds)");
+    }
+
+    /// GETTING UP FROM EVERY SHIPPED SEAT, CLEAR OF THE FURNITURE (2026-11-13, BUG-298). Every
+    /// placed seat of every shipped home on its own plot (each start's households,
+    /// data/homes/starts.ron, the ship's machines merged in), sat at and got up from the way
+    /// `engine::interact` does it (`plan_seat`: where the seat is drawn while sat on, where the
+    /// body stands up to): standing, the body is clear of every footprint (the seat itself where it
+    /// settles: pushed back in, or left out) and of the walls, so the walk never has to push it out
+    /// between a desk and its chair. A tucked chair (chair_5 under desk_1) is drawn pulled out
+    /// while sat on.
+    /// RED, 2026-11-13, with `plan_seat` returning the row's own approach and no pull (the code
+    /// before the fix), over the 182 seats of the six shipped homes: more than 55 failures (the
+    /// head of the list was cut by the run's output filter), every dining chair of the ship's mess
+    /// halls in every home that merges the ship, "mess_chair_1 (chair_seat) in
+    /// one_person_homestead.ron on o1: 0.420 m into mess_table_1's footprint", and "bed_1
+    /// (bed_edge) in one_person_homestead.ron on o1: pushed 0.175 m by a wall". Red again with the
+    /// grid only 0.9 m to each side: "2 of 182 seats ... couch_1 (couch_seat_middle) in home.ron on
+    /// p1: 0.200 m into side_table_5's footprint" (and its home_solo.ron twin).
+    #[test]
+    fn getting_up_from_every_shipped_seat_stands_clear_of_the_furniture() {
+        use crate::engine::interact::{plan_seat, ObjectRef, Placed};
+        use humanity_ship::ship_structure::ShipStructure;
+        let anchors = Anchors::parse(&std::fs::read_to_string(data().join("characters/interactions.ron")).unwrap()).expect("interactions.ron parses");
+        let starts = humanity_ship::starts::Starts::load(&data());
+        let file = ShipStructure::load_ship_file(&data()).expect("the ship file loads");
+        let (mut seats, mut pulled, mut homes) = (0, Vec::new(), 0);
+        let mut failed = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for start in &starts.starts {
+            let Some(plot) = file.plots.iter().find(|p| p.kind == start.plot_kind) else { continue };
+            for household in &start.households {
+                let path = data().join("machines").join(&household.machines);
+                if !path.exists() || !seen.insert((plot.id.clone(), household.machines.clone())) {
+                    continue;
+                }
+                homes += 1;
+                let ship = ShipStructure::load_and_assemble_shipped(&data(), Some(&plot.id)).unwrap_or_else(|e| panic!("{} assembles on {}: {e}", start.design, plot.id));
+                let walls = humanity_ship::wall_collision::ship_wall_segments(&ship);
+                let home = humanity_systems::grow_machines::load_home(&path).unwrap_or_else(|| panic!("{} loads", household.machines));
+                let all = home.placements(&std::collections::HashMap::new(), Some(&ship.zone_rects()));
+                let furniture: Vec<Footprint> = all.iter().map(Footprint::of_placed).collect();
+                let types = home.instance_types();
+                for (i, p) in all.iter().enumerate() {
+                    let Some(def) = types.get(&p.id).and_then(|t| home.catalog.get(t)) else { continue };
+                    for id in &def.anchors {
+                        let Some(ai) = anchors.index(id) else { continue };
+                        let a = &anchors.anchors[ai];
+                        if a.kind != AnchorKind::Sit {
+                            continue;
+                        }
+                        seats += 1;
+                        let placed = Placed { anchor: ai, origin: Vec3::from(p.pos), yaw: p.rotation.to_radians(), object: ObjectRef::Machine(i) };
+                        let own = furniture[i];
+                        let others: Vec<Footprint> = furniture.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, f)| *f).collect();
+                        let plan = plan_seat(a, &placed, Some(&own), &others, &walls);
+                        let out = Footprint { centre: (own.centre.0 + plan.back(&placed).x, own.centre.1 + plan.back(&placed).z), ..own };
+                        if plan.pull_m > 0.0 {
+                            pulled.push(p.id.clone());
+                        }
+                        // Up: the seat where it settles, the body where it stood up to.
+                        let settled = if a.tuck_after { own } else { out };
+                        let feet = plan.stand(a, &placed);
+                        let at = format!("{} ({}) in {} on {}", p.id, a.id, household.machines, plot.id);
+                        for (j, f) in furniture.iter().enumerate() {
+                            let f = if j == i { &settled } else { f };
+                            let d = f.distance(feet.x, feet.z);
+                            if f.stops_body(feet.y) && d < PLAYER_RADIUS - 0.01 {
+                                failed.push(format!("{at}: {:.3} m into {}'s footprint", PLAYER_RADIUS - d, all[j].id));
+                            }
+                        }
+                        let eye = Vec3::new(feet.x, feet.y + EYE_HEIGHT_M, feet.z);
+                        let held = resolve(eye, eye, PLAYER_RADIUS, &walls, &[]);
+                        let pushed = Vec3::new(held.x - eye.x, 0.0, held.z - eye.z).length();
+                        if pushed > 0.01 {
+                            failed.push(format!("{at}: pushed {pushed:.3} m by a wall"));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(homes >= 3 && seats >= 20, "the shipped homes have their seats ({homes} homes, {seats} seats)");
+        assert!(failed.is_empty(), "{} of {seats} seats stand the body up inside the furniture:\n{}", failed.len(), failed.join("\n"));
+        for tucked in ["chair_5", "chair_22"] {
+            assert!(pulled.iter().any(|p| p == tucked), "{tucked}, tucked under its desk, is pulled out to sit on (pulled: {pulled:?})");
+        }
+    }
+
+    /// THE CHAIR PULLED OUT WHILE SAT ON, PUSHED BACK IN AFTER (2026-11-13, BUG-298): the sit's
+    /// chair follows it (`interact::step_chairs` at 60 frames a second): where it is placed through
+    /// the walk-in, all the way out by the end of the enter's first `CHAIR_SLIDE_S`, out through the
+    /// hold and the getting up, and back where it is placed `CHAIR_SLIDE_S` after the player is up
+    /// (then dropped from the list). A chair whose row leaves it out stays out, and the next sit at
+    /// it slides on from there.
+    /// RED, 2026-11-13, with a tucking chair not pushed back in once let go (`step_chairs` leaving
+    /// its slide where it was): "1 s after getting up the chair is drawn Vec3(0.4, 0.0, 0.0) off its
+    /// placement".
+    #[test]
+    fn a_tucked_chair_is_pulled_out_to_sit_on_and_pushed_back_in_after() {
+        use crate::engine::interact::{step_chairs, InteractRuntime, CHAIR_SLIDE_S};
+        use humanity_animation::Phase;
+        let dt = 1.0 / 60.0;
+        let by = Vec3::new(0.4, 0.0, 0.0);
+        let mut rt = InteractRuntime::default();
+        rt.hold_chair("chair_5".into(), by, true);
+        let run = |rt: &mut InteractRuntime, held: Option<(Phase, f32)>, secs: f32| {
+            for _ in 0..(secs / dt).round() as usize {
+                step_chairs(&mut rt.chairs, held, dt);
+            }
+        };
+        run(&mut rt, Some((Phase::Enter, -0.4)), 0.2);
+        assert_eq!(rt.chair_offset("chair_5"), Vec3::ZERO, "walking in, the chair stays where it is placed");
+        run(&mut rt, Some((Phase::Enter, CHAIR_SLIDE_S * 0.5)), dt);
+        let half = rt.chair_offset("chair_5");
+        assert!(half.x > 0.1 && half.x < 0.3, "half way through its slide the chair is part way out ({half:?})");
+        run(&mut rt, Some((Phase::Enter, CHAIR_SLIDE_S)), dt);
+        assert!((rt.chair_offset("chair_5") - by).length() < 1e-5, "sitting down, the chair is all the way out");
+        run(&mut rt, Some((Phase::Hold, 1.0)), 1.0);
+        run(&mut rt, Some((Phase::Exit, 0.5)), 0.5);
+        assert!((rt.chair_offset("chair_5") - by).length() < 1e-5, "seated and getting up, it stays out");
+        run(&mut rt, None, 1.0);
+        let after = rt.chair_offset("chair_5");
+        assert!(after.length() < 1e-5, "1 s after getting up the chair is drawn {after:?} off its placement");
+        assert!(rt.chairs.is_empty(), "a chair back where it is placed is dropped");
+        // Left out (a row with tuck_after false): it stays where it was pulled to, and the next sit
+        // slides it on from there.
+        rt.hold_chair("chair_9".into(), by, false);
+        run(&mut rt, Some((Phase::Hold, 0.0)), 0.1);
+        run(&mut rt, None, 2.0);
+        assert!((rt.chair_offset("chair_9") - by).length() < 1e-5, "a chair left out stays out");
+        rt.hold_chair("chair_9".into(), by, false);
+        run(&mut rt, Some((Phase::Hold, 0.0)), 0.1);
+        assert!((rt.chair_offset("chair_9") - by * 2.0).length() < 1e-5, "sat at again it slides on from where it was left");
     }
 
     /// RED, 2026-11-13, with the footprint's walls standing at every height

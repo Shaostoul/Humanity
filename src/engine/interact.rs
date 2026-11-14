@@ -31,6 +31,8 @@
 use glam::{Quat, Vec3};
 use humanity_animation::interact::{AnchorDef, AnchorKind, Phase};
 use humanity_animation::CharacterLibrary;
+use humanity_ship::crowd_nav::Footprint;
+use humanity_ship::wall_collision::WallSegment;
 
 use crate::engine::state::EngineState;
 
@@ -75,6 +77,151 @@ impl Placed {
     }
 }
 
+/// How a seat is sat at where it stands among the furniture and the walls (2026-11-13, BUG-298):
+/// a chair tucked under a desk or a table, its approach crowded, is pulled out its row's
+/// `pull_out_m` (back along its own +Z) when there is room behind it, and the person stands
+/// beside it, clear of every footprint, before sitting and after getting up, while it is pushed
+/// back in (or left out, the row's `tuck_after`). A chair whose approach is already clear is sat
+/// at as its row says: the default plan.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub(crate) struct SeatPlan {
+    /// How far the seat is drawn slid back along its own +Z while it is sat on, metres.
+    pub pull_m: f32,
+    /// Where the person stands before sitting and gets up to (world, the feet), when it is not
+    /// the row's approach (slid with the seat).
+    pub stand: Option<Vec3>,
+}
+
+impl SeatPlan {
+    /// The seat's slide out, world.
+    pub fn back(&self, placed: &Placed) -> Vec3 {
+        Quat::from_rotation_y(placed.yaw) * Vec3::Z * self.pull_m
+    }
+
+    /// Where the person's root stands while seated, and which way they face: the row's root on
+    /// the slid seat.
+    pub fn root(&self, def: &AnchorDef, placed: &Placed) -> (Vec3, f32) {
+        let (root, facing) = placed.root(def);
+        (root + self.back(placed), facing)
+    }
+
+    /// Where they stand before sitting, and get up to.
+    pub fn stand(&self, def: &AnchorDef, placed: &Placed) -> Vec3 {
+        self.stand.unwrap_or_else(|| placed.approach(def) + self.back(placed))
+    }
+}
+
+/// True when a body whose feet are at `feet` stands clear of `pieces` (each the body's radius and
+/// `margin` off, by the walk's knee-to-eye rule) and of `walls` (the walk's collision does not
+/// move it).
+fn stands_clear(feet: Vec3, pieces: &[Footprint], walls: &[WallSegment], margin: f32) -> bool {
+    let r = humanity_ship::wall_collision::PLAYER_RADIUS;
+    if pieces.iter().any(|f| f.stops_body(feet.y) && f.distance(feet.x, feet.z) < r + margin) {
+        return false;
+    }
+    let eye = feet + Vec3::Y * humanity_ship::wall_collision::EYE_HEIGHT_M;
+    let held = humanity_ship::wall_collision::resolve(eye, eye, r + margin, walls, &[]);
+    horizontal(held - eye).length() < 1e-3
+}
+
+/// The footprint moved by `by` (world).
+fn moved(f: &Footprint, by: Vec3) -> Footprint {
+    Footprint { centre: (f.centre.0 + by.x, f.centre.1 + by.z), ..*f }
+}
+
+/// The step of the grid of stand-here points tried round a crowded seat's approach, metres.
+const STAND_STEP_M: f32 = 0.15;
+/// How far the grid reaches either side of the approach (across the way the seated person faces),
+/// in steps: 1.2 m, past a chair's side and the body's width, or along a couch from its middle seat
+/// to clear of the low table in front of it (couch_1 and side_table_5 at the family home: at 0.9 m
+/// its middle seat had no point clear, 2026-11-13).
+const STAND_SIDE_STEPS: i32 = 8;
+/// How far the grid reaches back from the approach toward the seat and past it (steps, 1.35 m:
+/// beside a dining chair whose approach is under its table, or behind a chair pulled out) and on
+/// out in front (2 steps).
+const STAND_BACK_STEPS: i32 = 9;
+const STAND_FRONT_STEPS: i32 = 2;
+
+/// True when the seat's box at `out` has room: clear of the walls and of every other piece, taken
+/// as the circle round its corners (a little more room than the box needs, never less).
+fn has_room(out: &Footprint, feet_y: f32, others: &[Footprint], walls: &[WallSegment]) -> bool {
+    let round = out.half.0.hypot(out.half.1);
+    if others.iter().any(|f| f.stops_body(feet_y) && f.distance(out.centre.0, out.centre.1) < round) {
+        return false;
+    }
+    let eye = Vec3::new(out.centre.0, feet_y + humanity_ship::wall_collision::EYE_HEIGHT_M, out.centre.1);
+    let held = humanity_ship::wall_collision::resolve(eye, eye, round, walls, &[]);
+    horizontal(held - eye).length() < 1e-3
+}
+
+/// How the person sits at seat `def` of `placed` (`SeatPlan`): `own` the seat's own footprint,
+/// `others` every other piece's, `walls` the walk's walls. A seat whose approach stands clear is
+/// sat at as its row says. Otherwise it is pulled out its row's `pull_out_m` when its box has room
+/// there (or left where it is), and the stand-here point is the nearest to the row's approach (on
+/// the seat where it is sat on) of a grid round it, laid along the way the seated person faces,
+/// that stands clear of every other piece, of the seat both pulled out and where it settles, and of
+/// the walls, and is reached from the seated root without crossing a wall. With no such point the
+/// row's own approach is kept (the shipped seats each have one: the test
+/// `getting_up_from_every_shipped_seat_stands_clear_of_the_furniture`).
+pub(crate) fn plan_seat(def: &AnchorDef, placed: &Placed, own: Option<&Footprint>, others: &[Footprint], walls: &[WallSegment]) -> SeatPlan {
+    let row = SeatPlan::default();
+    if def.kind != AnchorKind::Sit {
+        return row;
+    }
+    let feet_y = placed.origin.y;
+    let mut all: Vec<Footprint> = others.to_vec();
+    all.extend(own.copied());
+    if stands_clear(placed.approach(def), &all, walls, 0.0) {
+        return row;
+    }
+    let pulls = [def.pull_out_m, 0.0];
+    for (i, &pull) in pulls.iter().enumerate() {
+        if i == 0 && pull <= 0.0 {
+            continue;
+        }
+        let plan = SeatPlan { pull_m: pull, stand: None };
+        let back = plan.back(placed);
+        let out = own.map(|f| moved(f, back));
+        if pull > 0.0 && !out.is_some_and(|o| has_room(&o, feet_y, others, walls)) {
+            continue;
+        }
+        // Clear of every other piece, of the seat pulled out (where it is as they get up) and of
+        // where it settles (pushed back in, or left out).
+        let mut clear_of: Vec<Footprint> = others.to_vec();
+        clear_of.extend(out);
+        if def.tuck_after || pull <= 0.0 {
+            clear_of.extend(own.copied());
+        }
+        let approach = plan.stand(def, placed);
+        let (root, facing) = plan.root(def, placed);
+        // The way the seated person faces (toward the approach), and across it.
+        let ahead = Quat::from_rotation_y(facing) * Vec3::Z;
+        let across = Vec3::new(ahead.z, 0.0, -ahead.x);
+        let mut grid: Vec<(f32, Vec3)> = Vec::new();
+        for s in -STAND_SIDE_STEPS..=STAND_SIDE_STEPS {
+            for f in -STAND_BACK_STEPS..=STAND_FRONT_STEPS {
+                let off = across * (s as f32 * STAND_STEP_M) + ahead * (f as f32 * STAND_STEP_M);
+                grid.push((off.length(), approach + off));
+            }
+        }
+        grid.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let eye = Vec3::Y * humanity_ship::wall_collision::EYE_HEIGHT_M;
+        for (_, feet) in grid {
+            if !stands_clear(feet, &clear_of, walls, 0.02) {
+                continue;
+            }
+            // Reached from the seat without crossing a wall: a thin body carried from the root.
+            let to = humanity_ship::wall_collision::resolve(root + eye, feet + eye, 0.05, walls, &[]);
+            if horizontal(to - (feet + eye)).length() > 1e-3 {
+                continue;
+            }
+            let stand = (horizontal(feet - approach).length() > 1e-4).then_some(feet);
+            return SeatPlan { pull_m: pull, stand };
+        }
+    }
+    row
+}
+
 /// The player's granted interaction, from frame to frame (state, like a position).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Engaged {
@@ -90,6 +237,9 @@ pub(crate) struct Engaged {
     /// began there): the body walks (the locomotion graph, reading the root's motion), then the
     /// enter clip starts. Not sent: the act goes out once the walk-in is done.
     pub approach_s: f32,
+    /// Where the seat is drawn while sat on and where they stand up to (`plan_seat`); the default
+    /// (the row's own approach, nothing moved) for everything but a crowded seat.
+    pub seat: SeatPlan,
 }
 
 /// The interactions' runtime: the player's grant, and the switches the rigs' red twins use.
@@ -118,12 +268,90 @@ pub(crate) struct InteractRuntime {
     pub door_rose_at: Vec<f32>,
     /// The interaction probe while it runs (showcase `anchor_probe`, engine::anchor_probe).
     pub probe: Option<crate::engine::anchor_probe::AnchorProbe>,
+    /// The chairs drawn off where they are placed: the one the player sits on pulled out, one
+    /// being pushed back in after they got up, one left out (`SeatPlan`, BUG-298). Each is drawn
+    /// there (`home_meshes::push_home_machines`), its footprint stands there
+    /// (`crowd_walk::refresh_furniture`) and its anchors are placed there (`machine_anchors`).
+    pub chairs: Vec<ChairSlide>,
 }
 
 impl Default for InteractRuntime {
     fn default() -> Self {
-        InteractRuntime { me: None, warp_on: true, hand_ik_on: true, fp_head_hidden: true, rung2b_on: true, seat_plant: false, door_prev: Vec::new(), door_rose_at: Vec::new(), probe: None }
+        InteractRuntime { me: None, warp_on: true, hand_ik_on: true, fp_head_hidden: true, rung2b_on: true, seat_plant: false, door_prev: Vec::new(), door_rose_at: Vec::new(), probe: None, chairs: Vec::new() }
     }
+}
+
+impl InteractRuntime {
+    /// How far the placed machine `machine_id` is drawn off its placement (world): zero for every
+    /// machine but a chair pulled out.
+    pub fn chair_offset(&self, machine_id: &str) -> Vec3 {
+        self.chairs.iter().find(|c| c.machine_id == machine_id).map_or(Vec3::ZERO, ChairSlide::offset)
+    }
+
+    /// The player sits at chair `machine_id`: it slides `by` (world) as they sit, and is pushed
+    /// back in after or left out (`tuck`). A chair held before is let go first.
+    pub fn hold_chair(&mut self, machine_id: String, by: Vec3, tuck: bool) {
+        for c in self.chairs.iter_mut().filter(|c| c.held) {
+            c.release();
+        }
+        let base = self.chairs.iter().position(|c| c.machine_id == machine_id).map_or(Vec3::ZERO, |i| self.chairs.remove(i).offset());
+        self.chairs.push(ChairSlide { machine_id, base, by, k: 0.0, tuck, held: true });
+    }
+}
+
+/// How long a chair takes to slide out, or back in, seconds: one pull or push of a chair.
+pub(crate) const CHAIR_SLIDE_S: f32 = 0.5;
+
+/// A chair drawn off its placement (`InteractRuntime::chairs`).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ChairSlide {
+    /// The placed machine's id (`MachineLabel::machine_id`).
+    pub machine_id: String,
+    /// Where it already stood off its placement before this sit (one left out before), world.
+    pub base: Vec3,
+    /// This sit's slide, world (its own +Z times the plan's pull).
+    pub by: Vec3,
+    /// How much of the slide has been made, 0 to 1 (the time over `CHAIR_SLIDE_S`).
+    pub k: f32,
+    /// Pushed back in once the player is up (the row's `tuck_after`).
+    pub tuck: bool,
+    /// The player's sit holds it.
+    pub held: bool,
+}
+
+impl ChairSlide {
+    /// Where it is drawn off its placement now, world: the slide eased in and out.
+    pub fn offset(&self) -> Vec3 {
+        let k = self.k.clamp(0.0, 1.0);
+        self.base + self.by * (k * k * (3.0 - 2.0 * k))
+    }
+
+    /// The sit let it go: one left out stays where it is drawn.
+    fn release(&mut self) {
+        self.held = false;
+        if !self.tuck {
+            self.base = self.offset();
+            self.by = Vec3::ZERO;
+            self.k = 0.0;
+        }
+    }
+}
+
+/// One frame of the chairs' slides: the one the player's sit holds follows it (`held`: the sit's
+/// phase and the seconds into its own enter clip), out over `CHAIR_SLIDE_S` from when the enter
+/// begins, out through the hold and the getting up; once they are up it is pushed back in over
+/// `CHAIR_SLIDE_S`, or stays out. A chair back where it is placed is dropped.
+pub(crate) fn step_chairs(chairs: &mut Vec<ChairSlide>, held: Option<(Phase, f32)>, dt: f32) {
+    for c in chairs.iter_mut() {
+        match (c.held, held) {
+            (true, Some((Phase::Enter, clip_t))) => c.k = (clip_t / CHAIR_SLIDE_S).clamp(0.0, 1.0),
+            (true, Some(_)) => c.k = 1.0,
+            (true, None) => c.release(),
+            (false, _) if c.tuck => c.k = (c.k - dt.max(0.0) / CHAIR_SLIDE_S).max(0.0),
+            (false, _) => {}
+        }
+    }
+    chairs.retain(|c| c.held || c.k > 0.0 || c.base != Vec3::ZERO);
 }
 
 /// How fast the root eases into a root-driven anchor when its enter has no clip (seconds); with a
@@ -154,10 +382,12 @@ pub(crate) fn machine_anchors(state: &EngineState, lib: &CharacterLibrary, label
     };
     let types = home.instance_types();
     let Some(def) = types.get(&l.machine_id).and_then(|t| home.catalog.get(t)) else { return Vec::new() };
+    // Where it is drawn: a chair left out stands where it was left (BUG-298).
+    let origin = obj.2 + state.interact.chair_offset(&l.machine_id);
     def.anchors
         .iter()
         .filter_map(|id| lib.anchors.index(id))
-        .map(|anchor| Placed { anchor, origin: obj.2, yaw: obj.3.to_radians(), object: ObjectRef::Machine(label) })
+        .map(|anchor| Placed { anchor, origin, yaw: obj.3.to_radians(), object: ObjectRef::Machine(label) })
         .collect()
 }
 
@@ -438,11 +668,32 @@ pub(crate) fn press_e(state: &mut EngineState) -> bool {
 pub(crate) fn grant(state: &mut EngineState, placed: Placed, feet: Vec3, facing: f32) {
     let Some(lib) = state.animation.library() else { return };
     let def = &lib.anchors.anchors[placed.anchor];
-    let d = horizontal(placed.approach(def) - feet).length();
+    // A seat among the furniture: pulled out from the desk or table it is tucked under, and a
+    // stand-here point clear of every piece (BUG-298).
+    let mut seat = SeatPlan::default();
+    if let (AnchorKind::Sit, ObjectRef::Machine(label)) = (def.kind, placed.object) {
+        crate::engine::crowd_walk::refresh_furniture(state);
+        seat = seat_plan_now(state, def, &placed);
+        if let Some(id) = state.gui_state.machine_labels.get(label).map(|l| l.machine_id.clone()) {
+            state.interact.hold_chair(id, seat.back(&placed), def.tuck_after);
+        }
+    }
+    let stand = seat.stand(def, &placed);
+    let d = horizontal(stand - feet).length();
     let approach_s = if def.root_driven && d > WALK_IN_FROM_M { d / WALK_IN_MPS } else { 0.0 };
-    log::info!("Interaction: granted {} (the {:?}) at {:?}, a {d:.2} m walk in", def.id, def.kind, placed.origin);
-    state.interact.me = Some(Engaged { placed, phase: Phase::Enter, t: 0.0, from: (feet, facing), leave: false, approach_s });
+    log::info!("Interaction: granted {} (the {:?}) at {:?}, a {d:.2} m walk in, the seat pulled out {:.2} m, standing at {stand:?}", def.id, def.kind, placed.origin, seat.pull_m);
+    state.interact.me = Some(Engaged { placed, phase: Phase::Enter, t: 0.0, from: (feet, facing), leave: false, approach_s, seat });
     state.controller.stop_movement();
+}
+
+/// `plan_seat` for a placed seat among the furniture the walk reads (its own footprint the one
+/// standing where the seat is) and the walk's walls.
+fn seat_plan_now(state: &EngineState, def: &AnchorDef, placed: &Placed) -> SeatPlan {
+    let furniture = state.animation.walk.furniture();
+    let o = placed.origin;
+    let own = furniture.iter().position(|f| (f.centre.0 - o.x).abs() < 0.01 && (f.centre.1 - o.z).abs() < 0.01 && (f.y0 - o.y).abs() < 0.05);
+    let others: Vec<Footprint> = furniture.iter().enumerate().filter(|(i, _)| Some(*i) != own).map(|(_, f)| *f).collect();
+    plan_seat(def, placed, own.map(|i| &furniture[i]), &others, &state.wall_colliders)
 }
 
 /// How long the root eases over on the way in (to the enter clip's contact frame) for the body the
@@ -461,7 +712,9 @@ fn ease_in_s(lib: &CharacterLibrary, def: &AnchorDef, body: usize) -> f32 {
 /// to the approach point over the way out.
 pub(crate) fn engaged_root(lib: &CharacterLibrary, e: &Engaged, body: usize) -> (Vec3, f32) {
     let def = &lib.anchors.anchors[e.placed.anchor];
-    let (root, facing) = e.placed.root(def);
+    // On the seat where it is drawn while sat on, from and back to where they stand (`SeatPlan`).
+    let (root, facing) = e.seat.root(def, &e.placed);
+    let stand = e.seat.stand(def, &e.placed);
     let b = &lib.bodies[body.min(lib.bodies.len() - 1)];
     let smooth = |x: f32| {
         let x = x.clamp(0.0, 1.0);
@@ -469,7 +722,7 @@ pub(crate) fn engaged_root(lib: &CharacterLibrary, e: &Engaged, body: usize) -> 
     };
     match e.phase {
         Phase::Enter => {
-            let approach = e.placed.approach(def);
+            let approach = stand;
             let walk = Vec3::new(approach.x - e.from.0.x, 0.0, approach.z - e.from.0.z);
             let walk_facing = if walk.length() > 1e-3 { walk.x.atan2(walk.z) } else { e.from.1 };
             if e.t < e.approach_s {
@@ -492,7 +745,7 @@ pub(crate) fn engaged_root(lib: &CharacterLibrary, e: &Engaged, body: usize) -> 
                 _ => 0.0,
             };
             let k = smooth((e.t - start) / (len - start).max(1e-3));
-            (root.lerp(e.placed.approach(def), k), facing)
+            (root.lerp(stand, k), facing)
         }
     }
 }
@@ -501,6 +754,11 @@ pub(crate) fn engaged_root(lib: &CharacterLibrary, e: &Engaged, body: usize) -> 
 /// up, the capsule is held where the engagement puts it, and when the exit has played the player
 /// stands at the approach point and walks again.
 pub(crate) fn tick(state: &mut EngineState, dt: f32) {
+    // The chair the sit holds follows it; one let go is pushed back in (BUG-298).
+    let held = state.interact.me.map(|e| (e.phase, e.clip_t()));
+    if !state.interact.chairs.is_empty() {
+        step_chairs(&mut state.interact.chairs, held, dt);
+    }
     let Some(mut e) = state.interact.me else {
         state.controller.held = None;
         return;
@@ -538,7 +796,7 @@ pub(crate) fn tick(state: &mut EngineState, dt: f32) {
             state.camera.position = feet + Vec3::Y * state.controller.eye_height();
             state.controller.held = None;
             state.interact.me = None;
-            log::info!("Interaction: {} let go", def.id);
+            log::info!("Interaction: {} let go, standing at {feet:?}", def.id);
             return;
         }
         _ => {}

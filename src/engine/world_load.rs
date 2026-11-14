@@ -294,6 +294,8 @@ pub(crate) fn load_world(state: &mut EngineState) {
                 })
                 .collect();
             state.gui_state.machine_labels.clear();
+            // A new world's chairs stand where they are placed (BUG-298).
+            state.interact.chairs.clear();
             // What the old machines hold (each bank's charge, tank's litres and
             // vessel's contents), plus a save's contents held since startup, to put
             // back on the new ones below (2026-09-27, systems::machine_levels):

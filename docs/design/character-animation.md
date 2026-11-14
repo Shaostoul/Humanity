@@ -1755,7 +1755,11 @@ later rungs).
   the nearest seat of it; E at the bed sleeps the night as before and lies them down. Both are ROOT
   DRIVEN: the capsule (the camera's eye) is eased onto the anchor's root, held there
   (`CameraController::held`: no walk, no gravity, no fall), and eased back to the approach point by
-  the exit; a movement key or E gets up. The ladder's own climb (`renderer::camera`) moves the
+  the exit; a movement key or E gets up. A chair tucked under a desk or a table (its approach
+  crowded) is pulled out its row's `pull_out_m` (0.40 m) when there is room behind it, drawn there
+  while sat on, and pushed back in after (`tuck_after`); the body stands before sitting and gets up
+  to a point beside it, clear of every footprint and wall (`engine::interact::plan_seat`, BUG-298,
+  2026-11-13). The ladder's own climb (`renderer::camera`) moves the
   capsule; while the body is on a ladder (off its floor in the climb zone) the climb is shown. A
   workbench's card open while standing 3 to 25 cm from its edge (where both hands reach its top;
   `at_station`) puts both hands on it; further off, the hands stay down rather than stretch for it. A
