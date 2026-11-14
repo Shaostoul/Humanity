@@ -606,7 +606,7 @@ fn sine_bank(recorded_hz: f32, lib_a4: f32) -> SampleSet {
         [v, v]
     })));
     let _ = lib_a4;
-    SampleSet { zones: vec![SampleZone { frames, rate, recorded_hz, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((44100, 88200)), loop_xfade: 0 }], exact_keys: false }
+    SampleSet { zones: vec![SampleZone { frames, rate, recorded_hz, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((44100, 88200)), loop_xfade: 0, stream: None }], exact_keys: false }
 }
 
 /// A RECORDED INSTRUMENT WITH EXACT KEYS (a Hang: only its nine notes, its makers asking that the
@@ -704,7 +704,7 @@ fn a_sustain_without_loop_points_is_held_past_its_end() {
     }).collect();
     let max_step = wave.windows(2).map(|w| (w[1][0] - w[0][0]).abs()).fold(0.0f32, f32::max);
     let frames = Arc::new(crate::instrument::frames16(wave.into_iter()));
-    let zone = SampleZone { frames, rate, recorded_hz: 220.0, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((n * 2 / 5, n * 17 / 20)), loop_xfade: (0.15 * rate) as usize };
+    let zone = SampleZone { frames, rate, recorded_hz: 220.0, low_note: 0, high_note: 127, velocity: 0.8, loop_range: Some((n * 2 / 5, n * 17 / 20)), loop_xfade: (0.15 * rate) as usize, stream: None };
     let mut samples = SampleLibrary::new();
     samples.insert("test_strings".into(), Arc::new(SampleSet { zones: vec![zone], exact_keys: false }) as Arc<dyn SampleBank>);
     let res = Resolved::new(&lib, &samples).unwrap();

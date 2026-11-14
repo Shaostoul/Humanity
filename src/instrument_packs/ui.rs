@@ -8,7 +8,10 @@
 //!
 //! What it reads (the catalog, the parts, which packs are installed, the instruments available) is
 //! read again after every install and removal; with the Dev page's "turn off all reuse" switch off
-//! it is read again every frame the section is on screen, so nothing it shows can be stale.
+//! it is read again every frame the section is on screen, so nothing it shows can be stale. The
+//! memory each set takes (super::memory, 2026-11-14) reads thousands of file headers, so it is
+//! counted on its own thread: when the section first shows, after each install or removal (tagged
+//! with the install generation), and with the switch off, each time the section opens again.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -46,6 +49,14 @@ pub struct PacksUi {
     pub request_remove: Option<String>,
     /// The last removal that failed: (pack, why).
     pub remove_error: Option<(String, String)>,
+    /// The memory each set's instruments take while its parts play (super::memory), by set ("core"
+    /// or a pack's id), and the install generation it was counted for.
+    pub memory: BTreeMap<String, super::memory::SetMemory>,
+    pub memory_for: Option<u64>,
+    /// Counting it now, on its own thread.
+    pub memory_job: Option<std::thread::JoinHandle<BTreeMap<String, super::memory::SetMemory>>>,
+    /// The section drew last frame (so `tick` knows when it opens again).
+    pub was_shown: bool,
 }
 
 impl PacksUi {
@@ -109,8 +120,26 @@ pub fn base_url(catalog: &PackCatalog) -> String {
 /// thread, remove a requested pack, and notice a finished download.
 pub fn tick(state: &mut PacksUi, data_dir: &Path) {
     let shown = std::mem::take(&mut state.shown);
+    let opened = shown && !state.was_shown;
+    state.was_shown = shown;
     if !state.loaded || (shown && !humanity_core::reuse::enabled()) {
         state.reload(data_dir);
+    }
+    // The memory each set takes (super::memory): counted on its own thread when the section first
+    // shows and after each install or removal; with reuse off, again each time the section opens.
+    if state.memory_job.as_ref().is_some_and(|j| j.is_finished()) {
+        if let Some(Ok(m)) = state.memory_job.take().map(|j| j.join()) {
+            state.memory = m;
+        }
+    }
+    let stale = state.memory_for != Some(installed_generation()) || (opened && !humanity_core::reuse::enabled());
+    if shown && stale && state.memory_job.is_none() {
+        let dir = data_dir.to_path_buf();
+        state.memory_for = Some(installed_generation());
+        match std::thread::Builder::new().name("instrument-memory".into()).spawn(move || super::memory::by_set(&dir)) {
+            Ok(j) => state.memory_job = Some(j),
+            Err(e) => log::warn!("[Instruments] could not count the instruments' memory: {e}"),
+        }
     }
     if let Some(id) = state.request_download.take() {
         if !state.downloading() {

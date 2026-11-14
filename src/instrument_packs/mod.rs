@@ -24,7 +24,10 @@
 //! sample audio: a score holds the recordings it was built with, and [`samples::SampleBank`], the
 //! path the music decodes through (engine/music.rs's build, BUG-267), keeps them between builds
 //! while the Dev page's "turn off all reuse" switch is on; off, every build (one a phrase) decodes
-//! every file again and the bank keeps nothing.
+//! every file again and the bank keeps nothing. A long recording a note plays straight through is
+//! held only as far as its attack and streamed from its file while the note plays (2026-11-14,
+//! `humanity_music::stream`, music.md section 23): its ring is refilled from the file for every note,
+//! so nothing outlives a note there either.
 //!
 //! The website does not play music yet (music.md rung 9 compiles the score to WebAssembly), so it
 //! has no Instruments list; when it plays music, it mirrors this section.
@@ -39,6 +42,8 @@ pub mod definition;
 pub mod install;
 /// Every instrument available now (the core set and the installed packs), and the best for a part.
 pub mod library;
+/// The memory each set's instruments take while its parts play (Settings, 2026-11-14).
+pub mod memory;
 /// Decoded sample audio and a voice that plays it.
 pub mod samples;
 /// The bridge into the live score: the best recording of each part its roles name, decoded into the
@@ -57,3 +62,5 @@ mod install_tests;
 mod library_tests;
 #[cfg(test)]
 mod data_tests;
+#[cfg(test)]
+pub(crate) mod stream_tests;

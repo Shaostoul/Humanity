@@ -64,6 +64,14 @@ And 24 more items, 24 references (`node scripts/crate-cards.js --interface human
   `process` allocate and free nothing (a counting-allocator test, `render_allocates_nothing`, holds
   it); everything is made in the constructors, and a `SampleBank` is kept alive by its owner so no
   recording is freed there. Source: kira 0.12's `Sound` docs; music.md section 4.2.
+- **A long recording streams, and the audio thread never waits for it** (`stream.rs`, 2026-11-14):
+  a zone with a `stream` holds only its attack; its note claims a ring from the `StreamPool` with a
+  compare-and-swap, reads frames the worker published with a release store, and when they will run
+  out within a block and a fade it fades (no click), never blocks. Only an offline render
+  (`ScoreEngine::set_offline(true)`: the export, a test) may wait for the worker. The streamed read
+  is the in-memory read operation for operation, so a streamed note equals the whole-file note to the
+  bit (`tests_stream`); keep the two in step when changing either. Source: music.md section 23,
+  "Memory".
 - **Instruments, moods, genres, places, intensity bands, tones and hum sources are data**
   (`data/music/`, `data/audio/hum_sources.ron`); kinds are code. A new sound, mood or genre is a file.
   Source: [infinite-of-x.md](../design/infinite-of-x.md); CLAUDE.md, Infinite-of-X.
@@ -100,7 +108,10 @@ And 24 more items, 24 references (`node scripts/crate-cards.js --interface human
   cost per block, no allocation, the sampler seam, the duck, a sustain held past its recording by a
   crossfaded loop); `src/tests_piece.rs` the pieces (music.md section 7c: two seeds make two pieces
   and one seed the same piece twice, an hour of pieces repeats no two-minute stretch in any genre,
-  every piece stays inside its genre's rules). The crate is optimised in dev and test builds (the
+  every piece stays inside its genre's rules); `src/tests_stream.rs` streaming (music.md section 23:
+  the packet reader decodes what kira decodes, a streamed note equals the whole-file note to the bit,
+  a stalled stream or a note with no ring fades without a click, and the audio thread's cost with
+  every voice streaming). The crate is optimised in dev and test builds (the
   root Cargo.toml), so its timing tests measure the game's speed.
 - **What starting the score costs, optimised:** the ignored `kira_sound::device_tests::
   decode_cost_of_starting_the_score` (`cargo test --release -p humanity-music --lib decode_cost --

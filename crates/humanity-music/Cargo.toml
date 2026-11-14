@@ -22,7 +22,7 @@ default = ["native"]
 native = ["kira"]
 # The kira 0.12 adapter (kira_sound.rs): `ScoreSoundData` and `BedSoundData`, kira `Sound`s over the pure
 # engines, with their latest-value command channels. The desktop app's `native` turns it on.
-kira = ["dep:kira"]
+kira = ["dep:kira", "dep:symphonia"]
 
 [dependencies]
 serde = { workspace = true }
@@ -32,6 +32,10 @@ ron = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 kira = { workspace = true, optional = true }
+# Decoding a recording a packet at a time (decode.rs, 2026-11-14): its first half second for the score
+# to keep, and the rest streamed from disk while a note plays (stream.rs, music.md section 23). The
+# version kira 0.12 decodes with, so it is in the tree once; the same codecs kira reads.
+symphonia = { version = "0.6", optional = true, default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
 
 [dev-dependencies]
 # The BS.1770 loudness meter the tests and the offline renderer measure with (humanity_core::audio::loudness,

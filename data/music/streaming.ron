@@ -1,0 +1,22 @@
+// How long recordings are streamed from disk while a note plays (docs/design/music.md section 23,
+// "Memory"; humanity_music::stream). A recording longer than `stream_longer_than_s` that a note plays
+// straight through (no loop, a part that does not sustain) keeps only its first `attack_s` in memory;
+// a worker thread decodes the rest just ahead of the note into one of `streams` rings of `ring_s`
+// seconds each. A note that finds no ring free, or whose stream falls behind, plays what it has and
+// fades over `fade_ms`, never stopping dead. `enabled: false` decodes every recording whole (the full
+// Steinway alone then holds about 490 MiB).
+//
+// The attack covers the time the worker needs to open a file and catch up: a request waits at most
+// one `poll_ms` sleep (Windows rounds it up to 15.6 ms) plus decoding the attack again from the
+// file's start (a millisecond or two), against half a second of attack. sfizz, the open SFZ player,
+// keeps 8,192 frames (0.17 s at 48 kHz) with four loader threads (its src/sfizz/Config.h, read
+// 2026-11-13); one thread here, so more.
+StreamSettings(
+    enabled: true,
+    stream_longer_than_s: 2.0,
+    attack_s: 0.5,
+    streams: 32,
+    ring_s: 0.5,
+    fade_ms: 20.0,
+    poll_ms: 4.0,
+)

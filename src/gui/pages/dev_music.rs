@@ -9,7 +9,7 @@
 //! writes the knob.
 
 use egui::RichText;
-use humanity_core::i18n::t;
+use humanity_core::i18n::{t, tf};
 use humanity_music::{BedStatus, MusicStatus};
 
 use crate::gui::theme::Theme;
@@ -112,6 +112,19 @@ pub struct MusicReadout {
     pub playing: Option<Playing>,
     /// The music's data as last read (the Music page lists genres, moods and lead voices from it).
     pub lib: Option<std::sync::Arc<humanity_music::MusicLibrary>>,
+    /// The whole score's music memory (2026-11-14, music.md section 23): its recordings as held
+    /// (long ones only their attacks) and the stream rings, bytes; and how many notes stream now of
+    /// how many rings. None before a score with recordings has played.
+    pub memory: Option<MusicMemory>,
+}
+
+/// The score's music memory, for the Dev page's line.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct MusicMemory {
+    pub recordings: u64,
+    pub streams: u64,
+    pub busy: usize,
+    pub rings: usize,
 }
 
 /// The Music card's state: the knob and the readout.
@@ -173,6 +186,11 @@ pub fn draw_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             line(ui, t("dev.music.hum"), format!("{:+.1} dB  {:.0} Hz  {} {:.2}  {:.3} ms", r.hum_level_db, b.cutoff_hz, t("dev.music.alarm"), b.alarm_level, b.block_us_mean / 1000.0));
         }
         line(ui, t("dev.music.build"), format!("{}  {} {}  {} {:+.0} dB", r.build_ms.map_or("-".to_string(), |ms| format!("{ms:.0} ms")), t("dev.music.pieces"), r.pieces, t("dev.music.duck"), r.duck_db));
+        if let Some(m) = r.memory {
+            let mb = |b: u64| format!("{:.1}", b as f64 / 1_048_576.0);
+            let words = tf("dev.music.memory_value", &[("mb", &mb(m.recordings + m.streams)), ("recordings", &mb(m.recordings)), ("streams", &mb(m.streams)), ("busy", &m.busy.to_string()), ("rings", &m.rings.to_string())]);
+            line(ui, t("dev.music.memory"), words);
+        }
         line(ui, t("dev.music.zone"), if r.zone.is_empty() { "-".to_string() } else { r.zone.clone() });
         line(ui, t("dev.music.seed"), r.seed.to_string());
     });

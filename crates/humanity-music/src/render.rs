@@ -68,6 +68,8 @@ pub fn export_favourite(res: crate::Resolved, lib: &crate::MusicLibrary, fav: &c
     let ctx = fav.context(lib, a4)?;
     let rate = EXPORT_RATE;
     let mut engine = ScoreEngine::new(res, rate, fav.seed, ctx);
+    // Faster than real time: a streamed recording waits for its stream (crate::stream).
+    engine.set_offline(true);
     let total = (seconds * rate as f64) as usize;
     let fade_n = (default_fade_s(seconds) * rate as f64) as usize;
     let err = |e: std::io::Error| format!("{} could not be written: {e}", path.display());

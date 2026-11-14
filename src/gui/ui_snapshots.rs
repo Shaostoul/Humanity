@@ -1185,6 +1185,37 @@ fn snapshot_chat_muted_server() {
     });
 }
 
+// Settings > Audio > Instruments (2026-11-14, music.md section 23): the list as the shipped data
+// gives it (the core set, then each pack), each set's memory while its parts play counted from the
+// files as the app counts it, and the keys pack (version 2) shown installed with the memory measured
+// from the real pack (`instrument_packs::stream_tests::the_full_steinway_part_plays_under_its_memory_bound`,
+// which prints it): its long recordings streamed, and what they would take held whole.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_instruments_settings() {
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let mut packs = crate::instrument_packs::ui::PacksUi::default();
+    packs.reload(&data);
+    packs.memory = crate::instrument_packs::memory::by_set(&data);
+    packs.memory_for = Some(crate::instrument_packs::ui::installed_generation());
+    let keys = packs.catalog.as_ref().and_then(|c| c.pack("keys")).map(|p| (p.version, p.bytes)).unwrap_or_default();
+    packs.installed.insert("keys".into(), crate::instrument_packs::install::InstalledPack { version: keys.0, bytes: keys.1 });
+    packs.memory.insert("keys".into(), crate::instrument_packs::memory::SetMemory { held: KEYS_HELD, whole: KEYS_WHOLE, instruments: 1, unread: 0 });
+    let packs = std::sync::Mutex::new(packs);
+    render_page_png("instruments_settings", 960, 1400, |ctx, theme, state| {
+        settings_panel(ctx, theme, state, |ui, theme, state| {
+            let hint = state.settings.hint_display;
+            crate::gui::pages::settings::instruments::draw_instruments(ui, theme, hint, theme.info(), &mut packs.lock().unwrap());
+        });
+    });
+}
+
+/// The keys pack's memory while its parts play, measured from the real pack (version 2) on
+/// 2026-11-14 (see `snapshot_instruments_settings`): the full Steinway, the one of its instruments a
+/// part the music plays chooses, 10.6 MiB as held against 452.0 MiB whole.
+const KEYS_HELD: u64 = 11_113_200;
+const KEYS_WHOLE: u64 = 474_000_452;
+
 // Settings > Audio > Sound levels (2026-11-06, settings/sound_levels.rs): every shipped sound by
 // kind, the button click turned down 6 dB and the crash up 3.5, so a set level, its words and its
 // Reset show beside rows at 0 dB.

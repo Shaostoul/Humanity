@@ -16,7 +16,7 @@ pub(crate) mod ai;
 mod data_folder;
 /// Settings > Audio > Instruments (2026-11-06, docs/design/music.md rung 6): the instrument packs
 /// that come with the app and the ones to download, the star catalog's way.
-mod instruments;
+pub(crate) mod instruments;
 #[cfg(test)]
 mod instruments_tests;
 /// Settings > Graphics > Furniture (2026-11-09, docs/design/simready-props.md): Furniture detail

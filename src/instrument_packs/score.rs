@@ -14,7 +14,9 @@
 //! The recordings are decoded on that worker thread through the music's [`SampleBank`] (kept between
 //! builds while the Dev page's "turn off all reuse" switch is on, every file decoded again while it
 //! is off), and a score holds them through an `Arc`: a voice on the audio thread reads them, never
-//! copying or freeing them there.
+//! copying or freeing them there. A long recording a note plays straight through holds only its
+//! attack, and its notes stream the rest from the file ([`streamable`], 2026-11-14, music.md
+//! section 23): the full Steinway's 2,687 s of samples were about 490 MiB decoded whole.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -191,6 +193,13 @@ pub fn soft_loop(len: usize, rate: u32) -> Option<(usize, usize, usize)> {
     (x > 64 && a >= x && b > a + x).then_some((a, b, x))
 }
 
+/// Whether a zone's notes play its recording straight through (no loop of its own, and a part that
+/// does not sustain, so no crossfaded loop either): only such a recording is streamed when it is
+/// long (crate::stream, music.md section 23); a looped one is held whole, its loop read at will.
+pub fn streamable(z: &super::definition::Zone, sustained: bool) -> bool {
+    !sustained && z.loop_start.is_none() && z.loop_end.is_none()
+}
+
 /// A sustained part is levelled over this much of a note, seconds: the length of a calm chord.
 const SUSTAIN_WINDOW_S: f32 = 8.0;
 
@@ -222,19 +231,25 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
         None => named_parts(music),
     };
     named.sort_by_key(|(p, _, _)| depth(p, parts));
-    // Every recording this build will ask for, decoded several at once first (BUG-297).
-    let mut want = Vec::new();
+    // Every recording this build will ask for, decoded several at once first (BUG-297): whole, or
+    // only its attack when a note plays it straight through (streams).
+    let (mut whole, mut attacks) = (Vec::new(), Vec::new());
     for (part, _, _) in &named {
         let voices = parts.part(part).map(|p| p.voices.clone()).unwrap_or_default();
+        let sustained = parts.part(part).is_some_and(|p| p.sustained);
         for p in std::iter::once(part).chain(voices.iter()) {
             if let Some(Choice::Sampled(a)) = instruments.choose(p, parts) {
                 for z in &a.sampler().zones {
-                    want.push(a.zone_path(&z.file));
+                    if streamable(z, sustained) {
+                        attacks.push(a.zone_path(&z.file));
+                    } else {
+                        whole.push(a.zone_path(&z.file));
+                    }
                 }
             }
         }
     }
-    bank.prefetch(&want);
+    bank.prefetch(&whole, &attacks);
     // The synthesised voices, resolved once, to level each recording against.
     let synth = Resolved::new(music, &SampleLibrary::new()).ok();
     // What each part attached so far plays: the score's instrument id.
@@ -276,6 +291,7 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
         let s = recorded.sampler();
         let sustained = parts.part(&part).is_some_and(|p| p.sustained);
         let mut zones = Vec::new();
+        let mut paths = Vec::new();
         for (vi, src) in sources.iter().enumerate() {
             let (b_lo, b_hi) = bands[vi];
             let ss = src.sampler();
@@ -284,8 +300,23 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
                 if lo > hi {
                     continue;
                 }
-                match bank.get(&src.zone_path(&z.file)) {
-                    Ok(d) => zones.push(SampleZone {
+                let path = src.zone_path(&z.file);
+                // A recording played straight through keeps only its attack when it is long, and its
+                // notes stream the rest (crate::stream); one that loops is held whole.
+                let got = if streamable(z, sustained) {
+                    bank.get_attack(&path).and_then(|d| match d.whole {
+                        true => Ok((d, None)),
+                        false => match bank.stream_for(&path, None) {
+                            Some(st) => Ok((d, Some(st))),
+                            None => bank.get(&path).map(|d| (d, None)),
+                        },
+                    })
+                } else {
+                    bank.get(&path).map(|d| (d, None))
+                };
+                match got {
+                    Ok((d, stream)) => zones.push(SampleZone {
+                        stream,
                         loop_xfade: match (z.loop_start, z.loop_end) {
                             (Some(_), Some(_)) => 0,
                             _ if sustained => soft_loop(d.frames.len(), d.sample_rate).map_or(0, |(_, _, x)| x),
@@ -303,8 +334,13 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
                             _ => None,
                         },
                     }),
-                    Err(e) => out.problems.push(format!("{}: {e}", src.def.id)),
+                    Err(e) => {
+                        out.problems.push(format!("{}: {e}", src.def.id));
+                        continue;
+                    }
                 }
+                // Parallel to `zones`: the level measure below decodes a streamed zone's head from it.
+                paths.push(path);
             }
         }
         if zones.is_empty() {
@@ -322,9 +358,18 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
             .pick(mid, 0.8, 0)
             .map(|i| {
                 let z = &set.zones[i];
-                let f = &z.frames;
                 let window_s = if sustained { SUSTAIN_WINDOW_S } else { 1.0 };
-                let (a, b) = (0, f.len().min((z.rate * window_s) as usize).max(1));
+                let want = (z.rate * window_s) as usize;
+                // A streamed recording holds only its attack: the rest of the window is decoded
+                // here to measure it, as it was measured when it was held whole, and let go.
+                let longer;
+                let f: &[[i16; 2]] = if z.stream.is_some() && z.frames.len() < want {
+                    longer = humanity_music::decode::decode_head(&paths[i], want).map(|(_, f, _)| f).unwrap_or_else(|_| z.frames.to_vec());
+                    &longer
+                } else {
+                    &z.frames
+                };
+                let (a, b) = (0, f.len().min(want).max(1));
                 let sc = humanity_music::instrument::SAMPLE_SCALE as f64;
                 ((f[a..b].iter().map(|x| (x[0] as f64 * sc).powi(2) + (x[1] as f64 * sc).powi(2)).sum::<f64>()) / (2 * (b - a).max(1)) as f64).sqrt() as f32
             })

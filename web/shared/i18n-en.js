@@ -2479,7 +2479,9 @@ window.HOS_I18N_EN = {
       "piece_seed": "Seed",
       "piece_section": "Section",
       "piece_chorus": "Time through the form",
-      "piece_next": "Next piece in"
+      "piece_next": "Next piece in",
+      "memory": "Memory:",
+      "memory_value": "{{mb}} MB: recordings {{recordings}} MB, streams {{streams}} MB ({{busy}} of {{rings}} notes streaming now)"
     },
     "characters": "Characters",
     "show_skeletons": "Show skeletons",
@@ -5010,7 +5012,11 @@ window.HOS_I18N_EN = {
     },
     "holds_count": "Holds {{count}} instruments: the list of them, and what each would play, is folded below.",
     "uses_list": "Its {{count}} instruments, and what the music uses from them",
-    "uses_list_hint": "Open the list of this set's instruments: each one's name, the part of the music it plays, and what plays that part now."
+    "uses_list_hint": "Open the list of this set's instruments: each one's name, the part of the music it plays, and what plays that part now.",
+    "memory": "While its parts play: about {{mb}} MB of memory",
+    "memory_streamed": "While its parts play: about {{mb}} MB of memory. Its long recordings keep only their first half second in memory and are read from the disk as each note plays; held whole they would take {{whole}} MB",
+    "memory_counting": "Counting the memory its parts take while they play...",
+    "memory_none": "None of its instruments plays a part now (others play them), so it takes no memory"
   },
   "chat_video_dock": {
     "label": "The video playing from the chat",

@@ -550,6 +550,10 @@ fn the_score_with_recordings_measured() {
         let intensity = if mood == "action" { 0.9 } else { 0.3 };
         let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index(mood).unwrap() as u16, genre_a: si, genre_b: si, blend: 0.0, intensity, duck_db: 0.0, ..Default::default() };
         let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
+
+        // Offline, faster than real time: a streamed recording waits for its stream.
+
+        e.set_offline(true);
         let mut meter = LoudnessMeter::new(48000, 2);
         let mut buf = [[0.0f32; 2]; 128];
         let mut times = Vec::new();
@@ -624,6 +628,10 @@ fn electro_swing_plays_recordings_out_of_the_box() {
     }
     let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi as u16, genre_b: gi as u16, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
     let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
+
+    // Offline, faster than real time: a streamed recording waits for its stream.
+
+    e.set_offline(true);
     let mut meter = LoudnessMeter::new(48000, 2);
     let mut buf = [[0.0f32; 2]; 128];
     for _ in 0..(60.0 * 48000.0 / 128.0) as usize {
@@ -743,6 +751,10 @@ fn pieces_to_listen_to() {
             label.push_str(&format!("-{v}"));
         }
         let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, seed, ctx);
+
+        // Offline, faster than real time: a streamed recording waits for its stream.
+
+        e.set_offline(true);
         let mut frames: Vec<[f32; 2]> = Vec::new();
         let mut buf = [[0.0f32; 2]; 128];
         for _ in 0..(60.0 * 48000.0 / 128.0) as usize {
@@ -756,4 +768,77 @@ fn pieces_to_listen_to() {
         let form: String = c.piece_form().iter().map(|&l| (b'A' + l) as char).collect();
         println!("{}: {genre}, seed {seed}: key {} {:?}, form {form}, {:.0} bpm, melody {melody}", path.display(), names[c.key_pc().rem_euclid(12) as usize], c.mode(), c.tempo());
     }
+}
+
+/// A 60 s RENDER WITH THE FULL KEYS PACK, BEFORE AND AFTER (run by hand:
+/// `HUMANITY_INSTRUMENT_PACKS_OUT=<folder> HUMANITY_MUSIC_WAV_DIR=<folder> node scripts/lib-tests.js
+/// a_full_keys_render_is_the_same_streamed --ignored --nocapture`). Lo-fi's calm mood with the keys
+/// pack (version 2) installed, its piano the full Steinway, rendered for 60 s twice: decoded whole as
+/// before (offline, as fast as it goes), and streamed AS THE AUDIO THREAD PLAYS IT, paced at real
+/// time with the worker thread running and never waited for (128-frame blocks kept at most 20 ms
+/// ahead of the clock, a sound card's buffer). The two are compared sample by sample and both written
+/// as WAVs (`st-full-keys-whole.wav`, `st-full-keys-streamed.wav`).
+#[test]
+#[ignore = "needs the staged keys pack; 60 s of real time; run by hand with HUMANITY_INSTRUMENT_PACKS_OUT"]
+fn a_full_keys_render_is_the_same_streamed() {
+    use crate::instrument_packs::score::PartPlays;
+    use crate::instrument_packs::stream_tests::{install_staged, music_data};
+    let data = music_data("st-keys-render");
+    install_staged(&data, "keys").expect("the keys pack installs");
+    let wav_dir = std::env::var_os("HUMANITY_MUSIC_WAV_DIR").map(PathBuf::from);
+    let mut renders: Vec<Vec<[f32; 2]>> = Vec::new();
+    for streamed in [false, true] {
+        let mut bank = SampleBank::new();
+        bank.reuse_override = Some(false);
+        let built = {
+            // The engine's own build, with streaming as asked.
+            let (mut settings, _) = crate::instrument_packs::samples::stream_settings(&data);
+            settings.enabled = streamed;
+            let text = format!("StreamSettings(enabled: {}, stream_longer_than_s: {:?}, attack_s: {:?}, streams: {}, ring_s: {:?}, fade_ms: {:?}, poll_ms: {:?})", settings.enabled, settings.stream_longer_than_s, settings.attack_s, settings.streams, settings.ring_s, settings.fade_ms, settings.poll_ms);
+            std::fs::write(data.join("music").join("streaming.ron"), text).unwrap();
+            crate::engine::music::build(&data, 432.0, true, &mut bank, &["lofi".to_string()]).expect("builds")
+        };
+        assert_eq!(built.plays.iter().find(|(p, _)| p == "piano").map(|(_, p)| p.clone()), Some(PartPlays::Recorded { id: "grand_piano_steinway".into() }));
+        let lib = built.lib.clone();
+        let res = built.score.expect("a score");
+        let recordings: usize = res.banks.iter().flatten().map(|b| b.memory()).sum();
+        let gi = lib.genre_index("lofi").unwrap() as u16;
+        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi, genre_b: gi, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
+        let mut e = ScoreEngine::new(res, 48000.0, 20261114, ctx);
+        let mut frames: Vec<[f32; 2]> = Vec::with_capacity(60 * 48000);
+        let mut buf = [[0.0f32; 2]; 128];
+        let (t0, mut most) = (std::time::Instant::now(), 0);
+        for b in 0..(60.0 * 48000.0 / 128.0) as usize {
+            if streamed {
+                // Real time: never more than 20 ms ahead of the clock.
+                let due = std::time::Duration::from_secs_f64(b as f64 * 128.0 / 48000.0);
+                while t0.elapsed() + std::time::Duration::from_millis(20) < due {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+            }
+            e.render(&mut buf);
+            most = most.max(e.streaming());
+            frames.extend_from_slice(&buf);
+        }
+        println!(
+            "{}: the lo-fi score's recordings hold {:.1} MiB, the rings {:.1} MiB; {} notes streamed at most; rendered in {:.1} s",
+            if streamed { "streamed" } else { "whole" },
+            recordings as f64 / 1048576.0,
+            bank.stream_memory() as f64 / 1048576.0,
+            most,
+            t0.elapsed().as_secs_f64()
+        );
+        if let Some(dir) = &wav_dir {
+            let path = dir.join(if streamed { "st-full-keys-streamed.wav" } else { "st-full-keys-whole.wav" });
+            humanity_music::render::write_wav(&path, &frames, 48000).expect("written");
+            println!("  written: {}", path.display());
+        }
+        renders.push(frames);
+    }
+    let (a, b) = (&renders[0], &renders[1]);
+    let diff = a.iter().zip(b).map(|(x, y)| (x[0] - y[0]).abs().max((x[1] - y[1]).abs())).fold(0.0f32, f32::max);
+    let differing = a.iter().zip(b).filter(|(x, y)| x != y).count();
+    let rms = |f: &[[f32; 2]]| (f.iter().map(|x| (x[0] * x[0] + x[1] * x[1]) as f64).sum::<f64>() / (2 * f.len()) as f64).sqrt();
+    println!("before and after: {differing} of {} frames differ, the largest difference {diff:e}; RMS {:.6} and {:.6}", a.len(), rms(a), rms(b));
+    assert_eq!(differing, 0, "the streamed render is the whole-file render, frame for frame");
 }

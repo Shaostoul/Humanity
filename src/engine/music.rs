@@ -261,7 +261,10 @@ pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut Sampl
         return Ok(Built { lib: Arc::new(lib), score: None, plays: Vec::new(), problems: Vec::new(), stand_ins, took_ms: t0.elapsed().as_secs_f32() * 1000.0 });
     }
     let mut with_parts = lib.clone();
-    let attached = match crate::instrument_packs::catalog::Parts::load(data_dir) {
+    // How long recordings stream (data/music/streaming.ron), read every build.
+    let (stream, stream_problem) = crate::instrument_packs::samples::stream_settings(data_dir);
+    bank.configure(stream);
+    let mut attached = match crate::instrument_packs::catalog::Parts::load(data_dir) {
         Ok(parts) => {
             let installed = crate::instrument_packs::library::InstrumentLibrary::load(data_dir);
             let mut ids: Vec<usize> = genres.iter().filter_map(|id| lib.genre_index(id)).collect();
@@ -272,6 +275,7 @@ pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut Sampl
         }
         Err(e) => crate::instrument_packs::score::Attached { problems: vec![format!("data/music/parts.ron did not load, so every part is synthesised: {e}")], ..Default::default() },
     };
+    attached.problems.extend(stream_problem);
     let res = Resolved::new(&with_parts, &attached.samples)?;
     Ok(Built { lib: Arc::new(lib), score: Some(res), plays: attached.plays, problems: attached.problems, stand_ins, took_ms: t0.elapsed().as_secs_f32() * 1000.0 })
 }
@@ -491,6 +495,9 @@ pub(crate) struct MusicRuntime {
     score_res: Option<Arc<Resolved>>,
     /// The Music page's export on its own thread.
     export: Option<JoinHandle<Result<PathBuf, String>>>,
+    /// The bank's stream rings as last seen (bytes, notes streaming, rings): the bank is lent to
+    /// the build's thread while it runs.
+    streams_seen: (usize, usize, usize),
 }
 
 /// Whether two "in place of new pieces" choices compose the same piece (both none, or the same seed,
@@ -532,6 +539,7 @@ impl MusicRuntime {
             return;
         }
         let mut bank = self.bank.take().unwrap_or_default();
+        self.streams_seen = (bank.stream_memory(), bank.streams().0, bank.streams().1);
         if !reuse {
             // Reuse off: nothing decoded before is handed out again (SampleBank::get also lets go
             // of everything on each request while the switch is off).
@@ -825,7 +833,20 @@ impl MusicRuntime {
         }
         readout.load_error = self.load_error.clone();
         readout.build_ms = self.build_ms;
+        readout.memory = self.memory();
         readout
+    }
+
+    /// The playing score's music memory (2026-11-14, music.md section 23): its recordings as held
+    /// (a streamed one, its attack) and the rings its notes stream through.
+    fn memory(&self) -> Option<crate::gui::pages::dev_music::MusicMemory> {
+        let res = self.score_res.as_ref()?;
+        let recordings: usize = res.banks.iter().flatten().map(|b| b.memory()).sum();
+        let (streams, busy, rings) = match self.bank.as_ref() {
+            Some(b) => (b.stream_memory(), b.streams().0, b.streams().1),
+            None => self.streams_seen,
+        };
+        Some(crate::gui::pages::dev_music::MusicMemory { recordings: recordings as u64, streams: streams as u64, busy, rings })
     }
 
     /// Start the Music page's export on its own thread (one at a time): the music's data read and

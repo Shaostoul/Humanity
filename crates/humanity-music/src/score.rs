@@ -194,6 +194,18 @@ fn band_coefs(rate: f32) -> [SvfCoefs; BANDS] {
 }
 
 impl ScoreEngine {
+    /// Rendering offline (an export, a test), not on the audio thread: a streamed recording's note
+    /// waits for its stream rather than fading when the render runs faster than the disk
+    /// (crate::stream). Never on the audio thread.
+    pub fn set_offline(&mut self, offline: bool) {
+        self.pool.offline = offline;
+    }
+
+    /// How many notes are streaming a recording now.
+    pub fn streaming(&self) -> usize {
+        self.pool.streaming()
+    }
+
     /// A score over `res` at `rate` Hz with `seed`, starting in the context's mood and genre.
     pub fn new(res: Resolved, rate: f32, seed: u64, ctx: MusicContext) -> Self {
         let steer = steer_of(&ctx);

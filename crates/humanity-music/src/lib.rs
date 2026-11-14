@@ -36,6 +36,7 @@ pub mod rng;
 pub mod score;
 pub mod settings;
 pub mod sheet;
+pub mod stream;
 pub mod genre;
 pub mod tune;
 pub mod tuning;
@@ -74,3 +75,5 @@ mod tests_piece;
 mod tests_page;
 #[cfg(test)]
 mod tests_electronic;
+#[cfg(all(test, feature = "kira"))]
+mod tests_stream;

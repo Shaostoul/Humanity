@@ -10,6 +10,7 @@ use std::sync::Arc;
 use crate::dsp::{db_to_amp, fast_floor, fast_sin, fast_tanh, lfo_value, pan_gains, polyblep, shape_sample, Allpass1, Env, Lfo, Phasor, Svf, SvfCoefs, BASS_FORMANTS};
 use crate::instrument::{FilterKind, FilterSpec, Instrument, InstrumentKind, SampleBank, VoiceFx, Wave};
 use crate::rng::Rng;
+use crate::stream::StreamLease;
 use crate::tuning::note_hz;
 
 /// Voices at most (docs/design/music.md, section 14).
@@ -197,6 +198,10 @@ struct SamplerSt {
     zone: u32,
     pos: f64,
     step: f64,
+    /// A streamed note whose frames will run out (crate::stream): output frames of its fade left,
+    /// and the fade's length (0: not fading).
+    fade_left: u32,
+    fade_len: u32,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -277,13 +282,31 @@ pub struct VoicePool {
     started: u32,
     /// Each role's last note's frequency (a gliding voice slides from it).
     last_hz: [f32; 8],
+    /// Each voice's stream, while it plays a streamed recording (crate::stream): given back when the
+    /// voice ends, is taken by another note, or the pool is cleared or dropped.
+    leases: Vec<Option<StreamLease>>,
+    /// Rendering offline (an export, a test): a streamed note WAITS for the worker instead of fading
+    /// when its frames are not there yet. Never on the audio thread, which must not wait.
+    pub offline: bool,
 }
 
 impl VoicePool {
     /// 64 idle voices (allocates here, once).
     pub fn new(seed: u64) -> Self {
         let mut r = Rng::new(seed);
-        VoicePool { voices: (0..MAX_VOICES).map(|_| Voice::idle(r.next_u64())).collect(), ks: vec![0.0; MAX_VOICES * KS_LEN], started: 0, last_hz: [0.0; 8] }
+        VoicePool {
+            voices: (0..MAX_VOICES).map(|_| Voice::idle(r.next_u64())).collect(),
+            ks: vec![0.0; MAX_VOICES * KS_LEN],
+            started: 0,
+            last_hz: [0.0; 8],
+            leases: (0..MAX_VOICES).map(|_| None).collect(),
+            offline: false,
+        }
+    }
+
+    /// How many voices hold a stream now.
+    pub fn streaming(&self) -> usize {
+        self.leases.iter().filter(|l| l.is_some()).count()
     }
 
     /// How many voices are sounding.
@@ -295,6 +318,9 @@ impl VoicePool {
     pub fn clear(&mut self) {
         for v in self.voices.iter_mut() {
             v.active = false;
+        }
+        for l in self.leases.iter_mut() {
+            *l = None;
         }
     }
 
@@ -361,6 +387,8 @@ impl VoicePool {
         self.started = self.started.wrapping_add(1);
         let rr = self.started;
         let ks = &mut self.ks[slot * KS_LEN..(slot + 1) * KS_LEN];
+        // A stolen voice gives its stream back.
+        self.leases[slot] = None;
         let v = &mut self.voices[slot];
         let f = note_hz(n.midi, n.a4);
         let spread = inst.pan_spread * v.rng.bipolar();
@@ -531,7 +559,12 @@ impl VoicePool {
                         // plays at its recorded rate.
                         let pitch = if zone.recorded_hz > 0.0 { f as f64 / zone.recorded_hz as f64 } else { 1.0 };
                         let step = pitch * (zone.rate as f64 / rate as f64);
-                        St::Sampler(SamplerSt { zone: zi as u32, pos: 0.0, step })
+                        // A long recording: its attack is in memory, the rest streams from where it
+                        // ends (no ring free: the attack and a fade).
+                        if let Some(zs) = &zone.stream {
+                            self.leases[slot] = StreamLease::open(zs, zone.frames.len() as u64);
+                        }
+                        St::Sampler(SamplerSt { zone: zi as u32, pos: 0.0, step, fade_left: 0, fade_len: 0 })
                     }
                     _ => {
                         v.active = false;
@@ -557,6 +590,9 @@ impl VoicePool {
     ) {
         for (slot, v) in self.voices.iter_mut().enumerate() {
             if !v.active {
+                if self.leases[slot].is_some() {
+                    self.leases[slot] = None;
+                }
                 continue;
             }
             let Some(inst) = insts.get(v.inst as usize) else {
@@ -572,7 +608,11 @@ impl VoicePool {
             }
             let ks = &mut self.ks[slot * KS_LEN..(slot + 1) * KS_LEN];
             let bank = banks.get(v.inst as usize).and_then(|b| b.as_deref());
-            render_voice(v, inst, bank, ks, p, &mut dry_l[..n], &mut dry_r[..n], &mut send_l[..n], &mut send_r[..n]);
+            let stream = Stream { lease: self.leases[slot].as_ref(), offline: self.offline };
+            render_voice(v, inst, bank, stream, ks, p, &mut dry_l[..n], &mut dry_r[..n], &mut send_l[..n], &mut send_r[..n]);
+            if !v.active && self.leases[slot].is_some() {
+                self.leases[slot] = None;
+            }
             v.age += n as u64;
         }
     }
@@ -768,11 +808,113 @@ fn release(v: &mut Voice, insts: &[Instrument], rate: f32) {
     }
 }
 
+/// A voice's stream, for a streamed recording (crate::stream), and whether the render may wait for it.
+#[derive(Clone, Copy)]
+struct Stream<'a> {
+    lease: Option<&'a StreamLease>,
+    offline: bool,
+}
+
+/// A STREAMED recording's note (crate::stream): its attack from the zone's frames, the rest from its
+/// ring. When this block and a fade would read past the frames that are here (the stream fell
+/// behind, failed, or no ring was free for it), it fades out over the frames it has, so it never
+/// stops dead (a click); offline it waits for the worker instead. The reads and the interpolation
+/// are the in-memory sampler's below, operation for operation, so a streamed note is the whole-file
+/// note sample for sample (`tests_stream`).
+#[allow(clippy::too_many_arguments)]
+fn render_streamed<F: FnMut(usize, f32, f32)>(
+    env: &mut Env,
+    amp: f32,
+    active: &mut bool,
+    st: &mut SamplerSt,
+    zone: &crate::instrument::SampleZone,
+    zs: &crate::stream::ZoneStream,
+    stream: Stream,
+    p: &BlockParams,
+    n: usize,
+    out: &mut F,
+) {
+    let head = zone.frames.len() as u64;
+    let step = st.step * p.pitch_mul as f64;
+    let fade = zs.pool.fade_frames(p.rate);
+    // The furthest frame this block and a whole fade after it could read.
+    let need = |pos: f64| pos + step * (n as f64 + fade as f64) + 2.0;
+    let mut ready = stream.lease.map_or((0, false), |l| l.ready());
+    if let (true, 0, Some(l)) = (stream.offline, st.fade_len, stream.lease) {
+        // Not the audio thread (an export, a test): wait for the worker, woken, as long as a stalled
+        // disk could take; past that the note fades as it would live.
+        let t0 = std::time::Instant::now();
+        while !ready.1 && !l.failed() && need(st.pos) >= (head + ready.0) as f64 && t0.elapsed().as_secs_f32() < 5.0 {
+            l.pool().wake();
+            std::thread::sleep(std::time::Duration::from_micros(100));
+            ready = l.ready();
+        }
+    }
+    let (written, ended) = ready;
+    let avail = head + written;
+    if st.fade_len == 0 && !ended && need(st.pos) >= avail as f64 {
+        let left = ((avail as f64 - 2.0 - st.pos) / step).floor().max(0.0) as u32;
+        st.fade_len = fade.min(left).max(1);
+        st.fade_left = st.fade_len;
+    }
+    // The block reads frames from floor(pos) to floor(pos + step * n) + 1: all in the attack, all
+    // in the ring, or across the attack's end (once a note). Each case runs the same loop over its
+    // own reader, so the common two read a frame with one load, as the in-memory sampler does.
+    let first = st.pos.max(0.0) as u64;
+    let last = ((st.pos + step * n as f64) as u64 + 1).min(avail.saturating_sub(1));
+    let ring = stream.lease.map(|l| l.view());
+    match ring {
+        _ if last < head => streamed_loop(|i| zone.frames[i as usize], env, amp, active, st, step, avail, n, out),
+        Some(r) if first >= head => streamed_loop(|i| r.get(i - head), env, amp, active, st, step, avail, n, out),
+        _ => streamed_loop(|i| if i < head { zone.frames[i as usize] } else { ring.map_or([0, 0], |r| r.get(i - head)) }, env, amp, active, st, step, avail, n, out),
+    }
+    if let Some(l) = stream.lease {
+        l.consumed((st.pos as u64).saturating_sub(head).min(written));
+    }
+    if env.done() {
+        *active = false;
+    }
+}
+
+/// One block of a streamed note over `frame` (the attack, the ring, or both): the in-memory
+/// sampler's read and interpolation, then the fade if one is running.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+fn streamed_loop<G: Fn(u64) -> [i16; 2], F: FnMut(usize, f32, f32)>(frame: G, env: &mut Env, amp: f32, active: &mut bool, st: &mut SamplerSt, step: f64, avail: u64, n: usize, out: &mut F) {
+    let sc = crate::instrument::SAMPLE_SCALE;
+    for i in 0..n {
+        let e = env.next();
+        if st.pos as u64 + 1 >= avail {
+            // The end of the recording (or, never in practice, frames that did not come in time).
+            *active = false;
+            return;
+        }
+        let idx = (st.pos.max(0.0) as u64).min(avail - 1);
+        let fr = (st.pos - idx as f64).clamp(0.0, 1.0) as f32;
+        let [al, ar] = frame(idx);
+        let [bl, br] = frame((idx + 1).min(avail - 1));
+        let (al, ar, bl, br) = (al as f32 * sc, ar as f32 * sc, bl as f32 * sc, br as f32 * sc);
+        let (l, r) = (al + (bl - al) * fr, ar + (br - ar) * fr);
+        st.pos += step;
+        let mut g = e * amp;
+        if st.fade_len > 0 {
+            if st.fade_left == 0 {
+                *active = false;
+                return;
+            }
+            g *= st.fade_left as f32 / st.fade_len as f32;
+            st.fade_left -= 1;
+        }
+        out(i, l * g, r * g);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_voice(
     v: &mut Voice,
     inst: &Instrument,
     bank: Option<&dyn SampleBank>,
+    stream: Stream,
     ks: &mut [f32],
     p: &BlockParams,
     dl: &mut [f32],
@@ -1131,6 +1273,10 @@ fn render_voice(
                 v.active = false;
                 return;
             };
+            if let Some(zs) = &zone.stream {
+                render_streamed(&mut v.env, v.amp, &mut v.active, st, zone, zs, stream, p, n, &mut out);
+                return;
+            }
             let len = zone.frames.len();
             let step = st.step * p.pitch_mul as f64;
             // A crossfaded loop (SampleZone::loop_xfade) while the note is held: (start, end, the

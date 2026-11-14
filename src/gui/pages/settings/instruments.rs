@@ -62,6 +62,20 @@ fn holds(ui: &mut egui::Ui, theme: &Theme, instruments: &[InstrumentRef], waves:
     }
 }
 
+/// What a set's instruments take in memory while its parts play (instrument_packs::memory,
+/// 2026-11-14): the honest cost of a pack, as a graphics setting states its video memory. A set
+/// whose long recordings stream says what they would take held whole.
+fn memory_line(ui: &mut egui::Ui, theme: &Theme, packs: &PacksUi, set: &str) {
+    let counting = packs.memory_for.is_none() || (packs.memory_job.is_some() && !packs.memory.contains_key(set));
+    let text = match packs.memory.get(set) {
+        _ if counting => t("instrument_packs.memory_counting").to_string(),
+        Some(m) if m.held < m.whole => tf("instrument_packs.memory_streamed", &[("mb", &mb(m.held)), ("whole", &mb(m.whole))]),
+        Some(m) => tf("instrument_packs.memory", &[("mb", &mb(m.held))]),
+        None => t("instrument_packs.memory_none").to_string(),
+    };
+    widgets::glossary_words(ui, theme, &text, theme.font_size_small, theme.text_muted());
+}
+
 /// "Licence: ..." with the licence words' glossary marks kept (CC0 opens its glossary card).
 fn licence_line(ui: &mut egui::Ui, theme: &Theme, marked_words: &str) {
     let line = tf("instrument_packs.licence_label", &[("words", &marked_words)]);
@@ -89,6 +103,7 @@ pub(crate) fn draw_instruments(ui: &mut egui::Ui, theme: &Theme, hint: HintDispl
         muted(ui, theme, tf("instrument_packs.size", &[("mb", &mb(catalog.core.bytes))]));
         licence_line(ui, theme, t_marked("instrument_packs.licence.cc0"));
         muted(ui, theme, t("instrument_packs.core_status"));
+        memory_line(ui, theme, packs, "core");
         draw_uses(ui, theme, packs, "core", &catalog.core.instruments, true);
         for entry in &catalog.packs {
             ui.add_space(theme.spacing_md);
@@ -128,6 +143,9 @@ fn draw_pack(ui: &mut egui::Ui, theme: &Theme, entry: &PackEntry, packs: &mut Pa
         (None, _, false) => t("instrument_packs.not_built").to_string(),
     };
     muted(ui, theme, status);
+    if installed.is_some() {
+        memory_line(ui, theme, packs, &entry.id);
+    }
 
     // This pack's download, if one is running or has just failed.
     let mine = packs.download.as_ref().filter(|(id, _)| *id == entry.id).and_then(|(_, p)| p.lock().ok().map(|g| g.clone()));

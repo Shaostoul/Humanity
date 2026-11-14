@@ -814,7 +814,7 @@ ambient target); at its default level (0.35) about 17 LU under the music.
 | Audio thread, hum | 0.02 ms per block (under 1%) | The sketch's hum: 7.3 ms per second of audio in JavaScript |
 | Voices | 64 at most; the calm moods use 12 to 24 | The pool is fixed; the composer drops the quietest voice before allocating |
 | Game thread | under 0.05 ms per frame | Building a `Copy` context and writing it to kira's channel |
-| Memory | synth only: under 2 MB; with samples: under 64 MB decoded | Curated sample subsets (rung 6) |
+| Memory | synth only: under 2 MB; with samples: under 64 MB decoded; a long recording holds only its attack (half a second) and its notes stream the rest through 32 rings (4 MiB in all) | Curated sample subsets (rung 6); streaming (section 23, "Memory", 2026-11-14) |
 | GPU | none | Nothing in the music touches the GPU |
 | Network | none, ever | Each player's game composes its own music; nothing is synchronised |
 | Disk | synth only: kilobytes of data; with samples: under 30 MB shipped as Ogg Vorbis | The full libraries stay off the repository |
@@ -1243,11 +1243,48 @@ whose 15 and 19 notes the core set already kept, to longer ones. All 350 new par
 the kalimbas, the mbiras, a kit's kick). Settings folds the list of a set of more than 12 instruments
 under a header that counts them (the percussion pack's 260 made the page a scroll through every take).
 
-**Memory, for a later rung.** A part's recording is decoded whole into memory when a score uses it
-(16-bit stereo at 48 kHz, 192 kB a second): the full Steinway is 2,687 s of samples, about 490 MiB,
-the Kawai about 440 MiB, the Gretsch about 380 MiB. Nothing plays them yet beyond the piano, the
-guitar and the parts the moods already name; streaming long samples from disk, or a smaller decoded
-cut, is the fix before the music plays many full instruments at once.
+**Memory: long recordings stream from the disk (built 2026-11-14).** A part's recording was decoded
+whole into memory when a score used it (16-bit stereo at 48 kHz, 192 kB a second): the full Steinway
+is 2,687 s of samples, about 490 MiB, the Kawai about 440 MiB, the Gretsch about 380 MiB. Now, as
+disk-streaming samplers do, a recording longer than 2 s that a note plays straight through (no loop
+of its own, a part that does not sustain) keeps only its ATTACK in memory, its first half second, and
+a worker thread decodes the rest just ahead of the note into a ring buffer for that note
+(`humanity_music::stream`, `data/music/streaming.ron`). The reference is sfizz, the open SFZ player
+(BSD-2-Clause; its `src/sfizz/Config.h`, read 2026-11-13): it keeps 8,192 frames of every file
+(`preloadSize`) and loads the rest on four background threads (`numBackgroundThreads`), a promise per
+voice; ours keeps more of each file (half a second, since one thread serves every stream and Windows
+sleeps in 15.6 ms steps) and streams into a fixed ring per note rather than a growing buffer.
+
+- **The rings:** 32 (the budget), each 32,768 frames (0.68 s), 4 MiB together, made once. A note
+  claims one with a compare-and-swap and gives it back when it ends; each ring has one writer (the
+  worker) and one reader (the note), so it needs no lock and the audio thread neither allocates nor
+  waits.
+- **Exact:** the worker decodes each file from its start and lets its attack go (a Vorbis packet
+  depends on the one before it, so seeking would not give the same frames), so a streamed note is
+  the whole-file note to the bit, interpolation across the attack's end included.
+- **When the stream cannot keep up** (the disk stalls, or all 32 rings are in use), the note sees
+  that its frames will run out within a block and a fade and fades out over the frames it has (20
+  ms), so it plays its attack and a release, never a click. Offline renders (the Music page's export,
+  the tests) wait for the worker instead (`ScoreEngine::set_offline`).
+- **What stays whole:** a looped recording (its loop is read at will) and every recording of a part
+  that sustains (the strings' crossfaded loop). The full strings pack's held notes are up to 30 s
+  each and stay whole for now: streaming a loop is the next rung.
+- **Not a cache:** a ring is refilled from the file for every note, and the attacks obey the reuse
+  switch exactly as whole recordings did.
+- **Measured** (2026-11-14, the keys pack version 2 installed from the staged archive, lo-fi built as
+  the game builds it; `instrument_packs::stream_tests`, ignored, run by hand with
+  `HUMANITY_INSTRUMENT_PACKS_OUT`): the full Steinway part held 452.0 MiB decoded whole and holds
+  14.6 MiB streaming (its 126 attacks 10.6 MiB, the rings 4.0 MiB), with every one of its zones played
+  and up to 23 notes streaming at once; lo-fi's recordings together 475.2 MiB before, 21.5 MiB now; the
+  build that decodes them 21.2 s before, 1.5 s now. A 60 s render of lo-fi's calm mood, decoded whole
+  and then streamed at real time with the worker never waited for (up to 12 notes streaming), is the
+  same to the last bit: 0 of 2,880,000 frames differ. The audio thread: 16 streamed notes 0.025 to
+  0.033 ms a 128-frame block, 32 streamed 0.051 ms against 0.044 held whole (`tests_stream`).
+- **Shown:** Settings > Audio > Instruments says, for the core set and each installed pack, the
+  memory its parts take while they play (the instruments the music would choose, each recording's
+  length read from its file's header, nothing decoded) and what it would take held whole; the Dev
+  page's music card says the playing score's memory, its recordings and its rings, and how many notes
+  stream now.
 
 ## The operator on electro swing (2026-11-13, after v0.1558.0)
 

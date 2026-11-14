@@ -551,8 +551,13 @@ pub const SAMPLE_SCALE: f32 = 1.0 / 32768.0;
 
 /// Decoded frames (-1..1) as the 16-bit frames a `SampleZone` keeps.
 pub fn frames16(frames: impl Iterator<Item = [f32; 2]>) -> Vec<[i16; 2]> {
-    let q = |x: f32| (x * 32768.0).round().clamp(-32768.0, 32767.0) as i16;
-    frames.map(|[l, r]| [q(l), q(r)]).collect()
+    frames.map(|[l, r]| [sample16(l), sample16(r)]).collect()
+}
+
+/// One decoded sample (-1..1) as 16 bits, rounded: the one rounding every decode uses.
+#[inline]
+pub fn sample16(x: f32) -> i16 {
+    (x * 32768.0).round().clamp(-32768.0, 32767.0) as i16
 }
 
 /// One recording: stereo frames at their own rate, 16-bit ([`SAMPLE_SCALE`]; shared, so a bank and
@@ -578,6 +583,17 @@ pub struct SampleZone {
     /// from the start (equal power), so a chord held longer than the recording never falls silent
     /// (BUG-266; src/instrument_packs/score.rs sets it for the parts that sustain).
     pub loop_xfade: usize,
+    /// A long recording STREAMED from disk (music.md section 23, "Memory"): `frames` holds only its
+    /// first part (the attack), and a note reads the rest from the stream as it plays. None: `frames`
+    /// is the whole recording. Never set with a loop (a streamed note plays straight through).
+    pub stream: Option<crate::stream::ZoneStream>,
+}
+
+impl SampleZone {
+    /// The memory its frames hold, bytes (16-bit stereo; a streamed zone's attack only).
+    pub fn memory(&self) -> usize {
+        self.frames.len() * 4
+    }
 }
 
 /// How the engine asks a loaded instrument for a recording. `Send + Sync` because the score
@@ -589,6 +605,10 @@ pub trait SampleBank: Send + Sync {
     fn pick(&self, midi: i32, velocity: f32, round_robin: u32) -> Option<usize>;
     /// A recording by the index `pick` gave.
     fn zone(&self, index: usize) -> &SampleZone;
+    /// The memory its recordings hold, bytes (the Dev page's music memory).
+    fn memory(&self) -> usize {
+        0
+    }
 }
 
 /// The plain bank: a list of recordings, the nearest covering one chosen by note, then velocity.
@@ -632,6 +652,10 @@ impl SampleBank for SampleSet {
 
     fn zone(&self, index: usize) -> &SampleZone {
         &self.zones[index]
+    }
+
+    fn memory(&self) -> usize {
+        self.zones.iter().map(SampleZone::memory).sum()
     }
 }
 

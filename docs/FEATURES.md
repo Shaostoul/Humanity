@@ -3097,9 +3097,16 @@ jSteelDrum 1 and the Martin: 417 instruments, every way of playing, velocity lay
 to 30 s a sample, 649 MiB in all (`music.md` section 23). The catalog records each instrument's layers,
 round robins, samples and seconds and which core instrument it is the whole recording of (`full_of`);
 Settings folds a set of more than 12 instruments under a counted header.
-- Native: `src/instrument_packs/` (catalog, definition, install, library, samples, tar, ui, waves),
-  `src/gui/pages/settings/instruments.rs`, `instrument_packs::ui::tick` in `src/lib.rs`
-- Data: `data/music/packs.ron` (generated), `data/music/parts.ron`, `data/music/instruments/*.ron`
+**Streaming (2026-11-14):** a recording longer than 2 s that a note plays straight through keeps only
+its first half second in memory and streams the rest from disk through one of 32 rings, decoded just
+ahead of the note on a worker thread (`humanity_music::stream`, `data/music/streaming.ron`); a note that
+cannot stream plays its attack and fades, never a click. The full Steinway part: 452.0 MiB whole, 14.6
+MiB streamed. Settings says each installed set's memory while its parts play (and held whole), the Dev
+page's music card the playing score's memory and how many notes stream (`music.md` section 23).
+- Native: `src/instrument_packs/` (catalog, definition, install, library, memory, samples, tar, ui,
+  waves), `crates/humanity-music/src/stream.rs` and `decode.rs`, `src/gui/pages/settings/instruments.rs`,
+  `instrument_packs::ui::tick` in `src/lib.rs`
+- Data: `data/music/packs.ron` (generated), `data/music/parts.ron`, `data/music/streaming.ron`, `data/music/instruments/*.ron`
   and `data/music/samples/<id>/` (generated core set, each with `LICENSE.txt` and `source.ron`)
 - Tools: `scripts/instrument-packs.js`, `scripts/instrument-recipes.json`, `scripts/lib/sevenzip.js`
   and `lzma.js` (FreePats' .7z), `scripts/serve-instrument-packs.js` (try packs on 127.0.0.1);
