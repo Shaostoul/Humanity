@@ -26,7 +26,7 @@ files into the data directory and the game loads them.
 | `item.toml` | Clothing, tools, weapons, food, furniture, machines | CSV |
 | `material.toml` | Metals, fabrics, wood, ceramics, polymers | CSV |
 | `component.toml` | Gears, motors, circuits, pipes, wiring | CSV |
-| `recipe.toml` | Smelting, crafting, cooking, construction, alchemy | CSV |
+| `recipe.toml` | Smelting, crafting, cooking, construction, chemistry | CSV |
 | `vehicle.toml` | Ships, cars, mechs, bikes, boats, aircraft | CSV/RON |
 | `structure.toml` | Walls, floors, machines, furniture, decorations | CSV/RON |
 | `creature.toml` | Humans, animals, aliens, monsters, NPCs | CSV |

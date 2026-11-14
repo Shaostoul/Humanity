@@ -170,7 +170,7 @@
             input_type: "raw_material",
             output_type: "chemical_product",
             time_multiplier: 3.5,
-            skill_required: "alchemy",
+            skill_required: "chemistry",
             skill_level: 5,
             waste_percentage: 0.18,
             tools_required: ["reactor_vessel", "distillation_column"],

@@ -105,7 +105,7 @@
         (activity: "logging",         min_per_hour: 2,   max_per_hour: 10,  skill_scaling: true),
         (activity: "construction",    min_per_hour: 4,   max_per_hour: 18,  skill_scaling: true),
         (activity: "electronics",     min_per_hour: 6,   max_per_hour: 25,  skill_scaling: true),
-        (activity: "alchemy",         min_per_hour: 5,   max_per_hour: 22,  skill_scaling: true),
+        (activity: "chemistry",       min_per_hour: 5,   max_per_hour: 22,  skill_scaling: true),
         (activity: "enchanting",      min_per_hour: 8,   max_per_hour: 30,  skill_scaling: true),
         (activity: "trading",         min_per_hour: 0,   max_per_hour: 0,   skill_scaling: false), // Variable: profit from buy/sell spread
         (activity: "exploration",     min_per_hour: 1,   max_per_hour: 5,   skill_scaling: false), // Discovery bonuses

@@ -114,9 +114,9 @@
     ),
 
     (
-        id: "alchemist",
+        id: "chemist",
         name: "Sage Elara Mosswick",
-        title: "Alchemist",
+        title: "Chemist",
         faction_id: "scholars",
         personality: ["eccentric", "curious", "meticulous"],
         services: ["trade", "identify", "brew"],
@@ -130,7 +130,7 @@
         dialogue_intro: "Ah, a visitor! Do be careful with that shelf. Some of those bottles bite.",
         essential: true,
         combat_style: "support",
-        description: "An eccentric herbalist selling potions, salves, and reagents from a cluttered shop",
+        description: "An eccentric chemist selling medicines, salves, and reagents from a cluttered shop",
     ),
 
     (

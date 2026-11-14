@@ -398,7 +398,7 @@
     (id: "water_bottle_empty_0", name: "Water Bottle (empty)", category: "misc",       base_value: 2,    weight_kg: 0.03,  description: "Empty 500 ml bottle; fill it at a water tank"),
     (id: "lye_0",             name: "Lye",                category: "misc",            base_value: 4,    weight_kg: 0.1,   description: "Caustic soda for soap making; keep it away from food"),
     (id: "water_jerrycan_empty_0", name: "Water Jerrycan (empty)", category: "misc",   base_value: 12,   weight_kg: 1.2,   description: "20 L food-grade jerrycan, kept for water only"),
-    (id: "flask_0",           name: "Glass Flask",        category: "misc",            base_value: 4,    weight_kg: 0.2,   description: "Laboratory flask for alchemy and chemistry"),
+    (id: "flask_0",           name: "Glass Flask",        category: "misc",            base_value: 4,    weight_kg: 0.2,   description: "Laboratory flask for chemistry"),
     (id: "backpack_large_0",  name: "Large Backpack",     category: "misc",            base_value: 40,   weight_kg: 1.2,   description: "65-liter expedition pack"),
     (id: "fish_oil_0",        name: "Fish Oil",           category: "misc",            base_value: 4,    weight_kg: 0.2,   description: "Rendered oil from fish, fuel and crafting ingredient"),
 

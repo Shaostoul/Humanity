@@ -3867,7 +3867,7 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 2,
-      "description": "Pressure-seal preserved meals",
+      "description": "Canned vegetables. Low-acid food like potatoes and carrots is only safe canned in a pressure canner (USDA): a pot on a stove cannot get hot enough to kill botulism spores",
       "tools": [
         {
           "id": "knife_utility_0",
@@ -3973,8 +3973,8 @@
       ],
       "outputs": [
         {
-          "id": "canned_food_0",
-          "label": "Canned Food",
+          "id": "soup_vegetable_0",
+          "label": "Soup Vegetable",
           "qty": 2
         }
       ],
@@ -4018,8 +4018,8 @@
       ],
       "outputs": [
         {
-          "id": "canned_food_0",
-          "label": "Canned Food",
+          "id": "stew_meat_0",
+          "label": "Stew Meat",
           "qty": 3
         }
       ],
@@ -4222,7 +4222,7 @@
       "station": "Stove",
       "skill": "Cooking",
       "skill_level": 1,
-      "description": "Heat thin meat strips to 160 F (165 F for wild game) then salt and dry them (USDA FSIS; CDC)",
+      "description": "Heat thin meat strips to 160 F (poultry to 165 F) then salt and dry them (USDA FSIS; CDC)",
       "tools": []
     },
     {
@@ -8428,7 +8428,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Chemistry Set",
-      "skill": "Alchemy",
+      "skill": "Chemistry",
       "skill_level": 1,
       "description": "Mix and pack emergency signal flares",
       "tools": []
@@ -14242,7 +14242,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Chemistry Set",
-      "skill": "Alchemy",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Combine carbon and binder into writing fluid",
       "tools": []
@@ -14950,7 +14950,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Chemistry Set",
-      "skill": "Alchemy",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Saponify fat with lye into cleaning bars",
       "tools": []

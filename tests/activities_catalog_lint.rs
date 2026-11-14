@@ -21,7 +21,16 @@
 //!      scripts/activities-tables.js) shows the data's status, so the document and the data cannot
 //!      drift;
 //!  10. the activities the operator must decide on (SENSITIVE) keep their operator_to_decide
-//!      question: the catalog records the question and never decides it.
+//!      question: the catalog records the question and never decides it;
+//!  11. an activity he has answered (DECIDED) keeps no open question and records an
+//!      operator_decision {date, quote, decision}, and every such quote is found (whitespace
+//!      aside) in docs/design/activities.md, so no decision is attributed to him without his words.
+//!
+//! Check 11 seen red (2026-11-14), written before the catalog recorded his answers: with combat
+//! and point_defense moved from SENSITIVE to DECIDED and the data unchanged, the shipped catalog
+//! test failed with 5 problems, among them
+//!   "combat: a decided activity must not keep an open operator_to_decide question" and
+//!   "hunting_butchering: a decided activity must record its operator_decision (date, quote, decision)".
 //!
 //! Seen red (2026-11-14), before the shipped catalog was trusted: with `src/engine/fruiting_tent.rs`
 //! misspelt `fruting_tent.rs` and the combat entry's operator_to_decide set to null, the shipped
@@ -44,11 +53,18 @@ use std::path::{Path, PathBuf};
 
 const STATUSES: &[&str] = &["live", "partial", "designed", "idea"];
 
-/// Activities whose existence or shape the operator decides. Their entries must keep an
-/// operator_to_decide question until he answers; removing one from this list needs his answer,
-/// quoted, in the design doc. hunting_butchering left the list on 2026-11-14 with his answer
-/// ("They're too valuable to leave out", docs/design/activities.md section 6).
-const SENSITIVE: &[&str] = &["combat", "point_defense"];
+/// Activities whose existence or shape the operator decides and has NOT yet answered. Their
+/// entries must keep an operator_to_decide question until he answers. Empty since 2026-11-14:
+/// every question the catalog raised has his answer (see DECIDED). A new question adds its id
+/// here.
+const SENSITIVE: &[&str] = &[];
+
+/// Activities that left SENSITIVE with the operator's answer. Each entry must carry no open
+/// question and an `operator_decision` ({date, quote, decision}) whose quote is his words, found
+/// in docs/design/activities.md section 6, so a decision is never attributed to him without his
+/// own words beside it (CLAUDE.md, "never attribute a decision to the operator that he did not
+/// make"). hunting_butchering, combat and point_defense were all answered on 2026-11-14.
+const DECIDED: &[&str] = &["hunting_butchering", "combat", "point_defense"];
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -66,6 +82,23 @@ struct Repo<'a> {
     levels: BTreeSet<String>,
     feature_headings: BTreeSet<String>,
     design_doc: String,
+    /// SENSITIVE and DECIDED for the shipped catalog; the fixture test sets its own.
+    sensitive: &'a [&'a str],
+    decided: &'a [&'a str],
+}
+
+/// Runs of whitespace (line breaks and the doc's wrapping indent included) become one space, so
+/// a quotation wrapped across lines in the design doc still matches the same words in the data.
+fn squash(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn is_iso_date(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 10
+        && b[4] == b'-'
+        && b[7] == b'-'
+        && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
 }
 
 fn skill_ids(csv: &str) -> BTreeSet<String> {
@@ -240,10 +273,35 @@ fn check(catalog: &str, repo: &Repo) -> Vec<String> {
         if !networks.contains(network) {
             bad.push(format!("{who}: budget.network `{network}` is not a network class"));
         }
-        if SENSITIVE.contains(&id.as_str())
-            && a.get("operator_to_decide").and_then(|x| x.as_str()).map_or(true, |q| q.trim().is_empty())
-        {
+        let open_question = a.get("operator_to_decide").and_then(|x| x.as_str()).map_or(false, |q| !q.trim().is_empty());
+        if repo.sensitive.contains(&id.as_str()) && !open_question {
             bad.push(format!("{who}: a sensitive activity must keep its operator_to_decide question"));
+        }
+        let decision = a.get("operator_decision").filter(|d| !matches!(d, Json::Null));
+        if repo.decided.contains(&id.as_str()) {
+            if open_question {
+                bad.push(format!("{who}: a decided activity must not keep an open operator_to_decide question"));
+            }
+            if decision.is_none() {
+                bad.push(format!("{who}: a decided activity must record its operator_decision (date, quote, decision)"));
+            }
+        }
+        if let Some(dec) = decision {
+            let field = |k: &str| dec.get(k).and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+            if !is_iso_date(&field("date")) {
+                bad.push(format!("{who}: operator_decision.date `{}` is not YYYY-MM-DD", field("date")));
+            }
+            if field("decision").is_empty() {
+                bad.push(format!("{who}: operator_decision.decision is empty"));
+            }
+            let quote = field("quote");
+            if quote.is_empty() {
+                bad.push(format!("{who}: operator_decision.quote is empty"));
+            } else if !squash(&repo.design_doc).contains(&squash(&quote)) {
+                bad.push(format!(
+                    "{who}: operator_decision.quote is not in docs/design/activities.md (his words must be quoted there): {quote}"
+                ));
+            }
         }
         if !id.is_empty() && !repo.design_doc.contains(&format!("`{id}`")) {
             bad.push(format!("{who}: not named (as `{id}`) in docs/design/activities.md"));
@@ -259,9 +317,14 @@ fn check(catalog: &str, repo: &Repo) -> Vec<String> {
             }
         }
     }
-    for s in SENSITIVE {
+    for s in repo.sensitive {
         if !seen.contains(*s) {
             bad.push(format!("sensitive activity `{s}` is missing from the catalog"));
+        }
+    }
+    for s in repo.decided {
+        if !seen.contains(*s) {
+            bad.push(format!("decided activity `{s}` is missing from the catalog"));
         }
     }
     bad
@@ -274,6 +337,8 @@ fn shipped_repo(root: &Path) -> Repo<'_> {
         levels: level_ids(&read("data/gameplay/levels.json")),
         feature_headings: headings(&read("docs/FEATURES.md")),
         design_doc: read("docs/design/activities.md"),
+        sensitive: SENSITIVE,
+        decided: DECIDED,
     }
 }
 
@@ -304,7 +369,11 @@ fn the_catalog_covers_every_family_and_status() {
 fn broken_fixture_trips_every_check() {
     let r = root();
     let mut repo = shipped_repo(&r);
-    repo.design_doc = "`ok_one` `combat` `bad_status`\n| `ok_one` Fine | live | none | x | y |".into();
+    repo.design_doc = "`ok_one` `combat` `bad_status` `decided_one` `decided_bare` `decided_ok`\n| `ok_one` Fine | live | none | x | y |\n\
+                       He said \"we do want\n   this one\" plainly."
+        .into();
+    repo.sensitive = &["combat", "point_defense"];
+    repo.decided = &["decided_one", "decided_bare", "decided_gone", "decided_ok"];
     let fixture = r#"{
       "statuses": {"live": "", "partial": "", "designed": "", "idea": ""},
       "families": [{"id": "body"}],
@@ -328,7 +397,16 @@ fn broken_fixture_trips_every_check() {
         {"id": "ok_one", "family": "body", "name": "Dupe", "skill": null, "status": "idea", "evidence": [],
          "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"}},
         {"id": "combat", "family": "body", "name": "Combat", "skill": "melee", "status": "idea", "evidence": [],
-         "operator_to_decide": null, "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"}}
+         "operator_to_decide": null, "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"}},
+        {"id": "decided_one", "family": "body", "name": "D", "skill": null, "status": "idea", "evidence": [],
+         "operator_to_decide": "still asking?", "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"},
+         "operator_decision": {"date": "14 Nov", "quote": "words he never said", "decision": ""}},
+        {"id": "decided_bare", "family": "body", "name": "B", "skill": null, "status": "idea", "evidence": [],
+         "operator_to_decide": null, "operator_decision": null, "tier": "T0", "engagement_modes": ["direct"],
+         "budget": {"frame": "none", "network": "local"}},
+        {"id": "decided_ok", "family": "body", "name": "K", "skill": null, "status": "idea", "evidence": [],
+         "operator_to_decide": null, "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"},
+         "operator_decision": {"date": "2026-11-14", "quote": "we do want this one", "decision": "In."}}
       ]
     }"#;
     let bad = check(fixture, &repo).join("\n");
@@ -353,10 +431,18 @@ fn broken_fixture_trips_every_check() {
         "combat: a sensitive activity must keep its operator_to_decide question",
         "sensitive activity `point_defense` is missing",
         "ok_one: the table in docs/design/activities.md says `live`, the data says `idea`",
+        "decided_one: a decided activity must not keep an open operator_to_decide question",
+        "decided_one: operator_decision.date `14 Nov` is not YYYY-MM-DD",
+        "decided_one: operator_decision.decision is empty",
+        "decided_one: operator_decision.quote is not in docs/design/activities.md",
+        "decided_bare: a decided activity must record its operator_decision",
+        "decided activity `decided_gone` is missing",
     ] {
         assert!(bad.contains(needle), "the fixture's defect `{needle}` was not reported; the report was:\n{bad}");
     }
     assert!(!bad.contains("ok_one: id must be"), "a good id was refused:\n{bad}");
+    // A quotation the design doc wraps across lines still counts as quoted.
+    assert!(!bad.contains("decided_ok:"), "a well-recorded decision was refused:\n{bad}");
 }
 
 // ── A small JSON reader (std-only) ──────────────────────────────────────────

@@ -1,5 +1,5 @@
 {
-  "_doc": "The catalog of the game's activities (the 'minigames'): every one, with its true build status. Design: docs/design/activities.md. Checked by tests/activities_catalog_lint.rs (every evidence path exists, every skill is in data/skills/skills.csv, every status is one of four, every live entry names a source file and a FEATURES.md heading, every levels_setting is in data/gameplay/levels.json, every id appears in the design doc). An activity is the DIRECT engagement mode of a domain (docs/design/engagement-modes.md): nobody is forced to play one they dislike. Names are plain English here because nothing renders them yet; when the Play hub, the skills page, quests or tutorials start showing them, add keys with node scripts/i18n-add.js and point name_key at them. Statuses were read from the code and docs/FEATURES.md on 2026-11-14.",
+  "_doc": "The catalog of the game's activities (the 'minigames'): every one, with its true build status. Design: docs/design/activities.md. Checked by tests/activities_catalog_lint.rs (every evidence path exists, every skill is in data/skills/skills.csv, every status is one of four, every live entry names a source file and a FEATURES.md heading, every levels_setting is in data/gameplay/levels.json, every id appears in the design doc, an open operator_to_decide question stays until he answers, and an answered one is recorded as operator_decision {date, quote, decision} whose quote must be his words as the design doc quotes them). An activity is the DIRECT engagement mode of a domain (docs/design/engagement-modes.md): nobody is forced to play one they dislike. Names are plain English here because nothing renders them yet; when the Play hub, the skills page, quests or tutorials start showing them, add keys with node scripts/i18n-add.js and point name_key at them. Statuses were read from the code and docs/FEATURES.md on 2026-11-14.",
   "statuses": {
     "live": "You can do it in the game today and a simulation decides the result (not a bare timer). Names a source file and a FEATURES.md heading.",
     "partial": "Some of it runs (a recipe, a machine, a page, one half of the loop), but the activity as designed is incomplete, usually because the real procedure is a menu click. Names a source file.",
@@ -418,7 +418,7 @@
       "note": "smelt_glass, draw_glass_fiber and craft_fiberglass exist; slag.md designs slag into glass and wool."
     },
     {
-      "id": "chemistry", "family": "materials", "name": "Chemistry: soap, medicines, fuels, compounds", "skill": "alchemy", "status": "partial",
+      "id": "chemistry", "family": "materials", "name": "Chemistry: soap, medicines, fuels, compounds", "skill": "chemistry", "status": "partial",
       "evidence": ["data/recipes.csv", "data/chemistry"],
       "features_heading": "Chemistry Database",
       "design_doc": "docs/design/ingredients-and-labels.md", "levels_setting": null, "tier": "T2",
@@ -427,7 +427,7 @@
       "engagement_modes": ["direct", "trade", "automation"],
       "consumes": ["salts", "oils", "plant matter", "power"], "produces": ["soap", "medicines", "fuel", "compounds"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "29 chemistry recipes, 14 on the chemistry set, trained by medicine, engineering, alchemy (3) or none. The skill is still called Alchemy."
+      "note": "29 chemistry recipes, 14 on the chemistry set, trained by medicine, engineering, chemistry (3) or none."
     },
     {
       "id": "recycling_salvage", "family": "materials", "name": "Recycling and salvage", "skill": null, "status": "idea",
@@ -862,7 +862,7 @@
       "note": "engine-architecture.md section 6 (Hull Breach Simulation) is the design; only the music's breach alarm exists (the Dev page's knob)."
     },
     {
-      "id": "point_defense", "family": "risk", "name": "Point defense against debris", "skill": null, "status": "designed",
+      "id": "point_defense", "family": "risk", "name": "Point defense against debris and attackers", "skill": null, "status": "designed",
       "evidence": ["data/machines/home.ron"],
       "features_heading": null,
       "design_doc": "docs/game/turret-defense-minigame.md", "levels_setting": null, "tier": "X1",
@@ -871,7 +871,8 @@
       "engagement_modes": ["direct", "automation", "cooperative"],
       "consumes": ["power", "ammunition or charge", "cooling"], "produces": ["a safe ring", "a recurring sink for production"],
       "budget": { "frame": "heavy", "network": "realtime" },
-      "operator_to_decide": "The design names 'raiders, hostile drones' beside debris. Debris-only keeps it outside combat; raiders make it combat.",
+      "operator_to_decide": null,
+      "operator_decision": { "date": "2026-11-14", "quote": "Both. I like the idea of point defense turrets", "decision": "Debris AND attackers: point defense turrets, fighter craft, and invasions by non-humans (aliens, robots, demons); human raiders appear only as drills and exercises, the way fire drills and naval exercises rehearse, with the lore framing the fight." },
       "note": "A marker defense_turret sits on the garage hull. Build, maintain, operate."
     },
     {
@@ -920,8 +921,9 @@
       "engagement_modes": ["direct", "cooperative"],
       "consumes": ["weapons", "energy", "armour"], "produces": ["loot", "safety"],
       "budget": { "frame": "heavy", "network": "realtime" },
-      "operator_to_decide": "Whether combat is an activity people choose in a humanity at peace, only defence against animals and hazards, or limited to opt-in fantasy content. The code and four combat skills exist; this catalog does not decide.",
-      "note": "Melee swing, offensive abilities, armour per damage type, loot; kills train melee or ranged. gameplay-loop-map.md calls combat a risk layer serving survival, not a genre."
+      "operator_to_decide": null,
+      "operator_decision": { "date": "2026-11-14", "quote": "Eventually we want to support all forms of combat.", "decision": "All forms, eventually: PvP arenas and sport combat, and PvE as humans against non-humans; PvP comes first, as the proving ground for gear balance. Offense and defense skills both stay." },
+      "note": "Melee swing, offensive abilities, armour per damage type, loot; kills train melee or ranged. No arena, sport bout or PvP mode exists yet; the base skill set proposal is docs/design/skills.md."
     },
     {
       "id": "hunting_butchering", "family": "risk", "name": "Hunting and butchering", "skill": null, "status": "partial",
@@ -934,6 +936,7 @@
       "consumes": ["weapons", "time"], "produces": ["meat", "fur", "bone"],
       "budget": { "frame": "heavy", "network": "realtime" },
       "operator_to_decide": null,
+      "operator_decision": { "date": "2026-11-14", "quote": "They're too valuable to leave out.", "decision": "In: hunting, butchering, fishing, the aquaponic tank's fish and slaughter of kept animals; how graphic it looks follows the standing dual-modes rule." },
       "note": "IN (operator, 2026-11-14; his words in activities.md section 6). How graphic it looks follows CLAUDE.md's dual-modes rule. Today a player's killing blow rolls the creature's loot (a wolf: raw meat, fur, bone) into the pack; there is no butchering procedure."
     },
     {

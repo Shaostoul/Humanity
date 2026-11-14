@@ -35,7 +35,7 @@
 #   metalworking      -- Smelt ore and forge metal tools and equipment
 #   cooking           -- Prepare food for nutrition and buffs
 #   tailoring         -- Create and repair clothing and fabric items
-#   alchemy           -- Brew potions and process chemical compounds
+#   chemistry         -- Make soap, medicines, fuels and other compounds
 #   farming           -- Plant, tend, and harvest crops efficiently
 #
 # COMBAT (4 skills):
@@ -72,7 +72,7 @@
 #
 # The schema below documents additional curve types for future implementation.
 # Modders should use xp_base (mapped to xp_per_level in CSV) to tune difficulty.
-# Higher xp_base = slower leveling. Alchemy (200) levels twice as slowly as
+# Higher xp_base = slower leveling. Chemistry (200) levels twice as slowly as
 # Cooking (80) per action performed.
 #
 # Planned curve types:
@@ -191,7 +191,7 @@ Tuning guide:
   100  -> Standard leveling (mining, foraging, combat skills)
   120  -> Moderate leveling (woodworking, metalworking, defense)
   150  -> Slow leveling (shelter_building, metalworking)
-  200  -> Very slow leveling (alchemy, engineering, medicine)
+  200  -> Very slow leveling (chemistry, engineering, medicine)
   250  -> Extremely slow (leadership -- rare XP-granting actions)"""
 constraints = "Must be > 0. Typical range: 50-300."
 examples = [80, 100, 120, 150, 200, 250]
@@ -269,7 +269,7 @@ Not in the current CSV. Will be added when synergy system is implemented."""
 constraints = "Each entry must be a valid skill id"
 examples = [
     '["metalworking", "engineering"]',
-    '["farming", "cooking", "alchemy"]',
+    '["farming", "cooking", "chemistry"]',
     '["melee", "defense"]',
 ]
 
@@ -330,7 +330,7 @@ Not in the current CSV. Will be added when the base stats system is implemented.
 valid_values = [
     "strength",     # Physical power (mining, melee, shelter_building)
     "agility",      # Speed and coordination (ranged, defense, tailoring)
-    "intelligence", # Mental acuity (engineering, medicine, alchemy, tactics)
+    "intelligence", # Mental acuity (engineering, medicine, chemistry, tactics)
     "endurance",    # Stamina and resilience (farming, fire_making, foraging)
     "charisma",     # Social presence (trading, leadership)
     "perception",   # Awareness (navigation, water_purification, ranged)
@@ -420,7 +420,7 @@ When setting xp_base for a new skill, consider how often the player performs
 the associated action:
   Very frequent (every few seconds): xp_base 50-80   (e.g., combat hits)
   Frequent (every minute):           xp_base 80-120  (e.g., mining, cooking)
-  Occasional (every few minutes):    xp_base 120-200 (e.g., engineering, alchemy)
+  Occasional (every few minutes):    xp_base 120-200 (e.g., engineering, chemistry)
   Rare (once per session):           xp_base 200-300 (e.g., leadership, tactics)
 The goal is that skills level at roughly similar real-time rates regardless
 of action frequency."""

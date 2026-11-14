@@ -1,8 +1,8 @@
 # Activities: every minigame that makes up the one game
 
-**Status: catalog and recommendations, 2026-11-14.** Two things here are the operator's decisions,
-quoted in section 6 (hunting and butchering are in; the order principle of section 4 is
-confirmed). Everything else (the ten-item ordering within that principle, the skill changes, the
+**Status: catalog and recommendations, 2026-11-14.** The operator's decisions are quoted in section
+6 (two rounds that day: hunting and butchering are in and the order principle of section 4 is
+confirmed; then combat, point defense, skills, chemistry and prop skills). Everything else (the ten-item ordering within that principle, the skill changes, the
 answers to the open questions) is this pass's recommendation (an agent's), marked as such. The data is
 [`data/gameplay/activities.json`](../../data/gameplay/activities.json), one entry per activity;
 [`tests/activities_catalog_lint.rs`](../../tests/activities_catalog_lint.rs) holds every claim in it
@@ -15,7 +15,9 @@ minigames that make up our one game? Like, mining is a mini game. Cooking is a m
 structures and vehicles are mini games. So forth."
 
 Companions: [engagement-modes.md](engagement-modes.md) (one simulation, five ways to engage),
-[progression-skills-gear.md](progression-skills-gear.md) (skills, and their 20-row budget),
+[progression-skills-gear.md](progression-skills-gear.md) (skills, abilities and gear; its 20-row
+budget is retired), [skills.md](skills.md) (the proposed base skill set, how a skill levels and
+what a level gives),
 [gameplay-loop-map.md](gameplay-loop-map.md) (the tiers and the closure ladder; its current-state
 columns are a stale snapshot, so nothing below takes status from it),
 [two-realities.md](two-realities.md) (every domain exists twice),
@@ -39,8 +41,10 @@ survival chains that teach most of the body and food activities).
 - Eight of the twenty skills can never rise today, because nothing trains them, and one skill
   (engineering) is asked to cover fourteen activities. Section 5.
 - The operator decided on 2026-11-14 that hunting and butchering are in ("They're too valuable to
-  leave out") and confirmed the order. Combat and point defense's targets stay marked **operator
-  to decide**; the catalog does not decide them (section 6).
+  leave out") and confirmed the order. The same day he answered the rest (section 6): all forms of
+  combat eventually, PvP first; point defense against debris and attackers; no skill cap until a
+  proper base set exists (proposed in [skills.md](skills.md)); alchemy renamed chemistry. No
+  activity is marked **operator to decide** any more; each answered one records his decision.
 
 ## 1. What an activity is
 
@@ -71,7 +75,7 @@ so a page or a quest can read them.
 | **The modes that replace it** | Who meets this need without playing it: Trade, Automation, Cooperative, Background. Direct is always present, since an activity IS the Direct mode. | `engagement_modes` |
 | **What it consumes and produces** | Which loop it closes. An activity whose output nothing consumes is a faucet into storage; one that consumes what is already piling up is a sink, and sinks come first (section 4). | `consumes`, `produces`, `tier` |
 | **Its per-frame and network budget class** | CLAUDE.md, "Compute and bandwidth are a hard budget". `frame`: none (a page or a tick), light (a prompt or a gauge), heavy (per-frame physics or visuals, which must state its ms budget in its design before it is built). `network`: local (never networked, cosmetic simulation included), state (low-rate gameplay state), realtime (positions and inputs). | `budget.frame`, `budget.network` |
-| **Who decides whether it exists** | Most activities are engineering. A few are values the operator alone sets. | `operator_to_decide` (the question, or null) |
+| **Who decides whether it exists** | Most activities are engineering. A few are values the operator alone sets. | `operator_to_decide` (the open question, or null); once he answers, `operator_decision` (date, his quoted words, the decision) |
 
 ### Status, and how it was read
 
@@ -172,7 +176,7 @@ the table carries the first two paths.
 | `tailoring_weaving` Spinning, weaving and tailoring | partial | tailoring | FEATURES: "Crafting"; `data/recipes.csv` | 39 textile recipes on the loom and the sewing machine (tan_leather among them); menu crafting. Clothes feed staying_warm. |
 | `pottery` Pottery and ceramics | partial | none | FEATURES: "Crafting"; `data/recipes.csv`; design: `quest-chains.md` | kiln_0 has 9 recipes trained by three different skills (metalworking, woodworking, shelter_building) or none; water_filter_ceramic is designed in quest-chains.md 2.1. |
 | `glassmaking` Glassmaking | partial | metalworking | FEATURES: "Crafting"; `data/recipes.csv`; design: `slag.md` | smelt_glass, draw_glass_fiber and craft_fiberglass exist; slag.md designs slag into glass and wool. |
-| `chemistry` Chemistry: soap, medicines, fuels, compounds | partial | alchemy | FEATURES: "Chemistry Database"; `data/recipes.csv`; `data/chemistry`; design: `ingredients-and-labels.md` | 29 chemistry recipes, 14 on the chemistry set, trained by medicine, engineering, alchemy (3) or none. The skill is still called Alchemy. |
+| `chemistry` Chemistry: soap, medicines, fuels, compounds | partial | chemistry | FEATURES: "Chemistry Database"; `data/recipes.csv`; `data/chemistry`; design: `ingredients-and-labels.md` | 29 chemistry recipes, 14 on the chemistry set, trained by medicine, engineering, chemistry (3) or none. |
 | `recycling_salvage` Recycling and salvage | idea | none | none | No recipe takes a finished item apart. closed-loop-test.md and homestead-solo-design.md recycle water and air, not goods. |
 | `fabrication_printing` Fabrication and 3D printing | idea | engineering | `data/recipes.csv` | build_3d_printer makes a printer item; nothing prints with it. |
 | `electronics` Electronics | partial | engineering | FEATURES: "Crafting"; `data/recipes.csv` | 35 electronics_bench_0 recipes; menu crafting, no circuit is built or tested by hand. |
@@ -229,11 +233,11 @@ the table carries the first two paths.
 | `firefighting` Fire safety and firefighting | designed | none | `systems/fire.rs`; `data/fire_system.ron`; design: `fire-props-and-combustion.md` | FireSystem (spread and suppression) is a deferred scaffold; smoke alarms are designed in quest-chains.md 2.3 (warm_alarm). Fire visuals run locally, never networked. |
 | `fire_making` Making and tending a fire | partial | fire_making | FEATURES: "Abilities (v0.753)"; `systems/construction/fires.rs`; `systems/abilities.rs`; design: `quest-chains.md` | The Campfire ability builds a campfire that burns down, takes a log on E and warms the body; it needs no skill and gives no fire_making XP. Making a Fire is designed in quest-chains.md 2.3. |
 | `damage_control` Damage control and hull breaches | designed | engineering | `src/gui/pages/dev_music.rs`; design: `engine-architecture.md` | engine-architecture.md section 6 (Hull Breach Simulation) is the design; only the music's breach alarm exists (the Dev page's knob). |
-| `point_defense` Point defense against debris | designed, operator to decide | none | `data/machines/home.ron`; design: `game/turret-defense-minigame.md` | A marker defense_turret sits on the garage hull. Build, maintain, operate. |
+| `point_defense` Point defense against debris and attackers | designed | none | `data/machines/home.ron`; design: `game/turret-defense-minigame.md` | A marker defense_turret sits on the garage hull. Build, maintain, operate. |
 | `radiation_shielding` Radiation and shielding | designed | engineering | design: `slag.md` | slag.md designs slag and rock as shielding mass, with a player vote per ship on armour. |
 | `disaster_response` Disaster response | designed | none | `systems/disasters.rs`; `systems/weather_events.rs`; design: `weather-water-roadmap.md` | The extreme-weather event registry exists (weather-water-roadmap.md section 5) and DisasterSystem is a deferred scaffold; nothing asks the player to respond. |
 | `wildlife_safety` Living with wildlife | live | none | FEATURES: "Combat (v0.760 - v0.765)"; `systems/ai/mod.rs`; `systems/livestock.rs`; design: `gameplay-loop-map.md` | Predators hunt prey and the player and livestock flee them; the home is a safe zone and wolves are out of its wild spawns. |
-| `combat` Combat | live, operator to decide | melee | FEATURES: "Combat (v0.760 - v0.765)"; `systems/combat/mod.rs`; `data/equipment.csv`; design: `gameplay-loop-map.md` | Melee swing, offensive abilities, armour per damage type, loot; kills train melee or ranged. gameplay-loop-map.md calls combat a risk layer serving survival, not a genre. |
+| `combat` Combat | live | melee | FEATURES: "Combat (v0.760 - v0.765)"; `systems/combat/mod.rs`; `data/equipment.csv`; design: `gameplay-loop-map.md` | Melee swing, offensive abilities, armour per damage type, loot; kills train melee or ranged. No arena, sport bout or PvP mode exists yet; the base skill set proposal is docs/design/skills.md. |
 | `hunting_butchering` Hunting and butchering | partial | none | FEATURES: "Combat (v0.760 - v0.765)"; `systems/combat/mod.rs`; `data/creatures.csv` | IN (operator, 2026-11-14; his words in activities.md section 6). How graphic it looks follows CLAUDE.md's dual-modes rule. Today a player's killing blow rolls the creature's loot (a wolf: raw meat, fur, bone) into the pack; there is no butchering procedure. |
 | `rescue_revival` Rescue and revival | designed | medicine | `systems/death_pack.rs`; design: `respawn-and-revival.md` | Death and the left pack are live (death_pack.rs); reviving someone else is the design in respawn-and-revival.md. |
 
@@ -357,12 +361,14 @@ no home: pottery (the kiln's nine recipes train three different skills, or none)
 family (weather reading, astronomy, testing, geology rides mining), firefighting, staying warm,
 piloting and driving.
 
-**Two naming defects found on the way.** The alchemy skill trains real chemistry recipes (soap,
-medicines, fuel) under a fantasy name. And `data/abilities.csv` gates 94 fantasy-flavoured rows on
+**Two naming defects found on the way.** The alchemy skill trained real chemistry recipes (soap,
+medicines, fuel) under a fantasy name; renamed chemistry on 2026-11-14 (section 6). And `data/abilities.csv` gates 94 fantasy-flavoured rows on
 eleven school ids (pyromancy, cryomancy, arcana and the rest) that are not rows of skills.csv, so
 those gates name skills that cannot exist.
 
-**Recommendation (not a decision).** Keep the 20-row budget, and in this order:
+**Recommendation (not a decision; superseded 2026-11-14).** The operator retired the 20-row budget
+and asked for a proper base set first (section 6); that proposal is [skills.md](skills.md). The
+original recommendation, kept for the record: keep the 20-row budget, and in this order:
 
 1. Wire the five dead skills that have a live verb waiting (order item 2) before touching the table.
 2. Rename alchemy to chemistry, outright, id included (CLAUDE.md, the names rule); fantasy schools
@@ -437,7 +443,8 @@ his, exactly.
 The kiln question ("Shelter building takes over the kiln." "What?"): the kiln's 9 recipes (bricks,
 tiles, pots and the like) currently train three different skills, and this pass suggested giving
 them all to shelter building. Under "teach everything" the better answer is a ceramics (pottery
-and kiln work) skill of its own; the base skill set work decides it.
+and kiln work) skill of its own; the base skill set work decides it (proposed in
+[skills.md](skills.md) section 7).
 
 ## 7. Where the code lives
 
@@ -465,9 +472,11 @@ The catalog is data (CLAUDE.md, Infinite-of-X): a new activity is a new entry in
 entry whose evidence path, design doc or twin path does not exist; whose skill is not in skills.csv;
 whose status is not one of the four; a live entry with no source file or no FEATURES.md heading; a
 designed entry with no design doc; a levels_setting not in levels.json; an activity that does not
-support the direct mode; and a sensitive activity (combat, point_defense) whose
-operator_to_decide question has been removed (an activity leaves that list only with the
-operator's answer quoted in section 6, as hunting_butchering did). When an activity's status changes (a recipe becomes a
+support the direct mode; a sensitive activity (the lint's SENSITIVE list, empty since
+2026-11-14) whose operator_to_decide question has been removed; and a decided activity (DECIDED:
+hunting_butchering, combat, point_defense) that keeps an open question or lacks an
+`operator_decision` whose quote is his words as section 6 quotes them. An activity moves from
+SENSITIVE to DECIDED only with his answer quoted in section 6. When an activity's status changes (a recipe becomes a
 procedure, a scaffold is registered), change its entry in the same commit and regenerate the
 tables in section 3.
 

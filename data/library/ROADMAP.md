@@ -271,9 +271,60 @@ of your identity, and your identity is portable across all of them.
 - `[future]` Regular self-hosted livestreaming from the relay via the Studio (OBS-like)
   page, once the daily-release cadence settles down enough to make a stream worth
   watching (operator intent, 2026-06-30).
-- `[planned]` Calendar with RSVP: events, recurring schedules, group calendars,
-  reminders.
 - `[future]` Mobile clients for Android and iOS.
+
+## Everyday life suite
+
+What a person gets from one big provider (mail, files, documents, calls, a calendar, sign-in codes,
+forms, photos), built into the app you already use, private by default and with no sign-up. The gap
+analysis behind this list, service by service with the evidence and the open alternatives, is
+`docs/design/everyday-suite.md` (2026-11-14). The operator: "I guess we need to separate things
+between what we can do with the cheap hardware today and what would need millions in funding to
+actually work." So everything runnable on today's small servers and people's own computers comes
+first, and the last item is what needs real funding.
+
+- `[planned]` Organisation tools (the operator: "This definitely sounds high priority"): one place
+  where a group (a volunteer group, a club, a cooperative, a class, a small business) runs itself:
+  members and roles, a shared calendar with RSVP, sign-up forms, a booking page, shared folders and
+  shared tables, the task board, announcements, signed decisions, and printable flyers.
+- `[planned]` A calendar that follows you: kept in step across your own devices (sealed, like
+  Tasks of my own), shared calendars for groups, invitations with RSVP, reminders, recurring
+  events, and `.ics` files in and out so a school's or employer's calendar opens.
+- `[planned]` Files grown into everything a file explorer should be: version history in every
+  place, folders shared with people you choose (sealed), your own devices kept in step, and a
+  photo view (by date, albums) over the same files, never a second store.
+- `[planned]` Office documents, rung 1: open .docx, .xlsx, .pptx, OpenDocument and PDF on the
+  Files page, drawn by our own code so the same view shows on the website and on in-world screens.
+  On the sources read, Microsoft's and OASIS's terms ask no licence or royalty to implement these
+  formats; other companies' patents stay a question for a lawyer (dated finding
+  `docs/reference/findings/2026-11-14-office-file-formats.md`).
+- `[planned]` Office documents, rung 2: edit spreadsheets and documents on both apps, save as
+  .xlsx, .ods and .docx, and print or export through Typst.
+- `[planned]` Editing together: a shared document merges everyone's edits on their own devices
+  (a CRDT), each batch sealed under the document's key and signed by its author, carried by any
+  federated server without it reading them, and still working offline.
+- `[planned]` Forms and surveys, built beside the signed voting: many question kinds, answers
+  sealed to whoever asked, an anonymous option, sign-up sheets joined to the calendar, summaries.
+- `[planned]` Notes that sync between your devices and can be shared with a group, and a shared
+  whiteboard that reads and writes the open Excalidraw format.
+- `[planned]` Family safety on the Safety page: a family group under the protected setup, time
+  limits inside HumanityOS, and location shared only within the family, sealed between its own
+  devices.
+- `[future]` Sign-in codes and a password vault (the operator: "This sounds like a big difficult
+  task too"): codes to the published standards, passwords in the KeePass format so people can
+  always leave, secrets sealed under the vault that exists, a written threat model, and an
+  independent audit before it is offered to everyone.
+- `[future]` A bridge to standard email, later (the operator: "I'm fine letting email be third
+  party for a long time"). First an in-app mail client for the mailbox you already have, so no
+  server holds anyone's mail; then receive-only and forwarding addresses per server, sealed on
+  arrival; then your own domain. The rules and the law are in two dated findings of 2026-11-14.
+- `[future]` An optional AI helper that uses the models a person chose to download, never
+  required; then translation of messages and documents and captions on calls, on the person's
+  own computer, last in this list.
+- `[future]` Needs real funding, not today's servers: keeping everyone's mail and sending mail at
+  scale (people to handle abuse and delivery), server backup of everyone's files and photos
+  (storage), calling ordinary phone numbers (telephone networks), a web search index of our own,
+  and games or PCs run in a data centre (compute).
 
 ## Governance and economy
 

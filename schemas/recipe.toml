@@ -1,6 +1,6 @@
 # HumanityOS Recipe Schema
 # Defines the structure for all crafting recipes: smelting, refining, cooking,
-# construction, electronics, assembly, textile, chemistry, alchemy, and enchanting.
+# construction, electronics, assembly, textile, chemistry, and enchanting.
 #
 # Recipes are the core loop connecting raw materials to finished goods.
 # The existing recipes.csv (data/recipes.csv) uses a flat CSV format with
@@ -20,7 +20,7 @@
 #   Crafting stations -- station_required references a machine/structure item ID.
 #     Hand-craftable recipes leave this empty. Stations include: workbench,
 #     smelter, forge, loom, chemistry_bench, electronics_bench, kitchen,
-#     assembly_line, enchanting_table, alchemy_stand.
+#     assembly_line, enchanting_table.
 #   Skill progression (crates/humanity-systems/src/skills/) -- skill_required and
 #     skill_level gate recipe availability. xp_reward grants XP to that skill
 #     on successful craft. Higher skill reduces failure_chance.
@@ -57,7 +57,7 @@ example = "Smelt Iron"
 type = "string"
 required = true
 description = "Recipe category. Determines which crafting UI tab it appears in and which stations can process it."
-valid_values = ["smelting", "refining", "crafting", "cooking", "construction", "electronics", "assembly", "textile", "chemistry", "alchemy", "enchanting"]
+valid_values = ["smelting", "refining", "crafting", "cooking", "construction", "electronics", "assembly", "textile", "chemistry", "enchanting"]
 example = "smelting"
 
 [fields.inputs]
@@ -188,18 +188,18 @@ failure_chance = 0.0
 description = "Tear cotton cloth into strips and roll a basic bandage. Hand-craftable anywhere."
 
 [[examples]]
-id = "brew_healing_potion"
-name = "Brew Healing Potion"
-category = "alchemy"
-inputs = "glowcap_mushroom:2|purified_water:1|glass_vial:1"
-outputs = "healing_potion_0:1"
-byproducts = "alchemical_residue:1:0.2"
-craft_time_sec = 20.0
-station_required = "alchemy_stand"
-skill_required = "alchemy"
-skill_level = 3
-xp_reward = 30.0
+id = "craft_soap_bar"
+name = "Make Soap Bar"
+category = "chemistry"
+inputs = "animal_fat_0:3|lye_0:2|water_purified_0:1"
+outputs = "soap_bar_0:15"
+byproducts = ""
+craft_time_sec = 30.0
+station_required = "chemistry_set_0"
+skill_required = "chemistry"
+skill_level = 2
+xp_reward = 20.0
 power_required_watts = 0.0
-temperature_required_c = 80.0
-failure_chance = 0.15
-description = "Brew a potion that restores health over time. Requires an alchemy stand and moderate heat."
+temperature_required_c = 0.0
+failure_chance = 0.0
+description = "Saponify fat with lye into cleaning bars (the live row in data/recipes.csv)."

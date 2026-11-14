@@ -8,7 +8,7 @@ woodworking,Woodworking,crafting,25,120,Shape wood into tools and furniture and 
 metalworking,Metalworking,crafting,25,150,Smelt ore and forge metal tools and equipment
 cooking,Cooking,crafting,25,80,Prepare food for nutrition and buffs
 tailoring,Tailoring,crafting,20,100,Create and repair clothing and fabric items
-alchemy,Alchemy,crafting,20,200,Brew potions and process chemical compounds
+chemistry,Chemistry,crafting,20,200,Make soap and medicines and fuels and other compounds by real chemical reactions
 melee,Melee Combat,combat,30,100,Close-range fighting with weapons and fists
 ranged,Ranged Combat,combat,30,100,Accuracy and damage with bows and firearms
 defense,Defense,combat,25,120,Block and dodge and damage reduction

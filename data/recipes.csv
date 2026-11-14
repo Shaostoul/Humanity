@@ -461,7 +461,7 @@ craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,anti
 # themselves: the Library's guide gives no home recipe because "serious errors can occur" (CDC MMWR 2003).
 mix_ors,Mix Oral Rehydration Solution,chemistry,ors_sachet_0:1|water_purified_0:1,ors_solution_0:1,30,,,0,Dissolve one sachet of oral rehydration salts in one litre of clean drinking water
 craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,engineering,2,Pressurize a fire suppression unit
-craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,alchemy,1,Mix and pack emergency signal flares
+craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,chemistry,1,Mix and pack emergency signal flares
 # Composting (2026-09-26). NRAES-54 On-Farm Composting Handbook (Rynk et al., 1992): a pile composts
 # well at C:N 20-40 (ideal 25-30) and 40-65% moisture. Its Table A.1: sawdust C:N 442 at 39% water,
 # far too lean to rot alone; soybean and cottonseed meal C:N 4-7; olive husks C:N 30-35. The seed
@@ -628,7 +628,7 @@ craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anv
 # === BOOK / WRITING CRAFTING ===
 craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
 craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,woodworking,1,Glue graphite core into wooden sticks
-craft_ink,Brew Ink,chemistry,coal_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,alchemy,2,Combine carbon and binder into writing fluid
+craft_ink,Brew Ink,chemistry,coal_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,chemistry,2,Combine carbon and binder into writing fluid
 craft_notebook,Bind Notebook,crafting,fiber_bundle_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
 #
 # === LIGHTING CRAFTING ===
@@ -665,7 +665,7 @@ cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetab
 # tallow's saponification value near 0.143 g of sodium hydroxide per g of fat, so 1.5 kg of fat takes about
 # 215 g of lye; 200 g leaves a few percent of the fat unsaponified, the usual small excess that keeps a bar
 # mild. The water evaporates as the bars cure: about 1.5 kg of bars.
-craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:3|lye_0:2|water_purified_0:1,soap_bar_0:15,30,chemistry_set_0,alchemy,2,Saponify fat with lye into cleaning bars
+craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:3|lye_0:2|water_purified_0:1,soap_bar_0:15,30,chemistry_set_0,chemistry,2,Saponify fat with lye into cleaning bars
 craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,metalworking,2,Form threaded steel pipe segments
 craft_faucet,Forge Faucet,crafting,copper_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,metalworking,3,Assemble a threaded water tap
 craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,woodworking,3,Fire a porcelain waste fixture

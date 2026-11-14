@@ -325,8 +325,8 @@
     ),
 
     (
-        id: "dlg_merchant_alchemist",
-        npc_id: "alchemist",
+        id: "dlg_merchant_chemist",
+        npc_id: "chemist",
         trigger: "shop_enter",
         nodes: [
             (

@@ -441,7 +441,7 @@ The game has soap, lye, animal fat, and a recipe that joins them.
 
 - **Making soap.** Make Soap Bar, at a Chemistry Set, takes 3 Animal
   Fat, 2 Lye and 1 Purified Water and makes 15 Soap Bars, and needs
-  Alchemy level 2 (`data/recipes.csv`). The fat is 0.5 kg a piece and
+  Chemistry level 2 (`data/recipes.csv`). The fat is 0.5 kg a piece and
   the lye 100 g, so that is 1.5 kg of fat and 200 g of lye
   (`data/items.csv`). The recipe's own note in the data file explains
   its numbers the same way this guide does: tallow needs about 0.143 g
@@ -464,7 +464,7 @@ The game has soap, lye, animal fat, and a recipe that joins them.
 - **Using soap.** Washing out a container that held food or dairy takes
   a Soap Bar as well as water, and wears the bar by one use; a bar lasts
   30 uses before any adjustment for how well it was made, and a bar you
-  make by hand is graded by your Alchemy level like a tool
+  make by hand is graded by your Chemistry level like a tool
   (`data/containers/content_classes.ron`,
   `crates/humanity-systems/src/inventory/containers.rs`,
   `crates/humanity-systems/src/crafting/quality.rs`). Mix Insecticidal Soap, by hand,
@@ -480,7 +480,7 @@ The game has soap, lye, animal fat, and a recipe that joins them.
   Creative mode switch is on. In every mode the Crafting page asks for
   the fat, lye and water to be in your backpack or the home's storage
   (or the water in the home's tanks) and for a Chemistry Set to be where
-  you are, and the recipe needs Alchemy level 2. In Dev, while the
+  you are, and the recipe needs Chemistry level 2. In Dev, while the
   "Enable dev cheats" switch is on (Settings > Animations, on by
   default), the Crafting page also shows a "Dev: stock all materials"
   button that puts a stack of every recipe input in your backpack, lye
@@ -488,7 +488,7 @@ The game has soap, lye, animal fat, and a recipe that joins them.
   container wears the soap bar in every mode.
 - **Starting from the default home.** Settings > Gameplay > "Start every
   session from the default home" is off by default, so the soap and lye
-  you held and the Alchemy level you earned are kept between launches.
+  you held and the Chemistry level you earned are kept between launches.
   With the setting on, only your character's name, appearance and
   clothes carry between launches, and the rest starts the next session
   as it was in the default home.
