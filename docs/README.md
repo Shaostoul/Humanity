@@ -47,6 +47,10 @@ Building or planning something a player does in the game (cooking, mining, build
 the "minigames" that make up the one game)? Every activity with its true build status, the anatomy
 each one shares, the skill gaps and the suggested order are in
 **[design/activities.md](design/activities.md)** (the data: `data/gameplay/activities.json`).
+Bringing HumanityOS to another device (Android, iPhone, macOS, Linux stores, Windows' install
+warnings)? What the stack supports, the work in rungs, the free routes and what costs money are in
+**[design/platforms.md](design/platforms.md)**; the dated fees and rules behind it are in
+**[reference/findings/2026-11-14-app-distribution-costs.md](reference/findings/2026-11-14-app-distribution-costs.md)**.
 
 Sizing the mothership (homes, hangars, farms, livestock, the drum's steel, shielding, power)? The
 sourced, dated numbers are in

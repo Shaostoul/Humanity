@@ -710,3 +710,10 @@ what we will say about it.
   included) covers ECMA-376, ISO/IEC 29500 and the [MS-DOCX], [MS-XLSX] and [MS-PPTX] extensions;
   ODF's committee is royalty-free and Sun's 2005 covenant covers every ODF version; other
   companies' patents and the newest editions are a lawyer's reading. ISO's pages could not be read.
+- [`2026-11-14-app-distribution-costs.md`](2026-11-14-app-distribution-costs.md),
+  what each platform holder charges, requires and shows: Windows (SmartScreen and Smart App Control,
+  the free Microsoft Store route, SignPath Foundation's OSI-licence rule that CC0 fails, Artifact
+  Signing and commercial certificates, the 460-day limit); macOS (99 USD, notarization, Sequoia's
+  Privacy & Security step); iPhone and iPad (the free 7-day limit, the EU routes, the wallet rule,
+  GitHub's free macOS runners); Android (sideloading, developer verification from 2027, Play's fee
+  and 12-tester rule; F-Droid unreadable to Claude); Flathub's Generative AI policy; PWAs in stores.

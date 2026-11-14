@@ -2312,7 +2312,9 @@ agreement), so ad-blocking defaults do not apply there.
     Next: the PC's monthly drill and alerts (each server needs node and
     data/alert-channels.secrets.json), then an in-app restore-on-restart.
 13. **PARKED (operator, 2026-10-22, with streaming). Mobile clients.** Android needs a JNI bridge for the keyring plus an
-    AndroidKeyStore backend; iOS mostly needs a build target.
+    AndroidKeyStore backend; iOS mostly needs a build target. The full plan, per platform, in rungs, with the free
+    routes ("Let's aim for free.", operator 2026-11-14) and the costs: `docs/design/platforms.md`, and its dated
+    finding `docs/reference/findings/2026-11-14-app-distribution-costs.md`.
 
 ---
 
