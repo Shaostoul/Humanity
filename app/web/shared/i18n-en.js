@@ -325,7 +325,12 @@ window.HOS_I18N_EN = {
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
       "tone_volume_hint": "How loud the tone is.",
-      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}."
+      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}.",
+      "new_piece": "A new piece",
+      "new_piece_hint": "Each piece of music is made from a seed: its key, its chords, its riffs, the order its parts play in and its lead instrument. This is how often a new piece begins. It begins at the end of a musical phrase and fades in over the old one. Never keeps the same piece playing.",
+      "new_piece_every": "Every {{minutes}} minutes",
+      "new_piece_never": "Never",
+      "new_piece_what": "What this changes: how long one piece plays before the next. Nothing else changes, and it costs nothing extra."
     },
     "notifications_volume": "Notifications Volume",
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
@@ -346,7 +351,9 @@ window.HOS_I18N_EN = {
     "fp_body_note": "Your head is left out of your own view, so you never see the inside of it. Other players always see your whole body either way.",
     "reduce_motion": "Reduce motion",
     "reduce_motion_hint": "Keeps your first-person view steady at your standing eye height instead of moving with your body's head as you walk, sit or climb. Helps if moving views make you feel unwell.",
-    "reduce_motion_note": "With it off, your view rides your body's head, smoothed so a step does not shake it. With it on, sitting and lying still lower your view, gently."
+    "reduce_motion_note": "With it off, your view rides your body's head, smoothed so a step does not shake it. With it on, sitting and lying still lower your view, gently.",
+    "media_ffmpeg_found": "Found {{path}}. Videos the app cannot play itself play through it as they go.",
+    "media_ffmpeg_hint": "In-world video screens and the app's player play AV1 video with Opus sound themselves, and on Windows an ordinary MP4 through the computer's own decoders. A file in any other format (MKV, MOV, AVI, a video disc ...) plays through ffmpeg, which decodes it as it plays: nothing is converted ahead or saved, and the original is left untouched. Leave this empty to find ffmpeg on the PATH and in the usual install folders; set it when a screen reports ffmpeg was not found. A file path or the folder holding ffmpeg both work."
   },
   "laws": {
     "title": "Laws and rights",
@@ -2464,7 +2471,12 @@ window.HOS_I18N_EN = {
       "seed": "Seed",
       "build": "Build:",
       "pieces": "pieces",
-      "duck": "duck"
+      "duck": "duck",
+      "piece": "Piece",
+      "piece_seed": "Seed",
+      "piece_section": "Section",
+      "piece_chorus": "Time through the form",
+      "piece_next": "Next piece in"
     },
     "characters": "Characters",
     "show_skeletons": "Show skeletons",
@@ -2538,7 +2550,16 @@ window.HOS_I18N_EN = {
       "talk_counts": "{{asked}} asked, {{answered}} answered by AI, {{filtered}} stopped by the filter, {{shape}} refused for their shape, {{fell_back}} fell back, {{timed_out}} timed out"
     },
     "feet_on_world": "Feet on the world",
-    "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too."
+    "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too.",
+    "image": "Image",
+    "taa_view_hint": "Shows what temporal anti-aliasing sees instead of the picture.",
+    "taa_view": {
+      "picture": "Picture",
+      "motion": "Motion",
+      "history": "History weight",
+      "responsive": "Responsive mask"
+    },
+    "taa_view_note": "Motion: red is movement right, green down, blue where something moves left or up; dark blue is sky. History weight: white is carried from earlier frames, black is this frame only. Responsive mask: where see-through surfaces lower the history. Needs Anti-aliasing on Temporal."
   },
   "dev_journal": {
     "title": "Play journal",
@@ -3799,13 +3820,13 @@ window.HOS_I18N_EN = {
     "this_file": "This file {{why}}.",
     "no_picture": "This file has sound but no picture.",
     "damaged": "The file is damaged or cut short partway through.",
-    "needs_ffmpeg": "{{name}} {{why}}. The app can convert it to play here with ffmpeg, which was not found: {{hint}}.",
-    "cannot_convert": "{{name}} {{why}}. The app could not use ffmpeg to convert it: {{error}} ({{hint}}).",
+    "needs_ffmpeg": "{{name}} {{why}}. The app can play it through ffmpeg, which was not found: {{hint}}.",
     "elsewhere": "Or download it and watch it in another player, such as VLC, which plays almost every kind.",
-    "converting": "Converting it to play here: {{pct}}%",
-    "convert_failed": "{{name}} could not be converted: {{error}}.",
     "stopped": "The video stopped: {{error}}",
-    "volume_hint": "How loud this video plays, on top of the app's own volume. A new video starts at the volume chosen in Settings > Audio."
+    "volume_hint": "How loud this video plays, on top of the app's own volume. A new video starts at the volume chosen in Settings > Audio.",
+    "ffmpeg_failed": "{{name}} {{why}}. The app could not play it through ffmpeg: {{error}} ({{hint}}).",
+    "ffmpeg_opening": "{{name}} {{why}}.\nStarting it with your ffmpeg, which plays it as it goes. Nothing is converted or saved.",
+    "ffmpeg_starting": "starting"
   },
   "files": {
     "places": {
@@ -4083,7 +4104,9 @@ window.HOS_I18N_EN = {
       "trumpet": "trumpet",
       "trombone": "trombone",
       "clarinet": "clarinet",
-      "double_bass_pizzicato": "plucked double bass"
+      "double_bass_pizzicato": "plucked double bass",
+      "acoustic_guitar": "steel-string acoustic guitar",
+      "tenor_saxophone": "tenor saxophone"
     },
     "instrument": {
       "upright_piano_small": "Upright piano (small)",
@@ -4133,7 +4156,10 @@ window.HOS_I18N_EN = {
       "trombone_small": "Old trombone, short notes (small)",
       "clarinet_small": "Clarinet (small)",
       "double_bass_pizzicato_small": "Plucked double bass (small)",
-      "guitar_gretsch_small": "Hollowbody electric guitar (Gretsch, small)"
+      "guitar_gretsch_small": "Hollowbody electric guitar (Gretsch, small)",
+      "guitar_martin_small": "Steel-string acoustic guitar (Martin HD-28, small)",
+      "solo_violin_small": "Solo violin (small)",
+      "tenor_saxophone_small": "Tenor saxophone (small)"
     }
   },
   "chat_video_dock": {
@@ -4215,7 +4241,7 @@ window.HOS_I18N_EN = {
       "lofi": "Lo-fi",
       "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle.",
       "electro_swing": "Electro swing",
-      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, gypsy-jazz guitar, brass stabs and a clarinet calling with the brass answering."
+      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, a steel-string guitar strumming, brass stabs, and a lead (clarinet, violin, saxophone, vibraphone or piano) calling with another voice answering. Each piece has its own key, chords and riffs."
     },
     "mood": {
       "mothership_calm": "Mothership calm",
@@ -4650,7 +4676,8 @@ window.HOS_I18N_EN = {
         "sexual": "it said something sexual",
         "politics": "it talked about real-world politics",
         "too_long": "the answer was too long",
-        "marker": "the answer had pieces of its own instructions in it"
+        "marker": "the answer had pieces of its own instructions in it",
+        "place": "it named a place the ship does not have"
       },
       "shape": {
         "not_the_shape": "the answer was not in the shape the game asks for",
@@ -4787,7 +4814,9 @@ window.HOS_I18N_EN = {
       "shadow_local": "the room lights' shadow pass",
       "shadow_local_cpu": "choosing the room lights and drawing their shadows",
       "shadow_near_cpu": "choosing what casts in the sun near you",
-      "shadow_atlas": "the shadow atlas"
+      "shadow_atlas": "the shadow atlas",
+      "taa": "the anti-aliasing blend and sharpen",
+      "taa_history": "the anti-aliasing history"
     },
     "window_mode": "Window mode",
     "window_mode_hint": "How the game's window sits on your screen. Windowed fullscreen fills the screen and keeps the title bar and taskbar; borderless drops the title bar; exclusive gives the whole screen to the game (true fullscreen). A change applies at once.",
@@ -4972,7 +5001,25 @@ window.HOS_I18N_EN = {
     "local_shadows_now": "Now: {{shadowed}} of {{lights}} room lights cast shadows ({{over}} more in view without them), in {{views}} shadow views.",
     "local_shadows_level_hint": "Choose this level of room light shadows. The line beside it says how many lights cast shadows at it, how sharp they are and how much video memory it takes.",
     "local_shadows_code_out": "Off costs nothing in the scene pass: the shading has been rebuilt without the shadow lookups.",
-    "local_shadows_code_building": "Rebuilding the shading for this choice in the background, a second or two. Until it is done the shading still carries the shadow lookups, which slow the scene pass a little even with shadows Off."
+    "local_shadows_code_building": "Rebuilding the shading for this choice in the background, a second or two. Until it is done the shading still carries the shadow lookups, which slow the scene pass a little even with shadows Off.",
+    "section_image": "Image",
+    "anti_aliasing": "Anti-aliasing",
+    "anti_aliasing_hint": "Smooths the stair-steps on edges ([[anti-aliasing|anti_aliasing]]). Temporal also steadies thin things that shimmer (hair, grass, leaves, far railings) by blending each frame with the last few, which softens the picture slightly; Off blends nothing, so edges stair-step and thin things shimmer as they move.",
+    "anti_aliasing_choice_hint": "Choose how the picture's edges are smoothed.",
+    "anti_aliasing_choice": {
+      "off": "Off",
+      "temporal": "Temporal"
+    },
+    "anti_aliasing_says": {
+      "off": "Stair-stepped edges; thin things shimmer as they move.",
+      "temporal": "Smooth edges; hair, grass and leaves hold still. A little softer (Sharpening below)."
+    },
+    "anti_aliasing_card": "Its history takes {{used}} at {{size}}: {{share}}% of {{card}}'s {{own}}.",
+    "anti_aliasing_card_warn": "That is more than an eighth of this card's memory ({{used}} of {{own}}); Off gives it back.",
+    "anti_aliasing_memory": "Its history takes {{used}} at {{size}}.",
+    "anti_aliasing_vendor": "DLSS, XeSS and FSR 4 are not offered: each is a program that may not be modified (DLSS runs only on NVIDIA cards), and HumanityOS uses only open source for its core. That is this project's own rule, not a law, a patent or a platform holder's rule.",
+    "sharpening": "Sharpening",
+    "sharpening_hint": "Restores the crispness the blending softens; too much draws bright edges. 0 turns it off."
   },
   "gameplay": {
     "level": {
@@ -5178,7 +5225,11 @@ window.HOS_I18N_EN = {
       "spur_gear": "a spur-gear chain hoist",
       "screw_gear": "a screw-gear chain hoist",
       "differential": "a differential chain hoist"
-    }
+    },
+    "world": "World",
+    "world_hint": "Where the lift happens. The load weighs its mass times this world's gravity, so the same load on the Moon needs about a sixth of the pull it needs on Earth. The ship's rim is where its spin makes the floor's gravity.",
+    "world_choice": "{{world}} ({{pct}}% of Earth's gravity)",
+    "world_ship_rim": "The ship's habitat rim (its spin)"
   },
   "talk": {
     "doing": "Now: {{activity}}",

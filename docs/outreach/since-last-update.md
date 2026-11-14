@@ -11,6 +11,17 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1559.0 (13 November 2026)
+
+- Smoother edges: temporal anti-aliasing is on by default (Settings > Graphics > Image), hair, chairs and the horizon lose their jagged steps.
+- Endless music: a new piece every few minutes, each with its own key, song shape, chords, melodies and lead; switching genre is heard in seconds; a steel-string guitar, violin and tenor sax.
+- You stop at furniture, and talking characters use the ship's real place names.
+- The mushroom racks wear fitted frosted plastic covers with a zip front that rolls up while you tend them.
+- Videos the player cannot decode play at once through your ffmpeg, with nothing written to disk.
+- Pulleys on any world: choose the planet or the ship's rim.
+- Fixed: the sea's backstop in the wave troughs, two tree sliders that did nothing until you walked, stock piles left behind a moved zone.
+- Plans: a better radiation shield (water in valved compartments, magnets not worth it at drum scale), every use for slag and the armour vote per ship, every free instrument library worth adding.
+
 ### v0.1558.0 (13 November 2026)
 
 - Talking characters: walk up to a crew member and press E to talk about the ship, their work, the cause or the way, take on work, trade, or have them mark the way; all of it works with written lines, and with an AI model installed a "Say anything" box lets you ask in your own words, every AI line tagged.
