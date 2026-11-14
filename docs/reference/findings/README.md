@@ -691,3 +691,22 @@ what we will say about it.
   minimums and the double-width rule (one double 2.75 m wide, the rest 2.55 m); a licensed shared
   house's sleeping rooms (6.51 and 10.22 m2, SI 2018/616); five or more sharers' bathroom, separate
   WC and basins (SI 2006/373, Schedule 3).
+- [`2026-11-14-email-sending-rules-and-host-terms.md`](2026-11-14-email-sending-rules-and-host-terms.md),
+  what Gmail, Yahoo and Outlook.com require of anyone sending to their people (SPF or DKIM, reverse
+  DNS, complaints under 0.3%; DMARC and one-click unsubscribe above about 5,000 a day, Gmail
+  counting one domain's mail together, permanently), that receiving alone is not governed by them,
+  Spamhaus's PBL and SBL, and DreamHost's anti-spam terms (26 August 2026). Namecheap refused
+  automated reading of every page, so its terms and any port 25 rule are unknown.
+- [`2026-11-14-running-a-mail-service-law.md`](2026-11-14-running-a-mail-service-law.md),
+  what US federal law, Washington law and the GDPR say about receiving and sending email for
+  others: CAN-SPAM's "routine conveyance" exclusion, the Stored Communications Act's disclosure
+  limits and warrant rule, the Wiretap Act's provider exception, the CSAM reporting duty on actual
+  knowledge (18 U.S.C. 2258A), Section 230, Washington's breach notice (private signing keys and an
+  email address with its password count as personal information) and GDPR Articles 3 and 32. Not
+  legal advice; app.leg.wa.gov and EUR-Lex barred automated reading.
+- [`2026-11-14-office-file-formats.md`](2026-11-14-office-file-formats.md),
+  whether HumanityOS may read and write .docx, .xlsx, .pptx and OpenDocument files: Microsoft's
+  Open Specification Promise (irrevocable, no signature, open-source and partial implementations
+  included) covers ECMA-376, ISO/IEC 29500 and the [MS-DOCX], [MS-XLSX] and [MS-PPTX] extensions;
+  ODF's committee is royalty-free and Sun's 2005 covenant covers every ODF version; other
+  companies' patents and the newest editions are a lawyer's reading. ISO's pages could not be read.

@@ -63,6 +63,13 @@ and size, and what dubstep, house, drum and bass, synthwave and ambient need fro
 synthesis)? The scan and its recommendation are in
 **[reference/research/2026-11-13-instrument-libraries/README.md](reference/research/2026-11-13-instrument-libraries/README.md)**.
 
+Building an everyday tool a big provider offers (mail, files, office documents, calls, a calendar,
+sign-in codes, forms, photos, family safety, tools for running a group)? What HumanityOS has and
+lacks, service by service, the open alternatives with their licences, the route for each, which can
+be done on today's small servers and which need real funding, the operator's answers and the order
+are in **[design/everyday-suite.md](design/everyday-suite.md)**; the sourced research is in
+**[reference/research/2026-11-14-microsoft-services/README.md](reference/research/2026-11-14-microsoft-services/README.md)**.
+
 ---
 
 ## The big picture (anyone)
