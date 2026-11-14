@@ -1820,6 +1820,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.taa_reset();
         log::info!("Showcase: taa_reset");
     }
+    // Hashed alpha (rung 1b, 2026-11-13, renderer/hashed_alpha.rs): {"taa_hashed":"0"} keeps the hair's
+    // two passes, the far cards' hard cut and the Bayer crossfade under Temporal, the red twin (the
+    // picture rung 1a drew); "1" or "auto" puts hashed alpha back.
+    if let Some(t) = grab("taa_hashed") {
+        state.renderer.taa.hashed = t != "0";
+        log::info!("Showcase: taa_hashed -> {}", state.renderer.taa.hashed);
+    }
     if let Some(t) = grab("near_levels") {
         state.renderer.local_shadows.near_pin = match t.as_str() {
             "auto" | "1" => None,

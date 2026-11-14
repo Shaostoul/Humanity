@@ -48,6 +48,12 @@ use glam::{DMat4, DQuat, DVec3, Vec2, Vec4};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
+/// Hashed alpha under Temporal: the hair's one pass, the far tree cards and the dithered
+/// level-of-detail crossfades (rung 1b, 2026-11-13). A child of this module (its file sits beside
+/// this one) so `renderer/mod.rs` stays inside its line budget (tests/file_size_ratchet.rs).
+#[path = "hashed_alpha.rs"]
+pub mod hashed_alpha;
+
 /// The motion target's format: xy = UV offset from last frame, z = the responsive mask, w = the
 /// sky sentinel (0 where nothing was drawn). Rgba16Float rather than the plan's Rg16Float: the
 /// mask and the sentinel ride the same target instead of a third attachment (8 bytes a pixel; 30
@@ -209,6 +215,11 @@ pub(super) struct FrameNow {
     /// time); `has_clock` false until there is one.
     pub prev_clock: f32,
     pub has_clock: bool,
+    /// Hashed alpha replaces the hard cutouts and the hair's fringe pass (renderer/hashed_alpha.rs;
+    /// `Renderer::taa_hashed`, frozen for the frame so the shader's flag and the fringe skip agree).
+    pub hashed: bool,
+    /// The jitter phase, 0 to JITTER_PHASES - 1 (the hashed-alpha threshold's stratum).
+    pub phase: u32,
 }
 
 /// Last frame's camera, for the next frame's previous matrices.
@@ -228,6 +239,9 @@ pub struct Taa {
     pub pin: Option<String>,
     /// Settings > Graphics > Sharpening, 0..1.
     pub sharpen: f32,
+    /// Hashed alpha under Temporal (rung 1b, renderer/hashed_alpha.rs); the showcase `taa_hashed`
+    /// "0" turns it off, the red twin (Temporal with the hair's two passes and the hard cuts).
+    pub hashed: bool,
     frame: u32,
     history: Option<[(wgpu::Texture, wgpu::TextureView); 2]>,
     cur: Cell<usize>,
@@ -262,6 +276,7 @@ impl Default for Taa {
             mode: DEFAULT_MODE.to_string(),
             pin: None,
             sharpen: DEFAULT_SHARPENING,
+            hashed: true,
             frame: 0,
             history: None,
             cur: Cell::new(0),
@@ -450,6 +465,8 @@ impl Renderer {
             reset: !kept,
             prev_clock: prev_clock.unwrap_or(0.0),
             has_clock: prev_clock.is_some() && kept,
+            hashed: on && self.taa.hashed && reuse,
+            phase: self.taa.frame % JITTER_PHASES,
         });
         self.taa.motion_cleared.set(false);
         self.taa.last = Some(LastFrame { scene: cur_scene, cel: cur_cel, eye, size });
@@ -471,11 +488,15 @@ impl Renderer {
         let f = self.taa.now.get();
         u.prev_view_proj = u.view_proj;
         u.taa = [0.0, 0.0, 0.0, u.sun_color[3]];
+        u.taa_hash = [0.0; 4];
         if !f.live || self.offscreen_view_active() {
             return;
         }
         u.prev_view_proj = if celestial { f.prev_cel } else { f.prev_scene }.to_cols_array_2d();
         u.taa = [f.jitter_ndc[0], f.jitter_ndc[1], 1.0, u.sun_color[3]];
+        // Hashed alpha (rung 1b): the phase picks the threshold's stratum; the flag is the same one
+        // `hashed_skips` reads, so the hair's core draws the fringe exactly when its pass is left out.
+        u.taa_hash = [f.phase as f32, if f.hashed { 1.0 } else { 0.0 }, 0.0, 0.0];
     }
 
     /// The celestial pass's colour uniform (`render_celestial_onto`): the celestial camera with this

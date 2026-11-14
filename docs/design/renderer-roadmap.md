@@ -661,6 +661,80 @@ in 1b. 1c: "Edges only" (SMAA 1x) is not in the modes list yet (`taa::MODES` is 
 there is no Simplified mode for anti-aliasing until 1c. Also left: the motion target is written at Off
 too (the PSOs have it whatever the mode; its cost at Off is the row above), the far tier's motion (no
 far tier yet), and the camera screens stay without anti-aliasing by design (section 3.2).
+
+### Rung 1b as built (2026-11-13)
+
+`src/renderer/hashed_alpha.rs` (the CPU twin, its tests, the fringe skip); in the shaders
+`00-bindings-vertex.wgsl` (`taa_hashed`, `taa_hash_threshold`), `80-fragment-shared.wgsl` (the
+crossfade) and `90-fragment-main.wgsl` (the hair, the far cards); engine rules in
+[docs/ai/renderer.md](../ai/renderer.md) (Hashed alpha). Against section 3.3:
+
+- **The threshold.** Wyman and McGuire's hashed alpha test, with a screen-space hash in place of
+  their object-space one: Jimenez's interleaved gradient noise (2014), spread evenly over every 3 x 3
+  neighbourhood (the resolve's clip box, so a half-covered patch keeps its history), moved by
+  (phase x 5 mod 8) / 8 with the jitter phase, so over the eight phases a still pixel takes one value
+  in each eighth of [0, 1) and repeats every eight frames. `camera.taa_hash` (x the phase, y on) is a
+  new row at the camera uniform's tail, stamped beside `taa`.
+- **Card hair in one pass.** At or over the cut (0.8) a card fragment is solid as before; under it,
+  kept where its alpha beats the threshold (never under 0.03, the fringe pass's own floor), so the
+  expected coverage is exactly what the two passes blended. The fringe pass is left out of the main
+  view (`Renderer::hashed_skips`, read from the same frozen flag the camera stamps, so the two never
+  disagree). The fringe now writes depth and motion, needs no sorting, and **the player's own fringe
+  shows on a planet** (vantage `taa-hair-planet-third` and its red twin `-two-pass`, scored by
+  `scripts/hair-fringe-metrics.mjs`).
+- **The far tree cards** (type 12): the sprite's alpha times the far band's coverage is tested
+  against the threshold instead of a hard cut at 0.5, the band being the stage's last tenth before
+  "Tree silhouette distance" (`CARD_FAR_BAND`), so the stage dissolves out instead of ending at a ring.
+- **The level-of-detail crossfade** (terrain patches, the near trees fading in): the threshold in
+  place of the 4 x 4 Bayer table; the rising and the falling level share it, so they cover each pixel
+  exactly once and the resolve turns the dissolve into a blend.
+- **Where it stays off**: anti-aliasing Off; the showcase `taa_hashed` "0" (the red twin: Temporal
+  with rung 1a's picture); the reuse switch off (no history to average the pattern); the off-screen
+  views (the camera screens and the hi-res capture draw the fringe pass as before); and the shadow
+  passes: the Bayer table and the hard cuts stay in the `else` branches, which `fs_shadow` mirrors and
+  `shadow_cutout_tests` reads.
+
+**Measured** (same boot, 2026-11-13, `probe-hot-ab.js` with showcase-only arms alternating Temporal
+hashed, Temporal two-pass (`taa_hashed` 0) and Off three times at one park per vantage, medians of
+three, the RTX 4070 at 2560 x 1387, GPU timestamps; other agents compiled throughout, so CPU stages
+are not quoted):
+
+| Vantage | `gpu.scene` hashed / two-pass | `gpu.transparent` hashed / two-pass | `gpu.celestial` hashed / two-pass |
+|---|---|---|---|
+| anim-look-face-female (hair close up) | 9.409 / 9.399 | 0.670 / 0.751 | 0.063 / 0.063 |
+| anim-crowd-near (fifty people) | 8.801 / 8.845 | 0.701 / 0.751 | 0.063 / 0.063 |
+| taa-hair-planet-third (the player's hair on a planet) | 0.637 / 0.635 | 0.009 / 0.009 | 5.283 / 5.268 |
+| fuji-forest-ground | 0.469 / 0.469 | (none) | 12.536 / 12.588 |
+| fuji-forest-hillside | 0.467 / 0.467 | (none) | 7.497 / 7.513 |
+| horizon-line-3km | 0.471 / 0.471 | (none) | 9.219 / 9.270 |
+
+In the ship's rooms the hair now costs less: the fringe pass's 0.05 to 0.08 ms leaves the
+transparent pass and the opaque pass absorbs the fringe within its spread. On a planet the player's
+fringe, drawn now, adds about 0.015 ms to the world surface pass at a 35-degree close-up of the head.
+The terrain and the forest read the same within the spread (the crossfade's threshold costs no more
+than the Bayer table). One earlier run at a 20-degree lens over bare sand read about 0.1 ms more
+in the world surface pass under hashed in all three repeats (5.13 against 5.01 ms) with no hair or
+tree in the frame; the 35-degree run of the same park did not repeat it, so it is recorded here as
+unexplained, not as a cost.
+
+**Judged.** Stills: at the face close-up the hashed hair reads the same density and softness as the
+two passes, and the lashes a little stronger (the blended pass drew them faintly). On the planet the
+bob gains its soft outline: the head's covered area against the two-pass twin was +208, +362 and
++211 px of about 13,400 in the three repeats, where the control (Off against two-pass, the same hair
+passes) read -216, +585 and -234. Motion: consecutive captures of the idling faces differed by mean
+5.2 and 2.9 codes under hashed, 6.1 and 3.0 under two-pass and 22.7 and 5.7 at Off, so hashed alpha
+adds no shimmer of its own; the crowd's walkers show no stipple on their hair.
+
+**What 1b leaves.** The far tree cards could not be judged on screen: no sprite card drew at the
+forest vantages in any arm, Off included, at the rig's settings (the near models stood to about
+93 m and the slope beyond was bare), so that branch is proven by the twin and the shader validation
+only. The hair's sun and room-light shadows still cast the core alone (the shadow passes have no
+history; section 3.3's "casts with its true coverage" needs a pattern that PCF, not a history,
+averages). Stacked hair cards share one threshold per pixel, so two overlapping half-transparent
+layers cover like one; Wyman and McGuire's object-space hash would decorrelate them, at the price of
+white rather than evenly spread noise. The near trees' leaves (types 19 and 21) keep their hard cuts,
+and the card-to-model hand-off at the hide radius stays a hard per-pixel line (a true crossfade there
+needs the models to fade out over the same distance band). And 1c, "Edges only".
 2. **Upscaling**: render scale as data, TAAU in the same resolve, the texture bias; then port one
    FSR 3.1 pass and compare it with our TAAU on the hair, foliage and crowd vantages against a 4x
    supersampled capture, and port the rest only if it wins.

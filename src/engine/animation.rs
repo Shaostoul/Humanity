@@ -2833,7 +2833,10 @@ pub(crate) fn draw_people(
                 list.push(RenderObject { fade: 0.0, position: origin, rotation, scale: Vec3::splat(scale), mesh, material });
             }
             // The hair's soft fringe, blended over the solid core in the transparent list (home
-            // frame only: the player's own body on a planet keeps the core alone, a known limit).
+            // frame only: render space has no transparent list). Under Temporal anti-aliasing the
+            // core draws the fringe itself by hashed alpha in the opaque pass, on a planet too, and
+            // the renderer leaves these draws out of the main view (renderer/hashed_alpha.rs); they
+            // stay for anti-aliasing Off and for the off-screen views.
             if !in_render_space {
                 for &(k, material) in &fringes {
                     if let Some(&mesh) = meshes.get(k) {

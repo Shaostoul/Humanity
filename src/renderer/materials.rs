@@ -77,6 +77,7 @@ pub const MATERIAL_TYPE_CHARACTER: f32 = 25.0;
 /// y 1 when the right half is a real normal map, z the alpha cut (positive: the opaque core pass;
 /// negative: the blended fringe pass, which draws only the alpha under it), w the colour half's
 /// mean luminance (the hair colour is laid over the strands' light and dark by it).
+/// Under Temporal anti-aliasing the core pass draws the fringe by hashed alpha (renderer/hashed_alpha.rs).
 pub const MATERIAL_TYPE_HAIR: f32 = 26.0;
 
 /// The alpha the opaque hair pass keeps at or over (Scheuermann's core; the fringe pass blends the

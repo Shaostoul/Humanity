@@ -133,6 +133,18 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   is timed as `gpu.taa` (compute resolve plus the sharpen pass, summed). With
   `humanity_core::reuse::enabled()` false the history and the motion book are discarded every frame.
   A rig window capture waits `taa::SETTLE_FRAMES` resolved frames after a reset (`poll_screenshot_request`).
+- **Hashed alpha (rung 1b, 2026-11-13, `renderer/hashed_alpha.rs`)**: `camera.taa_hash` (x the jitter
+  phase, y = 1 while on) is stamped beside `taa` by `taa_camera`, so it is on only in the main view's
+  colour passes under Temporal (off at Off, with the showcase `taa_hashed` "0", the red twin, and
+  with the reuse switch off, since nothing would then average the pattern). A cutout that wants a
+  soft edge compares its alpha with `taa_hash_threshold(in.clip_position.xy)` inside
+  `if (taa_hashed())` and keeps its hard cut in the `else` branch: that branch is what `fs_shadow`
+  mirrors and what `shadow_cutout_tests` reads, and the shadow passes keep the hard cut (a shadow
+  texel is filtered by PCF, not by a history). Users today: the hair's core (which then draws the
+  fringe, so `hashed_skips` leaves the fringe pass out of the main view, from the same frozen
+  `FrameNow::hashed`, so the two never disagree), the far tree cards (type 12, with the stage's far
+  end dissolving over its last tenth) and the level-of-detail crossfade in `frag_prologue`. The
+  threshold's CPU twin is pinned by `the_shader_hash_is_the_twin`.
 
 ## f32 at planet scale
 

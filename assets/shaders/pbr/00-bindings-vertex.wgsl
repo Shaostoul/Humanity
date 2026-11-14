@@ -75,6 +75,10 @@ struct CameraUniforms {
     // the off-screen views and after the resolve), w = the animation clock LAST frame (the wind
     // and the waves at the previous time).
     taa: vec4<f32>,
+    // HASHED ALPHA (renderer roadmap rung 1b, renderer/hashed_alpha.rs): x = the jitter phase (0 to
+    // 7), y = 1 while hashed alpha replaces the hard cutouts and the hair's blended fringe (the
+    // main view's colour passes under Temporal; 0 in the shadow passes and the off-screen views).
+    taa_hash: vec4<f32>,
 };
 
 struct ObjectUniforms {
@@ -825,6 +829,29 @@ struct VertexOutput {
 // same fraction of a pixel at every depth.
 fn taa_jitter(c: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(c.xy + camera.taa.xy * c.w, c.z, c.w);
+}
+
+// HASHED ALPHA (renderer roadmap rung 1b, 2026-11-13; renderer/hashed_alpha.rs is the CPU twin and
+// names the papers): under temporal anti-aliasing a partly transparent cutout keeps or drops each
+// pixel by comparing its alpha with `taa_hash_threshold`, and the resolve averages that into the
+// soft edge. On in the main view's colour passes under Temporal (camera.taa_hash.y, stamped by
+// `Renderer::taa_camera`); off (anti-aliasing Off, the showcase `taa_hashed` "0", the reuse switch
+// off, the shadow passes, the off-screen views) every caller keeps its hard cut.
+fn taa_hashed() -> bool {
+    return camera.taa_hash.y > 0.5;
+}
+
+// The threshold for this pixel and frame, in [0, 1): Jimenez's interleaved gradient noise (2014)
+// spreads it evenly over the pixel's neighbours (the resolve's clip box), and the jitter phase
+// (camera.taa_hash.x, 0 to 7) moves it on by (phase * 5 mod 8) / 8, so over the eight phases one
+// still pixel takes one value in each eighth of [0, 1) and its averaged coverage is the authored
+// alpha. `frag_xy` is the fragment's @builtin(position).xy. Pinned to the twin by
+// hashed_alpha.rs `the_shader_hash_is_the_twin`.
+fn taa_hash_threshold(frag_xy: vec2<f32>) -> f32 {
+    let p = floor(frag_xy);
+    let ign = fract(52.9829189 * fract(dot(p, vec2<f32>(0.06711056, 0.00583715))));
+    let k = u32(camera.taa_hash.x + 0.5);
+    return fract(ign + f32((k * 5u) % 8u) * 0.125);
 }
 
 // The motion a fragment writes, in UV: where it is now minus where it was (x right, y down), from

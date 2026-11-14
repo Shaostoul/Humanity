@@ -1661,7 +1661,9 @@ as quick starting points.
 
 **Known limits, for the rungs after**: middle bodies wear tinted regions, not garments, so a person
 changes look at 15 m; the player's own hair fringe is not blended on a planet (their body stands in
-render space there, which has no transparent list; the solid core is drawn); hair has no
+render space there, which has no transparent list; the solid core is drawn), fixed under Temporal
+anti-aliasing by the renderer roadmap's rung 1b (2026-11-13: the core pass draws the fringe by
+hashed alpha, `renderer/hashed_alpha.rs`; at anti-aliasing Off the limit stands); hair has no
 strand-depth occlusion or deep shadow map (the fidelity expert's next rungs: Yuksel and Keyser 2008,
 then strands); the generated eyes stay (MakeHuman's eye meshes, teeth and tongue are converted
 nowhere yet); a single-ended detail slider such as a head shape adds its whole shape at full, so

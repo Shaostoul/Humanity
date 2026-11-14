@@ -16600,6 +16600,81 @@
       "perf_floor_fps": 20
     },
     {
+      "id": "taa-hair-planet-third",
+      "desc": "On open Sahara sand at 16:30, the player's own body (the female body with MakeHuman's bob02 hair) in third person seen from behind through a 35 degree lens (the head at the bottom of the frame): the hair's fringe on a planet, under Temporal anti-aliasing.",
+      "expect": "The back of the head and the bob's outline soft: strands at the edge thinning into the sand behind, as the hair looks in the ship's rooms.",
+      "_why": "Temporal anti-aliasing rung 1b (2026-11-13, docs/design/renderer-roadmap.md section 3.3, renderer/hashed_alpha.rs): the player's own body stands in render space on a planet, which has no transparent list, so until rung 1b only the hair cards' solid core was drawn there and the soft fringe was missing. Under Temporal the core pass draws the fringe by hashed alpha. The -two-pass twin (showcase taa_hashed 0) is the red twin: the same frame with the hair's two passes, where the fringe is missing. Score with scripts/hair-fringe-metrics.mjs (a same-park probe-hot-ab A/B with the arms hashed and twopass, three repeats each).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23.5,
+        "lon": 13.1,
+        "altitude_km": 0.03,
+        "look_offset_deg": 60
+      },
+      "showcase": {
+        "time": "16.5",
+        "sea": "0.3",
+        "weather": "clear"
+      },
+      "settle_s": 10,
+      "final_showcase": [
+        {
+          "stand": "0,1.7,0,0,-20",
+          "stand_at": "23.5,13.10",
+          "walk": "1"
+        },
+        {
+          "camera_mode": "third",
+          "hud": "0",
+          "body": "female",
+          "look_wear": "hair=bob02",
+          "fov": "35"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
+      "id": "taa-hair-planet-third-two-pass",
+      "desc": "taa-hair-planet-third with hashed alpha off (showcase taa_hashed 0): the hair's two passes under Temporal, as rung 1a drew it. RED TWIN.",
+      "expect": "The bob drawn as its solid core only: a hard-edged cap with no soft strands at the outline (on a planet the blended fringe pass has nowhere to draw).",
+      "_why": "Temporal anti-aliasing rung 1b (2026-11-13, docs/design/renderer-roadmap.md section 3.3, renderer/hashed_alpha.rs): the player's own body stands in render space on a planet, which has no transparent list, so until rung 1b only the hair cards' solid core was drawn there and the soft fringe was missing. Under Temporal the core pass draws the fringe by hashed alpha. The -two-pass twin (showcase taa_hashed 0) is the red twin: the same frame with the hair's two passes, where the fringe is missing. Score with scripts/hair-fringe-metrics.mjs (a same-park probe-hot-ab A/B with the arms hashed and twopass, three repeats each).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23.5,
+        "lon": 13.1,
+        "altitude_km": 0.03,
+        "look_offset_deg": 60
+      },
+      "showcase": {
+        "time": "16.5",
+        "sea": "0.3",
+        "weather": "clear",
+        "taa_hashed": "0"
+      },
+      "settle_s": 10,
+      "final_showcase": [
+        {
+          "stand": "0,1.7,0,0,-20",
+          "stand_at": "23.5,13.10",
+          "walk": "1"
+        },
+        {
+          "camera_mode": "third",
+          "hud": "0",
+          "body": "female",
+          "look_wear": "hair=bob02",
+          "fov": "35"
+        }
+      ],
+      "final_settle_s": 4
+    },
+    {
       "id": "shadow-fp-racks-noon",
       "desc": "First person in the mushroom room at noon, standing and looking down: your own body (the male body, its head folded away for the eye) on the sunlit floor.",
       "expect": "Your legs and shoes on the floor, and your shadow on the floor, head and shoulders included: the shadow is drawn from the unfolded body.",

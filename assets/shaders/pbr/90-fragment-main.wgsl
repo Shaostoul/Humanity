@@ -1077,7 +1077,17 @@ fn fs_surface(in: VertexOutput) -> FragOut {
             // pipeline culls neither).
             let ch_cut = material.params2.z;
             if (ch_cut >= 0.0) {
-                if (ch_col.a < ch_cut) {
+                // Under temporal anti-aliasing (renderer roadmap rung 1b, renderer/hashed_alpha.rs
+                // `hair_kept`) this ONE pass draws the fringe too, by hashed alpha: under the cut a
+                // fragment is kept where its alpha beats this pixel's threshold this frame, which the
+                // resolve averages into the soft edge the blended pass drew; the fringe then writes
+                // depth and motion, needs no sorting, and shows on the player's own body on a planet.
+                // The fringe pass below is left out of that view (`Renderer::hashed_skips`).
+                if (taa_hashed()) {
+                    if (ch_col.a < ch_cut && (ch_col.a < 0.03 || ch_col.a <= taa_hash_threshold(in.clip_position.xy))) {
+                        discard;
+                    }
+                } else if (ch_col.a < ch_cut) {
                     discard;
                 }
                 out_alpha = 1.0;
@@ -1462,7 +1472,17 @@ fn fs_terrain(in: VertexOutput) -> FragOut {
                     (f32(tile / 6u) + (1.0 - v01)) / 8.0,
                 );
                 let spr = textureSampleLevel(tree_atlas_tex, albedo_sampler, tuv, 0.0);
-                if (spr.a < 0.5) {
+                // Under temporal anti-aliasing (rung 1b, renderer/hashed_alpha.rs) the sprite's
+                // alpha is tested against the per-pixel, per-frame threshold instead of a hard 0.5,
+                // so its edge resolves soft instead of stair-stepping and shimmering, and the card
+                // stage's far end dissolves over its last tenth (`card_far_coverage`) instead of
+                // ending at a hard ring. Off keeps the hard cut (fs_shadow mirrors that one).
+                if (taa_hashed()) {
+                    let card_far = clamp((shadow_u.params2.x - card_dist) / max(shadow_u.params2.x * 0.1, 1.0e-3), 0.0, 1.0);
+                    if (spr.a * card_far <= taa_hash_threshold(in.clip_position.xy)) {
+                        discard;
+                    }
+                } else if (spr.a < 0.5) {
                     discard;
                 }
                 albedo = spr.rgb;

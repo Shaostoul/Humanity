@@ -131,7 +131,18 @@ fn frag_prologue(in: VertexOutput) -> FragSetup {
     // partition the screen per-pixel, so terrain LOD swaps dissolve instead
     // of popping - with opaque depth intact and zero overdraw holes.
     let lod_fade = obj_lod_fade();
-    if (lod_fade != 0.0) {
+    if (lod_fade != 0.0 && taa_hashed()) {
+        // Under temporal anti-aliasing (rung 1b, renderer/hashed_alpha.rs `fade_kept`) the threshold
+        // changes per pixel AND per frame, so the resolve turns the dissolve into a smooth blend
+        // instead of a still screen door; the two levels share it, so they still cover each pixel
+        // once. The Bayer table below stays for Off (and is what fs_shadow mirrors).
+        let h = taa_hash_threshold(in.clip_position.xy);
+        if (lod_fade > 0.0) {
+            if (h >= lod_fade) { discard; }
+        } else {
+            if (h < -lod_fade) { discard; }
+        }
+    } else if (lod_fade != 0.0) {
         let px = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
         // 4x4 Bayer matrix via bit interleaving: thresholds (0.5..15.5)/16.
         let bx = px.x % 4u;

@@ -1426,6 +1426,7 @@ impl Renderer {
                 ocean_event: [[0.0; 4]; 14],
                 prev_view_proj: Mat4::IDENTITY.to_cols_array_2d(),
                 taa: [0.0; 4],
+                taa_hash: [0.0; 4],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });

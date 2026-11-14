@@ -38,6 +38,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   // shows the picture again after a Dev view (1 motion, 2 history weight, 3 responsive mask).
   taa: "auto",
   taa_view: "0",
+  // Hashed alpha under Temporal (rung 1b, 2026-11-13, renderer/hashed_alpha.rs): "0" keeps the hair's
+  // two passes, the far cards' hard cut and the Bayer crossfade (the red twin); "1" puts it back.
+  taa_hashed: "1",
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",

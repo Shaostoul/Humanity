@@ -434,6 +434,12 @@ impl Renderer {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                // Hashed alpha (renderer roadmap rung 1b, renderer/hashed_alpha.rs): under Temporal
+                // the hair's core draws its fringe in the opaque pass, so the blended fringe pass is
+                // left out of the main view (an off-screen view, with no resolve, still draws it).
+                if self.hashed_skips(material) {
+                    continue;
+                }
                 let class = pipeline::shader_class(material.material_type);
                 // `None` = the cloud shell's PSO is still compiling in the
                 // background (2026-10-18): that object is skipped this frame.

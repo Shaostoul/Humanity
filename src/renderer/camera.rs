@@ -159,6 +159,11 @@ pub struct CameraUniforms {
     pub prev_view_proj: [[f32; 4]; 4],
     /// xy = the jitter in NDC, z = 1 while motion is meaningful, w = last frame's animation clock.
     pub taa: [f32; 4],
+    /// Hashed alpha (renderer roadmap rung 1b, renderer/hashed_alpha.rs): x = the jitter phase (0 to
+    /// 7), y = 1 while hashed alpha replaces the hard cutouts and the hair's blended fringe (the main
+    /// view's colour passes under Temporal), zw = 0. The camera fills zeros; `Renderer::taa_camera`
+    /// stamps it.
+    pub taa_hash: [f32; 4],
 }
 
 // ── Camera mode enum ─────────────────────────────────────────
@@ -602,6 +607,7 @@ impl Camera {
             ocean_event: [[0.0; 4]; 14],
             prev_view_proj: vp,
             taa: [0.0; 4],
+            taa_hash: [0.0; 4],
         }
     }
 
@@ -657,6 +663,7 @@ impl Camera {
             ocean_event: [[0.0; 4]; 14],
             prev_view_proj: vp,
             taa: [0.0; 4],
+            taa_hash: [0.0; 4],
         }
     }
 
@@ -1868,8 +1875,9 @@ mod uniform_layout_tests {
     #[test]
     fn ocean_event_block_sits_at_the_struct_tail() {
         assert_eq!(std::mem::offset_of!(CameraUniforms, ocean_event), 672);
-        // + the TAA tail (2026-11-13): the previous view-projection (64) and the jitter row (16).
-        assert_eq!(std::mem::size_of::<CameraUniforms>(), 672 + 14 * 16 + 64 + 16);
+        // + the TAA tail (2026-11-13): the previous view-projection (64), the jitter row (16) and
+        // the hashed-alpha row (16, rung 1b).
+        assert_eq!(std::mem::size_of::<CameraUniforms>(), 672 + 14 * 16 + 64 + 16 + 16);
     }
 }
 
