@@ -52,6 +52,41 @@ impl Footprint {
     pub fn stops_body(&self, feet_y: f32) -> bool {
         self.y0 < feet_y + EYE_HEIGHT_M && self.y1 > feet_y + crate::wall_collision::KNEE_M
     }
+
+    /// A placed machine or piece of furniture as its footprint, the way it is drawn
+    /// (`engine::home_meshes::machine_mesh`): a box its size, a cylinder or a sphere its radius
+    /// (`size.0`) each way, a pyramid its base, a sphere standing a radius under its centre. The one
+    /// conversion the crowd's mesh and the player's walk both read (2026-11-13, the operator: "We
+    /// want the ship to feel alive"), so a table that turns a walker aside stops the player too.
+    pub fn of_placed(p: &crate::machines::PlacedMachine) -> Footprint {
+        let (sx, sy, sz) = p.size;
+        let (half, y0, y1) = match p.shape.as_str() {
+            "sphere" => ((sx, sx), p.pos.1 - sx, p.pos.1 + sx),
+            "cylinder" => ((sx, sx), p.pos.1, p.pos.1 + sy),
+            "pyramid" => ((sx * 0.5, sx * 0.5), p.pos.1, p.pos.1 + sy),
+            _ => ((sx * 0.5, sz * 0.5), p.pos.1, p.pos.1 + sy),
+        };
+        Footprint { centre: (p.pos.0, p.pos.2), half, yaw: p.rotation.to_radians(), y0, y1 }
+    }
+
+    /// The footprint as the walk's blockers (`wall_collision::resolve`), between its heights so the
+    /// walls' rule says which bodies it stops (`WallSegment::stops_body`, the same knee-to-eye band
+    /// as `stops_body` here: a rug under the knee is walked over, a table or a bed is not): its four
+    /// edges, so a body sliding along it stops at its square corners, and a core along its long
+    /// axis as thick as the box is narrow, so a body that finds itself inside (the piece moved onto
+    /// it, a placement) is settled out the way it is out of a wall's solid box. A body inside a piece
+    /// wider than about 1.45 m (its half width over the body's radius / (sqrt 2 - 1)) can be
+    /// settled into a corner pocket instead; walking never takes it there, the edges hold it out.
+    pub fn walls(&self) -> [WallSegment; 5] {
+        let (s, c) = self.yaw.sin_cos();
+        // A point of the footprint's own frame in the world (glam's turn about +Y by `yaw`).
+        let world = |lx: f32, lz: f32| (self.centre.0 + c * lx + s * lz, self.centre.1 - s * lx + c * lz);
+        let (hx, hz) = self.half;
+        let corners = [world(-hx, -hz), world(hx, -hz), world(hx, hz), world(-hx, hz)];
+        let seg = |a: (f32, f32), b: (f32, f32), half_thickness: f32| WallSegment { a, b, half_thickness, y0: self.y0, y1: self.y1, kind: crate::wall_collision::SegmentKind::Wall };
+        let core = if hx >= hz { seg(world(-(hx - hz), 0.0), world(hx - hz, 0.0), hz) } else { seg(world(0.0, -(hz - hx)), world(0.0, hz - hx), hx) };
+        [seg(corners[0], corners[1], 0.0), seg(corners[1], corners[2], 0.0), seg(corners[2], corners[3], 0.0), seg(corners[3], corners[0], 0.0), core]
+    }
 }
 
 /// A floor to walk on: a level rectangle (world x, z), the floor of a zone, a corridor or a slab.

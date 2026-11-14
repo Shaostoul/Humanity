@@ -117,7 +117,7 @@ fn the_line_streams_out_of_the_shape() {
 #[test]
 fn the_persona_is_the_projects_own() {
     let p = Prompt::character();
-    assert_eq!(p.version, 1);
+    assert_eq!(p.version, 2);
     assert!(Prompt::parse("no version here\n{actions}{name}{examples}{doing}").is_err(), "a prompt without its version is refused");
     let yara = Character {
         name: "Botanist Yara".into(),
@@ -127,6 +127,7 @@ fn the_persona_is_the_projects_own() {
         persona: "Warm and patient.".into(),
         examples: vec!["Seeds, soil, light and patience.".into()],
         doing: "Watering the beds".into(),
+        places: PlaceMap::default(),
     };
     let tan = Character { name: "Chief Tan".into(), job: "chief engineer".into(), doing: "Checking the air handlers".into(), ..yara.clone() };
     let a = persona(&p, &yara, &grants());
@@ -140,6 +141,82 @@ fn the_persona_is_the_projects_own() {
     assert!(a.trim_end().ends_with("Right now: watering the beds."), "the live fact comes last: {a}");
     let shared = a.chars().zip(b.chars()).take_while(|(x, y)| x == y).count();
     assert!(shared > a.chars().count() / 2, "two characters share the prompt's start ({shared} of {} characters)", a.chars().count());
+}
+
+/// The ship's places as the card builds them (`gui::talk::place_map`) from the data "Show me the way"
+/// resolves: the shipped destinations and the shipped ship's rooms, zones, corridors and districts.
+fn shipped_places() -> (humanity_systems::quests::DestinationList, humanity_systems::quests::ShipPlaces, PlaceMap) {
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let dests = humanity_systems::quests::DestinationList::from_ron(&std::fs::read(data.join("entities/destinations.ron")).expect("destinations")).expect("destinations parse");
+    let ship = humanity_systems::quests::ShipPlaces::of_ship(&humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles"));
+    let map = crate::gui::talk::place_map(Some(&dests), Some(&ship));
+    (dests, ship, map)
+}
+
+/// THE PROMPT NAMES THE SHIP'S REAL PLACES (2026-11-13; docs/design/embeddable-ai.md, "His answers on
+/// rung 3": Ministral invented "Take Second Street, past the docks" while the HUD marked the real mess
+/// hall): the persona built for a crew member carries every place the way-finding knows (each fixed
+/// destination's name, and the room every "nearest" destination resolves to, in its zone) and how the
+/// zones join, compactly. Seen red 2026-11-13 with `{places}` filled with nothing: "the prompt names
+/// \"the south mess hall\", where \"mess_hall\" leads".
+#[test]
+fn the_prompt_names_the_ships_real_places() {
+    use humanity_systems::quests::DestinationAnchor;
+    let (dests, ship, places) = shipped_places();
+    let yara = Character { name: "Botanist Yara".into(), job: "botanist".into(), description: "Tending the Commons garden".into(), post: "the Commons".into(), doing: "Watering the beds".into(), places: places.clone(), ..Character::default() };
+    let a = persona(&Prompt::character(), &yara, &grants());
+    for d in &dests.destinations {
+        match &d.at {
+            None => assert!(a.contains(&d.label), "the prompt names {:?}: {a}", d.label),
+            Some(DestinationAnchor::NearestVolume { zone_type }) => {
+                for v in ship.volumes.iter().filter(|v| v.type_id == *zone_type) {
+                    let room = format!("the {}", v.label.to_lowercase());
+                    assert!(a.contains(&room), "the prompt names {room:?}, where {:?} leads: {a}", d.id);
+                }
+            }
+            Some(DestinationAnchor::OwnFrontDoor { .. }) => {}
+        }
+    }
+    for zone in ["the Commons", "First Street", "Cabin Block A", "the South Commons"] {
+        assert!(a.contains(zone), "the prompt names the zone {zone:?}: {a}");
+    }
+    assert!(a.contains("The Commons joins First Street; First Street joins Cabin Block A and the South Commons."), "and how they join: {a}");
+    // What it costs the prompt: counted 2026-11-13 as 333 characters, 56 words (an estimate of about
+    // 85 tokens at four characters a token; no tokenizer runs in the tests).
+    let line = places.prompt_lines();
+    let (chars, words) = (line.chars().count(), line.split_whitespace().count());
+    eprintln!("the places add {chars} characters, {words} words: about {} tokens", chars.div_ceil(4));
+    assert!(chars <= 600, "the map stays compact: {chars} characters: {line}");
+}
+
+/// A LINE NAMING A PLACE THAT DOES NOT EXIST IS STOPPED (the same answer): with the card's map, the
+/// filter stops a place word no real place uses ("the docks") and a place written as a name that is
+/// not one ("Second Street"), and lets the real places and ordinary talk through; as the line streams,
+/// a last word still arriving is left for the next piece. Without a map nothing is checked. Seen red
+/// 2026-11-13 with the place check turned off: "stopped: \"Take Second Street, past the docks.\"
+/// left: Ok(())".
+#[test]
+fn a_line_naming_a_place_that_does_not_exist_is_stopped() {
+    let (_, _, places) = shipped_places();
+    let f = Filter::current().knowing(&places.names());
+    let place = Err(FilterHit { why: "place".into() });
+    for bad in ["Take Second Street, past the docks.", "Head down Main Street to the plaza.", "It is by the old wharf, near the Harbour."] {
+        assert_eq!(f.check(bad), place, "stopped: {bad:?}");
+    }
+    for ok in [
+        "The mess hall is in the Commons, off First Street.",
+        "Walk down the street to the South Commons.",
+        "The south mess hall serves the far end.",
+        "Cabin Block A has a washroom.",
+        "Hangar Bay 1 is out past the Concourse.",
+        "Try the berry thicket, or the flax hollow.",
+        "Seeds, soil, light and patience.",
+    ] {
+        assert_eq!(f.check(ok), Ok(()), "passes: {ok:?}");
+    }
+    assert_eq!(f.check_partial("Take First Stre"), Ok(()), "a word still arriving is not judged");
+    assert_eq!(f.check_partial("Take Second Street,"), place, "a whole word is");
+    assert_eq!(Filter::current().check("Take Second Street, past the docks."), Ok(()), "without a map nothing is checked");
 }
 
 /// Settings > AI's brain choice: the person's pick when installed, else Automatic: the Rich brain on a

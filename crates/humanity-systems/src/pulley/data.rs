@@ -202,3 +202,100 @@ pub fn block_material(rules: &BlockRules) -> Option<Material> {
     };
     material_from_csv(&text, &rules.material)
 }
+
+/// A world the lift happens on, for the Calculator's world choice (docs/design/pulleys.md, "His
+/// answers", 2026-11-13): its surface gravity, m/s^2, and where the number comes from. The load's
+/// weight is its mass times this gravity, so the same load on the Moon takes about a sixth of the
+/// pull it takes on Earth.
+#[derive(Debug, Clone, PartialEq)]
+pub struct World {
+    /// The planet file's stem ("moon"), or "ship_rim" for the ship's spin.
+    pub id: String,
+    /// The planet's own name from its file ("Moon"); empty for a world named by `name_key`.
+    pub name: String,
+    /// The words' key for a world that has no name in its data (the ship's rim).
+    pub name_key: Option<String>,
+    pub gravity: f64,
+    /// Where the number is written.
+    pub source: String,
+}
+
+/// The two fields of a planet file (data/planets/<id>.ron) the world choice reads; the rest are
+/// the terrain's (`humanity_terrain::planet::PlanetDef`) and are skipped.
+#[derive(Deserialize)]
+struct PlanetGravity {
+    name: String,
+    gravity: f64,
+}
+
+/// What the world choice reads of the mothership's closed-loop file
+/// (data/closed_loop/mothership.ron): the hull's diameter and the habitat's spin period.
+#[derive(Deserialize)]
+struct Mothership {
+    ship: MothershipHull,
+    figures: Vec<MothershipFigure>,
+}
+
+#[derive(Deserialize)]
+struct MothershipHull {
+    hull_diameter_m: f64,
+}
+
+#[derive(Deserialize)]
+struct MothershipFigure {
+    id: String,
+    #[serde(default)]
+    value: Option<f64>,
+}
+
+/// The ship's spin gravity at the rim, m/s^2: omega squared times the radius, from the hull's
+/// diameter (its radius is the rim) and the habitat's period (`ship.habitat.spin`, "Rotation period
+/// for 1 g at a 50 km radius", 449 s): 4 pi^2 x 50,000 / 449^2 = 9.79. None when the file does
+/// not say both.
+pub fn ship_rim_gravity(mothership_ron: &str) -> Option<f64> {
+    let opts = ron::Options::default().with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME);
+    let m: Mothership = opts.from_str(mothership_ron).map_err(|e| log::warn!("pulleys: the mothership file did not parse for its spin ({e})")).ok()?;
+    let period = m.figures.iter().find(|f| f.id == "ship.habitat.spin")?.value?;
+    let r = m.ship.hull_diameter_m * 0.5;
+    (period > 0.0 && r > 0.0).then(|| 4.0 * std::f64::consts::PI * std::f64::consts::PI * r / (period * period))
+}
+
+/// Every world the lift can happen on, from `data_dir`: each planet file's name and gravity
+/// (data/planets/*.ron), Earth first and the rest by name, then the ship's spin at its rim when the
+/// mothership file says it (`ship_rim_gravity`). A file that does not parse is left out, and the
+/// log says so; with none at all, Earth's 9.81 alone, marked as built in.
+pub fn worlds_in(data_dir: &std::path::Path) -> Vec<World> {
+    let mut out: Vec<World> = Vec::new();
+    let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(data_dir.join("planets"))
+        .map(|it| it.filter_map(|e| e.ok().map(|e| e.path())).filter(|p| p.extension().is_some_and(|x| x == "ron")).collect())
+        .unwrap_or_default();
+    files.sort();
+    for path in files {
+        let id = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+        match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| ron::from_str::<PlanetGravity>(&t).map_err(|e| e.to_string())) {
+            Ok(p) if p.gravity > 0.0 => out.push(World { source: format!("data/planets/{id}.ron"), id, name: p.name, name_key: None, gravity: p.gravity }),
+            Ok(_) => {}
+            Err(e) => log::warn!("pulleys: {} did not give a world's gravity ({e})", path.display()),
+        }
+    }
+    out.sort_by(|a, b| (a.id != "earth").cmp(&(b.id != "earth")).then(a.name.cmp(&b.name)));
+    if out.is_empty() {
+        out.push(World { id: "earth".into(), name: "Earth".into(), name_key: None, gravity: 9.81, source: "built in: no planet file could be read".into() });
+    }
+    let mothership = data_dir.join("closed_loop").join("mothership.ron");
+    if let Some(g) = std::fs::read_to_string(&mothership).ok().and_then(|t| ship_rim_gravity(&t)) {
+        out.push(World {
+            id: "ship_rim".into(),
+            name: String::new(),
+            name_key: Some("pulley.world_ship_rim".into()),
+            gravity: g,
+            source: "data/closed_loop/mothership.ron: ship.habitat.spin and hull_diameter_m".into(),
+        });
+    }
+    out
+}
+
+/// `worlds_in` the data folder.
+pub fn worlds() -> Vec<World> {
+    worlds_in(&humanity_core::storage::data_dir())
+}

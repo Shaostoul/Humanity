@@ -4714,7 +4714,7 @@ fn snapshot_talk_card_ai() {
     let engine = crate::ai::client_tests::fake_engine();
     let config = crate::ai::client::ClientConfig { args: vec!["--fake".into(), "--fake-ms-per-token".into(), "2".into()], ..Default::default() };
     let mut c = crate::ai::client::AiClient::new(Some(engine), config);
-    let character = crate::ai::talk::Character { name: "Botanist Yara".into(), job: "botanist".into(), description: "Tending the Commons garden".into(), post: "the Commons".into(), persona: String::new(), examples: Vec::new(), doing: "Watering the beds".into() };
+    let character = crate::ai::talk::Character { name: "Botanist Yara".into(), job: "botanist".into(), description: "Tending the Commons garden".into(), post: "the Commons".into(), persona: String::new(), examples: Vec::new(), doing: "Watering the beds".into(), places: Default::default() };
     let mut chat = Chat::default();
     chat.begin(Availability::Offered, Some(&character), crate::ai::talk::Grants::default(), vec!["Seeds, soil, light and patience.".into()]);
     chat.dev_fake = true;

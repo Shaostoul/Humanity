@@ -55,4 +55,19 @@ TalkFilter(
             "left wing", "right wing", "election fraud",
         ]),
     ],
+    // PLACES THE SHIP DOES NOT HAVE (2026-11-13; docs/design/embeddable-ai.md, "His answers on rung
+    // 3": Ministral told a player "Take Second Street, past the docks" while the HUD marked the real
+    // mess hall). A word below may appear in a line only as part of a real place's name: the card
+    // gives the filter the ship's places when it opens (src/ai/talk.rs `PlaceMap::names`: the zones,
+    // their rooms, the destinations, the districts). So "the docks" is stopped (no real name has
+    // "docks"), and so is "Second Street" (written as a name, with no real "Second Street"), while "the
+    // mess hall", "First Street" and "down the street" pass. Stopped lines count as the rule "place".
+    // Kept to words that rarely mean anything but a place: "square" (a square metre), "market"
+    // (market prices), "port" and "pier" (portion, pierce), "deck" and "bridge" (a ship's own words)
+    // are left out on purpose.
+    place_words: [
+        "street", "streets", "road", "roads", "avenue", "avenues", "lane", "lanes", "alley", "alleys",
+        "boulevard", "docks", "dockyard", "harbour", "harbor", "wharf", "quay", "plaza", "marketplace",
+        "bazaar", "district", "districts", "block", "commons", "hall", "bay",
+    ],
 )

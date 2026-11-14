@@ -377,6 +377,16 @@ impl ShipVolume {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ShipPlaces {
     pub volumes: Vec<ShipVolume>,
+    /// Every zone aboard but the player's own home, by its label (its id when it has none), in the
+    /// ship file's order: the Commons, First Street, a cabin block. The talking characters' map of
+    /// the ship (2026-11-13, docs/design/embeddable-ai.md, "His answers": Ministral had invented
+    /// "Second Street"), with `joins` and `districts`.
+    pub zones: Vec<String>,
+    /// The zones a corridor joins, by their labels (`ShipStructure::corridors`), the home's left out.
+    pub joins: Vec<(String, String)>,
+    /// The ship's districts by their labels (the Concourse, a hangar bay): real places a line may
+    /// name, which no way is shown to yet.
+    pub districts: Vec<String>,
 }
 
 impl ShipPlaces {
@@ -406,7 +416,12 @@ impl ShipPlaces {
                 })
             })
             .collect();
-        ShipPlaces { volumes }
+        let label = |z: &humanity_ship::ship_structure::ShipZone| if z.label.is_empty() { z.id.clone() } else { z.label.clone() };
+        let zones = ship.zones.iter().filter(|z| z.id != HOME_ZONE_ID).map(label).collect();
+        let named = |id: &str| ship.zones.iter().find(|z| z.id == id && z.id != HOME_ZONE_ID).map(label);
+        let joins = ship.corridors.iter().filter_map(|c| Some((named(&c.from_zone)?, named(&c.to_zone)?))).collect();
+        let districts = ship.districts.iter().filter(|d| !d.label.is_empty()).map(|d| d.label.clone()).collect();
+        ShipPlaces { volumes, zones, joins, districts }
     }
 
     /// The volume of type `zone_type` nearest `from` (a floor point: the
@@ -1201,6 +1216,7 @@ mod quest_tests {
                 hall("mess-hall", "The Commons", (65.0, 20.0), (95.0, 28.0)),
                 hall("mess-hall-2", "The South Commons", (77.0, 770.0), (101.0, 778.0)),
             ],
+            ..Default::default()
         };
         let dests = DestinationList {
             destinations: vec![DestinationDef {
@@ -1268,6 +1284,7 @@ mod quest_tests {
                 room("hall-up", "mess_hall", (40.0, 10.0), (50.0, 20.0), 3.0),
                 room("hall-down", "mess_hall", (40.0, 30.0), (50.0, 40.0), 0.0),
             ],
+            ..Default::default()
         };
         let place = |id: &str, ty: &str| DestinationDef { id: id.into(), label: id.into(), pos: (0.0, 0.0), radius: 1.0, at: Some(DestinationAnchor::NearestVolume { zone_type: ty.into() }) };
         let dests = DestinationList {

@@ -1066,3 +1066,18 @@ question starts from what was found.
 ## His answers on rung 3 (operator, 2026-11-13)
 
 The characters' prompt gets the ship's real place names (Ministral had invented "Second Street"), and CB-7 stays the trader: "Works for now until we come up with something better."
+
+**Built 2026-11-13 (prompt version 2).** The prompt's shared start carries `{places}`: the zones
+aboard in the ship file's order with their labelled rooms, which zone a corridor joins to which, and
+the destinations out in the open, all from the data "Show me the way" resolves
+(`gui::talk::place_map` over `DestinationList` and `ShipPlaces`, which now also carries the zones'
+labels, the corridors' joins and the districts). For the shipped ship it reads "the Commons (with the
+mess hall and the recreation room), First Street, Cabin Block A (with the washroom) and the South
+Commons (with the south mess hall). The Commons joins First Street; First Street joins Cabin Block A
+and the South Commons. Outdoors: ...", about 85 tokens by a four-characters-a-token estimate (333 characters, 56 words) (no
+tokenizer runs in the tests). The filter gained the rule "place" (`data/ai/filter.ron`
+`place_words`): with the card's map it stops a place word no real place uses ("the docks") and a
+place written as a name that is not one ("Second Street"), on the whole line and as it streams (a last
+word still arriving is left for the next piece), falling back to a written line. Deliberately narrow:
+an invented place built from other words ("the Grand Atrium") passes, and a place word used as a verb
+("a ship docks") is stopped.

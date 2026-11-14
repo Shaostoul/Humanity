@@ -10,14 +10,13 @@
 
 use egui::{Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 use humanity_core::i18n::{t, t_dyn, t_marked, tf};
-use humanity_systems::pulley::{self, Advice, Inputs, Material, Mode, Outcome, PulleyData, Refusal, StageDesign, Verdict};
+use humanity_systems::pulley::{self, Advice, Inputs, Material, Mode, Outcome, PulleyData, Refusal, StageDesign, Verdict, World};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::widgets::Hint;
 
-/// Surface gravity the designer assumes: Earth's (the Calculator is a real-life tool; the game's
-/// item will pass the world's own gravity).
+/// The gravity used before the worlds are read, and when the chosen one is not among them: Earth's.
 const EARTH_G: f64 = 9.81;
 
 /// What the person chose, and the last answer (kept only while the reuse switch allows).
@@ -30,8 +29,13 @@ pub struct PulleyPanel {
     pub realistic: bool,
     /// A rope size the person fixed, mm; None sizes it for the load.
     pub rope_d_mm: Option<f64>,
+    /// Where the lift happens (a `World`'s id: "earth", "moon", "ship_rim"): its gravity makes the
+    /// load's weight (2026-11-13, the operator: "Sure.").
+    pub world: String,
     /// The rows and the block material, read when the panel first opens.
     data: Option<(PulleyData, Option<Material>)>,
+    /// The worlds to choose from (data/planets/ and the ship's spin), read with the rows.
+    worlds: Vec<World>,
     /// The last answer and the key of the inputs it was worked out from.
     kept: Option<(u64, Outcome)>,
 }
@@ -46,7 +50,9 @@ impl Default for PulleyPanel {
             bearing: "bronze_bushed".into(),
             realistic: true,
             rope_d_mm: None,
+            world: "earth".into(),
             data: None,
+            worlds: Vec::new(),
             kept: None,
         }
     }
@@ -64,9 +70,15 @@ impl PulleyPanel {
     fn key(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
-        (self.load_kg.to_bits(), self.lift_m.to_bits(), &self.puller, &self.rope, &self.bearing, self.realistic).hash(&mut h);
+        (self.load_kg.to_bits(), self.lift_m.to_bits(), &self.puller, &self.rope, &self.bearing, self.realistic, &self.world).hash(&mut h);
         self.rope_d_mm.map(f64::to_bits).hash(&mut h);
         h.finish()
+    }
+
+    /// The chosen world's gravity, m/s^2 (Earth's until the worlds are read or when the choice is
+    /// not among them).
+    pub fn gravity(&self) -> f64 {
+        self.worlds.iter().find(|w| w.id == self.world).map_or(EARTH_G, |w| w.gravity)
     }
 
     /// The answer for the current choices: worked out again whenever a choice changes, and every
@@ -76,6 +88,7 @@ impl PulleyPanel {
             let d = PulleyData::load();
             let m = pulley::data::block_material(&d.block);
             self.data = Some((d, m));
+            self.worlds = pulley::data::worlds();
         }
         let key = self.key();
         let fresh = humanity_core::reuse::enabled() && self.kept.as_ref().is_some_and(|(k, _)| *k == key);
@@ -85,7 +98,7 @@ impl PulleyPanel {
             let inp = Inputs {
                 load_kg: self.load_kg,
                 lift_m: self.lift_m,
-                gravity: EARTH_G,
+                gravity: self.gravity(),
                 puller: d.puller(&self.puller).or(d.pullers.first())?,
                 rope: d.rope(&self.rope).or(d.ropes.first())?,
                 bearing: d.bearing(&self.bearing).or(d.bearings.first())?,
@@ -178,6 +191,24 @@ fn inputs(ui: &mut Ui, theme: &Theme, p: &mut PulleyPanel) {
             let speed = (p.load_kg * 0.01).max(0.1);
             ui.add(egui::DragValue::new(&mut p.load_kg).range(0.1..=1.0e9).speed(speed).max_decimals(1)).hint("pulley.load_hint");
             ui.label(RichText::new(t("pulley.kg")).color(theme.text_muted()));
+        });
+        // Where the lift happens, beside the load: its gravity makes the load's weight.
+        widgets::form_row(ui, theme, t("pulley.world"), |ui| {
+            let words = |w: &World| {
+                let name = w.name_key.as_deref().map_or_else(|| w.name.clone(), |k| t_dyn(k).to_string());
+                tf("pulley.world_choice", &[("world", &name), ("pct", &format!("{:.0}", w.gravity / EARTH_G * 100.0))])
+            };
+            let shown = p.worlds.iter().find(|w| w.id == p.world).map(words).unwrap_or_default();
+            egui::ComboBox::from_id_salt("pulley_world")
+                .selected_text(shown)
+                .width(220.0)
+                .show_ui(ui, |ui| {
+                    for w in &p.worlds {
+                        ui.selectable_value(&mut p.world, w.id.clone(), words(w)).hint("pulley.world_hint");
+                    }
+                })
+                .response
+                .hint("pulley.world_hint");
         });
         widgets::form_row(ui, theme, t("pulley.lift"), |ui| {
             ui.add(egui::DragValue::new(&mut p.lift_m).range(0.1..=10_000.0).speed(0.05).max_decimals(2)).hint("pulley.lift_hint");
@@ -476,5 +507,32 @@ fn schematic(ui: &mut Ui, theme: &Theme, out: &Outcome, load_kg: f64, puller_key
         let align = if end.x > rect.center().x { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER };
         let at = Pos2::new(end.x + if end.x > rect.center().x { -8.0 } else { 8.0 }, tip.y);
         painter.text(at, align, label, small, theme.text_primary());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// THE SAME LOAD ON THE MOON NEEDS ABOUT A SIXTH OF THE PULL (2026-11-13; docs/design/pulleys.md,
+    /// "His answers": "Sure."): the world chosen beside the load sets the gravity it weighs by, read
+    /// from data/planets/ (the Moon's 1.62 m/s^2 against Earth's 9.81) and the ship's spin at its rim.
+    /// Seen red 2026-11-13 with the panel's gravity fixed at Earth's (`EARTH_G` in `outcome`, as
+    /// before the choice): "on the Moon the pull is 1.000 of Earth's (204.8 N against 204.8 N), not
+    /// about a sixth".
+    #[test]
+    fn the_same_load_on_the_moon_needs_about_a_sixth_of_the_pull() {
+        // 20 kg: a person lifts it straight up on either world, so the pull is the load's weight.
+        let mut p = PulleyPanel { load_kg: 20.0, ..PulleyPanel::default() };
+        let earth = p.outcome().expect("an answer on Earth").pull_n;
+        p.world = "moon".into();
+        let moon = p.outcome().expect("an answer on the Moon").pull_n;
+        let ratio = moon / earth;
+        assert!((0.155..=0.18).contains(&ratio), "on the Moon the pull is {ratio:.3} of Earth's ({moon:.1} N against {earth:.1} N), not about a sixth");
+        let ids: Vec<&str> = p.worlds.iter().map(|w| w.id.as_str()).collect();
+        assert_eq!(ids.first(), Some(&"earth"), "Earth comes first: {ids:?}");
+        assert!(ids.contains(&"mars") && ids.contains(&"ship_rim"), "the planets and the ship's rim are offered: {ids:?}");
+        p.world = "ship_rim".into();
+        assert!((9.6..=9.9).contains(&p.gravity()), "the ship's rim spins for about 1 g: {}", p.gravity());
     }
 }

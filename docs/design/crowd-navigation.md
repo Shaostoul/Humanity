@@ -361,3 +361,16 @@ Kept in the report of the work that raised them; decided ones move into the sect
 ## His answers (operator, 2026-11-13)
 
 Crowds navigate by default aboard (circle stays for measurements), and the player's own character stops at furniture the way the crowd does: "Agreed. We want the ship to feel alive."
+
+**Built 2026-11-13.** The furniture list the crowd's mesh reads is the player's too: one conversion
+(`Footprint::of_placed`), one list kept current by `crowd_walk::refresh_furniture` (by the machine
+rebuild counter, every frame with reuse off), and the walk's collision (lib.rs, beside the shut doors
+and the built pieces) takes each footprint near the body as five blockers between its heights
+(`Footprint::walls`: the four edges, for square corners, and a core along its long axis, which
+settles a body found inside it back out). The heights are the walls' rule: a rug under the knee is
+walked over, a table or a bed (0.6 m) is not. While an interaction holds the body (seated, lying,
+getting up) no furniture is read, since the seat stands where the body is; the walk takes it back at
+the approach point. Every shipped seat's and bed's approach stands clear among the real furniture
+(`crowd_walk::tests::the_player_still_reaches_every_seat_and_bed_on_the_ship`). A body placed inside
+a piece wider than about 1.45 m can settle into a corner pocket instead of out (the core is one
+segment); walking never takes it there.

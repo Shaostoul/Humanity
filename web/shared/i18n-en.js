@@ -4676,7 +4676,8 @@ window.HOS_I18N_EN = {
         "sexual": "it said something sexual",
         "politics": "it talked about real-world politics",
         "too_long": "the answer was too long",
-        "marker": "the answer had pieces of its own instructions in it"
+        "marker": "the answer had pieces of its own instructions in it",
+        "place": "it named a place the ship does not have"
       },
       "shape": {
         "not_the_shape": "the answer was not in the shape the game asks for",
@@ -5224,7 +5225,11 @@ window.HOS_I18N_EN = {
       "spur_gear": "a spur-gear chain hoist",
       "screw_gear": "a screw-gear chain hoist",
       "differential": "a differential chain hoist"
-    }
+    },
+    "world": "World",
+    "world_hint": "Where the lift happens. The load weighs its mass times this world's gravity, so the same load on the Moon needs about a sixth of the pull it needs on Earth. The ship's rim is where its spin makes the floor's gravity.",
+    "world_choice": "{{world}} ({{pct}}% of Earth's gravity)",
+    "world_ship_rim": "The ship's habitat rim (its spin)"
   },
   "talk": {
     "doing": "Now: {{activity}}",

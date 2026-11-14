@@ -149,6 +149,96 @@ pub struct Character {
     pub examples: Vec<String>,
     /// What they are doing right now (the live chore line), the one live fact.
     pub doing: String,
+    /// The ship's places they know (the same for every character): the prompt's map.
+    pub places: PlaceMap,
+}
+
+/// THE SHIP'S PLACES A CHARACTER KNOWS (2026-11-13; docs/design/embeddable-ai.md, "His answers on
+/// rung 3": Ministral invented "Take Second Street, past the docks" while the HUD marked the real
+/// place). Built from the data "Show me the way" resolves (the destinations,
+/// data/entities/destinations.ron, and the ship's labelled rooms they resolve to with the zones and
+/// corridors round them, `humanity_systems::quests::ShipPlaces`), by `gui::talk::place_map`. The
+/// prompt lists the places and how they join ([`PlaceMap::prompt_lines`]); the filter refuses a line
+/// that names a place outside [`PlaceMap::names`].
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PlaceMap {
+    /// Each zone aboard in the ship file's order, as it reads inside a sentence ("the Commons"), and
+    /// the named rooms in it ("the mess hall").
+    pub zones: Vec<(String, Vec<String>)>,
+    /// The zones a corridor joins, as they read inside a sentence.
+    pub joins: Vec<(String, String)>,
+    /// The way-finding's places out in the open ("the outdoor fields").
+    pub outdoors: Vec<String>,
+    /// Real names the prompt does not list that a line may still use: the ship's districts, the
+    /// player's own front door.
+    pub also_real: Vec<String>,
+}
+
+/// "a", "a and b", "a, b and c".
+fn and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
+impl PlaceMap {
+    pub fn is_empty(&self) -> bool {
+        self.zones.is_empty() && self.outdoors.is_empty()
+    }
+
+    /// The prompt's map, as short as it can be said: the zones with their rooms, which zone joins
+    /// which, and the places out in the open. About 85 tokens for the shipped ship (333
+    /// characters, 56 words, 2026-11-13: an estimate at four characters a token, printed by
+    /// `the_prompt_names_the_ships_real_places`).
+    pub fn prompt_lines(&self) -> String {
+        if self.is_empty() {
+            return "none known to you here.".into();
+        }
+        let zones: Vec<String> = self
+            .zones
+            .iter()
+            .map(|(z, rooms)| if rooms.is_empty() { z.clone() } else { format!("{z} (with {})", and_list(rooms)) })
+            .collect();
+        let mut out = format!("{}.", and_list(&zones));
+        // Joins grouped by the zone they start from, in the zones' order: "the Commons joins First
+        // Street; First Street joins Cabin Block A and the South Commons."
+        let mut groups: Vec<(String, Vec<String>)> = Vec::new();
+        for (a, b) in &self.joins {
+            match groups.iter_mut().find(|(g, _)| g == a) {
+                Some((_, to)) => to.push(b.clone()),
+                None => groups.push((a.clone(), vec![b.clone()])),
+            }
+        }
+        if !groups.is_empty() {
+            let said: Vec<String> = groups.iter().map(|(a, to)| format!("{a} joins {}", and_list(to))).collect();
+            out.push(' ');
+            out.push_str(&capitalise_first(&said.join("; ")));
+            out.push('.');
+        }
+        if !self.outdoors.is_empty() {
+            out.push_str(&format!(" Outdoors: {}.", and_list(&self.outdoors)));
+        }
+        out
+    }
+
+    /// Every real place's name a line may use: the prompt's, and the ones it leaves out.
+    pub fn names(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for (z, rooms) in &self.zones {
+            out.push(z.clone());
+            out.extend(rooms.iter().cloned());
+        }
+        out.extend(self.outdoors.iter().cloned());
+        out.extend(self.also_real.iter().cloned());
+        out
+    }
+}
+
+fn capitalise_first(s: &str) -> String {
+    let mut c = s.chars();
+    c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
 }
 
 /// The project's prompt: its version and its text (the `#` notes taken out).
@@ -166,7 +256,7 @@ impl Prompt {
         let version = first.strip_prefix("version:").and_then(|v| v.trim().parse::<u32>().ok()).ok_or_else(|| format!("the first line is {first:?}, not \"version: N\""))?;
         let body: Vec<&str> = lines.filter(|l| !l.trim_start().starts_with('#')).collect();
         let body = body.join("\n").trim().to_string();
-        for needed in ["{actions}", "{name}", "{examples}", "{doing}"] {
+        for needed in ["{actions}", "{name}", "{examples}", "{doing}", "{places}"] {
             if !body.contains(needed) {
                 return Err(format!("the prompt has no {needed}"));
             }
@@ -194,6 +284,7 @@ pub fn persona(prompt: &Prompt, c: &Character, grants: &Grants) -> String {
     let doing = if c.doing.trim().is_empty() { "at your post".to_string() } else { c.doing.trim().to_lowercase() };
     prompt
         .body
+        .replace("{places}", &c.places.prompt_lines())
         .replace("{actions}", &grants.prompt_lines())
         .replace("{name}", &c.name)
         .replace("{job}", &c.job)
@@ -317,12 +408,21 @@ pub struct Rule {
 }
 
 /// The filter of 8.3 (data/ai/filter.ron, written as `TalkFilter(...)`).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename = "TalkFilter")]
 pub struct Filter {
     pub max_chars: usize,
     pub markers: Vec<String>,
     pub rules: Vec<Rule>,
+    /// Words that name a kind of place (street, docks, plaza, ...): a line may use one only as part
+    /// of a real place's name (`known_places`), so an invented "Second Street" or "the docks" is
+    /// stopped (2026-11-13). Lowercase whole words.
+    #[serde(default)]
+    pub place_words: Vec<String>,
+    /// The real places' names as `words_of` gives them, set from the card's map when it opens
+    /// (`knowing`), never read from the file. Empty: no place is checked.
+    #[serde(skip)]
+    pub known_places: Vec<String>,
 }
 
 /// A line the filter stopped: the rule's name (its words are `ai.talk.filter.<why>`).
@@ -369,8 +469,25 @@ impl Filter {
         }
     }
 
-    /// Check a line (whole or still arriving): too long, a template marker, or a rule's phrase.
+    /// This filter knowing the real places' names (`PlaceMap::names`), so a line naming a place
+    /// that is not one of them is stopped (`names_a_made_up_place`).
+    pub fn knowing(mut self, names: &[String]) -> Filter {
+        self.known_places = names.iter().map(|n| words_of(n)).collect();
+        self
+    }
+
+    /// Check a whole line: too long, a template marker, a rule's phrase, or a made-up place.
     pub fn check(&self, line: &str) -> Result<(), FilterHit> {
+        self.check_words(line, true)
+    }
+
+    /// Check a line still arriving: as `check`, but its last word may be cut short ("Stre" of
+    /// "Street"), so the place check leaves it for the next piece.
+    pub fn check_partial(&self, line: &str) -> Result<(), FilterHit> {
+        self.check_words(line, false)
+    }
+
+    fn check_words(&self, line: &str, whole: bool) -> Result<(), FilterHit> {
         if line.chars().count() > self.max_chars {
             return Err(FilterHit { why: "too_long".into() });
         }
@@ -383,7 +500,43 @@ impl Filter {
                 return Err(FilterHit { why: rule.why.clone() });
             }
         }
+        if self.names_a_made_up_place(line, whole) {
+            return Err(FilterHit { why: "place".into() });
+        }
         Ok(())
+    }
+
+    /// True when the line names a place the ship does not have: a place word no real name uses
+    /// ("the docks"), or one written as a proper name with the word before it ("Second Street": both
+    /// capitalised) that no real name has. Cheap, and deliberately narrow: an invented place built
+    /// from words not in `place_words` ("the Grand Atrium") passes, and a place word used as a verb
+    /// ("a ship docks") is stopped, which costs only a written line in place of the AI's.
+    fn names_a_made_up_place(&self, line: &str, whole: bool) -> bool {
+        if self.known_places.is_empty() || self.place_words.is_empty() {
+            return false;
+        }
+        let mut words: Vec<&str> = line.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+        if !whole && line.chars().last().is_some_and(char::is_alphanumeric) {
+            words.pop();
+        }
+        let known = |phrase: &str| self.known_places.iter().any(|k| k.contains(&format!(" {phrase} ")));
+        let capital = |w: &str| w.chars().next().is_some_and(char::is_uppercase);
+        for (i, w) in words.iter().enumerate() {
+            let lw = w.to_lowercase();
+            if !self.place_words.contains(&lw) {
+                continue;
+            }
+            if !known(&lw) {
+                return true;
+            }
+            if i > 0 && capital(w) && capital(words[i - 1]) {
+                let before = words[i - 1].to_lowercase();
+                if before != "the" && !known(&format!("{before} {lw}")) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
@@ -421,7 +574,7 @@ impl TalkCounts {
 /// The filter rules by name, for the words test (every `why` has its words).
 pub fn filter_reasons(f: &Filter) -> BTreeMap<String, usize> {
     let mut m = BTreeMap::new();
-    for why in ["too_long", "marker"] {
+    for why in ["too_long", "marker", "place"] {
         m.insert(why.to_string(), 0);
     }
     for r in &f.rules {

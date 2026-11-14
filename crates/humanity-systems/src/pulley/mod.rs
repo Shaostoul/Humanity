@@ -24,7 +24,7 @@ pub mod tackle;
 #[cfg(test)]
 mod tests;
 
-pub use data::{Bearing, BlockRules, Hoist, Material, Puller, PulleyData, Rope};
+pub use data::{Bearing, BlockRules, Hoist, Material, Puller, PulleyData, Rope, World};
 pub use geometry::{Aabb, BlockDims, Capsule, MeshData, ShapeStore, StageShape};
 pub use tackle::{evaluate, recommend, stage_real_ma, Advice, Inputs, Mode, Outcome, Refusal, StageDesign, Verdict};
 

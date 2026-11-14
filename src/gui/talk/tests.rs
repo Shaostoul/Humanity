@@ -98,7 +98,7 @@ fn the_cards_choices_come_from_data_and_work_with_no_ai() {
     let mut tracker = humanity_systems::quests::QuestTracker::default();
     tracker.completed_quests.push("tutorial_first_habitat".into());
     let (quests, places) = registries();
-    let o = Opening { name: "Botanist Yara", role: "botanist", activity: "", lines: Vec::new(), quests: Some(&quests), tracker: Some(&tracker), places: Some(&places) };
+    let o = Opening { name: "Botanist Yara", role: "botanist", activity: "", lines: Vec::new(), quests: Some(&quests), tracker: Some(&tracker), places: Some(&places), ship: None };
     gs.talk.open_with(&o, |_| Availability::NoAi);
     gs.talk.view = View::Work;
     click(&ctx, &theme, &mut gs, humanity_core::i18n::t("talk.take_task"));
@@ -154,7 +154,7 @@ fn fake_client(args: &[&str]) -> AiClient {
 }
 
 fn character() -> Character {
-    Character { name: "Botanist Yara".into(), job: "botanist".into(), description: "Tending the Commons garden".into(), post: "the Commons".into(), persona: String::new(), examples: vec!["Seeds, soil, light and patience.".into()], doing: "Watering".into() }
+    Character { name: "Botanist Yara".into(), job: "botanist".into(), description: "Tending the Commons garden".into(), post: "the Commons".into(), persona: String::new(), examples: vec!["Seeds, soil, light and patience.".into()], doing: "Watering".into(), places: Default::default() }
 }
 
 /// Step the card's box until it finishes a line (or `within` passes).
@@ -234,6 +234,27 @@ fn an_engine_failure_falls_back_to_a_written_line_in_words() {
     assert!(matches!(chat.finish(r#"{"line":"Come and trade.","action":"open_trade"}"#), Said::Fallback { ref why, .. } if why == humanity_core::i18n::t("ai.talk.shape.not_granted")), "an action not granted falls back");
 }
 
+/// A MADE-UP PLACE FALLS BACK TO A WRITTEN LINE (2026-11-13; docs/design/embeddable-ai.md, "His answers
+/// on rung 3"): a card opened with the ship's map gives the filter the real places, so Ministral's
+/// "Take Second Street, past the docks" is replaced by one of the character's written lines, with why
+/// in words, while a line naming the real mess hall is the character's. Seen red 2026-11-13 with the
+/// place check turned off: "a made-up place falls back: Ai { line: \"Take Second Street, past the
+/// docks.\", action: None }".
+#[test]
+fn a_made_up_place_falls_back_to_a_written_line() {
+    let mut gs = GuiState::default();
+    open(&mut gs, "Botanist Yara", Availability::Offered);
+    let written = gs.talk.chat.fallback_lines.clone();
+    gs.talk.chat.ask("Where is the mess hall?");
+    let said = gs.talk.chat.finish(r#"{"action":"none","line":"Take Second Street, past the docks."}"#);
+    let Said::Fallback { line, why } = said.clone() else { panic!("a made-up place falls back: {said:?}") };
+    assert!(written.contains(&line), "one of her written lines: {line:?}");
+    assert_eq!(why, humanity_core::i18n::t("ai.talk.filter.place"), "why, in words");
+    gs.talk.chat.ask("Where is the mess hall?");
+    let said = gs.talk.chat.finish(r#"{"action":"none","line":"The mess hall is in the Commons, just off First Street."}"#);
+    assert!(matches!(said, Said::Ai { .. }), "the real places pass: {said:?}");
+}
+
 /// THE FILTER JUDGES THE LINE AS IT STREAMS (8.3, a filter after generation, here run on every piece):
 /// a reply whose line breaks a rule partway is stopped there, the request cancelled before its end,
 /// and a written line is shown, with why. The fake engine's reply for a first question is "A real
@@ -246,7 +267,7 @@ fn a_line_that_breaks_a_rule_is_stopped_as_it_streams() {
     let mut chat = super::chat::Chat::default();
     chat.begin(Availability::Offered, Some(&character()), Grants::default(), vec!["The lemon tree won't fruit.".into()]);
     chat.dev_fake = true;
-    chat.filter = Some(crate::ai::talk::Filter { max_chars: 300, markers: Vec::new(), rules: vec![crate::ai::talk::Rule { why: "person".into(), phrases: vec!["engine".into()] }] });
+    chat.filter = Some(crate::ai::talk::Filter { max_chars: 300, markers: Vec::new(), rules: vec![crate::ai::talk::Rule { why: "person".into(), phrases: vec!["engine".into()] }], ..Default::default() });
     chat.ask("Who are you?");
     let said = until_said(&mut chat, &mut c, Duration::from_secs(90));
     assert_eq!(said, Some(Said::Fallback { line: "The lemon tree won't fruit.".into(), why: humanity_core::i18n::t("ai.talk.filter.person").into() }));

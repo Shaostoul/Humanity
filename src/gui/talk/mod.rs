@@ -27,7 +27,7 @@ mod tests;
 
 use std::collections::BTreeMap;
 
-use crate::ai::talk::{Character, Grants};
+use crate::ai::talk::{Character, Grants, PlaceMap};
 use crate::gui::GuiState;
 
 /// The talk card's entity id when the dev IPC opened it by name (no crew member stands there to walk
@@ -119,6 +119,39 @@ pub struct Opening<'a> {
     pub quests: Option<&'a humanity_systems::quests::QuestRegistry>,
     pub tracker: Option<&'a humanity_systems::quests::QuestTracker>,
     pub places: Option<&'a humanity_systems::quests::DestinationList>,
+    /// The ship's labelled rooms, zones and corridors the places resolve to (`SHIP_PLACES_KEY`).
+    pub ship: Option<&'a humanity_systems::quests::ShipPlaces>,
+}
+
+/// THE SHIP'S PLACES A CHARACTER KNOWS (2026-11-13; docs/design/embeddable-ai.md, "His answers on
+/// rung 3"), from the data "Show me the way" resolves: the zones aboard with their labelled rooms
+/// (where a `NearestVolume` destination such as the mess hall resolves), the corridors joining
+/// them, and the destinations out in the open (data/entities/destinations.ron), plus the real
+/// names the prompt leaves out (the districts, the player's own front door) for the filter.
+pub fn place_map(dests: Option<&humanity_systems::quests::DestinationList>, ship: Option<&humanity_systems::quests::ShipPlaces>) -> PlaceMap {
+    use humanity_systems::quests::in_a_sentence;
+    let mut map = PlaceMap::default();
+    // "Mess hall" inside a sentence: "the mess hall".
+    let room = |label: &str| {
+        let mut c = label.chars();
+        c.next().map(|f| format!("the {}{}", f.to_lowercase(), c.as_str()))
+    };
+    if let Some(ship) = ship {
+        for z in &ship.zones {
+            let rooms: Vec<String> = ship.volumes.iter().filter(|v| v.zone_label == *z).filter_map(|v| room(&v.label)).collect();
+            map.zones.push((in_a_sentence(z), rooms));
+        }
+        map.joins = ship.joins.iter().map(|(a, b)| (in_a_sentence(a), in_a_sentence(b))).collect();
+        map.also_real.extend(ship.districts.iter().map(|d| in_a_sentence(d)));
+    }
+    for d in dests.map(|d| d.destinations.as_slice()).unwrap_or_default() {
+        if d.at.is_none() {
+            map.outdoors.push(d.label.clone());
+        } else {
+            map.also_real.push(d.label.clone());
+        }
+    }
+    map
 }
 
 impl TalkCard {
@@ -165,6 +198,7 @@ impl TalkCard {
             persona: row.persona.clone(),
             examples: row.dialog.iter().chain(row.greetings.iter()).cloned().collect(),
             doing: o.activity.to_string(),
+            places: place_map(o.places, o.ship),
         });
         let mut fallback = o.lines.clone();
         if fallback.is_empty() {
@@ -271,6 +305,7 @@ pub fn open_for(gs: &mut GuiState, npc: &crate::net::sync::RemoteNpc, data: &hum
         quests: data.get::<humanity_systems::quests::QuestRegistry>("quest_registry"),
         tracker,
         places: data.get::<humanity_systems::quests::DestinationList>("quest_destinations"),
+        ship: data.get::<humanity_systems::quests::ShipPlaces>(humanity_systems::quests::SHIP_PLACES_KEY),
     };
     let mode = gs.settings.ai_talk_mode.clone();
     gs.talk.open(&opening, &mode);
@@ -284,6 +319,7 @@ pub(crate) fn open_for_test(gs: &mut GuiState, name: &str, availability: chat::A
     let data = std::path::PathBuf::from(concat!(env!("HUMANITY_REPO_ROOT"), "/data"));
     let quests = humanity_systems::quests::QuestRegistry::load(&data);
     let places = humanity_systems::quests::DestinationList::from_ron(&std::fs::read(data.join("entities/destinations.ron")).expect("destinations")).expect("destinations parse");
+    let ship = humanity_systems::quests::ShipPlaces::of_ship(&humanity_ship::ship_structure::ShipStructure::load_and_assemble_shipped(&data, None).expect("the shipped ship assembles"));
     let row = book::crew().into_iter().find(|c| c.name == name).expect("a crew member");
     gs.npc_talk_name = row.name.clone();
     gs.npc_talk_activity = "Watering the beds".into();
@@ -291,7 +327,7 @@ pub(crate) fn open_for_test(gs: &mut GuiState, name: &str, availability: chat::A
     gs.npc_talk_greetings = row.greetings.clone();
     gs.npc_talk_line = row.greetings[0].clone();
     gs.npc_talk_target = Some(7);
-    let o = Opening { name, role: &row.role, activity: "Watering the beds", lines: row.dialog.clone(), quests: Some(&quests), tracker: None, places: Some(&places) };
+    let o = Opening { name, role: &row.role, activity: "Watering the beds", lines: row.dialog.clone(), quests: Some(&quests), tracker: None, places: Some(&places), ship: Some(&ship) };
     gs.talk.open_with(&o, |_| availability);
 }
 

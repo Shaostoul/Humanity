@@ -2622,6 +2622,12 @@ the same numbers, built once per configuration under the reuse switch. No web mi
   its source); finding `docs/reference/findings/2026-11-13-pulleys-and-rigging.md`
 - Native: `src/gui/pages/calculator/pulleys.rs`; snapshot `just snapshot calculator_pulleys`
 - Library: "Force, Levers and Mechanical Advantage" (`docs/user/skills/`) describes it
+- World choice (2026-11-13): beside the load, Earth, the Moon, Mars, Pluto and the other planet files
+  (`data/planets/*.ron`, each its own gravity) and the ship's habitat rim (its spin: 4 pi^2 r / T^2
+  from `data/closed_loop/mothership.ron`, about 9.79 m/s^2); the load weighs by the world chosen
+  (`pulley::data::worlds`). Lighter pullers (an older adult, a child) are not added: no readable
+  primary source gives a sustained pull by age (finding `2026-11-13-pulling-force-by-age.md`); every
+  puller row cites its finding or says it is a design value (a test holds it)
 
 ### Calendar Page
 Calendar/planner in native UI.
@@ -3199,6 +3205,11 @@ installed the card offers AI once.
 - Tests: `src/ai/talk_tests.rs`, `src/gui/talk/tests.rs`, `an_engine_update_keeps_the_models_and_drops_the_old_engine`,
   `the_fake_answers_the_talk_cards_shape` and the Tekken check in `ministral_loads_and_answers` (engine)
 - Snapshots: `just snapshot talk_card`, `just snapshot talk_card_ai`
+- The ship's real places (2026-11-13, prompt version 2): the persona lists the zones aboard with their
+  rooms, which zone joins which and the places outdoors, from the data "Show me the way" resolves
+  (`gui::talk::place_map`, `ai::talk::PlaceMap`, `ShipPlaces`' zones, joins and districts), and the
+  filter stops a line naming a place the ship does not have (`data/ai/filter.ron` `place_words`, the
+  rule "place"), falling back to a written line
 
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
@@ -3633,6 +3644,13 @@ up.
   the door, no body in furniture over a minute, two walkers head-on pass, the mesh rebuilt only when
   furniture moves, the crowd's region holding while it walks, the shipped ship's Commons to the
   home)
+- The player stops at furniture too (2026-11-13, the operator: "We want the ship to feel alive"):
+  the same footprints (`Footprint::of_placed`, one list kept by `crowd_walk::refresh_furniture`)
+  feed the walk's collision as blockers between their heights (`Footprint::walls`: four edges and
+  a core), so a table, a bed or a shelf stops the body and a rug under the knee does not; a seat or
+  bed the player is sitting or lying on is left out while the interaction holds. Tests
+  `crowd_walk::tests::*` (cannot walk into a table, every shipped seat and bed still reached, a rug
+  does not block)
 
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`

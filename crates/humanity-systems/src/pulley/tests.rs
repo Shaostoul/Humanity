@@ -29,6 +29,42 @@ fn inputs<'a>(d: &'a PulleyData, load_kg: f64, puller: &str, rope: &str, bearing
 
 /// The shipped rows parse, every row the configurator names exists, and the block material is
 /// a materials.csv row (validate-data runs every test named "shipped").
+/// The puller rows that neither cite a finding the pulleys finding has (its "**F<n>.**" entries) nor
+/// say they are a design value, by id.
+fn uncited_pullers(d: &PulleyData, finding: &str) -> Vec<String> {
+    d.pullers
+        .iter()
+        .filter(|p| {
+            let cited: Vec<&str> = p.source.split(|c: char| !c.is_alphanumeric()).filter(|w| w.len() > 1 && w.starts_with('F') && w[1..].chars().all(|c| c.is_ascii_digit())).collect();
+            let all_found = cited.iter().all(|f| finding.contains(&format!("**{f}.")));
+            let design = p.source.contains("design value");
+            p.source.trim().is_empty() || !all_found || (cited.is_empty() && !design)
+        })
+        .map(|p| p.id.clone())
+        .collect()
+}
+
+/// EVERY PULLER ROW CITES ITS SOURCE OR SAYS IT IS A DESIGN VALUE (2026-11-13; docs/design/pulleys.md,
+/// "His answers": lighter pullers only from a primary source read). Every F-number a row's `source`
+/// names is an entry of docs/reference/findings/2026-11-13-pulleys-and-rigging.md, and a row citing
+/// none says "design value". Seen red 2026-11-13 on its red twin below (a row whose source is empty,
+/// and one citing an F99 the finding does not have): "uncited: [\"person\", \"truck_winch\"]".
+/// The lighter pullers themselves were NOT added: no primary source gives a sustained pull by age
+/// (docs/reference/findings/2026-11-13-pulling-force-by-age.md).
+#[test]
+fn every_puller_row_cites_its_source_or_is_a_design_value() {
+    let finding = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("docs/reference/findings/2026-11-13-pulleys-and-rigging.md")).expect("the pulleys finding");
+    let d = shipped();
+    assert_eq!(uncited_pullers(&d, &finding), Vec::<String>::new(), "every puller cites its source or is a design value");
+    // The red twin: the same check must fail a row with no source and one citing a missing finding.
+    let mut bad = d.clone();
+    bad.pullers[0].source = String::new();
+    if let Some(p) = bad.pullers.iter_mut().find(|p| p.id == "truck_winch") {
+        p.source = "F99 (force)".into();
+    }
+    assert_eq!(uncited_pullers(&bad, &finding), vec!["person".to_string(), "truck_winch".to_string()], "uncited");
+}
+
 #[test]
 fn shipped_pulley_data_parses() {
     let d = shipped();

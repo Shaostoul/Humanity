@@ -93,7 +93,10 @@ pub(crate) fn tick(state: &mut EngineState) {
         .unwrap_or(false);
     if due {
         release(&mut state.controller);
-        log::info!("Showcase: hold -> released");
+        // Where the walk left the body, so a rig reads where a held walk stopped (a wall, a table)
+        // from the log (2026-11-13, the player stopping at furniture).
+        let p = state.camera.position;
+        log::info!("Showcase: hold -> released, the eye at ({:.2}, {:.2}, {:.2})", p.x, p.y, p.z);
     }
 }
 

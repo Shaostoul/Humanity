@@ -5325,6 +5325,16 @@ mod native_app {
                             state.camera.position,
                             state.controller.eye_height(),
                         ));
+                        // The furniture too, the crowd's own footprints (2026-11-13, the operator:
+                        // "We want the ship to feel alive"): a table or a bed stops the body, a rug
+                        // under the knee does not, and a seat or a bed the player is sitting or
+                        // lying on is not in the way (engine/crowd_walk.rs `furniture_walls_near`).
+                        crate::engine::crowd_walk::refresh_furniture(state);
+                        doors.extend(crate::engine::crowd_walk::furniture_walls_near(
+                            state.animation.walk.furniture(),
+                            state.camera.position,
+                            state.interact.me.is_some(),
+                        ));
                         let resolved = humanity_ship::wall_collision::resolve(
                             prev_cam_pos,
                             state.camera.position,

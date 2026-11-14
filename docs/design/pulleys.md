@@ -329,3 +329,14 @@ by `just snapshot calculator_pulleys`.
 ## His answers (operator, 2026-11-13)
 
 Lighter pullers (an older person, a child) once a primary source is read, and a planet's gravity chosen beside the load: "Sure."
+
+**Built 2026-11-13.** The world choice stands beside the load: every planet file
+(`data/planets/*.ron`, its `gravity`), Earth first, and the ship's habitat rim, its spin gravity
+worked out from `data/closed_loop/mothership.ron` (the hull's 100 km diameter and the habitat's
+449 s period: 4 pi^2 x 50,000 / 449^2 = 9.79 m/s^2). The load weighs by it, so the same 20 kg on the
+Moon needs 0.165 of the pull it needs on Earth (`calculator::pulleys::tests`). **No lighter pullers
+were added:** none of the sources that could be read gives a sustained pull by age (the HSE's
+figures are by sex, the CCOHS's for one population, both safe-work limits; the DTI's 2000 strength
+study measured maximum exertions and its original was not found), recorded in
+[`2026-11-13-pulling-force-by-age.md`](../reference/findings/2026-11-13-pulling-force-by-age.md).
+A test holds that every puller row cites a finding entry or says it is a design value.

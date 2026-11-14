@@ -662,6 +662,11 @@ what we will say about it.
   diameter (FM 5-125), sheave and block size rules (FM 5-125, the Navy's Steelworker manual), design
   factors (4 for fibre rope and blocks, 5 for running wire rope), how hard people pull, winch and
   chain hoist ratings. The truck winch maker's page and the eCFR refused automated reading.
+- [`2026-11-13-pulling-force-by-age.md`](2026-11-13-pulling-force-by-age.md),
+  a NEGATIVE finding: no readable primary source gives the force a person keeps up while pulling by
+  age (an older adult, a child). The HSE's figures are by sex and the CCOHS's for one population,
+  both safe-work limits, not capacities; the DTI's 2000 strength study measured maximum exertions
+  and its original was not found. So the Pulleys mode adds no lighter pullers yet.
 - [`2026-11-13-free-instrument-libraries.md`](2026-11-13-free-instrument-libraries.md),
   which free multi-sampled instrument libraries may ship in the app or its packs: Karoryfer's whole
   free catalogue is CC0 only from its releases of 2022-11-04 (CC BY 4.0 and one GPL 3 before),

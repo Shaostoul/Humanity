@@ -199,7 +199,8 @@ impl Chat {
         self.persona = talk::persona(&talk::Prompt::character(), c, &grants);
         self.grammar = talk::grammar(&grants);
         self.grants = grants;
-        self.filter = Some(Filter::current());
+        // The filter knows the ship's real places, so a line naming one that does not exist is stopped.
+        self.filter = Some(Filter::current().knowing(&c.places.names()));
         self.phase = Phase::Preparing;
         self.began = Some(Instant::now());
     }
@@ -363,7 +364,7 @@ impl Chat {
                     pp.first_piece = Some(Instant::now());
                 }
             }
-            if let Some(hit) = self.filter.as_ref().and_then(|f| f.check(&line).err()) {
+            if let Some(hit) = self.filter.as_ref().and_then(|f| f.check_partial(&line).err()) {
                 c.cancel(r);
                 self.discard.push(r);
                 TalkCounts::bump(&COUNTS.filtered);
