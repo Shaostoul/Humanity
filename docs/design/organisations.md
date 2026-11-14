@@ -255,6 +255,14 @@ entries to bound the fold; rung 7 lifts the cap with checkpoints).
 - **Not wired yet:** an AI drives the page through the registry's list today, not yet through the
   dev IPC (the registry's own rung for device actions).
 
+## Decided (operator, 2026-11-14)
+
+Asked which real group goes first (recommended: Sponsor-a-Can, so every rung is tested by people
+who need it: cart days on the calendar, sign-ups, the delivery route as a shared table) and whether
+guilds retire into organisations once rung 2 lands (recommended: yes, guilds keep a member list in
+the clear on one server), the operator answered: "Agreed." Sponsor-a-Can is the first real group,
+and guilds retire into organisations.
+
 ## 9. Questions for the operator (each with a recommendation)
 
 1. **Which real group goes first?** Recommendation: Sponsor-a-Can, the volunteer group you already
