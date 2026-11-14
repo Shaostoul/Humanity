@@ -1522,9 +1522,12 @@ impl ShipStructure {
         self.zones.iter().position(|z| z.id == id)
     }
 
-    /// True when ANY zone has a clear/glass roof (drives the transparent ceiling pass).
+    /// True when ANY zone has a clear/glass roof, or a neighbour's home drawn on a plot does: since
+    /// 2026-11-14 a neighbour's glass roof rides the same transparent ceiling buffer
+    /// (crates/humanity-ship/src/neighbours.rs `GLASS_DRAWN`). Drives the transparent ceiling pass.
     pub fn any_glass_roof(&self) -> bool {
         self.zones.iter().any(|z| z.body.roof_is_glass())
+            || (crate::neighbours::glass_drawn() && self.neighbour_plots().any(|p| HomeDesign::built_in_ref(&p.kind).is_some_and(|d| d.body.roof_is_glass())))
     }
 
     /// Mint a unique ship-zone id from a base ("zone" -> "zone_2", "zone_3", ...).

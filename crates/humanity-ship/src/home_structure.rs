@@ -1712,14 +1712,30 @@ fn box_filler_into(
     }
 }
 
+/// A neighbour's shell as `HomeStructure::bake_shell` bakes it, in the body's own metres (min corner
+/// at the origin).
+pub struct ShellBake {
+    /// The opaque colour groups, (vertices, indices, rgb): the walls and placed structures, the
+    /// floor and the solid slabs, an opaque roof, the trim.
+    pub opaque: Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])>,
+    /// Every glass slab's faces, each drawn in the glass roof's look at `glass_slab_face_alpha`
+    /// (empty unless the glass is kept).
+    pub glass_slabs: (Vec<Vertex>, Vec<u32>),
+    /// A glass roof, for the transparent ceiling pass a zone's glass roof is drawn in (empty unless
+    /// the glass is kept and the roof is glass; an opaque roof is one of `opaque`).
+    pub glass_roof: (Vec<Vertex>, Vec<u32>),
+}
+
 impl HomeStructure {
     /// Bake this home's SHELL into local-space (min corner at the origin) per-colour groups: its
     /// outer box and interior walls, its placed structures, its floors, its ceiling and its trim,
     /// with `cuts` opened through the perimeter (a neighbour's door, increment 2). What a
     /// NEIGHBOUR's home is drawn as (crates/humanity-ship/src/neighbours.rs): render only, so the home's zones,
     /// lights, road and rail graphs and spawn are left out, and so are its machines, which are not
-    /// part of the body at all. Glass is dropped (an opaque roof reads better from outside and
-    /// skips the transparent pass's sort), windows and mirrors with it.
+    /// part of the body at all. This is the ALL-OPAQUE bake, the neighbours' drawing before
+    /// 2026-11-14 and now its red twin (showcase `neighbour_glass` "0"): its glass roof and glass
+    /// slabs drawn solid, its glass walls, windows and mirrors left out. What a neighbour is drawn
+    /// as today is `bake_shell` with its glass kept.
     ///
     /// It replaces the v0.638 home-clone tiling (`tile_home_clones`, which stamped the player's own
     /// home into every slot of a residential district and laid walkway connectors between the
@@ -1727,6 +1743,22 @@ impl HomeStructure {
     /// shell, not only the walls (operator, 2026-07-01: "floors for the mirrored homes aren't
     /// rendering").
     pub fn bake_shell_groups(&self, cuts: &[ShellCut]) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
+        self.bake_shell(cuts, false).opaque
+    }
+
+    /// The neighbour's shell (`bake_shell_groups`), with `keep_glass` its glass roof and glass slabs
+    /// kept as glass (`ShellBake`), so the frame draws them where it draws the player's own: the
+    /// roof in the transparent ceiling pass, the slabs with the glass floors.
+    ///
+    /// WHY THE GLASS IS KEPT (2026-11-14). The all-opaque bake drew a glass roof as the concrete
+    /// ceiling on the reasoning that nothing sees it from outside, an up-facing quad at the top of
+    /// the body. Since the near sun view (2026-11-10) draws the homes near you into the sun's shadow
+    /// map, that quad shaded everything under it: every neighbour's yard and upper rooms sat in
+    /// shade at noon while your own yard, under the same glass, was lit (80 of 255 against 199 at
+    /// the r1 yard). Kept as glass, a neighbour's roof dims the sun exactly as yours does (the
+    /// partial casters, renderer/shadow_transmit.rs), and its walls, slabs and trim still cast, so a
+    /// house's own shadow across its yard at a low sun stays.
+    pub fn bake_shell(&self, cuts: &[ShellCut], keep_glass: bool) -> ShellBake {
         let stub = HomeStructure {
             width: self.width,
             depth: self.depth,
@@ -1734,10 +1766,9 @@ impl HomeStructure {
             shell_material: self.shell_material,
             roof_material: self.shell_material,
             walls: self.walls.clone(),
-            // The slabs are shell too (a neighbour's upper floor is seen through its door), drawn
-            // solid as its roof is: a glass slab, like a glass roof, would cost the transparent
-            // pass's sort for nothing seen from outside.
-            floors: self.floors.iter().map(|s| FloorSlab { material: SlabMaterial::Solid, ..s.clone() }).collect(),
+            // The slabs are shell too (a neighbour's upper floor is seen through its door). The
+            // all-opaque bake draws a glass slab solid; `keep_glass` keeps it glass.
+            floors: if keep_glass { self.floors.clone() } else { self.floors.iter().map(|s| FloorSlab { material: SlabMaterial::Solid, ..s.clone() }).collect() },
             shell_thickness: self.shell_thickness,
             open_shell: self.open_shell.clone(),
             lights: Vec::new(),
@@ -1758,24 +1789,33 @@ impl HomeStructure {
             .collect();
         // Floors: per room (vertices, indices, rgba, material_type). The alpha and the material
         // type are dropped: a shell is drawn as flat colour buckets with no per-group material slot.
-        groups.extend(
-            meshes
-                .floors
-                .into_iter()
-                .filter(|(_, _, color, _)| color[3] >= 0.999)
-                .map(|(v, i, c, _material_type)| (v, i, [c[0], c[1], c[2]])),
-        );
-        // The ceiling, always the OPAQUE roof colour (src/lib.rs's non-glass ceiling material).
+        // A glass slab's faces (the glass roof's type, alpha under 1: `generate_meshes`) are kept
+        // apart when the glass is kept; any other see-through floor is left out, as before.
+        let mut glass_slabs: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        for (v, i, c, material_type) in meshes.floors {
+            if c[3] >= 0.999 {
+                groups.push((v, i, [c[0], c[1], c[2]]));
+            } else if keep_glass && material_type == GLASS_ROOF_TYPE {
+                merge(&mut glass_slabs, (v, i));
+            }
+        }
+        // The ceiling: a glass roof kept as glass, else the OPAQUE roof colour (src/lib.rs's
+        // non-glass ceiling material).
+        let mut glass_roof: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
         if !meshes.ceilings.0.is_empty() {
-            let c = OPAQUE_CEILING_RGBA;
-            groups.push((meshes.ceilings.0, meshes.ceilings.1, [c[0], c[1], c[2]]));
+            if keep_glass && self.roof_is_glass() {
+                glass_roof = meshes.ceilings;
+            } else {
+                let c = OPAQUE_CEILING_RGBA;
+                groups.push((meshes.ceilings.0, meshes.ceilings.1, [c[0], c[1], c[2]]));
+            }
         }
         // Trim (baseboard, crown, frame): opaque wood brown, src/lib.rs's trim material.
         if !meshes.trim.0.is_empty() {
             const TRIM_RGB: [f32; 3] = [0.42, 0.30, 0.18];
             groups.push((meshes.trim.0, meshes.trim.1, TRIM_RGB));
         }
-        groups
+        ShellBake { opaque: groups, glass_slabs, glass_roof }
     }
 
     /// A fresh road-node id (max existing + 1, or 1). (v0.586)

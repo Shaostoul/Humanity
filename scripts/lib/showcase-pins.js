@@ -50,6 +50,10 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The tree card stage's depth floor (BUG-301, engine/tree_card_stage.rs): "0" draws the ground to
   // the planet's own cap, so without the tile tier there is no card stage (the red twin).
   card_floor: "1",
+  // The neighbours' glass (2026-11-14, crates/humanity-ship/src/neighbours.rs): "0" bakes their homes
+  // all opaque, glass roofs drawn solid and the hull shut over them, so the near sun view shades their
+  // yards (the red twin).
+  neighbour_glass: "1",
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",

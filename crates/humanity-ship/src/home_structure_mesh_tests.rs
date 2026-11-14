@@ -461,6 +461,53 @@ fn a_neighbours_shell_draws_its_slabs() {
     assert!((area(2.75, false) - 100.0).abs() < 1e-3, "the neighbour's shell has {} m2 at the slabs' underside, want 100", area(2.75, false));
 }
 
+/// A NEIGHBOUR'S SHELL KEEPS ITS GLASS (2026-11-14, `bake_shell` with the glass kept). A body with a
+/// glass roof, a solid slab and a glass slab: the roof comes out as glass (the whole box's upward
+/// face at its height) and nothing opaque covers the box at the roof's height; the glass slab's top
+/// is glass and the solid slab's is opaque; the walls and the floor are the all-opaque bake's,
+/// unchanged. The same body with an opaque roof bakes its roof opaque, exactly as the all-opaque
+/// bake (the red twin, `bake_shell_groups`) does.
+///
+/// Seen red 2026-11-14 with `keep_glass` ignored (the all-opaque bake for both): "the glass roof
+/// bakes -0 m2 of glass at 6, want 100".
+#[test]
+fn a_neighbours_shell_keeps_its_glass() {
+    let mut body = bare(10.0, 10.0, 6.0);
+    body.roof_material = 4;
+    body.floors.push(slab((0.0, 0.0), (10.0, 5.0), 3.0));
+    let mut glass = slab((0.0, 5.0), (10.0, 10.0), 3.0);
+    glass.material = SlabMaterial::Glass;
+    body.floors.push(glass);
+    let kept = body.bake_shell(&[], true);
+    let opaque_at = |y: f32, up: bool| kept.opaque.iter().map(|(v, i, _)| flat_area_at(v, i, y, up)).sum::<f32>();
+    let roof = flat_area_at(&kept.glass_roof.0, &kept.glass_roof.1, 6.0, true);
+    assert!((roof - 100.0).abs() < 1e-3, "the glass roof bakes {roof} m2 of glass at 6, want 100");
+    assert!(opaque_at(6.0, true) < 1e-3, "{} m2 of opaque shell covers the box at the glass roof's height", opaque_at(6.0, true));
+    let top = 3.0 + SLAB_DRAW_LIFT_M;
+    let glass_top = flat_area_at(&kept.glass_slabs.0, &kept.glass_slabs.1, top, true);
+    assert!((glass_top - 50.0).abs() < 1e-3, "the glass slab's top bakes {glass_top} m2 of glass, want 50");
+    assert!((opaque_at(top, true) - 50.0).abs() < 1e-3, "the solid slab's top bakes {} m2 opaque, want 50", opaque_at(top, true));
+    // With no glass slab, keeping the glass moves the roof and nothing else: the all-opaque bake's
+    // groups are the kept bake's plus one, the roof in the opaque ceiling's colour, whose geometry is
+    // the kept glass roof's.
+    body.floors.pop();
+    let kept = body.bake_shell(&[], true);
+    let all_opaque = shell_signatures(&body.bake_shell_groups(&[]));
+    let mut extra = all_opaque.clone();
+    for line in shell_signatures(&kept.opaque) {
+        let at = extra.iter().position(|l| *l == line).unwrap_or_else(|| panic!("keeping the glass changed a group of the shell: {line}"));
+        extra.remove(at);
+    }
+    let (nv, ni, h) = geometry_sig(&kept.glass_roof.0, &kept.glass_roof.1);
+    let roof_line = format!("shell {} v {nv} i {ni} h {h:016x}", rgba_bits(&OPAQUE_CEILING_RGBA[..3]));
+    assert_eq!(extra, vec![roof_line], "the all-opaque bake differs from the kept one by its roof alone");
+    // An opaque roof stays opaque: the same bake as the red twin's, and no glass.
+    body.roof_material = 1;
+    let steel = body.bake_shell(&[], true);
+    assert!(steel.glass_roof.0.is_empty() && steel.glass_slabs.0.is_empty(), "an opaque-roofed body with no glass slab bakes no glass");
+    assert_eq!(shell_signatures(&steel.opaque), shell_signatures(&body.bake_shell_groups(&[])), "an opaque roof bakes as the all-opaque bake does");
+}
+
 /// THE STAIRS CARRY HANDRAILS AT THE FINDING'S HEIGHT (plan decision 8; the finding's "Handrail" row:
 /// 900 to 965 mm above the nosing line for both codes together, on both sides at 1000 mm wide and
 /// over; the IRC's R311.7.8.3 has the ends returned). A stairs piece draws its rails in a group of

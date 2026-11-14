@@ -20,6 +20,11 @@
 //       holding both arms of a same-boot A/B: --gate D D --arm on
 //       --before-arm off). Exit 1 when a gate fails, 2 when a capture is
 //       missing.
+//   node scripts/home-shadow-metrics.mjs --yards <dir> [--arm A]
+//       the yards gate (2026-11-14): at noon a neighbour's open yard reads no
+//       more than YARD_GAP_MAX codes darker than your own under the same sky
+//       (tests/visual/row-yards-vantages.json, your home on r1). Exit 1 when
+//       it does, 2 when the capture is missing.
 //
 // WHY THESE CRITERIA (corrected 2026-11-12, shadows rung 1b). The first
 // version capped (a) at the NIGHT capture plus 10% and judged (c) against the
@@ -89,6 +94,14 @@ export const REGIONS = {
   "planet-built-inside": {
     floor_under_roof: [700, 700, 900, 820],
     sand_sun: [40, 820, 200, 880],
+  },
+  // r1's yard looking south along the terrace's yards (tests/visual/row-yards-vantages.json, the
+  // two-bedroom dev start on r1): your own yard's floor in the foreground, and the neighbour r2's
+  // yard floor beyond the mowing strip, right of its first bed and clear of the strip and the house's
+  // back wall. Read off the 2026-11-14 captures at 2560x1387 (the r3-sun base and nonear arms).
+  "row-yards": {
+    own_yard: [625, 616, 937, 681],
+    neighbour_yard: [1034, 539, 1078, 555],
   },
 };
 
@@ -203,9 +216,41 @@ async function gate(beforeDir, afterDir, arm, beforeArm) {
   console.log("\nPASS");
 }
 
+// The most codes a neighbour's open yard may read darker than your own at noon (the yards gate). Your
+// yard and a neighbour's stand under the same glass and the same sun, so they should read alike;
+// 8 codes leaves room for the room light's small differences between plots, and is far under the
+// defect (about 120 codes: 80 against 199 on 2026-11-14).
+export const YARD_GAP_MAX = 8;
+
+// THE YARDS GATE (2026-11-14): at noon a neighbour's open yard reads no darker than your own, more
+// than YARD_GAP_MAX codes. Seen red on the capture of main as it stood (73b817e7a, the r3-sun base
+// arm: "your own yard 199.8, the neighbour's 82.6 (darker by 117.2 codes)", exit 1), on the build
+// that made only the neighbour's roof glass (its glass arm read the same 82.6: the hull's plating,
+// shut over the neighbours, shaded the yard too; BUG-307), and on the red twin's arm (opaque__,
+// showcase neighbour_glass 0); the same view without the near sun view passes (neighbour 202.2).
+async function yardsGate(dir, arm) {
+  const f = find(dir, "row-yards", "noon", arm);
+  if (!f) {
+    console.error(`missing capture: row-yards-noon${arm ? ` (arm ${arm})` : ""} in ${dir}`);
+    process.exit(2);
+  }
+  const r = (await measure(f, REGIONS["row-yards"])).regions;
+  const gap = r.own_yard.code - r.neighbour_yard.code;
+  console.log(`${path.basename(f)}: your own yard ${r.own_yard.code.toFixed(1)}, the neighbour's ${r.neighbour_yard.code.toFixed(1)} ` +
+    `(${gap >= 0 ? "darker" : "lighter"} by ${Math.abs(gap).toFixed(1)} codes; it may be at most ${YARD_GAP_MAX} darker)`);
+  if (!(gap <= YARD_GAP_MAX)) {
+    console.error(`\nFAIL\n  the neighbour's open yard reads ${gap.toFixed(1)} codes darker than your own under the same sky`);
+    process.exit(1);
+  }
+  console.log("\nPASS");
+}
+
 const args = process.argv.slice(2);
 if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}` || true) {
-  if (args[0] === "--gate") {
+  if (args[0] === "--yards") {
+    const armAt = args.indexOf("--arm");
+    await yardsGate(args[1], armAt >= 0 ? args[armAt + 1] : null);
+  } else if (args[0] === "--gate") {
     const armAt = args.indexOf("--arm");
     const beforeArmAt = args.indexOf("--before-arm");
     const arm = armAt >= 0 ? args[armAt + 1] : null;
@@ -214,7 +259,7 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}` || true
   } else if (args.length) {
     for (const d of args) await report(d);
   } else {
-    console.error("usage: node scripts/home-shadow-metrics.mjs <dir>... | --gate <before-dir> <after-dir> [--arm NAME] [--before-arm NAME]");
+    console.error("usage: node scripts/home-shadow-metrics.mjs <dir>... | --gate <before-dir> <after-dir> [--arm NAME] [--before-arm NAME] | --yards <dir> [--arm NAME]");
     process.exit(2);
   }
 }

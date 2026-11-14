@@ -545,3 +545,21 @@ nothing. So the near sun view (the shadow atlas, which draws the homes near you)
 yard in shade that your own yard does not get, most likely from what it draws of the neighbour over
 the yard (its ceilings: crates/humanity-ship/src/neighbours.rs bakes two ceiling buffers), not yet
 traced. It reads as shade along the houses rather than a hole; the fix is the next step, not a rung.
+
+**The yards in the sun** (2026-11-14, BUG-307, docs/design/sun-cascades.md "a neighbour's roof is
+glass"). Traced the same day, and it was two covers, not one: every neighbour's GLASS roof was
+baked as the opaque concrete ceiling (`HomeStructure::bake_shell_groups`, an up-facing quad over the
+whole plot, house and yard, that nobody sees from below), and the hull's top plating, cut open over
+every glass zone roof (your own home's among them), was shut over every neighbour's plot. Both are
+in the scene list the near sun view draws. Making the roof glass alone left the yard at the same
+82.6 codes; with the plating opened too, a neighbour's yard reads 202.0 at noon against your own
+199.8 and the near-sun-off reference 202.2 (a release build, the r1 yard, the same boot through the
+red twin `{"neighbour_glass":"0"}`: 82.6). From the green, three neighbours' yards read 201.7 to 201.9
+beside the green's 199.6 (77.2 before). An hour after dawn they read about 115 beside the green's
+111 (36 before, and your own yard 123 against 32 before: the shut plating over the plots east of it
+took your morning sun as well); an hour before dusk every yard lies in its own house's shadow in both
+arms (36), the real shade the fix keeps. Cost: `gpu.transparent` +0.21 to +0.25 ms (the neighbours'
+glass roofs drawn in the transparent ceiling pass, as yours is), `gpu.shadow_near` unchanged, the
+scene pass within its noise (-0.42 and +0.24 ms). Held by
+`neighbours::sky_tests::a_neighbours_open_yard_sees_the_sky_as_your_own_does` and the yards gate over
+tests/visual/row-yards-vantages.json (`node scripts/home-shadow-metrics.mjs --yards`).

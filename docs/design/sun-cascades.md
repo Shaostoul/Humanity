@@ -13,6 +13,25 @@ It shares the atlas with the room lights' shadows and lives at group 0 bindings 
 growth planned below did not happen. Increments 2 to 4 (the full ladder, PCSS, glass) remain, now as
 more tiles of that atlas.
 
+**2026-11-14: a neighbour's roof is glass, as yours is.** The near sun tile draws the homes near you
+(the scene list), and a neighbour's home was baked all opaque (`HomeStructure::bake_shell_groups`):
+its glass roof drawn as the concrete ceiling, an up-facing quad over its whole plot box, house and
+yard, that nobody sees from below and so was thought harmless. Once the tile cast from it, every
+neighbour's yard and upper rooms sat in shade at noon while your own yard, under the same glass, was
+lit: 82.6 of 255 against your yard's 199.8 at the r1 yard, 202.2 with `near_levels` "0". And the
+hull (also in the scene list, and so a caster) closed its top plating over every neighbour's plot,
+where it is cut open over every glass zone roof, yours among them; the roof made glass alone left
+the yard at the same 82.6. A neighbour's glass roof now rides the transparent ceiling buffer with
+the zones' glass roofs, its glass slabs the glass floors (`HomeStructure::bake_shell` with the glass
+kept, crates/humanity-ship/src/neighbours.rs `GLASS_DRAWN`), and the hull is open over it, so the
+partial casters dim the sun through it exactly as through yours; its walls, solid slabs and trim
+still cast, so a house's own shadow across its yard at a low sun stays. An opaque roof (the cabin's)
+stays opaque, under shut plating, and keeps casting: a steel roof's shade is real. Showcase
+`neighbour_glass` "0" is the red twin of both. Held by
+`neighbours::sky_tests::a_neighbours_open_yard_sees_the_sky_as_your_own_does` (the meshes, rays toward
+five noon suns and a low one) and the yards gate, `node scripts/home-shadow-metrics.mjs --yards` over
+tests/visual/row-yards-vantages.json (the pixels). BUG-307 in docs/BUGS.md.
+
 ## 1. How the sun shadow map works today, and why the home never casts
 
 - **Build and fit** happen in `render_celestial_onto` (celestial.rs 538-646).

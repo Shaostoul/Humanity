@@ -49,13 +49,14 @@
 
 use humanity_core::vertex::Vertex;
 use crate::fibonacci::HomesteadMeshes;
-use crate::home_structure::{PlacedLight, ShellCut};
+use crate::home_structure::{glass_slab_face_alpha, PlacedLight, ShellBake, ShellCut, GLASS_ROOF_RGBA, GLASS_ROOF_TYPE};
 use crate::ship_structure::{
     design_fits_plot, end_mouth_cut, push_corridor_tube, CorridorGeom, CorridorMouth, HomeDesign, Plot, ShipStructure,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// One neighbour as this game draws it: its plot, the design drawn there (the default of the
 /// plot's kind), and its door corridor (None when the corridor does not resolve: the home is then
@@ -90,6 +91,8 @@ struct NeighbourKey {
     own: Option<String>,
     plots: Vec<Plot>,
     zones: Vec<(String, (f32, f32, f32), f32, f32, f32)>,
+    /// Whether the neighbours' glass is drawn as glass (`glass_drawn`; false is the red twin).
+    glass: bool,
 }
 
 impl NeighbourKey {
@@ -102,8 +105,29 @@ impl NeighbourKey {
                 .iter()
                 .map(|z| (z.id.clone(), z.origin, z.body.width, z.body.depth, z.body.height))
                 .collect(),
+            glass: glass_drawn(),
         }
     }
+}
+
+/// THE NEIGHBOURS' GLASS (2026-11-14, BUG-307): their glass roofs and glass slabs drawn as glass,
+/// where the frame draws the player's own (`HomeStructure::bake_shell`), and the hull's plating open
+/// over a glass roof as over a glass zone roof (hull.rs `hull_geom`), so the near sun view lets the
+/// sun through a neighbour's roof exactly as through your own. False is the red twin, the
+/// all-opaque bake and the shut plating of before, which put every neighbour's yard in shade at
+/// noon: showcase
+/// `{"neighbour_glass":"0"}` (src/engine/ipc.rs), the same-boot A/B. Process-wide, read into the
+/// view's key, so flipping it bakes the view again at the next rebuild.
+static GLASS_DRAWN: AtomicBool = AtomicBool::new(true);
+
+/// Whether the neighbours' glass is drawn as glass (`GLASS_DRAWN`).
+pub fn glass_drawn() -> bool {
+    GLASS_DRAWN.load(Ordering::Relaxed)
+}
+
+/// Set `GLASS_DRAWN`; true when it changed (the caller rebuilds the home's meshes then).
+pub fn set_glass_drawn(on: bool) -> bool {
+    GLASS_DRAWN.swap(on, Ordering::Relaxed) != on
 }
 
 thread_local! {
@@ -145,7 +169,7 @@ pub fn neighbour_view_at(ship: &ShipStructure, level: Option<f32>) -> Rc<Neighbo
             views.push(hit);
             return v;
         }
-        let view = Rc::new(make_view(ship, level));
+        let view = Rc::new(make_view(ship, level, key.glass));
         MADE.with(|m| m.set(m.get() + 1));
         views.push((key, lv, view.clone()));
         if views.len() > 2 {
@@ -159,8 +183,9 @@ pub fn neighbour_view_at(ship: &ShipStructure, level: Option<f32>) -> Rc<Neighbo
 /// that design's box, the hole its corridor makes in the shared zone it runs to, and the meshes,
 /// one shell baked per (design, door, storey cut) and moved to each plot that uses it. A plot
 /// whose kind has no built-in design, or whose design does not fit it, is left out. Pure but for
-/// the log line. `level`: the ship level each home is cut away at (`neighbour_view_at`).
-fn make_view(ship: &ShipStructure, level: Option<f32>) -> NeighbourView {
+/// the log line. `level`: the ship level each home is cut away at (`neighbour_view_at`); `glass`:
+/// their glass drawn as glass (`GLASS_DRAWN`).
+fn make_view(ship: &ShipStructure, level: Option<f32>, glass: bool) -> NeighbourView {
     let mut neighbours = Vec::new();
     let mut zone_cuts = Vec::new();
     for plot in ship.neighbour_plots() {
@@ -177,7 +202,7 @@ fn make_view(ship: &ShipStructure, level: Option<f32>) -> NeighbourView {
         }
         neighbours.push(Neighbour { plot: plot.clone(), design, tube });
     }
-    let (meshes, shells_baked) = bake(&neighbours, level);
+    let (meshes, shells_baked) = bake(&neighbours, level, glass);
     NeighbourView { neighbours, zone_cuts, meshes, shells_baked }
 }
 
@@ -200,19 +225,34 @@ fn own_cut(n: &Neighbour) -> Option<ShellCut> {
     Some(end_mouth_cut(o, b.width, b.depth, b.height, g, g.end_from, g.end_to))
 }
 
-/// One shell as `HomeStructure::bake_shell_groups` bakes it: (vertices, indices, rgb) groups.
-type Shell = Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])>;
+/// Append index-offset copies of `from`, moved by `o`, onto `into`.
+fn append_moved(into: &mut (Vec<Vertex>, Vec<u32>), from: &(Vec<Vertex>, Vec<u32>), o: (f32, f32, f32)) {
+    let base = into.0.len() as u32;
+    into.0.extend(from.0.iter().map(|v| {
+        let mut v = *v;
+        v.position[0] += o.0;
+        v.position[1] += o.1;
+        v.position[2] += o.2;
+        v
+    }));
+    into.1.extend(from.1.iter().map(|i| i + base));
+}
 
-/// Every neighbour's shell (`HomeStructure::bake_shell_groups`, its door cut through it) at its
-/// plot's origin, merged into opaque colour groups the way the district fillers are, and its
-/// corridor tube (`push_corridor_tube`, the one a ship corridor is drawn with). One bake per
-/// (design, door, storey cut): plots sharing all three share the bake, moved. No room is
+/// Every neighbour's shell (`HomeStructure::bake_shell`, its door cut through it) at its plot's
+/// origin: the opaque parts merged into colour groups the way the district fillers are, and, with
+/// `glass`, its glass roof into the ceilings (the transparent ceiling pass the zones' glass roofs
+/// are drawn in, so the near sun view's partial casters dim the sun through it as through your own
+/// roof) and its glass slabs into one see-through floor in the glass roof's look (the glass floors
+/// the frame draws with the glass walls); without, the all-opaque bake of before, the red twin.
+/// And its corridor tube (`push_corridor_tube`, the one a ship corridor is drawn with). One bake
+/// per (design, door, storey cut): plots sharing all three share the bake, moved. No room is
 /// registered for either. Returns the meshes and how many shells it baked. `level`: the ship
 /// level each home is cut away at (Maps increment 3), None whole.
-fn bake(neighbours: &[Neighbour], level: Option<f32>) -> (HomesteadMeshes, usize) {
+fn bake(neighbours: &[Neighbour], level: Option<f32>, glass: bool) -> (HomesteadMeshes, usize) {
     let mut out = empty_meshes();
-    let mut shells: Vec<(&'static HomeDesign, Option<ShellCut>, Option<usize>, Shell)> = Vec::new();
+    let mut shells: Vec<(&'static HomeDesign, Option<ShellCut>, Option<usize>, ShellBake)> = Vec::new();
     let mut groups: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> = std::collections::HashMap::new();
+    let mut glass_slabs: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
     for n in neighbours {
         let cut = own_cut(n);
         let storey = storey_cut(n, level);
@@ -221,25 +261,28 @@ fn bake(neighbours: &[Neighbour], level: Option<f32>) -> (HomesteadMeshes, usize
             None => {
                 let cuts: Vec<ShellCut> = cut.into_iter().collect();
                 let body = storey.and_then(|k| n.design.body.cut_away(k));
-                let shell = body.as_ref().unwrap_or(&n.design.body).bake_shell_groups(&cuts);
+                let shell = body.as_ref().unwrap_or(&n.design.body).bake_shell(&cuts, glass);
                 shells.push((n.design, cut, storey, shell));
                 shells.len() - 1
             }
         };
-        let (ox, oy, oz) = n.plot.origin;
-        for (verts, idx, rgb) in &shells[at].3 {
+        let o = n.plot.origin;
+        let shell = &shells[at].3;
+        for (verts, idx, rgb) in &shell.opaque {
             let key = [(rgb[0] * 64.0) as i32, (rgb[1] * 64.0) as i32, (rgb[2] * 64.0) as i32];
             let g = groups.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), *rgb));
             let base = g.0.len() as u32;
             g.0.extend(verts.iter().map(|v| {
                 let mut v = *v;
-                v.position[0] += ox;
-                v.position[1] += oy;
-                v.position[2] += oz;
+                v.position[0] += o.0;
+                v.position[1] += o.1;
+                v.position[2] += o.2;
                 v
             }));
             g.1.extend(idx.iter().map(|i| i + base));
         }
+        append_moved(&mut glass_slabs, &shell.glass_slabs, o);
+        append_moved(&mut out.ceilings, &shell.glass_roof, o);
         if let Some(g) = &n.tube {
             push_corridor_tube(&mut out, g, n.design.body.shell_material);
         }
@@ -247,6 +290,10 @@ fn bake(neighbours: &[Neighbour], level: Option<f32>) -> (HomesteadMeshes, usize
     let mut list: Vec<_> = groups.into_iter().collect();
     list.sort_by_key(|(k, _)| *k);
     out.material_walls.extend(list.into_iter().map(|(_, (v, i, c))| (v, i, [c[0], c[1], c[2], 1.0])));
+    if !glass_slabs.0.is_empty() {
+        let g = GLASS_ROOF_RGBA;
+        out.floors.push((glass_slabs.0, glass_slabs.1, [g[0], g[1], g[2], glass_slab_face_alpha()], GLASS_ROOF_TYPE));
+    }
     (out, shells.len())
 }
 
@@ -365,6 +412,11 @@ impl NeighbourView {
         out
     }
 }
+
+/// The sun over a neighbour's yard against your own (2026-11-14), kept beside this file.
+#[cfg(test)]
+#[path = "neighbours_sky_tests.rs"]
+mod sky_tests;
 
 #[cfg(test)]
 mod tests {
@@ -699,7 +751,7 @@ mod tests {
             let _ = crate::hull::hull_geom(&ship, &profile);
         });
         let one_view = time(&|| {
-            let _ = make_view(&ship, None);
+            let _ = make_view(&ship, None, true);
         });
         println!("rebuild with the neighbours kept: {kept:.1} ms; one neighbour view made: {one_view:.1} ms (the old rebuild made two: about {:.1} ms)", kept + 2.0 * one_view);
     }

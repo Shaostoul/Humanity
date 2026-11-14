@@ -346,6 +346,16 @@ pub(crate) fn hull_geom(ship: &ShipStructure, profile: &HullProfile) -> Option<H
     for n in &view.neighbours {
         let (lo, hi) = n.plot.aabb();
         extra.push((lo.x, lo.z, hi.x, hi.z, lo.y, hi.y.max(lo.y + n.design.body.height), false));
+        // A neighbour's GLASS roof is open to the sky as a glass zone roof is (2026-11-14,
+        // neighbours.rs `GLASS_DRAWN`): the plating over its body is cut away, so its yard and its
+        // upper rooms see the sun your own see. Before, a neighbour's roof was drawn opaque and the
+        // plating closed over it, and once the near sun view cast from the hull (2026-11-10) every
+        // neighbour's yard sat in its shade at noon (BUG-307). The red twin keeps it closed.
+        let b = &n.design.body;
+        if crate::neighbours::glass_drawn() && b.roof_is_glass() {
+            let (ox, oy, oz) = n.plot.origin;
+            extra.push((ox, oz, ox + b.width, oz + b.depth, oy, oy + b.height, true));
+        }
         if let Some(g) = &n.tube {
             let hwc = g.width * 0.5;
             let (x0, z0, x1, z1) = match g.axis {
@@ -1108,7 +1118,12 @@ mod tests {
         let lids = ship.corridors.iter().filter(|c| c.glass_top).count();
         let neighbour_lids = ship.neighbour_plots().filter(|p| p.door.glass_top).count();
         assert_eq!((roofs, lids, neighbour_lids), (12, 5, 33), "the shipped glass roofs, ship corridor lids and neighbour corridor lids");
-        assert_eq!(geom.holes.len(), roofs + lids + neighbour_lids, "every glass roof, ship corridor lid and neighbour's glass corridor lid is open");
+        // And since 2026-11-14 (BUG-307) every neighbour drawn with a glass roof: the homesteads
+        // and the row houses (the cabins' roofs are steel).
+        let view = crate::neighbours::neighbour_view(&ship);
+        let neighbour_roofs = view.neighbours.iter().filter(|n| n.design.body.roof_is_glass()).count();
+        assert!(neighbour_roofs >= 20, "the twenty row houses' glass roofs are counted: {neighbour_roofs}");
+        assert_eq!(geom.holes.len(), roofs + lids + neighbour_lids + neighbour_roofs, "every glass roof, ship corridor lid, neighbour's glass corridor lid and neighbour's glass roof is open");
         // The neighbour's plot (p2, z 99..188) is inside the hull too (increment 2: the hull wraps
         // every plot, whoever holds it). Seen red 2026-10-04 with the neighbours left out of
         // `hull_geom`: "the neighbour's plot p2 is sliced by the hull at long 143.5".

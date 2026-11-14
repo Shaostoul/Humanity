@@ -1939,6 +1939,18 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.room_gi.neighbours_off = t == "0";
         log::info!("Showcase: neighbour_rooms -> {}", !state.renderer.room_gi.neighbours_off);
     }
+    // {"neighbour_glass":"0"} bakes the neighbours' homes all opaque again, their glass roofs and
+    // glass slabs drawn solid and the hull's plating shut over them, as before 2026-11-14 (every
+    // neighbour's yard in the near sun view's shade at noon, BUG-307); "1" draws their glass as
+    // glass, where your own is drawn, with the hull open over it. The red twin of
+    // crates/humanity-ship/src/neighbours.rs `GLASS_DRAWN`, same-boot; the home's meshes rebuild
+    // only when it changes. Permanent dev tooling.
+    if let Some(t) = grab("neighbour_glass") {
+        if humanity_ship::neighbours::set_glass_drawn(t != "0") {
+            crate::engine::home_meshes::rebuild_homestead(state);
+        }
+        log::info!("Showcase: neighbour_glass -> {}", humanity_ship::neighbours::glass_drawn());
+    }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
     // detail scale, so one run can capture both sides of that change.
     if let Some(t) = grab("cloud_chord_foot") {
