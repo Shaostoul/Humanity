@@ -243,7 +243,16 @@ The operator, to the twelve decisions at the end of [the sizes research](../refe
    player vote per ship** ("Should be a player vote per ship"), and slag is to be justified as an
    endless resource sink by its uses ("We'll have to figure out the various ways we can use the slag.
    That way we can justify it as an infinite resource sink."): armour, reaction mass for a mass
-   driver, and the rest a research pass lists.
+   driver, and the rest a research pass lists ([slag.md](slag.md)). His answers on its questions,
+   the same night: the mothership's jump charge grows with its mass ("Agreed"); the vote is the
+   ship's residents, a simple majority, at most once a game month, default 0, "And if there's an
+   insufficient vote we'll just maintain whatever the last choice was."; voted armour appears at
+   once under unlimited supply, "We'd like to have a toggle or something so we can see it with slag
+   armor vs without."; surplus rock stays at the asteroid ("Makes sense."); realistic residue ratios
+   by asteroid class in realistic mode ("Might as well as to be educational."). He asked what
+   agility buys beyond dodging and taking hits, what "outside the water" means, and how slag is
+   added to the hull; answered in the journal's entry for the day (agility: dodging and the jump
+   charge; slag as cast tiles bolted on the shell's outer face).
    **See also: [slag.md](slag.md)** (2026-11-13): every use ranked by how much it absorbs, the
    loops, the vote's numbers (1 t/m2 over Drum 1 adds about 7% to its mass, 4% to its turn time,
    and takes the dose from 5 mSv to about 3.3 to 4.0), the rungs and eight questions; sourced in
