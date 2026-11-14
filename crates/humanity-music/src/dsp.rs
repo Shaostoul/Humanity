@@ -512,3 +512,130 @@ impl Limiter {
         (knee(l * g), knee(r * g))
     }
 }
+
+// ----- The bass toolkit (docs/design/music.md section 7d, rung E2, 2026-11-13) ----------------------
+//
+// Written here from published methods, no code copied: waveshaping and bit and sample-rate reduction
+// are arithmetic on each sample; the first-order all-pass stages of the phaser are the textbook
+// section H(z) = (a + z^-1) / (1 + a z^-1) with its coefficient from the bilinear transform; the
+// formant filter is three of the state variable band-passes above, tuned to a vowel's formants.
+
+/// The first three formants (frequency Hz, gain dB, bandwidth Hz) of the BASS voice's vowels a, e,
+/// i, o and u, from the Csound manual's "Appendix D. Formant Values" (bass voice tables;
+/// csound.com/docs/manual/MiscFormants.html, read 2026-11-13; the choir's soprano "a" and "o" in
+/// score.rs come from the same appendix).
+pub const BASS_FORMANTS: [[(f32, f32, f32); 3]; 5] = [
+    [(600.0, 0.0, 60.0), (1040.0, -7.0, 70.0), (2250.0, -9.0, 110.0)],
+    [(400.0, 0.0, 40.0), (1620.0, -12.0, 80.0), (2400.0, -9.0, 100.0)],
+    [(250.0, 0.0, 60.0), (1750.0, -30.0, 90.0), (2600.0, -16.0, 100.0)],
+    [(400.0, 0.0, 40.0), (750.0, -11.0, 80.0), (2400.0, -21.0, 100.0)],
+    [(350.0, 0.0, 40.0), (600.0, -20.0, 80.0), (2400.0, -32.0, 100.0)],
+];
+
+/// An LFO's value (-1 .. 1) at `phase` (0 .. 1) in `shape`; `cycle` numbers the cycle, so sample and
+/// hold gives every cycle its own value, the same each time the music is played from one seed.
+#[inline]
+pub fn lfo_value(shape: crate::instrument::LfoShape, phase: f32, cycle: u64) -> f32 {
+    use crate::instrument::LfoShape;
+    match shape {
+        LfoShape::Sine => (2.0 * PI * phase).sin(),
+        LfoShape::Triangle => 1.0 - 4.0 * (phase - 0.5).abs(),
+        LfoShape::RampUp => 2.0 * phase - 1.0,
+        LfoShape::RampDown => 1.0 - 2.0 * phase,
+        LfoShape::Square => {
+            if phase < 0.5 {
+                1.0
+            } else {
+                -1.0
+            }
+        }
+        LfoShape::SampleHold => {
+            let mut h = cycle.wrapping_mul(0x9e37_79b9_7f4a_7c15) ^ 0x5851_f42d_4c95_7f2d;
+            h ^= h >> 29;
+            h = h.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+            h ^= h >> 32;
+            (h >> 40) as f32 / (1u64 << 23) as f32 - 1.0
+        }
+    }
+}
+
+/// tanh, closely (within 2% to |x| = 3, then exactly 1): a rational form, cheaper than the library's.
+#[inline]
+pub fn fast_tanh(x: f32) -> f32 {
+    if x > 3.0 {
+        1.0
+    } else if x < -3.0 {
+        -1.0
+    } else {
+        let x2 = x * x;
+        x * (27.0 + x2) / (27.0 + 9.0 * x2)
+    }
+}
+
+/// The largest whole number not over `x`, without the library call `f32::floor` becomes on CPUs
+/// the build cannot assume have SSE4.1 (a cast and a correction; for |x| under 2^31).
+#[inline]
+pub fn fast_floor(x: f32) -> f32 {
+    let i = x as i32 as f32;
+    if i > x {
+        i - 1.0
+    } else {
+        i
+    }
+}
+
+/// One sample through a waveshaper curve.
+#[inline]
+pub fn shape_sample(curve: crate::instrument::ShaperCurve, x: f32) -> f32 {
+    use crate::instrument::ShaperCurve;
+    match curve {
+        ShaperCurve::Soft => fast_tanh(x),
+        ShaperCurve::Hard => x.clamp(-1.0, 1.0),
+        // A triangle of period 4 through the origin: under full scale the sound passes, past it it
+        // folds back down.
+        ShaperCurve::Fold => {
+            let t = (x + 1.0) * 0.25;
+            1.0 - 4.0 * (t - fast_floor(t) - 0.5).abs()
+        }
+        ShaperCurve::Asymmetric => {
+            if x >= 0.0 {
+                fast_tanh(x)
+            } else {
+                (x * 1.6).max(-0.75)
+            }
+        }
+    }
+}
+
+/// A sine, cheaply: within 0.1% (a parabola refined once), for a sub whose purity matters more than
+/// its last decimal. `phase` 0 .. 1.
+#[inline]
+pub fn fast_sin(phase: f32) -> f32 {
+    let x = 1.0 - 2.0 * phase;
+    let y = 4.0 * x * (1.0 - x.abs());
+    0.225 * (y * y.abs() - y) + y
+}
+
+/// A first-order all-pass section (a phaser stage).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Allpass1 {
+    x1: f32,
+    y1: f32,
+}
+
+impl Allpass1 {
+    /// The coefficient that puts the stage's 90-degree point at `hz`.
+    #[inline]
+    pub fn coef(hz: f32, rate: f32) -> f32 {
+        let t = (PI * hz.clamp(10.0, rate * 0.45) / rate).tan();
+        (t - 1.0) / (t + 1.0)
+    }
+
+    #[inline]
+    pub fn tick(&mut self, a: f32, x: f32) -> f32 {
+        let y = a * x + self.x1 - a * self.y1;
+        self.x1 = x;
+        self.y1 = y;
+        y
+    }
+}

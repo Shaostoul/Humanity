@@ -101,7 +101,7 @@ fn one_note(lib: &crate::MusicLibrary, inst: &str, midi: f32, a4: f32, seconds: 
     let i = lib.instrument_index(inst).unwrap() as u16;
     pool.note_on(NoteOn { inst: i, role: 0, midi, a4, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
-    let p = BlockParams { rate: RATE, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+    let p = BlockParams::plain(RATE, 1.0, &vowel);
     let total = (seconds * RATE) as usize;
     let mut out = Vec::with_capacity(total);
     let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
@@ -262,6 +262,43 @@ fn the_score_renders_at_the_music_target_under_the_true_peak_ceiling() {
         if over == 0.0 {
             assert!(l.max_step <= 3.5, "{mood}/{genre}: a one-second step of {:.2} LU", l.max_step);
         }
+    }
+}
+
+/// A CALM MOOD SUNG BY THE CHOIR IS AS LOUD AS ITS STRINGS (the 2026-11-13 genre pass: the four
+/// choir voices as a pad option): in each calm mood, the same piece with its pad sung by the choir
+/// (the choir role resting) and played by the strings renders within 1 LU over 40 s, so a new piece
+/// never jumps in level. The synthesised choir stands in here; a recording is levelled to it
+/// (src/instrument_packs/score.rs). RED first (2026-11-13) with every option at the level that held
+/// mothership calm's loudness test (it had read "mothership_calm/mothership_calm: -24.4 LUFS, the
+/// target -18.0" with the option at -1 dB): "garden_morning: sung by the choir -15.3 LUFS, played by
+/// the strings -19.3"; each mood's option is now set from this measure.
+#[test]
+fn a_calm_mood_sung_by_the_choir_is_as_loud_as_its_strings() {
+    let _heavy = heavy();
+    let lib = shipped();
+    let res = Resolved::new(&lib, &SampleLibrary::new()).unwrap();
+    let _ = res;
+    for mood in ["mothership_calm", "garden_morning", "night_watch", "menu"] {
+        let mi = lib.mood_index(mood).unwrap();
+        // The same piece twice (seed 20261106), its pad forced each way by the weights: the strings
+        // (the option's weight 0) and the choir (the mood's own pad's weight 0), the choir role
+        // resting in the second as it does whenever the choir sings the pad.
+        let lufs = |choir: bool| {
+            let mut l = lib.clone();
+            let m = &mut l.moods[mi];
+            for o in m.options.iter_mut() {
+                o.weight = if choir { 1.0 } else { 0.0 };
+            }
+            for r in m.roles.iter_mut().filter(|r| r.role == crate::mood::RoleKind::Pad) {
+                r.weight = if choir { 0.0 } else { 1.0 };
+            }
+            let mut s = ScoreEngine::new(Resolved::new(&l, &SampleLibrary::new()).unwrap(), RATE, 20261106, ctx(&l, mood, "mothership_calm", 0.3));
+            levels(&render_score(&mut s, RATE, 40.0).frames, 6.0).integrated
+        };
+        let (a, b) = (lufs(false), lufs(true));
+        println!("{mood}: the strings {a:.1} LUFS, the choir {b:.1} LUFS");
+        assert!((a - b).abs() <= 1.0, "{mood}: sung by the choir {b:.1} LUFS, played by the strings {a:.1}");
     }
 }
 
@@ -675,7 +712,7 @@ fn a_sustain_without_loop_points_is_held_past_its_end() {
     let mut pool = VoicePool::new(1);
     pool.note_on(NoteOn { inst: i, role: 0, midi: 57.0, a4: 440.0, vel: 0.8, pan: 0.0, hold_s: 4.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
-    let p = BlockParams { rate: RATE, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+    let p = BlockParams::plain(RATE, 1.0, &vowel);
     let mut x = Vec::new();
     let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
     for _ in 0..(5.0 * RATE / 64.0) as usize {
@@ -719,7 +756,7 @@ fn a_sampled_instrument_retunes_by_rate_and_falls_back_without_its_pack() {
     let mut pool = VoicePool::new(1);
     pool.note_on(NoteOn { inst: i as u16, role: 0, midi: 69.0, a4: 432.0, vel: 0.8, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &with.instruments, &with.banks, RATE);
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
-    let p = BlockParams { rate: RATE, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+    let p = BlockParams::plain(RATE, 1.0, &vowel);
     let mut x = Vec::new();
     let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
     for _ in 0..(3.0 * RATE / 64.0) as usize {

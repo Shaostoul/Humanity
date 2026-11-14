@@ -2974,7 +2974,15 @@ ELECTRO SWING at 128 bpm: swung eighths over a house kick, a walking upright bas
 brass stabs, clarinet calls answered by trombone, its own minor-key jazz progressions, played by the
 core set's recorded trumpet, trombone, clarinet, pizzicato bass and, since 2026-11-13, a Martin
 steel-string guitar; a blend slider; places that may pick a livelier genre;
-community genres are files); PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
+community genres are files; since 2026-11-13 the GENRE PASS (music.md section 7a: a piece draws electro
+swing's house kit or brushes, its Martin or honky-tonk piano comping, its upright bass or tuba;
+lo-fi's drum machine or jazz kit and its piano or electric piano; a calm mood's strings or the four
+choir voices singing its pad; Settings > Music's stand-in line names the pack that brings each
+recording) and DEEP DUBSTEP (music.md section 7e: 140 bpm half-time, the snare on 3, a protected
+sine sub ducking under the kick, a wobble whose 24 dB filter sweeps in time at a rate changing bar
+by bar, FM growls talking in vowels, a structure of intro, builds with snare rolls and a riser, a
+silent beat, drops with an impact; the core set's LMMS hits; built on rung E1's genre `structure`
+and rung E2's bass toolkit, music.md section 7d)); PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
 seed that draws its key, tempo, form (AABA and the like, sections that return), each section's chords
 (electro swing's from a harmonic grammar of functions, secondary dominants, tritone substitutes and
 passing diminished chords), its own riffs (motif rules) and its lead voices (clarinet, hot-club violin,

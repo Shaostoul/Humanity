@@ -194,6 +194,13 @@ pub struct RMood {
     pub drums: Vec<RDrum>,
     pub pad_patterns: Vec<Vec<f32>>,
     pub bass_patterns: Vec<Vec<u8>>,
+    /// The voices a piece may draw for a role in place of the mood's own: (role index, the voice,
+    /// its weight, the roles that rest while it plays). The mood's own role keeps its weight.
+    pub options: Vec<(usize, RRole, f32, [bool; 8])>,
+    /// Each role's own weight against its options.
+    pub role_weights: [f32; 8],
+    /// Its id's hash (resolved::id_key), what a piece's draws in its harmony are keyed by.
+    pub seed_key: u64,
 }
 
 /// The intensity bands ready to play (intensity.rs).
@@ -218,6 +225,45 @@ pub struct RDrum {
     pub velocity: f32,
     pub midi: i32,
     pub min_intensity: f32,
+    /// The genre's kit it belongs to (an index into its `kits`; None: every piece plays it).
+    pub kit: Option<u8>,
+    /// The structure's sections it plays in, one bit per section name (letter); all bits: every one.
+    pub sections: u32,
+    /// Its hits duck the genre's sidechain roles.
+    pub ducks: bool,
+}
+
+/// A structure ready to play (genre.rs `Structure`): its sections, each name's letter, and the form
+/// they make (one, of weight 1, for the piece's form machinery).
+#[derive(Clone, Debug)]
+pub struct RStructure {
+    pub sections: Vec<RSection>,
+    pub form: Vec<(Vec<u8>, f32)>,
+    pub roll: Option<RHit>,
+    pub riser: Option<RHit>,
+    pub impact: Option<RHit>,
+    pub gap_beats: f32,
+}
+
+/// One section ready to play.
+#[derive(Clone, Copy, Debug)]
+pub struct RSection {
+    pub letter: u8,
+    pub bars: u32,
+    /// The roles that play (None: all).
+    pub roles: Option<[bool; 8]>,
+    pub build: bool,
+    pub drop: bool,
+    pub energy: f32,
+}
+
+/// A structure's one-off sound ready to play.
+#[derive(Clone, Copy, Debug)]
+pub struct RHit {
+    pub inst: u16,
+    pub midi: i32,
+    pub velocity: f32,
+    pub beats: f32,
 }
 
 /// A genre ready to play.
@@ -227,6 +273,8 @@ pub struct RGenre {
     pub beat_felt: Option<bool>,
     pub groove: Groove,
     pub drums: Vec<RDrum>,
+    /// Its kits' weights (a piece draws one; empty: every drum part plays).
+    pub kits: Vec<f32>,
     pub pad_patterns: Vec<Vec<f32>>,
     pub comping: Comping,
     pub bass_patterns: Vec<Vec<u8>>,
@@ -253,6 +301,18 @@ pub struct RGenre {
     pub roles_add: [Option<RRole>; 8],
     pub recipe: Recipe,
     pub level_db: f32,
+    /// Its structure (sections, builds, drops) and its sidechain (the roles' bits, depth in dB,
+    /// attack and release in seconds).
+    pub structure: Option<RStructure>,
+    pub sidechain: Option<(u8, f32, f32, f32)>,
+    /// Its id's hash: what a piece's draws are keyed by (its form, riffs and chords), so a piece
+    /// never changes when another genre file is added (BUG-299).
+    pub seed_key: u64,
+}
+
+/// An id's FNV-1a hash (a genre's or a mood's seed key).
+pub fn id_key(id: &str) -> u64 {
+    id.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ b as u64).wrapping_mul(0x100_0000_01b3))
 }
 
 /// Everything a score plays from. Clone is cheap (the recordings are shared): the runtime keeps a
@@ -303,15 +363,27 @@ impl Resolved {
                 pulse: r.pulse.clone(),
             })
         };
-        let drums_of = |parts: &[crate::genre::DrumPart], owner: &str| -> Result<Vec<RDrum>, String> {
+        let drums_of = |parts: &[crate::genre::DrumPart], kits: &[crate::genre::KitSpec], names: &[String], owner: &str| -> Result<Vec<RDrum>, String> {
             let mut out = Vec::new();
             for d in parts {
+                let kit = match &d.kit {
+                    Some(k) => Some(kits.iter().position(|x| &x.id == k).ok_or_else(|| format!("{owner}: drum {:?} names kit {k:?}, which is not one of its kits", d.instrument))? as u8),
+                    None => None,
+                };
+                let mut sections = if d.sections.is_empty() { u32::MAX } else { 0 };
+                for s in &d.sections {
+                    let i = names.iter().position(|x| x == s).ok_or_else(|| format!("{owner}: drum {:?} names section {s:?}, which is not in its structure", d.instrument))?;
+                    sections |= 1 << i;
+                }
                 out.push(RDrum {
                     inst: inst_of(&d.instrument, owner)?,
                     patterns: d.patterns.iter().map(|p| pattern(p)).collect(),
                     velocity: d.velocity,
                     midi: note(&d.note, owner)?,
                     min_intensity: d.min_intensity,
+                    kit,
+                    sections,
+                    ducks: d.ducks,
                 });
             }
             Ok(out)
@@ -321,8 +393,18 @@ impl Resolved {
             let owner = format!("mood {}", m.id);
             let harmony = harmony_of(&m.keys, &m.chords, &m.moves, &m.cadences, &m.start, &owner)?;
             let mut roles: [Option<RRole>; 8] = Default::default();
+            let mut role_weights = [1.0f32; 8];
             for r in &m.roles {
                 roles[r.role.index()] = Some(role(r, &owner)?);
+                role_weights[r.role.index()] = r.weight.max(0.0);
+            }
+            let mut options = Vec::new();
+            for r in &m.options {
+                let mut rests = [false; 8];
+                for k in &r.rests {
+                    rests[k.index()] = true;
+                }
+                options.push((r.role.index(), role(r, &owner)?, r.weight.max(0.0), rests));
             }
             if m.phrase_bars.is_empty() || m.chord_bars.0 == 0 || m.chord_bars.1 < m.chord_bars.0 {
                 return Err(format!("{owner}: phrase_bars needs at least one length and chord_bars a range of at least 1 bar"));
@@ -333,6 +415,7 @@ impl Resolved {
                 }
             }
             moods.push(RMood {
+                seed_key: id_key(&m.id),
                 harmony,
                 phrase_bars: m.phrase_bars.clone(),
                 chord_bars: m.chord_bars,
@@ -348,15 +431,62 @@ impl Resolved {
                 urgent: m.urgent,
                 tempo_follows_intensity: m.tempo_follows_intensity,
                 groove: m.groove,
-                drums: drums_of(&m.drums, &owner)?,
+                drums: drums_of(&m.drums, &[], &[], &owner)?,
                 pad_patterns: m.pad_patterns.iter().map(|p| pattern(p)).collect(),
                 bass_patterns: m.bass_patterns.iter().map(|p| bass_pattern(p)).collect(),
+                options,
+                role_weights,
             });
         }
         let mut genres = Vec::new();
         for s in &lib.genres {
             let owner = format!("genre {}", s.id);
-            let drums = drums_of(&s.drums, &owner)?;
+            // The structure's section names, in order of first appearance: each name is a letter.
+            let mut names: Vec<String> = Vec::new();
+            for sec in s.structure.iter().flat_map(|st| st.sections.iter()) {
+                if !names.contains(&sec.name) {
+                    names.push(sec.name.clone());
+                }
+            }
+            if names.len() > 26 {
+                return Err(format!("{owner}: a structure has at most 26 differently named sections"));
+            }
+            let drums = drums_of(&s.drums, &s.kits, &names, &owner)?;
+            let hit = |h: &Option<crate::genre::Hit>| -> Result<Option<RHit>, String> {
+                match h {
+                    Some(h) => Ok(Some(RHit { inst: inst_of(&h.instrument, &owner)?, midi: note(&h.note, &owner)?, velocity: h.velocity.clamp(0.0, 1.0), beats: h.beats.max(0.0) })),
+                    None => Ok(None),
+                }
+            };
+            let structure = match &s.structure {
+                Some(st) if !st.sections.is_empty() => {
+                    let mut sections = Vec::new();
+                    for sec in &st.sections {
+                        let roles = (!sec.roles.is_empty()).then(|| {
+                            let mut r = [false; 8];
+                            for k in &sec.roles {
+                                r[k.index()] = true;
+                            }
+                            r
+                        });
+                        let letter = names.iter().position(|x| x == &sec.name).unwrap_or(0) as u8;
+                        sections.push(RSection { letter, bars: sec.bars.clamp(1, 64), roles, build: sec.build, drop: sec.drop, energy: sec.energy.clamp(0.0, 1.5) });
+                    }
+                    let letters: Vec<u8> = sections.iter().map(|x| x.letter).collect();
+                    if letters.len() > crate::piece::MAX_FORM {
+                        return Err(format!("{owner}: a structure has at most {} sections", crate::piece::MAX_FORM));
+                    }
+                    Some(RStructure { sections, form: vec![(letters, 1.0)], roll: hit(&st.roll)?, riser: hit(&st.riser)?, impact: hit(&st.impact)?, gap_beats: st.gap_beats.clamp(0.0, 4.0) })
+                }
+                _ => None,
+            };
+            let sidechain = s.sidechain.as_ref().map(|c| {
+                let mut mask = 0u8;
+                for k in &c.roles {
+                    mask |= 1 << k.index();
+                }
+                (mask, c.depth_db.clamp(-40.0, 0.0), c.attack_s.clamp(0.0005, 0.1), c.release_s.clamp(0.01, 2.0))
+            });
             for (i, mo) in s.motifs.iter().enumerate() {
                 if mo.steps.is_empty() || mo.steps.len() != mo.beats.len() || (!mo.hold.is_empty() && mo.hold.len() != mo.steps.len()) {
                     return Err(format!("{owner}: motif {i} needs as many beats (and holds, if any) as steps"));
@@ -380,10 +510,12 @@ impl Resolved {
                 roles_add[r.role.index()] = Some(role(r, &owner)?);
             }
             genres.push(RGenre {
+                seed_key: id_key(&s.id),
                 tempo: s.tempo_bpm,
                 beat_felt: s.beat_felt,
                 groove: s.groove.unwrap_or_default(),
                 drums,
+                kits: s.kits.iter().map(|k| k.weight.max(0.0)).collect(),
                 pad_patterns: s.pad_patterns.iter().map(|p| pattern(p)).collect(),
                 comping: s.comping,
                 bass_patterns: s.bass_patterns.iter().map(|p| bass_pattern(p)).collect(),
@@ -428,6 +560,8 @@ impl Resolved {
                 roles_add,
                 recipe: s.recipe,
                 level_db: s.level_db,
+                structure,
+                sidechain,
             });
         }
         let im = &lib.intensity;

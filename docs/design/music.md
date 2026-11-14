@@ -404,6 +404,27 @@ sub-harmonics on its low, fast-dying notes; the library's other instruments meas
 440). Settings > Music shows the chosen genre's sentence and says plainly which of its parts play a
 synthesised stand-in (a genre's `roles_add` and palette parts with no installed recording).
 
+**The genre pass (built 2026-11-13): the new instruments get parts to play.** All data, each with
+its synthesised stand-in when its pack is not installed:
+
+| Genre or mood | What a piece may now draw (by weight, from its seed) | From |
+|---|---|---|
+| Electro swing | its KIT: the house kit, or the BRUSHES (a brushed snare on 2 and 4, the brush stirring on every beat, the ride played with brushes, the hi-hat's foot), the house kick four on the floor under either; its COMPING: the Martin's la pompe or a HONKY-TONK PIANO's chop; its BASS: the upright bass or a TUBA, walking or two to the bar | the "Brushes and jazz drum kits" and "Band and jazz" packs |
+| Lo-fi | its KIT: the soft drum machine or a JAZZ KIT played with sticks (kick, snare, closed hi-hat), on the same boom-bap patterns; its COMPING: the piano or an ELECTRIC PIANO (the Wurlitzer, the CP80 or the Pianet) | the "Brushes and jazz drum kits" and the credited "Electric pianos" packs |
+| The calm moods (mothership calm, garden morning, night watch, menu) | their PAD: the strings, or the four CHOIR voices singing "ah" as one choir (one piece in three), the choir role resting while it does | the credited "Choir" pack |
+
+What the engine grew for it: a drum line may name a `part` (so a kit's recording plays it) and a
+`kit`, and a genre lists its `kits` (a piece draws one; a drum of no kit plays under every kit); a
+genre's `leads` already served any role, so comping and bass choices are lead entries (the Music page
+lists them beside the call and the answer); a mood's `options` are voices a piece may draw for a role
+in place of the mood's own (each with the roles it `rests`); and a part may be several VOICES
+(`parts.ron`'s `choir_ah`: the basses, tenors, altos and sopranos), played as one instrument where
+every voice is installed, each note from the voice whose range holds it, overlapping ranges split
+halfway (`score::voice_bands`). Settings > Music's stand-in line now lists every part that can sound
+with the chosen genre (its moods' too) and names the pack whose recording would play each ("tuba (in
+Band and jazz)"). The choir pad's level is set per mood so the same piece sung by the choir or played
+by the strings measures within 1 LU (`a_calm_mood_sung_by_the_choir_is_as_loud_as_its_strings`).
+
 **Not yet: a manouche guitar.** The guitar that comps is a hollowbody electric, an honest stand-in for
 the steel-string Selmer-Maccaferri acoustic of gypsy jazz. A search on 2026-11-12 found no CC0
 multi-sample of that guitar. The CC0 candidates, best first: a Martin HD-28 steel-string flat-top
@@ -498,6 +519,86 @@ and the time to the next piece.
 
 The ship's own score ("Mothership calm") and lo-fi have forms too, their sections walked from their
 chord graphs; only electro swing has a grammar, generated riffs and leads so far.
+
+A piece's draws (its form, riffs and section chords) are keyed by its genre's and mood's ids, never
+their places in the list of files, so adding a genre changes no other genre's pieces (BUG-299, fixed
+2026-11-13). The ship's own genre plays no ABAB: its long sections made the first time through
+repeat over two minutes note for note.
+
+## 7d. The electronic rungs: structure and the bass toolkit (E1 and E2, built 2026-11-13)
+
+The research's section 6 (`docs/reference/research/2026-11-13-instrument-libraries/README.md`) named
+what electronic genres need from the engine; the first two rungs are built, all in our own code
+(`dsp.rs`, `voice.rs`, `composer.rs`) from published methods, no code copied.
+
+**E1, a genre's STRUCTURE** (`structure` in a genre file, `genre::Structure`): its sections in order,
+each a phrase of its own bar count, in place of the genre's forms. A section names the roles that play
+in it; a drum line names the sections it plays in (`sections`); a section that returns by name plays
+its chords again, as a form's letter does. A BUILD rolls a snare that speeds up across it (eighth
+notes for its first half, sixteenths for the next quarter, 32nds for the last, louder as it goes)
+under a riser that starts `beats` before the end, and ends in `gap_beats` of silence in which nothing
+is struck and everything held lets go; a DROP begins with an impact, the bass in full. Each section
+start is an event (`Event::Structure`), so the Music page and the tests can follow it.
+
+**E2, the bass toolkit**, every piece opt-in data on a synth (or an FM voice), so no existing
+instrument changed:
+
+| Piece | Field | What it does |
+|---|---|---|
+| Two-stage filter | `filter.stages: 2` | 24 dB an octave, the wobble's slope |
+| Filter drive | `filter.drive` | a resonant filter pushed harder, so it squelches |
+| LFO shapes | `filter.lfo_shape` | sine, triangle, ramps up and down, square, sample and hold (a new value each cycle, the same each time a seed plays) |
+| Per-bar rates | `filter.lfo_rates` | cycles a beat, one per bar in turn (`[2.0, 3.0]`: eighth notes, then eighth-note triplets); the LFO runs on the music's beat clock, so its rate locks to the tempo |
+| LFO restart | `filter.lfo_restart` | the sweep starts afresh at each note instead |
+| Glide | `glide_s` | each note slides from the pitch its role last played |
+| Waveshaping | `fx.shaper` | soft, hard, folding or asymmetric curves, mixed with the clean sound (parallel distortion), then fewer bits and a lower sample rate |
+| Protected sub | `fx.sub` | a clean sine at the note (or an octave under), added after every distortion and filter, the processed sound high-passed above it |
+| FM depth | `index_lfo`, `index_lfo_depth` | an FM voice's index moved in time (more FM is buzzier: a growl) |
+| Formant (vowel) filter | `fx.formant` | three resonances of the vowels a, e, i, o, u (the bass voice's formants, Csound manual Appendix D, read 2026-11-13) morphing along a list in time with the music: "talking" bass |
+| Comb | `fx.comb` | the sound plus itself a moment later, again and again: rings at the note (`key_ratio`) or a set delay, swept by an LFO (the wet, metallic edge) |
+| Phaser | `fx.phaser` | four all-pass stages swept between two frequencies, so notches move through the sound |
+
+These answer the operator's question of what makes dubstep "goopy or wet": resonant sweeps, vowels
+morphing, glide, comb and phaser movement, FM sweeps, distortion then filtering. With any of the
+chain present a voice is processed in mono (a bass sits in the centre). **The cost**: one voice with
+every piece at once measures 0.009 to 0.013 ms a 128-frame block on the operator's i7-8700K (the gate
+holds it under 0.02); a genre's basses use a few pieces each, and a genre's whole score is held to the
+calm budget (section 14) by its own test. Ducking under the kick (`sidechain`, E3 in the research's
+order) came with them, for deep dubstep (section 7e): a drum line marked `ducks` tells the score the
+moment it hits (the composer's own event, exact, with no detector listening), and the roles the
+genre's `sidechain` names dip by its depth and come back over its release, a straight line across
+each block so the dip never clicks.
+
+**What remains of the electronic rungs** (the research's section 6): E3's tempo-synced delay, gated
+reverb, a reverb low cut, the downlifter, reversed cymbal and tape stop; E4's drum-machine voices
+(808 and 909-style, from published circuit descriptions); E5's supersaw, pulse width and the
+WAVETABLE oscillator that will play the AKWF waves the core set already carries (until it exists the
+waves wait: a single cycle needs that oscillator to sound); E6's house, drum and bass, synthwave and
+ambient genres; E7's resampling, granular textures and the heavier dubstep kinds (brostep, riddim) as
+choices of their own.
+
+## 7e. Deep dubstep (built 2026-11-13)
+
+The operator: "We'll even want to consider how we could make music like dubstep." and, choosing
+among its kinds, deep, sub-led dubstep first, the heavier styles later as their own choices.
+`data/music/genres/deep_dubstep.ron`, the fourth genre:
+
+| Part | Deep dubstep |
+|---|---|
+| Tempo, feel | 140 bpm in half-time: the snare (and in the drops a clap) on beat 3, so 140 feels like 70; the kick on 1 with a lazy one later in the bar; sixteenth-note hats |
+| Sub | a clean sine at the note under everything (the wobble bass's protected sub), ducking 9 dB under each kick and back over a quarter second |
+| Wobble | two detuned saws and a square an octave down through a resonant 24 dB low-pass swept in time, eighth notes, eighth notes, eighth-note triplets, eighth notes, bar by bar; a little drive into the filter, a soft shaper half wet after it, a short glide |
+| Growl | two-operator FM, its depth moved by a triangle LFO at a rate changing bar by bar, an asymmetric shaper with fewer bits, a formant filter morphing o, a, e, a, a slow phaser; short riffs low down (two to four notes of the Phrygian mode), in the drops only |
+| Structure | a 16-bar intro, an 8-bar build (the snare rolling faster under a riser, a beat of silence), a 16-bar drop (the sub drop, the bass and growls), an 8-bar middle, a second build and drop, an 8-bar outro: 80 bars, 137 s, then from the top |
+| Harmony | D (or E, G, A, F) in the Phrygian or Aeolian mode: the minor chord, the flat second leaning on it, the fourth, the flat sixth and seventh; chords two to four bars long |
+| Instruments | the core set's LMMS hits (electronic kick, punchy snare, layered clap, closed and open hats, the sweep riser and the sub drop), each with a synthesised stand-in; the wobble bass and the growl synthesised (`wobble_bass.ron`, `fm_growl.ron`), as electronic basses genuinely are; a dub pad (`dub_pad.ron`: the dark pad's saws without its own sub, a 2.5 s release), sparse celesta and crackle |
+| Level | levelled so one time through its structure measures -18 LUFS, its drop no more than 2 LU over the whole (E6: heavy never means louder than the category) and its intro no more than 5 LU under the drop (measured with the stand-ins: the intro -20.4, the drop -16.6, the whole -17.8) |
+| Cost | its drop 0.035 ms a 128-frame block on average, the calm score 0.037 in the same run (the gate: the calm budget, 0.05) |
+
+Pieces by seed work as in the other genres (section 7c): the structure is the piece's form, each
+section name a letter (the second drop plays the first drop's chords), each piece its own key, chords
+and growl riffs. Only the genre's commonplace building blocks are written anywhere (the 2026-11-12
+copyright finding): no artist's recordings, melodies or riffs, no name of any.
 
 ## 7b. Danger and action: the score rising with the game
 

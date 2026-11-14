@@ -68,6 +68,99 @@ pub struct DrumPart {
     /// It plays only at or above this intensity (the taiko's doubled ostinato at a danger peak).
     #[serde(default)]
     pub min_intensity: f32,
+    /// The part of the score it plays (data/music/parts.ron: `kit_snare`, `brush_ride`): when a
+    /// recording of that part is installed it plays instead of `instrument`, which is its
+    /// synthesised stand-in (src/instrument_packs/score.rs points it, as it does a role).
+    #[serde(default)]
+    pub part: Option<String>,
+    /// The kit it belongs to (one of the genre's `kits`): it plays only in a piece that drew that
+    /// kit. None: it plays in every piece (electro swing's house kick under either kit).
+    #[serde(default)]
+    pub kit: Option<String>,
+    /// The sections of the genre's `structure` it plays in, by name (empty: every section): deep
+    /// dubstep's sub-shaking kick waits for the drop.
+    #[serde(default)]
+    pub sections: Vec<String>,
+    /// Its hits duck the roles the genre's `sidechain` names (the kick pumping the sub).
+    #[serde(default)]
+    pub ducks: bool,
+}
+
+/// A genre's STRUCTURE (rung E1, docs/design/music.md section 7d): the sections a piece plays in
+/// order, each a phrase of its own length, in place of the genre's forms. A section that returns by
+/// name plays its chords again (as a form's letter does). A BUILD rolls a snare that speeds up
+/// (eighths, then sixteenths, then 32nds) under a riser and ends in `gap_beats` of silence; a DROP
+/// begins with an impact, the bass in full.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Structure {
+    pub sections: Vec<SectionSpec>,
+    /// The build's snare roll, the riser over its last bars, the hit on a drop's first beat.
+    #[serde(default)]
+    pub roll: Option<Hit>,
+    #[serde(default)]
+    pub riser: Option<Hit>,
+    #[serde(default)]
+    pub impact: Option<Hit>,
+    /// Beats of silence at a build's end, before the drop.
+    #[serde(default = "one")]
+    pub gap_beats: f32,
+}
+
+/// One section of a structure.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SectionSpec {
+    pub name: String,
+    pub bars: u32,
+    /// The roles that play in it (empty: every role the genre has).
+    #[serde(default)]
+    pub roles: Vec<RoleKind>,
+    #[serde(default)]
+    pub build: bool,
+    #[serde(default)]
+    pub drop: bool,
+    /// How hard it plays (velocity times this).
+    #[serde(default = "one")]
+    pub energy: f32,
+}
+
+/// A one-off sound of a structure: an instrument (and the part a recording would play it as), its
+/// note and velocity; a riser's `beats` are how long before the drop it starts.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Hit {
+    pub instrument: String,
+    #[serde(default)]
+    pub part: Option<String>,
+    #[serde(default = "default_drum_note")]
+    pub note: String,
+    #[serde(default = "one")]
+    pub velocity: f32,
+    #[serde(default)]
+    pub beats: f32,
+}
+
+/// Ducking under the kick (a sidechain, docs/design/music.md section 7d): when a drum part marked
+/// `ducks` hits, the roles named here dip by `depth_db`, reaching it in `attack_s` and coming back
+/// over `release_s`, driven by the composer's own drum events (exact, and no detector to run).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Sidechain {
+    pub roles: Vec<RoleKind>,
+    pub depth_db: f32,
+    #[serde(default = "five_ms")]
+    pub attack_s: f32,
+    pub release_s: f32,
+}
+
+fn five_ms() -> f32 {
+    0.005
+}
+
+/// One drum kit a piece may draw (docs/design/music.md section 7a): its id, which the genre's drum
+/// parts name in `kit`, and how often a piece draws it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KitSpec {
+    pub id: String,
+    #[serde(default = "one")]
+    pub weight: f32,
 }
 
 fn one() -> f32 {
@@ -246,6 +339,10 @@ pub struct Genre {
     pub groove: Option<Groove>,
     #[serde(default)]
     pub drums: Vec<DrumPart>,
+    /// The drum kits a piece draws one of, by weight (empty: every drum part plays). Electro swing:
+    /// the house kit or the brushes; lo-fi: its drum machine or a jazz kit.
+    #[serde(default)]
+    pub kits: Vec<KitSpec>,
     /// Beats in a bar over the mood's (its meter: 4 for 4/4, 3 for a waltz).
     #[serde(default)]
     pub beats_per_bar: Option<u32>,
@@ -319,6 +416,12 @@ pub struct Genre {
     /// answer): each in place of the genre's added role for that role, never two roles on one voice.
     #[serde(default)]
     pub leads: Vec<crate::mood::RoleSpec>,
+    /// Its sections in order, with builds and drops (in place of its `forms`; None: the forms).
+    #[serde(default)]
+    pub structure: Option<Structure>,
+    /// Ducking under its kick.
+    #[serde(default)]
+    pub sidechain: Option<Sidechain>,
 }
 
 impl Genre {

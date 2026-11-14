@@ -30,11 +30,22 @@ Genre(
     beat_felt: Some(true),
     beats_per_bar: Some(4),
     groove: Some((swing: 0.64, subdivision: 2, syncopation: 0.08, humanize_ms: 4.0)),
+    // The kit a piece draws (2026-11-13, the genre pass): the house kit (a clap, an open hat on the
+    // off-beats, the ride's pattern on a closed hat), or the BRUSHES of a swing-era drummer (a
+    // brushed snare on 2 and 4, the brush stirring on every beat, the ride played with brushes, the
+    // hi-hat's foot on 2 and 4). The house kick plays four on the floor under either: that is the
+    // electro in electro swing. The brushes are recordings once the "Brushes and jazz drum kits"
+    // pack is installed, synthesised stand-ins until then.
+    kits: [(id: "house", weight: 2.0), (id: "brushes", weight: 1.0)],
     drums: [
         (instrument: "house_kick", note: "A1", velocity: 0.95, patterns: ["x.x.x.x.", "x.x.x.x.", "x.x.x.xo"]),
-        (instrument: "clap", note: "D3", velocity: 0.7, patterns: ["..x...x.", "..x...x.", "..x...xg"]),
-        (instrument: "open_hat", note: "D5", velocity: 0.5, patterns: [".x.x.x.x"]),
-        (instrument: "lofi_hat", note: "D5", velocity: 0.35, patterns: ["x.xxx.xx", "x.xxx.x.", "x.x.x.xx"]),
+        (instrument: "clap", note: "D3", velocity: 0.7, patterns: ["..x...x.", "..x...x.", "..x...xg"], kit: Some("house")),
+        (instrument: "open_hat", note: "D5", velocity: 0.5, patterns: [".x.x.x.x"], kit: Some("house")),
+        (instrument: "lofi_hat", note: "D5", velocity: 0.35, patterns: ["x.xxx.xx", "x.xxx.x.", "x.x.x.xx"], kit: Some("house")),
+        (instrument: "brush_swish", part: Some("brush_snare"), note: "D3", velocity: 0.75, patterns: ["..x...x.", "..x...x.", "..x...xg"], kit: Some("brushes")),
+        (instrument: "brush_stir", part: Some("brush_stir"), note: "D3", velocity: 0.45, patterns: ["x.x.x.x."], kit: Some("brushes")),
+        (instrument: "open_hat", part: Some("brush_ride"), note: "D5", velocity: 0.4, patterns: ["x.xxx.xx", "x.xxx.x.", "x.x.x.xx"], kit: Some("brushes")),
+        (instrument: "lofi_hat", part: Some("brush_hihat"), note: "D5", velocity: 0.35, patterns: ["..x...x."], kit: Some("brushes")),
     ],
     pad_patterns: ["o.x.o.x.", "o.xgo.xg", "o.x.o.xg"],
     comping: (strum_ms: 9.0, hold_beats: 0.3),
@@ -133,6 +144,15 @@ Genre(
         (role: Bells, instrument: "swing_horns", part: Some("trombone"), low: "D3", high: "D5", density: 0.5, level_db: 2.0, weight: 2.0),
         (role: Bells, instrument: "soft_lead", part: Some("solo_violin"), low: "G4", high: "D6", density: 0.5, level_db: 2.0, weight: 1.0),
         (role: Bells, instrument: "swing_horns", part: Some("trumpet"), low: "F4", high: "D6", density: 0.5, level_db: 2.0, weight: 1.0),
+        // What comps (2026-11-13): the gypsy-jazz guitar's la pompe, or a honky-tonk piano's
+        // chop (the "Band and jazz" pack's; the core set's upright piano plays it until then).
+        (role: Pad, instrument: "jazz_guitar", part: Some("acoustic_guitar"), low: "D3", high: "D5", voices: 4, weight: 2.0),
+        (role: Pad, instrument: "electric_piano", part: Some("honky_tonk_piano"), low: "D3", high: "D5", voices: 4, weight: 1.0),
+        // What holds the bottom: the upright bass, or a TUBA (the swing era's first bass, before
+        // the string bass took over), walking or playing two to the bar; the "Band and jazz" pack's
+        // tuba, a synthesised brass stand-in until it is installed.
+        (role: Bass, instrument: "upright_bass", part: Some("double_bass_pizzicato"), low: "E1", high: "D3", weight: 2.0),
+        (role: Bass, instrument: "swing_horns", part: Some("tuba"), low: "D1", high: "D3", weight: 1.0),
     ],
     // Short riffs: scale steps of the minor blues from a chord tone, lengths in beats (an off-beat
     // lands swung), and how much of each length the note sounds (short and punched, or held).

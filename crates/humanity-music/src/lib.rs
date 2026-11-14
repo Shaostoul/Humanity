@@ -72,3 +72,5 @@ mod tests_audio;
 mod tests_piece;
 #[cfg(test)]
 mod tests_page;
+#[cfg(test)]
+mod tests_electronic;

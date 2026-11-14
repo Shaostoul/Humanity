@@ -71,11 +71,22 @@ pub fn named_parts(music: &MusicLibrary) -> Vec<(String, String, i32)> {
         let lo = humanity_music::tuning::parse_note(lo).unwrap_or(48);
         (lo + humanity_music::tuning::parse_note(hi).unwrap_or(lo)) / 2
     };
-    let roles = music.moods.iter().flat_map(|m| m.roles.iter()).chain(music.genres.iter().flat_map(|s| s.roles_add.iter().chain(s.leads.iter())));
+    let roles = music.moods.iter().flat_map(|m| m.roles.iter().chain(m.options.iter())).chain(music.genres.iter().flat_map(|s| s.roles_add.iter().chain(s.leads.iter())));
     for r in roles {
         if let Some(p) = &r.part {
             if !named.iter().any(|(n, _, _)| n == p) {
                 named.push((p.clone(), r.instrument.clone(), mid(&r.low, &r.high)));
+            }
+        }
+    }
+    // Drum parts (a kit's kick, a brushed snare) and a structure's one-off sounds (a build's snare
+    // roll and riser, a drop's impact), at the note each is tuned to.
+    let hits = music.genres.iter().flat_map(|s| s.structure.iter().flat_map(|st| [&st.roll, &st.riser, &st.impact].into_iter().flatten()));
+    let drums = music.moods.iter().flat_map(|m| m.drums.iter()).chain(music.genres.iter().flat_map(|s| s.drums.iter())).map(|d| (&d.part, &d.instrument, &d.note));
+    for (part, inst, note) in drums.chain(hits.map(|h| (&h.part, &h.instrument, &h.note))) {
+        if let Some(p) = part {
+            if !named.iter().any(|(n, _, _)| n == p) {
+                named.push((p.clone(), inst.clone(), mid(note, note)));
             }
         }
     }
@@ -113,13 +124,16 @@ pub fn sounding_parts(music: &MusicLibrary, genres: &[usize]) -> Vec<(String, St
         }
     };
     for m in &music.moods {
-        for r in &m.roles {
+        for d in &m.drums {
+            add(&d.part, &d.instrument, &d.note, &d.note);
+        }
+        for r in m.roles.iter().chain(m.options.iter()) {
             if m.urgent {
                 add(&r.part, &r.instrument, &r.low, &r.high);
                 continue;
             }
             for s in genres.iter().filter_map(|&i| music.genres.get(i)) {
-                if s.roles_add.iter().any(|a| a.role == r.role) || s.roles_off.contains(&r.role) {
+                if s.roles_add.iter().chain(s.leads.iter()).any(|a| a.role == r.role) || s.roles_off.contains(&r.role) {
                     continue;
                 }
                 match s.palette_for(r.role) {
@@ -133,15 +147,32 @@ pub fn sounding_parts(music: &MusicLibrary, genres: &[usize]) -> Vec<(String, St
         for a in s.roles_add.iter().chain(s.leads.iter()) {
             add(&a.part, &a.instrument, &a.low, &a.high);
         }
+        // Every kit's drums: a piece draws its kit from its seed, and the next piece may draw another.
+        for d in &s.drums {
+            add(&d.part, &d.instrument, &d.note, &d.note);
+        }
+        for h in s.structure.iter().flat_map(|st| [&st.roll, &st.riser, &st.impact].into_iter().flatten()) {
+            add(&h.part, &h.instrument, &h.note, &h.note);
+        }
     }
     named
 }
 
 /// Point every role and palette entry of `music` that names `part` at the score's instrument `id`.
 fn point(music: &mut MusicLibrary, part: &str, id: &str) {
-    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut()).chain(music.genres.iter_mut().flat_map(|s| s.roles_add.iter_mut().chain(s.leads.iter_mut()))) {
+    for r in music.moods.iter_mut().flat_map(|m| m.roles.iter_mut().chain(m.options.iter_mut())).chain(music.genres.iter_mut().flat_map(|s| s.roles_add.iter_mut().chain(s.leads.iter_mut()))) {
         if r.part.as_deref() == Some(part) {
             r.instrument = id.to_string();
+        }
+    }
+    for d in music.moods.iter_mut().flat_map(|m| m.drums.iter_mut()).chain(music.genres.iter_mut().flat_map(|s| s.drums.iter_mut())) {
+        if d.part.as_deref() == Some(part) {
+            d.instrument = id.to_string();
+        }
+    }
+    for h in music.genres.iter_mut().flat_map(|s| s.structure.iter_mut().flat_map(|st| [&mut st.roll, &mut st.riser, &mut st.impact].into_iter().flatten())) {
+        if h.part.as_deref() == Some(part) {
+            h.instrument = id.to_string();
         }
     }
     for e in music.genres.iter_mut().flat_map(|s| s.palette.iter_mut()) {
@@ -194,9 +225,12 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
     // Every recording this build will ask for, decoded several at once first (BUG-297).
     let mut want = Vec::new();
     for (part, _, _) in &named {
-        if let Some(Choice::Sampled(a)) = instruments.choose(part, parts) {
-            for z in &a.sampler().zones {
-                want.push(a.zone_path(&z.file));
+        let voices = parts.part(part).map(|p| p.voices.clone()).unwrap_or_default();
+        for p in std::iter::once(part).chain(voices.iter()) {
+            if let Some(Choice::Sampled(a)) = instruments.choose(p, parts) {
+                for z in &a.sampler().zones {
+                    want.push(a.zone_path(&z.file));
+                }
             }
         }
     }
@@ -218,37 +252,59 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
             out.plays.push((part.clone(), fallback.1.clone()));
             plays_as.insert(part.clone(), fallback.clone());
         };
-        let recorded = match instruments.choose(&part, parts) {
-            Some(Choice::Sampled(a)) => a,
-            _ => {
-                fall_back(music, &mut out);
-                continue;
+        // A part of several voices (the choir's "ah") plays the recording of every voice, each over
+        // its share of the keys; any voice missing, its synthesised voice.
+        let voices = parts.part(&part).map(|p| p.voices.clone()).unwrap_or_default();
+        let sources: Vec<&crate::instrument_packs::library::Available> = if voices.is_empty() {
+            match instruments.choose(&part, parts) {
+                Some(Choice::Sampled(a)) => vec![a],
+                _ => Vec::new(),
             }
+        } else {
+            let found: Vec<_> = voices.iter().filter_map(|v| match instruments.choose(v, parts) {
+                Some(Choice::Sampled(a)) => Some(a),
+                _ => None,
+            }).collect();
+            if found.len() == voices.len() { found } else { Vec::new() }
         };
+        if sources.is_empty() {
+            fall_back(music, &mut out);
+            continue;
+        }
+        let bands = voice_bands(&sources.iter().map(|a| a.sampler().zones.iter().map(|z| (z.lo_key as i32, z.hi_key as i32)).collect::<Vec<_>>()).collect::<Vec<_>>());
+        let recorded = sources[0];
         let s = recorded.sampler();
         let sustained = parts.part(&part).is_some_and(|p| p.sustained);
         let mut zones = Vec::new();
-        for z in &s.zones {
-            match bank.get(&recorded.zone_path(&z.file)) {
-                Ok(d) => zones.push(SampleZone {
-                    loop_xfade: match (z.loop_start, z.loop_end) {
-                        (Some(_), Some(_)) => 0,
-                        _ if sustained => soft_loop(d.frames.len(), d.sample_rate).map_or(0, |(_, _, x)| x),
-                        _ => 0,
-                    },
-                    frames: d.frames.clone(),
-                    rate: d.sample_rate as f32,
-                    recorded_hz: if s.pitched { z.recorded_hz.unwrap_or_else(|| note_hz(z.key as f64, s.source_a4_hz as f64) as f32) } else { 0.0 },
-                    low_note: z.lo_key as i32,
-                    high_note: z.hi_key as i32,
-                    velocity: (z.lo_vel as f32 + z.hi_vel as f32) * 0.5 / 127.0,
-                    loop_range: match (z.loop_start, z.loop_end) {
-                        (Some(a), Some(b)) => Some((a as usize, b as usize)),
-                        _ if sustained => soft_loop(d.frames.len(), d.sample_rate).map(|(a, b, _)| (a, b)),
-                        _ => None,
-                    },
-                }),
-                Err(e) => out.problems.push(format!("{}: {e}", recorded.def.id)),
+        for (vi, src) in sources.iter().enumerate() {
+            let (b_lo, b_hi) = bands[vi];
+            let ss = src.sampler();
+            for z in &ss.zones {
+                let (lo, hi) = ((z.lo_key as i32).max(b_lo), (z.hi_key as i32).min(b_hi));
+                if lo > hi {
+                    continue;
+                }
+                match bank.get(&src.zone_path(&z.file)) {
+                    Ok(d) => zones.push(SampleZone {
+                        loop_xfade: match (z.loop_start, z.loop_end) {
+                            (Some(_), Some(_)) => 0,
+                            _ if sustained => soft_loop(d.frames.len(), d.sample_rate).map_or(0, |(_, _, x)| x),
+                            _ => 0,
+                        },
+                        frames: d.frames.clone(),
+                        rate: d.sample_rate as f32,
+                        recorded_hz: if ss.pitched { z.recorded_hz.unwrap_or_else(|| note_hz(z.key as f64, ss.source_a4_hz as f64) as f32) } else { 0.0 },
+                        low_note: lo,
+                        high_note: hi,
+                        velocity: (z.lo_vel as f32 + z.hi_vel as f32) * 0.5 / 127.0,
+                        loop_range: match (z.loop_start, z.loop_end) {
+                            (Some(a), Some(b)) => Some((a as usize, b as usize)),
+                            _ if sustained => soft_loop(d.frames.len(), d.sample_rate).map(|(a, b, _)| (a, b)),
+                            _ => None,
+                        },
+                    }),
+                    Err(e) => out.problems.push(format!("{}: {e}", src.def.id)),
+                }
             }
         }
         if zones.is_empty() {
@@ -286,7 +342,13 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
             })
             .unwrap_or(0.0);
         let level_db = if sample_rms > 1e-6 && synth_rms > 1e-6 { (20.0 * (synth_rms / sample_rms).log10()).clamp(-30.0, 30.0) } else { 0.0 };
-        let id = recorded_id(&recorded.def.id);
+        // One voice: its definition's id; several: the part's, its voices' recordings named in what
+        // plays it.
+        let (id, plays_id) = if sources.len() == 1 {
+            (recorded_id(&recorded.def.id), recorded.def.id.clone())
+        } else {
+            (recorded_id(&part), sources.iter().map(|a| a.def.id.as_str()).collect::<Vec<_>>().join("+"))
+        };
         music.instruments.retain(|i| i.id != id);
         music.instruments.push(MusicInstrument {
             id: id.clone(),
@@ -304,10 +366,31 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
         });
         point(music, &part, &id);
         out.samples.insert(id.clone(), Arc::new(set));
-        let plays = PartPlays::Recorded { id: recorded.def.id.clone() };
+        let plays = PartPlays::Recorded { id: plays_id };
         out.plays.push((part.clone(), plays.clone()));
+        if sources.len() > 1 {
+            for (v, a) in voices.iter().zip(&sources) {
+                out.plays.push((v.clone(), PartPlays::Recorded { id: a.def.id.clone() }));
+            }
+        }
         plays_as.insert(part, (id, plays));
     }
     bank.end_build();
+    out
+}
+
+/// The keys each voice of a several-voice part plays (`ranges`: each voice's zones' key ranges,
+/// lowest voice first): where two neighbours' ranges overlap, split halfway (the lower takes the
+/// middle key); a gap between them goes to the lower voice; the lowest plays everything below and
+/// the highest everything above.
+pub fn voice_bands(ranges: &[Vec<(i32, i32)>]) -> Vec<(i32, i32)> {
+    let span: Vec<(i32, i32)> = ranges.iter().map(|z| (z.iter().map(|r| r.0).min().unwrap_or(0), z.iter().map(|r| r.1).max().unwrap_or(127))).collect();
+    let mut out = vec![(0, 127); span.len()];
+    for i in 0..span.len().saturating_sub(1) {
+        let (hi, next_lo) = (span[i].1, span[i + 1].0);
+        let split = if next_lo <= hi { (hi + next_lo) / 2 } else { next_lo - 1 };
+        out[i].1 = split;
+        out[i + 1].0 = split + 1;
+    }
     out
 }

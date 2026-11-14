@@ -7,8 +7,8 @@
 use std::f32::consts::PI;
 use std::sync::Arc;
 
-use crate::dsp::{db_to_amp, pan_gains, polyblep, Env, Lfo, Phasor, Svf, SvfCoefs};
-use crate::instrument::{FilterKind, FilterSpec, Instrument, InstrumentKind, SampleBank, Wave};
+use crate::dsp::{db_to_amp, fast_floor, fast_sin, fast_tanh, lfo_value, pan_gains, polyblep, shape_sample, Allpass1, Env, Lfo, Phasor, Svf, SvfCoefs, BASS_FORMANTS};
+use crate::instrument::{FilterKind, FilterSpec, Instrument, InstrumentKind, SampleBank, VoiceFx, Wave};
 use crate::rng::Rng;
 use crate::tuning::note_hz;
 
@@ -28,6 +28,22 @@ pub struct BlockParams<'a> {
     pub beat_hz: f32,
     /// The choir's five formants this block: coefficients and gains.
     pub vowel: &'a [(SvfCoefs, f32); 5],
+    /// Where the music is at the block's start, for LFOs in time with it: the bar (counted from the
+    /// score's start; a per-bar rate pattern reads it) and the beats since the score began.
+    pub bar: u64,
+    pub beats: f64,
+    /// Ducking under the kick (a genre's sidechain): the roles it acts on (one bit each), and their
+    /// gain at the block's start and end (a straight line between, so the duck never clicks).
+    pub duck_mask: u8,
+    pub duck_from: f32,
+    pub duck_to: f32,
+}
+
+impl BlockParams<'_> {
+    /// A block with nothing in time with a bar and no ducking (tests, previews).
+    pub fn plain(rate: f32, beat_hz: f32, vowel: &[(SvfCoefs, f32); 5]) -> BlockParams<'_> {
+        BlockParams { rate, pitch_mul: 1.0, beat_hz, vowel, bar: 0, beats: 0.0, duck_mask: 0, duck_from: 1.0, duck_to: 1.0 }
+    }
 }
 
 /// A note to start.
@@ -56,9 +72,45 @@ struct SynthSt {
     ph: [f32; 4],
     svf_l: Svf,
     svf_r: Svf,
+    /// The filter's second stage (24 dB an octave).
+    svf_l2: Svf,
+    svf_r2: Svf,
     vib: Lfo,
     trem: Lfo,
     flt: Lfo,
+    /// The tempo LFO's own phase, for one restarted at each note (cycles since the note began).
+    flt_ph: f32,
+    fx: FxSt,
+}
+
+/// The bass toolkit's state per voice (the chain after the filter, instrument.rs `VoiceFx`).
+#[derive(Clone, Copy, Default)]
+struct FxSt {
+    form: [Svf; 3],
+    ap: [Allpass1; 4],
+    ap_last: f32,
+    comb_w: usize,
+    hold: f32,
+    hold_ctr: f32,
+    sub_ph: f32,
+    hp: Svf,
+    /// Restarted tempo LFOs' phases: the formant's, the comb's, the phaser's.
+    lfo_ph: [f32; 3],
+}
+
+/// What the chain needs for one block, worked out once a block.
+#[derive(Clone, Copy, Default)]
+struct FxBlock {
+    form_c: [SvfCoefs; 3],
+    form_g: [f32; 3],
+    comb_d: f32,
+    ap_a: f32,
+    pre: f32,
+    levels: f32,
+    inv_levels: f32,
+    hold_n: f32,
+    sub_dt: f32,
+    hp_c: SvfCoefs,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -114,6 +166,9 @@ struct FmSt {
     index: f32,
     index_coef: f32,
     tine: Phasor,
+    /// The index LFO's own phase (restarted at each note), and the chain after the operators.
+    idx_ph: f32,
+    fx: FxSt,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -178,11 +233,17 @@ pub struct Voice {
     env: Env,
     st: St,
     rng: Rng,
+    /// Glide: how far the pitch still is from the note, in octaves (falling to 0), and how much of
+    /// it is left after each sample.
+    glide: f32,
+    glide_coef: f32,
 }
 
 impl Voice {
     fn idle(seed: u64) -> Self {
         Voice {
+            glide: 0.0,
+            glide_coef: 0.0,
             active: false,
             inst: 0,
             role: 0,
@@ -214,13 +275,15 @@ pub struct VoicePool {
     ks: Vec<f32>,
     /// Notes started (a sampler's round robin).
     started: u32,
+    /// Each role's last note's frequency (a gliding voice slides from it).
+    last_hz: [f32; 8],
 }
 
 impl VoicePool {
     /// 64 idle voices (allocates here, once).
     pub fn new(seed: u64) -> Self {
         let mut r = Rng::new(seed);
-        VoicePool { voices: (0..MAX_VOICES).map(|_| Voice::idle(r.next_u64())).collect(), ks: vec![0.0; MAX_VOICES * KS_LEN], started: 0 }
+        VoicePool { voices: (0..MAX_VOICES).map(|_| Voice::idle(r.next_u64())).collect(), ks: vec![0.0; MAX_VOICES * KS_LEN], started: 0, last_hz: [0.0; 8] }
     }
 
     /// How many voices are sounding.
@@ -315,6 +378,26 @@ impl VoicePool {
         v.hold_left = if n.hold_s > 0.0 { (n.hold_s * rate) as i64 } else { -1 };
         v.released = false;
         v.age = 0;
+        // Glide: a gliding voice starts at the pitch its role last played and slides to its own.
+        let glide_s = match &inst.kind {
+            InstrumentKind::Synth(s) => s.glide_s,
+            InstrumentKind::Fm(fm) => fm.glide_s,
+            _ => 0.0,
+        };
+        let from = if (n.role as usize) < 8 { self.last_hz[n.role as usize] } else { 0.0 };
+        (v.glide, v.glide_coef) = if glide_s > 0.0 && from > 0.0 { ((from / f).log2().clamp(-4.0, 4.0), (-1.0 / (glide_s * rate)).exp()) } else { (0.0, 0.0) };
+        if (n.role as usize) < 8 {
+            self.last_hz[n.role as usize] = f;
+        }
+        // A comb filter rings in this voice's delay line: start it silent.
+        let fx_comb = match &inst.kind {
+            InstrumentKind::Synth(s) => s.fx.comb.is_some(),
+            InstrumentKind::Fm(fm) => fm.fx.comb.is_some(),
+            _ => false,
+        };
+        if fx_comb {
+            ks.fill(0.0);
+        }
         let env = |e: &crate::instrument::EnvSpec| Env::new(e.attack_s, e.decay_s, e.sustain, e.release_s, rate);
         v.st = match &inst.kind {
             InstrumentKind::Synth(s) => {
@@ -388,7 +471,7 @@ impl VoicePool {
             InstrumentKind::Fm(fm) => {
                 v.env = env(&fm.envelope);
                 let tine = fm.tine.map(|(r, a, t)| Phasor::new((f * r).min(rate * 0.45), a, t, rate)).unwrap_or_default();
-                St::Fm(FmSt { car: 0.0, md: 0.0, index: fm.index, index_coef: (-1.0 / (fm.index_decay_s.max(0.001) * rate)).exp(), tine })
+                St::Fm(FmSt { car: 0.0, md: 0.0, index: fm.index, index_coef: (-1.0 / (fm.index_decay_s.max(0.001) * rate)).exp(), tine, ..Default::default() })
             }
             InstrumentKind::Plucked(p) => {
                 v.env = Env::new(0.0, 0.0, 1.0, 0.1, rate);
@@ -495,6 +578,155 @@ impl VoicePool {
     }
 }
 
+/// One sample of a band-limited oscillator at phase `ph`, phase step `d`.
+#[inline]
+fn osc(wave: Wave, ph: f32, d: f32) -> f32 {
+    match wave {
+        Wave::Saw => 2.0 * ph - 1.0 - polyblep(ph, d),
+        Wave::Square => {
+            let a = if ph < 0.5 { 1.0 } else { -1.0 };
+            a + polyblep(ph, d) - polyblep((ph + 0.5).fract(), d)
+        }
+        Wave::Triangle => 1.0 - 4.0 * (ph - 0.5).abs(),
+        Wave::Sine => (2.0 * PI * ph).sin(),
+    }
+}
+
+/// A tempo LFO's value at the block's start (-1 .. 1): `per_beat` cycles a beat, or this bar's rate
+/// of `rates` (one per bar in turn), in `shape`; in time with the music's beats since the score began
+/// (so every note sweeps in step and the rate locks to the tempo; a rate that fits a bar a whole
+/// number of times starts each bar afresh), or, with `restart`, from the note's start (`ph`: its
+/// cycles so far, advanced by the block's `n` samples).
+fn beat_lfo(per_beat: f32, rates: &[f32], shape: crate::instrument::LfoShape, restart: bool, ph: &mut f32, p: &BlockParams, n: usize) -> f32 {
+    let r = if rates.is_empty() { per_beat } else { rates[(p.bar % rates.len() as u64) as usize] };
+    if r <= 0.0 {
+        return 0.0;
+    }
+    if restart {
+        let c = ph.floor();
+        let y = lfo_value(shape, *ph - c, c as u64);
+        *ph += r * p.beat_hz * n as f32 / p.rate;
+        y
+    } else {
+        let x = p.beats * r as f64;
+        lfo_value(shape, x.fract() as f32, x.floor() as u64)
+    }
+}
+
+/// The chain's coefficients for one block (the formant's vowel, the comb's delay, the phaser's turn,
+/// the shaper's gain and steps, the sub's pitch).
+fn fx_block(fx: &VoiceFx, st: &mut FxSt, note_hz: f32, p: &BlockParams, n: usize) -> FxBlock {
+    let rate = p.rate;
+    let mut b = FxBlock { pre: 1.0, hold_n: 1.0, ..Default::default() };
+    if let Some(s) = &fx.shaper {
+        b.pre = 1.0 + 20.0 * s.drive.clamp(0.0, 1.0);
+        b.levels = if s.bits > 0.0 { 2f32.powf(s.bits.clamp(1.0, 24.0) - 1.0) } else { 0.0 };
+        b.inv_levels = if b.levels > 0.0 { 1.0 / b.levels } else { 0.0 };
+        b.hold_n = s.downsample.max(1.0);
+    }
+    if let Some(fm) = fx.formant.as_ref().filter(|f| !f.vowels.is_empty()) {
+        let sweep = 0.5 + 0.5 * beat_lfo(fm.lfo.per_beat, &fm.lfo.rates, fm.lfo.shape, fm.lfo.restart, &mut st.lfo_ph[0], p, n);
+        let pos = sweep * (fm.vowels.len() - 1) as f32;
+        let i = (pos.floor() as usize).min(fm.vowels.len() - 1);
+        let j = (i + 1).min(fm.vowels.len() - 1);
+        let t = pos - i as f32;
+        let (va, vb) = (BASS_FORMANTS[fm.vowels[i] as usize], BASS_FORMANTS[fm.vowels[j] as usize]);
+        for k in 0..3 {
+            let hz = (va[k].0 + (vb[k].0 - va[k].0) * t) * fm.shift.max(0.25);
+            let db = va[k].1 + (vb[k].1 - va[k].1) * t;
+            let bw = va[k].2 + (vb[k].2 - va[k].2) * t;
+            b.form_c[k] = SvfCoefs::new(hz, hz / bw.max(10.0), rate);
+            b.form_g[k] = db_to_amp(db);
+        }
+    }
+    if let Some(c) = &fx.comb {
+        let base = if c.key_ratio > 0.0 { rate / (note_hz * c.key_ratio).max(10.0) } else { c.delay_ms.max(0.05) * 0.001 * rate };
+        let sweep = beat_lfo(c.lfo.per_beat, &c.lfo.rates, c.lfo.shape, c.lfo.restart, &mut st.lfo_ph[1], p, n);
+        b.comb_d = (base * (1.0 + c.sweep.clamp(0.0, 0.9) * sweep)).clamp(2.0, (KS_LEN - 2) as f32);
+    }
+    if let Some(ph) = &fx.phaser {
+        let sweep = 0.5 + 0.5 * beat_lfo(ph.lfo.per_beat, &ph.lfo.rates, ph.lfo.shape, ph.lfo.restart, &mut st.lfo_ph[2], p, n);
+        let (lo, hi) = (ph.low_hz.max(20.0), ph.high_hz.max(ph.low_hz.max(20.0)));
+        b.ap_a = Allpass1::coef(lo * (hi / lo).powf(sweep), rate);
+    }
+    if let Some(s) = &fx.sub {
+        b.sub_dt = (note_hz * 2f32.powf(s.octave) / rate).min(0.45);
+        if s.split_hz > 0.0 {
+            b.hp_c = SvfCoefs::new(s.split_hz, 0.707, rate);
+        }
+    }
+    b
+}
+
+/// One mono sample through the chain: the shaper (its curve mixed with the clean sound, then fewer
+/// bits and a lower sample rate), the formant filter, the comb, the phaser, then the protected sub
+/// added under it all.
+#[inline]
+fn fx_tick(fx: &VoiceFx, b: &FxBlock, st: &mut FxSt, ks: &mut [f32], x: f32) -> f32 {
+    let mut y = x;
+    if let Some(s) = &fx.shaper {
+        let w = shape_sample(s.curve, y * b.pre);
+        y += (w - y) * s.mix.clamp(0.0, 1.0);
+        if b.levels > 0.0 {
+            y = fast_floor(y * b.levels + 0.5) * b.inv_levels;
+        }
+        if b.hold_n > 1.0 {
+            st.hold_ctr += 1.0;
+            if st.hold_ctr >= b.hold_n {
+                st.hold_ctr -= b.hold_n;
+                st.hold = y;
+            }
+            y = st.hold;
+        }
+    }
+    if let Some(f) = &fx.formant {
+        // Three resonances; their sum is lifted (x2) toward the level of the sound they filter.
+        let mut acc = 0.0;
+        for k in 0..3 {
+            acc += st.form[k].bp(&b.form_c[k], y) * b.form_g[k];
+        }
+        y += (2.0 * acc - y) * f.mix.clamp(0.0, 1.0);
+    }
+    if let Some(c) = &fx.comb {
+        // The delay line is the voice's KS_LEN samples (a power of two: wrapped by a mask).
+        const MASK: usize = KS_LEN - 1;
+        let mut rp = st.comb_w as f32 - b.comb_d;
+        if rp < 0.0 {
+            rp += KS_LEN as f32;
+        }
+        let i0 = rp as usize;
+        let fr = rp - i0 as f32;
+        let (a0, a1) = (ks[i0 & MASK], ks[(i0 + 1) & MASK]);
+        let dly = a0 + (a1 - a0) * fr;
+        let g = c.feedback.clamp(-0.95, 0.95);
+        let w = y + g * dly;
+        ks[st.comb_w & MASK] = w;
+        st.comb_w = (st.comb_w + 1) & MASK;
+        // The ringing sum, scaled so its resonant peaks stand no taller than the sound.
+        y += (w * (1.0 - g.abs()) - y) * c.mix.clamp(0.0, 1.0);
+    }
+    if let Some(ph) = &fx.phaser {
+        let mut a = y + ph.feedback.clamp(-0.9, 0.9) * st.ap_last;
+        for s in st.ap.iter_mut() {
+            a = s.tick(b.ap_a, a);
+        }
+        st.ap_last = a;
+        let m = ph.mix.clamp(0.0, 1.0);
+        y = (y + m * a) / (1.0 + m);
+    }
+    if let Some(s) = &fx.sub {
+        if s.split_hz > 0.0 {
+            y = st.hp.hp(&b.hp_c, y);
+        }
+        y += fast_sin(st.sub_ph) * s.level;
+        st.sub_ph += b.sub_dt;
+        if st.sub_ph >= 1.0 {
+            st.sub_ph -= 1.0;
+        }
+    }
+    y
+}
+
 fn filter_coefs(f: &FilterSpec, note_hz: f32, lfo: f32, env: f32, rate: f32) -> SvfCoefs {
     let fc = f.cutoff_hz + f.key_track * note_hz + f.lfo_depth_hz * (0.5 + 0.5 * lfo) + f.env_hz * env;
     SvfCoefs::new(fc.max(20.0), f.q, rate)
@@ -551,7 +783,17 @@ fn render_voice(
     let n = dl.len();
     let rate = p.rate;
     let (gl, gr, send) = (v.gl, v.gr, v.send);
+    // Ducked under the kick (a genre's sidechain): this role's gain moves in a straight line across
+    // the block.
+    let ducked = v.role < 8 && p.duck_mask & (1u8 << v.role) != 0;
+    let (d0, dstep) = if ducked { (p.duck_from, (p.duck_to - p.duck_from) / n.max(1) as f32) } else { (1.0, 0.0) };
     let mut out = |i: usize, l: f32, r: f32| {
+        let (l, r) = if ducked {
+            let d = d0 + dstep * i as f32;
+            (l * d, r * d)
+        } else {
+            (l, r)
+        };
         dl[i] += l * gl;
         dr[i] += r * gr;
         sl[i] += l * gl * send;
@@ -560,7 +802,13 @@ fn render_voice(
     match (&inst.kind, &mut v.st) {
         (InstrumentKind::Synth(s), St::Synth(st)) => {
             let vib = s.vibrato.map(|(r, d)| st.vib.advance(r, n, rate) * d).unwrap_or(0.0);
-            let f = v.freq * p.pitch_mul * 2f32.powf(vib / 1200.0);
+            let f = v.freq * p.pitch_mul * 2f32.powf(vib / 1200.0 + v.glide);
+            if v.glide != 0.0 {
+                v.glide *= v.glide_coef.powi(n as i32);
+                if v.glide.abs() < 1e-4 {
+                    v.glide = 0.0;
+                }
+            }
             let mut dt = [0f32; 4];
             let mut lv = [0f32; 4];
             let mut pl = [0f32; 4];
@@ -575,19 +823,54 @@ fn render_voice(
                 pr[k] = b;
                 wave[k] = o.wave;
             }
-            let coefs = s.filter.map(|fl| {
-                let lfo = if fl.lfo_per_beat > 0.0 {
-                    st.flt.advance(fl.lfo_per_beat * p.beat_hz, n, rate)
-                } else if fl.lfo_hz > 0.0 {
-                    st.flt.advance(fl.lfo_hz, n, rate)
-                } else {
-                    0.0
+            let coefs = s.filter.as_ref().map(|fl| {
+                let lfo = match fl.tempo_lfo() {
+                    Some((per_beat, rates, shape, restart)) => beat_lfo(per_beat, rates, shape, restart, &mut st.flt_ph, p, n),
+                    None if fl.lfo_hz > 0.0 => st.flt.advance(fl.lfo_hz, n, rate),
+                    None => 0.0,
                 };
-                (fl.kind, filter_coefs(&fl, f, lfo, v.env.level(), rate))
+                (fl.kind, filter_coefs(fl, f, lfo, v.env.level(), rate), fl.stages >= 2, 1.0 + fl.drive.max(0.0) * 4.0)
             });
             let trem = s.tremolo.map(|(r, d)| 1.0 - d * (0.5 + 0.5 * st.trem.advance(r, n, rate))).unwrap_or(1.0);
             let g = v.amp * trem;
             let drive = s.drive;
+            // The bass toolkit's chain: in mono, after the filter.
+            if s.fx.any() {
+                let fb = fx_block(&s.fx, &mut st.fx, f, p, n);
+                for i in 0..n {
+                    let e = v.env.next();
+                    let mut x = 0.0;
+                    for k in 0..no {
+                        let ph = st.ph[k];
+                        let d = dt[k];
+                        x += osc(wave[k], ph, d) * lv[k];
+                        let mut np = ph + d;
+                        if np >= 1.0 {
+                            np -= 1.0;
+                        }
+                        st.ph[k] = np;
+                    }
+                    if let Some((kind, c, two, pre)) = &coefs {
+                        if *pre > 1.0 {
+                            x = fast_tanh(x * pre);
+                        }
+                        x = filt(*kind, &mut st.svf_l, c, x);
+                        if *two {
+                            x = filt(*kind, &mut st.svf_l2, c, x);
+                        }
+                    }
+                    if drive > 0.0 {
+                        let k = 1.0 + drive * 3.0;
+                        x = fast_tanh(x * k) / k.sqrt();
+                    }
+                    let y = fx_tick(&s.fx, &fb, &mut st.fx, ks, x) * e * g;
+                    out(i, y, y);
+                }
+                if v.env.done() {
+                    v.active = false;
+                }
+                return;
+            }
             for i in 0..n {
                 let e = v.env.next();
                 let (mut xl, mut xr) = (0.0, 0.0);
@@ -611,9 +894,17 @@ fn render_voice(
                     xl += y * lv[k] * pl[k];
                     xr += y * lv[k] * pr[k];
                 }
-                if let Some((kind, c)) = &coefs {
+                if let Some((kind, c, two, pre)) = &coefs {
+                    if *pre > 1.0 {
+                        xl = fast_tanh(xl * pre);
+                        xr = fast_tanh(xr * pre);
+                    }
                     xl = filt(*kind, &mut st.svf_l, c, xl);
                     xr = filt(*kind, &mut st.svf_r, c, xr);
+                    if *two {
+                        xl = filt(*kind, &mut st.svf_l2, c, xl);
+                        xr = filt(*kind, &mut st.svf_r2, c, xr);
+                    }
                 }
                 if drive > 0.0 {
                     let k = 1.0 + drive * 3.0;
@@ -731,18 +1022,43 @@ fn render_voice(
             }
         }
         (InstrumentKind::Fm(fm), St::Fm(st)) => {
-            let f = v.freq * p.pitch_mul;
+            let f = v.freq * p.pitch_mul * if v.glide != 0.0 { 2f32.powf(v.glide) } else { 1.0 };
+            if v.glide != 0.0 {
+                v.glide *= v.glide_coef.powi(n as i32);
+                if v.glide.abs() < 1e-4 {
+                    v.glide = 0.0;
+                }
+            }
             let dc = f / rate;
             let dm = f * fm.ratio / rate;
             let has_tine = fm.tine.is_some();
+            // A growl: the index moved in time with the music (0 .. depth over its sweep).
+            let extra = match &fm.index_lfo {
+                Some(l) => fm.index_lfo_depth * (0.5 + 0.5 * beat_lfo(l.per_beat, &l.rates, l.shape, l.restart, &mut st.idx_ph, p, n)),
+                None => 0.0,
+            };
+            let chain = fm.fx.any();
+            let fb = if chain { fx_block(&fm.fx, &mut st.fx, f, p, n) } else { FxBlock::default() };
+            // A growl (an FM voice with the toolkit) takes its two sines from the cheap form (within
+            // 0.1%, under its own distortion); the plain FM keys keep the exact one.
+            let quick = chain || fm.index_lfo.is_some();
             for i in 0..n {
                 let e = v.env.next();
                 st.index = fm.index_sustain + (st.index - fm.index_sustain) * st.index_coef;
-                let y = (2.0 * PI * st.car + st.index * (2.0 * PI * st.md).sin()).sin();
+                let y = if quick {
+                    let ph = st.car + (st.index + extra) * fast_sin(st.md) * (0.5 / PI);
+                    fast_sin(ph - fast_floor(ph))
+                } else {
+                    (2.0 * PI * st.car + (st.index + extra) * (2.0 * PI * st.md).sin()).sin()
+                };
                 st.car = (st.car + dc).fract();
                 st.md = (st.md + dm).fract();
                 let t = if has_tine { st.tine.tick() } else { 0.0 };
-                let s = (y + t) * e * v.amp;
+                let mut s = y + t;
+                if chain {
+                    s = fx_tick(&fm.fx, &fb, &mut st.fx, ks, s);
+                }
+                let s = s * e * v.amp;
                 out(i, s, s);
             }
             if v.env.done() {

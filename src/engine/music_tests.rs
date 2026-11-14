@@ -612,7 +612,16 @@ fn electro_swing_plays_recordings_out_of_the_box() {
     }
     let lib = built.lib.clone();
     let gi = lib.genre_index("electro_swing").unwrap();
-    assert!(built.stand_ins[gi].is_empty(), "no stand-ins with the core set: {:?}", built.stand_ins[gi]);
+    // Its stand-ins (since the 2026-11-13 genre pass, the parts an optional pack brings: the
+    // brushes, the honky-tonk piano, the tuba) each name the pack, and none is a part the core set
+    // holds.
+    let catalog = crate::instrument_packs::catalog::PackCatalog::load(&data).expect("packs.ron");
+    let parts = crate::instrument_packs::catalog::Parts::load(&data).expect("parts.ron");
+    let core_words: Vec<&str> = catalog.core.instruments.iter().filter_map(|i| parts.part(&i.part)).map(|p| p.words.as_str()).collect();
+    for s in &built.stand_ins[gi] {
+        assert!(s.pack.is_some(), "electro swing's stand-in {} names the pack that brings it", s.part);
+        assert!(!core_words.contains(&s.part.as_str()), "electro swing's {} is in the core set, so plays its recording", s.part);
+    }
     let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi as u16, genre_b: gi as u16, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
     let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, 20261106, ctx);
     let mut meter = LoudnessMeter::new(48000, 2);
@@ -686,11 +695,15 @@ fn the_music_starts_with_the_app_and_a_script_launch_stays_silent() {
     }
 }
 
-/// PIECES TO LISTEN TO (2026-11-13, docs/design/music.md section 7c): 60 s of two electro swing
-/// pieces (two seeds) and one of the ship's own genre, built as the game builds them (the core set's
-/// recordings) and written as WAVs into HUMANITY_MUSIC_WAV_DIR (`m2-<genre>-seed-<seed>.wav`), with
-/// each piece's key, form, tempo and lead voice printed. Not a gate. Run by hand:
-/// HUMANITY_MUSIC_WAV_DIR=<dir> node scripts/lib-tests.js pieces_to_listen_to --ignored --nocapture
+/// PIECES TO LISTEN TO (2026-11-13, docs/design/music.md sections 7c and 7e): 60 s of each piece
+/// HUMANITY_MUSIC_PIECES names (by default two electro swing seeds and one of the ship's own genre;
+/// an item `genre:seed`, with `:kit=<id>` for the first seed from there that draws that kit and
+/// `:<role>=<part>` for a lead voice, as the Music page chooses one), built as the game builds them
+/// (the installed recordings) and written as WAVs into HUMANITY_MUSIC_WAV_DIR
+/// (`<HUMANITY_MUSIC_WAV_PREFIX>-<genre>-seed-<seed>.wav`), each piece's key, form, tempo and lead
+/// voice printed. Not a gate. Run by hand, for example:
+/// HUMANITY_MUSIC_WAV_DIR=<dir> HUMANITY_MUSIC_PIECES=deep_dubstep:1,electro_swing:1:kit=brushes:bass=tuba
+/// node scripts/lib-tests.js pieces_to_listen_to --ignored --nocapture
 #[test]
 #[ignore = "writes WAVs for a person to listen to; run: node scripts/lib-tests.js pieces_to_listen_to --ignored --nocapture"]
 fn pieces_to_listen_to() {
@@ -700,12 +713,35 @@ fn pieces_to_listen_to() {
     };
     let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-    for (genre, seed) in [("electro_swing", 20261113u64), ("electro_swing", 4242), ("mothership_calm", 20261113)] {
+    // Which pieces (HUMANITY_MUSIC_PIECES, "genre:seed" items separated by commas; an item may add
+    // ":kit=<id>", the first seed from there whose piece draws that kit, and ":<role>=<part>", a lead
+    // voice chosen as the Music page would), and the files' prefix (HUMANITY_MUSIC_WAV_PREFIX).
+    let pieces = std::env::var("HUMANITY_MUSIC_PIECES").unwrap_or_else(|_| "electro_swing:20261113,electro_swing:4242,mothership_calm:20261113".to_string());
+    let prefix = std::env::var("HUMANITY_MUSIC_WAV_PREFIX").unwrap_or_else(|_| "piece".to_string());
+    for item in pieces.split(',').filter(|s| !s.trim().is_empty()) {
+        let mut bits = item.trim().split(':');
+        let genre = bits.next().unwrap_or("mothership_calm");
+        let mut seed: u64 = bits.next().and_then(|s| s.parse().ok()).unwrap_or(20261113);
+        let opts: Vec<(&str, &str)> = bits.filter_map(|b| b.split_once('=')).collect();
         let mut bank = SampleBank::new();
         let built = build(&data, 432.0, true, &mut bank, &[genre.to_string()]).expect("builds");
         let lib = built.lib.clone();
         let gi = lib.genre_index(genre).unwrap() as u16;
-        let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi, genre_b: gi, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
+        let mut ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood: lib.mood_index("mothership_calm").unwrap() as u16, genre_a: gi, genre_b: gi, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
+        let g = &lib.genres[gi as usize];
+        let mut label = String::new();
+        for (k, v) in &opts {
+            if *k == "kit" {
+                let want = g.kits.iter().position(|x| x.id == *v).expect("the genre has that kit") as u8;
+                while humanity_music::piece::Piece::new(seed).kit(&g.kits.iter().map(|x| x.weight).collect::<Vec<_>>()) != Some(want) {
+                    seed += 1;
+                }
+            } else if let Some(role) = humanity_music::tune::ROLE_IDS.iter().position(|r| r == k) {
+                let i = g.leads.iter().position(|e| e.role.index() == role && e.part.as_deref() == Some(*v)).expect("the genre offers that lead");
+                ctx.tune.lead[role] = i as u16;
+            }
+            label.push_str(&format!("-{v}"));
+        }
         let mut e = ScoreEngine::new(built.score.expect("a score"), 48000.0, seed, ctx);
         let mut frames: Vec<[f32; 2]> = Vec::new();
         let mut buf = [[0.0f32; 2]; 128];
@@ -713,7 +749,7 @@ fn pieces_to_listen_to() {
             e.render(&mut buf);
             frames.extend_from_slice(&buf);
         }
-        let path = dir.join(format!("m2-{}-seed-{seed}.wav", genre.replace('_', "-")));
+        let path = dir.join(format!("{prefix}-{}{label}-seed-{seed}.wav", genre.replace('_', "-")));
         humanity_music::render::write_wav(&path, &frames, 48000).expect("the WAV is written");
         let c = e.composer();
         let melody = c.role_instruments()[humanity_music::mood::RoleKind::Melody.index()].and_then(|i| e.instruments().get(i as usize)).map(|i| i.id.clone()).unwrap_or_default();

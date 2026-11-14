@@ -1,0 +1,13 @@
+// The brush stirring circles on the snare head (2026-11-13, the genre pass), the stand-in until the
+// "Brushes and jazz drum kits" pack's recording is installed: a slow, soft sweep of high, band-passed
+// noise rising and falling over most of a beat, the bed a swing drummer keeps under the time.
+Instrument(
+    id: "brush_stir",
+    words: "music.instrument.brush_stir",
+    kind: Noise((
+        filter: (kind: BandPass, cutoff_hz: 4200.0, q: 0.4),
+        envelope: (attack_s: 0.12, decay_s: 0.3, sustain: 0.0, release_s: 0.2),
+    )),
+    level_db: -22.0,
+    reverb_send: 0.12,
+)

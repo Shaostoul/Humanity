@@ -103,7 +103,16 @@ pub fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Colo
                 ui.label(RichText::new(about).color(theme.text_secondary()));
             }
             if !g.stand_ins.is_empty() {
-                let parts: Vec<String> = g.stand_ins.iter().map(|k| t_dyn(k).to_string()).collect();
+                // Each part with the pack whose recording would play it (Settings > Audio >
+                // Instruments installs it).
+                let parts: Vec<String> = g
+                    .stand_ins
+                    .iter()
+                    .map(|s| match &s.pack {
+                        Some(pack) => t("settings.music.stand_in_from").replace("{{part}}", t_dyn(&s.part)).replace("{{pack}}", t_dyn(pack)),
+                        None => t_dyn(&s.part).to_string(),
+                    })
+                    .collect();
                 ui.label(RichText::new(t("settings.music.genre_stand_ins").replace("{{parts}}", &parts.join(", "))).size(theme.font_size_small).color(theme.text_muted()));
             }
         }

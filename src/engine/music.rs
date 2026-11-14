@@ -45,7 +45,7 @@ use humanity_music::places::Place;
 use humanity_music::{hum_place, BedContext, BedEngine, BedStatus, MusicContext, MusicLibrary, MusicSettings, MusicStatus, Resolved, ScoreEngine};
 
 use crate::engine::state::EngineState;
-use crate::gui::pages::dev_music::{MusicChoice, MusicReadout};
+use crate::gui::pages::dev_music::{MusicChoice, MusicReadout, StandIn};
 use humanity_music::favourite::Favourites;
 use crate::gui::GuiPage;
 use crate::instrument_packs::samples::SampleBank;
@@ -243,8 +243,9 @@ pub(crate) struct Built {
     /// What plays each part the music names, and what could not be decoded.
     pub plays: Vec<(String, crate::instrument_packs::score::PartPlays)>,
     pub problems: Vec<String>,
-    /// Per genre: the parts it names that no installed recording plays (their words keys).
-    pub stand_ins: Vec<Vec<String>>,
+    /// Per genre: the parts that can sound with it that no installed recording of their own plays,
+    /// each with the pack that would bring one.
+    pub stand_ins: Vec<Vec<StandIn>>,
     /// How long it took on the worker, milliseconds.
     pub took_ms: f32,
 }
@@ -277,7 +278,7 @@ pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut Sampl
 
 /// Settings > Music's genre choices: each genre's id and words, with its stand-ins (`stand_ins`, per
 /// genre, from [`genre_stand_ins`]).
-pub(crate) fn genre_choices(lib: &MusicLibrary, stand_ins: &[Vec<String>]) -> Vec<crate::gui::pages::dev_music::GenreChoice> {
+pub(crate) fn genre_choices(lib: &MusicLibrary, stand_ins: &[Vec<StandIn>]) -> Vec<crate::gui::pages::dev_music::GenreChoice> {
     lib.genres
         .iter()
         .enumerate()
@@ -296,20 +297,31 @@ pub(crate) fn genre_choices(lib: &MusicLibrary, stand_ins: &[Vec<String>]) -> Ve
 /// recording plays, as their words keys, each once: Settings > Music says synthesised stand-ins play
 /// them until a recording is installed (docs/design/music.md section 7a). Empty for a genre that
 /// names no part (the default plays the mood's own).
-pub(crate) fn genre_stand_ins(data_dir: &Path, lib: &MusicLibrary) -> Vec<Vec<String>> {
+pub(crate) fn genre_stand_ins(data_dir: &Path, lib: &MusicLibrary) -> Vec<Vec<StandIn>> {
+    use crate::instrument_packs::library::Choice;
     let Ok(parts) = crate::instrument_packs::catalog::Parts::load(data_dir) else { return vec![Vec::new(); lib.genres.len()] };
     let installed = crate::instrument_packs::library::InstrumentLibrary::load(data_dir);
-    lib.genres
-        .iter()
+    let catalog = crate::instrument_packs::catalog::PackCatalog::load(data_dir).ok();
+    // The pack holding a recording of `part` (a part of several voices: its first voice's).
+    let pack_of = |part: &str| -> Option<String> {
+        let c = catalog.as_ref()?;
+        let p = parts.part(part).and_then(|x| x.voices.first().cloned()).unwrap_or_else(|| part.to_string());
+        c.packs.iter().find(|k| k.instruments.iter().any(|i| i.part == p)).map(|k| k.words.clone())
+    };
+    let recorded = |part: &str| match parts.part(part).map(|x| x.voices.as_slice()) {
+        Some(v) if !v.is_empty() => v.iter().all(|v| matches!(installed.choose(v, &parts), Some(Choice::Sampled(_)))),
+        _ => matches!(installed.choose(part, &parts), Some(Choice::Sampled(_))),
+    };
+    (0..lib.genres.len())
         .map(|g| {
-            let mut out: Vec<String> = Vec::new();
-            for p in g.roles_add.iter().chain(g.leads.iter()).filter_map(|r| r.part.as_ref()).chain(g.palette.iter().filter_map(|e| e.part.as_ref())) {
-                if matches!(installed.choose(p, &parts), Some(crate::instrument_packs::library::Choice::Sampled(_))) {
+            let mut out: Vec<StandIn> = Vec::new();
+            for (p, _, _) in crate::instrument_packs::score::sounding_parts(lib, &[g]) {
+                if recorded(&p) {
                     continue;
                 }
-                if let Some(w) = parts.part(p).map(|x| x.words.clone()) {
-                    if !out.contains(&w) {
-                        out.push(w);
+                if let Some(w) = parts.part(&p).map(|x| x.words.clone()) {
+                    if !out.iter().any(|s| s.part == w) {
+                        out.push(StandIn { part: w, pack: pack_of(&p) });
                     }
                 }
             }
@@ -436,7 +448,7 @@ pub(crate) struct MusicRuntime {
     /// The newest music data (the hum's sources, the places, the genres for Settings).
     lib: Option<Arc<MusicLibrary>>,
     /// Per genre of `lib`: the parts no installed recording plays (Settings' stand-ins line).
-    stand_ins: Vec<Vec<String>>,
+    stand_ins: Vec<Vec<StandIn>>,
     /// The data the playing score was built from (its mood and genre indices).
     score_lib: Option<Arc<MusicLibrary>>,
     load_error: Option<String>,

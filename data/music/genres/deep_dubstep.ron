@@ -1,0 +1,106 @@
+// "Deep dubstep" (docs/design/music.md section 7e, 2026-11-13). The operator: "We'll even want to
+// consider how we could make music like dubstep." and, choosing among the kinds: deep, sub-led
+// dubstep first, heavier styles later as their own choices.
+//
+// What is captured is the GENRE's commonplace building blocks (the 2026-11-12 copyright finding),
+// never any artist's recordings, melodies or riffs: 140 bpm in HALF-TIME (the snare and a clap on
+// beat 3, so 140 feels like 70), a kick on 1 with a lazy one later in the bar, sixteenth-note hats;
+// a deep sine SUB under everything that DUCKS when the kick hits (a sidechain); a WOBBLE from a
+// resonant 24 dB low-pass swept in time with the beat, its rate changing bar by bar between eighth
+// notes and eighth-note triplets; short FM GROWLS that talk in vowels, in the drops only; minor and
+// Phrygian harmony (the flat second leaning on the root), chords two to four bars long; and a
+// STRUCTURE: a sixteen-bar intro, an eight-bar build (a snare roll speeding up under a riser, a beat
+// of silence), the drop (an impact, the sub and the wobble in full), a middle, a second build and
+// drop, an outro. Spacious and calm-friendly: the heavier kinds (brostep, riddim) will be choices of
+// their own.
+//
+// Instruments: the drums are the core set's LMMS hits (electronic kick, punchy snare, layered clap,
+// hi-hats), the riser and the sub drop its sweep and drop, each with a synthesised stand-in; the
+// wobble bass and the growl are synthesised with the bass toolkit (data/music/instruments/
+// wobble_bass.ron, fm_growl.ron), as electronic music's basses genuinely are.
+Genre(
+    id: "deep_dubstep",
+    words: "music.genre.deep_dubstep",
+    about_words: "music.genre.deep_dubstep_about",
+    tempo_bpm: Some((140.0, 140.0)),
+    beat_felt: Some(true),
+    beats_per_bar: Some(4),
+    groove: Some((swing: 0.5, subdivision: 4, syncopation: 0.03, humanize_ms: 2.0)),
+    drums: [
+        // The kick on 1, a lazy one later in the bar now and then; it ducks the sub.
+        (instrument: "house_kick", part: Some("electronic_kick"), note: "A1", velocity: 0.95, patterns: ["x.........x.....", "x.........x.....", "x......x..x....."], ducks: true),
+        // Half-time: the snare on beat 3, a clap layered on it in the drops.
+        (instrument: "lofi_snare", part: Some("electronic_snare"), note: "D3", velocity: 0.9, patterns: ["........x......."]),
+        (instrument: "clap", part: Some("electronic_clap"), note: "D3", velocity: 0.55, patterns: ["........x......."], sections: ["drop"]),
+        (instrument: "lofi_hat", part: Some("electronic_hat"), note: "D5", velocity: 0.38, patterns: ["x.x.x.x.x.x.x.x.", "x.x.x.xxx.x.x.x.", "x.xgx.x.x.xgx.x."]),
+        (instrument: "open_hat", part: Some("electronic_open_hat"), note: "D5", velocity: 0.3, patterns: ["......x.......x."], sections: ["drop", "middle"]),
+    ],
+    // The sections in order (a piece plays them through, then from the top). The build rolls the
+    // snare and lifts the riser, then a beat of silence; the drop lands with the sub drop.
+    structure: Some((
+        sections: [
+            (name: "intro", bars: 16, roles: [Pad, Texture, Bells]),
+            (name: "build", bars: 8, roles: [Pad, Texture, Bells], build: true, energy: 0.9),
+            (name: "drop", bars: 16, roles: [Bass, Melody, Pad, Texture], drop: true),
+            (name: "middle", bars: 8, roles: [Bass, Pad, Bells, Texture], energy: 0.85),
+            (name: "build", bars: 8, roles: [Pad, Texture, Bells], build: true, energy: 0.9),
+            (name: "drop", bars: 16, roles: [Bass, Melody, Pad, Texture], drop: true),
+            (name: "outro", bars: 8, roles: [Pad, Texture, Bells], energy: 0.9),
+        ],
+        roll: Some((instrument: "lofi_snare", part: Some("electronic_snare"), note: "D3", velocity: 0.75)),
+        riser: Some((instrument: "riser", part: Some("riser"), note: "D4", velocity: 0.7, beats: 16.0)),
+        impact: Some((instrument: "taiko_hit", part: Some("sub_drop"), note: "D2", velocity: 0.85)),
+        gap_beats: 1.0,
+    )),
+    // The sub (the whole bass voice) dips under each kick and comes back over a quarter second.
+    sidechain: Some((roles: [Bass], depth_db: -9.0, release_s: 0.25)),
+    progressions: Some((
+        keys: [
+            (root: "D", mode: Phrygian, weight: 1.0), (root: "D", mode: Aeolian, weight: 1.0), (root: "E", mode: Phrygian, weight: 0.6),
+            (root: "G", mode: Aeolian, weight: 0.6), (root: "A", mode: Phrygian, weight: 0.5), (root: "F", mode: Aeolian, weight: 0.4),
+        ],
+        chords: [
+            (name: "i", root: 0, notes: [0, 3, 7]),
+            (name: "i7", root: 0, notes: [0, 3, 7, 10]),
+            (name: "bII", root: 1, notes: [0, 4, 7]),
+            (name: "iv", root: 5, notes: [0, 3, 7]),
+            (name: "v", root: 7, notes: [0, 3, 7]),
+            (name: "bVI", root: 8, notes: [0, 4, 7]),
+            (name: "bVII", root: 10, notes: [0, 4, 7]),
+        ],
+        moves: [
+            ("i", "bII", 2.0), ("i", "bVI", 2.0), ("i", "iv", 1.5), ("i", "i7", 1.0), ("i", "bVII", 1.0),
+            ("i7", "iv", 2.0), ("i7", "bVI", 1.5),
+            ("bII", "i", 4.0),
+            ("iv", "i", 2.0), ("iv", "bVI", 1.0), ("iv", "v", 1.0),
+            ("v", "i", 3.0),
+            ("bVI", "bVII", 2.0), ("bVI", "i", 2.0), ("bVI", "bII", 1.0),
+            ("bVII", "i", 3.0),
+        ],
+        cadences: ["i", "bII"],
+        start: "i",
+    )),
+    harmony: (chord_bars: Some((2, 4))),
+    motif_scale: Some(Phrygian),
+    // The growl's riffs: two to four notes, short cells, steps of the Phrygian mode with leaps.
+    motif_rules: Some((
+        count: 4,
+        notes: (2, 4),
+        cells: [[0.5, 0.5], [1.0], [0.25, 0.25, 0.5], [1.5, 0.5], [0.75, 0.75, 0.5], [0.5, 1.0]],
+        contours: [(Fall, 1.5), (Valley, 1.0), (Hover, 1.2), (Zigzag, 0.8), (Rise, 0.6)],
+        leap: 0.25,
+        range: (-2, 4),
+        hold: (0.6, 0.95),
+    )),
+    roles_off: [Choir, Drone, Percussion],
+    roles_add: [
+        (role: Bass, instrument: "wobble_bass", low: "D1", high: "C2"),
+        (role: Melody, instrument: "fm_growl", low: "D2", high: "D3", density: 0.6),
+        (role: Pad, instrument: "dub_pad", low: "A2", high: "A4", voices: 2, level_db: 3.0),
+        (role: Bells, instrument: "celesta", low: "D5", high: "D6", density: 0.35, level_db: -4.0),
+        (role: Texture, instrument: "vinyl_crackle", low: "C4", high: "C4", level_db: -5.0),
+    ],
+    bass_patterns: ["x...............", "x.......x.......", "x.........o.....", "x.....x...x....."],
+    recipe: (saturation: 0.1, reverb_scale: 0.7),
+    level_db: -0.4,
+)

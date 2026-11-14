@@ -1,0 +1,18 @@
+// Deep dubstep's pad (docs/design/music.md section 7e, 2026-11-13): the dark pad's two detuned saws
+// under its slow breathing low-pass, without its sine an octave down (the wobble bass's sub owns the
+// low end, and a second sub only muddies it) and with a shorter release (2.5 s, not 6), so a chord
+// change in a drop leaves fewer voices ringing on: half the cost of the dark pad there.
+Instrument(
+    id: "dub_pad",
+    words: "music.instrument.dub_pad",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw, detune_cents: -5.0, pan: -0.5),
+            (wave: Saw, detune_cents: 5.0, pan: 0.5),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 420.0, q: 0.8, key_track: 0.8, lfo_hz: 0.03, lfo_depth_hz: 260.0)),
+        envelope: (attack_s: 3.0, release_s: 2.5),
+    )),
+    level_db: -20.0,
+    reverb_send: 0.45,
+)

@@ -116,6 +116,8 @@ struct PoolSink<'a> {
     /// meters the notes push up.
     gains: [f32; crate::tune::ROLES],
     meter: &'a mut [f32; crate::tune::ROLES],
+    /// A ducking drum's sidechain, when one hit during this call.
+    duck: &'a mut Option<(u8, f32, f32, f32)>,
 }
 
 impl Sink for PoolSink<'_> {
@@ -135,6 +137,9 @@ impl Sink for PoolSink<'_> {
     }
     fn note_off(&mut self, tag: u32) {
         self.pool.note_off(tag, &self.res.instruments, self.rate);
+    }
+    fn duck(&mut self, roles: u8, depth_db: f32, attack_s: f32, release_s: f32) {
+        *self.duck = Some((roles, depth_db, attack_s, release_s));
     }
 }
 
@@ -173,6 +178,10 @@ pub struct ScoreEngine {
     an: [Svf; BANDS],
     an_c: [SvfCoefs; BANDS],
     meter: [f32; crate::tune::ROLES],
+    /// The sidechain (a genre ducking roles under its kick): its roles, depth (dB), attack and
+    /// release (s), and the seconds since its last trigger.
+    side: (u8, f32, f32, f32),
+    side_t: f64,
 }
 
 /// The analyser's band-pass filters at `rate` (octave bands: Q about 1.4).
@@ -212,6 +221,8 @@ impl ScoreEngine {
             send_r: [0.0; CHUNK],
             status: MusicStatus::default(),
             stopping: false,
+            side: (0, 0.0, 0.005, 0.2),
+            side_t: f64::MAX,
             an: [Svf::default(); BANDS],
             an_c: band_coefs(rate),
             meter: [0.0; crate::tune::ROLES],
@@ -305,8 +316,13 @@ impl ScoreEngine {
         let mut done = 0;
         while done < out.len() {
             {
-                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter };
+                let mut hit = None;
+                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter, duck: &mut hit };
                 self.composer.process(&self.res, &mut sink);
+                if let Some(s) = hit {
+                    self.side = s;
+                    self.side_t = 0.0;
+                }
             }
             let n = (out.len() - done).min(self.composer.until_next()).min(CHUNK);
             self.dry_l[..n].fill(0.0);
@@ -336,7 +352,21 @@ impl ScoreEngine {
                 let g = ga + (go - ga) * m;
                 vowel[k] = (SvfCoefs::new(f, f / bw, rate), db_to_amp(g));
             }
-            let params = BlockParams { rate, pitch_mul, beat_hz: self.composer.beat_hz(), vowel: &vowel };
+            // The sidechain's gain at this chunk's start and end: down to its depth over the attack,
+            // back up in a straight line (in dB) over the release.
+            let (mask, depth, attack, release) = self.side;
+            let side_gain = |t: f64| -> f32 {
+                let a = attack.max(1e-4) as f64;
+                let d = if t < a { t / a } else { (1.0 - (t - a) / release.max(1e-3) as f64).max(0.0) };
+                db_to_amp(depth * d as f32)
+            };
+            let ducking = mask != 0 && self.side_t < (attack + release) as f64;
+            let (duck_from, duck_to) = if ducking { (side_gain(self.side_t), side_gain(self.side_t + n as f64 / rate as f64)) } else { (1.0, 1.0) };
+            if self.side_t < f64::MAX {
+                self.side_t += n as f64 / rate as f64;
+            }
+            let (bar, beats) = self.composer.beat_clock();
+            let params = BlockParams { rate, pitch_mul, beat_hz: self.composer.beat_hz(), vowel: &vowel, bar, beats, duck_mask: if ducking { mask } else { 0 }, duck_from, duck_to };
             self.pool.render(&self.res.instruments, &self.res.banks, &params, &mut self.dry_l, &mut self.dry_r, &mut self.send_l, &mut self.send_r, n);
             self.reverb.process(&self.send_l[..n], &self.send_r[..n], &mut self.dry_l[..n], &mut self.dry_r[..n], wet * recipe.reverb_scale);
             let tape = (recipe.lowpass_hz > 0.0).then(|| SvfCoefs::new(recipe.lowpass_hz, 0.6, rate));

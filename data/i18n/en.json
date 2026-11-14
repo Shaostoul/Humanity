@@ -323,12 +323,13 @@
       "hz_suffix": " Hz",
       "tone_volume": "Tone volume",
       "tone_volume_hint": "How loud the tone is.",
-      "genre_stand_ins": "Synthesised stand-ins play these until a free recording of them is installed in Settings > Audio > Instruments: {{parts}}.",
+      "genre_stand_ins": "Stand-ins play these until their own free recordings are installed in Settings > Audio > Instruments (each with the pack that brings it): {{parts}}.",
       "new_piece": "A new piece",
       "new_piece_hint": "Each piece of music is made from a seed: its key, its chords, its riffs, the order its parts play in and its lead instrument. This is how often a new piece begins. It begins at the end of a musical phrase and fades in over the old one. Never keeps the same piece playing.",
       "new_piece_every": "Every {{minutes}} minutes",
       "new_piece_never": "Never",
-      "new_piece_what": "What this changes: how long one piece plays before the next. Nothing else changes, and it costs nothing extra."
+      "new_piece_what": "What this changes: how long one piece plays before the next. Nothing else changes, and it costs nothing extra.",
+      "stand_in_from": "{{part}} (in {{pack}})"
     },
     "notifications_volume": "Notifications Volume",
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
@@ -4502,7 +4503,8 @@
       "guitar_staccato": "electric guitar, staccato",
       "guitar_hammer_on": "electric guitar, hammer-ons",
       "guitar_behind_bridge": "electric guitar, behind the bridge",
-      "kit_sizzle_crash_ride": "drum kit: 17-inch sizzle crash, played like a ride"
+      "kit_sizzle_crash_ride": "drum kit: 17-inch sizzle crash, played like a ride",
+      "choir_ah": "choir singing \"ah\" (four voices)"
     },
     "instrument": {
       "upright_piano_small": "Upright piano (small)",
@@ -5085,7 +5087,9 @@
       "lofi": "Lo-fi",
       "lofi_about": "Relaxed and a little worn: swung beats, an electric piano, a round bass, tape wobble and vinyl crackle.",
       "electro_swing": "Electro swing",
-      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, a steel-string guitar strumming, brass stabs, and a lead (clarinet, violin, saxophone, vibraphone or piano) calling with another voice answering. Each piece has its own key, chords and riffs."
+      "electro_swing_about": "Swing-era jazz over house beats at 128 beats a minute: swung rhythm, a walking upright bass, a steel-string guitar strumming, brass stabs, and a lead (clarinet, violin, saxophone, vibraphone or piano) calling with another voice answering. Each piece has its own key, chords and riffs.",
+      "deep_dubstep": "Deep dubstep",
+      "deep_dubstep_about": "Half-time beats at 140 with the snare on three, a deep, round sub that dips under each kick, a bass that wobbles in time and growls in vowels, and builds that fall silent before the drop."
     },
     "mood": {
       "mothership_calm": "Mothership calm",
@@ -5122,7 +5126,12 @@
       "clarinet": "Clarinet",
       "swing_horns": "Swing horns",
       "upright_bass": "Upright bass",
-      "jazz_guitar": "Jazz guitar"
+      "jazz_guitar": "Jazz guitar",
+      "brush_swish": "Brushed snare",
+      "brush_stir": "Brush stir",
+      "wobble_bass": "Wobble bass",
+      "fm_growl": "FM growl",
+      "dub_pad": "Dub pad"
     },
     "mode": {
       "ionian": "major",

@@ -89,6 +89,7 @@ fn pieces_for(res: &Resolved, st: Steer, first_seed: u64, total_s: f64, piece_s:
                 Event::Voicing { role, notes, n, at_s } => Event::Voicing { role, notes, n, at_s: shift(at_s) },
                 Event::Motif { role, first_note, at_s } => Event::Motif { role, first_note, at_s: shift(at_s) },
                 Event::Band { band, at_s } => Event::Band { band, at_s: shift(at_s) },
+                Event::Structure { index, build, drop, bars, at_s } => Event::Structure { index, build, drop, bars, at_s: shift(at_s) },
             });
         }
         t0 += len;
@@ -195,4 +196,90 @@ fn every_piece_stays_inside_its_genres_rules() {
             }
         }
     }
+}
+
+/// A PIECE DRAWS ITS KIT, ITS COMPING AND BASS VOICES, AND A CALM MOOD'S PAD (the 2026-11-13 genre
+/// pass: electro swing's brushes, honky-tonk piano and tuba; lo-fi's jazz kit and electric piano; the
+/// calm moods' four choir voices as a pad): over forty seeds each choice is drawn, both sides of each
+/// appear, a piece never plays two kits at once, and while the choir sings the pad the choir role
+/// rests. RED first (2026-11-13) with `resolve_eff` ignoring the kits (every drum part playing):
+/// "electro swing seed 1 played the kits {\"brushes\", \"house\"}".
+#[test]
+fn a_piece_draws_its_kit_its_voices_and_a_calm_pad() {
+    let lib = shipped();
+    let res = Resolved::new(&lib, &SampleLibrary::new()).unwrap();
+    let id = |i: u16| res.instruments.get(i as usize).map(|x| x.id.clone()).unwrap_or_default();
+    let es = &lib.genres[lib.genre_index("electro_swing").unwrap()];
+    // An instrument only one kit uses (the house kit's clap, the brushes' swish and stir).
+    let only_in = |inst: &str| -> Option<String> {
+        let ks: Vec<Option<String>> = es.drums.iter().filter(|d| d.instrument == inst).map(|d| d.kit.clone()).collect();
+        match ks.first() {
+            Some(Some(k)) if ks.iter().all(|x| x.as_deref() == Some(k.as_str())) => Some(k.clone()),
+            _ => None,
+        }
+    };
+    let (mut kits, mut pads, mut basses) = (std::collections::BTreeSet::new(), std::collections::BTreeSet::new(), std::collections::BTreeSet::new());
+    for seed in 1..=40u64 {
+        let mut c = Composer::new(48000.0, seed, steer(&lib, "mothership_calm", "electro_swing"));
+        let mut rec = Recorder::default();
+        run(&mut c, &res, 20.0, &mut rec);
+        let heard: std::collections::BTreeSet<String> = rec.notes.iter().filter(|(_, n)| n.role == 255).filter_map(|(_, n)| only_in(&id(n.inst))).collect();
+        assert_eq!(heard.len(), 1, "electro swing seed {seed} played the kits {heard:?}");
+        kits.extend(heard);
+        let roles = c.role_instruments();
+        pads.insert(roles[RoleKind::Pad.index()].map(id).unwrap_or_default());
+        basses.insert(roles[RoleKind::Bass.index()].map(id).unwrap_or_default());
+    }
+    assert_eq!(kits.len(), 2, "both kits drawn over forty pieces: {kits:?}");
+    assert!(pads.contains("jazz_guitar") && pads.contains("electric_piano"), "the guitar and the honky-tonk piano comp: {pads:?}");
+    assert!(basses.contains("upright_bass") && basses.contains("swing_horns"), "the upright bass and the tuba: {basses:?}");
+    // Lo-fi: the drum machine and the jazz kit (whose stand-ins share the machine's voices, so the
+    // kit is read from the piece's draw).
+    let lofi = lib.genre_index("lofi").unwrap();
+    let lk: std::collections::BTreeSet<u8> = (1..=40u64).filter_map(|s| crate::piece::Piece::new(s).kit(&res.genres[lofi].kits)).collect();
+    assert_eq!(lk.len(), 2, "lo-fi draws both its kits: {lk:?}");
+    // The calm mood: the strings pad or the choir singing it, the choir role resting while it does.
+    let (mut choir_pads, mut string_pads) = (0, 0);
+    for seed in 1..=40u64 {
+        let mut c = Composer::new(48000.0, seed, steer(&lib, "mothership_calm", "mothership_calm"));
+        run(&mut c, &res, 10.0, &mut Recorder::default());
+        let roles = c.role_instruments();
+        match roles[RoleKind::Pad.index()].map(id).as_deref() {
+            Some("choir_ah") => {
+                choir_pads += 1;
+                assert!(roles[RoleKind::Choir.index()].is_none(), "seed {seed}: the choir sings the pad and its own role too");
+            }
+            Some(_) => string_pads += 1,
+            None => panic!("seed {seed}: no pad"),
+        }
+    }
+    assert!(choir_pads >= 5 && string_pads >= 15, "the choir pad in {choir_pads} pieces, the strings in {string_pads}");
+}
+
+/// A PIECE NEVER DEPENDS ON ITS GENRE'S PLACE IN THE LIST (BUG-299, found 2026-11-13 when the deep
+/// dubstep file, sorting before electro swing, changed every electro swing piece): the same seed of
+/// electro swing plays the same form, chords and riffs whether or not another genre file sorts in
+/// front of it (a copy of lo-fi named "aaa_first" here). RED first (2026-11-13) with the genre's seed
+/// key its index, as the draws were keyed before: "electro swing seed 20261113 took another form with
+/// a genre in front of it".
+#[test]
+fn a_piece_never_depends_on_its_genres_place_in_the_list() {
+    let lib = shipped();
+    let mut moved = lib.clone();
+    let mut first = moved.genres[moved.genre_index("lofi").unwrap()].clone();
+    first.id = "aaa_first".to_string();
+    moved.genres.insert(0, first);
+    let chords = |l: &crate::MusicLibrary| {
+        let res = Resolved::new(l, &SampleLibrary::new()).unwrap();
+        let mut c = Composer::new(48000.0, 20261113, steer(l, "mothership_calm", "electro_swing"));
+        let mut rec = Recorder::default();
+        run(&mut c, &res, 120.0, &mut rec);
+        let walk: Vec<(u16, i8)> = rec.events.iter().filter_map(|e| if let Event::Chord { chord, root, .. } = *e { Some((chord, root)) } else { None }).collect();
+        let riffs: Vec<i32> = c.piece_motifs().iter().flat_map(|m| m.steps[..m.n].to_vec()).collect();
+        (c.piece_form().to_vec(), walk, riffs)
+    };
+    let (a, b) = (chords(&lib), chords(&moved));
+    assert_eq!(a.0, b.0, "electro swing seed 20261113 took another form with a genre in front of it");
+    assert!(a.1 == b.1, "electro swing seed 20261113 played other chords with a genre in front of it");
+    assert_eq!(a.2, b.2, "electro swing seed 20261113 made other riffs with a genre in front of it");
 }

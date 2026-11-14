@@ -187,8 +187,9 @@ fn snapshot_settings_music() {
     settings_music_at("settings_music", None);
 }
 
-/// The same with no recordings to be found (a data folder holding only parts.ron, as if the core set
-/// failed to load): the line under electro swing names each of its parts a synthesised stand-in plays.
+/// The same with no recordings to be found (a data folder holding only parts.ron and the pack
+/// catalog, as if the core set failed to load): the line under electro swing names each of its parts
+/// a stand-in plays, with the pack that would bring its recording.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_settings_music_stand_ins() {
@@ -196,6 +197,7 @@ fn snapshot_settings_music_stand_ins() {
     std::fs::create_dir_all(bare.join("music")).unwrap();
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     std::fs::copy(data.join("music/parts.ron"), bare.join("music/parts.ron")).unwrap();
+    std::fs::copy(data.join("music/packs.ron"), bare.join("music/packs.ron")).unwrap();
     settings_music_at("settings_music_stand_ins", Some(&bare));
 }
 

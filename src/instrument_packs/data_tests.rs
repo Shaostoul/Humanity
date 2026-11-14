@@ -181,7 +181,11 @@ fn every_part_listed_is_played_or_marked_not_used_yet() {
     let parts = Parts::load(&data).expect("parts.ron");
     let catalog = PackCatalog::load(&data).expect("packs.ron");
     let music = humanity_music::MusicLibrary::load(&data).expect("the music's data loads");
-    let named: BTreeSet<String> = super::score::named_parts(&music).into_iter().map(|(p, _, _)| p).collect();
+    let mut named: BTreeSet<String> = super::score::named_parts(&music).into_iter().map(|(p, _, _)| p).collect();
+    // A part of several voices plays each of them (the choir's "ah": its four sections).
+    for p in named.clone() {
+        named.extend(parts.part(&p).map(|x| x.voices.clone()).unwrap_or_default());
+    }
     let listed: BTreeSet<String> = parts
         .parts
         .iter()
@@ -197,6 +201,31 @@ fn every_part_listed_is_played_or_marked_not_used_yet() {
         if let Some(f) = &p.fallback_part {
             assert!(parts.part(f).is_some() && f != &p.id, "part {}: its fallback_part {f} is another part", p.id);
         }
+    }
+}
+
+/// EVERY PART THE MUSIC NAMES IS A PART (the 2026-11-13 genre pass): each part a mood's role or
+/// option, a genre's added role, lead, palette entry or drum names (`score::named_parts`) is in
+/// `parts.ron`, and so is every voice of a part of several voices, so no role points at a part
+/// nothing can play and Settings > Music's stand-in line can name each. RED first (2026-11-13) with
+/// electro swing's brushed ride named "brush_rid": "parts the music names that parts.ron does not
+/// list: [\"brush_rid\"]".
+#[test]
+fn every_part_the_music_names_is_a_part() {
+    let data = data();
+    let parts = Parts::load(&data).expect("parts.ron");
+    let music = humanity_music::MusicLibrary::load(&data).expect("the music's data loads");
+    let named = super::score::named_parts(&music);
+    let missing: Vec<&String> = named.iter().map(|(p, _, _)| p).filter(|p| parts.part(p).is_none()).collect();
+    assert!(missing.is_empty(), "parts the music names that parts.ron does not list: {missing:?}");
+    for p in &parts.parts {
+        for v in &p.voices {
+            assert!(parts.part(v).is_some_and(|x| x.voices.is_empty()), "part {}: its voice {v} is a part of one voice", p.id);
+        }
+    }
+    // The genre pass's parts are among those named.
+    for want in ["honky_tonk_piano", "tuba", "electric_piano", "brush_snare", "brush_stir", "brush_ride", "brush_hihat", "kit_kick", "kit_snare", "kit_hihat_closed", "choir_ah"] {
+        assert!(named.iter().any(|(p, _, _)| p == want), "the music names {want}");
     }
 }
 

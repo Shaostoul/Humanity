@@ -1,0 +1,26 @@
+// Deep dubstep's GROWL (docs/design/music.md section 7e, 2026-11-13): two-operator FM whose index
+// (more FM is buzzier) a triangle LFO moves in time with the music, its rate changing bar by bar;
+// then an asymmetric shaper with fewer bits for grit, a formant filter morphing through the vowels
+// o, a, e, a ("talking"), and a slow phaser for the wet movement. It plays short riffs low down, in
+// the drops only. Synthesised with the bass toolkit (rung E2).
+Instrument(
+    id: "fm_growl",
+    words: "music.instrument.fm_growl",
+    kind: Fm((
+        ratio: 1.0,
+        index: 1.8,
+        index_sustain: 0.9,
+        index_decay_s: 0.25,
+        envelope: (attack_s: 0.008, decay_s: 0.25, sustain: 0.8, release_s: 0.08),
+        index_lfo: Some((rates: [2.0, 3.0, 4.0, 2.0], shape: Triangle)),
+        index_lfo_depth: 3.5,
+        glide_s: 0.03,
+        fx: (
+            shaper: Some((curve: Asymmetric, drive: 0.4, mix: 0.5, bits: 10.0)),
+            formant: Some((vowels: [O, A, E, A], lfo: (rates: [1.0, 2.0], shape: Triangle), mix: 0.8)),
+            phaser: Some((low_hz: 400.0, high_hz: 2200.0, feedback: 0.4, mix: 0.3, lfo: (per_beat: 0.25))),
+        ),
+    )),
+    level_db: -15.0,
+    reverb_send: 0.12,
+)

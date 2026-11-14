@@ -37,6 +37,9 @@ pub enum Event {
     Motif { role: u8, first_note: i32, at_s: f64 },
     /// The intensity band changed at a bar line (0 = calm, the place's own mood).
     Band { band: u16, at_s: f64 },
+    /// A section of the genre's structure began (rung E1): its index in the structure, whether it
+    /// is a build or a drop, and how many bars it lasts.
+    Structure { index: u8, build: bool, drop: bool, bars: u32, at_s: f64 },
 }
 
 /// Where the composer's decisions go.
@@ -44,6 +47,9 @@ pub trait Sink {
     fn note_on(&mut self, note: NoteOn);
     fn note_off(&mut self, tag: u32);
     fn event(&mut self, _e: Event) {}
+    /// A drum that ducks has hit: the roles `roles` (one bit each) dip by `depth_db`, reaching it
+    /// in `attack_s` and coming back over `release_s` (a genre's sidechain).
+    fn duck(&mut self, _roles: u8, _depth_db: f32, _attack_s: f32, _release_s: f32) {}
 }
 
 /// What the game asks of the composer, read at the next phrase.
@@ -141,6 +147,8 @@ struct Eff {
     pub recipe: Recipe,
     level_db: f32,
     tempo: (f32, f32),
+    /// The dominant genre's sidechain in a calm mood (roles, depth dB, attack, release).
+    sidechain: Option<(u8, f32, f32, f32)>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -212,6 +220,14 @@ pub struct Composer {
     /// Tests only: every time through the form plays its sections exactly as the first (tune and
     /// chords), the looping piece the hour test's detector must catch.
     verbatim: bool,
+    /// The structure's section playing (its index; None: the genre has no structure, or danger),
+    /// and a build's silence: the sample it begins at (`u64::MAX`: none), and whether the music has
+    /// let go for it.
+    part: Option<(u16, u8)>,
+    /// Beats begun since the score began (the beat clock's whole beats).
+    beats_total: u64,
+    gap_from: u64,
+    gap_done: bool,
 }
 
 /// FNV-1a over a few numbers (a phrase plan's fingerprint).
@@ -277,7 +293,33 @@ impl Composer {
             home_key: 0,
             section: None,
             verbatim: false,
+            part: None,
+            beats_total: 0,
+            gap_from: u64::MAX,
+            gap_done: false,
         }
+    }
+
+    /// The structure's section playing (an index into the genre's structure), if any.
+    pub fn structure_section(&self) -> Option<u8> {
+        self.part.map(|(_, i)| i)
+    }
+
+    /// The structure playing (the genre it is from), in a calm mood.
+    fn structure<'a>(&self, res: &'a Resolved) -> Option<&'a crate::resolved::RStructure> {
+        res.genres.get(self.part?.0 as usize)?.structure.as_ref()
+    }
+
+    /// The structure's section playing.
+    fn part_section(&self, res: &Resolved) -> Option<crate::resolved::RSection> {
+        self.structure(res)?.sections.get(self.part?.1 as usize).copied()
+    }
+
+    /// Where the music is in time, for LFOs in time with it: the bar now playing (counted from the
+    /// score's start) and the beats since the score began.
+    pub fn beat_clock(&self) -> (u64, f64) {
+        let phase = ((self.pos as f64 - self.beat_start) / self.beat_len.max(1.0)).clamp(0.0, 0.999_999);
+        (self.bars_total.saturating_sub(1), self.beats_total as f64 + phase)
     }
 
     /// Tests only: loop the form verbatim (see `verbatim`).
@@ -445,10 +487,15 @@ impl Composer {
             self.next_step = self.pos as f64;
             self.beat_start = self.pos as f64;
         }
+        let in_gap = self.pos >= self.gap_from;
         for i in 0..PENDING {
             if let Some(n) = self.pending[i].note {
                 if self.pending[i].at <= self.pos {
                     self.pending[i].note = None;
+                    // A build's silence: a riff note due in it is not played.
+                    if in_gap && (n.role as usize) < 8 {
+                        continue;
+                    }
                     sink.note_on(n);
                 }
             }
@@ -505,6 +552,7 @@ impl Composer {
             recipe: Recipe { reverb_scale: 1.0, ..Default::default() },
             level_db: 0.0,
             tempo: (60.0, 60.0),
+            sidechain: None,
         })
     }
 
@@ -530,8 +578,42 @@ impl Composer {
         let spb = self.steps_per_bar();
         let now = self.pos;
         let rate = self.rate;
+        // A build's last beats: silence before the drop. The music lets go of everything it holds
+        // (the drone and texture come back with the drop's phrase) and nothing is struck.
+        let in_gap = now >= self.gap_from;
+        if in_gap && !self.gap_done {
+            self.gap_done = true;
+            for h in [&mut self.pads, &mut self.choir, &mut self.bass, &mut self.drone, &mut self.texture] {
+                for k in 0..h.n {
+                    sink.note_off(h.tags[k]);
+                }
+                h.n = 0;
+            }
+            self.drone_root = -1;
+        }
+        // A build's snare roll, speeding up across the build: eighths for its first half, sixteenths
+        // for the next quarter, 32nds for the last, louder as it goes; it stops for the silence.
+        if let (Some(roll), false) = (self.part_section(res).filter(|s| s.build).and(self.structure(res).and_then(|st| st.roll)), in_gap) {
+            let total = (self.bars_in_phrase * spb).max(1) as f32;
+            let at = (self.bar_in_phrase * spb + step_of_bar) as f32 / total;
+            let per_beat = sub as f32;
+            // Steps per hit: an eighth note's worth, a sixteenth's, then two hits a sixteenth.
+            let eighth = (per_beat / 2.0).max(1.0) as u32;
+            let sixteenth = (per_beat / 4.0).max(1.0) as u32;
+            let (every, doubled) = if at < 0.5 { (eighth, false) } else if at < 0.75 { (sixteenth, false) } else { (sixteenth, true) };
+            if step_of_bar % every.max(1) == 0 {
+                let vel = (roll.velocity * (0.35 + 0.65 * at) * self.plan.vel_scale.max(0.3)).min(1.0);
+                let tag = self.next_tag();
+                sink.note_on(NoteOn { inst: roll.inst, role: 255, midi: roll.midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s: 0.0, tag, level: 1.0 });
+                if doubled {
+                    let half = (self.beat_len / per_beat as f64 * every as f64 * 0.5) as u64;
+                    let tag = self.next_tag();
+                    self.schedule(now + half, NoteOn { inst: roll.inst, role: 255, midi: roll.midi as f32, a4: self.steer.a4, vel: vel * 0.9, pan: 0.0, hold_s: 0.0, tag, level: 1.0 });
+                }
+            }
+        }
         // Drums.
-        if eff.beat_felt {
+        if eff.beat_felt && !in_gap {
             for d in eff.drums.iter().flatten() {
                 let Some(part) = drum_part(res, self.mood, d.genre, d.part) else { continue };
                 // A part joins at its intensity, live on the beat (the taiko's doubled ostinato).
@@ -548,6 +630,11 @@ impl Composer {
                     v = if v > 0.0 { v * 0.6 } else if self.step_in_beat % 2 == 1 { 0.3 } else { 0.0 };
                 }
                 if v > 0.0 {
+                    // A kick that ducks: the sidechain roles dip under it (the composer knows the
+                    // hit, so no detector listens for it).
+                    if let (true, Some((roles, depth, attack, release))) = (part.ducks, eff.sidechain) {
+                        sink.duck(roles, depth, attack, release);
+                    }
                     let jitter = (self.rng.bipolar() * eff.humanize_ms * 0.001 * rate as f32) as i64;
                     let at = (now as i64 + jitter.max(0)) as u64;
                     let tag = self.next_tag();
@@ -562,7 +649,7 @@ impl Composer {
         }
         // The pad restruck on the genre's comp pattern (strummed low to high, and short, if the genre
         // says so: a gypsy-jazz guitar's chop).
-        if let (Some(si), Some(pad)) = (eff.pad_patterns, eff.roles[RoleKind::Pad.index()]) {
+        if let (Some(si), Some(pad), false) = (eff.pad_patterns, eff.roles[RoleKind::Pad.index()], in_gap) {
             let pats = pad_pats(res, self.mood, si);
             if !pats.is_empty() {
                 let pat = &pats[self.plan.patterns[5] as usize % pats.len()];
@@ -595,7 +682,7 @@ impl Composer {
         }
         // A horn section's stabs: the choir role's voicing (the upper chord tones, voice-led) struck
         // short on the genre's pattern, on the chords the plan gives that role.
-        if let (Some(si), Some(ch)) = (eff.stab_patterns, eff.roles[RoleKind::Choir.index()]) {
+        if let (Some(si), Some(ch), false) = (eff.stab_patterns, eff.roles[RoleKind::Choir.index()], in_gap) {
             let pats = stab_pats(res, si);
             if !pats.is_empty() && self.plan.choir[self.slot.min(MAX_SLOTS - 1)] && self.choir_voicing.n > 0 {
                 let pat = &pats[self.plan.patterns[7] as usize % pats.len()];
@@ -613,7 +700,7 @@ impl Composer {
             }
         }
         // The bass on the genre's pattern.
-        if let (Some(si), Some(bass)) = (eff.bass_patterns, eff.roles[RoleKind::Bass.index()]) {
+        if let (Some(si), Some(bass), false) = (eff.bass_patterns, eff.roles[RoleKind::Bass.index()], in_gap) {
             let pats = bass_pats(res, self.mood, si);
             if !pats.is_empty() {
                 let pat = &pats[self.plan.patterns[6] as usize % pats.len()];
@@ -652,6 +739,7 @@ impl Composer {
         if self.step_in_beat >= sub {
             self.step_in_beat = 0;
             self.beat_in_bar += 1;
+            self.beats_total += 1;
             self.beat_start += self.beat_len;
             if self.beat_in_bar >= bpb {
                 self.beat_in_bar = 0;
@@ -874,15 +962,31 @@ impl Composer {
         // The piece's lead voices in each genre (in place of that genre's added role for the role).
         let leads_a = a.map(|s| self.lead_roles(s)).unwrap_or([None; 8]);
         let leads_b = b.map(|s| self.lead_roles(s)).unwrap_or([None; 8]);
+        // The mood's own role, or one of its options as this piece drew (a calm mood's pad sung by
+        // the four choir voices), and the roles that option rests.
+        let mut mood_roles: [Option<EffRole>; 8] = [None; 8];
+        let mut option_rests: [Option<[bool; 8]>; 8] = [None; 8];
+        for k in 0..8 {
+            mood_roles[k] = mood.roles[k].as_ref().map(base);
+            let opts = mood.options.iter().filter(|o| o.0 == k);
+            if mood.roles[k].is_none() || opts.clone().next().is_none() {
+                continue;
+            }
+            let i = crate::piece::pick(self.piece.lead_draw[k], std::iter::once(mood.role_weights[k]).chain(opts.clone().map(|o| o.2)));
+            if let Some(o) = i.checked_sub(1).and_then(|j| opts.clone().nth(j)) {
+                mood_roles[k] = Some(base(&o.1));
+                option_rests[k] = Some(o.3);
+            }
+        }
         for k in 0..8 {
             let pick = |s: Option<&crate::resolved::RGenre>, leads: &[Option<EffRole>; 8]| -> Option<EffRole> {
                 if let Some(l) = leads[k] {
                     return Some(l);
                 }
                 let off = s.is_some_and(|s| s.roles_off[k]);
-                let mut r = match (&mood.roles[k], s.and_then(|s| s.roles_add[k].as_ref())) {
+                let mut r = match (mood_roles[k], s.and_then(|s| s.roles_add[k].as_ref())) {
                     (_, Some(add)) => Some(base(add)),
-                    (Some(m), None) if !off => Some(base(m)),
+                    (Some(m), None) if !off => Some(m),
                     _ => None,
                 }?;
                 if let Some((inst, db, register)) = s.and_then(|s| s.palette[k]) {
@@ -913,6 +1017,21 @@ impl Composer {
                 roles[k] = None;
             }
         }
+        // An option the mood's role plays as drawn (no genre lead, added role, silence or palette in
+        // its place) rests the roles it names.
+        let dom_genre = if t >= 0.5 { b } else { a };
+        for k in 0..8 {
+            let Some(rests) = option_rests[k] else { continue };
+            let replaced = dom_genre.is_some_and(|s| s.roles_add[k].is_some() || s.roles_off[k] || s.palette[k].is_some() || s.leads.iter().any(|e| e.0 == k));
+            if replaced || roles[k].is_none() {
+                continue;
+            }
+            for (j, rest) in rests.iter().enumerate() {
+                if *rest && j != k {
+                    roles[j] = None;
+                }
+            }
+        }
         let ga = a.map(|s| s.groove).unwrap_or_default();
         let gb = b.map(|s| s.groove).unwrap_or(ga);
         let tempo_a = a.and_then(|s| s.tempo).unwrap_or(mood.tempo);
@@ -926,8 +1045,11 @@ impl Composer {
                 continue;
             }
             if let Some(s) = res.genres.get(si as usize) {
-                for p in 0..s.drums.len().min(8) {
-                    if k < 8 {
+                // The kit this piece drew, of a genre with kits: only its parts (and the parts of
+                // no kit) play.
+                let kit = self.piece.kit(&s.kits);
+                for (p, d) in s.drums.iter().enumerate().take(255) {
+                    if k < 8 && (d.kit.is_none() || d.kit == kit) {
                         drums[k] = Some(EffDrum { genre: si, part: p as u8, weight: w });
                         k += 1;
                     }
@@ -977,6 +1099,7 @@ impl Composer {
             recipe,
             level_db: lerp(a.map(|s| s.level_db).unwrap_or(0.0), b.map(|s| s.level_db).unwrap_or(0.0)),
             tempo: (lerp(tempo_a.0, tempo_b.0), lerp(tempo_a.1, tempo_b.1)),
+            sidechain: dom.and_then(|s| s.sidechain),
         };
         // The mood's own drums and patterns: an urgent mood's always, a calm one's where the genre has
         // none (a mood that wants a gentle pulse under a genre that brings no rhythm).
@@ -1014,6 +1137,7 @@ impl Composer {
             eff.call_and_response = false;
             eff.motif_scale = None;
             eff.dynamics = None;
+            eff.sidechain = None;
             let g = mood.groove.unwrap_or_default();
             eff.subdivision = g.subdivision.clamp(1, 8);
             eff.swing = g.swing;
@@ -1102,15 +1226,30 @@ impl Composer {
         // plays free), its riffs from that genre's rules, both from the piece's seed.
         if let Some(gg) = g {
             if self.piece.form_genre != dominant {
-                self.piece.choose_form(dominant, &gg.forms);
+                // A genre with a structure plays its sections in order as its form.
+                match &gg.structure {
+                    Some(st) => self.piece.choose_form(dominant, gg.seed_key, &st.form),
+                    None => self.piece.choose_form(dominant, gg.seed_key, &gg.forms),
+                }
             }
             if let Some(rules) = gg.motif_rules.as_ref().filter(|_| self.gen_src != dominant) {
-                let mut r = Rng::new(crate::piece::mix(self.piece.seed, 0x707 + dominant as u64));
+                let mut r = Rng::new(crate::piece::mix(self.piece.seed, 0x707 ^ gg.seed_key));
                 self.gen_n = crate::piece::make_motifs(rules, &mut r, &mut self.gen_motifs);
                 self.gen_src = dominant;
             }
         }
         let section = if calm { self.piece.section(self.piece.played) } else { None };
+        // The structure's section this phrase plays (its place in the form is its index).
+        self.part = match (g.and_then(|gg| gg.structure.as_ref()), section) {
+            (Some(st), Some(_)) if self.piece.form_len > 0 => {
+                let i = (self.piece.played % self.piece.form_len as u64) as usize;
+                (i < st.sections.len()).then_some((dominant, i as u8))
+            }
+            _ => None,
+        };
+        let part_sec = self.part_section(res);
+        self.gap_from = u64::MAX;
+        self.gap_done = false;
         let Some(harm) = self.harmony(res) else { return };
         if harm_changed {
             // A piece's first phrase: the key its seed draws from the harmony's keys by weight. A
@@ -1149,6 +1288,23 @@ impl Composer {
         if self.steer.tune.swing >= 0.0 {
             eff.swing = self.steer.tune.swing.clamp(0.5, 0.75);
         }
+        // A structure's section plays only its roles, and only the drums that play in it.
+        if let Some(sec) = part_sec {
+            if let Some(on) = sec.roles {
+                for (k, r) in eff.roles.iter_mut().enumerate() {
+                    if !on[k] {
+                        *r = None;
+                    }
+                }
+            }
+            for d in eff.drums.iter_mut() {
+                if let Some(x) = d {
+                    if drum_part(res, self.mood, x.genre, x.part).is_some_and(|p| p.sections & (1u32 << sec.letter.min(31)) == 0) {
+                        *d = None;
+                    }
+                }
+            }
+        }
         self.eff = Some(eff);
         // Tempo: across the band for a mood that follows the intensity; in a form, the piece's own
         // place in the range; else chosen per phrase within the range.
@@ -1178,10 +1334,13 @@ impl Composer {
                 // chords all piece), its tune too the first time through the form; after that the
                 // riffs are improvised over the same chords, re-drawn while they repeat a phrase
                 // played within the window.
-                let harmony_id = if harm_src == MOOD_SRC { 0x1000 + self.mood as u64 } else { harm_src as u64 };
+                // (Keyed by the harmony's id, never its place in the list: BUG-299.)
+                let harmony_id = if harm_src == MOOD_SRC { 0x1000 ^ m.seed_key } else { res.genres.get(harm_src as usize).map(|x| x.seed_key).unwrap_or(0) };
                 let mut sec_rng = Rng::new(self.piece.section_seed(harmony_id, letter));
                 let choices = g.and_then(|g| g.phrase_bars.as_deref()).unwrap_or(&m.phrase_bars);
-                let bars = choices[sec_rng.int(0, choices.len() as i32 - 1) as usize].clamp(1, 64);
+                let drawn = choices[sec_rng.int(0, choices.len() as i32 - 1) as usize].clamp(1, 64);
+                // A structure's section is as long as the structure says.
+                let bars = part_sec.map(|s| s.bars).unwrap_or(drawn);
                 let chord_bars = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
                 let last_of_form = self.piece.form_len > 0 && (self.piece.played % self.piece.form_len as u64) as usize == self.piece.form_len - 1;
                 let seed = self.piece.seed;
@@ -1232,6 +1391,31 @@ impl Composer {
         self.phrase_count += 1;
         let (sec_letter, chorus, returning) = section.map(|(l, c, r)| (l + 1, c.min(u32::MAX as u64) as u32, r && c == 0)).unwrap_or((0, 0, false));
         sink.event(Event::Phrase { hash: plan.hash, at_s: self.seconds(), mood: self.mood as u16, key_pc: self.key_pc, section: sec_letter, chorus, returning });
+        // A structure's section: its energy, a build's riser and silence, a drop's impact.
+        if let (Some(sec), Some((_, index))) = (part_sec, self.part) {
+            self.plan.vel_scale *= sec.energy;
+            let beats = (self.bars_in_phrase * eff.beats_per_bar.max(1)) as f64;
+            sink.event(Event::Structure { index, build: sec.build, drop: sec.drop, bars: self.bars_in_phrase, at_s: self.seconds() });
+            let st = self.structure(res).map(|s| (s.riser, s.impact, s.gap_beats));
+            if let Some((riser, impact, gap)) = st {
+                if sec.build {
+                    let gap = (gap as f64).min(beats - 1.0).max(0.0);
+                    self.gap_from = self.pos + ((beats - gap) * self.beat_len) as u64;
+                    if let Some(r) = riser {
+                        // The riser ends where the silence begins, starting `beats` before it.
+                        let lead = (r.beats as f64).clamp(1.0, beats - gap);
+                        let at = self.pos + ((beats - gap - lead) * self.beat_len) as u64;
+                        let tag = self.next_tag();
+                        let hold_s = (lead * self.beat_len / self.rate) as f32;
+                        self.schedule(at, NoteOn { inst: r.inst, role: 254, midi: r.midi as f32, a4: self.steer.a4, vel: r.velocity, pan: 0.0, hold_s, tag, level: 1.0 });
+                    }
+                }
+                if let (true, Some(h)) = (sec.drop, impact) {
+                    let tag = self.next_tag();
+                    sink.note_on(NoteOn { inst: h.inst, role: 254, midi: h.midi as f32, a4: self.steer.a4, vel: h.velocity, pan: 0.0, hold_s: 0.0, tag, level: 1.0 });
+                }
+            }
+        }
         // The drone follows the key.
         let drone = eff.roles[RoleKind::Drone.index()];
         let want_root = drone.map(|d| nearest_pc_in(self.key_pc, d.low, d.high, d.low)).unwrap_or(-1);

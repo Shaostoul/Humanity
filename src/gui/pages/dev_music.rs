@@ -25,9 +25,18 @@ pub struct GenreChoice {
     pub name: String,
     pub about_words: String,
     pub about: String,
-    /// The parts it names (an upright bass, a clarinet) that no installed recording plays, as their
-    /// words keys: synthesised stand-ins play them, and Settings says so.
-    pub stand_ins: Vec<String>,
+    /// The parts that can sound with it playing (a tuba, a brushed snare) that no installed recording
+    /// of their own plays: stand-ins play them, and Settings says so, naming the pack that would
+    /// bring each one's recording.
+    pub stand_ins: Vec<StandIn>,
+}
+
+/// One part played by a stand-in: its name and the name of the pack whose recording would play
+/// it (None: no pack holds one yet), both by words key.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct StandIn {
+    pub part: String,
+    pub pack: Option<String>,
 }
 
 /// What the music plays in place of new pieces: the Music page's choice while it is open, or a

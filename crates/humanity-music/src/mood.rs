@@ -96,15 +96,19 @@ pub struct RoleSpec {
     /// Percussion only: hits every `every_bars` bars, each (beat offset in the bar, velocity).
     #[serde(default)]
     pub pulse: Option<Pulse>,
-    /// A genre's lead voices only: how often a piece picks this one, by weight (1 when not given).
+    /// A genre's lead voices and a mood's options only: how often a piece picks this one, by weight
+    /// (1 when not given).
     #[serde(default = "one")]
     pub weight: f32,
+    /// A mood's options only: roles that rest while this one plays (the choir role while the four
+    /// choir voices sing the pad).
+    #[serde(default)]
+    pub rests: Vec<RoleKind>,
 }
 
 fn one_u8() -> u8 {
     1
 }
-
 /// A slow pulse: the deep drums' heartbeat ("lub-dub" every two bars).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Pulse {
@@ -150,6 +154,13 @@ pub struct Mood {
     #[serde(default = "four")]
     pub beats_per_bar: u32,
     pub roles: Vec<RoleSpec>,
+    /// Voices a piece may draw for a role in place of the mood's own (docs/design/music.md section
+    /// 7a, the 2026-11-13 genre pass): each by its `weight`, the mood's own role for that kind at
+    /// its own weight beside them, the draw fixed by the piece's seed. A calm mood's pad sung by the
+    /// four choir voices is one. `rests` names roles that rest while the option plays (the choir
+    /// role, while the choir sings the pad).
+    #[serde(default)]
+    pub options: Vec<RoleSpec>,
     #[serde(default)]
     pub motifs: Vec<Motif>,
     /// The output level, dB: set so this mood renders at the music category's loudness

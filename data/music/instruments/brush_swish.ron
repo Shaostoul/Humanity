@@ -1,0 +1,16 @@
+// A snare played with wire brushes (2026-11-13, the genre pass: electro swing's brushes kit), the
+// stand-in until the "Brushes and jazz drum kits" pack's recording is installed: a soft, airy swish of
+// band-passed noise that swells for a few milliseconds rather than cracking, with a faint drum body.
+Instrument(
+    id: "brush_swish",
+    words: "music.instrument.brush_swish",
+    kind: Noise((
+        filter: (kind: BandPass, cutoff_hz: 3400.0, q: 0.5),
+        envelope: (attack_s: 0.006, decay_s: 0.22, sustain: 0.0, release_s: 0.12),
+        tone_hz: 180.0,
+        tone_level: 0.12,
+        tone_decay_s: 0.06,
+    )),
+    level_db: -13.0,
+    reverb_send: 0.18,
+)

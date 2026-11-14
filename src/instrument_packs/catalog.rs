@@ -158,6 +158,13 @@ pub struct Part {
     /// loop points is held past its end by a crossfaded loop (`SampleZone::loop_xfade`).
     #[serde(default)]
     pub sustained: bool,
+    /// A part sung or played by several others, lowest first (the choir's "ah": its basses, tenors,
+    /// altos and sopranos, 2026-11-13): with a recording of every one installed it plays them as one
+    /// instrument, each note from the voice whose range holds it (where two ranges overlap, split
+    /// halfway), the way four-part writing gives each note to a section; without them all, its
+    /// synthesised voice. Those parts count as played wherever this one is.
+    #[serde(default)]
+    pub voices: Vec<String>,
 }
 
 /// One of music.md's synthesised voices (section 6: `synth`, `choir`, `modal`, `plucked`) and the

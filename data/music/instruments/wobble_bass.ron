@@ -1,0 +1,29 @@
+// Deep dubstep's bass (docs/design/music.md section 7e, 2026-11-13): the WOBBLE and the SUB in one
+// voice. Two detuned saws and a square an octave down through a resonant 24 dB low-pass whose
+// cutoff an LFO sweeps in time with the beat, at a rate that changes bar by bar (eighth notes,
+// eighth notes, eighth-note triplets, eighth notes: `lfo_rates`), pushed a little into the filter
+// and softly saturated after it, half wet (parallel distortion); under it all a clean sine at the
+// note, the protected sub, added after every filter and distortion so it stays round, with the
+// buzzing part high-passed above it. Each note glides a little from the last. The genre's sidechain
+// ducks the whole voice under the kick. All of it the bass toolkit (rung E2), synthesised: for an
+// electronic bass that is the genuine article.
+Instrument(
+    id: "wobble_bass",
+    words: "music.instrument.wobble_bass",
+    kind: Synth((
+        oscillators: [
+            (wave: Saw, detune_cents: -7.0),
+            (wave: Saw, detune_cents: 7.0),
+            (wave: Square, semitones: -12.0, level: 0.5),
+        ],
+        filter: Some((kind: LowPass, cutoff_hz: 150.0, q: 2.6, key_track: 0.5, lfo_depth_hz: 1500.0, stages: 2, lfo_rates: [2.0, 2.0, 3.0, 2.0], lfo_shape: Sine, drive: 0.25)),
+        envelope: (attack_s: 0.006, decay_s: 0.0, sustain: 1.0, release_s: 0.06),
+        glide_s: 0.035,
+        fx: (
+            shaper: Some((curve: Soft, drive: 0.35, mix: 0.6)),
+            sub: Some((level: 0.85, octave: 0.0, split_hz: 90.0)),
+        ),
+    )),
+    level_db: -15.5,
+    reverb_send: 0.04,
+)

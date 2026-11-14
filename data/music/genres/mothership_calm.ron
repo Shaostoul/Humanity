@@ -7,5 +7,8 @@ Genre(
     id: "mothership_calm",
     words: "music.genre.mothership_calm",
     about_words: "music.genre.mothership_calm_about",
-    forms: [(form: "AABA", weight: 2.0), (form: "ABAB", weight: 1.0), (form: "ABAC", weight: 0.8)],
+    // No ABAB (2026-11-13, BUG-299): the ship's sections run 8 or 16 bars at about 60 bpm, so an A and
+    // a B together can last over two minutes, and the first time through ABAB played that stretch
+    // twice, note for note. AABA, ABAC and ABCA still bring a section back.
+    forms: [(form: "AABA", weight: 2.0), (form: "ABAC", weight: 1.0), (form: "ABCA", weight: 0.8)],
 )

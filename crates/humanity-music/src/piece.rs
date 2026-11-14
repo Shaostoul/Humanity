@@ -418,8 +418,10 @@ pub struct Piece {
     pub key_draw: f32,
     pub bridge_moves: f32,
     pub bridge_draw: f32,
-    /// Per role: the draw that picks its lead voice.
+    /// Per role: the draw that picks its lead voice (a genre's leads, a mood's options).
     pub lead_draw: [f32; 8],
+    /// The draw that picks the drum kit (a genre's `kits`).
+    pub kit_draw: f32,
 }
 
 impl Piece {
@@ -430,17 +432,24 @@ impl Piece {
         for (i, x) in lead_draw.iter_mut().enumerate() {
             *x = d(0x1ead + i as u64);
         }
-        Piece { seed, form: [0; MAX_FORM], form_len: 0, form_genre: u16::MAX, played: 0, tempo_t: d(0x7e), key_draw: d(0x6e), bridge_moves: d(0xb1), bridge_draw: d(0xb2), lead_draw }
+        Piece { seed, form: [0; MAX_FORM], form_len: 0, form_genre: u16::MAX, played: 0, tempo_t: d(0x7e), key_draw: d(0x6e), bridge_moves: d(0xb1), bridge_draw: d(0xb2), lead_draw, kit_draw: d(0x6b17) }
     }
 
-    /// Choose the form from `forms` (letters as text, by weight) for genre `genre`; no forms, no form.
-    pub fn choose_form(&mut self, genre: u16, forms: &[(Vec<u8>, f32)]) {
+    /// The kit this piece plays of `kits` (weights; None: the genre has no kits, every drum plays).
+    pub fn kit(&self, kits: &[f32]) -> Option<u8> {
+        (!kits.is_empty()).then(|| pick(self.kit_draw, kits.iter().copied()) as u8)
+    }
+
+    /// Choose the form from `forms` (letters as text, by weight) for genre `genre` (its index; `key`,
+    /// its id's hash, draws, so the choice never depends on the genre's place in the list); no
+    /// forms, no form.
+    pub fn choose_form(&mut self, genre: u16, key: u64, forms: &[(Vec<u8>, f32)]) {
         self.form_genre = genre;
         self.form_len = 0;
         if forms.is_empty() {
             return;
         }
-        let i = pick(unit(mix(self.seed, 0xf0 + genre as u64)), forms.iter().map(|f| f.1));
+        let i = pick(unit(mix(self.seed, 0xf0 ^ key)), forms.iter().map(|f| f.1));
         let f = &forms[i].0;
         self.form_len = f.len().min(MAX_FORM);
         self.form[..self.form_len].copy_from_slice(&f[..self.form_len]);

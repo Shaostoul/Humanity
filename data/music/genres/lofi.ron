@@ -20,10 +20,17 @@ Genre(
     tempo_bpm: Some((70.0, 82.0)),
     beat_felt: Some(true),
     groove: Some((swing: 0.6, subdivision: 4, syncopation: 0.2, humanize_ms: 9.0)),
+    // The kit a piece draws (2026-11-13, the genre pass): the soft drum machine, or a JAZZ KIT played
+    // with sticks (the "Brushes and jazz drum kits" pack's kick, snare and hi-hat, the drum machine's
+    // voices standing in until it is installed), both on the same lazy boom-bap patterns.
+    kits: [(id: "machine", weight: 1.0), (id: "jazz", weight: 1.0)],
     drums: [
-        (instrument: "lofi_kick", note: "A1", velocity: 0.9, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."]),
-        (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..g"]),
-        (instrument: "lofi_hat", note: "D5", velocity: 0.45, patterns: ["x.x.x.x.x.x.x.x.", "x.xgx.x.x.xgx.x.", "x.x.x.xxx.x.x.x."]),
+        (instrument: "lofi_kick", note: "A1", velocity: 0.9, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."], kit: Some("machine")),
+        (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..g"], kit: Some("machine")),
+        (instrument: "lofi_hat", note: "D5", velocity: 0.45, patterns: ["x.x.x.x.x.x.x.x.", "x.xgx.x.x.xgx.x.", "x.x.x.xxx.x.x.x."], kit: Some("machine")),
+        (instrument: "lofi_kick", part: Some("kit_kick"), note: "A1", velocity: 0.85, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."], kit: Some("jazz")),
+        (instrument: "lofi_snare", part: Some("kit_snare"), note: "D3", velocity: 0.6, patterns: ["....x.......x...", "....x.......x..g"], kit: Some("jazz")),
+        (instrument: "lofi_hat", part: Some("kit_hihat_closed"), note: "D5", velocity: 0.4, patterns: ["x.x.x.x.x.x.x.x.", "x.xgx.x.x.xgx.x.", "x.x.x.xxx.x.x.x."], kit: Some("jazz")),
     ],
     pad_patterns: ["x.........x....."],
     bass_patterns: ["x.......5.....x."],
@@ -31,8 +38,14 @@ Genre(
     // A piece's sections are eight bars, in one of these forms (docs/design/music.md section 7c).
     phrase_bars: Some([8]),
     forms: [(form: "AABA", weight: 2.0), (form: "ABAB", weight: 1.5), (form: "AABB", weight: 1.0)],
+    // What comps, by the piece (2026-11-13): the piano, or an ELECTRIC PIANO (the credited "Electric
+    // pianos" pack's Wurlitzer, Yamaha CP80 or Hohner Pianet, the keys pack's FM piano, the FM
+    // electric piano synthesised until one is installed), in the ship's pad register.
+    leads: [
+        (role: Pad, instrument: "electric_piano", part: Some("piano"), low: "B2", high: "B4", voices: 5, weight: 1.0),
+        (role: Pad, instrument: "electric_piano", part: Some("electric_piano"), low: "B2", high: "B4", voices: 5, weight: 1.0),
+    ],
     palette: [
-        (role: Pad, instrument: "electric_piano", part: Some("piano")),
         (role: Bells, instrument: "soft_lead", level_db: -2.0, part: Some("guitar")),
         (role: Melody, instrument: "steel_pan", part: Some("handpan"), low: Some("D3"), high: Some("A4")),
     ],

@@ -35,6 +35,11 @@ Mood(
         (role: Melody, instrument: "harp", part: Some("harp"), low: "G3", high: "G5", density: 0.55),
         (role: Bass, instrument: "round_bass", low: "E1", high: "D2", level_db: -6.0),
     ],
+    // The pad a piece may draw instead (2026-11-13, the genre pass): the four choir voices singing
+    // "ah" as one choir, each note of the chord from the section whose range holds it (the credited
+    // "Choir" pack's basses, tenors, altos and sopranos; the synthesised choir until it is installed).
+    // The choir role rests while the choir sings the pad.
+    options: [(role: Pad, instrument: "choir_ah", part: Some("choir_ah"), low: "D3", high: "D5", voices: 5, level_db: 1.5, weight: 0.5, rests: [Choir])],
     motifs: [
         (steps: [0, 1, 2, 3, 4], beats: [0.5, 0.5, 0.5, 0.5, 2.0]),
         (steps: [0, 2, 4, 2], beats: [0.5, 0.5, 0.5, 1.5]),

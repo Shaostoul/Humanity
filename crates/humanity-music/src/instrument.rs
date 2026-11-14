@@ -117,8 +117,164 @@ pub enum FilterKind {
     HighPass,
 }
 
-/// A filter and what moves its cutoff.
+/// The shape an LFO sweeps in (docs/design/music.md section 7d, the bass toolkit): a sine, a
+/// triangle, a rising or falling ramp, a square, or a new random value each cycle (sample and hold).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LfoShape {
+    #[default]
+    Sine,
+    Triangle,
+    RampUp,
+    RampDown,
+    Square,
+    SampleHold,
+}
+
+/// A modulator in time with the music (the wobble's sweep, a growl's FM depth, a vowel's morph):
+/// cycles per beat (2 is eighth notes, 3 the eighth-note triplet, 4 sixteenths), or one rate per bar
+/// in turn (`rates`: the wobble's rate changing bar by bar), in a shape. In time with the beat clock
+/// (every note in the bar sweeps in step) unless `restart` starts it afresh at each note.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct BeatLfo {
+    #[serde(default)]
+    pub per_beat: f32,
+    #[serde(default)]
+    pub rates: Vec<f32>,
+    #[serde(default)]
+    pub shape: LfoShape,
+    #[serde(default)]
+    pub restart: bool,
+}
+
+/// A distortion stage (docs/design/music.md section 7d): a curve driven by `drive`, mixed with the
+/// clean signal (`mix`, parallel distortion), then bit and sample-rate reduction.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct ShaperSpec {
+    #[serde(default)]
+    pub curve: ShaperCurve,
+    /// How hard the curve is driven, 0 .. 1 (a gain of 1 to 21 into it).
+    #[serde(default)]
+    pub drive: f32,
+    /// How much of the shaped signal is heard, 0 (none) .. 1 (all of it).
+    #[serde(default = "one")]
+    pub mix: f32,
+    /// Bit depth to reduce to (0: none; 6 is gritty, 12 the DX7's).
+    #[serde(default)]
+    pub bits: f32,
+    /// Hold each sample this many times (1: none; 4 at 48 kHz is a 12 kHz sample rate).
+    #[serde(default = "one")]
+    pub downsample: f32,
+}
+
+/// A waveshaper's curve.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ShaperCurve {
+    /// A smooth saturation (tanh): warm.
+    #[default]
+    Soft,
+    /// Clipped flat at full scale: harsh.
+    Hard,
+    /// Folded back from full scale (a wavefolder): metallic, more harmonics the harder it is driven.
+    Fold,
+    /// Soft on one side, harder on the other: even harmonics, a growl's grit.
+    Asymmetric,
+}
+
+/// One of the vowels a formant filter sings (the bass voice's formants, docs/design/music.md 7d).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Vowel {
+    A,
+    E,
+    I,
+    O,
+    U,
+}
+
+/// A formant ("talking") filter: the sound through a vowel's three resonances, morphing along
+/// `vowels` in time with the music (`lfo`'s sweep 0..1 walks the list and back), mixed with the dry
+/// sound by `mix`. `shift` moves every formant (0.8: a bigger throat; 1.2 a smaller).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FormantSpec {
+    pub vowels: Vec<Vowel>,
+    #[serde(default)]
+    pub lfo: BeatLfo,
+    #[serde(default = "one")]
+    pub mix: f32,
+    #[serde(default = "one")]
+    pub shift: f32,
+}
+
+/// A feedback comb filter: the sound plus itself a moment later, again and again, so it rings at
+/// one pitch and its overtones (the "wet", metallic edge). Tuned to the note (`key_ratio` times its
+/// frequency) or to `delay_ms`; `lfo` sweeps the delay by `sweep` of itself (a flanger's swoosh).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CombSpec {
+    #[serde(default)]
+    pub key_ratio: f32,
+    #[serde(default)]
+    pub delay_ms: f32,
+    /// -0.95 .. 0.95 (negative: odd overtones only, hollow).
+    pub feedback: f32,
+    #[serde(default = "half")]
+    pub mix: f32,
+    #[serde(default)]
+    pub lfo: BeatLfo,
+    #[serde(default)]
+    pub sweep: f32,
+}
+
+/// A phaser: four all-pass stages whose turning point an LFO sweeps between `low_hz` and `high_hz`,
+/// mixed with the dry sound, so moving notches pass through it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PhaserSpec {
+    pub low_hz: f32,
+    pub high_hz: f32,
+    #[serde(default)]
+    pub feedback: f32,
+    #[serde(default = "half")]
+    pub mix: f32,
+    #[serde(default)]
+    pub lfo: BeatLfo,
+}
+
+/// A protected sub (docs/design/music.md 7d): a clean sine at the note (`octave` octaves down: -1 an
+/// octave under), added AFTER every distortion and filter so it stays round and centred, at `level`;
+/// the processed sound above it is high-passed at `split_hz` so the two do not fight.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct SubSpec {
+    pub level: f32,
+    #[serde(default)]
+    pub octave: f32,
+    #[serde(default)]
+    pub split_hz: f32,
+}
+
+/// What follows a synth's or an FM voice's filter, in order: the shaper, the formant filter, the
+/// comb, the phaser, then the protected sub. Any of them may be absent; with any present the voice
+/// is processed in mono (a bass sits in the centre).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct VoiceFx {
+    #[serde(default)]
+    pub shaper: Option<ShaperSpec>,
+    #[serde(default)]
+    pub formant: Option<FormantSpec>,
+    #[serde(default)]
+    pub comb: Option<CombSpec>,
+    #[serde(default)]
+    pub phaser: Option<PhaserSpec>,
+    #[serde(default)]
+    pub sub: Option<SubSpec>,
+}
+
+impl VoiceFx {
+    /// Whether anything is in the chain.
+    pub fn any(&self) -> bool {
+        self.shaper.is_some() || self.formant.is_some() || self.comb.is_some() || self.phaser.is_some() || self.sub.is_some()
+    }
+}
+
+/// A filter and what moves its cutoff.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FilterSpec {
     pub kind: FilterKind,
     pub cutoff_hz: f32,
@@ -138,6 +294,31 @@ pub struct FilterSpec {
     /// The envelope times this is added to the cutoff (a pluck's "pew").
     #[serde(default)]
     pub env_hz: f32,
+    /// Two stages in series (24 dB an octave, the wobble's slope) instead of one (12 dB).
+    #[serde(default = "one_u8")]
+    pub stages: u8,
+    /// The tempo LFO's shape, its rate per bar in turn (cycles per beat; over `lfo_per_beat`), and
+    /// whether it starts afresh at each note (else it runs in time with the bar).
+    #[serde(default)]
+    pub lfo_shape: LfoShape,
+    #[serde(default)]
+    pub lfo_rates: Vec<f32>,
+    #[serde(default)]
+    pub lfo_restart: bool,
+    /// Drive into the filter, 0 .. 1 (a resonant filter pushed harder squelches).
+    #[serde(default)]
+    pub drive: f32,
+}
+
+fn one_u8() -> u8 {
+    1
+}
+
+impl FilterSpec {
+    /// The tempo LFO as a [`BeatLfo`] view: its rates, shape and restart (None: no tempo LFO).
+    pub fn tempo_lfo(&self) -> Option<(f32, &[f32], LfoShape, bool)> {
+        (self.lfo_per_beat > 0.0 || !self.lfo_rates.is_empty()).then_some((self.lfo_per_beat, self.lfo_rates.as_slice(), self.lfo_shape, self.lfo_restart))
+    }
 }
 
 /// A synth: 1 to 4 oscillators, a filter, an envelope, vibrato, tremolo and drive.
@@ -156,6 +337,13 @@ pub struct SynthSpec {
     /// Soft saturation, 0 (clean) .. 1.
     #[serde(default)]
     pub drive: f32,
+    /// Glide: each note slides from the pitch the role last played, over about this long (seconds;
+    /// 0: none). A bass's or a lead's portamento.
+    #[serde(default)]
+    pub glide_s: f32,
+    /// The bass toolkit's chain after the filter (shaper, formant, comb, phaser, protected sub).
+    #[serde(default)]
+    pub fx: VoiceFx,
 }
 
 /// A formant choir.
@@ -261,6 +449,17 @@ pub struct FmSpec {
     /// An extra decaying partial (an electric piano's tine): (ratio, amplitude, seconds to fall 60 dB).
     #[serde(default)]
     pub tine: Option<(f32, f32, f32)>,
+    /// The modulation index moved in time with the music (a growl: more FM is buzzier): the LFO,
+    /// and how far it adds to the index (0 .. this, by its sweep).
+    #[serde(default)]
+    pub index_lfo: Option<BeatLfo>,
+    #[serde(default)]
+    pub index_lfo_depth: f32,
+    /// Glide (seconds) and the chain after the operators, as a synth's.
+    #[serde(default)]
+    pub glide_s: f32,
+    #[serde(default)]
+    pub fx: VoiceFx,
 }
 
 fn default_index_decay() -> f32 {

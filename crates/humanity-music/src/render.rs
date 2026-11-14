@@ -187,7 +187,7 @@ pub fn note_rms_between(res: &crate::Resolved, inst: u16, midi: f32, a4: f32, fr
     let mut pool = VoicePool::new(1);
     pool.note_on(NoteOn { inst, role: 0, midi, a4, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, rate);
     let vowel = [(SvfCoefs::new(800.0, 10.0, rate), 1.0); 5];
-    let p = BlockParams { rate, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+    let p = BlockParams::plain(rate, 1.0, &vowel);
     let total = (to_s * rate) as usize;
     let skip = (from_s.max(0.0) * rate) as usize;
     let (mut sum, mut n, mut counted) = (0.0f64, 0usize, 0usize);

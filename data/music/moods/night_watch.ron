@@ -36,6 +36,11 @@ Mood(
         (role: Melody, instrument: "steel_pan", part: Some("steel_pan"), low: "A3", high: "A5", density: 0.15, level_db: -4.0),
         (role: Percussion, instrument: "deep_drum", part: Some("deep_drum"), low: "A1", high: "G#2", density: 0.25, level_db: -4.0, pulse: Some((every_bars: 2, hits: [(0.0, 0.55)]))),
     ],
+    // The pad a piece may draw instead (2026-11-13, the genre pass): the four choir voices singing
+    // "ah" as one choir, each note of the chord from the section whose range holds it (the credited
+    // "Choir" pack's basses, tenors, altos and sopranos; the synthesised choir until it is installed).
+    // The choir role rests while the choir sings the pad.
+    options: [(role: Pad, instrument: "choir_ah", part: Some("choir_ah"), low: "A2", high: "A4", voices: 5, level_db: 7.5, weight: 0.5, rests: [Choir])],
     motifs: [
         (steps: [0, -1, -2], beats: [1.5, 1.0, 2.5]),
         (steps: [0, 2, 1], beats: [2.0, 1.0, 2.0]),

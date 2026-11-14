@@ -68,7 +68,7 @@ impl Score {
         let mut pool = VoicePool::new(1);
         pool.note_on(NoteOn { inst, role: 0, midi: key as f32, a4, vel: velocity as f32 / 127.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &self.res.instruments, &self.res.banks, RATE as f32);
         let vowel = [(humanity_music::dsp::SvfCoefs::new(800.0, 10.0, RATE as f32), 1.0); 5];
-        let p = BlockParams { rate: RATE as f32, pitch_mul: 1.0, beat_hz: 1.0, vowel: &vowel };
+        let p = BlockParams::plain(RATE as f32, 1.0, &vowel);
         let mut out = Vec::with_capacity(frames);
         let (mut l, mut r, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
         while out.len() < frames {
@@ -281,4 +281,25 @@ fn other_kinds_are_left_alone_and_a_missing_sample_is_reported() {
     assert!(lib.problems.iter().any(|p| p.contains("Up_A3_v1.ogg")), "{:?}", lib.problems);
     let parts = Parts::load(&data).unwrap();
     assert!(matches!(lib.choose("piano", &parts), Some(Choice::Synth(_))), "so the piano part falls back");
+}
+
+/// A PART OF SEVERAL VOICES GIVES EACH NOTE TO ONE VOICE (the 2026-11-13 genre pass: the choir's
+/// "ah" as basses, tenors, altos and sopranos): where two neighbours' ranges overlap the keys split
+/// halfway, a gap goes to the lower voice, the lowest plays everything below and the highest
+/// everything above, so every key has exactly one voice. RED first (2026-11-13) with the split at the
+/// lower voice's top (each lower voice keeping its whole range): "the basses take everything up to
+/// halfway into the tenors' range, left: (0, 64), right: (0, 56)".
+#[test]
+fn a_part_of_several_voices_gives_each_key_one_voice() {
+    // Ranges like the choir pack's: basses 40-64, tenors 48-69, altos 53-74, sopranos 60-81, and a
+    // made-up fifth voice with a gap below it (from 90).
+    let bands = super::score::voice_bands(&[vec![(40, 52), (53, 64)], vec![(48, 69)], vec![(53, 74)], vec![(60, 81)], vec![(90, 100)]]);
+    assert_eq!(bands[0], (0, 56), "the basses take everything up to halfway into the tenors' range");
+    assert_eq!(bands[1], (57, 61), "the tenors");
+    assert_eq!(bands[2], (62, 67), "the altos");
+    assert_eq!(bands[3], (68, 89), "the sopranos, up to the gap's end");
+    assert_eq!(bands[4], (90, 127), "the top voice, everything above");
+    for k in 0..=127 {
+        assert_eq!(bands.iter().filter(|b| (b.0..=b.1).contains(&k)).count(), 1, "key {k} has one voice");
+    }
 }
