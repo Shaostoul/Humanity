@@ -126,6 +126,9 @@ pub const GPU_IDS_WITHOUT_CPU_TWIN: &[&str] = &[
     // drawn into the transmittance atlas, recorded inside `cpu.shadow_local` with the room lights'
     // faces, so no per-pass CPU twin.
     "gpu.shadow_partial",
+    // The frosted films' far sides (2026-11-14, renderer/film_blur.rs): recorded inside
+    // `cpu.film_blur` with the coverage and the pyramid, so no per-pass CPU twin.
+    "gpu.film_far",
 ];
 
 /// Whether `gpu.x` has a `cpu.x` stage the no-timestamp fallback can read.

@@ -12,8 +12,12 @@
 //                       every caster of one mesh, as the fast path's runs were.
 //   2. emit_draws:      each (view, batch) with a count takes a contiguous run
 //                       of the instance buffer and writes its DrawIndexedIndirect
-//                       arguments into the view's section of `draws`, the view's
-//                       draw count going up by one.
+//                       arguments into its DRAW SET's run of the view's section
+//                       of `draws`, that (view, set)'s draw count going up by one.
+//                       A set is one pipeline over one vertex source (plain or
+//                       card-hair cutout or see-through sheet; the arena or a
+//                       skinned body's own buffers, 2026-11-14), so the
+//                       processor draws each set of a view with ONE command.
 //   3. write_instances: the same test again; a kept pair writes its caster's
 //                       model matrix (the view's atlas index in column 0's w, as
 //                       the fast path's shader reads it) into its draw's run.
@@ -42,7 +46,8 @@ struct Params {
     cull_off: u32,
     margin: f32,
     instance_cap: u32,
-    pad0: u32,
+    // how many draw sets (a set: one pipeline and one vertex source, drawn by one command a view)
+    n_sets: u32,
     pad1: u32,
 };
 
@@ -62,13 +67,28 @@ struct Caster {
     sphere: vec4<f32>,
     // x the batch (arena mesh), y 1 for a celestial piece that casts into the near sun view only
     tag: vec4<u32>,
+    // what the set's pipeline reads beside the matrix: a sheet's transmittance (shadow_transmit),
+    // a cutout's material type and alpha threshold; zeros for a plain caster
+    extra: vec4<f32>,
 };
 
 struct Batch {
     index_count: u32,
     first_index: u32,
     base_vertex: i32,
-    pad: u32,
+    // the draw set this batch is drawn in (`set` is a WGSL reserved word), and where that set's run starts in a view's section
+    draw_set: u32,
+    set_first: u32,
+    pad0: u32,
+    pad1: u32,
+    pad2: u32,
+};
+
+// One instance as the sets' pipelines read it: the caster's matrix (the view's index in column 0's
+// w) and its extra (80 bytes; shadow_transmit's instance layout).
+struct Instance {
+    model: mat4x4<f32>,
+    extra: vec4<f32>,
 };
 
 struct DrawArgs {
@@ -83,11 +103,12 @@ struct DrawArgs {
 @group(0) @binding(1) var<storage, read> views: array<View>;
 @group(0) @binding(2) var<storage, read> casters: array<Caster>;
 @group(0) @binding(3) var<storage, read> batches: array<Batch>;
-// [count: views x batches][fill: views x batches][start + 1: views x batches][total]
+// [count: views x batches][fill: views x batches][start + 1: views x batches][total]; draw_counts
+// one per (view, set)
 @group(0) @binding(4) var<storage, read_write> counters: array<atomic<u32>>;
 @group(0) @binding(5) var<storage, read_write> draws: array<DrawArgs>;
 @group(0) @binding(6) var<storage, read_write> draw_counts: array<atomic<u32>>;
-@group(0) @binding(7) var<storage, read_write> instances: array<mat4x4<f32>>;
+@group(0) @binding(7) var<storage, read_write> instances: array<Instance>;
 
 // local_shadows::sphere_in over a view's planes.
 fn view_sphere_in(v: u32, c: vec3<f32>, r: f32) -> bool {
@@ -195,9 +216,11 @@ fn emit_draws(@builtin(global_invocation_id) id: vec3<u32>) {
         return;
     }
     atomicStore(&counters[2u * nvb + vb], at + 1u);
-    let d = atomicAdd(&draw_counts[vi], 1u);
     let bt = batches[b];
-    draws[vi * nb + d] = DrawArgs(bt.index_count, n, bt.first_index, bt.base_vertex, at);
+    // Each set's draws are a run of its own in the view's section (its batches' count long), so one
+    // command draws the set.
+    let d = atomicAdd(&draw_counts[vi * params.n_sets + bt.draw_set], 1u);
+    draws[vi * nb + bt.set_first + d] = DrawArgs(bt.index_count, n, bt.first_index, bt.base_vertex, at);
 }
 
 @compute @workgroup_size(64)
@@ -220,5 +243,5 @@ fn write_instances(@builtin(global_invocation_id) id: vec3<u32>) {
     let slot = atomicAdd(&counters[nvb + vb], 1u);
     var m = casters[ci].model;
     m[0].w = f32(views[vi].index.x);
-    instances[start - 1u + slot] = m;
+    instances[start - 1u + slot] = Instance(m, casters[ci].extra);
 }

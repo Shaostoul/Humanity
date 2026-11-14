@@ -483,13 +483,14 @@ impl Pipeline {
                     // Bindings 12-13: THE BLUR BEHIND A FROSTED FILM (2026-11-13,
                     // renderer/film_blur.rs): the colour pyramid of the scene behind the films and
                     // its sampler (linear between texels and levels). The fragment stage's fifteenth
-                    // sampled texture of 16.
+                    // sampled texture of 16. Two layers since 2026-11-14 (the covered scene, the
+                    // depth behind: film_blur.wgsl), so still one binding.
                     wgpu::BindGroupLayoutEntry {
                         binding: 12,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
+                            view_dimension: wgpu::TextureViewDimension::D2Array,
                             multisampled: false,
                         },
                         count: None,

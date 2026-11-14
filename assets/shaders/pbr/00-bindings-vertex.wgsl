@@ -184,10 +184,12 @@ struct EnvRegion {
 var<private> g_shadow_tint: vec3<f32> = vec3<f32>(1.0);
 // THE BLUR BEHIND A FROSTED FILM (2026-11-13, renderer/film_blur.rs): the
 // colour pyramid of the scene behind the films (half the render's size at its
-// base, halving per level; the base's alpha the view depth behind), and its
-// sampler (linear between texels and levels). Read only by a film's near faces
-// in the see-through pass's NEAR mode (film_frost, 90-fragment-main.wgsl).
-@group(0) @binding(12) var film_behind: texture_2d<f32>;
+// base, halving per level; layer 0 the covered scene times its coverage with
+// the coverage in alpha, layer 1's base the view depth behind: film_blur.wgsl),
+// and its sampler (linear between texels and levels). Read only by a film's
+// near faces in the see-through pass's NEAR mode (film_frost,
+// 90-fragment-main.wgsl).
+@group(0) @binding(12) var film_behind: texture_2d_array<f32>;
 @group(0) @binding(13) var film_behind_samp: sampler;
 const SHADOW_VIEW_ROWS: u32 = 7u;
 const SHADOW_KIND_STRIDE: u32 = 4096u;

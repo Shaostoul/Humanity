@@ -76,12 +76,19 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   VERTEX ATTRIBUTE, never `@builtin(instance_index)`: DX12 hands an indirect draw's first instance to
   attribute fetch but not to the builtin on this adapter (`patch_arena`'s header). A mesh whose
   vertices change after it is made (the compute-skinned bodies, `prev_vertex_buffer`) or that is a
-  range of shared buffers stays on the per-draw loop: the arena would hold last frame's copy. Showcase
-  `shadow_gpu` "0" is the red twin; a device without the three features (`shadow_gpu::
-  required_features`) runs the per-draw loop and Settings names what it lacks. Measured:
-  `cpu.shadow_local` in the hall 2.52 to 1.54 ms, the plain casters' 933 instances in 46 commands;
-  what is left on the processor is the per-draw loop (cutouts, swaying classes, skinned bodies) and
-  the fixed share (skinning, uploads, submit).
+  range of shared buffers is never copied into the arena (it would hold last frame's copy). Since
+  2026-11-14 the draws are DRAW SETS (`shadow_gpu::DrawSet`, one pipeline over one vertex source,
+  one command a set a face): plain, card-hair cutouts per material (`shadow_atlas_cutout.wgsl`,
+  `fs_shadow`'s type 26 test written again: change one, change both,
+  `the_cutout_sets_test_is_fs_shadows`) and the see-through sheets (shadow_transmit's pipeline,
+  whose 80-byte instance is the cull's), and a compute-skinned body's set reads its OWN buffers,
+  the vertices the main view draws. Still on the per-draw loop: the swaying classes, the sprite tree
+  cards, the middle-tier bodies and the first-person twin (skinned in the vertex shader, so nothing
+  skinned to cast from). Showcase `shadow_gpu` "0" is the per-draw loop's red twin and
+  `shadow_gpu_more` "0" the 2026-11-13 state (plain arena casters only); a device without the three
+  features (`shadow_gpu::required_features`) runs the per-draw loop and Settings names what it lacks.
+  Measured (2026-11-13): `cpu.shadow_local` in the hall 2.52 to 1.54 ms, the plain casters' 933
+  instances in 46 commands (the 2026-11-14 numbers: `docs/design/local-light-shadows.md` section 10).
 - **Code in `frag_tail` costs even when its branch is never taken.** The room light's atlas lookup
   slows the scene pass by 0.4 to 1.65 ms with shadows OFF (2026-11-11, RTX 4070 at 2560 x 1387:
   the ground hall 13.16 ms against 11.51 with the lookup compiled out, the crowd 8.59 against 7.54),

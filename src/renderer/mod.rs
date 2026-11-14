@@ -1464,7 +1464,7 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
-        let (local_shadows, film_blur) = (local_shadows::LocalShadows::new(&device), film_blur::FilmBlur::new(&device)); // before the camera groups bind them
+        let (local_shadows, film_blur) = (local_shadows::LocalShadows::new(&device, &pipeline.texture_bind_group_layout), film_blur::FilmBlur::new(&device)); // before the camera groups bind them
         let camera_bind_group = pipeline::camera_bind_group(
             &device,
             &pipeline.camera_bind_group_layout,

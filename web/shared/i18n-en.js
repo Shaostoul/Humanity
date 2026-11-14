@@ -5688,6 +5688,7 @@ window.HOS_I18N_EN = {
       "celestial_t": "the water pass",
       "sky_view": "the sky's lookup table",
       "shadow": "the sun's shadow pass",
+      "film_far": "the far sides of frosted plastic",
       "godrays": "the light shafts pass",
       "ssao": "the contact shading pass",
       "room_probes": "the bounced light pass",

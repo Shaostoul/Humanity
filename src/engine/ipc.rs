@@ -1876,6 +1876,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.local_shadows.gpu_off = t == "0";
         log::info!("Showcase: shadow_gpu -> {}", !state.renderer.local_shadows.gpu_off);
     }
+    // {"shadow_gpu_more":"0"}: only the plain casters copied into the arena are culled and drawn by
+    // the device, as merged on 2026-11-13; the skinned bodies, the card hair and the see-through
+    // sheets go back to the per-draw loop (the red twin of carrying the GPU-driven path to them,
+    // 2026-11-14: the picture must stay the same, only the cost moves); "1" or "auto" puts them back.
+    if let Some(t) = grab("shadow_gpu_more") {
+        state.renderer.local_shadows.gpu_more_off = t == "0";
+        log::info!("Showcase: shadow_gpu_more -> {}", !state.renderer.local_shadows.gpu_more_off);
+    }
     // {"partial_shadows":"0"}: glass and frosted film cast nothing, as before 2026-11-13 (the partial
     // casters' red twin, renderer/shadow_transmit.rs: the light through a tent is undimmed again);
     // "1" or "auto" puts them back.
@@ -1890,6 +1898,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         };
         state.renderer.ensure_film_pyramid();
         log::info!("Showcase: film_blur -> {t} ({:?})", state.renderer.film_blur.pin);
+    }
+    // {"film_v1":"1"}: the blur behind the film as merged on 2026-11-13 (its red twin for a same-boot
+    // A/B, renderer/film_blur.rs): an encoder and submit of its own, no coverage (the outline borrows
+    // what is beside the tent), the whole screen processed; "0" or "auto" puts the one-submit,
+    // coverage-weighted blur back.
+    if let Some(t) = grab("film_v1") {
+        state.renderer.film_blur.v1 = t == "1";
+        log::info!("Showcase: film_v1 -> {}", state.renderer.film_blur.v1);
     }
     if let Some(t) = grab("partial_shadows") {
         state.renderer.local_shadows.partial_off = t == "0";

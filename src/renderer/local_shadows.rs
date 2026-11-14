@@ -637,13 +637,16 @@ pub struct ShadowStats {
     pub culled: u32,
     /// How the plain casters were drawn (`shadow_gpu::DrawPath`), the Settings notice's answer.
     pub path: shadow_gpu::DrawPath,
-    /// Views drawn from the GPU's own list (one command each), the casters it culled, the meshes
-    /// in its arena, and the plain casters left on the per-draw loop (skinned bodies, meshes that
-    /// cannot be copied).
+    /// Views drawn from the GPU's own list, the commands that drew them (one a draw set a view, the
+    /// sheets' included), the casters it culled, the batches (meshes of a set) it drew, and the plain
+    /// casters left on the per-draw loop (meshes that cannot be copied). `gpu_more` false: showcase
+    /// `shadow_gpu_more` "0", only the plain arena casters on the GPU (as merged 2026-11-13).
     pub gpu_views: u32,
+    pub gpu_commands: u32,
     pub gpu_casters: u32,
     pub gpu_meshes: u32,
     pub fast_left: u32,
+    pub gpu_more: bool,
     /// The features the device lacks for the GPU-driven path (`shadow_gpu::missing_mask`), for the notice.
     pub gpu_missing: u8,
     /// Sheets of glass or film drawn into the transmittance atlas this frame (one per sheet per view:
@@ -680,12 +683,23 @@ struct Caster {
     /// The fast path's instance matrix (the model matrix, column-major), worked out once a caster
     /// rather than once for every view that draws it.
     model: [f32; 16],
-    /// Culled and drawn by the graphics card (`shadow_gpu`): a fast caster whose mesh is in the
-    /// arena. Its batch (one per arena mesh this frame) when it is.
-    arena: Option<u32>,
+    /// Culled and drawn by the graphics card (`shadow_gpu`): its draw set, its batch (one per mesh
+    /// of a set this frame) and what its set's pipeline reads beside the matrix.
+    gpu: Option<GpuPick>,
     /// A PARTIAL caster (glass, frosted film: renderer/shadow_transmit.rs): drawn into the
     /// transmittance atlas with what it passes, never into the depth atlas. Its `model` is set.
     partial: Option<shadow_transmit::Partial>,
+}
+
+/// A GPU-driven caster's place this frame (`Caster::gpu`).
+#[derive(Clone, Copy, Debug)]
+struct GpuPick {
+    /// Its draw set (an index of the frame's `shadow_gpu::DrawSet`s).
+    set: u32,
+    /// Its batch (u32::MAX until the batches are numbered).
+    batch: u32,
+    /// `shadow_gpu::CullCaster::extra`.
+    extra: [f32; 4],
 }
 
 /// Whether a caster can take the fast path (`assets/shaders/shadow_atlas_instanced.wgsl`): a plain
@@ -939,6 +953,10 @@ pub struct LocalShadows {
     /// device could cull and draw them itself (the GPU-driven path's red twin: the picture must not
     /// change, only the cost).
     pub gpu_off: bool,
+    /// Showcase pin `shadow_gpu_more` "0": only the plain casters copied into the arena go through the
+    /// GPU-driven path, as merged on 2026-11-13; the skinned bodies, the card hair and the sheets go
+    /// back to the per-draw loop (the red twin of carrying the path to them, 2026-11-14).
+    pub gpu_more_off: bool,
     /// Which mesh is which batch this frame (by mesh id; u32::MAX = none), cleared after each frame
     /// for the entries it set. Reuse: scratch memory only, nothing in it outlives the frame.
     batch_scratch: Vec<u32>,
@@ -955,7 +973,9 @@ pub struct LocalShadows {
 }
 
 impl LocalShadows {
-    pub fn new(device: &wgpu::Device) -> Self {
+    /// `texture_layout` is the megashader's group 3 (a material's albedo), which the GPU-driven
+    /// cutout sets bind.
+    pub fn new(device: &wgpu::Device, texture_layout: &wgpu::BindGroupLayout) -> Self {
         let dummy = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Shadow Atlas Stand-in"),
             size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
@@ -976,7 +996,8 @@ impl LocalShadows {
         });
         let table_rows = 256u64;
         let table = Self::table_buffer(device, table_rows);
-        let gpu = shadow_gpu::GpuCasters::new(device);
+        let fast = FastPath::new(device);
+        let gpu = shadow_gpu::GpuCasters::new(device, &fast.layout, texture_layout);
         if gpu.available {
             log::info!("[Shadows] GPU-driven casters: SUPPORTED (the graphics card culls the shadow casters and draws each face from its own list)");
         } else {
@@ -998,10 +1019,11 @@ impl LocalShadows {
             // The camera uniform rounded up to the uniform offset alignment the device asks for.
             view_stride: (std::mem::size_of::<camera::CameraUniforms>() as u64).next_multiple_of(device.limits().min_uniform_buffer_offset_alignment.max(16) as u64),
             view_groups: Vec::new(),
-            fast: FastPath::new(device),
+            fast,
             fast_off: false,
             gpu,
             gpu_off: false,
+            gpu_more_off: false,
             transmit: shadow_transmit::TransmitPass::new(device),
             partial_off: false,
             batch_scratch: Vec::new(),
@@ -1223,6 +1245,10 @@ impl Renderer {
             self.local_shadows.gpu.book.begin_frame(humanity_core::reuse::enabled());
         }
         let mut fast_left = 0u32;
+        // This frame's draw sets (a pipeline and a vertex source each) and the skinned vertex sources
+        // met (source k + 1 is `gpu_sources[k]`; source 0 is the arena).
+        let mut gpu_sets: Vec<shadow_gpu::DrawSet> = Vec::new();
+        let mut gpu_sources: Vec<(wgpu::Buffer, wgpu::Buffer)> = Vec::new();
         for &(list, off, kind) in lists {
             for o in list.iter() {
                 let Some(mesh) = self.meshes.get(o.mesh) else { continue };
@@ -1269,76 +1295,157 @@ impl Renderer {
                 obj.position = pos;
                 let cutout = partial.is_none() && mat.casts_cutout_shadow();
                 let fast = partial.is_none() && !self.local_shadows.fast_off && takes_fast_path(mat.material_type, cutout);
-                let model = if fast || partial.is_some() { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
-                // A plain caster whose mesh can live in the arena is culled and drawn by the GPU;
-                // the rest of the fast ones stay on the per-draw loop (shadow_gpu's header says why).
-                let mut arena = None;
-                if gpu_on && fast {
-                    let serial = self.mesh_serials.get(o.mesh);
-                    if shadow_gpu::arena_eligible(mesh) && self.local_shadows.gpu.place(&self.device, o.mesh, serial, mesh).is_some() {
-                        arena = Some(0);
+                // Card hair that does not sway: alpha-tested by the GPU-driven cutout sets.
+                let gpu_cut = cutout && !self.local_shadows.fast_off && shadow_gpu::gpu_cutout_type(mat.material_type) && takes_fast_path(mat.material_type, false);
+                let model = if fast || gpu_cut || partial.is_some() { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
+                // THE GPU-DRIVEN CASTERS (shadow_gpu): a plain caster, a card-hair cutout or a sheet,
+                // from the arena (a still mesh copied in once) or from the skinned bodies' own buffers
+                // (their vertices skinned this frame, the ones the main view draws). Showcase
+                // `shadow_gpu_more` "0" keeps only the plain arena casters here, as merged on
+                // 2026-11-13 (this rung's red twin). The rest stay on the per-draw loop.
+                let mut gpu = None;
+                let skinned = mesh.prev_vertex_buffer.is_some();
+                let more = !self.local_shadows.gpu_more_off;
+                let kind = if partial.is_some() {
+                    more.then_some(shadow_gpu::SetKind::Sheet)
+                } else if gpu_cut {
+                    more.then_some(shadow_gpu::SetKind::Cutout(o.material))
+                } else if fast {
+                    (more || !skinned).then_some(shadow_gpu::SetKind::Plain)
+                } else {
+                    None
+                };
+                if let (true, Some(kind)) = (gpu_on, kind) {
+                    let source = if skinned {
+                        // The skinned bodies' buffers: one source per vertex and index buffer pair (the
+                        // own-mesh pool holds every pooled body in one).
+                        let pair = (&mesh.vertex_buffer, &mesh.index_buffer);
+                        match gpu_sources.iter().position(|(v, i)| (v, i) == pair) {
+                            Some(k) => Some(k as u32 + 1),
+                            None => {
+                                gpu_sources.push((mesh.vertex_buffer.clone(), mesh.index_buffer.clone()));
+                                Some(gpu_sources.len() as u32)
+                            }
+                        }
                     } else {
-                        fast_left += 1;
+                        let serial = self.mesh_serials.get(o.mesh);
+                        (shadow_gpu::arena_eligible(mesh) && self.local_shadows.gpu.place(&self.device, o.mesh, serial, mesh).is_some()).then_some(0)
+                    };
+                    let set = source.and_then(|source| {
+                        let ds = shadow_gpu::DrawSet { kind, source };
+                        match gpu_sets.iter().position(|s| *s == ds) {
+                            Some(k) => Some(k as u32),
+                            None if gpu_sets.len() < shadow_gpu::MAX_SETS => {
+                                gpu_sets.push(ds);
+                                Some(gpu_sets.len() as u32 - 1)
+                            }
+                            None => None,
+                        }
+                    });
+                    if let Some(set) = set {
+                        let extra = match (partial, gpu_cut) {
+                            (Some(p), _) => p.to_vec4(),
+                            (None, true) => [mat.material_type, mat.params2[2], 0.0, 0.0],
+                            _ => [0.0; 4],
+                        };
+                        gpu = Some(GpuPick { set, batch: u32::MAX, extra });
                     }
                 }
-                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, arena, partial });
+                if gpu_on && gpu.is_none() && fast {
+                    fast_left += 1;
+                }
+                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, gpu, partial });
                 if casters.len() >= MAX_OBJECTS {
                     break;
                 }
             }
         }
 
-        // The GPU-driven casters' batches: one per arena mesh, numbered as first met.
+        // The GPU-driven casters' batches: one per mesh of a set, each set's batches one run (its
+        // draws are one run of a view's section of the argument buffer), numbered as first met.
         let mut batches: Vec<shadow_gpu::CullBatch> = Vec::new();
+        // Each set's run of batches: (first, len).
+        let mut set_runs: Vec<(u32, u32)> = vec![(0, 0); gpu_sets.len()];
         let mut gpu_casters = 0u32;
-        if gpu_on {
+        if gpu_on && !gpu_sets.is_empty() {
+            let mut by_set: Vec<Vec<u32>> = vec![Vec::new(); gpu_sets.len()];
+            for (i, c) in casters.iter().enumerate() {
+                if let Some(p) = c.gpu {
+                    by_set[p.set as usize].push(i as u32);
+                }
+            }
             let scratch = &mut self.local_shadows.batch_scratch;
             if scratch.len() < self.meshes.len() {
                 scratch.resize(self.meshes.len(), u32::MAX);
             }
-            for c in casters.iter_mut() {
-                if c.arena.is_none() {
-                    continue;
+            for (s, members) in by_set.iter().enumerate() {
+                let first = batches.len() as u32;
+                for &i in members {
+                    let c = &mut casters[i as usize];
+                    let m = c.obj.mesh;
+                    if scratch[m] == u32::MAX {
+                        let batch = if gpu_sets[s].source == 0 {
+                            self.local_shadows.gpu.book.slot(m).map(|slot| slot.batch())
+                        } else {
+                            self.meshes.get(m).map(|mesh| shadow_gpu::CullBatch { index_count: mesh.index_count, first_index: mesh.first_index, base_vertex: mesh.base_vertex, ..Default::default() })
+                        };
+                        let Some(mut batch) = batch else {
+                            c.gpu = None;
+                            continue;
+                        };
+                        batch.set = s as u32;
+                        batch.set_first = first;
+                        scratch[m] = batches.len() as u32;
+                        batches.push(batch);
+                    }
+                    if let Some(p) = c.gpu.as_mut() {
+                        p.batch = scratch[m];
+                    }
+                    gpu_casters += 1;
                 }
-                let m = c.obj.mesh;
-                if scratch[m] == u32::MAX {
-                    let Some(slot) = self.local_shadows.gpu.book.slot(m) else {
-                        c.arena = None;
-                        continue;
-                    };
-                    scratch[m] = batches.len() as u32;
-                    batches.push(slot.batch());
+                for &i in members {
+                    scratch[casters[i as usize].obj.mesh] = u32::MAX;
                 }
-                c.arena = Some(scratch[m]);
-                gpu_casters += 1;
-            }
-            for c in &casters {
-                if c.arena.is_some() {
-                    scratch[c.obj.mesh] = u32::MAX;
-                }
+                set_runs[s] = (first, batches.len() as u32 - first);
             }
         }
+        // Which sets hold sheets (drawn into the transmittance atlas, never the depth atlas).
+        let sheet_sets: u64 = gpu_sets.iter().enumerate().filter(|(_, s)| s.kind == shadow_gpu::SetKind::Sheet).fold(0, |m, (k, _)| m | 1 << k);
+        let plain_arena: Option<u32> = gpu_sets.iter().position(|s| s.kind == shadow_gpu::SetKind::Plain && s.source == 0).map(|k| k as u32);
 
         // ── 3. The near sun view. ──
         let mut views: Vec<AtlasView> = Vec::new();
         let mut view_casters: Vec<Vec<u32>> = Vec::new();
-        // Whether a view has GPU-driven casters (drawn from the GPU's own list), and which light (by
-        // rank) a face belongs to, for the instance buffer's bound.
-        let mut view_gpu: Vec<bool> = Vec::new();
+        // Which draw sets a view has GPU-driven casters in (a bit each; drawn from the GPU's own
+        // list), and which light (by rank) a face belongs to, for the instance buffer's bound.
+        let mut view_gpu: Vec<u64> = Vec::new();
         let mut view_light: Vec<Option<usize>> = Vec::new();
         let mut near_sun: Option<usize> = None;
         if let (Some(vp), Some(planes)) = (sun_view, sun_planes.as_ref()) {
-            let list: Vec<u32> = (0..casters.len() as u32)
-                .filter(|&i| {
-                    let c = &casters[i as usize];
-                    c.arena.is_none() && sun_keeps(planes, sun_texel, c.centre, c.radius)
-                })
-                .collect();
+            let mut list: Vec<u32> = Vec::new();
+            // The plain arena set is taken as present when it has casters (the GPU culls its many);
+            // every other set's few casters are tested here, so a set is drawn only where it has one.
+            let mut mask = plain_arena.filter(|&s| set_runs[s as usize].1 > 0).map_or(0u64, |s| 1 << s);
+            for (i, c) in casters.iter().enumerate() {
+                match c.gpu {
+                    Some(p) if mask & (1 << p.set) != 0 => {}
+                    Some(p) => {
+                        if sun_keeps(planes, sun_texel, c.centre, c.radius) {
+                            mask |= 1 << p.set;
+                        }
+                    }
+                    None => {
+                        if sun_keeps(planes, sun_texel, c.centre, c.radius) {
+                            list.push(i as u32);
+                        }
+                    }
+                }
+            }
             near_sun = Some(views.len());
-            let partial = list.iter().any(|&i| casters[i as usize].partial.is_some());
+            let partial = list.iter().any(|&i| casters[i as usize].partial.is_some()) || mask & sheet_sets != 0;
             views.push(AtlasView { view_proj: vp, tile: (0, 0, level.sun_tile), origin: toward_sun.normalize(), ortho: true, texel_m: sun_texel, range: f32::INFINITY, partial });
             view_casters.push(list);
-            view_gpu.push(gpu_casters > 0);
+            view_gpu.push(mask);
             view_light.push(None);
         }
         drop(near_cost);
@@ -1386,7 +1493,7 @@ impl Renderer {
         // do not all fit is halved and the atlas packed again; a light that does not fit at its
         // smallest is left out (unshadowed) and the rest packed without it, so a light is either
         // wholly in the atlas or not at all (a face with casters and no tile would read lit).
-        let mut face_lists: Vec<Vec<(Mat4, Vec<u32>, bool)>> = Vec::new();
+        let mut face_lists: Vec<Vec<(Mat4, Vec<u32>, u64)>> = Vec::new();
         let mut placed: Vec<Vec<Option<(u32, u32)>>> = Vec::new();
         let mut excluded = vec![false; picked.len()];
         let mut settled = false;
@@ -1410,33 +1517,36 @@ impl Renderer {
                     } else {
                         cube_face_view(l.pos, f, reaches[k], faces[k], margin)
                     };
-                    // The casters this face draws on the per-draw loop, and whether any GPU-driven
-                    // caster passes the same rule (the GPU draws those; one is enough for the face to
-                    // need its tile, so the rest of them are not tested here).
+                    // The casters this face draws on the per-draw loop, and which draw sets have a
+                    // GPU-driven caster passing the same rule (the GPU draws those; one is enough for
+                    // the set to be drawn and the face to need its tile, so the rest of that set's
+                    // casters are not tested here).
                     let mut list: Vec<u32> = Vec::new();
-                    let mut any_gpu = false;
+                    let mut mask = 0u64;
                     if view_touches(&vp, &cam_planes) {
                         let planes = frustum_planes(&vp);
                         for &i in &in_reach[k] {
                             let c = &casters[i as usize];
-                            if any_gpu && c.arena.is_some() {
-                                continue;
+                            if let Some(p) = c.gpu {
+                                if mask & (1 << p.set) != 0 {
+                                    continue;
+                                }
                             }
                             // Only a caster whose shadow can fall on something in view (the filter's
                             // few texels of spread as the pad).
-                            match face_test(&planes, &cam_planes, l.pos, reaches[k], texel_m, margin, self.local_shadows.cull_off, c.centre, c.radius) {
-                                FaceTest::Out => {}
-                                FaceTest::Culled => culled += 1,
-                                FaceTest::Kept if c.arena.is_some() => any_gpu = true,
-                                FaceTest::Kept => list.push(i),
+                            match (face_test(&planes, &cam_planes, l.pos, reaches[k], texel_m, margin, self.local_shadows.cull_off, c.centre, c.radius), c.gpu) {
+                                (FaceTest::Out, _) => {}
+                                (FaceTest::Culled, _) => culled += 1,
+                                (FaceTest::Kept, Some(p)) => mask |= 1 << p.set,
+                                (FaceTest::Kept, None) => list.push(i),
                             }
                         }
                     }
-                    if (!list.is_empty() || any_gpu) && !excluded[k] {
+                    if (!list.is_empty() || mask != 0) && !excluded[k] {
                         sizes.push(faces[k]);
                         owner.push((k, f));
                     }
-                    fl.push((vp, list, any_gpu));
+                    fl.push((vp, list, mask));
                 }
                 face_lists.push(fl);
             }
@@ -1482,18 +1592,18 @@ impl Renderer {
             }
             let (Some(p), Some(fl)) = (placed.get(k), face_lists.get(k)) else { continue };
             // Every face with a caster must have its tile, or the light stays unshadowed.
-            if fl.iter().zip(p.iter()).any(|((_, list, any_gpu), at)| (!list.is_empty() || *any_gpu) && at.is_none()) {
+            if fl.iter().zip(p.iter()).any(|((_, list, mask), at)| (!list.is_empty() || *mask != 0) && at.is_none()) {
                 continue;
             }
             let l = &lights[li];
             let first = views.len();
             let texel_m = 2.0 * tan_half_of(k, li, faces[k]) / faces[k] as f32;
-            for (f, (vp, list, any_gpu)) in fl.iter().enumerate() {
+            for (f, (vp, list, mask)) in fl.iter().enumerate() {
                 let tile = p[f].map_or((0, 0, 0), |(x, y)| (x, y, faces[k]));
-                let partial = tile.2 > 0 && list.iter().any(|&i| casters[i as usize].partial.is_some());
+                let partial = tile.2 > 0 && (list.iter().any(|&i| casters[i as usize].partial.is_some()) || mask & sheet_sets != 0);
                 views.push(AtlasView { view_proj: *vp, tile, origin: l.pos, ortho: false, texel_m, range: reaches[k], partial });
                 view_casters.push(if tile.2 > 0 { list.clone() } else { Vec::new() });
-                view_gpu.push(tile.2 > 0 && *any_gpu);
+                view_gpu.push(if tile.2 > 0 { *mask } else { 0 });
                 view_light.push(Some(k));
             }
             lookups.push((li, kinds[k] * KIND_STRIDE + first as u32 + 1));
@@ -1571,11 +1681,11 @@ impl Renderer {
         // light's reach, every caster for the sun tile), so the cull can never run past it.
         let mut gpu_index: Vec<Option<u32>> = vec![None; views.len()];
         if gpu_on && !batches.is_empty() {
-            let arena_in_reach: Vec<u64> = in_reach.iter().map(|l| l.iter().filter(|&&i| casters[i as usize].arena.is_some()).count() as u64).collect();
+            let arena_in_reach: Vec<u64> = in_reach.iter().map(|l| l.iter().filter(|&&i| casters[i as usize].gpu.is_some()).count() as u64).collect();
             let mut cull_views: Vec<shadow_gpu::CullView> = Vec::new();
             let mut bound = 0u64;
             for &k in &drawn {
-                if !view_gpu[k] {
+                if view_gpu[k] == 0 {
                     continue;
                 }
                 gpu_index[k] = Some(cull_views.len() as u32);
@@ -1590,9 +1700,9 @@ impl Renderer {
                     }
                 }
             }
-            let cull_casters: Vec<shadow_gpu::CullCaster> = casters.iter().filter_map(|c| c.arena.map(|b| shadow_gpu::CullCaster::new(c.model, c.centre, c.radius, b, c.sun_only))).collect();
+            let cull_casters: Vec<shadow_gpu::CullCaster> = casters.iter().filter_map(|c| c.gpu.map(|p| shadow_gpu::CullCaster::new(c.model, c.centre, c.radius, p.batch, c.sun_only).with_extra(p.extra))).collect();
             let params = shadow_gpu::CullParams { cam: cam_planes.map(|p| p.to_array()), cull_off: u32::from(self.local_shadows.cull_off), margin, ..Default::default() };
-            self.local_shadows.gpu.upload(&self.device, &self.queue, params, &cull_views, &cull_casters, &batches, bound);
+            self.local_shadows.gpu.upload(&self.device, &self.queue, params, &cull_views, &cull_casters, &batches, gpu_sets.len() as u32, bound, humanity_core::reuse::enabled());
         } else {
             self.local_shadows.gpu.n_views = 0;
         }
@@ -1652,6 +1762,7 @@ impl Renderer {
         let mut skinned_draws = 0u32;
         let mut draws = 0u32;
         let mut gpu_views = 0u32;
+        let mut gpu_commands = 0u32;
         let mut fast_instances = 0u32;
         let atlas_view = &self.local_shadows.atlas.as_ref().expect("allocated above").1;
         // Two passes so each has its own timer: the near sun tile (clears the atlas), then the
@@ -1686,24 +1797,54 @@ impl Renderer {
             // them).
             let mut fast_bound = false;
             let mut fast_instances_bound = false;
-            let mut arena_bound = false;
+            // The GPU-driven sets' bound state: the pipeline (0 plain, 1 cutout), the cutout's
+            // material, the vertex source; None after anything else changed it.
+            let mut gpu_bound: Option<(u8, usize, u32)> = None;
             for &k in ks {
                 let v = &views[k];
                 let (x, y, s) = v.tile;
                 pass.set_viewport(x as f32, y as f32, s as f32, s as f32, 0.0, 1.0);
                 pass.set_scissor_rect(x, y, s, s);
-                // The GPU-driven casters first: ONE command for the face, the draws the cull wrote.
-                if let Some(g) = gpu_index[k] {
+                // The GPU-driven casters first: ONE command for each draw set the face holds, the
+                // draws the cull wrote (the sheets go to the transmittance atlas, step 7).
+                if let (Some(g), Some(dp), Some(inst)) = (gpu_index[k], self.local_shadows.gpu.draw_pipes(), self.local_shadows.gpu.instances()) {
                     let fp = &self.local_shadows.fast;
-                    if !fast_bound {
-                        pass.set_pipeline(&fp.pso);
-                        pass.set_bind_group(0, &fp.group, &[]);
-                        fast_bound = true;
+                    let mut drew = false;
+                    for (si, set) in gpu_sets.iter().enumerate() {
+                        if view_gpu[k] & (1 << si) == 0 || set.kind == shadow_gpu::SetKind::Sheet {
+                            continue;
+                        }
+                        let (pipe, material) = match set.kind {
+                            shadow_gpu::SetKind::Cutout(m) => (1u8, m),
+                            _ => (0u8, usize::MAX),
+                        };
+                        let Some((sv, si_buf)) = (if set.source == 0 { self.local_shadows.gpu.arena() } else { gpu_sources.get(set.source as usize - 1).map(|(v, i)| (v, i)) }) else { continue };
+                        let was = gpu_bound;
+                        if was.map(|b| b.0) != Some(pipe) {
+                            pass.set_pipeline(if pipe == 1 { &dp.cutout } else { &dp.plain });
+                            pass.set_bind_group(0, &fp.group, &[]);
+                            pass.set_vertex_buffer(1, inst.slice(..));
+                        }
+                        if pipe == 1 && was.map(|b| (b.0, b.1)) != Some((1, material)) {
+                            let group = self.materials.get(material).and_then(|m| m.shadow_albedo_group()).unwrap_or(&self.shadow_pass_texture_bind_group);
+                            pass.set_bind_group(1, group, &[]);
+                        }
+                        if was.map(|b| b.2) != Some(set.source) || was.is_none() {
+                            pass.set_vertex_buffer(0, sv.slice(..));
+                            pass.set_index_buffer(si_buf.slice(..), wgpu::IndexFormat::Uint32);
+                        }
+                        gpu_bound = Some((pipe, material, set.source));
+                        let (first, len) = set_runs[si];
+                        if self.local_shadows.gpu.draw_set(&mut pass, g, si as u32, first, len) {
+                            draws += 1;
+                            gpu_commands += 1;
+                            drew = true;
+                        }
                     }
-                    if self.local_shadows.gpu.draw_view(&mut pass, g, &mut arena_bound) {
-                        fast_instances_bound = false;
-                        draws += 1;
+                    if drew {
                         gpu_views += 1;
+                        fast_bound = false;
+                        fast_instances_bound = false;
                     }
                 }
                 // The fast path: one instanced draw per run of one mesh, no per-caster binding (the
@@ -1719,7 +1860,7 @@ impl Renderer {
                         pass.set_vertex_buffer(1, fp.instances.slice(..));
                         fast_instances_bound = true;
                     }
-                    arena_bound = false;
+                    gpu_bound = None;
                     for r in &runs[k] {
                         let Some(mesh) = self.meshes.get(r.mesh) else { continue };
                         mesh.bind_vertices(&mut pass);
@@ -1736,7 +1877,7 @@ impl Renderer {
                 }
                 fast_bound = false;
                 fast_instances_bound = false;
-                arena_bound = false;
+                gpu_bound = None;
                 pass.set_bind_group(0, &self.local_shadows.view_groups[k], &[]);
                 pass.set_bind_group(1, &self.object_bind_group, &[0]);
                 for cutout in [false, true] {
@@ -1794,7 +1935,7 @@ impl Renderer {
             });
             pass.set_pipeline(&tp.pso);
             pass.set_bind_group(0, &tp.group, &[]);
-            pass.set_vertex_buffer(1, tp.instances.slice(..));
+            let mut cpu_instances = false;
             for (k, list) in &transmit_draws {
                 let (x, y, s) = shadow_transmit::transmit_tile(views[*k].tile);
                 if s == 0 {
@@ -1804,10 +1945,32 @@ impl Renderer {
                 pass.set_scissor_rect(x, y, s, s);
                 for &(m, i) in list {
                     let Some(mesh) = self.meshes.get(m) else { continue };
+                    if !cpu_instances {
+                        pass.set_vertex_buffer(1, tp.instances.slice(..));
+                        cpu_instances = true;
+                    }
                     pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     pass.draw_indexed(mesh.indices(), mesh.base_vertex, i..i + 1);
                     partial_draws += 1;
+                }
+                // The GPU-driven sheets of this view: ONE command a sheet set, through the same
+                // pipeline (the cull's instances are its 80-byte layout).
+                let (Some(g), Some(inst)) = (gpu_index[*k], self.local_shadows.gpu.instances()) else { continue };
+                for (si, set) in gpu_sets.iter().enumerate() {
+                    if view_gpu[*k] & (1 << si) == 0 || set.kind != shadow_gpu::SetKind::Sheet {
+                        continue;
+                    }
+                    let Some((sv, si_buf)) = (if set.source == 0 { self.local_shadows.gpu.arena() } else { gpu_sources.get(set.source as usize - 1).map(|(v, i)| (v, i)) }) else { continue };
+                    pass.set_vertex_buffer(1, inst.slice(..));
+                    cpu_instances = false;
+                    pass.set_vertex_buffer(0, sv.slice(..));
+                    pass.set_index_buffer(si_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    let (first, len) = set_runs[si];
+                    if self.local_shadows.gpu.draw_set(&mut pass, g, si as u32, first, len) {
+                        partial_draws += 1;
+                        gpu_commands += 1;
+                    }
                 }
             }
         }
@@ -1834,6 +1997,8 @@ impl Renderer {
             gpu_views,
             gpu_casters,
             gpu_meshes: batches.len() as u32,
+            gpu_commands,
+            gpu_more: !self.local_shadows.gpu_more_off,
             fast_left,
             gpu_missing: self.local_shadows.gpu.missing_mask,
             partial_draws,
@@ -1848,8 +2013,8 @@ impl Renderer {
             None => true,
             Some((t, s)) => {
                 let quiet = now.duration_since(t).as_secs_f32();
-                let changed = s.shadowed != stats.shadowed || s.near_sun != stats.near_sun || s.atlas != stats.atlas || (s.culled > 0) != (stats.culled > 0) || s.path != stats.path;
-                if s.path != stats.path {
+                let changed = s.shadowed != stats.shadowed || s.near_sun != stats.near_sun || s.atlas != stats.atlas || (s.culled > 0) != (stats.culled > 0) || s.path != stats.path || s.gpu_more != stats.gpu_more;
+                if s.path != stats.path || s.gpu_more != stats.gpu_more {
                     self.local_shadows.path_changed = Some(now);
                 }
                 // Said again 4 s after a path change, once the smoothed times hold only the new path.
@@ -1877,12 +2042,29 @@ impl Renderer {
             );
             log::info!("[Shadows] the shadowed lamps, most important first: {}", words.join("; "));
             let g = &self.local_shadows.gpu;
+            let set_words: Vec<String> = gpu_sets
+                .iter()
+                .zip(&set_runs)
+                .map(|(s, r)| {
+                    let kind = match s.kind {
+                        shadow_gpu::SetKind::Plain => "plain".to_string(),
+                        shadow_gpu::SetKind::Cutout(m) => format!("cutout of material {m}"),
+                        shadow_gpu::SetKind::Sheet => "sheets".to_string(),
+                    };
+                    format!("{kind} from {} ({} meshes)", if s.source == 0 { "the arena".to_string() } else { format!("skinned buffers {}", s.source) }, r.1)
+                })
+                .collect();
             log::info!(
-                "[Shadows] GPU-driven casters ({:?}): {} views drawn from the GPU's own list (one command each), {} casters of {} meshes culled on the GPU, {} plain casters left on the per-draw loop, {} meshes copied into the arena this frame; the arena holds {} meshes ({:.1} MB with the cull's buffers); {} classic caster draws ({} of them cutouts, the rest moved by the megashader's vertex stage) and {} skinned body draws on the per-draw loop",
+                "[Shadows] GPU-driven casters ({:?}{}): {} views drawn from the GPU's own list in {} commands ({} draw sets: {}), {} casters of {} meshes culled on the GPU ({} of them written to it this frame), {} plain casters left on the per-draw loop, {} meshes copied into the arena this frame; the arena holds {} meshes ({:.1} MB with the cull's buffers); {} classic caster draws ({} of them cutouts) and {} skinned body draws (the middle tier and the first-person twin) on the per-draw loop",
                 stats.path,
+                if self.local_shadows.gpu_more_off { ", plain arena casters only: shadow_gpu_more 0" } else { "" },
                 stats.gpu_views,
+                gpu_commands,
+                gpu_sets.len(),
+                set_words.join("; "),
                 stats.gpu_casters,
                 stats.gpu_meshes,
+                g.written,
                 stats.fast_left,
                 gpu_copies,
                 g.book.len(),

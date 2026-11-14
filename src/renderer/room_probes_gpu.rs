@@ -778,6 +778,9 @@ impl Renderer {
             &self.room_gi,
             self.local_shadows.colour_binding(&self.film_blur),
         );
+        // The film blur's far-side pass binds its own camera buffer beside the same resources
+        // (renderer/film_blur.rs: the film mode rides the camera uniform, and one submit holds both).
+        self.film_blur.far_group = Some(self.film_far_group());
         // The shadow atlas pass's own per-view groups bind the same buffers: made again on next need.
         self.local_shadows.forget_view_groups();
         self.room_gi.rebind = false;

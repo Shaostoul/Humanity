@@ -54,14 +54,21 @@ use glam::{Vec3, Vec4};
 
 /// The shader (its own module, not the megashader: no `PSO_REGISTRY` row).
 pub const CULL_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/shadow_cull.wgsl"));
+/// The plain sets' shader: the fast path's own (`local_shadows`), read here at this path's instance
+/// stride.
+const PLAIN_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/shadow_atlas_instanced.wgsl"));
+/// The cutout sets' shader (card hair's alpha test, LOCKSTEP with `fs_shadow`'s type 26 branch).
+pub const CUTOUT_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/shadow_atlas_cutout.wgsl"));
 
 /// Bytes of one arena vertex: the mesh's own `Vertex`, copied whole so the fast path's pipeline
 /// reads the arena exactly as it reads a mesh.
 pub const VERTEX_BYTES: u64 = std::mem::size_of::<humanity_core::vertex::Vertex>() as u64;
 /// Bytes of one `DrawIndexedIndirect` argument set.
 pub const DRAW_ARGS_BYTES: u64 = 20;
-/// Bytes of one caster instance (its model matrix, the view's index in column 0's w).
-pub const INSTANCE_BYTES: u64 = 64;
+/// Bytes of one caster instance: its model matrix (the view's index in column 0's w) and its extra
+/// (a sheet's transmittance, a cutout's material type and threshold), the transmittance pass's own
+/// instance layout (`shadow_transmit::INSTANCE_BYTES`), so one buffer feeds every set's pipeline.
+pub const INSTANCE_BYTES: u64 = 80;
 /// The compute shader's workgroup width.
 const WORKGROUP: u32 = 64;
 
@@ -129,7 +136,9 @@ pub struct CullParams {
     pub cull_off: u32,
     pub margin: f32,
     pub instance_cap: u32,
-    pub pad: [u32; 2],
+    /// How many draw sets this frame (`DrawSet`): the draw counts per view.
+    pub n_sets: u32,
+    pub pad: u32,
 }
 
 /// One drawn view: a light's face or the near sun tile.
@@ -166,24 +175,67 @@ pub struct CullCaster {
     pub sphere: [f32; 4],
     /// x the batch, y 1 for a celestial piece that casts into the near sun tile only.
     pub tag: [u32; 4],
+    /// What the set's pipeline reads beside the matrix (`INSTANCE_BYTES`): zeros for a plain caster.
+    pub extra: [f32; 4],
 }
 
 impl CullCaster {
     /// A caster from the processor's form (an infinite radius is unbounded).
     pub fn new(model: [f32; 16], centre: Vec3, radius: f32, batch: u32, sun_only: bool) -> Self {
         let r = if radius.is_finite() { radius } else { -1.0 };
-        CullCaster { model, sphere: [centre.x, centre.y, centre.z, r], tag: [batch, u32::from(sun_only), 0, 0] }
+        CullCaster { model, sphere: [centre.x, centre.y, centre.z, r], tag: [batch, u32::from(sun_only), 0, 0], extra: [0.0; 4] }
+    }
+
+    /// The same, with what its set's pipeline reads beside the matrix.
+    pub fn with_extra(mut self, extra: [f32; 4]) -> Self {
+        self.extra = extra;
+        self
     }
 }
 
-/// One batch: an arena mesh's index range and base vertex.
+/// One batch: a mesh's index range and base vertex in its set's vertex source (the arena, or the
+/// skinned bodies' own buffers), the set it is drawn in, and where that set's run of draws starts in
+/// each view's section of the argument buffer (its earlier sets' batch counts).
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CullBatch {
     pub index_count: u32,
     pub first_index: u32,
     pub base_vertex: i32,
-    pub pad: u32,
+    pub set: u32,
+    pub set_first: u32,
+    pub pad: [u32; 3],
+}
+
+/// What a draw set draws with (2026-11-14, the room light shadows' next rung): each set is one
+/// pipeline over one vertex source, so ONE indirect command a view draws all of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SetKind {
+    /// Plain surfaces: depth only (the fast path's shader).
+    Plain,
+    /// Alpha-tested surfaces of one material (its albedo bound for the test): card hair.
+    Cutout(usize),
+    /// See-through sheets, into the transmittance atlas (shadow_transmit's pipeline).
+    Sheet,
+}
+
+/// One draw set: its kind and its vertex source (0 the arena, then each skinned buffer pair met).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DrawSet {
+    pub kind: SetKind,
+    pub source: u32,
+}
+
+/// The most draw sets a frame (a face's sets are a bit mask): a caster whose set would pass it stays
+/// on the per-draw loop.
+pub const MAX_SETS: usize = 64;
+
+/// Whether a cutout caster can be drawn by the GPU-driven cutout pipeline
+/// (`assets/shaders/shadow_atlas_cutout.wgsl`): only card hair (type 26) has its test there; the
+/// photoscanned leaves (19) and the cluster cards (21) sway in the megashader's vertex stage, and the
+/// sprite tree cards (12) are terrain, so those stay on the per-draw loop.
+pub fn gpu_cutout_type(material_type: f32) -> bool {
+    (25.5..26.5).contains(&material_type)
 }
 
 /// One `DrawIndexedIndirect` argument set, as the shader writes it and the GPU reads it.
@@ -292,7 +344,7 @@ pub struct ArenaSlot {
 impl ArenaSlot {
     /// The batch a draw of this mesh reads.
     pub fn batch(&self) -> CullBatch {
-        CullBatch { index_count: self.icount, first_index: self.ibase, base_vertex: self.vbase as i32, pad: 0 }
+        CullBatch { index_count: self.icount, first_index: self.ibase, base_vertex: self.vbase as i32, ..Default::default() }
     }
 }
 
@@ -465,10 +517,103 @@ pub struct GpuCasters {
     draw_counts: Option<wgpu::Buffer>,
     instances: Option<wgpu::Buffer>,
     group: Option<wgpu::BindGroup>,
+    /// The sets' pipelines (plain and cutout; the sheets draw through shadow_transmit's own).
+    draw_pipes: Option<DrawPipes>,
+    /// What the caster buffer holds now (the last upload): each frame only the runs that differ are
+    /// written (2026-11-14, the uploads written only for what changed). Reuse: versioned by its own
+    /// content, compared whole every frame; with `humanity_core::reuse::enabled()` false every
+    /// caster is written every frame, as the merged code did.
+    held: Vec<CullCaster>,
+    /// This frame's caster upload, for the log line: casters written, of casters.
+    pub written: u32,
     /// This frame's counts (0 views or 0 batches = nothing to cull or draw).
     pub n_views: u32,
     pub n_batches: u32,
     pub n_casters: u32,
+    pub n_sets: u32,
+}
+
+/// The sets' pipelines: the plain one (the fast path's shader at this path's 80-byte instance) and
+/// the cutout one (`CUTOUT_WGSL`, the material's albedo at group 1).
+pub struct DrawPipes {
+    pub plain: wgpu::RenderPipeline,
+    pub cutout: wgpu::RenderPipeline,
+}
+
+impl DrawPipes {
+    fn new(device: &wgpu::Device, view_layout: &wgpu::BindGroupLayout, texture_layout: &wgpu::BindGroupLayout) -> Self {
+        let instance_attrs = [
+            wgpu::VertexAttribute { offset: 0, shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
+            wgpu::VertexAttribute { offset: 16, shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
+            wgpu::VertexAttribute { offset: 32, shader_location: 3, format: wgpu::VertexFormat::Float32x4 },
+            wgpu::VertexAttribute { offset: 48, shader_location: 4, format: wgpu::VertexFormat::Float32x4 },
+            wgpu::VertexAttribute { offset: 64, shader_location: 5, format: wgpu::VertexFormat::Float32x4 },
+        ];
+        // The mesh's own vertices (humanity_core::vertex::Vertex, 32 bytes): the position, and for the
+        // cutouts the uv at 24.
+        let plain_vertex = [wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 }];
+        let cut_vertex = [
+            wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
+            wgpu::VertexAttribute { offset: 24, shader_location: 6, format: wgpu::VertexFormat::Float32x2 },
+        ];
+        let make = |label: &str, src: &str, vs: &str, fs: Option<&str>, layouts: &[&wgpu::BindGroupLayout], vertex: &[wgpu::VertexAttribute], instance: &[wgpu::VertexAttribute]| {
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some(label), source: wgpu::ShaderSource::Wgsl(src.into()) });
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some(label), bind_group_layouts: layouts, push_constant_ranges: &[] });
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&layout),
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some(vs),
+                    buffers: &[
+                        wgpu::VertexBufferLayout { array_stride: VERTEX_BYTES, step_mode: wgpu::VertexStepMode::Vertex, attributes: vertex },
+                        wgpu::VertexBufferLayout { array_stride: INSTANCE_BYTES, step_mode: wgpu::VertexStepMode::Instance, attributes: instance },
+                    ],
+                    compilation_options: Default::default(),
+                },
+                fragment: fs.map(|e| wgpu::FragmentState { module: &module, entry_point: Some(e), targets: &[], compilation_options: Default::default() }),
+                // The fast path's and the sun shadow PSOs' state: every path writes the same depth for
+                // the same triangle.
+                primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
+        DrawPipes {
+            plain: make("Shadow GPU Plain Pipeline", PLAIN_WGSL, "vs_shadow_instanced", None, &[view_layout], &plain_vertex, &instance_attrs[..4]),
+            cutout: make("Shadow GPU Cutout Pipeline", CUTOUT_WGSL, "vs_cutout", Some("fs_cutout"), &[view_layout, texture_layout], &cut_vertex, &instance_attrs),
+        }
+    }
+}
+
+/// THE CASTER UPLOAD WRITES ONLY WHAT CHANGED: the runs of `now` that differ from `held` (what the
+/// buffer holds), joined across gaps under `JOIN` casters (one write is cheaper than two small
+/// ones), and everything past `held`'s end. All of it when `reuse` is false or the buffer was made
+/// again (`fresh`). Pure, so it is tested without a GPU.
+pub fn changed_runs(held: &[CullCaster], now: &[CullCaster], reuse: bool, fresh: bool) -> Vec<std::ops::Range<usize>> {
+    const JOIN: usize = 8;
+    if !reuse || fresh || held.is_empty() {
+        return if now.is_empty() { Vec::new() } else { vec![0..now.len()] };
+    }
+    let mut runs: Vec<std::ops::Range<usize>> = Vec::new();
+    for i in 0..now.len() {
+        if held.get(i) == Some(&now[i]) {
+            continue;
+        }
+        match runs.last_mut() {
+            Some(r) if i - r.end <= JOIN => r.end = i + 1,
+            _ => runs.push(i..i + 1),
+        }
+    }
+    runs
 }
 
 struct CullPipes {
@@ -520,7 +665,9 @@ fn ensure(device: &wgpu::Device, have: &mut Option<wgpu::Buffer>, bytes: u64, la
 }
 
 impl GpuCasters {
-    pub fn new(device: &wgpu::Device) -> Self {
+    /// `view_layout` is the fast path's views group (the sets' group 0), `texture_layout` the
+    /// megashader's group 3 (a material's albedo, the cutout sets' group 1).
+    pub fn new(device: &wgpu::Device, view_layout: &wgpu::BindGroupLayout, texture_layout: &wgpu::BindGroupLayout) -> Self {
         let granted = device.features();
         let available = granted.contains(required_features());
         let max = device.limits().max_buffer_size;
@@ -529,6 +676,10 @@ impl GpuCasters {
             missing: missing_features(granted),
             missing_mask: missing_mask(granted),
             pipes: available.then(|| CullPipes::new(device)),
+            draw_pipes: available.then(|| DrawPipes::new(device, view_layout, texture_layout)),
+            held: Vec::new(),
+            written: 0,
+            n_sets: 0,
             book: ArenaBook::new(ARENA_V0, ARENA_I0),
             arena_v: None,
             arena_i: None,
@@ -598,25 +749,32 @@ impl GpuCasters {
     }
 
     /// Upload this frame's casters, views and batches, sizing every buffer (the instance buffer for
-    /// `instance_bound` pairs, the processor's count of every candidate pair, so it never overruns).
-    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, mut params: CullParams, views: &[CullView], casters: &[CullCaster], batches: &[CullBatch], instance_bound: u64) {
+    /// `instance_bound` pairs, the processor's count of every candidate pair, so it never overruns;
+    /// the draw counts for `n_sets` sets a view). The casters are written only where they changed
+    /// (`changed_runs`), all of them with `reuse` false.
+    #[allow(clippy::too_many_arguments)]
+    pub fn upload(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, mut params: CullParams, views: &[CullView], casters: &[CullCaster], batches: &[CullBatch], n_sets: u32, instance_bound: u64, reuse: bool) {
         self.n_views = views.len() as u32;
         self.n_batches = batches.len() as u32;
         self.n_casters = casters.len() as u32;
+        self.n_sets = n_sets.max(1);
+        self.written = 0;
         if self.pipes.is_none() || views.is_empty() || batches.is_empty() || casters.is_empty() {
             self.n_views = 0;
             return;
         }
+        let n_sets = self.n_sets as u64;
         let vb = views.len() as u64 * batches.len() as u64;
         use wgpu::BufferUsages as U;
         let mut remade = false;
         remade |= ensure(device, &mut self.params, std::mem::size_of::<CullParams>() as u64, "Shadow Cull Params", U::UNIFORM | U::COPY_DST);
         remade |= ensure(device, &mut self.views, std::mem::size_of_val(views) as u64, "Shadow Cull Views", U::STORAGE | U::COPY_DST);
-        remade |= ensure(device, &mut self.casters, std::mem::size_of_val(casters) as u64, "Shadow Cull Casters", U::STORAGE | U::COPY_DST);
+        let casters_fresh = ensure(device, &mut self.casters, std::mem::size_of_val(casters) as u64, "Shadow Cull Casters", U::STORAGE | U::COPY_DST);
+        remade |= casters_fresh;
         remade |= ensure(device, &mut self.batches, std::mem::size_of_val(batches) as u64, "Shadow Cull Batches", U::STORAGE | U::COPY_DST);
         remade |= ensure(device, &mut self.counters, (3 * vb + 1) * 4, "Shadow Cull Counters", U::STORAGE | U::COPY_DST | U::COPY_SRC);
         remade |= ensure(device, &mut self.draws, vb * DRAW_ARGS_BYTES, "Shadow Cull Draws", U::STORAGE | U::INDIRECT | U::COPY_SRC);
-        remade |= ensure(device, &mut self.draw_counts, views.len() as u64 * 4, "Shadow Cull Draw Counts", U::STORAGE | U::INDIRECT | U::COPY_DST | U::COPY_SRC);
+        remade |= ensure(device, &mut self.draw_counts, views.len() as u64 * n_sets * 4, "Shadow Cull Draw Counts", U::STORAGE | U::INDIRECT | U::COPY_DST | U::COPY_SRC);
         remade |= ensure(device, &mut self.instances, instance_bound.max(1) * INSTANCE_BYTES, "Shadow Cull Instances", U::STORAGE | U::VERTEX | U::COPY_SRC);
         if remade || self.group.is_none() {
             let pipes = self.pipes.as_ref().expect("checked above");
@@ -641,11 +799,18 @@ impl GpuCasters {
         params.n_casters = self.n_casters;
         params.n_views = self.n_views;
         params.n_batches = self.n_batches;
+        params.n_sets = self.n_sets;
         params.instance_cap = (self.instances.as_ref().map_or(0, |b| b.size()) / INSTANCE_BYTES).min(u32::MAX as u64) as u32;
         let w = |buf: &Option<wgpu::Buffer>, bytes: &[u8]| queue.write_buffer(buf.as_ref().expect("made above"), 0, bytes);
         w(&self.params, bytemuck::bytes_of(&params));
         w(&self.views, bytemuck::cast_slice(views));
-        w(&self.casters, bytemuck::cast_slice(casters));
+        let cbuf = self.casters.as_ref().expect("made above");
+        for r in changed_runs(&self.held, casters, reuse, casters_fresh) {
+            queue.write_buffer(cbuf, r.start as u64 * std::mem::size_of::<CullCaster>() as u64, bytemuck::cast_slice(&casters[r.clone()]));
+            self.written += r.len() as u32;
+        }
+        self.held.clear();
+        self.held.extend_from_slice(casters);
         w(&self.batches, bytemuck::cast_slice(batches));
     }
 
@@ -678,7 +843,7 @@ impl GpuCasters {
         let (Some(pipes), Some(group), Some(counters), Some(draw_counts)) = (self.pipes.as_ref(), self.group.as_ref(), self.counters.as_ref(), self.draw_counts.as_ref()) else { return copied };
         let vb = self.n_views as u64 * self.n_batches as u64;
         encoder.clear_buffer(counters, 0, Some((3 * vb + 1) * 4));
-        encoder.clear_buffer(draw_counts, 0, Some(self.n_views as u64 * 4));
+        encoder.clear_buffer(draw_counts, 0, Some(self.n_views as u64 * self.n_sets as u64 * 4));
         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Shadow Cull Pass"), timestamp_writes: timer });
         pass.set_bind_group(0, group, &[]);
         let caster_groups = self.n_casters.div_ceil(WORKGROUP);
@@ -691,23 +856,33 @@ impl GpuCasters {
         copied
     }
 
-    /// Draw view `g` (its index in this frame's `CullView`s): ONE indirect multi-draw over its
-    /// section of the argument buffer, its count from the GPU. The caller has bound the fast path's
-    /// pipeline and view group; this binds the arena and the instances (once a pass: `bound`).
-    pub fn draw_view<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, g: u32, bound: &mut bool) -> bool {
-        let (Some(av), Some(ai), Some(inst), Some(draws), Some(counts)) = (self.arena_v.as_ref(), self.arena_i.as_ref(), self.instances.as_ref(), self.draws.as_ref(), self.draw_counts.as_ref()) else { return false };
-        if g >= self.n_views || self.n_batches == 0 {
+    /// Draw set `s` (its batches `first .. first + len` of the batch list) of view `g` (its index in
+    /// this frame's `CullView`s): ONE indirect multi-draw over the set's run of the view's section of
+    /// the argument buffer, its count from the GPU. The caller has bound the set's pipeline, its
+    /// groups, its vertex source at slot 0 and index buffer, and `instances()` at slot 1.
+    pub fn draw_set(&self, pass: &mut wgpu::RenderPass<'_>, g: u32, s: u32, first: u32, len: u32) -> bool {
+        let (Some(draws), Some(counts)) = (self.draws.as_ref(), self.draw_counts.as_ref()) else { return false };
+        if g >= self.n_views || s >= self.n_sets || len == 0 {
             return false;
         }
-        if !*bound {
-            pass.set_vertex_buffer(0, av.slice(..));
-            pass.set_vertex_buffer(1, inst.slice(..));
-            pass.set_index_buffer(ai.slice(..), wgpu::IndexFormat::Uint32);
-            *bound = true;
-        }
-        let stride = self.n_batches as u64 * DRAW_ARGS_BYTES;
-        pass.multi_draw_indexed_indirect_count(draws, g as u64 * stride, counts, g as u64 * 4, self.n_batches);
+        let at = (g as u64 * self.n_batches as u64 + first as u64) * DRAW_ARGS_BYTES;
+        pass.multi_draw_indexed_indirect_count(draws, at, counts, (g as u64 * self.n_sets as u64 + s as u64) * 4, len);
         true
+    }
+
+    /// The arena's vertex and index buffers (the vertex source 0), once made.
+    pub fn arena(&self) -> Option<(&wgpu::Buffer, &wgpu::Buffer)> {
+        Some((self.arena_v.as_ref()?, self.arena_i.as_ref()?))
+    }
+
+    /// The instances the cull writes (every set's slot 1).
+    pub fn instances(&self) -> Option<&wgpu::Buffer> {
+        self.instances.as_ref()
+    }
+
+    /// The sets' pipelines (None on a device without the features).
+    pub fn draw_pipes(&self) -> Option<&DrawPipes> {
+        self.draw_pipes.as_ref()
     }
 
     /// Video memory: the arena and the cull's buffers.

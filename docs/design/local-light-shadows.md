@@ -613,6 +613,122 @@ before (half of it moved, not added), and the processor's 1.1 to 1.3 ms is one m
 submit; folding both into the see-through pass's own submit (the far sides through a second camera
 group, since the film mode rides the camera uniform) is the next step.
 
+### Built: the rest of the casters on the GPU, and the blur folded and edge-correct (2026-11-14)
+
+The operator's question stands ("Shouldn't shadows and all other renderer stuff be on the GPU?"):
+after the GPU-driven casters the processor still drew the cutouts, the skinned bodies and the
+see-through sheets one draw at a time, uploaded every caster every frame, and the blur behind the
+film cost an encoder and a submit of its own.
+
+- **Draw sets** (`shadow_gpu::DrawSet`, `SetKind`): the cull (`shadow_cull.wgsl`) now writes each
+  (view, batch) into its SET's run of the view's section of the argument buffer, a set being one
+  pipeline over one vertex source, so each set of a face is ONE `multi_draw_indexed_indirect_count`.
+  The sets: plain surfaces (the fast path's shader, now read at an 80-byte instance), card-hair
+  cutouts of one material (`assets/shaders/shadow_atlas_cutout.wgsl`, `fs_shadow`'s type 26 branch
+  written again and held equal to it by `the_cutout_sets_test_is_fs_shadows`; the material's albedo
+  at group 1, the threshold in the instance's extra), and see-through sheets (drawn by
+  shadow_transmit's own pipeline into the transmittance atlas: its 80-byte instance IS the cull's,
+  the sheet's transmittance in the extra). A source is the arena, or a skinned body's own vertex and
+  index buffers. The rule is the same `keeps` for every set; the processor tests the few casters of
+  the non-plain sets per face (so a set is drawn, and its material bound, only where it has a caster)
+  and stops at the first caster of a set that passes, as it did for the plain casters.
+- **The skinned near bodies cast from the vertices the main view draws**: their meshes'
+  `prev_vertex_buffer` marks them, and their set's source is their own output buffer (the own-mesh
+  pool's, one source for every pooled body), skinned this frame by the compute pass that the same
+  encoder records first. Never the arena: a copy keyed by the mesh's serial would hold last frame's
+  pose (`a_skinned_body_casts_from_the_vertices_skinned_this_frame` draws both and sees the arena's
+  shadow stay behind when a bone moves). Their bounds are the generous body sphere (`BODY_RADIUS_M`),
+  culled on the GPU like any caster.
+- **The caster upload writes only what changed** (`shadow_gpu::changed_runs`): the buffer's last
+  contents are kept and compared caster by caster, and only the runs that differ are written (runs
+  under eight apart joined). Versioned by its own contents, so it cannot go stale; with
+  `humanity_core::reuse::enabled()` false every caster is written every frame, as before.
+- **What still goes through the per-draw loop**: the swaying classes (photoscanned leaves, cluster
+  cards, the wind classes: their shapes come from the megashader's vertex stage), the sprite tree
+  cards (terrain), and the MIDDLE-TIER bodies and the first-person twin, which the main view skins in
+  the vertex shader, so there are no skinned vertices to cast from (see what remains, below).
+- **The blur behind the film, folded** (`film_blur.rs`): the far sides, the coverage and the pyramid
+  are recorded into the see-through pass's own encoder and go with its one submit; the far sides bind
+  a camera group of their own (`far_camera`, made with the others in `rebuild_camera_bind_groups`),
+  because the film mode rides the camera uniform and one submit cannot hold two values of one
+  buffer, and the films' object uniforms are the see-through list's own slots (one upload).
+- **Edge-correct: a coverage mask** (the known "dark edges at night"). The films' faces are drawn
+  once more, depth-tested against the scene and writing nothing but 1 into an `R8Unorm` mark at the
+  render's size; the pyramid's base weighs each scene texel by that mark, texel by texel (a 4 x 4
+  tent, `base_texel` its CPU twin), every level keeps colour times coverage in rgb and the coverage in
+  alpha, and `film_frost` divides one by the other (`film_covered`, `covered_mean`): a NORMALIZED
+  CONVOLUTION (Knutsson and Westin, CVPR 1993), so a texel no film covers weighs nothing however wide
+  the disc. The depth behind moved to the pyramid's second layer (`texture_2d_array` at binding 12,
+  still one of the stage's 16 textures). A bilinear tap was not used for the base: it would mix a
+  covered texel's coverage with its uncovered neighbour's colour.
+- **Only the screen the films cover**: `screen_rect` projects each film's bounding sphere (its view
+  box's corners; one reaching the eye's plane takes the whole render) and `level_rect` carries the
+  rectangle to each level, padded by the downsample's reach; every level is cleared whole (coverage
+  0, which is what it is outside the films) and only that rectangle is shaded.
+- **The red twins**: showcase `shadow_gpu_more` "0" puts the bodies, the card hair and the sheets
+  back on the per-draw loop (the merged GPU-driven path); `film_v1` "1" gives the blur its own
+  encoder and submit again, no coverage and the whole screen (the merged blur).
+
+**Measured** (2026-11-14, RTX 4070, release build, the rig at 2560 x 1387, `same_park`; "new" the
+four captures of this rung, "old" three of `shadow_gpu_more` "0" with `film_v1` "1", alternated,
+medians; night vantages on one boot, noon on another; other agents compiled throughout, so every
+capture was marked contaminated and the processor numbers are wall clock on a busy machine;
+captures `s3-ab-night` and `s3-ab-noon` in the session scratchpad):
+
+| Vantage | `cpu.shadow_local` old / new | thread (`cpu.span.shadow_atlas`) old / new | `gpu.shadow_local` old / new |
+|---|---|---|---|
+| shadow-hall-chair-night | 2.38 / 1.95 (-18%) | 2.83 / 2.43 | 0.272 / 0.273 |
+| shadow-racks-night | 3.01 / 2.02 (-33%) | 3.60 / 2.55 | 0.213 / 0.214 |
+| film-racks-night | 2.49 / 2.37 (-5%) | 3.05 / 2.97 | 0.275 / 0.274 |
+| anim-crowd-near | 2.84 / 2.27 (-20%) | 3.12 / 2.75 | 0.250 / 0.218 |
+| home-racks-noon | 2.01 / 1.67 (-17%) | 2.52 / 2.11 | 0.271 / 0.271 |
+| film-racks-noon | 2.04 / 1.75 (-14%) | 2.62 / 2.26 | 0.273 / 0.271 |
+| shadow-racks-noon | 1.44 / 1.35 (-7%) | 1.81 / 1.73 | 0.210 / 0.210 |
+| home-overview-noon | 2.20 / 4.29 (see below) | 2.53 / 4.80 | 0.603 / 0.603 |
+
+The overview is the one vantage where the new arms read higher, all four of them (3.8 to 5.0 ms),
+but the arm with this rung's casters and the blur off read 2.24, and the frame's other processor
+costs moved as much between arms there (`cpu.scene` 5.7 to 9.6 ms): it follows the blur being on, not
+the casters, and wants a quiet-machine measurement before anything is concluded. Commands and draws
+(the log line): the hall's 43 views in 59 commands of 5 sets (the merged path 43), its classic draws
+242 to 230; the crowd's caster draws 793 to 520 to 610, the 148 near bodies' plain casters and their
+hair (24 sets, most of them one hair material each) all on the GPU; the caster upload writes 0 to 37
+of 700 to 960 casters a frame. **What is left on the per-draw loop**, so the 0.3 ms target is still not
+met: in the hall and the racks the cutouts that SWAY (214 of the hall's 230 classic draws are
+photoscanned leaves and cluster cards, not card hair), and in the crowd the middle tier's skinned
+draws (about 540 a frame). The pictures are the same: the share of pixels more than 4 codes apart,
+new against the per-draw loop (`shadow_gpu` "0") of one park, 1.89% in the hall against 0.96% between
+two new captures (a moving person), 0.65% against 0.28% over the racks at night, 2.76% against 3.02%
+in the crowd, and a diff of the tent racks shows only edges and the floating labels; the racks gate
+passes (`shadow-metrics.mjs --gate`: the racks at night keep 0.434 of their light under the shadow;
+`home-shadow-metrics.mjs --gate`, atlas off against on: the shelf keeps 0.202, the open floor moves
+0.00 codes, the hut's floor keeps 0.124).
+
+The blur behind the film, `cpu.film_blur` old / new: film-racks-night 0.89 / 0.98, film-racks-noon
+0.79 / 0.80, shadow-racks-night 1.29 / 1.16, and where films are in the see-through list but none on
+screen 0.91 / 0.005 (the hall) and 1.32 / 0.005 (the planet hut): the rectangle test stops it. **The
+fold saved no processor time**: the instrumented log line (`[FilmBlur] cpu this frame`) splits it into
+the setup 35 microseconds, the far sides of 14 films 160, the coverage 160 and the pyramid 620 to 700,
+the pyramid costing that even over a 5 x 5 rectangle, so it is the six render passes, six bind groups
+and six uploads a frame, not the submit the merged version blamed. **The GPU met its plan**: the blur's
+own work (`gpu.film_blur`, the coverage and the pyramid) 0.098 ms over the tents at night (0.084 before,
+the whole screen without coverage), 0.048 over the racks, 0.022 in the overview; the far sides
+(`gpu.film_far`, the films' own shading the see-through pass did before) 0.89 ms. Against the films
+drawn sharp (`film_blur` "0"), the nearest tent's whole front at night reads 8.9% darker with the merged
+blur and 7.4% with this one, its upper front (where the shelves show through) 17.8% and 14.4%, the strip
+along its outline 3% in both, and the far tents among lit ones 4.1% and 4.5% brighter: the coverage
+removes what the outline borrowed from beside the tent (the GPU test proves it texel by texel), and
+what is left is the blur moving the lit inside's light about, which a sharp drawing of the cover does
+not do (it also draws a cover's faces unsorted).
+
+**Next, in the order they pay**: the pyramid as ONE compute pass of six dispatches with its level
+bind groups made with the pyramid and one upload of all six levels' numbers (the 0.62 ms); the
+swaying classes on the GPU path (`wind_displace` written once more for an instanced cutout shader,
+lockstep-tested like the hair: most of the hall's and the racks' remaining draws); the middle tier
+compute-skinned once a frame into a shadow pool (the compute shader needs an output base separate
+from its source's, `skinning.wgsl` `vertex_base` serves both today) and drawn as a skinned set (the
+crowd's 540 draws).
+
 ## 11. Questions only the operator can answer
 
 1. **How many lamps should Full shadow?** Rung 1 shadows the 8 that matter most where you look

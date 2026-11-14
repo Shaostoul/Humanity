@@ -1449,11 +1449,16 @@ fn film_blur_lod(r: f32, top: f32) -> f32 {
 // scene behind blurred by the gap's disc; the share that goes straight through
 // stays the sharp scene already under it. Straight alpha out, so the blend
 // gives film * a + blurred * (1 - a) * haze + sharp * (1 - a) * (1 - haze).
+// The pyramid is a normalized convolution (film_blur.wgsl's header): its rgb is
+// the covered scene times its coverage and its alpha the coverage, so the blur
+// is their quotient and a tap beside the tent, covered by no film, weighs
+// nothing. Where no tap is covered at all (never on a film's own pixel, which
+// its coverage pass drew) the film is drawn whole, as before the blur.
 fn film_frost(px: vec2<f32>, world: vec3<f32>, c: vec4<f32>) -> vec4<f32> {
     let fb = camera.light4_spot;
     let inv = camera.light5_spot.xy;
     let uv = px * inv;
-    let behind_z = textureSampleLevel(film_behind, film_behind_samp, uv, 0.0).a;
+    let behind_z = textureSampleLevel(film_behind, film_behind_samp, uv, 1, 0.0).r;
     let z = max((camera.view_proj * vec4<f32>(world, 1.0)).w, 0.01);
     let gap = film_gap(behind_z - z, material.params2.w);
     let lod = film_blur_lod(film_blur_radius(gap, z, material.params2.z, fb.y), fb.z);
@@ -1461,14 +1466,25 @@ fn film_frost(px: vec2<f32>, world: vec3<f32>, c: vec4<f32>) -> vec4<f32> {
     // filter, so the level's square texels never show. A base texel is two
     // render pixels.
     let h = exp2(lod) * inv;
-    let b = 0.25 * (textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(-h.x, -h.y), lod)
-        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(h.x, -h.y), lod)
-        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(-h.x, h.y), lod)
-        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(h.x, h.y), lod));
-    let haze = clamp(material.params2.x / max(material.params2.y, 0.001), 0.0, 1.0);
+    let b = 0.25 * (textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(-h.x, -h.y), 0, lod)
+        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(h.x, -h.y), 0, lod)
+        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(-h.x, h.y), 0, lod)
+        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(h.x, h.y), 0, lod));
+    let blurred = film_covered(b);
+    let haze = select(0.0, clamp(material.params2.x / max(material.params2.y, 0.001), 0.0, 1.0), blurred.a > 0.5);
     let a = c.a;
     let a_out = a + (1.0 - a) * haze;
-    return vec4<f32>((c.rgb * a + b.rgb * ((1.0 - a) * haze)) / max(a_out, 0.0001), a_out);
+    return vec4<f32>((c.rgb * a + blurred.rgb * ((1.0 - a) * haze)) / max(a_out, 0.0001), a_out);
+}
+
+// The blurred scene from the pyramid's taps: colour times coverage over the
+// coverage, alpha 1 when any tap was covered (0: nothing behind a film here).
+// CPU twin: film_blur::covered_mean.
+fn film_covered(b: vec4<f32>) -> vec4<f32> {
+    if (b.a <= 0.0001) {
+        return vec4<f32>(0.0);
+    }
+    return vec4<f32>(b.rgb / b.a, 1.0);
 }
 
 @fragment

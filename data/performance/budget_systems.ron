@@ -123,7 +123,7 @@
         // relights the rooms' irradiance probes each frame before the scene
         // pass (renderer/room_probes_gpu.rs, 2026-09-27). gpu.instanced was
         // retired with render_instanced (HDR scene target increment 1).
-        sources: ["gpu.scene", "gpu.transparent", "gpu.overlay", "gpu.room_probes"],
+        sources: ["gpu.scene", "gpu.transparent", "gpu.film_far", "gpu.overlay", "gpu.room_probes"],
         locked: true,
         base_frac: 0.15,
         color: "nav_reality",

@@ -64,6 +64,7 @@
         "gpu.taa": "graphics.pass.taa",
         "vram.taa_history": "graphics.pass.taa_history",
         "gpu.film_blur": "graphics.pass.film_blur",
+        "gpu.film_far": "graphics.pass.film_far",
         "vram.film_blur": "graphics.pass.film_blur_memory",
     },
     settings: [
@@ -102,11 +103,12 @@
         (id: "anti_aliasing", cost: [Gpu(["gpu.taa"]), Shares(["gpu.scene", "gpu.celestial"]), Memory(["vram.taa_history"])]),
         // Sharpening runs inside the resolve's second step.
         (id: "sharpening", cost: [Gpu(["gpu.taa"])]),
-        // Frosted plastic (2026-11-13, renderer/film_blur.rs): the films' far sides and the colour
-        // pyramid (gpu.film_blur, measured, only while a film is in view), the films' near sides
+        // Frosted plastic (2026-11-13, renderer/film_blur.rs): the films' far sides (gpu.film_far,
+        // the shading the see-through pass did before, measured on its own since 2026-11-14), the
+        // coverage and the colour pyramid (gpu.film_blur, measured, only while a film is in view), the films' near sides
         // blending it in (inside the see-through pass), the pyramid's memory, and that memory at
         // this window's size worked out beside the control.
-        (id: "film_blur", cost: [Gpu(["gpu.film_blur"]), Shares(["gpu.transparent"]), Memory(["vram.film_blur"]), Computed]),
+        (id: "film_blur", cost: [Gpu(["gpu.film_blur", "gpu.film_far"]), Shares(["gpu.transparent"]), Memory(["vram.film_blur"]), Computed]),
         // ── Light and sky ──
         (id: "sun_shadows", cost: [Gpu(["gpu.shadow", "gpu.shadow_near"])]),
         // Room light shadows (2026-11-10, renderer/local_shadows.rs): the atlas passes, choosing and

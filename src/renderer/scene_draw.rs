@@ -384,21 +384,25 @@ impl Renderer {
         // Frosted plastic Blurred, the films' far faces are drawn first and the colour pyramid of the
         // scene behind them taken, then this pass draws their near faces over it. Otherwise (and in
         // a camera screen's re-render) every film is drawn whole, as before.
+        // Since 2026-11-14 all of it rides this pass's own encoder and submit, the films' object
+        // uniforms in the list's own slots (one upload for both passes).
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Transparent Encoder"),
+            });
+        // One batched object-uniform upload (v0.891).
+        let uniform_align = 256_u64;
+        self.upload_object_uniforms(objects.iter());
         let blurred = matches!(who, crate::renderer::gpu_costs::SceneView::Main) && {
             let films = self.film_objects(objects);
-            self.film_blur_behind(camera, objects, &films, view)
+            self.film_blur_behind(&mut encoder, camera, objects, &films, view)
         };
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::bytes_of(&self.transparent_uniform(camera, blurred)),
         );
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Transparent Encoder"),
-            });
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -426,10 +430,6 @@ impl Renderer {
             // Slot 1: zero per-instance data for classic draws (increment 2).
             render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-
-            // One batched object-uniform upload (v0.891).
-            let uniform_align = 256_u64;
-            self.upload_object_uniforms(objects.iter());
 
             let mut bound_material = usize::MAX;
             // The pipeline is picked by the material's CLASS (P2,

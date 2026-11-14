@@ -189,9 +189,67 @@ fn the_cull_shader_validates() {
     }
     assert_eq!(std::mem::size_of::<CullParams>(), 128);
     assert_eq!(std::mem::size_of::<CullView>(), 144);
-    assert_eq!(std::mem::size_of::<CullCaster>(), 96);
-    assert_eq!(std::mem::size_of::<CullBatch>(), 16);
+    assert_eq!(std::mem::size_of::<CullCaster>(), 112);
+    assert_eq!(std::mem::size_of::<CullBatch>(), 32);
     assert_eq!(std::mem::size_of::<DrawArgs>() as u64, DRAW_ARGS_BYTES);
+    // One instance is the transmittance pass's (the sheets read the cull's instances directly).
+    assert_eq!(INSTANCE_BYTES, crate::renderer::shadow_transmit::INSTANCE_BYTES);
+    // The cutout sets' shader parses and validates.
+    let cut = wgpu::naga::front::wgsl::parse_str(CUTOUT_WGSL).expect("the cutout shader parses");
+    let mut v = wgpu::naga::valid::Validator::new(wgpu::naga::valid::ValidationFlags::all(), wgpu::naga::valid::Capabilities::all());
+    v.validate(&cut).expect("the cutout shader validates");
+}
+
+/// THE CUTOUT SETS' TEST IS THE MEGASHADER'S: card hair's cut in `shadow_atlas_cutout.wgsl` is
+/// `fs_shadow`'s type 26 branch line for line (the threshold read from the instance's extra, which
+/// the renderer fills from the material's `params2.z`), and only that type is routed there.
+///
+/// Seen red 2026-11-14 with the cutout shader's hair uv written without the colour half's `* 0.5`:
+/// "fs_shadow's hair line `let hair_uv = vec2<f32>(clamp(fract(in.uv.x), 0.002, 0.998) * 0.5,
+/// in.uv.y);` is not in the cutout shader".
+#[test]
+fn the_cutout_sets_test_is_fs_shadows() {
+    let pbr = crate::renderer::shader_loader::assembled_pbr_source();
+    let start = pbr.find("fn fs_shadow(").expect("fs_shadow");
+    let fs = &pbr[start..];
+    let branch = &fs[fs.find("material_type >= 25.5 && material_type < 26.5").expect("the type 26 branch")..];
+    let branch = &branch[..branch.find("    }\n").or_else(|| branch.find("    }\r\n")).expect("its end")];
+    let lines: Vec<&str> = branch.lines().map(str::trim).filter(|l| l.starts_with("let ") || l.starts_with("albedo_texture") || l.starts_with("vec2<f32>(uv_dx")).collect();
+    assert!(lines.len() >= 3, "the branch's lines: {lines:?}");
+    for l in &lines {
+        assert!(CUTOUT_WGSL.contains(l), "fs_shadow's hair line `{l}` is not in the cutout shader");
+    }
+    assert!(branch.contains("if (hair_tex.a < max(material.params2.z, 0.0)) {"), "fs_shadow's threshold");
+    assert!(CUTOUT_WGSL.contains("if (hair_tex.a < max(in.extra.y, 0.0)) {"), "the cutout shader's threshold, from the extra");
+    for t in [18.9f32, 20.9, 11.9, 25.9, 26.1] {
+        assert_eq!(gpu_cutout_type(t), (25.5..26.5).contains(&t), "type {t}");
+    }
+}
+
+/// THE CASTER UPLOAD WRITES ONLY WHAT CHANGED, and everything with reuse off: a still frame writes
+/// nothing, a moved caster writes its own run, runs a few apart are joined, a longer list writes its
+/// new tail, and a frame with the reuse switch off (or a new buffer) writes every caster.
+///
+/// Seen red 2026-11-14 with `changed_runs` ignoring `reuse`: "with reuse off every caster is
+/// written: [] of 40".
+#[test]
+fn the_caster_upload_writes_only_what_changed_and_all_with_reuse_off() {
+    let caster = |i: usize, x: f32| CullCaster::new([0.0; 16], Vec3::new(x, i as f32, 0.0), 0.5, i as u32, false);
+    let held: Vec<CullCaster> = (0..40).map(|i| caster(i, 0.0)).collect();
+    assert!(changed_runs(&held, &held, true, false).is_empty(), "a still frame writes nothing");
+    let mut moved = held.clone();
+    moved[7] = caster(7, 1.0);
+    assert_eq!(changed_runs(&held, &moved, true, false), vec![7..8]);
+    moved[12] = caster(12, 1.0);
+    moved[30] = caster(30, 1.0);
+    assert_eq!(changed_runs(&held, &moved, true, false), vec![7..13, 30..31], "runs under eight apart are joined");
+    let mut longer = held.clone();
+    longer.extend((40..44).map(|i| caster(i, 0.0)));
+    assert_eq!(changed_runs(&held, &longer, true, false), vec![40..44], "the new tail");
+    let all = changed_runs(&held, &held, false, false);
+    assert_eq!(all, vec![0..40], "with reuse off every caster is written: {all:?} of 40");
+    assert_eq!(changed_runs(&held, &held, true, true), vec![0..40], "a new buffer gets every caster");
+    assert!(changed_runs(&held, &[], false, false).is_empty());
 }
 
 // The GPU parts need the native build's test helpers (humanity_core::test_gpu, pollster); the relay
@@ -211,6 +269,34 @@ fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
     let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { label: Some("shadow gpu test"), required_features: required_features(), required_limits: limits, ..Default::default() }, None)).ok()?;
     device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
     Some((device, queue))
+}
+
+/// The two layouts the sets' pipelines bind: the fast path's views (group 0) and a material's albedo
+/// (the cutouts' group 1), as the renderer makes them.
+#[cfg(feature = "native")]
+fn layouts(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::BindGroupLayout) {
+    let views = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("test views"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: wgpu::BufferSize::new(64) },
+            count: None,
+        }],
+    });
+    let tex = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("test albedo"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+        ],
+    });
+    (views, tex)
 }
 
 #[cfg(feature = "native")]
@@ -247,7 +333,8 @@ fn the_gpu_cull_writes_the_draws_the_old_loop_made() {
     let tri_v: Vec<humanity_core::vertex::Vertex> = (0..5).map(|k| humanity_core::vertex::Vertex { position: [k as f32 * 0.1, (k % 2) as f32 * 0.2, 0.0], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect();
     let tri = crate::renderer::mesh::Mesh::from_vertices(&device, &tri_v, &[0, 1, 2, 2, 1, 3, 3, 1, 4]);
     let meshes = vec![tri, cube];
-    let mut gpu = GpuCasters::new(&device);
+    let (vl, tl) = layouts(&device);
+    let mut gpu = GpuCasters::new(&device, &vl, &tl);
     assert!(gpu.available);
     gpu.book.begin_frame(true);
     let slots: Vec<ArenaSlot> = meshes.iter().enumerate().map(|(id, m)| gpu.place(&device, id, id as u64 + 1, m).expect("placed")).collect();
@@ -299,7 +386,7 @@ fn the_gpu_cull_writes_the_draws_the_old_loop_made() {
     assert!(expected.iter().map(|e| e.iter().map(|r| r.1).sum::<u32>()).sum::<u32>() < (casters.len() * views.len()) as u32, "and some casters are left out");
 
     let params = CullParams { cam: cam.map(|q| q.to_array()), margin, ..Default::default() };
-    gpu.upload(&device, &queue, params, &views, &packed, &batches, (casters.len() * views.len()) as u64);
+    gpu.upload(&device, &queue, params, &views, &packed, &batches, 1, (casters.len() * views.len()) as u64, true);
     let mut enc = device.create_command_encoder(&Default::default());
     assert_eq!(gpu.encode(&mut enc, &meshes, None), 2, "both meshes copied in");
     queue.submit(Some(enc.finish()));
@@ -308,7 +395,7 @@ fn the_gpu_cull_writes_the_draws_the_old_loop_made() {
     let nb = batches.len() as u64;
     let counts: Vec<u32> = bytemuck::cast_slice(&read_back(&device, &queue, counts_buf, 0, views.len() as u64 * 4)).to_vec();
     let draws: Vec<DrawArgs> = bytemuck::cast_slice(&read_back(&device, &queue, draws_buf, 0, views.len() as u64 * nb * DRAW_ARGS_BYTES)).to_vec();
-    let inst: Vec<[f32; 16]> = bytemuck::cast_slice(&read_back(&device, &queue, inst_buf, 0, (casters.len() * views.len()) as u64 * INSTANCE_BYTES)).to_vec();
+    let inst: Vec<[f32; 16]> = bytemuck::cast_slice::<u8, [f32; 20]>(&read_back(&device, &queue, inst_buf, 0, (casters.len() * views.len()) as u64 * INSTANCE_BYTES)).iter().map(|x| std::array::from_fn(|k| x[k])).collect();
     for (g, exp) in expected.iter().enumerate() {
         let got: Vec<DrawArgs> = draws[g * nb as usize..g * nb as usize + counts[g] as usize].to_vec();
         let mut got_key: Vec<(u32, u32, u32, i32)> = got.iter().map(|d| (d.index_count, d.instance_count, d.first_index, d.base_vertex)).collect();
@@ -333,4 +420,224 @@ fn the_gpu_cull_writes_the_draws_the_old_loop_made() {
     let (_, ai) = gpu.arena_buffers();
     let tri_i: Vec<u32> = bytemuck::cast_slice(&read_back(&device, &queue, ai, slots[0].ibase as u64 * 4, 9 * 4)).to_vec();
     assert_eq!(tri_i, vec![0, 1, 2, 2, 1, 3, 3, 1, 4]);
+}
+
+/// EVERY NEW CASTER CLASS IS CULLED BY THE PROCESSOR'S RULE, set by set: the scene of
+/// `the_gpu_cull_writes_the_draws_the_old_loop_made` split into three draw sets, a plain set from the
+/// arena, a cutout set from a skinned body's own buffers (its batches read the mesh's own ranges, no
+/// copy) and a sheet set from the arena. Each (view, set) gets exactly the draws the processor's rule
+/// gives that set's casters, in the set's own run of the view's section, and each instance carries its
+/// caster's extra (a cutout's threshold, a sheet's transmittance) beside its matrix.
+///
+/// Seen red 2026-11-14 with `emit_draws` counting every set's draws in one counter a view (the merged
+/// `draw_counts[vi]`): "view 0 set 0: the GPU's draws [(0, 0, 0, 0), (0, 0, 0, 0), (9, 2, 0, 0),
+/// (9, 2, 0, 0), (36, 2, 9, 5), (36, 3, 0, 0)] against the rule's [(9, 2, 0, 0), (36, 2, 9, 5)]".
+#[test]
+#[cfg(feature = "native")]
+fn each_new_caster_class_is_culled_by_the_processor_rule() {
+    let Some((device, queue)) = device() else { return };
+    let cube = crate::renderer::mesh::Mesh::cube(&device);
+    let tri_v: Vec<humanity_core::vertex::Vertex> = (0..5).map(|k| humanity_core::vertex::Vertex { position: [k as f32 * 0.1, (k % 2) as f32 * 0.2, 0.0], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect();
+    let tri = crate::renderer::mesh::Mesh::from_vertices(&device, &tri_v, &[0, 1, 2, 2, 1, 3, 3, 1, 4]);
+    let meshes = vec![tri, cube];
+    let (vl, tl) = layouts(&device);
+    let mut gpu = GpuCasters::new(&device, &vl, &tl);
+    gpu.book.begin_frame(true);
+    let slots: Vec<ArenaSlot> = meshes.iter().enumerate().map(|(id, m)| gpu.place(&device, id, id as u64 + 1, m).expect("placed")).collect();
+    // The batches, set by set: (set, mesh) -> batch; set 1 reads the meshes' own ranges.
+    let n_sets = 3u32;
+    let mut batches: Vec<CullBatch> = Vec::new();
+    let mut batch_of = std::collections::HashMap::new();
+    for s in 0..n_sets {
+        let first = batches.len() as u32;
+        for (m, mesh) in meshes.iter().enumerate() {
+            let mut b = if s == 1 { CullBatch { index_count: mesh.index_count, first_index: mesh.first_index, base_vertex: mesh.base_vertex, ..Default::default() } } else { slots[m].batch() };
+            b.set = s;
+            b.set_first = first;
+            batch_of.insert((s, m), batches.len() as u32);
+            batches.push(b);
+        }
+    }
+    let cam = camera_planes();
+    let light = Vec3::new(0.0, 2.5, 0.0);
+    let (reach, res, margin) = (6.0, 512u32, 4.0f32);
+    let texel_m = 2.0 * crate::renderer::local_shadows::face_tan_half(res, margin) / res as f32;
+    let mut casters: Vec<(Vec3, f32, usize, u32)> = Vec::new();
+    for gx in 0..7 {
+        for gz in 0..7 {
+            let i = gx * 7 + gz;
+            casters.push((Vec3::new(-4.5 + gx as f32 * 1.5, 1.0, -4.5 + gz as f32 * 1.5), 0.3, (gx + gz) % 2, (i % 3) as u32));
+        }
+    }
+    let faces = [0usize, 4];
+    let mut planes: Vec<[Vec4; 6]> = faces.iter().map(|&f| frustum_planes(&cube_face_view(light, f, reach, res, margin))).collect();
+    let eye = Vec3::new(1.0, 1.7, 1.0);
+    let splanes = frustum_planes(&near_sun_view(eye, Vec3::new(0.3, 1.0, 0.2).normalize(), 4.0, 1024));
+    let stexel = 8.0 / 1024.0;
+    planes.push(splanes);
+    let mut views: Vec<CullView> = faces.iter().zip(&planes).map(|(&f, p)| CullView::face(p, light, reach, texel_m, 10 + f as u32)).collect();
+    views.push(CullView::sun(&splanes, eye, stexel, 3));
+    let model_of = |i: usize| Mat4::from_translation(casters[i].0).to_cols_array();
+    let extra_of = |i: usize| [casters[i].3 as f32, i as f32 * 0.5, 0.25, 1.0];
+    let packed: Vec<CullCaster> = (0..casters.len()).map(|i| CullCaster::new(model_of(i), casters[i].0, casters[i].1, batch_of[&(casters[i].3, casters[i].2)], false).with_extra(extra_of(i))).collect();
+    let params = CullParams { cam: cam.map(|q| q.to_array()), margin, ..Default::default() };
+    gpu.upload(&device, &queue, params, &views, &packed, &batches, n_sets, (casters.len() * views.len()) as u64, true);
+    let mut enc = device.create_command_encoder(&Default::default());
+    gpu.encode(&mut enc, &meshes, None);
+    queue.submit(Some(enc.finish()));
+    let (draws_buf, counts_buf, inst_buf) = gpu.outputs();
+    let nb = batches.len();
+    let counts: Vec<u32> = bytemuck::cast_slice(&read_back(&device, &queue, counts_buf, 0, views.len() as u64 * n_sets as u64 * 4)).to_vec();
+    let draws: Vec<DrawArgs> = bytemuck::cast_slice(&read_back(&device, &queue, draws_buf, 0, (views.len() * nb) as u64 * DRAW_ARGS_BYTES)).to_vec();
+    let inst: Vec<[f32; 20]> = bytemuck::cast_slice(&read_back(&device, &queue, inst_buf, 0, (casters.len() * views.len()) as u64 * INSTANCE_BYTES)).to_vec();
+    let mut seen_sets = 0;
+    for (g, v) in views.iter().enumerate() {
+        for s in 0..n_sets {
+            // The rule's draws for this set: its kept casters by mesh.
+            let mut by_mesh: std::collections::BTreeMap<usize, Vec<usize>> = Default::default();
+            for (i, &(c, r, m, cs)) in casters.iter().enumerate() {
+                let kept = if v.info[1] > 0.5 { sun_keeps(&splanes, stexel, c, r) } else { face_keeps(&planes[g], &cam, light, reach, texel_m, margin, false, c, r) };
+                if cs == s && kept {
+                    by_mesh.entry(m).or_default().push(i);
+                }
+            }
+            let batch_for = |m: usize| batches[batch_of[&(s, m)] as usize];
+            let mut want: Vec<(u32, u32, u32, i32)> = by_mesh.iter().map(|(&m, list)| (batch_for(m).index_count, list.len() as u32, batch_for(m).first_index, batch_for(m).base_vertex)).collect();
+            let first = batches.iter().position(|b| b.set == s).unwrap();
+            let n = counts[g * n_sets as usize + s as usize] as usize;
+            let got: Vec<DrawArgs> = draws[g * nb + first..g * nb + first + n].to_vec();
+            let mut have: Vec<(u32, u32, u32, i32)> = got.iter().map(|d| (d.index_count, d.instance_count, d.first_index, d.base_vertex)).collect();
+            want.sort();
+            have.sort();
+            assert_eq!(have, want, "view {g} set {s}: the GPU's draws {have:?} against the rule's {want:?}");
+            seen_sets += usize::from(!want.is_empty());
+            for d in &got {
+                let m = (0..meshes.len()).find(|&m| batch_for(m).first_index == d.first_index && batch_for(m).base_vertex == d.base_vertex && batch_for(m).index_count == d.index_count).expect("a batch of this set");
+                let mut want_i: Vec<[u32; 20]> = by_mesh[&m]
+                    .iter()
+                    .map(|&i| {
+                        let mut x = model_of(i);
+                        x[3] = v.index[0] as f32;
+                        let e = extra_of(i);
+                        std::array::from_fn(|k| if k < 16 { x[k].to_bits() } else { e[k - 16].to_bits() })
+                    })
+                    .collect();
+                let mut have_i: Vec<[u32; 20]> = inst[d.first_instance as usize..(d.first_instance + d.instance_count) as usize].iter().map(|x| x.map(f32::to_bits)).collect();
+                want_i.sort();
+                have_i.sort();
+                assert_eq!(have_i, want_i, "view {g} set {s} mesh {m}: each instance is its caster's matrix and extra");
+            }
+        }
+    }
+    assert!(seen_sets >= 6, "most (view, set) pairs draw something: {seen_sets}");
+}
+
+/// A SKINNED BODY CASTS FROM THE VERTICES SKINNED THIS FRAME: a body's own vertex buffer (the
+/// skinning output the main view draws) drawn into a shadow tile through a plain set whose source is
+/// that buffer, then a bone "moves" (the buffer is written again, as the compute skinning does each
+/// frame) and the next frame's shadow moves with it. The same mesh copied into the arena at an
+/// unchanged serial keeps the old shape, which is why the bodies are drawn from their own buffers and
+/// never from the arena (and what this test would see if they were).
+///
+/// Seen red 2026-11-14 by drawing the body's set from the arena copy instead of its own buffer:
+/// "after the bone moved the shadow covers 0 of the right half's texels and 128 of the left's".
+#[test]
+#[cfg(feature = "native")]
+fn a_skinned_body_casts_from_the_vertices_skinned_this_frame() {
+    use wgpu::util::DeviceExt;
+    let Some((device, queue)) = device() else { return };
+    let (vl, tl) = layouts(&device);
+    let mut gpu = GpuCasters::new(&device, &vl, &tl);
+    let quad = |x0: f32| -> Vec<humanity_core::vertex::Vertex> {
+        [(x0, -0.5), (x0 + 0.5, -0.5), (x0, 0.5), (x0 + 0.5, 0.5)].iter().map(|&(x, y)| humanity_core::vertex::Vertex { position: [x, y, 0.0], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect()
+    };
+    let usage = wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC;
+    let vbuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("skinned body"), contents: bytemuck::cast_slice(&quad(-0.5)), usage });
+    let ibuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("body indices"), contents: bytemuck::cast_slice(&[0u32, 1, 2, 2, 1, 3]), usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC });
+    let mesh = crate::renderer::mesh::Mesh { vertex_buffer: vbuf.clone(), prev_vertex_buffer: None, index_buffer: ibuf.clone(), index_count: 6, first_index: 0, base_vertex: 0, bounds: [0.0, 0.0, 0.0, 1.0] };
+    let meshes = vec![mesh];
+    // One orthographic view straight down the z axis over the unit square, as the near sun tile.
+    let vp = Mat4::orthographic_rh(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+    let view_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("views"), contents: bytemuck::cast_slice(&[vp.to_cols_array()]), usage: wgpu::BufferUsages::STORAGE });
+    let view_group = device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &vl, entries: &[wgpu::BindGroupEntry { binding: 0, resource: view_buf.as_entire_binding() }] });
+    let views = vec![CullView::sun(&frustum_planes(&vp), Vec3::ZERO, 2.0 / 32.0, 0)];
+    let side = 32u32;
+    let depth = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("tile"),
+        size: wgpu::Extent3d { width: side, height: side, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth32Float,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let dview = depth.create_view(&Default::default());
+    // One frame: cull the body (one caster) and draw it from its own buffer or from the arena; how
+    // many texels of the tile's left and right halves it covers.
+    let frame = |gpu: &mut GpuCasters, from_arena: bool| -> (u32, u32) {
+        gpu.book.begin_frame(true);
+        let slot = gpu.place(&device, 0, 1, &meshes[0]).expect("placed");
+        let batch = if from_arena { slot.batch() } else { CullBatch { index_count: 6, ..Default::default() } };
+        let casters = vec![CullCaster::new(Mat4::IDENTITY.to_cols_array(), Vec3::ZERO, 1.0, 0, false)];
+        gpu.upload(&device, &queue, CullParams { cull_off: 1, ..Default::default() }, &views, &casters, &[batch], 1, 4, true);
+        let mut enc = device.create_command_encoder(&Default::default());
+        gpu.encode(&mut enc, &meshes, None);
+        {
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("tile"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &dview, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                ..Default::default()
+            });
+            let dp = gpu.draw_pipes().expect("pipes");
+            pass.set_pipeline(&dp.plain);
+            pass.set_bind_group(0, &view_group, &[]);
+            let (sv, si) = if from_arena { gpu.arena().expect("arena") } else { (&vbuf, &ibuf) };
+            pass.set_vertex_buffer(0, sv.slice(..));
+            pass.set_vertex_buffer(1, gpu.instances().expect("instances").slice(..));
+            pass.set_index_buffer(si.slice(..), wgpu::IndexFormat::Uint32);
+            assert!(gpu.draw_set(&mut pass, 0, 0, 0, 1));
+        }
+        let row = 256u64;
+        let buf = device.create_buffer(&wgpu::BufferDescriptor { label: None, size: row * side as u64, usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        enc.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo { texture: &depth, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::DepthOnly },
+            wgpu::TexelCopyBufferInfo { buffer: &buf, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row as u32), rows_per_image: Some(side) } },
+            wgpu::Extent3d { width: side, height: side, depth_or_array_layers: 1 },
+        );
+        queue.submit(Some(enc.finish()));
+        let slice = buf.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        device.poll(wgpu::Maintain::Wait);
+        let bytes = slice.get_mapped_range().to_vec();
+        let (mut left, mut right) = (0, 0);
+        for y in 0..side as usize {
+            for x in 0..side as usize {
+                let at = y * row as usize + x * 4;
+                let d = f32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+                if d < 1.0 {
+                    if x < side as usize / 2 {
+                        left += 1;
+                    } else {
+                        right += 1;
+                    }
+                }
+            }
+        }
+        (left, right)
+    };
+    let (l0, r0) = frame(&mut gpu, false);
+    assert!(l0 > 100 && r0 == 0, "the body on the left casts on the left: {l0} left, {r0} right");
+    // The arena's copy is taken now, at serial 1.
+    let (al, ar) = frame(&mut gpu, true);
+    assert!(al > 100 && ar == 0, "the arena copy matches before the move: {al} left, {ar} right");
+    // A bone moves: the skinning writes the body's vertices again (the quad now on the right).
+    queue.write_buffer(&vbuf, 0, bytemuck::cast_slice(&quad(0.0)));
+    let (l1, r1) = frame(&mut gpu, false);
+    assert!(r1 > 100 && l1 == 0, "after the bone moved the shadow covers {r1} of the right half's texels and {l1} of the left's");
+    // The arena, keyed by the unchanged serial, still holds the old shape: drawing from it would leave
+    // the shadow behind (why the bodies are drawn from their own buffers).
+    let (al1, ar1) = frame(&mut gpu, true);
+    assert!(al1 > 100 && ar1 == 0, "the arena copy is a frame stale: {al1} left, {ar1} right");
 }
