@@ -244,6 +244,10 @@ The operator, to the twelve decisions at the end of [the sizes research](../refe
    endless resource sink by its uses ("We'll have to figure out the various ways we can use the slag.
    That way we can justify it as an infinite resource sink."): armour, reaction mass for a mass
    driver, and the rest a research pass lists.
+   **See also: [slag.md](slag.md)** (2026-11-13): every use ranked by how much it absorbs, the
+   loops, the vote's numbers (1 t/m2 over Drum 1 adds about 7% to its mass, 4% to its turn time,
+   and takes the dose from 5 mSv to about 3.3 to 4.0), the rungs and eight questions; sourced in
+   [2026-11-13-slag.md](../reference/findings/2026-11-13-slag.md).
 9. **Drum material:** steel for Drum 1, plates rolled to the curve; basalt composite studied for later drums.
 10. **Cloth:** a row in the planning sheet, 4 kg a person a year, about 40 m2 of flax.
 11. **The colony module:** 5,000 people with a gene bank.

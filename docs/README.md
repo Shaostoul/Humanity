@@ -50,6 +50,9 @@ sourced, dated numbers are in
 Whether magnets or anything else beat the water shield (thicknesses, materials per kilogram, the
 ship's own mass as shielding, magnetic and electric shields, and a chart of the cited dose curves):
 **[reference/research/2026-11-13-active-shielding/README.md](reference/research/2026-11-13-active-shielding/README.md)**.
+What becomes of mining's slag (armour on the hull, reaction mass, balance weights, blocks and
+pavers, soil, oxygen and metals, the per-ship armour vote and its numbers, the rungs):
+**[design/slag.md](design/slag.md)**.
 
 Filling out the music (every free instrument library we may ship, ranked by family with its licence
 and size, and what dubstep, house, drum and bass, synthwave and ambient need from the engine's own

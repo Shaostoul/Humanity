@@ -675,3 +675,14 @@ what we will say about it.
   since 2026-10-21) and DrumGizmo's kits need credit; no drum-machine sample set may be redistributed;
   No Budget Orchestra is a mix of licences, not CC BY-SA. Freesound, kenney.nl and several sample
   sites refused automated reading.
+- [`2026-11-13-slag.md`](2026-11-13-slag.md),
+  what slag from asteroid ore is and what a ship can do with it: a magnesium silicate (about 55%
+  silica, 35% magnesia, computed from Lodders 2021), not Earth's lime-rich slag (FHWA); 2.3 to 24 t
+  per tonne of metal from stony ore, 10 to 15 kg from metallic (Ross 2001, Vernazza et al. 2016,
+  Sanchez et al. 2021); Earth's uses (USGS 2017); the cement rule it fails (EN 197-1 via a 2025
+  EPD) and the alkali route; cast basalt (NASA 1991); slag wool (NAIMA, NIST); meteoroid flux and
+  crater depth (Grün via ESA SPENVIS, NASA 2006); the mass-driver reaction engine (O'Neill 1977,
+  SP-428's powder rule); NASA SP-413's slag shield that ran out of slag; balance weights (Kalpana
+  One, NASA TN D-6924); heat (Siemens Gamesa, CSIRO); soil and phosphorus filters; molten
+  electrolysis at about 104 kWh per kg of oxygen (NASA 2026). The basis for docs/design/slag.md.
+  USGS's newest slag chapters, Jarosewich 1990 and mdpi.com refused automated reading.
