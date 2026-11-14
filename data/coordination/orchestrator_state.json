@@ -12,6 +12,11 @@
   "recent_decisions": [
     {
       "date": "2026-11-14",
+      "decision": "Operator on the game activities (\"minigames\"): hunting and butchering are IN: \"I rather teach everything even if we don't use the skills in real life because, at least then we understand what our ancestors went through to get us to where we are today. They're too valuable to leave out.\" Build order confirmed, sinks first (cooking for the harvest, repair for tool wear, smelting for drone-mined rock): \"Sounds fine. They all need to be developed eventually.\" Recorded in docs/design/educational-gameplay.md (Teach everything) and memory feedback_teach_everything. Dispatched the activities catalog agent (docs/design/activities.md, data/gameplay/activities.json, a lint), statuses checked against code. He asked whether all ~70 activities should be crates: answered no, a folder per activity in humanity-systems, family crates only when big with a clean interface.",
+      "why": "His question: \"what are all of the minigames that make up our one game?\""
+    },
+    {
+      "date": "2026-11-14",
       "decision": "Merged conflict magnets and flakes (8f903ef40): just rig-tests and just lints now DISCOVER their files (scripts/rig-tests.js, run-lints.js --all; excludes with reasons in scripts/test-discovery.json), so no agent edits a Justfile list again; seven orphaned tests that ran nowhere now run. i18n-add inserts keys sorted within their group (a real three-way merge test proves two additions no longer conflict). orchestrator.md section 8: regenerate a generated file on conflict, never hand-merge. Eight timing flakes fixed with red evidence (audio budget, mirror lock, server-files and relay-follow hang guards, music build, span CPU time, ffmpeg deadlines, tasks-mine-web). wk-common KNOWN TRAPS updated.",
       "why": "Operator 2026-11-14 asked to cut redundant usage; the Justfile line and en.json group ends were the top merge-conflict magnets, and timing flakes cost every agent reruns."
     },

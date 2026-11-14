@@ -109,6 +109,10 @@ A non-exhaustive list of real-world skill domains the game aims to cover:
 
 Each category has its own progression system, and skills from different categories combine in emergent ways during gameplay.
 
+### Teach everything, including the skills our ancestors needed (operator, 2026-11-14)
+
+Asked whether hunting and butchering belong in a game about a humanity at peace, the operator answered: "I rather teach everything even if we don't use the skills in real life because, at least then we understand what our ancestors went through to get us to where we are today. They're too valuable to leave out." So no real skill is left out because a person today rarely needs it: hunting, butchering, tanning, flint knapping, and their like are taught as faithfully as gardening or wiring. How graphic a scene looks follows CLAUDE.md's dual-modes rule (realistic severity exists; general play defaults to softened), and nobody is forced to play an activity, since every domain has the five engagement modes ([engagement-modes.md](engagement-modes.md)). The full list of activities and their status is the activities catalog, being written on 2026-11-14.
+
 ---
 
 ## Related documents
