@@ -136,6 +136,95 @@ fn the_covered_mean_ignores_what_is_beside_the_tent() {
     assert_eq!(covered_mean(base_texel(scene, mask, size, 7, 2, false)), None, "wholly beside: nothing to blur");
 }
 
+/// THE BLUR STANDS DOWN WHERE THE DEPTH IS NOT THE WINDOW'S (2026-11-14, the storeys rig's panic):
+/// it runs only on the window's own frame with a depth target of the pyramid's size; an off-screen
+/// view (whatever its size, the window's included: its scene is a scratch target) or a depth of
+/// another size draws the films whole.
+///
+/// Seen red 2026-11-14 with `blur_fits` answering true whatever the depth: "a 1600 x 900 view
+/// depth under a 2560 x 1387 pyramid".
+#[test]
+fn the_blur_stands_down_where_the_depth_is_not_the_windows() {
+    let window = (2560, 1387);
+    assert!(blur_fits(window, window, false), "the window's own frame");
+    assert!(!blur_fits(window, (1600, 900), false), "a 1600 x 900 view depth under a 2560 x 1387 pyramid");
+    assert!(!blur_fits(window, (7680, 4161), true), "a hi-res screenshot");
+    assert!(!blur_fits(window, window, true), "an off-screen view at the window's size draws into its own scratch scene");
+}
+
+/// A FILM IN A VIEW OF ANOTHER SIZE RECORDS NO COVERAGE AND RAISES NO VALIDATION ERROR, on the GPU:
+/// the coverage pass with a 64 x 32 pyramid and a 40 x 20 depth (an off-screen view's) records
+/// nothing and says so, and the device reports no error (the test's handler panics on any); with
+/// the window's 64 x 32 depth the same film marks exactly the left half of the screen it covers.
+///
+/// Seen red 2026-11-14 with `blur_fits` answering true whatever the depth (so `encode_coverage`
+/// records the pass as the code before the fix did): "wgpu validation error ... In RenderPass::end
+/// ... Attachments have differing sizes: the depth attachment's texture view has extent (40, 20, 1)
+/// but is followed by the color attachment at index 0's texture view which has (64, 32, 1)", the
+/// storeys rig's panic.
+#[test]
+#[cfg(feature = "native")]
+fn a_film_in_a_view_of_another_size_records_no_coverage_and_no_validation_error() {
+    use wgpu::util::DeviceExt;
+    let Some((device, queue)) = device() else { return };
+    let (w, h) = (64u32, 32u32);
+    let blur = FilmBlur::new(&device);
+    let pyr = Pyramid::new(&device, (w, h));
+    // A film over the left half of the screen (clip space, the view-projection the identity).
+    let quad: Vec<humanity_core::vertex::Vertex> = [(-1.0f32, -1.0f32), (0.0, -1.0), (-1.0, 1.0), (0.0, 1.0)].iter().map(|&(x, y)| humanity_core::vertex::Vertex { position: [x, y, 0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect();
+    let vbuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("film"), contents: bytemuck::cast_slice(&quad), usage: wgpu::BufferUsages::VERTEX });
+    let ibuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("film indices"), contents: bytemuck::cast_slice(&[0u32, 1, 2, 2, 1, 3]), usage: wgpu::BufferUsages::INDEX });
+    let film = crate::renderer::mesh::Mesh { vertex_buffer: vbuf, prev_vertex_buffer: None, index_buffer: ibuf, index_count: 6, first_index: 0, base_vertex: 0, bounds: [0.0, 0.0, 0.0, 2.0] };
+    let films = [(&film, Mat4::IDENTITY)];
+    let identity = Mat4::IDENTITY.to_cols_array_2d();
+    let depth = |dw: u32, dh: u32| {
+        device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("test depth"),
+                size: wgpu::Extent3d { width: dw, height: dh, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Depth32Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            })
+            .create_view(&Default::default())
+    };
+    let run = |dw: u32, dh: u32| -> bool {
+        let view = depth(dw, dh);
+        let mut enc = device.create_command_encoder(&Default::default());
+        let recorded = blur.encode_coverage(&device, &queue, &mut enc, &pyr, &view, (dw, dh), &identity, &films, None);
+        queue.submit(Some(enc.finish()));
+        device.poll(wgpu::Maintain::Wait);
+        recorded
+    };
+    // An off-screen view's depth: nothing recorded, no validation error (the handler would panic).
+    assert!(!run(40, 20), "the coverage stands down against a 40 x 20 view depth");
+    // The window's depth: the film marks the left half.
+    assert!(run(w, h), "the coverage runs against the window's depth");
+    let row = 256u64;
+    let buf = device.create_buffer(&wgpu::BufferDescriptor { label: Some("mask back"), size: row * h as u64, usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+    let mut enc = device.create_command_encoder(&Default::default());
+    enc.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo { texture: &pyr._mask_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+        wgpu::TexelCopyBufferInfo { buffer: &buf, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row as u32), rows_per_image: Some(h) } },
+        wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+    );
+    queue.submit(Some(enc.finish()));
+    let slice = buf.slice(..);
+    slice.map_async(wgpu::MapMode::Read, |_| {});
+    device.poll(wgpu::Maintain::Wait);
+    let bytes = slice.get_mapped_range().to_vec();
+    for y in 0..h as usize {
+        for x in 0..w as usize {
+            let m = bytes[y * row as usize + x];
+            let want = if x < w as usize / 2 { 255 } else { 0 };
+            assert_eq!(m, want, "mask texel ({x}, {y})");
+        }
+    }
+}
+
 // ── On the GPU ───────────────────────────────────────────────────────────────────────────────────
 
 #[cfg(feature = "native")]

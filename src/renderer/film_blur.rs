@@ -37,7 +37,12 @@
 //!    level whose texels match the disc's radius on screen, four bilinear taps round it, colour over
 //!    coverage (`covered_mean`).
 //! Off (Simple), in a camera screen's re-render, under an orthographic camera or without the float
-//! scene target, nothing of this runs: the film is drawn exactly as before.
+//! scene target, nothing of this runs: the film is drawn exactly as before. Nor in any OFF-SCREEN
+//! VIEW (a hi-res screenshot, a camera screen, a map tile: `begin_view_depth`; `blur_fits`), whose
+//! depth target is the view's size while the pyramid and its coverage mark are the window's: the
+//! coverage pass paired the two and wgpu refused it ("Attachments have differing sizes", the storeys
+//! rig's upper-hall screenshot, 2026-11-14), and the view's scene is a scratch target the pyramid
+//! does not read. Such a view draws its films whole.
 //!
 //! WHY THE COVERAGE (2026-11-14). The blur is screen-space, so near a cover's outline its disc
 //! reached past the film into what is beside the tent: at night, with the dark room round the
@@ -234,6 +239,17 @@ pub fn level_rect(rect: Rect, lvl: u32, render: (u32, u32)) -> Rect {
     (x0, y0, x1 - x0, y1 - y0)
 }
 
+/// WHETHER THE BLUR FITS THE DEPTH TARGET (2026-11-14, the storeys rig's panic): the pyramid and
+/// the coverage mark are the WINDOW's size, and the coverage pass pairs the mark with the depth the
+/// scene passes bind, so that depth must be `pyramid`'s size too (a render pass may not pair
+/// attachments of two sizes: wgpu's "Attachments have differing sizes"). An off-screen view (a
+/// hi-res screenshot, a camera screen: `begin_view_depth`) binds a depth of its own size and draws
+/// into a scratch scene the pyramid does not read, so the blur stands down there and the films are
+/// drawn whole, the way Simple draws them. Pure, so it is tested without a GPU.
+pub fn blur_fits(pyramid: (u32, u32), depth: (u32, u32), off_screen_view: bool) -> bool {
+    !off_screen_view && pyramid == depth
+}
+
 /// The pyramid and the coverage mark, sized to the render.
 pub(crate) struct Pyramid {
     _tex: wgpu::Texture,
@@ -282,7 +298,7 @@ impl Pyramid {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: MASK_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
         let mask = mask_tex.create_view(&wgpu::TextureViewDescriptor::default());
@@ -483,13 +499,55 @@ impl FilmBlur {
     }
 }
 
+impl FilmBlur {
+    /// Record the coverage (step 2 of the file's header) into `encoder`: each of `films` (a mesh and
+    /// its model matrix) drawn over `depth`, whose size is `depth_size`, through `view_proj`, 1 into
+    /// the pyramid's mark wherever a face is seen (the mark cleared first; at most
+    /// `MAX_COVER_FILMS`). Records nothing and returns false when the depth is not the mark's size
+    /// (`blur_fits`: an off-screen view's depth), which `film_blur_ready` has already refused.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn encode_coverage<'t>(&self, device: &wgpu::Device, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, pyr: &Pyramid, depth: &wgpu::TextureView, depth_size: (u32, u32), view_proj: &[[f32; 4]; 4], films: &[(&mesh::Mesh, Mat4)], timer: Option<wgpu::RenderPassTimestampWrites<'t>>) -> bool {
+        if !blur_fits(pyr.size, depth_size, false) {
+            return false;
+        }
+        let shown = &films[..films.len().min(MAX_COVER_FILMS)];
+        queue.write_buffer(&self.cover_cam, 0, bytemuck::cast_slice(view_proj));
+        let models: Vec<[f32; 16]> = shown.iter().map(|(_, m)| m.to_cols_array()).collect();
+        queue.write_buffer(&self.cover_inst, 0, bytemuck::cast_slice(&models));
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Film Blur Coverage BG"),
+            layout: &self.cover_pso.get_bind_group_layout(0),
+            entries: &[wgpu::BindGroupEntry { binding: 5, resource: self.cover_cam.as_entire_binding() }],
+        });
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Film Coverage Pass"),
+            timestamp_writes: timer,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &pyr.mask, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store } })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: depth, depth_ops: None, stencil_ops: None }),
+            ..Default::default()
+        });
+        pass.set_pipeline(&self.cover_pso);
+        pass.set_bind_group(0, &group, &[]);
+        pass.set_vertex_buffer(1, self.cover_inst.slice(..));
+        for (j, (mesh, _)) in shown.iter().enumerate() {
+            pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+            pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(mesh.indices(), mesh.base_vertex, j as u32..j as u32 + 1);
+        }
+        true
+    }
+}
+
 impl Renderer {
-    /// Whether the films can be blurred this frame: the pyramid made at this size, the scene drawn
-    /// into the float scene target, and a perspective camera.
+    /// Whether the films can be blurred this frame: the pyramid made at this size, the depth target
+    /// the window's own at that size (`blur_fits`: never in an off-screen view), the scene drawn into
+    /// the float scene target, and a perspective camera.
     fn film_blur_ready(&self, camera: &Camera) -> bool {
         let size = (self.config.width.max(1), self.config.height.max(1));
+        let depth = (self.depth_texture.width(), self.depth_texture.height());
+        let off_screen = matches!(self.view_depth, super::view_depth::ViewDepth::Active(..));
         self.film_blur.wanted()
-            && self.film_blur.pyramid.as_ref().is_some_and(|p| p.size == size)
+            && self.film_blur.pyramid.as_ref().is_some_and(|p| p.size == size && blur_fits(p.size, depth, off_screen))
             && self.scene_format() == wgpu::TextureFormat::Rgba16Float
             && matches!(camera.projection, camera::Projection::Perspective)
     }
@@ -638,31 +696,9 @@ impl Renderer {
         lap(1);
         // The coverage: every film's faces over the scene's depth, 1 where one is seen.
         if !fb.v1 {
-            self.queue.write_buffer(&fb.cover_cam, 0, bytemuck::cast_slice(&u.view_proj));
-            let shown: Vec<usize> = films.iter().copied().take(MAX_COVER_FILMS).collect();
-            let models: Vec<[f32; 16]> = shown.iter().map(|&i| Mat4::from_scale_rotation_translation(objects[i].scale, objects[i].rotation, objects[i].position).to_cols_array()).collect();
-            self.queue.write_buffer(&fb.cover_inst, 0, bytemuck::cast_slice(&models));
-            let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Film Blur Coverage BG"),
-                layout: &fb.cover_pso.get_bind_group_layout(0),
-                entries: &[wgpu::BindGroupEntry { binding: 5, resource: fb.cover_cam.as_entire_binding() }],
-            });
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Film Coverage Pass"),
-                timestamp_writes: self.pass_timer("gpu.film_blur"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &pyr.mask, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store } })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &self.depth_view, depth_ops: None, stencil_ops: None }),
-                ..Default::default()
-            });
-            pass.set_pipeline(&fb.cover_pso);
-            pass.set_bind_group(0, &group, &[]);
-            pass.set_vertex_buffer(1, fb.cover_inst.slice(..));
-            for (j, &i) in shown.iter().enumerate() {
-                let Some(mesh) = self.meshes.get(objects[i].mesh) else { continue };
-                pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(mesh.indices(), mesh.base_vertex, j as u32..j as u32 + 1);
-            }
+            let shown: Vec<(&mesh::Mesh, Mat4)> = films.iter().filter_map(|&i| Some((self.meshes.get(objects[i].mesh)?, Mat4::from_scale_rotation_translation(objects[i].scale, objects[i].rotation, objects[i].position)))).collect();
+            let depth = (self.depth_texture.width(), self.depth_texture.height());
+            fb.encode_coverage(&self.device, &self.queue, encoder, pyr, &self.depth_view, depth, &u.view_proj, &shown, self.pass_timer("gpu.film_blur"));
         }
         lap(2);
         let timer = || self.pass_timer("gpu.film_blur");

@@ -7795,3 +7795,11 @@ he noticed the "2+ hour task".
 - **Cause**: the worker loops while its pool has another owner, and `SampleBank::clear` (the music's idle let-go, and every build with the reuse switch off) dropped the decoded recordings but kept the bank's `streamer`.
 - **Fix**: `SampleBank::clear` drops the streamer too; the worker ends once the last playing note gives its ring back, and a later streamed note makes a fresh pool.
 - **Held by**: `instrument_packs::stream_tests::letting_go_of_the_recordings_lets_go_of_the_streaming_thread` (seen red: "the rings outlive the let-go: 4194304 bytes still held").
+
+## BUG-305: an off-screen view with a frosted film in sight panicked in wgpu validation (FIXED 2026-11-14, found 2026-11-14)
+
+**Found by** the storeys rig (the upper-hall screenshot, a hi-res off-screen view). Not operator-reported.
+- **Symptom**: "Attachments have differing sizes: the depth attachment's texture view has extent (1600, 900, 1) but is followed by the color attachment at index 0's texture view which has (2560, 1387, 1)", a panic, whenever an off-screen view (a hi-res screenshot, a camera screen, a map tile) rendered with a film in its see-through list.
+- **Cause**: the film blur's coverage pass (`renderer/film_blur.rs`) paired its coverage mark, sized to the window, with `self.depth_view`, which `begin_view_depth` and `set_depth_target_size` swap to the view's size for the length of an off-screen render; the view's scene is also a scratch target the pyramid never read.
+- **Fix**: `film_blur_ready` asks `blur_fits`: the depth target must be the pyramid's size and the frame the window's own, else the blur stands down and the films are drawn whole (the off look). The coverage pass moved into `FilmBlur::encode_coverage`, which checks the same and records nothing against a depth of another size. A hi-res screenshot therefore shows the films unblurred (said in the file's header).
+- **Held by**: `film_blur::tests::the_blur_stands_down_where_the_depth_is_not_the_windows` and, on the GPU, `a_film_in_a_view_of_another_size_records_no_coverage_and_no_validation_error` (seen red with `blur_fits` answering true: the same "Attachments have differing sizes" error, 40 x 20 against 64 x 32).
