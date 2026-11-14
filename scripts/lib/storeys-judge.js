@@ -32,8 +32,11 @@
 // corner) is the few choices the data cannot make: which wall upstairs to walk into, where to
 // jump, which guard to lean on. `buildPlan` checks every one against the data before anything
 // boots: each named piece, zone and wall exists where the route expects it, every straight leg of
-// a walked route crosses no wall of its storey except through a door, the jump points are under a
-// slab and under none, the wall chosen upstairs has no wall under it downstairs. A layout change
+// a walked route crosses no wall of its storey except through a door, every walk, held walk and
+// placement keeps a body's radius and FURNITURE_SLACK_M clear of the furniture on its storey
+// (data/machines/home.ron, read by home-furniture.js: the walk stops at furniture since
+// 2026-11-13, BUG-306), the jump points are under a slab and under none, the wall chosen upstairs
+// has no wall under it downstairs. A layout or furniture change
 // that moves any of them refuses the run with the reason, instead of failing a leg for a reason
 // nobody can read.
 //
@@ -48,6 +51,7 @@
 
 const path = require("path");
 const FJ = require("./falls-judge.js");
+const HF = require("./home-furniture.js");
 
 /// The limits, each with its reason.
 const LIMITS = {
@@ -106,6 +110,13 @@ const LIMITS = {
   /// wall and a body there is in no room at all: the HUD shows no name (seen in the running game,
   /// 2026-10-21: on the lift lobby's floor 0.47 m from its south wall).
   HUD_WALL_MARGIN_M: 0.6,
+  /// Every walked leg, held walk and placement keeps the body's radius and this much more clear of
+  /// each piece of furniture on its storey (buildPlan refuses a route that does not): the walk
+  /// stops at furniture since 2026-11-13, and the rig turns for its next point from wherever the
+  /// last one left the body (within 0.25 m of it), so a leg planned to graze a piece's corner
+  /// slides along it instead. Seen 2026-11-14 (BUG-306): the bedroom leg ran 0.3 m inside a shelf
+  /// beside the door and the body slid 0.28 m west along it, never reaching its point.
+  FURNITURE_SLACK_M: 0.1,
 };
 
 /// The route's choices, in the homestead's own metres (docs/design/homestead-upper-floor.md
@@ -121,20 +132,27 @@ const ROUTE = {
   lift_lobby: "room-lift-lobby",
   /// From the stair-top landing to the bedroom: south onto the gallery (its middle, between the
   /// guard G1 at z 39.3 and the upper hall's south wall U3 at 40.5), east along it to the bedroom
-  /// door's middle (U4's door at x 41.0 to 41.9), north through it, and on into the middle of the
-  /// room (away from its walls: see HUD_WALL_MARGIN_M).
+  /// door's middle (U4's door at x 41.0 to 41.9), north through it to half a metre inside, west
+  /// along U4 past the shelf that stands against the room's east wall beside the door (shelf_6,
+  /// x 41.47 to 42.03, z 36.15 to 37.05), and on into the middle of the room (away from its walls:
+  /// see HUD_WALL_MARGIN_M). Until 2026-11-14 the route went on north from the door to (41.45,
+  /// 36.4), through the shelf, which the walk passed through until it began stopping at furniture
+  /// (2026-11-13): the body slid west along the shelf's side and never reached the point (BUG-306).
   gallery_z: 39.9,
   bedroom_door_x: 41.45,
   bedroom_in: [
-    [41.45, 36.4],
+    [41.45, 37.45],
+    [40.6, 37.45],
     [39.5, 35.0],
   ],
   /// THE WALL UPSTAIRS (U7, concrete, between the dressing room and the bathroom and wet room):
   /// the ground walls that stood on its line were deleted when the second bedroom took that space,
   /// so downstairs the same line is open floor. Walked into from the dressing room facing east;
-  /// walked across downstairs, in the second bedroom, facing east.
+  /// walked across downstairs, in the second bedroom, facing east. The dressing room's walk runs in
+  /// the gap between the wardrobes along U7 (z 30.6 to 34.6) and the mirror hung on it (z 36.2 to
+  /// 36.8): until 2026-11-14 it started at z 34.0 and walked into wardrobe_3 (BUG-306).
   wall: { a: [45.0, 30.0], b: [45.0, 38.0] },
-  wall_up_from: [43.5, 34.0],
+  wall_up_from: [43.5, 35.4],
   wall_down_from: [43.2, 36.8],
   wall_down_to: [47.2, 36.8],
   /// A jump under a solid slab (the ground hall, under the gallery's floor) and the same jump with
@@ -169,10 +187,12 @@ const ROUTE = {
   /// from inside its door; the ground hall looking up the stair.
   shots: [
     { id: "upper_hall", at: [35.4, 38.75], storey: "upper", yaw: Math.PI / 2, pitch: -0.22, note: "the upper hall from the stair-top landing, east over the stairwell and its guards G1 and G2" },
-    { id: "bedroom", at: [41.45, 36.0], storey: "upper", yaw: -Math.PI / 2 - 0.35, pitch: -0.12, note: "the upstairs bedroom from inside its door" },
+    { id: "bedroom", at: [41.0, 36.0], storey: "upper", yaw: -Math.PI / 2 - 0.35, pitch: -0.12, note: "the upstairs bedroom from inside its door" },
     { id: "ground_hall_up_stairs", at: [44.6, 38.7], storey: "ground", yaw: -Math.PI / 2, pitch: 0.32, note: "the ground hall looking west up the stair, the slab's edge over its foot and the stairwell open above" },
   ],
 };
+/** The route `buildPlan` walks when no test hands it another (inside it, `ROUTE` is whichever). */
+const RIG_ROUTE = ROUTE;
 
 // ── Reading the tree's data (pure: each reader takes a file's text) ─────────────────────────────
 
@@ -317,6 +337,9 @@ function readTreeData(repo, readFile = (p) => require("fs").readFileSync(p, "utf
     head_m: readConst(camera, "HEAD_ABOVE_EYE_M"),
     radius_m: readConst(walls, "PLAYER_RADIUS"),
     eye_m: readConst(walls, "EYE_HEIGHT_M"),
+    knee_m: readConst(walls, "KNEE_M"),
+    // The furniture and machines the walk stops at (the homestead's own: data/machines/home.ron).
+    furniture: HF.footprints(HF.readMachineHome(rd("data", "machines", "home.ron"))),
   };
 }
 
@@ -408,6 +431,12 @@ function wallsCrossed(home, floor, eye, radius, p, q) {
   return hit;
 }
 
+/** The furniture a body on `floor` walking from p to q (or placed at p) would come within `need`
+ *  metres of: each piece standing across its knee-to-eye band (home-furniture.js). [] when clear. */
+function furnitureNear(furniture, floor, eye, knee, need, p, q) {
+  return (furniture || []).filter((fp) => HF.stopsBody(fp, floor, eye, knee) && HF.clearance(fp, p, q || p) < need);
+}
+
 const fmtPt = (p) => `(${p.map((v) => Number(v).toFixed(2)).join(", ")})`;
 const wallName = (w) => `${fmtPt(w.a)} to ${fmtPt(w.b)} (base ${w.base}, ${w.height} m)`;
 
@@ -415,15 +444,19 @@ const wallName = (w) => `${fmtPt(w.a)} to ${fmtPt(w.b)} (base ${w.base}, ${w.hei
  * Everything a run walks, read from the tree's data and the route's choices, in home metres:
  * { plan, problems }. Each problem names what the layout no longer has where the route expects
  * it (the rig refuses to boot with any). The plan is what the rig walks and the judge judges.
+ * `givenRoute` is the rig's own (ROUTE) unless a test hands it another (the route before BUG-306).
  */
-function buildPlan(tree) {
+function buildPlan(tree, givenRoute = null) {
+  const ROUTE = givenRoute || RIG_ROUTE;
   const problems = [];
   const home = tree.home;
   const eye = tree.eye_m;
   const radius = tree.radius_m;
-  if (!(eye > 0) || !(radius > 0) || !(tree.head_m > 0)) {
-    problems.push("could not read EYE_HEIGHT_M and PLAYER_RADIUS (crates/humanity-ship/src/wall_collision.rs) or HEAD_ABOVE_EYE_M (src/renderer/camera.rs)");
+  const knee = tree.knee_m;
+  if (!(eye > 0) || !(radius > 0) || !(knee > 0) || !(tree.head_m > 0)) {
+    problems.push("could not read EYE_HEIGHT_M, PLAYER_RADIUS and KNEE_M (crates/humanity-ship/src/wall_collision.rs) or HEAD_ABOVE_EYE_M (src/renderer/camera.rs)");
   }
+  if (!Array.isArray(tree.furniture) || tree.furniture.length === 0) problems.push("read no furniture from data/machines/home.ron: the route could not be checked against what the walk stops at");
   const piece = (id, kind) => {
     const s = home.structures.find((x) => x.id === id);
     const ty = s && tree.types[s.type_id];
@@ -464,19 +497,43 @@ function buildPlan(tree) {
     if (z && !named(z)) problems.push(`zone "${z.id}"'s room type "${z.room_type}" has no name in data/rooms.ron (the HUD would show its id)`);
   }
 
-  // The walked routes, each straight leg checked against the walls of its storey.
-  const route = (what, floor, pts) => {
+  // The furniture and machines in the home: since 2026-11-13 the walk stops at each piece that
+  // stands across the body's knee-to-eye band (src/engine/crowd_walk.rs `furniture_walls_near`),
+  // so every straight walk and every placement keeps the body's radius and FURNITURE_SLACK_M clear
+  // of them (BUG-306: the route walked through a shelf and a wardrobe the walk used to pass through).
+  // A held walk into a wall, a guard or a gate (`into`: its line a..b, q the point on it) leaves
+  // out the pieces wholly beyond the line, which the line itself keeps from the body (the shower on
+  // the far side of the wall upstairs).
+  const clearOf = (what, floor, p, q, into = null) => {
+    const near = furnitureNear(tree.furniture, floor, eye, knee, radius + LIMITS.FURNITURE_SLACK_M, p, q);
+    const ours = into ? Math.sign(sideOf(into.a, into.b, p[0], p[1])) : 0;
+    for (const fp of near.filter((f) => !into || HF.corners(f).some((c) => sideOf(into.a, into.b, c[0], c[1]) * ours > 1e-6))) {
+      const gap = HF.clearance(fp, p, q || p);
+      const piece = `the ${fp.label} "${fp.id}" at ${fmtPt(fp.centre)}`;
+      const where = q ? `the straight walk ${fmtPt(p)} to ${fmtPt(q)}` : `the placement ${fmtPt(p)}`;
+      problems.push(`${what}: ${where} comes ${gap.toFixed(2)} m from ${piece} (the walk stops a body ${radius} m round at furniture; the route keeps ${(radius + LIMITS.FURNITURE_SLACK_M).toFixed(2)} m clear)`);
+    }
+  };
+  // The walked routes, each straight leg checked against the walls and the furniture of its storey
+  // (`furniture: false` for the flight up the stair, which rises off the floor the pieces stand on).
+  const route = (what, floor, pts, { furniture = true } = {}) => {
     for (let i = 1; i < pts.length; i++) {
       for (const w of wallsCrossed(home, floor, eye, radius, pts[i - 1], pts[i])) {
         problems.push(`${what}: the straight leg ${fmtPt(pts[i - 1])} to ${fmtPt(pts[i])} walks into the wall ${wallName(w)}`);
       }
+      if (furniture) clearOf(what, floor, pts[i - 1], pts[i]);
     }
     return pts;
+  };
+  /** The point on the line through a and b nearest (x, z): where a held walk at it meets it. */
+  const footOn = (a, b, x, z) => {
+    const t = alongOf(a, b, x, z);
+    return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
   };
   // The front door, west down the hall to the stair's foot, then up the flight to the landing
   // past its top (that last leg rises between the storeys, between the stair's own walls).
   const stairsRoute = stairs && front ? [...route("the front door to the stair", 0, [front, [stairs.foot[0], front[1]], stairs.foot]), stairs.top] : null;
-  if (stairs) route("up the stair", 0, [stairs.foot, stairs.top]);
+  if (stairs) route("up the stair", 0, [stairs.foot, stairs.top], { furniture: false });
   const bedRoute = stairs ? route("the stair top to the bedroom", upper, [stairs.top, [stairs.top[0], ROUTE.gallery_z], [ROUTE.bedroom_door_x, ROUTE.gallery_z], ...ROUTE.bedroom_in]) : null;
   const bedEnd = ROUTE.bedroom_in[ROUTE.bedroom_in.length - 1];
   if (bed && !zoneContains(bed, bedEnd[0], upper, bedEnd[1])) problems.push(`the bedroom route ends at ${fmtPt(bedEnd)}, outside zone "${bed.id}"`);
@@ -564,6 +621,18 @@ function buildPlan(tree) {
       if (elevator && inReach(elevator, p[0], p[1], CALL_REACH_M + 0.05)) problems.push(`the ladder leg's point ${fmtPt(p)} is within the elevator's call reach: it would call the car the call leg needs at the bottom`);
     }
   }
+
+  // The held walks (forward into the wall, the guard, the hatch's gate and, called, onto the car)
+  // and the placements no walked leg starts from (the jumps, the climb, the screenshots): each
+  // clear of the furniture, so what stops the body is what the leg is about.
+  clearOf("the wall leg upstairs", upper, ROUTE.wall_up_from, footOn(ROUTE.wall.a, ROUTE.wall.b, ...ROUTE.wall_up_from), ROUTE.wall);
+  clearOf("the guard leg", upper, ROUTE.guard_from, footOn(ROUTE.guard.a, ROUTE.guard.b, ...ROUTE.guard_from), ROUTE.guard);
+  if (ladder) clearOf("the hatch leg", upper, ROUTE.hatch_from, footOn(ladder.gate.a, ladder.gate.b, ...ROUTE.hatch_from), ladder.gate);
+  if (elevator) clearOf("the call leg", upper, ROUTE.lift_call_from, [elevator.pos[0], elevator.pos[2]]);
+  clearOf("the jump under the slab", 0, ROUTE.jump_under);
+  clearOf("the jump in the open", 0, ROUTE.jump_open);
+  clearOf("the ladder's climbing point", 0, ROUTE.ladder_from);
+  for (const s of ROUTE.shots) clearOf(`the screenshot "${s.id}"`, s.storey === "upper" ? upper : 0, s.at);
 
   const plan = {
     upper_m: upper,
@@ -1078,6 +1147,7 @@ module.exports = {
   sideOf,
   yawTo,
   wallsCrossed,
+  furnitureNear,
   framesOf,
   landingsIn,
   judgeStoreys,

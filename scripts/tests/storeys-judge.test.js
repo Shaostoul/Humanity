@@ -567,6 +567,56 @@ test("the rig re-judges a saved run without booting anything (--dry-verdict)", (
   }
 });
 
+// BUG-306 (2026-11-14): `just verify-storeys` failed 74/76 on every build since the walk began
+// stopping at furniture (2026-11-13): the bedroom leg's route ran north from the door through
+// shelf_6 and the body slid 0.28 m west along it, "still 0.28 m from (41.45, 36.4) after 10
+// holds"; the wall leg upstairs walked into wardrobe_3 and stopped 1.00 m off the wall. buildPlan
+// checked the route against the walls only. RED before the furniture check was written: the old
+// route below planned with no problems. With it, the old route's plan reads (2026-11-14):
+//   the stair top to the bedroom: the straight walk (41.45, 39.90) to (41.45, 36.40) comes 0.02 m from the Shelf unit "shelf_6" ...
+//   the stair top to the bedroom: the straight walk (41.45, 36.40) to (39.50, 35.00) comes 0.02 m from the Shelf unit "shelf_6" ...
+//   the wall leg upstairs: the straight walk (43.50, 34.00) to (45.00, 34.00) comes 0.00 m from the Wardrobe "wardrobe_3" ...
+//   the screenshot "bedroom": the placement (41.45, 36.00) comes 0.15 m from the Shelf unit "shelf_6" ...
+const ROUTE_BEFORE_BUG_306 = {
+  ...SJ.ROUTE,
+  bedroom_in: [
+    [41.45, 36.4],
+    [39.5, 35.0],
+  ],
+  wall_up_from: [43.5, 34.0],
+  shots: SJ.ROUTE.shots.map((s) => (s.id === "bedroom" ? { ...s, at: [41.45, 36.0] } : s)),
+};
+
+test("BUG-306: a route through the furniture refuses before anything boots, the route of before it among them", () => {
+  const old = SJ.buildPlan(TREE, ROUTE_BEFORE_BUG_306).problems;
+  assert.ok(old.some((p) => /the stair top to the bedroom: .*\(41\.45, 39\.90\) to \(41\.45, 36\.40\).*"shelf_6"/.test(p)), old.join("\n"));
+  assert.ok(old.some((p) => /the wall leg upstairs: .*"wardrobe_3"/.test(p)), old.join("\n"));
+  assert.ok(old.some((p) => /the screenshot "bedroom": .*"shelf_6"/.test(p)), old.join("\n"));
+  assert.strictEqual(old.length, 4, old.join("\n"));
+  // A piece of furniture put down in the ground hall, on the way from the front door to the stair.
+  const t = JSON.parse(JSON.stringify(TREE));
+  t.furniture.push({ id: "crate_x", machine: "crate", label: "Crate", centre: [48, 40.5], half: [0.4, 0.4], yaw: 0, y0: 0, y1: 0.8 });
+  const blocked = SJ.buildPlan(t).problems;
+  assert.ok(blocked.some((p) => /the front door to the stair: .*"crate_x"/.test(p)), blocked.join("\n"));
+  // The same crate upstairs over that spot does not stand in a walk on the ground floor; a rug
+  // there (under the knee) is walked over.
+  for (const [y0, y1] of [
+    [3, 3.8],
+    [0, 0.02],
+  ]) {
+    t.furniture[t.furniture.length - 1] = { ...t.furniture[t.furniture.length - 1], y0, y1 };
+    assert.deepStrictEqual(SJ.buildPlan(t).problems, [], `a piece from ${y0} to ${y1} m`);
+  }
+  // The shower on the far side of the wall upstairs is the wall's business, not the furniture's:
+  // the held walk into a line leaves out what stands wholly beyond it.
+  const shower = TREE.furniture.find((f) => f.id === "shower_1");
+  assert.ok(shower && SJ.furnitureNear(TREE.furniture, UP, EYE, 0.4, R + SJ.LIMITS.FURNITURE_SLACK_M, SJ.ROUTE.wall_up_from, [45, SJ.ROUTE.wall_up_from[1]]).includes(shower), "within reach of the walk's end on the wall's line");
+  // No furniture read at all is a problem, not a clear route.
+  const none = JSON.parse(JSON.stringify(TREE));
+  none.furniture = [];
+  assert.ok(SJ.buildPlan(none).problems.some((p) => /read no furniture/.test(p)));
+});
+
 // The two real runs of 2026-10-21, kept trimmed (scripts/verify-storeys.js's manifests: each
 // frame's t, cam and storey block as recorded, numbers to 4 decimals). Each carries the plan it
 // ran on, so a later change to the homestead does not move them.

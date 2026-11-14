@@ -15,10 +15,12 @@
 //                    stair's foot and up stairs-1 to the landing past its top: the floor stood on
 //                    is the upper floor (3.0 m), the HUD names the upper hall, no landing reaches
 //                    the body, the body walked every metre (no frame faster than a walk).
-//   bedroom          on from there: south onto the gallery, east to the bedroom door, north 2 m
-//                    into the bedroom: the HUD names it, the body never leaves the upper floor.
-//   wall_upstairs    placed in the dressing room upstairs, forward held into U7 (the wall between
-//                    it and the bathroom): the eye stays on its side.
+//   bedroom          on from there: south onto the gallery, east to the bedroom door, north through
+//                    it, west past the shelf beside it and on into the room's middle: the HUD
+//                    names it, the body never leaves the upper floor.
+//   wall_upstairs    placed in the dressing room upstairs, between its wardrobes and its mirror,
+//                    forward held into U7 (the wall between it and the bathroom): the eye stays on
+//                    its side.
 //   guard            placed on the gallery, forward held into G1, the balustrade over the open
 //                    stairwell: the body stays on the gallery and never falls.
 //   wall_downstairs  placed in the second bedroom on the ground floor, walked east across U7's
@@ -46,8 +48,11 @@
 // the stair. A person looks at them: the judge only checks they were taken.
 //
 // scripts/lib/storeys-judge.js judges it all against the tree's data (homestead.ron, the structure
-// types, the wall materials, rooms.ron, and the three walk constants it reads out of the code), and
-// refuses to boot when the layout no longer has what the route walks (`buildPlan`).
+// types, the wall materials, rooms.ron, the walk constants it reads out of the code, and the
+// furniture in data/machines/home.ron), and refuses to boot when the layout no longer has what the
+// route walks, or a wall or a piece of furniture now stands in its way (`buildPlan`; the walk stops
+// at furniture since 2026-11-13, and the route that walked through a shelf and a wardrobe failed
+// two checks on every build until it was moved: BUG-306).
 //
 // WHAT THE GAME REPORTS (src/engine/storey_probe.rs): the recorder (debug/remote_players_request.
 // json) writes, every frame, a `storey` block (the floor stood on, the ceiling, ladder and car
