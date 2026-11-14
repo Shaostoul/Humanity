@@ -179,12 +179,23 @@ pub struct Cover {
 
 /// A cover's sheet: its colour (linear), its opacity seen face-on (more at a slant), its
 /// roughness, and the share of the light falling on its far side it passes on, scattered.
+/// Since 2026-11-13 also the share of a lamp's light that gets through it at all, face-on (the
+/// shadow it casts: the scattered share plus what goes straight through), and how wide the
+/// scattered light spreads, as the tangent of the half-angle of its cone (what makes what is
+/// behind the sheet blur more the further behind it is). transmission / light_transmittance is
+/// the sheet's HAZE, the scattered share of what gets through, which is how much of the view
+/// through it is blurred (renderer/shadow_transmit.rs, renderer/film_blur.rs). `blur_reach_m` is
+/// the farthest behind the sheet its blur looks: the cover's own depth, past which a sheet sees its
+/// cover's far side (another milky sheet), not the room.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct Film {
     pub color: [f32; 3],
     pub alpha: f32,
     pub roughness: f32,
     pub transmission: f32,
+    pub light_transmittance: f32,
+    pub scatter_spread: f32,
+    pub blur_reach_m: f32,
 }
 
 /// A cover's door: the panel between two zips up a side face, hanging from the top seam, that

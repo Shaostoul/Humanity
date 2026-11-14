@@ -111,9 +111,16 @@ pub struct ShadowLevel {
 }
 
 impl ShadowLevel {
-    /// The atlas's video memory: one 32-bit depth per texel.
+    /// The atlas's video memory: one 32-bit depth per texel, and the transmittance atlas beside it
+    /// (`transmit_bytes`).
     pub fn atlas_bytes(&self) -> u64 {
-        self.atlas as u64 * self.atlas as u64 * 4
+        self.atlas as u64 * self.atlas as u64 * 4 + self.transmit_bytes()
+    }
+
+    /// The transmittance atlas's video memory (renderer/shadow_transmit.rs): half the side, eight
+    /// bytes a texel, so half the depth atlas's.
+    pub fn transmit_bytes(&self) -> u64 {
+        shadow_transmit::transmit_bytes(self.atlas)
     }
 
     /// World size of one near-sun texel, centimetres (for the Settings words).
@@ -571,6 +578,9 @@ pub struct AtlasView {
     pub texel_m: f32,
     /// The light's reach (perspective): casters farther than this cannot shadow anything it lights.
     pub range: f32,
+    /// A partial caster (glass, film) is drawn into this view's tile of the transmittance atlas, so
+    /// the shading reads it there (the table's row 6 y; renderer/shadow_transmit.rs).
+    pub partial: bool,
 }
 
 /// The table the shader reads (group 0 binding 10, `shadow_table`), as `vec4<f32>` rows:
@@ -596,7 +606,7 @@ pub fn pack_table(lookups: &[(usize, u32)], views: &[AtlasView], near_sun: Optio
         rows[b + 4] = [x as f32 * inv, y as f32 * inv, s as f32 * inv, filter_texels * inv];
         let w = if v.ortho { -v.texel_m } else { v.texel_m };
         rows[b + 5] = [v.origin.x, v.origin.y, v.origin.z, w];
-        rows[b + 6] = [if v.ortho || !v.range.is_finite() { 0.0 } else { v.range }, 0.0, 0.0, 0.0];
+        rows[b + 6] = [if v.ortho || !v.range.is_finite() { 0.0 } else { v.range }, if v.partial { 1.0 } else { 0.0 }, 0.0, 0.0];
     }
     rows
 }
@@ -636,6 +646,9 @@ pub struct ShadowStats {
     pub fast_left: u32,
     /// The features the device lacks for the GPU-driven path (`shadow_gpu::missing_mask`), for the notice.
     pub gpu_missing: u8,
+    /// Sheets of glass or film drawn into the transmittance atlas this frame (one per sheet per view:
+    /// renderer/shadow_transmit.rs, the per-draw loop).
+    pub partial_draws: u32,
 }
 
 /// The last frame's stats, for the Settings line (the GUI has no renderer to ask).
@@ -670,6 +683,9 @@ struct Caster {
     /// Culled and drawn by the graphics card (`shadow_gpu`): a fast caster whose mesh is in the
     /// arena. Its batch (one per arena mesh this frame) when it is.
     arena: Option<u32>,
+    /// A PARTIAL caster (glass, frosted film: renderer/shadow_transmit.rs): drawn into the
+    /// transmittance atlas with what it passes, never into the depth atlas. Its `model` is set.
+    partial: Option<shadow_transmit::Partial>,
 }
 
 /// Whether a caster can take the fast path (`assets/shaders/shadow_atlas_instanced.wgsl`): a plain
@@ -863,6 +879,12 @@ pub enum CasterList {
     /// The celestial list: the near sun view only, and only its plain surfaces (build pieces, props),
     /// never the terrain or the vegetation, which the far map already holds.
     CelestialSurfaces,
+    /// The see-through list (2026-11-13): only its sheets of glass and frosted film cast, and only
+    /// partially (renderer/shadow_transmit.rs). Whatever else rides it at full opacity (a mirror, a
+    /// tent's zipper tapes, an editor highlight) never cast before and does not now: seen red the
+    /// first time the list joined the casters, when the racks gate's open floor at noon fell from
+    /// 200 to 52 codes in both arms, with and without the sheets.
+    SeeThrough,
 }
 
 /// The renderer's shadow-atlas state.
@@ -907,6 +929,12 @@ pub struct LocalShadows {
     pub fast_off: bool,
     /// The GPU-driven casters (renderer/shadow_gpu.rs): the arena, the cull, the indirect draws.
     pub gpu: shadow_gpu::GpuCasters,
+    /// The partial casters (renderer/shadow_transmit.rs): glass and frosted film in the
+    /// transmittance atlas beside the depth atlas.
+    pub transmit: shadow_transmit::TransmitPass,
+    /// Showcase pin `partial_shadows` "0": glass and film cast nothing, as before 2026-11-13 (the
+    /// partial casters' red twin).
+    pub partial_off: bool,
     /// Showcase pin `shadow_gpu` "0": the plain casters go through the per-draw loop even where the
     /// device could cull and draw them itself (the GPU-driven path's red twin: the picture must not
     /// change, only the cost).
@@ -974,6 +1002,8 @@ impl LocalShadows {
             fast_off: false,
             gpu,
             gpu_off: false,
+            transmit: shadow_transmit::TransmitPass::new(device),
+            partial_off: false,
             batch_scratch: Vec::new(),
             prev: Vec::new(),
             stats: ShadowStats::default(),
@@ -1000,14 +1030,14 @@ impl LocalShadows {
     }
 
     /// What the colour passes (and the sun shadow pass) bind at group 0 bindings 8-10.
-    pub fn colour_binding(&self) -> pipeline::ShadowAtlasBinding<'_> {
-        pipeline::ShadowAtlasBinding { atlas: self.atlas_view(), sampler: &self.sampler, table: &self.table }
+    pub fn colour_binding<'a>(&'a self, film: &'a film_blur::FilmBlur) -> pipeline::ShadowAtlasBinding<'a> {
+        pipeline::ShadowAtlasBinding { atlas: self.atlas_view(), sampler: &self.sampler, table: &self.table, transmit: self.transmit.colour_view(), film_behind: film.view(), film_sampler: &film.read_sampler }
     }
 
     /// What the atlas pass's own group 0 binds: the 1x1 stand-in at 8 (the atlas is the pass's depth
     /// attachment), the same sampler and table.
-    pub fn atlas_pass_binding(&self) -> pipeline::ShadowAtlasBinding<'_> {
-        pipeline::ShadowAtlasBinding { atlas: &self.dummy_view, sampler: &self.sampler, table: &self.table }
+    pub fn atlas_pass_binding<'a>(&'a self, film: &'a film_blur::FilmBlur) -> pipeline::ShadowAtlasBinding<'a> {
+        pipeline::ShadowAtlasBinding { atlas: &self.dummy_view, sampler: &self.sampler, table: &self.table, transmit: &self.transmit.dummy_view, film_behind: film.view(), film_sampler: &film.read_sampler }
     }
 
     /// The per-view groups bind buffers that just grew: make them again on next need.
@@ -1015,10 +1045,11 @@ impl LocalShadows {
         self.view_groups.clear();
     }
 
-    /// Video memory: the atlas, the table and the views' camera buffers.
+    /// Video memory: the atlas and the transmittance atlas beside it, the table and the views'
+    /// camera buffers.
     pub fn vram_bytes(&self) -> u64 {
         let atlas = self.atlas.as_ref().map_or(0, |a| a.2 as u64 * a.2 as u64 * 4);
-        atlas + self.table.size() + self.view_cams.as_ref().map_or(0, |b| b.size()) + self.fast.vram_bytes() + self.gpu.vram_bytes()
+        atlas + self.table.size() + self.view_cams.as_ref().map_or(0, |b| b.size()) + self.fast.vram_bytes() + self.gpu.vram_bytes() + self.transmit.vram_bytes()
     }
 
     /// The atlas side in use (0 = none).
@@ -1070,6 +1101,8 @@ impl Renderer {
             log::info!("[Shadows] shadow atlas {side} x {side} ({:.0} MB)", (side as f64 * side as f64 * 4.0) / 1_048_576.0);
             (tex, view, side)
         });
+        // The transmittance atlas beside it, at half its side (renderer/shadow_transmit.rs).
+        self.local_shadows.transmit.ensure(&self.device, side);
         true
     }
 
@@ -1102,7 +1135,7 @@ impl Renderer {
                 &self.tile_indices_buffer,
                 &self.env_regions_buffer,
                 &self.room_gi,
-                self.local_shadows.atlas_pass_binding(),
+                self.local_shadows.atlas_pass_binding(&self.film_blur),
             );
             self.local_shadows.view_groups.push(group);
         }
@@ -1215,18 +1248,28 @@ impl Renderer {
                     continue;
                 }
                 let Some(mat) = self.materials.get(o.material) else { continue };
-                if !casts(mat) {
+                // A see-through sheet (glass, frosted film) casts a PARTIAL shadow into the
+                // transmittance atlas (renderer/shadow_transmit.rs); anything else that is not opaque
+                // casts nothing. Showcase `partial_shadows` "0" leaves the sheets out (its red twin).
+                let partial = if kind != CasterList::SeeThrough && casts(mat) {
+                    None
+                } else if self.local_shadows.partial_off {
                     continue;
-                }
+                } else {
+                    match shadow_transmit::partial_of(mat.material_type, mat.base_color, mat.params2, mat.emissive) {
+                        Some(p) => Some(p),
+                        None => continue,
+                    }
+                };
                 let class = pipeline::shader_class(mat.material_type);
                 if !class.draws_opaque() || (sun_only && class != ShaderClass::Surface) {
                     continue;
                 }
                 let mut obj = o.clone();
                 obj.position = pos;
-                let cutout = mat.casts_cutout_shadow();
-                let fast = !self.local_shadows.fast_off && takes_fast_path(mat.material_type, cutout);
-                let model = if fast { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
+                let cutout = partial.is_none() && mat.casts_cutout_shadow();
+                let fast = partial.is_none() && !self.local_shadows.fast_off && takes_fast_path(mat.material_type, cutout);
+                let model = if fast || partial.is_some() { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
                 // A plain caster whose mesh can live in the arena is culled and drawn by the GPU;
                 // the rest of the fast ones stay on the per-draw loop (shadow_gpu's header says why).
                 let mut arena = None;
@@ -1238,7 +1281,7 @@ impl Renderer {
                         fast_left += 1;
                     }
                 }
-                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, arena });
+                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, arena, partial });
                 if casters.len() >= MAX_OBJECTS {
                     break;
                 }
@@ -1292,7 +1335,8 @@ impl Renderer {
                 })
                 .collect();
             near_sun = Some(views.len());
-            views.push(AtlasView { view_proj: vp, tile: (0, 0, level.sun_tile), origin: toward_sun.normalize(), ortho: true, texel_m: sun_texel, range: f32::INFINITY });
+            let partial = list.iter().any(|&i| casters[i as usize].partial.is_some());
+            views.push(AtlasView { view_proj: vp, tile: (0, 0, level.sun_tile), origin: toward_sun.normalize(), ortho: true, texel_m: sun_texel, range: f32::INFINITY, partial });
             view_casters.push(list);
             view_gpu.push(gpu_casters > 0);
             view_light.push(None);
@@ -1446,7 +1490,8 @@ impl Renderer {
             let texel_m = 2.0 * tan_half_of(k, li, faces[k]) / faces[k] as f32;
             for (f, (vp, list, any_gpu)) in fl.iter().enumerate() {
                 let tile = p[f].map_or((0, 0, 0), |(x, y)| (x, y, faces[k]));
-                views.push(AtlasView { view_proj: *vp, tile, origin: l.pos, ortho: false, texel_m, range: reaches[k] });
+                let partial = tile.2 > 0 && list.iter().any(|&i| casters[i as usize].partial.is_some());
+                views.push(AtlasView { view_proj: *vp, tile, origin: l.pos, ortho: false, texel_m, range: reaches[k], partial });
                 view_casters.push(if tile.2 > 0 { list.clone() } else { Vec::new() });
                 view_gpu.push(tile.2 > 0 && *any_gpu);
                 view_light.push(Some(k));
@@ -1480,7 +1525,7 @@ impl Renderer {
         let bodies = self.skinned_shadow_spheres();
         let body_in = |k: usize, c: Vec3, r: f32| sphere_in(&view_planes[k], c, r) && (views[k].ortho || c.distance(views[k].origin) < views[k].range + r);
         let classic: Vec<bool> = (0..views.len())
-            .map(|k| views[k].tile.2 > 0 && (view_casters[k].iter().any(|&ci| !casters[ci as usize].fast) || bodies.iter().any(|&(c, r)| body_in(k, c, r))))
+            .map(|k| views[k].tile.2 > 0 && (view_casters[k].iter().any(|&ci| !casters[ci as usize].fast && casters[ci as usize].partial.is_none()) || bodies.iter().any(|&(c, r)| body_in(k, c, r))))
             .collect();
         self.ensure_view_groups(views.len());
         // Every classic view's camera in its slot of the one buffer, in ONE upload up to the last.
@@ -1558,13 +1603,32 @@ impl Renderer {
         let mut used: Vec<usize> = Vec::new();
         for &k in &drawn {
             for &ci in &view_casters[k] {
-                if !casters[ci as usize].fast && slot[ci as usize] == u32::MAX {
+                if !casters[ci as usize].fast && casters[ci as usize].partial.is_none() && slot[ci as usize] == u32::MAX {
                     slot[ci as usize] = used.len() as u32;
                     used.push(ci as usize);
                 }
             }
         }
         self.upload_object_uniforms(used.iter().map(|&ci| &casters[ci].obj));
+        // The partial casters (renderer/shadow_transmit.rs): every drawn view that holds a sheet of
+        // glass or film, each sheet once per view it falls in, in one instance upload.
+        let mut transmit_draws: Vec<(usize, Vec<(usize, u32)>)> = Vec::new();
+        if drawn.iter().any(|&k| views[k].partial) {
+            let tv: Vec<[f32; 20]> = views.iter().map(|v| shadow_transmit::view_entry(&v.view_proj, v.origin, v.ortho)).collect();
+            let mut inst: Vec<[f32; 20]> = Vec::new();
+            for &k in drawn.iter().filter(|&&k| views[k].partial) {
+                let mut list = Vec::new();
+                for &ci in &view_casters[k] {
+                    let c = &casters[ci as usize];
+                    if let Some(p) = c.partial {
+                        list.push((c.obj.mesh, inst.len() as u32));
+                        inst.push(shadow_transmit::instance_entry(&c.model, k as u32, p));
+                    }
+                }
+                transmit_draws.push((k, list));
+            }
+            self.local_shadows.transmit.upload(&self.device, &self.queue, &tv, &inst);
+        }
         lap(1, &mut mark);
 
         // The per-draw loop's casters of each view in (material, mesh) order, so a run of one mesh or one
@@ -1676,7 +1740,7 @@ impl Renderer {
                 pass.set_bind_group(0, &self.local_shadows.view_groups[k], &[]);
                 pass.set_bind_group(1, &self.object_bind_group, &[0]);
                 for cutout in [false, true] {
-                    if !view_casters[k].iter().any(|&ci| !casters[ci as usize].fast && casters[ci as usize].cutout == cutout) {
+                    if !view_casters[k].iter().any(|&ci| !casters[ci as usize].fast && casters[ci as usize].partial.is_none() && casters[ci as usize].cutout == cutout) {
                         continue;
                     }
                     pass.set_pipeline(self.pipeline.shadow_for(cutout));
@@ -1685,7 +1749,7 @@ impl Renderer {
                     let mut bound_mesh = usize::MAX;
                     for &ci in &view_casters[k] {
                         let c = &casters[ci as usize];
-                        if c.fast || c.cutout != cutout {
+                        if c.fast || c.partial.is_some() || c.cutout != cutout {
                             continue;
                         }
                         let (Some(mesh), Some(material)) = (self.meshes.get(c.obj.mesh), self.materials.get(c.obj.material)) else { continue };
@@ -1713,6 +1777,41 @@ impl Renderer {
                 skinned_draws += bodies_drawn;
             }
         }
+        // ── 7. The partial casters into the transmittance atlas (cleared to "nothing here" first):
+        //       each sheet into its view's tile at half the side, the per-draw loop (few sheets). ──
+        let mut partial_draws = 0u32;
+        if let (false, Some((_, tview, _))) = (transmit_draws.is_empty(), self.local_shadows.transmit.atlas.as_ref()) {
+            let tp = &self.local_shadows.transmit;
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Partial Caster Shadow Pass"),
+                timestamp_writes: self.pass_timer("gpu.shadow_partial"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: tview,
+                    resolve_target: None,
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color { r: 1.0, g: 1.0, b: 1.0, a: shadow_transmit::NOTHING_M as f64 }), store: wgpu::StoreOp::Store },
+                })],
+                ..Default::default()
+            });
+            pass.set_pipeline(&tp.pso);
+            pass.set_bind_group(0, &tp.group, &[]);
+            pass.set_vertex_buffer(1, tp.instances.slice(..));
+            for (k, list) in &transmit_draws {
+                let (x, y, s) = shadow_transmit::transmit_tile(views[*k].tile);
+                if s == 0 {
+                    continue;
+                }
+                pass.set_viewport(x as f32, y as f32, s as f32, s as f32, 0.0, 1.0);
+                pass.set_scissor_rect(x, y, s, s);
+                for &(m, i) in list {
+                    let Some(mesh) = self.meshes.get(m) else { continue };
+                    pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                    pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.draw_indexed(mesh.indices(), mesh.base_vertex, i..i + 1);
+                    partial_draws += 1;
+                }
+            }
+        }
+        draws += partial_draws;
         lap(4, &mut mark);
         self.queue.submit(std::iter::once(encoder.finish()));
         lap(5, &mut mark);
@@ -1737,6 +1836,7 @@ impl Renderer {
             gpu_meshes: batches.len() as u32,
             fast_left,
             gpu_missing: self.local_shadows.gpu.missing_mask,
+            partial_draws,
         };
         self.local_shadows.stats = stats;
         publish(stats);
@@ -1947,8 +2047,8 @@ mod tests {
     /// The table's header, lookup and views sit where the shader reads them.
     #[test]
     fn the_table_is_laid_out_as_the_shader_reads_it() {
-        let v = AtlasView { view_proj: Mat4::IDENTITY, tile: (512, 1024, 256), origin: Vec3::new(1.0, 2.0, 3.0), ortho: false, texel_m: 0.01, range: 7.0 };
-        let s = AtlasView { ortho: true, tile: (0, 0, 2048), origin: Vec3::Y, texel_m: 0.015, ..v };
+        let v = AtlasView { view_proj: Mat4::IDENTITY, tile: (512, 1024, 256), origin: Vec3::new(1.0, 2.0, 3.0), ortho: false, texel_m: 0.01, range: 7.0, partial: false };
+        let s = AtlasView { ortho: true, tile: (0, 0, 2048), origin: Vec3::Y, texel_m: 0.015, partial: true, ..v };
         let rows = pack_table(&[(5, KIND_CUBE * KIND_STRIDE + 2)], &[s, v], Some(0), 4096, 1.75, 16);
         // Covers lights 0..=5: two lookup rows; views from row 3.
         assert_eq!(rows[0], [6.0, 3.0, 1.0, 16.0]);
@@ -1960,7 +2060,7 @@ mod tests {
         assert_eq!(rows[b + 5], [1.0, 2.0, 3.0, 0.01]);
         assert_eq!(rows[3 + 5][3], -0.015, "an orthographic view's texel is negated");
         assert_eq!(rows[b + 6], [7.0, 0.0, 0.0, 0.0], "a perspective view's shadow reach");
-        assert_eq!(rows[3 + 6], [0.0; 4], "an orthographic view has no reach to fade over");
+        assert_eq!(rows[3 + 6], [0.0, 1.0, 0.0, 0.0], "an orthographic view has no reach to fade over; this one holds a sheet of glass or film (renderer/shadow_transmit.rs)");
         assert_eq!(rows.len(), 3 + 2 * VIEW_ROWS);
     }
 

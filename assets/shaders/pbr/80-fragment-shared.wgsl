@@ -398,6 +398,9 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
         normal, view_dir, albedo, metallic, roughness, f0)
         * sun_shadow_offset(in.world_position, sun_ndl, normal)
         * sun_gate;
+    // Coloured by the glass or film the near sun view found between (the shadow
+    // atlas's partial casters, renderer/shadow_transmit.rs; white otherwise).
+    lo = lo * g_shadow_tint;
     // ── A FROSTED FILM PASSES LIGHT THROUGH (type 27, 2026-11-13) ──
     // The light falling on a tent cover's far side leaves this side scattered
     // (thin_transmit, 50-brdf.wgsl): the noon sun through the glass roof, or the
@@ -528,13 +531,17 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
             // this frame looks itself up in the atlas (its cube face or its spot
             // view); every other light reads 1 after one compare. After the
             // attenuation's cheap rejects, so a light out of reach costs nothing.
+            // Its light coloured by the glass or film between (the partial casters,
+            // renderer/shadow_transmit.rs; the visibility carries how much).
+            var shadowed_color = light_color;
             if (HAS_SHADOW_ATLAS && f32(i) < shadow_table[0].x) {
                 attenuation = attenuation * local_light_visibility(u32(i), in.world_position, normal, dot(normal, light_dir));
+                shadowed_color = light_color * g_shadow_tint;
             }
-            lo = lo + evaluate_light(light_dir, light_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);
+            lo = lo + evaluate_light(light_dir, shadowed_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);
             // A frosted film passes on what falls on its far side (the sun's note above).
             if (film_t > 0.0) {
-                lo = lo + thin_transmit(light_dir, light_color, attenuation, normal, albedo, film_t);
+                lo = lo + thin_transmit(light_dir, shadowed_color, attenuation, normal, albedo, film_t);
             }
         }
     }

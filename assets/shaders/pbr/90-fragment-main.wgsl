@@ -1248,6 +1248,17 @@ fn fs_surface(in: VertexOutput) -> FragOut {
     // viewer's side. So a pane's normal faces the viewer. A frosted film (type
     // 27, a tent's cover) is a pane too: what falls on its far side it passes on
     // scattered (frag_tail, thin_transmit), so its far side must be the far one.
+    //
+    // THE BLUR BEHIND A FROSTED FILM (2026-11-13, renderer/film_blur.rs): with
+    // Frosted plastic Blurred a film is drawn in two halves, its faces turned
+    // away from the eye first (FAR mode, before the colour pyramid is taken, so
+    // the cover's back shows through its front), then its faces toward the eye
+    // (NEAR mode, blending the pyramid in at the end of this entry). Each mode
+    // drops the other half here; mode 0 draws the whole film as before.
+    let film_mode = film_blur_mode(material_type, out_alpha);
+    if (film_mode > 0u && (dot(normal, view_dir) >= 0.0) == (film_mode == 1u)) {
+        discard;
+    }
     if ((material_type < 11.5 || is_film(material_type)) && out_alpha < 0.999 && dot(normal, view_dir) < 0.0) {
         normal = -normal;
     }
@@ -1381,8 +1392,83 @@ fn fs_surface(in: VertexOutput) -> FragOut {
     s.screen_emitter = screen_emitter;
     s.out_alpha = out_alpha;
     s.emissive_strength = emissive_strength;
-    let fo_c = frag_tail(in, s);
+    var fo_c = frag_tail(in, s);
+    // A film's near faces in NEAR mode: what is behind it, blurred (film_frost).
+    if (film_mode == 2u) {
+        fo_c = film_frost(in.clip_position.xy, in.world_position, fo_c);
+    }
     return frag_out(in, fo_c, surface_cover(fo_c.a));
+}
+
+// ── THE BLUR BEHIND A FROSTED FILM (2026-11-13, renderer/film_blur.rs) ──
+// The camera's film mode (camera.light4_spot.x, a legacy slot no shader read
+// before): FILM_MODE_FAR draws a film's far faces, FILM_MODE_NEAR its near faces
+// over the colour pyramid, anything else the whole film as before. LOCKSTEP with
+// film_blur::MODE_FAR / MODE_NEAR (film_blur_formula_matches_the_shader).
+const FILM_MODE_FAR: f32 = 7001.0;
+const FILM_MODE_NEAR: f32 = 7002.0;
+
+// 1 for FAR, 2 for NEAR, 0 when this fragment is not a see-through film or the
+// pass is not split.
+fn film_blur_mode(material_type: f32, alpha: f32) -> u32 {
+    if (!is_film(material_type) || alpha >= 0.999) {
+        return 0u;
+    }
+    let m = camera.light4_spot.x;
+    if (abs(m - FILM_MODE_FAR) < 0.5) {
+        return 1u;
+    }
+    if (abs(m - FILM_MODE_NEAR) < 0.5) {
+        return 2u;
+    }
+    return 0u;
+}
+
+// The blur's radius in the pyramid base's texels: a surface `gap` metres behind
+// a sheet `z` metres from the eye, the sheet scattering into a cone of
+// half-angle atan(spread), `focal` base texels per metre at a metre. CPU twin:
+// film_blur::blur_radius_texels.
+fn film_blur_radius(gap: f32, z: f32, spread: f32, focal: f32) -> f32 {
+    return max(gap, 0.0) * spread * focal / max(z, 0.01);
+}
+
+// The gap the blur uses, held to the sheet's reach (params2.w, the cover's own
+// depth; 0 = not held): past its cover's far side a sheet sees that far side,
+// which writes no depth. CPU twin: film_blur::film_gap.
+fn film_gap(gap: f32, reach: f32) -> f32 {
+    return select(gap, min(gap, reach), reach > 0.0);
+}
+
+// The pyramid level whose texels are that radius. CPU twin: film_blur::blur_lod.
+fn film_blur_lod(r: f32, top: f32) -> f32 {
+    return clamp(log2(max(r, 1.0)), 0.0, top);
+}
+
+// A film's near face over what is behind it: the share of the light coming
+// through it that the sheet scatters (its haze, params2.x / params2.y) is the
+// scene behind blurred by the gap's disc; the share that goes straight through
+// stays the sharp scene already under it. Straight alpha out, so the blend
+// gives film * a + blurred * (1 - a) * haze + sharp * (1 - a) * (1 - haze).
+fn film_frost(px: vec2<f32>, world: vec3<f32>, c: vec4<f32>) -> vec4<f32> {
+    let fb = camera.light4_spot;
+    let inv = camera.light5_spot.xy;
+    let uv = px * inv;
+    let behind_z = textureSampleLevel(film_behind, film_behind_samp, uv, 0.0).a;
+    let z = max((camera.view_proj * vec4<f32>(world, 1.0)).w, 0.01);
+    let gap = film_gap(behind_z - z, material.params2.w);
+    let lod = film_blur_lod(film_blur_radius(gap, z, material.params2.z, fb.y), fb.z);
+    // Four bilinear taps half a texel of that level round the pixel: a tent
+    // filter, so the level's square texels never show. A base texel is two
+    // render pixels.
+    let h = exp2(lod) * inv;
+    let b = 0.25 * (textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(-h.x, -h.y), lod)
+        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(h.x, -h.y), lod)
+        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(-h.x, h.y), lod)
+        + textureSampleLevel(film_behind, film_behind_samp, uv + vec2<f32>(h.x, h.y), lod));
+    let haze = clamp(material.params2.x / max(material.params2.y, 0.001), 0.0, 1.0);
+    let a = c.a;
+    let a_out = a + (1.0 - a) * haze;
+    return vec4<f32>((c.rgb * a + b.rgb * ((1.0 - a) * haze)) / max(a_out, 0.0001), a_out);
 }
 
 @fragment

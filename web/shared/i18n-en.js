@@ -5634,6 +5634,7 @@ window.HOS_I18N_EN = {
     "section_labels": "Machine labels and Home view",
     "not_connected": "NOT CONNECTED YET: {{names}}. These save and reload correctly and the cost estimates below are real, but the renderer does not read them yet, so moving them will not change what you see.",
     "lod_unshipped": "{{label}}: detail stages not shipped yet",
+    "local_shadows_transmit": "Of this level's {{memory}}, {{transmit}} holds how much light gets through glass and frosted plastic, so they cast their faint, tinted shadows.",
     "lod_note": "{{label}}: {{note}}",
     "cost": {
       "label": "Cost on this computer:",
@@ -5688,7 +5689,10 @@ window.HOS_I18N_EN = {
       "shadow_near_cpu": "choosing what casts in the sun near you",
       "shadow_atlas": "the shadow atlas",
       "taa": "the anti-aliasing blend and sharpen",
-      "taa_history": "the anti-aliasing history"
+      "taa_history": "the anti-aliasing history",
+      "shadow_partial": "the glass and plastic in the shadows",
+      "film_blur": "the blur behind frosted plastic",
+      "film_blur_memory": "the blur behind frosted plastic"
     },
     "window_mode": "Window mode",
     "window_mode_hint": "How the game's window sits on your screen. Windowed fullscreen fills the screen and keeps the title bar and taskbar; borderless drops the title bar; exclusive gives the whole screen to the game (true fullscreen). A change applies at once.",
@@ -5859,7 +5863,7 @@ window.HOS_I18N_EN = {
     "show_hull_hint": "The outer hull built around the ship's zones (open above glass roofs, so gardens keep their starlight). Off: an unobstructed view inside, or from above while building.",
     "trees": "Trees",
     "local_shadows": "Room light shadows",
-    "local_shadows_hint": "Shadows cast by people, furniture and walls from the room lights, and from the sun near you (through a glass roof, or outdoors on a planet). The lights that matter most where you look cast them; the rest still light the room, without shadows. Off: no room light shadows, and the people and furniture near you cast no sun shadow. Simplified: four lights, smaller maps, harder edges. Full: eight lights, soft edges. Works on every graphics card the game runs on: it needs only depth textures, which all of them have.",
+    "local_shadows_hint": "Shadows cast by people, furniture and walls from the room lights, and from the sun near you (through a glass roof, or outdoors on a planet). The lights that matter most where you look cast them; the rest still light the room, without shadows. Glass and frosted plastic let part of the light through, so they cast a faint shadow tinted by their colour: a fruiting tent's cover takes about a fifth of a lamp's light from the shelves inside, a window under a tenth. Off: no room light shadows, and the people and furniture near you cast no sun shadow. Simplified: four lights, smaller maps, harder edges. Full: eight lights, soft edges. Works on every graphics card the game runs on: it needs only depth textures, which all of them have.",
     "local_shadows_choice": {
       "off": "Off",
       "simplified": "Simplified",
@@ -5899,7 +5903,11 @@ window.HOS_I18N_EN = {
       "multi_draw_indirect": "drawing many objects from one instruction",
       "indirect_count": "reading how many to draw from its own memory",
       "first_instance": "starting such a draw partway through a list"
-    }
+    },
+    "film_blur": "Blur behind frosted plastic",
+    "film_blur_hint": "A fruiting tent's cover is fogged plastic: it scatters the light coming through it, so what is behind it looks soft, the softer the farther behind the cover it is. A mushroom touching the cover stays sharp; the back of the tent is a blur. On: drawn that way. Off: the cover is a plain milky veil over a view as sharp as through clear glass, and costs nothing extra.",
+    "film_blur_on": "On: {{used}} of video memory at this window's size ({{size}}), and a fraction of a millisecond of the graphics card's time each frame a cover is in view, nothing when none is (Frosted plastic on the Performance page). See-through things behind a cover, like a window beyond a tent, show through it only faintly.",
+    "film_blur_off": "Off: no video memory and no time; a cover is a plain milky veil over a sharp view."
   },
   "gameplay": {
     "level": {

@@ -168,3 +168,26 @@ fn the_door_rolls_while_its_rack_is_tended() {
     assert!(!tended(Some("mush_0_0"), "mush_0_0", eye + Vec3::new(0.0, 3.0, 0.0), foot, 2.0), "the storey above");
     assert_eq!((roll_step(0.0), roll_step(0.5), roll_step(1.0), roll_step(2.0)), (0, 32, 64, 64));
 }
+
+/// THE FILM'S PARTIAL SHADOW IS ITS DATA'S (2026-11-13, renderer/shadow_transmit.rs): the shipped
+/// cover's film material carries the share of a lamp's light it lets through (params2.y, the data's
+/// light_transmittance 0.8), its spread and its reach, and the renderer's partial caster reads that
+/// share face-on, tinted by the film's colour. The renderer's own tests write these numbers out
+/// (shadow_transmit_tests.rs `TENT_FILM_BASE`, `TENT_FILM_PARAMS2`: the crate layers keep the
+/// renderer from reading the data or the engine), so this holds them equal.
+///
+/// Seen red 2026-11-13 with film_material passing params2.y as 0 (the field not carried): "the
+/// film's material: [0.65, 0.0, 0.15, 0.7] against [0.65, 0.8, 0.15, 0.7]".
+#[test]
+fn the_films_partial_shadow_is_its_datas() {
+    let (e, _) = shipped();
+    let m = film_material(&e.cover.film);
+    assert_eq!(m.base_color, [0.86, 0.88, 0.88, 0.5], "the film's colour and opacity (TENT_FILM_BASE)");
+    assert_eq!(m.params2, [0.65, 0.8, 0.15, 0.7], "the film's material: {:?} against [0.65, 0.8, 0.15, 0.7]", m.params2);
+    let p = crate::renderer::shadow_transmit::partial_of(m.material_type, m.base_color, m.params2, 0.0).expect("the film casts a partial shadow");
+    let t = crate::renderer::shadow_transmit::transmittance(&p, 1.0).expect("a face toward the light");
+    assert!((t[1] - e.cover.film.light_transmittance).abs() < 1e-6, "face-on it passes the data's light_transmittance: {t:?}");
+    // The fittings (zip tapes, ties) are opaque: no partial shadow, they cast a whole one.
+    let f = fittings_material(&e.cover);
+    assert_eq!(crate::renderer::shadow_transmit::partial_of(f.material_type, f.base_color, f.params2, 0.0), None);
+}

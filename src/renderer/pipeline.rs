@@ -465,6 +465,41 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Binding 11: THE TRANSMITTANCE ATLAS (2026-11-13, renderer/shadow_transmit.rs):
+                    // the same views at half the texels, where glass and frosted film write how much
+                    // light gets through them. Read with textureLoad behind the table's per-view
+                    // flag, so no sampler. The megashader's fragment stage samples 14 textures with
+                    // it (2 here, 11 in group 3, this one; the device limit is 16).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 11,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    // Bindings 12-13: THE BLUR BEHIND A FROSTED FILM (2026-11-13,
+                    // renderer/film_blur.rs): the colour pyramid of the scene behind the films and
+                    // its sampler (linear between texels and levels). The fragment stage's fifteenth
+                    // sampled texture of 16.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 12,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 13,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
                 ],
             });
 
@@ -4258,6 +4293,11 @@ pub fn camera_bind_group(
             wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(shadows.atlas) },
             wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::Sampler(shadows.sampler) },
             wgpu::BindGroupEntry { binding: 10, resource: shadows.table.as_entire_binding() },
+            // The transmittance atlas beside it (2026-11-13, renderer/shadow_transmit.rs), or its stand-in.
+            wgpu::BindGroupEntry { binding: 11, resource: wgpu::BindingResource::TextureView(shadows.transmit) },
+            // The colour pyramid behind the films and its sampler (2026-11-13, renderer/film_blur.rs).
+            wgpu::BindGroupEntry { binding: 12, resource: wgpu::BindingResource::TextureView(shadows.film_behind) },
+            wgpu::BindGroupEntry { binding: 13, resource: wgpu::BindingResource::Sampler(shadows.film_sampler) },
         ],
     })
 }
@@ -4270,6 +4310,13 @@ pub struct ShadowAtlasBinding<'a> {
     pub atlas: &'a wgpu::TextureView,
     pub sampler: &'a wgpu::Sampler,
     pub table: &'a wgpu::Buffer,
+    /// Binding 11: the transmittance atlas (renderer/shadow_transmit.rs), or its 1x1 stand-in.
+    pub transmit: &'a wgpu::TextureView,
+    /// Bindings 12-13: the colour pyramid behind the frosted films (renderer/film_blur.rs), or its
+    /// 1x1 stand-in, and its sampler. Not the shadow atlas's, but read in the same tail of the
+    /// frame and bound by the same callers, so it rides here rather than widen every call.
+    pub film_behind: &'a wgpu::TextureView,
+    pub film_sampler: &'a wgpu::Sampler,
 }
 
 /// TEMPORAL ANTI-ALIASING'S MOTION LINT (2026-11-13, renderer/taa.rs): every megashader PSO that

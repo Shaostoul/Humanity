@@ -122,6 +122,10 @@ pub const GPU_IDS_WITHOUT_CPU_TWIN: &[&str] = &[
     "gpu.aurora",
     // Dormant (nothing calls BloomPass::apply today) and twin-less.
     "gpu.bloom",
+    // The shadow atlas's partial casters (2026-11-13, renderer/shadow_transmit.rs): glass and film
+    // drawn into the transmittance atlas, recorded inside `cpu.shadow_local` with the room lights'
+    // faces, so no per-pass CPU twin.
+    "gpu.shadow_partial",
 ];
 
 /// Whether `gpu.x` has a `cpu.x` stage the no-timestamp fallback can read.

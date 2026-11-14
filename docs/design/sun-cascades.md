@@ -182,7 +182,13 @@ Budget: the interior frame is about 14 ms and stays at or below 15.5 ms.
    at 1.5 m calls for contact shadows.
 4. **Stochastic glass and PVC in fs_shadow, and the GI handshake.** Pass: the
    floor's lit-minus-night value comes out at 0.65 plus or minus 0.05 of
-   increment 3's, with no visible dither pattern.
+   increment 3's, with no visible dither pattern. **Built differently on
+   2026-11-13** (docs/design/local-light-shadows.md section 10, "Built: partial
+   casters"): not a stochastic dither in the depth map but a transmittance atlas
+   beside the shadow atlas, which the near sun tile shares, so glass and the tents'
+   film dim and tint the sun with no dither at all. The GI handshake was not
+   needed: room GI does not read the atlas (its probes keep their own lid
+   transmittance for the indirect light), so nothing counts the glass twice.
 
 **What would prove it wrong:** a shelf-to-floor ratio above 0.9 after
 increment 1 (casters not staged, or `station_off` or culling wrong); the open

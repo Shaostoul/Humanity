@@ -35,6 +35,7 @@
         "gpu.shadow": "graphics.pass.shadow",
         "gpu.shadow_near": "graphics.pass.shadow_near",
         "gpu.shadow_local": "graphics.pass.shadow_local",
+        "gpu.shadow_partial": "graphics.pass.shadow_partial",
         "cpu.shadow_local": "graphics.pass.shadow_local_cpu",
         "cpu.shadow_near": "graphics.pass.shadow_near_cpu",
         "vram.shadow_atlas": "graphics.pass.shadow_atlas",
@@ -62,6 +63,8 @@
         "vram.particles": "graphics.pass.particles_memory",
         "gpu.taa": "graphics.pass.taa",
         "vram.taa_history": "graphics.pass.taa_history",
+        "gpu.film_blur": "graphics.pass.film_blur",
+        "vram.film_blur": "graphics.pass.film_blur_memory",
     },
     settings: [
         // ── General ──
@@ -99,6 +102,11 @@
         (id: "anti_aliasing", cost: [Gpu(["gpu.taa"]), Shares(["gpu.scene", "gpu.celestial"]), Memory(["vram.taa_history"])]),
         // Sharpening runs inside the resolve's second step.
         (id: "sharpening", cost: [Gpu(["gpu.taa"])]),
+        // Frosted plastic (2026-11-13, renderer/film_blur.rs): the films' far sides and the colour
+        // pyramid (gpu.film_blur, measured, only while a film is in view), the films' near sides
+        // blending it in (inside the see-through pass), the pyramid's memory, and that memory at
+        // this window's size worked out beside the control.
+        (id: "film_blur", cost: [Gpu(["gpu.film_blur"]), Shares(["gpu.transparent"]), Memory(["vram.film_blur"]), Computed]),
         // ── Light and sky ──
         (id: "sun_shadows", cost: [Gpu(["gpu.shadow", "gpu.shadow_near"])]),
         // Room light shadows (2026-11-10, renderer/local_shadows.rs): the atlas passes, choosing and
@@ -106,7 +114,9 @@
         // Since shadows rung 1b (2026-11-12) also the scene pass, where the lookups run: Off compiles
         // them out of the shading (nothing there at Off; the page's own line says so, or that the
         // shading is still being rebuilt), Simplified and Full sample the atlas inside it.
-        (id: "local_shadows", cost: [Gpu(["gpu.shadow_local", "gpu.shadow_near"]), Cpu(["cpu.shadow_local", "cpu.shadow_near"]), Memory(["vram.shadow_atlas"]), Shares(["gpu.scene"]), Computed]),
+        // Since 2026-11-13 also the partial casters (renderer/shadow_transmit.rs): glass and frosted
+        // film drawn into the transmittance atlas (gpu.shadow_partial), whose memory is in the atlas's.
+        (id: "local_shadows", cost: [Gpu(["gpu.shadow_local", "gpu.shadow_near", "gpu.shadow_partial"]), Cpu(["cpu.shadow_local", "cpu.shadow_near"]), Memory(["vram.shadow_atlas"]), Shares(["gpu.scene"]), Computed]),
         (id: "lights_tiled", cost: [Cpu(["cpu.light_tiles"]), Shares(["gpu.scene"])]),
         (id: "bounced_light_detail", cost: [Computed, Gpu(["gpu.room_probes"])]),
         (id: "shadow_strength", cost: [Free("graphics.free.shader_number")]),

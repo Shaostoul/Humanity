@@ -1855,6 +1855,25 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.local_shadows.gpu_off = t == "0";
         log::info!("Showcase: shadow_gpu -> {}", !state.renderer.local_shadows.gpu_off);
     }
+    // {"partial_shadows":"0"}: glass and frosted film cast nothing, as before 2026-11-13 (the partial
+    // casters' red twin, renderer/shadow_transmit.rs: the light through a tent is undimmed again);
+    // "1" or "auto" puts them back.
+    // {"film_blur":"0"}: the frosted films drawn whole over a sharp view, as before (Simple: the blur's
+    // red twin, renderer/film_blur.rs); "1" blurs what is behind them whatever Settings says; "auto"
+    // hands it back to Settings > Graphics > Blur behind frosted plastic.
+    if let Some(t) = grab("film_blur") {
+        state.renderer.film_blur.pin = match t.as_str() {
+            "0" => Some(false),
+            "1" => Some(true),
+            _ => None,
+        };
+        state.renderer.ensure_film_pyramid();
+        log::info!("Showcase: film_blur -> {t} ({:?})", state.renderer.film_blur.pin);
+    }
+    if let Some(t) = grab("partial_shadows") {
+        state.renderer.local_shadows.partial_off = t == "0";
+        log::info!("Showcase: partial_shadows -> {}", !state.renderer.local_shadows.partial_off);
+    }
     // Shadows rung 1b (2026-11-12, docs/design/local-light-shadows.md section 10), the two red twins:
     // {"shadow_cull":"0"} draws every caster inside a shadow face, whether or not its shadow can reach
     // the view (the shadow-caster cull's red twin: the picture must stay the same, only the cost

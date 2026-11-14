@@ -710,6 +710,11 @@ pub struct AppConfig {
     /// default, the operator's answer of 2026-11-12) or "off". An unknown id falls back to Temporal.
     #[serde(default = "default_anti_aliasing")]
     pub anti_aliasing: String,
+    /// Frosted plastic (2026-11-13, Settings > Graphics > Image, renderer/film_blur.rs): true =
+    /// Blurred (what is behind a fruiting tent's cover reads as soft shapes, softer the farther
+    /// behind it, the default), false = Simple (the cover a plain milky veil over a sharp view).
+    #[serde(default = "default_true")]
+    pub film_blur: bool,
     /// Sharpening after the temporal blend, 0..1 (renderer/taa.rs `DEFAULT_SHARPENING`).
     #[serde(default = "default_sharpening")]
     pub sharpening: f32,
@@ -1676,6 +1681,7 @@ impl AppConfig {
             sun_shadows: state.settings.sun_shadows,
             local_shadows: state.settings.local_shadows.clone(),
             anti_aliasing: state.settings.anti_aliasing.clone(),
+            film_blur: state.settings.film_blur,
             sharpening: state.settings.sharpening,
             shadow_strength: state.settings.shadow_strength,
             sun_aperture_mm: state.settings.sun_aperture_mm,
@@ -1989,6 +1995,7 @@ impl AppConfig {
         state.settings.grass_detail = self.grass_detail.clamp(0.0, 1.0);
         state.settings.veg_tree_card_m = self.veg_tree_card_m.clamp(100.0, TREE_CARD_MAX_M);
         state.settings.sun_shadows = self.sun_shadows;
+        state.settings.film_blur = self.film_blur;
         // Checked against the levels file the Settings chooser draws (data/gui/shadow_levels.json).
         state.settings.local_shadows = if crate::renderer::local_shadows::is_level(&self.local_shadows) {
             self.local_shadows.clone()

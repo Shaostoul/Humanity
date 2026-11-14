@@ -109,7 +109,7 @@
         category: "gpu",
         // gpu.shadow_near and gpu.shadow_local: the shadow atlas (2026-11-10, renderer/local_shadows.rs),
         // the near sun view and the room lights' faces.
-        sources: ["gpu.shadow", "gpu.shadow_near", "gpu.shadow_local"],
+        sources: ["gpu.shadow", "gpu.shadow_near", "gpu.shadow_local", "gpu.shadow_partial"],
         locked: false,
         base_frac: 0.12,
         color: "warning",
@@ -185,11 +185,12 @@
         note: "The 16.8 M-point sky. Timed once the star pass in lib.rs is wired.",
     ),
     (
-        // Temporal anti-aliasing (2026-11-13, renderer/taa.rs): the resolve and the sharpen.
+        // Temporal anti-aliasing (2026-11-13, renderer/taa.rs): the resolve and the sharpen. And the
+        // blur behind a frosted film (2026-11-13, renderer/film_blur.rs): its colour pyramid.
         id: "post_process",
         display: "God rays + SSAO + bloom + sun visibility + anti-aliasing",
         category: "gpu",
-        sources: ["gpu.godrays", "gpu.ssao", "gpu.bloom", "gpu.sun_vis", "gpu.taa"],
+        sources: ["gpu.godrays", "gpu.ssao", "gpu.bloom", "gpu.sun_vis", "gpu.taa", "gpu.film_blur"],
         locked: false,
         base_frac: 0.10,
         color: "success",
@@ -224,7 +225,7 @@
             "cpu.stars", "cpu.celestial", "cpu.scene", "cpu.transparent",
             "cpu.overlay", "cpu.lines", "cpu.celestial_lines", "cpu.particles",
             "cpu.gpu_particles", "cpu.particles_sim", "cpu.present",
-            "cpu.shadow_near", "cpu.shadow_local",
+            "cpu.shadow_near", "cpu.shadow_local", "cpu.film_blur",
         ],
         locked: true,
         base_frac: 0.25,
@@ -507,10 +508,12 @@
         // lights' shadows and the near sun view, its table and its views' camera buffers.
         id: "vram_shadow_atlas",
         // Temporal anti-aliasing's history (2026-11-13, renderer/taa.rs) shares the wedge: both are
-        // per-frame image memory a graphics setting gives back.
+        // per-frame image memory a graphics setting gives back. So does the blur behind a frosted film
+        // (2026-11-13, renderer/film_blur.rs): its colour pyramid. (The shadow atlas's own memory now
+        // holds its transmittance atlas too, renderer/shadow_transmit.rs.)
         display: "Shadow atlas + anti-aliasing history",
         category: "vram",
-        sources: ["vram.shadow_atlas", "vram.taa_history"],
+        sources: ["vram.shadow_atlas", "vram.taa_history", "vram.film_blur"],
         locked: false,
         base_frac: 0.02,
         // Not "warning": Grass sits beside it in the wedge and has that one (the Performance page's

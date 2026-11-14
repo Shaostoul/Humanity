@@ -764,7 +764,7 @@ impl Renderer {
             &self.tile_indices_buffer,
             &self.env_regions_buffer,
             &self.room_gi,
-            self.local_shadows.colour_binding(),
+            self.local_shadows.colour_binding(&self.film_blur),
         );
         self.light_camera_bind_group = pipeline::camera_bind_group(
             &self.device,
@@ -776,7 +776,7 @@ impl Renderer {
             &self.tile_indices_buffer,
             &self.env_regions_buffer,
             &self.room_gi,
-            self.local_shadows.colour_binding(),
+            self.local_shadows.colour_binding(&self.film_blur),
         );
         // The shadow atlas pass's own per-view groups bind the same buffers: made again on next need.
         self.local_shadows.forget_view_groups();

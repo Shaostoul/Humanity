@@ -67,6 +67,18 @@ export const REGIONS = {
     post_base: [575, 690, 600, 760],
     wall: [930, 250, 1150, 380],
   },
+  // The same pose with the tents' doors down (2026-11-13, tests/visual/vantages.json film-racks-*):
+  // the shelf boxes look at the shelves THROUGH a tent's frosted front, the partial casters' and the
+  // blur's A/B (renderer/shadow_transmit.rs, renderer/film_blur.rs).
+  "film-racks": {
+    floor: [1180, 700, 1420, 840],
+    shelf1_low: [455, 655, 560, 690],
+    shelf2: [455, 520, 560, 548],
+    shelf3: [455, 390, 560, 415],
+    shelf4_top: [455, 262, 560, 285],
+    post_base: [575, 690, 600, 760],
+    wall: [930, 250, 1150, 380],
+  },
   "home-beds": {
     soil_open: [700, 760, 900, 860],
     beds_near: [500, 560, 1100, 700],

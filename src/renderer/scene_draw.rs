@@ -380,10 +380,18 @@ impl Renderer {
         if objects.is_empty() {
             return;
         }
+        // THE BLUR BEHIND A FROSTED FILM (2026-11-13, renderer/film_blur.rs): in the live view, with
+        // Frosted plastic Blurred, the films' far faces are drawn first and the colour pyramid of the
+        // scene behind them taken, then this pass draws their near faces over it. Otherwise (and in
+        // a camera screen's re-render) every film is drawn whole, as before.
+        let blurred = matches!(who, crate::renderer::gpu_costs::SceneView::Main) && {
+            let films = self.film_objects(objects);
+            self.film_blur_behind(camera, objects, &films, view)
+        };
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
-            bytemuck::bytes_of(&self.colour_uniform(camera)),
+            bytemuck::bytes_of(&self.transparent_uniform(camera, blurred)),
         );
 
         let mut encoder = self

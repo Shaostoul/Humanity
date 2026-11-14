@@ -293,6 +293,8 @@ fn draw_local_shadows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hi
     // where the line warns, as the garment textures' does.
     let level = ls::level(&state.settings.local_shadows);
     if level.atlas > 0 {
+        // The share of it the partial casters' transmittance atlas holds (renderer/shadow_transmit.rs).
+        muted(ui, theme, tf("graphics.local_shadows_transmit", &[("memory", &mb_words(level.atlas_bytes())), ("transmit", &mb_words(level.transmit_bytes()))]));
         let used = level.atlas_bytes();
         match adapter_memory().and_then(|a| a.dedicated_bytes.filter(|b| *b > 0).map(|b| (a.name.clone(), b))) {
             Some((card, own)) => {
@@ -349,6 +351,27 @@ fn draw_local_shadows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hi
                 }
             }
         }
+    }
+}
+
+/// Frosted plastic (2026-11-13, renderer/film_blur.rs, docs/design/local-light-shadows.md section 10):
+/// on, what is behind a fruiting tent's cover is blurred as fogged plastic blurs it (the farther
+/// behind, the softer); off, the cover is a plain milky veil over a sharp view. The colour pyramid's
+/// memory at this window's size is worked out beside it; its time is measured (gpu.film_blur).
+fn draw_film_blur(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate::gui::HintDisplay) {
+    use crate::renderer::bounced_light_detail::mb_words;
+    if widgets::toggle(ui, theme, t("graphics.film_blur"), &mut state.settings.film_blur) {
+        state.settings_dirty = true;
+    }
+    graphics_hint(ui, theme, hint, "film_blur");
+    if state.settings.film_blur {
+        // The pyramid at this window's size, in physical pixels (the render's size).
+        let px = ui.ctx().screen_rect().size() * ui.ctx().pixels_per_point();
+        let (w, h) = (px.x.round().max(1.0) as u32, px.y.round().max(1.0) as u32);
+        let used = crate::renderer::film_blur::pyramid_bytes(w, h);
+        muted(ui, theme, tf("graphics.film_blur_on", &[("used", &mb_words(used)), ("size", &format!("{w} x {h}"))]));
+    } else {
+        muted(ui, theme, t("graphics.film_blur_off"));
     }
 }
 
@@ -674,6 +697,7 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate
         // Image (2026-11-13, docs/design/renderer-roadmap.md section 3.6): how the picture is finished.
         widgets::subsection_header(ui, theme, accent, t("graphics.section_image"), "");
         draw_anti_aliasing(ui, theme, state, hint);
+        draw_film_blur(ui, theme, state, hint);
         widgets::subsection_header(ui, theme, accent, t("graphics.section_light"), "");
         // Lighting passes (v0.907): the three surface-lighting features
         // gained user controls. All apply live next frame.

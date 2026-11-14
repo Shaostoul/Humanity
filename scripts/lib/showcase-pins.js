@@ -28,6 +28,12 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The GPU-driven shadow casters (2026-11-13, renderer/shadow_gpu.rs): "0" sends every plain caster's
   // draw from the processor, as before (the red twin).
   shadow_gpu: "1",
+  // The partial casters (2026-11-13, renderer/shadow_transmit.rs): "0" leaves glass and frosted film
+  // out of the shadows, as before (the red twin).
+  partial_shadows: "1",
+  // The blur behind a frosted film (2026-11-13, renderer/film_blur.rs): "0" draws the films whole over
+  // a sharp view (the red twin), "1" blurs whatever Settings says; "auto" hands it back to Settings.
+  film_blur: "auto",
   // Shadows rung 1b (2026-11-12): "0" draws every caster inside a shadow face whether or not its
   // shadow can reach the view (no shadow-caster cull), and atlas_code "1" keeps the atlas lookups
   // compiled into the shading at Off: the two red twins.

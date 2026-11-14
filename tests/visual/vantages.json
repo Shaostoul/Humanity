@@ -998,6 +998,48 @@
       "settle_s": 10
     },
     {
+      "id": "film-racks-night",
+      "desc": "The mushroom room racks (25b pose) at 00:00 station time with the tents' doors DOWN: the racks seen through their frosted covers, room lights only.",
+      "expect": "The shelves and mushrooms inside each tent read as soft shapes through the milky cover, softer toward the back of the tent; the shelves inside a tent are a little dimmer than they were with the doors up (the cover passes about 80% of the lamp's light).",
+      "_why": "The fruiting tent's follow-ups (2026-11-13, operator: \"Let's give those a shot.\"): the frosted film as a partial caster (renderer/shadow_transmit.rs) and the blur behind it (renderer/film_blur.rs). The home-racks vantages hold the doors up for the shadow gate; these hold them down so the film is in the way. Same-boot A/B through scripts/probe-hot-ab.js with same_park: showcase partial_shadows 0/1 (the light through the cover) and film_blur 0/1 (the blur).",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "6.9,1.5,58.6,-0.55,-0.14",
+        "time": 8.15
+      },
+      "showcase": {
+        "tent_door": "down",
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
+      "id": "film-racks-noon",
+      "desc": "The mushroom room racks (25b pose) at 12:00 station time with the tents' doors DOWN: the noon sun through the glass roof and the frosted covers.",
+      "expect": "The sun through the glass roof is a little dimmer on the open floor than before glass cast (about 8% at this sun); inside the tents the shelves get the sun through the cover too, about 20% dimmer again; what is behind each cover reads as soft shapes.",
+      "_why": "The fruiting tent's follow-ups (2026-11-13): the near sun tile holds the glass roof and the films as partial casters (renderer/shadow_transmit.rs); the blur behind the film (renderer/film_blur.rs). Same-boot A/B as film-racks-night.",
+      "regressions": [
+        "panics=0"
+      ],
+      "camera": {
+        "station": "home",
+        "pose": "6.9,1.5,58.6,-0.55,-0.14",
+        "time": 20.15
+      },
+      "showcase": {
+        "tent_door": "down",
+        "clouds": "1",
+        "cloud_cover": "0.35",
+        "weather": "clear"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "home-beds-noon",
       "desc": "The greenhouse beds (photograph-home 24 pose) at 12:00 station time.",
       "expect": "Potato and oilseed beds in sun; plant and bed shadows on the soil.",

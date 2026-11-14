@@ -585,6 +585,7 @@ impl Renderer {
         set_vram("vram.shadow_atlas", self.local_shadows.vram_bytes());
         // Temporal anti-aliasing's history (2026-11-13, renderer/taa.rs): two frames, none while Off.
         set_vram("vram.taa_history", self.taa.history_bytes());
+        set_vram("vram.film_blur", self.film_blur.vram_bytes());
 
         // Particles: the two billboard vertex pools plus the GPU-simulated
         // pool's draw buffer (its private state buffer lands in the untracked

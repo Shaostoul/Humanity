@@ -87,16 +87,21 @@ pub(crate) struct PartMaterial {
     pub params2: [f32; 4],
 }
 
-/// The film's material: its colour and face-on opacity, its roughness, no metal, and its
-/// diffuse transmission, as material type 27 (a frosted sheet; never the glass type).
+/// The film's material: its colour and face-on opacity, its roughness, no metal, and in
+/// `params2` its diffuse transmission (x), the share of a lamp's light that gets through it
+/// face-on (y: the shadow it casts, renderer/shadow_transmit.rs), its scattered light's spread (z:
+/// how much what is behind it blurs, renderer/film_blur.rs) and the farthest behind it the blur
+/// looks (w, metres), as material type 27 (a frosted sheet; never the glass type).
 pub(crate) fn film_material(film: &Film) -> PartMaterial {
     let [r, g, b] = film.color;
+    let transmission = film.transmission.clamp(0.0, 1.0);
     PartMaterial {
         base_color: [r, g, b, film.alpha.clamp(0.0, 1.0)],
         metallic: 0.0,
         roughness: film.roughness.clamp(0.0, 1.0),
         material_type: MATERIAL_TYPE_FILM,
-        params2: [film.transmission.clamp(0.0, 1.0), 0.0, 0.0, 0.0],
+        // What gets through can never be less than what gets through scattered.
+        params2: [transmission, film.light_transmittance.clamp(transmission, 1.0), film.scatter_spread.max(0.0), film.blur_reach_m.max(0.0)],
     }
 }
 

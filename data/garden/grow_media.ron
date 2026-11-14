@@ -137,8 +137,20 @@
                 // welded seams, how much it bows and the fold lines from its packet.
                 cover: (
                     // Near-white and neutral; half opaque face-on (milkier at a slant); matte;
-                    // passing on 65% of what falls on its far side, scattered.
-                    film: (color: (0.86, 0.88, 0.88), alpha: 0.5, roughness: 0.55, transmission: 0.65),
+                    // passing on 65% of what falls on its far side, scattered. Of a lamp's light
+                    // 80% gets through face-on (the plan of record's figure for a frosted sheet,
+                    // docs/design/local-light-shadows.md section 2, approved by the operator
+                    // 2026-11-13): the scattered 65% plus 15% straight through, a haze of 81%,
+                    // less at a slant (Beer-Lambert through the sheet). GAME CHOICE where no page
+                    // gave a number: the scattered light leaves within about 8.5 degrees of
+                    // straight through (tan 0.15), so a bag 30 cm behind the sheet blurs by about
+                    // 4.5 cm (a soft shape) and a shelf's front lip, 5 cm behind, by under 1 cm.
+                    // Tried first at tan 0.36 (20 degrees, 2026-11-13): the shelves vanished into
+                    // an even milk, which hid their shapes as well as their detail. The blur looks
+                    // at most 0.7 m behind the sheet, the cover's own depth (the rack's 0.6 m and
+                    // the 5 cm it stands off each side): past it a sheet sees the cover's far side,
+                    // another milky sheet, not the room beyond it.
+                    film: (color: (0.86, 0.88, 0.88), alpha: 0.5, roughness: 0.55, transmission: 0.65, light_transmittance: 0.8, scatter_spread: 0.15, blur_reach_m: 0.7),
                     seam_m: 0.015,
                     seam_alpha: 0.62,
                     // Held out at the corners and at each shelf (the frame), bowing 1.5 cm in

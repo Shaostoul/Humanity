@@ -130,8 +130,8 @@ pub mod shader_loader;
 pub mod shadow_cutout;
 /// Shadows from the room lights and the sun near you (2026-11-10, docs/design/local-light-shadows.md).
 pub mod local_shadows;
-/// The shadow atlas's GPU-driven casters: the arena, the compute cull and the indirect draws (2026-11-13).
-pub mod shadow_gpu;
+/// Beside the shadow atlas (2026-11-13): its GPU-driven casters (the arena, the compute cull, the indirect draws), its partial casters (glass and frosted film in a transmittance atlas), and the blur behind a frosted film (a colour pyramid of the scene behind it).
+pub mod shadow_gpu; pub mod shadow_transmit; pub mod film_blur;
 /// Where the stars are (the catalogue's sky turned into the world by the
 /// date) and how much of them twilight leaves (2026-10-04, BUG-139).
 pub mod sky_frame;
@@ -384,8 +384,8 @@ pub struct Renderer {
     pub room_gi: room_probes_gpu::RoomGi,
     /// Near sun cascades (renderer/sun_cascades.rs).
     pub sun_cascades: sun_cascades::SunCascades,
-    /// The shadow atlas (renderer/local_shadows.rs), group 0 bindings 8-10.
-    pub local_shadows: local_shadows::LocalShadows,
+    /// The shadow atlas (renderer/local_shadows.rs), group 0 bindings 8-11 (11 its transmittance atlas); the film blur (renderer/film_blur.rs), 12-13.
+    pub local_shadows: local_shadows::LocalShadows, pub film_blur: film_blur::FilmBlur,
     tile_counts_buffer: wgpu::Buffer,
     tile_indices_buffer: wgpu::Buffer,
     /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
@@ -1464,7 +1464,7 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
-        let local_shadows = local_shadows::LocalShadows::new(&device); // before the camera groups bind it
+        let (local_shadows, film_blur) = (local_shadows::LocalShadows::new(&device), film_blur::FilmBlur::new(&device)); // before the camera groups bind them
         let camera_bind_group = pipeline::camera_bind_group(
             &device,
             &pipeline.camera_bind_group_layout,
@@ -1474,7 +1474,7 @@ impl Renderer {
             &tile_counts_buffer,
             &tile_indices_buffer,
             &env_regions_buffer,
-            &room_gi, local_shadows.colour_binding(),
+            &room_gi, local_shadows.colour_binding(&film_blur),
         );
 
         // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries (module const).
@@ -1871,7 +1871,7 @@ impl Renderer {
             &tile_counts_buffer,
             &tile_indices_buffer,
             &env_regions_buffer,
-            &room_gi, local_shadows.colour_binding(),
+            &room_gi, local_shadows.colour_binding(&film_blur),
         );
 
         // 1x1 dummy depth for the shadow pass's own group 3 (see field doc).
@@ -2065,7 +2065,7 @@ impl Renderer {
             emission,
             room_gi,
             sun_cascades: Default::default(),
-            local_shadows,
+            local_shadows, film_blur,
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),

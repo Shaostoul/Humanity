@@ -202,7 +202,8 @@ Off.
    words say.
 4. **Screen-space contact shadows** for the sun and the strongest lamp.
 5. **The near sun ladder** (sun-cascades.md increment 2): more tiles out to 240 m, culling, blend
-   bands; then glass and tent film as partial casters (its increment 4).
+   bands. Glass and tent film as partial casters (its increment 4) were built ahead of it on
+   2026-11-13, in the atlas's own faces and the near sun tile (section 10).
 6. **Ray-traced shadows** where ray queries exist (wgpu's ray query feature), with the hardware
    notice; then stochastic many-light direct lighting once the engine has temporal history.
 7. **Virtual shadow maps** on hardware without ray queries.
@@ -414,7 +415,7 @@ front: with the cover down the film's own lit veil, the same in both arms, hid t
 (showcase `tent_door` "up", released between vantages by `scripts/lib/showcase-pins.js`), and the
 same-boot A/B passes again: shelf 0.203, floor +0.02 codes. The film casts no shadow of its own yet:
 a frosted sheet passing some 80% of the light face-on is the "partial caster" of section 2's item 9, a rung of
-its own (a transmittance atlas beside the depth atlas).
+its own (a transmittance atlas beside the depth atlas): built 2026-11-13, "Built: partial casters" below.
 
 ### Built: GPU-driven casters (2026-11-13)
 
@@ -499,6 +500,118 @@ bodies drawn from the own-mesh pool and the middle tier's palettes the same way 
 cutouts through the arena with their alpha read from a texture array; then the moving classes
 (their vertex stage's sway written once more for the arena, lockstep-tested). Rung 2's kept static
 depth would remove most of what is left of the plain casters' GPU work too.
+
+### Built: partial casters, and the blur behind the film (2026-11-13)
+
+The operator, approving the tent agent's three questions (frosted film as a partial caster, the
+blur behind it, keeping it milky): "Let's give those a shot."
+
+**Partial casters** (`renderer/shadow_transmit.rs`, `assets/shaders/shadow_transmit.wgsl`; section
+2's item 9 and sun-cascades.md increment 4, built here instead of stochastic glass in `fs_shadow`):
+
+- **The transmittance atlas**: beside the depth atlas, the same faces and tiles at half the texels
+  (`TRANSMIT_DIVISOR`), `Rgba16Float`, group 0 binding 11. Each sheet writes what it lets through
+  (rgb, combined by a multiply blend, so two sheets pass the product) and how far from the light it
+  is (alpha, kept by a `Min` blend: metres from a lamp, or along the sunlight in the near sun tile),
+  cleared to white and "nothing" each frame a sheet is drawn. Half the side because a sheet's shadow
+  is a diffuser's, soft, and the lookup filters four texels; the depth atlas keeps its full size.
+- **What a sheet passes** (`transmittance`, the CPU twin of `partial_transmittance`): a frosted film
+  its material's `params2.y`, the share of a lamp's light it lets through face-on (0.8 for the tent,
+  `light_transmittance` in `data/garden/grow_media.ron`), raised to 1/cos at a slant (Beer-Lambert,
+  the film's own look), tinted by its colour scaled to its brightest channel; counted only on faces
+  turned toward the light, because a cover is a closed shell the light enters once (its far side's
+  shadow falls outside it, so what is behind a tent reads one sheet, not two: a known limit). Glass,
+  any see-through pane of the procedural surface types (the shader's own pane rule: the home's roof
+  and windows are drawn in type 1 at alpha 0.22 and 0.45, the vehicles' glass in type 4), passes
+  (1 - F)^2 with Schlick's F at f0 0.04 (0.92 face-on, less toward grazing) on both faces, tinted
+  toward its colour by its own opacity; a glass slab between storeys is two drawn sheets and so
+  passes two panes' worth (0.85), a known limit. Water, holograms and glowing sheets cast nothing
+  (`partial_of`).
+- **The lookup** (`shadow_atlas_view` in 00-bindings-vertex.wgsl, `shadow_transmit_at`): where the
+  point is lit and its view holds a sheet (the table's row 6 y, so a view without one never reads the
+  atlas), the four transmittance texels round it, each passing everything unless its nearest sheet is
+  nearer the light than the point by two texels, blended bilinearly (CPU twin `receiver_transmit`).
+  The visibility returned carries how much; `g_shadow_tint` its colour, which the light loop and the
+  sun term multiply into the light. So a person between the lamp and the tent, and the film itself,
+  are not dimmed; the shelves inside are.
+- **The casters**: the see-through list joins the caster lists as `CasterList::SeeThrough` (lib.rs),
+  whose sheets alone cast: what else rides it at full opacity (mirrors, the tents' zipper tapes, an
+  editor highlight) never cast and still does not (joined as a plain list, it took the racks gate's
+  open floor at noon from 200 to 52 codes in both arms, sheets or none). A sheet near a shadowed
+  light or in the near sun tile is drawn once per view it falls in, on the per-draw loop, through its
+  own small pipeline (no megashader, no material groups). The GPU-driven path draws opaque casters
+  only. A face with only a sheet in it gets its tile, as a face with an opaque caster does.
+- **Costs**: `gpu.shadow_partial` (the pass), the atlas in `vram.shadow_atlas`: 32 MB at Full, 8 MB
+  at Simplified (a 4096 or 2048 depth atlas has a 2048 or 1024 transmittance atlas at 8 bytes a
+  texel), counted in each Room light shadows level's memory (Full now reads 96 MB) and said on a line
+  of its own under the levels ("Of this level's 96 MB, 32 MB holds how much light gets through glass
+  and frosted plastic"; first put inside the level's line, which the snapshot at 960 px showed running
+  off the page). The fragment stage samples 14 textures with it, then 15 with
+  the film blur's pyramid, of the device's 16. Showcase `partial_shadows` "0" is the red twin.
+
+**The blur behind the film** (`renderer/film_blur.rs`, `assets/shaders/film_blur.wgsl`, `film_frost`
+in 90-fragment-main.wgsl):
+
+- **Why it grows with the gap**: a point of a frosted sheet passes on light from a cone behind it
+  (half-angle atan of the film's `params2.z`, `scatter_spread` 0.15 in the data, a game choice), which
+  meets a surface a gap g behind in a disc of radius g * 0.15: a mushroom touching the cover stays
+  sharp, a bag 30 cm behind is a 4.5 cm blur, the back of the tent 50 cm behind 7.5 cm. Tried first
+  at 0.36 (20 degrees): the shelves went to an even milk, shapes and all, against the look the
+  cover's data asks for ("hides the shelves' detail but not their shapes"). The gap is held to the
+  film's `blur_reach_m` (0.7 m, the cover's own depth; `film_gap`): past the cover's far side a
+  sheet sees that far side, another milky sheet, which writes no depth, so unheld the room metres
+  beyond made every tent's inside the widest blur and pulled the dark room round it in (the near
+  tent's front read 20% darker at night than the same pixels sharp, measured with the pyramid shown
+  directly through a hot-reload patch). Only the film's HAZE is blurred, its
+  scattered share of what gets through (0.65 of 0.8 for the tent, 81%); the rest goes straight
+  through and stays sharp.
+- **How**: (1) the films' faces turned away from the eye are drawn first, as before, over the opaque
+  scene (the camera's film mode FAR, a legacy uniform slot no shader read); (2) a COLOUR PYRAMID of
+  the scene target (half size at its base, a 13-tap downsample per level, up to six levels; Jimenez,
+  SIGGRAPH 2014, the colour pyramid HDRP's rough refraction reads), the base's alpha the view depth of
+  the nearest surface; (3) the see-through pass with the film mode NEAR: each film's near faces pick
+  the level whose texels match the disc on screen and blend four bilinear taps round it (a tent
+  filter). TAA's history was the other candidate and is wrong: it holds the films themselves, a
+  feedback loop. Settings > Graphics > Image > Blur behind frosted plastic (on by default), the
+  pyramid's memory at the window's size beside it (about 10 MB at 2560 x 1440); off, a camera
+  screen's re-render, an orthographic camera or no float scene target draw the film whole, as before.
+- **A known limit**: see-through things behind a film (a window beyond a tent) are drawn after the
+  pyramid, so through the film they show only at its straight-through share.
+- **Costs**: `gpu.film_blur` (the far sides and the pyramid, only while a film is in view), the near
+  sides inside `gpu.transparent`, `vram.film_blur`. Showcase `film_blur` "0" / "1" / "auto".
+- **A known limit**: the blur is screen-space, so near a cover's outline it borrows what is beside
+  the tent, not only what is behind its film: at night, with the dark room round the nearest tent,
+  its front read 12% darker over the whole tent (a far tent among lit ones, unchanged: 0.0446
+  against 0.0447). The fix is a coverage mask from the far-side pass, the taps weighted by it.
+
+**Measured** (2026-11-14, RTX 4070, release build, the rig at 2560 x 1387, vantage
+`film-racks-night` (the 25b pose, doors down), one boot, `same_park`, arms alternated, medians of
+three; other agents compiled throughout, so the processor numbers are wall clock on a busy machine;
+captures `fm-ab3` in the session scratchpad):
+
+| | Simple, no partial casters (before) | Partial casters and the blur (after) |
+|---|---|---|
+| `gpu.shadow_partial` | 0 | 0.026 ms |
+| `gpu.film_blur` (far sides and pyramid) | 0 | 1.05 ms |
+| `gpu.transparent` | 4.49 ms | 3.99 ms (the far sides moved out) |
+| see-through work in all | 4.49 ms | 5.04 ms (+0.55) |
+| `gpu.scene` | 9.84 ms | 9.95 ms (within the 0.8 ms the arms wander) |
+| `cpu.film_blur` | 0 | 1.1 to 1.3 ms (an encoder and a submit of its own) |
+| `vram.film_blur` | 0 | 9.0 MB |
+| `vram.shadow_atlas` | (the depth atlas, 64 MB at Full, plus buffers) | +32 MB, the transmittance atlas |
+
+The light through the film, from the pixels: the centre of the nearest tent's front at night reads
+linear 0.0084 without the partial casters and 0.0067 with them (blur off in both), 0.80 of it: the
+film's 0.8. At noon (`film-racks-noon` alone on its boot, one alternation, captures `fm-ab4`):
+`gpu.film_blur` 1.11 ms, `gpu.transparent` 4.54 to 4.01 ms, `gpu.shadow_partial` 0.024 ms. (Taken
+after the night vantage on one boot, the noon capture showed no sun on the open floor, 52 codes
+against 200 when it was the boot's first vantage: run each clock on a boot of its own.) The racks gate (`home-shadow-metrics.mjs --gate`, atlas off against on, partial casters
+on and off) passes either way: the shelf keeps 0.209 / 0.210 of its light, the open floor moves
+0.00 codes, the hut's floor keeps 0.124. Over the 0.5 ms budget planned for the blur: the far-side
+pass shades the covers' backs through the full surface shader, which the see-through pass did
+before (half of it moved, not added), and the processor's 1.1 to 1.3 ms is one more encoder and
+submit; folding both into the see-through pass's own submit (the far sides through a second camera
+group, since the film mode rides the camera uniform) is the next step.
 
 ## 11. Questions only the operator can answer
 

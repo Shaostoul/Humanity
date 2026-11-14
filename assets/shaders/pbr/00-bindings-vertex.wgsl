@@ -170,6 +170,25 @@ struct EnvRegion {
 @group(0) @binding(8) var shadow_atlas: texture_depth_2d;
 @group(0) @binding(9) var shadow_atlas_samp: sampler_comparison;
 @group(0) @binding(10) var<storage, read> shadow_table: array<vec4<f32>>;
+// THE TRANSMITTANCE ATLAS (2026-11-13, renderer/shadow_transmit.rs): the same
+// views at half the texels, Rgba16Float, where glass and frosted film write how
+// much of the light gets through them (rgb, the sheets in front multiplied) and
+// how far from the light the nearest sheet is (a: metres from a lamp, or along
+// the sunlight for the near sun view). A view's row 6 y is 1 when a sheet was
+// drawn into it; no other view reads this. Read with textureLoad (no sampler).
+@group(0) @binding(11) var shadow_transmit: texture_2d<f32>;
+// The colour of the light the last shadow lookup let through, its brightest
+// channel 1 (the lookup's returned visibility carries how much): set by
+// shadow_atlas_view, and back to white at the start of every lookup, so the
+// light loop and the sun term can tint their light by what a sheet passed.
+var<private> g_shadow_tint: vec3<f32> = vec3<f32>(1.0);
+// THE BLUR BEHIND A FROSTED FILM (2026-11-13, renderer/film_blur.rs): the
+// colour pyramid of the scene behind the films (half the render's size at its
+// base, halving per level; the base's alpha the view depth behind), and its
+// sampler (linear between texels and levels). Read only by a film's near faces
+// in the see-through pass's NEAR mode (film_frost, 90-fragment-main.wgsl).
+@group(0) @binding(12) var film_behind: texture_2d<f32>;
+@group(0) @binding(13) var film_behind_samp: sampler;
 const SHADOW_VIEW_ROWS: u32 = 7u;
 const SHADOW_KIND_STRIDE: u32 = 4096u;
 const SHADOW_KIND_CUBE: u32 = 1u;
@@ -578,6 +597,7 @@ fn sun_map_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
 // with no slab rows (a one-storey home) it is one compare. 85-room-gi.wgsl
 // holds the test, room_probes::sun_blocked_by_slabs its CPU twin.
 fn sun_shadow_offset(world_pos: vec3<f32>, n_dot_l: f32, n: vec3<f32>) -> f32 {
+    g_shadow_tint = vec3<f32>(1.0);
     if (HAS_SLAB_OCCLUSION && room_gi.header.atlas.w > 0u) {
         if (slab_sun_blocked(world_pos, camera.sun_direction.xyz)) {
             return 0.0;
@@ -615,7 +635,13 @@ fn sun_shadow(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
 // hardware comparison, inside the tile less the filter's reach, so a lookup
 // never reads its neighbour's tile. A view with no tile (nothing cast into it)
 // reads lit; an orthographic view fades to lit over its outer 13%.
+//
+// THE PARTIAL CASTERS (2026-11-13, renderer/shadow_transmit.rs): where the view
+// holds a sheet of glass or film (row 6's y) and the point is lit, the light is
+// also multiplied by what the sheets nearer the light pass (shadow_transmit_at):
+// the returned visibility carries how much, g_shadow_tint its colour.
 fn shadow_atlas_view(v: u32, p: vec3<f32>, n: vec3<f32>, ndl: f32) -> f32 {
+    g_shadow_tint = vec3<f32>(1.0);
     let base = u32(shadow_table[0].y + 0.5) + v * SHADOW_VIEW_ROWS;
     let rect = shadow_table[base + 4u];
     if (rect.z <= 0.0) {
@@ -672,19 +698,57 @@ fn shadow_atlas_view(v: u32, p: vec3<f32>, n: vec3<f32>, ndl: f32) -> f32 {
             + textureSampleCompareLevel(shadow_atlas, shadow_atlas_samp, clamp(uv + vec2<f32>(h, h), lo, hi), ndc.z);
         lit = lit * 0.25;
     }
+    // What the sheets nearer the light let through, where the point is lit at
+    // all: compared by the metric the transmit pass wrote (metres from a lamp, or
+    // along the sunlight), two of the view's texels behind the nearest sheet.
+    let row6 = shadow_table[base + 6u];
+    var tr = vec3<f32>(1.0);
+    if (lit > 0.0 && row6.y > 0.5) {
+        var tmetric = -dot(sample_pos, info.xyz);
+        if (!ortho) {
+            tmetric = length(sample_pos - info.xyz);
+        }
+        tr = shadow_transmit_at(uv, rect, tmetric, texel * 2.0);
+    }
+    var fade = 0.0;
     if (ortho) {
-        lit = mix(lit, 1.0, smoothstep(0.87, 0.99, edge));
-    } else {
+        fade = smoothstep(0.87, 0.99, edge);
+    } else if (row6.x > 0.0) {
         // Past the light's shadow reach (local_shadows::shadow_reach, where its
         // falloff is a twentieth of its value at a metre) its casters were not
         // drawn: the shadow fades out over the reach's last fifth, so the edge
         // never shows.
-        let reach = shadow_table[base + 6u].x;
-        if (reach > 0.0) {
-            lit = mix(lit, 1.0, smoothstep(0.8 * reach, reach, length(p - info.xyz)));
-        }
+        fade = smoothstep(0.8 * row6.x, row6.x, length(p - info.xyz));
     }
-    return lit;
+    lit = mix(lit, 1.0, fade);
+    tr = mix(tr, vec3<f32>(1.0), fade);
+    let tmax = max(tr.r, max(tr.g, tr.b));
+    if (tmax > 0.0) {
+        g_shadow_tint = tr / tmax;
+    }
+    return lit * tmax;
+}
+
+// What the sheets in a view let through to a point `metric` from the light
+// (the four transmittance texels round `uv`, kept inside the view's tile, each
+// passing everything unless its nearest sheet is nearer the light than the
+// point by `bias`, blended bilinearly). CPU twin: shadow_transmit::
+// receiver_transmit (transmit_formula_matches_the_shader).
+fn shadow_transmit_at(uv: vec2<f32>, rect: vec4<f32>, metric: f32, bias: f32) -> vec3<f32> {
+    let dims = vec2<f32>(textureDimensions(shadow_transmit));
+    let t = uv * dims - vec2<f32>(0.5);
+    let i0 = vec2<i32>(floor(t));
+    let f = t - floor(t);
+    let tmin = vec2<i32>(rect.xy * dims);
+    let tmax = vec2<i32>((rect.xy + vec2<f32>(rect.z)) * dims) - vec2<i32>(1);
+    var acc = vec3<f32>(0.0);
+    for (var k = 0u; k < 4u; k = k + 1u) {
+        let o = vec2<i32>(i32(k & 1u), i32(k >> 1u));
+        let s = textureLoad(shadow_transmit, clamp(i0 + o, tmin, tmax), 0);
+        let w = select(1.0 - f.x, f.x, o.x == 1) * select(1.0 - f.y, f.y, o.y == 1);
+        acc = acc + w * select(vec3<f32>(1.0), s.rgb, metric > s.a + bias);
+    }
+    return acc;
 }
 
 // The cube face a direction from a point light falls on: its major axis, ties
@@ -705,6 +769,7 @@ fn shadow_cube_face(d: vec3<f32>) -> u32 {
 // unshadowed (its lookup is 0, or past the lookup's end), else its cube face
 // (picked by the direction from the light) or its one spot view.
 fn local_light_visibility(i: u32, p: vec3<f32>, n: vec3<f32>, ndl: f32) -> f32 {
+    g_shadow_tint = vec3<f32>(1.0);
     if (f32(i) >= shadow_table[0].x) {
         return 1.0;
     }

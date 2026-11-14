@@ -14821,6 +14821,10 @@ mod native_app {
                                 if state.renderer.local_shadows.level != state.gui_state.settings.local_shadows {
                                     state.renderer.local_shadows.level = state.gui_state.settings.local_shadows.clone();
                                 }
+                                // Frosted plastic (2026-11-13, renderer/film_blur.rs): Blurred or Simple; the
+                                // colour pyramid is made, remade for a new window size, or dropped to match.
+                                state.renderer.film_blur.on = state.gui_state.settings.film_blur;
+                                state.renderer.ensure_film_pyramid();
                                 state.renderer.shadow_strength =
                                     state.gui_state.settings.shadow_strength.clamp(0.0, 1.0);
                                 state.renderer.godray_intensity =
@@ -14975,6 +14979,10 @@ mod native_app {
                                         &state.camera,
                                         &[
                                             (&all_objects, so, CasterList::Scene),
+                                            // The see-through list: its glass and frosted film cast PARTIAL
+                                            // shadows (renderer/shadow_transmit.rs, 2026-11-13); the rest of it
+                                            // casts nothing.
+                                            (&transparent_objects, so, CasterList::SeeThrough),
                                             (&planet_ghost, Vec3::ZERO, CasterList::Scene),
                                             (&people_render_space, Vec3::ZERO, CasterList::Scene),
                                             (&celestial_objects, Vec3::ZERO, CasterList::CelestialSurfaces),
