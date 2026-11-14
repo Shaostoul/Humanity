@@ -495,3 +495,16 @@ on the same tree; part A's cuts, where they differ from this table's, are in run
    GitHub.
 4. **`humanity-gui`**, leaving **`humanity-engine`**, the app and the binary. Measure an engine
    edit against the 8 s estimate.
+
+## The file-size split (proposed 2026-11-14)
+
+The operator, 2026-11-14: "Okay, so monolith files keep proving to be problems for us. How many sub files should we make? Like we have renderer.rs but, that could be a monolith file. How many sub files could we divide that into realistically? What about other things?" Measured that day: 1,458 Rust files; 1,022 under 500 lines, 287 at 500-999, 98 at 1,000-1,999, 19 at 2,000-2,999, 32 at 3,000 or more. The worst monolith is one function, src/lib.rs window_event, 14,253 lines (the whole frame). The renderer averages 978 lines a file (73 files, 71,400 lines), ten files holding about 35,000.
+
+The target: one job per file, about 300 to 800 lines, a ceiling of 2,000 for every file with a per-file exception list that only shrinks, tests in a sibling file. Proposed order, each a pure move (no behaviour change) proven by the same build, tests and page snapshots, one area per agent, back to back where areas share files, run while few other agents work there, the size budgets lowered after each and the code map regenerated:
+
+1. window_event into 30 to 50 frame stage modules under src/engine (the frame_* pattern), src/lib.rs to about 1,500 lines (startup and a dispatcher).
+2. The renderer's largest files (tree_mesh 5,954, billboard_bake 4,885, pipeline 4,504 split per pass, stars, room_probes, cloud_temporal, mod.rs, clouds, camera, local_shadows) into about 50 to 70 files, the renderer to about 120 to 140 files; then rung 3 makes it a crate.
+3. src/engine/ipc.rs 6,542 (one file per verb family), the relay's relay.rs, features.rs and msg_handlers.rs (by message family), src/net/webrtc.rs, src/gui/ui_snapshots.rs (one per page group), src/gui/pages/settings.rs (one per tab), src/gui/mod.rs.
+4. The rest over 2,000 lines (machines, farming, planet_chunks, ship and home structure, chat, construction, home_plot, home_meshes, the relay API and storage).
+
+About 50 files over 2,000 lines become about 300 to 350.
