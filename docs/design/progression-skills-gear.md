@@ -71,8 +71,11 @@ metalworking,Metalworking,crafting,25,150,"...",craft_speed:0.02|craft_quality:0
 
 ### Rules
 
-- Keep exactly 20 skills. Depth comes from perk unlocks, not skill count.
-  A new skill requires retiring or splitting an old one (taxonomy budget).
+- RETIRED 2026-11-14: "keep exactly 20 skills". The operator: "Let's not focus on a cap. Let's
+  make sure we make a proper base set of skills before we go throwing numerical limits down." and
+  "We need to figure out what skills we should bother including. Then we need to make sure we
+  understand how they are leveled and what leveling them does for us." The base skill set, how
+  each levels and what a level gives come first (docs/design/activities.md section 6).
 - Every untrainable skill gets its trainer when its system activates
   (combat skills with CombatSystem, trading with the vendor, navigation
   with the unified map travel events, foraging with wild Harvestables).

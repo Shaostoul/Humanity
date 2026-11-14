@@ -394,23 +394,50 @@ those gates name skills that cannot exist.
 2. **The order principle in section 4 is confirmed** ("Sounds fine. They all need to be developed
    eventually."): what uses up something already produced comes before brand-new chains.
 
-### Open, each with this pass's recommendation
+### Decided (2026-11-14, second round): combat, point defense, skills, flow arts
 
-1. **Combat as an activity.** The code is live (melee, offensive abilities, armour, loot) and four
-   skills are reserved for it. *Recommendation:* the default game has defence against animals and
-   hazards only, a risk layer serving survival as gameplay-loop-map.md already says; fighting
-   people is never an activity; fantasy combat lives only in opt-in fantasy content. (The hunting
-   decision above is about animals and food; it does not answer this.)
-2. **Point defense: debris only, or raiders too?** The turret design names "raiders, hostile drones"
-   beside debris. *Recommendation:* debris only; it keeps the turret an engineering and cooperation
-   game and outside open question 1.
-3. **The skill budget.** Keep exactly 20 (progression-skills-gear.md) or let the table grow with the
-   catalog? *Recommendation:* keep 20 and rebalance as section 5 sets out. Hunting and fishing, now
-   in, have no skill either; under the cap they fit foraging (wild food, by any means) or a combined
-   self-reliance line once the combat answer frees a row.
-4. **Do arts and play train skills?** *Recommendation:* no XP for music, painting, dance, writing,
-   watching or games: the reward is the thing made or shared, and an XP bar on play turns it into
-   work. Fire props are the exception worth discussing, since their safety knowledge is real.
+The four questions this pass left open, answered by the operator the same day. Each quotation is
+his, exactly.
+
+1. **Combat: all of it, eventually.** "Eventually we want to support all forms of combat. We want
+   to have PvP arenas. We want to have strictly PvE content that is humans vs nonhumans to
+   symbolize a united humanity. We don't want to exclude sport like combat. If anything PvP combat
+   will be easier to setup than PvE combat. I play a little bit of PvP other games (MechWarrior
+   Online) but, I prefer co-op PvE (MechWarrior 5.) PvP allows us to get better at combat and helps
+   us balance/test gear before we have PvE properly working." So: PvP arenas and sport combat are
+   in, PvE is humans against non-humans, and PvP comes first as the proving ground for gear
+   balance. This pass's "never fighting people" recommendation is withdrawn.
+2. **Point defense: debris AND attackers.** "Both. I like the idea of point defense turrets, flying
+   around is fighter craft, and invasions of aliens, robots, demons, whatever. We could have human
+   raiders as practice runs similar to fire drills or RimPac or whatever. We just want the lore
+   dressing on the gameplay to fire the narrative." So: turrets, fighter craft, and invasions by
+   non-humans; human raiders appear as drills and exercises (the way fire drills and naval
+   exercises rehearse), with the lore framing the fight.
+3. **No skill cap; a proper base set first.** "Let's not focus on a cap. Let's make sure we make a
+   proper base set of skills before we go throwing numerical limits down." And on the eight skills
+   that earn nothing: "We need to figure out what skills we should bother including. Then we need
+   to make sure we understand how they are leveled and what leveling them does for us." The 20-skill
+   rule in progression-skills-gear.md is retired; the next step is the base skill set, how each
+   levels, and what a level gives.
+4. **Offense and defense both; teach everything.** "We want offense and defense. We want to include
+   everything as to achieve the claim of HumanityOS eventually being able to teach everyone
+   everything." So no merging of combat skills to free rows.
+5. **Alchemy becomes chemistry.** "I imagine chemistry will make more sense to more people than
+   alchemy." (The rename reaches the id, data, code, tests and docs, per CLAUDE.md's names rule.)
+6. **Fishing, hunting and foraging stay separate.** "Do we really want to combine these? There's
+   some overlap for the skills but, why would fishing make me better at finding mushrooms?"
+7. **Arts and play: a skill for prop work, by prop.** "I like the idea of having some sort of skill
+   for it. I guess the proper name of dancing with fire props is flow arts? However that also kind
+   of fits with that military drill where they spin their rifles around. It's all kinda dancing
+   with and without props. Maybe like prop manipulation or be like staff, whip, etc. since learning
+   to use a whip is way different from a staff." So flow arts and prop manipulation get skills,
+   split where the movement genuinely differs (a staff is not a whip), with drill (rifle spinning)
+   in the same family.
+
+The kiln question ("Shelter building takes over the kiln." "What?"): the kiln's 9 recipes (bricks,
+tiles, pots and the like) currently train three different skills, and this pass suggested giving
+them all to shelter building. Under "teach everything" the better answer is a ceramics (pottery
+and kiln work) skill of its own; the base skill set work decides it.
 
 ## 7. Where the code lives
 
