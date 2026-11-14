@@ -11,6 +11,18 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1560.0 (14 November 2026)
+
+- The Music page: explore endless pieces by seed and genre, tune one, keep favourites, export them as WAV files, and watch the music as a piano roll while it plays.
+- Eleven free instrument libraries, with optional packs and seven full-length packs (417 instruments) to download from Settings; long recordings play from disk, so the full Steinway takes about 15 MB of memory instead of 452 MB, and sounds exactly the same.
+- Deep dubstep: 140 bpm half-time with a tempo-locked wobble, a sub bass that ducks under the kick and vowel-shaped growls; electro swing and lo-fi now pick their kits and pianos piece by piece, and calm music sometimes sings its pads with a choir.
+- Row Street: four row house layouts (two bedrooms for four, three for five, three couples, five friends) on their own street with one open green behind the yards; build a fence on your plot line only if you want one.
+- Softer hair and steadier distant trees with temporal anti-aliasing; your own fringe shows on a planet.
+- Frosted tent plastic and glass cast faint tinted shadows, and blur what is behind them by distance.
+- Shadows from room lights cost the computer 20 to 43 percent less.
+- Fixed: getting up from a chair tucked under a desk, a piece changing when a genre was added, screenshots with the reuse switch off.
+- Plans: every activity in the game catalogued, a proposed base set of skills (alchemy is now chemistry), what everyday services we still lack next to Microsoft's, and what it takes to run on phones and every other device.
+
 ### v0.1559.0 (13 November 2026)
 
 - Smoother edges: temporal anti-aliasing is on by default (Settings > Graphics > Image), hair, chairs and the horizon lose their jagged steps.
