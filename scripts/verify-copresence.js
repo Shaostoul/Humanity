@@ -4044,7 +4044,7 @@ const HOUSE_ADA = { name: "TestBotAda", seed: "verify-copresence-household-ada" 
 const HOUSE_GAME_NAME = "CopresenceHouse";
 /** Step 2: what Ada builds on her own plot, metres from its corner: a foundation, and a wall on
  *  its south edge facing north, toward where the game stands in step 10. Both in her home's
- *  common room (data/homes/shipped/homestead.ron room-common, x 42..52, z 43..51), in its open
+ *  common room (data/homes/shipped/homestead.ron room-common, x 42..55, z 43..51), in its open
  *  east half, clear of the couch, side table and dining set (data/machines/home.ron). They first
  *  stood in the wet room, behind the hall's wall from the game's spot, and the picture showed
  *  only that wall (verify-household, 2026-10-12: 0% wood where hers was drawn). Whole metres:

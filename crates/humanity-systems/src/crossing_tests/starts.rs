@@ -28,9 +28,12 @@ fn the_file() -> Starts {
 #[test]
 fn the_starts_are_data_and_none_is_called_a_tier() {
     let starts = the_file();
-    assert_eq!(starts.starts.len(), 3, "Cabin, Apartment and Homestead");
+    // Cabin, Apartment and Homestead for players, and since 2026-11-13 the room program's two
+    // homesteads as drafts for developers (`dev`, offered in the Dev play mode only).
+    assert_eq!(starts.starts.iter().filter(|s| !s.dev).count(), 3, "Cabin, Apartment and Homestead");
+    assert_eq!(starts.starts.iter().filter(|s| s.dev).map(|s| s.id.as_str()).collect::<Vec<_>>(), ["household_homestead", "one_person_homestead"]);
     let ids: std::collections::BTreeSet<&str> = starts.starts.iter().map(|s| s.id.as_str()).collect();
-    assert_eq!(ids.len(), 3, "the ids are unique: {ids:?}");
+    assert_eq!(ids.len(), 5, "the ids are unique: {ids:?}");
     assert!(starts.default_start().offered, "the default start is offered");
     assert_eq!(starts.default_start().id, starts.default);
 
@@ -38,7 +41,8 @@ fn the_starts_are_data_and_none_is_called_a_tier() {
         .expect("items.csv parses");
     let quests = crate::quests::QuestRegistry::from_ron_dir(&data_dir().join("quests"));
     assert!(quests.get("gs_first_steps").is_some(), "the quests parsed");
-    for s in starts.offered() {
+    // Every start a game may make, the drafts for developers too.
+    for s in starts.starts.iter().filter(|s| s.offered) {
         let design = humanity_ship::ship_structure::HomeDesign::built_in(&s.design)
             .unwrap_or_else(|| panic!("the {} start is offered but no {} design is built in", s.id, s.design));
         assert_eq!(design.kind, s.plot_kind, "the {} start's design is for {} plots, not {}", s.id, design.kind, s.plot_kind);

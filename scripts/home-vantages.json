@@ -110,9 +110,9 @@
       "pitch": -0.08
     },
     {
-      "id": "09-console-room",
-      "room": "Console room",
-      "note": "The battlestation, looking south down the den to the greenhouse glass",
+      "id": "09-great-room-east",
+      "room": "Great room",
+      "note": "The screens den at the great room's east end, looking south to the greenhouse glass",
       "pos": [
         53.5,
         1.7,

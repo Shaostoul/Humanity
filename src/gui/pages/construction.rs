@@ -2661,7 +2661,7 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if let Some(zt) = humanity_ship::structure::zone_type(&z.type_id) {
         ui.label(RichText::new(&zt.purpose).size(theme.font_size_small).color(theme.text_muted()));
     }
-    // ROOM TYPE (console-room increment): which data/rooms.ron entry the room this zone covers
+    // ROOM TYPE (room-identity increment): which data/rooms.ron entry the room this zone covers
     // takes its FUNCTION from (purpose, walk-up actions, access). "(none)" = the room is named
     // after the zone but has no function. The picker lists the registry keys the editor loaded on
     // entry (GUI-first: no data file edit needed to give a room a job), and the lines under it

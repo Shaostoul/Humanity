@@ -204,6 +204,10 @@ pub const MACHINES_HOME_SOLO_RON: &str = include_str!(concat!(env!("HUMANITY_REP
 pub const MACHINES_SHIP_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/ship.ron"));
 /// The cabin's household (ship homes increment 6): the Cabin start's one machine file.
 pub const MACHINES_CABIN_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/cabin.ron"));
+/// The homestead for a household's machines (2026-11-13, docs/design/home-room-program.md).
+pub const MACHINES_HOUSEHOLD_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/household_homestead.ron"));
+/// The homestead for one's machines (2026-11-13, docs/design/home-room-program.md).
+pub const MACHINES_ONE_PERSON_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/one_person_homestead.ron"));
 /// The ship file and the default home design (increment 1a of docs/design/ship-homes-and-logistics.md):
 /// built in so a fresh install or a throwaway relay still has a ship with plots, and a home to put on one.
 pub const SHIP_STRUCTURE_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/ship_structure.ron"));
@@ -219,6 +223,10 @@ pub const HOME_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_RO
 /// neighbour's cabin is drawn as it, and a game with no data/homes/cabin.ron of its own starts its
 /// cabin from it (`own_home_text`).
 pub const HOME_CABIN_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/cabin.ron"));
+/// The two homesteads of the room program (2026-11-13, docs/design/home-room-program.md), arranged
+/// as the homestead's above: the homestead for a household of up to five and the homestead for one.
+pub const HOME_HOUSEHOLD_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/household_homestead.ron"));
+pub const HOME_ONE_PERSON_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/one_person_homestead.ron"));
 /// The starts (ship homes increment 6, crates/humanity-ship/src/starts.rs): the kinds of home a new player can
 /// start in. Built in so a fresh install or a throwaway relay still offers them.
 pub const STARTS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/starts.ron"));
@@ -293,7 +301,12 @@ pub fn shipped_home_design(kind: &str) -> Option<&'static str> {
 }
 
 /// Every shipped home design: (kind, its RON). `HomeDesign::built_in_ref` parses each once.
-pub const SHIPPED_HOMES: &[(&str, &str)] = &[("homestead", HOME_HOMESTEAD_RON), ("cabin", HOME_CABIN_RON)];
+pub const SHIPPED_HOMES: &[(&str, &str)] = &[
+    ("homestead", HOME_HOMESTEAD_RON),
+    ("cabin", HOME_CABIN_RON),
+    ("household_homestead", HOME_HOUSEHOLD_HOMESTEAD_RON),
+    ("one_person_homestead", HOME_ONE_PERSON_HOMESTEAD_RON),
+];
 
 /// Where a home kind's shipped design lives under data/, for the test that the game never
 /// saves over it (crates/humanity-ship/src/ship_structure.rs). The same file `shipped_home_design` embeds.
@@ -493,11 +506,15 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
         "machines/ship.ron" => Some(MACHINES_SHIP_RON),
         "machines/cabin.ron" => Some(MACHINES_CABIN_RON),
+        "machines/household_homestead.ron" => Some(MACHINES_HOUSEHOLD_HOMESTEAD_RON),
+        "machines/one_person_homestead.ron" => Some(MACHINES_ONE_PERSON_HOMESTEAD_RON),
         "blueprints/ship_structure.ron" => Some(SHIP_STRUCTURE_RON),
         // The player's OWN home, as a game with none on disk starts it: the shipped design under
         // the own-home header (`own_home_text`), never the shipped file's own header.
         "homes/homestead.ron" => Some(own_home_text(HOME_HOMESTEAD_RON)),
         "homes/cabin.ron" => Some(own_home_text(HOME_CABIN_RON)),
+        "homes/household_homestead.ron" => Some(own_home_text(HOME_HOUSEHOLD_HOMESTEAD_RON)),
+        "homes/one_person_homestead.ron" => Some(own_home_text(HOME_ONE_PERSON_HOMESTEAD_RON)),
         "homes/starts.ron" => Some(STARTS_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
         "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
@@ -776,9 +793,13 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "machines/home_solo.ron",
     "machines/ship.ron",
     "machines/cabin.ron",
+    "machines/household_homestead.ron",
+    "machines/one_person_homestead.ron",
     "blueprints/ship_structure.ron",
     "homes/homestead.ron",
     "homes/cabin.ron",
+    "homes/household_homestead.ron",
+    "homes/one_person_homestead.ron",
     "homes/starts.ron",
     "garden/grow_media.ron",
     "vehicles/kits.ron",

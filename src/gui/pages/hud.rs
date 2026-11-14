@@ -1596,7 +1596,7 @@ const ROOM_CARD_GAP: f32 = 8.0;
 
 /// THE BOTTOM-LEFT STACK (BUG-236, 2026-11-03). The HUD's bottom-left corner holds two blocks:
 /// the in-game chat feed and the room purpose card. Both stood at fixed offsets from the bottom of
-/// the screen, so "Console room", its purpose and its "Here: ..." line were painted across the
+/// the screen, so a room's name, its purpose and its "Here: ..." line were painted across the
 /// feed's status line and messages, at every Font Size (both are in points). They stack now: the
 /// feed is laid out first, in the corner, because its height is the one that changes (one to
 /// seven lines, or switched off), and the card stands on its block.

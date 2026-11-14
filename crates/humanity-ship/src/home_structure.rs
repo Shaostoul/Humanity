@@ -565,12 +565,13 @@ pub struct Zone {
     /// Optional human label (falls back to the type label).
     #[serde(default)]
     pub label: String,
-    /// Optional ROOM TYPE: a `data/rooms.ron` key ("kitchen", "console_room", ...). When set, the
+    /// Optional ROOM TYPE: a `data/rooms.ron` key ("kitchen", "livingroom", ...). When set, the
     /// flood-filled room this zone covers (`detect_rooms`) takes the zone's id AND resolves its
     /// purpose / in-room actions / access from that rooms.ron entry, so a room finally knows what
     /// it is for. None -> the room is named after the zone but has no function. Distinct from
     /// `type_id`: that picks the zone's colour + editor label (zone_types.ron), this picks the
-    /// gameplay function (rooms.ron); the console room sets both to "console_room".
+    /// gameplay function (rooms.ron); the homestead's great room sets them to "room_common" and
+    /// "livingroom".
     ///
     /// `skip_serializing_if`: the construction editor rewrites the home design and the ship file
     /// (data/homes/<kind>.ron, data/blueprints/ship_structure.ron) from this struct on every save, so a zone with no function must serialize exactly as it was hand-authored
@@ -1971,7 +1972,7 @@ impl HomeStructure {
         rooms
     }
 
-    /// The ROOM IDENTITY join (console-room increment, closes homestead.md's "room_N" gap): a
+    /// The ROOM IDENTITY join (room-identity increment, closes homestead.md's "room_N" gap): a
     /// flood-filled room whose centre (home-local x/z) lies inside a zone's footprint takes that
     /// zone's id, label and `room_type`. Rules that keep it predictable:
     /// - Containment is by the room's CENTRE, not by overlap, so a district-sized zone that merely
@@ -3196,7 +3197,7 @@ mod tests {
         assert_eq!(h.detect_rooms().len(), 1, "a partial wall does not partition the box");
     }
 
-    /// Room identity (console-room increment): a flood-filled room whose CENTRE lies inside a zone's
+    /// Room identity (room-identity increment): a flood-filled room whose CENTRE lies inside a zone's
     /// footprint takes that zone's id + room_type; a room no zone covers keeps its anonymous room_N.
     /// Written before the join existed: it failed then with ids "room_1" / "room_2" and no room_type.
     #[test]
@@ -3207,7 +3208,7 @@ mod tests {
         // A zone over the WEST half only, naming a rooms.ron key.
         h.zones.push(Zone {
             id: "west-lab".to_string(),
-            type_id: "console_room".to_string(),
+            type_id: "room_study".to_string(),
             origin: (0.0, 0.0, 0.0),
             size: (10.0, 3.0, 20.0),
             label: "West lab".to_string(),
@@ -3231,9 +3232,9 @@ mod tests {
             rooms.iter().map(|r| r.id.as_str()).collect::<Vec<_>>());
     }
 
-    /// Data integrity for the shipped files (console-room increment): every zone_types.ron row
-    /// parses with a unique id, a label, a purpose and a positive size; the console room is one of
-    /// them; every zone in the assembled ship (the ship file plus data/homes/shipped/homestead.ron) names a real zone type; every `room_type` any zone
+    /// Data integrity for the shipped files (room-identity increment): every zone_types.ron row
+    /// parses with a unique id, a label, a purpose and a positive size; the great room's type is one
+    /// of them; every zone in the assembled ship (the ship file plus data/homes/shipped/homestead.ron) names a real zone type; every `room_type` any zone
     /// sets is a data/rooms.ron key; and no two zones on one storey of the home body overlap in plan (touching
     /// edges are fine, shared interior is not), which is the reviewer's "overlapping rect" trap.
     #[test]
@@ -3246,11 +3247,11 @@ mod tests {
             assert!(!t.label.trim().is_empty() && !t.purpose.trim().is_empty(), "'{}' has a label + purpose", t.id);
             assert!(t.default_size.0 > 0.0 && t.default_size.1 > 0.0 && t.default_size.2 > 0.0, "'{}' size", t.id);
         }
-        let console = crate::structure::zone_type("console_room").expect("the console room is a zone type");
-        assert_eq!(console.label, "Console room");
+        let common = crate::structure::zone_type("room_common").expect("the great room's zone type is a zone type");
+        assert_eq!(common.label, "Common room");
 
         let reg = crate::room_types::RoomTypeRegistry::load(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data"));
-        assert!(reg.types.contains_key("console_room"), "rooms.ron has the console_room entry");
+        assert!(reg.types.contains_key("livingroom"), "rooms.ron has the livingroom entry");
         // The assembled ship (ship file + the homestead on its default plot), and the districts
         // that moved up to ship level in increment 1a.
         let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
@@ -3277,13 +3278,19 @@ mod tests {
         }
         assert!(room_typed >= 9, "the house zones carry room types (got {room_typed})");
 
-        // The console room sits in the home body with its function wired, and overlaps nothing.
+        // The great room sits in the home body with its function wired, and overlaps nothing. Since
+        // 2026-11-13 the screens den is its east end (docs/design/home-room-program.md, section 3):
+        // its zone runs to the house's east wall, the shell at x 55, and the living room's actions
+        // carry the den's workstation ones beside its own.
         let home = &ship.zones[ship.home_zone_index()].body;
-        let cr = home.zones.iter().find(|z| z.id == "console-room").expect("the console-room zone is placed");
-        assert_eq!(cr.type_id, "console_room");
-        assert_eq!(cr.room_type.as_deref(), Some("console_room"));
-        let actions = home.room_actions_for("console-room", &reg);
-        assert!(actions.contains(&"use_terminal".to_string()), "the console room's actions resolve: {actions:?}");
+        let gr = home.zones.iter().find(|z| z.id == "room-common").expect("the great room's zone is placed");
+        assert_eq!(gr.type_id, "room_common");
+        assert_eq!(gr.room_type.as_deref(), Some("livingroom"));
+        assert!((gr.origin.0 + gr.size.0 - home.width).abs() < 1e-3, "the great room runs to the east wall, the screens den in it: {gr:?}");
+        let actions = home.room_actions_for("room-common", &reg);
+        for a in ["gather", "use_terminal", "open_chat"] {
+            assert!(actions.contains(&a.to_string()), "the great room's actions resolve, the den's among them ({a}): {actions:?}");
+        }
         // On one storey (ship homes increment 7): the upstairs bedroom stands over the dining room,
         // the same rectangle a storey up, and that is no overlap.
         for (i, a) in home.zones.iter().enumerate() {
@@ -3302,8 +3309,8 @@ mod tests {
     /// `detect_rooms` on the real home (data/homes/shipped/homestead.ron) yields one room per authored room zone, each
     /// carrying that zone's id and room_type, each sitting inside the rect the zone declares.
     ///
-    /// The console room and the kitchen are checked by name because other things point at them
-    /// (the screens rig parks in the console room; the kitchen is the cooking station). Their
+    /// The great room and the kitchen are checked by name because other things point at them
+    /// (the screens rig parks in the great room's screens den; the kitchen is the cooking station). Their
     /// COORDINATES come from the authored zone rather than being written here again, so moving a
     /// room in the data file is a data change, not a code change. What this test is really for is
     /// the failure where a wall stops short and two rooms merge into one: that shows up as a
@@ -3349,8 +3356,11 @@ mod tests {
             );
         }
 
-        let cr = rooms.iter().find(|r| r.id == "console-room").expect("the console room is detected");
-        assert_eq!(cr.room_type.as_deref(), Some("console_room"));
+        // The great room is detected as ONE room from its west wall (x 42) to the shell (x 55): the
+        // screens den at its east end has no wall of its own since 2026-11-13.
+        let gr = rooms.iter().find(|r| r.id == "room-common").expect("the great room is detected");
+        assert_eq!(gr.room_type.as_deref(), Some("livingroom"));
+        assert!(gr.center.x - gr.dimensions.x * 0.5 < 43.0 && gr.center.x + gr.dimensions.x * 0.5 > 54.5, "the great room spans the den too: {:?} {:?}", gr.center, gr.dimensions);
         let kitchen = rooms.iter().find(|r| r.id == "room-kitchen").expect("the kitchen zone names its room");
         assert_eq!(kitchen.room_type.as_deref(), Some("kitchen"));
         assert!(

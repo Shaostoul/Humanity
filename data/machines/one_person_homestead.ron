@@ -1,0 +1,258 @@
+// HumanityOS machine layout: the HOMESTEAD FOR ONE (2026-11-13, docs/design/home-room-program.md). Same
+// format as data/machines/home.ron. Chosen by the start's household (data/homes/starts.ron), loaded
+// by `crate::machines::home_ron_path()` when the live save's start is this kind.
+//
+// One person (data/homes/one_person_homestead.ron): a double bed, the living room's screen, the two
+// fan lines and the compost. The rest is a later rung (the room program's section 8).
+//
+// Positions are home-local metres from the home's own corner (x east, z south; the street is west,
+// the door in the west wall), each machine's centre; an upstairs machine stands at y 3.0, the top
+// of the upper floor's slab. Every machine stands in the room it names, and a bedroom with a double
+// bed ("bed") meets England's 11.5 m2 for a double (crates/humanity-ship/src/home_program_tests.rs).
+//
+// `ship_machines` merges the ship's rows in (data/machines/ship.ron, which defines the wall
+// screen). The catalog holds the other types this file uses, each copied byte for byte from
+// data/machines/home.ron (bed, wardrobe, circulation fan, composter) or data/machines/cabin.ron
+// (single bed).
+//
+// Rotation: 0 puts a machine's front toward north (-z), 90 toward west, 180 toward south, 270
+// toward east.
+
+(
+    ship_machines: Some("ship.ron"),
+    catalog: {
+        "bed": (
+            shape: "box",
+            size: (2.00, 0.60, 1.00),
+            color: (0.42, 0.44, 0.50),
+            label: "Bed",
+            category: "Furniture",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["bed_lie", "bed_edge"],
+            stats: [
+                (
+                    kind: "storage",
+                    value: "sleep here",
+                    status: "ok",
+                ),
+            ],
+            // E sleeps the night here, as at a bed you build (first-hour audit F5, 2026-10-04).
+            provides: Some("rest"),
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/beddouble/beddouble.gltf"),
+        ),
+        "bed_single": (
+            shape: "box",
+            size: (2.00, 0.50, 0.90),
+            color: (0.42, 0.44, 0.50),
+            label: "Single bed",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "sleep here",
+                    status: "ok",
+                ),
+            ],
+            provides: Some("rest"),
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "wardrobe": (
+            shape: "box",
+            size: (1.20, 2.00, 0.60),
+            color: (0.52, 0.38, 0.24),
+            label: "Wardrobe",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "clothing",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("wardrobe_cabinet"),
+            model: Some("assets/models/furniture/bookcasecloseddoors/bookcasecloseddoors.gltf"),
+        ),
+        "circulation_fan": (
+            shape: "box",
+            size: (0.247, 0.3, 0.2),
+            color: (0.2, 0.22, 0.24),
+            label: "Circulating fan (clip-on)",
+            category: "Food",
+            // A 6 inch clip-on grow fan (AC Infinity CLOUDRAY S6, read
+            // 2026-09-27: "Maximum Airflow 325 CFM", "Power 11 W", "Total
+            // Dimensions 9.73 x 11.82 in. (24.7 x 30.0 cm)"; the 0.2 m depth
+            // is a game estimate). Clipped over a grow machine and powered, its
+            // wind pollinates the strawberries there to about 79% of a full
+            // crop (Allen and Gaede via McGregor: 77% of flowers set under a
+            // fan, 97% brushed daily; data/garden/pollination.ron `devices`).
+            // No source has a fan pollinate tomatoes, peppers or eggplants
+            // indoors. Serves the grow machine nearest it. Not placed in the
+            // seed design.
+            stats: [
+                (
+                    kind: "air",
+                    value: "wind over one grow machine",
+                    status: "ok",
+                ),
+                (
+                    kind: "food",
+                    value: "strawberries set ~79%; not tomatoes",
+                    status: "ok",
+                ),
+            ],
+            power: Some(Consumer(
+                watts: 11.0,
+                priority: 4,
+            )),
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "composter": (
+            shape: "box",
+            size: (0.7, 0.55, 0.7),
+            color: (0.35, 0.25, 0.14),
+            label: "Composter",
+            category: "Food",
+            stats: [
+                (
+                    kind: "nutrient",
+                    value: "+1.2 kg/d",
+                    status: "ok",
+                ),
+                (
+                    kind: "water",
+                    value: "+155 L/d greywater",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+    },
+    instances: [
+        // The bedroom: a double bed, clear of the door and under the window.
+        (
+            id: "bed_1",
+            machine: "bed",
+            room: "room-bedroom",
+            offset: (6.5, 0.0, 19.6),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The living room's screen, on the wall to the entry.
+        (
+            id: "wall_screen_1",
+            machine: "wall_screen",
+            room: "room-living",
+            offset: (5.0, 1.2, 12.6),
+            rotation: 180.0,
+            zone: "home",
+        ),
+        // The greenhouse's air: a fan line across the plot, one every 4 m (the clip-on grow fan stands in for a fan sized for it).
+        (
+            id: "fan_greenhouse_1",
+            machine: "circulation_fan",
+            room: "room-greenhouse-part-2",
+            offset: (11.3, 2.0, 1.5),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_greenhouse_2",
+            machine: "circulation_fan",
+            room: "room-greenhouse-part-2",
+            offset: (11.3, 2.0, 5.5),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_greenhouse_3",
+            machine: "circulation_fan",
+            room: "room-greenhouse-part-2",
+            offset: (11.3, 2.0, 9.5),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_greenhouse_4",
+            machine: "circulation_fan",
+            room: "room-greenhouse-part-2",
+            offset: (11.3, 2.0, 13.5),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        // The orchard's breeze: a fan line across the plot, one every 4.5 m (the clip-on grow fan stands in for a fan sized for it).
+        (
+            id: "fan_orchard_1",
+            machine: "circulation_fan",
+            room: "room-orchard-part-2",
+            offset: (18.4, 2.0, 1.0),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_orchard_2",
+            machine: "circulation_fan",
+            room: "room-orchard-part-2",
+            offset: (18.4, 2.0, 5.5),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_orchard_3",
+            machine: "circulation_fan",
+            room: "room-orchard-part-2",
+            offset: (18.4, 2.0, 10.0),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_orchard_4",
+            machine: "circulation_fan",
+            room: "room-orchard-part-2",
+            offset: (18.4, 2.0, 14.5),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        (
+            id: "fan_orchard_5",
+            machine: "circulation_fan",
+            room: "room-orchard-part-2",
+            offset: (18.4, 2.0, 19.0),
+            rotation: 90.0,
+            zone: "home",
+        ),
+        // The compost bays.
+        (
+            id: "composter_1",
+            machine: "composter",
+            room: "room-compost",
+            offset: (33.0, 0.0, 10.5),
+            rotation: 0.0,
+            zone: "home",
+        ),
+    ],
+    connections: [],
+)

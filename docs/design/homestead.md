@@ -72,16 +72,17 @@ Nothing about the bay, the corridor, or the machine plant moves.
 
 **Superseded 2026-09-19.** This section described a twelve-room house in a
 16 by 20 m corner of the acre, with the other 93 percent left as open floor. The
-acre is now partitioned end to end into twenty-three rooms, and the house is a
+acre is now partitioned end to end into rooms (twenty-nine since the upper floor and the
+2026-11-13 merge of the screens den into the great room), and the house is a
 21 by 21 m square in the middle of it. The table of rects, the adjacency list and
-the console room's coordinates all moved to
+the screens den's coordinates all moved to
 **[player-home.md](player-home.md)**, which is the live plan and carries the
 reasoning behind it, the walkthrough, and where every in-world screen went.
 
 Everything from "Room identity" down is about the MECHANISM rather than the plan,
 and is still correct.
 
-Room identity (built, console-room increment): rooms are still DETECTED from the
+Room identity (built, room-identity increment): rooms are still DETECTED from the
 walls (`HomeStructure::detect_rooms` flood-fills the plan), but they are no longer
 anonymous. Each room-grade `Zone` in `HomeStructure.zones` names the room whose
 centre falls inside its footprint: the detected room takes the zone's id
@@ -96,28 +97,28 @@ not a rooms.ron key logs a warning and yields no purpose or actions; the zone de
 panel in the construction editor shows the same warning inline and offers the room
 types as a picker (`HomeStructure::room_actions_for(zone_id, registry)` is the
 GUI-callable join). The room-grade zone types live in
-`data/blueprints/zone_types.ron` (`room_entry` .. `room_workshop`, `console_room`,
-`room_garden`, `room_living`), a pure data edit to extend.
+`data/blueprints/zone_types.ron` (`room_entry` .. `room_workshop`, `room_garden`,
+`room_living`, `room_dining`, `room_guest_bedroom`), a pure data edit to extend.
 
-### Console room (the battlestation)
+### The screens den, in the great room
 
 The household's fixed workstation: displays, comms and the home's systems at a
-glance. Zone type `console_room` (zone_types.ron), rooms.ron entry `console_room`
-(actions: use terminal, open chat, review tasks, federation status, manage saves;
-equipment: wall_screen, desk_monitor, desk, chair), placed in ship_structure.ron as
-zone `console-room` with `room_type: Some("console_room")`. Since the 2026-09-19
-redesign it is a 3 by 8 m den in the house's south-east corner (x 52..55,
-z 43..51), reached from the entry or the great room, glazed at its south end onto
-the greenhouse; see [player-home.md](player-home.md). The in-world screens it was
-waiting for exist now (`wall_screen`, `desk_monitor`, both in
-`data/machines/home.ron`); the room carries the web screen, the garden camera and
-a comms desk monitor, and the rest of the household's screens moved out to the
-rooms where they are used. Vocabulary, settled here and used
-everywhere: "console room" is this room; "battlestation" is its colloquial name;
-"command deck" is the mothership bridge (`docs/game/humanity_one.md`) and is never
-the home. "Battlestation" is ALSO, separately, a device role in
-`docs/design/device-mesh.md` (the operator's PC); that is the device layer, this is
-the room layer, and both names stand.
+glance. Since 2026-11-13 it is no room of its own: it is the east end of the great
+room (zone `room-common`, type `room_common`, `room_type: Some("livingroom")`, x 42..55,
+z 43..51), with no wall between the den and the rest of the room
+([home-room-program.md](home-room-program.md), section 3). So the rooms.ron entry
+`livingroom` carries the
+den's function as well as its own: actions gather, community meeting, entertainment,
+use terminal, open chat and review tasks (six, so the HUD's "Here: ..." line fits a
+640-point screen); equipment adds wall_screen, desk_monitor, desk and chair; the draw
+is 550 W, the den's 450 W added to the living room's 100. The den is glazed at its
+south end onto the greenhouse; see [player-home.md](player-home.md). It carries the web
+screen above the desk, the garden camera beside it on the same east wall (it hung on
+the wall opposite until that wall came out) and a comms desk monitor; the rest of the
+household's screens are in the rooms where they are used. Vocabulary: "command deck"
+is the mothership bridge (`docs/game/humanity_one.md`) and is never the home.
+"Battlestation" is a device role in `docs/design/device-mesh.md` (the operator's PC),
+the device layer, not a room.
 
 ## 4. Walls, doors, windows
 
@@ -337,7 +338,7 @@ effort and blocks nothing above.
 7. HVAC runtime: hvac.ron has no loader into the machine layer. Room heat runs
    since 2026-10-05 in the farming air step, `crates/humanity-systems/src/farming/heat.rs` (see
    5.3); the old never-registered HvacSystem was deleted the same day.
-8. (Closed by the console-room increment.) Wall-bounded rooms are now named by
+8. (Closed by the room-identity increment.) Wall-bounded rooms are now named by
    the zone covering their centre and joined to rooms.ron through the zone's
    `room_type`; see "Room identity" in section 3. Still open: the entry, pantry,
    hall and utility zones have no rooms.ron entry yet, so they are named but

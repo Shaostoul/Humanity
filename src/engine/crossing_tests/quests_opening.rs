@@ -650,6 +650,11 @@ fn the_front_door_is_the_door_of_the_plot_you_were_given() {
         let to_zone = (zone.origin.0 + zone.body.width * 0.5 - door.door.0, zone.origin.2 + zone.body.depth * 0.5 - door.door.1);
         assert!(door.outward.0 * to_zone.0 + door.outward.1 * to_zone.1 > 0.0, "plot {}: out of the door is toward {}", plot.id, zone.label);
         opens_on.push(door.opens_on.clone());
+        // A draft for developers (`Start::dev`, the room program's homesteads, 2026-11-13) has no
+        // opening yet: its door is checked above, its quest when it has one.
+        if Starts::load(&data_dir()).for_plot_kind(&plot.kind).is_none() {
+            continue;
+        }
 
         let mut game = Game::starting_on(&plot.id);
         let steps = quest_def(&game.quest).steps.len();

@@ -376,7 +376,7 @@ fn full_window_is_the_same_player_bigger_and_closing_it_puts_the_video_back() {
     assert!(!texts_of(&out).iter().any(|x| x == t("chat_video.in_window")), "the row is its player again");
 }
 
-/// The wall screen of the operator's console room (data/machines/home.ron, `desk_monitor_2`,
+/// The wall screen of the operator's screens den, in the great room (data/machines/home.ron, `desk_monitor_2`,
 /// `page:chat`), at 1280 x 720 pixels, drawing the chat page under its own context with its own set
 /// of videos, as the engine runs it (gui/screen_surface.rs `ScreenCore::run`).
 pub(crate) struct Wall {
@@ -424,7 +424,7 @@ impl Wall {
 }
 
 /// A WALL SCREEN'S CHAT PLAYS ITS VIDEOS IN THEIR ROWS, ITS FULL WINDOW OPENS ON THE WALL, AND IT
-/// LEAVES NO COPY BEHIND (BUG-258, then 2026-11-06). The chat on the console room's wall screen
+/// LEAVES NO COPY BEHIND (BUG-258, then 2026-11-06). The chat on the screens den's wall screen
 /// draws each video row's player; pressing the picture fetches the video and plays it in its row on
 /// the wall, polled there (so its fetch is taken and its temporary copy known). Full window, pressed
 /// on the wall, opens the window ON THE WALL: the wall's own run draws it (the operator: "the whole

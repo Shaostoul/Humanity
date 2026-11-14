@@ -490,6 +490,8 @@ fn draw_who_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// one's details are drawn under them, so every home and server stays in view above whatever the
 /// selected one opens. Returns how tall its contents ran and the room it had.
 fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> (f32, f32) {
+    // The Dev play mode also lists the drafts for developers among the kinds of home (Start::dev).
+    let dev = state.settings.play_mode.allows(crate::config::Capability::DevTools);
     let homes = state.launcher_homes.clone();
     let who_is_new = state.launcher_who.is_empty();
     let kind = state.launcher_where_kind;
@@ -547,7 +549,7 @@ fn draw_where_column(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) -> 
                 ui.add_space(theme.spacing_sm);
                 match own_home() {
                     None => {
-                        wyl::draw_choice(ui, theme, wyl::starts());
+                        wyl::draw_choice(ui, theme, wyl::starts(), dev);
                     }
                     Some(_) => hint(ui, theme, t("characters.new_home_taken")),
                 }

@@ -2651,7 +2651,7 @@ pub const SHADOW_FRAGMENT_ENTRY: &str = "fs_shadow";
 // P1 proved the floor sits under EVERY PSO that compiles a fragment with the
 // cloud branch reachable: the Sahara's atmosphere shell, drawn through the
 // classic transparent PSO, fell from 10.44 to 0.19 ms the moment cloud_layer
-// was unreachable, and the console room's interior walls were paying the
+// was unreachable, and the screens den's interior walls were paying the
 // same floor through the opaque PSO. So the material type space is cut into
 // CLASSES, each class gets pipelines compiled from exactly the code its
 // materials dispatch to (its own entry, with the switches it keeps), and the

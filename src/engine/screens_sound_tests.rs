@@ -62,7 +62,7 @@ fn a_wall_screens_video_at_half_row_volume_is_mixed_at_half_not_a_quarter() {
 }
 
 /// A WALL SCREEN'S PLAYING VIDEO IS HANDED TO THE MIXER, FROM THE SCREEN, AT ITS VOLUME AND MUTE
-/// (BUG-258; they had always played silent, their Mute and volume doing nothing): the console room's
+/// (BUG-258; they had always played silent, their Mute and volume doing nothing): the screens den's
 /// wall screen plays the AV1 fixture (its Opus sound), and the engine's per-frame step for a page
 /// screen (`engine::screens::place_page_sound`, the screen 10 m ahead of the listener) attaches
 /// its sound at master x sfx x falloff, centred; the volume bar at half sends half; Mute sends

@@ -2090,7 +2090,7 @@ pub(crate) fn toggle_build_editor(state: &mut EngineState) {
         state.gui_state.construction_structure_dirty = true;
         // That rebuild is not an edit, and must not arm the autosave (`arms_autosave`).
         state.construction_entry_rebuild = true;
-        // The rooms.ron registry for the ZONE detail panel (console-room
+        // The rooms.ron registry for the ZONE detail panel (room-identity
         // increment): a zone's room_type picker lists these keys and the
         // panel shows the purpose + actions the pick resolves to. Loaded here,
         // on editor entry, for the box home too (the legacy-layout branch

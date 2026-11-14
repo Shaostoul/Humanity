@@ -1099,12 +1099,13 @@ mod tests {
         // cabin block's hall and the South Commons have glass roofs and glass-lidded corridors
         // from the street, and a cabin's own door corridor has a steel lid (the sixteen cabins
         // are neighbours whose lids cut nothing): 5 roofs, 4 ship corridor lids, 11 neighbour lids.
+        // Since 2026-11-13 the room program's two homesteads (h1, o1) have glass-lidded corridors too: 13.
         let neighbours = ship.neighbour_plots().count();
         assert_eq!(neighbours, ship.plots.len() - 1, "every plot but the home's is a neighbour's");
         let roofs = ship.zones.iter().filter(|z| z.body.roof_is_glass()).count();
         let lids = ship.corridors.iter().filter(|c| c.glass_top).count();
         let neighbour_lids = ship.neighbour_plots().filter(|p| p.door.glass_top).count();
-        assert_eq!((roofs, lids, neighbour_lids), (5, 4, 11), "the shipped glass roofs, ship corridor lids and neighbour corridor lids");
+        assert_eq!((roofs, lids, neighbour_lids), (5, 4, 13), "the shipped glass roofs, ship corridor lids and neighbour corridor lids");
         assert_eq!(geom.holes.len(), roofs + lids + neighbour_lids, "every glass roof, ship corridor lid and neighbour's glass corridor lid is open");
         // The neighbour's plot (p2, z 99..188) is inside the hull too (increment 2: the hull wraps
         // every plot, whoever holds it). Seen red 2026-10-04 with the neighbours left out of

@@ -2,7 +2,7 @@
 // verify-live-screen: the gate for a `watch:` screen on an in-world wall.
 //
 // The operator photographed wall_screen_4 (the great room television since
-// the 2026-09-19 home redesign; it was in the console room then) reading
+// the 2026-09-19 home redesign; it hung in the screens den then) reading
 // "Could not connect: URL error: No host name in the URL Trying again
 // shortly." and asked whether the live feature could be pointed at an actual
 // stream and tested. Two things had to exist for that to be answerable, and

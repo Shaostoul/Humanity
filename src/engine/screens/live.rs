@@ -27,7 +27,7 @@
 //! WHAT THE STATUS PAGE SAYS is [`live_status`], pure over (server, stream
 //! id, last error), and it answers two things at once: the words, and
 //! whether to connect. The second matters because of a real wall the
-//! operator hit (2026-09-18, photographed in the console room): with nobody
+//! operator hit (2026-09-18, photographed in the screens den): with nobody
 //! signed in, `GuiState::server_url` is empty, so the composed address is
 //! `/ws/live/sub/<id>`, which has NO HOST NAME. The screen showed
 //! "Could not connect: URL error: No host name in the URL Trying again

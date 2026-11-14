@@ -412,6 +412,8 @@ fn a_frame_comes_into_view_at_250_m_and_leaves_past_300() {
     let cabins: Vec<String> = (1..=16).map(|n| format!("plot:c{n}")).collect();
     let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "plot:p1", "plot:p2", "plot:p3"].iter().map(|s| s.to_string()).collect();
     want.extend(cabins.iter().cloned());
+    // Since 2026-11-13 the room program's homesteads east of First Street, h1 and o1.
+    want.extend(["plot:h1".to_string(), "plot:o1".to_string()]);
     assert_eq!(came, want, "the frames in view at p1's door");
     assert!(went.is_empty());
     // p4's floor starts at z 297, so standing over its x the distance is 297 - z.
@@ -422,7 +424,7 @@ fn a_frame_comes_into_view_at_250_m_and_leaves_past_300() {
     assert_eq!(went, Vec::<String>::new(), "290 m keeps p4 in view / left: {went:?} / right: []");
     assert_eq!(at(-4.0), (vec![], vec!["plot:p4".to_string()]), "301 m: p4 leaves the view");
     let mut still: Vec<String> = cabins.clone();
-    still.extend(["plot:p1", "plot:p2", "plot:p3", "zone:cabins-1", "zone:commons", "zone:street-1"].iter().map(|s| s.to_string()));
+    still.extend(["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:cabins-1", "zone:commons", "zone:street-1"].iter().map(|s| s.to_string()));
     still.sort();
     assert_eq!(world.pieces.frames_in_view(id), still);
 }

@@ -78,7 +78,7 @@ openings (checked by script, section 10).
 | 12 | Upper floor, quiet wing | (34, 30) | (55, 38) | dining room, second bedroom, shower room, boot room | oak |
 | 13 | Upper floor, stair-top landing | (34, 38) | (36.5, 39.3) | hall, west end | oak |
 | 14 | Upper floor, hall east of the stairwell | (40.5, 38) | (55, 39.3) | hall, entry | oak |
-| 15 | Upper floor, hall, and the house's south roof | (34, 39.3) | (55, 51) | hall, entry, pantry, kitchen, great room, console room | oak |
+| 15 | Upper floor, hall, and the house's south roof | (34, 39.3) | (55, 51) | hall, entry, pantry, kitchen, great room (its screens den included) | oak |
 | 16 | Mushroom room roof | (0, 51) | (10, 61) | mushroom room | concrete |
 | 17 | Aquaponics roof | (0, 61) | (10, 73) | aquaponics | concrete |
 | 18 | Fields roof | (0, 73) | (40, 89) | fields | glass |
@@ -331,7 +331,7 @@ climb's step-off goes (camera.rs); the placement assumes "forward, over the top"
 
 ## 6. The roof over the house's south half: inaccessible
 
-**Decision: the slab over z 40.5 to 51 (pantry, kitchen, great room, console room
+**Decision: the slab over z 40.5 to 51 (pantry, kitchen, great room with its screens den,
 and the hall's south half) is an inaccessible roof, like every other lid.** The upper
 hall's south wall (U3) closes the upper storey there, and nothing leads onto any
 roof.

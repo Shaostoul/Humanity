@@ -46,6 +46,8 @@ fn frames_of_the_shipped_ship() {
     let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2"].iter().map(|s| s.to_string()).collect();
     want.extend((1..=12).map(|n| format!("plot:p{n}")));
     want.extend((1..=16).map(|n| format!("plot:c{n}")));
+    // Since 2026-11-13 the room program's two homesteads, after the cabins.
+    want.extend(["plot:h1".to_string(), "plot:o1".to_string()]);
     assert_eq!(ids, want, "the relay's frames");
     for (game, ship) in [("assembled at p1", assembled("p1")), ("assembled at p2", assembled("p2"))] {
         assert_eq!(BuildFrames::of_ship(&ship), frames, "{game}: the game's frames are the relay's");

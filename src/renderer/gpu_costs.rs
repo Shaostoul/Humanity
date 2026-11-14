@@ -21,7 +21,7 @@ use humanity_core::frame_costs::*;
 /// timestamp slots (begin + end). A world frame with the cloud caches uses
 /// ~22 passes, the far rung's calibration frame 2 more and its mip burst 6
 /// more; the in-world screens add one egui pass PER FRAMED SCREEN (up to six
-/// in the console room) plus the camera screen's sky, scene and transparent
+/// in the great room's screens den) plus the camera screen's sky, scene and transparent
 /// passes, and the particle sim and sky-view LUT passes are timed too since
 /// the 2026-09-18 instrumentation pass. 64 leaves room for all of that at
 /// once; the cost is 1 KB of query slots.

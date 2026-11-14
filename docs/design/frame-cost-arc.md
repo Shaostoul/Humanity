@@ -23,10 +23,10 @@ machine, this frame, this resolution:
 | pass | shader | measured ms | shaded px | ns per pixel |
 |---|---|---|---|---|
 | `gpu.ssao` | `assets/shaders/ssao.wgsl`, 10 taps, fullscreen triangle (`src/renderer/ssao.rs:182`) | 0.01 to 0.18 | 3.55 M | 0.003 to 0.051 |
-| `gpu.godrays` | `assets/shaders/godrays.wgsl:76`, 40 dependent `textureLoad` taps, fullscreen triangle (`src/renderer/godrays.rs:255`) | 0.42 (max, console-face-3) | 3.55 M | 0.118 |
+| `gpu.godrays` | `assets/shaders/godrays.wgsl:76`, 40 dependent `textureLoad` taps, fullscreen triangle (`src/renderer/godrays.rs:255`) | 0.42 (max, great-room-face-3) | 3.55 M | 0.118 |
 | `gpu.stars` | `assets/shaders/stars.wgsl` | 0.9 to 1.2 | sky only | 0.25 to 0.34 upper bound |
 | `gpu.celestial`, `moon-surface-200m` | megashader `fs_main` | 44.5 | about 3.05 M (ground from y = 192 down, full width) | 14.6 |
-| `gpu.scene`, `console-face-6` | megashader `fs_main` | 82.8 | 3.55 M at one layer (derived in section 2) | 23.3 |
+| `gpu.scene`, `great-room-face-6` | megashader `fs_main` | 82.8 | 3.55 M at one layer (derived in section 2) | 23.3 |
 | `gpu.scene` delta, 2.2 m to 0.3 m from the wall screen | megashader `fs_main`, type 24 | +62.0 | at most 3.55 M | at least 17.5 |
 
 The moon row is the one that cannot be argued with. The run log says
@@ -65,7 +65,7 @@ the cheapest type-12 fragment in the engine.
   9.7 percent of the interior's 23.3.
 
 So on the moon, 2.9 of 14.6 ns per pixel is explained and 11.7 is not. In the
-console room, 2.25 of 23.3 is explained and about 21 is not.
+screens den, 2.25 of 23.3 is explained and about 21 is not.
 
 11.7 ns per pixel on a 4070 (5888 lanes at 2.48 GHz = 1.46e13 lane-cycles per
 second) is 171,000 lane-cycles per pixel; 21 ns per pixel is 307,000.
@@ -412,7 +412,7 @@ and a draw-list split at `mod.rs:4714` onward. Cost keys that must move:
 `gpu.celestial_t` at `limb-400km` (26 ms) and `sahara-noon-ground` (10.4
 ms), toward the 0.2 ms the stub measured. Then the same for the opaque
 classic PSO once the interior draw lists prove no shell goes through it,
-which is what re-prices the console-room wall pixel in section 2.
+which is what re-prices the screens-den wall pixel in section 2.
 
 #### P2 outcome (2026-09-18, worktree agent; per-material-class pipelines)
 
@@ -479,13 +479,13 @@ carries the march, and the ocean-storm-low shell fell 35x. Increment W1's
 premise (42 to 49 ms of water at two ocean vantages, section 3) is gone;
 re-measure before spending it.
 
-The console room, through `verify-screens` (parks in the console room,
+The screens den (a room of its own then), through `verify-screens` (parks in the den,
 `HUMANITY_FRAME_COSTS=1`, the last once-a-second drop the rig leaves in
 `debug/frame_costs.json`, same flow stage in both runs): `gpu.scene` 82.89
 to 16.77 ms, `gpu.transparent` 12.08 to 2.82, frame 109.6 to 36.4 ms, and
 12 of 12 screen checks pass in both runs with identical pixel-change counts
 for the inventory click (57,625) and the web link (194,350), so the six
-wall screens render as before. The two console viewport captures cannot be
+wall screens render as before. The two screens-den viewport captures cannot be
 diffed per pixel: the autopilot parks the camera a few degrees differently
 each boot (both captures show the same room, screens and doorway light, one
 a little higher and squarer to the wall). One oddity for the record: the
@@ -518,14 +518,14 @@ files and the rig log in the 2026-09-18 session scratchpad `p3-a/`):
 
 | vantage | `gpu.scene` split | union | split2 (floor) | union minus split | `gpu.transparent` split / union / split2 |
 |---|---|---|---|---|---|
-| `console-face-6` | 14.12 | 17.13 | 14.04 | +3.01 ms (21 percent) | 2.35 / 3.01 / 2.52 |
-| `console-face-3` | 11.83 | 14.17 | 11.69 | +2.34 ms (20 percent) | 2.45 / 2.96 / 2.46 |
+| `great-room-face-6` | 14.12 | 17.13 | 14.04 | +3.01 ms (21 percent) | 2.35 / 3.01 / 2.52 |
+| `great-room-face-3` | 11.83 | 14.17 | 11.69 | +2.34 ms (20 percent) | 2.45 / 2.96 / 2.46 |
 | `home-clock-noon` | 2.22 | 2.74 | 2.29 | +0.52 ms (23 percent) | 0.93 / 1.13 / 0.92 |
 
 The repeat floor is under 0.15 ms at every park; the union arm sits 15 to
 20 floors above it. The transparent pass moves the same way because the
 surface transparent PSO compiles the same entry (glass and holograms in the
-room). The union arm's `gpu.scene` at console-face-6 (17.13) also lands on
+room). The union arm's `gpu.scene` at great-room-face-6 (17.13) also lands on
 the B0 pre-split exe's reading at the same vantage (16.96, below, a
 different boot and so a slightly different park), which is the cross-check
 that the swap measured the right thing.
@@ -727,19 +727,19 @@ rows 100 to 1300 (the HUD bands excluded), luminance levels out of 255:
 | `blue-marble-clouds` (clouds ON, `fs_cloud` exercised) | `gpu.celestial` / `_t` | 1.05 / 2.28 | 0.86 / 2.31 | 29.8 | 30 | 25 | 24 percent at mean 0.9; the pixels over 32 are star and constellation dots, the disc and its deck carry sparse dither only; block means within 0.12 |
 | `moon-surface-200m` | `gpu.celestial` | 7.32 | 6.90 | 30 | 30 | 25 | 90 percent at mean 4.3, uniform regolith speckle plus a one-pixel horizon shift; block means within 3.7 (this session's same-build cross-boot pair read 7.3 with one unsettled capture) |
 | `home-clock-noon` | `gpu.scene` / `gpu.transparent` | 3.02 / 1.24 | 2.32 / 0.93 | 30 | 29.9 | none | 3 percent at mean 0.015; block means within 0.16 |
-| `console-face-6` | `gpu.scene` / `gpu.transparent` | 16.96 / 2.85 | 14.16 / 2.45 | 30 | 29.8 | 10 | 2.2 percent at mean 0.02, max 28 |
-| `console-face-3` | `gpu.scene` / `gpu.transparent` | 14.00 / 2.97 | 11.81 / 2.64 | 30 | 29.9 | 10 | 1.2 percent at mean 0.06; the 1931 px over 32 are the wall screens' text, which the same-build pair also shows (1742), the rest is doorway edge from pose drift |
+| `great-room-face-6` | `gpu.scene` / `gpu.transparent` | 16.96 / 2.85 | 14.16 / 2.45 | 30 | 29.8 | 10 | 2.2 percent at mean 0.02, max 28 |
+| `great-room-face-3` | `gpu.scene` / `gpu.transparent` | 14.00 / 2.97 | 11.81 / 2.64 | 30 | 29.9 | 10 | 1.2 percent at mean 0.06; the 1931 px over 32 are the wall screens' text, which the same-build pair also shows (1742), the rest is doorway edge from pose drift |
 
 No key slower anywhere; every floored vantage at or above its floor; the
 interior faster as phase A predicted (gpu.scene 2.2 to 2.8 ms at the
-console, 0.7 at the homestead, and gpu.transparent 0.3 to 0.4 with it,
+screens den, 0.7 at the homestead, and gpu.transparent 0.3 to 0.4 with it,
 because the glass and the holograms compile the surface entry too), and
 gpu.celestial faster at every planet vantage, most at Fuji (3.7 ms, where
 the classic list is dominated by bark and cluster cards that now compile
 the vegetation entry alone) and least at the Sahara and the moon (0.4 to
 0.7, at the same-build cross-boot spread of that key). The CPU side is
 unchanged: the phase-A boot, certified quiet, read `cpu.scene` 1.76 ms at
-console-face-6 against B0's 1.75, and a third, quiet, frame-costed
+great-room-face-6 against B0's 1.75, and a third, quiet, frame-costed
 capture of Fuji (`p3-b1c/`) read `cpu.celestial` 5.89 against B0's 5.85
 and `cpu.scene` 1.42 against 1.45 with the frame at 33.5 ms and 30 fps
 (`gpu.celestial` 17.82), so the per-class walks of the opaque lists cost
@@ -752,7 +752,7 @@ increment (B0, the three B1 sweeps, phase A, the screens and runtime
 gates).
 `verify-screens` passes 12 of 12 on the split (the inventory click changes
 57,625 pixels and the web link 194,396, both as before), and its own
-console-room drop reads `gpu.scene` 14.24 ms and `gpu.transparent` 2.63
+screens-den drop reads `gpu.scene` 14.24 ms and `gpu.transparent` 2.63
 where the P2 outcome's same reading was 16.77 and 2.82; `verify-runtime`
 enters the world at all three of its vantages with zero panics.
 
@@ -813,7 +813,7 @@ outside at 6 m (70.5) and at 0.3 m (161.3) all move with coverage rather than
 with the object count.
 
 **What the per-pixel cost is made of**, best current split for
-`console-face-6`, 82.84 ms over one 3.55 Mpx layer = 23.3 ns per pixel (the
+`great-room-face-6`, 82.84 ms over one 3.55 Mpx layer = 23.3 ns per pixel (the
 45 ns figure in the measurement divides the 160 ms wall-fill frame by one
 screen; that frame draws the room AND the fullscreen quad, so 23.3 is the
 per-layer rate and 17.5 the isolated type-24 layer):
@@ -881,7 +881,7 @@ screen-emitter hoist.** Deliberately small and instrumental, because the
 interior's headline number belongs to increment P1 and measuring it twice is
 waste.
 
-- `console-face-6` and `console-face-3` do not exist in
+- `great-room-face-6` and `great-room-face-3` do not exist in
   `tests/visual/vantages.json` (343 vantages, 48 with `perf_floor_fps`, range 5
   to 30). They were driven ad hoc through the dev IPC. Add both as real
   vantages with `expect` and `regressions` lines describing the six live
@@ -890,7 +890,7 @@ waste.
 - Give the camera screen's re-render its own ids by passing an id parameter
   into `render_scene_onto` (`mod.rs:2771`) and `render_transparent_onto`
   (`mod.rs:2865`): `gpu.screen_scene`, `gpu.screen_transparent`. Cost key that
-  must appear: about 16.9 ms at `console-face-6` facing the west wall, moving
+  must appear: about 16.9 ms at `great-room-face-6` facing the west wall, moving
   out of `gpu.scene` into `gpu.screen_scene`; `gpu.scene + gpu.screen_scene`
   must sum to the old `gpu.scene` within the rig repeat floor.
 - Hoist the `screen_emitter` test above the point-light loop at
@@ -898,12 +898,12 @@ waste.
   0.3 m wall-fill cell, 160.1 ms down by about 8 ms.
 - Negative proof: the type-24 result at 2185 is already `albedo *
   emissive_strength` with the lit result discarded, so the hoist is a provable
-  no-op on the image. The `console-face-6` capture must be pixel-identical,
+  no-op on the image. The `great-room-face-6` capture must be pixel-identical,
   and the pages on all six screens must still render (`just verify-screens`).
 
 Rig recipe: `node scripts/verify-screens.js` for the screen content gate, plus
 `node scripts/probe-sweep.js --operator-config --only
-console-face-6,console-face-3,home-clock-noon`. `home-clock-noon` carries no
+great-room-face-6,great-room-face-3,home-clock-noon`. `home-clock-noon` carries no
 `perf_floor_fps`, so `perf-report.js` prints a dash for it; a dip there is
 worth investigating and is not a reportable regression.
 
@@ -1257,7 +1257,7 @@ folding it into a perf claim. Do the backface cull in the same increment.
 
 1. **P1, the megashader permutation.** Reach: it is the floor under both
    `gpu.celestial` (44.5 ms at the moon, 42.9 at Sahara, 61 at the limb, 144.7
-   at Fuji) and `gpu.scene` (82.8 in the console room), so it is the only item
+   at Fuji) and `gpu.scene` (82.8 in the screens den), so it is the only item
    on this list that can move every vantage in the game at once. Risk: the
    lowest of the three, because phase A is a throwaway build whose negative
    proof is exact (the moon draws none of the three stubbed branches) and

@@ -1433,7 +1433,7 @@ pass draws into a scene target (`renderer/scene_target.rs`) and one present
 pass copies it to the display; camera screens and the hi-res capture go
 through a view scratch and the same pass. Still 8-bit, so bit-exact: a GPU
 test round-trips every code of every channel, and the 3840x2160 capture at
-console-face-3 is byte-identical between the old and new builds. `gpu.present`
+great-room-face-3 is byte-identical between the old and new builds. `gpu.present`
 measures 0.05 to 0.07 ms at 2560x1387. `tests/scene_format_lint.rs` keeps every
 scene PSO on `scene_format()`. **Next: increment 3** (`scene_format_for` returns
 `Rgba16Float`, clamp flag on), then increment 4, the one dither.
@@ -1461,7 +1461,7 @@ others reads 130 against the open floor's 133. Two arcs, in this order:
    room's own box, `docs/design/room-gi.md`. At 25b the wall goes from 4 to 46
    sRGB (wall/floor 0.17 before the tone map, target 0.15 to 0.40); at the new
    `25c-oyster-rack-close` the shelf underside goes from 2 to 76 and the oyster
-   block front from 43 to 110; cost at console-face-6 about 0.6 ms (update
+   block front from 43 to 110; cost at great-room-face-6 about 0.6 ms (update
    0.21, sampling about 0.4), panics 0. Dev switch `showcase {"room_gi":"0"}`.
    NEXT after the cascades: rung 2, tracing each room's contents (a voxel
    volume per room, DDGI relocation and classification, the per-room
@@ -1708,7 +1708,7 @@ cheaper than guessing.
 ### A. In-world screens, the remaining rungs. PICKED (operator, 2026-09-20)
 
 Six rungs merged (v0.1313 to v0.1314): the ScreenSurface, the screen as machine
-data, the live feed and in-game camera, the console room, the video player, and
+data, the live feed and in-game camera, the screens den (now the great room's east end), the video player, and
 the readable web. Design in `docs/design/in-world-screens.md`,
 `docs/design/readable-web.md`, `docs/design/media-player.md`.
 
@@ -1725,11 +1725,11 @@ Remaining, in the order they were fenced:
   Discord, GOG, Examine), four unknown (no terms address it), OpenFarm and
   the dead ISS tracker link removed. Asking GOG and others for permission is
   the operator's to send; the contact routes are being gathered.
-- ~~The screens' share of the interior frame (the console room at 9 fps)~~
+- ~~The screens' share of the interior frame (the screens den at 9 fps)~~
   STALE, corrected 2026-09-25: that figure predates the P2/P3 megashader split.
   Measured after P3 (`docs/design/frame-cost-arc.md`, the phase-B table):
-  `console-face-6` 29.8 fps at the 30 fps vsync cap, `gpu.scene` 14.16 ms,
-  `gpu.transparent` 2.45; `console-face-3` (camera wall in view) 11.81 / 2.64.
+  `great-room-face-6` 29.8 fps at the 30 fps vsync cap, `gpu.scene` 14.16 ms,
+  `gpu.transparent` 2.45; `great-room-face-3` (camera wall in view) 11.81 / 2.64.
   A web screen costs 0.064 ms GPU. What remains is the room's own scene cost,
   which belongs to arc B, not to the screens.
 - **Sync** (redesigned by the operator 2026-09-25): a one-shot "jump to where

@@ -40,24 +40,6 @@
         min_size_m: (2.0, 2.5, 2.0),
         tags: ["tech", "infrastructure"],
     ),
-    // The household's fixed workstation (colloquially the "battlestation"; the mothership bridge
-    // is the "command deck", a different room). Referenced by a Zone's `room_type` in
-    // data/homes/homestead.ron. The planned mounting point for the in-world screens
-    // (wall_screen, desk_monitor): not built yet, listed under equipment so the room is ready.
-    "console_room": (
-        name: "Console room",
-        purpose: "The household's fixed workstation: displays, comms and the home's systems at a glance",
-        actions: ["use_terminal", "open_chat", "review_tasks", "check_federation", "manage_saves"],
-        access: "private",
-        default_color: (0.3, 0.4, 0.5, 1.0),
-        default_material: "brushed_metal",
-        equipment: ["wall_screen", "desk_monitor", "desk", "chair"],
-        power_draw_watts: 450,
-        requires_life_support: true,
-        ambient_sound: "ambient.space_station",
-        min_size_m: (2.5, 2.5, 2.5),
-        tags: ["work", "tech"],
-    ),
     "respawner": (
         name: "Respawn Chamber",
         purpose: "Molecular reconstruction pod for player respawn after death",
@@ -210,15 +192,22 @@
         min_size_m: (3.0, 2.5, 3.0),
         tags: ["food", "utility"],
     ),
+    // The living room. In the homestead it is the great room (zone room-common), and its east end
+    // is the SCREENS DEN, the household's fixed workstation: since 2026-11-13 the den and the living
+    // room are one room (docs/design/home-room-program.md, section 3), so the den's screens, its
+    // draw (the 450 W it had as a room of its own) and its everyday actions (the terminal, chat and
+    // tasks) are the living room's too. Six actions, not all eight: the HUD's "Here: ..." line
+    // stays on a 640-point screen (src/gui/pages/hud_corner_tests.rs); the den's other two, the
+    // save files and the federation status, are still their own pages ("data", "members").
     "livingroom": (
         name: "Living Room",
-        purpose: "Communal relaxation and social gathering space",
-        actions: ["gather", "community_meeting", "entertainment"],
+        purpose: "Gathering, guests and the household's screens: its living room and its workstation",
+        actions: ["gather", "community_meeting", "entertainment", "use_terminal", "open_chat", "review_tasks"],
         access: "shared",
         default_color: (0.45, 0.35, 0.2, 1.0),
         default_material: "wood_panel",
-        equipment: ["couch", "table", "entertainment_screen", "bookshelf"],
-        power_draw_watts: 100,
+        equipment: ["couch", "table", "entertainment_screen", "bookshelf", "wall_screen", "desk_monitor", "desk", "chair"],
+        power_draw_watts: 550,
         requires_life_support: true,
         ambient_sound: "ambient.space_station",
         min_size_m: (4.0, 2.5, 4.0),

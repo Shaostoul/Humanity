@@ -443,14 +443,16 @@ fn kind_grid(ui: &mut egui::Ui, theme: &Theme, place: Place, kinds: &[Kind], mut
 /// The new-home choice (Characters' new-home row, lane 2B): the title and hint, then one card per
 /// start in the file's order, each offered one with a radio on its name, the one picked with its
 /// household sub-choice, and each not offered greyed with why. Returns the choice as it stands
-/// after this frame (`draft_choice`).
-pub fn draw_choice(ui: &mut egui::Ui, theme: &Theme, starts: &Starts) -> Choice {
+/// after this frame (`draft_choice`). `dev`: the Dev play mode, where the drafts for developers
+/// (`Start::dev`, the room program's homesteads) are listed too; outside it they are not shown.
+pub fn draw_choice(ui: &mut egui::Ui, theme: &Theme, starts: &Starts, dev: bool) -> Choice {
     heading(ui, theme);
     ui.add_space(theme.spacing_sm);
     let picked = draft_choice(starts);
     let kinds: Vec<Kind> = starts
         .starts
         .iter()
+        .filter(|s| dev || !s.dev)
         .map(|s| Kind {
             id: &s.id,
             name: row_name(starts, &s.id, &s.name),

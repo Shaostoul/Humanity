@@ -102,8 +102,9 @@ fn digest(lines: &[String]) -> (usize, usize, u64) {
     (v, i, fnv(lines.join("\n").bytes()))
 }
 
-/// The frozen one-storey bodies (tests/fixtures/homes/one_storey_*.ron, byte copies of the shipped
-/// designs before storeys), with their placed pieces taken out: those are drawn from
+/// The frozen one-storey bodies (tests/fixtures/homes/one_storey_*.ron, copies of the shipped
+/// designs before storeys, their walls, floors and lights byte for byte; the homestead's zones
+/// were renamed on 2026-11-13, which draws nothing), with their placed pieces taken out: those are drawn from
 /// data/blueprints/structure_types.ron, whose stairs row changes in this wave on purpose (the
 /// finding's 16 risers), and none of the storey work changes how a piece is drawn (a stair's
 /// handrails are a group of their own, `the_stairs_carry_handrails_at_the_findings_height`).

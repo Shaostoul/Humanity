@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // verify-screens: the in-world screens gate. Boots the real release binary in
-// a portable rig, enters the world, parks the camera in the console room, and
+// a portable rig, enters the world, parks the camera in the great room's
+// screens den (its east end, data/homes/shipped/homestead.ron room-common), and
 // PROVES with nobody at the keyboard that the wall screens are interactive:
 //
 //   inventory   collapse the sections above it (Status, Equipment) by
@@ -678,10 +679,10 @@ async function main() {
     if (!ap || ap.ok !== true) throw new Error(`autopilot failed: ${JSON.stringify(ap)}`);
     step("autopilot", ap);
 
-    // Park in the console room facing the web screen. The home is built a
+    // Park in the great room's screens den facing the web screen. The home is built a
     // few frames after world entry; the camera request names the screen,
     // so retry while it answers "no screen named".
-    log("parking in the console room...");
+    log("parking in the great room's screens den...");
     let cam = null;
     for (let t0 = Date.now(); Date.now() - t0 < 90000; ) {
       clearDone("camera_done.json");
@@ -816,9 +817,9 @@ async function main() {
     manifest.tasks.done = tasks;
 
     // A viewport capture for the human reading the evidence folder: the
-    // console room with the screens on its walls as the player sees them.
+    // screens den with the screens on its walls as the player sees them.
     clearDone("screenshot_done.json");
-    req("screenshot_request.json", { note: "verify-screens console room" });
+    req("screenshot_request.json", { note: "verify-screens screens den" });
     const shot = await waitFile("screenshot_done.json", 30000);
     if (shot && shot.ok && shot.path) {
       const src = path.isAbsolute(shot.path) ? shot.path : path.join(RIG, shot.path);

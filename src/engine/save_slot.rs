@@ -146,7 +146,7 @@ pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::Ap
         None => ActiveHome {
             slot: SaveSlot::Offline,
             path: offline_path,
-            start: humanity_systems::persistence::default_start(),
+            start: dev_start(data_dir, config).unwrap_or_else(humanity_systems::persistence::default_start),
             household: humanity_systems::persistence::default_household(),
             server: String::new(),
             ship_place: None,
@@ -154,6 +154,29 @@ pub fn boot(saves_dir: &Path, data_dir: &Path, config: Option<&crate::config::Ap
     };
     set_active_home(home);
     Boot { slot: SaveSlot::Offline, save: offline }
+}
+
+/// `HUMANITY_DEV_START=<start id>` (2026-11-13, a rig knob like HUMANITY_NO_REUSE; never set by a
+/// player's launch): in the Dev play mode, a game with no home of its own starts one of that start
+/// instead of the default, so a rig can boot into a draft for developers (`Start::dev`, the room
+/// program's homesteads) and look round it on its plot. An id the starts file does not have is
+/// ignored, logged; outside Dev the knob does nothing.
+fn dev_start(data_dir: &Path, config: Option<&crate::config::AppConfig>) -> Option<String> {
+    let id = std::env::var("HUMANITY_DEV_START").ok().filter(|s| !s.trim().is_empty())?;
+    if !config.is_some_and(|c| c.play_mode.allows(crate::config::Capability::DevTools)) {
+        log::warn!("HUMANITY_DEV_START={id} is a Dev play mode knob; this game is not in Dev, so it starts the default");
+        return None;
+    }
+    match Starts::load(data_dir).get(id.trim()) {
+        Some(s) => {
+            log::info!("Startup: HUMANITY_DEV_START makes your own home a {} ({})", s.name, s.id);
+            Some(s.id.clone())
+        }
+        None => {
+            log::warn!("HUMANITY_DEV_START={id} is not a start in data/homes/starts.ron; starting the default");
+            None
+        }
+    }
 }
 
 /// A save file as it reads, None when there is none or it does not read (logged).

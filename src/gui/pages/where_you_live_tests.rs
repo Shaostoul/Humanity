@@ -28,7 +28,8 @@ pub(crate) fn guest_answer(starts: &Starts) -> HomeAnswer {
     };
     HomeAnswer {
         plot: None,
-        starts: starts.starts.iter().map(|s| StartOffer::of(s, free(&s.id))).collect(),
+        // As a server answers: never a draft for developers (src/relay/handlers/home_plots.rs).
+        starts: starts.starts.iter().filter(|s| !s.dev).map(|s| StartOffer::of(s, free(&s.id))).collect(),
         chose: false,
         refused: None,
         message: String::new(),
@@ -214,7 +215,7 @@ fn where_you_live_in_words() {
     // sentence, the places shared aboard and the food and water line open under its row from its
     // "What it is like" fold. Closed, a card has its first sentence only.
     let out = frame(&ctx, Vec::new(), &mut |ui| {
-        draw_choice(ui, &theme, &starts);
+        draw_choice(ui, &theme, &starts, false);
     });
     assert_eq!(missing(&out, &[first_sentence(&cabin.sentence)]), Vec::<String>::new(), "a card shows its first sentence");
     assert_eq!(present(&out, &[cabin.sentence.as_str()]), Vec::<String>::new(), "the whole is behind the fold");
@@ -224,7 +225,7 @@ fn where_you_live_in_words() {
         crate::gui::widgets::cards::set_fold_open(&ctx, fold_salt(Place::Server, &s.id), true);
     }
     let out = frame(&ctx, Vec::new(), &mut |ui| {
-        draw_choice(ui, &theme, &starts);
+        draw_choice(ui, &theme, &starts, false);
     });
     let want = [
         "Choose where you live",
@@ -261,11 +262,11 @@ fn where_you_live_in_words() {
     assert!(order.windows(2).all(|w| w[0] < w[1]), "in the file's order: {order:?}");
     // The Apartment has no radio: clicking its name picks nothing.
     click(&ctx, "Apartment", &mut |ui| {
-        draw_choice(ui, &theme, &starts);
+        draw_choice(ui, &theme, &starts, false);
     });
     assert_eq!(draft_choice(&starts).start, "homestead", "a start not offered cannot be picked");
     click(&ctx, "Cabin", &mut |ui| {
-        draw_choice(ui, &theme, &starts);
+        draw_choice(ui, &theme, &starts, false);
     });
     assert_eq!(draft_choice(&starts), Choice { start: "cabin".into(), household: "solo".into() }, "an offered one can");
     reset_draft();
@@ -468,7 +469,7 @@ fn no_tier_word_on_the_choice() {
         crate::gui::widgets::cards::set_fold_open(&ctx, fold_salt(Place::Server, &s.id), true);
     }
     drawn.extend(texts(&frame(&ctx, Vec::new(), &mut |ui| {
-        draw_choice(ui, &theme, &starts);
+        draw_choice(ui, &theme, &starts, false);
     })));
     for answer in [Some(&guest), Some(&held), Some(&refused), None] {
         for asking in [false, true] {

@@ -460,7 +460,7 @@ mod tests {
             let i = rooms.iter().position(|r| r.id == id).unwrap_or_else(|| panic!("no room {id}: {:?}", rooms.iter().map(|r| &r.id).collect::<Vec<_>>()));
             Vec3::new(rooms[i].center.x, boxes[i].min.y + 1.7, rooms[i].center.z)
         };
-        // The home's console room, and the largest room of the Commons.
+        // The home's largest room, and the largest room of the Commons.
         let commons_hall = rooms
             .iter()
             .zip(&boxes)

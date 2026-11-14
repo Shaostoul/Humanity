@@ -143,8 +143,9 @@ mod tests {
 
     /// A HOME SAVED WITH LIST-INDEX PAIRS STILL LOADS, and comes out as today's: the shipped
     /// homestead exactly as the previous code wrote it (tests/fixtures/homes/
-    /// homestead_pairs_by_index.ron, copied unedited from data/homes/shipped/homestead.ron at
-    /// 67a47bc65, v0.1456.0) reads with every piece given the id the editor would give it, the
+    /// homestead_pairs_by_index.ron, copied from data/homes/shipped/homestead.ron at 67a47bc65,
+    /// v0.1456.0, its pieces untouched since; on 2026-11-13 its screens den was folded into the
+    /// great room as in the shipped file) reads with every piece given the id the editor would give it, the
     /// west teleporter's pair to the LADDER dropped, and the west teleporter paired with the east
     /// one, which named it: the same pieces and pairs as the shipped file now carries.
     /// Seen red 2026-10-04 with step 2 of `settle_structures` (an index becomes the id of the piece

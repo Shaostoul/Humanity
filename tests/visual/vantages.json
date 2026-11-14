@@ -3363,12 +3363,12 @@
       "settle_s": 10
     },
     {
-      "id": "console-face-6",
-      "desc": "The console room, 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
-      "expect": "Two wall screens on the east wall (tasks above, web below), the north wall screens (watch, video) at the right edge, the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",
-      "_why": "Frame-cost arc I1 (docs/design/frame-cost-arc.md, 2026-09-18): the console room was measured only through the screens rig and ad hoc dev IPC parks (gpu.scene 76 to 83 ms at 2.2 m from the wall, plus 14 of glass, at the operator settings), so the interior arc had no repeatable fixture. These two park exactly where the screens rig parks, through the same camera_request station+screen form, so the rig and the sweep measure one state.",
+      "id": "great-room-face-6",
+      "desc": "The great room's screens den (its east end), 2.2 m from the east wall, facing wall_screen_6 (the readable-web screen). The screens rig park.",
+      "expect": "The web screen above the desk on the east wall, the garden camera feed beside it to the left (since 2026-11-13, when the wall it hung on opposite came out), the glass ceiling lit by the deck sun; every visible screen shows a rendered page, never a black quad.",
+      "_why": "Frame-cost arc I1 (docs/design/frame-cost-arc.md, 2026-09-18): the screens den was measured only through the screens rig and ad hoc dev IPC parks (gpu.scene 76 to 83 ms at 2.2 m from the wall, plus 14 of glass, at the operator settings), so the interior arc had no repeatable fixture. These two park exactly where the screens rig parks, through the same camera_request station+screen form, so the rig and the sweep measure one state.",
       "regressions": [
-        "the six console screens render their pages (verify-screens 12/12)",
+        "the screens den's screens render their pages (verify-screens 12/12)",
         "a screen is an emitter: sun and shadow map never darken the page",
         "the room draws no atmosphere, cloud or ocean shell (P2 keeps gpu.scene on the general pipelines)"
       ],
@@ -3388,10 +3388,10 @@
       "_camera_note": "station+screen+distance_m is the camera_request form scripts/verify-screens.js uses to park; time pinned so the sun through the deck glass does not vary between captures."
     },
     {
-      "id": "console-face-6-room-gi-off",
-      "desc": "The ROOM-GI-OFF twin of console-face-6 (showcase room_gi=0: the room table says off, every interior fragment keeps the old 0.005 ambient floor, and the probe update is not dispatched). The pair is the same-boot A/B for room GI rung 1 (docs/design/room-gi.md): the image difference is exactly the indirect light the probes add, and gpu.room_probes plus the gpu.scene difference is exactly what they cost.",
-      "expect": "The console room as console-face-6 shows it, with the walls and the underside of every surface falling back to near black where no lamp or sun reaches them directly.",
-      "_why": "Room GI rung 1 acceptance (2026-09-27): at most 1.0 ms total at console-face-6, the probe update at most about 0.3 ms and the sampling at most about 0.5 ms. Measured as this twin against console-face-6 in one boot.",
+      "id": "great-room-face-6-room-gi-off",
+      "desc": "The ROOM-GI-OFF twin of great-room-face-6 (showcase room_gi=0: the room table says off, every interior fragment keeps the old 0.005 ambient floor, and the probe update is not dispatched). The pair is the same-boot A/B for room GI rung 1 (docs/design/room-gi.md): the image difference is exactly the indirect light the probes add, and gpu.room_probes plus the gpu.scene difference is exactly what they cost.",
+      "expect": "The screens den as great-room-face-6 shows it, with the walls and the underside of every surface falling back to near black where no lamp or sun reaches them directly.",
+      "_why": "Room GI rung 1 acceptance (2026-09-27): at most 1.0 ms total at great-room-face-6, the probe update at most about 0.3 ms and the sampling at most about 0.5 ms. Measured as this twin against great-room-face-6 in one boot.",
       "regressions": [
         "room_gi=0 is released by the next vantage (probe-sweep resets it with the other sticky pins)"
       ],
@@ -3432,13 +3432,13 @@
       "hold_altitude": true
     },
     {
-      "id": "console-face-3",
-      "desc": "The console room, 2.2 m from the west wall, facing wall_screen_3 (the garden camera feed). The camera wall.",
-      "expect": "The camera feed (a live 10 Hz re-render of the garden post) above the inventory screen on the west wall; the feed shows the garden, not a frozen frame or a black quad.",
-      "_why": "Frame-cost arc I1 (docs/design/frame-cost-arc.md, 2026-09-18): the console room was measured only through the screens rig and ad hoc dev IPC parks (gpu.scene 76 to 83 ms at 2.2 m from the wall, plus 14 of glass, at the operator settings), so the interior arc had no repeatable fixture. These two park exactly where the screens rig parks, through the same camera_request station+screen form, so the rig and the sweep measure one state. This one keeps the camera wall in view, which the measurement found adds about 17 ms only while visible (its re-render lands under gpu.screen_scene since the instrumentation increment).",
+      "id": "great-room-face-3",
+      "desc": "The great room's screens den, 2.2 m from the east wall, facing wall_screen_3 (the garden camera feed), north of the web screen. The camera wall.",
+      "expect": "The camera feed (a live 10 Hz re-render of the garden post) on the east wall, the web screen beside it to the right; the feed shows the garden, not a frozen frame or a black quad.",
+      "_why": "Frame-cost arc I1 (docs/design/frame-cost-arc.md, 2026-09-18): the screens den was measured only through the screens rig and ad hoc dev IPC parks (gpu.scene 76 to 83 ms at 2.2 m from the wall, plus 14 of glass, at the operator settings), so the interior arc had no repeatable fixture. These two park exactly where the screens rig parks, through the same camera_request station+screen form, so the rig and the sweep measure one state. This one keeps the camera wall in view, which the measurement found adds about 17 ms only while visible (its re-render lands under gpu.screen_scene since the instrumentation increment).",
       "regressions": [
         "the camera screen re-renders the garden at 10 Hz under its own gpu.screen_* ids",
-        "the six console screens render their pages (verify-screens 12/12)"
+        "the screens den's screens render their pages (verify-screens 12/12)"
       ],
       "camera": {
         "station": "home",

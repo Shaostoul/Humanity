@@ -4,27 +4,28 @@
 use super::*;
 use crate::gui::screen_surface::find_text_in_shapes;
 
-/// The console room's card as the world builds it (`RoomTypes::room_bounds`): its name, purpose
-/// and in-room actions read from data/rooms.ron, around an eye at the origin.
-fn console_room() -> humanity_ship::room_types::RoomBounds {
+/// The great room's card as the world builds it (`RoomTypes::room_bounds`): its name, purpose
+/// and in-room actions read from data/rooms.ron (the living room, with the screens den's
+/// workstation in it since 2026-11-13), around an eye at the origin.
+fn great_room() -> humanity_ship::room_types::RoomBounds {
     let types = humanity_ship::room_types::RoomTypeRegistry::load(std::path::Path::new(concat!(env!("HUMANITY_REPO_ROOT"), "/data")));
     humanity_ship::room_types::RoomBounds {
-        id: "console_room".into(),
+        id: "room-common".into(),
         min: Vec3::splat(-3.0),
         max: Vec3::splat(3.0),
-        display_name: types.name("console_room"),
-        purpose: types.purpose("console_room"),
-        actions: types.action_labels("console_room"),
+        display_name: types.name("livingroom"),
+        purpose: types.purpose("livingroom"),
+        actions: types.action_labels("livingroom"),
         action_pages: Vec::new(),
         access: String::new(),
         fill: None,
     }
 }
 
-/// A player standing in the console room, the chat feed showing `messages` of #general.
-fn in_the_console_room(messages: usize) -> GuiState {
+/// A player standing in the great room, the chat feed showing `messages` of #general.
+fn in_the_great_room(messages: usize) -> GuiState {
     let mut gs = GuiState::default();
-    gs.room_bounds = vec![console_room()];
+    gs.room_bounds = vec![great_room()];
     let channel = gs.chat_active_channel.clone();
     for i in 0..messages {
         gs.chat_messages.push(crate::gui::ChatMessage {
@@ -55,7 +56,7 @@ fn corner(gs: &GuiState, size: Vec2) -> (Option<Rect>, Option<Rect>) {
         out = Some(ctx.run(input, |ctx| draw(ctx, &theme, gs, 0.0, Mat4::IDENTITY, Vec3::ZERO)));
     }
     let shapes = out.expect("a frame").shapes;
-    let room = console_room();
+    let room = great_room();
     let mut card: Option<Rect> = None;
     for line in [room.display_name.clone(), room.purpose.clone(), room.actions[0].clone()] {
         if let Some(found) = find_text_in_shapes(&shapes, &line) {
@@ -75,7 +76,7 @@ fn corner(gs: &GuiState, size: Vec2) -> (Option<Rect>, Option<Rect>) {
 }
 
 /// THE ROOM CARD STANDS ON THE CHAT FEED (BUG-236, 2026-11-03). Both lived in the bottom-left
-/// corner at fixed offsets from the screen's bottom, so "Console room", its purpose and its
+/// corner at fixed offsets from the screen's bottom, so the room's name, its purpose and its
 /// "Here: ..." line were painted across the feed's status line and messages, at every Font Size
 /// (both are measured in points). One bottom-left stack now: the feed is laid out first and
 /// reports its block (`chat_feed_rect`), and the card stands on it, a gap above (`room_card_base`).
@@ -98,7 +99,7 @@ fn the_room_card_and_the_chat_feed_never_overlap() {
     ] {
         let screen = Rect::from_min_size(Pos2::ZERO, size);
         for messages in [0, 1, 7, 20] {
-            let gs = in_the_console_room(messages);
+            let gs = in_the_great_room(messages);
             let (card, feed) = corner(&gs, size);
             let card = card.unwrap_or_else(|| panic!("{what}, {messages} messages: the room card is drawn"));
             let feed = feed.unwrap_or_else(|| panic!("{what}, {messages} messages: the chat feed is drawn"));
@@ -110,14 +111,14 @@ fn the_room_card_and_the_chat_feed_never_overlap() {
             assert!(screen.contains_rect(card) && screen.contains_rect(feed), "{what}, {messages} messages: both on screen");
         }
         // The feed switched off (the in-world panel's Options tab): the card goes down to the corner.
-        let mut off = in_the_console_room(3);
+        let mut off = in_the_great_room(3);
         off.hud_chat_feed_visible = false;
         let (card, feed) = corner(&off, size);
         let card = card.expect("the card without the feed");
         assert!(feed.is_none(), "{what}: no feed is drawn when it is switched off");
         assert!(card.max.y > size.y - 40.0, "{what}: with no feed the card sits in the corner, at {card:?}");
         // The chat panel open (Enter): no feed, and no card behind the panel.
-        let mut typing = in_the_console_room(3);
+        let mut typing = in_the_great_room(3);
         typing.chat_input_active = true;
         assert_eq!(corner(&typing, size), (None, None), "{what}: the chat panel open draws neither");
     }

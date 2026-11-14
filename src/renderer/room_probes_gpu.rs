@@ -856,7 +856,7 @@ impl Renderer {
         // Measured 2026-10-21 with the upper-floor layout's slabs, floors on
         // against off, same boot: in the merge order home-racks-noon read
         // gpu.scene +1.25 ms (the mushroom room's slab was the 12th of 13);
-        // sorted, +0.0, while the dawn park console-face-6 still read +0.47
+        // sorted, +0.0, while the dawn park great-room-face-6 still read +0.47
         // (13 crossings, none blocking) until the layers. The runs below are
         // copies, so any order serves them.
         let sun_list =

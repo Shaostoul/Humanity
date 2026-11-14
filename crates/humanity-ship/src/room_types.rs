@@ -275,7 +275,7 @@ mod tests {
         }
     }
 
-    /// The zone -> room_type -> rooms.ron join (console-room increment). A zone naming "computer"
+    /// The zone -> room_type -> rooms.ron join (room-identity increment). A zone naming "computer"
     /// yields exactly that entry's action ids; a zone naming a key rooms.ron does not have yields
     /// none (and warns, see `lookup_type`); a zone with no room_type, or an unknown zone id, yields
     /// none quietly.
@@ -287,7 +287,7 @@ mod tests {
         let mut h: HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 3.0)").expect("parses");
         let zone = |id: &str, room_type: Option<&str>| Zone {
             id: id.to_string(),
-            type_id: "console_room".to_string(),
+            type_id: "room_study".to_string(),
             origin: (0.0, 0.0, 0.0),
             size: (3.0, 3.0, 3.0),
             label: String::new(),
@@ -326,8 +326,10 @@ mod tests {
             room_type: room_type.map(str::to_string),
             label: label.to_string(),
         };
-        let f = reg.function_for(&room("console-room", Some("console_room"), "Console room"));
-        assert_eq!(f.display_name, "Console room");
+        // The homestead's great room: the living room, with the screens den's workstation in it
+        // since 2026-11-13 (its name and purpose from rooms.ron, its actions as labels).
+        let f = reg.function_for(&room("room-common", Some("livingroom"), "Great room"));
+        assert_eq!(f.display_name, "Living Room");
         assert!(f.purpose.to_lowercase().contains("workstation"), "purpose from rooms.ron: {}", f.purpose);
         assert!(f.actions.contains(&"Use Terminal".to_string()), "action LABELS, not ids: {:?}", f.actions);
         let f = reg.function_for(&room("room-entry", None, "Entry"));

@@ -531,7 +531,7 @@ opened the video in a window of its own. Now the player sits inside the message,
   its Play mark. At most 24 stills are kept; the oldest goes first.
 - Below Verified, a poster's files are plain words (chat access rung 1); no player is drawn for
   them, as no card was before.
-- **On a wall screen showing the chat** (an in-world screen with `page:chat`, the console room's
+- **On a wall screen showing the chat** (an in-world screen with `page:chat`, the screens den's
   `desk_monitor_2`), the screen is the bigger view, so no Full window is offered (BUG-258). The
   window is the app screen's, drawn by the engine for the app screen's set of videos only, and a
   person at a wall screen points with the look ray while the view holds the pointer, so a window
@@ -746,7 +746,7 @@ row").
   `data/machines/home.ron`, provider `src/engine/screens/video.rs`; the
   frame is a GPU texture drawn by egui into the display's rectangle, the
   sound is placed at the screen, a click pauses, the clip loops).
-- **Choosing a file: DONE (2026-09-18).** The operator, in the console room:
+- **Choosing a file: DONE (2026-09-18).** The operator, in the screens den:
   "should we play a video that's stored on my PC?" The screen carries a
   control strip (Open, Play/Pause, the name, the time) that shows while the
   screen is looked at, paused or idle and hides over a playing film, and

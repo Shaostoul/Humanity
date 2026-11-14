@@ -14,7 +14,7 @@ byte for byte what it was before.
 **0.26 to 0.63 ms of CPU** out of a 33 ms frame. Three of them on the walls at
 once cost 0.19 ms of GPU and 1.2 to 2.6 ms of CPU. That puts a browser screen
 in the same class as the egui page screens already on those walls, whose
-`cpu.screen_ui` measured 1.366 ms in the console room the same day for
+`cpu.screen_ui` measured 1.366 ms in the screens den the same day for
 however many were framed that tick (at most four).
 
 The browser itself sustains 1280 x 720 at a true 60 frames a second on this
@@ -317,7 +317,7 @@ checked.
 The target is 30 frames a second, so a frame is 33.3 ms.
 
 **The baseline to compare against** is the engine's own, measured on this
-machine on the same day (2026-09-18 16:11, the console room with wall screens
+machine on the same day (2026-09-18 16:11, the screens den with wall screens
 in view, real GPU timestamps, from the screens rig's own capture):
 
 ```
@@ -347,7 +347,7 @@ the frame, which is **1.0 ms**. One browser screen uses 6% of that budget and
 three use 19%.
 
 For scale against the things this project actually fights: the cloud pass in
-the console room costs 26 ms after a whole increment of work to get it down
+the screens den costs 26 ms after a whole increment of work to get it down
 from 211, the scene pass costs 14.24 ms, and the celestial pass 17.82. Three
 browser screens cost 0.19 ms of GPU. The upload is not where a frame goes.
 

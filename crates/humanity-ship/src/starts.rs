@@ -75,6 +75,13 @@ pub struct Start {
     pub name: String,
     pub sentence: String,
     pub offered: bool,
+    /// A DRAFT for developers (2026-11-13, the room program's homesteads): an offered start that only
+    /// a game in the Dev play mode lists and makes (the new-home row in Dev), never a relay and never
+    /// the list a player chooses from outside Dev (`offered`, `for_plot_kind`). A save that names one
+    /// still loads it (`resolve`), so a Dev player's home of a draft kind is kept. Left out of the
+    /// file while false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub dev: bool,
     /// Why a start is not offered yet, shown on its greyed row. Empty for an offered start.
     #[serde(default)]
     pub not_offered_why: String,
@@ -161,9 +168,10 @@ impl Starts {
         asked.and_then(|a| self.get(a)).filter(|s| s.offered).unwrap_or_else(|| self.default_start())
     }
 
-    /// The first OFFERED start whose plots are of `kind`: what a plot of that kind holds.
+    /// The first OFFERED start whose plots are of `kind`: what a plot of that kind holds. A draft for
+    /// developers (`dev`) is never one.
     pub fn for_plot_kind(&self, kind: &str) -> Option<&Start> {
-        self.starts.iter().find(|s| s.offered && s.plot_kind == kind)
+        self.starts.iter().find(|s| s.offered && !s.dev && s.plot_kind == kind)
     }
 
     /// The household `household` of the start `start`: the start's first household when it has
@@ -178,9 +186,9 @@ impl Starts {
             .expect("every start has a household (validate)")
     }
 
-    /// The starts a player may choose, in file order.
+    /// The starts a player may choose, in file order: the offered ones, drafts for developers left out.
     pub fn offered(&self) -> impl Iterator<Item = &Start> {
-        self.starts.iter().filter(|s| s.offered)
+        self.starts.iter().filter(|s| s.offered && !s.dev)
     }
 
     /// The rules every starts file keeps, whatever it holds: at least one start; every id a
@@ -227,6 +235,7 @@ impl Starts {
         match self.get(&self.default) {
             None => Err(format!("the default start '{}' is not a start", self.default)),
             Some(d) if !d.offered => Err(format!("the default start '{}' is not offered", self.default)),
+            Some(d) if d.dev => Err(format!("the default start '{}' is a draft for developers", self.default)),
             Some(_) => Ok(()),
         }
     }
@@ -416,7 +425,8 @@ mod tests {
         let starts = the_file();
         let ship = ShipStructure::load_ship_file(&data_dir()).expect("the ship file loads");
         let types = crate::structure::zone_types();
-        for s in starts.offered() {
+        // The drafts for developers too (`dev`): a Dev game makes them, so they must stand.
+        for s in starts.starts.iter().filter(|s| s.offered) {
             let plots: Vec<&str> = ship.plots.iter().filter(|p| p.kind == s.plot_kind).map(|p| p.id.as_str()).collect();
             assert!(!plots.is_empty(), "the {} start lives on {} plots, and the shipped ship has none", s.id, s.plot_kind);
             let design = HomeDesign::built_in(&s.design).expect("the design is built in");
@@ -544,6 +554,29 @@ mod tests {
         ] {
             assert_eq!(serde_json::to_value(r).unwrap(), wire);
         }
+    }
+
+    /// A DRAFT FOR DEVELOPERS (`dev`, 2026-11-13: the room program's two homesteads) is never a start
+    /// a player is offered or a plot is given as: `offered` and `for_plot_kind` leave it out, so
+    /// a server's answer, its free counts and its refusals never name it, while a save that names
+    /// one (a Dev game's own home) still resolves to it; and it can never be the default.
+    ///
+    /// Seen red 2026-11-13 with `offered` not leaving drafts out: "a server offers the draft
+    /// household_homestead".
+    #[test]
+    fn a_draft_for_developers_is_offered_by_no_server_and_still_loads() {
+        let starts = the_file();
+        let drafts: Vec<&str> = starts.starts.iter().filter(|s| s.dev).map(|s| s.id.as_str()).collect();
+        assert_eq!(drafts, ["household_homestead", "one_person_homestead"]);
+        for id in drafts {
+            assert!(starts.offered().all(|s| s.id != id), "a server offers the draft {id}");
+            let kind = &starts.get(id).unwrap().plot_kind;
+            assert!(starts.for_plot_kind(kind).is_none(), "a {kind} plot is given as the draft {id}");
+            assert_eq!(starts.resolve(Some(id)).id, id, "a save naming the draft {id} loads it");
+        }
+        let mut wrong = starts.clone();
+        wrong.default = "household_homestead".into();
+        assert!(wrong.validate().unwrap_err().contains("a draft for developers"), "a draft is never the default");
     }
 
     /// Each refusal in plain words: what was asked, what is free instead, and never a key.

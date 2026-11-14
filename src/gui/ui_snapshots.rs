@@ -2530,7 +2530,7 @@ fn snapshot_where_you_live() {
                     caption(&mut cols[0], theme, "Characters (Play), a new home");
                     crate::gui::widgets::card(&mut cols[0], theme, |ui| {
                         ui.set_min_width(ui.available_width());
-                        wyl::draw_choice(ui, theme, &starts);
+                        wyl::draw_choice(ui, theme, &starts, false);
                     });
                     caption(&mut cols[1], theme, "A server's card: you live there");
                     crate::gui::widgets::card(&mut cols[1], theme, |ui| {
@@ -5184,7 +5184,7 @@ fn snapshot_picker_new_home() {
         };
         scratch.run(raw, |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                wyl::draw_choice(ui, &theme, &starts);
+                wyl::draw_choice(ui, &theme, &starts, false);
             });
         })
     };
@@ -6022,8 +6022,8 @@ fn snapshot_play_page() {
     });
 }
 
-/// The HUD's bottom-left corner in the console room with the in-game chat feed showing (BUG-236,
-/// 2026-11-03): the room card ("Console room", its purpose, "Here: ...") stands on the feed's
+/// The HUD's bottom-left corner in the great room with the in-game chat feed showing (BUG-236,
+/// 2026-11-03): the room card ("Living Room", its purpose, "Here: ...") stands on the feed's
 /// block instead of crossing its lines. On the operator's 2560 by 1440 screen at 100% and 200%
 /// (1280 by 720 points), the Font Size being the app's zoom (BUG-225).
 fn hud_room_and_chat_at(name: &str, percent: f32) {
@@ -6031,12 +6031,12 @@ fn hud_room_and_chat_at(name: &str, percent: f32) {
         state.active_page = crate::gui::GuiPage::None;
         let types = humanity_ship::room_types::RoomTypeRegistry::load(std::path::Path::new("data"));
         state.room_bounds = vec![humanity_ship::room_types::RoomBounds {
-            id: "console_room".into(),
+            id: "room-common".into(),
             min: glam::Vec3::splat(-3.0),
             max: glam::Vec3::splat(3.0),
-            display_name: types.name("console_room"),
-            purpose: types.purpose("console_room"),
-            actions: types.action_labels("console_room"),
+            display_name: types.name("livingroom"),
+            purpose: types.purpose("livingroom"),
+            actions: types.action_labels("livingroom"),
             action_pages: Vec::new(),
             access: String::new(),
             fill: None,

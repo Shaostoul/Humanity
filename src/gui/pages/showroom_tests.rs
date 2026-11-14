@@ -265,7 +265,8 @@ fn the_new_home_row_offers_the_starts_from_data() {
 
     let out = picker(&ctx, &theme, &mut gs, Vec::new());
     let mut want = vec![t("characters.new_home").to_string(), t("where_you_live.title").to_string(), t("where_you_live.hint").to_string()];
-    for s in &starts.starts {
+    // Outside the Dev play mode the drafts for developers (`Start::dev`) are not on the row.
+    for s in starts.starts.iter().filter(|s| !s.dev) {
         want.push(wyl::row_name(&starts, &s.id, &s.name));
         want.push(wyl::first_sentence(&s.sentence).to_string());
         if !s.offered {

@@ -582,7 +582,7 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // diffusely: a milky sheet in a lit room is lit by the room, and on the old
     // floor its sides away from the lamp read as dark tinted glass. It reads the
     // probes; with the tents still clear film that was a third of room GI's
-    // sampling cost at console-face-6 (0.20 of 0.66 ms, docs/design/room-gi.md).
+    // sampling cost at great-room-face-6 (0.20 of 0.66 ms, docs/design/room-gi.md).
     if (HAS_ROOM_GI && !under_sky && !screen_emitter && (out_alpha >= 0.999 || film_t > 0.0)) {
         let room_light = room_gi_irradiance(in.world_position, normal);
         if (room_light.a > 0.5) {

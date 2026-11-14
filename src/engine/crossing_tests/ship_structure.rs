@@ -24,6 +24,12 @@ fn an_older_game_is_refused_as_another_ship() {
     for p in older.plots.iter_mut().filter(|p| p.kind == "homestead") {
         p.size.1 = 3.0;
     }
+    // The room program's plots and the residential district grown to hold them came later
+    // (2026-11-13): an older game's ship has neither.
+    older.plots.retain(|p| p.kind == "homestead" || p.kind == "cabin");
+    if let Some(d) = older.districts.iter_mut().find(|d| d.id == "res-1") {
+        d.size.0 = 100.0;
+    }
     assert_eq!(older.ship_hash(), "effbdfbec3360115", "the older game's ship is the ship file before increment 7");
     let welcome = |hash: &str| serde_json::json!({ "type": "game_welcome", "player_id": 7, "world_snapshot": [], "home_plot": null, "ship": { "id": now.id, "hash": hash }, "rejoin": false });
     let ctx = WelcomeContext { arrived_on: None, server: "http://127.0.0.1:3210", camera: Vec3::new(53.5, 1.7, 40.5), data_dir: None, other_kind: None };

@@ -277,7 +277,7 @@ and `src/engine/survival_env.rs`'s pinned top positions (both listed in the layo
   boot verify), and the nearest rooms updated first.
 - **Measurements still owed** (one rig at a time): a frame-cost baseline
   (`HUMANITY_FRAME_COSTS=1 node scripts/probe-sweep.js --only
-  console-face-6,console-face-6-room-gi-off,home-overview-noon,home-racks-noon`) before and after
+  great-room-face-6,great-room-face-6-room-gi-off,home-overview-noon,home-racks-noon`) before and after
   lane L, and a same-boot A/B of the slab term once a `{"slab_occlusion":"0"}` showcase pin exists.
 
 ## 5. Waves

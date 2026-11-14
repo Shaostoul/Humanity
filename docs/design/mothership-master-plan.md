@@ -1107,8 +1107,9 @@ that kind, and this wipe touches no blueprint schema.
 ### 6.2 What the wipe keeps
 
 - **The homestead design** (data/homes/homestead.ron, shipped copy): the 2026-09-19 redesign the
-  operator asked for and the 2026-10-20 upper floor he approved; 30 rooms, every machine in its
-  room, 55 lights inside its box, its screens (the console room's desk monitor showing chat, the
+  operator asked for and the 2026-10-20 upper floor he approved; 29 rooms (the screens den part
+  of the great room since 2026-11-13), every machine in its
+  room, 55 lights inside its box, its screens (the screens den's desk monitor showing chat, the
   study's Library, the bedroom's mirror) and its tests. It becomes the template every homestead
   plot draws.
 - **The cabin design** and its machines.
@@ -1182,7 +1183,7 @@ at the fore end of Sector 1 (3.4); rung 3 re-cuts it into the sector's half-ring
    apothecary towers, ids kept); the three market stalls along a wall; the showroom ring in its own
    exhibit room (decided 2026-11-06); the guest's arrival point in the open. Its machines on the ship's
    own meter.
-5. **The hologram** placed by the home design (a fixture row in the study or the console room).
+5. **The hologram** placed by the home design (a fixture row in the study or the great room's screens den).
 6. **No districts, no wild nodes, no fixed quest coordinates aboard.** The Survey quests read their
    ore from the drone mining loop (decided 2026-11-06; [drone-mining.md](drone-mining.md)).
 7. **The hull wrap off by default** (it would put a lid over open ground; the drum of rung 2 is
@@ -1216,7 +1217,7 @@ design is kept).
 homestead and a cabin land on N1), `just verify-copresence --plots` (two players walk from their
 doors to the commons and meet), `just verify-household`, `just verify-shared-build`,
 `just verify-storeys` and `just verify-falls` (the home's stairs, now on a plot that is not at the
-origin), `just verify-screens` (the console room's screens, the chat monitor among them), the
+origin), `just verify-screens` (the screens den's screens, the chat monitor among them), the
 audit's six vantages re-shot as "after" pictures, and new vantages `n1-overview`,
 `n1-commons-garden`, `n1-cabin-row` judged by the visual-sweep.
 
@@ -1248,7 +1249,7 @@ bow's drone bay and ore intake arrive with rung 4 (arrival builds the bow).
 | scripts/home-vantages.json (32 poses) and scripts/photograph-home.js | "on plot p1 the home sits at the ship's origin, so they are ship metres too" | the same plot-relative frame, rung 1 |
 | `just verify-copresence` | spawn (27.5, 1.7, 143.5) inside p2, meet pose (76, 1.7, 64) in the Commons, the door-points fixture scripts/tests/fixtures/door-points-p1.json | re-authored for N1 in rung 1; the fixture regenerated (it is regenerated on every ship change by design) |
 | `just verify-falls`, `just verify-storeys` (scripts/lib/falls-judge.js, storeys-judge.js) | walk the home's stair in home-local metres | plot-relative; the home design is unchanged, so the walks are too |
-| `just verify-screens`, `verify-live-screen` | park by screen id in the console room | nothing (the home design is kept) |
+| `just verify-screens`, `verify-live-screen` | park by screen id in the great room's screens den | nothing (the home design is kept) |
 | `just verify-starts` (scripts/lib/starts-judge.js) | cabin row and homestead plots on First Street; a cabin's meal at the Commons | re-pointed to N1, rung 1 |
 | The farm | crops keyed by machine and tower ids | ids kept (home and commons), so crops carry; the showcase replant is unchanged |
 | The in-world screens, the wall screen showing chat (desk_monitor_2, page:chat, data/machines/home.ron:3709) | in the home design | nothing; the recreation room's screen (`rec_screen_1`) moves with N1's commons, id kept |

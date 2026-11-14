@@ -1156,7 +1156,8 @@ impl GameWorld {
     /// plot.
     pub fn assign_home(&self, db: &crate::relay::storage::Storage, owner_key: &str, join: &JoinHome) -> HomeAssignment {
         let sp = &self.ship_plots;
-        let asked = self.starts.resolve(join.start.as_deref());
+        // A server never makes a draft for developers (`Start::dev`): asked for one, it gives the default.
+        let asked = Some(self.starts.resolve(join.start.as_deref())).filter(|s| !s.dev).unwrap_or_else(|| self.starts.default_start());
         let all: Vec<&str> = sp.plots.iter().map(|p| p.id.as_str()).collect();
         let of_kind = self.plot_ids_of_kind(&asked.plot_kind);
         let owner = plot_owner_id(owner_key);

@@ -738,7 +738,7 @@ pub fn sun_blocked_by_slabs(slabs: &[OccluderSlab], rooms_box: (Vec3, Vec3), p: 
 /// own storey) or when the crossing falls outside the union box (a low sun's
 /// path), and only then tests the slabs. Measured with the upper-floor
 /// layout's slabs, floors on against off: the per-slab walks read gpu.scene
-/// +0.47 ms at the dawn park console-face-6 (the sun's 13 crossings, none
+/// +0.47 ms at the dawn park great-room-face-6 (the sun's 13 crossings, none
 /// blocking) and, with the sun layered, +0.3 ms there (each lamp testing every
 /// slab of its run). Exactly the per-slab answer (`sun_blocked_by_slabs`,
 /// `OccluderSlab::blocks_segment`), pinned by
@@ -3242,7 +3242,7 @@ mod tests {
     /// house, on both storeys and above the roof, for a noon sun, low dawn suns
     /// from either side, a steep sun and a sun below the deck, with two layers
     /// (the homestead's floor at 3.0 and a test floor at 6.0). And the reason
-    /// for the layers: a dawn sun from the console room reads the two layer
+    /// for the layers: a dawn sun from the great room reads the two layer
     /// rows and no slab (the per-slab walk tested all 14 slabs there). Seen red
     /// first (2026-10-21) with a layer's union box taken from its nearest slab
     /// alone (`members[0]`): "the walk and the reference differ at [0, 0, 0]
@@ -3280,7 +3280,7 @@ mod tests {
             }
         }
         assert_eq!(checked, 38 * 61 * 6 * 5);
-        // The cost at the dawn park: the path from the console room misses both
+        // The cost at the dawn park: the path from the great room misses both
         // layers' union boxes, so the walk reads the two layer rows and stops.
         let (blocked, read) = sun_walk(&rows, rooms_box, Vec3::new(45.0, 1.0, 45.0), Vec3::new(1.0, 0.08, 0.1));
         assert!(!blocked);
@@ -3293,7 +3293,7 @@ mod tests {
     }
 
     /// THE LAYERED LAMP WALK ANSWERS AS EVERY SLAB WOULD. For five lamps (the
-    /// console room's panel downstairs, a lamp upstairs over the stairwell, the
+    /// great room's panel downstairs, a lamp upstairs over the stairwell, the
     /// lift lobby's panel by the shaft and the hatch, the workshop's 15 m
     /// panel, the upper hall's strip), the light's run (`slabs_touched`, packed
     /// by `layered_rows`) taken as the GPU takes it (`run_blocks`: the record's
@@ -3302,7 +3302,7 @@ mod tests {
     /// slab, at every point of a grid through both storeys within the lamp's
     /// range. That also proves the run never leaves out a slab that matters: a
     /// path to a point in range crosses only slabs within range of the lamp.
-    /// And the reason for the layers: the console room's panel and a fragment
+    /// And the reason for the layers: the great room's panel and a fragment
     /// in its own room read one row, the layer's, where the per-slab run tested
     /// each of its slabs. Seen red first (2026-10-21) with a layer row counting
     /// one slab fewer than follow it (`members.len() - 1`): "the walk and every

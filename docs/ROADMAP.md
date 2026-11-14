@@ -67,9 +67,9 @@ Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
 2. `[building]` **In-world screens: the app's pages as touchscreens in the 3D world.**
    SHIPPED (v0.1313 to v0.1325): a wall screen draws the real inventory or tasks page
    (the same page, the same data, not a picture of it) and takes look-and-click, scroll
-   and typing; the console room as a named zone with six live walls; an in-game camera
-   post; a purpose-built WebM/AV1/Opus player with spatial audio, click-to-pause and a
-   seek bar you can scrub; and the readable web (HTML parsed and drawn by us, no
+   and typing; a screens den with six live walls (the great room's east end since
+   2026-11-13); an in-game camera post; a purpose-built WebM/AV1/Opus player with
+   spatial audio, click-to-pause and a seek bar you can scrub; and the readable web (HTML parsed and drawn by us, no
    JavaScript, no Chromium), off by default, with `data/web/sites.json` recording per
    site whether embedding it has been reviewed, enforced by a placement gate (a site
    whose terms forbid it is never shown, an unreviewed one says so). NEXT: playback
@@ -315,9 +315,9 @@ The game teaches the homestead; the homestead is real.
 
 - `[building]` In-world screens: native app pages, live feeds, video and the readable
   web drawn on displays placed in the 3D world and driven by look-and-click; the
-  console room they populate; the websites database with an embed-legality field per
-  site. All six rungs are merged (v0.1313 to v0.1325), including the video player with
-  a seek bar, and the embed-legality placement gate (2026-09-25). The console room
+  screens den they populate (the great room's east end); the websites database with
+  an embed-legality field per site. All six rungs are merged (v0.1313 to v0.1325), including the video player with
+  a seek bar, and the embed-legality placement gate (2026-09-25). The screens den
   now holds the 30 fps cap with its walls live (the old 9 fps predates the shader
   split). What remains: playback synchronised between players, and subtitles.
 - `[done]` Engine: a wgpu PBR renderer, an ECS, and 40-plus game systems wired in.

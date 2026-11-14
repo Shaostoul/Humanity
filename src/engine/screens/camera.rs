@@ -582,7 +582,7 @@ mod tests {
     /// a notice on the wall forever). Resolved through the real placement
     /// path with the home zone's footprint.
     #[test]
-    fn shipped_homes_place_a_camera_post_and_the_console_screens_name_it() {
+    fn shipped_homes_place_a_camera_post_and_the_camera_screens_name_it() {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data").join("machines");
         for file in ["home.ron", "home_solo.ron"] {
             let home = humanity_systems::grow_machines::load_home(&data.join(file)).unwrap_or_else(|| panic!("{file} parses"));
@@ -603,7 +603,7 @@ mod tests {
                 assert!(posts.iter().any(|(pid, _)| *pid == id), "screen {} names camera post {id:?}, which is not placed", p.id);
             }
         }
-        assert!(camera_screens >= 1, "the console room has a camera screen");
+        assert!(camera_screens >= 1, "the great room's screens den has a camera screen");
         // The garden post looks along +X at the tower rows (rotation 270
         // turns the -Z front to +X) and a little down.
         let (_, pose) = posts.iter().find(|(id, _)| id == "camera_post_1").expect("camera_post_1 is placed");

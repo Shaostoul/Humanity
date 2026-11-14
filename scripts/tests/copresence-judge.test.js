@@ -472,9 +472,15 @@ test("plots: the ship file's plots read the way the game has them", () => {
   for (const [k, p] of read.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["homestead", [0, 0, 99 * k], [55, 6, 89]], p.id);
   // And since ship homes increment 6, after them, sixteen cabins along the cabin block's hall east
   // of First Street, 2.5 m apart.
-  const cabins = all.slice(12);
+  const cabins = all.slice(12, 28);
   assert.deepEqual(cabins.map((p) => p.id), Array.from({ length: 16 }, (_, k) => `c${k + 1}`));
   for (const [k, p] of cabins.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["cabin", [80.5, 0, 88 + 2.5 * k], [3.15, 3, 2.5]], p.id);
+  // And since 2026-11-13 the room program's two homesteads east of First Street, after the cabins
+  // (docs/design/home-room-program.md section 8).
+  assert.deepEqual(all.slice(28).map((p) => [p.id, p.kind, p.origin, p.size]), [
+    ["h1", "household_homestead", [77, 0, 140], [55, 6, 34]],
+    ["o1", "one_person_homestead", [77, 0, 180], [34, 6, 21]],
+  ]);
   assert.ok(inPlot(P2_SPAWN, PLOTS[1]) && !inPlot(P2_SPAWN, PLOTS[0]));
 });
 

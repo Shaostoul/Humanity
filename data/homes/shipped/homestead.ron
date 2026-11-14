@@ -39,7 +39,7 @@
 //
 // THE PLAYER'S ACRE (55 x 89 m, 1.21 acres). Before the redesign 330 m2 of it was
 // partitioned and the other 4,565 m2 was one open hall used as a tech-demo floor. It is now
-// 30 rooms in four bands along z, with the house in the middle so nothing is a long walk:
+// 29 rooms in four bands along z, with the house in the middle so nothing is a long walk:
 //
 //   z  0..22   the yard      power terrace (x 0..20) | vehicle bay (x 20..55)
 //   z 22..30   the belt      service way (x 0..34)   | orchard court (x 34..55)
@@ -55,10 +55,11 @@
 // in the service way and by the ladder beside it (ship homes increment 7). The body is 6 m:
 // every ground room but the greenhouse has a floor slab over it at 3.0 m, solid under the
 // upstairs rooms and glass everywhere else, so those rooms keep their daylight; the
-// greenhouse rises to the roof. Every coordinate and why: docs/design/homestead-upper-floor.md. The CONSOLE ROOM (colloquially
-// the battlestation; the mothership bridge is the "command deck") is zone "console-room" at
-// x 52..55, z 43..51: a narrow den off the entry and the great room, glazed at its south end
-// so the garden is behind the screens. `scripts/verify-screens.js` parks there.
+// greenhouse rises to the roof. Every coordinate and why: docs/design/homestead-upper-floor.md. The SCREENS
+// DEN is the east end of the GREAT ROOM, zone "room-common" (the living room, x 42..55,
+// z 43..51): since 2026-11-13 the den and the great room are one room, with no wall between
+// them (docs/design/home-room-program.md, section 3). Its south end is glazed, so the garden
+// is behind the screens. `scripts/verify-screens.js` parks there.
 //
 // Why these numbers: 55 and 89 are consecutive Fibonacci, so the shell is already a golden
 // rectangle, and 34/21/22/16 and 13/8/5/3 tile it with no offcuts. The full reasoning, the
@@ -670,29 +671,6 @@
                         height: 2.4,
                         style: "slide",
                         open_dist: 3.0,
-                        locked: false,
-                        auto_open: true,
-                        control_panel: false,
-                        locks: [],
-                    ),
-                ],
-                thickness: Some(0.1),
-                layers: [],
-            ),
-            (
-                a: (52.0, 43.0),
-                b: (52.0, 51.0),
-                height: 3.0,
-                material: 3,
-                openings: [
-                    (
-                        kind: Door,
-                        at: 1.5,
-                        width: 0.9,
-                        sill: 0.0,
-                        height: 2.1,
-                        style: "swing",
-                        open_dist: 2.6,
                         locked: false,
                         auto_open: true,
                         control_panel: false,
@@ -2321,17 +2299,9 @@
                 id: "room-common",
                 type_id: "room_common",
                 origin: (42.0, 0.0, 43.0),
-                size: (10.0, 3.0, 8.0),
+                size: (13.0, 3.0, 8.0),
                 label: "Great room",
                 room_type: Some("livingroom"),
-            ),
-            (
-                id: "console-room",
-                type_id: "console_room",
-                origin: (52.0, 0.0, 43.0),
-                size: (3.0, 3.0, 8.0),
-                label: "Console room",
-                room_type: Some("console_room"),
             ),
             (
                 id: "room-mushroom",

@@ -3043,12 +3043,15 @@ mod tests {
     }
 
     /// Today's ship, pinned from the shipped data BEFORE the split (2026-10-03): every room the
-    /// whole ship detected, as (id, centre, size). 30 are the home's, 10 the Commons', 1 the
+    /// whole ship detected, as (id, centre, size). 29 are the home's, 10 the Commons', 1 the
     /// home's corridor. The wall-segment counts are below. Re-pinned 2026-10-20 when the homestead
     /// gained its upper floor (ship homes increment 7): its 23 rooms became 30 (the quiet wing's
     /// five at y 4.5 upstairs with the upper hall, the back corridor and the lift lobby; a dining
     /// room, a second bedroom, a shower room and a boot room downstairs; the greenhouse 6 m tall),
-    /// and the Commons' rooms and the corridor did not move.
+    /// and the Commons' rooms and the corridor did not move. Re-pinned 2026-11-13 when the screens
+    /// den became the great room's east end (docs/design/home-room-program.md, section 3): the wall
+    /// at x 52 between them came out, so the 30 rooms are 29 and room-common runs from its west wall
+    /// to the shell, x 42.5 to 55 (12.5 m, centre 48.75; it was 42.5 to 51.5).
     const ROOMS_BEFORE_THE_SPLIT: &[(&str, [f32; 3], [f32; 3])] = &[
         ("commons:room_1", [82.0, 4.0, 47.5], [34.0, 8.0, 55.0]),
         ("commons:room_10", [71.0, 4.0, 46.0], [3.0, 8.0, 5.0]),
@@ -3060,7 +3063,6 @@ mod tests {
         ("commons:room_7", [75.0, 4.0, 40.0], [11.0, 8.0, 1.0]),
         ("commons:room_8", [71.0, 4.0, 42.0], [3.0, 8.0, 1.0]),
         ("commons:room_9", [77.0, 4.0, 45.0], [7.0, 8.0, 7.0]),
-        ("console-room", [53.75, 1.5, 47.0], [2.5, 3.0, 7.0]),
         ("corridor_0", [60.0, 1.5, 40.0], [10.0, 3.0, 3.0]),
         ("room-aquaponics", [4.75, 1.5, 67.0], [9.5, 3.0, 11.0]),
         ("room-back-corridor", [33.0, 4.5, 35.25], [1.0, 3.0, 9.5]),
@@ -3069,7 +3071,7 @@ mod tests {
         ("room-bedroom", [38.0, 4.5, 34.0], [7.0, 3.0, 7.0]),
         ("room-bedroom-2", [46.0, 1.5, 34.0], [7.0, 3.0, 7.0]),
         ("room-boot", [52.75, 1.5, 36.0], [4.5, 3.0, 3.0]),
-        ("room-common", [47.0, 1.5, 47.0], [9.0, 3.0, 7.0]),
+        ("room-common", [48.75, 1.5, 47.0], [12.5, 3.0, 7.0]),
         ("room-court", [44.75, 1.5, 26.0], [20.5, 3.0, 7.0]),
         ("room-dining", [38.0, 1.5, 34.0], [7.0, 3.0, 7.0]),
         ("room-dressing", [43.5, 4.5, 34.0], [2.0, 3.0, 7.0]),
@@ -3111,16 +3113,19 @@ mod tests {
     /// nobody walking on the deck): 281 and 208, from 272 and 199. Sight is unchanged. Since the
     /// frames' posts collide (2026-10-22, `wall_collision::frame_posts`) the home's elevator-1 and
     /// its two teleporters add 2 segments each: 287 and 214. Sight is unchanged (the pieces hide
-    /// labels by their solids, `ship::sight::solid_pieces`, not by segments).
-    const WALL_SEGMENTS_BEFORE: usize = 287;
-    const SIGHT_SEGMENTS_BEFORE: usize = 274;
-    const HOME_SEGMENTS_BEFORE: usize = 214;
+    /// labels by their solids, `ship::sight::solid_pieces`, not by segments). Since the screens den
+    /// became the great room's east end (2026-11-13, docs/design/home-room-program.md section 3)
+    /// the wall at x 52 between them is gone, and with it three segments in each count, the wall
+    /// either side of its door and the lintel over it: 284 and 211 collision, 271 sight.
+    const WALL_SEGMENTS_BEFORE: usize = 284;
+    const SIGHT_SEGMENTS_BEFORE: usize = 271;
+    const HOME_SEGMENTS_BEFORE: usize = 211;
 
     /// Assembling at p1 reproduces today's ship. Everything that existed before the split (the
     /// assembled ship without street-1 and its corridor, both new in 1a, and without the cabin
-    /// block, the South Commons and the recreation room of increment 6) has the same 41 rooms,
+    /// block, the South Commons and the recreation room of increment 6) has the same 40 rooms,
     /// each with the same id, centre and size, and the same 154 collision and 169 sight
-    /// segments; the home alone keeps its 30 rooms and 101 segments (23 and 69, and 34, 122 and
+    /// segments; the home alone keeps its 29 rooms and 101 segments (23 and 69, and 34, 122 and
     /// 135 for the ship, before the homestead's upper floor of 2026-10-20). Then the whole assembled ship
     /// is pinned too: street-1 adds one room (its open box) and its corridor a walkable bound
     /// (36 rooms); its four walls, the cut its corridor makes in the street's north wall and in
@@ -3132,8 +3137,8 @@ mod tests {
         let home = home_parts(&ship);
         // 30 since the homestead's upper floor (2026-10-20): the ground floor's 22 (the quiet wing
         // went up, a dining room, a second bedroom, a shower room and a boot room came) and the
-        // upper floor's 8.
-        assert_eq!(home.rooms.len(), 30, "the home's own rooms");
+        // upper floor's 8. 29 since 2026-11-13: the screens den is part of the great room.
+        assert_eq!(home.rooms.len(), 29, "the home's own rooms");
         assert_eq!(home.segments.len(), HOME_SEGMENTS_BEFORE, "the home's own collision segments");
 
         // The ship before the split: without street-1 and its corridors (1a), and without what
@@ -3177,10 +3182,18 @@ mod tests {
         )
         .len();
         assert!(bare_shell > 4, "a homestead's sight segments: its shell and its rooms' walls ({bare_shell})");
+        // Each neighbour plot holds its own kind's shipped design (since 2026-11-13 the room program's
+        // homesteads stand beside the homesteads and the cabins), so each adds its own design's share.
+        let neighbour_segments: usize = before_shape
+            .plots
+            .iter()
+            .filter(|p| Some(p.id.as_str()) != before_shape.home_plot().map(|h| h.id.as_str()))
+            .map(|p| crate::wall_collision::sight_segments_with_shell_cuts(&HomeDesign::built_in(&p.kind).expect("each plot's kind is built in").body, &[]).len())
+            .sum();
         assert_eq!(
             ship_sight_segments(&before_shape).len(),
-            SIGHT_SEGMENTS_BEFORE + neighbour_plots * bare_shell,
-            "today's sight segments, and one bare homestead shell per neighbour plot ({neighbour_plots} x {bare_shell})"
+            SIGHT_SEGMENTS_BEFORE + neighbour_segments,
+            "today's sight segments, and one bare shell of its own kind per neighbour plot ({neighbour_plots} plots, {neighbour_segments} segments)"
         );
 
         // The whole ship: street-1's room and its corridor's (36 rooms, 130 segments after 1a);
@@ -3190,14 +3203,16 @@ mod tests {
         // Commons' walls, the washroom's wall either side of its door, the cuts the two
         // corridors make in their walls and in First Street's east wall, and their rails (148).
         let all = ship.generate_meshes().room_info;
-        assert_eq!(all.len(), 48, "the whole ship's rooms");
+        assert_eq!(all.len(), 47, "the whole ship's rooms");
         assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
         // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
         // 305 since increment 7's review (2026-10-21): the same 180 walls and guards, 72 lintels
         // over the doorways and the corridors' cuts, and stairs-1's 53 faces. 314 since placed box
         // pieces collide (2026-10-21): train-1's 9 (`HOME_SEGMENTS_BEFORE`). 320 since the frames'
-        // posts collide (2026-10-22): elevator-1's and the two teleporters', 2 each.
-        assert_eq!(ship_wall_segments(&ship).len(), 320, "the whole ship's collision segments");
+        // posts collide (2026-10-22): elevator-1's and the two teleporters', 2 each. 47 rooms and
+        // 317 segments since 2026-11-13: the screens den is part of the great room, and the wall
+        // between them (three segments) is gone.
+        assert_eq!(ship_wall_segments(&ship).len(), 317, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
@@ -3300,8 +3315,9 @@ mod tests {
         let (ship, design) = shipped_files();
         assert!(ship.zone_index(HOME_ZONE_ID).is_none(), "the ship file holds no home");
         // p1 to p12 (the twelve plots along First Street, 2026-10-04), and since ship homes
-        // increment 6 the sixteen cabins c1 to c16.
-        assert_eq!(ship.plots.len(), 28, "p1 to p12 and c1 to c16");
+        // increment 6 the sixteen cabins c1 to c16, and since 2026-11-13 the room program's two
+        // homesteads h1 and o1 (docs/design/home-room-program.md).
+        assert_eq!(ship.plots.len(), 30, "p1 to p12, c1 to c16, h1 and o1");
         assert_eq!(ship.default_plot_id().as_deref(), Some("p1"));
         let refuse = |s: ShipStructure, d: HomeDesign, plot: &str, frag: &str| {
             let e = s.assemble(d, plot).expect_err(frag);
@@ -4075,6 +4091,14 @@ mod storey_fields_tests {
     /// "ship file, pretty: pinned 2f24b7a1c04beedd, now f25a9d8398e84427". The home designs' four
     /// pins did not move. effbdfbec3360115 is now an older game's ship
     /// (`an_older_game_is_refused_as_another_ship`).
+    ///
+    /// MOVED ON PURPOSE 2026-11-13 (docs/design/home-room-program.md, approved that day): the ship
+    /// file gained the room program's two homestead plots, h1 and o1, and the residential district
+    /// grew to hold them, so its three pins changed: "ship_hash, ...ship_structure.ron: pinned
+    /// 507bc93bce4f4dbf, now fbdcd7525835df6b", the same for the built-in ship, and "ship file,
+    /// pretty: pinned f25a9d8398e84427, now 64dd9eaa4aeec3b1"; and the console room joined the
+    /// homestead's great room, so the homestead's two moved: compact 2cc6884c34f201cf to
+    /// 395ca90c0b7aea56, pretty cdbe1eb1e7b9cdb4 to e8477b1870a5c5ca. The cabin's did not move.
     #[test]
     fn the_storey_fields_move_no_shipped_file() {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
@@ -4093,9 +4117,9 @@ mod storey_fields_tests {
             now.push((format!("homes/shipped/{kind}.ron, pretty"), fnv(ron::ser::to_string_pretty(&design, pretty()).unwrap())));
         }
         const PINNED: [&str; 7] = [
-            "507bc93bce4f4dbf",
-            "507bc93bce4f4dbf",
-            "f25a9d8398e84427",
+            "fbdcd7525835df6b",
+            "fbdcd7525835df6b",
+            "64dd9eaa4aeec3b1",
             // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165. Then ramp-1
             // became the train platform's 1:17 boarding ramp (2026-10-21; it was 069cc7d553362752
@@ -4103,8 +4127,8 @@ mod storey_fields_tests {
             // a 0.8 m gap over the ladder, and the greenhouse's zone rose to the 6 m roof with its
             // room (the increment's review, 2026-10-21, homestead-upper-floor.md section 12; it was
             // 3c5231aeb7eda208 and 747cdf9e8cf1d567).
-            "2cc6884c34f201cf",
-            "cdbe1eb1e7b9cdb4",
+            "395ca90c0b7aea56",
+            "e8477b1870a5c5ca",
             "da22405ff5cb9a36",
             "ffb704a6e5cf699b",
         ];

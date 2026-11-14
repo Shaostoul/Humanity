@@ -448,7 +448,11 @@ mod tests {
         let c = cuts[0];
         assert_eq!(c.edge, 3);
         assert!((c.at - (depth - (54.0 + 1.0))).abs() < 1e-3, "edge-local at {}", c.at);
-        assert!(cuts.iter().all(|k| k.edge == 3), "every neighbour's hole is in the street's west wall: {cuts:?}");
+        // The homesteads west of the street open its west wall; the room program's homesteads east
+        // of it (h1, o1, 2026-11-13: their doors are in their west walls) open its east wall (edge 1).
+        let east_of = |k: &ShellCut| ship.plots.iter().any(|p| p.id != "p1" && p.door.zone == "street-1" && p.origin.0 > ship.zones[street].origin.0 && (k.at - (p.door.lat - ship.zones[street].origin.2 - 1.0)).abs() < 0.8);
+        assert!(cuts.iter().all(|k| k.edge == 3 || (k.edge == 1 && east_of(k))), "every neighbour's hole is in the street's wall on its side: {cuts:?}");
+        assert_eq!(cuts.iter().filter(|k| k.edge == 1).count(), ship.plots.iter().filter(|p| p.door.zone == "street-1" && p.origin.0 > ship.zones[street].origin.0).count(), "one hole in the east wall per plot east of the street");
         // Collision keeps the street's west wall whole there: no zone cut of its own at z 139.
         assert!(
             ship.shell_cuts_for_zone(street).iter().all(|k| k.edge != 3),
@@ -652,7 +656,8 @@ mod tests {
             assert!((g.end_to.x - hall_east).abs() < 1e-3, "{}'s corridor arrives on the hall's east wall", n.plot.id);
         }
         // The homesteads' bake and the cabins' one bake, whatever the count.
-        assert_eq!(view.shells_baked, 2, "one shell for eleven homesteads and one for sixteen cabins: {}", view.shells_baked);
+        // Since 2026-11-13 also one each for the room program's two homesteads (h1, o1).
+        assert_eq!(view.shells_baked, 4, "one shell for eleven homesteads, one for sixteen cabins and one for each new homestead: {}", view.shells_baked);
         // The hall's wall has a hole at each cabin's door, for the eye; its collision is whole.
         let cuts: Vec<ShellCut> = view.zone_cuts(hall).collect();
         assert_eq!(cuts.len(), 16, "the hall's east wall opens at every cabin's door: {cuts:?}");

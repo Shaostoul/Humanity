@@ -234,7 +234,7 @@ every level; give the light a few seconds to settle after each change. The rigs:
 home vantage both ways (`--vantages FILE` tries poses without touching the
 shipped list), the home vantage `25c-oyster-rack-close` is the close shelf-and-
 block pose the acceptance reads, and the probe-sweep vantage
-`console-face-6-room-gi-off` is `console-face-6`'s twin (probe-sweep resets the
+`great-room-face-6-room-gi-off` is `great-room-face-6`'s twin (probe-sweep resets the
 switch between vantages with the other sticky pins). The Performance page counts
 `gpu.room_probes` in the homestead row, `cpu.room_probes` in the uploads row, and
 the atlas with the render targets.
@@ -318,7 +318,7 @@ A solid floor slab stops lamp light and sunlight, in the lighting and in the roo
   probe update tests none (a test pins that).
 - **Dev pin:** showcase `slab_occlusion` "0" off, "1" on, "sun" or "lamps" one half alone.
 - **Cost** (gpu.scene, 2560 x 1387, same-boot same-park pairs, DXC): nothing measurable with no
-  slabs; on the shipped homestead console-face-6 +0.14 ms, home-racks-noon +0.08, the upstairs
+  slabs; on the shipped homestead great-room-face-6 +0.14 ms, home-racks-noon +0.08, the upstairs
   bedroom (vantage home-upstairs-bedroom-noon) +0.53 (sun +0.08, lamps +0.45; about 0.22 ms at
   1600 x 900). Upstairs most lamps in range are ground-floor lamps lighting up through the glass
   lids, which nothing blocks, so each pays its layer-row read (~8.5 ps a lamp). Next if it
@@ -477,10 +477,10 @@ game: the `[RoomGI] resident ...` log line on every change, and the dev drop
 `debug/room_gi.json` (once a second with `HUMANITY_FRAME_COSTS=1`: the rooms and
 probes held, the atlas's bytes, each room's weight, priority and ambient colour
 as the twin works it out), read by the rig walk below. The walk, 2026-10-21, at
-High (`photograph-home.js --vantages` over twelve stops: the console room, the
-great room and the workshop at home, the Commons hall, mess and recreation, First
+High (`photograph-home.js --vantages` over twelve stops: the screens den (a room of
+its own then), the great room and the workshop at home, the Commons hall, mess and recreation, First
 Street north and far, the South Commons, then back through the Commons hall to
-the console room and the mushroom room): resident probes 30,815 to 32,764 of the
+the screens den and the mushroom room): resident probes 30,815 to 32,764 of the
 32,768 budget at every stop, 19 to 45 of the ship's 48 rooms resident by where
 the player stood, the player's own room at full weight every time with an
 ambient colour well off black (0.05 to 0.16 linear), the room GI's video memory
@@ -536,11 +536,11 @@ sun through the glass lid at the lid's 0.65 transmittance and only where the
 box's walls let it in, while the floor on screen takes the full sun with no
 wall shadow at all (section 5); and the glass lid returns space, which is black.
 
-Cost at `console-face-6` (the acceptance fixture; three runs of six on/off
+Cost at `great-room-face-6` (the acceptance fixture; three runs of six on/off
 cycles each): the probe update `gpu.room_probes` 0.21 ms; the sampling (the
 `gpu.scene` difference; `gpu.transparent` moves by less than 0.02 ms) 0.38 to
-0.44 ms; together 0.58 to 0.65 ms. Looking down the console room to the
-greenhouse glass (`09-console-room`) 0.80 ms, and through the great room's
+0.44 ms; together 0.58 to 0.65 ms. Looking down the screens den to the
+greenhouse glass (`09-great-room-east`) 0.80 ms, and through the great room's
 glass wall into the greenhouse (`06-great-room-south`) 0.67 ms, both after the
 pick order change below. The development path, for the record:
 
@@ -548,13 +548,13 @@ pick order change below. The development path, for the record:
 | --- | --- | --- | --- |
 | first cut (25b, 25c-like poses) | 0.30 to 0.33 | 2.1 to 3.2 | 2.4 to 3.5 |
 | skip probes with no trilinear weight, pick walk stops at the first box | 0.22 | 0.6 to 1.5 | 1.3 to 1.8 |
-| screens skip the sample, see-through surfaces sample without visibility | 0.23 | 0.76 (console-face-6) | 1.00 |
+| screens skip the sample, see-through surfaces sample without visibility | 0.23 | 0.76 (great-room-face-6) | 1.00 |
 | visibility test only in flagged rooms, constant tile rows | 0.25 | 0.61 | 0.86 |
 | see-through surfaces keep the floor | 0.21 | 0.38 to 0.44 | 0.58 to 0.65 |
 | pick order nearest-first with containment (final) | 0.21 | 0.38 | 0.59 |
 
 Forcing the visibility test on everywhere (`room_gi_vis`) costs 0.05 ms more in
-the update and 0.14 ms more in the sampling at `console-face-6`, and moves the
+the update and 0.14 ms more in the sampling at `great-room-face-6`, and moves the
 picture by 0.9 sRGB codes on average (two default captures a minute apart differ
 by 0.2; room GI itself moves it by 17), which is the convexity argument holding
 on the GPU to within the probes' own frame-to-frame noise.
@@ -564,7 +564,7 @@ the submit) reads 0.3 to 0.6 ms a frame. It is not in the GPU budget above;
 the obvious cuts are writing the table only when the lights or the pick order
 change and folding the dispatch into the scene pass's encoder.
 
-World entry: `probe-sweep --only blue-marble-12000km,console-face-6,console-face-6-room-gi-off`
+World entry: `probe-sweep --only blue-marble-12000km,great-room-face-6,great-room-face-6-room-gi-off`
 captured 3/3 with panics=0, and every photograph-home run above entered the
 world with 0 panics.
 

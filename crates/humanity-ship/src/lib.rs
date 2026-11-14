@@ -48,6 +48,9 @@ pub mod lifts;
 /// The homestead's upper floor checked as the shipped design carries it (ship homes increment 7).
 #[cfg(test)]
 mod homestead_layout_tests;
+/// The room program's two homesteads checked as the shipped designs carry them (2026-11-13).
+#[cfg(test)]
+mod home_program_tests;
 pub mod hull;
 pub mod layout;
 pub mod lock_types;

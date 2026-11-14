@@ -4955,7 +4955,8 @@ mod tests {
         let lists = shared_build_messages_for(&mut j, 800).await;
         let frames: std::collections::BTreeSet<&str> = lists.iter().filter(|g| g["type"] == "game_pieces").filter_map(|g| g["frame"].as_str()).collect();
         let cabins: Vec<String> = (1..=16).map(|n| format!("plot:c{n}")).collect();
-        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:street-1", "zone:cabins-1"].into_iter().collect();
+        // Since 2026-11-13 the room program's homesteads east of First Street (h1, o1) too.
+        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:commons", "zone:street-1", "zone:cabins-1"].into_iter().collect();
         want.extend(cabins.iter().map(|s| s.as_str()));
         assert_eq!(frames, want, "the frames in view at p1's door");
         let p2 = lists.iter().find(|g| g["frame"] == "plot:p2").unwrap();
@@ -4968,7 +4969,7 @@ mod tests {
         assert_eq!(ids_of(&pieces), vec![on_p12], "p12 came into view, with its piece");
         let gone = shared_build_messages_for(&mut j, 600).await;
         let gone: std::collections::BTreeSet<&str> = gone.iter().filter(|g| g["type"] == "game_frame_out_of_view").filter_map(|g| g["frame"].as_str()).collect();
-        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "zone:commons", "zone:cabins-1"].into_iter().collect();
+        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:commons", "zone:cabins-1"].into_iter().collect();
         want.extend(cabins.iter().map(|s| s.as_str()));
         assert_eq!(gone, want, "the far end of the street is out of the Commons' view");
 
@@ -5184,7 +5185,8 @@ mod tests {
         let c = next_frame_with(&mut ann, checks).await.expect("Ann's check");
         // Since ship homes increment 6 the cabin block's hall and its sixteen cabins are in view
         // of p1's door too, at no change.
-        let mut want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "zone:commons": 0, "zone:street-1": 0, "zone:cabins-1": 0 });
+        // And since 2026-11-13 the room program's homesteads, h1 and o1.
+        let mut want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "plot:h1": 0, "plot:o1": 0, "zone:commons": 0, "zone:street-1": 0, "zone:cabins-1": 0 });
         for n in 1..=16 {
             want[format!("plot:c{n}")] = serde_json::json!(0);
         }

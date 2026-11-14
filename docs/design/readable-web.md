@@ -256,7 +256,7 @@ screen architecture is `docs/design/in-world-screens.md`). A machine
 instance whose `screen_source` is `web:<url>` gets a `WebProvider`
 (`src/engine/screens/web.rs`) that owns one `WebViewState` of its own and
 draws it into the screen's texture every framed tick. The shipped example is
-`wall_screen_6` in `data/machines/home.ron`, on the console room's east
+`wall_screen_6` in `data/machines/home.ron`, on the great room's east
 wall, showing `https://united-humanity.us`. The player looks at the wall,
 the look ray becomes the view's pointer, and a click on a link navigates the
 wall; Back, Forward, Reload, the address row and "Open in browser" are the

@@ -87,8 +87,7 @@ east wall at z 39..41. The ground floor, its rooms 2.75 m to the ceiling:
 | Boot room | 50..55, 34..38 | 5 x 4 |
 | Pantry | 34..42, 43..46 | 8 x 3 |
 | Kitchen | 34..42, 46..51 | 8 x 5 |
-| Great room | 42..52, 43..51 | 10 x 8 |
-| Console room | 52..55, 43..51 | 3 x 8 |
+| Great room, the screens den at its east end (x 52..55) | 42..55, 43..51 | 13 x 8 |
 
 The upper floor, 3.0 m up, over the house's north half and the workshop's and the
 service way's edges, its rooms 3 m to the glass roof:
@@ -126,7 +125,7 @@ kitchen.
 
 Turn south through that opening and the ceiling stays where it is, 2.75 m under
 the floor above, but the room widens:
-the **Great room**, 10 by 8 m, with the whole south wall in tempered glass
+the **Great room**, 13 by 8 m, with the whole south wall in tempered glass
 looking into the greenhouse. Couches face the north wall, where the stream screen
 hangs, so the glass is behind you and never glares. The dining table sits at the
 west end by the kitchen pass, under its own rug.
@@ -137,12 +136,14 @@ its own door into the greenhouse. That door is the single most-used thing in the
 house: three steps from a pot to the beds. Behind the kitchen, off the hall, is
 the **Pantry**, deliberately the one room with no glazing.
 
-**East of the great room, through a door, the Console room.** It is 3 m wide and
-8 m deep, glazed at the far end. You sit at the desk against the east wall with
-the web screen above it and the garden camera on the wall opposite, and the
-greenhouse glows at the end of the room. Six screens used to be crammed in here;
-now there are two and a desk monitor, and the room is a place to sit rather than
-a display case.
+**At the great room's east end, the screens den.** It is the last 3 m of the room,
+8 m deep, glazed at the far end like the rest, and since 2026-11-13 there is no wall
+between it and the couches ([home-room-program.md](home-room-program.md), section 3:
+the den goes with the living room). You sit at the desk against the east wall with
+the web screen above it and the garden camera beside it on the same wall (it hung
+on the wall opposite until that wall came out), and the greenhouse glows at the end
+of the room. Six screens used to be crammed in here; now there are two and a desk
+monitor, and the den is a place to sit rather than a display case.
 
 **North of the hall, on the ground floor, the shared rooms.** The **Dining
 room**, 8 by 8 m, has the old bedroom's windows and its garden door into the
@@ -259,15 +260,15 @@ get one. How screens work at all is [in-world-screens.md](in-world-screens.md).
 |---|---|---|---|
 | `wall_screen_1` | Entry | `page:inventory` | Over the bench where you drop your kit. Coming home, the first question is what you are carrying and what is in the house. |
 | `wall_screen_2` | Kitchen | `page:tasks` | The household board by the work island. This is where a family's to-do list actually lives. |
-| `wall_screen_3` | Console room | `camera:camera_post_1` | The watch post. The camera looks down the greenhouse tower rows. |
+| `wall_screen_3` | Great room (screens den) | `camera:camera_post_1` | The watch post, on the east wall beside the reading screen. The camera looks down the greenhouse tower rows. |
 | `wall_screen_4` | Great room | `watch:shaostoul` | The television, on the wall the couches face. |
 | `wall_screen_5` | Workshop | the demo clip | Over the two main benches. A clip playing while you build is what a workshop screen is for. |
-| `wall_screen_6` | Console room | `web:united-humanity.us` | The reading screen, above the desk. `verify-screens.js` parks here. |
+| `wall_screen_6` | Great room (screens den) | `web:united-humanity.us` | The reading screen, above the desk. `verify-screens.js` parks here. |
 | `wall_screen_7` | Forge | `page:crafting` | Above the smelter and the forge, where you are standing when you want a recipe. |
 | `wall_screen_9` | Hall | `page:quests` | By the front of the hall, on the way out. What is on today. |
 | `wall_screen_10` | Greenhouse | `page:calendar` | On the wall beside the great room's garden door. A planting calendar at the greenhouse threshold. |
 | `desk_monitor_1` | Study | `page:library` | On the study desk, among the bookcases. |
-| `desk_monitor_2` | Console room | `page:chat` | On the console desk. Comms at the comms station. |
+| `desk_monitor_2` | Great room (screens den) | `page:chat` | On the den's desk. Comms at the comms station. |
 | `standing_mirror_1` | Bedroom | `page:profile` | The operator's own example. A 1 by 2 m portrait panel beside the bedroom door. |
 
 There is no `wall_screen_8`; the number was skipped rather than shuffling the
@@ -316,7 +317,7 @@ stands in every room. The evidence folder is
 naming the pose each was taken from. 29 of 29 captured, zero panics.
 
 The screens gate runs against the same build:
-`node scripts/verify-screens.js` parks in the console room and passes 12 of 12,
+`node scripts/verify-screens.js` parks in the screens den and passes 12 of 12,
 which proves the wall inventory is still clickable, the web wall still
 navigates, and the task board still draws, from their new rooms.
 
@@ -330,7 +331,7 @@ Room by room, and not flattering it:
 | **Hall** | Good as a route, thin as a room. The light strip runs its length, three doors on one side and the great room's wide opening on the other, and you can see the workshop door at the far end. |
 | **Great room** | The glass wall onto the greenhouse is the best thing in the plan. The room itself is too big for what is in it: a seating group at one end, a dining set at the other, and bare floor between. |
 | **Kitchen** | Good. The garden beyond the glass is right there, and the galley run reads. The appliances are featureless dark boxes. |
-| **Console room** | The best room in the home. Three metres wide, the web screen over the desk on one side and the garden camera opposite, the greenhouse glowing at the far end. It is a place to sit, which is what it was not before. |
+| **Screens den** (then a room of its own, x 52..55; the great room's east end since 2026-11-13) | The best room in the home. Three metres wide, the web screen over the desk on one side and the garden camera opposite, the greenhouse glowing at the far end. It is a place to sit, which is what it was not before. |
 | **Bedroom** | Weak. Eight metres square is a real bedroom size, but with one bed, two nightstands and a rug in it the room reads empty, and the service runs cross its ceiling. |
 | **Bedroom mirror** | The concept works: a full-height panel showing the Profile page, and walking up to it opens the look editor. The page is laid out for a wide screen, so in portrait it fills the top third and the rest is black. |
 | **Dressing room** | Good. Three wardrobes down one side, shelves down the other, and the bedroom visible through the open door. It reads as exactly what it is. |

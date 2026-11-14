@@ -1589,7 +1589,7 @@ pub struct GuiState {
     /// The rooms.ron + room_actions.ron registry itself, loaded alongside `construction_room_types`
     /// when the editor opens, so the zone detail panel can show what a zone's `room_type` resolves
     /// to (purpose + action labels via `HomeStructure::room_actions_for`) without touching disk
-    /// every frame. Empty until the editor first opens. (console-room increment)
+    /// every frame. Empty until the editor first opens. (room-identity increment)
     pub room_type_registry: humanity_ship::room_types::RoomTypeRegistry,
     /// Current Add-Room picker selection. (v0.459)
     pub construction_add_type: String,

@@ -285,8 +285,8 @@ and `links` lists the hrefs drawn last frame (first 32, in `link` index
 order) so a rig can choose a link by where it goes; the screens gate only
 follows links that stay on our own site.
 
-Shipped placement: `wall_screen_6` in `home.ron`, in the console room above
-the desk on its east wall, source `web:https://united-humanity.us`. This is the
+Shipped placement: `wall_screen_6` in `home.ron`, in the great room's screens den
+(its east end) above the desk on the east wall, source `web:https://united-humanity.us`. This is the
 screen `scripts/verify-screens.js` parks in front of, so its id and its source
 are load-bearing: renaming either quietly shrinks that gate.
 
@@ -347,8 +347,8 @@ what the wall SAYS without reading its pixels.
 
 `live::live_status(server, stream_id, last_error)` is that decision, pure,
 and it answers two things at once: the words, and whether to connect at
-all. It exists because of a wall the operator photographed in the console
-room on 2026-09-18, reading:
+all. It exists because of a wall the operator photographed in the screens
+den on 2026-09-18, reading:
 
 > Could not connect: URL error: No host name in the URL Trying again shortly.
 
@@ -410,7 +410,7 @@ rendered at, carried into `CameraPose::px`: the wall screen's surface is
 RESIZED to it on the camera's first picture, whatever the wall def's own
 `screen.px` says. **The trade (2026-09-18 measurement at the operator's
 settings):** the cost of a camera view is per pixel. A camera re-rendering
-the console room into the wall's 1280 x 720 surface cost 17 ms whenever
+the screens den into the wall's 1280 x 720 surface cost 17 ms whenever
 its wall was in view, a full extra scene pass in a 10 fps room. A 640 x 360
 render is a quarter of those pixels for roughly a quarter of the cost; the
 wall quad's physical size is unchanged and the sampler scales the picture
@@ -543,8 +543,9 @@ already has the requested size.
 **Shipped data** (`data/machines/home.ron`): `camera_post` in both home
 catalogs under "Displays"; `camera_post_1` on the open garden floor west of
 the variety-tower grid, looking east down the tower rows and a little down;
-`wall_screen_3` in the console room shows `camera:camera_post_1`, and
-`wall_screen_4` is the great room's television showing `watch:shaostoul`. `shipped_homes_place_a_camera_post_and_the_console_screens_name_it`
+`wall_screen_3` in the great room's screens den (on the east wall beside the web screen)
+shows `camera:camera_post_1`, and
+`wall_screen_4` is the great room's television showing `watch:shaostoul`. `shipped_homes_place_a_camera_post_and_the_camera_screens_name_it`
 pins that every `camera:` screen names a post that is actually placed.
 
 **Dev IPC.** `debug/screen_request.json` works on both kinds like any
@@ -573,7 +574,7 @@ budget. A provider with nothing to place leaves the default no-op.
 `video:<path>` plays a clip through the purpose-built player
 ([media-player.md](media-player.md)) on the screen, on loop, with its sound
 placed at the screen; a click on the picture toggles pause. The operator's
-words: "movies on displays", then, looking at the console room, "should we
+words: "movies on displays", then, looking at the screens den, "should we
 play a video that's stored on my PC?". Provider:
 `src/engine/screens/video.rs` (`VideoProvider`). Shipped: `wall_screen_5`
 over the workshop benches starts on
@@ -948,7 +949,7 @@ the world through autopilot, parks facing `wall_screen_6`, and then:
 4. zero PANIC lines in the rig's run.log.
 
 Evidence lands in `.probe-rig/screens/runs/<stamp>/` (the PNG pairs, a
-viewport capture of the console room, the manifest with every done file
+viewport capture of the screens den, the manifest with every done file
 verbatim, the run log). Exit 0 passed, 1 refused, 2 failed. The verdict is a
 pure function of the manifest: `--dry-verdict <manifest.json>` re-judges
 one without booting, and `--self-test` judges the three fixture manifests
@@ -1399,7 +1400,7 @@ of this rung.
 **Where it sits** (recommendation, coordinated with
 [mothership-master-plan.md](mothership-master-plan.md)):
 
-1. **In the player's home**: the Homestead design's console room already holds six screens
+1. **In the player's home**: the Homestead design's screens den (the great room's east end) already holds six screens
    (inventory, tasks, the garden camera, the live stream, the video, the web: section "Shipped
    data" above), so it becomes the home's control room rather than a new room being added: its
    walls are re-laid as a screen wall, one page each. A Cabin, 3.15 x 2.5 m, has room for one
@@ -1420,7 +1421,7 @@ screen_walls: [
     (
         id_prefix: "control",          // cells are control_inventory, control_maps, ...
         machine: "wall_screen",
-        zone: "home", room: "console-room",
+        zone: "home", room: "room-common",
         origin: (50.9, 1.0, 38.0),      // the first cell's base centre, zone-local
         along: (0.0, 0.0, 1.0),         // the wall's direction
         rotation: 90.0,                 // which way the cells face
@@ -1459,7 +1460,7 @@ screen's last draw time measured), so cheap pages refresh more often; both obey 
    camera" wired to the existing sources. With it (built 2026-11-06): a wall screen's full views
    (a chat video's Full window, the picture viewer, the 3D view) open on that screen, per screen.
 3. **The control room**: `screen_walls` in the home file, every page screen in view taking turns,
-   the home's console room re-laid as one, a ship's status page, and the model viewer's GPU pieces
+   the home's screens den re-laid as one, a ship's status page, and the model viewer's GPU pieces
    in each surface so the 3D view draws on a wall.
 4. **Rules without the platforms**: the web address, our own live streams, the schedule, the
    allowlist, sound and volume, who may change it.

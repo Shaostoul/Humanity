@@ -416,9 +416,10 @@ pub(crate) fn answer_home(world: &GameWorld, db: &Storage, my_key: &str, ask: Ho
         }
     };
     // Every start in the file's order, with how many plots of its kind nobody holds (none for a
-    // start not offered: it cannot be chosen).
+    // start not offered: it cannot be chosen). A draft for developers (`Start::dev`) is not a start
+    // a server has at all.
     let offers = |world: &GameWorld| -> Vec<StartOffer> {
-        starts.starts.iter().map(|s| StartOffer::of(s, if s.offered { world.free_of_kind(db, &s.plot_kind) } else { 0 })).collect()
+        starts.starts.iter().filter(|s| !s.dev).map(|s| StartOffer::of(s, if s.offered { world.free_of_kind(db, &s.plot_kind) } else { 0 })).collect()
     };
     let answer = |plot: Option<HeldHome>, starts: Vec<StartOffer>, refused: Option<HomeRefusal>, message: String| HomeAnswer {
         chose: false,
@@ -432,7 +433,7 @@ pub(crate) fn answer_home(world: &GameWorld, db: &Storage, my_key: &str, ask: Ho
     // The start asked for. One that is unknown, or not offered (the Apartment, until there are
     // apartment plots), is refused in its own words, or for an id no row has, a plain sentence.
     let unknown;
-    let start = match asked.and_then(|id| starts.get(id)) {
+    let start = match asked.and_then(|id| starts.get(id)).filter(|s| !s.dev) {
         Some(s) => s,
         None => {
             unknown = unknown_start(starts, asked);

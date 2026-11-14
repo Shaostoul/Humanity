@@ -1,8 +1,8 @@
 # The home room program: which rooms a home needs, and why
 
-Status: **proposal for the operator's review, 2026-11-13.** Phase 1 of the new homestead: the room
-program and two drafts on the decided plots. Nothing here is home-design data yet; the data files,
-their tests and the dev-start kinds come after he approves (section 7).
+Status: **approved by the operator, 2026-11-13** (his answers at the end of section 7). Phase 2 the
+same day made the two drafts home-design data, offered as starts beside the default (section 8),
+and drafted the row house for his review (section 9).
 
 The operator, 2026-11-13, redirecting the Fibonacci-square homestead: "What if we instead go the
 route of figuring out which rooms we actually need. Like they're unique enough to justify their own
@@ -216,3 +216,108 @@ drawings and the game can never disagree.
 7. **The row house next.** "Let's start with row house."
 
 So the two drafts are approved as drawn; phase 2 turns them into home-design data (section 7, "After approval") and drafts the row house.
+
+## 8. Phase 2: the two homesteads as data (2026-11-13)
+
+The approved drafts are now home-design files in the existing shape, each a start beside the
+default (data/homes/starts.ron: "Homestead for a household (draft)" and "Homestead for one
+(draft)"), with one plot of each on the east side of First Street (h1 and o1,
+data/blueprints/ship_structure.ron). They are drafts for developers (`dev: true`): a game in the
+Dev play mode lists them on Characters' new-home row and builds the home on its plot; a server
+never offers them and a player outside Dev never sees them (a fourth and fifth card would also
+overflow the Characters column at the operator's size). Today's homestead stays the default and
+loads as before.
+
+- **The files.** data/homes/shipped/household_homestead.ron and one_person_homestead.ron (the
+  players' copies beside them in data/homes/), their households' machines in
+  data/machines/household_homestead.ron and one_person_homestead.ron. The street is west of each
+  plot and the door in its west wall, a quarter turn of the drafts (the plan is not mirrored).
+- **Drawn from the data.** `node scripts/draw-homes.js <folder> [kind ...]` writes an SVG and a PNG
+  per floor, street at the top, and the room table, all read from the files the game builds, so a
+  drawing and the game cannot disagree. A draft in the same shape is drawn with `--file`.
+- **Checked as data.** crates/humanity-ship/src/home_program_tests.rs holds the drafts' checks over
+  the files: each plot tiled with no gap or overlap; every door on a wall between two rooms; every
+  room reached from the street, the upper floor by the stair; every bedroom to the space standard
+  measured inside its walls (a double bed's room 11.5 m2, every bedroom 7.5 m2 and 2.15 m wide);
+  every room lit and every light inside a room under its ceiling; no wall through a door; the game
+  finding every room its zones name; every machine in its room; the stair to the stairs finding.
+  Each runs once on a copy broken on purpose, so each is seen failing.
+- **The stair** is a new structure type, `stairs_house` (data/blueprints/structure_types.ron):
+  16 risers of 187.5 mm on 254 mm goings, 1.0 m wide, its last tread level with the landing.
+- **A look in the game.** `HUMANITY_DEV_START=<start id>` (a rig knob, Dev play mode only) makes a game with no home of its own start in that start, so `node scripts/probe-sweep.js --vantages <file>` boots into either homestead on its plot. Station poses are in the ship's frame: h1's origin is (77, 0, 140), o1's (77, 0, 180).
+- **The console room** joined the old homestead's great room, and its name is gone from code,
+  data, scripts and tests (section 3).
+
+**Changed from the drafts, and why.** Each change is the engine's, not a change of plan:
+
+- The garden's parts (front garden, yard, terrace, side and garden paths, orchard, hen range,
+  compost, hives) are divided by 2.0 m pine fences, and the drafts' open passages are sliding
+  gates in them. The game finds rooms by flood fill between walls at least 2.0 m tall
+  (`ROOM_DIVIDER_MIN_M`): with no wall, the garden ran into one room, which a single zone then named
+  (and the greenhouse's zone, holding the middle of the plot, would have named the whole garden).
+- The upstairs hall, landing, linen cupboard and stairwell are one zone, "Upper hall, landing and
+  linen cupboard", with the linen cupboard as a cupboard (a wardrobe) at its north end and 1.0 m
+  steel balustrades on the stairwell's two open sides. The flood fill's 0.5 m grid loses any room
+  under about 1.1 m wide between walls on the metre grid, and the draft's hall and cupboard were
+  1.0 m.
+- The walk-in wardrobe keeps its walls and zone but carries no room type, for the same reason
+  (1.0 m deep): it is a cupboard the game does not count as a room.
+- A gate drawn the full width of its bay (the compost bays) keeps a 0.2 m jamb at each end.
+- Lids at 3.0 m: solid over the house rooms, the stores and the animal houses (a dark bedroom),
+  glass over the workshop; the greenhouse and the garden rise to the 6 m glass roof.
+
+**What the shape cannot hold yet, and the rung that adds each.**
+
+| Not yet | Why | The rung that adds it |
+|---|---|---|
+| The living room's two side windows (household), the bedroom's side window (one person), the vehicle gate on the street (both) | They are in the plot's shell, and a shell opens only where the plot's one door corridor meets it | Authored openings in a home's shell, cut by the same path as a corridor's (mesh and collision) |
+| Open garden boundaries (no fence) | Rooms are found only between walls of 2.0 m or more | Zones that part the flood fill where no wall stands; then the fences drop to garden height and the open passages lose their gates |
+| One room for living, cooking and eating, with both functions | A zone has one room type; the one person's room is a living room | A zone with several room types, or a rooms.ron entry for a living kitchen |
+| The hens, rabbits and their care | The farm animals are placed for today's homestead's barn (`home_content: [Herd]`) | Animals placed by ranch zone, from data/entities/livestock.ron |
+| Honeybee hives | The only hive machine is the greenhouse's bumblebee box | A honeybee hive machine and its colony |
+| The orchard's trees and soil beds | The zones say where they go; nothing is planted | Orchard planting as world content (data/plants.csv) and raised beds as machines |
+| An orchard fan | The fan lines use the clip-on grow fan | A fan sized for an orchard's breeze |
+| The kitchen, the bathrooms' fixtures, the life-support hookups, most furniture | The machine files carry only beds, wardrobes, a screen, the fans and the composter | The two households' machine files, room by room |
+| An opening quest and a storage seed | First Steps needs a smelter and a workbench these homes do not have | Each start's own opening and seed |
+| A roof over the upper floor (its rooms look up through the plot's glass roof, seen in the dev-start look) | A plot has one roof, its body's, glass on these plots; a slab at the body's top is not a storey | A roof per area of the plot (a roof material by zone, or a roof slab at the top) |
+| The utility room's own air and water machines | The homes breathe the ship's air (`own_air: false`) | The utility's machines, then `own_air: true` |
+
+## 9. The row house draft (2026-11-13, for review)
+
+The operator chose the row house next ("Let's start with row house."). Drafted in the home-design
+shape, so after approval it is copied into data/homes/shipped/ unchanged, and held to every check of
+section 8 (`a_draft_passes_every_check`, run on the draft file). Not game data yet.
+
+**The program** (section 4's row house column): private bedrooms, bathing, cooking and living; a
+yard of at least 25 m2; the workshop is the neighbourhood's hall and the growing the ship's farms.
+
+**Sized from the sources.** Two bedrooms for four people on two storeys: the space standard's 79 m2
+(C11 of the sizes research), two doubles or twins of 11.5 m2. A plot of about 100 m2, 25 m2 a
+person (C12, C13). A yard of at least 25 m2, 40 recommended (C13). Frontage: 4.9 m is the narrowest
+US zoning the research found (C12); the draft takes 5.5 m, the least that fits a 1.0 m stair beside a
+1.0 m hall and a 3.5 m room.
+
+**The plan** (plot 5.5 x 18 m = 99 m2; house 5.5 x 8 m, 44 m2 a floor, 88 m2 gross): a front
+garden and path 5.5 x 2 m; downstairs the living room 3.5 x 4.5 m at the front, the hall with the
+stair and coats 2 x 4.5 m beside it, and the kitchen, dining and utility (laundry, the ship's
+hookups) 5.5 x 3.5 m across the back, a wide sliding door to the living room and a glass door to the
+yard; upstairs the front bedroom 3.5 x 4.5 m, the back bedroom 3.5 x 3.5 m (11.54 m2 inside its
+walls), the bathroom 2 x 2.5 m over the kitchen so the water runs in one stack, and the landing round
+the stairwell; the yard 5.5 x 8 m, 44 m2, for raised beds, a washing line and the bins. The side
+walls are the party walls. Drawn as a terrace of six on a street. It passes every check of section 8;
+the first version did not: its stairwell ran 0.44 m past the foot of the stair, a hole in the
+landing floor the tiling check named ("4.5 m2 with no floor under it, and a stair climbs through
+4.064 m2 of it"), so the stair now starts at the front wall.
+
+**Questions, each with a recommendation:**
+
+1. **The household**: two bedrooms for four (recommended, the research's row house) or three
+   bedrooms for five (93 m2: a 6.5 m frontage, or a third storey)?
+2. **The frontage**: 5.5 m (recommended; a 99 m2 plot) or the 4.9 m minimum, which leaves no room for
+   a hall beside the stair?
+3. **The yards between neighbours**: a plot's shell is a full-height wall on every side today, so a
+   terrace's yards and front gardens would be walled off from each other by 6 m of steel.
+   Recommended: a lower shell on a plot's garden edges (a 1.8 m fence between yards) as the rung
+   before the row house becomes data.
+4. **Where the terraces go**: a residential street of their own, each terrace of 6 to 12 homes 33
+   to 66 m long on it (recommended), or the east side of First Street.

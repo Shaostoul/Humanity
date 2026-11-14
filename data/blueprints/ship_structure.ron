@@ -70,6 +70,18 @@
 //   - A block is this ZONE, not a parent plot: a walkable shared hall cannot sit inside a plot
 //     (validate() refuses a zone overlapping a plot), and a parent plot's own door tube would
 //     overlap its cabins' tubes. A cabin's block is the zone its door opens on.
+// THE ROOM PROGRAM'S HOMESTEADS (2026-11-13, docs/design/home-room-program.md, approved that day):
+// one plot of each new kind on the EAST side of First Street, between the cabin block (which ends
+// at z 136) and the Concourse (from z 205), each with its door corridor running 2 m west into the
+// street (x 75..77), as the cabin block's does. The designs' doors are in their WEST walls, so a
+// plot of these kinds stands east of a street; the street side of each plot is its x 77 edge.
+//   - h1, kind "household_homestead": 55 x 34 m (the 34 x 55 m plot, 34 m along the street),
+//     x 77..132, z 140..174, its door at local z 28 (lat 168, a 2.0 m gate in a 3 m tube);
+//   - o1, kind "one_person_homestead": 34 x 21 m (the 21 x 34 m plot), x 77..111, z 180..201, its
+//     door at local z 11.25 (lat 191.25, a 1.5 m gate in a 2.5 m tube).
+// Both are 6.0 m tall, two 3.0 m storeys like the homestead plots. The residential district grew
+// to x 135 to hold them. Adding them changed the ship's hash, so a game built before this meets a
+// relay running it as a different ship until it is updated.
 // THE RECREATION ROOM: the Commons' south-west corner, the volume `recreation` (Commons-local
 // x 0.5..10.5, z 43.5..51.5), 3.5 m from the corridor to First Street, 12 m from where a guest
 // arrives and clear of every crew walk; its couches, rug and screen are data/machines/ship.ron's.
@@ -1563,6 +1575,34 @@
                 glass_top: false,
             ),
         ),
+        (
+            id: "h1",
+            kind: "household_homestead",
+            origin: (77.0, 0.0, 140.0),
+            size: (55.0, 6.0, 34.0),
+            door: (
+                zone: "street-1",
+                lat: 168.0,
+                width: 3.0,
+                door_width: 2.0,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
+        (
+            id: "o1",
+            kind: "one_person_homestead",
+            origin: (77.0, 0.0, 180.0),
+            size: (34.0, 6.0, 21.0),
+            door: (
+                zone: "street-1",
+                lat: 191.25,
+                width: 2.5,
+                door_width: 1.5,
+                door_height: 2.2,
+                glass_top: true,
+            ),
+        ),
     ],
     default_plot: Some("p1"),
     districts: [
@@ -1570,7 +1610,7 @@
             id: "res-1",
             type_id: "residential",
             origin: (0.0, 0.0, 0.0),
-            size: (100.0, 4.0, 1195.0),
+            size: (135.0, 4.0, 1195.0),
             label: "Residential District A",
         ),
         (

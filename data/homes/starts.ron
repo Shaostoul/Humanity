@@ -15,6 +15,8 @@
 //               `start` and what a save records.
 //   name, sentence   what the choice shows, word for word.
 //   offered     false: shown greyed with `not_offered_why`, never given.
+//   dev         true: a draft for developers, listed and made only in the Dev play mode, never by
+//               a server (crates/humanity-ship/src/starts.rs `Start::dev`). Left out when false.
 //   design      data/homes/shipped/<design>.ron, built into the exe; its `kind` must equal
 //               `plot_kind`, the plots of the ship file this start lives on.
 //   households  who lives there, the first the default; each names its machine file under
@@ -137,6 +139,80 @@
             opening: Some("gs_first_steps"),
             own_air: true,
             home_content: [Herd, WildSpawns, Decorations, ShowcaseGarden, Hologram],
+        ),
+        // THE ROOM PROGRAM'S TWO HOMESTEADS (2026-11-13, docs/design/home-room-program.md, approved
+        // that day). Drafts for developers (`dev: true`): only a game in the Dev play mode lists them
+        // on Characters' new-home row and makes a home of one, on its plot; a server never offers
+        // them and a player outside Dev never sees them. Nothing replaces the default, and today's
+        // homestead stays loadable until the wipe decides. Each stands on its own plots on the east side of First Street
+        // (data/blueprints/ship_structure.ron). What they do not carry yet: an opening quest of
+        // their own (the homestead's First Steps needs a smelter and a workbench these homes do not
+        // have yet), a storage seed, the farm animals and the world content placed for today's
+        // homestead (`home_content`), and air handlers of their own, so they breathe the ship's air
+        // (`own_air: false`). Power and water come from the ship (the utility room's hookups), so
+        // those are looked after in the background; food and fertilizer are grown and composted
+        // at home.
+        (
+            id: "household_homestead",
+            name: "Homestead for a household (draft)",
+            dev: true,
+            sentence: "A draft of the new homestead for up to five people: four bedrooms, a lit greenhouse, an orchard with hens, rabbits and a hive, and a workshop with a bay for two vehicles. Power and water come from the ship.",
+            offered: true,
+            design: "household_homestead",
+            plot_kind: "household_homestead",
+            households: [
+                (id: "family", name: "A family of five", machines: "household_homestead.ron"),
+            ],
+            engagement: (food: Direct, water: Background, energy: Background, fertilizer: Direct),
+            shared: [],
+            kit: [
+                ("seed_lettuce_0", 5),
+                ("seed_tomato_0", 5),
+                ("seed_potato_0", 5),
+                ("seed_bean_0", 5),
+                ("water_purified_0", 4),
+                ("water_bottle_empty_0", 2),
+                ("ration_basic_0", 3),
+                ("ors_sachet_0", 4),
+                ("trowel_0", 1),
+                ("hoe_0", 1),
+                ("knife_utility_0", 1),
+            ],
+            storage: "",
+            opening: None,
+            own_air: false,
+            home_content: [],
+        ),
+        (
+            id: "one_person_homestead",
+            name: "Homestead for one (draft)",
+            dev: true,
+            sentence: "A draft of the new homestead for one person: a bedroom, one room to live, cook and eat in, a lit greenhouse, an orchard with six hens, two rabbits and a hive, and a workshop with a bay for one vehicle. Power and water come from the ship.",
+            offered: true,
+            design: "one_person_homestead",
+            plot_kind: "one_person_homestead",
+            households: [
+                (id: "solo", name: "Just you", machines: "one_person_homestead.ron"),
+            ],
+            engagement: (food: Direct, water: Background, energy: Background, fertilizer: Direct),
+            shared: [],
+            kit: [
+                ("seed_lettuce_0", 5),
+                ("seed_tomato_0", 5),
+                ("seed_potato_0", 5),
+                ("seed_bean_0", 5),
+                ("water_purified_0", 4),
+                ("water_bottle_empty_0", 2),
+                ("ration_basic_0", 3),
+                ("ors_sachet_0", 4),
+                ("trowel_0", 1),
+                ("hoe_0", 1),
+                ("knife_utility_0", 1),
+            ],
+            storage: "",
+            opening: None,
+            own_air: false,
+            home_content: [],
         ),
     ],
 )
