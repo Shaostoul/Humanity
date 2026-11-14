@@ -11,6 +11,14 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### v0.1561.0 (14 November 2026)
+
+- Far forests: distant tree cards draw out to the Tree silhouette distance for the first time in any release.
+- Row Street comes alive: neighbours' houses are lit inside by day and night and their gardens are planted along the yards.
+- New synths and drum machines: a wavetable synth, a supersaw, a pulse-width synth and 808 and 909 style drum kits; lo-fi, electro swing and deep dubstep use them.
+- Cheaper room-light shadows, and the blur behind frosted plastic no longer borrows light from beside the tent.
+- Fixed: an in-app update bringing a terminal-started game back invisible, Row Green listing no ways out, the music's streaming thread outliving the music, a crash when a camera screen or a high-resolution screenshot showed frosted plastic.
+
 ### v0.1560.0 (14 November 2026)
 
 - The Music page: explore endless pieces by seed and genre, tune one, keep favourites, export them as WAV files, and watch the music as a piano roll while it plays.
