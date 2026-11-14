@@ -273,7 +273,27 @@ fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], sight: bool) -> 
             .filter(|c| c.edge == ei)
             .map(|c| Opened { from: c.at, to: c.at + c.width, y0: py0 + c.base, y1: py0 + c.base + c.height })
             .collect();
-        wall_run(&mut segs, a, b, len, st, (py0, py1), SegmentKind::Wall, &cuts);
+        if !sight || home.open_shell.is_empty() {
+            // The WALK keeps the whole perimeter, open spans included (`OpenSpan`: open to the eye,
+            // not to the walk; a shared zone beyond opens it by a cut, as a corridor does).
+            wall_run(&mut segs, a, b, len, st, (py0, py1), SegmentKind::Wall, &cuts);
+            continue;
+        }
+        // SIGHT sees over an open span (2026-11-13): there only what marks the line stands (a kerb,
+        // a low front wall), to its own height; the shell stands on the rest of the edge.
+        let u = ((b.0 - a.0) / len, (b.1 - a.1) / len);
+        for (s, e, span) in crate::home_structure::perimeter_pieces(&home.open_shell, w, d, ei, len) {
+            let top = match span {
+                None => py1,
+                Some(sp) if sp.height > 1e-3 => py0 + sp.height.min(py1 - py0),
+                Some(_) => continue,
+            };
+            let half = if span.is_some() { crate::home_structure::OPEN_SPAN_THICKNESS_M * 0.5 } else { st };
+            let pa = (a.0 + u.0 * s, a.1 + u.1 * s);
+            let pb = (a.0 + u.0 * e, a.1 + u.1 * e);
+            let piece: Vec<Opened> = cuts.iter().filter(|c| c.from < e && c.to > s).map(|c| Opened { from: c.from.max(s) - s, to: c.to.min(e) - s, y0: c.y0, y1: c.y1 }).collect();
+            wall_run(&mut segs, pa, pb, e - s, half, (py0, top), SegmentKind::Wall, &piece);
+        }
     }
     for wall in &home.walls {
         // A GUARD is a balustrade (ship homes increment 7, `InteriorWall::guard`): posts and
@@ -901,6 +921,7 @@ mod tests {
             shell_material: 1,
             roof_material: 4,
             shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            open_shell: Vec::new(),
             walls: vec![InteriorWall {
                 a: (0.0, 5.0),
                 b: (10.0, 5.0),

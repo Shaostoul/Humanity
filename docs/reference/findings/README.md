@@ -686,3 +686,8 @@ what we will say about it.
   One, NASA TN D-6924); heat (Siemens Gamesa, CSIRO); soil and phosphorus filters; molten
   electrolysis at about 104 kWh per kg of oxygen (NASA 2026). The basis for docs/design/slag.md.
   USGS's newest slag chapters, Jarosewich 1990 and mdpi.com refused automated reading.
+- [`2026-11-13-shared-house-room-sizes.md`](2026-11-13-shared-house-room-sizes.md),
+  England's room sizes for the row houses: the space standard's whole-home areas, its bedroom
+  minimums and the double-width rule (one double 2.75 m wide, the rest 2.55 m); a licensed shared
+  house's sleeping rooms (6.51 and 10.22 m2, SI 2018/616); five or more sharers' bathroom, separate
+  WC and basins (SI 2006/373, Schedule 3).

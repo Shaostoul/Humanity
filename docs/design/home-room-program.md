@@ -2,7 +2,8 @@
 
 Status: **approved by the operator, 2026-11-13** (his answers at the end of section 7). Phase 2 the
 same day made the two drafts home-design data, offered as starts beside the default (section 8),
-and drafted the row house for his review (section 9).
+and drafted the row house for his review (section 9); after his answers, the row houses became four
+layouts on Row Street with an open green (section 10, as built).
 
 The operator, 2026-11-13, redirecting the Fibonacci-square homestead: "What if we instead go the
 route of figuring out which rooms we actually need. Like they're unique enough to justify their own
@@ -331,3 +332,117 @@ landing floor the tiling check named ("4.5 m2 with no floor under it, and a stai
 - **Many designs, for many kinds of household (decided):** "Makes sense to include multiple designs. Not everyone is a family of 5. Maybe there's a group of couples living in one house. Could be just a bunch of single people. Like maybe a group of friends pick a house to share." So row houses come as data in several layouts: the two-bedroom for four first, a three-bedroom for five, a house for couples sharing (several double bedrooms, each with its own washroom, one shared kitchen and living room) and a house for friends sharing (several single bedrooms around a shared kitchen and living room).
 - **No fences by default (decided):** "What about the option for shorter fences? ... A short fence that shows the boundary but, doesn't really obstruct view. There could even be people that don't want a fence separating them." and "I kinda prefer the open green area and then players that want a wall/fence can add one?" So the yards behind a terrace are one open green, each plot's boundary marked on the ground, and a resident may build a fence or wall of the height they choose (a low boundary fence, a 1.8 m privacy fence, a wall) on their own boundary. The engine rung: a plot shell that can be open on its garden edges. His performance note stands: an open view shows every neighbour's garden, so gardens past the near range draw through the instanced, levelled vegetation path, never one draw per plant.
 - **Instruments, for scale:** "That's plenty small. I'd be willing to put 20GB to procedural music instruments." (on the full-length packs, estimated at 3 to 6 GB).
+
+## 10. Row Street, as built (2026-11-13)
+
+His answers above made the row houses data the same day: four layouts, each a start for developers
+(`dev: true`, data/homes/starts.ron), on a street of their own with an open green behind the
+terraces. Room sizes come from the space standard, read again that day with England's shared-house
+rules for the two shared houses ([the finding](../reference/findings/2026-11-13-shared-house-room-sizes.md));
+the checks of section 8 hold all four, and they gained the standard's rule for doubles' widths: "1
+double (or twin bedroom) is at least 2.75m wide and every other double (or twin) bedroom is at least
+2.55m wide".
+
+**The four layouts** (data/homes/shipped/, their machines in data/machines/; inside sizes are
+measured inside the walls, as the standard measures; every plot is 18 m deep, the street west):
+
+| Layout | Plot | House | Rooms (gross; bedrooms inside their walls) | Yard |
+|---|---|---|---|---|
+| Two bedrooms for four (`row_house_two_bedroom`) | 5.5 x 18 m | 5.5 x 8 m, 88 m2 (standard 79) | Ground: living room 3.5 x 4.5, hall and stair 2 x 4.5, kitchen, dining and utility 5.5 x 3.5. Upper: front double 14.8 m2, back double 11.5 m2, bathroom 2 x 2.5, landing | 44 m2 |
+| Three bedrooms for five (`row_house_three_bedroom`) | 6.5 x 18 m | 6.5 x 9.5 m, 123.5 m2 (standard 93) | Ground: hall and stair 4.5 x 2, living room 4.5 x 4.5, WC 2 x 2, utility 3 x 2 (laundry, the ship's hookups, the back door), kitchen and dining 5 x 4.5. Upper: single 10.5 m2, front double 12.6 m2, back double 13.1 m2, bathroom 3.5 x 2.5, landing across the middle | 42 m2 |
+| Couples sharing (`row_house_couples`) | 7 x 18 m | 7 x 12 m, 150.5 m2 (standard 102 for 3b6p) | Ground: hall and stair, the step-free couple's room 12.8 m2 with its lobby 2.5 x 2 and shower room 2 x 2, utility 2.5 x 2, kitchen and dining 4 x 5, living room 3.5 x 7 under a lid. Upper: front couple's room 17 m2 with a dressing nook 2 x 2 and shower room 2.5 x 2, back couple's room 16.5 m2 and shower room 3.5 x 2, landing | 28 m2 |
+| Friends sharing (`row_house_friends`) | 6.5 x 18 m | 6.5 x 12 m, 156 m2 (nearest rows 97 and 110) | Ground: hall and stair, step-free single 19 m2, WC 2 x 2 with a basin, utility 2 x 2, kitchen and dining 4.5 x 4.5, living room 3 x 4.5 with a 2 x 2 bay. Upper: singles of 10.5 and 12.6 m2 at the front, a corridor across the back to the bathroom 2.5 x 2.5, a shower room 2.5 x 2.5 and two singles of 8 m2, each window on the yard | 26 m2 |
+
+Why each choice:
+
+- **The three-bedroom is wider, not taller.** A third storey on 5.5 m would need a second flight beside
+  the first (a 2 m stair, leaving 3.5 m for rooms), the standard asks 99 m2 for three storeys against
+  93, and a 9 m plot would stand over its 6 m neighbours. 6.5 m of frontage holds a double and a
+  single side by side over the living room.
+- **The couples' house is 7 m wide.** The step-free couple downstairs needs a shower room the game
+  finds (its room finder loses a room under four of its 0.5 m cells clear of walls, so 2 x 2 m at
+  least) beside a double at least 2.75 m wide; 6.5 m held one or the other.
+- **The friends' house has a bathroom and a separate WC**, as England asks of five people sharing (SI
+  2006/373, Schedule 3), and a second shower room upstairs; every single has a window (the back two
+  are reached by a corridor so neither is an inside room).
+- **Small rooms are 2 x 2 m or more** for the room finder (above); the stair of the 6.5 and 7 m plans
+  climbs from the hall's front (x 2.69) to a landing across the house (x 6.5 to 8), the stairwell a
+  part of the landing with a 0.69 m ledge of floor over the stair's foot.
+- **The yards of 26 and 28 m2** meet the 25 m2 the sizes research takes (C13) and hold two raised
+  beds; the deeper houses take the room.
+
+**Row Street** (data/blueprints/ship_structure.ron): east of First Street, a lane at z 336 to the street
+`row-street-1` (x 85 to 93, z 300 to 436, 6 m under glass like the plots), four terraces on its east
+side (r1 to r6 two-bedroom, r7 to r12 three-bedroom, r13 to r16 couples, r17 to r20 friends), an alley
+(Row Alley 1 to 5, purpose "corridor": a way through that the characters' map names no place, joining
+the street to the green)
+2 m wide at each end of each terrace, and one green, `row-green-1` (x 111.25 to 123.25), behind all the
+yards. Each plot's gate is a 1.0 m door in a 0.25 m tube from the street (the shortest run a corridor
+may have). The street stays more than 250 m from p1's door, so the relay's in-view sets there did not
+change.
+
+**The open green: the yards are seen as one, each household walks only its own, and the green is a
+shared zone.** The engine rung section 8 named (`OpenSpan` in crates/humanity-ship/src/home_structure.rs):
+a body's shell can be open over stretches of its edge, with what marks the line instead. A row house's
+street edge is a 0.9 m front garden wall with the gate through it; each garden's north line is a
+mowing strip 0.2 m wide set 3 cm proud of the lawn (the realistic open-plan boundary: a line a
+mower runs on, not a kerb that trips or a hedge that is a fence by another name), and its south line
+marks nothing, because the next plot's north line marks it, so no boundary is drawn twice; the back
+line is a strip on the green. Open to the EYE (the mesh and the sight blockers), not to the WALK: a
+neighbour's home is drawn for you and is not yours to walk into, its doors are not drawn shut for you,
+so its lawn is seen across the line and never stepped on. Where two ZONES touch and are open over the
+same stretch they are joined for the walk with no corridor (`ShipStructure::open_span_cuts`): the
+street, the alleys and the green, and your own home (the zone "home" when you are on your plot) with
+the green behind it and, at a terrace's end, the alley beside it. The rooms question settles itself:
+the room finder floods each body on its own, so every yard stays its household's own room inside its
+plot line, and the green is one deliberate shared room of the ship, as the street is. The homesteads
+still divide their gardens with 2.0 m fences, because those divide rooms INSIDE one plot, which open
+spans do not touch; that rung is still "zones that part the flood fill where no wall stands".
+
+**A fence or a wall of your own.** The construction system already let a wall stand ON its plot line
+(the plot rule's slack, half the thickest wall: `build_frames::EDGE_SLACK_M`), but placement keeps
+pieces on the ship's metre grid and half of a terrace's lines are not on it. So a wall-kind piece laid
+along your own plot line, within half a metre of it, now lands on it (`onto_plot_line`,
+src/engine/planet_build.rs), and two fences join the walls in data/blueprints/basic.ron: a low fence
+(1 m) and a privacy fence (1.8 m). A neighbour can fence the same line from their side; the two are
+two pieces, each its builder's.
+
+**Gardens in the open view.** The yards' grow beds are planted by the showcase garden in Creative and
+Dev. Your own yard's plants are drawn the way the homestead's garden is, each grow machine's plants
+built off the main thread into one mesh a machine (engine/plant_pass.rs), never one draw a plant. A
+neighbour is drawn without machines (crates/humanity-ship/src/neighbours.rs), so the neighbours'
+yards draw no plants yet: their gardens through the instanced, levelled vegetation path (one baked
+garden a design, moved to each plot, a cheaper level past the near range) is the rung that plants
+them.
+
+**The frame cost at the terrace, gardens planted** (2026-11-13, the release build, a probe sweep from
+the two-bedroom dev start on r1 with its three beds of potatoes planted, `HUMANITY_FRAME_COSTS=1`, at
+2560 x 1387; vantages in the scratchpad's rh-vantages.json). The GPU is the reading that holds: 15.2 ms
+in all looking down the yards with the planted beds in view (the scene pass 8.7 ms), against 14.3 ms
+from the green, 15.6 ms on the street and 14.5 ms over the whole terrace, so the planted yard costs
+nothing measurable above the street or the green; the garden's own CPU spans add to about 0.5 ms. The
+CPU and whole-frame times (35 to 80 ms) are NOT readings: other agents' compiles shared the machine
+throughout (the sweep marked every capture contaminated, and a run that waited for a quiet machine was
+refused after 10 minutes). Today's neighbours' gardens cost nothing because they are not drawn.
+
+**Seen in the game, and what it showed.** The street opens on the front gardens over their low walls,
+each gate a short vestibule; your own yard opens on the green and on the yards beside it with nothing
+between them but the strips. But a neighbour is drawn without rooms, so it has no room light (the
+room GI, src/renderer/room_probes.rs, lights a fragment from its own room's probes, and a
+neighbour has none) and its lamps are off: in the open view the neighbours' house backs and yards are
+near black beside your own lit yard. Inside a closed shell that never showed. The rung: a neighbour's
+rooms given light, at a cost that scales with how many are in view (its design's rooms, culled by
+distance), before the open green looks like one green.
+
+**What it cannot hold yet, and the rung that adds each.**
+
+| Not yet | The rung that adds it |
+|---|---|
+| Stepping onto a neighbour's lawn or the green from any yard but your own | A neighbour's walls in your walk with its doors drawn shut for you (the open plots' walking path, for every plot open toward you) |
+| The neighbours lit: their house backs and yards near black in the open view | A neighbour's rooms given light (room GI probes or an ambient of their own, culled by distance) |
+| The neighbours' gardens planted in the open view | Each design's planted yard baked once and drawn per plot through the instanced, levelled vegetation path |
+| A 0.25 m gap between the street's kerb and each front garden wall, over the deck below, beside each gate | A plot that touches its street opening straight onto it, with no tube |
+| The kitchens, bathrooms, basins (one in each friends' bedroom), most furniture | The four machine files, room by room |
+| Lawns and paving (the gardens' floor is the deck's) | A floor material by zone |
+| A plot that faces the other way, so two terraces share one green back to back | A plot that can turn (or a mirrored design) |
+| An opening quest and storage seed of their own | Each start's opening and seed |

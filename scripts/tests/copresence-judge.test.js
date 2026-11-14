@@ -477,10 +477,16 @@ test("plots: the ship file's plots read the way the game has them", () => {
   for (const [k, p] of cabins.entries()) assert.deepEqual([p.kind, p.origin, p.size], ["cabin", [80.5, 0, 88 + 2.5 * k], [3.15, 3, 2.5]], p.id);
   // And since 2026-11-13 the room program's two homesteads east of First Street, after the cabins
   // (docs/design/home-room-program.md section 8).
-  assert.deepEqual(all.slice(28).map((p) => [p.id, p.kind, p.origin, p.size]), [
+  assert.deepEqual(all.slice(28, 30).map((p) => [p.id, p.kind, p.origin, p.size]), [
     ["h1", "household_homestead", [77, 0, 140], [55, 6, 34]],
     ["o1", "one_person_homestead", [77, 0, 180], [34, 6, 21]],
   ]);
+  // And since 2026-11-13 the twenty row houses of Row Street, r1 to r20, after them (the same doc,
+  // section 10): four terraces, each plot 18 m deep from x 93.25, its frontage its design's.
+  const rows = all.slice(30);
+  assert.deepEqual(rows.map((p) => p.id), Array.from({ length: 20 }, (_, k) => `r${k + 1}`));
+  const widths = { row_house_two_bedroom: 5.5, row_house_three_bedroom: 6.5, row_house_couples: 7, row_house_friends: 6.5 };
+  for (const p of rows) assert.deepEqual([p.origin[0], p.size], [93.25, [18, 6, widths[p.kind]]], p.id);
   assert.ok(inPlot(P2_SPAWN, PLOTS[1]) && !inPlot(P2_SPAWN, PLOTS[0]));
 });
 
@@ -708,7 +714,8 @@ test("routes: the walker's way to the meeting line never runs along it", () => {
 // the cabin block's hall and the South Commons.
 test("routes: the far places are the shared zones' corners", () => {
   const far = farPlaces(DOORS);
-  assert.equal(far.length, 16, "four corners of each of the four shared zones");
+  // Eleven shared zones since 2026-11-13: Row Street, its five alleys and its green.
+  assert.equal(far.length, 44, "four corners of each of the eleven shared zones");
   assert.deepEqual(far[0], [66, 1.7, 21]);
   assert.deepEqual(farthestFrom(far, P1_SPAWN), [74, 1.7, 1184]);
   assert.deepEqual(farthestFrom(far, P2_DOOR), [74, 1.7, 1184]);
@@ -739,8 +746,10 @@ test("far places: the farthest shared place every watching walker still has in v
     }
     const fromDoor = Math.hypot(far[0] - door[0], far[2] - door[2]);
     assert.ok(fromDoor > 100, `the far place is ${fromDoor.toFixed(1)} m from ${door}: past the 100 m the rejoin legs need`);
-    assert.ok(placeAt(DOORS, far) && placeAt(DOORS, far).id === "zone:street-1", `it stands on First Street: ${JSON.stringify(far)}`);
-    assert.ok(far[2] > 250, `well down First Street: ${JSON.stringify(far)}`);
+    // A shared place the doors reach: First Street until 2026-11-13, since then the green behind Row
+    // Street (reached by the lane, Row Street and an alley).
+    assert.ok(placeAt(DOORS, far) && placeAt(DOORS, far).id.startsWith("zone:"), `it stands on a shared place: ${JSON.stringify(far)}`);
+    assert.ok(far[2] > 250, `well down the ship: ${JSON.stringify(far)}`);
   }
   // The guest's: from the Commons arrival, seen by the walker at home on p1.
   const home = [P1_SPAWN, [P1_SPAWN[0], P1_SPAWN[1], P1_SPAWN[2] + 8]];

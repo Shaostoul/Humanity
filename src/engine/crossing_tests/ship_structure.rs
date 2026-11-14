@@ -27,6 +27,9 @@ fn an_older_game_is_refused_as_another_ship() {
     // The room program's plots and the residential district grown to hold them came later
     // (2026-11-13): an older game's ship has neither.
     older.plots.retain(|p| p.kind == "homestead" || p.kind == "cabin");
+    // Nor Row Street (the same day): its street, alleys and green, and the lane to it.
+    older.zones.retain(|z| !z.id.starts_with("row-"));
+    older.corridors.retain(|c| c.to_zone != "row-street-1");
     if let Some(d) = older.districts.iter_mut().find(|d| d.id == "res-1") {
         d.size.0 = 100.0;
     }

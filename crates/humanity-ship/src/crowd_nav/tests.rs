@@ -21,6 +21,7 @@ fn body(w: f32, d: f32, walls: Vec<InteriorWall>) -> HomeStructure {
         roof_material: 4,
         walls,
         shell_thickness: None,
+        open_shell: Vec::new(),
         floors: Vec::new(),
         lights: Vec::new(),
         spawn: None,

@@ -76,6 +76,89 @@ pub struct ShellCut {
     pub height: f32,
 }
 
+/// How thick what stands on an open span's line is, metres: a mowing strip or a kerb is about
+/// 0.2 m wide, and a front garden wall one brick, 0.215 m.
+pub const OPEN_SPAN_THICKNESS_M: f32 = 0.2;
+
+/// A stretch of a body's PERIMETER where the shell does not stand (2026-11-13, the row houses'
+/// open green, docs/design/home-room-program.md section 10). The operator: "I kinda prefer the
+/// open green area and then players that want a wall/fence can add one". So a terrace's yards are
+/// one green to the eye, each plot's line marked on the ground, not walled.
+///
+/// `a` and `b` are body-local (x, z) points on ONE edge of the box, as a wall's are; `height` is
+/// what stands on the line instead of the shell: 0 nothing (a neighbour's plot already marks it),
+/// a few centimetres a mowing strip set in the lawn, about 0.15 m a kerb, about 0.9 m a front
+/// garden wall; drawn [`OPEN_SPAN_THICKNESS_M`] thick in `material`.
+///
+/// OPEN TO THE EYE, NOT TO THE WALK: the mesh and the sight blockers leave the shell out over the
+/// span, but the walk keeps the line (`wall_collision`'s perimeter is unchanged), because the
+/// home beyond is a neighbour's, which only its holder walks into. Where the span faces a SHARED
+/// zone that is open there too (the green, an alley, the street), `ShipStructure::
+/// shell_cuts_for_zone` cuts the line for the walk as a corridor's mouth is cut, so a household
+/// walks from its own yard onto the green and nobody walks onto a neighbour's lawn.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OpenSpan {
+    pub a: (f32, f32),
+    pub b: (f32, f32),
+    #[serde(default)]
+    pub height: f32,
+    #[serde(default = "default_concrete")]
+    pub material: u32,
+}
+
+fn default_concrete() -> u32 {
+    2
+}
+
+impl OpenSpan {
+    /// The span as (edge, from, to) in the perimeter winding a [`ShellCut`] uses (0: z=0 running
+    /// +x, 1: x=w running +z, 2: z=d running -x, 3: x=0 running -z), `from < to`; None when its
+    /// two ends are not on one edge of a `w` x `d` box, or it has no length.
+    pub fn on_edge(&self, w: f32, d: f32) -> Option<(usize, f32, f32)> {
+        const E: f32 = 1e-3;
+        let ((ax, az), (bx, bz)) = (self.a, self.b);
+        let (edge, p, q) = if az.abs() < E && bz.abs() < E {
+            (0, ax, bx)
+        } else if (ax - w).abs() < E && (bx - w).abs() < E {
+            (1, az, bz)
+        } else if (az - d).abs() < E && (bz - d).abs() < E {
+            (2, w - ax, w - bx)
+        } else if ax.abs() < E && bx.abs() < E {
+            (3, d - az, d - bz)
+        } else {
+            return None;
+        };
+        let len = if edge % 2 == 0 { w } else { d };
+        let (from, to) = (p.min(q).max(0.0), p.max(q).min(len));
+        (to - from > E).then_some((edge, from, to))
+    }
+}
+
+/// The pieces edge `ei` (length `len`) of a box is cut into by its open spans, in order along the
+/// edge: (from, to, the open span there or None where the shell stands). With no open span on the
+/// edge, the one piece (0, len, None).
+pub fn perimeter_pieces(open: &[OpenSpan], w: f32, d: f32, ei: usize, len: f32) -> Vec<(f32, f32, Option<&OpenSpan>)> {
+    let mut spans: Vec<(f32, f32, &OpenSpan)> = open.iter().filter_map(|s| s.on_edge(w, d).filter(|e| e.0 == ei).map(|e| (e.1, e.2, s))).collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut out = Vec::new();
+    let mut at = 0.0f32;
+    for (from, to, s) in spans {
+        let from = from.max(at);
+        if to <= from {
+            continue; // overlapped by the span before it
+        }
+        if from > at + 1e-4 {
+            out.push((at, from, None));
+        }
+        out.push((from, to, Some(s)));
+        at = to;
+    }
+    if at < len - 1e-4 || out.is_empty() {
+        out.push((at, len, None));
+    }
+    out
+}
+
 /// An opening (door or window) cut into a wall face. Defined the operator's way: a door is one point
 /// on the wall's bottom edge (here `at` + `width`); a window is a region on the face (`at`/`width` +
 /// `sill`/`height`). The aperture is cut out of the wall mesh; left/right piers + a header (+ a sill
@@ -495,6 +578,13 @@ pub struct HomeStructure {
     /// Shell (perimeter + floor) thickness in metres. None -> the shell material's default. (v0.556)
     #[serde(default)]
     pub shell_thickness: Option<f32>,
+    /// Where the perimeter shell does NOT stand (2026-11-13, the row houses' open green,
+    /// docs/design/home-room-program.md section 10): the stretches of the plot's edge along its
+    /// gardens, open to the eye so a terrace's yards read as one green, each with what marks the
+    /// line instead ([`OpenSpan`]). Empty for every body written before it, and left out of the file
+    /// while it is, so those files (and the ship's hash) are exactly as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub open_shell: Vec<OpenSpan>,
     /// PLACED LIGHTS (v0.571): real local lights the home carries, so a room is lit even with the
     /// sun / global illumination turned OFF. Each references a `light_types.ron` type. Empty -> the
     /// renderer falls back to its auto one-light-per-room synthesis (no regression).
@@ -1158,43 +1248,70 @@ impl HomeStructure {
         ];
         let shell_t = self.shell_resolved_thickness();
         for (ei, (a, b)) in perimeter.into_iter().enumerate() {
-            let g = by_mat.entry(self.shell_material).or_insert_with(|| (Vec::new(), Vec::new()));
-            let cuts: Vec<&ShellCut> = shell_cuts.iter().filter(|c| c.edge == ei).collect();
-            if cuts.is_empty() {
-                merge(g, wall_box(a, b, 0.0, h, shell_t));
-            } else {
-                // A corridor meets this edge: cut its aperture(s) with the SAME pier/header builder
-                // interior doors use. Synthetic Door openings, square (unmitred) edge ends -- the box
-                // corners were never mitred, so the ends stay the plain perpendicular offsets.
-                let openings: Vec<Opening> = cuts
+            let len = if ei % 2 == 0 { w } else { d };
+            // OPEN SPANS (2026-11-13, `OpenSpan`): the edge in pieces, the shell standing on each
+            // piece no open span holds and what marks the line (nothing, a strip, a kerb, a low
+            // wall) on each one it does. With no open span the one piece is the whole edge, drawn
+            // from `a` to `b` exactly as before.
+            for (s, e, span) in perimeter_pieces(&self.open_shell, w, d, ei, len) {
+                let whole = s <= 1e-6 && e >= len - 1e-6;
+                let u = (b - a) / len.max(1e-6);
+                let (pa, pb) = if whole { (a, b) } else { (a + u * s, a + u * e) };
+                let (top, thick, mat) = match span {
+                    None => (h, shell_t, self.shell_material),
+                    Some(sp) if sp.height > 1e-3 => (sp.height.min(h), OPEN_SPAN_THICKNESS_M, sp.material),
+                    Some(_) => continue,
+                };
+                let g = by_mat.entry(mat).or_insert_with(|| (Vec::new(), Vec::new()));
+                // The cuts on this piece, measured from its own start. On an open span, a cut over
+                // the whole piece is the walk's join to a shared zone open there too
+                // (`ShipStructure::open_span_cuts`), not a hole anyone sees: what marks the line
+                // stays drawn (a corridor's gate through a front wall is narrower than its wall).
+                let cuts: Vec<ShellCut> = shell_cuts
                     .iter()
-                    .map(|c| Opening {
-                        kind: OpeningKind::Door,
-                        at: c.at,
-                        width: c.width,
-                        // From the cut's own foot (ship homes increment 7): a corridor arriving at
-                        // an upper storey opens the shell there, not from the floor.
-                        sill: c.base,
-                        height: c.height.min(h),
-                        // Never animated -- the aperture is just a hole the corridor tube meets; door
-                        // PANELS come from real wall openings, not shell cuts.
-                        style: "fixed".to_string(),
-                        open_dist: 0.0,
-                        locked: false,
-                        auto_open: false,
-                        control_panel: false,
-                        locks: Vec::new(),
+                    .filter(|c| c.edge == ei && c.at < e && c.at + c.width > s)
+                    .filter(|c| span.is_none() || c.at > s + 1e-3 || c.at + c.width < e - 1e-3)
+                    .map(|c| {
+                        let from = c.at.max(s);
+                        ShellCut { at: from - s, width: (c.at + c.width).min(e) - from, ..*c }
                     })
                     .collect();
-                let len = (b - a).length().max(1e-6);
-                let (dx, dz) = ((b.x - a.x) / len, (b.z - a.z) / len);
-                let (px, pz) = (-dz, dx);
-                let half = shell_t * 0.5;
-                let al = (a.x + px * half, a.z + pz * half);
-                let ar = (a.x - px * half, a.z - pz * half);
-                let bl = (b.x + px * half, b.z + pz * half);
-                let br = (b.x - px * half, b.z - pz * half);
-                merge(g, wall_with_openings(a, b, 0.0, h, shell_t, 0.0, &openings, al, ar, bl, br));
+                if cuts.is_empty() {
+                    merge(g, wall_box(pa, pb, 0.0, top, thick));
+                } else {
+                    // A corridor meets this edge: cut its aperture(s) with the SAME pier/header builder
+                    // interior doors use. Synthetic Door openings, square (unmitred) edge ends -- the box
+                    // corners were never mitred, so the ends stay the plain perpendicular offsets.
+                    let openings: Vec<Opening> = cuts
+                        .iter()
+                        .map(|c| Opening {
+                            kind: OpeningKind::Door,
+                            at: c.at,
+                            width: c.width,
+                            // From the cut's own foot (ship homes increment 7): a corridor arriving at
+                            // an upper storey opens the shell there, not from the floor.
+                            sill: c.base,
+                            height: c.height.min(top),
+                            // Never animated -- the aperture is just a hole the corridor tube meets; door
+                            // PANELS come from real wall openings, not shell cuts.
+                            style: "fixed".to_string(),
+                            open_dist: 0.0,
+                            locked: false,
+                            auto_open: false,
+                            control_panel: false,
+                            locks: Vec::new(),
+                        })
+                        .collect();
+                    let plen = (pb - pa).length().max(1e-6);
+                    let (dx, dz) = ((pb.x - pa.x) / plen, (pb.z - pa.z) / plen);
+                    let (px, pz) = (-dz, dx);
+                    let half = thick * 0.5;
+                    let al = (pa.x + px * half, pa.z + pz * half);
+                    let ar = (pa.x - px * half, pa.z - pz * half);
+                    let bl = (pb.x + px * half, pb.z + pz * half);
+                    let br = (pb.x - px * half, pb.z - pz * half);
+                    merge(g, wall_with_openings(pa, pb, 0.0, top, thick, 0.0, &openings, al, ar, bl, br));
+                }
             }
         }
         // Which interior walls join which (ship homes increment 7, plan section 3): only walls
@@ -1610,6 +1727,7 @@ impl HomeStructure {
             // pass's sort for nothing seen from outside.
             floors: self.floors.iter().map(|s| FloorSlab { material: SlabMaterial::Solid, ..s.clone() }).collect(),
             shell_thickness: self.shell_thickness,
+            open_shell: self.open_shell.clone(),
             lights: Vec::new(),
             spawn: None,
             structures: self.structures.clone(),
@@ -2612,7 +2730,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() }
     }
 
     /// v0.631 superstructure M1: zones add/remove with unique ids, the zone_types registry parses, and a
@@ -2679,6 +2797,7 @@ mod tests {
             roof_material: 4,
             walls: Vec::new(),
             shell_thickness: None, floors: Vec::new(),
+            open_shell: Vec::new(),
             lights: Vec::new(),
             spawn: None,
             structures: Vec::new(),
@@ -2867,7 +2986,7 @@ mod tests {
     fn road_centerline_curves_through_a_through_node_but_stays_straight_when_isolated() {
         let mut h = HomeStructure {
             width: 30.0, depth: 30.0, height: 3.0, shell_material: 1, roof_material: 4,
-            walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None,
+            walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None,
             structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         // A right-angle chain A(0,0) - B(10,0) - C(10,10): B is a degree-2 through-node.
@@ -2896,7 +3015,7 @@ mod tests {
     fn paired_train_platforms_render_a_rail_track_once() {
         let mut h = HomeStructure {
             width: 40.0, depth: 40.0, height: 3.0, shell_material: 1, roof_material: 4,
-            walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None,
+            walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None,
             structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let base = wall_vcount(&h.generate_meshes());
@@ -2918,7 +3037,7 @@ mod tests {
     fn road_graph_meshes_edges_and_node_removal_prunes() {
         let mut h = HomeStructure {
             width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4,
-            walls: Vec::new(), shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None,
+            walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None,
             structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let n1 = h.unique_road_node_id();
@@ -3066,7 +3185,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
         };
         let tmp = std::env::temp_dir().join(format!("humanity_home_structure_rt_{}.ron", std::process::id()));
         h.save(&tmp).expect("save");
@@ -3104,7 +3223,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![

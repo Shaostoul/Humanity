@@ -603,7 +603,8 @@ test("sizes read from basic.ron", () => {
   // Every blueprint the file marks shared, and only those.
   const sharedInText = [...text.matchAll(/\(id: "([a-z0-9_]+)"[^\n]*\bshared: true/g)].map((m) => m[1]).sort();
   assert.deepEqual([...bps.values()].filter((b) => b.shared).map((b) => b.id).sort(), sharedInText);
-  assert.equal(sharedInText.length, 7, "the seven shell pieces of increment 5");
+  // The seven shell pieces of increment 5, and since 2026-11-13 the low and the privacy fence.
+  assert.equal(sharedInText.length, 9, "the seven shell pieces of increment 5 and the two fences");
   // A comment never counts as a blueprint, whatever brackets it holds.
   const tricky = sp.readBlueprints('[\n  // (id: "ghost", size: (9.0, 9.0, 9.0)) and a ) or two (\n  (id: "a", name: "A (x)", size: (1.0, 2.0, 3.0), build_time: 2.5, materials: [("p", 2)], shared: true), // (id: "b")\n]');
   assert.deepEqual([...tricky.keys()], ["a"]);

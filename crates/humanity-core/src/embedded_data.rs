@@ -208,6 +208,11 @@ pub const MACHINES_CABIN_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_RO
 pub const MACHINES_HOUSEHOLD_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/household_homestead.ron"));
 /// The homestead for one's machines (2026-11-13, docs/design/home-room-program.md).
 pub const MACHINES_ONE_PERSON_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/one_person_homestead.ron"));
+/// The four row houses' machines (2026-11-13, docs/design/home-room-program.md section 10).
+pub const MACHINES_ROW_HOUSE_TWO_BEDROOM_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/row_house_two_bedroom.ron"));
+pub const MACHINES_ROW_HOUSE_THREE_BEDROOM_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/row_house_three_bedroom.ron"));
+pub const MACHINES_ROW_HOUSE_COUPLES_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/row_house_couples.ron"));
+pub const MACHINES_ROW_HOUSE_FRIENDS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/machines/row_house_friends.ron"));
 /// The ship file and the default home design (increment 1a of docs/design/ship-homes-and-logistics.md):
 /// built in so a fresh install or a throwaway relay still has a ship with plots, and a home to put on one.
 pub const SHIP_STRUCTURE_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/ship_structure.ron"));
@@ -227,6 +232,12 @@ pub const HOME_CABIN_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT")
 /// as the homestead's above: the homestead for a household of up to five and the homestead for one.
 pub const HOME_HOUSEHOLD_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/household_homestead.ron"));
 pub const HOME_ONE_PERSON_HOMESTEAD_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/one_person_homestead.ron"));
+/// The four row houses of Row Street (2026-11-13, docs/design/home-room-program.md section 10): two
+/// bedrooms for four, three bedrooms for five, couples sharing and friends sharing.
+pub const HOME_ROW_HOUSE_TWO_BEDROOM_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/row_house_two_bedroom.ron"));
+pub const HOME_ROW_HOUSE_THREE_BEDROOM_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/row_house_three_bedroom.ron"));
+pub const HOME_ROW_HOUSE_COUPLES_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/row_house_couples.ron"));
+pub const HOME_ROW_HOUSE_FRIENDS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/shipped/row_house_friends.ron"));
 /// The starts (ship homes increment 6, crates/humanity-ship/src/starts.rs): the kinds of home a new player can
 /// start in. Built in so a fresh install or a throwaway relay still offers them.
 pub const STARTS_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/homes/starts.ron"));
@@ -306,6 +317,10 @@ pub const SHIPPED_HOMES: &[(&str, &str)] = &[
     ("cabin", HOME_CABIN_RON),
     ("household_homestead", HOME_HOUSEHOLD_HOMESTEAD_RON),
     ("one_person_homestead", HOME_ONE_PERSON_HOMESTEAD_RON),
+    ("row_house_two_bedroom", HOME_ROW_HOUSE_TWO_BEDROOM_RON),
+    ("row_house_three_bedroom", HOME_ROW_HOUSE_THREE_BEDROOM_RON),
+    ("row_house_couples", HOME_ROW_HOUSE_COUPLES_RON),
+    ("row_house_friends", HOME_ROW_HOUSE_FRIENDS_RON),
 ];
 
 /// Where a home kind's shipped design lives under data/, for the test that the game never
@@ -508,6 +523,10 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "machines/cabin.ron" => Some(MACHINES_CABIN_RON),
         "machines/household_homestead.ron" => Some(MACHINES_HOUSEHOLD_HOMESTEAD_RON),
         "machines/one_person_homestead.ron" => Some(MACHINES_ONE_PERSON_HOMESTEAD_RON),
+        "machines/row_house_two_bedroom.ron" => Some(MACHINES_ROW_HOUSE_TWO_BEDROOM_RON),
+        "machines/row_house_three_bedroom.ron" => Some(MACHINES_ROW_HOUSE_THREE_BEDROOM_RON),
+        "machines/row_house_couples.ron" => Some(MACHINES_ROW_HOUSE_COUPLES_RON),
+        "machines/row_house_friends.ron" => Some(MACHINES_ROW_HOUSE_FRIENDS_RON),
         "blueprints/ship_structure.ron" => Some(SHIP_STRUCTURE_RON),
         // The player's OWN home, as a game with none on disk starts it: the shipped design under
         // the own-home header (`own_home_text`), never the shipped file's own header.
@@ -515,6 +534,10 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "homes/cabin.ron" => Some(own_home_text(HOME_CABIN_RON)),
         "homes/household_homestead.ron" => Some(own_home_text(HOME_HOUSEHOLD_HOMESTEAD_RON)),
         "homes/one_person_homestead.ron" => Some(own_home_text(HOME_ONE_PERSON_HOMESTEAD_RON)),
+        "homes/row_house_two_bedroom.ron" => Some(own_home_text(HOME_ROW_HOUSE_TWO_BEDROOM_RON)),
+        "homes/row_house_three_bedroom.ron" => Some(own_home_text(HOME_ROW_HOUSE_THREE_BEDROOM_RON)),
+        "homes/row_house_couples.ron" => Some(own_home_text(HOME_ROW_HOUSE_COUPLES_RON)),
+        "homes/row_house_friends.ron" => Some(own_home_text(HOME_ROW_HOUSE_FRIENDS_RON)),
         "homes/starts.ron" => Some(STARTS_RON),
         "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
         "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
@@ -795,11 +818,19 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "machines/cabin.ron",
     "machines/household_homestead.ron",
     "machines/one_person_homestead.ron",
+    "machines/row_house_two_bedroom.ron",
+    "machines/row_house_three_bedroom.ron",
+    "machines/row_house_couples.ron",
+    "machines/row_house_friends.ron",
     "blueprints/ship_structure.ron",
     "homes/homestead.ron",
     "homes/cabin.ron",
     "homes/household_homestead.ron",
     "homes/one_person_homestead.ron",
+    "homes/row_house_two_bedroom.ron",
+    "homes/row_house_three_bedroom.ron",
+    "homes/row_house_couples.ron",
+    "homes/row_house_friends.ron",
     "homes/starts.ron",
     "garden/grow_media.ron",
     "vehicles/kits.ron",

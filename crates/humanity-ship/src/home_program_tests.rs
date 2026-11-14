@@ -26,14 +26,25 @@
 //! named "<primary>-part-<n>" with the same label, joined to it with no wall between.
 
 use crate::home_structure::{storey_index, wall_in_storey, OpeningKind, Storey, Zone};
-use crate::ship_structure::HomeDesign;
+use crate::ship_structure::{HomeDesign, ShipStructure};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const EPS: f32 = 1e-3;
 type Rect = (f32, f32, f32, f32);
 
-/// The kinds these tests hold, and their household machine files.
-const KINDS: [(&str, &str); 2] = [("household_homestead", "household_homestead.ron"), ("one_person_homestead", "one_person_homestead.ron")];
+/// The kinds these tests hold, and their household machine files: the two homesteads and, since
+/// 2026-11-13, the four row houses of Row Street (docs/design/home-room-program.md section 10).
+const KINDS: [(&str, &str); 6] = [
+    ("household_homestead", "household_homestead.ron"),
+    ("one_person_homestead", "one_person_homestead.ron"),
+    ("row_house_two_bedroom", "row_house_two_bedroom.ron"),
+    ("row_house_three_bedroom", "row_house_three_bedroom.ron"),
+    ("row_house_couples", "row_house_couples.ron"),
+    ("row_house_friends", "row_house_friends.ron"),
+];
+
+/// The kinds drawn with no double bedroom (five friends, five singles).
+const NO_DOUBLE: [&str; 1] = ["row_house_friends"];
 
 fn repo() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"))
@@ -235,6 +246,7 @@ fn reach_problems(h: &HomeDesign) -> Vec<String> {
 fn bedroom_problems(h: &HomeDesign, doubles: &BTreeSet<String>) -> Vec<String> {
     let shell = h.body.shell_thickness.filter(|t| *t > 0.0).unwrap_or_else(|| crate::home_structure::wall_material(h.body.shell_material).map_or(0.06, |m| m.default_thickness_m));
     let mut out = Vec::new();
+    let mut widest_double = 0.0f32;
     for z in h.body.zones.iter().filter(|z| z.room_type.as_deref() == Some("bedroom")) {
         let r = rect(z);
         // Half the thickest wall on each side (or half the shell on the plot's edge).
@@ -263,6 +275,18 @@ fn bedroom_problems(h: &HomeDesign, doubles: &BTreeSet<String>) -> Vec<String> {
         if iw.min(id) < 2.15 {
             out.push(format!("{} is {:.2} m wide inside its walls, under the standard's 2.15 m", z.id, iw.min(id)));
         }
+        if doubles.contains(&z.id) {
+            widest_double = widest_double.max(iw.min(id));
+            if iw.min(id) < 2.55 {
+                out.push(format!("{} is a double {:.2} m wide inside its walls, under the standard's 2.55 m", z.id, iw.min(id)));
+            }
+        }
+    }
+    // "1 double (or twin bedroom) is at least 2.75m wide and every other double (or twin) bedroom
+    // is at least 2.55m wide" (the same standard, read 2026-11-13 for the row houses,
+    // docs/reference/findings/2026-11-13-shared-house-room-sizes.md).
+    if !doubles.is_empty() && widest_double < 2.75 {
+        out.push(format!("no double is 2.75 m wide inside its walls (the widest is {widest_double:.2} m)"));
     }
     out
 }
@@ -462,7 +486,7 @@ fn every_bedroom_meets_the_space_standard() {
     for (kind, file) in KINDS {
         let h = design(kind);
         let (_, doubles) = machine_problems(&h, file);
-        assert!(!doubles.is_empty(), "{kind}: a double bed stands in a bedroom");
+        assert_eq!(doubles.is_empty(), NO_DOUBLE.contains(&kind), "{kind}: a double bed stands in a bedroom, unless it is drawn with none");
         let p = bedroom_problems(&h, &doubles);
         assert!(p.is_empty(), "{kind}:\n{}", p.join("\n"));
     }
@@ -475,6 +499,21 @@ fn every_bedroom_meets_the_space_standard() {
     bed.size.0 = 2.5;
     let p = bedroom_problems(&h, &["room-bedroom".to_string()].into_iter().collect());
     assert!(p.iter().any(|p| p.contains("under the standard's 11.5 m2")), "a small double is caught: {p:?}");
+    // The doubles' widths (2026-11-13, the row houses): seen red on a copy of the two-bedroom with
+    // its front bedroom cut to 2.5 m deep, "room-bedroom-1 is a double 2.45 m wide inside its walls,
+    // under the standard's 2.55 m", and with both bedrooms cut to 2.7 m, "no double is 2.75 m wide
+    // inside its walls (the widest is 2.65 m)".
+    let both: BTreeSet<String> = ["room-bedroom-1".to_string(), "room-bedroom-2".to_string()].into_iter().collect();
+    let mut h = design("row_house_two_bedroom");
+    h.body.zones.iter_mut().find(|z| z.id == "room-bedroom-1").unwrap().size.2 = 2.5;
+    let p = bedroom_problems(&h, &both);
+    assert!(p.iter().any(|p| p.starts_with("room-bedroom-1 is a double") && p.contains("under the standard's 2.55 m")), "a narrow double is caught: {p:?}");
+    let mut h = design("row_house_two_bedroom");
+    for z in h.body.zones.iter_mut().filter(|z| both.contains(&z.id)) {
+        z.size.2 = 2.7;
+    }
+    let p = bedroom_problems(&h, &both);
+    assert!(p.iter().any(|p| p.starts_with("no double is 2.75 m wide")), "no double 2.75 m wide is caught: {p:?}");
 }
 
 /// Seen red (2026-11-13) on a copy with the kitchen's light dropped under the floor and the
@@ -558,21 +597,112 @@ fn every_machine_stands_in_the_room_it_names() {
 /// every step (docs/reference/findings/2026-10-20-stairs-guards-and-headroom.md).
 #[test]
 fn the_household_stair_meets_the_stairs_finding() {
-    let h = design("household_homestead");
-    let s = h.body.structures.iter().find(|s| s.type_id == "stairs_house").expect("the household homestead has its stair");
-    let ty = crate::structure::structure_type(&s.type_id).unwrap();
-    let riser = ty.size.1 / ty.steps as f32;
-    let going = ty.size.2 / ty.steps as f32;
-    assert!(riser <= 0.196 + EPS && going >= 0.254 - EPS, "riser {riser}, going {going}");
-    assert!((ty.size.0 - 1.0).abs() < EPS, "1.0 m wide, not {}", ty.size.0);
-    let (sn, cs) = s.rot_deg.to_radians().sin_cos();
-    for i in 0..ty.steps {
-        let lz = -ty.size.2 * 0.5 + (i as f32 + 0.5) * going;
-        let (x, z) = (s.pos.0 + lz * sn, s.pos.2 + lz * cs);
-        let tread_top = (i + 1) as f32 * riser;
-        let ceiling = ceiling_over(&h, x, z, tread_top);
-        assert!(ceiling - tread_top >= 2.032 - EPS || tread_top >= ty.size.1 - EPS, "step {i}: {} m of headroom", ceiling - tread_top);
+    // Every two-storey kind (the homestead for a household, and since 2026-11-13 the row houses).
+    for kind in KINDS.iter().map(|k| k.0).filter(|k| *k != "one_person_homestead") {
+        let h = design(kind);
+        let s = h.body.structures.iter().find(|s| s.type_id == "stairs_house").unwrap_or_else(|| panic!("{kind} has its stair"));
+        let ty = crate::structure::structure_type(&s.type_id).unwrap();
+        let riser = ty.size.1 / ty.steps as f32;
+        let going = ty.size.2 / ty.steps as f32;
+        assert!(riser <= 0.196 + EPS && going >= 0.254 - EPS, "riser {riser}, going {going}");
+        assert!((ty.size.0 - 1.0).abs() < EPS, "1.0 m wide, not {}", ty.size.0);
+        let (sn, cs) = s.rot_deg.to_radians().sin_cos();
+        for i in 0..ty.steps {
+            let lz = -ty.size.2 * 0.5 + (i as f32 + 0.5) * going;
+            let (x, z) = (s.pos.0 + lz * sn, s.pos.2 + lz * cs);
+            let tread_top = (i + 1) as f32 * riser;
+            let ceiling = ceiling_over(&h, x, z, tread_top);
+            assert!(ceiling - tread_top >= 2.032 - EPS || tread_top >= ty.size.1 - EPS, "{kind} step {i}: {} m of headroom", ceiling - tread_top);
+        }
     }
+}
+
+/// Every OPEN SPAN of a plot's shell (home_structure::OpenSpan, 2026-11-13) lies on one edge and
+/// along gardens only: every half metre of it, the ground room just inside is a zone with no room
+/// type (a garden, never a house room), and upstairs nothing stands there (open air). So the green
+/// opens on a yard and never on a bedroom.
+fn open_shell_problems(h: &HomeDesign) -> Vec<String> {
+    let storeys = h.body.storeys();
+    let (w, d) = (h.body.width, h.body.depth);
+    let mut out = Vec::new();
+    for (i, s) in h.body.open_shell.iter().enumerate() {
+        let Some((edge, from, to)) = s.on_edge(w, d) else {
+            out.push(format!("open span {i} {:?} to {:?} is on no edge of the plot", s.a, s.b));
+            continue;
+        };
+        let mut t = from + 0.1;
+        while t < to - 0.05 {
+            // The point `t` along the edge, 0.2 m inside the plot.
+            let (x, z) = match edge {
+                0 => (t, 0.2),
+                1 => (w - 0.2, t),
+                2 => (w - t, d - 0.2),
+                _ => (0.2, d - t),
+            };
+            match zone_at(h, &storeys, 0, x, z) {
+                Some(zn) if zn.room_type.is_some() || h.body.zones.iter().any(|p| p.id == room_of(&zn.id) && p.room_type.is_some()) => {
+                    out.push(format!("open span {i} opens {} at ({x}, {z})", room_of(&zn.id)));
+                }
+                None => out.push(format!("open span {i} opens on no room at ({x}, {z})")),
+                _ => {}
+            }
+            for k in 1..storeys.len() {
+                if let Some(zn) = zone_at(h, &storeys, k, x, z) {
+                    out.push(format!("open span {i} opens {} upstairs at ({x}, {z})", zn.id));
+                }
+            }
+            t += 0.5;
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// Seen red (2026-11-13) on a copy of the two-bedroom with its yard's north strip run along the
+/// whole edge: "open span 3 opens room-kitchen at (6.6, 0.2)" (and the hall and the rooms over
+/// them upstairs).
+#[test]
+fn every_open_span_opens_on_a_garden() {
+    for (kind, _) in KINDS {
+        let p = open_shell_problems(&design(kind));
+        assert!(p.is_empty(), "{kind}:\n{}", p.join("\n"));
+    }
+    let mut h = design("row_house_two_bedroom");
+    let s = h.body.open_shell.iter_mut().find(|s| s.a == (10.0, 0.0)).expect("the yard's north line");
+    s.a = (2.0, 0.0);
+    let p = open_shell_problems(&h);
+    assert!(p.iter().any(|p| p.contains("opens room-kitchen")), "an open span along a house room is caught: {p:?}");
+}
+
+/// ROW STREET, as the ship file has it (2026-11-13): each row house plot's own yard, when it is
+/// this game's home, joins the green behind it (and a terrace's end plot the alley beside it), and
+/// never the plots beside it, which are no zones; the street, the alleys and the green join one
+/// another with no corridor.
+///
+/// Seen red (2026-11-13) with `open_span_cuts` left out of `shell_cuts_for_zone`: "r3's home has
+/// no cut onto the green".
+#[test]
+fn row_street_joins_the_green_the_alleys_and_each_home_to_its_own_yard() {
+    let data = repo().join("data");
+    let ship = ShipStructure::load_and_assemble_shipped(&data, Some("r3")).expect("Row Street's r3 assembles");
+    let home = ship.home_zone_index();
+    let cuts = ship.open_span_cuts(home);
+    let plot_depth = ship.zones[home].body.depth;
+    // r3 stands mid-terrace: one cut, its whole back edge (edge 1, the yard's x 18 line) onto the green.
+    assert_eq!(cuts.len(), 1, "r3's home has no cut onto the green, or more than one: {cuts:?}");
+    assert_eq!((cuts[0].edge, cuts[0].at, cuts[0].width), (1, 0.0, plot_depth), "r3 joins the green along its whole back line");
+    // r1 ends terrace A beside alley 1: its back line and its gardens' north lines join.
+    let ship1 = ShipStructure::load_and_assemble_shipped(&data, Some("r1")).expect("r1 assembles");
+    let c1 = ship1.open_span_cuts(ship1.home_zone_index());
+    assert_eq!(c1.iter().filter(|c| c.edge == 0).count(), 2, "r1's front garden and yard join alley 1: {c1:?}");
+    // The shared zones: the street joins all five alleys; the green the five alleys and r1's yard.
+    let zi = |id: &str| ship1.zone_index(id).unwrap_or_else(|| panic!("zone {id}"));
+    assert_eq!(ship1.open_span_cuts(zi("row-street-1")).len(), 5, "Row Street joins its five alleys");
+    assert_eq!(ship1.open_span_cuts(zi("row-green-1")).len(), 6, "the green joins the five alleys and the home's yard");
+    // A game whose home is elsewhere (p1): the green joins only the alleys.
+    let away = ShipStructure::load_and_assemble_shipped(&data, Some("p1")).expect("p1 assembles");
+    assert_eq!(away.open_span_cuts(away.zone_index("row-green-1").unwrap()).len(), 5, "no neighbour's yard ever joins the green");
 }
 
 /// A DRAFT, before it is data (the row house of docs/design/home-room-program.md section 9): run every

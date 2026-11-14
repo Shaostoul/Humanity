@@ -14,6 +14,15 @@
     (id: "wood_wall", name: "Wood Wall", category: "wall", materials: [("wood_plank_0", 6)], build_time: 4.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter"), shared: true),
     (id: "stone_wall", name: "Stone Wall", category: "wall", materials: [("stone_brick_0", 10)], build_time: 6.0, size: (4.0, 3.0, 0.3), snap_to: ["foundation"], mount: OnTop, health: 350.0, provides: Some("shelter"), shared: true),
     (id: "metal_wall", name: "Metal Wall", category: "wall", materials: [("iron_ingot_0", 8)], build_time: 10.0, size: (4.0, 3.0, 0.15), snap_to: ["foundation"], mount: OnTop, health: 500.0, provides: Some("shelter"), shared: true),
+    // Fences (2026-11-13, the row houses' open green, docs/design/home-room-program.md section 10:
+    // "I kinda prefer the open green area and then players that want a wall/fence can add one").
+    // A low boundary fence that marks a line without hiding anything, and a 1.8 m privacy fence;
+    // a full wall is the walls above. Walls by kind, so they stand on a plot's line as a wall may
+    // (build_frames::EDGE_SLACK_M) and a wall laid along the line snaps onto it aboard
+    // (engine/planet_build.rs `onto_plot_line`). A 4 m run of boards on posts, one plank a metre
+    // of low fence and two of tall; no shelter.
+    (id: "low_fence", name: "Low Fence (1 m)", category: "wall", materials: [("wood_plank_0", 4)], build_time: 2.0, size: (4.0, 1.0, 0.1), snap_to: ["foundation"], mount: OnTop, health: 80.0, shared: true),
+    (id: "privacy_fence", name: "Privacy Fence (1.8 m)", category: "wall", materials: [("wood_plank_0", 8)], build_time: 3.0, size: (4.0, 1.8, 0.1), snap_to: ["foundation"], mount: OnTop, health: 120.0, shared: true),
     // A wall with a door in it (2026-09-28): the wall's six planks less the
     // one the 1 x 2.1 m opening saves, plus four for the leaf.
     (id: "wood_wall_door", name: "Wood Wall with Door", category: "wall", materials: [("wood_plank_0", 9)], build_time: 5.0, size: (4.0, 3.0, 0.2), snap_to: ["foundation"], mount: OnTop, health: 150.0, provides: Some("shelter"), doorway: Some((width: 1.0, height: 2.1))),

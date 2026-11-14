@@ -43,11 +43,17 @@ fn frames_of_the_shipped_ship() {
     let ids: Vec<&str> = frames.frames.iter().map(|f| f.id.as_str()).collect();
     // Since ship homes increment 6 (lane 1A): the cabin block's hall and the South Commons
     // are zones too, and the sixteen cabins plots, after the twelve homesteads.
-    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2"].iter().map(|s| s.to_string()).collect();
+    // And since 2026-11-13 Row Street, its five alleys and its green.
+    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2", "zone:row-street-1", "zone:row-alley-1", "zone:row-alley-2", "zone:row-alley-3", "zone:row-alley-4", "zone:row-alley-5", "zone:row-green-1"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     want.extend((1..=12).map(|n| format!("plot:p{n}")));
     want.extend((1..=16).map(|n| format!("plot:c{n}")));
     // Since 2026-11-13 the room program's two homesteads, after the cabins.
     want.extend(["plot:h1".to_string(), "plot:o1".to_string()]);
+    // And the twenty row houses of Row Street after them.
+    want.extend((1..=20).map(|n| format!("plot:r{n}")));
     assert_eq!(ids, want, "the relay's frames");
     for (game, ship) in [("assembled at p1", assembled("p1")), ("assembled at p2", assembled("p2"))] {
         assert_eq!(BuildFrames::of_ship(&ship), frames, "{game}: the game's frames are the relay's");

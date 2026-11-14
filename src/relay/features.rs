@@ -2400,12 +2400,13 @@ mod tests {
         rooms.sort();
         assert_eq!(
             rooms,
-            ["cabins-1", "commons", "commons-2", "mess-hall", "mess-hall-2", "recreation", "street-1", "washroom-1"],
+            // Since 2026-11-13 also Row Street, its five alleys and its green.
+            ["cabins-1", "commons", "commons-2", "mess-hall", "mess-hall-2", "recreation", "row-alley-1", "row-alley-2", "row-alley-3", "row-alley-4", "row-alley-5", "row-green-1", "row-street-1", "street-1", "washroom-1"],
             "the welcome's rooms are not the ship's: {rooms:?}"
         );
         let q = &w["current_quest"];
         assert_eq!(q["home_plot"], "p1", "their quest names their plot: {q}");
-        assert_eq!(q["total_rooms"], 9, "eight rooms and home: {q}");
+        assert_eq!(q["total_rooms"], 16, "fifteen rooms and home: {q}");
 
         let plots = humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
         let commons = (65.0, 20.0, 99.0, 75.0);
@@ -2447,6 +2448,15 @@ mod tests {
             ([70.0, 1.7, 100.0], "street-1", false),
             ([78.5, 1.7, 100.0], "cabins-1", false),
             ([78.5, 1.7, 132.0], "washroom-1", false),
+            // Since 2026-11-13 Row Street, its alleys and its green (the relay checks a leg's speed,
+            // not its walls, so each walk is a straight line).
+            ([89.0, 1.7, 320.0], "row-street-1", false),
+            ([100.0, 1.7, 301.0], "row-alley-1", false),
+            ([117.0, 1.7, 320.0], "row-green-1", false),
+            ([100.0, 1.7, 336.0], "row-alley-2", false),
+            ([100.0, 1.7, 377.0], "row-alley-3", false),
+            ([100.0, 1.7, 407.0], "row-alley-4", false),
+            ([100.0, 1.7, 435.0], "row-alley-5", false),
             (door, "home", true),
         ];
         // Walked, not jumped (increment 4: the relay corrects a move faster than anyone can go):

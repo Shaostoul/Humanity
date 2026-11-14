@@ -362,12 +362,44 @@ pub(crate) fn ghost(state: &EngineState, blueprint_id: &str, quarter_turns: u8) 
 /// in, and the whole footprint inside it), which resting does not move, so the plain pose decides.
 pub(crate) fn aboard_pose(state: &EngineState, bp: &humanity_systems::construction::Blueprint, at: Vec3, quarter_turns: u8) -> Transform {
     let world = &state.game_world.world;
-    let Some(reg) = state.data_store.get::<BlueprintRegistry>("blueprint_registry") else {
-        return placement::placement_pose(bp, at, quarter_turns, world, &BlueprintRegistry::new(), None);
+    // A wall laid along the builder's own plot line lands on it (`onto_plot_line`).
+    let line = |pose: Transform| match state.gui_state.ship_structure.as_ref().and_then(|s| s.home_plot()) {
+        Some(p) => onto_plot_line(bp, pose, (p.origin.0, p.origin.2), (p.origin.0 + p.size.0, p.origin.2 + p.size.2)),
+        None => pose,
     };
-    let pose = placement::placement_pose(bp, at, quarter_turns, world, reg, None);
+    let Some(reg) = state.data_store.get::<BlueprintRegistry>("blueprint_registry") else {
+        return line(placement::placement_pose(bp, at, quarter_turns, world, &BlueprintRegistry::new(), None));
+    };
+    let pose = line(placement::placement_pose(bp, at, quarter_turns, world, reg, None));
     if crate::engine::shared_build::will_be_shared(&state.gui_state, &state.data_store, state.shared_build.ranks, bp, &pose) {
-        return placement::placement_pose_where(bp, at, quarter_turns, world, reg, None, placement::shared_pieces);
+        return line(placement::placement_pose_where(bp, at, quarter_turns, world, reg, None, placement::shared_pieces));
+    }
+    pose
+}
+
+/// A WALL laid along the builder's own plot line lands ON it (2026-11-13, the row houses' open
+/// green, docs/design/home-room-program.md section 10; the operator: "players that want a
+/// wall/fence can add one"). Placement keeps x and z on the ship's metre grid, and a terrace's plot
+/// lines fall between its points (the 5.5 and 6.5 m frontages put every other line on a half metre,
+/// Row Street's front and back lines are at x 93.25 and 111.25), so a fence aimed at the line between
+/// two yards landed half a metre inside it, or past it, where the plot rule refuses it. A piece of
+/// the wall kind (the walls and the fences, data/blueprints/basic.ron) whose long side runs along an
+/// edge of the plot (`lo` and `hi`, its corners in ship x and z), its centre within half a grid step
+/// of that line, is moved onto the line; the plot rule lets a wall lie there
+/// (`humanity_ship::build_frames::EDGE_SLACK_M`). Any other piece, or a wall elsewhere, stays put.
+pub(crate) fn onto_plot_line(bp: &humanity_systems::construction::Blueprint, mut pose: Transform, lo: (f32, f32), hi: (f32, f32)) -> Transform {
+    if bp.category != "wall" {
+        return pose;
+    }
+    let reach = placement::GRID_M * 0.5 + 1e-3;
+    let along = pose.rotation * Vec3::X;
+    if along.x.abs() > along.z.abs() {
+        // It runs east-west: onto the plot's north or south line.
+        if let Some(z) = [lo.1, hi.1].into_iter().find(|z| (pose.position.z - z).abs() <= reach) {
+            pose.position.z = z;
+        }
+    } else if let Some(x) = [lo.0, hi.0].into_iter().find(|x| (pose.position.x - x).abs() <= reach) {
+        pose.position.x = x;
     }
     pose
 }
@@ -1258,5 +1290,39 @@ mod site_collision_tests {
         assert_eq!(collide_on_site(&world, None, "earth", body(2_990.0, 0.0), far, eye_h), far);
         // Another body's site is not this one.
         assert_eq!(collide_on_site(&world, None, "moon", body(-2.0, 0.0), body(2.0, 0.0), eye_h), body(2.0, 0.0));
+    }
+}
+
+#[cfg(test)]
+mod plot_line_tests {
+    use super::*;
+    use humanity_systems::construction::{placement, BlueprintRegistry};
+
+    /// A FENCE ON YOUR OWN PLOT LINE (2026-11-13, the row houses' open green). Row Street's r2 is
+    /// x 93.25..111.25, z 307.5..313 (a 5.5 m frontage), so its north line is on a half metre and its
+    /// back line on a quarter. A low fence aimed just past the north line, running east-west, is put
+    /// on the metre grid at z 308, past the line, where the plot rule refuses it; it lands on 307.5.
+    /// Turned north-south at x 111.4, it lands on the back line, 111.25. A fence 2.5 m inside, a
+    /// foundation, and a wall on a plot whose lines are on whole metres stay where they are.
+    ///
+    /// Seen red (2026-11-13) with `onto_plot_line` returning the pose unchanged: "the fence aimed at
+    /// the north line lands on it, not 308".
+    #[test]
+    fn a_wall_laid_along_your_own_plot_line_lands_on_it() {
+        let reg = BlueprintRegistry::from_ron(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/blueprints/basic.ron"))).unwrap();
+        let world = hecs::World::new();
+        let (lo, hi) = ((93.25, 307.5), (111.25, 313.0));
+        let fence = reg.get("low_fence").expect("the low fence is a blueprint");
+        let pose = |id: &str, x: f32, z: f32, turns: u8| placement::placement_pose(reg.get(id).unwrap(), Vec3::new(x, 0.0, z), turns, &world, &reg, None);
+        let p = pose("low_fence", 106.0, 307.6, 0);
+        assert_eq!(p.position.z, 308.0, "the grid puts it past the line");
+        assert_eq!(onto_plot_line(fence, p, lo, hi).position.z, 307.5, "the fence aimed at the north line lands on it, not 308");
+        let q = onto_plot_line(fence, pose("low_fence", 111.4, 310.0, 1), lo, hi);
+        assert_eq!((q.position.x, q.position.z), (111.25, 310.0), "turned north-south, it lands on the back line");
+        assert_eq!(onto_plot_line(fence, pose("low_fence", 106.0, 309.9, 0), lo, hi).position.z, 310.0, "a fence 2.5 m inside stays");
+        let f = pose("wood_foundation", 106.0, 307.6, 0);
+        assert_eq!(onto_plot_line(reg.get("wood_foundation").unwrap(), f.clone(), lo, hi).position, f.position, "a foundation is no wall");
+        let w = pose("privacy_fence", 30.0, 1.0, 0);
+        assert_eq!(onto_plot_line(reg.get("privacy_fence").unwrap(), w.clone(), (0.0, 0.0), (55.0, 89.0)).position, w.position, "a whole-metre plot's wall a metre in stays");
     }
 }

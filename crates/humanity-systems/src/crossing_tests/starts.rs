@@ -29,11 +29,12 @@ fn the_file() -> Starts {
 fn the_starts_are_data_and_none_is_called_a_tier() {
     let starts = the_file();
     // Cabin, Apartment and Homestead for players, and since 2026-11-13 the room program's two
-    // homesteads as drafts for developers (`dev`, offered in the Dev play mode only).
+    // homesteads as drafts for developers (`dev`, offered in the Dev play mode only), and the same
+    // day the four row houses of Row Street.
     assert_eq!(starts.starts.iter().filter(|s| !s.dev).count(), 3, "Cabin, Apartment and Homestead");
-    assert_eq!(starts.starts.iter().filter(|s| s.dev).map(|s| s.id.as_str()).collect::<Vec<_>>(), ["household_homestead", "one_person_homestead"]);
+    assert_eq!(starts.starts.iter().filter(|s| s.dev).map(|s| s.id.as_str()).collect::<Vec<_>>(), ["household_homestead", "one_person_homestead", "row_house_two_bedroom", "row_house_three_bedroom", "row_house_couples", "row_house_friends"]);
     let ids: std::collections::BTreeSet<&str> = starts.starts.iter().map(|s| s.id.as_str()).collect();
-    assert_eq!(ids.len(), 5, "the ids are unique: {ids:?}");
+    assert_eq!(ids.len(), 9, "the ids are unique: {ids:?}");
     assert!(starts.default_start().offered, "the default start is offered");
     assert_eq!(starts.default_start().id, starts.default);
 

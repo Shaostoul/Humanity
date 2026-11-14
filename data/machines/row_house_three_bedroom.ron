@@ -1,0 +1,178 @@
+// HumanityOS machine layout: THE ROW HOUSE WITH THREE BEDROOMS FOR FIVE (2026-11-13, docs/design/home-room-program.md
+// section 10). Same format as data/machines/home.ron. Chosen by the start's household
+// (data/homes/starts.ron), loaded by `crate::machines::home_ron_path()` when the live save's start
+// is this kind.
+//
+// Five people: a double bed in each double, a single bed in the single, the living room's screen and the yard's raised beds
+// (data/homes/row_house_three_bedroom.ron). The kitchen, the bathrooms' fixtures, the basins and the rest of the
+// furniture are a later rung (the room program's section 10).
+//
+// Positions are home-local metres from the home's own corner (x from the street, z along it; the
+// street is west, the door in the west wall), each machine's centre; an upstairs machine stands at
+// y 3.0, the top of the upper floor's slab. Every machine stands in the room it names, and a bedroom
+// with a double bed ("bed") meets England's 11.5 m2 for a double
+// (crates/humanity-ship/src/home_program_tests.rs).
+//
+// `ship_machines` merges the ship's rows in (data/machines/ship.ron, which defines the wall
+// screen). The catalog holds the other types this file uses, each copied byte for byte from
+// data/machines/one_person_homestead.ron (bed, single bed, wardrobe) or data/machines/home.ron
+// (grow bed).
+//
+// Rotation: 0 puts a machine's front toward north (-z), 90 toward west, 180 toward south, 270
+// toward east.
+
+(
+    ship_machines: Some("ship.ron"),
+    catalog: {
+        "bed": (
+            shape: "box",
+            size: (2.00, 0.60, 1.00),
+            color: (0.42, 0.44, 0.50),
+            label: "Bed",
+            category: "Furniture",
+            // Where a person sits, lies or works at it (character animation rung 2b,
+            // data/characters/interactions.ron).
+            anchors: ["bed_lie", "bed_edge"],
+            stats: [
+                (
+                    kind: "storage",
+                    value: "sleep here",
+                    status: "ok",
+                ),
+            ],
+            // E sleeps the night here, as at a bed you build (first-hour audit F5, 2026-10-04).
+            provides: Some("rest"),
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: Some("assets/models/furniture/beddouble/beddouble.gltf"),
+        ),
+        "bed_single": (
+            shape: "box",
+            size: (2.00, 0.50, 0.90),
+            color: (0.42, 0.44, 0.50),
+            label: "Single bed",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "sleep here",
+                    status: "ok",
+                ),
+            ],
+            provides: Some("rest"),
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+        "wardrobe": (
+            shape: "box",
+            size: (1.20, 2.00, 0.60),
+            color: (0.52, 0.38, 0.24),
+            label: "Wardrobe",
+            category: "Furniture",
+            stats: [
+                (
+                    kind: "storage",
+                    value: "clothing",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: Some("wardrobe_cabinet"),
+            model: Some("assets/models/furniture/bookcasecloseddoors/bookcasecloseddoors.gltf"),
+        ),
+        "grow_bed": (
+            shape: "box",
+            size: (2.0, 0.4, 1.0),
+            color: (0.55, 0.42, 0.25),
+            label: "Grow bed",
+            category: "Food",
+            stats: [
+                (
+                    kind: "power",
+                    value: "sun-lit, 0 W",
+                    status: "ok",
+                ),
+            ],
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
+    },
+    instances: [
+        // The front bedroom: a double bed.
+        (
+            id: "bed_1",
+            machine: "bed",
+            room: "room-bedroom-1",
+            offset: (4.25, 3.0, 5.4),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The back bedroom: a double bed.
+        (
+            id: "bed_2",
+            machine: "bed",
+            room: "room-bedroom-2",
+            offset: (9.75, 3.0, 5.4),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The single bedroom.
+        (
+            id: "bed_single_3",
+            machine: "bed_single",
+            room: "room-bedroom-3",
+            offset: (4.0, 3.0, 2.6),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The living room's screen, on the party wall.
+        (
+            id: "wall_screen_1",
+            machine: "wall_screen",
+            room: "room-living",
+            offset: (4.25, 1.2, 6.35),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        // The yard's raised beds (the showcase plants them in Creative and Dev, data/world/showcase.ron).
+        (
+            id: "grow_bed_1",
+            machine: "grow_bed",
+            room: "room-yard",
+            offset: (13.5, 0.0, 1.2),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "grow_bed_2",
+            machine: "grow_bed",
+            room: "room-yard",
+            offset: (16.5, 0.0, 1.2),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "grow_bed_3",
+            machine: "grow_bed",
+            room: "room-yard",
+            offset: (16.5, 0.0, 5.3),
+            rotation: 0.0,
+            zone: "home",
+        ),
+    ],
+    connections: [],
+)

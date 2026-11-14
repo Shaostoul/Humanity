@@ -173,6 +173,37 @@ function streetSide(design) {
   return 'south';
 }
 
+/**
+ * The plot's perimeter in pieces, as the game draws its shell (crates/humanity-ship/src/
+ * home_structure.rs `perimeter_pieces`): [{ a, b, height }] in home-local (x, z), `height` null
+ * where the shell stands, else what marks an open span's line (0 nothing).
+ */
+function perimeterPieces(body) {
+  const { width: w, depth: d } = body;
+  const E = 1e-3;
+  const corners = [[0, 0], [w, 0], [w, d], [0, d]];
+  const out = [];
+  for (let e = 0; e < 4; e++) {
+    const [a, b] = [corners[e], corners[(e + 1) % 4]];
+    const len = e % 2 === 0 ? w : d;
+    const at = (p) => Math.hypot(p[0] - a[0], p[1] - a[1]); // metres along the edge from its start
+    const on = (p) => Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len < E;
+    const spans = (body.open_shell || [])
+      .filter((s) => on(s.a) && on(s.b))
+      .map((s) => ({ from: Math.min(at(s.a), at(s.b)), to: Math.max(at(s.a), at(s.b)), height: s.height || 0 }))
+      .sort((p, q) => p.from - q.from);
+    const point = (t) => [a[0] + ((b[0] - a[0]) * t) / len, a[1] + ((b[1] - a[1]) * t) / len];
+    let t = 0;
+    for (const s of spans) {
+      if (s.from > t + E) out.push({ a: point(t), b: point(s.from), height: null });
+      out.push({ a: point(Math.max(s.from, t)), b: point(s.to), height: s.height });
+      t = Math.max(t, s.to);
+    }
+    if (t < len - E) out.push({ a: point(t), b: point(len), height: null });
+  }
+  return out;
+}
+
 /** Home-local (x, z) to drawing (u, v), the street at the top: [u, v, drawing width, height]. */
 function frame(design) {
   const { width: w, depth: d } = design.body;
@@ -389,19 +420,32 @@ function drawStorey(design, k, opts = {}) {
       out.push(`<g${tr}><text x="${f2(cx)}" y="${f2(cy - fs0 * 0.1)}" font-size="${fs0}" text-anchor="middle" font-weight="600">${esc(name)}</text><text x="${f2(cx)}" y="${f2(cy + fs0 * 1.0)}" font-size="${f2(fs0 * 0.85)}" text-anchor="middle" fill="#444">${esc(room.size)}</text></g>`);
     }
   }
-  // Each plot's shell: a terrace's party walls between neighbours.
-  for (let c = 0; c < copies; c++) out.push(`<rect x="${f2(m + c * fr.W * s)}" y="${top}" width="${f2(fr.W * s)}" height="${f2(plotH)}" fill="none" stroke="#000" stroke-width="1.5"/>`);
+  // Each plot's shell: a terrace's party walls between neighbours. Where the shell is OPEN
+  // (`open_shell`, 2026-11-13: the row houses' gardens), what marks the line instead: a low wall
+  // (a front garden wall) as a grey line, a mowing strip or kerb as a dashed green line, and
+  // nothing where the span marks nothing (the plot beside it marks that line).
+  for (let c = 0; c < copies; c++) {
+    const ox = m + c * fr.W * s;
+    for (const p of perimeterPieces(body)) {
+      const [a, b] = [fr.uv(...p.a), fr.uv(...p.b)].map(([u, v]) => [ox + u * s, top + v * s]);
+      const line = (stroke, wt, dash = '') => out.push(`<line x1="${f2(a[0])}" y1="${f2(a[1])}" x2="${f2(b[0])}" y2="${f2(b[1])}" stroke="${stroke}" stroke-width="${wt}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`);
+      if (p.height === null) line('#000', 1.5);
+      else if (p.height >= 0.5) line('#8a8a8a', 2.2);
+      else if (p.height > 0) line('#3c8d2f', 1.2, '2 2');
+    }
+  }
   // Scale bar and key.
   const ky = top + plotH + 28;
   out.push('<g font-size="10" fill="#333">');
   for (let i = 0; i < 10; i += 5) out.push(`<rect x="${m + i * s}" y="${ky}" width="${5 * s}" height="5" fill="${i ? '#fff' : '#333'}" stroke="#333" stroke-width="0.6"/>`);
   out.push(`<text x="${m}" y="${ky + 16}">0</text><text x="${m + 10 * s}" y="${ky + 16}" text-anchor="middle">10 m</text></g>`);
   const keys = [['#2b2b2b', '', 'Wall (3 m)'], ['#2f78c4', '', 'Glass wall'], ['#7a8a5a', '6 3', 'Garden fence (2 m)'], ['#2b2b2b', '4 3', 'Guard rail (1 m)'], ['#7a4a1a', '', 'Door'], ['#2f78c4', '', 'Sliding or glass door'], ['#3c8d2f', '', 'Gate'], ['#e07b00', '', 'Folding vehicle door']];
+  if ((body.open_shell || []).length) keys.push(['#8a8a8a', '', 'Front garden wall (0.9 m)'], ['#3c8d2f', '2 2', 'Open boundary: mowing strip']);
   keys.forEach(([c, d, t], i) => {
     const lx = m + (i % 4) * 185, ly = ky + 34 + Math.floor(i / 4) * 18;
     out.push(`<line x1="${lx}" y1="${ly}" x2="${lx + 22}" y2="${ly}" stroke="${c}" stroke-width="2.2" stroke-dasharray="${d}"/><text x="${lx + 28}" y="${ly + 4}" font-size="11">${t}</text>`);
   });
-  const ly = ky + 34 + 2 * 18;
+  const ly = ky + 34 + Math.ceil(keys.length / 4) * 18;
   out.push(`<circle cx="${m + 6}" cy="${ly}" r="4" fill="#c0392b"/><text x="${m + 16}" y="${ly + 4}" font-size="11">Front gate (from the street)</text>`);
   out.push(`<circle cx="${m + 206}" cy="${ly}" r="2.4" fill="#f5c400" stroke="#8a6d00" stroke-width="0.5"/><text x="${m + 214}" y="${ly + 4}" font-size="11">Light</text>`);
   out.push(`<circle cx="${m + 276}" cy="${ly}" r="2.6" fill="#fff" stroke="#5a7d9a"/><text x="${m + 284}" y="${ly + 4}" font-size="11">Fan</text><rect x="${m + 322}" y="${ly - 3}" width="6" height="6" fill="#8d8d8d"/><text x="${m + 334}" y="${ly + 4}" font-size="11">Furniture</text>`);
@@ -517,4 +561,4 @@ function main(argv) {
 }
 
 if (require.main === module) main(process.argv.slice(2));
-module.exports = { parseRon, storeys, streetSide, frame, roomTable, drawStorey };
+module.exports = { parseRon, storeys, streetSide, frame, roomTable, drawStorey, perimeterPieces };

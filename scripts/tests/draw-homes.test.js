@@ -57,3 +57,25 @@ test("every room's label and size in a drawing is the file's", () => {
   assert.ok(svg.includes('A label only this test writes'), 'the drawing shows the label in the data');
   assert.ok(svg.includes('3.5 x 3.5 m, 12.25 m2'), "the bedroom's size is the zone's");
 });
+
+// OPEN SPANS (2026-11-13, the row houses' open green): a plot's shell is drawn in pieces, the shell
+// where it stands and what marks an open span's line where it does not. Seen red the same day with
+// `perimeterPieces` reading no open span: "the front garden's and the yard's north lines and the
+// back line are mowing strips" (0, not 3). The copy at the end with its open spans taken away keeps
+// a negative control in the test: no strip is drawn, and the perimeter is four closed edges.
+test('an open span is drawn as what marks its line, not the shell', () => {
+  const row = designs.find((d) => d.kind === 'row_house_two_bedroom');
+  assert.ok(row, 'the two-bedroom row house is read');
+  const pieces = D.perimeterPieces(row.body);
+  const strips = pieces.filter((p) => p.height !== null && p.height > 0 && p.height < 0.5);
+  const walls = pieces.filter((p) => p.height !== null && p.height >= 0.5);
+  assert.equal(strips.length, 3, "the front garden's and the yard's north lines and the back line are mowing strips");
+  assert.equal(walls.length, 1, 'the street edge is the front garden wall');
+  const len = pieces.reduce((n, p) => n + Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]), 0);
+  assert.ok(Math.abs(len - 2 * (row.body.width + row.body.depth)) < 1e-6, 'the pieces cover the whole perimeter, ' + len + ' m');
+  const dashed = (text) => (text.match(/stroke="#3c8d2f" stroke-width="1.2" stroke-dasharray="2 2"/g) || []).length;
+  assert.equal(dashed(D.drawStorey(row, 0, {})), 3, 'the drawing has the three strips');
+  const closed = { ...row, body: { ...row.body, open_shell: [] } };
+  assert.equal(dashed(D.drawStorey(closed, 0, {})), 0, 'with no open span, no strip: the check can fail');
+  assert.equal(D.perimeterPieces(closed.body).length, 4, 'and the perimeter is four closed edges');
+});

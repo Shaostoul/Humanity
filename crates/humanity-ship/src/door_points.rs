@@ -140,6 +140,38 @@ pub fn door_points(ship: &ShipStructure) -> DoorPoints {
             doors.push(door_of(format!("zone:{}", c.from_zone), format!("zone:{}", c.to_zone), &g));
         }
     }
+    // OPEN JOINS (2026-11-13, Row Street): two shared zones open to each other where they touch
+    // (`ShipStructure::open_span_joins`) are a way through with no corridor, listed once as a door
+    // whose two mouths are the middle of the joined stretch and whose steps are a metre into each.
+    // The home's join to the green is its own yard's back line, not a shared place's door.
+    for (zi, z) in ship.zones.iter().enumerate().filter(|(_, z)| z.id != HOME_ZONE_ID) {
+        for (zj, cut) in ship.open_span_joins(zi) {
+            if zj <= zi || ship.zones[zj].id == HOME_ZONE_ID {
+                continue;
+            }
+            let (o, w, d) = (z.origin_vec(), z.body.width, z.body.depth);
+            let mid = cut.at + cut.width * 0.5;
+            // The joined stretch's middle on the shared face, and the way out of zone `zi` through it.
+            let (m, out, axis) = match cut.edge {
+                0 => (Vec3::new(o.x + mid, o.y, o.z), Vec3::NEG_Z, CorridorAxis::Z),
+                1 => (Vec3::new(o.x + w, o.y, o.z + mid), Vec3::X, CorridorAxis::X),
+                2 => (Vec3::new(o.x + w - mid, o.y, o.z + d), Vec3::Z, CorridorAxis::Z),
+                _ => (Vec3::new(o.x, o.y, o.z + d - mid), Vec3::NEG_X, CorridorAxis::X),
+            };
+            let eye = Vec3::Y * SPAWN_EYE_HEIGHT_M;
+            let across = if axis == CorridorAxis::X { Vec3::Z } else { Vec3::X };
+            let (lo, hi) = (m - across * cut.width * 0.5, m + across * cut.width * 0.5 + Vec3::Y * cut.height);
+            doors.push(RouteDoor {
+                from: format!("zone:{}", z.id),
+                to: format!("zone:{}", ship.zones[zj].id),
+                axis: if axis == CorridorAxis::X { "x" } else { "z" },
+                lat: if axis == CorridorAxis::X { m.z } else { m.x },
+                mouths: [m.to_array(), m.to_array()],
+                steps: [(m - out * STEP_IN_M + eye).to_array(), (m + out * STEP_IN_M + eye).to_array()],
+                tube: [lo.min(hi).to_array(), lo.max(hi).to_array()],
+            });
+        }
+    }
     // The floors a person stands on: every storey of every zone's body and of every plot's home.
     let mut floors: Vec<f32> = Vec::new();
     for (zi, z) in ship.zones.iter().enumerate() {
@@ -206,11 +238,23 @@ mod tests {
         (0..3).all(|k| p[k] >= pl.min[k] - 1e-3 && p[k] <= pl.max[k] + 1e-3)
     }
 
-    /// The places a ship's door points list: its four shared zones (the Commons, First Street,
-    /// and since ship homes increment 6 the cabin block's hall and the South Commons), then every
-    /// plot in the file's order.
+    /// The places a ship's door points list: its shared zones (the Commons, First Street, since
+    /// ship homes increment 6 the cabin block's hall and the South Commons, and since 2026-11-13
+    /// Row Street, its five alleys and its green), then every plot in the file's order.
     fn shipped_place_ids(ship: &ShipStructure) -> Vec<String> {
-        ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2"]
+        [
+            "zone:commons",
+            "zone:street-1",
+            "zone:cabins-1",
+            "zone:commons-2",
+            "zone:row-street-1",
+            "zone:row-alley-1",
+            "zone:row-alley-2",
+            "zone:row-alley-3",
+            "zone:row-alley-4",
+            "zone:row-alley-5",
+            "zone:row-green-1",
+        ]
             .iter()
             .map(|s| s.to_string())
             .chain(ship.plots.iter().map(|p| format!("plot:{}", p.id)))
@@ -219,9 +263,11 @@ mod tests {
 
     /// The doors of the shipped ship: its three corridors between shared zones (the Commons to
     /// First Street, and since increment 6 First Street to the cabin block and to the South
-    /// Commons) and one door per plot.
+    /// Commons) and one door per plot; since 2026-11-13 the lane from First Street to Row Street,
+    /// and Row Street's ten open joins (the street to each of its five alleys, each alley to the
+    /// green).
     fn shipped_door_count(ship: &ShipStructure) -> usize {
-        3 + ship.plots.len()
+        3 + 1 + 10 + ship.plots.len()
     }
 
     /// The shipped ship, from either plot: the shared zones and every plot (twelve homesteads

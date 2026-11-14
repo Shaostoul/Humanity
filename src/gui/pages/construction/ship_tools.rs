@@ -739,7 +739,7 @@ mod tests {
 
     /// The Plots and Districts panel is the in-app control the critic found missing in 1a, so it
     /// is proven the way a player meets it, drawn and clicked, not just built: outside the Dev
-    /// mode it is not there at all; in the Dev mode "Plots (30)" opens to the shipped plots, yours
+    /// mode it is not there at all; in the Dev mode "Plots (50)" opens to the shipped plots, yours
     /// marked, and "Add plot" really adds a plot (a copy of the last of your home's kind, p12, past
     /// it) and asks for a rebuild; "Districts (13)" opens to the districts. Red check, run: the
     /// panel with its early `return` for the Dev mode removed draws "Plots (2)" in Normal mode and
@@ -761,17 +761,17 @@ mod tests {
 
         state.settings.play_mode = crate::config::PlayMode::Normal;
         let out = frame(&ctx, &theme, &mut state, Vec::new());
-        assert!(find_text_in_shapes(&out.shapes, "Plots (30)").is_none(), "no plot editing outside the Dev mode");
+        assert!(find_text_in_shapes(&out.shapes, "Plots (50)").is_none(), "no plot editing outside the Dev mode");
 
         state.settings.play_mode = crate::config::PlayMode::Dev;
-        click(&ctx, &theme, &mut state, "Plots (30)");
+        click(&ctx, &theme, &mut state, "Plots (50)");
         let out = frame(&ctx, &theme, &mut state, Vec::new());
         assert!(find_text_in_shapes(&out.shapes, "p1  homestead  (yours)  (offline)").is_some(), "your plot, marked");
         assert!(find_text_in_shapes(&out.shapes, "lat 40.0 m").is_some(), "p1's door lat, shown");
         state.construction_structure_dirty = false;
         click(&ctx, &theme, &mut state, "Add plot");
         let ship = state.ship_structure.as_ref().unwrap();
-        assert_eq!(ship.plots.len(), 31, "Add plot added a plot");
+        assert_eq!(ship.plots.len(), 51, "Add plot added a plot");
         let added = ship.plots.last().unwrap();
         assert_eq!((added.id.as_str(), added.kind.as_str(), added.origin), ("p13", "homestead", (0.0, 0.0, 1188.0)), "a homestead past p12");
         assert!(state.construction_structure_dirty && state.construction_machines_dirty, "and asked for a rebuild");

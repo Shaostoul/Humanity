@@ -1216,7 +1216,85 @@ impl ShipStructure {
             };
             cuts.push(end_mouth_cut(o, w, d, zone.body.height, &g, end, other));
         }
+        cuts.extend(self.open_span_cuts(zi));
         cuts
+    }
+
+    /// Where zone `zi`'s OPEN SPANS meet another zone's (2026-11-13, `home_structure::OpenSpan`):
+    /// two boxes touching face to face on one deck, each open over the same stretch of that face,
+    /// are joined there for the walk, the stretch cut through both shells' walking line from the
+    /// floor to the lower roof. So the row houses' green, its alleys and its street join one
+    /// another with no corridor, and a household's own yard (its home is the zone "home" here)
+    /// joins the green behind it. A neighbour's plot is not a zone, so nothing is ever cut into
+    /// it: its lawn is seen across the line and never walked onto.
+    pub fn open_span_cuts(&self, zi: usize) -> Vec<ShellCut> {
+        self.open_span_joins(zi).into_iter().map(|(_, c)| c).collect()
+    }
+
+    /// `open_span_cuts` with the zone on the far side of each cut (its index), for what lists the
+    /// ship's ways through (crates/humanity-ship/src/door_points.rs).
+    pub fn open_span_joins(&self, zi: usize) -> Vec<(usize, ShellCut)> {
+        const E: f32 = 1e-3;
+        let Some(z) = self.zones.get(zi) else { return Vec::new() };
+        if z.body.open_shell.is_empty() || self.is_away_home(zi) {
+            return Vec::new();
+        }
+        let (o, w, d) = (z.origin, z.body.width, z.body.depth);
+        // An edge in world terms: (the edge index, its fixed coordinate, x-run or z-run, and the
+        // world coordinate along its run of each of its open stretches).
+        let world = |body: &HomeStructure, org: (f32, f32, f32), ei: usize| -> Vec<(f32, f32)> {
+            let (bw, bd) = (body.width, body.depth);
+            body.open_shell
+                .iter()
+                .filter_map(|s| s.on_edge(bw, bd))
+                .filter(|e| e.0 == ei)
+                .map(|(_, from, to)| match ei {
+                    0 => (org.0 + from, org.0 + to),
+                    1 => (org.2 + from, org.2 + to),
+                    2 => (org.0 + bw - to, org.0 + bw - from),
+                    _ => (org.2 + bd - to, org.2 + bd - from),
+                })
+                .collect()
+        };
+        let mut out = Vec::new();
+        for (zj, other) in self.zones.iter().enumerate() {
+            if zj == zi || other.body.open_shell.is_empty() || self.is_away_home(zj) || (other.origin.1 - o.1).abs() > E {
+                continue;
+            }
+            let (oo, ow, od) = (other.origin, other.body.width, other.body.depth);
+            // This zone's edge and the other's facing edge, when they lie in one plane.
+            let facing = [
+                (0usize, 2usize, (o.2 - (oo.2 + od)).abs() < E),
+                (2, 0, (o.2 + d - oo.2).abs() < E),
+                (1, 3, (o.0 + w - oo.0).abs() < E),
+                (3, 1, (o.0 - (oo.0 + ow)).abs() < E),
+            ];
+            let height = z.body.height.min(other.body.height);
+            for (ei, ej, touching) in facing {
+                if !touching {
+                    continue;
+                }
+                let mine = world(&z.body, o, ei);
+                let theirs = world(&other.body, oo, ej);
+                for &(a0, a1) in &mine {
+                    for &(b0, b1) in &theirs {
+                        let (lo, hi) = (a0.max(b0), a1.min(b1));
+                        if hi - lo <= E {
+                            continue;
+                        }
+                        // Back into this edge's own winding.
+                        let at = match ei {
+                            0 => lo - o.0,
+                            1 => lo - o.2,
+                            2 => o.0 + w - hi,
+                            _ => o.2 + d - hi,
+                        };
+                        out.push((zj, ShellCut { edge: ei, at, width: hi - lo, base: 0.0, height }));
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Every corridor door-mouth plane in world space (corridor door panels, v0.795): both tube
@@ -2764,8 +2842,9 @@ mod tests {
         // is p1's door, put first by assembly; the Commons-to-street corridor follows it.
         let ship = shipped_ship();
         // The home's door, the Commons to First Street, and since ship homes increment 6 First
-        // Street to the cabin block's hall and to the South Commons.
-        assert_eq!(ship.corridors.len(), 4);
+        // Street to the cabin block's hall and to the South Commons, and since 2026-11-13 the lane
+        // from First Street to Row Street.
+        assert_eq!(ship.corridors.len(), 5);
         assert_eq!((ship.corridors[0].from_zone.as_str(), ship.corridors[0].to_zone.as_str()), ("home", "commons"));
         assert_eq!((ship.corridors[1].from_zone.as_str(), ship.corridors[1].to_zone.as_str()), ("commons", "street-1"));
         assert_eq!((ship.corridors[2].from_zone.as_str(), ship.corridors[2].to_zone.as_str()), ("street-1", "cabins-1"));
@@ -3144,11 +3223,12 @@ mod tests {
         // The ship before the split: without street-1 and its corridors (1a), and without what
         // ship homes increment 6 (lane 1A) added: the cabin block's hall and the South Commons
         // (whose corridors run from street-1), the sixteen cabin plots, and the Commons'
-        // recreation room.
+        // recreation room; and without Row Street, its alleys and its green (2026-11-13, reached
+        // from street-1 by a lane) and its twenty row house plots.
         let mut before_shape = ship.clone();
-        before_shape.zones.retain(|z| !["street-1", "cabins-1", "commons-2"].contains(&z.id.as_str()));
+        before_shape.zones.retain(|z| !["street-1", "cabins-1", "commons-2"].contains(&z.id.as_str()) && !z.id.starts_with("row-"));
         before_shape.corridors.retain(|c| c.from_zone != "street-1" && c.to_zone != "street-1");
-        before_shape.plots.retain(|p| p.kind != "cabin");
+        before_shape.plots.retain(|p| p.kind != "cabin" && !p.kind.starts_with("row_house"));
         let ci = before_shape.zone_index("commons").expect("the Commons");
         before_shape.zones[ci].body.zones.retain(|v| v.id != "recreation");
         let rooms = before_shape.generate_meshes().room_info;
@@ -3203,7 +3283,9 @@ mod tests {
         // Commons' walls, the washroom's wall either side of its door, the cuts the two
         // corridors make in their walls and in First Street's east wall, and their rails (148).
         let all = ship.generate_meshes().room_info;
-        assert_eq!(all.len(), 47, "the whole ship's rooms");
+        // 55 since Row Street (2026-11-13): its street, five alleys and green, seven rooms, and the
+        // lane from First Street, a walkable bound.
+        assert_eq!(all.len(), 55, "the whole ship's rooms");
         assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
         // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
         // 305 since increment 7's review (2026-10-21): the same 180 walls and guards, 72 lintels
@@ -3211,8 +3293,11 @@ mod tests {
         // pieces collide (2026-10-21): train-1's 9 (`HOME_SEGMENTS_BEFORE`). 320 since the frames'
         // posts collide (2026-10-22): elevator-1's and the two teleporters', 2 each. 47 rooms and
         // 317 segments since 2026-11-13: the screens den is part of the great room, and the wall
-        // between them (three segments) is gone.
-        assert_eq!(ship_wall_segments(&ship).len(), 317, "the whole ship's collision segments");
+        // between them (three segments) is gone. 347 since Row Street (2026-11-13): the lane's rails
+        // and its cuts in First Street's and Row Street's walls, Row Street's walls (its east line
+        // kept for the walk and parted only where an alley joins it), each alley's two side lines
+        // (neighbours' gardens are seen across, never walked onto) and the green's walls.
+        assert_eq!(ship_wall_segments(&ship).len(), 347, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
@@ -3316,8 +3401,9 @@ mod tests {
         assert!(ship.zone_index(HOME_ZONE_ID).is_none(), "the ship file holds no home");
         // p1 to p12 (the twelve plots along First Street, 2026-10-04), and since ship homes
         // increment 6 the sixteen cabins c1 to c16, and since 2026-11-13 the room program's two
-        // homesteads h1 and o1 (docs/design/home-room-program.md).
-        assert_eq!(ship.plots.len(), 30, "p1 to p12, c1 to c16, h1 and o1");
+        // homesteads h1 and o1 (docs/design/home-room-program.md), and the twenty row houses of Row
+        // Street, r1 to r20 (the same doc, section 10).
+        assert_eq!(ship.plots.len(), 50, "p1 to p12, c1 to c16, h1, o1 and r1 to r20");
         assert_eq!(ship.default_plot_id().as_deref(), Some("p1"));
         let refuse = |s: ShipStructure, d: HomeDesign, plot: &str, frag: &str| {
             let e = s.assemble(d, plot).expect_err(frag);
@@ -3547,10 +3633,11 @@ mod tests {
         assert_eq!(back.zones[back.home_zone_index()].origin, (0.0, 0.0, -10.0), "the home loads on its moved plot");
 
         // Turned away from its street: the panel says why, and the save refuses it. (East of the
-        // street at z 300: since ship homes increment 6 the cabin block stands there at z 88 to
-        // 136, and a p2 moved onto it would be refused for the overlap instead.)
+        // street at z 450: since ship homes increment 6 the cabin block stands at z 88 to 136, and
+        // since 2026-11-13 Row Street at z 300 to 436, and a p2 moved onto either would be refused
+        // for the overlap instead.)
         let before = std::fs::read(&ship_path).unwrap();
-        assert!(ship.move_plot("p2", (80.0, 0.0, 300.0)));
+        assert!(ship.move_plot("p2", (80.0, 0.0, 450.0)));
         let why = ship.plot_check("p2").expect("p2 takes the homestead").expect_err("p2 faces away from its street");
         assert!(why.contains("not through the homestead design's door"), "got: {why}");
         let e = ship.save_assembled(&dir, true).expect_err("a ship whose p2 would not load is not saved");
@@ -4099,6 +4186,13 @@ mod storey_fields_tests {
     /// pretty: pinned f25a9d8398e84427, now 64dd9eaa4aeec3b1"; and the console room joined the
     /// homestead's great room, so the homestead's two moved: compact 2cc6884c34f201cf to
     /// 395ca90c0b7aea56, pretty cdbe1eb1e7b9cdb4 to e8477b1870a5c5ca. The cabin's did not move.
+    ///
+    /// MOVED ON PURPOSE again 2026-11-13 (the same doc, section 10, the operator's "a street of their
+    /// own for now"): the ship file gained Row Street (its street, five alleys, green, the lane from
+    /// First Street and the twenty row house plots r1 to r20), so its three pins changed: "pinned
+    /// fbdcd7525835df6b, now 92f6b6a8296ea952" for the file and the built-in ship, and "ship file,
+    /// pretty: pinned 64dd9eaa4aeec3b1, now f6e8760010cf92d6". The new `open_shell` field is left out
+    /// of a body's file while empty, so the homestead's and the cabin's pins did not move.
     #[test]
     fn the_storey_fields_move_no_shipped_file() {
         let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
@@ -4117,9 +4211,9 @@ mod storey_fields_tests {
             now.push((format!("homes/shipped/{kind}.ron, pretty"), fnv(ron::ser::to_string_pretty(&design, pretty()).unwrap())));
         }
         const PINNED: [&str; 7] = [
-            "fbdcd7525835df6b",
-            "fbdcd7525835df6b",
-            "64dd9eaa4aeec3b1",
+            "92f6b6a8296ea952",
+            "92f6b6a8296ea952",
+            "f6e8760010cf92d6",
             // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165. Then ramp-1
             // became the train platform's 1:17 boarding ramp (2026-10-21; it was 069cc7d553362752

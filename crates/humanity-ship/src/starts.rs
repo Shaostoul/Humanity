@@ -567,7 +567,8 @@ mod tests {
     fn a_draft_for_developers_is_offered_by_no_server_and_still_loads() {
         let starts = the_file();
         let drafts: Vec<&str> = starts.starts.iter().filter(|s| s.dev).map(|s| s.id.as_str()).collect();
-        assert_eq!(drafts, ["household_homestead", "one_person_homestead"]);
+        // Since 2026-11-13 also the four row houses of Row Street.
+        assert_eq!(drafts, ["household_homestead", "one_person_homestead", "row_house_two_bedroom", "row_house_three_bedroom", "row_house_couples", "row_house_friends"]);
         for id in drafts {
             assert!(starts.offered().all(|s| s.id != id), "a server offers the draft {id}");
             let kind = &starts.get(id).unwrap().plot_kind;

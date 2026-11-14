@@ -382,7 +382,10 @@ pub struct ShipPlaces {
     /// the ship (2026-11-13, docs/design/embeddable-ai.md, "His answers": Ministral had invented
     /// "Second Street"), with `joins` and `districts`.
     pub zones: Vec<String>,
-    /// The zones a corridor joins, by their labels (`ShipStructure::corridors`), the home's left out.
+    /// The zones a corridor joins, by their labels (`ShipStructure::corridors`), and since 2026-11-13
+    /// the zones open to each other where they touch (`open_span_joins`), each pair once, joined
+    /// THROUGH a passage (a zone whose purpose is "corridor", which is no place of its own); the
+    /// home's left out.
     pub joins: Vec<(String, String)>,
     /// The ship's districts by their labels (the Concourse, a hangar bay): real places a line may
     /// name, which no way is shown to yet.
@@ -417,9 +420,43 @@ impl ShipPlaces {
             })
             .collect();
         let label = |z: &humanity_ship::ship_structure::ShipZone| if z.label.is_empty() { z.id.clone() } else { z.label.clone() };
-        let zones = ship.zones.iter().filter(|z| z.id != HOME_ZONE_ID).map(label).collect();
-        let named = |id: &str| ship.zones.iter().find(|z| z.id == id && z.id != HOME_ZONE_ID).map(label);
-        let joins = ship.corridors.iter().filter_map(|c| Some((named(&c.from_zone)?, named(&c.to_zone)?))).collect();
+        // A zone whose purpose is "corridor" (Row Street's alleys, 2026-11-13) is a way through, not a
+        // place: it is not listed, and the zones it joins are joined to each other through it.
+        let passage = |z: &humanity_ship::ship_structure::ShipZone| z.purpose == "corridor";
+        let zones = ship.zones.iter().filter(|z| z.id != HOME_ZONE_ID && !passage(z)).map(label).collect();
+        // Every way between two zones: a corridor, or two zones open to each other where they touch
+        // (`ShipStructure::open_span_joins`), each pair once, the home left out.
+        let mut links: Vec<(usize, usize)> = Vec::new();
+        let mut link = |a: usize, b: usize| {
+            let p = (a.min(b), a.max(b));
+            if a != b && ship.zones[a].id != HOME_ZONE_ID && ship.zones[b].id != HOME_ZONE_ID && !links.contains(&p) {
+                links.push(p);
+            }
+        };
+        for c in &ship.corridors {
+            if let (Some(a), Some(b)) = (ship.zone_index(&c.from_zone), ship.zone_index(&c.to_zone)) {
+                link(a, b);
+            }
+        }
+        for zi in 0..ship.zones.len() {
+            for (zj, _) in ship.open_span_joins(zi) {
+                link(zi, zj);
+            }
+        }
+        // Through each passage, its neighbours join one another.
+        let mut joined: Vec<(usize, usize)> = links.iter().copied().filter(|(a, b)| !passage(&ship.zones[*a]) && !passage(&ship.zones[*b])).collect();
+        for (pi, _) in ship.zones.iter().enumerate().filter(|(_, z)| passage(z)) {
+            let ends: Vec<usize> = links.iter().filter_map(|&(a, b)| if a == pi { Some(b) } else if b == pi { Some(a) } else { None }).filter(|&k| !passage(&ship.zones[k])).collect();
+            for (i, &a) in ends.iter().enumerate() {
+                for &b in &ends[i + 1..] {
+                    let p = (a.min(b), a.max(b));
+                    if a != b && !joined.contains(&p) {
+                        joined.push(p);
+                    }
+                }
+            }
+        }
+        let joins = joined.into_iter().map(|(a, b)| (label(&ship.zones[a]), label(&ship.zones[b]))).collect();
         let districts = ship.districts.iter().filter(|d| !d.label.is_empty()).map(|d| d.label.clone()).collect();
         ShipPlaces { volumes, zones, joins, districts }
     }

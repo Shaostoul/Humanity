@@ -20,6 +20,12 @@
         room_type: "street",
         items: ["bench_seating", "locker"],
     ),
+    // A way through (2026-11-13, Row Street's alleys, purpose "corridor"): a notice board at each
+    // end and nothing to sit on or store, so an alley is passed through, not lived in.
+    (
+        room_type: "corridor",
+        items: ["notice_board"],
+    ),
     // Increment 6's places (docs/design/ship-homes-increment-6-plan.md section 3.3): the cabin
     // block's hall, which is its zone's own floor, so it is keyed by the zone's purpose
     // ("residence", data/blueprints/ship_structure.ron `cabins-1`), and, keyed like "mess_hall" by

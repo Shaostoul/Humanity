@@ -51,6 +51,9 @@ mod homestead_layout_tests;
 /// The room program's two homesteads checked as the shipped designs carry them (2026-11-13).
 #[cfg(test)]
 mod home_program_tests;
+/// Open spans in a shell: open to the eye, joined for the walk only to a shared zone (2026-11-13).
+#[cfg(test)]
+mod open_shell_tests;
 pub mod hull;
 pub mod layout;
 pub mod lock_types;

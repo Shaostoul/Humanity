@@ -657,7 +657,9 @@ mod tests {
         }
         // The homesteads' bake and the cabins' one bake, whatever the count.
         // Since 2026-11-13 also one each for the room program's two homesteads (h1, o1).
-        assert_eq!(view.shells_baked, 4, "one shell for eleven homesteads, one for sixteen cabins and one for each new homestead: {}", view.shells_baked);
+        // And since Row Street (2026-11-13) one for each of the four row houses (their gates are the
+        // same door on each design, so one shell a kind serves every plot of it).
+        assert_eq!(view.shells_baked, 8, "one shell for eleven homesteads, one for sixteen cabins, one for each new homestead and one for each row house: {}", view.shells_baked);
         // The hall's wall has a hole at each cabin's door, for the eye; its collision is whole.
         let cuts: Vec<ShellCut> = view.zone_cuts(hall).collect();
         assert_eq!(cuts.len(), 16, "the hall's east wall opens at every cabin's door: {cuts:?}");
