@@ -1,0 +1,17 @@
+// A drum machine's kick in the 909 style (section 7f, rung E4): a sine whose pitch an envelope with an
+// instant attack sweeps down from about three times the note, shaped and pushed into saturation, with
+// a click of low-passed noise at the strike ("Practical Bass Drum Synthesis", Sound On Sound, February
+// 2002: the 909's oscillator pitch set by a contour with an "instant Attack and slow Decay", a
+// waveshaper, and noise and a short pulse for the click). The punch of house.
+Instrument(
+    id: "kick_909",
+    words: "music.instrument.kick_909",
+    kind: DrumMachine((
+        tones: [(decay_s: 0.4, pitch: 3.2, pitch_s: 0.022)],
+        drive: 0.3,
+        click: 0.3,
+        click_ms: 2.5,
+    )),
+    level_db: -12.5,
+    reverb_send: 0.03,
+)

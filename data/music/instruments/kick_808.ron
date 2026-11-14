@@ -1,0 +1,16 @@
+// A drum machine's kick in the 808 style (docs/design/music.md section 7f, rung E4): a deep sine that
+// rings down by itself, a little sharp at the strike and settling (Synth Secrets, "Practical Bass Drum
+// Synthesis", Sound On Sound, February 2002: the 808's bridged-T resonance decays to silence by itself
+// and "goes slightly flat at long decays"), with a soft beater click. The long boom of hip-hop and lo-fi.
+Instrument(
+    id: "kick_808",
+    words: "music.instrument.kick_808",
+    kind: DrumMachine((
+        tones: [(decay_s: 1.1, pitch: 1.12, pitch_s: 0.05)],
+        drive: 0.05,
+        click: 0.1,
+        click_ms: 1.5,
+    )),
+    level_db: -14.6,
+    reverb_send: 0.03,
+)

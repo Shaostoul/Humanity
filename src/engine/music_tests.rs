@@ -709,7 +709,9 @@ fn the_music_starts_with_the_app_and_a_script_launch_stays_silent() {
 /// `:<role>=<part>` for a lead voice, as the Music page chooses one), built as the game builds them
 /// (the installed recordings) and written as WAVs into HUMANITY_MUSIC_WAV_DIR
 /// (`<HUMANITY_MUSIC_WAV_PREFIX>-<genre>-seed-<seed>.wav`), each piece's key, form, tempo and lead
-/// voice printed. Not a gate. Run by hand, for example:
+/// voice printed. An item `instrument:<id>` (or `instrument:<id>:<seconds>`) is one instrument by
+/// itself instead (rungs E4 and E5: a drum in a groove, anything else chords held then arpeggiated).
+/// Not a gate. Run by hand, for example:
 /// HUMANITY_MUSIC_WAV_DIR=<dir> HUMANITY_MUSIC_PIECES=deep_dubstep:1,electro_swing:1:kit=brushes:bass=tuba
 /// node scripts/lib-tests.js pieces_to_listen_to --ignored --nocapture
 #[test]
@@ -727,6 +729,19 @@ fn pieces_to_listen_to() {
     let pieces = std::env::var("HUMANITY_MUSIC_PIECES").unwrap_or_else(|_| "electro_swing:20261113,electro_swing:4242,mothership_calm:20261113".to_string());
     let prefix = std::env::var("HUMANITY_MUSIC_WAV_PREFIX").unwrap_or_else(|_| "piece".to_string());
     for item in pieces.split(',').filter(|s| !s.trim().is_empty()) {
+        // "instrument:<id>[:<seconds>]": one instrument by itself (docs/design/music.md section 7f,
+        // `render::render_demo`): a drum in a groove, anything else four chords held then arpeggiated.
+        if let Some(rest) = item.trim().strip_prefix("instrument:") {
+            let mut bits = rest.split(':');
+            let id = bits.next().unwrap_or_default();
+            let seconds: f64 = bits.next().and_then(|s| s.parse().ok()).unwrap_or(32.0);
+            let lib = humanity_music::MusicLibrary::load(&data).expect("the music data");
+            let r = humanity_music::render::render_demo(&lib, id, 432.0, seconds, 48000.0).unwrap_or_else(|e| panic!("{e}"));
+            let path = dir.join(format!("{prefix}-instrument-{}.wav", id.replace('_', "-")));
+            humanity_music::render::write_wav(&path, &r.frames, 48000).expect("the WAV is written");
+            println!("{}: {id} by itself, {seconds:.0} s", path.display());
+            continue;
+        }
         let mut bits = item.trim().split(':');
         let genre = bits.next().unwrap_or("mothership_calm");
         let mut seed: u64 = bits.next().and_then(|s| s.parse().ok()).unwrap_or(20261113);
@@ -745,7 +760,8 @@ fn pieces_to_listen_to() {
                     seed += 1;
                 }
             } else if let Some(role) = humanity_music::tune::ROLE_IDS.iter().position(|r| r == k) {
-                let i = g.leads.iter().position(|e| e.role.index() == role && e.part.as_deref() == Some(*v)).expect("the genre offers that lead");
+                // A lead by its part, or (a lead with no part, deep dubstep's wavetable growl) its instrument.
+                let i = g.leads.iter().position(|e| e.role.index() == role && (e.part.as_deref() == Some(*v) || e.instrument == *v)).expect("the genre offers that lead");
                 ctx.tune.lead[role] = i as u16;
             }
             label.push_str(&format!("-{v}"));

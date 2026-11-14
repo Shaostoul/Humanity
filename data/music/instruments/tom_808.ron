@@ -1,0 +1,13 @@
+// A drum machine's tom in the 808 style (section 7f, rung E4): a sine that starts sharp and slides down
+// as it rings, with a breath of low noise; its pitch is the note it is given (a low, middle and high
+// tom are one file at three notes).
+Instrument(
+    id: "tom_808",
+    words: "music.instrument.tom_808",
+    kind: DrumMachine((
+        tones: [(decay_s: 0.45, pitch: 1.18, pitch_s: 0.08)],
+        noise: Some((level: 0.06, filter: LowPass, hz: 1800.0, decay_s: 0.04)),
+    )),
+    level_db: -8.0,
+    reverb_send: 0.12,
+)

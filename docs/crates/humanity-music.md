@@ -6,7 +6,9 @@ The game's own music, composed live, and the ship's hum (docs/design/music.md). 
 improvises within a mood and a genre (chord graphs with voice leading, motifs it varies, phrases it
 never repeats within ten minutes, danger moods the game's intensity raises), a pool of synthesised
 voices plays it (pads, a formant choir, modal bells and the steel pan, membrane deep drums and taiko,
-FM keys, plucked strings, noise, and the sampler seam the instrument library fills), and a reverb,
+FM keys, plucked strings, noise, a drum machine's voices, synths whose oscillators may be a band-limited
+wavetable of single cycles, a unison supersaw or a modulated pulse, and the sampler seam the instrument
+library fills), and a reverb,
 the genre's recipe and a limiter finish it; the hum and the optional tones are a second sound. It is
 a crate of its own because it is pure (no device, no GPU, no I/O on the hot path: it renders into a
 plain buffer, so tests run faster than real time and `just music-render` works offline, and it can
@@ -133,6 +135,12 @@ And 24 more items, 24 references (`node scripts/crate-cards.js --interface human
 
 ## Open work
 
+- **The electronic rungs E3, E6 and E7** (the mix's delay, gated reverb, downlifter and tape stop;
+  house, drum and bass, synthwave and ambient as genres; resampling, granular textures, brostep and
+  riddim). E1 and E2 (structure, the bass toolkit) were built 2026-11-13, E4 and E5 (the drum machine,
+  the wavetable, unison and pulse oscillators: `drum_machine.rs`, `wavetable.rs`, `osc.rs`) 2026-11-14;
+  the supersaw, the wavetable pad, the toms, cowbell, rimshot, 909 snare and 808 clap wait for E6's
+  genres. Source: [music.md](../design/music.md), sections 7d to 7f.
 - **Rungs 4 to 10 of the music** (the menu mood on the title screens, voice-call ducking, the self-meter and `music_state` on the IPC,
   sampled instruments, stingers and gaps, the soft-metal guitar and the soprano, the website,
   making music in the app), and the genres' later rungs (dubstep, a danger palette per genre, a

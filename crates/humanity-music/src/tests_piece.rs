@@ -200,8 +200,8 @@ fn every_piece_stays_inside_its_genres_rules() {
 
 /// A PIECE DRAWS ITS KIT, ITS COMPING AND BASS VOICES, AND A CALM MOOD'S PAD (the 2026-11-13 genre
 /// pass: electro swing's brushes, honky-tonk piano and tuba; lo-fi's jazz kit and electric piano; the
-/// calm moods' four choir voices as a pad): over forty seeds each choice is drawn, both sides of each
-/// appear, a piece never plays two kits at once, and while the choir sings the pad the choir role
+/// calm moods' four choir voices as a pad; since 2026-11-14 the drum machine's kits, rung E4): over
+/// forty seeds each choice is drawn, every side of each appears, a piece never plays two kits at once, and while the choir sings the pad the choir role
 /// rests. RED first (2026-11-13) with `resolve_eff` ignoring the kits (every drum part playing):
 /// "electro swing seed 1 played the kits {\"brushes\", \"house\"}".
 #[test]
@@ -230,14 +230,14 @@ fn a_piece_draws_its_kit_its_voices_and_a_calm_pad() {
         pads.insert(roles[RoleKind::Pad.index()].map(id).unwrap_or_default());
         basses.insert(roles[RoleKind::Bass.index()].map(id).unwrap_or_default());
     }
-    assert_eq!(kits.len(), 2, "both kits drawn over forty pieces: {kits:?}");
+    assert_eq!(kits.len(), es.kits.len(), "every kit drawn over forty pieces: {kits:?}");
     assert!(pads.contains("jazz_guitar") && pads.contains("electric_piano"), "the guitar and the honky-tonk piano comp: {pads:?}");
     assert!(basses.contains("upright_bass") && basses.contains("swing_horns"), "the upright bass and the tuba: {basses:?}");
     // Lo-fi: the drum machine and the jazz kit (whose stand-ins share the machine's voices, so the
     // kit is read from the piece's draw).
     let lofi = lib.genre_index("lofi").unwrap();
     let lk: std::collections::BTreeSet<u8> = (1..=40u64).filter_map(|s| crate::piece::Piece::new(s).kit(&res.genres[lofi].kits)).collect();
-    assert_eq!(lk.len(), 2, "lo-fi draws both its kits: {lk:?}");
+    assert_eq!(lk.len(), res.genres[lofi].kits.len(), "lo-fi draws every kit it lists: {lk:?}");
     // The calm mood: the strings pad or the choir singing it, the choir role resting while it does.
     let (mut choir_pads, mut string_pads) = (0, 0);
     for seed in 1..=40u64 {

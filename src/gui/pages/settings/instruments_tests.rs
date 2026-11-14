@@ -167,7 +167,7 @@ fn download_remove_progress_and_failure_are_shown() {
 
 /// A PACK SAYS WHAT IT ADDS, AND A SET OF WAVES IS COUNTED (2026-11-13, the brief: "each pack's size and
 /// what it adds said in words"): a pack's `about` sentence shows under its name, a set's wave sets show
-/// as a count with the note that the music does not play them yet, and a pack of waves alone has no
+/// as a count with what they are for (the wavetable instruments), and a pack of waves alone has no
 /// empty "Holds:" line. Seen red 2026-11-13 with `draw_pack` before the about and waves lines (its HEAD~ version copied
 /// over it, the test run, put back): "the synth waves pack says what it adds".
 #[test]

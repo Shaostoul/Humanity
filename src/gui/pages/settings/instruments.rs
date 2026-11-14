@@ -48,8 +48,8 @@ fn warn(ui: &mut egui::Ui, theme: &Theme, color: Color32, text: impl Into<String
 pub(crate) const LIST_OPEN_MAX: usize = 12;
 
 /// What a set holds: its instruments (named, or counted when there are many), then each wave set
-/// and its count (2026-11-13: AKWF's single cycles, which no music plays yet, and the line says
-/// so). A set of waves alone has no instrument line.
+/// and its count (2026-11-13: AKWF's single cycles, which the synthesiser's wavetable instruments
+/// are built from since rung E5, 2026-11-14). A set of waves alone has no instrument line.
 fn holds(ui: &mut egui::Ui, theme: &Theme, instruments: &[InstrumentRef], waves: &[WaveSetRef]) {
     if instruments.len() > LIST_OPEN_MAX {
         muted(ui, theme, tf("instrument_packs.holds_count", &[("count", &instruments.len().to_string())]));

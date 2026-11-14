@@ -2991,7 +2991,13 @@ recording) and DEEP DUBSTEP (music.md section 7e: 140 bpm half-time, the snare o
 sine sub ducking under the kick, a wobble whose 24 dB filter sweeps in time at a rate changing bar
 by bar, FM growls talking in vowels, a structure of intro, builds with snare rolls and a riser, a
 silent beat, drops with an impact; the core set's LMMS hits; built on rung E1's genre `structure`
-and rung E2's bass toolkit, music.md section 7d)); PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
+and rung E2's bass toolkit, music.md section 7d)); since 2026-11-14 rungs E5 and E4 (music.md section
+7f): a WAVETABLE oscillator that plays the core set's AKWF single cycles (or a pack's) band-limited
+per half octave and morphs between them in time, UNISON with the JP-8000 supersaw's measured detune
+and mix curves, the PULSE with its width modulated, and DRUM-MACHINE voices in the 808 and 909 style
+(kicks, snares, claps, closed and open hats with a choke, toms, cowbell, rimshot), as lo-fi's 808 kit
+and electro swing's 909 kit, with deep dubstep's pieces drawing a wavetable growl or a pulse-width
+pad, each levelled to what it stands beside; PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
 seed that draws its key, tempo, form (AABA and the like, sections that return), each section's chords
 (electro swing's from a harmonic grammar of functions, secondary dominants, tritone substitutes and
 passing diminished chords), its own riffs (motif rules) and its lead voices (clarinet, hot-club violin,
@@ -3009,7 +3015,7 @@ off); the music sits 12 dB under a playing chat video's sound and 6 dB under on 
 the world; the moods' pads, bells and drones and lo-fi's keys, lead and melody play recorded
 instruments where installed. Rungs 5 to 10 (the self-meter, voice-call ducking, the website...) are
 planned in `docs/design/music.md`.
-- Native: `crates/humanity-music/` (the crate: `composer.rs`, `voice.rs`, `score.rs`, `bed.rs`,
+- Native: `crates/humanity-music/` (the crate: `composer.rs`, `voice.rs`, `osc.rs`, `wavetable.rs`, `drum_machine.rs`, `score.rs`, `bed.rs`,
   `intensity.rs`, `kira_sound.rs`, card `docs/crates/humanity-music.md`), `src/engine/music.rs` (the
   frame wiring), `src/gui/pages/settings_music.rs`, `src/gui/pages/dev_music.rs`,
   `crates/humanity-core/src/audio/mod.rs` (`AudioManager::play_data`, the ambience volume)

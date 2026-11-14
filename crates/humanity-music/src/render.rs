@@ -219,6 +219,109 @@ pub fn bed_context() -> BedContext {
     BedContext::default()
 }
 
+/// One instrument by itself, to listen to (docs/design/music.md section 7f; `pieces_to_listen_to`'s
+/// `instrument:<id>` items): `seconds` at 120 bpm in D minor at `a4`, through the score's reverb. A
+/// drum-machine voice (or a membrane or noise drum) plays a groove (quarters, eighths with accents,
+/// sixteenths, a syncopated bar; a kick at A1, a tom stepping through three pitches, the rest at D3);
+/// a growl or a bass a riff of chord tones in eighths low down; anything else the chords D minor, B
+/// flat, F and C two bars each, held the first time through and arpeggiated the next. Levelled to
+/// about -20 dBFS RMS, its peaks under -1 dBFS. A recorded instrument plays its synthesised fallback.
+pub fn render_demo(lib: &crate::MusicLibrary, id: &str, a4: f32, seconds: f64, rate: f32) -> Result<Rendered, String> {
+    use crate::instrument::InstrumentKind;
+    use crate::voice::{BlockParams, NoteOn, VoicePool};
+    let mut idx = lib.instrument_index(id).ok_or_else(|| format!("{id:?} is not in data/music/instruments"))?;
+    if let InstrumentKind::Sampler(s) = &lib.instruments[idx].kind {
+        idx = lib.instrument_index(&s.fallback).ok_or_else(|| format!("{id}: its fallback {:?} is not an instrument", s.fallback))?;
+    }
+    let inst = lib.instruments[idx].clone();
+    let drum = matches!(inst.kind, InstrumentKind::DrumMachine(_) | InstrumentKind::Membrane(_) | InstrumentKind::Noise(_));
+    let low = id.contains("growl") || id.contains("bass");
+    let beat = 0.5f64;
+    let bar = 4.0 * beat;
+    // (start s, midi, held s, velocity), for 16 bars, then repeated.
+    let mut notes: Vec<(f64, f32, f32, f32)> = Vec::new();
+    if drum {
+        let midi = |k: usize| if id.contains("kick") { 33.0 } else if id.contains("tom") { [41.0, 45.0, 50.0][k % 3] } else { 50.0 };
+        let bars: [&[(usize, f32)]; 4] = [
+            &[(0, 1.0), (4, 0.8), (8, 1.0), (12, 0.8)],
+            &[(0, 1.0), (2, 0.5), (4, 0.8), (6, 0.5), (8, 1.0), (10, 0.5), (12, 0.8), (14, 0.5)],
+            &[(0, 1.0), (1, 0.4), (2, 0.6), (3, 0.4), (4, 0.9), (5, 0.4), (6, 0.6), (7, 0.4), (8, 1.0), (9, 0.4), (10, 0.6), (11, 0.4), (12, 0.9), (13, 0.5), (14, 0.7), (15, 0.6)],
+            &[(0, 1.0), (3, 0.7), (6, 0.8), (10, 0.7), (12, 0.9), (14, 0.6)],
+        ];
+        let mut k = 0;
+        for b in 0..16 {
+            for &(step, vel) in bars[b % 4] {
+                notes.push((b as f64 * bar + step as f64 * beat / 4.0, midi(k), 0.1, vel));
+                k += 1;
+            }
+        }
+    } else {
+        // D minor, B flat, F, C (as MIDI notes in the third octave).
+        let chords: [[f32; 3]; 4] = [[50.0, 53.0, 57.0], [46.0, 50.0, 53.0], [53.0, 57.0, 60.0], [48.0, 52.0, 55.0]];
+        for b in 0..16 {
+            let c = chords[(b / 2) % 4];
+            let t0 = b as f64 * bar;
+            if low {
+                let riff = [0usize, 0, 2, 0, 1, 0, 2, 1];
+                for (s, &n) in riff.iter().enumerate() {
+                    notes.push((t0 + s as f64 * beat / 2.0, c[n] - 24.0, 0.2, if s % 2 == 0 { 0.9 } else { 0.7 }));
+                }
+            } else if b < 8 {
+                if b % 2 == 0 {
+                    for &n in &c {
+                        notes.push((t0, n, (2.0 * bar - 0.15) as f32, 0.8));
+                    }
+                }
+            } else {
+                let arp = [c[0], c[1], c[2], c[1] + 12.0, c[2], c[1], c[0] + 12.0, c[2]];
+                for (s, &n) in arp.iter().enumerate() {
+                    notes.push((t0 + s as f64 * beat / 2.0, n, 0.22, 0.75));
+                }
+            }
+        }
+    }
+    let span = 16.0 * bar;
+    let insts = vec![inst];
+    let banks = vec![None];
+    let mut pool = VoicePool::new(7);
+    let mut reverb = crate::dsp::Fdn::new(2.4, rate);
+    let vowel = [(crate::dsp::SvfCoefs::new(800.0, 10.0, rate), 1.0); 5];
+    let total = (seconds * rate as f64) as usize;
+    let mut frames = Vec::with_capacity(total);
+    let (mut dl, mut dr, mut sl, mut sr) = ([0f32; 64], [0f32; 64], [0f32; 64], [0f32; 64]);
+    let mut next = 0usize;
+    let mut tag = 0u32;
+    while frames.len() < total {
+        let t = frames.len() as f64 / rate as f64;
+        while notes[next % notes.len()].0 + (next / notes.len()) as f64 * span <= t {
+            let (_, midi, hold, vel) = notes[next % notes.len()];
+            tag += 1;
+            pool.note_on(NoteOn { inst: 0, role: 1, midi, a4, vel, pan: 0.0, hold_s: hold, tag, level: 1.0 }, &insts, &banks, rate);
+            next += 1;
+        }
+        let beats = t / beat;
+        let mut p = BlockParams::plain(rate, (1.0 / beat) as f32, &vowel);
+        p.bar = (beats / 4.0).floor() as u64;
+        p.beats = beats;
+        for b in [&mut dl, &mut dr, &mut sl, &mut sr] {
+            b.fill(0.0);
+        }
+        pool.render(&insts, &banks, &p, &mut dl, &mut dr, &mut sl, &mut sr, 64);
+        reverb.process(&sl, &sr, &mut dl, &mut dr, 0.5);
+        frames.extend(dl.iter().zip(dr.iter()).map(|(l, r)| [*l, *r]));
+    }
+    frames.truncate(total);
+    let rms = (frames.iter().map(|f| (f[0] * f[0] + f[1] * f[1]) as f64).sum::<f64>() / (2 * frames.len().max(1)) as f64).sqrt();
+    let peak = frames.iter().map(|f| f[0].abs().max(f[1].abs())).fold(0.0, f32::max) as f64;
+    let gain = if rms > 1e-9 { (0.1 / rms).min(0.89 / peak.max(1e-9)) } else { 1.0 } as f32;
+    for f in frames.iter_mut() {
+        f[0] *= gain;
+        f[1] *= gain;
+    }
+    fade_out(&mut frames, rate, 2.0);
+    Ok(Rendered { frames, rate, block_us_mean: 0.0, block_us_worst: 0.0, blocks: 0 })
+}
+
 /// Write stereo frames as a 16-bit PCM WAV with triangular dither.
 pub fn write_wav(path: &std::path::Path, frames: &[[f32; 2]], rate: u32) -> std::io::Result<usize> {
     let n = frames.len();

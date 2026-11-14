@@ -83,11 +83,35 @@ fn read_dir_ron<T: serde::de::DeserializeOwned>(dir: &Path) -> Result<Vec<(Strin
     Ok(out)
 }
 
+/// Read and band-limit every wavetable synth's waves (wavetable.rs; rung E5), from the core set or an
+/// installed pack. A wave that is missing leaves the table empty when the instrument names a
+/// `fallback` (Resolved plays that instead: a pack's waves not installed), and is an error naming the
+/// instrument and the wave when it does not (a typo in a shipped file fails the data test).
+pub fn load_wavetables(data_dir: &Path, instruments: &mut [Instrument]) -> Result<(), String> {
+    for inst in instruments.iter_mut() {
+        let id = inst.id.clone();
+        if let crate::instrument::InstrumentKind::Synth(s) = &mut inst.kind {
+            if let Some(w) = &mut s.wavetable {
+                match crate::wavetable::load(data_dir, &w.waves) {
+                    Ok(t) => w.table = Some(std::sync::Arc::new(t)),
+                    Err(e) if !w.fallback.is_empty() => {
+                        log::info!("instrument {id}: {e}; its fallback {:?} plays", w.fallback);
+                        w.table = None;
+                    }
+                    Err(e) => return Err(format!("instrument {id}: {e}")),
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 impl MusicLibrary {
     /// Read every music file under `data_dir` (the app's "data" folder; tests pass the repo's).
     pub fn load(data_dir: &Path) -> Result<MusicLibrary, String> {
         let music = data_dir.join("music");
-        let instruments: Vec<Instrument> = read_dir_ron::<Instrument>(&music.join("instruments"))?.into_iter().map(|(_, i)| i).collect();
+        let mut instruments: Vec<Instrument> = read_dir_ron::<Instrument>(&music.join("instruments"))?.into_iter().map(|(_, i)| i).collect();
+        load_wavetables(data_dir, &mut instruments)?;
         let moods: Vec<Mood> = read_dir_ron::<Mood>(&music.join("moods"))?.into_iter().map(|(_, m)| m).collect();
         let genres: Vec<Genre> = read_dir_ron::<Genre>(&music.join("genres"))?.into_iter().map(|(_, s)| s).collect();
         let places_path = music.join("places.ron");

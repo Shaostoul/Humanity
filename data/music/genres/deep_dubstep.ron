@@ -92,6 +92,16 @@ Genre(
         range: (-2, 4),
         hold: (0.6, 0.95),
     )),
+    // Each piece's growl and pad (rung E5, 2026-11-14): the FM growl, or a WAVETABLE growl (the core
+    // set's AKWF voice and FM cycles morphing in time); the dub pad, or a PULSE-WIDTH pad an octave
+    // higher (a pulse carries twice a saw's fundamental, so down at the dub pad's A2 it crowded the
+    // kick's band: the kick's onsets in the intro fell from 14 to 9).
+    leads: [
+        (role: Melody, instrument: "fm_growl", low: "D2", high: "D3", density: 0.6, weight: 2.0),
+        (role: Melody, instrument: "wavetable_growl", low: "D2", high: "D3", density: 0.6, weight: 1.0),
+        (role: Pad, instrument: "dub_pad", low: "A2", high: "A4", voices: 2, level_db: 3.0, weight: 2.0),
+        (role: Pad, instrument: "pwm_pad", low: "A3", high: "A5", voices: 2, level_db: 3.0, weight: 1.0),
+    ],
     roles_off: [Choir, Drone, Percussion],
     roles_add: [
         (role: Bass, instrument: "wobble_bass", low: "D1", high: "C2"),

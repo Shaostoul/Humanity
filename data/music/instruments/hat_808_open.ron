@@ -1,0 +1,13 @@
+// A drum machine's open hi-hat in the 808 style (section 7f, rung E4): the closed hat's six squares,
+// ringing on; a closed hat struck after it cuts it short (choke group 1).
+Instrument(
+    id: "hat_808_open",
+    words: "music.instrument.hat_808_open",
+    kind: DrumMachine((
+        metal: Some((level: 1.0, bp_hz: 10000.0, bp_q: 0.9, hp_hz: 8000.0, decay_s: 0.55)),
+        choke: 1,
+    )),
+    level_db: -3.0,
+    reverb_send: 0.08,
+    pan_spread: 0.2,
+)

@@ -1,0 +1,15 @@
+// The SUPERSAW (section 7f, rung E5): seven saws detuned around the note by the JP-8000's own curve
+// (Adam Szabo's measurements, "How to Emulate the Super Saw", 2010), free running, high-passed at the
+// note, spread wide; through a low-pass that opens a little with the envelope. Trance and synthwave
+// chords and leads (the house, synthwave and trance genres of E6).
+Instrument(
+    id: "supersaw",
+    words: "music.instrument.supersaw",
+    kind: Synth((
+        oscillators: [(wave: Saw, unison: Some((voices: 7, detune: 0.45, mix: 0.6, spread: 0.8)))],
+        filter: Some((kind: LowPass, cutoff_hz: 3200.0, q: 0.7, key_track: 1.0, env_hz: 2500.0)),
+        envelope: (attack_s: 0.01, decay_s: 0.6, sustain: 0.75, release_s: 0.35),
+    )),
+    level_db: -24.0,
+    reverb_send: 0.3,
+)

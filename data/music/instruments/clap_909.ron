@@ -1,0 +1,12 @@
+// A drum machine's clap in the 909 style (section 7f, rung E4): band-passed noise struck four times
+// about eight milliseconds apart, then a longer, roomier tail. Our own design: no clap circuit
+// description was read.
+Instrument(
+    id: "clap_909",
+    words: "music.instrument.clap_909",
+    kind: DrumMachine((
+        noise: Some((level: 1.0, filter: BandPass, hz: 1300.0, q: 1.2, decay_s: 0.3, bursts: 4, burst_ms: 8.0, tail: 0.7)),
+    )),
+    level_db: -12.5,
+    reverb_send: 0.3,
+)

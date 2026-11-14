@@ -1,0 +1,15 @@
+// A PULSE-WIDTH pad (section 7f, rung E5): two pulses a few cents apart whose widths an LFO sweeps in
+// time with the music (a full sweep every two bars), the classic analogue string pad's slow shimmer,
+// through a dark low-pass. Deep dubstep's other pad.
+Instrument(
+    id: "pwm_pad",
+    words: "music.instrument.pwm_pad",
+    kind: Synth((
+        oscillators: [(wave: Pulse, width: 0.5, detune_cents: -5.0, pan: -0.5), (wave: Pulse, width: 0.5, detune_cents: 5.0, pan: 0.5)],
+        pwm: Some((lfo: (per_beat: 0.125, shape: Triangle), depth: 0.38)),
+        filter: Some((kind: LowPass, cutoff_hz: 520.0, q: 0.8, key_track: 0.8, lfo_hz: 0.03, lfo_depth_hz: 260.0)),
+        envelope: (attack_s: 3.0, release_s: 2.5),
+    )),
+    level_db: -24.1,
+    reverb_send: 0.45,
+)

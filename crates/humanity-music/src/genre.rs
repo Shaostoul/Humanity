@@ -74,9 +74,13 @@ pub struct DrumPart {
     #[serde(default)]
     pub part: Option<String>,
     /// The kit it belongs to (one of the genre's `kits`): it plays only in a piece that drew that
-    /// kit. None: it plays in every piece (electro swing's house kick under either kit).
+    /// kit. None (and no `kits`): it plays in every piece.
     #[serde(default)]
     pub kit: Option<String>,
+    /// The several kits it plays in, beside `kit` (2026-11-14: electro swing's house kick under the
+    /// house kit and the brushes, but not the 909 kit, which brings its own kick).
+    #[serde(default)]
+    pub kits: Vec<String>,
     /// The sections of the genre's `structure` it plays in, by name (empty: every section): deep
     /// dubstep's sub-shaking kick waits for the drop.
     #[serde(default)]

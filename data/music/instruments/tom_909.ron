@@ -1,0 +1,14 @@
+// A drum machine's tom in the 909 style (section 7f, rung E4): a sine with a deeper pitch sweep than
+// the 808's, a little driven, with a click; its pitch is the note it is given.
+Instrument(
+    id: "tom_909",
+    words: "music.instrument.tom_909",
+    kind: DrumMachine((
+        tones: [(decay_s: 0.35, pitch: 1.5, pitch_s: 0.04)],
+        drive: 0.2,
+        click: 0.12,
+        noise: Some((level: 0.05, filter: LowPass, hz: 2500.0, decay_s: 0.03)),
+    )),
+    level_db: -8.0,
+    reverb_send: 0.12,
+)

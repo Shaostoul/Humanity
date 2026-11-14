@@ -1,0 +1,14 @@
+// A drum machine's open hi-hat in the 909 style (section 7f, rung E4): the closed hat's metal and
+// noise ringing on (choke group 1: a closed hat cuts it short). House music's off-beat.
+Instrument(
+    id: "hat_909_open",
+    words: "music.instrument.hat_909_open",
+    kind: DrumMachine((
+        metal: Some((level: 1.0, tune: 1.45, bp_hz: 10500.0, bp_q: 0.8, hp_hz: 8000.0, decay_s: 0.6)),
+        noise: Some((level: 0.12, filter: HighPass, hz: 9000.0, decay_s: 0.5)),
+        choke: 1,
+    )),
+    level_db: -7.2,
+    reverb_send: 0.08,
+    pan_spread: 0.2,
+)

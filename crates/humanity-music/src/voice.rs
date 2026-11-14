@@ -8,7 +8,8 @@ use std::f32::consts::PI;
 use std::sync::Arc;
 
 use crate::dsp::{db_to_amp, fast_floor, fast_sin, fast_tanh, lfo_value, pan_gains, polyblep, shape_sample, Allpass1, Env, Lfo, Phasor, Svf, SvfCoefs, BASS_FORMANTS};
-use crate::instrument::{FilterKind, FilterSpec, Instrument, InstrumentKind, SampleBank, VoiceFx, Wave};
+use crate::osc::OscBank;
+use crate::instrument::{FilterKind, FilterSpec, Instrument, InstrumentKind, SampleBank, VoiceFx};
 use crate::rng::Rng;
 use crate::stream::StreamLease;
 use crate::tuning::note_hz;
@@ -19,6 +20,8 @@ pub const MAX_VOICES: usize = 64;
 const KS_LEN: usize = 4096;
 const MAX_PARTIALS: usize = 12;
 const MAX_MODES: usize = 8;
+/// A synth's oscillators are summed into a buffer this long at most, then filtered (osc.rs).
+const OSC_CHUNK: usize = 128;
 
 /// What every voice needs to know for one block.
 pub struct BlockParams<'a> {
@@ -70,7 +73,8 @@ pub struct NoteOn {
 
 #[derive(Clone, Copy, Default)]
 struct SynthSt {
-    ph: [f32; 4],
+    /// The oscillators (osc.rs): phases, unison copies, the width and the morph.
+    osc: OscBank,
     svf_l: Svf,
     svf_r: Svf,
     /// The filter's second stage (24 dB an octave).
@@ -216,6 +220,7 @@ enum St {
     Plucked(PluckSt),
     Noise(NoiseSt),
     Sampler(SamplerSt),
+    DrumMachine(crate::drum_machine::DrumSt),
 }
 
 /// One voice.
@@ -368,6 +373,19 @@ impl VoicePool {
                 return;
             }
         }
+        // A drum of a choke group cuts short the others of its group still sounding (the open hi-hat
+        // under the closed one).
+        if let InstrumentKind::DrumMachine(d) = &inst.kind {
+            if d.choke > 0 {
+                for o in self.voices.iter_mut().filter(|o| o.active) {
+                    if let (Some(InstrumentKind::DrumMachine(od)), St::DrumMachine(ost)) = (insts.get(o.inst as usize).map(|x| &x.kind), &mut o.st) {
+                        if od.choke == d.choke {
+                            crate::drum_machine::choke(ost, rate);
+                        }
+                    }
+                }
+            }
+        }
         // A free voice, else the quietest: a released one before a held one, then the oldest.
         let slot = match self.voices.iter().position(|v| !v.active) {
             Some(i) => i,
@@ -431,9 +449,7 @@ impl VoicePool {
             InstrumentKind::Synth(s) => {
                 v.env = env(&s.envelope);
                 let mut st = SynthSt { vib: Lfo::new(v.rng.f32()), trem: Lfo::new(v.rng.f32()), flt: Lfo::new(v.rng.f32()), ..Default::default() };
-                for p in st.ph.iter_mut() {
-                    *p = v.rng.f32();
-                }
+                st.osc = OscBank::new(s, &mut v.rng);
                 St::Synth(st)
             }
             InstrumentKind::Choir(c) => {
@@ -549,6 +565,11 @@ impl VoicePool {
                     hiss_lp: 0.0,
                 })
             }
+            InstrumentKind::DrumMachine(d) => {
+                // No envelope: a hit rings by its parts' own decays (a choke cuts it short).
+                v.env = Env::new(0.0, 0.0, 1.0, 0.1, rate);
+                St::DrumMachine(crate::drum_machine::start(d, f, rate, &mut v.rng))
+            }
             InstrumentKind::Sampler(s) => {
                 v.env = env(&s.envelope);
                 let bank = banks.get(n.inst as usize).and_then(|b| b.as_ref());
@@ -615,20 +636,6 @@ impl VoicePool {
             }
             v.age += n as u64;
         }
-    }
-}
-
-/// One sample of a band-limited oscillator at phase `ph`, phase step `d`.
-#[inline]
-fn osc(wave: Wave, ph: f32, d: f32) -> f32 {
-    match wave {
-        Wave::Saw => 2.0 * ph - 1.0 - polyblep(ph, d),
-        Wave::Square => {
-            let a = if ph < 0.5 { 1.0 } else { -1.0 };
-            a + polyblep(ph, d) - polyblep((ph + 0.5).fract(), d)
-        }
-        Wave::Triangle => 1.0 - 4.0 * (ph - 0.5).abs(),
-        Wave::Sine => (2.0 * PI * ph).sin(),
     }
 }
 
@@ -951,20 +958,6 @@ fn render_voice(
                     v.glide = 0.0;
                 }
             }
-            let mut dt = [0f32; 4];
-            let mut lv = [0f32; 4];
-            let mut pl = [0f32; 4];
-            let mut pr = [0f32; 4];
-            let mut wave = [Wave::Sine; 4];
-            let no = s.oscillators.len().min(4);
-            for (k, o) in s.oscillators.iter().take(4).enumerate() {
-                dt[k] = (f * 2f32.powf((o.semitones * 100.0 + o.detune_cents) / 1200.0) / rate).min(0.45);
-                lv[k] = o.level;
-                let (a, b) = pan_gains(o.pan);
-                pl[k] = a;
-                pr[k] = b;
-                wave[k] = o.wave;
-            }
             let coefs = s.filter.as_ref().map(|fl| {
                 let lfo = match fl.tempo_lfo() {
                     Some((per_beat, rates, shape, restart)) => beat_lfo(per_beat, rates, shape, restart, &mut st.flt_ph, p, n),
@@ -977,83 +970,61 @@ fn render_voice(
             let g = v.amp * trem;
             let drive = s.drive;
             // The bass toolkit's chain: in mono, after the filter.
-            if s.fx.any() {
-                let fb = fx_block(&s.fx, &mut st.fx, f, p, n);
-                for i in 0..n {
-                    let e = v.env.next();
-                    let mut x = 0.0;
-                    for k in 0..no {
-                        let ph = st.ph[k];
-                        let d = dt[k];
-                        x += osc(wave[k], ph, d) * lv[k];
-                        let mut np = ph + d;
-                        if np >= 1.0 {
-                            np -= 1.0;
+            let mono = s.fx.any();
+            let fb = if mono { fx_block(&s.fx, &mut st.fx, f, p, n) } else { FxBlock::default() };
+            // The oscillators (osc.rs) summed into a buffer, a chunk at a time, then filtered.
+            let plan = crate::osc::plan(s, &mut st.osc, f, v.env.level(), p, n);
+            let mut i0 = 0;
+            while i0 < n {
+                let m = (n - i0).min(OSC_CHUNK);
+                let mut bl = [0f32; OSC_CHUNK];
+                let mut br = [0f32; OSC_CHUNK];
+                crate::osc::fill(s, &mut st.osc, &plan, i0, n, !mono, &mut bl[..m], &mut br[..m]);
+                if mono {
+                    for i in 0..m {
+                        let e = v.env.next();
+                        let mut x = bl[i];
+                        if let Some((kind, c, two, pre)) = &coefs {
+                            if *pre > 1.0 {
+                                x = fast_tanh(x * pre);
+                            }
+                            x = filt(*kind, &mut st.svf_l, c, x);
+                            if *two {
+                                x = filt(*kind, &mut st.svf_l2, c, x);
+                            }
                         }
-                        st.ph[k] = np;
-                    }
-                    if let Some((kind, c, two, pre)) = &coefs {
-                        if *pre > 1.0 {
-                            x = fast_tanh(x * pre);
+                        if drive > 0.0 {
+                            let k = 1.0 + drive * 3.0;
+                            x = fast_tanh(x * k) / k.sqrt();
                         }
-                        x = filt(*kind, &mut st.svf_l, c, x);
-                        if *two {
-                            x = filt(*kind, &mut st.svf_l2, c, x);
+                        let y = fx_tick(&s.fx, &fb, &mut st.fx, ks, x) * e * g;
+                        out(i0 + i, y, y);
+                    }
+                } else {
+                    for i in 0..m {
+                        let e = v.env.next();
+                        let (mut xl, mut xr) = (bl[i], br[i]);
+                        if let Some((kind, c, two, pre)) = &coefs {
+                            if *pre > 1.0 {
+                                xl = fast_tanh(xl * pre);
+                                xr = fast_tanh(xr * pre);
+                            }
+                            xl = filt(*kind, &mut st.svf_l, c, xl);
+                            xr = filt(*kind, &mut st.svf_r, c, xr);
+                            if *two {
+                                xl = filt(*kind, &mut st.svf_l2, c, xl);
+                                xr = filt(*kind, &mut st.svf_r2, c, xr);
+                            }
                         }
-                    }
-                    if drive > 0.0 {
-                        let k = 1.0 + drive * 3.0;
-                        x = fast_tanh(x * k) / k.sqrt();
-                    }
-                    let y = fx_tick(&s.fx, &fb, &mut st.fx, ks, x) * e * g;
-                    out(i, y, y);
-                }
-                if v.env.done() {
-                    v.active = false;
-                }
-                return;
-            }
-            for i in 0..n {
-                let e = v.env.next();
-                let (mut xl, mut xr) = (0.0, 0.0);
-                for k in 0..no {
-                    let ph = st.ph[k];
-                    let d = dt[k];
-                    let y = match wave[k] {
-                        Wave::Saw => 2.0 * ph - 1.0 - polyblep(ph, d),
-                        Wave::Square => {
-                            let a = if ph < 0.5 { 1.0 } else { -1.0 };
-                            a + polyblep(ph, d) - polyblep((ph + 0.5).fract(), d)
+                        if drive > 0.0 {
+                            let k = 1.0 + drive * 3.0;
+                            xl = (xl * k).tanh() / k.sqrt();
+                            xr = (xr * k).tanh() / k.sqrt();
                         }
-                        Wave::Triangle => 1.0 - 4.0 * (ph - 0.5).abs(),
-                        Wave::Sine => (2.0 * PI * ph).sin(),
-                    };
-                    let mut np = ph + d;
-                    if np >= 1.0 {
-                        np -= 1.0;
-                    }
-                    st.ph[k] = np;
-                    xl += y * lv[k] * pl[k];
-                    xr += y * lv[k] * pr[k];
-                }
-                if let Some((kind, c, two, pre)) = &coefs {
-                    if *pre > 1.0 {
-                        xl = fast_tanh(xl * pre);
-                        xr = fast_tanh(xr * pre);
-                    }
-                    xl = filt(*kind, &mut st.svf_l, c, xl);
-                    xr = filt(*kind, &mut st.svf_r, c, xr);
-                    if *two {
-                        xl = filt(*kind, &mut st.svf_l2, c, xl);
-                        xr = filt(*kind, &mut st.svf_r2, c, xr);
+                        out(i0 + i, xl * e * g, xr * e * g);
                     }
                 }
-                if drive > 0.0 {
-                    let k = 1.0 + drive * 3.0;
-                    xl = (xl * k).tanh() / k.sqrt();
-                    xr = (xr * k).tanh() / k.sqrt();
-                }
-                out(i, xl * e * g, xr * e * g);
+                i0 += m;
             }
             if v.env.done() {
                 v.active = false;
@@ -1265,6 +1236,11 @@ fn render_voice(
                 out(i, s, s);
             }
             if v.env.done() {
+                v.active = false;
+            }
+        }
+        (InstrumentKind::DrumMachine(d), St::DrumMachine(st)) => {
+            if !crate::drum_machine::render(d, st, v.amp, n, &mut v.rng, |i, y| out(i, y, y)) {
                 v.active = false;
             }
         }

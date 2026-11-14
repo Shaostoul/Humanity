@@ -570,12 +570,11 @@ genre's `sidechain` names dip by its depth and come back over its release, a str
 each block so the dip never clicks.
 
 **What remains of the electronic rungs** (the research's section 6): E3's tempo-synced delay, gated
-reverb, a reverb low cut, the downlifter, reversed cymbal and tape stop; E4's drum-machine voices
-(808 and 909-style, from published circuit descriptions); E5's supersaw, pulse width and the
-WAVETABLE oscillator that will play the AKWF waves the core set already carries (until it exists the
-waves wait: a single cycle needs that oscillator to sound); E6's house, drum and bass, synthwave and
-ambient genres; E7's resampling, granular textures and the heavier dubstep kinds (brostep, riddim) as
-choices of their own.
+reverb, a reverb low cut, the downlifter, reversed cymbal and tape stop; E6's house, drum and bass,
+synthwave and ambient genres; E7's resampling, granular textures and the heavier dubstep kinds
+(brostep, riddim) as choices of their own. E4's drum-machine voices and E5's oscillators (the
+wavetable, unison and the supersaw, the pulse with its width modulated) were built on 2026-11-14:
+section 7f.
 
 ## 7e. Deep dubstep (built 2026-11-13)
 
@@ -599,6 +598,132 @@ Pieces by seed work as in the other genres (section 7c): the structure is the pi
 section name a letter (the second drop plays the first drop's chords), each piece its own key, chords
 and growl riffs. Only the genre's commonplace building blocks are written anywhere (the 2026-11-12
 copyright finding): no artist's recordings, melodies or riffs, no name of any.
+
+## 7f. The oscillators and the drum machine (E5 and E4, built 2026-11-14)
+
+The operator: "I'm interested in having all the instruments." A single-cycle wave makes no sound
+until something reads it over and over, so the core set's 207 AKWF waves waited for a WAVETABLE
+oscillator; synthwave, trance, house and the heavier dubstep kinds need the supersaw and the pulse
+too; and house and hip-hop need their drum machines. All of it is our own code (`osc.rs`,
+`wavetable.rs`, `drum_machine.rs` in `crates/humanity-music/src/`), from published methods, each cited
+where it is used; every piece is opt-in data, so no existing instrument changed (the synth's
+oscillators moved into `osc.rs` and now fill a buffer the filter then reads; renders of the calm,
+deep dubstep and lo-fi scores before and after compared byte for byte identical).
+
+**The wavetable** (`wave: Table`, with the synth's `wavetable`). Waves are named `<set>/<file>` as
+their set's `waves.ron` lists them (`akwf_core/AKWF_hvoice/AKWF_hvoice_0001.wav`), from the core set
+(`data/music/waves/`) or any installed pack (`data/music/packs/<pack>/waves/`). When the data is read
+(every time a score starts; nothing kept across runs), each wave's harmonics come from a discrete
+Fourier transform of its one cycle and are written out again as tables: one for every half octave of
+harmonic count (1, 2, 3, 4, 6, 8, 11, 16 ... up to the cycle's own 300), each at a power-of-two length
+of at least eight samples a cycle of its top harmonic, each wave levelled to a sawtooth's loudness.
+Playing, the oscillator picks the table whose top harmonic stays under Nyquist at the note's pitch, so
+no harmonic folds back. That is Nigel Redmon's method ("A wavetable oscillator", earlevel.com, Part
+2, 2012-05-08: tables an octave apart, each dropping "the upper half of our harmonics"), at half-octave
+steps so a note loses at most half an octave of its top harmonics, and without the small fold his
+lowest table accepts. The morph walks the list from `position`, swept by an LFO in time with the
+music (as E2's: per beat, per-bar rates, shapes, restart) or at a rate in hertz, over `depth`, and
+moved by the envelope times `env`. A wave that is missing (a pack not installed, or a data folder
+without the waves) plays the instrument's `fallback` (the shipped wavetables name one each: the FM
+growl, the soft pad); a missing wave with no fallback is an error naming the instrument and the wave. Measured: the AKWF guitar cycle's first 24 harmonics within 1 dB of the file's own (19 loud
+enough to compare); the AKWF saw at C7 (2055 Hz) with every frequency a harmonic above Nyquist would
+fold to at least 140 dB under the fundamental, where a polyBLEP saw leaves -29.9 dB; the morph from
+the sine cycle to the saw moving the second harmonic from -113 to -6 dB. The two shipped wavetables
+hold nine waves, about 425 KiB of tables.
+
+**Unison and the supersaw** (`unison` on any oscillator). Adam Szabo measured the Roland JP-8000's
+super saw ("How to Emulate the Super Saw", KTH, Stockholm 2010, read 2026-11-14) and these are his
+numbers: seven oscillators at fixed offsets from the centre (table 1, "1 - 0.11002313" to "1 +
+0.10745242"), the detune knob through his 11th-degree polynomial (0.003 at 0, 0.098 at 0.5, 0.99 at
+1), the centre fading in a straight line and the six sides rising in a parabola as the mix knob turns
+("y = -0.55366*x + 0.99785", "y = -0.73764*x^2 + 1.2841*x + 0.044372"), each oscillator "strictly
+random" in phase at every note, and a high-pass "at the fundamental harmonic". Fewer copies keep the
+centre (an odd count) and the pairs from the outside in; each copy is panned by its offset (`spread`).
+A supersaw is `wave: Saw` with seven; a wavetable or a pulse can be unison too. Measured: at full
+detune the lowest copy sounds at 0.8900 of the note, where Szabo's numbers put it.
+
+**The pulse** (`wave: Pulse`, its `width`, and the synth's `pwm`). High for `width` of the cycle,
+polyBLEP at both edges (Valimaki and Huovilainen, 2007, as the saw and square), never narrower than two
+samples, its offset (2w - 1) taken out so the sound stays centred as the width moves; `pwm` sweeps
+every pulse's width by `depth` with an LFO in time with the music or a free one. Measured: width 0.2
+above zero 20.4% of the time with its second harmonic at -1.8 dB (a 20% pulse's, |sin 2 pi w / 2 sin
+pi w|); swept by depth 0.3, the duty ran from 0.22 to 0.80.
+
+**The drum machine** (kind `DrumMachine`, rung E4). One voice of optional parts, so every drum is a
+file: up to two TONES (a sine at a ratio of the note, starting `pitch` times sharp and falling over
+`pitch_s`, dying over `decay_s`), DRIVE into a soft saturation, a CLICK of low-passed noise, NOISE
+through a filter (and a high-pass under it), struck in quick BURSTS for a clap before its tail, METAL
+(square waves at inharmonic frequencies through a band-pass and a high-pass), and a CHOKE group (a
+closed hi-hat cuts the open one short). The circuits followed are Gordon Reid's "Synth Secrets"
+descriptions (Sound On Sound: "Practical Bass Drum Synthesis", February 2002, "Practical Snare Drum
+Synthesis", April 2002, "Practical Cymbal Synthesis", July 2002; read 2026-11-14): the 909 kick's pitch
+contour with an "instant Attack and slow Decay", its waveshaper and click; the 808 kick's resonance
+that rings down by itself and "goes slightly flat at long decays"; the snares' two modes ("the 180Hz
+and 330Hz partials") over high-passed noise; the hats' "six square-wave oscillators tuned
+enharmonically" through band-passes. The six frequencies here are our own: the paper that gives the
+808's (Werner, Abel and Smith, ICMC 2014) is on hosts whose robots.txt bars automated readers
+(ccrma.stanford.edu, quod.lib.umich.edu), so it was not read and no value of it is claimed. The claps,
+the rimshot and the cowbell are our own designs.
+
+| Voice | What it is | In a genre |
+|---|---|---|
+| `kick_808` | a deep sine ringing about a second, 6% sharp at the strike | lo-fi's 808 kit |
+| `snare_808` | two tones 1.83 apart over noise high-passed at 1.8 kHz | lo-fi's 808 kit |
+| `hat_808_closed`, `hat_808_open` | six squares through a band-pass at 10 kHz and a high-pass at 8 kHz, 70 ms and 550 ms, one choke group | lo-fi's 808 kit |
+| `clap_808` | band-passed noise struck three times 10 ms apart, then its tail | not yet |
+| `tom_808` | a sine sliding down from 18% sharp; its pitch is the note | not yet |
+| `cowbell_808`, `rimshot_808` | two squares through a band-pass; two high tones, a click and noise | not yet |
+| `kick_909` | a sine swept down from 3.2 times the note, driven, with a click | electro swing's 909 kit |
+| `snare_909` | two tones falling 35% in pitch, over noise low-passed then high-passed into a band | not yet |
+| `clap_909` | band-passed noise struck four times 8 ms apart, a roomier tail | electro swing's 909 kit |
+| `hat_909_closed`, `hat_909_open` | six squares tuned higher, a brighter band and a little noise, one choke group | electro swing's 909 kit |
+| `tom_909` | a sine with a deeper sweep than the 808's, driven, a click | not yet |
+
+Measured (each voice struck once): the 909 kick starts 2.1 times its settled pitch, the 808's 1.06
+times; each tom over 1.08; the snares' two tones each over 20 dB clear of the gap between them, with
+27 to 36% of their energy above 3 kHz; the claps struck three times in their first 40 ms; the closed
+hats 20 dB down within 60 ms, the open ones still within 20 dB at 150 ms, all with 80% of their
+energy above 5 kHz; an open hat choked by a closed one 100 ms later more than 15 dB under the open
+hat alone.
+
+**Where they play.** A KIT where a genre lists kits: lo-fi's third kit, the 808 (its long boom of a
+kick, its snare, its closed hat and now and then its open hat on the same boom-bap patterns), and
+electro swing's third, the 909 (its kick four on the floor in place of the house kick, its clap on 2
+and 4, its open hat on the off-beats, its closed hat on the ride's pattern; listed first, so the pieces
+that drew the brushes before it still do). A drum line can now name several `kits` (electro swing's
+house kick plays under the house kit and the brushes, not the 909). Deep dubstep's pieces draw their
+growl (the FM growl, or the WAVETABLE GROWL by weight 2 to 1: the AKWF voice, FM and distorted cycles
+morphing in time, eighths, triplets, sixteenths, an octave doubled under, a shaper and a phaser) and
+their pad (the dub pad, or the PULSE-WIDTH PAD an octave higher: a pulse carries twice a saw's
+fundamental, so at the dub pad's A2 it crowded the kick's band). The supersaw and the wavetable pad
+wait for E6's synthwave, trance and ambient. These are synthesised instruments, not parts of the
+instrument library, so no `not_used_yet` mark applies; Settings > Audio > Instruments now says the
+core set's single-cycle waves play in the music.
+
+**Levels.** Each new voice that stands beside an old one in a piece is within 2 dB of it (a kit's drums
+of the ones they replace, a kick by its body under 150 Hz; the growls held, the pads across their
+registers, with their LFOs on the beat clock), so deep dubstep still measures -18 LUFS within 1 LU
+whichever growl and pad a piece draws (`every_new_option_is_as_loud_as_what_it_stands_beside`).
+
+**The cost**, one voice each, the mean of a 128-frame block (the best of three runs), measured in the
+same run as the calm score (which took 0.068 ms that run against its quiet 0.037: other agents were
+building), the gate 0.02 ms scaled by that ratio (`every_new_instrument_fits_the_per_voice_budget`):
+
+| Voice | ms a block |
+|---|---|
+| `wavetable_growl` (two table oscillators, the shaper, the phaser) | 0.0143 |
+| `wavetable_pad` (two table oscillators morphing) | 0.0122 |
+| `supersaw` (seven saws, the high-pass) | 0.0081 |
+| `kick_808`, `hat_909_open`, `hat_808_open` (the longest rings) | 0.0082, 0.0082, 0.0068 |
+| `pwm_pad` (two pulses) | 0.0061 |
+| the other drum voices (the rimshot cheapest, the cowbell dearest) | 0.0006 to 0.0039 |
+
+Deep dubstep's drop with them among its draws: 0.0525 ms a block in that run, its gate (0.05) scaled
+the same way; its loudness -18.0 and -17.7 LUFS for its two measured seeds.
+
+**To listen**: `pieces_to_listen_to` takes `instrument:<id>` items (a drum in a groove at 120 bpm; any
+other voice the chords D minor, B flat, F and C held, then arpeggiated; a growl or a bass a riff low
+down), beside a genre's pieces (`deep_dubstep:1:melody=wavetable_growl`, `lofi:1:kit=808`).
 
 ## 7b. Danger and action: the score rising with the game
 
@@ -1209,8 +1334,8 @@ Three things the pipeline learned for them: its .7z reader follows a chain of co
 Deflate then 7-Zip's Delta filter); an SFZ's release-triggered regions are not notes, and takes it
 picks at random are numbered round robins; and **wave sets** (`scripts/instrument-recipes.json`
 `wavesets`, `src/instrument_packs/waves.rs`): single cycles kept as the library's own PCM bytes,
-because a lossy codec smears a 600-sample cycle, for the wavetable rung (E5) to read; nothing plays
-them yet, and Settings says so. A pack now says what it adds in a sentence under its name, and a
+because a lossy codec smears a 600-sample cycle, for the wavetable rung (E5) to read (built
+2026-11-14, section 7f). A pack now says what it adds in a sentence under its name, and a
 credited pack names its `data/credits.ron` rows (a test holds each to a row shown on the Credits page
 and in the pack's licence line). The 37 new parts are marked `not_used_yet`: which genre plays which
 is the next genre pass's choice (the electronic rungs, and electro swing and lo-fi for the brushes, the

@@ -1049,7 +1049,7 @@ impl Composer {
                 // no kit) play.
                 let kit = self.piece.kit(&s.kits);
                 for (p, d) in s.drums.iter().enumerate().take(255) {
-                    if k < 8 && (d.kit.is_none() || d.kit == kit) {
+                    if k < 8 && (d.kits == 0 || kit.is_some_and(|i| d.kits & (1 << i.min(31)) != 0)) {
                         drums[k] = Some(EffDrum { genre: si, part: p as u8, weight: w });
                         k += 1;
                     }

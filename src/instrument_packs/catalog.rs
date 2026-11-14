@@ -56,8 +56,8 @@ pub struct InstrumentRef {
 }
 
 /// A wave set a set holds (2026-11-13, AKWF): single-cycle waves for the synthesiser's wavetable
-/// oscillator, kept as plain PCM, and how many. Nothing in the music plays them yet (the electronic
-/// rung E5, docs/design/music.md); Settings says so. Its index is `waves/<id>/waves.ron`
+/// oscillator, kept as plain PCM, and how many (played since rung E5, docs/design/music.md section
+/// 7f). Its index is `waves/<id>/waves.ron`
 /// (`super::waves::WaveSet`).
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct WaveSetRef {

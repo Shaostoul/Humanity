@@ -1,0 +1,12 @@
+// A drum machine's clap in the 808 style (section 7f, rung E4): band-passed noise struck three times
+// about ten milliseconds apart (several hands not quite together), then once more as a short tail.
+// Our own design: no clap circuit description was read.
+Instrument(
+    id: "clap_808",
+    words: "music.instrument.clap_808",
+    kind: DrumMachine((
+        noise: Some((level: 1.0, filter: BandPass, hz: 1100.0, q: 1.4, decay_s: 0.22, bursts: 3, burst_ms: 10.0, tail: 0.8)),
+    )),
+    level_db: -10.6,
+    reverb_send: 0.25,
+)

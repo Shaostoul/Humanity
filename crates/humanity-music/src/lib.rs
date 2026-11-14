@@ -22,12 +22,14 @@
 
 pub mod bed;
 pub mod composer;
+pub mod drum_machine;
 pub mod dsp;
 pub mod favourite;
 pub mod instrument;
 pub mod intensity;
 pub mod library;
 pub mod mood;
+pub mod osc;
 pub mod piece;
 pub mod places;
 pub mod render;
@@ -41,6 +43,7 @@ pub mod genre;
 pub mod tune;
 pub mod tuning;
 pub mod voice;
+pub mod wavetable;
 
 #[cfg(feature = "kira")]
 pub mod decode;
@@ -75,5 +78,7 @@ mod tests_piece;
 mod tests_page;
 #[cfg(test)]
 mod tests_electronic;
+#[cfg(test)]
+mod tests_e5;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;

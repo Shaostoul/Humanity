@@ -1,0 +1,16 @@
+// A drum machine's rimshot in the 808 style (docs/design/music.md section 7f, rung E4): two high tones
+// gone in a few tens of milliseconds, an inharmonic pair above the note, with a sharp click and a
+// breath of bright noise: the stick on the rim. Our own design: no rimshot circuit description was read.
+Instrument(
+    id: "rimshot_808",
+    words: "music.instrument.rimshot_808",
+    kind: DrumMachine((
+        tones: [(ratio: 3.5, level: 0.6, decay_s: 0.035, pitch: 1.04, pitch_s: 0.004), (ratio: 8.9, level: 0.35, decay_s: 0.025)],
+        drive: 0.4,
+        click: 0.35,
+        click_ms: 0.8,
+        noise: Some((level: 0.25, filter: BandPass, hz: 4000.0, q: 1.0, decay_s: 0.02)),
+    )),
+    level_db: -14.0,
+    reverb_send: 0.12,
+)

@@ -35,10 +35,14 @@ Genre(
     // brushed snare on 2 and 4, the brush stirring on every beat, the ride played with brushes, the
     // hi-hat's foot on 2 and 4). The house kick plays four on the floor under either: that is the
     // electro in electro swing. The brushes are recordings once the "Brushes and jazz drum kits"
-    // pack is installed, synthesised stand-ins until then.
-    kits: [(id: "house", weight: 2.0), (id: "brushes", weight: 1.0)],
+    // pack is installed, synthesised stand-ins until then. Or (rung E4, 2026-11-14) the 909-STYLE
+    // drum machine, house music's own: its punchy kick four on the floor in place of the house kick,
+    // its clap on 2 and 4, its open hat on the off-beats and its closed hat on the ride's pattern.
+    // Listed first, so the pieces that drew the brushes before it existed still draw them (a piece's
+    // kit is its seed's draw across the weights in this order).
+    kits: [(id: "909", weight: 1.0), (id: "house", weight: 2.0), (id: "brushes", weight: 1.0)],
     drums: [
-        (instrument: "house_kick", note: "A1", velocity: 0.95, patterns: ["x.x.x.x.", "x.x.x.x.", "x.x.x.xo"]),
+        (instrument: "house_kick", note: "A1", velocity: 0.95, patterns: ["x.x.x.x.", "x.x.x.x.", "x.x.x.xo"], kits: ["house", "brushes"]),
         (instrument: "clap", note: "D3", velocity: 0.7, patterns: ["..x...x.", "..x...x.", "..x...xg"], kit: Some("house")),
         (instrument: "open_hat", note: "D5", velocity: 0.5, patterns: [".x.x.x.x"], kit: Some("house")),
         (instrument: "lofi_hat", note: "D5", velocity: 0.35, patterns: ["x.xxx.xx", "x.xxx.x.", "x.x.x.xx"], kit: Some("house")),
@@ -46,6 +50,10 @@ Genre(
         (instrument: "brush_stir", part: Some("brush_stir"), note: "D3", velocity: 0.45, patterns: ["x.x.x.x."], kit: Some("brushes")),
         (instrument: "open_hat", part: Some("brush_ride"), note: "D5", velocity: 0.4, patterns: ["x.xxx.xx", "x.xxx.x.", "x.x.x.xx"], kit: Some("brushes")),
         (instrument: "lofi_hat", part: Some("brush_hihat"), note: "D5", velocity: 0.35, patterns: ["..x...x."], kit: Some("brushes")),
+        (instrument: "kick_909", note: "A1", velocity: 0.9, patterns: ["x.x.x.x.", "x.x.x.x.", "x.x.x.xo"], kit: Some("909")),
+        (instrument: "clap_909", note: "D3", velocity: 0.7, patterns: ["..x...x.", "..x...x.", "..x...xg"], kit: Some("909")),
+        (instrument: "hat_909_open", note: "D5", velocity: 0.5, patterns: [".x.x.x.x"], kit: Some("909")),
+        (instrument: "hat_909_closed", note: "D5", velocity: 0.35, patterns: ["x...x...", "x...x..x", "x.x.x..."], kit: Some("909")),
     ],
     pad_patterns: ["o.x.o.x.", "o.xgo.xg", "o.x.o.xg"],
     comping: (strum_ms: 9.0, hold_beats: 0.3),

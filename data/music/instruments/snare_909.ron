@@ -1,0 +1,15 @@
+// A drum machine's snare in the 909 style (section 7f, rung E4): two tones a shell's first two modes
+// apart (1.83 times, the 180 and 330 Hz partials), each falling in pitch as it dies, under noise
+// low-passed and then high-passed into a band ("Practical Snare Drum Synthesis", Sound On Sound, April
+// 2002), a little driven. Brighter and snappier than the 808's.
+Instrument(
+    id: "snare_909",
+    words: "music.instrument.snare_909",
+    kind: DrumMachine((
+        tones: [(level: 0.5, decay_s: 0.11, pitch: 1.35, pitch_s: 0.012), (ratio: 1.83, level: 0.3, decay_s: 0.08, pitch: 1.35, pitch_s: 0.012)],
+        drive: 0.2,
+        noise: Some((level: 1.2, filter: LowPass, hz: 9000.0, q: 0.7, hp_hz: 2500.0, decay_s: 0.22)),
+    )),
+    level_db: -21.2,
+    reverb_send: 0.15,
+)

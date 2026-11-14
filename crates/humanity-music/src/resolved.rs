@@ -225,8 +225,8 @@ pub struct RDrum {
     pub velocity: f32,
     pub midi: i32,
     pub min_intensity: f32,
-    /// The genre's kit it belongs to (an index into its `kits`; None: every piece plays it).
-    pub kit: Option<u8>,
+    /// The genre's kits it plays in, one bit per index into its `kits` (0: every piece plays it).
+    pub kits: u32,
     /// The structure's sections it plays in, one bit per section name (letter); all bits: every one.
     pub sections: u32,
     /// Its hits duck the genre's sidechain roles.
@@ -341,6 +341,11 @@ impl Resolved {
                     InstrumentKind::Sampler(s) if !samples.contains_key(&lib.instruments[cur].id) => {
                         cur = *index.get(s.fallback.as_str()).ok_or_else(|| format!("instrument {}: fallback {:?} is not an instrument", inst.id, s.fallback))?;
                     }
+                    // A wavetable whose waves are not installed (a pack's) plays its fallback.
+                    InstrumentKind::Synth(s) if s.wavetable.as_ref().is_some_and(|w| w.table.is_none() && !w.fallback.is_empty()) => {
+                        let fb = &s.wavetable.as_ref().map(|w| w.fallback.clone()).unwrap_or_default();
+                        cur = *index.get(fb.as_str()).ok_or_else(|| format!("instrument {}: wavetable fallback {fb:?} is not an instrument", inst.id))?;
+                    }
                     _ => break,
                 }
             }
@@ -366,10 +371,11 @@ impl Resolved {
         let drums_of = |parts: &[crate::genre::DrumPart], kits: &[crate::genre::KitSpec], names: &[String], owner: &str| -> Result<Vec<RDrum>, String> {
             let mut out = Vec::new();
             for d in parts {
-                let kit = match &d.kit {
-                    Some(k) => Some(kits.iter().position(|x| &x.id == k).ok_or_else(|| format!("{owner}: drum {:?} names kit {k:?}, which is not one of its kits", d.instrument))? as u8),
-                    None => None,
-                };
+                let mut kit = 0u32;
+                for k in d.kit.iter().chain(d.kits.iter()) {
+                    let i = kits.iter().position(|x| &x.id == k).ok_or_else(|| format!("{owner}: drum {:?} names kit {k:?}, which is not one of its kits", d.instrument))?;
+                    kit |= 1 << i.min(31);
+                }
                 let mut sections = if d.sections.is_empty() { u32::MAX } else { 0 };
                 for s in &d.sections {
                     let i = names.iter().position(|x| x == s).ok_or_else(|| format!("{owner}: drum {:?} names section {s:?}, which is not in its structure", d.instrument))?;
@@ -381,7 +387,7 @@ impl Resolved {
                     velocity: d.velocity,
                     midi: note(&d.note, owner)?,
                     min_intensity: d.min_intensity,
-                    kit,
+                    kits: kit,
                     sections,
                     ducks: d.ducks,
                 });

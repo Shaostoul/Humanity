@@ -1,0 +1,34 @@
+// A WAVETABLE growl (docs/design/music.md section 7f, rung E5), deep dubstep's other growl: single
+// cycles of a human voice and of FM, from the core set's AKWF waves (CC0), read band-limited and
+// morphed in time with the music (a triangle, its rate bar by bar: eighths, triplets, sixteenths,
+// eighths), an octave doubled underneath, through a low-pass, an asymmetric shaper with fewer bits and
+// a slow phaser. The morph through the voice waves is what makes it talk.
+Instrument(
+    id: "wavetable_growl",
+    words: "music.instrument.wavetable_growl",
+    kind: Synth((
+        oscillators: [(wave: Table), (wave: Table, semitones: -12.0, level: 0.6)],
+        wavetable: Some((
+            waves: [
+                "akwf_core/AKWF_hvoice/AKWF_hvoice_0001.wav",
+                "akwf_core/AKWF_hvoice/AKWF_hvoice_0024.wav",
+                "akwf_core/AKWF_hvoice/AKWF_hvoice_0058.wav",
+                "akwf_core/AKWF_fmsynth/AKWF_fmsynth_0034.wav",
+                "akwf_core/AKWF_distorted/AKWF_distorted_0014.wav",
+            ],
+            lfo: (rates: [2.0, 3.0, 4.0, 2.0], shape: Triangle),
+            depth: 1.0,
+            // Without its waves (a data folder that lacks them), the FM growl plays.
+            fallback: "fm_growl",
+        )),
+        filter: Some((kind: LowPass, cutoff_hz: 2600.0, q: 1.2, key_track: 2.0)),
+        envelope: (attack_s: 0.008, decay_s: 0.25, sustain: 0.8, release_s: 0.08),
+        glide_s: 0.03,
+        fx: (
+            shaper: Some((curve: Asymmetric, drive: 0.35, mix: 0.5, bits: 10.0)),
+            phaser: Some((low_hz: 400.0, high_hz: 2200.0, feedback: 0.4, mix: 0.3, lfo: (per_beat: 0.25))),
+        ),
+    )),
+    level_db: -22.9,
+    reverb_send: 0.12,
+)

@@ -1,0 +1,15 @@
+// A drum machine's closed hi-hat in the 808 style (section 7f, rung E4): six square waves tuned
+// inharmonically, summed, through a band-pass and a high-pass, dying in a few tens of milliseconds
+// ("Practical Cymbal Synthesis", Sound On Sound, July 2002: "six square-wave oscillators tuned
+// enharmonically" through band-passes and high-passes). It chokes the open hat (choke group 1).
+Instrument(
+    id: "hat_808_closed",
+    words: "music.instrument.hat_808_closed",
+    kind: DrumMachine((
+        metal: Some((level: 1.0, bp_hz: 10000.0, bp_q: 0.9, hp_hz: 8000.0, decay_s: 0.07)),
+        choke: 1,
+    )),
+    level_db: -1.0,
+    reverb_send: 0.05,
+    pan_spread: 0.2,
+)

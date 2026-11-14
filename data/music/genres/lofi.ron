@@ -22,8 +22,10 @@ Genre(
     groove: Some((swing: 0.6, subdivision: 4, syncopation: 0.2, humanize_ms: 9.0)),
     // The kit a piece draws (2026-11-13, the genre pass): the soft drum machine, or a JAZZ KIT played
     // with sticks (the "Brushes and jazz drum kits" pack's kick, snare and hi-hat, the drum machine's
-    // voices standing in until it is installed), both on the same lazy boom-bap patterns.
-    kits: [(id: "machine", weight: 1.0), (id: "jazz", weight: 1.0)],
+    // voices standing in until it is installed), both on the same lazy boom-bap patterns; or (rung E4,
+    // 2026-11-14) the 808-STYLE drum machine: its long boom of a kick, its snare, its closed hat and
+    // now and then its open hat (choked by the next closed one), as hip-hop's lo-fi beats use it.
+    kits: [(id: "machine", weight: 1.0), (id: "jazz", weight: 1.0), (id: "808", weight: 1.0)],
     drums: [
         (instrument: "lofi_kick", note: "A1", velocity: 0.9, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."], kit: Some("machine")),
         (instrument: "lofi_snare", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..g"], kit: Some("machine")),
@@ -31,6 +33,10 @@ Genre(
         (instrument: "lofi_kick", part: Some("kit_kick"), note: "A1", velocity: 0.85, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."], kit: Some("jazz")),
         (instrument: "lofi_snare", part: Some("kit_snare"), note: "D3", velocity: 0.6, patterns: ["....x.......x...", "....x.......x..g"], kit: Some("jazz")),
         (instrument: "lofi_hat", part: Some("kit_hihat_closed"), note: "D5", velocity: 0.4, patterns: ["x.x.x.x.x.x.x.x.", "x.xgx.x.x.xgx.x.", "x.x.x.xxx.x.x.x."], kit: Some("jazz")),
+        (instrument: "kick_808", note: "A1", velocity: 0.85, patterns: ["x.........x.....", "x......x..x.....", "x.........x..x.."], kit: Some("808")),
+        (instrument: "snare_808", note: "D3", velocity: 0.7, patterns: ["....x.......x...", "....x.......x..g"], kit: Some("808")),
+        (instrument: "hat_808_closed", note: "D5", velocity: 0.5, patterns: ["x.x.x.x.x.x.x...", "x.xgx.x.x.xgx...", "x.x.x.xxx.x.x..."], kit: Some("808")),
+        (instrument: "hat_808_open", note: "D5", velocity: 0.4, patterns: ["..............x.", "..............x.", "......x.......x."], kit: Some("808")),
     ],
     pad_patterns: ["x.........x....."],
     bass_patterns: ["x.......5.....x."],

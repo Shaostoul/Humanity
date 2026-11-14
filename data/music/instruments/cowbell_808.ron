@@ -1,0 +1,12 @@
+// A drum machine's cowbell in the 808 style (docs/design/music.md section 7f, rung E4): two square waves
+// a little under a fifth apart (our own choice of the pair) through a band-pass and a high-pass, dying
+// quickly: the metal part of a drum-machine voice with two squares instead of a hat's six.
+Instrument(
+    id: "cowbell_808",
+    words: "music.instrument.cowbell_808",
+    kind: DrumMachine((
+        metal: Some((level: 1.0, hz: [562.0, 841.0], bp_hz: 1200.0, bp_q: 1.4, hp_hz: 450.0, decay_s: 0.28)),
+    )),
+    level_db: -10.0,
+    reverb_send: 0.1,
+)

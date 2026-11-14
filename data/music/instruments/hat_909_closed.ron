@@ -1,0 +1,15 @@
+// A drum machine's closed hi-hat in the 909 style (section 7f, rung E4): the 909's own hats were
+// recordings in its memory; this synthesises their character, six squares tuned higher and a brighter
+// band, with a little high noise, short. It chokes the open hat (choke group 1).
+Instrument(
+    id: "hat_909_closed",
+    words: "music.instrument.hat_909_closed",
+    kind: DrumMachine((
+        metal: Some((level: 1.0, tune: 1.45, bp_hz: 10500.0, bp_q: 0.8, hp_hz: 8000.0, decay_s: 0.06)),
+        noise: Some((level: 0.12, filter: HighPass, hz: 9000.0, decay_s: 0.05)),
+        choke: 1,
+    )),
+    level_db: -4.9,
+    reverb_send: 0.05,
+    pan_spread: 0.2,
+)

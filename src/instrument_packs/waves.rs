@@ -4,10 +4,10 @@
 //! (`data/music/waves/`) or in a pack. `waves.ron` is the set's index, written by
 //! `scripts/instrument-packs.js`; `LICENSE.txt` beside it is the library's licence text.
 //!
-//! Nothing in the music plays these yet: the wavetable oscillator is the electronic rung E5
-//! (docs/design/music.md, docs/reference/research/2026-11-13-instrument-libraries/README.md section 6).
-//! Today they are data the core set carries and a pack can add, counted in Settings > Audio >
-//! Instruments, and held by the data tests to their licence and their format.
+//! The music's wavetable oscillator reads them (rung E5, 2026-11-14: crates/humanity-music's
+//! `wavetable.rs`, which finds a wave in the core set or an installed pack itself; docs/design/music.md
+//! section 7f). Here they are data the core set carries and a pack can add, counted in Settings >
+//! Audio > Instruments, and held by the data tests to their licence and their format.
 
 use super::definition::{Licence, SourceInfo};
 use serde::Deserialize;

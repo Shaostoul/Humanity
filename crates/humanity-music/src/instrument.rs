@@ -62,6 +62,111 @@ pub enum InstrumentKind {
     Noise(NoiseSpec),
     /// Recordings from an installed pack, with a synthesised fallback (the seam above).
     Sampler(SamplerSpec),
+    /// A drum machine's analogue voice (rung E4): a kick, snare, clap, hi-hat or tom from tones with
+    /// falling pitch, filtered noise (in bursts, for a clap), metallic square waves and a click.
+    DrumMachine(DrumMachineSpec),
+}
+
+/// A drum-machine voice (docs/design/music.md section 7f, rung E4), in the style of the analogue
+/// drum machines as Gordon Reid's "Synth Secrets" describes their circuits (Sound On Sound: "Practical
+/// Bass Drum Synthesis", February 2002; "Practical Snare Drum Synthesis", April 2002; "Practical
+/// Cymbal Synthesis", July 2002; read 2026-11-14): a kick's body a sine whose pitch an envelope with
+/// an instant attack sweeps down, shaped and pushed (the 909's) or a resonance that rings down a
+/// little flat (the 808's); a snare two tones (the 180 and 330 Hz modes) and noise high-passed; a
+/// hi-hat six square waves tuned inharmonically through a band-pass and a high-pass. A clap is our
+/// own design (no source was read): band-passed noise struck in quick bursts, then a tail. Every
+/// part is optional, so one kind is every drum, and each drum is a file.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DrumMachineSpec {
+    /// Up to two tones (a kick's body, a snare's two modes, a tom).
+    #[serde(default)]
+    pub tones: Vec<DrumTone>,
+    /// The tones driven into a soft saturation, 0 .. 1 (the 909 kick's waveshaper, pushed).
+    #[serde(default)]
+    pub drive: f32,
+    /// The beater's click: a pulse of bright noise, its level and length (milliseconds).
+    #[serde(default)]
+    pub click: f32,
+    #[serde(default = "default_click_ms")]
+    pub click_ms: f32,
+    #[serde(default)]
+    pub noise: Option<DrumNoise>,
+    #[serde(default)]
+    pub metal: Option<DrumMetal>,
+    /// A hit silences the other voices of its group still sounding (0: no group): the open hi-hat
+    /// is cut short by the closed one, as on the machines.
+    #[serde(default)]
+    pub choke: u8,
+}
+
+fn default_click_ms() -> f32 {
+    2.0
+}
+
+/// One tone of a drum: a sine at `ratio` times the note, starting `pitch` times higher and falling
+/// to its own over `pitch_s` (a time constant), dying 60 dB over `decay_s`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DrumTone {
+    #[serde(default = "one")]
+    pub ratio: f32,
+    #[serde(default = "one")]
+    pub level: f32,
+    pub decay_s: f32,
+    #[serde(default = "one")]
+    pub pitch: f32,
+    #[serde(default = "default_tone_pitch_s")]
+    pub pitch_s: f32,
+}
+
+fn default_tone_pitch_s() -> f32 {
+    0.03
+}
+
+/// A drum's noise: white noise through a filter (and a high-pass under it, `hp_hz`), dying 60 dB over
+/// `decay_s`; with `bursts`, it is first struck that many times `burst_ms` apart (a clap's hands),
+/// then a tail at `tail` of full level dies over `decay_s`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct DrumNoise {
+    pub level: f32,
+    pub filter: FilterKind,
+    pub hz: f32,
+    #[serde(default = "default_q")]
+    pub q: f32,
+    #[serde(default)]
+    pub hp_hz: f32,
+    pub decay_s: f32,
+    #[serde(default)]
+    pub bursts: u8,
+    #[serde(default = "default_burst_ms")]
+    pub burst_ms: f32,
+    #[serde(default = "one")]
+    pub tail: f32,
+}
+
+fn default_burst_ms() -> f32 {
+    10.0
+}
+
+/// A metallic voice: square waves at inharmonic frequencies (hertz, times `tune`) summed, through a
+/// band-pass at `bp_hz` and a high-pass at `hp_hz`, dying 60 dB over `decay_s`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DrumMetal {
+    pub level: f32,
+    #[serde(default = "default_metal_hz")]
+    pub hz: Vec<f32>,
+    #[serde(default = "one")]
+    pub tune: f32,
+    pub bp_hz: f32,
+    #[serde(default = "default_q")]
+    pub bp_q: f32,
+    pub hp_hz: f32,
+    pub decay_s: f32,
+}
+
+/// Six inharmonic frequencies (our own choice: no two in a simple ratio; the 808's own values are in
+/// a paper whose hosts bar automated reading, so none are claimed here).
+pub fn default_metal_hz() -> Vec<f32> {
+    vec![213.0, 299.0, 371.0, 437.0, 541.0, 797.0]
 }
 
 /// An envelope's times (seconds) and sustain level.
@@ -90,6 +195,13 @@ pub enum Wave {
     Triangle,
     Saw,
     Square,
+    /// A pulse `width` of the cycle high (0.5 is the square; 0.1 thin and nasal), its width moved by
+    /// the synth's `pwm` (rung E5): band-limited by polyBLEP at both edges, its offset taken out so
+    /// the sound stays centred as the width moves.
+    Pulse,
+    /// The synth's `wavetable` (rung E5): single-cycle waves (the core set's AKWF waves, or a pack's)
+    /// read band-limited for the note's octave, morphing from one wave to the next.
+    Table,
 }
 
 /// One oscillator of a synth.
@@ -107,6 +219,93 @@ pub struct OscSpec {
     /// -1 left .. 1 right.
     #[serde(default)]
     pub pan: f32,
+    /// A `Pulse`'s width, 0.05 .. 0.95 (0.5: the square).
+    #[serde(default = "half")]
+    pub width: f32,
+    /// Several copies of this oscillator detuned around the note (seven saws is the SUPERSAW).
+    #[serde(default)]
+    pub unison: Option<UnisonSpec>,
+}
+
+/// Unison (rung E5): copies of an oscillator detuned around the note, free running (each starts at
+/// a random phase), high-passed at the note, spread across the stereo field. The detune and mix
+/// curves are the ones Adam Szabo measured from the Roland JP-8000's super saw ("How to Emulate the
+/// Super Saw", KTH bachelor's thesis, Stockholm 2010, read 2026-11-14): seven oscillators at fixed
+/// relative offsets, the knob mapped through his 11th-degree polynomial, the centre fading in a
+/// straight line and the six sides rising in a parabola as `mix` turns. Any wave may be unison (a
+/// supersaw is `wave: Saw` with seven voices; a wavetable or a pulse can be too).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct UnisonSpec {
+    /// How many copies, 1 .. 7 (odd counts keep the centre one).
+    #[serde(default = "seven")]
+    pub voices: u8,
+    /// The detune knob, 0 .. 1 (through Szabo's curve: 0.5 spreads the outer copies about 1.1%, 1 about 11%).
+    #[serde(default = "half")]
+    pub detune: f32,
+    /// The mix knob, 0 .. 1: the centre copy against the six around it.
+    #[serde(default = "half")]
+    pub mix: f32,
+    /// How far the copies spread across the stereo field, 0 .. 1.
+    #[serde(default = "default_spread")]
+    pub spread: f32,
+    /// High-passed at the note (the super saw's own filter, Szabo found), so the copies' beating
+    /// stays above the fundamental instead of muddying it.
+    #[serde(default = "yes")]
+    pub high_pass: bool,
+}
+
+fn seven() -> u8 {
+    7
+}
+fn default_spread() -> f32 {
+    0.7
+}
+fn yes() -> bool {
+    true
+}
+
+/// Pulse-width modulation (rung E5): every `Pulse` oscillator's width moves up to `depth` either side
+/// of its own, by an LFO in time with the music (`lfo`) or, without one, a free LFO at `hz`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PwmSpec {
+    #[serde(default)]
+    pub lfo: BeatLfo,
+    #[serde(default)]
+    pub hz: f32,
+    pub depth: f32,
+}
+
+/// A wavetable (rung E5): single-cycle waves read band-limited (a table for every half octave of
+/// pitch, each holding only the harmonics that stay under the output's Nyquist frequency: the method
+/// of Nigel Redmon's "A wavetable oscillator", earlevel.com, Part 2, 2012-05-08, at half-octave
+/// steps), morphing along `waves` from `position` by an LFO (`lfo` in time with the music, or
+/// `lfo_hz`) over `depth` and by the envelope times `env`. A wave is `<set>/<file>` as its set's
+/// `waves.ron` lists it (`akwf_core/AKWF_hvoice/AKWF_hvoice_0001.wav`), found in the core set
+/// (`data/music/waves/`) or an installed pack (`data/music/packs/<pack>/waves/`).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WavetableSpec {
+    pub waves: Vec<String>,
+    /// Where the morph rests, 0 (the first wave) .. 1 (the last).
+    #[serde(default)]
+    pub position: f32,
+    #[serde(default)]
+    pub lfo: BeatLfo,
+    #[serde(default)]
+    pub lfo_hz: f32,
+    /// How far the LFO moves the morph (0 .. this, by its sweep).
+    #[serde(default)]
+    pub depth: f32,
+    /// The envelope times this is added to the morph (a note that opens up as it sounds).
+    #[serde(default)]
+    pub env: f32,
+    /// The instrument that plays when a wave's set is not installed (a pack's waves). Empty: none,
+    /// and a missing wave is an error naming the file.
+    #[serde(default)]
+    pub fallback: String,
+    /// The waves read and band-limited (filled when the data is loaded, `MusicLibrary::load`; never
+    /// written in a file). None: not loaded, and the oscillator is silent.
+    #[serde(skip)]
+    pub table: Option<Arc<crate::wavetable::WaveTable>>,
 }
 
 /// A filter's response.
@@ -344,6 +543,12 @@ pub struct SynthSpec {
     /// The bass toolkit's chain after the filter (shaper, formant, comb, phaser, protected sub).
     #[serde(default)]
     pub fx: VoiceFx,
+    /// Pulse-width modulation of its `Pulse` oscillators (rung E5).
+    #[serde(default)]
+    pub pwm: Option<PwmSpec>,
+    /// The waves its `Table` oscillators read (rung E5).
+    #[serde(default)]
+    pub wavetable: Option<WavetableSpec>,
 }
 
 /// A formant choir.

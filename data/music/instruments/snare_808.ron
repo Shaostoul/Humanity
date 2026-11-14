@@ -1,0 +1,15 @@
+// A drum machine's snare in the 808 style (section 7f, rung E4): two tones (the shell's first modes, a
+// lower and a higher one about 1.83 times it, as the 180 and 330 Hz modes Synth Secrets names) that
+// fall a little in pitch and die quickly, under white noise high-passed for the snares ("Practical
+// Snare Drum Synthesis", Sound On Sound, April 2002: two bridged-T oscillators, the noise through a
+// VCA and a high-pass).
+Instrument(
+    id: "snare_808",
+    words: "music.instrument.snare_808",
+    kind: DrumMachine((
+        tones: [(level: 0.55, decay_s: 0.14, pitch: 1.08, pitch_s: 0.012), (ratio: 1.83, level: 0.3, decay_s: 0.09, pitch: 1.08, pitch_s: 0.012)],
+        noise: Some((level: 0.55, filter: HighPass, hz: 1800.0, q: 0.7, decay_s: 0.18)),
+    )),
+    level_db: -18.4,
+    reverb_send: 0.15,
+)

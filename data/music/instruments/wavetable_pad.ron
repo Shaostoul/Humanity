@@ -1,0 +1,26 @@
+// A WAVETABLE pad (section 7f, rung E5): the core set's blended AKWF waves (CC0) morphing slowly from
+// soft to bright and back over eight bars, two copies a few cents apart across the stereo field,
+// through a gentle low-pass, swelling in. For the calm moods and the ambient genre to come (E6).
+Instrument(
+    id: "wavetable_pad",
+    words: "music.instrument.wavetable_pad",
+    kind: Synth((
+        oscillators: [(wave: Table, detune_cents: -6.0, pan: -0.6), (wave: Table, detune_cents: 6.0, pan: 0.6)],
+        wavetable: Some((
+            waves: [
+                "akwf_core/AKWF_bw_blended/AKWF_blended_0001.wav",
+                "akwf_core/AKWF_bw_blended/AKWF_blended_0025.wav",
+                "akwf_core/AKWF_bw_blended/AKWF_blended_0049.wav",
+                "akwf_core/AKWF_bw_blended/AKWF_blended_0070.wav",
+            ],
+            lfo: (per_beat: 0.03125, shape: Triangle),
+            depth: 1.0,
+            // Without its waves, the soft pad plays.
+            fallback: "soft_saw_pad",
+        )),
+        filter: Some((kind: LowPass, cutoff_hz: 1400.0, q: 0.7, key_track: 0.6)),
+        envelope: (attack_s: 2.5, release_s: 2.5),
+    )),
+    level_db: -22.0,
+    reverb_send: 0.45,
+)
