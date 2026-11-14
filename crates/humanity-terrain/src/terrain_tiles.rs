@@ -98,6 +98,7 @@ pub struct TerrainTiles {
     /// Tile files confirmed missing on disk this session - never re-tried.
     absent: HashSet<TileKey>,
     /// Most recent region center, for LRU distance eviction.
+    /// reuse: a position (the last region centre, for distance eviction), not built data.
     last_center: TileKey,
     // Mutex-wrapped (v0.926 threaded terrain builds): std mpsc ends are
     // !Sync, and the parallel patch-build scope shares &TerrainTiles across

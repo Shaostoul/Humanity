@@ -37,6 +37,8 @@ pub struct PulleyPanel {
     /// The worlds to choose from (data/planets/ and the ship's spin), read with the rows.
     worlds: Vec<World>,
     /// The last answer and the key of the inputs it was worked out from.
+    /// reuse: site: the Calculator's Pulleys mode keeps its last answer under a key of its inputs;
+    /// with the switch off it is worked out again every time.
     kept: Option<(u64, Outcome)>,
 }
 

@@ -141,7 +141,7 @@ fn sleeve_tilts(n: u32) -> Vec<f32> {
 fn sleeve_tilts_cached(n: u32) -> &'static [f32] {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
-    static CACHE: OnceLock<Mutex<HashMap<u32, &'static [f32]>>> = OnceLock::new();
+    static CACHE: OnceLock<Mutex<HashMap<u32, &'static [f32]>>> = OnceLock::new(); // reuse: pure in n: cannot go stale
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     let mut g = cache.lock().unwrap_or_else(|e| e.into_inner());
     g.entry(n).or_insert_with(|| Box::leak(sleeve_tilts(n).into_boxed_slice()))

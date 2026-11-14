@@ -77,6 +77,9 @@ pub struct Brain {
     model: *mut c_void,
     ctx: *mut c_void,
     /// The tokens the working memory holds now (the last prompt and its reply), for prompt reuse.
+    /// reuse: site: the prompt already read into the working memory (llama.cpp's prompt reuse);
+    /// with the switch off nothing is kept and every request reads its whole prompt again
+    /// (`Brain::prefill`'s `reuse`, sent by the client).
     cached: Vec<i32>,
     pub threads: u32,
     pub n_ctx: u32,

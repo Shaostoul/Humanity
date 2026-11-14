@@ -53,7 +53,8 @@ just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip e
 - **Every system the simulation defines is registered in `lib.rs`,** or listed in
   `DEFERRED_SYSTEMS` with its reason. Source: [engine_wiring_lint.rs](../../tests/engine_wiring_lint.rs).
 - **Every reuse in the frame asks `reuse::enabled()`** (the draw lists, the dev request reader, the
-  Garden mirror): a new one that does not ask is a bug. Source: [reuse.rs](../../crates/humanity-core/src/reuse.rs) and
+  Garden mirror): a new one that does not ask is a bug, and each declares itself where it lives with
+  a `// reuse: site:` comment (`tests/reuse_switch_lint.rs`). Source: [reuse.rs](../../crates/humanity-core/src/reuse.rs) and
   [CLAUDE.md](../../CLAUDE.md), "No caches kept across runs during development".
 - **The dev tooling is permanent:** the dev IPC, the dev MCP endpoint (on 127.0.0.1,
   [mcp.md](../ai/mcp.md)), the play journal's frame half and the overlays are load-bearing, never

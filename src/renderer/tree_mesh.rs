@@ -2097,6 +2097,8 @@ fn flower(b: &mut PlantMeshBuilder, at: [f32; 3], dir: [f32; 3], size: f32, colo
 /// BUG-059 lesson is that anything expensive reached from a per-frame block is
 /// memoized at its OWN call site rather than assumed cheap upstream.
 pub fn mean_card_side(def: &TreeDef, layer: ClusterLayer) -> f32 {
+    /// reuse: keyed by the tree's id and layer, from the tree registry read once per run: data read
+    /// once per run, not a reuse that can go stale within it.
     static CACHE: std::sync::OnceLock<
         std::sync::RwLock<std::collections::HashMap<(String, &'static str), f32>>,
     > = std::sync::OnceLock::new();

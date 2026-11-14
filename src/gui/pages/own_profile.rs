@@ -75,6 +75,8 @@ pub struct OwnProfile {
     /// A save is wanted on this server (normalised address), sent by `pump`.
     pub(crate) wanted: Option<String>,
     /// When the last update went to each server.
+    /// reuse: when the last update went to each server (the send schedule): bookkeeping, not built
+    /// data.
     pub(crate) last_sent: HashMap<String, Instant>,
     /// When the app last asked each server for the person's own copy.
     pub(crate) asked: HashMap<String, Instant>,

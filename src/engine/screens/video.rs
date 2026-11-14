@@ -1147,6 +1147,8 @@ impl VideoProvider {
     ///
     /// `reuse` is `humanity_core::reuse::enabled()`: with the switch off a tick never keeps the
     /// picture (`FrameDraw::Keep`), it composes and uploads the last frame again (2026-11-13).
+    /// reuse: site: a video screen's quiet tick keeps nothing with the switch off: it composes and
+    /// uploads the last frame again (`FrameDraw::Keep` only with the switch on).
     pub fn plan_frame(&mut self, core: &mut ScreenCore, now: Instant, reuse: bool) -> FrameDraw {
         let first = self.display_px.is_none();
         self.ensure_open(core.size());

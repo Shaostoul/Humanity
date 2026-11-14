@@ -62,6 +62,9 @@ pub(crate) struct HomeDraw {
     /// 3): the plan tiles (engine/map_tiles.rs) look for what an edit touched only when it moves.
     pub(crate) edits: u64,
     /// When the reuse switch last rebuilt the home (`engine::home_reuse::frame`).
+    /// reuse: site: when the home's switch-off schedule last ran: with the switch off the home is
+    /// rebuilt every 5 s while aboard (`home_reuse::home_rebuild_due`; a rebuild with every machine
+    /// drawn afresh measured 301 to 637 ms, far over a frame).
     pub(crate) reuse_off_at: Option<std::time::Instant>,
 }
 
@@ -1918,9 +1921,13 @@ pub(crate) struct GardenDraw {
     /// Each tent's door, by its machine's id: where its roll is going and since when.
     tent_rolls: std::collections::HashMap<String, TentRoll>,
     /// Each tent's three meshes, by its machine's id, and what they were built from.
+    /// reuse: site: a fruiting tent's cover, built again when the tent or its door's roll step
+    /// changes, and every frame with the switch off.
     tent_meshes: std::collections::HashMap<String, TentMeshes>,
     /// The materials the covers' parts are drawn in (`fruiting_tent::film_material` and its
     /// siblings), each with what it was made from.
+    /// reuse: site: the tent cover's materials, written again from what they are made of every
+    /// frame with the switch off.
     tent_materials: Vec<(crate::engine::fruiting_tent::PartMaterial, usize)>,
     /// Every tent door held up (1) or down (0) by the dev IPC's showcase "tent_door" verb; None:
     /// each follows its rack's tending (`fruiting_tent::tended`).
@@ -2009,6 +2016,9 @@ pub(crate) struct PlantPass {
     /// the rest.
     plan_split: [f64; 3],
     /// When the reuse switch's last full rebuild started (`home_reuse::garden_full_rebuild_due`).
+    /// reuse: site: when the garden's last full rebuild ran: with the switch off the whole garden
+    /// is built again every 2 s once the last one has finished
+    /// (`home_reuse::garden_full_rebuild_due`, about 400 ms of the worker).
     full_at: Option<std::time::Instant>,
 }
 

@@ -53,6 +53,7 @@ use std::time::{Duration, Instant};
 /// The `GuiState` fields that hold egui `TextureHandle`s, one set per
 /// surface. See the module doc for why these must be swapped, not shared.
 pub struct ScreenTextures {
+    /// reuse: an `ImageCache`, which obeys the switch inside (`image_cache::image_kept`).
     pub image_cache: ImageCache,
     pub watch_texture: Option<egui::TextureHandle>,
     pub link_device_qr: Option<(String, egui::TextureHandle)>,
@@ -910,6 +911,8 @@ pub enum Turn {
 /// data turn was taken, `has_data` whether its page builds data of its own on a frame that draws it,
 /// `spread` false with the Dev page's "Turn off all reuse" (and while a dev-IPC lookup waits on the
 /// screen), when the first frame runs twice and paints, as before.
+/// reuse: site: a page screen's first sight comes over its first turns; with the switch off a first
+/// sight runs twice and paints on one frame.
 pub fn turn_plan(runs: u64, readied: bool, has_data: bool, spread: bool) -> Turn {
     match (runs, spread) {
         (0, false) => Turn::Paint { runs: 2 },

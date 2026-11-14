@@ -134,6 +134,8 @@ pub struct DrawnPatchSurface<'a, 'b> {
     /// are fixed for the whole harvest, so a depth-20 lookup can start at
     /// level 13 and walk 7 levels instead of 20.
     base_level: usize,
+    /// reuse: lives for one harvest (the surface borrows the heightmap, so it cannot outlive the
+    /// frame that made it): nothing is kept across frames.
     memo: VertexMemo,
     /// Count of elevation samples actually taken (diagnostics + tests).
     pub samples: usize,

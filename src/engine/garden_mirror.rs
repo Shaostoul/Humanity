@@ -108,6 +108,9 @@ const STAMPED: [&str; 12] = [
 
 /// What is kept between builds (the main thread's, `ROWS`; a test keeps its own).
 #[derive(Default)]
+/// reuse: site: the Garden page data: with the switch off every grow area's rows are built every
+/// build, instead of kept by area while the farm's change numbers, the data's stamps and the clock
+/// say nothing they read moved (`systems::farming::versions`).
 pub(crate) struct Rows {
     /// The grow areas, in the order their rows stand in `GuiState::crops`: the areas with crops by
     /// their tag (no tag first), each area's crops by entity id, then the emptied beds that still

@@ -60,6 +60,8 @@ pub fn set_test_override(on: Option<bool>) {
 }
 
 /// May this module skip blocks at all? Off with the Dev page's "Turn off all reuse".
+/// reuse: site: with the switch off a page lays out every block of a long list, on screen or not
+/// (the Inventory page's Garden groups and rows of slot tiles).
 pub fn enabled() -> bool {
     #[cfg(test)]
     if let Some(on) = TEST_OVERRIDE.with(|c| c.get()) {

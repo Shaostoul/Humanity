@@ -3632,6 +3632,8 @@ pub(crate) fn draw_media_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
 fn media_status_line(setting: &str) -> String {
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
+    /// reuse: site: Settings > Media's "Found ffmpeg" line, worked out at most every two seconds,
+    /// and on every frame with the switch off.
     static CACHE: OnceLock<Mutex<Option<(String, String, Instant)>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(None));
     let mut g = cache.lock().unwrap();

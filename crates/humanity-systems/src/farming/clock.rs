@@ -255,6 +255,8 @@ pub struct Due {
 /// ever skipped; a frame of no game time (the clock held) brings up nothing. Both ends are the
 /// clock's own values, never one worked back from the other (`t - dt` can round below a
 /// boundary the frame before already crossed, and bring a turn up twice).
+/// reuse: site: an area not yet advanced to now is state kept stale on purpose, so with the switch
+/// off (`every`) every grow area and the air advance every frame.
 pub fn plan(t0: f64, t: f64, interval_s: f64, air_s: f64, every: bool) -> Due {
     let mut due = Due { all: false, turns: [false; TURNS as usize], air: false };
     if every || !(interval_s > 0.0) {

@@ -138,13 +138,26 @@ impl GltfCpuMesh {
     }
 }
 
+/// Is a file's parsed copy used again instead of reading and parsing the file? Only while reuse
+/// is on (`reuse` is `humanity_core::reuse::enabled()` at the call, CLAUDE.md's reuse rule) and a
+/// copy exists. The data files are hot-reloadable, so a kept copy is exactly what goes stale.
+/// (Native only, like the loaders that ask it.)
+#[cfg(feature = "native")]
+fn parse_kept(reuse: bool, cached: bool) -> bool {
+    reuse && cached
+}
+
 /// Central asset manager: loads data files, caches parsed results, supports hot-reload.
 pub struct AssetManager {
     /// Root data directory (e.g., `HumanityOS/content/data/`).
     data_dir: PathBuf,
     /// Cached parsed data, keyed by relative path from data_dir.
+    /// reuse: site: the parsed data files; with the switch off every load reads and parses its
+    /// file again (`parse_kept`), so an edit to a data file shows on the next load.
     cache: HashMap<String, Box<dyn Any + Send + Sync>>,
     /// Cached mesh indices from loaded GLTF models, keyed by relative path.
+    /// reuse: site: a model's mesh slot; with the switch off every load reads the model again and
+    /// replaces the mesh in its slot (`load_gltf`, `parse_kept`).
     #[cfg(feature = "native")]
     mesh_cache: HashMap<String, usize>,
 }
@@ -178,7 +191,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&Vec<T>, String> {
-        if !self.cache.contains_key(relative_path) {
+        if !parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
@@ -198,7 +211,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&T, String> {
-        if !self.cache.contains_key(relative_path) {
+        if !parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
@@ -218,7 +231,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&T, String> {
-        if !self.cache.contains_key(relative_path) {
+        if !parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             let path = self.data_dir.join(relative_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
@@ -446,9 +459,13 @@ impl AssetManager {
         renderer: &mut crate::renderer::Renderer,
         relative_path: &str,
     ) -> Result<usize, String> {
-        // Return cached mesh index if already loaded
-        if let Some(&idx) = self.mesh_cache.get(relative_path) {
-            return Ok(idx);
+        // Return cached mesh index if already loaded (with the reuse switch off, the model is read
+        // again and its mesh replaced in the same slot).
+        let had = self.mesh_cache.get(relative_path).copied();
+        if let Some(idx) = had {
+            if parse_kept(humanity_core::reuse::enabled(), true) {
+                return Ok(idx);
+            }
         }
 
         let path = self.data_dir.join(relative_path);
@@ -462,7 +479,13 @@ impl AssetManager {
             &cpu.vertices,
             &cpu.indices,
         );
-        let mesh_idx = renderer.add_mesh(mesh);
+        let mesh_idx = match had {
+            Some(idx) => {
+                renderer.replace_mesh(idx, mesh);
+                idx
+            }
+            None => renderer.add_mesh(mesh),
+        };
 
         log::info!(
             "Loaded GLTF: {} ({} verts, {} tris)",
@@ -512,7 +535,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&Vec<T>, String> {
-        if self.cache.contains_key(relative_path) {
+        if parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             return self.cache
                 .get(relative_path)
                 .and_then(|v| v.downcast_ref::<Vec<T>>())
@@ -558,7 +581,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&T, String> {
-        if self.cache.contains_key(relative_path) {
+        if parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             return self.cache
                 .get(relative_path)
                 .and_then(|v| v.downcast_ref::<T>())
@@ -603,7 +626,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&T, String> {
-        if self.cache.contains_key(relative_path) {
+        if parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             return self.cache
                 .get(relative_path)
                 .and_then(|v| v.downcast_ref::<T>())
@@ -648,7 +671,7 @@ impl AssetManager {
         &mut self,
         relative_path: &str,
     ) -> Result<&T, String> {
-        if self.cache.contains_key(relative_path) {
+        if parse_kept(humanity_core::reuse::enabled(), self.cache.contains_key(relative_path)) {
             return self.cache
                 .get(relative_path)
                 .and_then(|v| v.downcast_ref::<T>())
@@ -1445,6 +1468,17 @@ mod model_scale_tests {
         // division by almost nothing.
         let mut flat = GltfCpuMesh { vertices: vec![], indices: vec![] };
         assert_eq!(flat.scale_to_height(2.0), 1.0);
+    }
+
+
+    /// THE REUSE SWITCH on the asset manager (2026-11-13, part B): a parsed file is used again only
+    /// with reuse on; with it off every load reads the file again. Seen red with `parse_kept`
+    /// returning `cached` alone: "reuse off: the file is read again".
+    #[test]
+    fn with_reuse_off_every_load_reads_the_file_again() {
+        assert!(super::parse_kept(true, true), "reuse on: the parsed copy is used");
+        assert!(!super::parse_kept(false, true), "reuse off: the file is read again");
+        assert!(!super::parse_kept(true, false), "nothing parsed yet: read");
     }
 
 }

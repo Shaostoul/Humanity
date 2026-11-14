@@ -151,6 +151,8 @@ pub struct StarRenderer {
     constellation_verts: Vec<StarVertex>,
     /// Current baked line color; `set_constellation_style` rebuilds the GPU
     /// buffer only when this changes.
+    /// reuse: site: the constellation line buffer's baked colour; the buffer is rebuilt every frame
+    /// with the switch off (`constellation_kept`).
     constellation_rgba: [f32; 4],
     /// Draw the figures at all? (Settings > Graphics > Constellation figures.)
     pub show_constellations: bool,

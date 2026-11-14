@@ -36,12 +36,14 @@ struct DevTestsFile {
 pub fn dev_tests() -> Vec<DevTest> {
     use std::sync::{Mutex, OnceLock};
     use std::time::SystemTime;
+    /// reuse: site: the Dev page's test requests, kept while the file's modified time matches
+    /// (`reuse::keeps`); with the switch off the file is read again every time.
     static CACHE: OnceLock<Mutex<(Option<SystemTime>, Vec<DevTest>)>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new((None, Vec::new())));
     let path = "data/gui/dev_tests.json";
     let mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
     if let Ok(mut c) = cache.lock() {
-        if c.0 == mtime && mtime.is_some() {
+        if mtime.is_some_and(|m| humanity_core::reuse::keeps(c.0, m, humanity_core::reuse::enabled())) {
             return c.1.clone();
         }
         let tests = std::fs::read_to_string(path)

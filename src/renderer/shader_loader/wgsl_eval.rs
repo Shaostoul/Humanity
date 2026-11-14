@@ -106,6 +106,8 @@ enum Flow {
 struct Frame<'m> {
     func: &'m Function,
     args: Vec<Value>,
+    /// reuse: the shader evaluator's values within one function call (a test tool): nothing kept
+    /// across frames.
     cache: Vec<Option<Value>>,
     locals: Vec<Value>,
 }

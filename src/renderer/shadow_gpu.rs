@@ -339,6 +339,9 @@ impl ArenaBook {
 
     /// Start a frame. THE REUSE SWITCH: with reuse off every range is forgotten, so every mesh a
     /// caster draws this frame is placed and copied again.
+    /// reuse: site: the shadow atlas's GPU-driven casters' shared vertex and index buffer: with the
+    /// switch off every range is forgotten at the start of a frame, so every mesh a caster draws is
+    /// copied in again.
     pub fn begin_frame(&mut self, reuse: bool) {
         if !reuse {
             let (v, i) = self.caps();

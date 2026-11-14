@@ -60,6 +60,8 @@ pub enum NearTreeRecompute {
     ReachChanged,
     /// The reuse switch is off (`humanity_core::reuse::enabled()`, the Dev
     /// page): the set is harvested again every frame instead of kept.
+    /// reuse: site: with the switch off the near-tree set is harvested every frame; with it on the
+    /// gate also watches the tree model distance and the near-tree budget.
     ReuseOff,
 }
 

@@ -24,7 +24,7 @@
 //! - texel = [T_red, T_green, T_blue, 1.0] as f32 (uploaded Rgba32Float;
 //!   16-bit would suffice but the texture is 256 KB, not worth the packing).
 
-use super::atmosphere::{od_to_space, TAU_MIE, TAU_RAYLEIGH};
+use super::atmosphere::{chapman, erfcx, od_to_space, TAU_MIE, TAU_RAYLEIGH};
 
 pub const TRANS_LUT_W: usize = 256;
 pub const TRANS_LUT_H: usize = 64;
@@ -68,28 +68,30 @@ pub fn v_to_r(v: f32, rp: f32, h: f32) -> f32 {
 /// Generate the transmittance LUT, row-major, TRANS_LUT_W x TRANS_LUT_H
 /// texels of [T_r, T_g, T_b, 1.0].
 pub fn transmittance_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
-    let mut out = Vec::with_capacity(TRANS_LUT_W * TRANS_LUT_H);
+    let mut out = vec![[0.0f32; 4]; TRANS_LUT_W * TRANS_LUT_H];
     // Mie rides a shorter scale height than Rayleigh (the shader folds both
     // into one od today; keep that single-od convention so 1b's fetch is a
     // drop-in replacement for the analytic expression, not a new model).
-    for ty in 0..TRANS_LUT_H {
+    // The rows are independent and built in parallel (the reuse switch builds this table on every
+    // frame while it is off).
+    rows_on_own_threads(&mut out, TRANS_LUT_W, |ty, row| {
         let v = (ty as f32 + 0.5) / TRANS_LUT_H as f32;
         let r = v_to_r(v, p.rp, p.h);
-        for tx in 0..TRANS_LUT_W {
+        for (tx, texel) in row.iter_mut().enumerate() {
             let u = (tx as f32 + 0.5) / TRANS_LUT_W as f32;
             let mu = u_to_mu(u);
             let od = od_to_space(r, mu, p.rp, p.h);
             // The shader's beta carries a 1/h (beta_ray = tint * TAU_R / h),
             // because od_to_space returns h-scaled path length; mirror that.
             let t = |beta: f32| (-(beta / p.h * od * p.density_mul)).exp();
-            out.push([
+            *texel = [
                 t(p.tint[0] * TAU_RAYLEIGH + TAU_MIE * 1.11),
                 t(p.tint[1] * TAU_RAYLEIGH + TAU_MIE * 1.11),
                 t(p.tint[2] * TAU_RAYLEIGH + TAU_MIE * 1.11),
                 1.0,
-            ]);
+            ];
         }
-    }
+    });
     out
 }
 
@@ -169,90 +171,182 @@ pub const MS_LUT_H: usize = 32;
 /// Sphere-direction count for the second-order integral (8 azimuth x 8
 /// elevation, uniform on the sphere via cos-elevation stratification) and
 /// march steps per direction. Paper uses 64 dirs / 20 steps at this size.
+/// The fast build marches one azimuth (every azimuth gives the same sum, see
+/// `multiple_scattering_row`); the first version, the tests' reference, marched all eight.
+#[cfg(test)]
 const MS_DIRS_AZ: usize = 8;
 const MS_DIRS_EL: usize = 8;
 const MS_STEPS: usize = 20;
 
 /// Generate the multiple-scattering LUT, row-major MS_LUT_W x MS_LUT_H.
+///
+/// THE COLD PATH MADE FAST (2026-11-13, the reuse switch, part B). With the reuse switch off
+/// (`humanity_core::reuse`) the tables are built again on every frame, and as first written this
+/// one cost 53 to 68 ms of CPU each time (cpu.atmo_luts read 59 to 67 ms a frame on a planet with
+/// reuse off). The same integral, worked out once instead of many times over:
+/// - every azimuth gave the same sum (the march treats the air as a flat slab at the sample, see
+///   below), so one azimuth is marched and the sphere's average is taken over the elevations;
+/// - the march along each direction does not depend on the sun, so it is walked once per ROW
+///   (each step's radius, density and extinction back to the sample), and only the sun's path is
+///   worked out per texel, with the parts of `od_to_space` that depend on the radius alone worked
+///   out once per step (`SunPath`, bit-exact against `od_to_space`);
+/// - a sun below the local horizon (`od_to_space`'s 1e9) adds exactly nothing, so it is skipped;
+/// - the rows are independent, so they are built in parallel (`rows_on_own_threads`).
+///
+/// The table matches the first version to a few parts in a million
+/// (`the_fast_multiple_scattering_lut_equals_the_first_version`), far below the half-float
+/// texture's own step (about 5 parts in ten thousand), and costs about a twelfth of it on one
+/// thread before the rows are spread.
 pub fn multiple_scattering_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
-    use super::atmosphere::{od_to_space, TAU_MIE, TAU_RAYLEIGH};
+    let mut out = vec![[0.0f32; 4]; MS_LUT_W * MS_LUT_H];
+    rows_on_own_threads(&mut out, MS_LUT_W, |ty, row| multiple_scattering_row(p, ty, row));
+    out
+}
+
+/// Build a table's rows (`row_len` texels each): the calling thread and up to three helpers take
+/// the next row in turn until none is left. Not the shared rayon pool: there the tables waited
+/// behind whatever long job held it, and cpu.atmo_luts read 2.4 ms in one reuse-off sweep and 62
+/// to 111 ms in the next (2026-11-14). Not rows dealt in advance either: on a machine busy with
+/// builds a starved helper held its share back (16 to 57 ms). Taken in turn, a helper that never
+/// runs costs nothing: the caller builds every row itself (about 4.4 ms for both tables on one
+/// thread, measured standalone), and a free machine shares them. A row is a pure function of its
+/// index, so the table is the same whoever builds which row.
+fn rows_on_own_threads(out: &mut [[f32; 4]], row_len: usize, row: impl Fn(usize, &mut [[f32; 4]]) + Sync) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let helpers = std::thread::available_parallelism().map_or(1, |n| n.get().saturating_sub(2).min(3));
+    let cells: Vec<std::sync::Mutex<&mut [[f32; 4]]>> = out.chunks_mut(row_len).map(std::sync::Mutex::new).collect();
+    let next = AtomicUsize::new(0);
+    let work = || loop {
+        let ty = next.fetch_add(1, Ordering::Relaxed);
+        let Some(cell) = cells.get(ty) else { break };
+        let mut r = cell.lock().unwrap_or_else(|e| e.into_inner());
+        row(ty, &mut r);
+    };
+    std::thread::scope(|s| {
+        for _ in 0..helpers {
+            s.spawn(&work);
+        }
+        work();
+    });
+}
+
+/// One row (one altitude) of the multiple-scattering LUT, for every sun angle.
+fn multiple_scattering_row(p: &TransLutParams, ty: usize, row: &mut [[f32; 4]]) {
     let iso_phase = 1.0 / (4.0 * std::f32::consts::PI);
     // Per-channel scattering coefficient at surface density (per shell
     // radius): the shader's beta = tau / h convention.
-    let beta = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE) / p.h * p.density_mul;
+    let beta: [f32; 3] = std::array::from_fn(|c| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE) / p.h * p.density_mul);
     // Extinction adds the 1.11 Mie absorption factor, as the shader does.
-    let beta_ext = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE * 1.11) / p.h * p.density_mul;
+    let beta_ext: [f32; 3] = std::array::from_fn(|c| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE * 1.11) / p.h * p.density_mul);
+    let v = (ty as f32 + 0.5) / MS_LUT_H as f32;
+    let r0 = v_to_r(v, p.rp, p.h);
 
-    let mut out = Vec::with_capacity(MS_LUT_W * MS_LUT_H);
-    for ty in 0..MS_LUT_H {
-        let v = (ty as f32 + 0.5) / MS_LUT_H as f32;
-        let r0 = v_to_r(v, p.rp, p.h);
-        for tx in 0..MS_LUT_W {
-            let u = (tx as f32 + 0.5) / MS_LUT_W as f32;
-            let mu_s = u_to_mu(u);
-
-            let mut l2 = [0.0f32; 3]; // second-order in-scatter
-            let mut f_ms = [0.0f32; 3]; // re-scatter fraction
-            for ei in 0..MS_DIRS_EL {
-                // Stratified uniform sphere: cos(elevation) uniform in [-1,1].
-                let cos_el = -1.0 + 2.0 * (ei as f32 + 0.5) / MS_DIRS_EL as f32;
-                // Every azimuth gives the same sum here: the march treats the
-                // air as a flat slab at the sample (`r0 + t * dir_up`, the sun's
-                // mu_s held fixed), so only the vertical component reaches it.
-                // The loop is kept so the integral counts the paper's 64
-                // directions; a curved march, where the azimuth does turn the
-                // sun angle at each sample, would read the azimuth here.
-                for _ai in 0..MS_DIRS_AZ {
-                    let dir_up = cos_el;
-                    // March to the atmosphere top (or ground hit).
-                    // Segment length: to shell top along this direction -
-                    // approximate with the vertical span / |dir_up| capped at
-                    // a few spans (horizontal rays get the cap).
-                    let span = (1.0 - r0).max(p.h);
-                    let seg = if dir_up.abs() > 0.05 {
-                        (span / dir_up.abs()).min(span * 8.0)
-                    } else {
-                        span * 8.0
-                    };
-                    let dt = seg / MS_STEPS as f32;
-                    let mut od_along = 0.0f32; // density-integrated path so far
-                    for si in 0..MS_STEPS {
-                        let t = (si as f32 + 0.5) * dt;
-                        let r_s = (r0 + t * dir_up).clamp(p.rp, 1.0);
-                        // Ground hit: the ray is absorbed (skip the rest;
-                        // ground albedo bounce is a stage-3+ refinement).
-                        if r0 + t * dir_up < p.rp {
-                            break;
-                        }
-                        let dens = (-(r_s - p.rp) / p.h).exp();
-                        od_along += dens * dt;
-                        // Sun transmittance at the sample (channel green used
-                        // for the shared od; per-channel via beta_ext below).
-                        let od_sun = od_to_space(r_s, mu_s, p.rp, p.h);
-                        // The sun below the local horizon at the sample:
-                        // od_to_space returns 1e9 -> exp kills the term.
-                        for c in 0..3 {
-                            let t_along = (-(beta_ext(c)) * od_along).exp();
-                            let t_sun = (-(beta_ext(c)) * od_sun).exp();
-                            let sigma = beta(c) * dens;
-                            l2[c] += t_along * sigma * t_sun * iso_phase * dt;
-                            f_ms[c] += t_along * sigma * dt;
-                        }
-                    }
-                }
+    // The march along every direction, which the sun does not change: each
+    // step's path to the sun, and its weight (transmittance back to the
+    // sample x scattering x isotropic phase x step length).
+    let mut steps: Vec<(SunPath, [f32; 3])> = Vec::with_capacity(MS_DIRS_EL * MS_STEPS);
+    let mut f_ms = [0.0f32; 3]; // re-scatter fraction
+    for ei in 0..MS_DIRS_EL {
+        // Stratified uniform sphere: cos(elevation) uniform in [-1,1].
+        // Every azimuth gives the same sum here: the march treats the air as
+        // a flat slab at the sample (`r0 + t * dir_up`, the sun's mu_s held
+        // fixed), so only the vertical component reaches it, and the paper's
+        // 64-direction average (8 azimuths x 8 elevations) is the average over
+        // the elevations alone. A curved march, where the azimuth does turn
+        // the sun angle at each sample, would need the azimuths back.
+        let dir_up = -1.0 + 2.0 * (ei as f32 + 0.5) / MS_DIRS_EL as f32;
+        // March to the atmosphere top (or ground hit).
+        // Segment length: to shell top along this direction -
+        // approximate with the vertical span / |dir_up| capped at
+        // a few spans (horizontal rays get the cap).
+        let span = (1.0 - r0).max(p.h);
+        let seg = if dir_up.abs() > 0.05 { (span / dir_up.abs()).min(span * 8.0) } else { span * 8.0 };
+        let dt = seg / MS_STEPS as f32;
+        let mut od_along = 0.0f32; // density-integrated path so far
+        for si in 0..MS_STEPS {
+            let t = (si as f32 + 0.5) * dt;
+            // Ground hit: the ray is absorbed (skip the rest;
+            // ground albedo bounce is a stage-3+ refinement).
+            if r0 + t * dir_up < p.rp {
+                break;
             }
-            let n = (MS_DIRS_AZ * MS_DIRS_EL) as f32;
-            // Average over the sphere (the 4pi solid angle is folded into the
-            // isotropic phase), then the geometric series.
-            let psi = |c: usize| {
-                let l = l2[c] / n;
-                let f = (f_ms[c] / n * iso_phase * 4.0 * std::f32::consts::PI).min(0.99);
-                l / (1.0 - f)
-            };
-            out.push([psi(0), psi(1), psi(2), 1.0]);
+            let r_s = (r0 + t * dir_up).clamp(p.rp, 1.0);
+            let dens = (-(r_s - p.rp) / p.h).exp();
+            od_along += dens * dt;
+            let mut w = [0.0f32; 3];
+            for c in 0..3 {
+                let t_along = (-(beta_ext[c]) * od_along).exp();
+                let sigma = beta[c] * dens;
+                w[c] = t_along * sigma * iso_phase * dt;
+                f_ms[c] += t_along * sigma * dt;
+            }
+            steps.push((SunPath::new(r_s, p.rp, p.h), w));
         }
     }
-    out
+
+    let n = MS_DIRS_EL as f32;
+    for (tx, texel) in row.iter_mut().enumerate() {
+        let mu_s = u_to_mu((tx as f32 + 0.5) / MS_LUT_W as f32);
+        let sin_chi = (1.0 - mu_s * mu_s).max(0.0).sqrt();
+        let mut l2 = [0.0f32; 3]; // second-order in-scatter
+        for (sun, w) in &steps {
+            // Sun transmittance at the sample, per channel. The sun below the
+            // local horizon at the sample: od_to_space returns 1e9, and
+            // exp(-beta * 1e9) is exactly 0, so the step adds nothing.
+            let od_sun = sun.od(mu_s, sin_chi, p.rp, p.h);
+            if od_sun >= 1.0e9 {
+                continue;
+            }
+            for c in 0..3 {
+                l2[c] += w[c] * (-(beta_ext[c]) * od_sun).exp();
+            }
+        }
+        // Average over the sphere (the 4pi solid angle is folded into the
+        // isotropic phase), then the geometric series.
+        let psi = |c: usize| {
+            let l = l2[c] / n;
+            let f = (f_ms[c] / n * iso_phase * 4.0 * std::f32::consts::PI).min(0.99);
+            l / (1.0 - f)
+        };
+        *texel = [psi(0), psi(1), psi(2), 1.0];
+    }
+}
+
+/// `od_to_space` from one radius toward any sun angle, with the parts that
+/// depend on the radius alone worked out once: the same operations in the
+/// same order on the same inputs, so it is bit-exact against `od_to_space`
+/// (`sun_path_matches_od_to_space_bit_for_bit`).
+struct SunPath {
+    r: f32,
+    /// `h * exp(-alt)`.
+    he: f32,
+    /// `chapman`'s `sqrt(pi/2 * x)`.
+    s1: f32,
+    /// `chapman`'s `sqrt(x / 2)`.
+    s2: f32,
+}
+
+impl SunPath {
+    fn new(r: f32, rp: f32, h: f32) -> Self {
+        let x = r / h;
+        let alt = (r - rp).max(0.0) / h;
+        SunPath { r, he: h * (-alt).exp(), s1: (1.570_796_4 * x).sqrt(), s2: (0.5 * x).sqrt() }
+    }
+
+    /// `od_to_space(self.r, mu, rp, h)`; `sin_chi` is `sqrt(max(1 - mu^2, 0))`.
+    #[inline]
+    fn od(&self, mu: f32, sin_chi: f32, rp: f32, h: f32) -> f32 {
+        if mu >= 0.0 {
+            return self.he * (self.s1 * erfcx(mu * self.s2));
+        }
+        let rt = self.r * sin_chi;
+        if rt < rp {
+            return 1.0e9;
+        }
+        let alt_t = (rt - rp) / h;
+        let horiz_t = h * (-alt_t).exp() * chapman(rt / h, 0.0);
+        (2.0 * horiz_t - self.he * (self.s1 * erfcx(-mu * self.s2))).max(0.0)
+    }
 }
 
 // ── Stage 3b reference: the sky-view march (CPU twin of the GPU pass) ──
@@ -352,6 +446,140 @@ mod tests {
     fn earthish() -> TransLutParams {
         let (rp, h) = shell_packing(0.06, 8500.0, 6.371e6);
         TransLutParams { tint: [0.18, 0.42, 1.0], density_mul: 1.0, rp, h }
+    }
+
+    /// The multiple-scattering LUT as first written (2026-07-25), kept as the
+    /// reference the fast build is checked against: every azimuth marched, the
+    /// march walked again for every sun angle.
+    fn multiple_scattering_lut_first_version(p: &TransLutParams) -> Vec<[f32; 4]> {
+        let iso_phase = 1.0 / (4.0 * std::f32::consts::PI);
+        // Per-channel scattering coefficient at surface density (per shell
+        // radius): the shader's beta = tau / h convention.
+        let beta = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE) / p.h * p.density_mul;
+        // Extinction adds the 1.11 Mie absorption factor, as the shader does.
+        let beta_ext = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE * 1.11) / p.h * p.density_mul;
+
+        let mut out = Vec::with_capacity(MS_LUT_W * MS_LUT_H);
+        for ty in 0..MS_LUT_H {
+            let v = (ty as f32 + 0.5) / MS_LUT_H as f32;
+            let r0 = v_to_r(v, p.rp, p.h);
+            for tx in 0..MS_LUT_W {
+                let u = (tx as f32 + 0.5) / MS_LUT_W as f32;
+                let mu_s = u_to_mu(u);
+
+                let mut l2 = [0.0f32; 3]; // second-order in-scatter
+                let mut f_ms = [0.0f32; 3]; // re-scatter fraction
+                for ei in 0..MS_DIRS_EL {
+                    // Stratified uniform sphere: cos(elevation) uniform in [-1,1].
+                    let cos_el = -1.0 + 2.0 * (ei as f32 + 0.5) / MS_DIRS_EL as f32;
+                    // Every azimuth gives the same sum here: the march treats the
+                    // air as a flat slab at the sample (`r0 + t * dir_up`, the sun's
+                    // mu_s held fixed), so only the vertical component reaches it.
+                    // The loop is kept so the integral counts the paper's 64
+                    // directions; a curved march, where the azimuth does turn the
+                    // sun angle at each sample, would read the azimuth here.
+                    for _ai in 0..MS_DIRS_AZ {
+                        let dir_up = cos_el;
+                        // March to the atmosphere top (or ground hit).
+                        // Segment length: to shell top along this direction -
+                        // approximate with the vertical span / |dir_up| capped at
+                        // a few spans (horizontal rays get the cap).
+                        let span = (1.0 - r0).max(p.h);
+                        let seg = if dir_up.abs() > 0.05 {
+                            (span / dir_up.abs()).min(span * 8.0)
+                        } else {
+                            span * 8.0
+                        };
+                        let dt = seg / MS_STEPS as f32;
+                        let mut od_along = 0.0f32; // density-integrated path so far
+                        for si in 0..MS_STEPS {
+                            let t = (si as f32 + 0.5) * dt;
+                            let r_s = (r0 + t * dir_up).clamp(p.rp, 1.0);
+                            // Ground hit: the ray is absorbed (skip the rest;
+                            // ground albedo bounce is a stage-3+ refinement).
+                            if r0 + t * dir_up < p.rp {
+                                break;
+                            }
+                            let dens = (-(r_s - p.rp) / p.h).exp();
+                            od_along += dens * dt;
+                            // Sun transmittance at the sample (channel green used
+                            // for the shared od; per-channel via beta_ext below).
+                            let od_sun = od_to_space(r_s, mu_s, p.rp, p.h);
+                            // The sun below the local horizon at the sample:
+                            // od_to_space returns 1e9 -> exp kills the term.
+                            for c in 0..3 {
+                                let t_along = (-(beta_ext(c)) * od_along).exp();
+                                let t_sun = (-(beta_ext(c)) * od_sun).exp();
+                                let sigma = beta(c) * dens;
+                                l2[c] += t_along * sigma * t_sun * iso_phase * dt;
+                                f_ms[c] += t_along * sigma * dt;
+                            }
+                        }
+                    }
+                }
+                let n = (MS_DIRS_AZ * MS_DIRS_EL) as f32;
+                // Average over the sphere (the 4pi solid angle is folded into the
+                // isotropic phase), then the geometric series.
+                let psi = |c: usize| {
+                    let l = l2[c] / n;
+                    let f = (f_ms[c] / n * iso_phase * 4.0 * std::f32::consts::PI).min(0.99);
+                    l / (1.0 - f)
+                };
+                out.push([psi(0), psi(1), psi(2), 1.0]);
+            }
+        }
+        out
+    }
+
+    /// The fast multiple-scattering LUT is the same table as the first version
+    /// (2026-11-13, the reuse switch, part B): for three atmospheres, every texel
+    /// within 2 parts in 100,000 (measured: at most 7e-6), a twentieth of the
+    /// half-float texture's own step, so the uploaded picture is the same. Seen
+    /// red with the sphere's average taken over all 64 directions (`n` =
+    /// azimuths x elevations, the eight folded azimuths counted once): "earth texel 0
+    /// channel 0: fast 0.000000085540925 first 0.0000007259524".
+    #[test]
+    fn the_fast_multiple_scattering_lut_equals_the_first_version() {
+        for (name, scale, sh, rad, tint, dm) in [
+            ("earth", 0.06f32, 8500.0f32, 6.371e6f64, [0.18f32, 0.42, 1.0], 1.0f32),
+            ("mars", 0.02, 11100.0, 3.3895e6, [1.0, 0.6, 0.35], 0.3),
+            ("thick", 0.1, 15000.0, 6.0e6, [0.3, 0.5, 1.0], 4.0),
+        ] {
+            let (rp, h) = shell_packing(scale, sh, rad);
+            let p = TransLutParams { tint, density_mul: dm, rp, h };
+            let fast = multiple_scattering_lut(&p);
+            let first = multiple_scattering_lut_first_version(&p);
+            assert_eq!(fast.len(), first.len());
+            for (i, (a, b)) in fast.iter().zip(&first).enumerate() {
+                for c in 0..4 {
+                    let tol = 2.0e-5 * b[c].abs() + 1.0e-9;
+                    assert!((a[c] - b[c]).abs() <= tol, "{name} texel {i} channel {c}: fast {} first {}", a[c], b[c]);
+                }
+            }
+        }
+    }
+
+    /// `SunPath` is `od_to_space` with its radius-only parts worked out once,
+    /// bit for bit, over the whole table's range of radii and sun angles (above
+    /// and below the horizon). Seen red with `s1` built from `0.5 * x`: "r 0.89285713 mu
+    /// -0.000000014901161: 0.05868738 vs 0.040874053".
+    #[test]
+    fn sun_path_matches_od_to_space_bit_for_bit() {
+        let p = earthish();
+        let mut checked = 0;
+        for i in 0..400 {
+            let r = p.rp + (1.0 - p.rp) * (i as f32 / 400.0);
+            let sun = SunPath::new(r, p.rp, p.h);
+            for j in 0..=230 {
+                let mu = -0.15 + j as f32 * 0.005;
+                let sin_chi = (1.0 - mu * mu).max(0.0).sqrt();
+                let a = sun.od(mu, sin_chi, p.rp, p.h);
+                let b = od_to_space(r, mu, p.rp, p.h);
+                assert_eq!(a.to_bits(), b.to_bits(), "r {r} mu {mu}: {a} vs {b}");
+                checked += 1;
+            }
+        }
+        assert!(checked > 90_000);
     }
 
     /// Physical sanity: looking straight up from the surface, most light

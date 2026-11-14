@@ -530,6 +530,8 @@ pub struct Pollination {
     /// published again (their change stamps are its key); not kept with the Dev page's "Turn off
     /// all reuse". A device's power switched within a round reaches it on the next air turn. The
     /// row covers are applied every run.
+    /// reuse: site: the hives' and devices' reach, kept for a round of the farm's rotation; not
+    /// kept with the switch off (above).
     reach: Option<(u64, Help)>,
 }
 

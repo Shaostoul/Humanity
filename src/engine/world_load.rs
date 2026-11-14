@@ -1386,6 +1386,8 @@ pub(crate) const ORBIT_PATHS_REUSE_OFF_S: f32 = 1.0;
 /// Are the orbit rings worked out again this frame? Never with reuse on (once per world entry: a
 /// session moves them a few hundredths of a degree); with it off, every
 /// [`ORBIT_PATHS_REUSE_OFF_S`].
+/// reuse: site: the orbit rings are worked out again from the clock every second with the switch
+/// off.
 pub(crate) fn orbit_paths_due(reuse: bool, since_s: f32) -> bool {
     !reuse && since_s >= ORBIT_PATHS_REUSE_OFF_S
 }

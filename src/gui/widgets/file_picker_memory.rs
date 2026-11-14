@@ -29,6 +29,8 @@ pub struct PickerMemory {
     pub favorites: Vec<PathBuf>,
     /// The folder the last file was picked from, where the next picker opens.
     #[serde(default)]
+    /// reuse: the folder the person last picked from, remembered on purpose (a preference), not a
+    /// kept result.
     pub last_folder: Option<PathBuf>,
     /// Favourite chat channels to post uploads in, each as `<server>\n<channel id>`
     /// (files/add.rs `post_key`).

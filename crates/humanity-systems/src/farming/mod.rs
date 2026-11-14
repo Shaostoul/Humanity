@@ -1003,6 +1003,8 @@ pub struct FarmingSystem {
     /// second, and with the switch off at once. A turn's areas grow most of the species, and
     /// asking each pest for each of them again every turn was the largest part of a turn's own
     /// cost in the game.
+    /// reuse: site: which pests eat each plant, kept for a round of the farm's rotation; worked out
+    /// again in every run with the switch off.
     pest_hosts: HashMap<String, Vec<bool>>,
     /// Tests only: leave out the bring-up of what a command touches, so a test can show what a
     /// command meets without it (clock_tests.rs, the harvest between two turns, seen red).

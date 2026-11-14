@@ -390,6 +390,8 @@ pub(crate) struct EngineState {
     /// "planet"|"moon", body id) -- the Sky settings filter by kind at
     /// draw time; the body id anchors the direction-of-motion trail fade
     /// (v0.790) to the body's live position on its ring.
+    /// reuse: site: the orbit rings, worked out again from the clock every second with the switch
+    /// off (`world_load::orbit_paths_due`).
     pub(crate) solar_orbit_paths: Vec<(Vec<glam::DVec3>, String, String, String)>,
     /// When the orbit rings were last worked out (world entry, and the reuse switch's schedule:
     /// `world_load::refresh_orbit_paths`).
@@ -414,6 +416,8 @@ pub(crate) struct EngineState {
     pub(crate) decoration_objects: Vec<(usize, usize, Vec3, f32, f32, Vec3)>,
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
+    /// reuse: site: the garden's models found missing, forgotten on each full rebuild of the
+    /// garden, which runs every 2 s with the switch off (`home_reuse::garden_full_rebuild_due`).
     pub(crate) hero_plant_missing: std::collections::HashSet<String>,
     /// True while the surface-locked player actually stands ON the ground
     /// (v0.996: radial height within a boot's reach of the rest height).
@@ -455,9 +459,14 @@ pub(crate) struct EngineState {
     /// shared textured material would repaint every sibling). Each with the Furniture detail
     /// divisor its picture was last drawn at (gui/furniture_detail.rs: 1 Full, 2 Simple, 0
     /// Boxes, which shrinks it to one pixel): a level change replaces the picture in place.
+    /// reuse: site: a machine model's picture, uploaded again on every home rebuild with the switch
+    /// off (`home_reuse::model_material_kept`).
     pub(crate) machine_model_materials: std::collections::HashMap<String, (usize, u32)>,
     /// Mesh/material cache for decoration models so world reloads reuse
     /// GPU resources instead of re-appending them.
+    /// reuse: world decorations' models, read once per run from files that do not change while it
+    /// runs (the near-tree models and photoscans the same way, `engine::near_tree_models`): not a
+    /// reuse that can go stale, so it stays (part A, 2026-11-13).
     pub(crate) decoration_mesh_cache: std::collections::HashMap<String, (usize, usize)>,
     /// Near-field REAL tree models on planet surfaces (v0.911): the
     /// planet-fixed vegetation stream re-enumerated around the camera
@@ -508,6 +517,8 @@ pub(crate) struct EngineState {
     /// rebuild_plant_meshes.
     pub(crate) plant_objects: Vec<(usize, usize, Vec3)>,
     /// Change signature of the last plant build; 0 forces a rebuild (hot reload).
+    /// reuse: site: the garden's signature, zeroed for each full rebuild of the garden, which runs
+    /// every 2 s with the switch off (`home_reuse::garden_full_rebuild_due`).
     pub(crate) plant_mesh_sig: u64,
     /// The garden's drawing between frames (2026-09-27): the plant pass's
     /// meshes, its worker thread and upload queue, and the grow enclosures
@@ -604,6 +615,10 @@ pub(crate) struct EngineState {
     /// against the stored volume it was built for.
     pub(crate) stock_pile_mesh: Option<[usize; 2]>, // [unit box, unit barrel]
     pub(crate) stock_pile_mats: Option<[usize; 6]>, // [crate, gauge back, water, burlap, cask, vessel gauge]
+    /// reuse: site: the stock piles' layout, laid out every frame with the switch off
+    /// (`home_reuse::stock_layout_kept`), and with it on kept only while the stored volume AND the
+    /// home's edits match (an edit that moved a storage zone and kept the volume left the piles
+    /// where it used to be).
     pub(crate) stock_pile_cache: (crate::engine::home_reuse::StockKey, Vec<(glam::Vec3, usize)>),
     /// Animal in reach + look cone (v0.751): drives the "[E] collect" prompt.
     pub(crate) targeted_livestock: Option<hecs::Entity>,
@@ -1235,6 +1250,8 @@ pub(crate) struct ConstructionHistory {
 /// back right after the present. A frame that ends early drops
 /// them, and the next frame simply grows them again.
 #[derive(Default)]
+/// reuse: site: the draw lists' allocations; with the switch off they start empty every frame
+/// instead of reusing last frame's capacity.
 pub(crate) struct DrawBufs {
     pub(crate) opaque: Vec<crate::renderer::RenderObject>,
     pub(crate) transparent: Vec<crate::renderer::RenderObject>,

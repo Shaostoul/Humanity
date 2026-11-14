@@ -188,6 +188,8 @@ struct GpuTile {
 #[derive(Default)]
 pub(crate) struct MapTilesGpu {
     ship: String,
+    /// reuse: site: the plan tiles. With the switch off, once every wanted tile is baked, the one
+    /// baked longest ago is baked again, one a frame (`tile_to_bake`).
     tiles: HashMap<TileKey, GpuTile>,
     /// Each level's items when its tiles were last checked against an edit, and
     /// `HomeDraw::edits` as it was then.

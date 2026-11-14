@@ -197,7 +197,8 @@ fn learn_name(ctx: &egui::Context, state: &mut GuiState, server: &str) {
     if let Some((asked_for, rx)) = ask.pending.clone() {
         let got = rx.lock().ok().map(|rx| rx.try_recv());
         match got {
-            Some(Ok(Ok(info))) => {
+            Some(Ok(Ok(mut info))) => {
+                info.fetched_at = Some(std::time::Instant::now());
                 state.server_info_cache.insert(info_key(&asked_for), info);
                 ask.pending = None;
             }

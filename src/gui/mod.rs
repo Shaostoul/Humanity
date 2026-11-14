@@ -249,6 +249,7 @@ pub enum PassphraseMode {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct ServerInfo {
+    #[serde(skip)] pub fetched_at: Option<std::time::Instant>, // when it arrived (showroom::server_info_kept)
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -1259,8 +1260,8 @@ pub struct GuiState {
     /// F6 location bookmarks for the Dev > Travel list (v0.913):
     /// (id, category, body label). Loaded from debug/bookmarks.json.
     pub location_bookmarks: Vec<(String, String, String)>,
-    /// True when the bookmark file changed (F6 save) and the GUI list
-    /// should reload next frame.
+    /// reuse: a request, not a kept result: true when the bookmark file changed (F6 save) and the
+    /// GUI list should reload next frame.
     pub location_bookmarks_dirty: bool,
     /// Set by the Travel bookmark list; lib.rs teleports to this F6
     /// bookmark id and clears it.
@@ -1394,8 +1395,8 @@ pub struct GuiState {
     /// order becomes a STANDING order that auto-relaunches the same trip each
     /// time a haul is delivered, until the asteroid depletes or this goes false.
     pub auto_mine_enabled: bool,
-    /// The most recently launched drone order, kept so RE-CHECKING "Keep mining"
-    /// mid-flight (after having unchecked it) can re-arm the standing order --
+    /// reuse: the person's intent, not a kept result: the most recently launched drone order, so
+    /// RE-CHECKING "Keep mining" mid-flight (after unchecking it) can re-arm the standing order --
     /// the checkbox otherwise only took effect at launch time (review fix).
     pub last_drone_order: Option<(String, Vec<(String, u32)>)>,
     /// Previous frame's `auto_mine_enabled`, for rising-edge detection in the
@@ -1692,7 +1693,7 @@ pub struct GuiState {
     pub cloud_dev_ms: bool,
     /// Increment B 2.1: the three-octave domain warp (v0.1281).
     pub cloud_dev_field: bool,
-    /// Perf increment 3 (v0.1287): the per-ray body cluster cache.
+    /// reuse: kept within one ray: perf increment 3 (v0.1287), the per-ray body cluster cache.
     pub cloud_dev_body_cache: bool,
     /// Perf increment 2 (v0.1288): step-economy strength 0..1.
     pub cloud_dev_step_eco: f32,
@@ -1760,7 +1761,7 @@ pub struct GuiState {
     pub station_yaw_deg: f32,
     pub station_pitch_deg: f32,
     pub station_roll_deg: f32,
-    /// Set when the panel changes attitude; the frame loop applies it.
+    /// reuse: a request: set when the panel changes attitude; the frame loop applies it.
     pub station_attitude_dirty: bool,
     /// One-line orbit summary published by the frame loop for the panel.
     pub station_readout: String,
@@ -1847,10 +1848,10 @@ pub struct GuiState {
     /// The active storey the editor is focused on (v0.471). The room tree filters to this level
     /// and new rooms are created on it; the level stepper per room moves a room between storeys.
     pub construction_level: i32,
-    /// Set by the panel when a wall/position/size/add/remove changed -> the engine rebuilds.
+    /// reuse: a request: set by the panel when a wall/position/size/add/remove changed -> rebuild.
     pub construction_dirty: bool,
-    /// Set by the panel on a MACHINE edit (offset / add / remove / connect) -> the engine refreshes
-    /// just the machine meshes live, no full room rebuild. (v0.525)
+    /// reuse: a request: set by the panel on a MACHINE edit (offset / add / remove / connect) -> the
+    /// engine refreshes just the machine meshes live, no full room rebuild. (v0.525)
     pub construction_machines_dirty: bool,
     /// The placed in-world screen whose settings panel is open (its instance id), opened by the
     /// cog on its picture in the build editor (2026-11-06, `gui::pages::screen_settings`).
@@ -2026,9 +2027,9 @@ pub struct GuiState {
     pub construction_corridor_width: f32,
     pub construction_corridor_glass: bool,
     pub construction_corridor_error: String,
-    /// Set by the panel on an interior-wall edit (add / remove / move corner / opening) -> the
-    /// engine rebuilds the home mesh and writes it on Save (data/homes/<kind>.ron; the ship file
-    /// only in the Dev mode, increment 1a). (v0.534)
+    /// reuse: a request, set by the panel on an interior-wall edit (add / remove / move corner /
+    /// opening) -> the engine rebuilds the home mesh and writes it on Save (data/homes/<kind>.ron;
+    /// the ship file only in the Dev mode, increment 1a). (v0.534)
     pub construction_structure_dirty: bool,
     /// Wall-drawing mode (v0.534): true while the "Add wall" tool is active. Click the floor to
     /// drop corner nodes; the first click sets `construction_wall_start`, the second adds the wall
@@ -2099,7 +2100,7 @@ pub struct GuiState {
     /// The avatar appearance being edited (the live preview source). Synced to the ECS
     /// player Appearance on confirm so it persists in the save.
     pub appearance: humanity_core::ecs::components::Appearance,
-    /// Set when the appearance edits change; the main loop rebuilds the avatar mesh.
+    /// reuse: a request: set when the appearance edits change; the main loop rebuilds the avatar.
     pub appearance_dirty: bool,
     /// The walking pace's speeds as data/game.csv gives them, one (level id, walk, run) in metres a
     /// second per level of data/gameplay/levels.json (published by engine::walk_pace for Settings'
@@ -2111,7 +2112,7 @@ pub struct GuiState {
     /// The equipped cosmetic outfit being edited in the wardrobe (synced to the ECS player
     /// on confirm). slot id -> cosmetic id.
     pub outfit: humanity_core::ecs::components::Outfit,
-    /// Set when the outfit changes; the main loop rebuilds the avatar.
+    /// reuse: a request: set when the outfit changes; the main loop rebuilds the avatar.
     pub outfit_dirty: bool,
     /// Which showroom panel is shown: 0 = the Play picker, 1 = appearance editor
     /// (wetroom mirror), 2 = wardrobe (bedroom).
@@ -2126,7 +2127,7 @@ pub struct GuiState {
     /// chat profile name (`profile_name` / `user_name`): a character is a local save, not
     /// your network identity. Synced to the player's ECS Name + saved on confirm.
     pub character_name: String,
-    /// Whether settings were changed this frame (signals lib.rs to apply them).
+    /// reuse: a request: settings were changed this frame (signals lib.rs to apply them).
     pub settings_dirty: bool,
     /// Request to quit the application.
     pub quit_requested: bool,
@@ -2475,7 +2476,7 @@ pub struct GuiState {
     /// request is in flight. Never persisted: GuiState is not serialized.
     pub account_export_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
     pub account_delete_confirm_input: String,
-    pub privacy_tiers_cache: Vec<crate::gui::pages::privacy::PrivacyTier>,
+    pub privacy_tiers_cache: Vec<crate::gui::pages::privacy::PrivacyTier>, // reuse: site: read again with it off (privacy::tiers_kept)
     pub privacy_tier_selection: String,
     pub privacy_tier_prompt_open: bool,
     /// Local encrypted DM history for the ACTIVE server (sealed-sender
@@ -2635,8 +2636,8 @@ pub struct GuiState {
     /// Set by the picker's "Back" button to cancel the showroom and return to
     /// the menu without entering the world (lib.rs handles it, same as Esc).
     pub showroom_cancel: bool,
-    /// Cache of fetched server metadata (GET /api/server-info), keyed by server
-    /// id, for the launcher's server-detail pane (v0.478). Avoids refetching.
+    /// reuse: site: fetched server metadata (GET /api/server-info) by server id, for the launcher's
+    /// server pane (v0.478); asked again when 10 s old with the switch off (`server_info_kept`).
     pub server_info_cache: std::collections::HashMap<String, ServerInfo>,
     /// In-flight server-info fetch: (server id, result channel). One at a time.
     pub server_info_loader: Option<(String, std::sync::mpsc::Receiver<Result<ServerInfo, String>>)>,
@@ -2846,8 +2847,8 @@ pub struct GuiState {
     pub onboarding_quest_progress: std::collections::HashMap<String, bool>,
 
     // ── Inline image cache (for chat attachments) ──
-    /// Fetches, decodes, and caches images referenced in chat messages so
-    /// they render inline instead of as raw /uploads/... text.
+    /// reuse: an `ImageCache` (it obeys the switch inside): fetches, decodes and keeps images in
+    /// chat messages so they render inline instead of as raw /uploads/... text.
     pub image_cache: crate::gui::widgets::image_cache::ImageCache,
     /// URL of the image currently shown full-screen in the viewer modal.
     /// `None` means the modal is closed.

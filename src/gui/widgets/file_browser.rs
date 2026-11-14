@@ -100,6 +100,8 @@ const DISC_ROOT_REFRESH: std::time::Duration = std::time::Duration::from_secs(2)
 /// and an optical drive while it holds a disc.
 fn drive_roots_cached() -> Vec<(String, PathBuf)> {
     use std::sync::{Mutex, OnceLock};
+    /// reuse: already a schedule: the drive roots are asked again every `DISC_ROOT_REFRESH` (2 s),
+    /// and asking every frame would spin up an optical drive every frame.
     static CACHE: OnceLock<Mutex<Option<(std::time::Instant, Vec<(String, PathBuf)>)>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(None));
     let mut guard = cache.lock().unwrap();

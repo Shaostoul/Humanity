@@ -472,6 +472,7 @@ pub struct CloudLightState {
     /// The frame constants the pads were last computed with.
     pub frame: Option<CloudLightFrame>,
     /// The last plan result (log line).
+    /// reuse: the last plan's result, for the log line.
     pub last_plan: CloudLightPlan,
 }
 
@@ -492,6 +493,8 @@ impl CloudLightState {
     /// bake: nothing the march reads was baked on an earlier frame. The picture is the same; a
     /// full bake costs about eight partial ones (gpu.cloud_light 3.0 ms to 24.0 ms a frame at
     /// ocean-storm-low and home-racks-noon, 2026-11-13).
+    /// reuse: site: the sun-shadow atlas is re-anchored and baked whole on every frame with the
+    /// switch off, instead of an eighth at a time.
     pub fn plan(&mut self, frame: CloudLightFrame, reuse: bool) -> CloudLightPlan {
         let mut out = CloudLightPlan::default();
         let ground = frame.ground_local_m;
@@ -1371,6 +1374,8 @@ pub const CLOUD_FR_KNOB_REF: i32 = 9;
 /// pass 2 to 60 s), so with reuse off it steps aside: no atlas is read or baked, and the march
 /// draws the field the profile prefilters (the knob-off A/B twin, bit-identical to today's
 /// field; from orbit that is the point-sampled speckle the profile exists to remove).
+/// reuse: site: the far rung's profile, which cannot be built in one frame, steps aside with the
+/// switch off.
 pub fn cloud_fr_knob_with_reuse(knob: i32, reuse: bool) -> i32 {
     if reuse {
         knob

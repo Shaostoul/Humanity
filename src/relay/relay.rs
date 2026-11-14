@@ -227,10 +227,12 @@ pub struct RelayState {
     /// User status cache (name → (status, status_text)).
     pub user_statuses: RwLock<HashMap<String, (String, String)>>,
     /// Per-key last search time (rate limiting: 1 search per 2 seconds).
+    /// reuse: the search rate limit's clock: bookkeeping, not built data.
     pub last_search_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
     /// Per-key last perception query time (rate limiting: max 5 perception
     /// queries per second to prevent AI agents from flooding the relay).
     /// Covers game_perceive, game_interact, game_query_inventory, game_query_entity.
+    /// reuse: the perception rate limit's clock: bookkeeping, not built data.
     pub last_perception_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
     /// Tests only (BUG-152): a clock the perception rate limit reads instead
     /// of the wall, set by a test that must decide by the time it sets, not by

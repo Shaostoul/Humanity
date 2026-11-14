@@ -70,6 +70,9 @@ struct SpeciesRow {
 /// the data folder's is missing or this version cannot read it, BUG-163), so
 /// the list and the actual spawn never drift.
 fn species() -> &'static Vec<SpeciesRow> {
+    /// reuse: the spawnable species, read once per run from the data the spawn itself reads, so the
+    /// list and the spawn never drift: data read once per run, not a reuse that can go stale within
+    /// it.
     static CACHE: std::sync::OnceLock<Vec<SpeciesRow>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut rows: Vec<SpeciesRow> =

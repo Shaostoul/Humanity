@@ -67,6 +67,8 @@ pub fn install_font_fallbacks(ctx: &egui::Context) {
 /// (`share_font_bytes`: egui then parses a borrowed slice in place). The system font files are
 /// read at startup, as the main context always read them; nothing derived is kept. With the Dev
 /// page's "Turn off all reuse" (`reuse` false) each context builds its own, as before.
+/// reuse: site: every egui context's fonts borrow one copy of the font files read at startup; with
+/// the switch off each context builds its own.
 fn font_definitions(reuse: bool) -> egui::FontDefinitions {
     if !reuse {
         return build_font_definitions();

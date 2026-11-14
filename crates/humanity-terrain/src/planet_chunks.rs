@@ -2528,10 +2528,17 @@ pub struct PatchEntry {
     /// Forest density this patch's tree cards were baked at (0.0 = no cards).
     /// Copied from `PatchMesh::tree_density`; read by `harvest_tree_density`.
     pub tree_density: f32,
+    /// Frame stamp of the build this mesh came from: with the reuse switch off the drawn patches
+    /// built longest ago are built again first (`reuse_off_rebuilds`).
+    pub built_frame: u64,
 }
 
 /// All chunked-LOD state for one planet.
 pub struct ChunkState {
+    /// reuse: site: the built patches. A patch's mesh depends only on the patch, the planet and
+    /// the settings it was baked at, so with the switch on it is kept until evicted; with the
+    /// switch off the drawn patches built longest ago are built again in place, a few a frame
+    /// (`reuse_off_rebuilds`, the frame loop's patch build), so none is older than its turn.
     pub cache: HashMap<PatchId, PatchEntry>,
     pub total_bytes: usize,
     pub detail: DetailNoise,
@@ -2546,6 +2553,9 @@ pub struct ChunkState {
     /// residency - the v0.889 prefetch builds children everywhere, which
     /// silently turned the old residency-keyed hysteresis into a dense
     /// oscillation zone (the operator's "higher settings = worse flicker").
+    /// reuse: not a reuse: the split/merge hysteresis is DEFINED against last frame's drawn set
+    /// (state, like a velocity), not a result kept to save work; forgetting it would change what
+    /// is drawn (the flicker it exists to stop), not rule out a stale copy.
     pub last_drawn: std::collections::HashSet<PatchId>,
     /// Frame stamp of the last budget-saturation log (throttle).
     pub last_saturation_log: u64,
@@ -2562,6 +2572,8 @@ pub struct ChunkState {
     /// pose/params it was computed at. While the camera is parked in
     /// surface mode (planet-local pose static) and nothing invalidated it,
     /// the ~30k-node walk is skipped and this is reused.
+    /// reuse: site: the parked selection; with the switch off the walk runs every frame
+    /// (`selection_kept`, asked by the terrain's frame loop and the sea's shells).
     pub last_selection: Option<Selection>,
     pub last_sel_cam: DVec3,
     pub last_sel_fwd: DVec3,
@@ -2569,6 +2581,8 @@ pub struct ChunkState {
     pub last_sel_budget: f32,
     /// Set by builds, evictions, tile arrivals - anything that changes what
     /// a fresh selection would decide.
+    /// reuse: the parked selection's invalidation flag; the switch is asked where the parked skip
+    /// is decided (`selection_kept`, see `last_selection`).
     pub sel_dirty: bool,
 }
 
@@ -2658,6 +2672,42 @@ pub fn classify_lod_swaps(
         pairs.push(FadePair { rising: orphans, falling: Vec::new(), t: 0.0 });
     }
     pairs
+}
+
+/// Is the parked selection used again this frame instead of a fresh walk? Only with reuse on
+/// (`reuse` is `humanity_core::reuse::enabled()` at the call; CLAUDE.md's reuse rule).
+pub fn selection_kept(reuse: bool, parked: bool) -> bool {
+    reuse && parked
+}
+
+/// How many drawn patches are built again in place each frame with the reuse switch off. Every
+/// drawn patch every frame would be hundreds of patch builds a frame (each about a millisecond of
+/// a worker); these go through the same workers and deadline as new builds, so the oldest of the
+/// drawn set is never more than (drawn / this) frames old while nothing new is being built.
+pub const TERRAIN_REUSE_OFF_REBUILDS: usize = 8;
+
+/// How many drawn patches to build again this frame with the switch off: none while new patches
+/// are wanted (a descent's builds come first: the first sweep with the switch off spent 512 ms a
+/// frame building both, 2026-11-14), `TERRAIN_REUSE_OFF_REBUILDS` once nothing new is.
+pub fn reuse_off_rebuild_share(new_builds: usize) -> usize {
+    if new_builds == 0 { TERRAIN_REUSE_OFF_REBUILDS } else { 0 }
+}
+
+/// The drawn patches to build again this frame: none with reuse on (a patch's mesh changes only
+/// when the patch, the planet or its bake settings do, and those evict it), and with reuse off the
+/// `per_frame` built longest ago (`drawn` is each drawn, cached patch with its `built_frame`),
+/// oldest first. A patch rebuilt goes to the back of the queue, so every drawn patch takes its turn.
+pub fn reuse_off_rebuilds(drawn: impl IntoIterator<Item = (PatchId, u64)>, reuse: bool, per_frame: usize) -> Vec<PatchId> {
+    if reuse || per_frame == 0 {
+        return Vec::new();
+    }
+    let mut all: Vec<(u64, PatchId)> = drawn.into_iter().map(|(id, at)| (at, id)).collect();
+    if all.len() > per_frame {
+        all.select_nth_unstable(per_frame - 1);
+        all.truncate(per_frame);
+    }
+    all.sort_unstable();
+    all.into_iter().map(|(_, id)| id).collect()
 }
 
 impl ChunkState {
@@ -2768,13 +2818,22 @@ impl ChunkState {
     ) {
         if let Some(old) = self.cache.insert(
             id,
-            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame, tree_density },
+            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame, tree_density, built_frame: self.frame },
         ) {
             // Should not happen (selection never requests a built patch),
             // but never leak the byte count if it does.
             self.total_bytes = self.total_bytes.saturating_sub(old.bytes);
         }
         self.total_bytes += bytes;
+    }
+
+    /// Take a cached patch out to build it again in place (the reuse switch off,
+    /// `reuse_off_rebuilds`): its mesh index and arena ranges for the caller to free, and its
+    /// bytes off the count. The rebuilt mesh goes back in with `insert_built`.
+    pub fn take_for_rebuild(&mut self, id: &PatchId) -> Option<(usize, Option<PatchSlot>)> {
+        let old = self.cache.remove(id)?;
+        self.total_bytes = self.total_bytes.saturating_sub(old.bytes);
+        Some((old.mesh, old.slot))
     }
 
     /// THE DENSITY THE NEAR-MODEL HARVEST MUST USE THIS FRAME.
@@ -4666,3 +4725,7 @@ pub(crate) mod tests {
     }
 
 }
+
+#[cfg(test)]
+#[path = "planet_chunks_reuse_tests.rs"]
+mod reuse_switch_tests;

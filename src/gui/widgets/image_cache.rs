@@ -63,9 +63,25 @@ enum BgResult {
     },
 }
 
+/// With the reuse switch off, how old a decoded picture may get before it is fetched and decoded
+/// again (every frame would be a download a frame for every picture on screen).
+pub const IMAGE_REUSE_OFF_S: f32 = 30.0;
+
+/// Is a decoded picture `age_s` seconds old used as it is? Always with reuse on (`reuse` is
+/// `humanity_core::reuse::enabled()` at the call, CLAUDE.md's reuse rule); with it off only until
+/// it is `IMAGE_REUSE_OFF_S` old.
+pub(crate) fn image_kept(reuse: bool, age_s: f32) -> bool {
+    reuse || age_s < IMAGE_REUSE_OFF_S
+}
+
 pub struct ImageCache {
     /// Textures that have finished loading and been uploaded to egui.
+    /// reuse: site: the fetched and decoded pictures; with the switch off a picture older than
+    /// `IMAGE_REUSE_OFF_S` is fetched and decoded again when it is next asked for, the old one
+    /// staying on screen until the new one lands (`image_kept`).
     textures: HashMap<String, TextureHandle>,
+    /// When each texture was decoded, for the reuse switch's schedule.
+    decoded_at: HashMap<String, std::time::Instant>,
     /// URLs currently being fetched (to de-duplicate).
     fetching: HashSet<String>,
     /// Error messages for URLs that failed to load.
@@ -99,6 +115,7 @@ impl ImageCache {
         let (tx, rx) = mpsc::channel();
         Self {
             textures: HashMap::new(),
+            decoded_at: HashMap::new(),
             fetching: HashSet::new(),
             errors: HashMap::new(),
             downloads: HashMap::new(),
@@ -154,9 +171,18 @@ impl ImageCache {
         self.errors.insert(key.to_string(), err.to_string());
     }
 
+    /// Is the decoded picture for `key` used as it is, rather than fetched and decoded again?
+    fn kept(&self, key: &str) -> bool {
+        self.textures.contains_key(key)
+            && image_kept(
+                humanity_core::reuse::enabled(),
+                self.decoded_at.get(key).map_or(f32::MAX, |t| t.elapsed().as_secs_f32()),
+            )
+    }
+
     /// Request an image fetch. No-op if already fetching or loaded.
     pub fn request(&mut self, url: &str) {
-        if self.textures.contains_key(url) || self.fetching.contains(url) {
+        if self.kept(url) || self.fetching.contains(url) {
             return;
         }
         if self.errors.contains_key(url) {
@@ -193,7 +219,7 @@ impl ImageCache {
     where
         F: FnOnce() -> Result<Vec<u8>, String> + Send + 'static,
     {
-        if self.textures.contains_key(key) || self.fetching.contains(key) || self.errors.contains_key(key) {
+        if self.kept(key) || self.fetching.contains(key) || self.errors.contains_key(key) {
             return;
         }
         self.fetching.insert(key.to_string());
@@ -331,6 +357,7 @@ impl ImageCache {
                     };
                     let name = format!("chat_img:{}", url);
                     let handle = ctx.load_texture(&name, image, egui::TextureOptions::LINEAR);
+                    self.decoded_at.insert(url.clone(), std::time::Instant::now());
                     self.textures.insert(url, handle);
                 }
                 BgResult::Failed { url, err } => {
@@ -943,4 +970,17 @@ pub fn default_downloads_dir() -> std::path::PathBuf {
         .ok()
         .and_then(|p| p.parent().map(|d| d.join("downloads")))
         .unwrap_or(fallback)
+}
+
+#[cfg(test)]
+mod reuse_switch_tests {
+    /// THE REUSE SWITCH on the chat's pictures (2026-11-13, part B): with reuse on a decoded picture
+    /// is kept however old; with it off it is fetched and decoded again once it is
+    /// `IMAGE_REUSE_OFF_S` old. Seen red with `image_kept` ignoring `reuse`: "reuse on: kept however old".
+    #[test]
+    fn with_reuse_off_a_picture_is_fetched_again_once_it_is_old() {
+        assert!(super::image_kept(true, 1.0e6), "reuse on: kept however old");
+        assert!(super::image_kept(false, 1.0), "reuse off: a fresh picture is kept");
+        assert!(!super::image_kept(false, super::IMAGE_REUSE_OFF_S + 1.0), "reuse off: an old picture is fetched again");
+    }
 }

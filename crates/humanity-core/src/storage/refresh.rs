@@ -78,6 +78,8 @@ pub struct Stamp {
     /// What the last refresh did, for Settings > Data. None: nothing has been refreshed since the
     /// first run wrote the folder.
     #[serde(default)]
+    /// reuse: a record of what the last data refresh did, for Settings > Data, not a result kept to
+    /// save work.
     pub last_update: Option<Report>,
 }
 
@@ -486,6 +488,8 @@ pub struct View {
     /// It has a stamp (false: written before stamps, or left alone).
     pub stamped: bool,
     /// What the last refresh did, from the stamp.
+    /// reuse: a record of what the last data refresh did, for Settings > Data, not a result kept to
+    /// save work.
     pub last_update: Option<Report>,
 }
 

@@ -98,6 +98,8 @@ pub struct VideoView {
     /// left the screen carries on from its place). 0: the start.
     pub start_at: f64,
     /// The last picture shown, kept (moved, not copied) for [`VideoView::still_image`].
+    /// reuse: the picture on screen now (moved, not copied, for `still_image`): the player's
+    /// output, not a result kept to save work.
     last_frame: Option<crate::media::VideoFrame>,
     /// Pictures came while the picture was not drawn ([`VideoView::poll_with`]): the texture is
     /// behind `last_frame` until it is drawn again.

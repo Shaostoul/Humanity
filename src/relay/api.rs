@@ -2179,6 +2179,8 @@ struct CachedWebManifest {
     expires_at: std::time::Instant,
 }
 
+/// reuse: site: the web files' hashed manifest, kept for 60 s; with the switch off it is hashed
+/// again for every request (`manifest_kept`).
 static WEB_MANIFEST_CACHE: std::sync::LazyLock<Mutex<Option<CachedWebManifest>>> =
     std::sync::LazyLock::new(|| Mutex::new(None));
 
@@ -2279,13 +2281,19 @@ fn build_web_manifest() -> WebManifest {
     }
 }
 
+/// Is the kept web manifest served as it is? Only while it is fresh and reuse is on (`reuse` is
+/// `humanity_core::reuse::enabled()` at the call, CLAUDE.md's reuse rule).
+fn manifest_kept(reuse: bool, fresh: bool) -> bool {
+    reuse && fresh
+}
+
 /// GET /api/web-manifest — Hashed manifest of all web files for desktop sync.
 pub async fn get_web_manifest() -> Json<WebManifest> {
     // Return cached manifest if still valid (60s TTL).
     {
         let cache = WEB_MANIFEST_CACHE.lock().unwrap();
         if let Some(ref cached) = *cache {
-            if cached.expires_at > std::time::Instant::now() {
+            if manifest_kept(humanity_core::reuse::enabled(), cached.expires_at > std::time::Instant::now()) {
                 return Json(cached.manifest.clone());
             }
         }
@@ -3756,5 +3764,18 @@ pub async fn vote_bug(
             "votes": count,
         }))),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
+    }
+}
+
+#[cfg(test)]
+mod reuse_switch_tests {
+    /// THE REUSE SWITCH on the web manifest (2026-11-13, part B): served from the kept copy only
+    /// while it is fresh and reuse is on. Seen red with `manifest_kept` returning `fresh` alone:
+    /// "reuse off: hashed again".
+    #[test]
+    fn with_reuse_off_the_web_manifest_is_hashed_again() {
+        assert!(super::manifest_kept(true, true), "reuse on, fresh: kept");
+        assert!(!super::manifest_kept(false, true), "reuse off: hashed again");
+        assert!(!super::manifest_kept(true, false), "stale: hashed again");
     }
 }

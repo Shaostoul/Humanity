@@ -581,6 +581,8 @@ pub struct AirMap {
 /// now (`key_now`): the room boxes as published (they change in place, so they are read whole),
 /// and the change stamps of the grow plots and of the humidity data (`DataStore::stamp`).
 #[derive(Debug, Clone, Default)]
+/// reuse: site: the grow rooms' layout for the air, kept for a round of the farm's rotation; worked
+/// out again in every run with the switch off.
 pub struct AirLayout {
     rooms: std::sync::Arc<Vec<GrowRoom>>,
     parent: std::sync::Arc<Vec<Option<usize>>>,

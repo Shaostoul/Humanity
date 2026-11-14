@@ -560,6 +560,8 @@ pub fn shape_key(numbers: &[f64]) -> u64 {
 /// With the reuse switch off (`humanity_core::reuse::enabled()`, the Dev page) it builds anew
 /// every time it is asked.
 #[derive(Debug, Default)]
+/// reuse: site: the last block-and-tackle shapes, kept under a key of every number they are built
+/// from; with the switch off they are worked out again every time.
 pub struct ShapeStore {
     kept: Option<(u64, std::sync::Arc<Vec<StageShape>>)>,
     /// How many times it has built (the tests read it).

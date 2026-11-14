@@ -156,6 +156,8 @@ pub struct CameraProvider {
     /// The camera post's placed instance id.
     instance: String,
     /// When the world was last rendered for this screen.
+    /// reuse: already a schedule: each camera screen renders at most every 100 ms and at most one a
+    /// frame (`CAMERA_INTERVAL`, `pick_due`), so a picture is never older than its turn.
     last_render: Option<Instant>,
     /// How many views have been rendered into the surface.
     renders: u64,

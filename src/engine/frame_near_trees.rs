@@ -80,6 +80,10 @@ pub(crate) struct NearTreeState<'a> {
     /// Source of the glTF tree models, read by the model-cache pass.
     pub asset_manager: &'a AssetManager,
     /// name -> (mesh index, material index) for every tree part built so far.
+    /// reuse: a borrow of `EngineState::decoration_mesh_cache` (world decorations' models, read
+    /// once per run from files that do not change while it runs: not a reuse that can go stale).
+    /// The near-tree harvest itself obeys the switch in `humanity_terrain::near_tree_gate`
+    /// (`ReuseOff`).
     pub decoration_mesh_cache: &'a mut HashMap<String, (usize, usize)>,
     /// One-shot guard so the sprite-atlas bake is attempted once per run.
     pub tree_atlas_attempted: &'a mut bool,

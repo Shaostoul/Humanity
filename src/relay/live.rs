@@ -106,6 +106,8 @@ pub struct LiveStream {
     config: std::sync::Mutex<Option<Arc<[u8]>>>,
     /// Last keyframe (tag 1), replayed to joining viewers so they see a picture
     /// immediately instead of waiting out the GOP.
+    /// reuse: the live stream's latest keyframe, replayed to a viewer who joins: the stream's own
+    /// state, not a result kept to save work.
     last_key: std::sync::Mutex<Option<Arc<[u8]>>>,
     /// Current viewer count.
     viewers: Arc<AtomicUsize>,

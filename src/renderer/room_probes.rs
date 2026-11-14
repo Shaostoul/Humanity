@@ -1427,6 +1427,9 @@ impl Residency {
     /// `step` places the nearest rooms afresh and lists every one as entered (seeded this frame
     /// from its ambient colour); no fade, no residency hysteresis, nothing carried from the last
     /// frame. With it on, nothing changes.
+    /// reuse: site: the room probes forget which rooms hold them with the switch off, so every
+    /// resident room is seeded from this frame's ambient colour, and every traced probe takes its
+    /// fresh estimate whole ("THE REUSE SWITCH" above).
     pub fn begin_frame(&mut self, reuse: bool) {
         if !reuse {
             *self = Residency::new(self.cap, self.slots.len());

@@ -102,8 +102,15 @@ pub fn load_tiers() -> (String, Vec<PrivacyTier>) {
     }
 }
 
+/// Are the privacy levels read from their data file used again? Only with reuse on (`reuse` is
+/// `humanity_core::reuse::enabled()` at the call, CLAUDE.md's reuse rule): with it off the file
+/// is read again every time the page asks, so an edit to it shows at once.
+fn tiers_kept(reuse: bool, loaded: bool) -> bool {
+    reuse && loaded
+}
+
 fn ensure_tiers_loaded(state: &mut GuiState) {
-    if state.privacy_tiers_cache.is_empty() {
+    if !tiers_kept(humanity_core::reuse::enabled(), !state.privacy_tiers_cache.is_empty()) {
         let (default_id, tiers) = load_tiers();
         // A last level the file no longer has (Spotlight, taken out 2026-11-03, BUG-238)
         // pre-selects the default: picked, not applied, until the person presses the button.
@@ -513,5 +520,18 @@ mod tests {
         assert_eq!((id.as_str(), tiers.len()), ("private", 1));
         assert!(tiers[0].hide_presence && tiers[0].directory_unlisted);
         assert!(humanity_core::i18n::has(&tiers[0].name) && humanity_core::i18n::has(&tiers[0].description));
+    }
+}
+
+#[cfg(test)]
+mod reuse_switch_tests {
+    /// THE REUSE SWITCH on the privacy levels (2026-11-13, part B): read once with reuse on, read
+    /// again every time with it off. Seen red with `tiers_kept` returning `loaded` alone:
+    /// "reuse off: read again".
+    #[test]
+    fn with_reuse_off_the_privacy_levels_are_read_again() {
+        assert!(super::tiers_kept(true, true), "reuse on: kept");
+        assert!(!super::tiers_kept(false, true), "reuse off: read again");
+        assert!(!super::tiers_kept(true, false), "not read yet: read");
     }
 }

@@ -530,8 +530,8 @@ pub struct Renderer {
     pub atmo_trans_view: wgpu::TextureView,
     atmo_ms_tex: wgpu::Texture,
     pub atmo_ms_view: wgpu::TextureView,
-    /// Params of the last LUT upload, so per-frame update calls no-op until
-    /// the frame-locked body (or its atmosphere) actually changes.
+    /// reuse: site: params of the last LUT upload: kept while they match (`reuse::keeps`); with
+    /// the switch off the tables are built and uploaded every frame (`update_atmo_luts`).
     atmo_lut_params: Option<atmo_luts::TransLutParams>,
     /// The per-frame sky-view LUT pass (stage 3b-2). Encoded before the main
     /// passes whenever the camera is frame-locked near an atmosphere body;
@@ -743,8 +743,8 @@ pub struct Renderer {
     /// Dev pad bit 23 (the last exact f32 bit): increment B 2.1, the
     /// three-octave domain warp on the noise path.
     pub cloud_field: bool,
-    /// Dev pad bit 17 (perf increment 3, v0.1287): the per-ray body cluster
-    /// cache in cloud_v2_body (cell weather + built lobes kept per ray).
+    /// reuse: kept within one ray: Dev pad bit 17 (perf increment 3, v0.1287), the per-ray
+    /// body cluster cache in cloud_v2_body (cell weather + built lobes kept per ray).
     pub cloud_body_cache: bool,
     /// Perf increment 2 (v0.1288): step-economy strength 0..1 in
     /// light7_color.y (footprint step floors + deep relaxation).
@@ -755,8 +755,8 @@ pub struct Renderer {
     /// Bake Pass; off = the full 12-rung ladder per pixel (the A/B twin).
     /// Mirrored from GuiState::cloud_dev_light by lib.rs.
     pub cloud_light: bool,
-    /// The atlas + planning state, created on first use by
-    /// `ensure_cloud_light` (cloud_temporal.rs).
+    /// reuse: site: the atlas + planning state (`ensure_cloud_light`); with the switch off it is
+    /// re-anchored and baked whole every frame (`cloud_temporal::CloudLightState::plan`).
     pub(crate) cloud_light_cache: Option<cloud_temporal::CloudLightCache>,
     /// This frame's ground point / sun / planet constants from the cloud
     /// fill block (None = no cloud body armed this frame, the pass skips).
@@ -778,8 +778,8 @@ pub struct Renderer {
     /// GuiState::cloud_dev_top_bound by lib.rs; showcase key
     /// `cloud_top_bound`.
     pub cloud_top_bound: bool,
-    /// The profile atlas, its views / groups and the planning state,
-    /// created on first use by `ensure_cloud_profile` (cloud_temporal.rs).
+    /// reuse: site: the profile atlas, its views / groups and planning state (`ensure_cloud_profile`);
+    /// with the switch off it steps aside (`cloud_temporal::cloud_fr_knob_with_reuse`).
     pub(crate) cloud_profile_cache: Option<cloud_temporal::CloudProfileCache>,
     /// This frame's ground cell / altitude / clock / coverage inputs from
     /// the cloud fill block on EVERY tier (None = no cloud shell this frame).
@@ -900,8 +900,8 @@ pub struct Renderer {
     /// buffer currently holds; zero means the layer draws nothing at all,
     /// which is the state everywhere except standing on vegetated ground.
     grass_mesh: Option<Mesh>,
-    /// Detail rung the resident `grass_mesh` was built at, so a Settings
-    /// change rebuilds it. See `terrain::grass::grass_detail_key`.
+    /// reuse: site: the detail rung `grass_mesh` was built at (`reuse::keeps`): a Settings change,
+    /// or every frame with the switch off, rebuilds it. See `terrain::grass::grass_detail_key`.
     grass_mesh_key: u32,
     grass_material: usize,
     grass_instance_buf: Option<wgpu::Buffer>,

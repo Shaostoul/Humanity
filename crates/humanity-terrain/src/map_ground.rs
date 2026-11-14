@@ -640,6 +640,9 @@ struct Near<'a> {
 
 /// What the map ground says at a point.
 #[derive(Clone, Copy, Debug, PartialEq)]
+/// reuse: site: the whole-Earth map packs' decoded tiles and each pack's shore field, kept while
+/// patches need them, tagged by the pack's build; with the switch off a fresh set is published
+/// every frame (`engine::map_meshes`), so every tile and shore field is decoded again.
 pub struct MapGround {
     /// The ground, metres above sea level.
     pub h_m: f64,

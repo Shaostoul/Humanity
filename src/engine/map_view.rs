@@ -82,6 +82,8 @@ pub(crate) struct Target {
 pub(crate) struct MapViewGpu {
     full: Option<Target>,
     half: Option<Target>,
+    /// reuse: site: the Maps world layer's last view, rendered again every frame with the switch
+    /// off (`world_layer_due`).
     last_key: Option<ViewKey>,
     last_render: Option<Instant>,
     last_move: Option<Instant>,

@@ -20,13 +20,20 @@
 //! the same names are not counted; test modules (a `mod` under `#[cfg(test)]`, `*_tests.rs`,
 //! `tests.rs`) are skipped.
 //!
-//! WHAT PASSES. A site passes when it is ANSWERED, one of two ways:
+//! WHAT PASSES. A site passes when it DECLARES ITSELF where it lives, with a comment on its own
+//! line or in the comment and attribute block right above it, one of two ways:
 //!
-//! 1. it is in `crates/humanity-core/src/reuse.rs`'s list of sites: a doc line of the form
-//!    ``//! - `src/path/file.rs`: `name`, `name` ...`` (each name a field or static in that file);
-//! 2. it carries a reason comment, `reuse:` (or `Reuse:`), on its own line or in the comment block
-//!    right above it, saying how it obeys the switch or why it is not a reuse (a dirty flag that
-//!    only asks for a rebuild of something rebuilt in full, a counter, data loaded once per run).
+//! 1. `reuse: site: <what the switch does here>`: a reuse that obeys the switch, and how (built
+//!    again every frame with the switch off, or on a short schedule, and where that is decided);
+//! 2. any other `reuse:` (or `Reuse:`) comment: why it is not a reuse (a dirty flag that only asks
+//!    for a rebuild of something rebuilt in full, a counter, data loaded once per run).
+//!
+//! THE DECLARATIONS ARE THE LIST (2026-11-13, the reuse switch, part B). Until then a site could
+//! also pass by being named in one paragraph of `crates/humanity-core/src/reuse.rs`, and every
+//! agent that added a reuse appended to that paragraph: it conflicted in two merges in one day. So
+//! each site now says so where it is declared (two agents adding two sites touch two places), the
+//! list of every site is `grep -rn "reuse: site:" src crates`, and reuse.rs keeps only the rule and
+//! a pointer: `reuse_rs_holds_no_site_list` fails a site list written back into it.
 //!
 //! THE BACKLOG. When this lint was built, the sites in [`BACKLOG`] were reuse-shaped and not yet
 //! answered: the first two waves answered the engine's and the renderer's known sites, and these
@@ -44,7 +51,7 @@
 //! Std-only, compiled standalone like the other lints (no native bin link):
 //!   CARGO_MANIFEST_DIR=<repo> rustc --test --edition 2021 tests/reuse_switch_lint.rs
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -159,17 +166,25 @@ fn scan(file: &str, src: &str) -> Vec<Site> {
     let mut struct_depth: i32 = 0;
     let mut pending_struct = false;
     let mut cfg_test = false;
+    // Brace depth inside a test module being skipped (0 = not in one).
+    let mut test_mod_depth: i32 = 0;
     for (i, raw) in lines.iter().enumerate() {
         let code = raw.split("//").next().unwrap_or("");
         let t = code.trim();
-        // A test module runs to the end of the file in this codebase's layout.
+        // A test module is skipped to its closing brace. (Until 2026-11-13 the scan stopped at the
+        // first one, on the belief that it ran to the end of the file: settings.rs has one at line
+        // 513 of 5,014, so its last 4,500 lines, the Media line's `CACHE` among them, went unseen.)
+        if test_mod_depth > 0 {
+            test_mod_depth += code.matches('{').count() as i32 - code.matches('}').count() as i32;
+            continue;
+        }
         if t.starts_with("#[cfg(test)]") {
             cfg_test = true;
             continue;
         }
         if cfg_test && (t.starts_with("mod ") || t.starts_with("pub mod ") || t.starts_with("pub(crate) mod ")) {
             if t.ends_with('{') {
-                break;
+                test_mod_depth = code.matches('{').count() as i32 - code.matches('}').count() as i32;
             }
             cfg_test = false;
             continue;
@@ -256,31 +271,21 @@ fn reasoned_at(lines: &[&str], i: usize) -> bool {
     false
 }
 
-/// reuse.rs's list of sites: (file, name) pairs from its `//! - \`file.rs\`: \`name\`` items. An
-/// item runs on over the `//!   ` lines indented under it, and every backticked plain identifier
-/// in it is a name in that file.
-fn listed_sites(reuse_rs: &str) -> HashSet<(String, String)> {
-    let mut out = HashSet::new();
-    let mut file: Option<String> = None;
-    for l in reuse_rs.lines() {
-        let t = l.trim();
-        let tail = if let Some(rest) = t.strip_prefix("//! - `") {
-            let Some(end) = rest.find('`') else { continue };
-            let f = &rest[..end];
-            file = f.ends_with(".rs").then(|| f.to_string());
-            rest[end + 1..].to_string()
-        } else if t.starts_with("//!   ") && file.is_some() {
-            // The item's continuation: the backticks pair up within the item, so a line's text is
-            // read with the opening state of the item (lines here never split a backticked word).
-            t["//!".len()..].to_string()
-        } else {
-            file = None;
-            continue;
-        };
-        let Some(f) = file.as_ref() else { continue };
-        for (k, tok) in tail.split('`').enumerate() {
-            if k % 2 == 1 && !tok.is_empty() && tok.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                out.insert((f.clone(), tok.to_string()));
+/// Is this line's comment a SITE declaration (`reuse: site: ...`), and what does it say?
+fn site_declaration(line: &str) -> Option<&str> {
+    let at = line.find("//")?;
+    let c = &line[at..];
+    ["reuse: site:", "Reuse: site:"].iter().find_map(|w| c.find(w).map(|k| c[k + w.len()..].trim()))
+}
+
+/// Every `reuse: site:` declaration in src/ and crates/: (file, line, what it says).
+fn declarations() -> Vec<(String, usize, String)> {
+    let mut out = Vec::new();
+    for p in rust_sources() {
+        let Ok(src) = fs::read_to_string(&p) else { continue };
+        for (i, l) in src.lines().enumerate() {
+            if let Some(said) = site_declaration(l) {
+                out.push((rel(&p), i + 1, said.to_string()));
             }
         }
     }
@@ -291,66 +296,17 @@ fn listed_sites(reuse_rs: &str) -> HashSet<(String, String)> {
 /// "file name" pairs, each to be given the switch or a reason: 58 declarations in 56 pairs, after
 /// the second wave's part A answered the engine's own. Only shrinks. Some are surely not reuses
 /// (`last_status`, a dirty flag that asks for a save): a `reuse:` comment saying so takes them off.
+/// Part B (2026-11-13) answered 53 of the 54: the one left is local_shadows.rs's log throttle (a
+/// clock and the last stats, surely a reason), left while another agent works in that file.
+/// How many `reuse: site:` declarations there were when the central list was retired (part B,
+/// 2026-11-13); raise it as sites are declared, never lower it to hide a deletion.
+const DECLARED_FLOOR: usize = 59;
+
 const BACKLOG: &[&str] = &[
-"crates/humanity-ai-engine/src/llama/mod.rs cached",
-    "crates/humanity-core/src/audio/mod.rs measured_cache",
-    "crates/humanity-core/src/audio/mod.rs sound_cache",
-    "crates/humanity-core/src/storage/refresh.rs last_update",
-    "crates/humanity-terrain/src/drawn_surface.rs memo",
-    "crates/humanity-terrain/src/planet_chunks.rs cache",
-    "crates/humanity-terrain/src/planet_chunks.rs last_drawn",
-    "crates/humanity-terrain/src/planet_chunks.rs last_selection",
-    "crates/humanity-terrain/src/planet_chunks.rs sel_dirty",
-    "crates/humanity-terrain/src/terrain_tiles.rs last_center",
-    "src/ai/client.rs last_error",
-    "src/ai/client.rs last_status",
-    "src/assets/mod.rs cache",
-    "src/assets/mod.rs mesh_cache",
-    "src/gui/mod.rs appearance_dirty",
-    "src/gui/mod.rs cloud_dev_body_cache",
-    "src/gui/mod.rs construction_dirty",
-    "src/gui/mod.rs construction_machines_dirty",
-    "src/gui/mod.rs construction_structure_dirty",
-    "src/gui/mod.rs image_cache",
-    "src/gui/mod.rs last_drone_order",
-    "src/gui/mod.rs location_bookmarks_dirty",
-    "src/gui/mod.rs outfit_dirty",
-    "src/gui/mod.rs privacy_tiers_cache",
-    "src/gui/mod.rs server_info_cache",
-    "src/gui/mod.rs settings_dirty",
-    "src/gui/mod.rs station_attitude_dirty",
-    "src/gui/pages/apps/games.rs last_play",
-    "src/gui/pages/cloud_dev.rs CACHE",
-    "src/gui/pages/dev.rs CACHE",
-    "src/gui/pages/files.rs cats_dirty",
-    "src/gui/pages/files/app_folder.rs dirty",
-    "src/gui/pages/homes.rs CACHE",
-    "src/gui/pages/own_profile.rs last_sent",
-    "src/gui/screen_surface.rs image_cache",
-    "src/gui/state_types/maps.rs dirty",
-    "src/gui/widgets/file_browser.rs CACHE",
-    "src/gui/widgets/file_picker_memory.rs last_folder",
-    "src/gui/widgets/video_view.rs last_frame",
-    "src/net/dm_store.rs last_read",
-    "src/notifications/mod.rs last_notice",
-    "src/relay/api.rs WEB_MANIFEST_CACHE",
-    "src/relay/live.rs last_key",
-    "src/relay/relay.rs last_perception_times",
-    "src/relay/relay.rs last_search_times",
-    "src/relay/storage/trust_score.rs cached",
-    "src/renderer/cloud_temporal.rs last_plan",
     "src/renderer/local_shadows.rs last_log",
-    "src/renderer/mod.rs cloud_body_cache",
-    "src/renderer/mod.rs cloud_light_cache",
-    "src/renderer/mod.rs cloud_profile_cache",
-    "src/renderer/shader_loader/wgsl_eval.rs cache",
-    "src/renderer/tree_cards.rs CACHE",
-    "src/renderer/tree_mesh.rs CACHE",
 ];
 
 fn unanswered() -> (Vec<Site>, usize, usize) {
-    let reuse_rs = fs::read_to_string(repo().join("crates/humanity-core/src/reuse.rs")).expect("reuse.rs");
-    let listed = listed_sites(&reuse_rs);
     let mut all = Vec::new();
     let files = rust_sources();
     let crates_seen = files.iter().filter(|p| rel(p).starts_with("crates/")).count();
@@ -364,7 +320,7 @@ fn unanswered() -> (Vec<Site>, usize, usize) {
         all.extend(scan(&f, &src));
     }
     let total = all.len();
-    let open: Vec<Site> = all.into_iter().filter(|s| !s.reasoned && !listed.contains(&(s.file.clone(), s.name.clone()))).collect();
+    let open: Vec<Site> = all.into_iter().filter(|s| !s.reasoned).collect();
     (open, total, crates_seen)
 }
 
@@ -391,6 +347,9 @@ static NAME_CACHE: OnceLock<Vec<u8>> = OnceLock::new();
 mod tests {
     struct T { kept_cache: Vec<u8> }
 }
+struct After {
+    after_cache: Vec<u8>,
+}
 ";
     let sites = scan("src/x.rs", src);
     let names: Vec<(&str, bool)> = sites.iter().map(|s| (s.name.as_str(), s.reasoned)).collect();
@@ -402,17 +361,19 @@ mod tests {
             ("last_selection", false),
             ("sel_dirty", true),
             ("pile_cache", false),
-            ("NAME_CACHE", false)
+            ("NAME_CACHE", false),
+            // After a test module in the middle of a file the scan goes on (seen red 2026-11-13 with
+            // the old stop at the first test module: the picks ended at NAME_CACHE).
+            ("after_cache", false)
         ],
         "the scanner's picks"
     );
-    let listed = listed_sites(
-        "//! - `src/x.rs`: `last_cache`, (the positive control)\n//!   and `NAME_CACHE` on the next line\n//! - `src/y.rs` `z`\n//! not an item: `w`\n",
-    );
-    assert!(listed.contains(&("src/x.rs".to_string(), "last_cache".to_string())));
-    assert!(listed.contains(&("src/x.rs".to_string(), "NAME_CACHE".to_string())), "a continuation line's name");
-    assert!(listed.contains(&("src/y.rs".to_string(), "z".to_string())));
-    assert!(!listed.iter().any(|(_, n)| n == "w"), "a line after the list is not an item");
+    // A site declaration answers the site it sits on, and says what the switch does.
+    let declared = scan("src/x.rs", "struct K {\n    /// reuse: site: built again every frame with the switch off.\n    tile_cache: Vec<u8>,\n}\n");
+    assert!(declared.len() == 1 && declared[0].reasoned, "a `reuse: site:` declaration answers its site");
+    assert_eq!(site_declaration("    /// reuse: site: built again every frame"), Some("built again every frame"));
+    assert_eq!(site_declaration("    // reuse: a counter, not a reuse"), None, "a reason is not a site");
+    assert_eq!(site_declaration("    let reuse: bool = true; // no comment here"), None);
 }
 
 /// Every reuse-shaped site in src/ and crates/ is answered: in reuse.rs's list, with a reason
@@ -433,9 +394,10 @@ fn every_reuse_shaped_site_asks_the_switch_or_says_why_not() {
     let stale: Vec<&&str> = backlog.iter().filter(|b| !open_keys.contains(**b)).collect();
     assert!(
         new.is_empty(),
-        "{} reuse-shaped site(s) neither in crates/humanity-core/src/reuse.rs's list nor with a `reuse:` reason \
-         comment (CLAUDE.md: \"A new reuse that does not check the switch is a bug\"). Make it obey \
-         humanity_core::reuse::enabled() and list it in reuse.rs, or say in a `reuse:` comment why it is not a reuse:\n{}",
+        "{} reuse-shaped site(s) declaring neither `reuse: site:` nor a `reuse:` reason (CLAUDE.md: \"A new reuse \
+         that does not check the switch is a bug\"). Make it obey humanity_core::reuse::enabled() and declare it where it \
+         lives with a `// reuse: site: <what the switch does here>` comment, or say in a `// reuse: <reason>` comment \
+         why it is not a reuse:\n{}",
         new.len(),
         new.join("\n")
     );
@@ -445,5 +407,49 @@ fn every_reuse_shaped_site_asks_the_switch_or_says_why_not() {
          in tests/reuse_switch_lint.rs, the list only shrinks:\n{:?}",
         stale.len(),
         stale
+    );
+}
+
+/// Every `reuse: site:` declaration says what the switch does (a few words at least), and there are
+/// as many as the reuse waves declared, so a sweep that deletes them is noticed (2026-11-13, part B:
+/// 45 when the central list was retired, 59 once part B answered the backlog). Seen red with the floor one above the count: "only 45
+/// `reuse: site:` declarations (at least 46 expected): were some deleted?".
+#[test]
+fn every_declared_site_says_what_the_switch_does() {
+    let decl = declarations();
+    let thin: Vec<String> = decl
+        .iter()
+        .filter(|(_, _, said)| said.split_whitespace().count() < 4)
+        .map(|(f, l, said)| format!("  {f}:{l} \"{said}\""))
+        .collect();
+    assert!(thin.is_empty(), "a `reuse: site:` declaration must say what the switch does there:\n{}", thin.join("\n"));
+    assert!(
+        decl.len() >= DECLARED_FLOOR,
+        "only {} `reuse: site:` declarations (at least {DECLARED_FLOOR} expected): were some deleted?",
+        decl.len()
+    );
+}
+
+/// The sites are declared where they live, never listed in reuse.rs again (the paragraph every
+/// agent appended to conflicted twice in one day). Seen red 2026-11-13 against reuse.rs as it was
+/// before this change: "crates/humanity-core/src/reuse.rs lists reuse sites again ... reuse.rs:51
+/// //! - `src/engine/frame_water.rs`: the sea's two shells ..." and 13 more items.
+#[test]
+fn reuse_rs_holds_no_site_list() {
+    let reuse_rs = fs::read_to_string(repo().join("crates/humanity-core/src/reuse.rs")).expect("reuse.rs");
+    let items: Vec<String> = reuse_rs
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| {
+            let t = l.trim();
+            t.starts_with("//! - `") && t["//! - `".len()..].split('`').next().is_some_and(|f| f.ends_with(".rs"))
+        })
+        .map(|(i, l)| format!("  reuse.rs:{} {}", i + 1, l.trim()))
+        .collect();
+    assert!(
+        items.is_empty(),
+        "crates/humanity-core/src/reuse.rs lists reuse sites again; declare each where it lives instead, with a \
+         `// reuse: site: <what the switch does>` comment on the field or static:\n{}",
+        items.join("\n")
     );
 }

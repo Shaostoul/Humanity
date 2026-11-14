@@ -150,7 +150,11 @@ pub struct Skinning {
     keys: Vec<(u64, u32, u32)>,
     /// The last frame's staging and where each key's rows were in it (reuse data: dropped whenever
     /// the history is, `skin_upload_prev`).
+    /// reuse: site: the bodies' previous palette for the motion target: with the switch off
+    /// `skin_upload_prev` uploads this frame's rows instead, so nobody moves on their own.
     last_staging: Vec<[f32; 4]>,
+    /// reuse: site: where each body's rows sat in `last_staging`, forgotten with it when the switch
+    /// is off (`skin_upload_prev`).
     last_keys: std::collections::HashMap<u64, (u32, u32)>,
     /// Near places per body (a place keeps the body it was made for).
     slots: Vec<Vec<NearSlot>>,

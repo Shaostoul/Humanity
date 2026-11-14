@@ -60,6 +60,8 @@ struct StoreBody {
     /// peer identity hex → messages, kept sorted by ts.
     conversations: HashMap<String, Vec<StoredDm>>,
     /// peer identity hex → last-read message ts (drives unread dots).
+    /// reuse: the person's read markers (they drive the unread dots): their state, not a kept
+    /// result.
     last_read: HashMap<String, u64>,
     // ── Client-side social graph (follows removal, 2026-08-24). The
     // server stores no edges; these sets ARE the user's social state,

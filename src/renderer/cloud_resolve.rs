@@ -41,6 +41,8 @@ pub struct CloudResolveFrame {
 /// reuse switch is off (CLAUDE.md's reuse rule, `humanity_core::reuse`): the accumulation pair is
 /// data kept across frames, so with reuse off the clouds are this frame's march alone, the raw
 /// jittered picture (noisier, otherwise the same clouds).
+/// reuse: site: the clouds' accumulated picture from earlier frames is dropped on every frame with
+/// the switch off.
 pub fn drops_history(teleport: bool, temporal_off: bool, reuse: bool) -> bool {
     teleport || temporal_off || !reuse
 }

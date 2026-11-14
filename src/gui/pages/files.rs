@@ -228,6 +228,8 @@ pub struct FilesAdmin {
     /// While it does, an answer from the server does not replace it (a Refresh never throws an
     /// edit away); Discard does.
     pub cats: Vec<api::CategoryEdit>,
+    /// reuse: the person has unsaved category edits (a server answer must not replace them): their
+    /// work, not a kept result.
     pub cats_dirty: bool,
     pub new_cat: String,
     pub suggestions: Vec<api::Suggestion>,

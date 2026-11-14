@@ -70,6 +70,8 @@ struct Streamer {
 /// Decoded samples by path, kept while reuse is on.
 #[derive(Default)]
 pub struct SampleBank {
+    /// reuse: site: decoded recordings kept between score builds; with the switch off the bank
+    /// keeps nothing, so every build decodes every recording again.
     kept: HashMap<PathBuf, Arc<DecodedSample>>,
     /// Attacks (or whole short recordings) for streaming, by path, kept while reuse is on.
     kept_attacks: HashMap<PathBuf, Arc<DecodedSample>>,

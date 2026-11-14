@@ -49,6 +49,8 @@ pub use settings::{LocalSettings, Show};
 #[derive(Debug, Default)]
 pub struct Runtime {
     /// `decide::burst_key` (server and conversation) -> unix seconds of its last notice.
+    /// reuse: when each conversation last gave a notice (the burst limit): bookkeeping, not built
+    /// data.
     pub last_notice: std::collections::HashMap<String, i64>,
     /// Settings > Notifications > Show a test notification was pressed.
     pub test_requested: bool,

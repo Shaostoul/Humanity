@@ -79,6 +79,8 @@ pub struct AppFolder {
     pub selected: Option<PathBuf>,
     pub content: String,
     /// The text was changed since it was read or saved.
+    /// reuse: the text was changed since it was read or saved: the person's unsaved work, not a
+    /// kept result.
     pub dirty: bool,
     /// Why the file chosen is not shown as text (not text, or too large), when it is not.
     pub not_text: Option<String>,

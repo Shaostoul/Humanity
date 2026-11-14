@@ -30,6 +30,9 @@ pub(crate) const HOME_REUSE_OFF_REBUILD_S: f32 = 5.0;
 /// Is the home rebuilt this frame for the reuse switch? Never with it on (the edit flags decide);
 /// with it off, while aboard (the only place the home is drawn), once every
 /// [`HOME_REUSE_OFF_REBUILD_S`] since the last.
+/// reuse: site: the home: rebuilt every 5 s while aboard with the switch off (the shell, the storey
+/// cut-away, the hull, the machines with their Furniture detail bodies, the pipes and their
+/// markings, all through `rebuild_homestead`); the doors keep their state across it.
 pub(crate) fn home_rebuild_due(reuse: bool, aboard: bool, since_last_s: f32) -> bool {
     !reuse && aboard && since_last_s >= HOME_REUSE_OFF_REBUILD_S
 }

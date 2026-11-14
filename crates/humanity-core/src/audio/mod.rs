@@ -31,9 +31,12 @@ pub struct AudioManager<B: kira::backend::Backend = kira::DefaultBackend> {
     manager: kira::AudioManager<B>,
     /// Decoded sound data by path, kept while reuse is on (the Dev page's switch: off, every play
     /// decodes its file again).
+    /// reuse: site: decoded sounds by path; with the switch off every play decodes its file again.
     sound_cache: HashMap<String, kira::sound::static_sound::StaticSoundData>,
     /// How loud each sound the measured data does not list was found to be when it loaded, kept
     /// while reuse is on (off: measured again at every play).
+    /// reuse: site: how loud each unlisted sound was measured; with the switch off it is measured
+    /// again at every play.
     measured_cache: HashMap<String, loudness::SoundLoudness>,
     /// "Even out loudness" (Settings > Audio, on by default): each sound played at its kind's
     /// loudness (`levels`).

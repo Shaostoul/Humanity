@@ -61,7 +61,16 @@ pub struct TrustScore {
     pub inputs: TrustInputs,
     pub weights_version: i64,
     pub computed_at: i64,
+    /// reuse: says whether this answer came from the `trust_scores` table rather than being
+    /// worked out now; the table is read only with the switch on (`cached_score_read`).
     pub cached: bool,
+}
+
+/// Is a stored trust score (at most `CACHE_TTL_MS` old) used instead of working it out? Not when
+/// the caller forces a recompute, and not with the reuse switch off (`reuse` is
+/// `humanity_core::reuse::enabled()` at the call, CLAUDE.md's reuse rule).
+fn cached_score_read(force_recompute: bool, reuse: bool) -> bool {
+    !force_recompute && reuse
 }
 
 impl Storage {
@@ -73,7 +82,7 @@ impl Storage {
         let fp_hex = fingerprint_to_hex(&fp);
         let now = super::now_millis() as i64;
 
-        if !force_recompute {
+        if cached_score_read(force_recompute, humanity_core::reuse::enabled()) {
             if let Some(cached) = self.read_cached_trust_score(did, now)? {
                 return Ok(cached);
             }
@@ -309,6 +318,16 @@ fn sigmoid(x: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// THE REUSE SWITCH on the stored trust scores (2026-11-13, part B): the table is read only
+    /// with reuse on and no forced recompute. Seen red with `cached_score_read` ignoring `reuse`:
+    /// "reuse off: worked out again".
+    #[test]
+    fn with_reuse_off_a_trust_score_is_worked_out_again() {
+        assert!(cached_score_read(false, true), "reuse on: the stored score is read");
+        assert!(!cached_score_read(false, false), "reuse off: worked out again");
+        assert!(!cached_score_read(true, true), "forced: worked out again");
+    }
     use humanity_protocol::did::did_for_pubkey;
     use humanity_protocol::encoding::{cbor_int, cbor_map, cbor_text};
     use humanity_protocol::object::ObjectBuilder;

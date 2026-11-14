@@ -107,6 +107,10 @@ pub(crate) struct Inputs {
     /// Seconds since the last frame.
     pub dt: f32,
     /// The Dev page's "turn off all reuse" switch (true: reuse is on, the default).
+    /// reuse: site: the live music: with the switch off a new score is built from the files read
+    /// again and every recording decoded again once every phrase, taking over at the next phrase
+    /// boundary, and the music's data for the hum and Settings' lists is read again every few
+    /// seconds.
     pub reuse: bool,
     /// How many instrument installs and removals have finished this run.
     pub generation: u64,

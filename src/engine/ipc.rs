@@ -474,7 +474,7 @@ pub(crate) fn poll_screenshot_request(
             let Some(s) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
                 return;
             };
-            if matches!(s, ScreenshotSize::Window) && state.renderer.taa_on() {
+            if matches!(s, ScreenshotSize::Window) && capture_waits_for_taa(state.renderer.taa_on(), humanity_core::reuse::enabled()) {
                 state.renderer.taa_reset();
                 if let Ok(mut h) = HELD.lock() {
                     *h = Some(s);
@@ -484,13 +484,25 @@ pub(crate) fn poll_screenshot_request(
             s
         }
     };
-    if matches!(size, ScreenshotSize::Window) && !state.renderer.taa_settled() {
+    if matches!(size, ScreenshotSize::Window)
+        && capture_waits_for_taa(state.renderer.taa_on(), humanity_core::reuse::enabled())
+        && !state.renderer.taa_settled()
+    {
         if let Ok(mut h) = HELD.lock() {
             *h = Some(size);
         }
         return;
     }
     execute_screenshot_capture(state, frame_texture, size, lists);
+}
+
+/// Does a window capture wait for temporal anti-aliasing's history to settle? Only while TAA is
+/// on AND reuse is on (`reuse` is `humanity_core::reuse::enabled()`). With the reuse switch off
+/// TAA keeps no history (`taa::history_kept`), so every frame already stands alone, and the
+/// settle count, reset every frame, never arrived: no window screenshot was ever taken with
+/// HUMANITY_NO_REUSE=1 (BUG-300, found by the reuse switch's part B sweep, 2026-11-14).
+pub(crate) fn capture_waits_for_taa(taa_on: bool, reuse: bool) -> bool {
+    taa_on && reuse
 }
 
 /// The screenshot request, if one is ready to take this frame, as the size it asks for. Any
@@ -571,6 +583,8 @@ const REQUEST_RESCAN: std::time::Duration = std::time::Duration::from_secs(1);
 /// named (and is not waiting out an empty file's grace) asks nothing. The folder is listed once
 /// when the watcher starts, so a file dropped before the game was up is found, and again once a
 /// second as a safety net. A watcher that cannot be made keeps the old per-frame check.
+/// reuse: site: the dev request reader: with the switch off it checks every request file every
+/// frame instead of only the ones whose stamps moved.
 pub(crate) struct RequestWatch {
     _watcher: notify::RecommendedWatcher,
     events: std::sync::mpsc::Receiver<std::ffi::OsString>,
@@ -6564,5 +6578,19 @@ mod home_session_ipc_tests {
         let rec = body_of("poll_remote_players_request");
         let wired = "\"home_session\": home_session_json(state)";
         assert!(rec.contains(wired), "the recorder never writes {wired}");
+    }
+}
+
+#[cfg(test)]
+mod capture_reuse_tests {
+    /// BUG-300: with the reuse switch off a window capture is taken at once (TAA keeps no history
+    /// to settle); with it on, and TAA on, it waits. Seen red with `capture_waits_for_taa`
+    /// returning `taa_on` alone: "reuse off: no
+    /// history, take it at once".
+    #[test]
+    fn with_reuse_off_a_window_capture_does_not_wait_for_history() {
+        assert!(super::capture_waits_for_taa(true, true), "TAA and reuse on: wait for the settle");
+        assert!(!super::capture_waits_for_taa(true, false), "reuse off: no history, take it at once");
+        assert!(!super::capture_waits_for_taa(false, true), "TAA off: nothing to wait for");
     }
 }

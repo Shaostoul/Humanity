@@ -479,6 +479,9 @@ pub(crate) const FAILED_MODEL_RETRY_S: f32 = 3.0;
 
 /// Are the failed near-tree models tried again this frame? Never with reuse on; with it off, once
 /// every [`FAILED_MODEL_RETRY_S`] since the last try (`last_try_s`, seconds since start).
+/// reuse: site: a near-tree model that failed to load is tried again every 3 s with the switch off;
+/// the procedural meshes, sprites and atlas are a pure function of the code and the tree registry,
+/// read once per run.
 pub(crate) fn failed_model_retry_due(reuse: bool, now_s: f32, last_try_s: f32) -> bool {
     !reuse && now_s - last_try_s >= FAILED_MODEL_RETRY_S
 }

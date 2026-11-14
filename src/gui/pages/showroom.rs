@@ -744,9 +744,7 @@ fn draw_server_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, id: 
     } else {
         id.to_string()
     };
-    if !state.server_info_cache.contains_key(&cache_id) {
-        fetch_server_info(state, &cache_id, &svr_url);
-    }
+    fetch_server_info(state, &cache_id, &svr_url);
     let info = state.server_info_cache.get(&cache_id).cloned();
     let live = is_live_url(state, &svr_url);
 
@@ -1000,11 +998,23 @@ fn draw_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 // Shared pieces
 // ─────────────────────────────────────────────────────────────────────────
 
+/// With the reuse switch off, how old a server's answer may get before the Server pane asks again
+/// (every frame would be a request a frame).
+pub(crate) const SERVER_INFO_REUSE_OFF_S: f32 = 10.0;
+
+/// Is a server's answer `age_s` seconds old (None: no answer yet) used as it is? Always with
+/// reuse on (`reuse` is `humanity_core::reuse::enabled()` at the call, CLAUDE.md's reuse rule);
+/// with it off only until it is `SERVER_INFO_REUSE_OFF_S` old.
+pub(crate) fn server_info_kept(reuse: bool, age_s: Option<f32>) -> bool {
+    age_s.is_some_and(|a| reuse || a < SERVER_INFO_REUSE_OFF_S)
+}
+
 /// Spawn a background blocking fetch of GET {url}/api/server-info. Stores the
 /// result channel in state; drain_server_info lands it into the cache. No-op if
 /// already cached or a fetch for this id is already in flight.
 fn fetch_server_info(state: &mut GuiState, server_id: &str, url: &str) {
-    if state.server_info_cache.contains_key(server_id) {
+    let age_s = state.server_info_cache.get(server_id).map(|i| i.fetched_at.map_or(f32::MAX, |t| t.elapsed().as_secs_f32()));
+    if server_info_kept(humanity_core::reuse::enabled(), age_s) {
         return;
     }
     if state.server_info_loader.as_ref().map_or(false, |(id, _)| id == server_id) {
@@ -1037,7 +1047,8 @@ fn drain_server_info(state: &mut GuiState) {
     }
     if let Some((id, res)) = done {
         state.server_info_loader = None;
-        if let Ok(info) = res {
+        if let Ok(mut info) = res {
+            info.fetched_at = Some(std::time::Instant::now());
             state.server_info_cache.insert(id, info);
         }
         // On error we just leave it uncached; a later reselect retries.

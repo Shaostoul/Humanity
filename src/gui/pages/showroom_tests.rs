@@ -612,3 +612,14 @@ fn the_ancestry_shares_always_add_up_to_a_whole() {
     rebalance_shares(&mut s, 7, 0.5);
     assert!((s.iter().sum::<f32>() - 1.0).abs() < 1e-5, "a part that is not there changes nothing");
 }
+
+/// THE REUSE SWITCH on a server's answer (2026-11-13, part B): kept however old with reuse on;
+/// with it off the Server pane asks again once the answer is `SERVER_INFO_REUSE_OFF_S` old.
+/// Seen red with `server_info_kept` ignoring `reuse`: "reuse on: kept however old".
+#[test]
+fn with_reuse_off_a_servers_answer_is_asked_again_once_it_is_old() {
+    assert!(server_info_kept(true, Some(1.0e6)), "reuse on: kept however old");
+    assert!(server_info_kept(false, Some(1.0)), "reuse off: a fresh answer is kept");
+    assert!(!server_info_kept(false, Some(SERVER_INFO_REUSE_OFF_S + 1.0)), "reuse off: an old answer is asked again");
+    assert!(!server_info_kept(true, None), "no answer yet: asked");
+}

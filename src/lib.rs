@@ -9950,15 +9950,19 @@ mod native_app {
                                 .normalize_or_zero();
                                 let split_now = params.split_px;
                                 let budget_now = patch_budget as f32;
-                                let parked = state.camera.surface_mode
-                                    && (cam_local - cs.last_sel_cam).length() < 0.25
-                                    && cam_fwd_local.dot(cs.last_sel_fwd) > 0.99999
-                                    && cs.last_sel_split_px == split_now
-                                    && cs.last_sel_budget == budget_now
-                                    && !cs.sel_dirty
-                                    && cs.last_selection.as_ref().is_some_and(|s| {
-                                        s.build_requests.is_empty() && s.fully_covered
-                                    });
+                                // The kept selection is a reuse: with the switch off the walk runs every frame.
+                                let parked = chunks::selection_kept(
+                                    humanity_core::reuse::enabled(),
+                                    state.camera.surface_mode
+                                        && (cam_local - cs.last_sel_cam).length() < 0.25
+                                        && cam_fwd_local.dot(cs.last_sel_fwd) > 0.99999
+                                        && cs.last_sel_split_px == split_now
+                                        && cs.last_sel_budget == budget_now
+                                        && !cs.sel_dirty
+                                        && cs.last_selection.as_ref().is_some_and(|s| {
+                                            s.build_requests.is_empty() && s.fully_covered
+                                        }),
+                                );
                                 let selection = if parked {
                                     cs.last_selection.clone().expect("parked implies stored")
                                 } else {
@@ -10090,13 +10094,22 @@ mod native_app {
                                 // read, so two chunk-active bodies could each
                                 // build the whole budget).
                                 let budget_left = budget.saturating_sub(patch_builds_this_frame);
-                                let to_build: Vec<chunks::PatchId> = selection
+                                let new_builds: Vec<chunks::PatchId> = selection
                                     .build_requests
                                     .iter()
                                     .filter(|id| !cs.cache.contains_key(id))
                                     .take(budget_left)
                                     .cloned()
                                     .collect();
+                                // The reuse switch off: once nothing new is wanted, the drawn patches
+                                // built longest ago are built again in place, a few a frame, through
+                                // the same workers and deadline (`chunks::reuse_off_rebuilds`).
+                                let rebuilds = chunks::reuse_off_rebuilds(
+                                    selection.draws.iter().filter_map(|id| cs.cache.get(id).map(|e| (*id, e.built_frame))),
+                                    humanity_core::reuse::enabled(),
+                                    chunks::reuse_off_rebuild_share(new_builds.len()),
+                                );
+                                let to_build: Vec<chunks::PatchId> = new_builds.into_iter().chain(rebuilds).collect();
                                 if !to_build.is_empty() {
                                     let albedo = state.planet_albedos.get(&b.id).map(|a| a.as_ref());
                                     let detail = &cs.detail;
@@ -10167,6 +10180,16 @@ mod native_app {
                                         cs.sel_dirty = true; // v0.928 parked skip
                                     }
                                     for (id, pm) in built {
+                                        // A patch built again in place (the reuse
+                                        // switch off): free what it drew from first.
+                                        if let Some((old_mesh, old_slot)) = cs.take_for_rebuild(&id) {
+                                            if let Some(s) = old_slot {
+                                                state.renderer.patch_arena_release(s);
+                                            } else if old_mesh != usize::MAX {
+                                                state.renderer.replace_mesh(old_mesh, Mesh::placeholder(&state.renderer.device));
+                                                state.planet_patch_free_slots.push(old_mesh);
+                                            }
+                                        }
                                         // Mega-buffer arena first (draw-
                                         // batching increment 1): geometry
                                         // uploads into the shared buffers,

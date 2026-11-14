@@ -352,6 +352,7 @@ pub struct MapTiles {
     pub last_bake_ms: f32,
     pub bytes: usize,
     pub dropped: Vec<crate::gui::pages::maps::tile_grid::TileKey>,
+    /// reuse: the regions still to bake (a work list), not a kept result.
     pub dirty: Vec<[f32; 4]>,
 }
 

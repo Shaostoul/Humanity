@@ -214,8 +214,11 @@ pub struct AiClient {
     /// Models the engine said it loaded.
     loaded: BTreeSet<String>,
     /// The engine's last `status` answer.
+    /// reuse: a record of the engine's last status answer, for the Dev page, not a result kept to
+    /// save work.
     pub last_status: Option<EngineMessage>,
     /// The engine's last refusal, with its detail (for the Dev page).
+    /// reuse: a record of the engine's last refusal, for the Dev page.
     pub last_error: Option<(ErrorCode, String)>,
     /// The last answered request's timing: tokens, prefill ms, writing ms.
     pub last_timing: Option<(u32, u32, u32)>,

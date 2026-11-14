@@ -147,6 +147,8 @@ pub fn load_cannot_close(data_dir: &std::path::Path) -> CannotCloseData {
 /// CWD-independent resolved data dir in the installed app, and falls back to
 /// "data" under tests/snapshots (which run from the repo root).
 fn cannot_close() -> &'static CannotCloseData {
+    /// reuse: the cannot-close data, read once per run: data read once per run, not a reuse that
+    /// can go stale within it.
     static CACHE: std::sync::OnceLock<CannotCloseData> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| load_cannot_close(&humanity_core::storage::data_dir()))
 }
@@ -228,6 +230,8 @@ pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
 }
 
 fn home_outline() -> &'static HomeOutline {
+    /// reuse: the home outline, read once per run from its data file: data read once per run, not
+    /// a reuse that can go stale within it.
     static CACHE: std::sync::OnceLock<HomeOutline> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| load_home_outline(&humanity_core::storage::data_dir()))
 }

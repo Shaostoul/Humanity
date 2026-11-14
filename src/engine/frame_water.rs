@@ -726,7 +726,8 @@ pub(crate) fn backstop_shader_drop_m(live_crest_m: f32) -> f64 {
     live_crest_m as f64 + BACKSTOP_CLEARANCE_M
 }
 
-/// Is the stored selection used again this frame instead of a fresh walk? Only with reuse on.
+/// reuse: site: the sea's two shells: the selection is walked again every frame with the switch
+/// off, and every drawn patch built again on its turn, once every 30 frames (`patch_rebuild_due`).
 fn selection_kept(reuse: bool, parked: bool) -> bool {
     reuse && parked
 }

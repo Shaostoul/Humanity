@@ -125,6 +125,7 @@ pub struct GamesPart {
     /// The added game being renamed (its program) and the name typed so far.
     pub renaming: Option<(PathBuf, String)>,
     /// The last game Play started (its store and id) and when, for the double-click guard.
+    /// reuse: the double-click guard's last Play: bookkeeping, not built data.
     last_play: Option<((Store, String), Instant)>,
     /// The store the games are narrowed to (`None`: every store).
     pub store: Option<Store>,
