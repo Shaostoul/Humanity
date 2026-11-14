@@ -1,0 +1,30 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "FreePats Button Accordion HN",
+    url: "https://freepats.zenvoid.org/Organ/accordion.html",
+    version: "2024-03-29",
+    licence: "CC0 1.0",
+    fetched: "2026-11-13",
+    archive: "freepats-button-accordion-hn/ButtonAccordionHN-SFZ+FLAC-20240329.7z",
+    archive_sha256: "e5326a8830f0358faa195609fd21d0c1dbab899e39bd7f44b1590ebf2ce5035e",
+    kept: [
+        (file: "Button_Accordion_HN_B3.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN B3.flac"),
+        (file: "Button_Accordion_HN_D4.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN D4.flac"),
+        (file: "Button_Accordion_HN_Fs4.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN F#4.flac"),
+        (file: "Button_Accordion_HN_G4.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN G4.flac"),
+        (file: "Button_Accordion_HN_A4.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN A4.flac"),
+        (file: "Button_Accordion_HN_B4.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN B4.flac"),
+        (file: "Button_Accordion_HN_C5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN C5.flac"),
+        (file: "Button_Accordion_HN_D5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN D5.flac"),
+        (file: "Button_Accordion_HN_E5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN E5.flac"),
+        (file: "Button_Accordion_HN_Fs5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN F#5.flac"),
+        (file: "Button_Accordion_HN_G5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN G5.flac"),
+        (file: "Button_Accordion_HN_A5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN A5.flac"),
+        (file: "Button_Accordion_HN_B5.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN B5.flac"),
+        (file: "Button_Accordion_HN_C6.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN C6.flac"),
+        (file: "Button_Accordion_HN_D6.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN D6.flac"),
+        (file: "Button_Accordion_HN_E6.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN E6.flac"),
+        (file: "Button_Accordion_HN_G6.ogg", from: "Button Accordion HN SFZ+FLAC-20240329/Button Accordion HN G6.flac"),
+    ],
+)

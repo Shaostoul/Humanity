@@ -1,0 +1,22 @@
+AgentSound vocalset-choir - ATTRIBUTION / LICENCE
+
+The samples of this pack are derived from VocalSet, licensed under the Creative Commons Attribution 4.0
+International licence (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/):
+
+  Wilkins, J., Prem Seetharaman, Alison Wahl, & Bryan Pardo. (2018). VocalSet: A Singing Voice Dataset (Version 1.2) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.1442513
+
+Paper: J. Wilkins, P. Seetharaman, A. Wahl, B. Pardo: "VocalSet: A Singing Voice Dataset", Proceedings of the 19th International Society for Music Information Retrieval Conference (ISMIR), Paris, 2018.
+
+Changes: Derived work: segments of the VocalSet long tones / scales / arpeggios (straight, pp, forte, slow piano / forte; vowels a e i o u) cut, pitch-shifted by at most 2 semitones, their sustains extended from their own audio, level-matched, placed in a simulated hall and summed per note into section samples (one real singer per take).
+
+Singers used (anonymous ids and voice types of the dataset's readme-anon.txt):
+  S: f1 (soprano), f2 (soprano), f3 (soprano), f4 (soprano), f5 (mezzo-soprano), f6 (soprano), f7 (soprano), f8 (mezzo-soprano), f9 (soprano)
+  A: f1 (soprano), f2 (soprano), f3 (soprano), f4 (soprano), f5 (mezzo-soprano), f6 (soprano), f7 (soprano), f8 (mezzo-soprano), f9 (soprano), m9 (countertenor)
+  T: m1 (baritone), m2 (tenor), m3 (tenor), m4 (bass(?)), m5 (baritone), m6 (baritone), m7 (tenor(?)), m8 (bass), m10 (bass-baritone), m11 (tenor)
+  B: m1 (baritone), m2 (tenor), m3 (tenor), m4 (bass(?)), m5 (baritone), m6 (baritone), m7 (tenor(?)), m8 (bass), m10 (bass-baritone), m11 (tenor)
+
+Anything published with this pack (the pack itself or music made with it) should credit:
+  "Choir samples derived from VocalSet (Wilkins, Seetharaman, Wahl, Pardo 2018), CC BY 4.0,
+   https://doi.org/10.5281/zenodo.1442513"
+
+No endorsement by the VocalSet authors is implied. The CC BY 4.0 licence text: see the URL above.

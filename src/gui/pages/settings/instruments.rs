@@ -15,7 +15,7 @@ use humanity_core::i18n::{t, t_dyn, t_marked, t_marked_dyn, tf};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Button};
 use crate::gui::HintDisplay;
-use crate::instrument_packs::catalog::{InstrumentRef, PackEntry};
+use crate::instrument_packs::catalog::{InstrumentRef, PackEntry, WaveSetRef};
 use crate::instrument_packs::install::{Failure, Stage};
 use crate::instrument_packs::library::Choice;
 use crate::instrument_packs::ui::PacksUi;
@@ -42,6 +42,19 @@ fn warn(ui: &mut egui::Ui, theme: &Theme, color: Color32, text: impl Into<String
     ui.label(RichText::new(text.into()).color(color).size(theme.font_size_small));
 }
 
+/// What a set holds: its instruments, then each wave set and its count (2026-11-13: AKWF's single
+/// cycles, which no music plays yet, and the line says so). A set of waves alone has no
+/// instrument line.
+fn holds(ui: &mut egui::Ui, theme: &Theme, instruments: &[InstrumentRef], waves: &[WaveSetRef]) {
+    if !instruments.is_empty() {
+        muted(ui, theme, tf("instrument_packs.holds", &[("list", &names(instruments))]));
+    }
+    for w in waves {
+        let name = t_dyn(&format!("instrument_packs.waveset.{}", w.id));
+        muted(ui, theme, tf("instrument_packs.waves_held", &[("count", &w.count.to_string()), ("name", &name)]));
+    }
+}
+
 /// "Licence: ..." with the licence words' glossary marks kept (CC0 opens its glossary card).
 fn licence_line(ui: &mut egui::Ui, theme: &Theme, marked_words: &str) {
     let line = tf("instrument_packs.licence_label", &[("words", &marked_words)]);
@@ -65,7 +78,7 @@ pub(crate) fn draw_instruments(ui: &mut egui::Ui, theme: &Theme, hint: HintDispl
         // What comes with the app: always there, nothing to download or remove.
         ui.add_space(theme.spacing_sm);
         ui.label(RichText::new(t_dyn(&catalog.core.words)).color(theme.text_secondary()).strong());
-        muted(ui, theme, tf("instrument_packs.holds", &[("list", &names(&catalog.core.instruments))]));
+        holds(ui, theme, &catalog.core.instruments, &catalog.core.waves);
         muted(ui, theme, tf("instrument_packs.size", &[("mb", &mb(catalog.core.bytes))]));
         licence_line(ui, theme, t_marked("instrument_packs.licence.cc0"));
         muted(ui, theme, t("instrument_packs.core_status"));
@@ -91,7 +104,10 @@ fn failure_words(f: &Failure) -> String {
 
 fn draw_pack(ui: &mut egui::Ui, theme: &Theme, entry: &PackEntry, packs: &mut PacksUi) {
     ui.label(RichText::new(t_dyn(&entry.words)).color(theme.text_secondary()).strong());
-    muted(ui, theme, tf("instrument_packs.holds", &[("list", &names(&entry.instruments))]));
+    if let Some(about) = &entry.about {
+        muted(ui, theme, t_dyn(about));
+    }
+    holds(ui, theme, &entry.instruments, &entry.waves);
     if entry.is_built() {
         muted(ui, theme, tf("instrument_packs.size", &[("mb", &mb(entry.bytes))]));
     }

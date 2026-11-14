@@ -4,9 +4,9 @@
  * scripts/instrument-packs.js). FreePats ships its CC0 sample sets as .7z and this machine has no
  * 7-Zip; rather than ask anyone to install a tool, the pipeline reads them itself.
  *
- * Supports what FreePats' archives use: folders of one coder, LZMA1 (03 01 01), LZMA2 (21), Deflate (04 01 08) or Copy (00), an
+ * Supports what FreePats' archives use: LZMA1 (03 01 01), LZMA2 (21), Deflate (04 01 08), Delta (03) or Copy (00), one coder or a chain of them (2026-11-13: the ukulele is Deflate then Delta), an
  * LZMA-encoded header, and solid blocks of many files. Every file's CRC32 from the archive is
- * checked; a mismatch throws. Anything else (LZMA2, BCJ, encryption) throws with its coder id.
+ * checked; a mismatch throws. Anything else (BCJ, encryption) throws with its coder id.
  *
  *   readSevenZip(buffer) -> [{ name, data: Buffer, crc }]   (directories and empty files skipped)
  */
@@ -96,11 +96,25 @@ function readFolder(r) {
     totalOut += nOut;
     totalIn += nIn;
   }
-  const bindPairs = totalOut - 1;
-  for (let i = 0; i < bindPairs; i++) { r.number(); r.number(); }
-  const packed = totalIn - bindPairs;
-  if (packed > 1) for (let i = 0; i < packed; i++) r.number();
-  return { coders, totalOut, unpackSizes: [] };
+  // Bind pairs join one coder's output to another's input (a filter chain: FreePats' 2026 ukulele
+  // is Deflate and a Delta filter). With one-in, one-out coders, in-stream i and out-stream i are
+  // coder i's; the packed stream feeds the one input no pair binds, and the folder's output is the
+  // one output no pair binds.
+  const nBinds = totalOut - 1;
+  const binds = [];
+  for (let i = 0; i < nBinds; i++) binds.push({ inIndex: r.number(), outIndex: r.number() });
+  const packed = totalIn - nBinds;
+  const packedIn = [];
+  if (packed > 1) for (let i = 0; i < packed; i++) packedIn.push(r.number());
+  else for (let i = 0; i < totalIn; i++) if (!binds.some((b) => b.inIndex === i)) packedIn.push(i);
+  let mainOut = 0;
+  for (let i = 0; i < totalOut; i++) if (!binds.some((b) => b.outIndex === i)) mainOut = i;
+  return { coders, totalOut, unpackSizes: [], binds, packedIn, mainOut };
+}
+
+/** The size of a folder's whole output (its unbound out-stream). */
+function folderSize(f) {
+  return f.unpackSizes[f.mainOut || 0];
 }
 
 function readUnpackInfo(r) {
@@ -130,7 +144,7 @@ function readSubStreams(r, folders) {
   const hasSizes = id === K.Size;
   folders.forEach((f, i) => {
     if (counts[i] === 0) return;
-    const total = f.unpackSizes[f.unpackSizes.length - 1];
+    const total = folderSize(f);
     let sum = 0;
     for (let j = 0; j < counts[i] - 1; j++) {
       const s = hasSizes ? r.number() : 0;
@@ -168,7 +182,7 @@ function readStreamsInfo(r) {
   if (!sub) {
     sub = {
       counts: folders.map(() => 1),
-      sizes: folders.map((f) => f.unpackSizes[f.unpackSizes.length - 1]),
+      sizes: folders.map((f) => folderSize(f)),
       crcs: folders.map((f) => (f.crc == null ? null : f.crc)),
     };
   }
@@ -181,15 +195,38 @@ function unpackFolders(buf, info) {
   return info.folders.map((f, i) => {
     const packed = buf.subarray(offset, offset + info.pack.sizes[i]);
     offset += info.pack.sizes[i];
-    if (f.coders.length !== 1) throw new Error(`7z: a folder of ${f.coders.length} coders is not supported`);
-    const c = f.coders[0];
-    const size = f.unpackSizes[0];
-    if (c.id === '030101') return decodeLzma(c.props, packed, size);
-    if (c.id === '21') return decodeLzma2(packed, size);
-    if (c.id === '040108') return zlib.inflateRawSync(packed);
-    if (c.id === '00') return Buffer.from(packed);
-    throw new Error(`7z: coder ${c.id} is not supported (LZMA1, LZMA2, Deflate and Copy are)`);
+    if (f.coders.some((c) => c.nIn !== 1 || c.nOut !== 1) || f.packedIn.length !== 1) {
+      throw new Error(`7z: a folder of ${f.coders.length} coders that is not a simple chain is not supported`);
+    }
+    // Follow the chain from the coder the packed stream feeds to the one whose output is the folder's.
+    let k = f.packedIn[0];
+    let data = decodeOne(f.coders[k], packed, f.unpackSizes[k]);
+    for (let step = 1; step < f.coders.length; step++) {
+      const bind = f.binds.find((b) => b.outIndex === k);
+      if (!bind) throw new Error('7z: a broken coder chain');
+      k = bind.inIndex;
+      data = decodeOne(f.coders[k], data, f.unpackSizes[k]);
+    }
+    return data;
   });
+}
+
+function decodeOne(c, input, size) {
+  if (c.id === '030101') return decodeLzma(c.props, input, size);
+  if (c.id === '21') return decodeLzma2(input, size);
+  if (c.id === '040108') return zlib.inflateRawSync(input);
+  if (c.id === '00') return Buffer.from(input);
+  if (c.id === '03') return decodeDelta(c.props, input);
+  throw new Error(`7z: coder ${c.id} is not supported (LZMA1, LZMA2, Deflate, Delta and Copy are)`);
+}
+
+/** 7-Zip's Delta filter: each byte is stored as its difference from the byte `distance` before it
+ * (the property byte is distance - 1), which helps the compressor on audio. */
+function decodeDelta(props, input) {
+  const distance = (props.length ? props[0] : 0) + 1;
+  const out = Buffer.from(input);
+  for (let i = distance; i < out.length; i++) out[i] = (out[i] + out[i - distance]) & 0xff;
+  return out;
 }
 
 function readFilesInfo(r) {

@@ -1,0 +1,36 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "ukulele_small",
+    words: "instrument_packs.instrument.ukulele_small",
+    part: "ukulele",
+    rank: 20,
+    kind: Sampler((
+        folder: "ukulele_small",
+        pitched: true,
+        source_a4_hz: 439.88,
+        tuning_note: "measured: median of 13 samples, -0.5 cents from A = 440",
+        release_s: 0.3,
+        normalized: false,
+        zones: [
+            (file: "C4.ogg", key: 60, lo_key: 58, hi_key: 60, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(262.311), measured_hz: Some(261.961), loop_start: None, loop_end: None),
+            (file: "D4.ogg", key: 62, lo_key: 61, hi_key: 62, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(294.944), measured_hz: Some(294.639), loop_start: None, loop_end: None),
+            (file: "E4.ogg", key: 64, lo_key: 63, hi_key: 64, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(329.919), measured_hz: Some(329.922), loop_start: None, loop_end: None),
+            (file: "Fs4.ogg", key: 66, lo_key: 65, hi_key: 66, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(372.251), measured_hz: Some(370.99), loop_start: None, loop_end: None),
+            (file: "G4.ogg", key: 67, lo_key: 67, hi_key: 67, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(392.115), measured_hz: Some(391.787), loop_start: None, loop_end: None),
+            (file: "A4.ogg", key: 69, lo_key: 68, hi_key: 69, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(439.88), measured_hz: Some(439.885), loop_start: None, loop_end: None),
+            (file: "B4.ogg", key: 71, lo_key: 70, hi_key: 71, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(493.749), measured_hz: Some(493.838), loop_start: None, loop_end: None),
+            (file: "Cs5.ogg", key: 73, lo_key: 72, hi_key: 73, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(554.214), measured_hz: Some(553.596), loop_start: None, loop_end: None),
+            (file: "Ds5.ogg", key: 75, lo_key: 74, hi_key: 75, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(621.007), measured_hz: Some(621.119), loop_start: None, loop_end: None),
+            (file: "F5.ogg", key: 77, lo_key: 76, hi_key: 77, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(696.655), measured_hz: Some(696.766), loop_start: None, loop_end: None),
+            (file: "G5.ogg", key: 79, lo_key: 78, hi_key: 79, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(781.065), measured_hz: Some(780.911), loop_start: None, loop_end: None),
+            (file: "A5.ogg", key: 81, lo_key: 80, hi_key: 82, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(875.704), measured_hz: Some(875.773), loop_start: None, loop_end: None),
+            (file: "C6.ogg", key: 84, lo_key: 83, hi_key: 86, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(1043.802), measured_hz: Some(1045.686), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "A#3", high: "D6"),
+    reverb_send: 0.3,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "FreePats Ukulele", url: "https://freepats.zenvoid.org/GuitarFamily/ukulele.html", version: "2026-08-11", fetched: "2026-11-13"),
+    credit: "A Flight Fireball tenor ukulele recorded by Mateusz Dąbrowski for FreePats (freepats.zenvoid.org), August 2026. Public domain (CC0 1.0).",
+)

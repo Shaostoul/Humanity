@@ -7,7 +7,7 @@ use crate::gui::theme::load_theme;
 use crate::instrument_packs::catalog::{PackCatalog, Parts};
 use crate::instrument_packs::install::{self, Failure, InstalledPack, Stage};
 use crate::instrument_packs::ui::PacksUi;
-use humanity_core::i18n::{t, tf};
+use humanity_core::i18n::{t, t_dyn, tf};
 
 fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
     fn visit(shape: &egui::Shape, clip: egui::Rect, out: &mut Vec<(String, egui::Rect)>) {
@@ -163,4 +163,32 @@ fn download_remove_progress_and_failure_are_shown() {
     let text = all(&shown);
     assert!(text.contains(&tf("instrument_packs.failed.damaged", &[("detail", &"checksum")])), "a damaged download says so:\n{text}");
     assert!(shown.iter().any(|(s, _)| s == t("instrument_packs.retry")), "and offers Try again");
+}
+
+/// A PACK SAYS WHAT IT ADDS, AND A SET OF WAVES IS COUNTED (2026-11-13, the brief: "each pack's size and
+/// what it adds said in words"): a pack's `about` sentence shows under its name, a set's wave sets show
+/// as a count with the note that the music does not play them yet, and a pack of waves alone has no
+/// empty "Holds:" line. Seen red 2026-11-13 with `draw_pack` before the about and waves lines (its HEAD~ version copied
+/// over it, the test run, put back): "the synth waves pack says what it adds".
+#[test]
+fn a_pack_says_what_it_adds_and_counts_its_waves() {
+    let catalog = r#"PackCatalog(
+    release: "assets-instruments-1",
+    base_url: "https://github.com/Shaostoul/Humanity/releases/download/assets-instruments-1/",
+    core: (words: "instrument_packs.pack.core", instruments: [(id: "upright_piano_small", part: "piano")], waves: [(id: "akwf_core", count: 207)], bytes: 9961472),
+    packs: [
+        (id: "synth_waves", version: 1, family: "synth", words: "instrument_packs.pack.synth_waves", about: Some("instrument_packs.pack_about.synth_waves"),
+         file: "humanity-instruments-synth_waves-v1.tar", bytes: 9000000, sha256: "e8850bb4d9ae0d18e549dc9cc496c6486f9a508bd9d160f0b97fc72141134bec",
+         licence: "instrument_packs.licence.cc0", credits: [], instruments: [], waves: [(id: "akwf_all", count: 4358)]),
+    ],
+)"#;
+    let mut p = packs();
+    p.catalog = Some(PackCatalog::parse(catalog).expect("the test catalog"));
+    let text = all(&draw(&mut p, vec![vec![]]));
+    assert!(text.contains(t("instrument_packs.pack_about.synth_waves")), "the synth waves pack says what it adds:\n{text}");
+    let held = |n: &str, set: &str| tf("instrument_packs.waves_held", &[("count", &n), ("name", &t_dyn(&format!("instrument_packs.waveset.{set}")))]);
+    assert!(text.contains(&held("207", "akwf_core")), "the core set counts its waves:\n{text}");
+    assert!(text.contains(&held("4358", "akwf_all")), "the pack counts its waves:\n{text}");
+    let empty = tf("instrument_packs.holds", &[("list", &"")]);
+    assert!(!text.lines().any(|l| l.trim() == empty.trim()), "no empty Holds line for a pack of waves alone:\n{text}");
 }

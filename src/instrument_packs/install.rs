@@ -87,6 +87,9 @@ pub struct PackManifest {
     pub id: String,
     pub version: u32,
     pub instruments: Vec<String>,
+    /// Its wave sets (`waves/<id>/`, 2026-11-13).
+    #[serde(default)]
+    pub waves: Vec<String>,
 }
 
 /// An installed pack: its version and the bytes it takes on disk.

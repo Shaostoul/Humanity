@@ -1,0 +1,25 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "FreePats Finger Bass YR",
+    url: "https://freepats.zenvoid.org/ElectricGuitar/clean-electric-bass.html",
+    version: "2019-09-30",
+    licence: "CC0 1.0",
+    fetched: "2026-11-13",
+    archive: "freepats-finger-bass-yr/FingerBassYR-SFZ+FLAC-20190930.7z",
+    archive_sha256: "36f87ec9eb086ef25050312522aacf71213c582f46989e0c5a12681304596587",
+    kept: [
+        (file: "E.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/E.flac"),
+        (file: "F.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/F.flac"),
+        (file: "Fs.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/F#.flac"),
+        (file: "G.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/G.flac"),
+        (file: "Gs.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/G#.flac"),
+        (file: "A.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/A.flac"),
+        (file: "As.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/A#.flac"),
+        (file: "B.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/B.flac"),
+        (file: "C.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/C.flac"),
+        (file: "Cs.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/C#.flac"),
+        (file: "D.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/D.flac"),
+        (file: "Ds.ogg", from: "FingerBassYR SFZ+FLAC-20190930/samples/finger/D#.flac"),
+    ],
+)

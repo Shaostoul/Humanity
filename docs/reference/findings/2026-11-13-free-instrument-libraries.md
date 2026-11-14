@@ -404,3 +404,41 @@ Read through `gh api` (the `.sfz` headers, committed 2021-10-13 unless said). Of
 
 **Not legal advice.** This is an AI's reading of licences quoted above, dated 13 November 2026; a
 licence can change after that date, so re-read the source before relying on it.
+
+## Downloaded (addendum, 13 November 2026)
+
+The operator approved the research's download list the same day ("Let's go for it and see what kind
+of procedural music we can make." and "Let's go with your recommendations": CC BY only in optional
+packs, never the core set; share-alike left out). Each library below was downloaded on 2026-11-13
+(23:18 to 23:37 UTC) and its licence read again from the download's own file; the sizes, checksums and
+word-for-word licence copies are in [`../instrument-sources.md`](../instrument-sources.md) ("The
+2026-11-13 batch"). The body above is unchanged; these notes only record what arrived.
+
+- **AKWF** (section 12): the `AKWF` folder at commit `8de90bf`, 4,358 files, 6,100,107 bytes, every
+  file matching the commit's git blob; `LICENSE.md` is CC0 1.0, as found. Core set (207 waves) and the
+  Synth waves pack.
+- **Karoryfer Swirly Drums v1.104** (section 1): `license` is CC0 1.0, as found. Brushes and jazz drum
+  kits pack.
+- **Karoryfer Sneakybass v1.000** (section 1): the release zip carries no licence file, only a readme
+  line, "CC-0 license."; the repository's `LICENSE` is CC0 1.0. Recorded, not a change of licence.
+  Band and jazz pack.
+- **FreePats Button Accordion HN, Old Piano FB, Ukulele, Bagpipe, FSBS Clean #2 (Jazz), Bass Guitar
+  YR (finger)** (section 4): each archive's `LICENSE.txt` is CC0 1.0, as found. The accordion,
+  ukulele, finger bass and a small jazz guitar in the core set; the rest in the Band and jazz and Folk
+  and world packs.
+- **LMMS assets, commit `bc09e07`** (sections 9 and 13): `LICENSE` is CC0 1.0, as found. Twelve hits
+  and risers in the core set.
+- **Karoryfer Weresax v1.003 and Bear Sax v1.004** (section 1): CC0 1.0, as found. Band and jazz pack.
+- **Karoryfer Fashionbass v1.001** (section 1): CC0 1.0, as found. Band and jazz pack.
+- **Virtuosity Drums v0.925** (section 1): CC0 1.0, as found. Brushes and jazz drum kits pack.
+- **Karoryfer War Tuba v1.002 and jSteelDrum version 2** (sections 1 and 3): CC0 1.0 and the
+  Unlicense, as found. Band and jazz pack; Folk and world pack.
+- **epic-choir v1.0** (section 7), credited: the zips carry `ATTRIBUTION.txt`; the repository's
+  `LICENSE` is CC BY 4.0, as found. Choir pack, credited on the Credits page (`data/credits.ron`, row
+  `epic_choir`) and in the pack's licence line.
+- **Greg Sullivan's electric pianos** (section 3), credited: the author's site still says CC BY 4.0
+  ("Licensing (updated 21-Oct-2026)"), and its Conversions page links the SFZ conversion that was
+  downloaded, whose own `LICENSE` is CC BY 3.0 Unported. Both ask only for credit. Electric pianos
+  pack, credited (row `greg_sullivan_epianos`).
+
+Nothing was stopped: no source differed from the research in licence, size (all within 1%) or content.

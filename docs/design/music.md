@@ -1084,6 +1084,33 @@ with its licence quoted, what is already on disk and unused, and a download list
 operator's yes: [`../reference/research/2026-11-13-instrument-libraries/README.md`](../reference/research/2026-11-13-instrument-libraries/README.md);
 the licences in [`../reference/findings/2026-11-13-free-instrument-libraries.md`](../reference/findings/2026-11-13-free-instrument-libraries.md).
 
+**The 2026-11-13 batch, downloaded and built.** The operator approved that list ("Let's go for it and
+see what kind of procedural music we can make." and "Let's go with your recommendations": credited CC BY
+libraries in optional packs only, never in the core set; share-alike left out). All eleven arrived
+matching the research (sizes, checksums, licences: [`instrument-sources.md`](../reference/instrument-sources.md),
+"The 2026-11-13 batch"). What they became:
+
+| Set | Size | Instruments, and the part each plays | From |
+|---|---|---|---|
+| **Core**, added | the core set is now 10.5 MiB | button accordion (accordion); ukulele (ukulele); a small electric bass (electric bass); a small jazz guitar (jazz guitar); twelve hits and risers: house kick, punchy snare, layered clap, closed and open hi-hats (the electronic kit's parts), crash and ride (kit crash, kit ride), sweeping riser, down sweep, sub drop, record spin-back, cymbal swell; and 207 AKWF single-cycle waves, kept as plain PCM (0.29 MiB) | FreePats, LMMS, AKWF |
+| **Band and jazz** | 37.6 MiB | upright bass, plucked (Sneakybass: the plucked double bass part, so electro swing's walking bass plays it once installed); alto and baritone saxophones; tuba; electric bass (Fashionbass); honky-tonk piano (falls back to the piano part); jazz guitar | Karoryfer, FreePats |
+| **Brushes and jazz drum kits** | 3.7 MiB | a jazz kit with sticks (kick, snare, closed and open hi-hat, ride, crash, tom: Virtuosity's middle microphone); a brushed kit (snare, stirs, hi-hat, ride, cajon) | Virtuosity Drums, Swirly Drums |
+| **Folk and world** | 5.9 MiB | bagpipe with its drones; steel pan version 2 (five loudness layers; outranks the mallets pack's pan) | FreePats, jSteelDrum 2 |
+| **Synth waves** | 9.1 MiB | all 4,358 AKWF single cycles (a wave set, no instruments) | AKWF |
+| **Electric pianos** (credited, CC BY 4.0) | 5.4 MiB | Wurlitzer EP200, Yamaha CP80, Hohner Pianet T (electric piano) | Greg Sullivan |
+| **Choir** (credited, CC BY 4.0) | 16.6 MiB | sopranos, altos, tenors and basses singing "ah" (one part per voice, ready for four-part writing) | epic-choir, from VocalSet |
+
+Three things the pipeline learned for them: its .7z reader follows a chain of coders (the ukulele is
+Deflate then 7-Zip's Delta filter); an SFZ's release-triggered regions are not notes, and takes it
+picks at random are numbered round robins; and **wave sets** (`scripts/instrument-recipes.json`
+`wavesets`, `src/instrument_packs/waves.rs`): single cycles kept as the library's own PCM bytes,
+because a lossy codec smears a 600-sample cycle, for the wavetable rung (E5) to read; nothing plays
+them yet, and Settings says so. A pack now says what it adds in a sentence under its name, and a
+credited pack names its `data/credits.ron` rows (a test holds each to a row shown on the Credits page
+and in the pack's licence line). The 37 new parts are marked `not_used_yet`: which genre plays which
+is the next genre pass's choice (the electronic rungs, and electro swing and lo-fi for the brushes, the
+honky-tonk piano and the electric pianos), not a change to the synthesis.
+
 ## The operator on electro swing (2026-11-13, after v0.1558.0)
 
 - **Switching genre is too slow.** "I clicked to enable electro swing but, the transition was really slow, felt like it took a minute or so." A bug to fix: a genre change should be heard within seconds, crossfading at the next bar.

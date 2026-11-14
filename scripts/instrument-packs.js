@@ -272,7 +272,9 @@ function sfzCandidates(recipe, lib) {
   const dir = path.posix.dirname(sfzPath);
   // A key opcode is a number or a note name ("Gb3", "C4"; SFZ's middle C is C4 = 60).
   const num = (v, d) => (v === undefined ? d : /^-?\d+(\.\d+)?$/.test(String(v)) ? Number(v) : B.noteToMidi(v) ?? d);
-  return regions.map((r) => {
+  // Only what a key press plays: a region triggered on the key's RELEASE (FreePats' accordion has a
+  // release sample under every note) is not a note of its own.
+  return regions.filter((r) => !r.trigger || r.trigger === 'attack' || r.trigger === 'first').map((r) => {
     const key = num(r.pitch_keycenter, num(r.key, 60));
     return {
       file: path.posix.normalize((dir === '.' ? '' : dir + '/') + (r.default_path || '') + r.sample.replace(/\\/g, '/')),
@@ -284,6 +286,9 @@ function sfzCandidates(recipe, lib) {
       hi_vel: num(r.hivel, 127),
       layer: num(r.lovel, 1),
       rr: num(r.seq_position, 1),
+      // A random round robin (lorand/hirand, FreePats' 2026 guitars and jSteelDrum 2) orders the
+      // takes of one zone; layout() numbers them 1, 2, 3.
+      rand: num(r.lorand, 0),
       tune: num(r.tune, 0),
       loop: r.loop_start !== undefined && r.loop_end !== undefined ? [Number(r.loop_start), Number(r.loop_end)] : null,
     };
@@ -528,6 +533,14 @@ function layout(samples, recipe, tune) {
       s.hi_key += tune.shift;
       s.key += 0; // pitch_keycenter already is the key the sample sounds at
     }
+    // Round robins numbered 1, 2, 3 within each zone, in the mapping's own order (seq_position,
+    // then lorand), so takes chosen at random by the SFZ do not all claim round robin 1.
+    const counts = new Map();
+    for (const s of [...kept].sort((a, b) => a.lo_key - b.lo_key || a.lo_vel - b.lo_vel || a.rr - b.rr || (a.rand || 0) - (b.rand || 0))) {
+      const z = `${s.lo_key}:${s.hi_key}:${s.lo_vel}:${s.hi_vel}`;
+      counts.set(z, (counts.get(z) || 0) + 1);
+      s.rr = counts.get(z);
+    }
   }
   return kept.sort((a, b) => a.key - b.key || a.lo_vel - b.lo_vel || a.rr - b.rr);
 }
@@ -598,6 +611,86 @@ function writeInstrumentFiles(root, recipe, lib, zones, tune, licenceText) {
   fs.writeFileSync(path.join(sampleDir, 'LICENSE.txt'), licenceText);
 }
 
+// ── Wave sets (2026-11-13) ───────────────────────────────────────────────────────────────────
+//
+// Single-cycle waves for the synthesiser's wavetable oscillator (docs/design/music.md, the
+// electronic rung E5; nothing plays them yet): AKWF's 600-frame cycles. Kept as the library's own
+// PCM WAV bytes, never re-encoded, because a lossy codec smears a single cycle. A recipe in
+// `wavesets` names its library, the folder under it, and either `groups` (how many of each
+// sub-folder to keep, spread through it) or every wave but `skip`; `count` is how many it must come
+// to, checked here. Written to <pack>/waves/<id>/: the waves in their sub-folders, waves.ron (the
+// index), the library's licence text.
+
+/** Format, channels, rate and frames of a PCM WAV, or null for anything else. */
+function pcmWavInfo(buf) {
+  if (buf.length < 12 || buf.subarray(0, 4).toString('ascii') !== 'RIFF' || buf.subarray(8, 12).toString('ascii') !== 'WAVE') return null;
+  let pos = 12;
+  let fmt = null;
+  while (pos + 8 <= buf.length) {
+    const id = buf.subarray(pos, pos + 4).toString('ascii');
+    const size = buf.readUInt32LE(pos + 4);
+    if (id === 'fmt ') fmt = { tag: buf.readUInt16LE(pos + 8), channels: buf.readUInt16LE(pos + 10), rate: buf.readUInt32LE(pos + 12), align: buf.readUInt16LE(pos + 20), bits: buf.readUInt16LE(pos + 22) };
+    else if (id === 'data' && fmt) {
+      if (fmt.tag !== 1 && fmt.tag !== 0xfffe) return null;
+      return { channels: fmt.channels, rate: fmt.rate, bits: fmt.bits, frames: Math.floor(Math.min(size, buf.length - pos - 8) / fmt.align) };
+    }
+    pos += 8 + size + (size & 1);
+  }
+  return null;
+}
+
+function chooseWaves(ws, files) {
+  const root = ws.from.root;
+  const groups = new Map();
+  for (const rel of files.list()) {
+    if (!rel.startsWith(root + '/') || !/\.wav$/i.test(rel)) continue;
+    const g = path.posix.dirname(rel.slice(root.length + 1));
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(rel);
+  }
+  const out = [];
+  for (const g of [...groups.keys()].sort()) {
+    if ((ws.from.skip || []).includes(g)) continue;
+    const list = groups.get(g).sort();
+    if (ws.from.groups) {
+      if (!(g in ws.from.groups)) continue;
+      if (list.length < ws.from.groups[g]) throw new Error(`wave set ${ws.id}: ${g} has ${list.length} waves, the recipe keeps ${ws.from.groups[g]}`);
+      out.push(...spread(list, ws.from.groups[g]));
+    } else out.push(...list);
+  }
+  if (ws.from.groups) {
+    const missing = Object.keys(ws.from.groups).filter((g) => !groups.has(g));
+    if (missing.length) throw new Error(`wave set ${ws.id}: no folder ${missing.join(', ')} under ${root}`);
+  }
+  return out;
+}
+
+function buildWaveSet(ws, lib, files, root) {
+  const chosen = chooseWaves(ws, files);
+  if (ws.count != null && chosen.length !== ws.count) throw new Error(`wave set ${ws.id}: ${chosen.length} waves chosen, the recipe says ${ws.count}`);
+  const dir = path.join(root, 'waves', ws.id);
+  const waves = chosen.map((rel) => {
+    const data = files.read(rel);
+    const info = pcmWavInfo(data);
+    if (!info) throw new Error(`wave set ${ws.id}: ${rel} is not a PCM WAV`);
+    const file = rel.slice(ws.from.root.length + 1);
+    fs.mkdirSync(path.join(dir, path.posix.dirname(file)), { recursive: true });
+    fs.writeFileSync(path.join(dir, file), data);
+    return { file, frames: info.frames, rate: info.rate, channels: info.channels, bits: info.bits };
+  });
+  const index = B.struct('WaveSet', {
+    id: ws.id,
+    words: `instrument_packs.waveset.${ws.id}`,
+    licence: { name: lib.licence_name, words: `instrument_packs.licence.${lib.licence}`, file: 'LICENSE.txt' },
+    source: { library: lib.name, url: lib.url, version: lib.version, fetched: lib.fetched },
+    credit: lib.credit,
+    waves,
+  });
+  fs.writeFileSync(path.join(dir, 'waves.ron'), HEADER + B.ron(index) + '\n');
+  fs.writeFileSync(path.join(dir, 'LICENSE.txt'), files.read(lib.licence_file).toString('utf8').replace(/\r\n?/g, '\n'));
+  return { ws, root, count: waves.length, bytes: dirBytes(dir) };
+}
+
 function dirBytes(d) {
   let n = 0;
   if (!fs.existsSync(d)) return 0;
@@ -619,21 +712,32 @@ function filesUnder(root, rel, out) {
 
 function catalogRon(recipes, packs, coreBytes, coreIds) {
   const refs = (ids) => ids.map((id) => ({ id, part: recipes.instruments.find((r) => r.id === id).part }));
+  // A pack's wave sets, with the count each recipe promises (checked when it is built).
+  const waveRefs = (pack) => (recipes.wavesets || []).filter((w) => w.pack === pack).map((w) => ({ id: w.id, count: w.count }));
   const cat = B.struct('PackCatalog', {
     release: recipes.release,
     base_url: recipes.base_url,
-    core: B.struct('', { words: 'instrument_packs.pack.core', instruments: refs(coreIds), bytes: coreBytes }),
-    packs: packs.map((p) => ({
-      id: p.id,
-      version: p.version,
-      family: p.family,
-      words: `instrument_packs.pack.${p.id}`,
-      file: p.file,
-      bytes: p.bytes,
-      sha256: p.sha256,
-      licence: `instrument_packs.licence.${p.licence}`,
-      instruments: refs(p.instruments),
-    })),
+    core: B.struct('', { words: 'instrument_packs.pack.core', instruments: refs(coreIds), waves: waveRefs('core'), bytes: coreBytes }),
+    packs: packs.map((p) => {
+      const r = recipes.packs[p.id] || {};
+      return {
+        id: p.id,
+        version: p.version,
+        family: p.family,
+        words: `instrument_packs.pack.${p.id}`,
+        // What the pack adds, in a sentence (Settings shows it under the pack's name).
+        about: r.about ? B.some(`instrument_packs.pack_about.${p.id}`) : null,
+        file: p.file,
+        bytes: p.bytes,
+        sha256: p.sha256,
+        licence: `instrument_packs.licence.${p.licence}`,
+        // Rows of data/credits.ron the pack's licence obliges us to show (CC BY): a test holds each
+        // to a row marked required and shown on the Credits page.
+        credits: r.credits || [],
+        instruments: refs(p.instruments),
+        waves: waveRefs(p.id),
+      };
+    }),
   });
   return HEADER + B.ron(cat) + '\n';
 }
@@ -657,7 +761,10 @@ async function main(argv) {
       const files = opened.get(recipe.library);
       const pack = recipe.pack;
       const quality = (recipes.packs[pack] || {}).quality ?? 5;
-      const cands = recipe.from.sfz ? sfzCandidates(recipe, files) : patternCandidates(recipe, files);
+      let cands = recipe.from.sfz ? sfzCandidates(recipe, files) : patternCandidates(recipe, files);
+      // Samples a mapping holds that are not notes of this instrument (the ukulele's body tap and
+      // muted chuck, mapped to keys of their own).
+      if (recipe.from.exclude) cands = cands.filter((c) => !new RegExp(recipe.from.exclude).test(c.file));
       const chosen = select(recipe, cands);
       if (chosen.length === 0) throw new Error(`instrument ${recipe.id}: no samples matched its recipe`);
       log(`${recipe.id} (${pack}): ${chosen.length} of ${cands.length} samples`);
@@ -676,6 +783,10 @@ async function main(argv) {
       // header: licence_lines, its first lines.
       let licenceText = files.read(lib.licence_file).toString('utf8').replace(/\r\n?/g, '\n');
       if (lib.licence_lines) licenceText = licenceText.split('\n').slice(0, lib.licence_lines).join('\n') + '\n';
+      // A `licence_preface` says what the archive's own file does not (2026-11-13: Greg Sullivan's
+      // own site licenses his pianos CC BY 4.0 while the SFZ conversion's file says 3.0; Sneakybass's
+      // archive carries only a readme line; epic-choir's zips carry its attribution, not its LICENSE).
+      if (lib.licence_preface) licenceText = lib.licence_preface.replace(/\r\n?/g, '\n') + '\n\n' + licenceText;
       writeInstrumentFiles(root, recipe, lib, zones, tune, licenceText);
       const off = zones.filter((z) => z.measured && Math.abs(1200 * Math.log2(z.measured / B.noteHz(z.key, tune.a4 || 440))) > 30).length;
       log(`  ${zones.length} zones, ${tune.how}${off ? `; ${off} sample(s) measured more than 30 cents off their key` : ''}`);
@@ -683,6 +794,15 @@ async function main(argv) {
       const hot = zones.filter((z) => z.peak > 1.0).length;
       if (hot) throw new Error(`instrument ${recipe.id}: ${hot} sample(s) peak over full scale; lower the mix gains`);
       built.push({ recipe, root, bytes: dirBytes(staging) });
+    }
+    const builtWaves = [];
+    for (const ws of (recipes.wavesets || []).filter((w) => !args.only || args.only.has(w.id))) {
+      const lib = recipes.libraries[ws.library];
+      if (!lib) throw new Error(`wave set ${ws.id}: no library ${ws.library}`);
+      if (!opened.has(ws.library)) opened.set(ws.library, openLibrary(ws.library, lib, args.src, log));
+      const b = buildWaveSet(ws, lib, opened.get(ws.library), path.join(scratch, ws.pack));
+      log(`${ws.id} (${ws.pack}): ${b.count} waves, ${(b.bytes / 1048576).toFixed(2)} MiB, kept as PCM`);
+      builtWaves.push(b);
     }
 
     // The core set: straight into the repository's data/music (it ships inside the app).
@@ -695,7 +815,13 @@ async function main(argv) {
       fs.cpSync(path.join(b.root, 'samples', id), path.join(args.coreOut, 'samples', id), { recursive: true });
       fs.copyFileSync(path.join(b.root, 'instruments', id + '.ron'), path.join(args.coreOut, 'instruments', id + '.ron'));
     }
-    const coreBytes = coreIds.reduce((n, id) => n + dirBytes(path.join(args.coreOut, 'samples', id)) + (fs.existsSync(path.join(args.coreOut, 'instruments', id + '.ron')) ? fs.statSync(path.join(args.coreOut, 'instruments', id + '.ron')).size : 0), 0);
+    const coreWaveIds = (recipes.wavesets || []).filter((w) => w.pack === 'core').map((w) => w.id);
+    for (const b of builtWaves.filter((b) => b.ws.pack === 'core')) {
+      fs.rmSync(path.join(args.coreOut, 'waves', b.ws.id), { recursive: true, force: true });
+      fs.cpSync(path.join(b.root, 'waves', b.ws.id), path.join(args.coreOut, 'waves', b.ws.id), { recursive: true });
+    }
+    const coreBytes = coreIds.reduce((n, id) => n + dirBytes(path.join(args.coreOut, 'samples', id)) + (fs.existsSync(path.join(args.coreOut, 'instruments', id + '.ron')) ? fs.statSync(path.join(args.coreOut, 'instruments', id + '.ron')).size : 0), 0)
+      + coreWaveIds.reduce((n, id) => n + dirBytes(path.join(args.coreOut, 'waves', id)), 0);
     const limit = (recipes.packs.core || {}).max_bytes;
     if (limit && coreBytes > limit) throw new Error(`the core set is ${coreBytes} bytes, over its ${limit}`);
     if (coreBuilt.length) log(`core set: ${coreIds.length} instruments, ${(coreBytes / 1048576).toFixed(1)} MiB in ${args.coreOut}`);
@@ -705,12 +831,14 @@ async function main(argv) {
     for (const [id, p] of Object.entries(recipes.packs)) {
       if (id === 'core') continue;
       const ids = recipes.instruments.filter((r) => r.pack === id).map((r) => r.id);
+      const waveIds = (recipes.wavesets || []).filter((w) => w.pack === id).map((w) => w.id);
       const file = `humanity-instruments-${id}-v${p.version}.tar`;
-      const ready = built.filter((b) => b.recipe.pack === id);
+      const ready = [...built.filter((b) => b.recipe.pack === id), ...builtWaves.filter((b) => b.ws.pack === id)];
       const entry = { id, version: p.version, family: p.family || id, file, licence: p.licence || 'cc0', instruments: ids };
-      if (ready.length === ids.length && ids.length > 0) {
+      const whole = ids.length + waveIds.length;
+      if (ready.length === whole && whole > 0) {
         const root = path.join(scratch, id);
-        const manifest = HEADER + B.ron(B.struct('PackManifest', { id, version: p.version, instruments: ids })) + '\n';
+        const manifest = HEADER + B.ron(B.struct('PackManifest', { id, version: p.version, instruments: ids, waves: waveIds })) + '\n';
         fs.writeFileSync(path.join(root, 'pack.ron'), manifest);
         const entries = filesUnder(root, '', []).map((rel) => ({ path: rel, data: fs.readFileSync(path.join(root, rel)) }));
         const tar = B.tarBuffer(entries);
@@ -719,12 +847,12 @@ async function main(argv) {
         entry.bytes = tar.length;
         entry.sha256 = crypto.createHash('sha256').update(tar).digest('hex');
         fs.writeFileSync(path.join(args.packsOut, file + '.sha256'), `${entry.sha256}  ${file}\n`);
-        log(`pack ${id}: ${ids.length} instruments, ${(tar.length / 1048576).toFixed(1)} MiB, sha256 ${entry.sha256}`);
+        log(`pack ${id}: ${ids.length} instruments and ${waveIds.length} wave set(s), ${(tar.length / 1048576).toFixed(1)} MiB, sha256 ${entry.sha256}`);
       } else if (ready.length && !args.writeCatalog) {
-        log(`pack ${id}: ${ready.length} of its ${ids.length} instruments built; no archive (a trial run)`);
+        log(`pack ${id}: ${ready.length} of its ${whole} instruments and wave sets built; no archive (a trial run)`);
         continue;
       } else if (ready.length) {
-        throw new Error(`pack ${id}: only ${ready.length} of its ${ids.length} instruments were built (use --only for whole packs, or --no-catalog)`);
+        throw new Error(`pack ${id}: only ${ready.length} of its ${whole} instruments and wave sets were built (use --only for whole packs, or --no-catalog)`);
       } else {
         // Not rebuilt this run: keep what the catalog says.
         const prev = fs.existsSync(args.catalog) ? fs.readFileSync(args.catalog, 'utf8') : '';

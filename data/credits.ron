@@ -306,5 +306,33 @@
             attribution_required: true,
             shown_in: ["Credits", "Settings > AI (the model's card, before the download)", "The model's folder (LICENSE.txt and README.md)"],
         ),
+        // The two credited instrument packs (2026-11-13; the operator: "credit-only CC BY libraries
+        // allowed in OPTIONAL packs, never in the core set"). Downloaded only when a person chooses
+        // them in Settings > Audio > Instruments; each pack's licence line there names the makers, and
+        // its LICENSE.txt in every sample folder carries the licence and attribution text.
+        // src/instrument_packs/data_tests.rs holds every credited pack (packs.ron `credits`) to its row
+        // here, marked required and shown on both surfaces. Sources and checksums:
+        // docs/reference/instrument-sources.md ("The 2026-11-13 batch"); finding:
+        // docs/reference/findings/2026-11-13-free-instrument-libraries.md (its "Downloaded" addendum).
+        (
+            id: "epic_choir",
+            name: "epic-choir (thepok), from VocalSet",
+            used_for: "The Choir instrument pack, a download in Settings > Audio > Instruments: soprano, alto, tenor and bass voices singing \"ah\" (epic-choir v1.0, 2026-10-24), trimmed and converted to Ogg Vorbis by HumanityOS.",
+            licence: "CC BY 4.0",
+            notice: "Choir samples: epic-choir by thepok (2026), derived from VocalSet (Wilkins, Seetharaman, Wahl, Pardo 2018), CC BY 4.0, https://doi.org/10.5281/zenodo.1442513; trimmed and converted by HumanityOS",
+            url: "https://github.com/thepok/epic-choir",
+            attribution_required: true,
+            shown_in: ["Credits", "Settings > Audio > Instruments (the Choir pack's licence line)", "The pack's sample folders (LICENSE.txt)"],
+        ),
+        (
+            id: "greg_sullivan_epianos",
+            name: "Greg Sullivan's electric pianos",
+            used_for: "The Electric pianos instrument pack, a download in Settings > Audio > Instruments: a Wurlitzer EP200, a Yamaha CP80 and a Hohner Pianet T, from the SFZ conversion by kinwie, trimmed and converted to Ogg Vorbis by HumanityOS.",
+            licence: "CC BY 4.0",
+            notice: "Electric piano samples by Greg Sullivan (www.sullivang.net), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/); SFZ mapping by kinwie; trimmed and converted by HumanityOS",
+            url: "https://www.sullivang.net/",
+            attribution_required: true,
+            shown_in: ["Credits", "Settings > Audio > Instruments (the Electric pianos pack's licence line)", "The pack's sample folders (LICENSE.txt)"],
+        ),
     ],
 )

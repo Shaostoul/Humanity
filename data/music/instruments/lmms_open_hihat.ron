@@ -1,0 +1,24 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "lmms_open_hihat",
+    words: "instrument_packs.instrument.lmms_open_hihat",
+    part: "electronic_open_hat",
+    rank: 20,
+    kind: Sampler((
+        folder: "lmms_open_hihat",
+        pitched: false,
+        source_a4_hz: 440.0,
+        tuning_note: "unpitched: played at its recorded rate, never retuned",
+        release_s: 0.3,
+        normalized: false,
+        zones: [
+            (file: "OHH_1.ogg", key: 46, lo_key: 46, hi_key: 46, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: None, measured_hz: None, loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "A#2", high: "A#2"),
+    reverb_send: 0.2,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "LMMS assets sample library", url: "https://github.com/LMMS/assets", version: "commit bc09e0745c69c73bd6c3112122031e4963ce3876 (2021-08-24)", fetched: "2026-11-13"),
+    credit: "Drum hits and effects from the LMMS project's sample library (github.com/LMMS/assets): kicks by Markus Hakala, risers by Deficio, acoustic drums, percussion and foley by Subaqueous and Ian Sannar. Public domain (CC0 1.0).",
+)

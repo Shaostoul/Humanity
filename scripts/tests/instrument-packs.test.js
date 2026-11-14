@@ -301,3 +301,126 @@ test('the tar writer is plain ustar and reads back', () => {
   assert.strictEqual(back[1].data.toString(), 'bee');
   assert.throws(() => B.tarBuffer([{ path: '../evil', data: Buffer.alloc(1) }]), /not allowed/);
 });
+
+/** A fixture library: `entries` (paths under Lib/) as a tar.gz, with its recorded size and SHA-256. */
+function fixtureLib(work, entries) {
+  const archive = path.join(work, 'lib', 'Lib.tar.gz');
+  fs.mkdirSync(path.dirname(archive), { recursive: true });
+  fs.writeFileSync(archive, zlib.gzipSync(B.tarBuffer([{ path: 'Lib/LICENSE', data: Buffer.from(LICENCE) }, ...entries])));
+  return {
+    name: 'Lib', url: 'https://example.invalid/lib', version: 'test', fetched: '2026-11-13', licence: 'cc0', licence_name: 'CC0 1.0',
+    archive: 'lib/Lib.tar.gz', strip: 'Lib', bytes: fs.statSync(archive).size,
+    sha256: crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex'), licence_file: 'LICENSE', credit: 'Test sounds.',
+  };
+}
+
+/** One 600-frame single cycle (AKWF's shape): 16-bit mono PCM at 44.1 kHz. */
+function cycle(seed) {
+  const data = Buffer.alloc(1200);
+  for (let i = 0; i < 600; i++) data.writeInt16LE(Math.round(20000 * Math.sin((2 * Math.PI * i) / 600) + seed * 37), i * 2);
+  const h = Buffer.alloc(44);
+  h.write('RIFF', 0);
+  h.writeUInt32LE(36 + data.length, 4);
+  h.write('WAVE', 8);
+  h.write('fmt ', 12);
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22);
+  h.writeUInt32LE(44100, 24);
+  h.writeUInt32LE(88200, 28);
+  h.writeUInt16LE(2, 32);
+  h.writeUInt16LE(16, 34);
+  h.write('data', 36);
+  h.writeUInt32LE(data.length, 40);
+  return Buffer.concat([h, data]);
+}
+
+/**
+ * 2026-11-13, the operator-approved FreePats and steel pan downloads: an SFZ's RELEASE regions are
+ * not notes (the accordion has a release sample under each), and takes it chooses at random
+ * (lorand) are numbered round robins 1, 2 rather than all claiming 1. Seen RED first against the
+ * pipeline before the change (HEAD's instrument-packs.js copied over it, this file run, put back):
+ * "the release sample is not a note: 3 zones".
+ */
+test('an SFZ: release regions left out, random takes numbered as round robins', async () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hos-instr-test3-'));
+  try {
+    const sfz = [
+      '<group> lokey=58 hikey=62 pitch_keycenter=60',
+      '<region> sample=s/a1.wav lorand=0.5 hirand=1',
+      '<region> sample=s/a2.wav lorand=0 hirand=0.5',
+      '<group> trigger=release lokey=58 hikey=62 pitch_keycenter=60',
+      '<region> sample=s/rel.wav',
+      '<group> trigger=attack key=70',
+      '<region> sample=s/tap.wav',
+    ].join('\n');
+    const lib = fixtureLib(work, [
+      { path: 'Lib/inst.sfz', data: Buffer.from(sfz) },
+      { path: 'Lib/s/a1.wav', data: wav(B.noteHz(60, 440), 0.5, 0.8, 0.1) },
+      { path: 'Lib/s/a2.wav', data: wav(B.noteHz(60, 440), 0.4, 0.8, 0.1) },
+      { path: 'Lib/s/rel.wav', data: wav(0, 0.2, 0.2, 0.05, 3) },
+      { path: 'Lib/s/tap.wav', data: wav(0, 0.3, 0.2, 0.05, 4) },
+    ]);
+    const r = {
+      release: 'x', base_url: 'http://127.0.0.1/', packs: { core: { quality: 0, max_bytes: 2000000 } }, libraries: { lib },
+      instruments: [{ id: 'sfz_inst', pack: 'core', part: 'piano', rank: 10, library: 'lib', from: { sfz: 'inst.sfz', exclude: 'tap' }, max_seconds: 1 }],
+    };
+    const out = await build(work, r);
+    const z = zones(fs.readFileSync(path.join(out.core, 'instruments', 'sfz_inst.ron'), 'utf8'));
+    assert.strictEqual(z.length, 2, `the release sample is not a note: ${z.length} zones`);
+    assert.deepStrictEqual(z.map((x) => x.rr).sort(), [1, 2], 'the two random takes are round robins 1 and 2');
+    const src = fs.readFileSync(path.join(out.core, 'samples', 'sfz_inst', 'source.ron'), 'utf8');
+    assert.match(src, /from: "s\/a2\.wav"/);
+    assert.doesNotMatch(src, /rel\.wav/);
+    assert.doesNotMatch(src, /tap\.wav/, 'a sample the recipe excludes is left out');
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});
+
+/**
+ * 2026-11-13, AKWF: a wave set keeps single cycles as the library's own PCM bytes (a lossy codec
+ * smears a cycle), a slice of each folder for the core set and every wave for a pack, with a
+ * waves.ron index, the licence text, the count the recipe promises (a different count is refused),
+ * and the catalog saying what each pack adds and whose credit it needs. Seen RED first against the
+ * pipeline before wave sets (HEAD's instrument-packs.js copied over it, this file run, put back):
+ * "a core wave set lands in data/music/waves".
+ */
+test('a wave set: single cycles kept byte for byte, in the core set and in a pack', async () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hos-instr-test4-'));
+  try {
+    const entries = [];
+    for (let i = 1; i <= 4; i++) entries.push({ path: `Lib/W/Saw/saw_000${i}.wav`, data: cycle(i) });
+    for (let i = 1; i <= 2; i++) entries.push({ path: `Lib/W/Sq/sq_000${i}.wav`, data: cycle(10 + i) });
+    const lib = fixtureLib(work, entries);
+    const r = {
+      release: 'x', base_url: 'http://127.0.0.1/', libraries: { lib }, instruments: [],
+      packs: { core: { quality: 0, max_bytes: 2000000 }, synth: { version: 1, family: 'synth', licence: 'cc0', about: true, credits: ['someone'] } },
+      wavesets: [
+        { id: 'w_core', pack: 'core', library: 'lib', from: { root: 'W', groups: { Saw: 2 } }, count: 2 },
+        { id: 'w_all', pack: 'synth', library: 'lib', from: { root: 'W' }, count: 6 },
+      ],
+    };
+    const out = await build(work, r);
+    const core = path.join(out.core, 'waves', 'w_core');
+    assert.ok(fs.existsSync(path.join(core, 'waves.ron')), 'a core wave set lands in data/music/waves');
+    assert.deepStrictEqual(fs.readdirSync(path.join(core, 'Saw')).sort(), ['saw_0001.wav', 'saw_0004.wav'], 'two spread through the folder');
+    assert.ok(fs.readFileSync(path.join(core, 'Saw', 'saw_0004.wav')).equals(cycle(4)), 'byte for byte the library\'s PCM');
+    assert.strictEqual(fs.readFileSync(path.join(core, 'LICENSE.txt'), 'utf8'), LICENCE);
+    const index = fs.readFileSync(path.join(core, 'waves.ron'), 'utf8');
+    assert.match(index, /\(file: "Saw\/saw_0001\.wav", frames: 600, rate: 44100, channels: 1, bits: 16\)/);
+    assert.match(index, /words: "instrument_packs\.waveset\.w_core"/);
+    const tar = B.readTar(fs.readFileSync(path.join(out.packs, 'humanity-instruments-synth-v1.tar')));
+    const names = tar.map((e) => e.path);
+    assert.ok(names.includes('waves/w_all/Sq/sq_0002.wav') && names.includes('waves/w_all/waves.ron'), 'the pack holds every wave');
+    assert.match(tar.find((e) => e.path === 'pack.ron').data.toString(), /waves: \[\s*"w_all",?\s*\]/);
+    const catalog = fs.readFileSync(out.catalog, 'utf8');
+    assert.match(catalog, /waves: \[\s*\(id: "w_core", count: 2\),?\s*\]/);
+    assert.match(catalog, /about: Some\("instrument_packs\.pack_about\.synth"\)/);
+    assert.match(catalog, /credits: \[\s*"someone",?\s*\]/);
+    r.wavesets[1].count = 5;
+    await assert.rejects(build(work, r, path.join(work, 'packs-refused')), /6 waves chosen, the recipe says 5/, 'a count that does not match is refused');
+  } finally {
+    fs.rmSync(work, { recursive: true, force: true });
+  }
+});

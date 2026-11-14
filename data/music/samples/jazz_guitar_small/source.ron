@@ -1,0 +1,32 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "FreePats Electric Guitar FSBS (jazz)",
+    url: "https://freepats.zenvoid.org/ElectricGuitar/clean-electric-guitar.html",
+    version: "2026-08-07",
+    licence: "CC0 1.0",
+    fetched: "2026-11-13",
+    archive: "freepats-eguitar-fsbs-jazz/EGuitarFSBS-jazz-SFZ+FLAC-20260807.7z",
+    archive_sha256: "c584f2e176575ba78c2ae8f45e04309badd0c912e654582880dba3146715c688",
+    kept: [
+        (file: "C2_s1_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/C2_s1_01.flac"),
+        (file: "E2_s1_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/E2_s1_01.flac"),
+        (file: "F2_s1_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/F2_s1_01.flac"),
+        (file: "A2_s2_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/A2_s2_01.flac"),
+        (file: "C3_s2_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/C3_s2_01.flac"),
+        (file: "D3_s3_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/D3_s3_01.flac"),
+        (file: "E3_s3_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/E3_s3_01.flac"),
+        (file: "G3_s4_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/G3_s4_01.flac"),
+        (file: "B3_s5_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/B3_s5_01.flac"),
+        (file: "Cs4_s5_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/C#4_s5_01.flac"),
+        (file: "E4_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/E4_s6_01.flac"),
+        (file: "G4_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/G4_s6_01.flac"),
+        (file: "B4_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/B4_s6_01.flac"),
+        (file: "C5_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/C5_s6_01.flac"),
+        (file: "D5_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/D5_s6_01.flac"),
+        (file: "F5_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/F5_s6_01.flac"),
+        (file: "Gs5_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/G#5_s6_01.flac"),
+        (file: "As5_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/A#5_s6_01.flac"),
+        (file: "Cs6_s6_01.ogg", from: "EGuitarFSBS-jazz SFZ+FLAC-20260807/samples/bridge/C#6_s6_01.flac"),
+    ],
+)

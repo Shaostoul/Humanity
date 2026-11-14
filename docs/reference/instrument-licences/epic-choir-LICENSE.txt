@@ -1,0 +1,7 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+The samples, SFZ programs and demos of epic-choir are a derived work of VocalSet
+(Wilkins, J., Prem Seetharaman, Alison Wahl, & Bryan Pardo. (2018). VocalSet: A Singing Voice Dataset
+(Version 1.2) [Dataset]. Zenodo. https://doi.org/10.5281/zenodo.1442513), licensed under CC BY 4.0,
+and are released under the same licence by thepok (2026). Changes: see README.md and ATTRIBUTION.txt.

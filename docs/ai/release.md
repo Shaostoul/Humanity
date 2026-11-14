@@ -208,11 +208,15 @@ agent's job; **uploading them is the top-level session's step** (a standing perm
    beside it. The encoding is bitexact, so an unchanged recipe on the same ffmpeg rebuilds
    byte-identical packs (`git diff data/music/packs.ron` shows no change). Each pack carries each
    library's licence text in every sample folder (a release asset has no licence file of its own).
+   Two packs are not public domain (2026-11-13): Choir and Electric pianos are CC BY 4.0, so their
+   licence text names the makers and `data/credits.ron` credits them (a data test holds each credited
+   pack to its row). Since 2026-11-13 a pack can also hold wave sets (`waves/<id>/`, plain PCM single
+   cycles: the Synth waves pack).
 
 2. Upload (the top-level session; the first time creates the release, later times replace the assets):
 
    ```bash
-   gh release create assets-instruments-1 --repo Shaostoul/Humanity --latest=false --title "Instrument packs" --notes "CC0 instrument packs for Settings > Audio > Instruments. Built by just instrument-packs; sources in docs/reference/instrument-sources.md." E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
+   gh release create assets-instruments-1 --repo Shaostoul/Humanity --latest=false --title "Instrument packs" --notes "Instrument packs for Settings > Audio > Instruments: public domain except Choir and Electric pianos (CC BY 4.0, credited in the app). Built by just instrument-packs; sources in docs/reference/instrument-sources.md." E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
    # later rebuilds:
    gh release upload assets-instruments-1 --repo Shaostoul/Humanity --clobber E:/HumanityOS/instrument-packs/*.tar E:/HumanityOS/instrument-packs/*.sha256
    ```

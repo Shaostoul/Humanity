@@ -1,0 +1,24 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "lmms_punch_snare",
+    words: "instrument_packs.instrument.lmms_punch_snare",
+    part: "electronic_snare",
+    rank: 20,
+    kind: Sampler((
+        folder: "lmms_punch_snare",
+        pitched: false,
+        source_a4_hz: 440.0,
+        tuning_note: "unpitched: played at its recorded rate, never retuned",
+        release_s: 0.3,
+        normalized: false,
+        zones: [
+            (file: "Punch_Snare_1.ogg", key: 38, lo_key: 38, hi_key: 38, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: None, measured_hz: None, loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "D2", high: "D2"),
+    reverb_send: 0.2,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "LMMS assets sample library", url: "https://github.com/LMMS/assets", version: "commit bc09e0745c69c73bd6c3112122031e4963ce3876 (2021-08-24)", fetched: "2026-11-13"),
+    credit: "Drum hits and effects from the LMMS project's sample library (github.com/LMMS/assets): kicks by Markus Hakala, risers by Deficio, acoustic drums, percussion and foley by Subaqueous and Ian Sannar. Public domain (CC0 1.0).",
+)

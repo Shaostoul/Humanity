@@ -1,0 +1,26 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "FreePats Ukulele",
+    url: "https://freepats.zenvoid.org/GuitarFamily/ukulele.html",
+    version: "2026-08-11",
+    licence: "CC0 1.0",
+    fetched: "2026-11-13",
+    archive: "freepats-ukulele/Ukulele-SFZ+FLAC-20260811.7z",
+    archive_sha256: "d71b66382687175dca8aad53cad3290f6b418d48b6a2c0722af58b372f054bf4",
+    kept: [
+        (file: "C4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/C4.flac"),
+        (file: "D4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/D4.flac"),
+        (file: "E4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/E4.flac"),
+        (file: "Fs4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/F#4.flac"),
+        (file: "G4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/G4.flac"),
+        (file: "A4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/A4.flac"),
+        (file: "B4.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/B4.flac"),
+        (file: "Cs5.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/C#5.flac"),
+        (file: "Ds5.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/D#5.flac"),
+        (file: "F5.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/F5.flac"),
+        (file: "G5.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/G5.flac"),
+        (file: "A5.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/A5.flac"),
+        (file: "C6.ogg", from: "Ukulele SFZ+FLAC-20260811/samples/C6.flac"),
+    ],
+)

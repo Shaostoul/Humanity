@@ -76,7 +76,10 @@ impl GarmentPack {
             bytes: self.bytes,
             sha256: self.sha256.clone(),
             licence: String::new(),
+            about: None,
+            credits: Vec::new(),
             instruments: Vec::new(),
+            waves: Vec::new(),
         }
     }
 }

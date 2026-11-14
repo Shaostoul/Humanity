@@ -11,7 +11,12 @@ the crate card docs/crates/humanity-music.md). To add music you add DATA, no cod
 
 - **An instrument**: a file in `data/music/instruments/` of one of the kinds (Synth, Choir, Modal,
   Membrane, Fm, Plucked, Noise, Sampler). A recorded instrument (a CC0 sample pack) is a `Sampler`
-  with a synthesised `fallback`, so music plays without the pack.
+  with a synthesised `fallback`, so music plays without the pack. A recorded instrument comes from a
+  recipe in `scripts/instrument-recipes.json` (`just instrument-packs`; the libraries and their
+  licences in `docs/reference/instrument-sources.md`), and plays a part of `data/music/parts.ron`.
+- **Single-cycle waves** for the synthesiser (2026-11-13, AKWF): a `wavesets` recipe in the same
+  file keeps the library's PCM WAVs byte for byte in `data/music/waves/<id>/` (or a pack's `waves/`);
+  nothing plays them until the wavetable rung (music.md, the electronic rungs).
 - **A mood** (where and what): `data/music/moods/`: keys, chords and the moves between them, phrase
   and chord lengths, tempo, which instrument plays each role, motifs.
 - **A genre** (how it sounds): `data/music/genres/`: tempo, groove, drum patterns as text, harmony

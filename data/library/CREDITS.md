@@ -120,6 +120,33 @@ listed here for a kindness they did not ask credit for.
   docs/reference/asset-and-map-sources.md; anything that ships gets
   credited here.
 
+## Sound and music sources
+
+The recorded instruments the live score can play (Settings > Audio > Instruments). Each download,
+its size, checksum and licence text is recorded in `docs/reference/instrument-sources.md`.
+
+- **FreePats** (https://freepats.zenvoid.org) - CC0 sound banks: the Kawai upright piano, the Hang in
+  D minor, and since 2026-11-13 the button accordion (Jeff Stauffer, michael02022), the honky-tonk
+  Piano FB (Piotr Barcz), the ukulele (Mateusz Dąbrowski), the bagpipe (Gilles Sadowski), the clean
+  jazz electric guitar and the finger bass (Andrea Biasior).
+- **Versilian Studios** (https://versilian-studios.com) - CC0: the Versilian Community Sample Library,
+  VS Chamber Orchestra 2: Community Edition, and Virtuosity Drums (with Karoryfer).
+- **Karoryfer Lecolds** (https://shop.karoryfer.com) - CC0: Black And Green Guitars, Big Rusty Drums,
+  and since 2026-11-13 Swirly Drums, Sneakybass, Weresax, Bear Sax, Fashionbass and War Tuba.
+- **Jeff Learman** - jSteelDrum versions 1 (CC0) and 2 (the Unlicense), a C tenor steel pan.
+- **LMMS** (https://github.com/LMMS/assets) - CC0 drum hits and effects: kicks by Markus Hakala,
+  risers by Deficio, acoustic drums and foley by Subaqueous and Ian Sannar.
+- **AKWF, Adventure Kid Waveforms** (Kristoffer Ekstrand, https://github.com/KristofferKarlAxelEkstrand/AKWF-FREE) -
+  CC0 single-cycle waves for the synthesiser.
+- **epic-choir** by thepok (https://github.com/thepok/epic-choir), the Choir pack: choir samples
+  derived from VocalSet (Wilkins, Seetharaman, Wahl, Pardo 2018), CC BY 4.0,
+  https://doi.org/10.5281/zenodo.1442513; trimmed and converted to Ogg Vorbis by HumanityOS. Not
+  public domain: see `LICENSES.md`.
+- **Greg Sullivan** (https://www.sullivang.net), the Electric pianos pack: a Yamaha CP80, a Hohner
+  Pianet T and a Wurlitzer EP200, licensed under CC BY 4.0; SFZ mapping by kinwie
+  (https://github.com/sfzinstruments/GregSullivan.E-Pianos); trimmed and converted to Ogg Vorbis by
+  HumanityOS. Not public domain: see `LICENSES.md`.
+
 ## Typefaces
 
 The letters you are reading right now, in the app and on this site.

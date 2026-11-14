@@ -1,0 +1,35 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+Instrument(
+    id: "electric_bass_small",
+    words: "instrument_packs.instrument.electric_bass_small",
+    part: "electric_bass",
+    rank: 20,
+    kind: Sampler((
+        folder: "electric_bass_small",
+        pitched: true,
+        source_a4_hz: 441.14,
+        tuning_note: "measured: median of 12 samples, +4.5 cents from A = 440",
+        release_s: 0.2,
+        normalized: false,
+        zones: [
+            (file: "E.ogg", key: 28, lo_key: 26, hi_key: 28, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(41.31), measured_hz: Some(41.229), loop_start: None, loop_end: None),
+            (file: "F.ogg", key: 29, lo_key: 29, hi_key: 29, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(43.767), measured_hz: Some(43.827), loop_start: None, loop_end: None),
+            (file: "Fs.ogg", key: 30, lo_key: 30, hi_key: 30, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(46.369), measured_hz: Some(46.665), loop_start: None, loop_end: None),
+            (file: "G.ogg", key: 31, lo_key: 31, hi_key: 31, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(49.126), measured_hz: Some(49.301), loop_start: None, loop_end: None),
+            (file: "Gs.ogg", key: 32, lo_key: 32, hi_key: 32, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(52.048), measured_hz: Some(52.111), loop_start: None, loop_end: None),
+            (file: "A.ogg", key: 33, lo_key: 33, hi_key: 33, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(55.143), measured_hz: Some(55.086), loop_start: None, loop_end: None),
+            (file: "As.ogg", key: 34, lo_key: 34, hi_key: 34, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(58.421), measured_hz: Some(58.566), loop_start: None, loop_end: None),
+            (file: "B.ogg", key: 35, lo_key: 35, hi_key: 35, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(61.895), measured_hz: Some(61.958), loop_start: None, loop_end: None),
+            (file: "C.ogg", key: 36, lo_key: 36, hi_key: 36, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(65.576), measured_hz: Some(65.374), loop_start: None, loop_end: None),
+            (file: "Cs.ogg", key: 37, lo_key: 37, hi_key: 37, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(69.475), measured_hz: Some(69.209), loop_start: None, loop_end: None),
+            (file: "D.ogg", key: 38, lo_key: 38, hi_key: 38, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(73.606), measured_hz: Some(73.314), loop_start: None, loop_end: None),
+            (file: "Ds.ogg", key: 39, lo_key: 39, hi_key: 45, lo_vel: 1, hi_vel: 127, rr: 1, recorded_hz: Some(77.983), measured_hz: Some(77.683), loop_start: None, loop_end: None),
+        ],
+    )),
+    range: (low: "D1", high: "A2"),
+    reverb_send: 0.15,
+    licence: (name: "CC0 1.0", words: "instrument_packs.licence.cc0", file: "LICENSE.txt"),
+    source: (library: "FreePats Finger Bass YR", url: "https://freepats.zenvoid.org/ElectricGuitar/clean-electric-bass.html", version: "2019-09-30", fetched: "2026-11-13"),
+    credit: "A Yamaha RBX bass guitar played with the fingers, sampled by Andrea Biasior for FreePats (freepats.zenvoid.org), 2019. Public domain (CC0 1.0).",
+)

@@ -75,6 +75,13 @@ fn the_instrument_data_parses_and_every_sample_has_its_licence() {
         let r = catalog.core.instruments.iter().find(|r| &r.id == id).unwrap();
         assert_eq!(r.part, a.def.part, "{id}: the catalog says the part its definition plays");
     }
+    // The core set's wave sets count toward the same budget (2026-11-13, AKWF).
+    fn tree_bytes(p: &std::path::Path) -> u64 {
+        std::fs::read_dir(p).map(|rd| rd.flatten().map(|e| if e.path().is_dir() { tree_bytes(&e.path()) } else { e.metadata().map(|m| m.len()).unwrap_or(0) }).sum()).unwrap_or(0)
+    }
+    for w in &catalog.core.waves {
+        core_bytes += tree_bytes(&super::waves::WaveSet::dir(&data.join("music"), &w.id));
+    }
     assert!(core_bytes < 30 * 1024 * 1024, "the core set is under 30 MB: {core_bytes} bytes");
     for e in std::fs::read_dir(data.join("music").join("instruments")).unwrap().flatten() {
         let def = Instrument::parse(&std::fs::read_to_string(e.path()).unwrap()).expect("every instrument file parses");
@@ -99,6 +106,64 @@ fn the_instrument_data_parses_and_every_sample_has_its_licence() {
     }
     for r in &catalog.core.instruments {
         assert!(has_words(&format!("instrument_packs.instrument.{}", r.id)), "{} has its name in en.json", r.id);
+    }
+}
+
+/// A CREDITED PACK CARRIES ITS CREDIT (2026-11-13, the operator: "credit-only CC BY libraries allowed
+/// in OPTIONAL packs, never in the core set"). Every pack whose licence is not public domain names
+/// the rows of `data/credits.ron` its licence obliges the app to show, and each row exists, is marked
+/// attribution-required, and is shown on the Credits page and on the pack's own row in Settings >
+/// Audio > Instruments (whose licence words name the makers). The core set stays public domain: every
+/// core instrument's licence words are a public-domain key. RED first (2026-11-13), with the choir and
+/// electric piano packs in packs.ron before their credits.ron rows were written: "pack electric_pianos:
+/// its credit greg_sullivan_epianos is not a row of data/credits.ron".
+#[test]
+fn credited_packs_carry_their_credits_and_the_core_stays_public_domain() {
+    const PUBLIC_DOMAIN: [&str; 3] = ["instrument_packs.licence.cc0", "instrument_packs.licence.unlicense", "instrument_packs.licence.cc0_unlicense"];
+    let data = data();
+    let catalog = PackCatalog::load(&data).expect("packs.ron");
+    let credits = humanity_core::credits::Credits::load(&data);
+    assert!(!credits.sources.is_empty(), "data/credits.ron loads");
+    for p in &catalog.packs {
+        let public = PUBLIC_DOMAIN.contains(&p.licence.as_str());
+        assert!(public || !p.credits.is_empty(), "pack {}: its licence {} is not public domain, so it names its credits", p.id, p.licence);
+        for id in &p.credits {
+            let row = credits.get(id).unwrap_or_else(|| panic!("pack {}: its credit {id} is not a row of data/credits.ron", p.id));
+            assert!(row.attribution_required, "pack {}: the credit {id} is marked attribution_required", p.id);
+            assert!(row.shown_in.iter().any(|s| s == "Credits"), "pack {}: the credit {id} is shown on the Credits page", p.id);
+            assert!(row.shown_in.iter().any(|s| s.starts_with("Settings > Audio > Instruments")), "pack {}: the credit {id} names the pack's row in Settings > Audio > Instruments", p.id);
+        }
+    }
+    let lib = InstrumentLibrary::load_roots(&[(data.join("music"), None)]);
+    for a in &lib.instruments {
+        assert!(PUBLIC_DOMAIN.contains(&a.def.licence.words.as_str()), "core instrument {} is public domain, not {}", a.def.id, a.def.licence.words);
+    }
+}
+
+/// THE CORE SET'S WAVE SETS (2026-11-13, AKWF): each one the catalog lists is in data/music/waves with
+/// its index, its licence text and every wave it lists, each a plain PCM WAV of the length the index
+/// says (a lossy codec would smear a single cycle), public domain, and counted in the 30 MB budget
+/// (the core size check above adds the waves folders). RED first (2026-11-13) with the catalog
+/// listing akwf_core before the pipeline had written it: "...data/music/waves/akwf_core/waves.ron: The
+/// system cannot find the path specified. (os error 3)" (the folder moved aside, the test run, put back).
+#[test]
+fn the_core_wave_sets_are_whole_plain_pcm_and_public_domain() {
+    let data = data();
+    let catalog = PackCatalog::load(&data).expect("packs.ron");
+    let music = data.join("music");
+    for w in &catalog.core.waves {
+        let set = super::waves::WaveSet::load(&music, &w.id).unwrap_or_else(|e| panic!("{e}"));
+        let dir = super::waves::WaveSet::dir(&music, &w.id);
+        assert_eq!(set.waves.len() as u32, w.count, "{}: the catalog's count is the index's", w.id);
+        assert!(has_words(&set.words) && has_words(&set.licence.words), "{}: its name and licence words are in en.json", w.id);
+        assert_eq!(set.licence.words, "instrument_packs.licence.cc0", "{}: public domain", w.id);
+        assert!(dir.join(&set.licence.file).is_file(), "{}: its licence text is beside it", w.id);
+        for wave in &set.waves {
+            let bytes = std::fs::read(dir.join(&wave.file)).unwrap_or_else(|e| panic!("{}: {}: {e}", w.id, wave.file));
+            assert!(bytes.len() > 44 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WAVE", "{}: {} is a WAV", w.id, wave.file);
+            let data_bytes = u64::from(wave.frames) * u64::from(wave.channels) * u64::from(wave.bits / 8);
+            assert!(bytes.len() as u64 >= data_bytes + 44, "{}: {} holds its {} frames", w.id, wave.file, wave.frames);
+        }
     }
 }
 

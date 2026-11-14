@@ -74,7 +74,10 @@ impl ModelPack {
             bytes: self.bytes,
             sha256: self.sha256.clone(),
             licence: self.licence.clone(),
+            about: None,
+            credits: Vec::new(),
             instruments: Vec::new(),
+            waves: Vec::new(),
         }
     }
 }

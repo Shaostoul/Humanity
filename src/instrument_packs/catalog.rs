@@ -25,6 +25,9 @@ pub struct CoreSet {
     /// Its name, by key.
     pub words: String,
     pub instruments: Vec<InstrumentRef>,
+    /// Its wave sets (2026-11-13): single cycles for the synthesiser, in `data/music/waves/<id>/`.
+    #[serde(default)]
+    pub waves: Vec<WaveSetRef>,
     pub bytes: u64,
 }
 
@@ -34,6 +37,16 @@ pub struct CoreSet {
 pub struct InstrumentRef {
     pub id: String,
     pub part: String,
+}
+
+/// A wave set a set holds (2026-11-13, AKWF): single-cycle waves for the synthesiser's wavetable
+/// oscillator, kept as plain PCM, and how many. Nothing in the music plays them yet (the electronic
+/// rung E5, docs/design/music.md); Settings says so. Its index is `waves/<id>/waves.ron`
+/// (`super::waves::WaveSet`).
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct WaveSetRef {
+    pub id: String,
+    pub count: u32,
 }
 
 /// One downloadable pack.
@@ -47,6 +60,9 @@ pub struct PackEntry {
     pub family: String,
     /// Its name, by key.
     pub words: String,
+    /// What it adds, in a sentence, by key (Settings shows it under the name; 2026-11-13).
+    #[serde(default)]
+    pub about: Option<String>,
     /// The archive's file name on the release.
     pub file: String,
     /// The archive's size and SHA-256 (lower-case hex). Empty until the pipeline has built it.
@@ -54,7 +70,14 @@ pub struct PackEntry {
     pub sha256: String,
     /// The licence in plain words, by key.
     pub licence: String,
+    /// The rows of `data/credits.ron` its licence obliges the app to show (a CC BY pack: the choir,
+    /// the electric pianos; 2026-11-13). A test holds each to a row that is marked required and
+    /// shown on the Credits page.
+    #[serde(default)]
+    pub credits: Vec<String>,
     pub instruments: Vec<InstrumentRef>,
+    #[serde(default)]
+    pub waves: Vec<WaveSetRef>,
 }
 
 impl PackEntry {

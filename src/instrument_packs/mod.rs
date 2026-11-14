@@ -48,6 +48,8 @@ pub mod score;
 pub mod tar;
 /// The Settings section's state, and the frame step that runs its downloads and removals.
 pub mod ui;
+/// Wave sets: single-cycle waves for the synthesiser, kept as plain PCM (2026-11-13, AKWF).
+pub mod waves;
 
 #[cfg(test)]
 mod install_tests;

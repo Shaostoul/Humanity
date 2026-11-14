@@ -254,3 +254,108 @@ disk (the engine plays each sample at the rate that puts it at A = 432 Hz or 440
 recorded pitch, measured by the pipeline, is in its instrument's definition). The core set and the
 packs, their sizes and checksums: `data/music/packs.ron`, and the summary in
 [`docs/design/music.md`](../design/music.md) section 23.
+
+## The 2026-11-13 batch: the research list, approved
+
+**Added 13 November 2026** (downloaded 2026-11-13, 23:18 to 23:37 UTC). The operator, shown the
+download list in
+[`research/2026-11-13-instrument-libraries/README.md`](research/2026-11-13-instrument-libraries/README.md)
+section 8: "Let's go for it and see what kind of procedural music we can make." and "Let's go with
+your recommendations" (credit-only CC BY libraries allowed in OPTIONAL packs, never in the core set;
+share-alike libraries left out). Exactly the eleven items below were downloaded, each from the source
+and version the research names, each into its own new folder under `E:\HumanityOS\instruments-src\`
+and logged in `download-log.txt` there (name, URL, version, time, bytes, SHA-256). Not TinySOL, not
+anything else. Each archive was unpacked into an empty folder beside it and nothing inside was run.
+The licence findings: [`findings/2026-11-13-free-instrument-libraries.md`](findings/2026-11-13-free-instrument-libraries.md).
+
+How each was checked: every size against the research's figure (all within 1%) and GitHub's listed
+size; the SHA-256 against GitHub's published digest where GitHub has one (the ukulele, the bagpipe,
+the jazz guitar, Weresax, Virtuosity Drums: all matched); the three GitHub snapshots (LMMS, the
+electric pianos, the steel pan) and AKWF file by file against the git blob hashes of the pinned
+commit (every file identical); and each licence read from the download's own file after it arrived
+and copied word for word into [`instrument-licences/`](instrument-licences/).
+
+| Library | File (folder under instruments-src) | Bytes | SHA-256 |
+|---|---|---|---|
+| AKWF, the AKWF folder at commit `8de90bf` | `akwf-free/`: 4,358 WAVs and LICENSE.md, packed by us into `AKWF-FREE-8de90bf-AKWF-folder.tar` for the pipeline | 6,100,107 (the files); 9,135,104 (the tar) | tar `3046ac3c199158ef3cad8e82768cb4d623db47a6592f54285ee4e6b054c78dd4`; per-file list `manifest-8de90bf.txt` (`410db1d3...1ead71`) |
+| Karoryfer Swirly Drums v1.104 | `karoryfer-swirly-drums/Swirly.Drums_1104.zip` | 868,594,745 | `dbeb1ad04052da1bada490ced8cc7d9fdd3b21ea90f7c6020269968b70f836c3` |
+| Karoryfer Sneakybass v1.000 | `karoryfer-sneakybass/Sneakybass_v1.000.zip` | 340,462,855 | `df57ef935f2d006d83f898f615893cd2e9f93d00d01fb03921c54cd6dd5014dd` |
+| FreePats Button Accordion HN 2024-03-29 | `freepats-button-accordion-hn/ButtonAccordionHN-SFZ+FLAC-20240329.7z` | 5,018,321 | `e5326a8830f0358faa195609fd21d0c1dbab899e39bd7f44b1590ebf2ce5035e` |
+| FreePats Piano FB (Old Piano FB) 2020-04-01 | `freepats-old-piano-fb/PianoFB-SFZ+FLAC-20200401.7z` | 35,745,634 | `da35c93967c421b17f7219c12a37830ffd2b19f54f8a0a71203fc6161b079b45` |
+| FreePats Ukulele 2026-08-11 | `freepats-ukulele/Ukulele-SFZ+FLAC-20260811.7z` | 2,402,413 | `d71b66382687175dca8aad53cad3290f6b418d48b6a2c0722af58b372f054bf4` |
+| FreePats Bagpipe 2026-08-06 | `freepats-bagpipe/Bagpipe-SFZ+FLAC-20260806.7z` | 16,201,625 | `0cd9771ba6f2d48603b9163d94b0bcb4ca718950e6eab76cd9142e6f9a14e378` |
+| FreePats FSBS Electric Guitar Clean #2 (Jazz) 2026-08-07 | `freepats-eguitar-fsbs-jazz/EGuitarFSBS-jazz-SFZ+FLAC-20260807.7z` | 65,919,794 | `c584f2e176575ba78c2ae8f45e04309badd0c912e654582880dba3146715c688` |
+| FreePats Bass Guitar YR (finger) 2019-09-30 | `freepats-finger-bass-yr/FingerBassYR-SFZ+FLAC-20190930.7z` | 3,252,347 | `36f87ec9eb086ef25050312522aacf71213c582f46989e0c5a12681304596587` |
+| LMMS assets, commit `bc09e07` | `lmms-assets/LMMS-assets-bc09e0745c69c73bd6c3112122031e4963ce3876.tar.gz` | 51,475,469 | `f7cfffd87a3dcb4e472372bce8d5615096164f8341f03d72a9c4bae76984feb4` |
+| Karoryfer Weresax v1.003 | `karoryfer-weresax/Karoryfer.Weresax.v.1.003.zip` | 197,565,664 | `916dcb44b2ec8f03a3578c374dd1f1fdaa43e9e0264d921f65da2a339539d2ba` |
+| Karoryfer Bear Sax v1.004 | `karoryfer-bear-sax/Karoryfer.Bear_Sax.v1.004.zip` | 131,505,201 | `66c28ea361c86943b2e2bcda6ca48cf105fec4f60a8f40e7c6bbf584be45c654` |
+| Karoryfer Fashionbass v1.001 | `karoryfer-fashionbass/Karoryfer.Fashionbass.v1.001.zip` | 316,328,061 | `3beaa956b8ff97d9f0e7f31d263453fe113a2d07d4be99146b3590c8f5dd5442` |
+| Virtuosity Drums v0.925 | `virtuosity-drums/Virtuosity_Drums_v0.925.zip` | 1,227,151,376 | `c6c5d0fe11a394e94be3146a950c3377ec102cb57d189d5a23cec26183d1963a` |
+| Karoryfer War Tuba v1.002 | `karoryfer-war-tuba/Karoryfer_War_Tuba_v1002.zip` | 109,135,588 | `4f0b065c18b89111df4281df34c5120cd2d5b9a0c6b316835ec08d7891fd88d9` |
+| jSteelDrum version 2, commit `dc15a36` | `jsteeldrum2/jlearman.SteelDrum-dc15a36ad69a43b0d240fcbd0cc78fbc61b2b47e.tar.gz` | 39,785,926 | `c6dc676c0dd80cc2db97f2f0e87828519d961f43afcf1f3aad6f58df07d97672` |
+| epic-choir v1.0, soprano | `epic-choir/S/epic-choir-v1.0-S.zip` | 175,828,851 | `06943e75d638ccaf630eedff51cf177fe5bbd87b4ce7fe799c4db46b8df48209` |
+| epic-choir v1.0, alto | `epic-choir/A/epic-choir-v1.0-A.zip` | 171,659,141 | `a0ab193e78f45a9e8925280bc19b6dfee215b87f968481d14fd3dcbb2d58b7cf` |
+| epic-choir v1.0, tenor | `epic-choir/T/epic-choir-v1.0-T.zip` | 174,248,456 | `72a8cbe9e7ee8e99a49ad0e771c70b4bcd0b7ac6f23cfd75bf8376c03257a26f` |
+| epic-choir v1.0, bass | `epic-choir/B/epic-choir-v1.0-B.zip` | 173,859,746 | `3f78e9b59018dc2ef45bb30d1b57cb68f22768d15e1f1c1a4f93d0b5e4b3002f` |
+| Greg Sullivan's electric pianos, the SFZ conversion at commit `8c3e581` | `gregsullivan-e-pianos/GregSullivan.E-Pianos-8c3e581acda3594b553948ff0222d4f84a698376.tar.gz` | 19,254,201 | `e88ff3a3536fb559657c2ae4e09ae201e01b60f30f97dec5c4ca98a85f7f7554` |
+
+Where they came from, and each licence as its own file words it:
+
+- **AKWF** (Kristoffer Ekstrand): `https://raw.githubusercontent.com/KristofferKarlAxelEkstrand/AKWF-FREE/8de90bf94376670947369e69de0af6b9fbd19286/AKWF/...`,
+  only the `AKWF` folder and the repository's `LICENSE.md` (the repository is over 800 MiB of the
+  same waves in other products' formats). `LICENSE.md` is the CC0 1.0 Universal legal code; it opens
+  "CC0 1.0 Universal" ([`akwf-free-LICENSE.md`](instrument-licences/akwf-free-LICENSE.md)).
+- **Karoryfer** (Swirly Drums, Sneakybass, Weresax, Bear Sax, Fashionbass, War Tuba): the release
+  assets of `github.com/sfzinstruments/karoryfer.<name>`. Swirly's `license`, and the `LICENSE` of
+  Weresax, Bear Sax, Fashionbass and War Tuba, are the CC0 1.0 Universal legal code ("Creative
+  Commons Legal Code / CC0 1.0 Universal"). **Sneakybass's zip has no licence file**: its readme says
+  "Royalty-free for all commercial and non-commercial use. CC-0 license.", and the repository's
+  `LICENSE` (read through GitHub's API on 2026-11-13) is the CC0 legal code; both are copied
+  ([`karoryfer-sneakybass-readme.txt`](instrument-licences/karoryfer-sneakybass-readme.txt),
+  [`karoryfer-sneakybass-repository-LICENSE.txt`](instrument-licences/karoryfer-sneakybass-repository-LICENSE.txt)),
+  and the pack's licence text says so before the readme.
+- **FreePats** (accordion, Old Piano FB, ukulele, bagpipe, jazz guitar, finger bass): the release
+  assets the bank pages on `freepats.zenvoid.org` link (its robots.txt is absent: a 404). Each
+  archive's `LICENSE.txt` is the CC0 1.0 legal code and each README ends "Published under the terms
+  of Creative Commons CC0 public domain dedication" (the finger bass: "under the terms of the
+  Creative Commons CC0 1.0 public domain dedication").
+- **LMMS assets**: `https://codeload.github.com/LMMS/assets/tar.gz/bc09e07...` (the working tree, 49.4
+  MiB; the repository with its history is 725 MiB). `LICENSE` is the CC0 1.0 legal code; the samples'
+  README: "Samples must be CC0 (dedicated to the public domain)." and "Samples must be
+  created/recorded by you."
+- **Virtuosity Drums** (Versilian Studios): the v0.925 release asset of
+  `github.com/sfzinstruments/virtuosity_drums`; `LICENSE` is the CC0 1.0 legal code.
+- **jSteelDrum version 2** (Jeff Learman): `https://codeload.github.com/sfzinstruments/jlearman.SteelDrum/tar.gz/dc15a36...`;
+  `LICENSE`: "This is free and unencumbered software released into the public domain." (the
+  Unlicense).
+- **epic-choir v1.0** (thepok), credited: the four release assets of `github.com/thepok/epic-choir`.
+  The zips carry `ATTRIBUTION.txt`, not the licence; the repository's `LICENSE` (GitHub's API,
+  2026-11-13): "Creative Commons Attribution 4.0 International (CC BY 4.0)" and "The samples, SFZ
+  programs and demos of epic-choir are a derived work of VocalSet (Wilkins, J., Prem Seetharaman,
+  Alison Wahl, & Bryan Pardo. (2018). VocalSet: A Singing Voice Dataset (Version 1.2) [Dataset].
+  Zenodo. https://doi.org/10.5281/zenodo.1442513), licensed under CC BY 4.0, and are released under
+  the same licence by thepok (2026)." `ATTRIBUTION.txt` asks for this credit: "Choir
+  samples derived from VocalSet (Wilkins, Seetharaman, Wahl, Pardo 2018), CC BY 4.0,
+  https://doi.org/10.5281/zenodo.1442513" ([`epic-choir-LICENSE.txt`](instrument-licences/epic-choir-LICENSE.txt),
+  [`epic-choir-ATTRIBUTION.txt`](instrument-licences/epic-choir-ATTRIBUTION.txt)). The four zips sat
+  in one folder at first; they were moved into `epic-choir/S`, `A`, `T` and `B` (bytes unchanged) so
+  the pipeline can unpack each beside itself.
+- **Greg Sullivan's electric pianos**, credited: the brief named `www.sullivang.net`. Its robots.txt
+  returns the site's home page (no rules); the home page says: "Licensing (updated 21-Oct-2026) : All
+  these instruments I host here now have Creative Commons Attribution 4.0 International licensing.
+  (CC BY 4.0)". The site itself hosts Gigastudio files; its Conversions page names the SFZ
+  conversion, "SFZ: https://github.com/sfzinstruments/GregSullivan.E-Pianos", which is the 18.8 MB
+  source the research's download list names, so that is what was downloaded. Its own `LICENSE` is
+  Creative Commons Attribution 3.0 Unported, and its README says the instruments were mapped by
+  kinwie "with the author permission with the request for attribution." Both licences ask only for
+  credit; the pack's licence text quotes the author's 4.0 grant first, then the conversion's 3.0 text
+  ([`gregsullivan-e-pianos-LICENSE.txt`](instrument-licences/gregsullivan-e-pianos-LICENSE.txt),
+  [`gregsullivan-e-pianos-README.md`](instrument-licences/gregsullivan-e-pianos-README.md)).
+
+**What the app gets from them** (recipes in `scripts/instrument-recipes.json`; sizes and checksums
+in `data/music/packs.ron`): the core set gains the accordion, the ukulele, the small electric bass, a
+small jazz guitar, a dozen LMMS hits and risers, and 207 AKWF single cycles kept as plain PCM; six new
+packs hold the rest: Band and jazz, Brushes and jazz drum kits, Folk and world, Synth waves, and the
+two credited packs, Electric pianos and Choir (each credited on the Credits page, `data/credits.ron`,
+and in its own licence line in Settings > Audio > Instruments). The summary table is in
+[`docs/design/music.md`](../design/music.md) section 23.

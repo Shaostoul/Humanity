@@ -276,6 +276,28 @@ Redistributing these files means keeping their licence texts with them; both lic
 also disclaim every warranty, and the AI tag on every line a model writes (rung 3)
 says that a model, not a person, wrote it.
 
+## The instrument packs - two credited downloads (CC BY 4.0)
+
+The recorded instruments in the app's core set (`data/music/`) and in most instrument packs are
+public domain (CC0 1.0, or the Unlicense for the steel pan): the list and every licence text are in
+`docs/reference/instrument-sources.md`. Two packs, downloaded only when a person chooses them in
+Settings > Audio > Instruments and never inside the app, are **not** public domain (operator,
+2026-11-13: credited libraries in optional packs only, never in the core set):
+
+- **Choir**: **epic-choir** by thepok (<https://github.com/thepok/epic-choir>), a derived work of
+  **VocalSet** (Wilkins, Seetharaman, Wahl, Pardo 2018, <https://doi.org/10.5281/zenodo.1442513>),
+  licensed under **CC BY 4.0** (<https://creativecommons.org/licenses/by/4.0/>).
+- **Electric pianos**: sampled by **Greg Sullivan** (<https://www.sullivang.net>), licensed under
+  **CC BY 4.0** by his own site since 21 October 2026; the SFZ mapping by kinwie
+  (<https://github.com/sfzinstruments/GregSullivan.E-Pianos>) carries CC BY 3.0 Unported.
+
+HumanityOS trimmed their samples and converted them to Ogg Vorbis. Each pack carries its licence and
+attribution text in every sample folder, and the app credits both on the Credits page
+(`data/credits.ron`) and in each pack's licence line; a test fails if a credited pack loses its
+credit (`src/instrument_packs/data_tests.rs`). Redistributing these packs means keeping that credit,
+the licence link and the note that they were changed. The research, quoted and dated:
+`docs/reference/findings/2026-11-13-free-instrument-libraries.md`.
+
 ## The project's own code
 
 HumanityOS source is licensed as stated in the repository root. These

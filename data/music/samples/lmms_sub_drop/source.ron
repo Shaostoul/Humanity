@@ -1,0 +1,14 @@
+// Written by scripts/instrument-packs.js (`just instrument-packs`) from scripts/instrument-recipes.json.
+// Edit the recipe and run it again rather than editing this file.
+SampleSource(
+    library: "LMMS assets sample library",
+    url: "https://github.com/LMMS/assets",
+    version: "commit bc09e0745c69c73bd6c3112122031e4963ce3876 (2021-08-24)",
+    licence: "CC0 1.0",
+    fetched: "2026-11-13",
+    archive: "lmms-assets/LMMS-assets-bc09e0745c69c73bd6c3112122031e4963ce3876.tar.gz",
+    archive_sha256: "f7cfffd87a3dcb4e472372bce8d5615096164f8341f03d72a9c4bae76984feb4",
+    kept: [
+        (file: "Sub_Drop.ogg", from: "Samples/Sample library/SFXs/Sub Drop.flac"),
+    ],
+)

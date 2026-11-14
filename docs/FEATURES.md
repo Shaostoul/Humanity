@@ -3035,7 +3035,15 @@ part now. Each pack is checked against its SHA-256 before it is unpacked; a dama
 For each part of the score the best instrument installed plays, and its synthesised voice when none
 is (`data/music/parts.ron`), so the music always plays. Decoded samples obey the "turn off all
 reuse" switch. The score plays them through its sampler voice (`src/instrument_packs/score.rs` attaches them by part).
-- Native: `src/instrument_packs/` (catalog, definition, install, library, samples, tar, ui),
+**The 2026-11-13 batch** (the research list, approved): the core set gains a button accordion, a
+ukulele, a small electric bass, a small jazz guitar, a dozen LMMS hits and risers and 207 AKWF
+single-cycle waves kept as plain PCM (wave sets, `data/music/waves/`, for the synthesiser's wavetable
+rung; nothing plays them yet); six more packs: Band and jazz (Sneakybass, alto and baritone saxes,
+War Tuba, Fashionbass, the honky-tonk Piano FB, a jazz guitar), Brushes and jazz drum kits (Virtuosity,
+Swirly), Folk and world (bagpipe, steel pan version 2), Synth waves (all 4,358 AKWF waves), and two
+credited CC BY packs, Electric pianos (Greg Sullivan) and Choir (epic-choir), credited on the Credits
+page and in their licence lines. 37 new parts wait marked `not_used_yet` until a genre names them.
+- Native: `src/instrument_packs/` (catalog, definition, install, library, samples, tar, ui, waves),
   `src/gui/pages/settings/instruments.rs`, `instrument_packs::ui::tick` in `src/lib.rs`
 - Data: `data/music/packs.ron` (generated), `data/music/parts.ron`, `data/music/instruments/*.ron`
   and `data/music/samples/<id>/` (generated core set, each with `LICENSE.txt` and `source.ron`)
