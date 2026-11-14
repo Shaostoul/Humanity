@@ -48,7 +48,7 @@ fn step_of(rate: u32) -> f32 {
 fn play(res: &Resolved, inst: u16, notes: &[f32], hold_s: f32, seconds: f32, mut between: impl FnMut()) -> Vec<f32> {
     let mut pool = VoicePool::new(1);
     for (k, &midi) in notes.iter().enumerate() {
-        pool.note_on(NoteOn { inst, role: 0, midi, a4: 440.0, vel: 0.8, pan: 0.0, hold_s, tag: k as u32 + 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+        pool.note_on(NoteOn { inst, role: 0, midi, a4: 440.0, vel: 0.8, pan: 0.0, gate: 0.0, hold_s, tag: k as u32 + 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
     }
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
     let p = BlockParams::plain(RATE, 1.0, &vowel);
@@ -240,7 +240,7 @@ fn block_cost(streamed: bool, voices: usize) -> (f64, f64) {
         let (res, inst) = resolved_with(zones);
         let mut vp = VoicePool::new(1);
         for k in 0..voices as u32 {
-            vp.note_on(NoteOn { inst, role: 0, midi: 40.0 + (k % 12) as f32, a4: 440.0, vel: 0.8, pan: 0.0, hold_s: 0.0, tag: k + 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+            vp.note_on(NoteOn { inst, role: 0, midi: 40.0 + (k % 12) as f32, a4: 440.0, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: k + 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
         }
         assert_eq!(vp.streaming(), if streamed { voices } else { 0 }, "every note streams, or none");
         let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];

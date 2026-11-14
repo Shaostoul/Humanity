@@ -66,7 +66,7 @@ impl Score {
     fn play(&self, role: RoleKind, key: u8, velocity: u8, a4: f32, frames: usize) -> Vec<[f32; 2]> {
         let inst = self.res.moods[self.mood].roles[role.index()].as_ref().expect("the role").inst;
         let mut pool = VoicePool::new(1);
-        pool.note_on(NoteOn { inst, role: 0, midi: key as f32, a4, vel: velocity as f32 / 127.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &self.res.instruments, &self.res.banks, RATE as f32);
+        pool.note_on(NoteOn { inst, role: 0, midi: key as f32, a4, vel: velocity as f32 / 127.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &self.res.instruments, &self.res.banks, RATE as f32);
         let vowel = [(humanity_music::dsp::SvfCoefs::new(800.0, 10.0, RATE as f32), 1.0); 5];
         let p = BlockParams::plain(RATE as f32, 1.0, &vowel);
         let mut out = Vec::with_capacity(frames);

@@ -1,0 +1,131 @@
+// "House" (docs/design/music.md section 7g, rung E6, 2026-11-14). The operator: "I'm interested in
+// having all the instruments." and, of the electronic genres, "how we could make music like dubstep".
+//
+// What is captured is the GENRE's commonplace building blocks (the 2026-11-12 copyright finding), never
+// any artist's recordings, melodies or riffs. From the research's sources (read 2026-11-13,
+// docs/reference/research/2026-11-13-instrument-libraries/electronic-genres-and-synthesis.md section
+// 2): "a repetitive four-on-the-floor beat and a typical tempo of 115-130 beats per minute"; "the bass
+// drum is usually played on beats one, two, three, and four, and the snare drum, claps, or other
+// higher-pitched percussion on beats two and four"; "off-beat hi-hats"; "almost always provided by an
+// electronic drum machine, often a Roland TR-808, TR-909, or a TR-707"; "House music tracks are often
+// based on eight-bar sections which are repeated" (Wikipedia, "House music", 7 November 2026); and the
+// bass "ducked by the kick" ("side-chaining is often used on basslines, controlled by the kick drum",
+// Wikipedia, "Dynamic range compression", 14 October 2026).
+//
+// So: 120 to 126 bpm with a light swing; the 909-STYLE kit (its kick four on the floor, its clap on 2
+// and 4, its open hat on every off-beat, closed hats between, now and then its snare under the clap),
+// or the same kick under the 808-STYLE percussion (its clap and hats, a cowbell now and then, a
+// rimshot playing the clave the early Chicago records leaned on); fills down the toms at a phrase's
+// end; an off-beat synth bass and the chords both pumping under the kick; minor-seventh chords struck
+// as short stabs; a tempo-synced dotted-eighth delay on the stabs and the riffs; a reverb with its
+// lows cut; and a DJ's structure: an intro of drums alone, the bass joining, the main groove, a
+// breakdown, a build,
+// the drop (a reversed cymbal swelling into it), an outro (a downlifter falling as it begins).
+Genre(
+    id: "house",
+    words: "music.genre.house",
+    about_words: "music.genre.house_about",
+    tempo_bpm: Some((120.0, 126.0)),
+    beat_felt: Some(true),
+    beats_per_bar: Some(4),
+    groove: Some((swing: 0.54, subdivision: 4, syncopation: 0.03, humanize_ms: 2.0)),
+    // The kit a piece draws: the 909 (listed first, twice as likely), or the 909 kick under the 808's
+    // percussion.
+    kits: [(id: "909", weight: 2.0), (id: "808", weight: 1.0)],
+    drums: [
+        // The kick four on the floor; it pumps the bass and the chords, and keeps the floor under a fill.
+        (instrument: "kick_909", note: "A1", velocity: 0.95, patterns: ["x...x...x...x...", "x...x...x...x...", "x...x...x...x..o"], kits: ["909", "808"], ducks: true, under_fills: true, sections: ["intro", "groove", "main", "drop", "outro"]),
+        (instrument: "clap_909", note: "D3", velocity: 0.75, patterns: ["....x.......x...", "....x.......x...", "....x.......x..g"], kit: Some("909"), sections: ["groove", "main", "drop", "outro"]),
+        (instrument: "hat_909_closed", note: "D5", velocity: 0.4, patterns: ["xg.gxg.gxg.gxg.g", "x..gx..gx..gx..g", "xg.gxg.gxg.gxgxg"], kit: Some("909"), sections: ["intro", "groove", "main", "build", "drop", "outro"]),
+        (instrument: "hat_909_open", note: "D5", velocity: 0.45, patterns: ["..x...x...x...x."], kit: Some("909"), sections: ["intro", "groove", "main", "drop", "outro"]),
+        (instrument: "snare_909", note: "D3", velocity: 0.5, patterns: ["................", "............x...", "...g.......g...."], kit: Some("909"), sections: ["main", "drop"]),
+        // A fill down the toms (high, mid, low) in a phrase's last bar; a phrase that draws the rests
+        // has none.
+        (instrument: "tom_909", note: "A2", notes: ["D3", "A2", "E2"], velocity: 0.7, patterns: ["........1.1.2.3.", "............1233", "................", "..........2.2.3."], kit: Some("909"), fill: true, sections: ["intro", "groove", "main", "drop"]),
+        (instrument: "clap_808", note: "D3", velocity: 0.75, patterns: ["....x.......x...", "....x.......x...", "....x.......x..g"], kit: Some("808"), sections: ["groove", "main", "drop", "outro"]),
+        (instrument: "hat_808_closed", note: "D5", velocity: 0.45, patterns: ["xg.gxg.gxg.gxg.g", "x..gx..gx..gx..g"], kit: Some("808"), sections: ["intro", "groove", "main", "build", "drop", "outro"]),
+        (instrument: "hat_808_open", note: "D5", velocity: 0.4, patterns: ["..x...x...x...x."], kit: Some("808"), sections: ["intro", "groove", "main", "drop", "outro"]),
+        (instrument: "cowbell_808", note: "D5", velocity: 0.3, patterns: ["......x.......x.", "...x......x.....", "................"], kit: Some("808"), sections: ["main", "drop"]),
+        // The clave (three, then two) on the rimshot, quietly.
+        (instrument: "rimshot_808", note: "D4", velocity: 0.35, patterns: ["x..x..x...x.x...", "x..x..x...x.x...", "..x..x....x..x.."], kit: Some("808"), sections: ["main", "drop"]),
+        (instrument: "tom_808", note: "A2", notes: ["D3", "A2", "E2"], velocity: 0.7, patterns: ["........1.1.2.3.", "............1233", "................", "..........2.2.3."], kit: Some("808"), fill: true, sections: ["intro", "groove", "main", "drop"]),
+    ],
+    structure: Some((
+        // (The intro names only the texture, which house turns off: the drums alone, as a DJ's intro.)
+        sections: [
+            (name: "intro", bars: 8, roles: [Texture], energy: 0.9),
+            (name: "groove", bars: 8, roles: [Bass], energy: 0.95),
+            (name: "main", bars: 16, roles: [Bass, Pad, Melody]),
+            (name: "breakdown", bars: 8, roles: [Pad, Melody], energy: 0.85, fall: true),
+            (name: "build", bars: 8, roles: [Pad], build: true, energy: 0.9),
+            (name: "drop", bars: 16, roles: [Bass, Pad, Melody], drop: true, swell: true),
+            (name: "outro", bars: 8, roles: [Bass], energy: 0.9, fall: true),
+        ],
+        roll: Some((instrument: "snare_909", note: "D3", velocity: 0.7)),
+        riser: Some((instrument: "riser", part: Some("riser"), note: "D4", velocity: 0.6, beats: 16.0)),
+        reverse_cymbal: Some((instrument: "reverse_cymbal", note: "C4", velocity: 0.75, beats: 4.0)),
+        downlifter: Some((instrument: "downlifter", note: "C4", velocity: 0.7)),
+        gap_beats: 1.0,
+    )),
+    // The bass and the chords pump under the kick.
+    sidechain: Some((roles: [Bass, Pad], depth_db: -6.0, release_s: 0.22)),
+    progressions: Some((
+        keys: [
+            (root: "A", mode: Aeolian, weight: 1.0), (root: "F", mode: Aeolian, weight: 0.8), (root: "G", mode: Aeolian, weight: 0.8),
+            (root: "C", mode: Aeolian, weight: 0.6), (root: "D", mode: Aeolian, weight: 0.8), (root: "E", mode: Aeolian, weight: 0.6),
+        ],
+        chords: [
+            (name: "i7", root: 0, notes: [0, 3, 7, 10]),
+            (name: "iv7", root: 5, notes: [0, 3, 7, 10]),
+            (name: "v7", root: 7, notes: [0, 3, 7, 10]),
+            (name: "bIIImaj7", root: 3, notes: [0, 4, 7, 11]),
+            (name: "bVImaj7", root: 8, notes: [0, 4, 7, 11]),
+            (name: "bVII", root: 10, notes: [0, 4, 7]),
+        ],
+        moves: [
+            ("i7", "bVImaj7", 2.0), ("i7", "iv7", 2.0), ("i7", "bVII", 1.5),
+            ("iv7", "i7", 2.0), ("iv7", "v7", 1.0), ("iv7", "bVII", 1.0),
+            ("v7", "i7", 2.0),
+            ("bIIImaj7", "iv7", 1.5), ("bIIImaj7", "bVImaj7", 1.0),
+            ("bVImaj7", "bVII", 2.0), ("bVImaj7", "i7", 1.0),
+            ("bVII", "i7", 2.5), ("bVII", "bIIImaj7", 1.0),
+        ],
+        cadences: ["i7"],
+        start: "i7",
+    )),
+    harmony: (chord_bars: Some((1, 2))),
+    // The chords struck short, off the beat.
+    pad_patterns: ["...x..x....x..x.", "..x...x...x..x..", "x.....x...x....."],
+    comping: (hold_beats: 0.4),
+    // The bass: off the beat (the classic), syncopated, or with octave jumps.
+    bass_patterns: ["..x...x...x...x.", "x..x..x...x..x..", "..x.o.x...x.o.x.", "x.....x.x...x..."],
+    motif_scale: Some(MinorPentatonic),
+    motif_rules: Some((
+        count: 4,
+        notes: (3, 5),
+        cells: [[0.5, 0.5], [0.25, 0.25, 0.5], [0.75, 0.75, 0.5], [1.0], [0.5, 1.0]],
+        contours: [(Rise, 1.0), (Fall, 1.0), (Hover, 1.2), (Zigzag, 0.8)],
+        leap: 0.2,
+        range: (-2, 4),
+        hold: (0.4, 0.8),
+    )),
+    // What each piece draws: the chords on the FM electric piano (deep house's keys) or the supersaw;
+    // the riff on the soft lead or the gliding synth lead.
+    leads: [
+        (role: Pad, instrument: "electric_piano", low: "A3", high: "A5", voices: 4, weight: 2.0),
+        (role: Pad, instrument: "supersaw", low: "A3", high: "A5", voices: 4, level_db: -2.0, weight: 1.0),
+        (role: Melody, instrument: "soft_lead", low: "A4", high: "A5", density: 0.35, weight: 1.0),
+        (role: Melody, instrument: "synth_lead", low: "A4", high: "A5", density: 0.35, weight: 1.0),
+    ],
+    roles_off: [Choir, Drone, Percussion, Bells, Texture],
+    roles_add: [
+        (role: Bass, instrument: "pulse_bass", low: "A1", high: "A2"),
+        (role: Pad, instrument: "electric_piano", low: "A3", high: "A5", voices: 4),
+        (role: Melody, instrument: "soft_lead", low: "A4", high: "A5", density: 0.35),
+    ],
+    // A dotted-eighth delay on the stabs and the riff, bouncing between the speakers, its repeats
+    // thinned below 400 Hz and darkened above 5 kHz.
+    delay: Some((division: "1/8.", feedback: 0.3, low_cut_hz: 400.0, high_cut_hz: 5000.0, ping_pong: true, sends: [(Pad, 0.25), (Melody, 0.35)], wet: 0.6, reverb: 0.3)),
+    recipe: (saturation: 0.12, reverb_scale: 0.6, reverb_low_cut_hz: 250.0),
+    level_db: 4.5,
+)

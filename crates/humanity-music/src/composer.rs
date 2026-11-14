@@ -149,6 +149,9 @@ struct Eff {
     tempo: (f32, f32),
     /// The dominant genre's sidechain in a calm mood (roles, depth dB, attack, release).
     sidechain: Option<(u8, f32, f32, f32)>,
+    /// The dominant genre's tempo delay and gated reverb in a calm mood (rung E3).
+    delay: Option<crate::fx::RDelay>,
+    gated: Option<crate::fx::RGated>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -228,6 +231,10 @@ pub struct Composer {
     beats_total: u64,
     gap_from: u64,
     gap_done: bool,
+    /// A section's tape stop (rung E3): the samples it runs from and to (`u64::MAX`: none). Inside
+    /// it nothing new is struck and nothing held lets go; the score reads the speed.
+    tape_from: u64,
+    tape_to: u64,
 }
 
 /// FNV-1a over a few numbers (a phrase plan's fingerprint).
@@ -297,7 +304,33 @@ impl Composer {
             beats_total: 0,
             gap_from: u64::MAX,
             gap_done: false,
+            tape_from: u64::MAX,
+            tape_to: u64::MAX,
         }
+    }
+
+    /// The tape's speed at sample `at` (rung E3): 1 outside a tape stop; inside one, falling in a
+    /// straight line from 1 at its start to 0 at its end (a motor running down at a steady rate).
+    pub fn tape_speed_at(&self, at: u64) -> f32 {
+        if at < self.tape_from || at >= self.tape_to {
+            return 1.0;
+        }
+        1.0 - ((at - self.tape_from) as f64 / (self.tape_to - self.tape_from).max(1) as f64) as f32
+    }
+
+    /// The sample now (the composer's clock).
+    pub fn pos(&self) -> u64 {
+        self.pos
+    }
+
+    /// Whether a tape stop is running now.
+    pub fn in_tape_stop(&self) -> bool {
+        self.pos >= self.tape_from && self.pos < self.tape_to
+    }
+
+    /// The tempo delay and the gated reverb playing (the dominant genre's, in a calm mood).
+    pub fn fx(&self) -> (Option<crate::fx::RDelay>, Option<crate::fx::RGated>) {
+        self.eff.as_ref().map(|e| (e.delay, e.gated)).unwrap_or((None, None))
     }
 
     /// The structure's section playing (an index into the genre's structure), if any.
@@ -487,12 +520,12 @@ impl Composer {
             self.next_step = self.pos as f64;
             self.beat_start = self.pos as f64;
         }
-        let in_gap = self.pos >= self.gap_from;
+        let in_gap = self.pos >= self.gap_from || self.in_tape_stop();
         for i in 0..PENDING {
             if let Some(n) = self.pending[i].note {
                 if self.pending[i].at <= self.pos {
                     self.pending[i].note = None;
-                    // A build's silence: a riff note due in it is not played.
+                    // A build's silence (or a tape stop): a riff note due in it is not played.
                     if in_gap && (n.role as usize) < 8 {
                         continue;
                     }
@@ -553,6 +586,8 @@ impl Composer {
             level_db: 0.0,
             tempo: (60.0, 60.0),
             sidechain: None,
+            delay: None,
+            gated: None,
         })
     }
 
@@ -591,6 +626,8 @@ impl Composer {
             }
             self.drone_root = -1;
         }
+        // A tape stop: nothing new is struck while the tape runs down (what sounds slows with it).
+        let in_gap = in_gap || self.in_tape_stop();
         // A build's snare roll, speeding up across the build: eighths for its first half, sixteenths
         // for the next quarter, 32nds for the last, louder as it goes; it stops for the silence.
         if let (Some(roll), false) = (self.part_section(res).filter(|s| s.build).and(self.structure(res).and_then(|st| st.roll)), in_gap) {
@@ -604,27 +641,52 @@ impl Composer {
             if step_of_bar % every.max(1) == 0 {
                 let vel = (roll.velocity * (0.35 + 0.65 * at) * self.plan.vel_scale.max(0.3)).min(1.0);
                 let tag = self.next_tag();
-                sink.note_on(NoteOn { inst: roll.inst, role: 255, midi: roll.midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s: 0.0, tag, level: 1.0 });
+                sink.note_on(NoteOn { inst: roll.inst, role: 255, midi: roll.midi as f32, a4: self.steer.a4, vel, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: 1.0 });
                 if doubled {
                     let half = (self.beat_len / per_beat as f64 * every as f64 * 0.5) as u64;
                     let tag = self.next_tag();
-                    self.schedule(now + half, NoteOn { inst: roll.inst, role: 255, midi: roll.midi as f32, a4: self.steer.a4, vel: vel * 0.9, pan: 0.0, hold_s: 0.0, tag, level: 1.0 });
+                    self.schedule(now + half, NoteOn { inst: roll.inst, role: 255, midi: roll.midi as f32, a4: self.steer.a4, vel: vel * 0.9, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: 1.0 });
                 }
             }
         }
         // Drums.
         if eff.beat_felt && !in_gap {
+            // A fill (rung E6): in a phrase's last bar (never a build's: the roll is its fill), each
+            // fill line plays its pattern, and from the fill's first hit the lines that do not play
+            // under fills rest.
+            let last_bar = self.bar_in_phrase + 1 >= self.bars_in_phrase && !self.part_section(res).is_some_and(|s| s.build);
+            let mut fill_from = usize::MAX;
+            if last_bar {
+                for d in eff.drums.iter().flatten() {
+                    let Some(part) = drum_part(res, self.mood, d.genre, d.part).filter(|p| p.fill && !p.patterns.is_empty()) else { continue };
+                    let pat = &part.patterns[self.plan.patterns[d.part as usize % 8] as usize % part.patterns.len()];
+                    if let Some(first) = pat.iter().position(|&v| v > 0.0) {
+                        // In grid steps of this bar.
+                        fill_from = fill_from.min((first * spb as usize).div_ceil(pat.len().max(1)));
+                    }
+                }
+            }
+            let filling = step_of_bar as usize >= fill_from;
             for d in eff.drums.iter().flatten() {
                 let Some(part) = drum_part(res, self.mood, d.genre, d.part) else { continue };
                 // A part joins at its intensity, live on the beat (the taiko's doubled ostinato).
                 if part.patterns.is_empty() || self.steer.intensity < part.min_intensity {
                     continue;
                 }
-                let pat = &part.patterns[self.plan.patterns[d.part as usize % 8] as usize % part.patterns.len()];
+                if (part.fill && !last_bar) || (filling && !part.fill && !part.under_fills) {
+                    continue;
+                }
+                let pi = self.plan.patterns[d.part as usize % 8] as usize % part.patterns.len();
+                let pat = &part.patterns[pi];
                 if pat.is_empty() {
                     continue;
                 }
                 let idx = (step_of_bar as usize * pat.len()) / spb as usize;
+                // A line of several notes (a fill down the toms): this step's.
+                let midi = match part.pitch.get(pi).and_then(|p| p.get(idx.min(pat.len() - 1))) {
+                    Some(&k) if k > 0 => part.notes.get(k as usize - 1).copied().unwrap_or(part.midi),
+                    _ => part.midi,
+                };
                 let mut v = pat[idx.min(pat.len() - 1)];
                 if eff.syncopation > 0.0 && self.rng.chance(eff.syncopation * 0.25) {
                     v = if v > 0.0 { v * 0.6 } else if self.step_in_beat % 2 == 1 { 0.3 } else { 0.0 };
@@ -638,7 +700,10 @@ impl Composer {
                     let jitter = (self.rng.bipolar() * eff.humanize_ms * 0.001 * rate as f32) as i64;
                     let at = (now as i64 + jitter.max(0)) as u64;
                     let tag = self.next_tag();
-                    let note = NoteOn { inst: part.inst, role: 255, midi: part.midi as f32, a4: self.steer.a4, vel: (v * part.velocity * d.weight * (0.6 + 0.4 * self.plan.vel_scale)).min(1.0), pan: 0.0, hold_s: 0.0, tag, level: 1.0 };
+                    // A gated line sends its share to the gated reverb (and opens its gate) where the
+                    // genre has one.
+                    let gate = if eff.gated.is_some() { part.gate } else { 0.0 };
+                    let note = NoteOn { inst: part.inst, role: 255, midi: midi as f32, a4: self.steer.a4, vel: (v * part.velocity * d.weight * (0.6 + 0.4 * self.plan.vel_scale)).min(1.0), pan: 0.0, gate, hold_s: 0.0, tag, level: 1.0 };
                     if at > now {
                         self.schedule(at, note);
                     } else {
@@ -660,13 +725,13 @@ impl Composer {
                             sink.note_off(self.pads.tags[k]);
                         }
                         self.pads.n = 0;
-                        let strum = (eff.comping.strum_ms.max(0.0) as f64 * 0.001 * rate) as u64;
+                        let strum = if eff.comping.strum_beats > 0.0 { (eff.comping.strum_beats as f64 * self.beat_len) as u64 } else { (eff.comping.strum_ms.max(0.0) as f64 * 0.001 * rate) as u64 };
                         let hold_s = (eff.comping.hold_beats.max(0.0) as f64 * self.beat_len / rate) as f32;
                         for k in 0..self.pad_voicing.n {
                             let tag = self.next_tag();
                             let midi = self.pad_voicing.notes[k];
                             let vel = ((0.55 + 0.35 * v + self.rng.range(-0.05, 0.05)) * self.plan.vel_scale).clamp(0.0, 1.0);
-                            let note = NoteOn { inst: pad.inst, role: RoleKind::Pad.index() as u8, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s, tag, level: pad.level };
+                            let note = NoteOn { inst: pad.inst, role: RoleKind::Pad.index() as u8, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, gate: 0.0, hold_s, tag, level: pad.level };
                             if strum > 0 && k > 0 {
                                 self.schedule(now + strum * k as u64, note);
                             } else {
@@ -693,7 +758,7 @@ impl Composer {
                         for k in 0..self.choir_voicing.n {
                             let tag = self.next_tag();
                             let vel = ((0.6 + 0.4 * v) * self.plan.vel_scale * self.rng.range(0.9, 1.0)).min(1.0);
-                            sink.note_on(NoteOn { inst: ch.inst, role: RoleKind::Choir.index() as u8, midi: self.choir_voicing.notes[k] as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s, tag, level: ch.level });
+                            sink.note_on(NoteOn { inst: ch.inst, role: RoleKind::Choir.index() as u8, midi: self.choir_voicing.notes[k] as f32, a4: self.steer.a4, vel, pan: 0.0, gate: 0.0, hold_s, tag, level: ch.level });
                         }
                     }
                 }
@@ -724,7 +789,7 @@ impl Composer {
                         // A walking step is already a note in the register; the rest are intervals.
                         let target = if walking { off } else { nearest_pc_in(root + off, bass.low, bass.high, prev) };
                         let tag = self.next_tag();
-                        sink.note_on(NoteOn { inst: bass.inst, role: RoleKind::Bass.index() as u8, midi: target as f32, a4: self.steer.a4, vel: 0.8 + self.rng.range(-0.08, 0.08), pan: 0.0, hold_s: 0.0, tag, level: bass.level });
+                        sink.note_on(NoteOn { inst: bass.inst, role: RoleKind::Bass.index() as u8, midi: target as f32, a4: self.steer.a4, vel: 0.8 + self.rng.range(-0.08, 0.08), pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: bass.level });
                         self.bass = Held { notes: [target, 0, 0, 0, 0, 0, 0, 0], tags: [tag, 0, 0, 0, 0, 0, 0, 0], n: 1 };
                     }
                 }
@@ -939,7 +1004,7 @@ impl Composer {
                             let tag = self.next_tag();
                             let v = (vel * self.rng.range(0.85, 1.0)).min(1.0);
                             let pan = self.rng.range(-0.1, 0.1);
-                            self.schedule(at, NoteOn { inst: perc.inst, role: RoleKind::Percussion.index() as u8, midi: root as f32, a4: self.steer.a4, vel: v, pan, hold_s: 0.0, tag, level: perc.level });
+                            self.schedule(at, NoteOn { inst: perc.inst, role: RoleKind::Percussion.index() as u8, midi: root as f32, a4: self.steer.a4, vel: v, pan, gate: 0.0, hold_s: 0.0, tag, level: perc.level });
                         }
                     }
                 }
@@ -1076,6 +1141,14 @@ impl Composer {
             },
             saturation: lerp(ra.saturation, rb.saturation),
             reverb_scale: lerp(ra.reverb_scale, rb.reverb_scale),
+            // A decay or a low cut only one genre sets moves toward none (the mood's decay) with the blend.
+            reverb_t60_s: match (ra.reverb_t60_s > 0.0, rb.reverb_t60_s > 0.0) {
+                (true, true) => lerp(ra.reverb_t60_s, rb.reverb_t60_s),
+                (true, false) => (t < 0.5).then_some(ra.reverb_t60_s).unwrap_or(0.0),
+                (false, true) => (t >= 0.5).then_some(rb.reverb_t60_s).unwrap_or(0.0),
+                (false, false) => 0.0,
+            },
+            reverb_low_cut_hz: lerp(ra.reverb_low_cut_hz, rb.reverb_low_cut_hz),
         };
         let mut eff = Eff {
             roles,
@@ -1100,6 +1173,8 @@ impl Composer {
             level_db: lerp(a.map(|s| s.level_db).unwrap_or(0.0), b.map(|s| s.level_db).unwrap_or(0.0)),
             tempo: (lerp(tempo_a.0, tempo_b.0), lerp(tempo_a.1, tempo_b.1)),
             sidechain: dom.and_then(|s| s.sidechain),
+            delay: dom.and_then(|s| s.delay),
+            gated: dom.and_then(|s| s.gated),
         };
         // The mood's own drums and patterns: an urgent mood's always, a calm one's where the genre has
         // none (a mood that wants a gentle pulse under a genre that brings no rhythm).
@@ -1138,6 +1213,8 @@ impl Composer {
             eff.motif_scale = None;
             eff.dynamics = None;
             eff.sidechain = None;
+            eff.delay = None;
+            eff.gated = None;
             let g = mood.groove.unwrap_or_default();
             eff.subdivision = g.subdivision.clamp(1, 8);
             eff.swing = g.swing;
@@ -1181,7 +1258,7 @@ impl Composer {
                 // The stinger: on this beat, now.
                 for &(inst, midi, vel, beat) in ri.stinger.iter().take(8) {
                     let tag = self.next_tag();
-                    let n = NoteOn { inst, role: 254, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s: 0.0, tag, level: 1.0 };
+                    let n = NoteOn { inst, role: 254, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: 1.0 };
                     if beat <= 0.0 {
                         sink.note_on(n);
                     } else {
@@ -1194,7 +1271,7 @@ impl Composer {
                     let beats = beats_left as f64 + extra as f64 * bpb as f64;
                     let tag = self.next_tag();
                     let hold = (beats * self.beat_len / self.rate) as f32;
-                    sink.note_on(NoteOn { inst, role: 254, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s: hold.max(0.05), tag, level: 1.0 });
+                    sink.note_on(NoteOn { inst, role: 254, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, gate: 0.0, hold_s: hold.max(0.05), tag, level: 1.0 });
                 }
             }
             self.pending_band = Some((want, at));
@@ -1250,6 +1327,16 @@ impl Composer {
         let part_sec = self.part_section(res);
         self.gap_from = u64::MAX;
         self.gap_done = false;
+        // A tape stop has just run out: the score silenced everything the tape held (crate::score),
+        // so nothing is held now and this phrase strikes its chords, bass and drone afresh.
+        if self.tape_to != u64::MAX && self.pos >= self.tape_to {
+            for h in [&mut self.pads, &mut self.choir, &mut self.bass, &mut self.drone, &mut self.texture] {
+                h.n = 0;
+            }
+            self.drone_root = -1;
+        }
+        self.tape_from = u64::MAX;
+        self.tape_to = u64::MAX;
         let Some(harm) = self.harmony(res) else { return };
         if harm_changed {
             // A piece's first phrase: the key its seed draws from the harmony's keys by weight. A
@@ -1396,23 +1483,47 @@ impl Composer {
             self.plan.vel_scale *= sec.energy;
             let beats = (self.bars_in_phrase * eff.beats_per_bar.max(1)) as f64;
             sink.event(Event::Structure { index, build: sec.build, drop: sec.drop, bars: self.bars_in_phrase, at_s: self.seconds() });
-            let st = self.structure(res).map(|s| (s.riser, s.impact, s.gap_beats));
-            if let Some((riser, impact, gap)) = st {
+            let st = self.structure(res).map(|s| (s.riser, s.impact, s.gap_beats, s.reverse_cymbal, s.downlifter));
+            // A tape stop over the section's last beats (at most a bar): it stands in for a build's
+            // silence.
+            let stop = (sec.tape_stop_beats as f64).min(eff.beats_per_bar.max(1) as f64).min(beats - 1.0).max(0.0);
+            if stop > 0.0 {
+                self.tape_from = self.pos + ((beats - stop) * self.beat_len) as u64;
+                self.tape_to = self.pos + (beats * self.beat_len) as u64;
+            }
+            if let Some((riser, impact, gap, reverse, downlifter)) = st {
+                // A reversed cymbal into the next section, if it swells in: it starts its `beats`
+                // before this section ends and stops dead on the next downbeat.
+                let next = (self.piece.form_len > 0).then(|| (self.piece.played % self.piece.form_len as u64) as usize);
+                let next_swells = next.and_then(|i| self.structure(res).and_then(|s| s.sections.get(i))).is_some_and(|s| s.swell);
+                if let (true, Some(r)) = (next_swells, reverse) {
+                    let lead = (r.beats as f64).clamp(0.5, beats);
+                    let at = self.pos + ((beats - lead) * self.beat_len) as u64;
+                    let tag = self.next_tag();
+                    let hold_s = (lead * self.beat_len / self.rate) as f32;
+                    self.schedule(at, NoteOn { inst: r.inst, role: 254, midi: r.midi as f32, a4: self.steer.a4, vel: r.velocity, pan: 0.0, gate: 0.0, hold_s, tag, level: 1.0 });
+                }
+                // A downlifter falls as this section begins (out of a drop).
+                if let (true, Some(h)) = (sec.fall, downlifter) {
+                    let tag = self.next_tag();
+                    let hold_s = (h.beats.max(0.0) as f64 * self.beat_len / self.rate) as f32;
+                    sink.note_on(NoteOn { inst: h.inst, role: 254, midi: h.midi as f32, a4: self.steer.a4, vel: h.velocity, pan: 0.0, gate: 0.0, hold_s, tag, level: 1.0 });
+                }
                 if sec.build {
-                    let gap = (gap as f64).min(beats - 1.0).max(0.0);
-                    self.gap_from = self.pos + ((beats - gap) * self.beat_len) as u64;
+                    let gap = if stop > 0.0 { 0.0 } else { (gap as f64).min(beats - 1.0).max(0.0) };
+                    self.gap_from = if stop > 0.0 { u64::MAX } else { self.pos + ((beats - gap) * self.beat_len) as u64 };
                     if let Some(r) = riser {
                         // The riser ends where the silence begins, starting `beats` before it.
                         let lead = (r.beats as f64).clamp(1.0, beats - gap);
                         let at = self.pos + ((beats - gap - lead) * self.beat_len) as u64;
                         let tag = self.next_tag();
                         let hold_s = (lead * self.beat_len / self.rate) as f32;
-                        self.schedule(at, NoteOn { inst: r.inst, role: 254, midi: r.midi as f32, a4: self.steer.a4, vel: r.velocity, pan: 0.0, hold_s, tag, level: 1.0 });
+                        self.schedule(at, NoteOn { inst: r.inst, role: 254, midi: r.midi as f32, a4: self.steer.a4, vel: r.velocity, pan: 0.0, gate: 0.0, hold_s, tag, level: 1.0 });
                     }
                 }
                 if let (true, Some(h)) = (sec.drop, impact) {
                     let tag = self.next_tag();
-                    sink.note_on(NoteOn { inst: h.inst, role: 254, midi: h.midi as f32, a4: self.steer.a4, vel: h.velocity, pan: 0.0, hold_s: 0.0, tag, level: 1.0 });
+                    sink.note_on(NoteOn { inst: h.inst, role: 254, midi: h.midi as f32, a4: self.steer.a4, vel: h.velocity, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: 1.0 });
                 }
             }
         }
@@ -1426,7 +1537,7 @@ impl Composer {
             self.drone.n = 0;
             if let Some(d) = drone {
                 let tag = self.next_tag();
-                sink.note_on(NoteOn { inst: d.inst, role: RoleKind::Drone.index() as u8, midi: want_root as f32, a4: self.steer.a4, vel: 0.9, pan: 0.0, hold_s: 0.0, tag, level: d.level });
+                sink.note_on(NoteOn { inst: d.inst, role: RoleKind::Drone.index() as u8, midi: want_root as f32, a4: self.steer.a4, vel: 0.9, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: d.level });
                 self.drone = Held { notes: [want_root, 0, 0, 0, 0, 0, 0, 0], tags: [tag, 0, 0, 0, 0, 0, 0, 0], n: 1 };
             }
             self.drone_root = want_root;
@@ -1436,7 +1547,7 @@ impl Composer {
             (Some(t), 0) => {
                 let tag = self.next_tag();
                 let mid = (t.low + t.high) / 2;
-                sink.note_on(NoteOn { inst: t.inst, role: RoleKind::Texture.index() as u8, midi: mid as f32, a4: self.steer.a4, vel: 0.9, pan: 0.0, hold_s: 0.0, tag, level: t.level });
+                sink.note_on(NoteOn { inst: t.inst, role: RoleKind::Texture.index() as u8, midi: mid as f32, a4: self.steer.a4, vel: 0.9, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: t.level });
                 self.texture = Held { notes: [mid, 0, 0, 0, 0, 0, 0, 0], tags: [tag, 0, 0, 0, 0, 0, 0, 0], n: 1 };
             }
             (None, n) if n > 0 => {
@@ -1595,7 +1706,7 @@ impl Composer {
                     } else {
                         let tag = self.next_tag();
                         let vel = 0.85 + self.rng.range(-0.05, 0.05);
-                        sink.note_on(NoteOn { inst: pad.inst, role: RoleKind::Pad.index() as u8, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, hold_s: 0.0, tag, level: pad.level * if midi < 48 { 0.6 } else { 1.0 } });
+                        sink.note_on(NoteOn { inst: pad.inst, role: RoleKind::Pad.index() as u8, midi: midi as f32, a4: self.steer.a4, vel, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: pad.level * if midi < 48 { 0.6 } else { 1.0 } });
                         next.notes[next.n] = midi;
                         next.tags[next.n] = tag;
                     }
@@ -1643,7 +1754,7 @@ impl Composer {
                         next.tags[next.n] = prev.tags[j];
                     } else {
                         let tag = self.next_tag();
-                        sink.note_on(NoteOn { inst: ch.inst, role: RoleKind::Choir.index() as u8, midi: midi as f32, a4: self.steer.a4, vel: 0.8, pan: 0.0, hold_s: 0.0, tag, level: ch.level });
+                        sink.note_on(NoteOn { inst: ch.inst, role: RoleKind::Choir.index() as u8, midi: midi as f32, a4: self.steer.a4, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: ch.level });
                         next.tags[next.n] = tag;
                     }
                     next.notes[next.n] = midi;
@@ -1674,7 +1785,7 @@ impl Composer {
                     sink.note_off(self.bass.tags[k]);
                 }
                 let tag = self.next_tag();
-                sink.note_on(NoteOn { inst: b.inst, role: RoleKind::Bass.index() as u8, midi: target as f32, a4: self.steer.a4, vel: 0.85, pan: 0.0, hold_s: 0.0, tag, level: b.level });
+                sink.note_on(NoteOn { inst: b.inst, role: RoleKind::Bass.index() as u8, midi: target as f32, a4: self.steer.a4, vel: 0.85, pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: b.level });
                 self.bass = Held { notes: [target, 0, 0, 0, 0, 0, 0, 0], tags: [tag, 0, 0, 0, 0, 0, 0, 0], n: 1 };
             }
         }
@@ -1702,7 +1813,7 @@ impl Composer {
                     let vel = (mp.vel * self.rng.range(0.85, 1.0) * self.plan.vel_scale).min(1.0);
                     let len = bt * if mp.loosen && k == 1 { 1.5 } else { 1.0 };
                     let pan = self.rng.range(-0.45, 0.45);
-                    self.schedule(at, NoteOn { inst: r.inst, role: role_idx as u8, midi: midi as f32, a4: self.steer.a4, vel, pan, hold_s: (len * self.beat_len as f32 / self.rate as f32) * motif.hold[k], tag, level: r.level });
+                    self.schedule(at, NoteOn { inst: r.inst, role: role_idx as u8, midi: midi as f32, a4: self.steer.a4, vel, pan, gate: 0.0, hold_s: (len * self.beat_len as f32 / self.rate as f32) * motif.hold[k], tag, level: r.level });
                     beat += len;
                 }
             }

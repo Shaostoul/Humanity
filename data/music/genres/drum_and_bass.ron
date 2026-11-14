@@ -1,0 +1,113 @@
+// "Drum and bass" (docs/design/music.md section 7g, rung E6, 2026-11-14). The operator: "I'm interested
+// in having all the instruments."
+//
+// What is captured is the GENRE's commonplace building blocks (the 2026-11-12 copyright finding), never
+// any artist's recordings, melodies or riffs. From the research's sources (read 2026-11-13,
+// docs/reference/research/2026-11-13-instrument-libraries/electronic-genres-and-synthesis.md section
+// 3): "fast breakbeats (typically 165-185 beats per minute) with heavy bass and sub-bass lines";
+// "Since around 1996, drum and bass tempos have predominantly stayed in the 170-180 range"; "The drop
+// is the point in a track where a switch of rhythm or bassline occurs and usually follows a
+// recognisable build section and breakdown" (Wikipedia, "Drum and bass", 12 November 2026); "the
+// two-step beat, whereby the second kick in a bar is pushed later in time to the eighth-note before
+// the second snare"; "that second snare is often displaced either back or forward by an eighth-note"
+// (MusicRadar, 17 February 2022); the ride "hits on every 1/8th" and "a new, busy ghost snare part"
+// (Attack Magazine, June 2012). The famous breaks are RECORDINGS with owners, so the drums here are
+// our own synthesised voices playing breakbeat-STYLE patterns written for this file, never that audio;
+// the reese is a technique (two detuned saws), not the record it is named after.
+//
+// So: 170 to 176 bpm; the two-step (the kick on 1 and on the "and" of 3, the snare on 2 and 4, the
+// second snare now and then an eighth late or early, busier syncopated bars), the 909-style kick and
+// snare, a ride on every eighth (the 909's closed hat), ghost notes on the rimshot, fills down the toms;
+// a REESE bass under it all with its own clean sub, ducking under the kick; a wavetable pad or a soft
+// one, sparse electric-piano phrases through a dotted delay; a reverb with its lows cut; and the
+// structure: a DJ intro, a build that ends in a TAPE STOP, the drop, a breakdown (a downlifter as it
+// begins), a second build into silence, a second drop (a reversed cymbal swelling into it), an outro.
+Genre(
+    id: "drum_and_bass",
+    words: "music.genre.drum_and_bass",
+    about_words: "music.genre.drum_and_bass_about",
+    tempo_bpm: Some((170.0, 176.0)),
+    beat_felt: Some(true),
+    beats_per_bar: Some(4),
+    groove: Some((swing: 0.5, subdivision: 4, syncopation: 0.04, humanize_ms: 2.0)),
+    drums: [
+        // The two-step and its variants: the kick on 1 and the "and" of 3, now and then a second on
+        // the "and" of 1 or a late one.
+        (instrument: "kick_909", note: "C2", velocity: 0.85, patterns: ["x.........x.....", "x.x.......x.....", "x.........x..x..", "x.........xx...."], ducks: true, sections: ["drop", "outro"]),
+        // The snare on 2 and 4, the second an eighth late or early now and then, ghosts before it.
+        (instrument: "snare_909", note: "D3", velocity: 0.75, patterns: ["....x.......x...", "....x.......x..g", "....x.........x.", "....x..g....x...", "....x.....x....."], sections: ["drop", "outro"]),
+        // The ride on every eighth.
+        (instrument: "hat_909_closed", note: "D5", velocity: 0.32, patterns: ["x.x.x.x.x.x.x.x.", "x.x.x.x.x.x.x.xg", "x.xgx.x.x.xgx.x."], sections: ["intro", "build", "drop", "breakdown", "outro"]),
+        // The busy ghost-snare part, on the rimshot.
+        (instrument: "rimshot_808", note: "D4", velocity: 0.35, patterns: ["..g....g..g....g", ".g....g...g..g..", "...g......g....g"], sections: ["drop"]),
+        (instrument: "tom_909", note: "B2", notes: ["E3", "B2", "F#2"], velocity: 0.7, patterns: ["............1123", "..........1.2.33", "................"], fill: true, sections: ["drop", "outro"]),
+    ],
+    structure: Some((
+        sections: [
+            (name: "intro", bars: 16, roles: [Pad, Bells]),
+            (name: "build", bars: 8, roles: [Pad, Bells], build: true, energy: 0.9, tape_stop_beats: 2.0),
+            (name: "drop", bars: 16, roles: [Bass, Pad, Bells], drop: true),
+            (name: "breakdown", bars: 16, roles: [Pad, Bells], fall: true),
+            (name: "build", bars: 8, roles: [Pad, Bells], build: true, energy: 0.9),
+            (name: "drop", bars: 16, roles: [Bass, Pad, Bells], drop: true, swell: true),
+            (name: "outro", bars: 8, roles: [Pad, Bells], energy: 0.9),
+        ],
+        roll: Some((instrument: "snare_909", note: "D3", velocity: 0.7)),
+        riser: Some((instrument: "riser", part: Some("riser"), note: "D4", velocity: 0.6, beats: 16.0)),
+        impact: Some((instrument: "taiko_hit", part: Some("sub_drop"), note: "D2", velocity: 0.8)),
+        reverse_cymbal: Some((instrument: "reverse_cymbal", note: "C4", velocity: 0.75, beats: 4.0)),
+        downlifter: Some((instrument: "downlifter", note: "C4", velocity: 0.7)),
+        gap_beats: 1.0,
+    )),
+    sidechain: Some((roles: [Bass], depth_db: -6.0, release_s: 0.12)),
+    progressions: Some((
+        keys: [
+            (root: "F", mode: Aeolian, weight: 1.0), (root: "G", mode: Aeolian, weight: 0.8), (root: "A", mode: Aeolian, weight: 0.8),
+            (root: "D", mode: Aeolian, weight: 0.8), (root: "E", mode: Aeolian, weight: 0.6), (root: "C", mode: Aeolian, weight: 0.5),
+        ],
+        chords: [
+            (name: "i9", root: 0, notes: [0, 3, 7, 10, 14]),
+            (name: "iv9", root: 5, notes: [0, 3, 7, 10, 14]),
+            (name: "v7", root: 7, notes: [0, 3, 7, 10]),
+            (name: "bIIImaj7", root: 3, notes: [0, 4, 7, 11]),
+            (name: "bVImaj7", root: 8, notes: [0, 4, 7, 11]),
+            (name: "bVII", root: 10, notes: [0, 4, 7]),
+        ],
+        moves: [
+            ("i9", "bVImaj7", 2.0), ("i9", "iv9", 2.0), ("i9", "bVII", 1.0),
+            ("iv9", "i9", 2.0), ("iv9", "bVII", 1.0), ("iv9", "v7", 1.0),
+            ("v7", "i9", 2.0),
+            ("bIIImaj7", "bVImaj7", 1.5), ("bIIImaj7", "iv9", 1.0),
+            ("bVImaj7", "bVII", 2.0), ("bVImaj7", "bIIImaj7", 1.0), ("bVImaj7", "i9", 1.0),
+            ("bVII", "i9", 2.5), ("bVII", "bIIImaj7", 1.0),
+        ],
+        cadences: ["i9"],
+        start: "i9",
+    )),
+    harmony: (chord_bars: Some((2, 4))),
+    bass_patterns: ["x...............", "x.......x.......", "x.....x...x.....", "x.........x....."],
+    motif_scale: Some(Aeolian),
+    motif_rules: Some((
+        count: 4,
+        notes: (2, 4),
+        cells: [[0.5, 0.5], [1.0], [0.75, 0.25, 1.0], [1.5, 0.5], [0.5, 1.5]],
+        contours: [(Fall, 1.2), (Hover, 1.0), (Valley, 1.0), (Rise, 0.8)],
+        leap: 0.25,
+        range: (-2, 4),
+        hold: (0.6, 0.9),
+    )),
+    // What each piece draws: the wavetable pad (its home) or the soft saw pad.
+    leads: [
+        (role: Pad, instrument: "wavetable_pad", low: "A2", high: "A4", voices: 3, level_db: 2.0, weight: 2.0),
+        (role: Pad, instrument: "soft_saw_pad", low: "A2", high: "A4", voices: 3, level_db: 2.0, weight: 1.0),
+    ],
+    roles_off: [Choir, Drone, Percussion, Melody, Texture],
+    roles_add: [
+        (role: Bass, instrument: "reese_bass", low: "E1", high: "E2"),
+        (role: Pad, instrument: "wavetable_pad", low: "A2", high: "A4", voices: 3, level_db: 2.0),
+        (role: Bells, instrument: "electric_piano", low: "A3", high: "A5", density: 0.3, level_db: -3.0),
+    ],
+    delay: Some((division: "1/8.", feedback: 0.4, low_cut_hz: 500.0, high_cut_hz: 3000.0, ping_pong: true, sends: [(Bells, 0.45), (Pad, 0.08)], wet: 0.6, reverb: 0.3)),
+    recipe: (saturation: 0.1, reverb_scale: 0.7, reverb_low_cut_hz: 300.0),
+    level_db: 3.0,
+)

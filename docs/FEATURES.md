@@ -3004,7 +3004,20 @@ per half octave and morphs between them in time, UNISON with the JP-8000 supersa
 and mix curves, the PULSE with its width modulated, and DRUM-MACHINE voices in the 808 and 909 style
 (kicks, snares, claps, closed and open hats with a choke, toms, cowbell, rimshot), as lo-fi's 808 kit
 and electro swing's 909 kit, with deep dubstep's pieces drawing a wavetable growl or a pulse-width
-pad, each levelled to what it stands beside; PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
+pad, each levelled to what it stands beside; since 2026-11-14 rungs E3 and E6 (music.md section 7g,
+`fx.rs`): the mix's TEMPO DELAY (a note value at the tempo, straight, dotted or triplet, its repeats
+band-limited in the loop as a tape echo's, ping-pong, each role's send), a GATED REVERB the composer
+opens at each gated hit, a LOW CUT on the reverb's send and a genre's own hall, transitions (a
+DOWNLIFTER, a REVERSED CYMBAL ending on a section's downbeat, the TAPE STOP slowing the whole score
+to nothing in place of a build's silence), FILLS down the toms at a phrase's end, arpeggios locked to
+the tempo, and four more genres: HOUSE (120 to 126 bpm, four on the floor, the 909 kit or 808
+percussion with a cowbell and the clave on the rimshot, an off-beat bass and short chord stabs
+pumping under the kick, intro, breakdown, build and drop), DRUM AND BASS (170 to 176, the two-step
+with a ride on every eighth and ghost notes, a REESE bass of two detuned saws over a clean sub, a
+build ending in a tape stop), SYNTHWAVE (80 to 118, a gated-reverb snare, sixteenth-note bass, the
+SUPERSAW arpeggiating each chord, the WAVETABLE PAD holding it, a gliding lead through a tape delay,
+song form) and AMBIENT (no drums, the wavetable pad over a drone, sparse bells through a tempo-synced
+tape delay band-limited to 600 Hz to 1.2 kHz, a nine-second hall with its lows cut); PIECES BY SEED (2026-11-13, music.md section 7c, `piece.rs`): each piece a
 seed that draws its key, tempo, form (AABA and the like, sections that return), each section's chords
 (electro swing's from a harmonic grammar of functions, secondary dominants, tritone substitutes and
 passing diminished chords), its own riffs (motif rules) and its lead voices (clarinet, hot-club violin,

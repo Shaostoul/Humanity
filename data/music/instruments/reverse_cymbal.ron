@@ -1,0 +1,17 @@
+// A REVERSED CYMBAL (docs/design/music.md section 7g, rung E3): a crash cymbal played backwards, for a
+// transition into a section. The drum machine's metal (six square waves tuned inharmonically through a
+// band-pass and a high-pass) and bright noise, with a two-and-a-half-second decay run the other way:
+// it swells from far down up to the strike and stops dead on the next section's downbeat (the
+// composer gives it exactly the time to that downbeat). Synthesised, with no recording needed.
+Instrument(
+    id: "reverse_cymbal",
+    words: "music.instrument.reverse_cymbal",
+    kind: DrumMachine((
+        metal: Some((level: 1.0, tune: 1.25, bp_hz: 7500.0, bp_q: 0.6, hp_hz: 5000.0, decay_s: 2.5)),
+        noise: Some((level: 0.35, filter: HighPass, hz: 6000.0, decay_s: 2.2)),
+        reverse: true,
+    )),
+    level_db: -14.0,
+    reverb_send: 0.35,
+    pan_spread: 0.1,
+)

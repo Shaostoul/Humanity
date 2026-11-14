@@ -25,6 +25,7 @@ pub mod composer;
 pub mod drum_machine;
 pub mod dsp;
 pub mod favourite;
+pub mod fx;
 pub mod instrument;
 pub mod intensity;
 pub mod library;
@@ -80,5 +81,7 @@ mod tests_page;
 mod tests_electronic;
 #[cfg(test)]
 mod tests_e5;
+#[cfg(test)]
+mod tests_e6;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;

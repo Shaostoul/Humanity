@@ -99,7 +99,7 @@ fn one_note(lib: &crate::MusicLibrary, inst: &str, midi: f32, a4: f32, seconds: 
     let res = Resolved::new(lib, &SampleLibrary::new()).unwrap();
     let mut pool = VoicePool::new(1);
     let i = lib.instrument_index(inst).unwrap() as u16;
-    pool.note_on(NoteOn { inst: i, role: 0, midi, a4, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+    pool.note_on(NoteOn { inst: i, role: 0, midi, a4, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
     let p = BlockParams::plain(RATE, 1.0, &vowel);
     let total = (seconds * RATE) as usize;
@@ -634,7 +634,7 @@ fn a_recorded_instrument_with_exact_keys_plays_the_rest_on_its_fallback() {
     let pan = lib.instrument_index("steel_pan").unwrap() as u16;
     let played = |midi: f32| {
         let mut pool = VoicePool::new(1);
-        pool.note_on(NoteOn { inst: hang, role: 0, midi, a4: 432.0, vel: 0.8, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+        pool.note_on(NoteOn { inst: hang, role: 0, midi, a4: 432.0, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
         pool.voices.iter().find(|v| v.active).map(|v| v.inst)
     };
     assert_eq!(played(62.0), Some(hang), "the Hang's own D4 plays its recording");
@@ -670,7 +670,7 @@ fn an_exact_key_recordings_missing_notes_play_on_a_recorded_fallback() {
     let id = |s: &str| lib.instrument_index(s).unwrap() as u16;
     let played = |midi: f32| {
         let mut pool = VoicePool::new(1);
-        pool.note_on(NoteOn { inst: id("test_hang"), role: 0, midi, a4: 432.0, vel: 0.8, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+        pool.note_on(NoteOn { inst: id("test_hang"), role: 0, midi, a4: 432.0, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
         pool.voices.iter().find(|v| v.active).map(|v| v.inst)
     };
     assert_eq!(played(62.0), Some(id("test_hang")), "the Hang's own note");
@@ -710,7 +710,7 @@ fn a_sustain_without_loop_points_is_held_past_its_end() {
     let res = Resolved::new(&lib, &samples).unwrap();
     let i = lib.instrument_index("test_strings").unwrap() as u16;
     let mut pool = VoicePool::new(1);
-    pool.note_on(NoteOn { inst: i, role: 0, midi: 57.0, a4: 440.0, vel: 0.8, pan: 0.0, hold_s: 4.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
+    pool.note_on(NoteOn { inst: i, role: 0, midi: 57.0, a4: 440.0, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 4.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, RATE);
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
     let p = BlockParams::plain(RATE, 1.0, &vowel);
     let mut x = Vec::new();
@@ -754,7 +754,7 @@ fn a_sampled_instrument_retunes_by_rate_and_falls_back_without_its_pack() {
     let with = Resolved::new(&lib, &samples).unwrap();
     let i = lib.instrument_index("test_piano").unwrap();
     let mut pool = VoicePool::new(1);
-    pool.note_on(NoteOn { inst: i as u16, role: 0, midi: 69.0, a4: 432.0, vel: 0.8, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &with.instruments, &with.banks, RATE);
+    pool.note_on(NoteOn { inst: i as u16, role: 0, midi: 69.0, a4: 432.0, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &with.instruments, &with.banks, RATE);
     let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
     let p = BlockParams::plain(RATE, 1.0, &vowel);
     let mut x = Vec::new();

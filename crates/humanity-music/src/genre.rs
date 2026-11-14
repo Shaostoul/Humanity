@@ -88,6 +88,91 @@ pub struct DrumPart {
     /// Its hits duck the roles the genre's `sidechain` names (the kick pumping the sub).
     #[serde(default)]
     pub ducks: bool,
+    /// Its share sent to the genre's `gated_reverb`, 0..1 (rung E3: the synthwave snare's big room
+    /// cut dead); each of its hits opens the gate.
+    #[serde(default)]
+    pub gated: f32,
+    /// A FILL (rung E6): it plays only in a phrase's last bar (never in a build, which has its own
+    /// roll), and from its first hit to the bar's end the other lines rest, except those marked
+    /// `under_fills` (a house kick keeps the floor). A pattern of rests is a phrase with no fill.
+    #[serde(default)]
+    pub fill: bool,
+    #[serde(default)]
+    pub under_fills: bool,
+    /// Several notes for one line (a fill down the toms): in its patterns `1` to `9` strike the
+    /// first to ninth of these at full velocity, `x` its `note`.
+    #[serde(default)]
+    pub notes: Vec<String>,
+}
+
+/// A tempo-synced delay (rung E3, docs/design/music.md section 7g): its time a note value at the
+/// music's tempo, its repeats band-limited in the loop as a tape echo's are ("a tape-delay emulation,
+/// sync'ed to the project tempo and with the lows rolled off at 600Hz and the highs at 1200Hz", Sound
+/// On Sound, "Sound Design For Ambient Music", November 2018), each role sending its share.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DelaySpec {
+    /// The time as a note value: "1/4" a beat, "1/8" half, "1/16" a quarter; a trailing "." dots it
+    /// (half again: "1/8." is three sixteenths), a trailing "t" makes it a triplet (two thirds).
+    pub division: String,
+    /// How much of each repeat comes round again, 0 .. 0.95.
+    #[serde(default = "default_feedback")]
+    pub feedback: f32,
+    /// The repeats' lows rolled off under this (Hz, 0: none) and their highs over this.
+    #[serde(default)]
+    pub low_cut_hz: f32,
+    #[serde(default)]
+    pub high_cut_hz: f32,
+    /// Each repeat on the other side (ping-pong).
+    #[serde(default)]
+    pub ping_pong: bool,
+    /// Each role's send, 0..1.
+    pub sends: Vec<(RoleKind, f32)>,
+    /// The repeats' level, and their share sent on into the reverb.
+    #[serde(default = "one")]
+    pub wet: f32,
+    #[serde(default)]
+    pub reverb: f32,
+}
+
+fn default_feedback() -> f32 {
+    0.35
+}
+
+/// A gated reverb (rung E3): "a noise gate that cuts the tail of the reverb" (Wikipedia, "Gated
+/// reverb", 9 October 2026). A small dense room with a long decay, so its tail stays level, opened by
+/// each hit of a drum line with `gated` above 0, held open `hold_s`, closed over `release_s`.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct GatedReverbSpec {
+    #[serde(default = "default_gate_t60")]
+    pub t60_s: f32,
+    pub hold_s: f32,
+    #[serde(default = "default_gate_release")]
+    pub release_s: f32,
+    #[serde(default = "one")]
+    pub wet: f32,
+}
+
+fn default_gate_t60() -> f32 {
+    2.5
+}
+
+fn default_gate_release() -> f32 {
+    0.02
+}
+
+/// A note value ("1/8.", "1/4", "1/8t") as beats of a quarter note: the delay's time.
+pub fn division_beats(s: &str) -> Option<f32> {
+    let s = s.trim();
+    let (body, mul) = if let Some(b) = s.strip_suffix('.') {
+        (b, 1.5)
+    } else if let Some(b) = s.strip_suffix(['t', 'T']) {
+        (b, 2.0 / 3.0)
+    } else {
+        (s, 1.0)
+    };
+    let (a, b) = body.split_once('/')?;
+    let (a, b): (f32, f32) = (a.trim().parse().ok()?, b.trim().parse().ok()?);
+    (a > 0.0 && b > 0.0).then(|| 4.0 * a / b * mul)
 }
 
 /// A genre's STRUCTURE (rung E1, docs/design/music.md section 7d): the sections a piece plays in
@@ -108,6 +193,13 @@ pub struct Structure {
     /// Beats of silence at a build's end, before the drop.
     #[serde(default = "one")]
     pub gap_beats: f32,
+    /// Transitions (rung E3): a REVERSED CYMBAL swelling over its `beats` into every section marked
+    /// `swell`, ending on its downbeat; a DOWNLIFTER falling at the start of every section marked
+    /// `fall` (out of a drop).
+    #[serde(default)]
+    pub reverse_cymbal: Option<Hit>,
+    #[serde(default)]
+    pub downlifter: Option<Hit>,
 }
 
 /// One section of a structure.
@@ -125,6 +217,15 @@ pub struct SectionSpec {
     /// How hard it plays (velocity times this).
     #[serde(default = "one")]
     pub energy: f32,
+    /// Its last beats end in a TAPE STOP (rung E3; at most a bar): nothing new is struck, and the
+    /// whole score slows to nothing, pitch and time falling together, in place of a build's silence.
+    #[serde(default)]
+    pub tape_stop_beats: f32,
+    /// The structure's reversed cymbal swells into it; its downlifter falls as it begins.
+    #[serde(default)]
+    pub swell: bool,
+    #[serde(default)]
+    pub fall: bool,
 }
 
 /// A one-off sound of a structure: an instrument (and the part a recording would play it as), its
@@ -209,6 +310,15 @@ pub struct Recipe {
     /// Reverb wetness times this (lo-fi is drier than the ship's halls).
     #[serde(default = "one")]
     pub reverb_scale: f32,
+    /// The reverb's decay, seconds, over the mood's (0: the mood's): ambient's long halls.
+    #[serde(default)]
+    pub reverb_t60_s: f32,
+    /// A low cut on the reverb's send (rung E3), Hz (0: none): a two-pole high-pass, 12 dB an octave,
+    /// so the hall never muddies the low end ("a 6 or 12 dB/octave low-cut filter at 300-400 Hz, to
+    /// stop the sound getting too muddy", Sound On Sound, "Sound Design For Ambient Music", November
+    /// 2018).
+    #[serde(default)]
+    pub reverb_low_cut_hz: f32,
 }
 
 /// A role's instrument swapped (the palette).
@@ -310,6 +420,12 @@ pub struct Comping {
     /// Milliseconds between one string and the next, lowest first (0: all at once).
     #[serde(default)]
     pub strum_ms: f32,
+    /// The same in beats, locked to the tempo (rung E6; over `strum_ms` when above 0): a quarter of a
+    /// beat between notes makes the struck chord an ARPEGGIO in sixteenths, lowest note first
+    /// (synthwave's "simple, ascending four-note arpeggio based on notes within each chord",
+    /// MusicRadar, 5 August 2020).
+    #[serde(default)]
+    pub strum_beats: f32,
     /// How long each strike rings, beats (0: until the next strike); a gypsy-jazz guitar's chop is
     /// short.
     #[serde(default)]
@@ -426,6 +542,11 @@ pub struct Genre {
     /// Ducking under its kick.
     #[serde(default)]
     pub sidechain: Option<Sidechain>,
+    /// Its tempo delay and its gated reverb (rung E3), in calm moods.
+    #[serde(default)]
+    pub delay: Option<DelaySpec>,
+    #[serde(default)]
+    pub gated_reverb: Option<GatedReverbSpec>,
 }
 
 impl Genre {
@@ -438,7 +559,7 @@ impl Genre {
 /// Which hits a drum pattern's character asks for, as a velocity (0 = rest).
 pub fn hit_velocity(c: char) -> f32 {
     match c {
-        'x' | 'X' => 1.0,
+        'x' | 'X' | '1'..='9' => 1.0,
         'o' | 'O' => 0.6,
         'g' | 'G' => 0.3,
         _ => 0.0,

@@ -97,6 +97,13 @@ pub struct DrumMachineSpec {
     /// is cut short by the closed one, as on the machines.
     #[serde(default)]
     pub choke: u8,
+    /// Played backwards (rung E3, the REVERSED CYMBAL for transitions): the hit's decay runs the
+    /// other way, swelling from 60 dB down (or from where its decay would be after the note's length)
+    /// up to the strike, then stopping dead over 2 ms. Its length is the note's `hold_s` (the
+    /// composer makes it end on a section's downbeat), else its longest decay. A reversed hit has no
+    /// click and no clap bursts; its tones keep their forward pitch fall.
+    #[serde(default)]
+    pub reverse: bool,
 }
 
 fn default_click_ms() -> f32 {

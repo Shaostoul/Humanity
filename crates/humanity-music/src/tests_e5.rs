@@ -38,7 +38,7 @@ fn render(insts: &[Instrument], notes: &[(u16, f32, f64, f32)], bpm: f64, second
         let t = out.len() as f64 / RATE as f64;
         while next < notes.len() && notes[next].2 <= t {
             let (i, midi, _, hold) = notes[next];
-            pool.note_on(NoteOn { inst: i, role: 1, midi, a4: A4, vel: 1.0, pan: 0.0, hold_s: hold, tag: next as u32 + 1, level: 1.0 }, insts, &banks, RATE);
+            pool.note_on(NoteOn { inst: i, role: 1, midi, a4: A4, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: hold, tag: next as u32 + 1, level: 1.0 }, insts, &banks, RATE);
             next += 1;
         }
         let beats = t * bpm / 60.0;
@@ -643,7 +643,7 @@ fn every_new_instrument_fits_the_per_voice_budget() {
             let mut times = Vec::new();
             for k in 0..1500usize {
                 if (drum && k % 94 == 0) || (!drum && k == 0) {
-                    pool.note_on(NoteOn { inst: 0, role: 1, midi: 45.0, a4: A4, vel: 1.0, pan: 0.0, hold_s: if drum { 0.1 } else { 0.0 }, tag: k as u32 + 1, level: 1.0 }, &insts, &banks, RATE);
+                    pool.note_on(NoteOn { inst: 0, role: 1, midi: 45.0, a4: A4, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: if drum { 0.1 } else { 0.0 }, tag: k as u32 + 1, level: 1.0 }, &insts, &banks, RATE);
                 }
                 let beats = k as f64 * 128.0 / RATE as f64 * 2.0;
                 let mut p = BlockParams::plain(RATE, 2.0, &vowel);

@@ -1,0 +1,116 @@
+// "Synthwave" (docs/design/music.md section 7g, rung E6, 2026-11-14). The operator: "I'm interested in
+// having all the instruments."
+//
+// What is captured is the GENRE's commonplace building blocks (the 2026-11-12 copyright finding), never
+// any artist's recordings, melodies or riffs, and no name of any. From the research's sources (read
+// 2026-11-13, docs/reference/research/2026-11-13-instrument-libraries/electronic-genres-and-synthesis.md
+// section 4): "Common tempos are between 80 and 118 BPM" and "It is primarily an instrumental genre"
+// (Wikipedia, "Synthwave", 16 October 2026); "program a sequence of sixteenth notes, all with the same
+// length and velocity"; "compressor sidechaining livened up the dynamics of sequenced basslines"; "a
+// simple, ascending four-note arpeggio based on notes within each chord"; "Make your own gated reverb
+// effect by heavily compressing a non-linear reverb tail, then placing a noise gate plugin across it to
+// chop off the release" (MusicRadar, 5 August 2020); "The use of long reverbs on melodic elements" and
+// "use a delay modelled on a classic tape delay machine" (MusicRadar, 5 July 2017).
+//
+// So: 80 to 118 bpm, straight; the 909-style kick, the 808-style snare (a clap layered on it in the
+// choruses) through a GATED REVERB (a big room cut dead a quarter of a second after each hit), eighth
+// or sixteenth hats, fills down the 808-style toms; a bass of steady sixteenth notes (or octaves)
+// pumping under the kick; the SUPERSAW playing each chord as an ascending four-note arpeggio in
+// sixteenths; the WAVETABLE PAD (or the pulse-width pad) holding the chords; a gliding mono lead in the
+// choruses through a tape-style delay; long reverbs with their lows cut, a touch of tape wow; minor
+// chords moving the genre's way (the minor chord, the flat sixth, the flat third, the flat seventh);
+// and a song form: intro, verse, chorus (a reversed cymbal swelling into each), verse, chorus, a
+// bridge (a downlifter as it begins), a last chorus, an outro.
+Genre(
+    id: "synthwave",
+    words: "music.genre.synthwave",
+    about_words: "music.genre.synthwave_about",
+    tempo_bpm: Some((80.0, 118.0)),
+    beat_felt: Some(true),
+    beats_per_bar: Some(4),
+    groove: Some((swing: 0.5, subdivision: 4)),
+    drums: [
+        (instrument: "kick_909", note: "B1", velocity: 0.9, patterns: ["x.......x.......", "x.......x.x.....", "x...x...x...x..."], ducks: true, under_fills: true, sections: ["verse", "chorus", "outro"]),
+        // The backbeat snare, its big room gated.
+        (instrument: "snare_808", note: "D3", velocity: 0.8, patterns: ["....x.......x..."], gated: 0.9, sections: ["verse", "chorus", "outro"]),
+        (instrument: "clap_808", note: "D3", velocity: 0.5, patterns: ["....x.......x..."], gated: 0.6, sections: ["chorus"]),
+        (instrument: "hat_808_closed", note: "D5", velocity: 0.35, patterns: ["x.x.x.x.x.x.x.x.", "xxxxxxxxxxxxxxxx", "x.xxx.xxx.xxx.xx"], sections: ["verse", "chorus", "bridge", "outro"]),
+        // A fill down the toms, the '80s way.
+        (instrument: "tom_808", note: "A2", notes: ["A3", "E3", "A2"], velocity: 0.75, patterns: ["........1.2.3.3.", "............1233", "................", "....1.1.2.2.3.3."], fill: true, sections: ["verse", "chorus"]),
+    ],
+    gated_reverb: Some((t60_s: 2.5, hold_s: 0.25, release_s: 0.03, wet: 6.0)),
+    structure: Some((
+        sections: [
+            (name: "intro", bars: 8, roles: [Choir, Pad], energy: 0.85),
+            (name: "verse", bars: 16, roles: [Bass, Pad, Choir], energy: 0.9),
+            (name: "chorus", bars: 16, roles: [Bass, Pad, Choir, Melody], swell: true),
+            (name: "verse", bars: 16, roles: [Bass, Pad, Choir], energy: 0.9),
+            (name: "chorus", bars: 16, roles: [Bass, Pad, Choir, Melody], swell: true),
+            (name: "bridge", bars: 8, roles: [Choir, Melody], energy: 0.85, fall: true),
+            (name: "chorus", bars: 16, roles: [Bass, Pad, Choir, Melody], swell: true),
+            (name: "outro", bars: 8, roles: [Choir, Pad], energy: 0.85),
+        ],
+        reverse_cymbal: Some((instrument: "reverse_cymbal", note: "C4", velocity: 0.7, beats: 2.0)),
+        downlifter: Some((instrument: "downlifter", note: "C4", velocity: 0.65)),
+        gap_beats: 0.0,
+    )),
+    sidechain: Some((roles: [Bass, Choir], depth_db: -5.0, release_s: 0.16)),
+    progressions: Some((
+        keys: [
+            (root: "A", mode: Aeolian, weight: 1.0), (root: "E", mode: Aeolian, weight: 0.8), (root: "D", mode: Aeolian, weight: 0.8),
+            (root: "C", mode: Aeolian, weight: 0.6), (root: "F#", mode: Aeolian, weight: 0.5), (root: "B", mode: Aeolian, weight: 0.5),
+        ],
+        chords: [
+            (name: "i", root: 0, notes: [0, 3, 7]),
+            (name: "i9", root: 0, notes: [0, 3, 7, 14]),
+            (name: "iv", root: 5, notes: [0, 3, 7]),
+            (name: "v", root: 7, notes: [0, 3, 7]),
+            (name: "bIII", root: 3, notes: [0, 4, 7]),
+            (name: "bVI", root: 8, notes: [0, 4, 7]),
+            (name: "bVII", root: 10, notes: [0, 4, 7]),
+        ],
+        moves: [
+            ("i", "bVI", 3.0), ("i", "bVII", 1.5), ("i", "iv", 1.0), ("i", "i9", 0.5),
+            ("i9", "bVI", 2.0), ("i9", "bVII", 1.0),
+            ("bVI", "bIII", 2.0), ("bVI", "bVII", 2.0), ("bVI", "i", 1.0),
+            ("bIII", "bVII", 2.0), ("bIII", "iv", 1.0),
+            ("bVII", "i", 2.5), ("bVII", "bVI", 1.5),
+            ("iv", "bVI", 1.0), ("iv", "v", 1.0), ("iv", "i", 1.0),
+            ("v", "i", 2.0),
+        ],
+        cadences: ["i", "bVII"],
+        start: "i",
+    )),
+    harmony: (chord_bars: Some((2, 2))),
+    // The supersaw's arpeggio: each beat the chord's four notes lowest first, a sixteenth apart.
+    pad_patterns: ["x...x...x...x...", "x...x...x...x...", "x.......x...x..."],
+    comping: (strum_beats: 0.25, hold_beats: 0.25),
+    // Steady sixteenths through the chord's root, or octaves.
+    bass_patterns: ["xxxxxxxxxxxxxxxx", "xoxoxoxoxoxoxoxo", "xxxxxxxxxxxxxxoo"],
+    motif_scale: Some(Aeolian),
+    motif_rules: Some((
+        count: 4,
+        notes: (3, 6),
+        cells: [[1.0, 1.0], [0.5, 0.5, 1.0], [1.5, 0.5], [2.0], [0.5, 1.5], [0.75, 0.75, 0.5]],
+        contours: [(Rise, 1.0), (Fall, 1.2), (Valley, 1.0), (Hover, 0.8)],
+        leap: 0.25,
+        range: (-2, 5),
+        hold: (0.75, 0.95),
+    )),
+    // What each piece draws: the held chords on the wavetable pad (its home) or the pulse-width pad.
+    leads: [
+        (role: Choir, instrument: "wavetable_pad", low: "D3", high: "D5", voices: 2, weight: 2.0),
+        (role: Choir, instrument: "pwm_pad", low: "D3", high: "D5", voices: 2, level_db: 1.0, weight: 1.0),
+    ],
+    roles_off: [Drone, Percussion, Bells, Texture],
+    roles_add: [
+        (role: Bass, instrument: "pulse_bass", low: "E1", high: "E2"),
+        (role: Pad, instrument: "supersaw", low: "A3", high: "A5", voices: 4, level_db: -4.0),
+        (role: Choir, instrument: "wavetable_pad", low: "D3", high: "D5", voices: 2, density: 1.0),
+        (role: Melody, instrument: "synth_lead", low: "A4", high: "A5", density: 0.45),
+    ],
+    // The tape-style delay: dotted eighths on the lead and the arpeggio, the repeats band-limited.
+    delay: Some((division: "1/8.", feedback: 0.35, low_cut_hz: 400.0, high_cut_hz: 3500.0, sends: [(Melody, 0.4), (Pad, 0.15)], wet: 0.55, reverb: 0.4)),
+    recipe: (wow_cents: 3.0, wow_hz: 0.4, lowpass_hz: 9000.0, saturation: 0.12, reverb_scale: 0.8, reverb_t60_s: 5.0, reverb_low_cut_hz: 220.0),
+    level_db: 3.5,
+)

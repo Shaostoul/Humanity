@@ -569,12 +569,12 @@ moment it hits (the composer's own event, exact, with no detector listening), an
 genre's `sidechain` names dip by its depth and come back over its release, a straight line across
 each block so the dip never clicks.
 
-**What remains of the electronic rungs** (the research's section 6): E3's tempo-synced delay, gated
-reverb, a reverb low cut, the downlifter, reversed cymbal and tape stop; E6's house, drum and bass,
-synthwave and ambient genres; E7's resampling, granular textures and the heavier dubstep kinds
-(brostep, riddim) as choices of their own. E4's drum-machine voices and E5's oscillators (the
-wavetable, unison and the supersaw, the pulse with its width modulated) were built on 2026-11-14:
-section 7f.
+**What remains of the electronic rungs** (the research's section 6): E7's resampling, granular
+textures and the heavier dubstep kinds (brostep, riddim) as choices of their own. E4's drum-machine
+voices and E5's oscillators (the wavetable, unison and the supersaw, the pulse with its width
+modulated) were built on 2026-11-14 (section 7f), and E3's mix effects (the tempo-synced delay, gated
+reverb, the reverb's low cut, the downlifter, reversed cymbal and tape stop) with E6's house, drum and
+bass, synthwave and ambient genres the same day (section 7g).
 
 ## 7e. Deep dubstep (built 2026-11-13)
 
@@ -670,14 +670,14 @@ the rimshot and the cowbell are our own designs.
 | `kick_808` | a deep sine ringing about a second, 6% sharp at the strike | lo-fi's 808 kit |
 | `snare_808` | two tones 1.83 apart over noise high-passed at 1.8 kHz | lo-fi's 808 kit |
 | `hat_808_closed`, `hat_808_open` | six squares through a band-pass at 10 kHz and a high-pass at 8 kHz, 70 ms and 550 ms, one choke group | lo-fi's 808 kit |
-| `clap_808` | band-passed noise struck three times 10 ms apart, then its tail | not yet |
-| `tom_808` | a sine sliding down from 18% sharp; its pitch is the note | not yet |
-| `cowbell_808`, `rimshot_808` | two squares through a band-pass; two high tones, a click and noise | not yet |
+| `clap_808` | band-passed noise struck three times 10 ms apart, then its tail | house's 808 kit; synthwave's choruses, layered on the gated snare (section 7g) |
+| `tom_808` | a sine sliding down from 18% sharp; its pitch is the note | fills in house's 808 kit and synthwave (section 7g) |
+| `cowbell_808`, `rimshot_808` | two squares through a band-pass; two high tones, a click and noise | house's 808 kit (the rimshot playing the clave); drum and bass's ghost notes on the rimshot (section 7g) |
 | `kick_909` | a sine swept down from 3.2 times the note, driven, with a click | electro swing's 909 kit |
-| `snare_909` | two tones falling 35% in pitch, over noise low-passed then high-passed into a band | not yet |
+| `snare_909` | two tones falling 35% in pitch, over noise low-passed then high-passed into a band | drum and bass's snare; under house's 909 clap now and then; both genres' build rolls (section 7g) |
 | `clap_909` | band-passed noise struck four times 8 ms apart, a roomier tail | electro swing's 909 kit |
 | `hat_909_closed`, `hat_909_open` | six squares tuned higher, a brighter band and a little noise, one choke group | electro swing's 909 kit |
-| `tom_909` | a sine with a deeper sweep than the 808's, driven, a click | not yet |
+| `tom_909` | a sine with a deeper sweep than the 808's, driven, a click | fills in house's 909 kit and drum and bass (section 7g) |
 
 Measured (each voice struck once): the 909 kick starts 2.1 times its settled pitch, the 808's 1.06
 times; each tom over 1.08; the snares' two tones each over 20 dB clear of the gap between them, with
@@ -696,7 +696,9 @@ growl (the FM growl, or the WAVETABLE GROWL by weight 2 to 1: the AKWF voice, FM
 morphing in time, eighths, triplets, sixteenths, an octave doubled under, a shaper and a phaser) and
 their pad (the dub pad, or the PULSE-WIDTH PAD an octave higher: a pulse carries twice a saw's
 fundamental, so at the dub pad's A2 it crowded the kick's band). The supersaw and the wavetable pad
-wait for E6's synthwave, trance and ambient. These are synthesised instruments, not parts of the
+found their homes in E6 (section 7g): the supersaw arpeggiates synthwave's chords and is one of
+house's two chord voices; the wavetable pad holds synthwave's chords and is ambient's and drum and
+bass's pad (trance waits for E7). These are synthesised instruments, not parts of the
 instrument library, so no `not_used_yet` mark applies; Settings > Audio > Instruments now says the
 core set's single-cycle waves play in the music.
 
@@ -724,6 +726,105 @@ the same way; its loudness -18.0 and -17.7 LUFS for its two measured seeds.
 **To listen**: `pieces_to_listen_to` takes `instrument:<id>` items (a drum in a groove at 120 bpm; any
 other voice the chords D minor, B flat, F and C held, then arpeggiated; a growl or a bass a riff low
 down), beside a genre's pieces (`deep_dubstep:1:melody=wavetable_growl`, `lofi:1:kit=808`).
+
+## 7g. The mix's effects, fills, and four more genres (E3 and E6, built 2026-11-14)
+
+The operator: "I'm interested in having all the instruments." and "how we could make music like
+dubstep". Rung E5 left the supersaw, the wavetable pad, the toms, the cowbell, the rimshot, the 909
+snare and the 808 clap in no genre, waiting for these; each now has a home. All our own code
+(`fx.rs`, and small additions to `score.rs`, `composer.rs`, `voice.rs` and `drum_machine.rs`), every
+piece opt-in data, so no existing genre changed: renders of the calm score, lo-fi, electro swing and
+deep dubstep before and after compared byte for byte identical. What each effect is FOR, and its
+numbers, come from the production sources the research read on 2026-11-13
+([`electronic-genres-and-synthesis.md`](../reference/research/2026-11-13-instrument-libraries/electronic-genres-and-synthesis.md),
+sections 2 to 5 and 7), quoted where they are used.
+
+**E3, the mix's effects:**
+
+| Effect | Data | What it does |
+|---|---|---|
+| Tempo delay | a genre's `delay`: `division` ("1/8." dotted, "1/4", "1/8t" a triplet), `feedback`, `low_cut_hz` and `high_cut_hz`, `ping_pong`, each role's send, `wet`, `reverb` | a recirculating stereo delay line whose time is the note value at the music's tempo (a new tempo glides over 60 ms, as a tape machine's would), its repeats filtered inside the loop (each pass thinner and darker) and softly saturated, so feedback never runs away; ping-pong sends both sides in on the left and crosses each pass to the other side; a share of the repeats goes on into the reverb. Sound On Sound ("Sound Design For Ambient Music", November 2018): "a tape-delay emulation, sync'ed to the project tempo and with the lows rolled off at 600Hz and the highs at 1200Hz" |
+| Gated reverb | a genre's `gated_reverb` (`t60_s`, `hold_s`, `release_s`, `wet`) and a drum line's `gated` share | a small dense room (four delay lines and a Hadamard matrix after two all-pass diffusers) with a long decay, so its tail stays level, through a gate the composer opens at each gated hit (its own event: exact, no detector), held open, then closed in a straight line. "Make your own gated reverb effect by heavily compressing a non-linear reverb tail, then placing a noise gate plugin across it to chop off the release" (MusicRadar, 5 August 2020); "a noise gate that cuts the tail of the reverb" (Wikipedia, "Gated reverb", 9 October 2026). The long decay stands in for the compressor: no compressor is built |
+| Reverb low cut | a genre's `recipe.reverb_low_cut_hz` | a two-pole high-pass (12 dB an octave) on the reverb's send: "a 6 or 12 dB/octave low-cut filter at 300-400 Hz, to stop the sound getting too muddy" (Sound On Sound, November 2018) |
+| A genre's own hall | `recipe.reverb_t60_s` | the reverb's decay over the mood's (ambient's nine seconds) |
+| Downlifter | `downlifter.ron`; a structure's `downlifter`, a section's `fall` | noise through a band-pass whose centre falls with its envelope, from about 7 kHz to 250 Hz over three seconds, at the start of a section marked `fall` (out of a drop) |
+| Reversed cymbal | a drum machine's `reverse`; `reverse_cymbal.ron`; a structure's `reverse_cymbal` (its `beats`), a section's `swell` | a crash's decay run backwards: it swells from far down to the strike and stops dead (2 ms) exactly on the downbeat of a section marked `swell`, the composer giving it the time to that downbeat |
+| Tape stop | a section's `tape_stop_beats` (at most a bar) | over the section's last beats nothing new is struck and the whole score slows to nothing: the score renders on into a short read-back buffer that is read at the falling speed (1 to 0 in a straight line, interpolated), so the pitch, the tempo, the reverb and the delay all fall together, and the level falls with the speed (a playback head's voltage follows the tape's speed); at its end everything the tape held is silenced and the next section strikes afresh. It stands in for a build's silence. "emulating the effect of a tape deck slowing down" (MusicRadar, 30 August 2017) |
+| Arpeggio | a genre's `comping.strum_beats` | the struck chord's notes a set part of a beat apart, lowest first, locked to the tempo: a quarter of a beat makes "a simple, ascending four-note arpeggio" (MusicRadar, 5 August 2020) in sixteenths |
+
+Measured (`tests_e6.rs`, each test seen red first): a click through the delay at 120 bpm repeats at
+0.375 s for "1/8.", 0.5 s for "1/4" and 0.167 s for "1/8t" (0.5 s for "1/8." at 90 bpm), each repeat
+within 2 samples of its time and quieter than the last, and its first repeat through a 600 Hz to
+1.2 kHz loop sits 42 dB under the unfiltered repeat over 7 kHz and 29 dB under it below 150 Hz, 2.9
+dB under it from 700 Hz to 1.1 kHz; the gated room's tail stays within 3.3 dB of its start while the
+gate is open and is silent once it shuts, where the same room left open is only 10.3 dB down at that
+time; white noise into the hall with the low cut at 350 Hz leaves a tail 22.4 dB weaker under 120 Hz
+and unchanged over 1.4 kHz; the downlifter's spectral centroid falls from 7.2 kHz to 785 Hz in its
+first two seconds; the reversed cymbal rises about 12 dB every half second, ends 45.7 dB louder than
+it began, and is silent (67.6 dB down) 10 ms after its end; a held 216 Hz note across a two-beat tape
+stop at 120 bpm measures 189, 136, 82 and 35 Hz in the stop's four quarters (a straight-line fall of
+the speed predicts 189, 135, 81 and 27), its last 20 ms 37 dB under where it began, and the next
+section strikes it again at 216 Hz. A delay whose note value is longer than its line holds at the
+genre's slowest tempo (1.36 s at 48 kHz) is refused when the data is read, never played short (the
+first ambient file's dotted quarter at 64.7 bpm, 1.391 s, was).
+
+**Fills (E6).** A drum line marked `fill` plays only in a phrase's last bar (never a build's, whose
+roll is its fill), and from its first hit to the bar's end the other lines rest, except those marked
+`under_fills` (house's kick keeps the floor); a line's `notes` list lets its patterns strike several
+pitches (`1` to `9`, here high, middle and low toms), and a pattern of rests is a phrase with no
+fill (one in three or four, by the piece's draws). The 808 and 909 toms now play fills in house, drum
+and bass and synthwave.
+
+**The four genres** (`data/music/genres/`, each a person's choice in Settings > Music and on the Music
+page, never a default; only each genre's commonplace building blocks are written, per the 2026-11-12
+copyright finding: no artist's recordings, melodies or riffs, and no name of any):
+
+| | House | Drum and bass | Synthwave | Ambient |
+|---|---|---|---|---|
+| Tempo, feel | 120 to 126 bpm, a light swing (0.54) | 170 to 176, straight | 80 to 118, straight | 60 to 68, no beat felt |
+| Drums | a piece draws the 909 kit (kick four on the floor, clap on 2 and 4, open hat on every off-beat, closed hats between, now and then the 909 snare) or the 909 kick under the 808's percussion (its clap and hats, a cowbell now and then, the rimshot playing the three-two clave); fills down the 909 or 808 toms | the two-step (the kick on 1 and the "and" of 3, now and then a second), the 909 snare on 2 and 4 (its second an eighth late or early now and then), the 909 closed hat as a ride on every eighth, ghost notes on the rimshot, fills down the 909 toms | the 909 kick on 1 and 3 (or four on the floor), the 808 snare on 2 and 4 through the gated room, the 808 clap layered on it in the choruses, eighth or sixteenth 808 hats, fills down the 808 toms | none |
+| Bass | the pulse bass off the beat, syncopated or jumping octaves, pumping under the kick | the REESE (two saws 55 cents either side of the note, a two-stage low-pass sweeping over two bars, a clean sine sub under it), ducking under the kick | steady sixteenths through the chord's root, or octaves, pumping under the kick | none (the mood's drone) |
+| Chords and lead | minor sevenths struck short off the beat on the FM electric piano or the supersaw, pumping; a riff in the minor pentatonic on the soft or the gliding lead | the wavetable pad or the soft pad; sparse electric-piano phrases through a dotted-eighth delay | the SUPERSAW arpeggiating each chord (four notes a sixteenth apart, lowest first); the WAVETABLE PAD or the pulse-width pad holding it; the gliding lead in the choruses through a tape-style dotted-eighth delay | the WAVETABLE PAD or the dark pad over the drone; the celesta or the harp, a few notes far apart, through a quarter-note tape delay band-limited 600 Hz to 1.2 kHz |
+| Harmony | Aeolian keys: i7, iv7, v7, bIIImaj7, bVImaj7, bVII, a chord a bar or two | Aeolian: i9, iv9, v7, bIIImaj7, bVImaj7, bVII, two to four bars | Aeolian: i (and i add 9), iv, v, bIII, bVI, bVII (the minor chord to the flat sixth, the flat third, the flat seventh), a bar or two | Ionian: Imaj9, Isus2, ii7, iii7, IVmaj7, Vsus4, vi7, four to eight bars |
+| Structure | an intro of drums alone (8 bars), the bass joining (8), the main groove (16), a breakdown (8, a downlifter as it begins), a build (8: the 909 snare rolling under the riser, a beat of silence), the drop (16, a reversed cymbal swelling into it), an outro (8, a downlifter) | an intro (16), a build ending in a two-beat TAPE STOP (8), the drop (16, the sub drop), a breakdown (16, a downlifter), a build into a beat of silence (8), a second drop (16, a reversed cymbal into it), an outro (8) | intro (8), verse (16), chorus (16, a reversed cymbal swelling into each), verse, chorus, bridge (8, a downlifter), chorus, outro (8) | a form of two or three sixteen-bar sections (AB, ABC or AABB) |
+| Mix | the chords and the bass duck 6 dB under the kick; a ping-pong dotted-eighth delay on the stabs and the riff; the reverb's lows cut at 250 Hz | the bass ducks 6 dB; the reverb's lows cut at 300 Hz | the gated room on the snare and clap (2.5 s decay, open 0.25 s, closed over 30 ms); a five-second hall with its lows cut at 220 Hz; a little tape wow and a 9 kHz low-pass | a nine-second hall, wetter, its lows cut at 350 Hz; a little tape wow |
+
+**Measured in the sound** (each drum line's own sound taken as the piece less the same piece with
+that line struck at a ten-thousandth of its velocity: the composer decides the very same notes, so
+the difference is that line in the mix): house's kick 58 times in its first 16 bars on a grid of
+0.4977 s (120.55 bpm, the composer's tempo 120.53), every one within 20 ms of a beat, its clap on 2
+and 4 every time, its breakdown's low band 53 dB under the main section's; drum and bass's snare 31 times in its first drop on a grid of 0.7037 s (170.53 bpm, the composer's 170.53), every one on the backbeat (2, and 4 or the second snare an eighth either side of it), its kick on 1 and on the "and" of 3 in 14 of 15 bars and never on 2 or 4; synthwave's gated room beginning 31 times, on 2 and 4 every time, on a grid of 1.4391 s (83.39 bpm), from 60 to 180 ms after each hit 4.1 dB under the whole mix (a room you hear) and from 330 ms silent;
+ambient no drum onsets, and the delay's own sound following the bells by 0.928 s, its quarter note at
+64.7 bpm being 0.927 s. Fills landed in 6 and 8 of the 11 phrases over six minutes of house that may
+have one (two seeds), every tom in a phrase's last bar.
+
+**Levels and costs.** Each genre is levelled so one time through its structure (ambient: 150 s)
+measures -18 LUFS within 1 LU for two seeds: house +4.5 dB (-18.5 and -18.2 LUFS, its first drop
+-17.7 and -17.0), drum and bass +3.0 (-17.8 and -17.8, its first drop -16.0 and -15.9: never more
+than 2 LU over the whole, so heavy is not louder), synthwave +3.5 (-17.9 and -17.7 over 299 and 260
+s), ambient +4.8 (-17.9 and -18.2); true peaks -3.0 dBTP or lower. Each genre's busiest stretch (house
+and drum and bass in their first drop, synthwave in its first chorus, ambient 30 s in), the mean of a
+128-frame block, the best of three seeds, measured in one run beside the calm score (0.0448 ms that
+run): house 0.0453 ms, drum and bass 0.0431, synthwave 0.0452, ambient 0.0288, every 99th percentile
+under 0.094 ms; the gate is section 14's 0.05 ms scaled by how much slower than its quiet 0.037 the
+calm score ran (`the_new_genres_fit_the_audio_budget`). The new voices, one each: the reverse cymbal
+0.0047 ms, the reese bass 0.0038, the gliding lead 0.0033, the downlifter 0.0013. Synthwave first
+measured 0.0914 ms beside a 0.0645 calm score, nearly all of it its held pad: muting each role in turn
+(the Music page's mutes, through `Tune::mute`) showed the wavetable pad's 2.5 s release overlapping
+the next chord's notes, so the pad's release became 1.2 s (and the supersaw's 0.12 s), synthwave's
+held chords two voices two bars long, and the gated room is emptied and skipped while its gate is
+shut. Memory: the delay's two lines 512 KiB, made only when some genre has a delay; the gated room 72
+KiB; the tape's read-back about 1 KiB.
+
+Pieces by seed work as in the other genres (section 7c): a structure is the piece's form (ambient's
+is a form of two or three sixteen-bar sections), and each piece draws its key, tempo, chords, riffs,
+kit (house) and voices (the pads, the riff's lead, the bells).
+
+**What remains (E7):** resampling (render a growl and replay it: a buffer that must obey the Dev
+page's reuse switch), granular textures and a frozen reverb for ambient, the heavier dubstep kinds
+(brostep, riddim) as genres of their own, trance (the supersaw's other home), the reese's own
+movement (two filters drifting apart), and a compressor for the gated room should the long decay ever
+prove too plain.
 
 ## 7b. Danger and action: the score rising with the game
 
@@ -956,6 +1057,10 @@ parts the genres in use can sound are decoded, 54.7 MiB in the default genre and
 lo-fi, under the 64 MB above (all ten core instruments as 32-bit floats would be 182.7 MiB). The
 calm moods measure 1 to 2 LU under the music target with them (-19.1 to -20.2 LUFS; they are
 levelled at -18 with the synthesised voices): rung 5's self-meter is the fix.
+
+**Measured 2026-11-14 (rungs E3 and E6):** house, drum and bass, synthwave and ambient in their
+busiest stretches each within 1% of the calm score's own cost in the same run or under it, their delays, gated
+room and tape stop included (section 7g).
 
 **Measured 2026-11-06** (release-optimised, 128-frame blocks at 48 kHz, on the operator's i7-8700K
 while other builds ran): the calm score 0.048 ms a block on average (1.8% of the block), 0.1 ms at

@@ -8,7 +8,7 @@ Instrument(
     kind: Synth((
         oscillators: [(wave: Saw, unison: Some((voices: 7, detune: 0.45, mix: 0.6, spread: 0.8)))],
         filter: Some((kind: LowPass, cutoff_hz: 3200.0, q: 0.7, key_track: 1.0, env_hz: 2500.0)),
-        envelope: (attack_s: 0.01, decay_s: 0.6, sustain: 0.75, release_s: 0.35),
+        envelope: (attack_s: 0.01, decay_s: 0.6, sustain: 0.75, release_s: 0.12),
     )),
     level_db: -24.0,
     reverb_send: 0.3,

@@ -111,7 +111,12 @@ And 30 more items, 30 references (`node scripts/crate-cards.js --interface human
   cost per block, no allocation, the sampler seam, the duck, a sustain held past its recording by a
   crossfaded loop); `src/tests_piece.rs` the pieces (music.md section 7c: two seeds make two pieces
   and one seed the same piece twice, an hour of pieces repeats no two-minute stretch in any genre,
-  every piece stays inside its genre's rules); `src/tests_stream.rs` streaming (music.md section 23:
+  every piece stays inside its genre's rules); `src/tests_electronic.rs` and `src/tests_e5.rs` the
+  electronic rungs E1, E2, E4 and E5 (sections 7d to 7f); `src/tests_e6.rs` rungs E3 and E6 (section
+  7g: the delay's repeats at the tempo's division, the gate cutting the room's tail, the reverb's low
+  cut, the downlifter falling and the reversed cymbal swelling, the tape stop's pitch falling, fills at
+  phrase ends, each new genre's tempo, drum signature and structure found in its rendered sound, its
+  loudness and its cost); `src/tests_stream.rs` streaming (music.md section 23:
   the packet reader decodes what kira decodes, a streamed note equals the whole-file note to the bit,
   a stalled stream or a note with no ring fades without a click, and the audio thread's cost with
   every voice streaming). The crate is optimised in dev and test builds (the
@@ -136,12 +141,13 @@ And 30 more items, 30 references (`node scripts/crate-cards.js --interface human
 
 ## Open work
 
-- **The electronic rungs E3, E6 and E7** (the mix's delay, gated reverb, downlifter and tape stop;
-  house, drum and bass, synthwave and ambient as genres; resampling, granular textures, brostep and
-  riddim). E1 and E2 (structure, the bass toolkit) were built 2026-11-13, E4 and E5 (the drum machine,
-  the wavetable, unison and pulse oscillators: `drum_machine.rs`, `wavetable.rs`, `osc.rs`) 2026-11-14;
-  the supersaw, the wavetable pad, the toms, cowbell, rimshot, 909 snare and 808 clap wait for E6's
-  genres. Source: [music.md](../design/music.md), sections 7d to 7f.
+- **The electronic rung E7** (resampling, granular textures and a frozen reverb for ambient, the
+  heavier dubstep kinds brostep and riddim, trance as the supersaw's other home). E1 and E2 (structure,
+  the bass toolkit) were built 2026-11-13; E4 and E5 (the drum machine, the wavetable, unison and pulse
+  oscillators: `drum_machine.rs`, `wavetable.rs`, `osc.rs`) and E3 and E6 (the mix's tempo delay,
+  gated reverb, reverb low cut, downlifter, reversed cymbal and tape stop in `fx.rs`; fills down the
+  toms; house, drum and bass, synthwave and ambient as genres) 2026-11-14. Source:
+  [music.md](../design/music.md), sections 7d to 7g.
 - **Rungs 4 to 10 of the music** (the menu mood on the title screens, voice-call ducking, the self-meter and `music_state` on the IPC,
   sampled instruments, stingers and gaps, the soft-metal guitar and the soprano, the website,
   making music in the app), and the genres' later rungs (dubstep, a danger palette per genre, a

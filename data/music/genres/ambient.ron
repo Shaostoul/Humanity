@@ -1,0 +1,85 @@
+// "Ambient" (docs/design/music.md section 7g, rung E6, 2026-11-14). The operator: "I'm interested in
+// having all the instruments."
+//
+// What is captured is the GENRE's commonplace building blocks (the 2026-11-12 copyright finding), never
+// any artist's recordings, melodies or riffs. From the research's sources (read 2026-11-13,
+// docs/reference/research/2026-11-13-instrument-libraries/electronic-genres-and-synthesis.md section
+// 5): "a genre of music that emphasizes tone and atmosphere over traditional musical structure or
+// rhythm"; "some works use sustained or repeated notes, as in drone music" (Wikipedia, "Ambient music",
+// 11 November 2026); "long, evolving sounds that can be used in place of traditional synth pads or
+// drones"; "a generous helping of long reverb plus some simulated tape delay"; "a 6 or 12 dB/octave
+// low-cut filter at 300-400 Hz, to stop the sound getting too muddy"; "a tape-delay emulation, sync'ed
+// to the project tempo and with the lows rolled off at 600Hz and the highs at 1200Hz" (Sound On Sound,
+// "Sound Design For Ambient Music", Paul White, November 2018).
+//
+// So: no drums and no felt beat; the WAVETABLE PAD (its home) morphing slowly over the drone; sparse
+// bell and harp notes, long and far apart, through a TEMPO-SYNCED TAPE DELAY at a quarter note,
+// its repeats band-limited between 600 Hz and 1.2 kHz as the source describes; a nine-second hall with
+// its lows cut at 350 Hz; open major chords (sevenths, ninths, suspended) changing every four to eight
+// bars; slow evolution rather than verse and chorus (a piece is two or three long sections).
+Genre(
+    id: "ambient",
+    words: "music.genre.ambient",
+    about_words: "music.genre.ambient_about",
+    tempo_bpm: Some((60.0, 68.0)),
+    beat_felt: Some(false),
+    beats_per_bar: Some(4),
+    progressions: Some((
+        keys: [
+            (root: "D", mode: Ionian, weight: 1.0), (root: "C", mode: Ionian, weight: 0.8), (root: "F", mode: Ionian, weight: 0.8),
+            (root: "G", mode: Ionian, weight: 0.8), (root: "A", mode: Ionian, weight: 0.6), (root: "E", mode: Ionian, weight: 0.5),
+        ],
+        chords: [
+            (name: "Imaj9", root: 0, notes: [0, 4, 7, 11, 14]),
+            (name: "Isus2", root: 0, notes: [0, 2, 7]),
+            (name: "ii7", root: 2, notes: [0, 3, 7, 10]),
+            (name: "iii7", root: 4, notes: [0, 3, 7, 10]),
+            (name: "IVmaj7", root: 5, notes: [0, 4, 7, 11]),
+            (name: "Vsus4", root: 7, notes: [0, 5, 7]),
+            (name: "vi7", root: 9, notes: [0, 3, 7, 10]),
+        ],
+        moves: [
+            ("Imaj9", "IVmaj7", 2.0), ("Imaj9", "vi7", 1.5), ("Imaj9", "Isus2", 1.0), ("Imaj9", "iii7", 0.7),
+            ("Isus2", "IVmaj7", 1.5), ("Isus2", "Imaj9", 1.0),
+            ("ii7", "Vsus4", 1.5), ("ii7", "IVmaj7", 1.0),
+            ("iii7", "vi7", 1.0), ("iii7", "IVmaj7", 1.0),
+            ("IVmaj7", "Imaj9", 2.0), ("IVmaj7", "ii7", 1.0), ("IVmaj7", "vi7", 0.8),
+            ("Vsus4", "Imaj9", 2.0), ("Vsus4", "IVmaj7", 0.8),
+            ("vi7", "IVmaj7", 2.0), ("vi7", "ii7", 1.0),
+        ],
+        cadences: ["Imaj9", "Isus2"],
+        start: "Imaj9",
+    )),
+    harmony: (chord_bars: Some((4, 8))),
+    // Slow evolution: a piece is two or three long sections.
+    phrase_bars: Some([16]),
+    forms: [(form: "AB", weight: 1.0), (form: "ABC", weight: 1.0), (form: "AABB", weight: 0.6)],
+    motif_scale: Some(MajorPentatonic),
+    motif_rules: Some((
+        count: 3,
+        notes: (2, 4),
+        cells: [[2.0], [1.0, 1.0], [1.5, 0.5, 2.0], [3.0], [1.0, 2.0]],
+        contours: [(Fall, 1.2), (Hover, 1.0), (Rise, 0.8), (Valley, 0.8)],
+        leap: 0.3,
+        range: (-2, 4),
+        hold: (0.85, 1.0),
+    )),
+    // What each piece draws: the wavetable pad (its home), or the dark pad; the bells on the celesta or
+    // the harp.
+    leads: [
+        (role: Pad, instrument: "wavetable_pad", low: "A2", high: "A4", voices: 3, weight: 3.0),
+        (role: Pad, instrument: "dark_pad", low: "A2", high: "A4", voices: 3, weight: 1.0),
+        (role: Bells, instrument: "celesta", low: "D5", high: "D6", density: 0.25, weight: 1.0),
+        (role: Bells, instrument: "harp", low: "D4", high: "D6", density: 0.25, weight: 1.0),
+    ],
+    roles_off: [Choir, Percussion, Bass, Texture, Melody],
+    roles_add: [
+        (role: Pad, instrument: "wavetable_pad", low: "A2", high: "A4", voices: 3),
+        (role: Bells, instrument: "celesta", low: "D5", high: "D6", density: 0.25),
+    ],
+    // The tape delay, synced to the tempo at a quarter note (about a second here), its repeats
+    // band-limited between 600 Hz and 1.2 kHz, bouncing between the speakers and on into the hall.
+    delay: Some((division: "1/4", feedback: 0.5, low_cut_hz: 600.0, high_cut_hz: 1200.0, ping_pong: true, sends: [(Bells, 0.6), (Pad, 0.08)], wet: 0.9, reverb: 0.5)),
+    recipe: (wow_cents: 2.0, wow_hz: 0.25, reverb_scale: 1.3, reverb_t60_s: 9.0, reverb_low_cut_hz: 350.0),
+    level_db: 4.8,
+)

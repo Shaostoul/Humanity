@@ -19,7 +19,7 @@ Instrument(
             fallback: "soft_saw_pad",
         )),
         filter: Some((kind: LowPass, cutoff_hz: 1400.0, q: 0.7, key_track: 0.6)),
-        envelope: (attack_s: 2.5, release_s: 2.5),
+        envelope: (attack_s: 2.5, release_s: 1.2),
     )),
     level_db: -22.0,
     reverb_send: 0.45,

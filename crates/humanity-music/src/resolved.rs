@@ -231,6 +231,15 @@ pub struct RDrum {
     pub sections: u32,
     /// Its hits duck the genre's sidechain roles.
     pub ducks: bool,
+    /// Its share sent to the genre's gated reverb (rung E3).
+    pub gate: f32,
+    /// A fill (it plays only in a phrase's last bar), or a line that plays on under one.
+    pub fill: bool,
+    pub under_fills: bool,
+    /// Its several notes (MIDI), and per pattern per step which (0: `midi`, k: `notes[k - 1]`); empty
+    /// for a line with one note.
+    pub notes: Vec<i32>,
+    pub pitch: Vec<Vec<u8>>,
 }
 
 /// A structure ready to play (genre.rs `Structure`): its sections, each name's letter, and the form
@@ -243,6 +252,8 @@ pub struct RStructure {
     pub riser: Option<RHit>,
     pub impact: Option<RHit>,
     pub gap_beats: f32,
+    pub reverse_cymbal: Option<RHit>,
+    pub downlifter: Option<RHit>,
 }
 
 /// One section ready to play.
@@ -255,6 +266,11 @@ pub struct RSection {
     pub build: bool,
     pub drop: bool,
     pub energy: f32,
+    /// Its last beats a tape stop (0: none); a reversed cymbal swells into it; a downlifter falls as
+    /// it begins.
+    pub tape_stop_beats: f32,
+    pub swell: bool,
+    pub fall: bool,
 }
 
 /// A structure's one-off sound ready to play.
@@ -305,6 +321,9 @@ pub struct RGenre {
     /// attack and release in seconds).
     pub structure: Option<RStructure>,
     pub sidechain: Option<(u8, f32, f32, f32)>,
+    /// Its tempo delay and gated reverb (rung E3).
+    pub delay: Option<crate::fx::RDelay>,
+    pub gated: Option<crate::fx::RGated>,
     /// Its id's hash: what a piece's draws are keyed by (its form, riffs and chords), so a piece
     /// never changes when another genre file is added (BUG-299).
     pub seed_key: u64,
@@ -390,6 +409,15 @@ impl Resolved {
                     kits: kit,
                     sections,
                     ducks: d.ducks,
+                    gate: d.gated.clamp(0.0, 1.0),
+                    fill: d.fill,
+                    under_fills: d.under_fills,
+                    notes: d.notes.iter().map(|x| note(x, owner)).collect::<Result<Vec<_>, _>>()?,
+                    pitch: if d.notes.is_empty() {
+                        Vec::new()
+                    } else {
+                        d.patterns.iter().map(|p| p.chars().filter(|c| !c.is_whitespace() && *c != '|').map(|c| c.to_digit(10).filter(|&k| k >= 1 && k as usize <= d.notes.len()).unwrap_or(0) as u8).collect()).collect()
+                    },
                 });
             }
             Ok(out)
@@ -476,13 +504,22 @@ impl Resolved {
                             r
                         });
                         let letter = names.iter().position(|x| x == &sec.name).unwrap_or(0) as u8;
-                        sections.push(RSection { letter, bars: sec.bars.clamp(1, 64), roles, build: sec.build, drop: sec.drop, energy: sec.energy.clamp(0.0, 1.5) });
+                        sections.push(RSection { letter, bars: sec.bars.clamp(1, 64), roles, build: sec.build, drop: sec.drop, energy: sec.energy.clamp(0.0, 1.5), tape_stop_beats: sec.tape_stop_beats.clamp(0.0, 12.0), swell: sec.swell, fall: sec.fall });
                     }
                     let letters: Vec<u8> = sections.iter().map(|x| x.letter).collect();
                     if letters.len() > crate::piece::MAX_FORM {
                         return Err(format!("{owner}: a structure has at most {} sections", crate::piece::MAX_FORM));
                     }
-                    Some(RStructure { sections, form: vec![(letters, 1.0)], roll: hit(&st.roll)?, riser: hit(&st.riser)?, impact: hit(&st.impact)?, gap_beats: st.gap_beats.clamp(0.0, 4.0) })
+                    Some(RStructure {
+                        sections,
+                        form: vec![(letters, 1.0)],
+                        roll: hit(&st.roll)?,
+                        riser: hit(&st.riser)?,
+                        impact: hit(&st.impact)?,
+                        gap_beats: st.gap_beats.clamp(0.0, 4.0),
+                        reverse_cymbal: hit(&st.reverse_cymbal)?,
+                        downlifter: hit(&st.downlifter)?,
+                    })
                 }
                 _ => None,
             };
@@ -493,6 +530,26 @@ impl Resolved {
                 }
                 (mask, c.depth_db.clamp(-40.0, 0.0), c.attack_s.clamp(0.0005, 0.1), c.release_s.clamp(0.01, 2.0))
             });
+            let delay = match &s.delay {
+                Some(d) => {
+                    let beats = crate::genre::division_beats(&d.division).ok_or_else(|| format!("{owner}: the delay's division {:?} is not a note value such as \"1/8\", \"1/8.\" or \"1/8t\"", d.division))?;
+                    // A note value its line cannot hold at the genre's slowest tempo is refused here,
+                    // rather than played shorter than the data says.
+                    if let Some((lo, _)) = s.tempo_bpm {
+                        let (secs, max) = (beats * 60.0 / lo.max(1.0), crate::fx::TempoDelay::max_s(48000.0));
+                        if secs > max {
+                            return Err(format!("{owner}: the delay's division {:?} at its slowest tempo ({lo} bpm) is {secs:.2} s, longer than the delay holds ({max:.2} s at 48 kHz)", d.division));
+                        }
+                    }
+                    let mut sends = [0.0f32; 8];
+                    for (r, v) in &d.sends {
+                        sends[r.index()] = v.clamp(0.0, 1.0);
+                    }
+                    Some(crate::fx::RDelay { beats, feedback: d.feedback.clamp(0.0, 0.95), low_cut_hz: d.low_cut_hz.max(0.0), high_cut_hz: d.high_cut_hz.max(0.0), ping_pong: d.ping_pong, sends, wet: d.wet.clamp(0.0, 2.0), reverb: d.reverb.clamp(0.0, 1.0) })
+                }
+                None => None,
+            };
+            let gated = s.gated_reverb.map(|g| crate::fx::RGated { t60_s: g.t60_s.clamp(0.2, 10.0), hold_s: g.hold_s.clamp(0.02, 2.0), release_s: g.release_s.clamp(0.001, 0.5), wet: g.wet.clamp(0.0, 16.0) });
             for (i, mo) in s.motifs.iter().enumerate() {
                 if mo.steps.is_empty() || mo.steps.len() != mo.beats.len() || (!mo.hold.is_empty() && mo.hold.len() != mo.steps.len()) {
                     return Err(format!("{owner}: motif {i} needs as many beats (and holds, if any) as steps"));
@@ -568,6 +625,8 @@ impl Resolved {
                 level_db: s.level_db,
                 structure,
                 sidechain,
+                delay,
+                gated,
             });
         }
         let im = &lib.intensity;

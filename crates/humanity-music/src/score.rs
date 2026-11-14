@@ -13,9 +13,11 @@
 
 use crate::composer::{Composer, Sink, Steer};
 use crate::dsp::{db_to_amp, Fdn, Lfo, Limiter, Smoother, Svf, SvfCoefs};
+use crate::fx::{GatedReverb, TapeRead, TempoDelay};
+use crate::genre::Recipe;
 use crate::instrument::Instrument;
 use crate::resolved::Resolved;
-use crate::voice::{BlockParams, NoteOn, VoicePool};
+use crate::voice::{BlockParams, FxBuses, NoteOn, VoicePool};
 
 /// The largest block rendered at once inside (kira asks for 128 frames; offline renders ask more).
 const CHUNK: usize = 64;
@@ -118,6 +120,8 @@ struct PoolSink<'a> {
     meter: &'a mut [f32; crate::tune::ROLES],
     /// A ducking drum's sidechain, when one hit during this call.
     duck: &'a mut Option<(u8, f32, f32, f32)>,
+    /// A gated drum hit during this call (its gate opens).
+    gate_hit: &'a mut bool,
 }
 
 impl Sink for PoolSink<'_> {
@@ -132,6 +136,9 @@ impl Sink for PoolSink<'_> {
             }
             note.level *= g;
             self.meter[role] = self.meter[role].max(note.vel.clamp(0.0, 1.0));
+        }
+        if note.gate > 0.0 {
+            *self.gate_hit = true;
         }
         self.pool.note_on(note, &self.res.instruments, &self.res.banks, self.rate);
     }
@@ -182,6 +189,18 @@ pub struct ScoreEngine {
     /// release (s), and the seconds since its last trigger.
     side: (u8, f32, f32, f32),
     side_t: f64,
+    /// Rung E3 (docs/design/music.md section 7g): the tempo delay and the gated reverb (made only
+    /// when some genre has one), their send buses, the reverb send's low cut, and the tape stop's
+    /// read-back (and whether a stop is running).
+    delay: Option<TempoDelay>,
+    gated: Option<GatedReverb>,
+    fx_dl: [f32; CHUNK],
+    fx_dr: [f32; CHUNK],
+    fx_gl: [f32; CHUNK],
+    fx_gr: [f32; CHUNK],
+    rev_hp: [Svf; 2],
+    tape: TapeRead,
+    tape_active: bool,
 }
 
 /// The analyser's band-pass filters at `rate` (octave bands: Q about 1.4).
@@ -210,7 +229,18 @@ impl ScoreEngine {
     pub fn new(res: Resolved, rate: f32, seed: u64, ctx: MusicContext) -> Self {
         let steer = steer_of(&ctx);
         let composer = Composer::new(rate, seed, steer);
+        let delay = res.genres.iter().any(|g| g.delay.is_some()).then(TempoDelay::new);
+        let gated = res.genres.iter().any(|g| g.gated.is_some()).then(|| GatedReverb::new(rate));
         ScoreEngine {
+            delay,
+            gated,
+            fx_dl: [0.0; CHUNK],
+            fx_dr: [0.0; CHUNK],
+            fx_gl: [0.0; CHUNK],
+            fx_gr: [0.0; CHUNK],
+            rev_hp: [Svf::default(); 2],
+            tape: TapeRead::default(),
+            tape_active: false,
             res,
             rate,
             composer,
@@ -268,6 +298,10 @@ impl ScoreEngine {
         self.rate = rate;
         self.composer.set_rate(rate);
         self.reverb.set_rate(rate);
+        if let Some(g) = self.gated.as_mut() {
+            let t60 = g.t60();
+            g.set(t60, rate);
+        }
         self.limiter = Limiter::new(-1.0, rate);
         self.an_c = band_coefs(rate);
         let (g, l, d) = (self.gain.value, self.level.value, self.duck.value);
@@ -327,60 +361,64 @@ impl ScoreEngine {
         let gains = self.ctx.tune.gains();
         let mut done = 0;
         while done < out.len() {
+            // A tape stop that has just ended (rung E3): the tape ran down to silence, so whatever
+            // it still held (the voices, the reverb's and the delay's tails) is gone before the next
+            // section strikes its first notes.
+            if self.tape_active && self.composer.tape_speed_at(self.composer.pos()) >= 1.0 {
+                self.tape_active = false;
+                self.tape.reset();
+                self.pool.clear();
+                self.reverb.clear();
+                if let Some(d) = self.delay.as_mut() {
+                    d.clear();
+                }
+                if let Some(g) = self.gated.as_mut() {
+                    g.clear();
+                }
+            }
             {
                 let mut hit = None;
-                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter, duck: &mut hit };
+                let mut gate_hit = false;
+                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter, duck: &mut hit, gate_hit: &mut gate_hit };
                 self.composer.process(&self.res, &mut sink);
                 if let Some(s) = hit {
                     self.side = s;
                     self.side_t = 0.0;
                 }
+                if let (true, Some(g)) = (gate_hit, self.gated.as_mut()) {
+                    g.trigger();
+                }
             }
             let n = (out.len() - done).min(self.composer.until_next()).min(CHUNK);
-            self.dry_l[..n].fill(0.0);
-            self.dry_r[..n].fill(0.0);
-            self.send_l[..n].fill(0.0);
-            self.send_r[..n].fill(0.0);
             let (recipe, level_db) = self.composer.mix(&self.res);
-            let (t60, wet) = self.composer.reverb(&self.res);
-            if (t60 - self.reverb_t60).abs() > 0.05 {
-                // A new mood's hall: the decay moves (no allocation: only the line gains change).
-                self.reverb_t60 = t60;
-                self.reverb.set_t60(t60);
+            let start = self.composer.pos();
+            if self.composer.tape_speed_at(start) < 1.0 || self.composer.tape_speed_at(start + n as u64 - 1) < 1.0 {
+                // A tape stop: the score renders on into the read-back buffer, which is read at the
+                // falling speed (fewer frames of the music for each frame of sound), so the pitch,
+                // the tempo, the reverb and the delay all slow together, and the level falls with
+                // the speed.
+                if !self.tape_active {
+                    self.tape_active = true;
+                    self.tape.reset();
+                }
+                let advance: f64 = (0..n).map(|i| self.composer.tape_speed_at(start + i as u64) as f64).sum();
+                loop {
+                    let m = self.tape.needed(advance).min(CHUNK);
+                    if m == 0 {
+                        break;
+                    }
+                    self.render_chunk(m, &recipe);
+                    self.tape.push(&self.dry_l[..m], &self.dry_r[..m]);
+                }
+                for i in 0..n {
+                    let (l, r) = self.tape.read(self.composer.tape_speed_at(start + i as u64));
+                    self.dry_l[i] = l;
+                    self.dry_r[i] = r;
+                }
+                self.tape.compact();
+            } else {
+                self.render_chunk(n, &recipe);
             }
-            // The genre's tape wow and flutter: one pitch multiplier for every voice this chunk.
-            let wow = if recipe.wow_cents > 0.0 { self.wow.advance(recipe.wow_hz, n, rate) * recipe.wow_cents } else { 0.0 };
-            let flutter = if recipe.flutter_cents > 0.0 { self.flutter.advance(recipe.flutter_hz, n, rate) * recipe.flutter_cents } else { 0.0 };
-            let pitch_mul = 2f32.powf((wow + flutter) / 1200.0);
-            // The choir's vowel glides between "ah" and "oh" over about 40 s.
-            let t = self.composer.seconds() as f32;
-            let m = 0.5 - 0.5 * (2.0 * std::f32::consts::PI * t / 40.0).cos();
-            let mut vowel = [(SvfCoefs::default(), 0.0f32); 5];
-            for k in 0..5 {
-                let (fa, ga, ba) = VOWEL_A[k];
-                let (fo, go, bo) = VOWEL_O[k];
-                let f = fa + (fo - fa) * m;
-                let bw = ba + (bo - ba) * m;
-                let g = ga + (go - ga) * m;
-                vowel[k] = (SvfCoefs::new(f, f / bw, rate), db_to_amp(g));
-            }
-            // The sidechain's gain at this chunk's start and end: down to its depth over the attack,
-            // back up in a straight line (in dB) over the release.
-            let (mask, depth, attack, release) = self.side;
-            let side_gain = |t: f64| -> f32 {
-                let a = attack.max(1e-4) as f64;
-                let d = if t < a { t / a } else { (1.0 - (t - a) / release.max(1e-3) as f64).max(0.0) };
-                db_to_amp(depth * d as f32)
-            };
-            let ducking = mask != 0 && self.side_t < (attack + release) as f64;
-            let (duck_from, duck_to) = if ducking { (side_gain(self.side_t), side_gain(self.side_t + n as f64 / rate as f64)) } else { (1.0, 1.0) };
-            if self.side_t < f64::MAX {
-                self.side_t += n as f64 / rate as f64;
-            }
-            let (bar, beats) = self.composer.beat_clock();
-            let params = BlockParams { rate, pitch_mul, beat_hz: self.composer.beat_hz(), vowel: &vowel, bar, beats, duck_mask: if ducking { mask } else { 0 }, duck_from, duck_to };
-            self.pool.render(&self.res.instruments, &self.res.banks, &params, &mut self.dry_l, &mut self.dry_r, &mut self.send_l, &mut self.send_r, n);
-            self.reverb.process(&self.send_l[..n], &self.send_r[..n], &mut self.dry_l[..n], &mut self.dry_r[..n], wet * recipe.reverb_scale);
             let tape = (recipe.lowpass_hz > 0.0).then(|| SvfCoefs::new(recipe.lowpass_hz, 0.6, rate));
             let sat = recipe.saturation;
             let level_target = db_to_amp(level_db);
@@ -423,6 +461,87 @@ impl ScoreEngine {
         s.beat = self.composer.beat_pos();
         s.beats_per_bar = self.composer.beats_per_bar().min(255) as u8;
         self.analyse(out);
+    }
+
+    /// Render the music's next `n` frames (at most a chunk) into `dry_l`/`dry_r`: every voice, the tempo
+    /// delay, the reverb (its send low-cut first), the gated reverb. Before the tape filter, the gain
+    /// and the limiter, which act on what is heard (a tape stop reads these frames back slower).
+    fn render_chunk(&mut self, n: usize, recipe: &Recipe) {
+        let rate = self.rate;
+        self.dry_l[..n].fill(0.0);
+        self.dry_r[..n].fill(0.0);
+        self.send_l[..n].fill(0.0);
+        self.send_r[..n].fill(0.0);
+        let (fx_delay, fx_gated) = self.composer.fx();
+        let with_fx = (fx_delay.is_some() && self.delay.is_some()) || (fx_gated.is_some() && self.gated.is_some());
+        if with_fx {
+            self.fx_dl[..n].fill(0.0);
+            self.fx_dr[..n].fill(0.0);
+            self.fx_gl[..n].fill(0.0);
+            self.fx_gr[..n].fill(0.0);
+        }
+        let (t60, wet) = self.composer.reverb(&self.res);
+        // The genre's own hall (ambient's long one) over the mood's.
+        let t60 = if recipe.reverb_t60_s > 0.0 { recipe.reverb_t60_s } else { t60 };
+        if (t60 - self.reverb_t60).abs() > 0.05 {
+            // A new mood's hall: the decay moves (no allocation: only the line gains change).
+            self.reverb_t60 = t60;
+            self.reverb.set_t60(t60);
+        }
+        // The genre's tape wow and flutter: one pitch multiplier for every voice this chunk.
+        let wow = if recipe.wow_cents > 0.0 { self.wow.advance(recipe.wow_hz, n, rate) * recipe.wow_cents } else { 0.0 };
+        let flutter = if recipe.flutter_cents > 0.0 { self.flutter.advance(recipe.flutter_hz, n, rate) * recipe.flutter_cents } else { 0.0 };
+        let pitch_mul = 2f32.powf((wow + flutter) / 1200.0);
+        // The choir's vowel glides between "ah" and "oh" over about 40 s.
+        let t = self.composer.seconds() as f32;
+        let m = 0.5 - 0.5 * (2.0 * std::f32::consts::PI * t / 40.0).cos();
+        let mut vowel = [(SvfCoefs::default(), 0.0f32); 5];
+        for k in 0..5 {
+            let (fa, ga, ba) = VOWEL_A[k];
+            let (fo, go, bo) = VOWEL_O[k];
+            let f = fa + (fo - fa) * m;
+            let bw = ba + (bo - ba) * m;
+            let g = ga + (go - ga) * m;
+            vowel[k] = (SvfCoefs::new(f, f / bw, rate), db_to_amp(g));
+        }
+        // The sidechain's gain at this chunk's start and end: down to its depth over the attack,
+        // back up in a straight line (in dB) over the release.
+        let (mask, depth, attack, release) = self.side;
+        let side_gain = |t: f64| -> f32 {
+            let a = attack.max(1e-4) as f64;
+            let d = if t < a { t / a } else { (1.0 - (t - a) / release.max(1e-3) as f64).max(0.0) };
+            db_to_amp(depth * d as f32)
+        };
+        let ducking = mask != 0 && self.side_t < (attack + release) as f64;
+        let (duck_from, duck_to) = if ducking { (side_gain(self.side_t), side_gain(self.side_t + n as f64 / rate as f64)) } else { (1.0, 1.0) };
+        if self.side_t < f64::MAX {
+            self.side_t += n as f64 / rate as f64;
+        }
+        let (bar, beats) = self.composer.beat_clock();
+        let beat_hz = self.composer.beat_hz();
+        let delay_sends = match (fx_delay, self.delay.is_some()) {
+            (Some(d), true) => d.sends,
+            _ => [0.0; 8],
+        };
+        let params = BlockParams { rate, pitch_mul, beat_hz, vowel: &vowel, bar, beats, duck_mask: if ducking { mask } else { 0 }, duck_from, duck_to, delay_sends };
+        let buses = with_fx.then(|| FxBuses { delay_l: &mut self.fx_dl[..n], delay_r: &mut self.fx_dr[..n], gate_l: &mut self.fx_gl[..n], gate_r: &mut self.fx_gr[..n] });
+        self.pool.render_fx(&self.res.instruments, &self.res.banks, &params, &mut self.dry_l, &mut self.dry_r, &mut self.send_l, &mut self.send_r, buses, n);
+        // The tempo delay: its repeats into the mix and their share on into the reverb.
+        if let (Some(spec), Some(d)) = (fx_delay, self.delay.as_mut()) {
+            d.process(&spec, beat_hz, rate, &self.fx_dl[..n], &self.fx_dr[..n], &mut self.dry_l[..n], &mut self.dry_r[..n], &mut self.send_l[..n], &mut self.send_r[..n]);
+        }
+        // The reverb's low cut: a two-pole high-pass on its send.
+        if recipe.reverb_low_cut_hz > 0.0 {
+            crate::fx::low_cut(&mut self.rev_hp, recipe.reverb_low_cut_hz, rate, &mut self.send_l[..n], &mut self.send_r[..n]);
+        }
+        self.reverb.process(&self.send_l[..n], &self.send_r[..n], &mut self.dry_l[..n], &mut self.dry_r[..n], wet * recipe.reverb_scale);
+        // The gated reverb, its room set to the genre's decay.
+        if let (Some(spec), Some(g)) = (fx_gated, self.gated.as_mut()) {
+            if (spec.t60_s - g.t60()).abs() > 0.05 {
+                g.set(spec.t60_s, rate);
+            }
+            g.process(&spec, &self.fx_gl[..n], &self.fx_gr[..n], &mut self.dry_l[..n], &mut self.dry_r[..n]);
+        }
     }
 
     /// The Music page's analyser over the block just rendered (nothing unless the context asks):

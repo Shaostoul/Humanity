@@ -1,0 +1,17 @@
+// A MONO LEAD that glides (docs/design/music.md section 7g, rung E6: synthwave's lead): a sawtooth and a
+// square an octave up, a few cents apart, through a low-pass that opens with each note, sliding from
+// the note its role last played (portamento, the bass toolkit's glide), with a gentle vibrato. The
+// '80s analogue lead as the research describes the genre ("mono lead with portamento", 2026-11-13).
+Instrument(
+    id: "synth_lead",
+    words: "music.instrument.synth_lead",
+    kind: Synth((
+        oscillators: [(wave: Saw, detune_cents: -4.0), (wave: Square, semitones: 12.0, detune_cents: 4.0, level: 0.35)],
+        filter: Some((kind: LowPass, cutoff_hz: 1400.0, q: 1.1, key_track: 0.6, env_hz: 2200.0)),
+        envelope: (attack_s: 0.012, decay_s: 0.35, sustain: 0.7, release_s: 0.3),
+        vibrato: Some((5.2, 7.0)),
+        glide_s: 0.07,
+    )),
+    level_db: -21.0,
+    reverb_send: 0.3,
+)

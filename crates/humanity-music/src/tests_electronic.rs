@@ -113,7 +113,7 @@ fn render_inst(def: &str, notes: &[(f32, f64)], bpm: f64, seconds: f64) -> Vec<f
         let t = out.len() as f64 / RATE as f64;
         while next < notes.len() && notes[next].1 <= t {
             pool.note_off(next as u32, &insts, RATE);
-            pool.note_on(NoteOn { inst: 0, role: 1, midi: notes[next].0, a4: 432.0, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: next as u32 + 1, level: 1.0 }, &insts, &banks, RATE);
+            pool.note_on(NoteOn { inst: 0, role: 1, midi: notes[next].0, a4: 432.0, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: next as u32 + 1, level: 1.0 }, &insts, &banks, RATE);
             next += 1;
         }
         let beats = t * bpm / 60.0;
@@ -316,7 +316,7 @@ fn the_bass_toolkit_fits_the_audio_budget() {
     let mut best = f64::MAX;
     for run in 0..5 {
         let mut pool = VoicePool::new(run);
-        pool.note_on(NoteOn { inst: 0, role: 1, midi: 38.0, a4: 432.0, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &insts, &banks, RATE);
+        pool.note_on(NoteOn { inst: 0, role: 1, midi: 38.0, a4: 432.0, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &insts, &banks, RATE);
         let (mut l, mut r, mut sl, mut sr) = ([0f32; 128], [0f32; 128], [0f32; 128], [0f32; 128]);
         let mut times = Vec::new();
         for k in 0..1500 {
@@ -350,7 +350,7 @@ fn dubstep(lib: &crate::MusicLibrary, seed: u64) -> crate::ScoreEngine {
 /// Onsets in one band of a rendered buffer: the times (s) where the band's energy over 1 ms jumps
 /// four times above the 4 to 8 ms before it and above `floor` of the band's loudest millisecond (60 ms
 /// apart at least), the band two two-pole high-passes and two two-pole low-passes.
-fn band_onsets(frames: &[[f32; 2]], lo_hz: f64, hi_hz: f64, floor: f64) -> Vec<f64> {
+pub(crate) fn band_onsets(frames: &[[f32; 2]], lo_hz: f64, hi_hz: f64, floor: f64) -> Vec<f64> {
     let rate = RATE as f64;
     let lp = SvfCoefs::new(hi_hz as f32, 0.707, RATE);
     let hp = SvfCoefs::new(lo_hz as f32, 0.707, RATE);

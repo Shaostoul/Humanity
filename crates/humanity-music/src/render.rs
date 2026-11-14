@@ -187,7 +187,7 @@ pub fn note_rms_between(res: &crate::Resolved, inst: u16, midi: f32, a4: f32, fr
     use crate::dsp::SvfCoefs;
     use crate::voice::{BlockParams, NoteOn, VoicePool};
     let mut pool = VoicePool::new(1);
-    pool.note_on(NoteOn { inst, role: 0, midi, a4, vel: 1.0, pan: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, rate);
+    pool.note_on(NoteOn { inst, role: 0, midi, a4, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &res.instruments, &res.banks, rate);
     let vowel = [(SvfCoefs::new(800.0, 10.0, rate), 1.0); 5];
     let p = BlockParams::plain(rate, 1.0, &vowel);
     let total = (to_s * rate) as usize;
@@ -296,7 +296,7 @@ pub fn render_demo(lib: &crate::MusicLibrary, id: &str, a4: f32, seconds: f64, r
         while notes[next % notes.len()].0 + (next / notes.len()) as f64 * span <= t {
             let (_, midi, hold, vel) = notes[next % notes.len()];
             tag += 1;
-            pool.note_on(NoteOn { inst: 0, role: 1, midi, a4, vel, pan: 0.0, hold_s: hold, tag, level: 1.0 }, &insts, &banks, rate);
+            pool.note_on(NoteOn { inst: 0, role: 1, midi, a4, vel, pan: 0.0, gate: 0.0, hold_s: hold, tag, level: 1.0 }, &insts, &banks, rate);
             next += 1;
         }
         let beats = t / beat;

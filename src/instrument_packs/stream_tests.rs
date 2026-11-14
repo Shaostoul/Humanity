@@ -232,7 +232,7 @@ fn the_full_steinway_part_plays_under_its_memory_bound() {
         let mut most_streaming = 0;
         for key in 21..=108 {
             for vel in [0.2f32, 0.6, 0.95] {
-                pool.note_on(NoteOn { inst, role: 0, midi: key as f32, a4: 432.0, vel, pan: 0.0, hold_s: 0.6, tag: key * 4, level: 1.0 }, &res.instruments, &res.banks, 48000.0);
+                pool.note_on(NoteOn { inst, role: 0, midi: key as f32, a4: 432.0, vel, pan: 0.0, gate: 0.0, hold_s: 0.6, tag: key * 4, level: 1.0 }, &res.instruments, &res.banks, 48000.0);
                 for _ in 0..(0.05 * 48000.0 / 128.0) as usize {
                     pool.render(&res.instruments, &res.banks, &p, &mut l, &mut r, &mut sl, &mut sr, 128);
                 }

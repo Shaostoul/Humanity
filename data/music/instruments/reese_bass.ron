@@ -1,0 +1,23 @@
+// The REESE bass (docs/design/music.md section 7g, rung E6: drum and bass): two sawtooth waves
+// detuned against each other, so their phases cancel and reinforce and the sound "beats" (MusicRadar,
+// "How to make a classic reese bass like Renegade's Terrorist", 16 February 2023: "We've set both of
+// ours to sawtooth"; "We've set our offset to + and -55 cents."; "the phase cancellation causing the
+// distinctive beating effect", read by the research on 2026-11-13), through a two-stage low-pass that
+// opens and closes slowly over two bars, processed in mono, with a clean sine sub under it (the bass
+// toolkit's protected sub), high-passed above it. A technique; the record it is named after is not ours.
+Instrument(
+    id: "reese_bass",
+    words: "music.instrument.reese_bass",
+    kind: Synth((
+        oscillators: [(wave: Saw, detune_cents: -55.0), (wave: Saw, detune_cents: 55.0)],
+        filter: Some((kind: LowPass, cutoff_hz: 320.0, q: 1.3, key_track: 0.5, lfo_depth_hz: 260.0, lfo_per_beat: 0.125, lfo_shape: Triangle, stages: 2, drive: 0.2)),
+        envelope: (attack_s: 0.01, decay_s: 0.0, sustain: 1.0, release_s: 0.12),
+        glide_s: 0.02,
+        fx: (
+            shaper: Some((curve: Soft, drive: 0.25, mix: 0.4)),
+            sub: Some((level: 0.8, octave: 0.0, split_hz: 80.0)),
+        ),
+    )),
+    level_db: -19.5,
+    reverb_send: 0.03,
+)

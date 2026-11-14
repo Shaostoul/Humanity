@@ -1,0 +1,13 @@
+// A DOWNLIFTER (docs/design/music.md section 7g, rung E3): the riser's opposite, for a transition out
+// of a drop. Noise through a band-pass whose centre falls with its envelope (from about 7 kHz down to
+// 250 Hz), the level falling with it over about three seconds. Synthesised, with no recording needed.
+Instrument(
+    id: "downlifter",
+    words: "music.instrument.downlifter",
+    kind: Noise((
+        filter: (kind: BandPass, cutoff_hz: 250.0, q: 1.3, env_hz: 7000.0),
+        envelope: (attack_s: 0.01, decay_s: 3.0, sustain: 0.0, release_s: 0.6),
+    )),
+    level_db: -21.0,
+    reverb_send: 0.45,
+)

@@ -41,13 +41,25 @@ pub struct BlockParams<'a> {
     pub duck_mask: u8,
     pub duck_from: f32,
     pub duck_to: f32,
+    /// Each role's send to the genre's tempo delay this block (rung E3; 0: none).
+    pub delay_sends: [f32; 8],
 }
 
 impl BlockParams<'_> {
     /// A block with nothing in time with a bar and no ducking (tests, previews).
     pub fn plain(rate: f32, beat_hz: f32, vowel: &[(SvfCoefs, f32); 5]) -> BlockParams<'_> {
-        BlockParams { rate, pitch_mul: 1.0, beat_hz, vowel, bar: 0, beats: 0.0, duck_mask: 0, duck_from: 1.0, duck_to: 1.0 }
+        BlockParams { rate, pitch_mul: 1.0, beat_hz, vowel, bar: 0, beats: 0.0, duck_mask: 0, duck_from: 1.0, duck_to: 1.0, delay_sends: [0.0; 8] }
     }
+}
+
+/// The effect buses a voice may send to besides the reverb (rung E3, docs/design/music.md section
+/// 7g): the tempo delay (a role's `BlockParams::delay_sends`) and the gated reverb (a note's
+/// `NoteOn::gate`), each a stereo pair of `n` samples the score then processes.
+pub struct FxBuses<'a> {
+    pub delay_l: &'a mut [f32],
+    pub delay_r: &'a mut [f32],
+    pub gate_l: &'a mut [f32],
+    pub gate_r: &'a mut [f32],
 }
 
 /// A note to start.
@@ -63,7 +75,11 @@ pub struct NoteOn {
     pub vel: f32,
     /// -1 .. 1, before the instrument's own spread.
     pub pan: f32,
-    /// How long it is held, seconds (0 = until a note-off by its tag).
+    /// Its share sent to the genre's gated reverb, 0..1 (a drum line's `gated`, rung E3: the
+    /// synthwave snare); 0 for every other note.
+    pub gate: f32,
+    /// How long it is held, seconds (0 = until a note-off by its tag). A reversed drum (the
+    /// reversed cymbal) swells over this long and stops.
     pub hold_s: f32,
     /// Identity for the note-off.
     pub tag: u32,
@@ -236,6 +252,8 @@ pub struct Voice {
     gl: f32,
     gr: f32,
     send: f32,
+    /// Its send to the gated reverb (the note's `gate`).
+    gate: f32,
     /// Samples until it is let go; negative: held until its note-off.
     hold_left: i64,
     released: bool,
@@ -264,6 +282,7 @@ impl Voice {
             gl: 0.0,
             gr: 0.0,
             send: 0.0,
+            gate: 0.0,
             hold_left: -1,
             released: false,
             age: 0,
@@ -421,6 +440,7 @@ impl VoicePool {
         v.gl = gl;
         v.gr = gr;
         v.send = inst.reverb_send.clamp(0.0, 1.0);
+        v.gate = n.gate.clamp(0.0, 1.0);
         v.hold_left = if n.hold_s > 0.0 { (n.hold_s * rate) as i64 } else { -1 };
         v.released = false;
         v.age = 0;
@@ -568,7 +588,7 @@ impl VoicePool {
             InstrumentKind::DrumMachine(d) => {
                 // No envelope: a hit rings by its parts' own decays (a choke cuts it short).
                 v.env = Env::new(0.0, 0.0, 1.0, 0.1, rate);
-                St::DrumMachine(crate::drum_machine::start(d, f, rate, &mut v.rng))
+                St::DrumMachine(crate::drum_machine::start(d, f, rate, n.hold_s, &mut v.rng))
             }
             InstrumentKind::Sampler(s) => {
                 v.env = env(&s.envelope);
@@ -609,6 +629,24 @@ impl VoicePool {
         send_r: &mut [f32],
         n: usize,
     ) {
+        self.render_fx(insts, banks, p, dry_l, dry_r, send_l, send_r, None, n);
+    }
+
+    /// [`VoicePool::render`], each voice also adding into the effect buses by its sends (the score's
+    /// tempo delay and gated reverb, rung E3).
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_fx(
+        &mut self,
+        insts: &[Instrument],
+        banks: &[Option<Arc<dyn SampleBank>>],
+        p: &BlockParams,
+        dry_l: &mut [f32],
+        dry_r: &mut [f32],
+        send_l: &mut [f32],
+        send_r: &mut [f32],
+        mut fx: Option<FxBuses>,
+        n: usize,
+    ) {
         for (slot, v) in self.voices.iter_mut().enumerate() {
             if !v.active {
                 if self.leases[slot].is_some() {
@@ -630,7 +668,14 @@ impl VoicePool {
             let ks = &mut self.ks[slot * KS_LEN..(slot + 1) * KS_LEN];
             let bank = banks.get(v.inst as usize).and_then(|b| b.as_deref());
             let stream = Stream { lease: self.leases[slot].as_ref(), offline: self.offline };
-            render_voice(v, inst, bank, stream, ks, p, &mut dry_l[..n], &mut dry_r[..n], &mut send_l[..n], &mut send_r[..n]);
+            // The voice's effect sends this block: the delay's by its role, the gated reverb's by
+            // its note.
+            let dsend = if v.role < 8 { p.delay_sends[v.role as usize] } else { 0.0 };
+            let vfx = match fx.as_mut() {
+                Some(b) if dsend > 0.0 || v.gate > 0.0 => Some((&mut b.delay_l[..n], &mut b.delay_r[..n], dsend, &mut b.gate_l[..n], &mut b.gate_r[..n])),
+                _ => None,
+            };
+            render_voice(v, inst, bank, stream, ks, p, &mut dry_l[..n], &mut dry_r[..n], &mut send_l[..n], &mut send_r[..n], vfx);
             if !v.active && self.leases[slot].is_some() {
                 self.leases[slot] = None;
             }
@@ -928,10 +973,12 @@ fn render_voice(
     dr: &mut [f32],
     sl: &mut [f32],
     sr: &mut [f32],
+    mut fx: Option<(&mut [f32], &mut [f32], f32, &mut [f32], &mut [f32])>,
 ) {
     let n = dl.len();
     let rate = p.rate;
     let (gl, gr, send) = (v.gl, v.gr, v.send);
+    let gate = v.gate;
     // Ducked under the kick (a genre's sidechain): this role's gain moves in a straight line across
     // the block.
     let ducked = v.role < 8 && p.duck_mask & (1u8 << v.role) != 0;
@@ -947,6 +994,12 @@ fn render_voice(
         dr[i] += r * gr;
         sl[i] += l * gl * send;
         sr[i] += r * gr * send;
+        if let Some((xl, xr, dsend, gtl, gtr)) = fx.as_mut() {
+            xl[i] += l * gl * *dsend;
+            xr[i] += r * gr * *dsend;
+            gtl[i] += l * gl * gate;
+            gtr[i] += r * gr * gate;
+        }
     };
     match (&inst.kind, &mut v.st) {
         (InstrumentKind::Synth(s), St::Synth(st)) => {

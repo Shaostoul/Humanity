@@ -61,10 +61,18 @@ pub(crate) struct DrumSt {
     /// A choke's fade (1: none), and its fall each sample once choked.
     choke: f32,
     choke_c: f32,
+    /// Played backwards (`reverse`): samples left of the swell (0: not reversed, or done), the
+    /// swell's level and its rise each sample.
+    rev_left: u32,
+    rev_env: f32,
+    rev_c: f32,
+    /// The stop's fall each sample (2 ms).
+    rev_stop: f32,
 }
 
-/// A hit of `spec` at the note's frequency `f`.
-pub(crate) fn start(spec: &DrumMachineSpec, f: f32, rate: f32, rng: &mut Rng) -> DrumSt {
+/// A hit of `spec` at the note's frequency `f`; `hold_s` (when above 0) is how long a REVERSED hit
+/// swells before it stops.
+pub(crate) fn start(spec: &DrumMachineSpec, f: f32, rate: f32, hold_s: f32, rng: &mut Rng) -> DrumSt {
     let mut st = DrumSt { choke: 1.0, choke_c: 1.0, ..Default::default() };
     for (j, t) in spec.tones.iter().take(MAX_TONES).enumerate() {
         st.tdt[j] = (f * t.ratio / rate).min(0.45);
@@ -108,6 +116,23 @@ pub(crate) fn start(spec: &DrumMachineSpec, f: f32, rate: f32, rng: &mut Rng) ->
         st.mcoef = per_sample_60db(m.decay_s, rate);
         st.mbpf = SvfCoefs::new(m.bp_hz, m.bp_q, rate);
         st.mhpf = SvfCoefs::new(m.hp_hz, 0.707, rate);
+    }
+    if spec.reverse {
+        // Backwards: every part holds its level, and one swell carries the decay the other way. Its
+        // shape is the longest part's decay (`d`, 60 dB) read from `t` seconds after the strike back
+        // to the strike, so it starts at 10^(-3 t / d) and rises 60 dB per `d`.
+        let d = spec.tones.iter().map(|t| t.decay_s).chain(spec.noise.iter().map(|z| z.decay_s)).chain(spec.metal.iter().map(|m| m.decay_s)).fold(0.05f32, f32::max);
+        let t = if hold_s > 0.0 { hold_s } else { d }.clamp(0.02, 16.0);
+        st.rev_left = (t * rate) as u32;
+        st.rev_env = 10f32.powf(-3.0 * t / d);
+        st.rev_c = 10f32.powf(3.0 / (d * rate));
+        st.rev_stop = (-1.0 / (0.002 * rate)).exp();
+        st.tdec = [1.0; MAX_TONES];
+        st.mcoef = 1.0;
+        st.ncoef = 1.0;
+        st.tail_c = 1.0;
+        st.bursts_left = 0;
+        st.click = 0.0;
     }
     st
 }
@@ -192,8 +217,22 @@ pub(crate) fn render(spec: &DrumMachineSpec, st: &mut DrumSt, amp: f32, n: usize
             y += x * st.menv;
             st.menv *= st.mcoef;
         }
+        if st.rev_left > 0 {
+            // Backwards: the swell rises to the strike, then stops dead (a 2 ms fade, no click).
+            y *= st.rev_env;
+            st.rev_env *= st.rev_c;
+            st.rev_left -= 1;
+            if st.rev_left == 0 {
+                st.rev_env = 1.0;
+                st.rev_c = 1.0;
+                st.choke_c = st.rev_stop;
+            }
+        }
         out(i, y * amp * st.choke);
         st.choke *= st.choke_c;
+    }
+    if st.rev_left > 0 {
+        return true;
     }
     let tones_left = st.tamp.iter().take(nt).fold(0.0f32, |a, &b| a.max(b));
     let alive = tones_left > 1e-3 * spec.tones.iter().map(|t| t.level).fold(0.0, f32::max).max(1e-6)
