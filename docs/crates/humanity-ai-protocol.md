@@ -17,7 +17,7 @@ same types, and because it is all of AI a person who never chooses AI has in the
 - **Size:** 453 lines in 2 files, 124 of them in 1 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): ai-engine, gui, engine. **Used today by:** ai-engine 25, gui 14.
+- **May be used by** (the plan): ai-engine, gui, engine. **Used today by:** ai-engine 25, gui 17.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 4 tests, and this runs exactly them, checked against every test's name:
 
@@ -30,17 +30,17 @@ just test-lib --crate humanity-ai-protocol
 | Item | References | From |
 |---|---:|---|
 | `EngineMessage` | 5 | ai-engine 3, gui 2 |
+| `ModelKind` | 5 | gui 3, ai-engine 2 |
 | `ErrorCode` | 4 | ai-engine 3, gui 1 |
-| `ModelKind` | 4 | ai-engine 2, gui 2 |
+| `Turn` | 4 | ai-engine 2, gui 2 |
 | `LoadedModel` | 3 | ai-engine 3 |
 | `PROTOCOL` | 3 | ai-engine 3 |
-| `Turn` | 3 | ai-engine 2, gui 1 |
+| `Role` | 3 | gui 2, ai-engine 1 |
 | `AppMessage` | 2 | ai-engine 1, gui 1 |
 | `Backend` | 2 | ai-engine 1, gui 1 |
 | `Device` | 2 | ai-engine 1, gui 1 |
 | `MAX_LINE_BYTES` | 2 | ai-engine 1, gui 1 |
 | `ProtocolError` | 2 | ai-engine 1, gui 1 |
-| `Role` | 2 | ai-engine 1, gui 1 |
 | `Counters` | 1 | ai-engine 1 |
 | `decode_app` | 1 | ai-engine 1 |
 | `decode_engine` | 1 | gui 1 |

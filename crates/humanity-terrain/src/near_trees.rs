@@ -500,20 +500,25 @@ impl<'f> NearTreeDrawPlan<'f> {
 /// file move. A gate that fires on a refactor it should not care about is a
 /// gate people learn to ignore.
 ///
-/// Anything extracted out of the frame loop in future belongs on this list.
-/// It reads the files at test time, so there is no compile-time dependency on
-/// the native-only modules it names.
+/// Since the file-size split (step 1, 2026-11-14) the whole frame is `window_event`'s dispatcher
+/// in src/lib.rs plus one module per stage, `src/engine/frame_*.rs`: every such file is read, by
+/// listing the folder, so a stage cut later is covered the day it lands. Each file is whole and they
+/// come in name order (lib.rs first). It reads the files at test time, so there is no compile-time
+/// dependency on the native-only modules it names.
 #[cfg(any(test, feature = "test-support"))]
 pub fn frame_loop_source() -> String {
-    const FILES: &[&str] = &[
-        "src/lib.rs",
-        "src/engine/frame_near_trees.rs",
-        "src/engine/frame_water.rs",
-        "src/engine/frame_shells.rs",
-        "src/engine/frame_net.rs",
-    ];
     let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
-    FILES
+    let mut stages: Vec<String> = std::fs::read_dir(root.join("src/engine"))
+        .expect("list src/engine")
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("frame_") && n.ends_with(".rs"))
+        .map(|n| format!("src/engine/{n}"))
+        .collect();
+    stages.sort();
+    let mut files = vec!["src/lib.rs".to_string()];
+    files.extend(stages);
+    files
         .iter()
         .map(|rel| {
             std::fs::read_to_string(root.join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"))

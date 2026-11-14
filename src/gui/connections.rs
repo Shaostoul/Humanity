@@ -1530,7 +1530,7 @@ mod no_server_tests {
         // The frame's dialling paths live in its network pump since 2026-10-31 (moved out of
         // lib.rs so the window hidden in the tray dials and reads the same way); lib.rs is read
         // too, so a dialling path put back there still answers to this test.
-        let lib = read("src/engine/frame_net.rs") + &read("src/lib.rs");
+        let lib = humanity_terrain::planet_chunks::frame_loop_source();
         assert_eq!(lib.matches("if state.gui_state.backoff_reconnect_runs() {").count(), 1, "the backoff reconnect does not ask backoff_reconnect_runs");
         let dials = "let address = state.gui_state.dial_address().unwrap_or_default().to_string();";
         assert_eq!(lib.matches(dials).count(), 2, "the auto-connect and the backoff reconnect do not dial dial_address");

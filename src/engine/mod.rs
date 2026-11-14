@@ -241,6 +241,51 @@ pub mod storey_probe;
 /// A planet's cloud deck and atmosphere dome, plus the view-dependent order
 /// the two composite in (extracted from lib.rs, v0.1320).
 pub mod frame_shells;
+/// The frame stages (the file-size split, step 1, 2026-11-14): `window_event` in src/lib.rs cut
+/// into one module per stage, in the order the frame runs them (docs/design/crate-split.md, "Step
+/// 1's stage list"). `frame_prelude` holds the names they share, `frame_vars` the values one
+/// stage hands a later one within a frame.
+pub mod frame_prelude;
+pub mod frame_vars;
+pub mod frame_keys;
+pub mod frame_mouse;
+pub mod frame_clock;
+pub mod frame_station;
+pub mod frame_move_setup;
+pub mod frame_walk_aboard;
+pub mod frame_particles;
+pub mod frame_house_power;
+pub mod frame_planet_walk;
+pub mod frame_collide_drive;
+pub mod frame_look_env;
+pub mod frame_bridges;
+pub mod frame_bridges_npc;
+pub mod frame_ecs;
+pub mod frame_copresence;
+pub mod frame_save_editor;
+pub mod frame_lists_home;
+pub mod frame_build_ghosts;
+pub mod frame_build_gizmos;
+pub mod frame_build_helpers;
+pub mod frame_people;
+pub mod frame_sky;
+pub mod frame_sky_body;
+pub mod frame_sky_orbits;
+pub mod frame_sky_light;
+pub mod frame_hud_voice;
+pub mod frame_settles;
+pub mod frame_mirrors;
+pub mod frame_mirrors_world;
+pub mod frame_lists_world;
+pub mod frame_env_publish;
+pub mod frame_cards;
+pub mod frame_dev_ipc;
+pub mod frame_load_screens;
+pub mod frame_world_passes;
+pub mod frame_ui_run;
+pub mod frame_audio;
+pub mod frame_ui_paint;
+pub mod frame_tail;
 /// The whole-Earth map packs in the world (rung 2): the ground published into the one formula,
 /// tile residency riding the patches, and the OSM districts standing on it (was region_meshes).
 pub mod map_meshes;

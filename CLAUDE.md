@@ -364,7 +364,7 @@ server-only mode the VPS runs. The web frontend (`web/`) is plain HTML/JS served
 
 **Where code lives: the Folders section of `docs/ai/code-map.md`**, then its line per file
 (`just code-map` rewrites it). What the map does not say:
-- `src/lib.rs` is engine init and the main loop, and the repo's merge funnel (about 16k lines): the fewer reasons to touch it, the fewer collisions. `src/engine/` is THE FRAME, the files the main loop is made of (`world_load`, `home_meshes`, `screens`, `ipc` = the dev IPC, `frame_*`, `launch_focus`, `editor`): most recent gameplay work lands there.
+- `src/lib.rs` is engine init and the frame's dispatcher (about 2,300 lines since the 2026-11-14 file-size split; each frame stage is its own `src/engine/frame_<stage>.rs`, in frame order in `docs/design/crate-split.md`): put new frame work in its stage's file, never back into lib.rs. `src/engine/` is THE FRAME, the files the main loop is made of (`world_load`, `home_meshes`, `screens`, `ipc` = the dev IPC, `frame_*`, `launch_focus`, `editor`): most recent gameplay work lands there.
 - The map covers the source files under `src/`, `crates/*/src/` and `web/` only. The HTML pages are in `docs/PAGES.md`; `data/` is the hot-reloadable game data shipped next to the exe (CSV, TOML, RON, JSON; mods are edits there), `schemas/` its TOML schema definitions, `assets/` the shared media (icons, shaders, models, textures, audio); every dev recipe is in the `Justfile` (`just --list`).
 
 Identity: no home servers, no sign-up, no passwords stored on any server; signed profiles replicate

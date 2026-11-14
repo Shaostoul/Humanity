@@ -15,13 +15,13 @@ static check cannot see.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `renderer/`, `assets/`
-- **Size:** 69,353 lines in 74 files, 1,395 of them in 3 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `renderer/mod.rs` 2,800 of 2,800, `renderer/tree_cards.rs` 450 of 450, `renderer/celestial.rs` 1,948 of 1,950, `renderer/materials.rs` 499 of 500, `renderer/capture.rs` 299 of 300, `renderer/tree_species.rs` 743 of 750, `renderer/tree_allometry.rs` 540 of 560, `renderer/tree_mesh.rs` 5,954 of 6,400, `renderer/scene_draw.rs` 626 of 750, `renderer/overlay_draw.rs` 390 of 550, `renderer/material_bind_groups.rs` 231 of 350, `renderer/view_depth.rs` 135 of 250, `renderer/surface.rs` 237 of 500, `renderer/shadow_cutout.rs` 102 of 250.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 72, `wasm` 3.
-- **May use** (the plan): core, terrain. **Uses today** (references in non-test code): core 71, terrain 33.
-- **May be used by** (the plan): gui, engine. **Used today by:** engine 345, gui 44.
+- **Size:** 77,904 lines in 83 files, 2,595 of them in 6 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `renderer/materials.rs` 500 of 500, `renderer/mod.rs` 2,800 of 2,800, `renderer/tree_cards.rs` 450 of 450, `renderer/celestial.rs` 1,948 of 1,950, `renderer/capture.rs` 299 of 300, `renderer/tree_species.rs` 743 of 750, `renderer/tree_allometry.rs` 540 of 560, `renderer/tree_mesh.rs` 5,956 of 6,400, `renderer/scene_draw.rs` 660 of 750, `renderer/overlay_draw.rs` 390 of 550, `renderer/material_bind_groups.rs` 231 of 350, `renderer/view_depth.rs` 160 of 250, `renderer/surface.rs` 241 of 500, `renderer/shadow_cutout.rs` 102 of 250.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 73, `wasm` 3.
+- **May use** (the plan): core, terrain. **Uses today** (references in non-test code): core 99, terrain 33.
+- **May be used by** (the plan): gui, engine. **Used today by:** engine 358, gui 62.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 520 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 584 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_tests::assets:: --skip relay::storage::assets::
@@ -34,20 +34,20 @@ just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_t
 | `renderer::line::push_polyline` | 32 | engine 32 |
 | `renderer::camera::CameraMode` | 30 | engine 30 |
 | `renderer::mesh::Mesh` | 24 | engine 24 |
-| `renderer::RenderObject` | 17 | engine 17 |
-| `renderer::Renderer` | 14 | engine 13, gui 1 |
+| `renderer::RenderObject` | 18 | engine 18 |
+| `renderer::Renderer` | 16 | engine 15, gui 1 |
 | `renderer::line::push_circle` | 13 | engine 13 |
-| `renderer::line::LineVertex` | 12 | engine 12 |
+| `renderer::line::LineVertex` | 11 | engine 11 |
 | `renderer::light::RoomLight` | 10 | engine 10 |
 | `renderer::camera::Camera` | 9 | engine 8, gui 1 |
 | `renderer::light::light_type` | 9 | engine 6, gui 3 |
 | `renderer::stars::StarCatalogTier` | 9 | gui 6, engine 3 |
 | `renderer::light::LightKind` | 7 | engine 5, gui 2 |
 | `renderer::texture_pool::SlotPool` | 7 | engine 7 |
+| `assets::AssetManager` | 6 | engine 6 |
 | `renderer` | 6 | engine 6 |
-| `renderer::billboard_bake::BakeCpuModel` | 6 | engine 6 |
 
-And 107 more items, 184 references (`node scripts/crate-cards.js --interface humanity-renderer` lists them all).
+And 120 more items, 213 references (`node scripts/crate-cards.js --interface humanity-renderer` lists them all).
 <!-- end generated -->
 
 ## Rules

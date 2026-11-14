@@ -158,7 +158,7 @@ mod tests {
     /// hands the rig's to the same, with no other press into the controller in either.
     #[test]
     fn a_held_key_and_a_key_press_go_through_one_function() {
-        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
+        let lib = humanity_terrain::planet_chunks::frame_loop_source().replace("\r\n", "\n");
         assert!(
             lib.contains("crate::engine::input::apply_game_action(&mut state.controller, &mut state.probe_hold, act, pressed);"),
             "lib.rs's keyboard arm no longer hands a key to engine::input::apply_game_action"

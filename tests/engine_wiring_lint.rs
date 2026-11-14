@@ -248,8 +248,9 @@ fn core_runtime_data_stays_wired() {
     // This locks the Wiring-1/Wiring-2 fixes: deleting a load would empty the
     // DataStore again and silently no-op the consuming system — exactly the bug
     // the audit found. (We check src/lib.rs references the key; the load helpers +
-    // the from_csv constructors are covered by their own unit/integration tests.)
-    let src = fs::read_to_string(manifest_dir().join("src").join("lib.rs")).unwrap_or_default();
+    // the from_csv constructors are covered by their own unit/integration tests.) Since the
+    // file-size split (2026-11-14) the frame's part lives in src/engine/frame_*.rs.
+    let src = frame_src();
     let missing: Vec<&str> = REQUIRED_RUNTIME_DATA
         .iter()
         .filter(|key| !src.contains(&format!("\"{key}\"")))
@@ -257,7 +258,7 @@ fn core_runtime_data_stays_wired() {
         .collect();
     assert!(
         missing.is_empty(),
-        "src/lib.rs no longer references these runtime DataStore keys (a registry load was \
+        "src/lib.rs and the frame stages no longer reference these runtime DataStore keys (a registry load was \
          removed? the consuming system will silently no-op):\n  {}",
         missing.join("\n  ")
     );
@@ -266,6 +267,22 @@ fn core_runtime_data_stays_wired() {
 /// The source of `src/<rel>`, for the call-site checks below.
 fn src_file(rel: &str) -> String {
     fs::read_to_string(manifest_dir().join("src").join(rel)).unwrap_or_default()
+}
+
+/// The frame's source: src/lib.rs and every frame stage, src/engine/frame_*.rs (the file-size
+/// split cut `window_event` into those stages, 2026-11-14), each file whole and in name order.
+fn frame_src() -> String {
+    let mut names: Vec<String> = fs::read_dir(manifest_dir().join("src").join("engine"))
+        .map(|rd| rd.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+        .unwrap_or_default();
+    names.retain(|n| n.starts_with("frame_") && n.ends_with(".rs"));
+    names.sort();
+    let mut src = src_file("lib.rs");
+    for n in names {
+        src.push('\n');
+        src.push_str(&src_file(&format!("engine/{n}")));
+    }
+    src
 }
 
 /// The text of one function, from `fn <name>(` to the first line that is
@@ -316,7 +333,8 @@ fn fn_body<'a>(src: &'a str, name: &str) -> &'a str {
 /// horizon for the disc off the screen (frame_lock::sun_disc_clear)".
 #[test]
 fn sky_and_lens_call_sites_use_their_shared_rules() {
-    let lib = src_file("lib.rs");
+    // The frame: src/lib.rs and its stages, src/engine/frame_*.rs (the file-size split, 2026-11-14).
+    let lib = frame_src();
     let ipc = src_file("engine/ipc.rs");
 
     // 1. Star camera.

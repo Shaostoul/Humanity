@@ -58,7 +58,7 @@ fn a_blocked_players_figure_and_name_are_not_drawn() {
     let here = crate::engine::net_route::copresence_names(&world, &|p| hides_player(&gs, p));
     assert_eq!(here, vec!["Dee".to_string(), "Player 9".to_string()], "the blocked player is not in the HUD's list");
 
-    let lib = std::fs::read_to_string(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).unwrap();
+    let lib = humanity_terrain::planet_chunks::frame_loop_source();
     assert_eq!(
         lib.matches("crate::engine::block::hides_player(&state.gui_state").count(),
         3,

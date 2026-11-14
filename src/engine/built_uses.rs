@@ -236,7 +236,7 @@ mod tests {
         // Wired: E and F get the doors the walk sweeps against.
         let here = include_str!("built_uses.rs").replace("\r\n", "\n");
         assert!(here.contains("doors: &state.shut_doors"), "reach_blockers does not hand E and F the shut doors");
-        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
+        let lib = humanity_terrain::planet_chunks::frame_loop_source().replace("\r\n", "\n");
         assert!(lib.contains("crate::engine::built_uses::refresh_shut_doors(state)"), "lib.rs does not refresh the shut doors each frame");
         assert!(lib.contains("let mut doors = state.shut_doors.clone();"), "the walk does not sweep against the shut doors E and F read");
     }

@@ -35,6 +35,13 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-14: `src/lib.rs` 16_700 -> 2_400, the file-size split's step 1
+///   (docs/design/crate-split.md, "Step 1's stage list"): `window_event`, the whole frame in one
+///   function, cut into one module per frame stage, `src/engine/frame_*.rs`, in the order the frame
+///   runs them. lib.rs keeps startup and a dispatcher (2_331 lines that day). New frame work goes in
+///   its stage's file, or a new stage, never back into lib.rs. `src/engine/frame_sky_body.rs` (one
+///   solar-system body, the chunked planet inside it) joins the list at 1_850 until the chunked
+///   planet is split out of it.
 /// - 2026-11-03: `gui/pages/chat/left_panel.rs` 2_100 -> 1_900. BUG-242 drew every server's rooms
 ///   with one room row (`gui/pages/chat/channel_row.rs`) instead of two blocks of their own
 ///   (1_841 lines that day, with the DM previews' layout in `chat/dm_rows.rs`).
@@ -445,7 +452,8 @@ fn repo() -> &'static Path {
 ///   budgets are the plan's, 1_650 and 2_500, which leave the lanes that must
 ///   touch them (1A, 1G, 2A) their room and no more.
 const BUDGETS: &[(&str, usize)] = &[
-    ("src/lib.rs", 16_700),
+    ("src/lib.rs", 2_400),
+    ("src/engine/frame_sky_body.rs", 1_850),
     ("src/engine/frame_ws_poll.rs", 1_800),
     ("src/engine/frame_shells.rs", 1_300),
     ("src/engine/frame_water.rs", 750),

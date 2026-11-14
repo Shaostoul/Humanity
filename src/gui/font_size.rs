@@ -324,7 +324,7 @@ mod tests {
     /// Font Size before the main pass".
     #[test]
     fn the_frame_loop_sets_the_size_before_the_main_pass() {
-        let lib = std::fs::read_to_string(std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("src/lib.rs")).expect("read src/lib.rs");
+        let lib = humanity_terrain::planet_chunks::frame_loop_source();
         let take = lib.find("state.egui_state.take_egui_input(&state.window)").expect("the main window's input");
         let run = lib[take..].find("state.egui_ctx.run(raw_input").map(|i| take + i).expect("the main pass");
         let set = lib[take..run].find("crate::gui::font_size::before_frame(&state.egui_ctx, &mut raw_input, &mut state.gui_state.settings.font_size)");

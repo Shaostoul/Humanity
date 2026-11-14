@@ -853,7 +853,16 @@ mod tests {
     /// lib.rs added them: "src/lib.rs never has crate::ship::sight::ship_solid_pieces(".
     #[test]
     fn the_sight_test_is_wired_into_the_walk_up_and_the_hud() {
-        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
+        // The frame: src/lib.rs and its stages, src/engine/frame_*.rs (the file-size split, 2026-11-14).
+        let root = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
+        let mut lib = std::fs::read_to_string(root.join("src/lib.rs")).expect("read src/lib.rs");
+        for e in std::fs::read_dir(root.join("src/engine")).expect("list src/engine").flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.starts_with("frame_") && name.ends_with(".rs") {
+                lib.push_str(&std::fs::read_to_string(e.path()).expect("read a frame stage"));
+            }
+        }
+        let lib = lib.replace("\r\n", "\n");
         for wired in [
             "humanity_ship::sight::walk_up_target(",
             "humanity_ship::sight::ship_solid_slabs(",

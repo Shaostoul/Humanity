@@ -19,15 +19,16 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-music/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`
+  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/drum_machine.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/osc.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/stream.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`, `crates/humanity-music/src/wavetable.rs`
   - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
-  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`
-- **Size:** 10,238 lines in 27 files, 1,894 of them in 4 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 2.
+  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`
+  - `all(test, feature = "kira")`: `crates/humanity-music/src/tests_stream.rs`
+- **Size:** 14,994 lines in 34 files, 3,560 of them in 7 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 7.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 49, engine 15.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 57, engine 15.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 39 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 64 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -46,14 +47,14 @@ just test-lib --crate humanity-music
 | `tune::Tune` | 3 | gui 3 |
 | `BedStatus` | 2 | engine 1, gui 1 |
 | `MusicContext` | 2 | engine 1, gui 1 |
+| `decode::decode_threads` | 2 | gui 2 |
+| `decode::each` | 2 | gui 2 |
 | `favourite` | 2 | gui 2 |
 | `instrument::SAMPLE_SCALE` | 2 | gui 2 |
 | `tune::ROLES` | 2 | gui 2 |
 | `BedContext` | 1 | engine 1 |
-| `BedEngine` | 1 | engine 1 |
-| `SampleLibrary` | 1 | gui 1 |
 
-And 24 more items, 24 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
+And 30 more items, 30 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
 <!-- end generated -->
 
 ## Rules

@@ -22,12 +22,12 @@ runtimes it links (llama.cpp now, audio.cpp later) never slow the app's build.
   - no gate (every build): `crates/humanity-ai-engine/src/args.rs`, `crates/humanity-ai-engine/src/fake.rs`, `crates/humanity-ai-engine/src/folder.rs`, `crates/humanity-ai-engine/src/memory.rs`, `crates/humanity-ai-engine/src/run.rs`, `crates/humanity-ai-engine/src/text.rs`
   - `feature = "llama"`: `crates/humanity-ai-engine/src/llama/`, `crates/humanity-ai-engine/src/real.rs`
   - test builds only: `crates/humanity-ai-engine/src/tests.rs`
-- **Size:** 1,742 lines in 12 files, 421 of them in 1 test files.
+- **Size:** 1,849 lines in 12 files, 515 of them in 1 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `llama` 19.
 - **May use** (the plan): ai-protocol. **Uses today** (references in non-test code): ai-protocol 25.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 18 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 20 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just ai-engine test

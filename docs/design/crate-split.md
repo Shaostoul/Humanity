@@ -509,6 +509,54 @@ The target: one job per file, about 300 to 800 lines, a ceiling of 2,000 for eve
 
 About 50 files over 2,000 lines become about 300 to 350.
 
+### Step 1's stage list (cut 2026-11-14)
+
+`window_event` (src/lib.rs, lines 2133 to 16426 at commit ec0e82dc2, 14,293 lines) was a `match` on the window event: four small arms (focus, close, resize, cursor moved), the keyboard arm (797 lines), the mouse arms (276) and `RedrawRequested` (13,158 lines, the whole frame). The frame already named its parts with `cpu.span.*` cost spans, so the stages follow them, in the order the frame runs them. Each stage is `src/engine/frame_<stage>.rs` with one `run` function (the mouse file has `button` and `wheel`), its body the original text. The values one stage hands a later one (the frame's clock, the draw lists, whether the showroom is open, the hovered gizmo, the page before the GUI ran) travel in `engine::frame_vars::FrameVars`, made at the top of each frame and dropped at its end, so nothing in it is reuse; a stage reads a field into a local of the same name at its top, so the moved code reads as it did. The names the moved code uses come from `engine::frame_prelude`. The solar system's shared values travel in `frame_sky::SkyBodies` the same way. Source lines are at ec0e82dc2; sizes as cut.
+
+| # | Stage file | What it does (span) | Source lines | Lines now |
+|---|---|---|---|---|
+| 1 | frame_keys | the keyboard arm: in-game keys, menus, build-mode keys | 2190-2986 | 806 |
+| 2 | frame_mouse | mouse buttons and the wheel (`button`, `wheel`) | 2992-3263 | 282 |
+| 3 | frame_clock | the frame-rate cap, the frame's steps (dt, raw, clock), the spin, the sim clock | 3279-3337 | 73 |
+| 4 | frame_station | the orbital home station: attitude, orbit, the ride | 3338-3566 | 239 |
+| 5 | frame_move_setup | hot reload, status-effect speed, dev travel sync (`hot_reload`, `move_setup`) | 3567-3645 | 88 |
+| 6 | frame_walk_aboard | elevators, walking aboard, the camera's previous position (`walk_aboard`) | 3646-3777 | 143 |
+| 7 | frame_particles | the probe hold, ambient particles (`particles`) | 3778-4175 | 408 |
+| 8 | frame_house_power | lights on the power meter, the FTL world-scale share (`house_power`) | 4176-4341 | 176 |
+| 9 | frame_planet_walk | walking on a planet, the frame lock (`planet_walk`) | 4342-5278 | 947 |
+| 10 | frame_collide_drive | wall collision, driving, the follow camera (`collide_drive`) | 5279-5488 | 221 |
+| 11 | frame_look_env | walk-up targets: animals, crew, doors (`look_env`) | 5489-5785 | 306 |
+| 12 | frame_bridges | beds and chests, dev teleport, surface landing, dev spawn, creature count (`bridges`, first half) | 5786-6257 | 481 |
+| 13 | frame_bridges_npc | the creature editor, NPC dialogue, the clock's settings, transfers, Rest (`bridges`, second half) | 6258-6696 | 448 |
+| 14 | frame_ecs | home storage in, the ECS tick, results out (`ecs`) | 6697-6756 | 70 |
+| 15 | frame_copresence | multiplayer co-presence (`copresence`) | 6757-6914 | 169 |
+| 16 | frame_save_editor | paid machines, the showroom stage, the construction editor, undo, the cursor (`save_editor`) | 6915-7433 | 529 |
+| 17 | frame_lists_home | the draw lists taken (into FrameVars), the home's objects (`lists_home`) | 7434-7941 | 521 |
+| 18 | frame_build_ghosts | the placement ghost, the wall tool preview, the hovered gizmo | 7942-8258 | 327 |
+| 19 | frame_build_gizmos | light gizmos, corridor door-mouth handles (`lists_fixtures`, first half) | 8259-8708 | 459 |
+| 20 | frame_build_helpers | helper gizmos, the build avatar, opening gizmos (`lists_fixtures`, second half) | 8709-9183 | 486 |
+| 21 | frame_people | remote players, the showroom ground, the hologram, the planet pin (`lists_people`) | 9184-9396 | 223 |
+| 22 | frame_sky | the solar system: the shared values, the loop over the bodies (`lists_sky`) | 9397-9499, 11283 | 145 |
+| 23 | frame_sky_body | one body: placement, the hull frame, the chunked planet or the sphere, rings (`sky_bodies`) | 9500-11282 | 1803 |
+| 24 | frame_sky_orbits | orbit lines (`sky_orbits`) | 11284-11406 | 133 |
+| 25 | frame_sky_light | the sun's light, the sky bodies and disc, the fill light (`sky_light`) | 11407-11904 | 508 |
+| 26 | frame_hud_voice | the FPS counter and frame-time ring, voice keys, the updater (`hud_voice`) | 11906-12054 | 160 |
+| 27 | frame_settles | the world's results into the GUI: collect, loot, building, the gate, trade, abilities, armour, equipment (`settles` to `settle_equip`) | 12055-12667 | 623 |
+| 28 | frame_mirrors | death and recovery, inventory, skills, quests into the GUI (`mirror_player` to `mirror_quests`) | 12668-12929 | 271 |
+| 29 | frame_mirrors_world | the Garden data, mining, the drone (`mirror_towers` to `mirror_drone`) | 12930-13127 | 210 |
+| 30 | frame_lists_world | vehicles, the barn's storage, game time and weather (`lists_world`) | 13128-13556 | 440 |
+| 31 | frame_env_publish | the FFT ocean, the disaster pin (`env_publish`) | 13557-13716 | 169 |
+| 32 | frame_cards | the power readout, machine labels, pinned cards (`cards`) | 13717-14289 | 582 |
+| 33 | frame_dev_ipc | the dev autopilot, the dev control link, bookmarks (`dev_ipc`) | 14290-14435 | 156 |
+| 34 | frame_load_screens | the network pump, loading, whether the world is drawn (`network`, `load`, `screens`) | 14436-14536 | 113 |
+| 35 | frame_world_passes | the surface acquired and the world's passes recorded (`world_passes`) | 14537-15130 | 607 |
+| 36 | frame_ui_run | the debug log, the egui pass (`ui_run`) | 15136-15685 | 560 |
+| 37 | frame_audio | sound previews, music and effects, the click sound (`audio`) | 15686-15794 | 118 |
+| 38 | frame_ui_paint | platform output, tessellation, textures, the GUI drawn (`ui_paint`) | 15795-15906 | 121 |
+| 39 | frame_tail | captures, the present, the draw lists handed back, settings applied (`tail`) | 15907-16406 | 514 |
+
+What stays in src/lib.rs (2,327 lines): startup (`resumed`, about 1,250 lines), the window helpers beside it, and `window_event` as a dispatcher (the small arms and one call per stage, about 90 lines). Left for later: `frame_sky_body` (1,803 lines) holds the chunked planet (one 1,181-line `if chunked_on` block: patch selection, builds, draws, grass and trees), to be cut into its own stages with a per-body struct like `SkyBodies`; `frame_planet_walk` (947) is mostly one 802-line frame-lock block; `frame_keys` (806) could split the in-game keys from the menus' keys.
+
 ## More crates beyond the ten (proposed 2026-11-14)
 
 The operator, 2026-11-14: "Are there any other things we should make their own crate?" Measured that day; each candidate is desktop-only or server-only (so the other build never compiles it), changes on its own work stream, and needs no engine state:

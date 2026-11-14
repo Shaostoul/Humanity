@@ -3,8 +3,12 @@
 ## What it is for
 
 THE FRAME: the main loop, and everything that wires the other crates into one running app.
-`lib.rs` is engine start-up and the main loop; `engine/` holds the frame's parts (world loading,
-the home's meshes, the in-world screens, the dev IPC and the dev MCP endpoint, the `frame_*` steps,
+`lib.rs` is engine start-up and the frame's dispatcher; the frame itself is one module per stage,
+`engine/frame_<stage>.rs`, called in frame order from `window_event` (the file-size split, step 1,
+2026-11-14; the stage list is in [crate-split.md](../design/crate-split.md), "Step 1's stage list"),
+with the values one stage hands a later one in `engine/frame_vars.rs` and their shared names in
+`engine/frame_prelude.rs`. `engine/` also holds the frame's other parts (world loading,
+the home's meshes, the in-world screens, the dev IPC and the dev MCP endpoint,
 launch focus, the build editor); `save_load` applies a save to the running world; `main.rs` is the
 binary. It may use every crate and no crate uses it, so the most-edited code sits on top, where an
 edit re-checks the least.
@@ -18,13 +22,13 @@ edit re-checks the least.
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 105,941 lines in 155 files, 16,258 of them in 55 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_shells.rs` 1,289 of 1,300, `lib.rs` 16,387 of 16,700, `engine/map_rig.rs` 242 of 250, `engine/map_view.rs` 303 of 315, `engine/frame_water.rs` 718 of 750, `engine/frame_near_trees.rs` 668 of 700, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,644 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 365 of 450.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 33, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 663, gui 613, systems 576, renderer 345, ship 335, terrain 161, animation 140, net 101, music 13, protocol 13, relay 11.
+- **Size:** 111,433 lines in 206 files, 17,201 of them in 57 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_water.rs` 750 of 750, `engine/frame_shells.rs` 1,291 of 1,300, `engine/map_view.rs` 312 of 315, `engine/frame_near_trees.rs` 691 of 700, `engine/frame_sky_body.rs` 1,803 of 1,850, `lib.rs` 2,327 of 2,400, `engine/map_rig.rs` 242 of 250, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,644 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 382 of 450.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 35, `relay` 5, `wasm` 1.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 702, gui 652, systems 592, renderer 358, ship 351, terrain 169, animation 140, net 101, music 15, protocol 13, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 769 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 814 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::mine_tasks:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::quiet_allow:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::
@@ -35,8 +39,9 @@ just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip e
 
 ## Rules
 
-- **`lib.rs` is the merge funnel: the fewer reasons to touch it, the fewer collisions.** Loop code
-  goes into a file under `src/engine/`; the size ratchet fails a monolith that grows past its budget
+- **`lib.rs` is the merge funnel: the fewer reasons to touch it, the fewer collisions.** Frame code
+  goes into its stage's `src/engine/frame_<stage>.rs` (or a new stage, called from `window_event` in
+  frame order), other loop code into a file under `src/engine/`; the size ratchet fails a monolith that grows past its budget
   (At a glance) and asks for the budget to come down when it shrinks. Source:
   [CLAUDE.md](../../CLAUDE.md), Architecture, and
   [file_size_ratchet.rs](../../tests/file_size_ratchet.rs).

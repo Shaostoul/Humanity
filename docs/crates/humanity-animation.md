@@ -40,7 +40,7 @@ because animation never reaches the server: the relay build never compiles it (t
 - **Owns** all of `crates/humanity-animation/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
   - no gate (every build): `crates/humanity-animation/src/clip.rs`, `crates/humanity-animation/src/feet.rs`, `crates/humanity-animation/src/graph.rs`, `crates/humanity-animation/src/humanoid.rs`, `crates/humanity-animation/src/interact.rs`, `crates/humanity-animation/src/joint_map.rs`, `crates/humanity-animation/src/library.rs`, `crates/humanity-animation/src/look.rs`, `crates/humanity-animation/src/motion.rs`, `crates/humanity-animation/src/pose.rs`, `crates/humanity-animation/src/retarget.rs`, `crates/humanity-animation/src/role_map.rs`, `crates/humanity-animation/src/skeleton.rs`, `crates/humanity-animation/src/tiers.rs`
   - test builds only: `crates/humanity-animation/src/fixtures.rs`, `crates/humanity-animation/src/tests.rs`
-- **Size:** 6,300 lines in 17 files, 580 of them in 2 test files.
+- **Size:** 6,444 lines in 17 files, 580 of them in 2 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): none.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 21.
 - **May be used by** (the plan): engine. **Used today by:** engine 140.

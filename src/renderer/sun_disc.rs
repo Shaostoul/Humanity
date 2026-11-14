@@ -624,7 +624,7 @@ mod tests {
         assert_eq!(aperture_from_setting_mm(5000.0), APERTURE_MAX_MM as f64 / 1000.0, "held at the widest");
         assert_eq!(aperture_from_setting_mm(f32::NAN), GLARE_APERTURE_M, "not a number: the default");
         assert!((glare_coeff(1, aperture_from_setting_mm(3.0)) / glare_coeff(1, GLARE_APERTURE_M) - 10.0).abs() < 1e-6, "a narrower aperture spreads the glare wider");
-        let lib = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/lib.rs")).replace("\r\n", "\n");
+        let lib = humanity_terrain::planet_chunks::frame_loop_source().replace("\r\n", "\n");
         assert!(
             lib.contains("sun_disc::aperture_from_setting_mm(state.gui_state.settings.sun_aperture_mm)"),
             "src/lib.rs never hands the Settings aperture to the renderer"
