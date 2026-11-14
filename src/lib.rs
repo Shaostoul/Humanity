@@ -7741,8 +7741,9 @@ mod native_app {
                         // (home_meshes `push_home_plants`).
                         crate::engine::home_meshes::push_home_plants(state, &mut all_objects);
                         // Grow enclosures (2026-09-27): each mushroom rack's
-                        // clear fruiting tent, in the transparent pass.
-                        push_grow_enclosures(state, &mut transparent_objects);
+                        // fruiting tent (its fitted cover since 2026-11-13: film and seams in the
+                        // transparent pass, its zips and ties with the opaque objects).
+                        push_grow_enclosures(state, &mut all_objects, &mut transparent_objects);
                         }
                         // Connection cylinders (live, colored by kind; follow rooms). (v0.530)
                         if !hide_pipes {

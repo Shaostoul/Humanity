@@ -3375,7 +3375,8 @@ mod permutation_tests {
     #[test]
     fn the_room_gi_sample_is_guarded_by_its_switch_in_the_tail() {
         let main = code_only(class_entries_side());
-        let guard = format!("if ({FEATURE_ROOM_GI} && !under_sky && !screen_emitter && out_alpha >= 0.999) {{");
+        // A see-through fragment keeps the floor unless it is a frosted film (type 27, 2026-11-13).
+        let guard = format!("if ({FEATURE_ROOM_GI} && !under_sky && !screen_emitter && (out_alpha >= 0.999 || film_t > 0.0)) {{");
         let sites: Vec<usize> = main.match_indices(&guard).map(|(p, _)| p).collect();
         assert_eq!(sites.len(), 1, "exactly one {guard:?}, found {}", sites.len());
         let (start, end) = function_body(&main, "frag_tail");

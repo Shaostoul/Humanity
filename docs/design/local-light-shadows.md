@@ -395,6 +395,15 @@ red with both arms shadow-less (shelf keeps 0.959, hut 1.004: FAIL), green with 
 (night cap 0.0016 against the shelf's 0.0463; the "sand" box, now the hut's wall, reads darker than
 the floor).
 
+**(d) The tents' covers (2026-11-13).** The racks' tents became frosted plastic covers
+(`engine/fruiting_tent.rs`), and the gate's shelf box looks at the lowest shelf through a tent's
+front: with the cover down the film's own lit veil, the same in both arms, hid the shadow (the shelf
+"kept" 0.713 of its light). The `home-racks-*` vantages now hold the tents' doors rolled up
+(showcase `tent_door` "up", released between vantages by `scripts/lib/showcase-pins.js`), and the
+same-boot A/B passes again: shelf 0.203, floor +0.02 codes. The film casts no shadow of its own yet:
+a frosted sheet passing some 80% of the light face-on is the "partial caster" of section 2's item 9, a rung of
+its own (a transmittance atlas beside the depth atlas).
+
 ## 11. Questions only the operator can answer
 
 1. **How many lamps should Full shadow?** Rung 1 shadows the 8 that matter most where you look

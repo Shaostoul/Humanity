@@ -82,7 +82,10 @@
 //!   (lib.rs), `furniture_detail::needs_rebuild` and `pipe_markers::rebuild_if_mode_changed`.
 //!   The whole garden is built again every 2 s once the last full rebuild has finished (about
 //!   400 ms of the worker).
-//! - `src/engine/home_meshes.rs`: `reuse_off_at` and `full_at` (when the schedules last ran).
+//! - `src/engine/home_meshes.rs`: `reuse_off_at` and `full_at` (when the schedules last ran);
+//!   `tent_meshes` and `tent_materials` (a fruiting tent's cover, 2026-11-13: built again when
+//!   the tent or its door's roll step changes, and every frame with the switch off, its materials
+//!   then written again from what they are made of).
 //! - `src/engine/map_view.rs`: `last_key` (the Maps world layer, rendered every frame with the
 //!   switch off, `world_layer_due`).
 //! - `src/engine/map_tiles.rs`: `tiles` (the plan tiles: with the switch off, once every wanted

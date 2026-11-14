@@ -1235,8 +1235,10 @@ fn fs_surface(in: VertexOutput) -> FragOut {
     // hidden until then by the old Sun's halo (15 degrees wide) behind the
     // glass. Light on a pane's far side passes through it (what is behind
     // shows through by the pane's alpha); what the pane reflects comes from the
-    // viewer's side. So a pane's normal faces the viewer.
-    if (material_type < 11.5 && out_alpha < 0.999 && dot(normal, view_dir) < 0.0) {
+    // viewer's side. So a pane's normal faces the viewer. A frosted film (type
+    // 27, a tent's cover) is a pane too: what falls on its far side it passes on
+    // scattered (frag_tail, thin_transmit), so its far side must be the far one.
+    if ((material_type < 11.5 || is_film(material_type)) && out_alpha < 0.999 && dot(normal, view_dir) < 0.0) {
         normal = -normal;
     }
 
@@ -1340,6 +1342,21 @@ fn fs_surface(in: VertexOutput) -> FragOut {
         proc_emissive = vec3<f32>(1.0, 0.3, 0.0) * heat * 3.0; // glowing cracks
         roughness = mix(0.9, 0.3, heat);
         metallic = 0.0;
+    }
+    // Type 27: FROSTED FILM (2026-11-13, a fruiting tent's cover, engine/fruiting_tent.rs).
+    // The plain PBR of its milky base colour, lit from the side it is seen from (the pane
+    // flip above). A sheet that scatters the light going through it is whiter and less
+    // see-through the longer the path through it: seen at a slant that path is 1/cos longer
+    // (Beer-Lambert through a thin slab), so the opacity a face-on look gives is raised to it.
+    // A fold line the cover keeps from its packet hides more of what is behind
+    // it (PVC whitens where it was creased): the film's vertices carry how much
+    // more in uv.x (engine::fruiting_tent, Drape::whiten; 0 on its other parts).
+    // Blended like glass, the film's final opacity (slant and folds included) is
+    // what it writes as TAA's responsive mask (surface_cover, at the return).
+    if (is_film(material_type) && out_alpha < 0.999) {
+        out_alpha = out_alpha + (1.0 - out_alpha) * clamp(in.uv.x, 0.0, 1.0);
+        let mu = max(abs(dot(normal, view_dir)), 0.2);
+        out_alpha = 1.0 - pow(1.0 - out_alpha, 1.0 / mu);
     }
 
     // Hand the class's result to the shared tail.

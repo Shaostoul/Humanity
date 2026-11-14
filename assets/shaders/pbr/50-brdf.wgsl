@@ -47,3 +47,34 @@ fn evaluate_light(
     return (diffuse + specular) * light_color * light_intensity * n_dot_l;
 }
 
+// ── A FROSTED FILM (material type 27, 2026-11-13: a fruiting tent's cover) ──
+// engine::fruiting_tent::MATERIAL_TYPE_FILM. A thin sheet that scatters the light going through
+// it: what falls on its far side leaves this side as diffuse light, the thin slab's split of
+// what it scatters into reflected and transmitted (a lampshade glowing with the lamp behind it).
+fn is_film(material_type: f32) -> bool {
+    return material_type >= 26.5 && material_type < 27.5;
+}
+
+// The film's diffuse transmission (params2.x, engine::fruiting_tent); 0 for every other type.
+fn film_transmission(material_type: f32) -> f32 {
+    if (is_film(material_type)) {
+        return clamp(material.params2.x, 0.0, 1.0);
+    }
+    return 0.0;
+}
+
+// The light from light_dir falling on the far side of a sheet facing normal, passed on to this
+// side as Lambertian diffuse scaled by the sheet's transmission tau: the same units as
+// evaluate_light's diffuse term.
+fn thin_transmit(
+    light_dir: vec3<f32>,
+    light_color: vec3<f32>,
+    light_intensity: f32,
+    normal: vec3<f32>,
+    albedo: vec3<f32>,
+    tau: f32,
+) -> vec3<f32> {
+    let behind = max(-dot(normal, normalize(light_dir)), 0.0);
+    return albedo * (tau / PI) * light_color * light_intensity * behind;
+}
+

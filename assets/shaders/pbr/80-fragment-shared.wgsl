@@ -387,6 +387,17 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
         normal, view_dir, albedo, metallic, roughness, f0)
         * sun_shadow_offset(in.world_position, sun_ndl, normal)
         * sun_gate;
+    // ── A FROSTED FILM PASSES LIGHT THROUGH (type 27, 2026-11-13) ──
+    // The light falling on a tent cover's far side leaves this side scattered
+    // (thin_transmit, 50-brdf.wgsl): the noon sun through the glass roof, or the
+    // lamp over the racks, lights the far wall of a tent seen from outside. Its
+    // shadow is looked up from the far side (the film itself casts no shadow).
+    let film_t = film_transmission(material_type);
+    if (film_t > 0.0) {
+        lo = lo + thin_transmit(camera.sun_direction.xyz, bsun.rgb, bsun.w, normal, albedo, film_t)
+            * sun_shadow_offset(in.world_position, -sun_ndl, -normal)
+            * sun_gate;
+    }
 
     // Evaluate fill light (from camera uniforms). NIGHT GATE for planet
     // surfaces (operator, v0.1186: "the oceans are glowing" on the dark
@@ -510,6 +521,10 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
                 attenuation = attenuation * local_light_visibility(u32(i), in.world_position, normal, dot(normal, light_dir));
             }
             lo = lo + evaluate_light(light_dir, light_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);
+            // A frosted film passes on what falls on its far side (the sun's note above).
+            if (film_t > 0.0) {
+                lo = lo + thin_transmit(light_dir, light_color, attenuation, normal, albedo, film_t);
+            }
         }
     }
 
@@ -560,13 +575,15 @@ fn frag_tail(in: VertexOutput, s: FragSetup) -> vec4<f32> {
     // else this block folds away (pipeline.rs, ShaderClass::live_features).
     // Two kinds of fragment keep the floor. A SCREEN, whose colour replaces
     // the lit result below, so the sample would be thrown away. And a
-    // SEE-THROUGH surface (a pane, a tent's film): its colour here is the tint
-    // of an alpha blend, not a diffuse reflectance (clear glass and film
-    // reflect almost nothing diffusely; what shows on them is what is behind
-    // and the specular), and in the mushroom room's tent overdraw it was a
-    // third of room GI's sampling cost (0.20 of 0.66 ms at console-face-6,
-    // docs/design/room-gi.md).
-    if (HAS_ROOM_GI && !under_sky && !screen_emitter && out_alpha >= 0.999) {
+    // clear SEE-THROUGH surface (a pane): its colour here is the tint of an
+    // alpha blend, not a diffuse reflectance (clear glass reflects almost
+    // nothing diffusely; what shows on it is what is behind and the specular).
+    // A FROSTED FILM (type 27, a tent's cover since 2026-11-13) does reflect
+    // diffusely: a milky sheet in a lit room is lit by the room, and on the old
+    // floor its sides away from the lamp read as dark tinted glass. It reads the
+    // probes; with the tents still clear film that was a third of room GI's
+    // sampling cost at console-face-6 (0.20 of 0.66 ms, docs/design/room-gi.md).
+    if (HAS_ROOM_GI && !under_sky && !screen_emitter && (out_alpha >= 0.999 || film_t > 0.0)) {
         let room_light = room_gi_irradiance(in.world_position, normal);
         if (room_light.a > 0.5) {
             var room_rgb = room_light.rgb;

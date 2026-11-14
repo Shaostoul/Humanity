@@ -181,6 +181,10 @@ pub mod fungus_mesh;
 /// Where a garden plot's plants stand: plots of a machine, the crop's rows at
 /// its real spacing, and the clump rule above the visual cap (2026-09-26).
 pub mod plant_layout;
+/// A mushroom rack's fruiting tent drawn as the fitted plastic cover it is: built from the
+/// rack's frame, frosted film, welded seams, a zippered door that rolls up while the rack is
+/// tended, its ports (2026-11-13).
+pub mod fruiting_tent;
 /// The garden's plant geometry, built on a worker thread and uploaded a few
 /// milliseconds a frame (2026-09-27).
 pub mod plant_pass;

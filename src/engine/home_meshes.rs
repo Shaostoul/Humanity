@@ -1176,12 +1176,20 @@ pub(crate) fn publish_grow_plots(state: &mut EngineState) {
     let mut plots: Vec<GrowPlot> = Vec::new();
     let mut instances: HashMap<String, Vec<(String, u32)>> = HashMap::new();
     let mut plot_area: HashMap<String, f32> = HashMap::new();
-    // And the enclosures the garden draws around them (2026-09-27).
-    let mut tents: Vec<(Vec3, f32, (f32, f32, f32))> = Vec::new();
+    // And the enclosures the garden draws around them (2026-09-27), each fitted to its
+    // machine's frame (the fitted cover, 2026-11-13).
+    let mut tents: Vec<TentDraw> = Vec::new();
     for g in &state.grow_positions {
         let Some(medium) = state.gui_state.grow_media.iter().find(|m| m.matches(&g.ty)) else { continue };
         if let Some(e) = &medium.enclosure {
-            tents.push((g.pos, g.yaw, e.size));
+            tents.push(TentDraw {
+                id: g.id.clone(),
+                pos: g.pos,
+                yaw: g.yaw,
+                size: e.size,
+                frame: crate::engine::fruiting_tent::RackFrame::of(g.size, medium.plots, medium.stacked),
+                cover: e.cover.clone(),
+            });
         }
         let footprint = (g.size.0 * g.size.2).max(0.0);
         let tower_cfg = g.ty.strip_prefix("aeroponic_tower_").and_then(|k| tower_cfgs.iter().find(|t| t.id == k));
@@ -1905,12 +1913,51 @@ fn release_plant_slot(state: &mut EngineState, pass: &mut PlantPass, mi: usize) 
 pub(crate) struct GardenDraw {
     /// The plant pass ([`rebuild_plant_meshes`]).
     pub(crate) plants: PlantPass,
-    /// Every grow enclosure to draw, from [`publish_grow_plots`]: the
-    /// machine's floor position, its yaw in degrees and the enclosure's size.
-    tents: Vec<(Vec3, f32, (f32, f32, f32))>,
-    /// A tent mesh per enclosure size (one size today), and their material.
-    tent_meshes: Vec<((f32, f32, f32), usize)>,
-    tent_material: Option<usize>,
+    /// Every grow enclosure to draw, from [`publish_grow_plots`].
+    tents: Vec<TentDraw>,
+    /// Each tent's door, by its machine's id: where its roll is going and since when.
+    tent_rolls: std::collections::HashMap<String, TentRoll>,
+    /// Each tent's three meshes, by its machine's id, and what they were built from.
+    tent_meshes: std::collections::HashMap<String, TentMeshes>,
+    /// The materials the covers' parts are drawn in (`fruiting_tent::film_material` and its
+    /// siblings), each with what it was made from.
+    tent_materials: Vec<(crate::engine::fruiting_tent::PartMaterial, usize)>,
+    /// Every tent door held up (1) or down (0) by the dev IPC's showcase "tent_door" verb; None:
+    /// each follows its rack's tending (`fruiting_tent::tended`).
+    pub(crate) door_pin: Option<f32>,
+}
+
+/// One grow enclosure to draw (a mushroom rack's fruiting tent): its machine's id, floor
+/// position (world metres) and yaw (degrees), the enclosure's size, the frame it is fitted to
+/// and how its cover is made (`engine::fruiting_tent`, 2026-11-13).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct TentDraw {
+    pub(crate) id: String,
+    pub(crate) pos: Vec3,
+    pub(crate) yaw: f32,
+    pub(crate) size: (f32, f32, f32),
+    pub(crate) frame: crate::engine::fruiting_tent::RackFrame,
+    pub(crate) cover: humanity_systems::grow_machines::Cover,
+}
+
+/// A tent door's roll: from where, toward where (0 down, 1 rolled up), since when.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct TentRoll {
+    from: f32,
+    target: f32,
+    since: std::time::Instant,
+}
+
+/// A tent's meshes (film, seams, fittings; None for a part with no triangles), the tent and
+/// the roll step they were built for. They are built again when either changes, and every
+/// frame with reuse switched off (`humanity_core::reuse`).
+pub(crate) struct TentMeshes {
+    /// The renderer's mesh slot of each part, once it has one (`Renderer::replace_mesh` rebuilds
+    /// in place), and whether the part has triangles to draw.
+    slots: [Option<usize>; 3],
+    drawn: [bool; 3],
+    built: TentDraw,
+    step: u32,
 }
 
 /// What the plant pass keeps between frames (2026-09-26 as a cache in the
@@ -2298,16 +2345,6 @@ fn stage_model_material(state: &mut EngineState, texture: Option<(Vec<u8>, u32, 
     }
 }
 
-/// The clear sheeting of a grow enclosure (2026-09-27): a mushroom rack's
-/// fruiting tent is clear PVC over wire shelving. Nearly colourless at
-/// `TENT_ALPHA` opacity so the shelves inside stay readable, smooth, and
-/// drawn as material type 4 (glass), whose Fresnel term brightens the sheet
-/// where it is seen edge-on: the way a tent's sides and seams catch the
-/// light while its face looks through.
-const TENT_COLOR: [f32; 3] = [0.92, 0.95, 0.97];
-const TENT_ALPHA: f32 = 0.18;
-const TENT_ROUGHNESS: f32 = 0.12;
-
 /// The plant meshes to draw: each of `plants` (mesh, material, the foot of the machine it grows on,
 /// world metres; `EngineState::plant_objects`) but those the build editor's cut-away leaves out,
 /// by that foot, as it leaves out the machine (`CutAway::hides`, `push_home_machines`). A plant
@@ -2331,14 +2368,11 @@ pub(crate) fn plant_draws(plants: &[(usize, usize, Vec3)], cut: impl Into<crate:
         .collect()
 }
 
-/// The grow tents to draw: each of `tents` (its machine's floor position, its yaw, its size;
-/// `GardenDraw::tents`) the build editor's cut-away does not leave out (`plant_draws`).
-pub(crate) fn tents_shown(
-    tents: &[(Vec3, f32, (f32, f32, f32))],
-    cut: impl Into<crate::engine::editor::Cuts>,
-) -> Vec<(Vec3, f32, (f32, f32, f32))> {
+/// The grow tents to draw: the indices of those of `tents` (`GardenDraw::tents`) the build
+/// editor's cut-away does not leave out, by their machine's foot (`plant_draws`).
+pub(crate) fn tents_shown(tents: &[TentDraw], cut: impl Into<crate::engine::editor::Cuts>) -> Vec<usize> {
     let cut = cut.into();
-    tents.iter().filter(|(pos, _, _)| !cut.hides(*pos)).copied().collect()
+    tents.iter().enumerate().filter(|(_, t)| !cut.hides(t.pos)).map(|(i, _)| i).collect()
 }
 
 /// Push this frame's garden plants (v0.862: one merged world-space mesh per planted machine and
@@ -2362,47 +2396,94 @@ pub(crate) fn push_home_plants(state: &EngineState, out: &mut Vec<RenderObject>)
     }
 }
 
-/// Draw every grow enclosure (a fruiting tent around each mushroom rack,
-/// 2026-09-27) into the transparent list: one tent mesh per enclosure size
-/// from `plant_layout::tent_geometry`, placed on its machine with the
-/// machine's yaw. The enclosures come from the grow media
-/// (`enclosure` in data/garden/grow_media.ron), recorded by
-/// [`publish_grow_plots`]; the frame draws them with the machines, so they
-/// hide with them, and the build editor's cut-away leaves them out with
-/// their machines (`tents_shown`, 2026-10-21).
-pub(crate) fn push_grow_enclosures(state: &mut EngineState, transparent: &mut Vec<RenderObject>) {
+/// Draw every grow enclosure (a fruiting tent around each mushroom rack, 2026-09-27; the fitted
+/// cover since 2026-11-13, `engine::fruiting_tent`): its film and its seams into the transparent
+/// list, its fittings (zipper tapes, ties, grommet) into the opaque one, placed on its machine
+/// with the machine's yaw. The enclosures come from the grow media (`enclosure` in
+/// data/garden/grow_media.ron), recorded by [`publish_grow_plots`]; the frame draws them with the
+/// machines, so they hide with them, and the build editor's cut-away leaves them out with their
+/// machines (`tents_shown`, 2026-10-21).
+///
+/// The door rolls up while someone tends the rack (`fruiting_tent::tended`: its card pinned open
+/// and the player standing at it) and back down after, over the cover's `roll_s`. A tent's
+/// meshes are built again when the tent or its roll step changes, and every frame with reuse
+/// switched off (CLAUDE.md's no-caches rule, `humanity_core::reuse`).
+pub(crate) fn push_grow_enclosures(state: &mut EngineState, opaque: &mut Vec<RenderObject>, transparent: &mut Vec<RenderObject>) {
+    use crate::engine::fruiting_tent as tent;
     if state.garden_draw.tents.is_empty() {
         return;
     }
-    let material = match state.garden_draw.tent_material {
-        Some(m) => m,
-        None => {
-            let [r, g, b] = TENT_COLOR;
-            let m = state.renderer.add_material_full([r, g, b, TENT_ALPHA], 0.0, TENT_ROUGHNESS, 4.0, 0.0);
-            state.garden_draw.tent_material = Some(m);
-            m
-        }
-    };
+    let reuse = humanity_core::reuse::enabled();
+    let now = std::time::Instant::now();
+    let pinned = state.gui_state.selected_machine.and_then(|i| state.gui_state.machine_labels.get(i)).map(|l| l.machine_id.clone());
+    let eye = state.camera.position;
+    let pin = state.garden_draw.door_pin;
     // Those the build editor's cut-away leaves out are not drawn (`tents_shown`).
-    for (pos, yaw, size) in tents_shown(&state.garden_draw.tents, state.home_draw.cut.clone()) {
-        let mesh = match state.garden_draw.tent_meshes.iter().find(|(s, _)| *s == size) {
-            Some(&(_, m)) => m,
-            None => {
-                let (v, ix) = crate::engine::plant_layout::tent_geometry(size);
-                let m = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &v, &ix));
-                state.garden_draw.tent_meshes.push((size, m));
-                m
+    for i in tents_shown(&state.garden_draw.tents, state.home_draw.cut.clone()) {
+        let t = &state.garden_draw.tents[i];
+        let door = &t.cover.door;
+        let tending = tent::tended(pinned.as_deref(), &t.id, eye, t.pos, door.tend_reach_m);
+        let target = pin.unwrap_or(if tending { 1.0 } else { 0.0 });
+        let roll = state.garden_draw.tent_rolls.entry(t.id.clone()).or_insert(TentRoll { from: 0.0, target: 0.0, since: now });
+        let rolled = tent::roll_at(roll.from, roll.target, (now - roll.since).as_secs_f32(), door.roll_s);
+        if target != roll.target {
+            *roll = TentRoll { from: rolled, target, since: now };
+        }
+        let step = tent::roll_step(rolled);
+        let specs = [tent::film_material(&t.cover.film), tent::seam_material(&t.cover), tent::fittings_material(&t.cover)];
+        let materials = specs.map(|spec| tent_part_material(&mut state.renderer, &mut state.garden_draw.tent_materials, spec, reuse));
+        let fresh = reuse && state.garden_draw.tent_meshes.get(&t.id).is_some_and(|m| m.step == step && m.built == *t);
+        if !fresh {
+            let g = tent::cover_geometry(t.size, &t.frame, &t.cover, step as f32 / 64.0);
+            let entry = state.garden_draw.tent_meshes.entry(t.id.clone()).or_insert_with(|| TentMeshes { slots: [None; 3], drawn: [false; 3], built: t.clone(), step });
+            for (k, (v, ix)) in [g.film, g.seams, g.fittings].into_iter().enumerate() {
+                entry.drawn[k] = !v.is_empty() && !ix.is_empty();
+                if !entry.drawn[k] {
+                    continue;
+                }
+                let mesh = Mesh::from_vertices(&state.renderer.device, &v, &ix);
+                match entry.slots[k] {
+                    Some(slot) => state.renderer.replace_mesh(slot, mesh),
+                    None => entry.slots[k] = Some(state.renderer.add_mesh(mesh)),
+                }
             }
-        };
-        transparent.push(RenderObject {
-            fade: 0.0,
-            position: pos,
-            rotation: Quat::from_rotation_y(yaw.to_radians()),
-            scale: Vec3::ONE,
-            mesh,
-            material,
-        });
+            entry.built = t.clone();
+            entry.step = step;
+        }
+        let Some(m) = state.garden_draw.tent_meshes.get(&t.id) else { continue };
+        let rotation = Quat::from_rotation_y(t.yaw.to_radians());
+        for k in 0..3 {
+            let (Some(mesh), true) = (m.slots[k], m.drawn[k]) else { continue };
+            let obj = RenderObject { fade: 0.0, position: t.pos, rotation, scale: Vec3::ONE, mesh, material: materials[k] };
+            if k == 2 {
+                opaque.push(obj);
+            } else {
+                transparent.push(obj);
+            }
+        }
     }
+}
+
+/// The material a cover's part is drawn in: the one already made from `spec`, else a new one.
+/// With reuse switched off its buffer is written again from `spec` every frame, so a stale GPU
+/// copy cannot hide behind the lookup.
+fn tent_part_material(
+    renderer: &mut crate::renderer::Renderer,
+    made: &mut Vec<(crate::engine::fruiting_tent::PartMaterial, usize)>,
+    spec: crate::engine::fruiting_tent::PartMaterial,
+    reuse: bool,
+) -> usize {
+    if let Some(&(_, m)) = made.iter().find(|(s, _)| *s == spec) {
+        if !reuse {
+            renderer.update_material_full(m, spec.base_color, spec.metallic, spec.roughness, spec.material_type, 0.0);
+            renderer.update_material_params2(m, spec.params2);
+        }
+        return m;
+    }
+    let m = renderer.add_material_full(spec.base_color, spec.metallic, spec.roughness, spec.material_type, 0.0);
+    renderer.update_material_params2(m, spec.params2);
+    made.push((spec, m));
+    m
 }
 
 /// Each storey's SERVICE LEVEL in a body standing at `origin` (world metres), bottom up: (its floor,

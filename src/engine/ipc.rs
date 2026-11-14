@@ -1682,6 +1682,17 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             if state.renderer.emission.off { "OFF (emission pass skipped)" } else { "on" }
         );
     }
+    // {"tent_door":"up"} rolls every fruiting tent's door up and "down" lets it down; "auto" (or
+    // anything else) gives it back to its rack's tending (engine::fruiting_tent::tended): a rig's
+    // way to see the rolled door with nobody at the rack (the fitted cover, 2026-11-13).
+    if let Some(t) = grab("tent_door") {
+        state.garden_draw.door_pin = match t.as_str() {
+            "up" => Some(1.0),
+            "down" => Some(0.0),
+            _ => None,
+        };
+        log::info!("Showcase: tent_door -> {t} ({:?})", state.garden_draw.door_pin);
+    }
     // {"room_gi":"0"} switches room GI off (2026-09-27, docs/design/room-gi.md):
     // the room table says "off", every interior fragment keeps the old 0.005
     // ambient floor, and the probe update is not dispatched. "1" turns it back

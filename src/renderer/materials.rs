@@ -52,7 +52,7 @@ use wgpu::util::DeviceExt;
 /// atmosphere, 15 cloud deck, 16 ocean shell, 17 and 18 gas giant bands,
 /// 19 textured mesh (photoscans, furniture), 20 near-tree foliage mesh,
 /// 21 baked cluster card, 22 baked bark, 23 grass strand, 24 screen (this),
-/// 25 character (below).
+/// 25 character (below), 26 card hair (below), 27 frosted film (`fruiting_tent`).
 pub const MATERIAL_TYPE_SCREEN: f32 = 24.0;
 
 /// Material type 25: a CHARACTER's skin, hair or clothes (character animation

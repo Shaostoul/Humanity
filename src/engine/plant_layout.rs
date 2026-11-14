@@ -21,10 +21,10 @@
 //! - [`bake_copy`]: one placed copy of a stage model appended to a merged
 //!   mesh, which is how a plot of hero models costs one draw, not one per
 //!   plant.
-//! - [`shelf_rack_geometry`] and [`tent_geometry`] (2026-09-27): the body a
-//!   stacked machine is drawn with, open shelving with a deck under each of
-//!   its shelf plots, and the clear fruiting tent a grow medium's
-//!   `enclosure` puts around it.
+//! - [`shelf_rack_geometry`] (2026-09-27): the body a stacked machine is
+//!   drawn with, open shelving with a deck under each of its shelf plots. The
+//!   fruiting tent a grow medium's `enclosure` puts around it is fitted to
+//!   that frame by `engine::fruiting_tent` (2026-11-13).
 //!
 //! Pure geometry with no engine state, so the rules are unit tested here and
 //! `home_meshes::rebuild_plant_meshes` only places meshes.
@@ -243,24 +243,6 @@ pub(crate) fn shelf_rack_geometry(size: (f32, f32, f32), plots: u32) -> (Vec<Ver
     for shelf in plot_rects((w, h, d), plots, true) {
         let top = shelf.floor;
         push_box(&mut v, &mut ix, [-w * 0.5, (top - SHELF_DECK_M).max(0.0), -d * 0.5], [w * 0.5, top, d * 0.5]);
-    }
-    (v, ix)
-}
-
-/// A grow machine's enclosure (a mushroom rack's fruiting tent, 2026-09-27):
-/// a sheet on each of its four sides and one over the top, `size` (width,
-/// height, depth, metres; `Enclosure::size` in data/garden/grow_media.ron)
-/// centred on the machine with its hem on the floor. No floor sheet, since
-/// the tent stands on the floor. It draws through the transparent pass,
-/// which shades both sides of a sheet, so no face is doubled for the inside.
-pub(crate) fn tent_geometry(size: (f32, f32, f32)) -> (Vec<Vertex>, Vec<u32>) {
-    let (x, h, z) = (size.0.max(0.05) * 0.5, size.1.max(0.05), size.2.max(0.05) * 0.5);
-    let (mut v, mut ix) = (Vec::new(), Vec::new());
-    for (n, corners) in box_faces([-x, 0.0, -z], [x, h, z]) {
-        if n[1] < -0.5 {
-            continue; // no floor sheet
-        }
-        push_quad(&mut v, &mut ix, corners, n);
     }
     (v, ix)
 }
@@ -598,39 +580,5 @@ mod tests {
         let solid = shelving_problems(&bv, &bix, size, 4);
         assert!(solid.iter().any(|p| p.starts_with("no deck top")), "{solid:#?}");
         assert!(solid.iter().any(|p| p.starts_with("between the shelves")), "{solid:#?}");
-    }
-
-    /// What is wrong with `(v, ix)` as a tent of `size`: empty when it is
-    /// four walls and a top (no floor sheet) spanning exactly the box
-    /// centred on the machine with its hem on the floor, every sheet out.
-    fn tent_problems(v: &[Vertex], ix: &[u32], size: (f32, f32, f32)) -> Vec<String> {
-        let mut out = Vec::new();
-        if ix.len() != 5 * 6 {
-            out.push(format!("{} indices, not four walls and a top", ix.len()));
-        }
-        if !wound_outward(v, ix) {
-            out.push("a sheet is turned inside out".into());
-        }
-        let lo = v.iter().fold(Vec3::splat(f32::MAX), |a, p| a.min(Vec3::from(p.position)));
-        let hi = v.iter().fold(Vec3::splat(f32::MIN), |a, p| a.max(Vec3::from(p.position)));
-        let (want_lo, want_hi) = (Vec3::new(-size.0 * 0.5, 0.0, -size.2 * 0.5), Vec3::new(size.0 * 0.5, size.1, size.2 * 0.5));
-        if (lo - want_lo).length() > 1e-5 || (hi - want_hi).length() > 1e-5 {
-            out.push(format!("spans {lo} to {hi}, not {want_lo} to {want_hi}"));
-        }
-        if v.iter().any(|p| p.normal[1] < -0.5) {
-            out.push("a floor sheet".into());
-        }
-        out
-    }
-
-    /// The fruiting tent is the enclosure's box (see `tent_problems`), and
-    /// the check rejects a tent built with width and depth swapped.
-    #[test]
-    fn tent_is_the_enclosure_box_without_a_floor() {
-        let (v, ix) = tent_geometry((1.3, 1.9, 0.7));
-        let problems = tent_problems(&v, &ix, (1.3, 1.9, 0.7));
-        assert!(problems.is_empty(), "{problems:#?}");
-        let (sv, six) = tent_geometry((0.7, 1.9, 1.3));
-        assert!(tent_problems(&sv, &six, (1.3, 1.9, 0.7)).iter().any(|p| p.starts_with("spans")));
     }
 }

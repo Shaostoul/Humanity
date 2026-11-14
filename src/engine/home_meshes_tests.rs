@@ -563,8 +563,16 @@ fn the_cut_away_leaves_out_the_plants_and_tents_over_it() {
     let drawn: Vec<usize> = plant_draws(&plants, Some(cut)).iter().map(|r| r.mesh).collect();
     assert_eq!(drawn, vec![1], "the cut-away draws the plants of meshes {drawn:?}; want [1], the greenhouse's");
     assert_eq!(plant_draws(&plants, None).len(), 2, "with no cut every plant is drawn");
-    let tents = vec![(greenhouse, 0.0, (1.2, 2.0, 0.6)), (bedroom, 90.0, (1.2, 2.0, 0.6))];
-    let shown: Vec<Vec3> = tents_shown(&tents, Some(cut)).iter().map(|t| t.0).collect();
+    let tent = |pos: Vec3, yaw: f32| TentDraw {
+        id: String::new(),
+        pos,
+        yaw,
+        size: (1.2, 2.0, 0.6),
+        frame: crate::engine::fruiting_tent::RackFrame { size: (1.1, 1.9, 0.5), shelves: Vec::new() },
+        cover: Default::default(),
+    };
+    let tents = vec![tent(greenhouse, 0.0), tent(bedroom, 90.0)];
+    let shown: Vec<Vec3> = tents_shown(&tents, Some(cut)).iter().map(|&i| tents[i].pos).collect();
     assert_eq!(shown, vec![greenhouse], "the cut-away draws the tents at {shown:?}; want the greenhouse's only");
     assert_eq!(tents_shown(&tents, None).len(), 2, "with no cut every tent is drawn");
 }

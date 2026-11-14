@@ -132,15 +132,117 @@ pub enum Takes {
 }
 
 /// A grow machine's enclosure (`GrowMedium::enclosure`): a fruiting tent
-/// wrapped around a mushroom rack. Its box, centred on the machine, and the
+/// wrapped around a mushroom rack. Its box, centred on the machine, the
 /// substrate inside it, whose breath sets how much fresh air it must be given
-/// (data/garden/humidity.ron, THE FRUITING TENT).
+/// (data/garden/humidity.ron, THE FRUITING TENT), and how its cover is made.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct Enclosure {
     /// Width (x), height (y) and depth (z), metres.
     pub size: (f32, f32, f32),
     /// Kilograms of fruiting substrate inside it.
     pub substrate_kg: f32,
+    /// The cover drawn round the machine (`engine::fruiting_tent`, 2026-11-13).
+    pub cover: Cover,
+}
+
+/// How an enclosure's cover is made, for drawing it (the fitted cover, 2026-11-13,
+/// `engine::fruiting_tent`): the sheet, its welded seams, how it drapes on the frame it is
+/// pulled over, its zippered door and the ports cut in it. Lengths in metres. The references
+/// are beside the shipped cover in data/garden/grow_media.ron.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct Cover {
+    /// The sheet.
+    pub film: Film,
+    /// Width of a welded seam's doubled band (half of it either side of a corner; a hem is
+    /// half as wide again), and its opacity seen face-on.
+    pub seam_m: f32,
+    pub seam_alpha: f32,
+    /// How far a side panel bows in between the frame's supports (its corner seams, its
+    /// shelves, its hem and top seam), and how far the top sags in the middle.
+    pub sag_m: f32,
+    pub top_sag_m: f32,
+    /// The fold lines the cover keeps from the packet it was shipped in: their depth, their
+    /// spacing and their width.
+    pub crease_m: f32,
+    pub crease_pitch_m: f32,
+    pub crease_width_m: f32,
+    /// How much of the sheet a fold line's middle hides that the sheet beside it does not
+    /// (0 to 1): PVC whitens where it was creased.
+    pub crease_white: f32,
+    /// The zippered door.
+    pub door: CoverDoor,
+    /// The holes in it: a vent sleeve, a grommet for tubing.
+    pub ports: Vec<CoverPort>,
+    /// Colour (linear) of the zipper tapes, the ties and the grommet.
+    pub fittings_color: [f32; 3],
+}
+
+/// A cover's sheet: its colour (linear), its opacity seen face-on (more at a slant), its
+/// roughness, and the share of the light falling on its far side it passes on, scattered.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct Film {
+    pub color: [f32; 3],
+    pub alpha: f32,
+    pub roughness: f32,
+    pub transmission: f32,
+}
+
+/// A cover's door: the panel between two zips up a side face, hanging from the top seam, that
+/// rolls up to the top and is tied there while someone tends what is inside.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct CoverDoor {
+    /// Which side face it is in (the machine's front is +z).
+    pub face: CoverFace,
+    /// How far each zip runs in from its corner seam, and the zip tape's width.
+    pub zip_inset_m: f32,
+    pub zip_width_m: f32,
+    /// The rolled door: the radius of the roll's loose core and how much each turn adds.
+    pub roll_core_m: f32,
+    pub roll_layer_m: f32,
+    /// Seconds to roll it all the way up (or down).
+    pub roll_s: f32,
+    /// How near the machine, metres, someone with its card open must stand for it to roll up.
+    pub tend_reach_m: f32,
+    /// The ties that hold it rolled: how many, their width, and the length one hangs while
+    /// the door is down.
+    pub ties: u32,
+    pub tie_width_m: f32,
+    pub tie_m: f32,
+}
+
+/// A face of a cover's box, seen from outside; the machine's front is +z.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub enum CoverFace {
+    #[default]
+    Front,
+    Back,
+    Left,
+    Right,
+    Top,
+}
+
+/// A hole in a cover and what is fitted to it.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct CoverPort {
+    pub kind: PortKind,
+    pub face: CoverFace,
+    /// Where on the face: across (0 at its left seen from outside, 1 at its right) and up
+    /// (0 at the floor, 1 at the top; on the top face, 0 at its front edge, 1 at its back).
+    pub at: (f32, f32),
+    /// The hole's radius, and how long the sleeve or the tubing out of it is.
+    pub radius_m: f32,
+    pub length_m: f32,
+}
+
+/// What is fitted to a cover's hole.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+pub enum PortKind {
+    /// A tube of the film welded round the hole on a patch, gathered and tied at its end
+    /// until a duct is pushed into it.
+    #[default]
+    Sleeve,
+    /// An opaque ring round a small hole, tubing coming out of it.
+    Grommet,
 }
 
 impl GrowMedium {

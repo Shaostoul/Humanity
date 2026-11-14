@@ -44,6 +44,9 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The HUD (2026-10-21): a sky vantage hides it ({"hud":"0"}) so the crosshair dot in the middle
   // of the screen does not sit on the body it aims at. "1" shows it again.
   hud: "1",
+  // The fruiting tents' doors (2026-11-13, engine/fruiting_tent.rs): "up" or "down" holds every
+  // door; "auto" hands each back to its rack's tending.
+  tent_door: "auto",
   // Settings > Graphics > Bounced light detail (2026-10-20): the pin sets the setting itself, so
   // the release is the default level. A change relays the probes out, so allow the light a few
   // seconds to settle after it.
