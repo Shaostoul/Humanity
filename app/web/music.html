@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="page_titles.music">Music, HumanityOS</title>
+  <!-- page-meta: written by scripts/gen-page-meta.js from data/site/page_meta.json and data/i18n/en.json; edit those, not these lines -->
+  <meta name="description" data-i18n-content="page_meta.music" content="Explore the music HumanityOS composes: endless pieces in each genre by seed, kept as favourites and shared as short codes.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HumanityOS">
+  <meta property="og:title" data-i18n-content="page_titles.music" content="Music, HumanityOS">
+  <meta property="og:description" data-i18n-content="page_meta.music" content="Explore the music HumanityOS composes: endless pieces in each genre by seed, kept as favourites and shared as short codes.">
+  <meta property="og:url" content="https://united-humanity.us/music">
+  <meta property="og:image" content="https://united-humanity.us/shared/social/og-banner.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="page_meta.image_alt" content="HumanityOS: software to unite humanity in peaceful harmony.">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- /page-meta -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* The Music page's web mirror (docs/design/music-page.md section 11): the page's shell and the
+       favourites a person keeps as share codes in this browser. The music itself is composed live
+       by the desktop app's engine, which the website cannot run yet (said on the page, with the
+       reason). Theme tokens only. */
+    body { background: var(--bg); color: var(--text); line-height: 1.55; margin: 0; }
+    .mp { max-width: 46rem; margin: 0 auto; padding: var(--space-xl) 16px var(--space-3xl); }
+    .mp h1 { margin: 0 0 var(--space-sm); color: var(--text-strong); }
+    .mp h2 { font-size: var(--text-base); margin: var(--space-xl) 0 var(--space-sm); }
+    .mp .why { color: var(--text-secondary); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
+    .mp .row { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+    .mp input[type=text] { flex: 1 1 18rem; min-width: 0; padding: var(--space-sm); background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font-family: var(--font-mono, monospace); }
+    .mp button { padding: var(--space-sm) var(--space-md); background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+    .mp button:hover, .mp button:focus-visible { border-color: var(--border-focus); }
+    .mp ul { list-style: none; padding: 0; margin: var(--space-md) 0 0; display: grid; gap: var(--space-sm); }
+    .mp li { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
+    .mp li .name { font-weight: 600; color: var(--text-strong); }
+    .mp li .line { color: var(--text-secondary); font-size: var(--text-sm); }
+    .mp .msg { color: var(--text-secondary); font-size: var(--text-sm); min-height: 1.4em; }
+    .mp .muted { color: var(--text-muted); }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/i18n-en.js"></script>
+<script src="/shared/i18n.js"></script>
+<script src="/shared/shell.js" data-active="music"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<main class="mp" id="page-app">
+  <h1 data-i18n="music_page.web_title">Music</h1>
+  <p data-i18n="music_page.intro">The game composes its own music as it plays: a genre's rules and a number, the seed, make a piece. Explore the pieces, change them, keep the ones you love, and take them anywhere.</p>
+  <p class="why" data-i18n="music_page.web_why">The music is composed live by the app's own engine, which runs in the desktop app; the website cannot play it yet. This is the order we are building in, not a law, a patent or a platform rule: a later step compiles the music engine for the browser.</p>
+  <h2 data-i18n="music_page.web_favourites">Your favourites</h2>
+  <p class="muted" data-i18n="music_page.web_favourites_hint">Favourites you pasted here as share codes, kept in this browser. Open the desktop app's Music page and paste a code there to hear it.</p>
+  <div class="row">
+    <input type="text" id="mp-code" autocomplete="off" spellcheck="false" placeholder="HOSM1-" data-i18n-placeholder="music_page.web_code_placeholder" data-i18n-tip="music_page.web_paste_hint" data-tip-desc="Paste a share code (it starts with HOSM1-) to keep it here." aria-label="Share code" data-i18n-aria-label="music_page.web_code_label">
+    <button type="button" id="mp-add" data-i18n="music_page.paste_button" data-i18n-tip="music_page.paste_button_hint" data-tip-desc="Read the code and add its piece to your favourites.">Add</button>
+  </div>
+  <p class="msg" id="mp-msg" role="status"></p>
+  <ul id="mp-list"></ul>
+</main>
+<script src="/pages/music-app.js"></script>
+</body>
+</html>
