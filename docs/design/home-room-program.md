@@ -321,3 +321,10 @@ landing floor the tiling check named ("4.5 m2 with no floor under it, and a stai
    before the row house becomes data.
 4. **Where the terraces go**: a residential street of their own, each terrace of 6 to 12 homes 33
    to 66 m long on it (recommended), or the east side of First Street.
+
+## His answers on the row house (operator, 2026-11-13)
+
+- **Frontage 5.5 m:** "Sounds reasonable. Let's go with your rec."
+- **A residential street of their own:** "Let's go with a street of their own for now."
+- **Bedrooms, open:** "For my real home I've had 1 master bedroom for my parents and 1 bedroom per kid with 3 kids. I'm not really sure what to pick." The coordinator recommended row houses in sizes as data (a two-bedroom for four and a three-bedroom for five, as real terraces come), the homestead already holding the four-bedroom family.
+- **The yard fence, open:** "I'm mixed. Is the fence mostly just to keep the area looking more open instead of just a steel box?" Answered: yes, light, openness and neighbours who can talk over it; the 6 m plot wall around a 5.5 m yard makes a dark shaft.
