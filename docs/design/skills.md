@@ -524,6 +524,16 @@ stages: [
 The curve (`base x level^1.5`, `data/skills/xp_curve.json`) stays the game's rule until the
 operator chooses otherwise; it only fills the bar inside a stage.
 
+## Decided (operator, 2026-11-14)
+
+The operator approved the base set and every recommendation in section 9, verbatim: "I'm happy with
+the list. I'm happy with all your suggestions in the skills.md. We'll start with that and as people
+play we will probably end up tweaking things." So the 90 skills in 11 families, the six named
+stages with no cap, practice XP only from the real procedure, testing out of any stage, a stage
+never lost (rust and expiry only in realistic mode), simplified assessment by default, the
+migration in section 6 and each answer recommended in section 9 are the plan; the build goes in
+rungs and the set is expected to be tuned as people play.
+
 ## 9. Questions only the operator can answer
 
 1. **The split rule.** Split where the movement or the knowledge is genuinely different, and only once
