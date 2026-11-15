@@ -34,13 +34,13 @@ const fs = require('fs');
 const REGISTRY = 'data/sources/registry.json';
 const QUIET = process.argv.includes('--quiet');
 
-// Several federal sites (USDA, ATSDR, FSIS) and GBIF refuse a default client
-// with 403. They are not broken; they just will not talk to something that
-// looks like a script. A browser string gets an honest answer, which is the
-// point: a false alarm every run trains people to ignore the run.
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-  '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+// An HONEST client name (2026-11-14): this checker used to pretend to be Chrome so that sites
+// refusing scripts (USDA, ATSDR, FSIS, GBIF) would answer. Disguising an automated client breaks
+// the project's rule that our tools identify themselves and respect a site's wish not to be read
+// by scripts, so it now says what it is, and a site that refuses it is reported as BLOCKED below
+// (not a failure; check by hand), which is exactly how a refusal should be treated. No project or
+// personal details in the name (the privacy rule for outside requests).
+const UA = 'citation-link-checker/1.0 (automated; one request per link)';
 
 const TIMEOUT_MS = 25000;
 
