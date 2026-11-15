@@ -23,8 +23,24 @@ pub struct MusicSettings {
     pub music_on_pages: bool,
     /// The tuning every note follows.
     pub tuning: Tuning,
-    /// The genre (a file's id in data/music/genres).
+    /// The genre (a file's id in data/music/genres), chosen on the Music page: new pieces are in it
+    /// while the game chooses, and it is the genre of the person's own choice otherwise.
     pub genre: String,
+    /// WHAT PLAYS (2026-11-14, docs/design/music-page.md section 4; the operator: "We should have one
+    /// place ideally or at least have the synced so users don't get different music on different
+    /// pages"). Chosen on the Music page only, and kept here so the score, the Music page and
+    /// Settings > Music read the one choice, page open or not. On (the default): the game chooses:
+    /// new pieces of `genre` in the mood of the place and the moment (calm, danger), a mood's "my
+    /// music" favourite in that mood, a new piece every `piece_minutes`, places and a blend as set.
+    /// Off: the person's own choice, `genre` with `mood`, `seed` and `tune`, plays everywhere until
+    /// they choose again.
+    pub game_chooses: bool,
+    /// The person's own choice, heard while `game_chooses` is off: the mood it is heard in (an id;
+    /// a danger mood brings its danger layers), its seed, and its changes (by ids, as a favourite
+    /// keeps them, so a genre file that gains a voice changes nothing).
+    pub mood: String,
+    pub seed: u64,
+    pub tune: crate::favourite::SavedTune,
     /// A second genre to blend toward ("" = none) and how far (0..1).
     pub blend_with: String,
     pub blend: f32,
@@ -52,6 +68,10 @@ impl Default for MusicSettings {
             music_on_pages: true,
             tuning: Tuning::A432,
             genre: crate::library::DEFAULT_GENRE.to_string(),
+            game_chooses: true,
+            mood: crate::library::DEFAULT_MOOD.to_string(),
+            seed: 1,
+            tune: crate::favourite::SavedTune::default(),
             blend_with: String::new(),
             blend: 0.0,
             places_pick_genre: false,

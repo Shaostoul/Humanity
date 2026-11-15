@@ -76,24 +76,21 @@ fn piece_words(sheet: &Sheet, playing: &Playing) -> (String, Option<String>) {
     (words, (!leads.is_empty()).then(|| t("music_page.leads_line").replace("{{leads}}", &leads.join(", "))))
 }
 
-/// Now playing: Play here, the piece in words, and the visualizer.
+/// Now playing: what plays and who chose it (the very words Settings > Music shows:
+/// `now_playing_words`), the piece in words, and the visualizer.
 pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Color32) {
-    let hint = state.settings.hint_display;
     ensure_sheet(state);
+    let now = super::now_playing_words(&state.settings.music, &state.music_dev.readout);
     let readout = &state.music_dev.readout;
     let status = readout.score;
     widgets::subsection_header(ui, theme, accent, t("music_page.now_playing"), "");
     widgets::card(ui, theme, |ui| {
-        ui.checkbox(&mut state.music_page.play_here, t("music_page.play_here")).hint("music_page.play_here_hint");
-        widgets::setting_hint(ui, theme, hint, t("music_page.play_here_hint"));
-        if !state.settings.music.music_on {
-            ui.label(RichText::new(t("music_page.music_off")).color(theme.warning()));
-        } else if !readout.device {
+        ui.label(RichText::new(now).strong().color(theme.text_primary()));
+        if state.settings.music.music_on && !readout.device {
             ui.label(RichText::new(t("music_page.no_device")).color(theme.text_muted()));
         }
         if let (Some(c), Some(p)) = (state.music_page.sheet.as_ref(), readout.playing.as_ref()) {
             let (words, leads) = piece_words(&c.sheet, p);
-            ui.label(RichText::new(t("music_page.seed_line").replace("{{seed}}", &p.seed.to_string())).strong().color(theme.text_primary()));
             ui.label(RichText::new(words).color(theme.text_primary()));
             if let Some(l) = leads {
                 ui.label(RichText::new(l).color(theme.text_secondary()));
@@ -176,8 +173,10 @@ pub(super) fn see(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent
     widgets::card(ui, theme, |ui| {
         widgets::setting_hint(ui, theme, hint, t("music_page.roll_hint"));
         let now = state.music_dev.readout.score.map(|s| s.seconds).unwrap_or(0.0);
+        // The parts muted in the choice as the page shows it (the person's, or what plays now).
+        let mute = super::shown(&state.settings.music, &state.music_dev.readout).tune.mute;
         match state.music_page.sheet.as_ref() {
-            Some(c) if !c.sheet.bars.is_empty() => piano_roll(ui, theme, &c.sheet, now, state.music_page.tune.mute),
+            Some(c) if !c.sheet.bars.is_empty() => piano_roll(ui, theme, &c.sheet, now, mute),
             _ => {
                 ui.label(RichText::new(t("music_page.roll_empty")).color(theme.text_muted()));
             }

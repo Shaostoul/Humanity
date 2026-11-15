@@ -94,7 +94,6 @@ fn inputs(data: &Path) -> Inputs {
         reuse: true,
         generation: 0,
         restart: false,
-        page_choice: None,
         favourites: Arc::default(),
         analyse: false,
     }
@@ -457,7 +456,7 @@ fn a_new_piece_begins_after_its_minutes_and_a_rebuild_carries_the_piece_on() {
 /// section 7; the operator, 2026-11-13: "maybe seed X has a particular sound I love and want to
 /// [for] combat"): calm, the session's own piece plays; the intensity rising into the tension band,
 /// the favourite kept as tension's "my music" takes over (its seed, its genre) within a few seconds;
-/// falling back to calm, new pieces again. And the Music page's choice, while it is open, plays in
+/// falling back to calm, new pieces again. And the person's own choice from the Music page plays in
 /// place of both.
 ///
 /// Seen RED (2026-11-13), before the runtime knew favourites: "not reached in 3000 frames" at the
@@ -486,14 +485,75 @@ fn a_favourite_assigned_to_danger_plays_when_the_mood_turns_to_danger() {
     inp.intensity = 0.0;
     run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed != 777 && s.seconds > 0.0));
     assert_eq!(rt.score_genres, vec![MusicSettings::default().genre], "calm again: the person's genre, a new piece");
-    // The Music page open with Play here: its choice plays, danger or not.
+    // The person's own choice (the Music page's Play my choice): it plays, danger or not.
     inp.intensity = 0.5;
-    let tune = humanity_music::tune::Tune { transpose: 2, ..Default::default() };
-    inp.page_choice = Some(MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 31, tune });
+    let s = &mut inp.settings;
+    s.game_chooses = false;
+    s.genre = "electro_swing".into();
+    s.mood = "mothership_calm".into();
+    s.seed = 31;
+    s.tune = humanity_music::favourite::SavedTune { transpose: 2, ..Default::default() };
     let r = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed == 31 && s.seconds > 0.0));
     assert_eq!(rt.score_genres, vec!["electro_swing".to_string()]);
-    assert_eq!(r.mood, "mothership_calm", "the page's mood, not the game's danger");
-    assert!(r.playing.as_ref().is_some_and(|p| p.choice.as_ref() == inp.page_choice.as_ref()), "the readout says what plays, for the page's piano roll");
+    assert_eq!(r.mood, "mothership_calm", "the person's mood, not the game's danger");
+    let p = r.playing.as_ref().and_then(|p| p.choice.as_ref()).expect("the readout says what plays, for the page's piano roll");
+    assert_eq!((p.seed, p.tune.transpose), (31, 2), "the person's seed and tuning");
+}
+
+/// ONE PLACE CHOOSES THE MUSIC (2026-11-14, docs/design/music-page.md section 4; the operator: "When
+/// I go to the settings it plays one music and when I go to the music page it goes to another. We
+/// should have one place ideally"). Drawn for real (headless): the game's own piece plays; on the
+/// Music page the person presses Next; then they LEAVE the page (nothing reads the page any more,
+/// only the settings it wrote) and the score plays that choice, and keeps playing it through danger.
+/// Back on the page, "Let the game choose" brings the game's moods back: danger turns the music to
+/// tension, a new piece.
+///
+/// Seen RED 2026-11-14 with the old rule put back in `choice_now` (the choice heard only while the
+/// page is open, `inp.analyse`): "not reached in 3000 frames" at the step after leaving the page
+/// (the score went back to the game's piece). And RED with `choice_now` ignoring `game_chooses`
+/// (the choice always played): "not reached in 3000 frames" at the tension step.
+#[test]
+fn a_choice_made_on_the_music_page_plays_after_leaving_it() {
+    use crate::gui::pages::music::tests::{click, frame};
+    use crate::gui::widgets::tint_section::texts_at;
+    let t = quick_music("music_one_place");
+    let data = t.join("data");
+    let mut inp = inputs(&data);
+    let mut rt = MusicRuntime { seed: 20261114, ..Default::default() };
+    let mut mix = Offline::default();
+    let r = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.seconds > 0.5));
+    assert_eq!(r.playing.as_ref().map(|p| (p.seed, p.choice.is_none())), Some((20261114, true)), "the game's own piece plays");
+    // The Music page, as the person sees it with that piece playing: press Next.
+    let mut gui = crate::gui::GuiState::default();
+    gui.music_page.fav_loaded = true;
+    gui.music_dev.readout = r;
+    let theme = crate::gui::theme::load_theme();
+    let size = egui::vec2(1600.0, 6000.0);
+    let page = |gui: &mut crate::gui::GuiState, events: Vec<egui::Event>| frame(size, events, |ctx| crate::gui::pages::music::draw(ctx, &theme, gui));
+    let out = page(&mut gui, Vec::new());
+    let next = *texts_at(&out, humanity_core::i18n::t("music_page.next")).first().expect("the page has Next");
+    page(&mut gui, click(next.center()));
+    assert!(!gui.settings.music.game_chooses, "Next picks the person's own choice");
+    assert_eq!(gui.settings.music.seed, 20261115, "the next seed after the one playing");
+    // Leave the page: the score reads only the settings the page wrote.
+    inp.settings = gui.settings.music.clone();
+    inp.analyse = false;
+    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.score.is_some_and(|s| s.piece_seed == 20261115 && s.seconds > 0.0));
+    assert_eq!(rt.score_genres, vec![gui.settings.music.genre.clone()], "in the person's genre");
+    // It keeps playing: many phrases on, and danger rising, it is still the person's piece.
+    inp.intensity = 0.5;
+    run(&mut rt, &mut mix, &inp, 60 * 20);
+    let r = rt.step(Some(&mut mix as &mut dyn Mixer), &inp);
+    assert_eq!(r.score.map(|s| s.piece_seed), Some(20261115), "still the person's choice after leaving the page");
+    assert_ne!(r.mood, "tension", "the person's mood, not the game's danger");
+    // Back on the page: Let the game choose.
+    gui.music_dev.readout = r;
+    let out = page(&mut gui, Vec::new());
+    let game = *texts_at(&out, humanity_core::i18n::t("music_page.game_chooses")).first().expect("the page offers Let the game choose");
+    page(&mut gui, click(game.left_center() - egui::vec2(10.0, 0.0)));
+    assert!(gui.settings.music.game_chooses, "a click on it lets the game choose");
+    inp.settings = gui.settings.music.clone();
+    run_until(&mut rt, &mut mix, &inp, 3000, |r| r.mood == "tension" && r.score.is_some_and(|s| s.piece_seed != 20261115));
 }
 
 /// SETTINGS > MUSIC LISTS EVERY GENRE FROM THE DATA, MUSIC PLAYED OR NOT (BUG-273): with no audio

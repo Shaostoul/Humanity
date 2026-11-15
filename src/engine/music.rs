@@ -92,6 +92,8 @@ pub(crate) fn hearing(was_in_world: bool, kept: Option<GuiPage>, world_loaded: b
 /// What the frame hands the music: read from the engine's state by [`frame`], built by hand in the
 /// tests.
 pub(crate) struct Inputs {
+    /// Settings > Music and the person's choice of what plays (chosen on the Music page, kept in the
+    /// same settings: docs/design/music-page.md section 4).
     pub settings: MusicSettings,
     pub master: f32,
     pub music_volume: f32,
@@ -116,9 +118,6 @@ pub(crate) struct Inputs {
     pub generation: u64,
     /// The Dev card's "start the music afresh".
     pub restart: bool,
-    /// The Music page's choice while it is open with "Play here" on (docs/design/music-page.md
-    /// section 4): its genre, mood, seed and tuning play in place of new pieces.
-    pub page_choice: Option<MusicChoice>,
     /// The person's favourites (their own file, music/favourites.json): a mood's "my music" plays
     /// in that mood in place of new pieces (section 7).
     pub favourites: Arc<Favourites>,
@@ -525,11 +524,12 @@ pub(crate) fn mood_now(lib: &MusicLibrary, inp: &Inputs) -> String {
     lib.places.mood_for(&p).to_string()
 }
 
-/// What plays in place of new pieces now: the Music page's choice while it is open with Play here
-/// on, else the favourite that is the music for the mood the game is in.
+/// What plays in place of new pieces now: the person's choice from the Music page (kept in their
+/// settings, so it plays whether the page is open or not: docs/design/music-page.md section 4), else,
+/// while the game chooses, the favourite that is the music for the mood the game is in.
 pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs) -> Option<MusicChoice> {
-    if let Some(c) = &inp.page_choice {
-        return Some(c.clone());
+    if let Some(c) = crate::gui::pages::music::chosen(&inp.settings, lib) {
+        return Some(c);
     }
     let lib = lib?;
     let fav = inp.favourites.for_mood(&mood_now(lib, inp))?;
@@ -629,7 +629,7 @@ impl MusicRuntime {
         if self.score.is_some() && g.music {
             self.piece_s += inp.dt;
         }
-        // In place of new pieces: the Music page's choice, or the mood's "my music" (music-page.md).
+        // In place of new pieces: the person's choice, or the mood's "my music" (music-page.md).
         let choice = choice_now(self.lib.as_deref(), inp);
         let genres = match &choice {
             Some(c) => vec![c.genre.clone()],
@@ -917,10 +917,9 @@ pub(crate) fn frame(state: &mut EngineState) {
     state.music.over_world = kept;
     state.music.was_in_world = h == Hearing::World;
     // The person's favourites, read once (so a mood's "my music" plays without the Music page ever
-    // being opened), and the page's choice while it is open.
+    // being opened). What plays is the person's settings (`Inputs::settings`), page open or not.
     state.gui_state.music_page.load_favourites();
     let on_page = page == GuiPage::Music;
-    let page_choice = if on_page { state.gui_state.music_page.choice(state.music.lib.as_deref(), &state.gui_state.settings.music.genre) } else { None };
     // The page's export: started on its own thread, and its result handed back to the page.
     if let Some(job) = state.gui_state.music_page.export_request.take() {
         state.music.start_export(job, state.data_dir.clone(), state.gui_state.settings.music.tuning.a4_hz());
@@ -946,7 +945,6 @@ pub(crate) fn frame(state: &mut EngineState) {
         reuse: humanity_core::reuse::enabled(),
         generation: crate::instrument_packs::ui::installed_generation(),
         restart: std::mem::take(&mut state.gui_state.music_dev.restart_requested),
-        page_choice,
         favourites: state.gui_state.music_page.favourites.clone(),
         analyse: on_page,
     };

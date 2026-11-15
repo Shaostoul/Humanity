@@ -6108,8 +6108,10 @@ fn snapshot_calculator_pulleys() {
 }
 
 /// The Music page (2026-11-13, docs/design/music-page.md): an electro swing piece playing (seed
-/// 4242) twenty seconds in, the visualizer mid-beat with its part meters and spectrum, the piece in
-/// words, the tune controls with the bass 3 dB down and the texture muted, two favourites (one the
+/// 4242) twenty seconds in as the person's own choice ("Now playing: ... your choice from the Music
+/// page", the words Settings > Music shows too), What plays with Play my choice chosen and the
+/// game's options greyed (2026-11-14, section 4), the visualizer mid-beat with its part meters and
+/// spectrum, the piece in words, the tune controls with the bass 3 dB down and the texture muted, two favourites (one the
 /// music for tension), and the piano roll of the bars around the playhead with chord symbols and
 /// section letters. The piece is the real one, written down by the composer run dry.
 #[test]
@@ -6120,8 +6122,8 @@ fn snapshot_music() {
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let lib = Arc::new(humanity_music::MusicLibrary::load(&data).expect("the music data"));
     let res = Arc::new(humanity_music::Resolved::new(&lib, &humanity_music::SampleLibrary::new()).expect("resolve"));
-    render_page_png("music", 1280, 2500, |ctx, theme, state| {
-        if state.music_page.seed == 0 {
+    render_page_png("music", 1280, 2900, |ctx, theme, state| {
+        if !state.music_page.fav_loaded {
             let g = lib.genre_index("electro_swing").unwrap();
             let mood = lib.mood_index("mothership_calm").unwrap() as u16;
             let mut tune = humanity_music::tune::Tune::default();
@@ -6140,12 +6142,17 @@ fn snapshot_music() {
                 *b = 0.12 * (1.0 - (k as f32 - 3.0).abs() / 8.0).max(0.02);
             }
             r.score = Some(status);
+            r.mood = "mothership_calm".into();
+            // The person's own choice (2026-11-14: kept in their settings, the one state the score,
+            // this page and Settings > Music read).
+            let m = &mut state.settings.music;
+            m.genre = "electro_swing".into();
+            m.game_chooses = false;
+            m.mood = "mothership_calm".into();
+            m.seed = 4242;
+            m.tune = SavedTune::from_tune(&tune, &lib, g);
             let p = &mut state.music_page;
-            p.genre = "electro_swing".into();
-            p.mood = "mothership_calm".into();
-            p.set_seed(4242);
             p.export_dir_override = Some(std::path::PathBuf::from(r"C:\Users\you\Music\HumanityOS"));
-            p.tune = tune;
             let mut favs = Favourites::default();
             favs.add(Favourite { id: 0, name: "Car, Tuesday".into(), genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4242, tune: SavedTune::from_tune(&tune, &lib, g) });
             let fight = favs.add(Favourite { id: 0, name: "Boss fight".into(), genre: "lofi".into(), mood: "tension".into(), seed: 31, tune: SavedTune::default() });

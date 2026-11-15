@@ -1729,6 +1729,20 @@
         </div>
       </div>
 
+      <!-- Music (2026-11-14, docs/design/music-page.md section 4): the desktop app's Settings > Music.
+           One place chooses what the music plays, the Music page; this section only points there,
+           as the app's does with its "Choose the music" button. The website plays no music yet. -->
+      <div class="settings-group">
+        <div class="settings-group-title" data-i18n="settings.music.title">Music</div>
+        <p class="section-desc" data-i18n="settings.music.web_note">The website plays no music yet. In the desktop app the Music page is the one place that chooses what plays, and Settings &gt; Music sets how it sounds and how loud.</p>
+        <div class="setting-row">
+          <div class="setting-label">
+            <span data-i18n="settings.music.choose_hint">Opens the Music page, the one place that chooses what plays: let the game choose, or your own genre, mood and seed. This section sets only how the music sounds.</span>
+          </div>
+          <a class="btn btn-secondary" href="/music" id="music-choose" data-i18n="settings.music.choose" data-i18n-tip="settings.music.choose_hint" data-tip-desc="Opens the Music page, the one place that chooses what plays: let the game choose, or your own genre, mood and seed. This section sets only how the music sounds.">Choose the music</a>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-title">Camera</div>
         <div class="setting-row">

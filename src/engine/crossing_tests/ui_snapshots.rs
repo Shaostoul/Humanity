@@ -1,6 +1,6 @@
 //! From gui/ui_snapshots.rs: the snapshots and toasts that set a page up the way the engine does
-//! (the guest notice, `home_plot::guest_arrival`; the Maps feed, `map_feed::frame_update`; Settings >
-//! Music's genres, `music::genre_choices`). They
+//! (the guest notice, `home_plot::guest_arrival`; the Maps feed, `map_feed::frame_update`; the Music
+//! page's genres and Settings > Music's now playing, `music::genre_choices`). They
 //! render through the GUI's snapshot harness (`render_page_png`); `just snapshot <name>` finds them
 //! here too (scripts/snapshot-name.js).
 
@@ -177,42 +177,65 @@ fn snapshot_maps_ship_plan() {
     crate::gui::pages::maps::set_clock_for_snapshot(None);
 }
 
-/// Settings > Music's GENRE SELECTOR (2026-11-12; the operator: "for the procedural music, let's add
-/// a genre selector"): the genres as the engine reads them from data/music/genres (the ship's own,
-/// lo-fi, electro swing) with this machine's stand-ins, electro swing chosen, its one sentence under
-/// the choices, the blend and the places switch, and the recordings note.
+/// Settings > Music since ONE PLACE CHOOSES THE MUSIC (2026-11-14, docs/design/music-page.md
+/// section 4; the operator: "We should have one place ideally"): What plays says, in the Music page's
+/// own words, what is playing now (an electro swing piece the game chose, seed 4242), with the Choose
+/// the music button that opens the Music page and where the volume is; then how the music sounds:
+/// Music on, on the app's pages, the tuning, the ship's hum and the tones. No genre control: the one
+/// genre control is the Music page's. (From 2026-11-12 this picture showed the genre selector,
+/// which moved to the Music page on 2026-11-14 with the blend, places and "A new piece".)
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_settings_music() {
-    settings_music_at("settings_music", None);
-}
-
-/// The same with no recordings to be found (a data folder holding only parts.ron and the pack
-/// catalog, as if the core set failed to load): the line under electro swing names each of its parts
-/// a stand-in plays, with the pack that would bring its recording.
-#[test]
-#[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_settings_music_stand_ins() {
-    let bare = humanity_core::test_temp::dir("snap_music_bare");
-    std::fs::create_dir_all(bare.join("music")).unwrap();
+    use std::sync::Arc;
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-    std::fs::copy(data.join("music/parts.ron"), bare.join("music/parts.ron")).unwrap();
-    std::fs::copy(data.join("music/packs.ron"), bare.join("music/packs.ron")).unwrap();
-    settings_music_at("settings_music_stand_ins", Some(&bare));
-}
-
-fn settings_music_at(name: &str, recordings_from: Option<&std::path::Path>) {
-    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
-    let lib = humanity_music::MusicLibrary::load(&data).expect("the music data");
-    let stand_ins = crate::engine::music::genre_stand_ins(recordings_from.unwrap_or(&data), &lib);
-    let genres = crate::engine::music::genre_choices(&lib, &stand_ins);
-    render_page_png(name, 1100, 1500, |ctx, theme, state| {
-        state.music_dev.readout.genres = genres.clone();
-        state.music_dev.readout.piece_minutes = lib.piece_minutes.clone();
+    let lib = Arc::new(humanity_music::MusicLibrary::load(&data).expect("the music data"));
+    let res = Arc::new(humanity_music::Resolved::new(&lib, &humanity_music::SampleLibrary::new()).expect("resolve"));
+    let genres = crate::engine::music::genre_choices(&lib, &crate::engine::music::genre_stand_ins(&data, &lib));
+    render_page_png("settings_music", 1100, 1100, |ctx, theme, state| {
+        let g = lib.genre_index("electro_swing").unwrap() as u16;
+        let mood = lib.mood_index("mothership_calm").unwrap() as u16;
+        let ctx_m = humanity_music::MusicContext { mood, genre_a: g, genre_b: g, ..Default::default() };
+        let r = &mut state.music_dev.readout;
+        r.device = true;
+        r.genres = genres.clone();
+        r.tones = lib.tones.clone();
+        r.lib = Some(lib.clone());
+        r.mood = "mothership_calm".into();
+        r.playing = Some(crate::gui::pages::dev_music::Playing { choice: None, seed: 4242, ctx: ctx_m, res: res.clone(), lib: lib.clone() });
         state.settings.music.genre = "electro_swing".to_string();
         theme.apply_to_egui(ctx);
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::settings_music::draw(ui, theme, state, theme.nav_dev()));
         });
+    });
+}
+
+/// The Music page's genre control with no recordings to be found (a data folder holding only
+/// parts.ron and the pack catalog, as if the core set failed to load), electro swing chosen: the
+/// line under its one sentence names each of its parts a stand-in plays, with the pack that would
+/// bring its recording; above it, What plays with the game choosing and its options. (Settings >
+/// Music's `settings_music_stand_ins` until 2026-11-14, when the genre control moved here.)
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_stand_ins() {
+    use std::sync::Arc;
+    let bare = humanity_core::test_temp::dir("snap_music_bare");
+    std::fs::create_dir_all(bare.join("music")).unwrap();
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    std::fs::copy(data.join("music/parts.ron"), bare.join("music/parts.ron")).unwrap();
+    std::fs::copy(data.join("music/packs.ron"), bare.join("music/packs.ron")).unwrap();
+    let lib = Arc::new(humanity_music::MusicLibrary::load(&data).expect("the music data"));
+    let genres = crate::engine::music::genre_choices(&lib, &crate::engine::music::genre_stand_ins(&bare, &lib));
+    render_page_png("music_stand_ins", 1280, 1500, |ctx, theme, state| {
+        let r = &mut state.music_dev.readout;
+        r.device = true;
+        r.genres = genres.clone();
+        r.piece_minutes = lib.piece_minutes.clone();
+        r.lib = Some(lib.clone());
+        state.settings.music.genre = "electro_swing".to_string();
+        state.music_page.fav_loaded = true;
+        state.music_page.export_dir_override = Some(std::path::PathBuf::from(r"C:\Users\you\Music\HumanityOS"));
+        crate::gui::pages::music::draw(ctx, theme, state);
     });
 }

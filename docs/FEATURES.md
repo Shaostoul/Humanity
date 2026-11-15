@@ -3021,7 +3021,7 @@ synthesised voices (pads, a formant choir, celesta bells, the STEEL PAN, membran
 taiko, FM electric piano, plucked bass and harp, noise drums, vinyl crackle) with a reverb and a
 limiter, levelled to the music category's loudness. Six moods (mothership calm, menu, garden
 morning, night watch, tension, action), places and the ship's hour choosing among them; GENRES as
-data over the moods, chosen in Settings > Music's genre selector (mothership calm, lo-fi, and since 2026-11-12
+data over the moods, chosen on the Music page's one genre control (Settings > Music's until 2026-11-14) (mothership calm, lo-fi, and since 2026-11-12
 ELECTRO SWING at 128 bpm: swung eighths over a house kick, a walking upright bass, gypsy-jazz comping,
 brass stabs, clarinet calls answered by trombone, its own minor-key jazz progressions, played by the
 core set's recorded trumpet, trombone, clarinet, pizzicato bass and, since 2026-11-13, a Martin
@@ -3029,7 +3029,7 @@ steel-string guitar; a blend slider; places that may pick a livelier genre;
 community genres are files; since 2026-11-13 the GENRE PASS (music.md section 7a: a piece draws electro
 swing's house kit or brushes, its Martin or honky-tonk piano comping, its upright bass or tuba;
 lo-fi's drum machine or jazz kit and its piano or electric piano; a calm mood's strings or the four
-choir voices singing its pad; Settings > Music's stand-in line names the pack that brings each
+choir voices singing its pad; the Music page's stand-in line under the genre names the pack that brings each
 recording) and DEEP DUBSTEP (music.md section 7e: 140 bpm half-time, the snare on 3, a protected
 sine sub ducking under the kick, a wobble whose 24 dB filter sweeps in time at a rate changing bar
 by bar, FM growls talking in vowels, a structure of intro, builds with snare rolls and a riser, a
@@ -3058,7 +3058,7 @@ seed that draws its key, tempo, form (AABA and the like, sections that return), 
 (electro swing's from a harmonic grammar of functions, secondary dominants, tritone substitutes and
 passing diminished chords), its own riffs (motif rules) and its lead voices (clarinet, hot-club violin,
 tenor saxophone, vibraphone or piano; trombone, violin or trumpet answering), a new piece every few
-minutes (Settings > Music, "A new piece", Never included) crossfading at a phrase, the seed on the
+minutes (the Music page's What plays, "A new piece", Never included; Settings > Music's until 2026-11-14) crossfading at a phrase, the seed on the
 Dev page and `HUMANITY_MUSIC_SEED`; a genre change heard at the next bar (BUG-297); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
 bar-line transitions, taiko ostinatos, brass stabs; the Dev page's knob and the `music_intensity` /
 `music_breach` showcase verbs); the ship's hum (brown noise with resonances on the key at 432, louder
@@ -3095,15 +3095,28 @@ checksum); SAVE a favourite as a WAV file of 1 to 60 minutes ending in a fade, r
 thread with the instruments the game plays, into `Music\HumanityOS` in the home folder; SEE it: a
 beat pulse, a meter per part and a ten-band spectrum read from the score (the analyser runs only
 while the page is open, about 0.007 ms a block), and a piano roll of the bars around the playhead
-with chord symbols and section letters, the real piece written down by the composer run dry. While
-the page is open with Play here on, the game's one score plays its choice, taking over at the next
-bar. Web: `/music`, the shell and the favourites kept as share codes in the browser, with the
+with chord symbols and section letters, the real piece written down by the composer run dry. ONE
+PLACE CHOOSES THE MUSIC (2026-11-14; the operator: "We should have one place ideally or at least
+have the synced so users don't get different music on different pages"): the page's What plays
+chooses Let the game choose (new pieces of the genre in the game's mood, my music for a mood, a new
+piece every few minutes, places and a blend, all moved here from Settings > Music) or Play my choice
+(the genre, mood, seed and tuning, played on every page and in the world until chosen again; a mood,
+a seed, a change of tuning, an opened favourite or a pasted code picks it). The choice is one state
+in the person's settings (`MusicSettings`: `genre`, `game_chooses`, `mood`, `seed`, `tune`) read by
+the score, the page and Settings > Music, which keeps only how the music sounds, says what is playing
+now in the page's own words (`music::now_playing_words`) and has a Choose the music button; the one
+genre control is the page's (tests `there_is_one_genre_control_and_no_settings_page_draws_one`,
+`a_choice_made_on_the_music_page_plays_after_leaving_it`, `settings_music_says_what_the_music_page_says`).
+A new choice takes over at the next bar. Web: `/music`, the shell and the favourites kept as share codes in the browser, with the
 reason it cannot play them (the engine runs in the app; a WebAssembly build is rung 5).
-- Native: `src/gui/pages/music/` (`mod.rs` state and favourites, `controls.rs`, `view.rs` the
-  visualizer and the piano roll), `src/engine/music.rs` (the page's choice, my music, the export
-  thread), `crates/humanity-music/src/tune.rs`, `sheet.rs`, `favourite.rs`, `render.rs`
+- Native: `src/gui/pages/music/` (`mod.rs` state and favourites, the choice's `chosen`, `shown`,
+  `apply` and `now_playing_words`, `controls.rs` What plays, Explore, Tune and Keep, `view.rs` the
+  visualizer and the piano roll, `tests.rs`), `src/gui/pages/settings_music.rs` (what plays in
+  words, Choose the music), `crates/humanity-music/src/settings.rs` (the choice in
+  `MusicSettings`), `src/engine/music.rs` (the person's choice, my music, the export thread), `crates/humanity-music/src/tune.rs`, `sheet.rs`, `favourite.rs`, `render.rs`
   (`render_piece`, `export_favourite`), `score.rs` (the analyser)
-- Web: `web/pages/music.html`, `web/pages/music-app.js`
+- Web: `web/pages/music.html`, `web/pages/music-app.js`; `web/pages/settings.html` Audio & Video >
+  Music (Choose the music, and why the website plays none yet)
 - Tools: `just music-render x x <seconds> --favourite <share code>` renders a favourite exactly as
   the page exports it
 - Data: the part colours `music_role_*` in `data/gui/theme.ron`; words `music_page.*`, `music.mode.*`

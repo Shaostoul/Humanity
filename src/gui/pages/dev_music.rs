@@ -16,7 +16,7 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets::with_hint;
 use crate::gui::{widgets, GuiState};
 
-/// A genre as Settings > Music offers it.
+/// A genre as the Music page offers it (its one genre control, since 2026-11-14).
 #[derive(Clone, Debug, Default)]
 pub struct GenreChoice {
     pub id: String,
@@ -39,8 +39,9 @@ pub struct StandIn {
     pub pack: Option<String>,
 }
 
-/// What the music plays in place of new pieces: the Music page's choice while it is open, or a
-/// favourite that is a mood's "my music" (docs/design/music-page.md sections 4 and 7).
+/// What the music plays in place of new pieces: the person's own choice from the Music page (kept
+/// in their settings, page open or not), or a favourite that is a mood's "my music"
+/// (docs/design/music-page.md sections 4 and 7).
 #[derive(Clone, Debug, PartialEq)]
 pub struct MusicChoice {
     /// The genre's id, and the mood heard (None: the game's own mood, as for "my music").

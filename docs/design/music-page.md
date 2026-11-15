@@ -79,16 +79,42 @@ There was no Music page, no way to keep a seed, and nothing to look at.
 beside Notes, Calendar and the Calculator: it is a tool a person uses for their own life (the music
 for the car) as much as for the game. Its web mirror is `/music`.
 
-The page is one scroll with five parts, in the order a person uses them: **Now playing** (the
-visualizer, what the piece is in words, Play here), **Explore**, **Tune**, **Keep** and **See**
-(the piano roll). On a narrow window they stack; on a wide one the visualizer and the piano roll
+The page is one scroll with six parts, in the order a person uses them: **Now playing** (what plays
+now and who chose it, the piece in words, the visualizer), **What plays** (below), **Explore**,
+**Tune**, **Keep** and **See** (the piano roll). On a narrow window they stack; on a wide one the visualizer and the piano roll
 take the width.
 
-**Play here.** While the page is open and "Play here" is on (the default), the game's music plays
-the page's choice: its genre, mood, seed and tuning. Leaving the page, the music goes back to what
-it was doing (the person's genre, new pieces, or their "my music" favourites). This uses the one
-score the game already runs (no second audio stream, no second budget): the runtime takes the
-page's choice as its next piece and lets it take over at the next bar, crossfading.
+**One place chooses what plays (2026-11-14).** The operator, verbatim: "I think there might be a
+conflict between the music page and the music settings in the settings page. When I go to the
+settings it plays one music and when I go to the music page it goes to another. We should have one
+place ideally or at least have the synced so users don't get different music on different pages."
+Until then the page had a "Play here" switch: its choice played only while it was open, and leaving
+it the music went back to Settings > Music's genre, so each page heard different music.
+
+So the Music page is THE place that chooses, and what it chose keeps playing after you leave it,
+on every page and in the world, until you choose again. The choice is one state, kept in the
+person's own settings (config.json's `music` object, `humanity_music::MusicSettings`: `genre`,
+`game_chooses`, `mood`, `seed`, `tune`; the person's data, never a cache), read by the score, by
+this page and by Settings > Music. Its **What plays** card offers two ways:
+
+- **Let the game choose** (the default): new pieces of the person's genre in the mood of the place
+  and the moment (calm aboard, tension and action in danger), a mood's "my music" favourite where
+  one is picked, a new piece every "A new piece" minutes, and, when set, places that pick a livelier
+  genre and a blend with a second genre. Those three options live here, under this choice.
+- **Play my choice**: the genre, mood, seed and tuning chosen on the page play everywhere.
+  Choosing a mood, a seed or any change of tuning (or opening a favourite, or pasting a code) picks
+  this by itself; the genre is the genre whichever way is chosen.
+
+While the game chooses, the page shows what plays now (its seed, the game's mood), so Next goes on
+from the piece you hear. **Settings > Music** keeps only how the music sounds (music on, on the
+app's pages, A = 432 or 440, the ship's hum, the tones), a line saying in the same words as this
+page what is playing now (`music::now_playing_words`, one function for both), and a **Choose the
+music** button that opens this page; the volume, Even out loudness and the instrument packs stay
+under Settings > Audio. There is one genre control in the app, on this page
+(`there_is_one_genre_control_and_no_settings_page_draws_one`).
+
+This uses the one score the game already runs (no second audio stream, no second budget): a new
+choice takes over at the next bar, crossfading.
 
 ## 5. Explore
 
@@ -309,17 +335,19 @@ to develop (section 10). Not built; rung 2's MIDI and stems export carries a pie
   only with `MusicContext::analyse`; the status carries the beat position. Measured: about 0.007 ms
   a block, under the run-to-run noise (`the_pages_analyser_is_within_the_budget`).
 
-**The runtime** (`src/engine/music.rs`): `choice_now` is the Music page's choice while it is open
-with Play here on, else the favourite that is the music for `mood_now` (the mood an intensity band
-names when the danger intensity is in it, else the place's). A choice decides the genre built, the
+**The runtime** (`src/engine/music.rs`): `choice_now` is the person's choice from the settings
+(`music::chosen`, while `game_chooses` is off: since 2026-11-14 it plays whether the page is open or
+not, section 4; it was the page's choice while it was open with Play here on), else the favourite
+that is the music for `mood_now` (the mood an intensity band names when the danger intensity is in
+it, else the place's). A choice decides the genre built, the
 seed, the mood and intensity (the page's) and the tuning; a change of choice (`Take::Choice`) takes
 over at the next bar line, like a genre change; a chosen piece is never replaced by "A new piece".
 The runtime keeps a copy of the playing score's `Resolved` (now `Clone`: the recordings are shared)
 and its starting context, and reports them in `MusicReadout::playing`. The page's export runs on a
 `music-export` thread that reads the data and decodes the genre's recordings itself.
 
-**The page** (`src/gui/pages/music/`): `mod.rs` (state, the favourites file, `choice`, words),
-`controls.rs` (Explore, Tune, Keep), `view.rs` (Now playing with the visualizer, See with the piano
+**The page** (`src/gui/pages/music/`): `mod.rs` (state, the favourites file, `chosen`, `shown`
+and `apply`, `now_playing_words`, words), `controls.rs` (What plays, Explore, Tune, Keep), `view.rs` (Now playing with the visualizer, See with the piano
 roll; the transcription kept in memory tagged by the piece and how far it reaches, made again every
 frame with "turn off all reuse" off). The part colours are theme tokens (`music_role_*`, editable in
 Settings > Appearance). The web mirror is `web/pages/music.html` and `music-app.js`.

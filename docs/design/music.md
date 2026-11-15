@@ -401,8 +401,8 @@ hollowbody (Karoryfer), 1.8 MB together, from libraries the operator already app
 whole on 2026-11-06 (`docs/reference/instrument-sources.md`), so no new download was needed. The
 pizzicato bass's pitch is taken from its file names at A = 440 (the pitch measure locks onto
 sub-harmonics on its low, fast-dying notes; the library's other instruments measure within 5 cents of
-440). Settings > Music shows the chosen genre's sentence and says plainly which of its parts play a
-synthesised stand-in (a genre's `roles_add` and palette parts with no installed recording).
+440). Settings > Music (the Music page since 2026-11-14) shows the chosen genre's sentence and says
+plainly which of its parts play a synthesised stand-in (a genre's `roles_add` and palette parts with no installed recording).
 
 **The genre pass (built 2026-11-13): the new instruments get parts to play.** All data, each with
 its synthesised stand-in when its pack is not installed:
@@ -420,7 +420,8 @@ lists them beside the call and the answer); a mood's `options` are voices a piec
 in place of the mood's own (each with the roles it `rests`); and a part may be several VOICES
 (`parts.ron`'s `choir_ah`: the basses, tenors, altos and sopranos), played as one instrument where
 every voice is installed, each note from the voice whose range holds it, overlapping ranges split
-halfway (`score::voice_bands`). Settings > Music's stand-in line now lists every part that can sound
+halfway (`score::voice_bands`). The genre's stand-in line (Settings > Music's then, the Music page's
+since 2026-11-14) now lists every part that can sound
 with the chosen genre (its moods' too) and names the pack whose recording would play each ("tuba (in
 Band and jazz)"). The choir pad's level is set per mood so the same piece sung by the choir or played
 by the strings measures within 1 LU (`a_calm_mood_sung_by_the_choir_is_as_loud_as_its_strings`).
@@ -449,8 +450,9 @@ notes are all a recording needs.
   and the rungs E1 to E7): section 6 of
   [`2026-11-13-instrument-libraries/README.md`](../reference/research/2026-11-13-instrument-libraries/README.md).
 
-**A person's choice** is in Settings > Music: the genre (the list is the files, so a dropped-in file
-appears), a second genre to **blend** with and a slider (tempo, swing and the recipe move smoothly;
+**A person's choice** is on the Music page (since 2026-11-14 the one place that chooses what plays,
+[music-page.md](music-page.md) section 4; it was in Settings > Music before): the genre (the list is
+the files, so a dropped-in file appears), and while the game chooses, a second genre to **blend** with and a slider (tempo, swing and the recipe move smoothly;
 each role takes the second genre's instrument with a chance equal to the blend; both genres' drums
 play, each at its share), and **"Let places pick a livelier genre"** (off by default): with it on, a
 place in `places.ron`'s `genre_suggestions` (a gym, a workshop) plays its genre while you are there.
@@ -507,7 +509,8 @@ section reharmonised for that time through (its own seed), re-drawn while a phra
 the mood's `no_repeat_s`, so even "Never" plays no two minutes twice in an hour. A danger mood plays
 free, as written, and the form picks up where it was when the danger settles.
 
-**A new piece every few minutes** (Settings > Music, "A new piece": every 2, 3, 4, 6 or 10 minutes,
+**A new piece every few minutes** (the Music page's What plays, "A new piece", while the game
+chooses; Settings > Music's until 2026-11-14: every 2, 3, 4, 6 or 10 minutes,
 or Never; the choices are `data/music/pieces.ron`, 4 minutes by default): the runtime builds the
 next piece (the next seed) while the old one plays and starts it at the old one's next phrase, the
 two crossfading (each score's 1.5 s fade). A rebuild that is not a new piece (the data read again
@@ -775,8 +778,7 @@ pitches (`1` to `9`, here high, middle and low toms), and a pattern of rests is 
 fill (one in three or four, by the piece's draws). The 808 and 909 toms now play fills in house, drum
 and bass and synthwave.
 
-**The four genres** (`data/music/genres/`, each a person's choice in Settings > Music and on the Music
-page, never a default; only each genre's commonplace building blocks are written, per the 2026-11-12
+**The four genres** (`data/music/genres/`, each a person's choice on the Music page, never a default; only each genre's commonplace building blocks are written, per the 2026-11-12
 copyright finding: no artist's recordings, melodies or riffs, and no name of any):
 
 | | House | Drum and bass | Synthwave | Ambient |
@@ -1103,8 +1105,19 @@ and, where any of its parts has no recording installed, the line naming the synt
 Blend with and its slider, Let places pick a livelier genre, the recordings note, Ambience
 Volume, Ship hum and its level, Tones (off by default) with its tone and volume. Every word by key
 (`settings.music.*` in data/i18n/en.json), every control with its hint. Saved as config.json's
-`music` object (`humanity_music::MusicSettings`). The website plays no music yet (rung 9), so it has
-no mirror of this section; it gains one with the WebAssembly score. Quiet gaps, "Lower music while
+`music` object (`humanity_music::MusicSettings`).
+
+**One place chooses what plays (2026-11-14,** [music-page.md](music-page.md) **section 4).** The
+operator: "When I go to the settings it plays one music and when I go to the music page it goes to
+another. We should have one place ideally". So the genre, the blend, "Let places pick a livelier
+genre", "A new piece", the genre's sentence, its stand-in line and the recordings note moved to the
+Music page, and the person's choice (`game_chooses`, `mood`, `seed`, `tune`) joined `genre` in
+`MusicSettings`, the one state the score, the Music page and Settings > Music read. Settings > Music
+now opens with What plays: what is playing now in the Music page's own words
+(`music::now_playing_words`), a Choose the music button that opens the page, and where the volume
+is; then Music on, Music on the app's pages, Tuning, the hum and the tones, how the music sounds.
+The website plays no music yet (rung 9); its Settings > Audio & Video has a Music group with the
+same Choose the music link and says why. Quiet gaps, "Lower music while
 people talk" and Music on the menus wait for rungs 4 and 7.
 
 ## 16. Dev tooling (permanent)
