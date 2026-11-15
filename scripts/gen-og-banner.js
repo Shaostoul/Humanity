@@ -54,7 +54,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" 
 
   <text x="72" y="428" font-family="${FONT}" font-size="30" fill="${T.secondary}">Plus a space game built on the same rules.</text>
 
-  <text x="72" y="502" font-family="${FONT}" font-size="26" fill="${T.muted}">No ads. No email. No password. Open source.</text>
+  <text x="72" y="502" font-family="${FONT}" font-size="26" fill="${T.muted}">No ads. No email. No passwords on any server. Open source.</text>
 
   <text x="72" y="566" font-family="${FONT}" font-size="26" font-weight="700" fill="${T.accent}">united-humanity.us</text>
 </svg>`;
@@ -65,14 +65,16 @@ const OUT = path.join('web', 'shared', 'social', 'og-banner.png');
   const base = await sharp(Buffer.from(svg)).png().toBuffer();
 
   // The app mark, right-hand side. Kept modest: the words carry the message,
-  // and the old banner's mistake was letting a logo occupy half the frame.
-  const markSize = 260;
+  // and the old banner's mistake was letting a logo occupy half the frame. 220 px at 64 px from
+  // the edge leaves a clear gap after the headline's widest line ("food," reached x 865 and
+  // touched a 260 px mark at x 860, visible in the card as posted on 2026-11-15).
+  const markSize = 220;
   const mark = await sharp(path.join('web', 'shared', 'icons', 'icon-512.png'))
     .resize(markSize, markSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .toBuffer();
 
   await sharp(base)
-    .composite([{ input: mark, left: W - markSize - 80, top: Math.round((H - markSize) / 2) }])
+    .composite([{ input: mark, left: W - markSize - 64, top: Math.round((H - markSize) / 2) }])
     .png({ compressionLevel: 9 })
     .toFile(OUT);
 
