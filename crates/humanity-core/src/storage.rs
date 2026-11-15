@@ -128,7 +128,10 @@ pub fn os_root() -> Option<PathBuf> {
                 .join("HumanityOS")
         });
     }
-    #[cfg(target_os = "linux")]
+    // Android (rung A1, 2026-11-14): the same layout under HOME, which the app's entry point
+    // (src/android.rs) points at the app's own private folder before anything runs, so every
+    // path below the OS root, the logs' and the config's included, stays inside the app.
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
             return Some(PathBuf::from(xdg).join("HumanityOS"));
@@ -167,7 +170,14 @@ pub fn mode() -> StorageMode {
     if let Some(m) = *MODE.read().unwrap() {
         return m;
     }
-    let m = detect(&exe_dir(), os_root().as_deref());
+    // A phone app keeps its files in its own private folder, which Android chooses: there is no
+    // folder beside an exe to be portable in (the "exe" is the system's app_process), so the
+    // first-boot chooser is never asked and the first run writes the data there at once.
+    let m = if crate::platform::device::ANDROID {
+        StorageMode::Installed
+    } else {
+        detect(&exe_dir(), os_root().as_deref())
+    };
     *MODE.write().unwrap() = Some(m);
     m
 }

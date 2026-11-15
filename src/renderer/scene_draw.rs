@@ -128,7 +128,7 @@ impl Renderer {
             bytemuck::bytes_of(&self.colour_uniform(camera)),
         );
 
-        let output = self.surface.get_current_texture()?;
+        let output = self.live_surface()?.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

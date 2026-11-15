@@ -313,7 +313,7 @@ pub const WEATHER_MAP_MIPS: u32 = 10;
 pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
-    surface: wgpu::Surface<'static>,
+    surface: Option<wgpu::Surface<'static>>, // None while a phone app is away (surface.rs)
     config: wgpu::SurfaceConfiguration,
     /// A present-mode change waiting for the start of the next frame (see
     /// `set_vsync` and BUG-077: the surface must not be reconfigured while
@@ -1090,7 +1090,7 @@ impl Renderer {
 
         let surface = instance.create_surface(window).expect("Failed to create surface");
 
-        Self::init(instance, surface, width, height, true).await
+        Self::init(surface::remember_instance(instance), surface, width, height, true).await
     }
 
     /// Create a new renderer attached to a WASM canvas element.
@@ -2033,7 +2033,7 @@ impl Renderer {
         Self {
             device,
             queue,
-            surface,
+            surface: Some(surface),
             config,
             depth_texture,
             depth_view,

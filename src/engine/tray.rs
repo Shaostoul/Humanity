@@ -63,6 +63,13 @@ impl TrayState {
     }
 }
 
+/// A phone has no notification area for an icon (Android rung A1): the tray-icon crate has no
+/// Android code and Cargo.toml leaves it out there, so this file keeps its rules and makes no icon
+/// (`allowed` is false, and the few functions that touch the crate are gated below).
+#[cfg(target_os = "android")]
+struct Shown;
+
+#[cfg(not(target_os = "android"))]
 struct Shown {
     icon: tray_icon::TrayIcon,
     /// The app's icon, [`n::tray::ICON_PX`] square, straight RGBA: made once from the exe's own
@@ -126,6 +133,9 @@ pub(crate) fn serves_clicks(person: bool, clicks_asked: bool) -> bool {
 pub(crate) fn allowed() -> bool {
     static ALLOWED: OnceLock<bool> = OnceLock::new();
     *ALLOWED.get_or_init(|| {
+        if humanity_core::platform::device::ANDROID {
+            return false; // no tray on a phone (`Shown`)
+        }
         let asked = std::env::var(TRAY_ENV).map(|v| v == "1").unwrap_or(false);
         let person = !crate::engine::launch_focus::launch_in_background();
         if !person && !asked {
@@ -135,7 +145,19 @@ pub(crate) fn allowed() -> bool {
     })
 }
 
+/// The phone's stand-ins for the functions below that touch the tray-icon crate (`Shown`): never
+/// called, since `allowed` is false on a phone.
+#[cfg(target_os = "android")]
+fn start() {}
+#[cfg(target_os = "android")]
+fn make(state: &mut EngineState) {
+    state.tray.failed = true;
+}
+#[cfg(target_os = "android")]
+fn refresh(_state: &mut EngineState) {}
+
 /// Once for the run: the handlers that queue the tray's events, and clicks on notices turned on.
+#[cfg(not(target_os = "android"))]
 fn start() {
     tray_icon::menu::MenuEvent::set_event_handler(Some(|e: tray_icon::menu::MenuEvent| queue(Event::Menu(e.id.0))));
     tray_icon::TrayIconEvent::set_event_handler(Some(|e: tray_icon::TrayIconEvent| {
@@ -410,6 +432,7 @@ fn open_click(state: &mut EngineState, launch: &str) {
 }
 
 /// Make the icon.
+#[cfg(not(target_os = "android"))]
 fn make(state: &mut EngineState) {
     let base = base_picture();
     let look = Look::of(&state.gui_state.settings.notifications.mutes, state.gui_state.notify.list.unseen(), n::now_secs());
@@ -437,6 +460,7 @@ fn make(state: &mut EngineState) {
 }
 
 /// Bring the icon's picture, tooltip and menu up to date when its look (or the language) changed.
+#[cfg(not(target_os = "android"))]
 fn refresh(state: &mut EngineState) {
     let Some(shown) = state.tray.icon.as_ref() else { return };
     let look = Look::of(&state.gui_state.settings.notifications.mutes, state.gui_state.notify.list.unseen(), n::now_secs());
@@ -463,12 +487,14 @@ fn refresh(state: &mut EngineState) {
 }
 
 /// The theme's colours for the icon's marks: the unread colour of the bell's count, the card behind.
+#[cfg(not(target_os = "android"))]
 fn colours(state: &EngineState) -> n::tray::MarkColours {
     let th = &state.theme;
     n::tray::MarkColours { dot: th.danger().to_srgba_unmultiplied(), backing: th.bg_card().to_srgba_unmultiplied(), bell: th.text_primary().to_srgba_unmultiplied() }
 }
 
 /// The app's icon (the exe's own copy, the window's icon) at the tray's size.
+#[cfg(not(target_os = "android"))]
 fn base_picture() -> Vec<u8> {
     const ICON: &[u8] = include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/icon.png"));
     let px = n::tray::ICON_PX;
@@ -482,6 +508,7 @@ fn base_picture() -> Vec<u8> {
 }
 
 /// The platform menu for `lines`.
+#[cfg(not(target_os = "android"))]
 fn menu_of(lines: &[MenuLine]) -> tray_icon::menu::Menu {
     use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
     let menu = Menu::new();

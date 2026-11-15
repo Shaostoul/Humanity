@@ -454,6 +454,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().id_salt("apps_page").auto_shrink([false, false]).show(ui, |ui| {
                 acts.extend(draw_head(ui, theme, state));
+                // A phone app may start only its own code (Android rung A1): say so where the
+                // Launch and Install buttons are, before a press finds out.
+                {
+                    use humanity_core::platform::device::{has, notice_key, Capability};
+                    if !has(Capability::LaunchPrograms) {
+                        widgets::alert(ui, theme, widgets::AlertKind::Info, &humanity_core::i18n::t(notice_key(Capability::LaunchPrograms)));
+                    }
+                }
                 acts.extend(library::toolbar(ui, theme, state));
                 library::ensure_orders(state);
                 acts.extend(library::parts(ui, theme, state));

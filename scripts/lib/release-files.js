@@ -32,6 +32,15 @@
 //   node scripts/lib/release-files.js --list            one path a line (POSIX), for `tar -T`
 //   node scripts/lib/release-files.js --copy <dest>     copy every file to <dest>/<path>
 //   node scripts/lib/release-files.js --summary         counts and sizes, shipped and left out
+//   node scripts/lib/release-files.js --phone-list      the phone app's files (below), one a line
+//   node scripts/lib/release-files.js --phone-summary   their count and size, and what is left out
+//
+// THE PHONE APP'S FILES (Android rung A1, 2026-11-14; android/README.md). The APK carries the
+// release's files for the app's PAGES, and the first start writes them into the app's own folder
+// (src/android.rs). It leaves out what only the 3D world reads (PHONE_LEFT_OUT, each with its
+// reason): a phone has no 3D world yet, and those files are most of the release's size. The data
+// files compiled into the app are in the list too; the phone's first start skips them and the
+// data folder's refresh writes them (crates/humanity-core/src/storage/refresh.rs), as on a desktop.
 
 const fs = require("fs");
 const path = require("path");
@@ -57,6 +66,27 @@ const EXCLUDED = [
     test: (rel) => rel.startsWith("assets/models/characters/makehuman/garments/") && rel.endsWith(".png") && !rel.endsWith(".thumb.png"),
   },
 ];
+
+/** What the phone app's files leave out of the release's, on top of EXCLUDED: what only the 3D world
+ * reads. Each rule a test on a POSIX path relative to the repo root, and why. */
+const PHONE_LEFT_OUT = [
+  {
+    what: "assets/models/, assets/textures/",
+    why: "the 3D world's models and textures (about 450 MiB): a phone has no 3D world yet (rung A5)",
+    test: (rel) => rel.startsWith("assets/models/") || rel.startsWith("assets/textures/"),
+  },
+  {
+    what: "data/planets/, data/stars.csv, data/stars.bin, data/stars-map.bin, data/galaxy_glow.png",
+    why: "the 3D world's planets and sky (about 190 MiB): read only when the world is drawn",
+    test: (rel) =>
+      rel.startsWith("data/planets/") || ["data/stars.csv", "data/stars.bin", "data/stars-map.bin", "data/galaxy_glow.png"].includes(rel),
+  },
+];
+
+/** The phone app's files: the release's, less PHONE_LEFT_OUT (the comment at the top). */
+function phoneFiles(root) {
+  return releaseFiles(root).filter((rel) => !PHONE_LEFT_OUT.some((r) => r.test(rel)));
+}
 
 /** The rule that leaves `rel` out, or null when it ships. */
 function excludedBy(rel) {
@@ -144,10 +174,24 @@ function main(argv) {
     }
     return 0;
   }
-  console.error("usage: release-files.js --list | --copy <dest> | --summary");
+  if (cmd === "--phone-list") {
+    process.stdout.write(phoneFiles(root).join("\n") + "\n");
+    return 0;
+  }
+  if (cmd === "--phone-summary") {
+    const files = phoneFiles(root);
+    console.log(`the phone app carries ${files.length} files, ${mib(bytesOf(root, files))} MiB`);
+    const all = releaseFiles(root);
+    for (const r of PHONE_LEFT_OUT) {
+      const mine = all.filter((rel) => r.test(rel));
+      console.log(`leaves out ${mine.length} files, ${mib(bytesOf(root, mine))} MiB: ${r.what} (${r.why})`);
+    }
+    return 0;
+  }
+  console.error("usage: release-files.js --list | --copy <dest> | --summary | --phone-list | --phone-summary");
   return 2;
 }
 
-module.exports = { ROOTS, FILES, EXCLUDED, excludedBy, releaseFiles, leftOut };
+module.exports = { ROOTS, FILES, EXCLUDED, PHONE_LEFT_OUT, excludedBy, releaseFiles, leftOut, phoneFiles };
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));

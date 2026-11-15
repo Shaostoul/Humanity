@@ -1118,9 +1118,19 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             .color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_xs);
 
+        // A phone build has no device key store yet (Android rung A1): both modes below need one,
+        // so they are off, and the notice says why and what works instead (the passphrase).
+        let key_store = humanity_core::platform::device::has(humanity_core::platform::device::Capability::KeyStore);
+        if !key_store {
+            widgets::alert(ui, theme, widgets::AlertKind::Info, &humanity_core::i18n::t(
+                humanity_core::platform::device::notice_key(humanity_core::platform::device::Capability::KeyStore)));
+            ui.add_space(theme.spacing_xs);
+        }
+
         // Mode 2: Remember on this device (Keychain)
         let mut sel_keychain = current == AutoUnlockMode::Keychain;
-        let key_locked = state.private_key_bytes.is_none();
+        // Read as "locked" when there is no key store: the two modes below stay off.
+        let key_locked = state.private_key_bytes.is_none() || !key_store;
         let resp = ui.add_enabled(
             !key_locked, // can only enable Keychain when seed is in memory
             egui::RadioButton::new(sel_keychain, "Remember on this device"),
@@ -1157,7 +1167,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             }
         }
         let _ = sel_keychain; // explicit ack the radio bool is now-or-never
-        if key_locked && current != AutoUnlockMode::Keychain {
+        if !key_store {
+            // The notice above says why.
+        } else if key_locked && current != AutoUnlockMode::Keychain {
             ui.label(RichText::new("(Unlock with passphrase first to enable.)")
                 .color(theme.text_muted()).size(theme.font_size_small));
         } else {
@@ -1184,7 +1196,9 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             state.pin_confirm.clear();
         }
         let _ = sel_pin;
-        if key_locked && current != AutoUnlockMode::KeychainPin {
+        if !key_store {
+            // The notice above says why.
+        } else if key_locked && current != AutoUnlockMode::KeychainPin {
             ui.label(RichText::new("(Unlock with passphrase first to enable.)")
                 .color(theme.text_muted()).size(theme.font_size_small));
         } else {
@@ -2210,6 +2224,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             any_changed |= styled_slider(ui, &ss, "Card Padding", &mut theme.card_padding, 0.0..=32.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Button Padding H", &mut theme.button_padding_h, 0.0..=24.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Button Padding V", &mut theme.button_pad_y, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, &humanity_core::i18n::t("settings.widgets.touch_target"), &mut theme.touch_target, 24.0..=72.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Spacing XS", &mut theme.spacing_xs, 0.0..=16.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Spacing SM", &mut theme.spacing_sm, 0.0..=16.0, label_color);
             any_changed |= styled_slider(ui, &ss, "Spacing MD", &mut theme.spacing_md, 0.0..=24.0, label_color);

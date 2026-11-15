@@ -114,6 +114,11 @@ pub mod release_update;
 #[cfg(feature = "wasm")]
 pub mod wasm_entry;
 
+// The phone build's entry point (Android rung A1, 2026-11-14): android_main, the app's own folder,
+// the log to logcat. docs/design/platforms.md, android/README.md.
+#[cfg(all(feature = "native", target_os = "android"))]
+pub mod android;
+
 /// Whether the docked-drone model should render this frame (v0.639). Extracted to crate level
 /// (not inside `native_app` below) and made callable from both the render call site and its test
 /// in `machines.rs`, so the test guards the REAL condition instead of a hand-copied duplicate
@@ -177,6 +182,13 @@ mod native_app {
     /// Locate the data directory relative to the exe.
     /// Prefers a data/ with world/ subdirectory (full repo) over extracted-only data/.
     pub(crate) fn find_data_dir() -> PathBuf {
+        // A phone app has one data folder, its own (storage.rs: always Installed on Android); its
+        // "exe" is the system's app_process, whose parents lead to the phone's /data partition.
+        if humanity_core::platform::device::ANDROID {
+            if let Some(dir) = humanity_core::storage::writable_data_dir() {
+                return dir;
+            }
+        }
         let exe = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
 
@@ -371,7 +383,18 @@ mod native_app {
     pub fn run() {
         init_logging();
         // Built with the tray's wake-up and, on Windows, the outside-close hook (engine/tray_window.rs).
-        let event_loop = crate::engine::tray_window::event_loop();
+        run_on(crate::engine::tray_window::event_loop());
+    }
+
+    /// The phone's [`run`]: the event loop is built on the activity Android handed android_main
+    /// (src/android.rs), which has already pointed HOME at the app's own folder.
+    #[cfg(target_os = "android")]
+    pub fn run_android(app: winit::platform::android::activity::AndroidApp) {
+        init_logging();
+        run_on(crate::engine::tray_window::event_loop_android(app));
+    }
+
+    fn run_on(event_loop: winit::event_loop::EventLoop<()>) {
         let mut app = App::new();
         let result = event_loop.run_app(&mut app);
         match &result {
@@ -880,7 +903,10 @@ mod native_app {
 
     impl ApplicationHandler for App {
         fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-            if self.state.is_some() {
+            // Every resumed after the first is a phone app coming back to the screen: a new
+            // drawing surface on the same window (engine/app_lifecycle.rs). A desktop has one.
+            if let Some(state) = self.state.as_mut() {
+                crate::engine::app_lifecycle::resumed(state);
                 return;
             }
 
@@ -2128,6 +2154,13 @@ mod native_app {
             }
         }
 
+        /// A phone app left the screen (a desktop never says so): engine/app_lifecycle.rs.
+        fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+            if let Some(state) = self.state.as_mut() {
+                crate::engine::app_lifecycle::suspended(state);
+            }
+        }
+
         fn window_event(
             &mut self,
             event_loop: &ActiveEventLoop,
@@ -2138,6 +2171,9 @@ mod native_app {
                 Some(s) => s,
                 None => return,
             };
+            if crate::engine::app_lifecycle::skip_event(state, &event) {
+                return;
+            }
 
             // Pass events to egui first, EXCEPT the Tab key while in-game (GuiPage::None).
             // Tab is egui's focus-traversal key; letting egui see it in FPS mode makes egui
@@ -2310,6 +2346,7 @@ mod native_app {
 
         fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
             if let Some(state) = self.state.as_mut() {
+                crate::engine::app_lifecycle::hold_hidden_while_away(state);
                 // Shown: the next frame at once. Hidden in the tray: the sockets read a few times a
                 // second and nothing drawn; true when the tray's Quit asked to leave, which saves the
                 // way every other way out does (engine/tray_window.rs, engine/quit.rs).
@@ -2326,4 +2363,10 @@ mod native_app {
 #[cfg(feature = "native")]
 pub fn run() {
     native_app::run();
+}
+
+/// Run the app on a phone, from android_main (src/android.rs).
+#[cfg(all(feature = "native", target_os = "android"))]
+pub fn run_android(app: winit::platform::android::activity::AndroidApp) {
+    native_app::run_android(app);
 }

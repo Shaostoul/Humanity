@@ -41,6 +41,8 @@ use left_panel::draw_left_panel;
 /// The people surfaces: the Friends/Members right rail and the live strip.
 /// See `chat/right_panel.rs`.
 mod right_panel;
+// Chat on a phone: one column at a time (Android rung A1, 2026-11-14).
+mod phone;
 use right_panel::{draw_live_strip, draw_right_panel};
 
 /// The overlays drawn on top of the panels: pins, search, the user profile,
@@ -209,88 +211,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // egui gives it the full window width above all three columns.
     draw_live_strip(ctx, theme, state);
 
-    // ── LEFT PANEL ──
-    let left_panel = egui::SidePanel::left("chat_left_panel")
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
-        .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
-    let left_panel = if state.chat_left_panel_locked {
-        left_panel.exact_width(state.chat_left_panel_width).resizable(false)
+    // The rooms, the open room and the people: three columns on a desktop, one at a time on a
+    // phone (Android rung A1, chat/phone.rs).
+    if humanity_core::platform::device::phone() {
+        phone::columns(ctx, theme, state);
     } else {
-        left_panel.default_width(state.chat_left_panel_width).resizable(true)
-    };
-    // Panel lock buttons MOVED to center panel header in v0.188.0.
-    // The sidebar panels just render their content; the lock toggle is a
-    // small button on the chat header alongside the channel name. This
-    // keeps the sidebars clean and puts the controls where the user is
-    // most likely already looking.
-    let left_response = left_panel.show(ctx, |ui| {
-        draw_left_panel(ui, theme, state);
-    });
-    if !state.chat_left_panel_locked {
-        state.chat_left_panel_width = left_response.response.rect.width();
+        desktop_columns(ctx, theme, state);
     }
-
-    // ── RIGHT PANEL ──
-    let right_panel = egui::SidePanel::right("chat_right_panel")
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
-        .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
-    let right_panel = if state.chat_right_panel_locked {
-        right_panel.exact_width(state.chat_right_panel_width).resizable(false)
-    } else {
-        right_panel.default_width(state.chat_right_panel_width).resizable(true)
-    };
-    let right_response = right_panel.show(ctx, |ui| {
-        draw_right_panel(ui, theme, state);
-    });
-    if !state.chat_right_panel_locked {
-        state.chat_right_panel_width = right_response.response.rect.width();
-    }
-
-    // ── CENTER PANEL ──
-    egui::CentralPanel::default()
-        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(0.0))
-        .show(ctx, |ui| {
-            draw_center_panel(ui, theme, state);
-        });
-
-    // ── FLOATING LOCK OVERLAYS (v0.190.0) ──
-    // Pinned to the EXACT top corners of the center panel with zero
-    // inner padding. The button is 14×14 and sits flush against the
-    // panel boundary — left button at the left panel's right edge,
-    // right button such that its right edge meets the right panel's
-    // left edge. The Area gets `Frame::NONE` (no inner margin) and
-    // the button helper itself avoids any horizontal wrapper / spacing,
-    // so what you see on screen is exactly 14 pixels of icon and
-    // nothing else.
-    const LOCK_PX: f32 = 14.0;
-    let left_panel_right = left_response.response.rect.right();
-    let right_panel_left = right_response.response.rect.left();
-    let header_top = left_response.response.rect.top();
-
-    // The lock buttons are part of the page (41+, gui/layers.rs): on its panels' edges, under
-    // every floating thing (they were egui's Foreground, over an open dialog's shade).
-    crate::gui::layers::area(ctx, egui::Id::new("chat_left_lock_overlay"), crate::gui::layers::Layer::Page)
-        .fixed_pos(egui::pos2(left_panel_right, header_top))
-        .interactable(true)
-        .show(ctx, |ui| {
-            // Strip the parent style's item_spacing inside this Area
-            // so even nested allocations don't introduce stray gaps.
-            ui.spacing_mut().item_spacing = Vec2::ZERO;
-            if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
-                state.chat_left_panel_locked = !state.chat_left_panel_locked;
-                crate::config::AppConfig::from_gui_state(state).save();
-            }
-        });
-    crate::gui::layers::area(ctx, egui::Id::new("chat_right_lock_overlay"), crate::gui::layers::Layer::Page)
-        .fixed_pos(egui::pos2(right_panel_left - LOCK_PX, header_top))
-        .interactable(true)
-        .show(ctx, |ui| {
-            ui.spacing_mut().item_spacing = Vec2::ZERO;
-            if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
-                state.chat_right_panel_locked = !state.chat_right_panel_locked;
-                crate::config::AppConfig::from_gui_state(state).save();
-            }
-        });
 
     // ── USER PROFILE MODAL ──
     if state.chat_user_modal_open {
@@ -393,6 +320,93 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 }
 
 // ─────────────────────────────── CENTER PANEL ─────────────────────────────
+
+/// Chat's three columns on a desktop: the rooms, the people and the open room between them, and
+/// the lock buttons on the open room's top corners. A phone draws `phone::columns` instead.
+fn desktop_columns(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // ── LEFT PANEL ──
+    let left_panel = egui::SidePanel::left("chat_left_panel")
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
+        .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
+    let left_panel = if state.chat_left_panel_locked {
+        left_panel.exact_width(state.chat_left_panel_width).resizable(false)
+    } else {
+        left_panel.default_width(state.chat_left_panel_width).resizable(true)
+    };
+    // Panel lock buttons MOVED to center panel header in v0.188.0.
+    // The sidebar panels just render their content; the lock toggle is a
+    // small button on the chat header alongside the channel name. This
+    // keeps the sidebars clean and puts the controls where the user is
+    // most likely already looking.
+    let left_response = left_panel.show(ctx, |ui| {
+        draw_left_panel(ui, theme, state);
+    });
+    if !state.chat_left_panel_locked {
+        state.chat_left_panel_width = left_response.response.rect.width();
+    }
+
+    // ── RIGHT PANEL ──
+    let right_panel = egui::SidePanel::right("chat_right_panel")
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
+        .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
+    let right_panel = if state.chat_right_panel_locked {
+        right_panel.exact_width(state.chat_right_panel_width).resizable(false)
+    } else {
+        right_panel.default_width(state.chat_right_panel_width).resizable(true)
+    };
+    let right_response = right_panel.show(ctx, |ui| {
+        draw_right_panel(ui, theme, state);
+    });
+    if !state.chat_right_panel_locked {
+        state.chat_right_panel_width = right_response.response.rect.width();
+    }
+
+    // ── CENTER PANEL ──
+    egui::CentralPanel::default()
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(0.0))
+        .show(ctx, |ui| {
+            draw_center_panel(ui, theme, state);
+        });
+
+    // ── FLOATING LOCK OVERLAYS (v0.190.0) ──
+    // Pinned to the EXACT top corners of the center panel with zero
+    // inner padding. The button is 14×14 and sits flush against the
+    // panel boundary — left button at the left panel's right edge,
+    // right button such that its right edge meets the right panel's
+    // left edge. The Area gets `Frame::NONE` (no inner margin) and
+    // the button helper itself avoids any horizontal wrapper / spacing,
+    // so what you see on screen is exactly 14 pixels of icon and
+    // nothing else.
+    const LOCK_PX: f32 = 14.0;
+    let left_panel_right = left_response.response.rect.right();
+    let right_panel_left = right_response.response.rect.left();
+    let header_top = left_response.response.rect.top();
+
+    // The lock buttons are part of the page (41+, gui/layers.rs): on its panels' edges, under
+    // every floating thing (they were egui's Foreground, over an open dialog's shade).
+    crate::gui::layers::area(ctx, egui::Id::new("chat_left_lock_overlay"), crate::gui::layers::Layer::Page)
+        .fixed_pos(egui::pos2(left_panel_right, header_top))
+        .interactable(true)
+        .show(ctx, |ui| {
+            // Strip the parent style's item_spacing inside this Area
+            // so even nested allocations don't introduce stray gaps.
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
+                state.chat_left_panel_locked = !state.chat_left_panel_locked;
+                crate::config::AppConfig::from_gui_state(state).save();
+            }
+        });
+    crate::gui::layers::area(ctx, egui::Id::new("chat_right_lock_overlay"), crate::gui::layers::Layer::Page)
+        .fixed_pos(egui::pos2(right_panel_left - LOCK_PX, header_top))
+        .interactable(true)
+        .show(ctx, |ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
+                state.chat_right_panel_locked = !state.chat_right_panel_locked;
+                crate::config::AppConfig::from_gui_state(state).save();
+            }
+        });
+}
 
 fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if protected::draws_hidden_room(ui, theme, state) {
@@ -3941,6 +3955,16 @@ pub(crate) fn land_if_room_gone(state: &mut GuiState) {
 /// Returns `None` when the clipboard has no image (e.g. just text), or when
 /// the clipboard / encoder errors. The native arboard crate handles
 /// Windows / macOS / Linux clipboard access. v0.232.
+///
+/// Not on a phone (Android rung A1): arboard has no Android code (Cargo.toml leaves it out there),
+/// and a phone has no Ctrl+V to ask for this; pictures go in through Attach. Words still paste
+/// through egui.
+#[cfg(target_os = "android")]
+fn try_grab_clipboard_image_as_png() -> Option<Vec<u8>> {
+    None
+}
+
+#[cfg(not(target_os = "android"))]
 fn try_grab_clipboard_image_as_png() -> Option<Vec<u8>> {
     let mut clipboard = match arboard::Clipboard::new() {
         Ok(c) => c,

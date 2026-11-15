@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The phone app's manifest (Android rung A1, 2026-11-14; android/README.md, docs/design/platforms.md).
+
+  NativeActivity: Android's own activity that loads a native library and calls its android_main
+  (src/android.rs), so the APK holds no Java code (android:hasCode="false") and builds without
+  Gradle. android/build-apk.sh passes the version, the minimum and the target SDK to aapt2.
+
+  configChanges: turning the phone, folding out the keyboard or changing the screen's density
+  must not restart the activity (which would start the app over); winit reports a new size and
+  the app lays itself out again.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="us.united_humanity.humanityos">
+
+    <!-- Chat, the relay and every download: the only permission the app pages need. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="HumanityOS"
+        android:icon="@mipmap/ic_launcher"
+        android:hasCode="false"
+        android:allowBackup="false"
+        android:extractNativeLibs="true">
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.Black.NoTitleBar">
+            <!-- The library NativeActivity loads: libhumanity_engine.so, this crate's lib. -->
+            <meta-data android:name="android.app.lib_name" android:value="humanity_engine" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

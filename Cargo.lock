@@ -7569,9 +7569,12 @@ dependencies = [
  "log",
  "native-tls",
  "rand 0.8.8",
+ "rustls",
+ "rustls-pki-types",
  "sha1 0.10.7",
  "thiserror 1.0.69",
  "utf-8",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

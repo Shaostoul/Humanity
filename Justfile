@@ -1298,6 +1298,13 @@ bundle-web:
 # never in CI (the whole point is to survive a GitHub/CI compromise).
 # Full procedure: docs/release-signing.md
 
+# ONE-TIME, the operator's: the phone app's APK signing key (Android rung A2, android/README.md).
+# Makes it, sets it on the repository as two secrets for .github/workflows/build-android.yml, and
+# keeps a passphrase-encrypted backup outside the repo (%APPDATA%\HumanityOS-release-keys\android).
+# Refuses if one exists: a second key would stop every installed copy from updating.
+android-signing-key:
+    bash scripts/android-signing-key.sh
+
 # ONE-TIME: generate the hybrid signing keypair. Set HUMANITY_SIGNING_PASSPHRASE
 # (>= 12 chars) first. Writes the PUBLIC keys to data/release/signing_pubkeys.json
 # (COMMIT it — it compiles into every build) and the encrypted PRIVATE vault to

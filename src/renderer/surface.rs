@@ -68,7 +68,9 @@ impl Renderer {
             // config save line; this line makes it direct).
             log::info!("[Surface] present mode {:?} -> {mode:?} (applied before the frame)", self.config.present_mode);
             self.config.present_mode = mode;
-            self.surface.configure(&self.device, &self.config);
+            if let Some(s) = &self.surface {
+                s.configure(&self.device, &self.config);
+            }
         }
     }
 
@@ -80,7 +82,9 @@ impl Renderer {
         }
         self.config.width = width;
         self.config.height = height;
-        self.surface.configure(&self.device, &self.config);
+        if let Some(s) = &self.surface {
+            s.configure(&self.device, &self.config);
+        }
         let (tex, view) = Self::create_depth_texture(&self.device, width, height);
         self.depth_texture = tex;
         self.depth_view = view;
@@ -123,7 +127,7 @@ impl Renderer {
         // UI-only frame: no world pass runs, so the budget numbers stay frozen
         // at the last rendered world frame (resource budgets increment 1).
         self.frame_costs_begin(false);
-        let output = self.surface.get_current_texture()?;
+        let output = self.live_surface()?.get_current_texture()?;
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -166,7 +170,7 @@ impl Renderer {
         // Performance page can tell "waiting for the display" from
         // "CPU-bound", which the 2026-09-18 measurement could not.
         let wait_t0 = std::time::Instant::now();
-        let output = self.surface.get_current_texture()?;
+        let output = self.live_surface()?.get_current_texture()?;
         frame_costs::record_cpu("cpu.present_wait", wait_t0.elapsed());
         let view = output
             .texture
@@ -195,6 +199,72 @@ impl Renderer {
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         (texture, view)
+    }
+}
+
+// ── The surface taken away and given back (Android rung A1, 2026-11-14) ──
+//
+// A phone takes the window's drawing surface away whenever the app leaves the screen and gives a
+// new one when it returns (engine/app_lifecycle.rs). The surface is an Option for that: `None`
+// between `drop_surface` and `recreate_surface`, and every acquire then answers
+// `SurfaceError::Lost`, which the frame loop already treats as "resize and try again". A desktop
+// never drops it, so on a desktop it is always `Some` and nothing here runs.
+
+/// The wgpu instance the window's surface was made with, kept so a new surface can be made on the
+/// same instance after a phone app comes back (wgpu ties a surface to the instance its adapter came
+/// from). Set once by `new_native`; a clone shares the one instance.
+#[cfg(feature = "native")]
+static INSTANCE: std::sync::OnceLock<wgpu::Instance> = std::sync::OnceLock::new();
+
+/// Keep a clone of the instance for [`Renderer::recreate_surface`], and hand it back to `init`.
+#[cfg(feature = "native")]
+pub(super) fn remember_instance(instance: wgpu::Instance) -> wgpu::Instance {
+    let _ = INSTANCE.set(instance.clone());
+    instance
+}
+
+impl Renderer {
+    /// The surface to draw on, or `Lost` while a phone app is away.
+    pub(super) fn live_surface(&self) -> Result<&wgpu::Surface<'static>, wgpu::SurfaceError> {
+        self.surface.as_ref().ok_or(wgpu::SurfaceError::Lost)
+    }
+
+    /// Whether there is a surface to draw on (false only while a phone app is away).
+    pub fn has_surface(&self) -> bool {
+        self.surface.is_some()
+    }
+
+    /// Drop the window's surface: the app left the screen and the system is taking the window
+    /// away. Nothing is drawn until [`Self::recreate_surface`].
+    pub fn drop_surface(&mut self) {
+        self.surface = None;
+    }
+
+    /// A new surface on `window` (the same winit window, whose system window is new), configured
+    /// as the old one was at the window's size now; the size-dependent targets follow through
+    /// `resize`. Logged and left without a surface when the system refuses (the next `resumed`
+    /// tries again).
+    #[cfg(feature = "native")]
+    pub fn recreate_surface(&mut self, window: std::sync::Arc<winit::window::Window>) {
+        let Some(instance) = INSTANCE.get() else {
+            log::error!("[Surface] no instance kept: cannot make a new surface");
+            return;
+        };
+        match instance.create_surface(window.clone()) {
+            Ok(surface) => {
+                self.surface = Some(surface);
+                let size = window.inner_size();
+                let (w, h) = (size.width.max(1), size.height.max(1));
+                if (w, h) == (self.config.width, self.config.height) {
+                    if let Some(s) = &self.surface {
+                        s.configure(&self.device, &self.config);
+                    }
+                } else {
+                    self.resize(w, h);
+                }
+            }
+            Err(e) => log::error!("[Surface] could not make a new surface: {e}"),
+        }
     }
 }
 

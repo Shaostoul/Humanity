@@ -1872,6 +1872,30 @@ VPS runs `HumanityOS --headless`. relay.db at `/opt/Humanity/data/`. systemd ser
 
 ## Native Desktop Client (egui)
 
+### The native app on Android, rung A1: the app's pages on a phone (2026-11-14)
+The same native app (egui pages, chat, Settings) as an APK for an Android phone (arm64, Android 8.0
+and later), built free on GitHub's runners; installed by sideloading (android/README.md has the
+steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pro prove it.
+- Build: `.github/workflows/build-android.yml` runs `android/build-apk.sh` (cargo-ndk builds the
+  engine's lib as a `cdylib`; aapt2, zipalign and apksigner package a NativeActivity APK, no Java
+  code, no Gradle). Release tags publish `HumanityOS-android-arm64.apk` once the project's signing
+  key exists (`just android-signing-key`, `scripts/android-signing-key.sh`); else a test-signed
+  workflow artifact. Tool comparison: `docs/reference/research/2026-11-14-android-build-tools/`.
+- Entry: `src/android.rs` (`android_main`; HOME and TMPDIR in the app's private folder; the APK's page
+  files, `scripts/lib/release-files.js --phone-list`, copied once per version; stdout and stderr to
+  logcat).
+- Lifecycle: `src/engine/app_lifecycle.rs` (surface dropped on `suspended`, rebuilt on `resumed`;
+  `Renderer::drop_surface` / `recreate_surface` in `src/renderer/surface.rs`).
+- What a phone lacks, said on screen: `crates/humanity-core/src/platform/device.rs` (`Capability`,
+  `has`, `notice_key`; words `device.*`): no 3D world (Play's notice, every way in lands on Play), no
+  key store (Settings, Unlock on App Launch), no launching programs (Apps page). tray-icon, arboard and
+  keyring left out of the phone build; the chat socket on rustls there.
+- Touch: theme token `touch_target` (44 points, Settings > Widgets) as the smallest control height on
+  a phone. `HUMANITY_PHONE_PREVIEW=1` shows the phone's view on a desktop.
+- Checks: `scripts/tests/build-android.test.js` (manifest, entry point, gated crates, mirror,
+  signed-only release, the phone's file list).
+- Plan and the later rungs (Keystore, background chat, the 3D world, F-Droid): `docs/design/platforms.md`.
+
 ### egui GUI System
 Immediate-mode UI with theme.ron, 13 reusable widgets, 20+ pages.
 - Native: `src/gui/` (theme.rs, widgets/, pages/)

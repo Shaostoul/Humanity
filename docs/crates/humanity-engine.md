@@ -19,19 +19,20 @@ edit re-checks the least.
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `engine/`, `save_load.rs`
   - `feature = "wasm"`: `wasm_entry.rs`
+  - `all(feature = "native", target_os = "android")`: `android.rs`
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 111,433 lines in 206 files, 17,201 of them in 57 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_water.rs` 750 of 750, `engine/frame_shells.rs` 1,291 of 1,300, `engine/map_view.rs` 312 of 315, `engine/frame_near_trees.rs` 691 of 700, `engine/frame_sky_body.rs` 1,803 of 1,850, `lib.rs` 2,327 of 2,400, `engine/map_rig.rs` 242 of 250, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,644 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 382 of 450.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 35, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 702, gui 652, systems 592, renderer 358, ship 351, terrain 169, animation 140, net 101, music 15, protocol 13, relay 11.
+- **Size:** 112,692 lines in 210 files, 17,284 of them in 57 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_water.rs` 750 of 750, `engine/frame_shells.rs` 1,291 of 1,300, `engine/map_view.rs` 312 of 315, `lib.rs` 2,372 of 2,400, `engine/frame_near_trees.rs` 691 of 700, `engine/frame_sky_body.rs` 1,803 of 1,850, `engine/map_rig.rs` 242 of 250, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,644 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 382 of 450.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 37, `relay` 5, `wasm` 1.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 717, gui 654, systems 598, ship 369, renderer 367, terrain 169, animation 140, net 101, music 15, protocol 13, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 814 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 818 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
-just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::mine_tasks:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::quiet_allow:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::
+just test-lib --crate humanity-engine engine:: save_load:: wasm_entry:: android:: --skip engine::block:: --skip engine::choice:: --skip engine::dm:: --skip engine::file_transfer:: --skip engine::friend_code:: --skip engine::group_report:: --skip engine::household:: --skip engine::key_cards:: --skip engine::low_impact:: --skip engine::mine_tasks:: --skip engine::protected:: --skip engine::put_answer:: --skip engine::quiet_allow:: --skip engine::reach:: --skip engine::report:: --skip engine::warnings::
 ```
 
 **Interface:** no other crate references anything in it.

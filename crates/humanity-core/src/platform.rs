@@ -10,6 +10,10 @@
 #[cfg(all(windows, feature = "native"))]
 pub mod registry;
 
+/// What this device can do (a phone build, the phone preview), and the words for what it cannot:
+/// Android rung A1, docs/design/platforms.md. Ungated: the pages and the server's words both ask.
+pub mod device;
+
 /// Log a message through the platform's logging mechanism.
 pub fn log_info(msg: &str) {
     log::info!("{}", msg);

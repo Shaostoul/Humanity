@@ -78,6 +78,18 @@ pub(crate) fn event_loop() -> EventLoop<()> {
     event_loop
 }
 
+/// The phone's [`event_loop`] (Android rung A1): winit builds it on the activity android_main was
+/// handed (src/android.rs), with the same wake-up proxy. No tray and no close hook on a phone.
+#[cfg(target_os = "android")]
+pub(crate) fn event_loop_android(app: winit::platform::android::activity::AndroidApp) -> EventLoop<()> {
+    use winit::platform::android::EventLoopBuilderExtAndroid;
+    let mut builder = EventLoop::builder();
+    builder.with_android_app(app);
+    let event_loop = builder.build().expect("Failed to create event loop");
+    let _ = PROXY.set(Mutex::new(event_loop.create_proxy()));
+    event_loop
+}
+
 /// Wake the event loop (from any thread): the tray's handlers and a click on a notice call this, so
 /// a loop waiting with the window hidden takes the click at once.
 pub(crate) fn wake() {

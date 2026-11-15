@@ -55,8 +55,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             tint_section::show(ui, theme, WORLD_TINT, t("play.hub.world"), |ui| {
                 ui.label(RichText::new(last_played(state)).size(theme.font_size_body).color(theme.text_primary()));
                 ui.add_space(theme.spacing_xs);
-                if widgets::Button::primary(t("play.enter")).hint("play.enter_hint").show(ui, theme) {
-                    enter_world(state, false);
+                // A phone has no 3D world yet (Android rung A1): the button's place says why, what
+                // it needs and what works instead (CLAUDE.md's hardware-notice rule).
+                use humanity_core::platform::device::{self, Capability};
+                if device::has(Capability::World3d) {
+                    if widgets::Button::primary(t("play.enter")).hint("play.enter_hint").show(ui, theme) {
+                        enter_world(state, false);
+                    }
+                } else {
+                    widgets::alert(ui, theme, widgets::AlertKind::Info, &t(device::notice_key(Capability::World3d)));
                 }
             });
             ui.add_space(theme.spacing_sm);

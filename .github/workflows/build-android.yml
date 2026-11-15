@@ -1,0 +1,108 @@
+name: Build Android App
+
+# The phone app, rung A1 (2026-11-14): the app's pages as an APK for the operator's OnePlus 9 Pro,
+# built free on GitHub's runners (the operator: "Let's aim for free."). docs/design/platforms.md has
+# the plan, android/README.md the build and the install steps, and
+# docs/reference/research/2026-11-14-android-build-tools/ the comparison behind the route: cargo-ndk
+# for the library, Google's SDK tools (aapt2, zipalign, apksigner) for the package. The runner
+# image carries the Android SDK, the NDK and Java; nothing is downloaded but the Rust target and
+# cargo-ndk.
+#
+# WHEN IT RUNS. On a release tag, where the APK becomes a release asset (only when it is signed
+# with the project's key: a test-signed APK is never published, see android/build-apk.sh); by hand
+# (workflow_dispatch); and on a push to main that changes the Android build itself, so a change to
+# it is proven by the next push. It does not run on every push: a phone build of the whole engine
+# takes a runner the better part of an hour.
+#
+# The APK is named HumanityOS-android-arm64.apk: the VPS mirror's pattern
+# (scripts/vps/humanity-mirror-release, PLATFORM_RE) takes only .exe, .tar.gz and .zip, so the
+# mirror and the release's readiness check pass it by.
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches: [ main ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-android.yml'
+      - 'src/android.rs'
+      - 'src/engine/app_lifecycle.rs'
+      - 'crates/humanity-core/src/platform/device.rs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: APK (arm64-v8a)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (the version rust-toolchain.toml pins) and the Android target
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-linux-android
+          rustc -V
+
+      - name: Cache cargo registry and the Android build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-ndk
+            target
+          key: aarch64-linux-android-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: aarch64-linux-android-cargo-
+
+      # cargo-ndk 4.1.2 (bbqsrc, Apache-2.0 OR MIT): sets up the NDK's clang, ar and linker for
+      # the target and runs cargo with them. Pinned; --locked builds it from its own lockfile.
+      - name: Install cargo-ndk
+        shell: bash
+        run: |
+          if ! cargo ndk --version 2>/dev/null | grep -q '4\.1\.2'; then
+            cargo install cargo-ndk --version 4.1.2 --locked
+          fi
+          cargo ndk --version
+
+      - name: Build and sign the APK
+        shell: bash
+        env:
+          # The project's APK signing key, two repository secrets (`just android-signing-key`
+          # makes them). Absent, the APK is test-signed and named so.
+          ANDROID_SIGNING_KEY_B64: ${{ secrets.ANDROID_SIGNING_KEY_B64 }}
+          ANDROID_SIGNING_CERT_B64: ${{ secrets.ANDROID_SIGNING_CERT_B64 }}
+        run: bash android/build-apk.sh dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: humanity-android-arm64
+          path: dist/
+          retention-days: 30
+
+      # Only an APK signed with the project's key goes on a release: a test-signed one could
+      # never be updated in place, and removing it to install a later one deletes the app's files.
+      - name: Publish to Release
+        if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/HumanityOS-android-arm64.apk') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: false
+          files: |
+            dist/HumanityOS-android-arm64.apk
+            dist/HumanityOS-android-arm64.apk.sha256
+
+      - name: Say why a release has no APK
+        if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/HumanityOS-android-arm64.apk') == ''
+        shell: bash
+        run: echo "::warning::This release has no APK: the signing secrets are not set, so the build is test-signed and stays a workflow artifact (android/README.md)."

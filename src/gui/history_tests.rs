@@ -311,3 +311,21 @@ fn the_world_is_never_a_step() {
     assert_eq!(s.history.len(), 2);
     assert!(s.back() && s.active_page == GuiPage::Chat, "and Back goes to the page before it");
 }
+
+/// A phone has no 3D world yet (Android rung A1): entering it lands on the Play hub, whose world
+/// section says why, and never on the world (GuiPage::None, which would load it); the character
+/// picker is not asked for either. A desktop enters as before. Seen red 2026-11-14 with
+/// enter_world_if ignoring its argument: "a phone stays on the pages" failed, left: None.
+#[test]
+fn on_a_phone_entering_the_world_opens_play_and_a_desktop_enters() {
+    let mut s = on(&[GuiPage::Chat]);
+    s.launcher_open_select = true;
+    s.enter_world_if(false);
+    assert_eq!(s.active_page, GuiPage::Play, "a phone stays on the pages");
+    assert!(!s.launcher_open_select, "and no character picker is asked for");
+    s.enter_world_if(false);
+    assert_eq!(s.active_page, GuiPage::Play, "asking again on Play stays there");
+    let mut d = on(&[GuiPage::Chat]);
+    d.enter_world_if(true);
+    assert_eq!(d.active_page, GuiPage::None, "a desktop enters the world");
+}

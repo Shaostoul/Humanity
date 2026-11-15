@@ -123,6 +123,11 @@ pub struct Theme {
     /// even-padded buttons). Themeable.
     #[serde(default = "default_button_pad_y")]
     pub button_pad_y: f32,
+    /// The smallest height of a control on a phone, in points (Android rung A1, 2026-11-14): a
+    /// finger needs about 44 points where a mouse needs 18 (Apple asks 44 pt, Android 48 dp). Read
+    /// only when `platform::device::phone()`; a desktop keeps its slim controls. Themeable.
+    #[serde(default = "default_touch_target")]
+    pub touch_target: f32,
     pub input_height: f32,
     pub sidebar_width: f32,
     pub card_padding: f32,
@@ -777,6 +782,7 @@ impl Theme {
         self.cell_short_width = 90.0;
         self.cell_name_width = 150.0;
         self.button_pad_y = 3.0;
+        self.touch_target = 44.0;
     }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
@@ -832,6 +838,12 @@ impl Theme {
         let mut style = (*ctx.style()).clone();
         style.spacing.item_spacing = Vec2::new(self.spacing_sm, self.spacing_sm);
         style.spacing.button_padding = Vec2::new(self.button_padding_h, self.button_pad_y);
+        // A phone is worked with a finger (Android rung A1): every control at least `touch_target`
+        // high, and a scroll bar wide enough to hold. A desktop keeps its slim controls.
+        if humanity_core::platform::device::phone() {
+            style.spacing.interact_size.y = style.spacing.interact_size.y.max(self.touch_target);
+            style.spacing.scroll.bar_width = style.spacing.scroll.bar_width.max(self.touch_target * 0.25);
+        }
         // egui defaults `debug.show_unaligned` ON in debug builds, painting an orange
         // "Unaligned" marker over any Ui whose rect isn't pixel-aligned. That bleeds
         // into dev runs and the headless UI snapshots (release builds never show it),
@@ -907,6 +919,7 @@ fn default_cell_narrow_width() -> f32 { 60.0 }
 fn default_cell_short_width() -> f32 { 90.0 }
 fn default_cell_name_width() -> f32 { 150.0 }
 fn default_button_pad_y() -> f32 { 3.0 }
+fn default_touch_target() -> f32 { 44.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
 fn default_text_strong() -> C { (1.0, 1.0, 1.0, 1.0) } // #ffffff, one step above text_primary
@@ -1093,6 +1106,7 @@ fn default_theme() -> Theme {
         button_height: 36.0,
         button_padding_h: 8.0,
         button_pad_y: 3.0,
+        touch_target: 44.0,
         input_height: 36.0,
         sidebar_width: 280.0,
         card_padding: 16.0,

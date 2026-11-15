@@ -210,6 +210,9 @@ pub mod tray;
 /// Closing to the tray: the hidden window that draws nothing and reads its sockets a few times a
 /// second, showing it again, and the event loop's wake-up and outside-close hooks (rung 2 part 2).
 pub mod tray_window;
+/// The app going to the background and coming back: Android's drawing surface dropped on
+/// `suspended` and made again on the next `resumed` (Android rung A1, docs/design/platforms.md).
+pub mod app_lifecycle;
 /// The planet's two water shells (coarse backstop + displaced wave surface),
 /// built and pushed once per frame (extracted from lib.rs, v0.1320).
 pub mod frame_water;

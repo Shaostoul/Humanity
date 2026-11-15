@@ -192,6 +192,10 @@ window.HOS_I18N_EN = {
     "channel_desc_global": "Talk with everyone, on this server and on every server linked to it.",
     "channel_desc_feedback": "Tell the people building HumanityOS what works, what does not, and what you would like next. Anyone can read it, on every linked server.",
     "server_row_hint": "Shows or hides this server's channels.",
+    "phone": {
+      "rooms": "Rooms",
+      "rooms_hint": "Back to the list of rooms and conversations. Pick one to open it."
+    },
     "room_row_hint": "Opens this room. Right-click it to mute it or to choose what it tells you about.",
     "room_row_other_hint": "Switches to {{server}} and opens #{{room}} there.",
     "voice_join_hint": "Joins this room's voice chat.",
@@ -329,6 +333,9 @@ window.HOS_I18N_EN = {
     "notifications_volume_hint": "Loudness of the sounds a notice plays: a new message, a call, an alert. Separate from interface clicks, so turning the clicks down never silences a notice; scales together with Master Volume.",
     "walking_pace": "Walking pace",
     "walking_pace_hint": "How fast you walk and run (hold Shift to run, C to crouch). Your body's stride follows the speed at every level, and other players see you move at the speed you choose.",
+    "widgets": {
+      "touch_target": "Touch target on a phone"
+    },
     "animation_mode": "Animation",
     "animation_realistic_hint": "Each foot of the people near you stands on the floor, step or slope under it, and a planted foot does not slide.",
     "animation_simplified_hint": "People are raised or lowered onto the ground as a whole, without bending their legs to it. A little lighter on the computer.",
@@ -3716,6 +3723,11 @@ window.HOS_I18N_EN = {
     "detail_reset_group_hint": "Puts every slider in this group back to the body as made.",
     "detail_reset_all": "Reset all details",
     "detail_reset_all_hint": "Puts every face and body detail back to the body as made. Height, build and ancestry stay as they are."
+  },
+  "device": {
+    "key_store": "This phone build cannot remember your key yet. Remembering it needs the phone's own key store (the Android Keystore), which is not built in yet. What works instead: your passphrase unlocks your key each time you open the app.",
+    "launch_programs": "Starting other programs is for the desktop app. Android lets an app start only its own code, so Launch and Install do nothing on a phone. What works instead: open the program on your phone yourself, or use the desktop app on Windows, macOS or Linux.",
+    "world_3d": "The 3D world is not on phones yet. It needs its own lighter graphics settings and a test on a phone's graphics chip first, and this build has the app's pages only. What works instead: Chat, Settings and the other pages work here, and the 3D world runs in the desktop app on Windows, macOS or Linux."
   },
   "devlog": {
     "page_title": "Devlog, HumanityOS",

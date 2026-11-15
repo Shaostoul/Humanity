@@ -884,7 +884,9 @@ pub(crate) fn finish_onboarding(state: &mut GuiState) {
     if !state.first_minutes.started {
         state.first_minutes.start();
     }
-    if state.server_connected {
+    // A phone has no 3D world yet (Android rung A1): its pages start on Chat.
+    let world = humanity_core::platform::device::has(humanity_core::platform::device::Capability::World3d);
+    if state.server_connected || !world {
         state.go(GuiPage::Chat, crate::gui::How::Beside);
     } else {
         state.start_at_home_alone();
@@ -924,7 +926,10 @@ fn draw_hub(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(24.0);
 
-                if widgets::primary_button(ui, theme, "  Enter World  ") {
+                // A phone has no 3D world yet (Android rung A1): Play's hub says why.
+                if humanity_core::platform::device::has(humanity_core::platform::device::Capability::World3d)
+                    && widgets::primary_button(ui, theme, "  Enter World  ")
+                {
                     state.enter_world();
                 }
                 ui.add_space(6.0);

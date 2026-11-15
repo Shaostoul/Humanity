@@ -179,7 +179,6 @@ tokio = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
-tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
 ureq = { version = "2", optional = true }
 # The readable web (src/web_reader/): Servo's HTML5 parser, pinned to an exact
 # version because the TreeSink trait it hands us changes shape between minors
@@ -190,16 +189,6 @@ html5ever = { version = "=0.40.1", optional = true }
 # Process RSS for the F4 System diagnostics overlay (v0.482). Tiny, cross-platform
 # (GetProcessMemoryInfo on Windows, /proc on Linux); native-only.
 memory-stats = { workspace = true, optional = true }
-# Cross-platform clipboard access for image paste (Ctrl+V from print-screen
-# captures) — v0.232. Already a transitive dep via egui; declaring directly
-# so we can call get_image() on the clipboard. native feature only.
-arboard = { version = "3", optional = true, default-features = false, features = ["image-data"] }
-# Cross-platform OS keychain wrapper (Windows Credential Manager via DPAPI,
-# macOS Keychain Services, Linux Secret Service / KWallet). Used by the
-# v0.278.0 auto-unlock feature so users can opt into silent startup without
-# typing their full BIP39-derived passphrase every launch. native feature
-# only — relay/wasm builds don't carry an interactive identity.
-keyring = { workspace = true, optional = true }
 bip39 = { version = "2", optional = true }
 # QR generation for the native "Link a device" identity display (v0.837): encodes
 # the same 64-char-key backup JSON the web importer accepts, so a phone camera can
@@ -316,13 +305,6 @@ matroska-demuxer = { version = "=0.8.1", optional = true }
 mp4-atom = { version = "=0.17.0", optional = true }
 rav1d = { version = "=1.1.0", optional = true, default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
 libc = { version = "0.2", optional = true }
-# The notification-area (tray) icon and its right-click menu (notifications rung 2, part 2,
-# 2026-10-31, docs/design/notifications.md "The tray"): tauri-apps tray-icon 0.26 (MIT OR
-# Apache-2.0; its menus are its sibling muda, same licence). Default features off: on Linux the
-# default is libappindicator, which needs GTK 3 and the ayatana libraries on the release runner;
-# the `ksni` feature is a StatusNotifierItem over D-Bus in pure Rust instead. On Windows it uses
-# windows-sys and on macOS objc2, both already here through winit.
-tray-icon = { version = "0.26", optional = true, default-features = false, features = ["ksni"] }
 
 # === Platform: WASM ===
 web-sys = { workspace = true, optional = true }
@@ -420,6 +402,40 @@ serialport = { version = "4.9", optional = true }
 # Win32_System_ProcessStatus (2026-11-09, docs/design/embeddable-ai.md rung 1): the AI engine runs in a job
 # object that ends it with the app and caps its memory, at below-normal priority (src/ai/job.rs), and
 # Settings > AI reads this computer's memory and processor cores for its plain notices (src/ai/hardware.rs).
+# === Desktop and phone (Android rung A1, 2026-11-14, docs/design/platforms.md) ===
+# The phone build is this same library compiled for aarch64-linux-android as a cdylib
+# (.github/workflows/build-android.yml, android/README.md). A few desktop pieces have no Android
+# code, so they are declared for every target but Android; the code that uses them is gated the
+# same way and says on screen what the phone lacks (humanity_core::platform::device).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+# The chat socket's TLS on a desktop: the system's own (SChannel, Security framework, OpenSSL).
+tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
+# Cross-platform clipboard access for image paste (Ctrl+V from print-screen
+# captures) — v0.232. Already a transitive dep via egui; declaring directly
+# so we can call get_image() on the clipboard. native feature only.
+arboard = { version = "3", optional = true, default-features = false, features = ["image-data"] }
+# Cross-platform OS keychain wrapper (Windows Credential Manager via DPAPI,
+# macOS Keychain Services, Linux Secret Service / KWallet). Used by the
+# v0.278.0 auto-unlock feature so users can opt into silent startup without
+# typing their full BIP39-derived passphrase every launch. native feature
+# only — relay/wasm builds don't carry an interactive identity.
+keyring = { workspace = true, optional = true }
+# The notification-area (tray) icon and its right-click menu (notifications rung 2, part 2,
+# 2026-10-31, docs/design/notifications.md "The tray"): tauri-apps tray-icon 0.26 (MIT OR
+# Apache-2.0; its menus are its sibling muda, same licence). Default features off: on Linux the
+# default is libappindicator, which needs GTK 3 and the ayatana libraries on the release runner;
+# the `ksni` feature is a StatusNotifierItem over D-Bus in pure Rust instead. On Windows it uses
+# windows-sys and on macOS objc2, both already here through winit.
+tray-icon = { version = "0.26", optional = true, default-features = false, features = ["ksni"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# On a phone the chat socket uses rustls (ring is already its provider through reqwest), with the
+# Mozilla roots compiled in: native-tls there means cross-compiling OpenSSL for Android.
+tungstenite = { version = "0.24", optional = true, features = ["rustls-tls-webpki-roots"] }
+# winit's Android backend: NativeActivity, so the APK needs no Java code and no Gradle (the
+# GameActivity backend's better on-screen keyboard is a later rung, android/README.md).
+winit = { version = "0.30", optional = true, features = ["android-native-activity"] }
+
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, optional = true }
 # UI_Notifications + Data_Xml_Dom (2026-10-30): the operating system's notice for a DM or a mention

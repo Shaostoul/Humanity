@@ -57,6 +57,7 @@
     button_height: 16.0,
     button_padding_h: 8.0,
     button_pad_y: 3.0,
+    touch_target: 44.0,
     input_height: 23.880001,
     sidebar_width: 200.3646,
     card_padding: 6.0,

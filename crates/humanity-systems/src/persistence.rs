@@ -546,7 +546,8 @@ pub fn saves_dir() -> PathBuf {
         }
     }
 
-    #[cfg(target_os = "linux")]
+    // Android (rung A1): HOME is the app's private folder (src/android.rs), the same layout.
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
             return PathBuf::from(xdg)

@@ -6164,6 +6164,49 @@ fn snapshot_music() {
     });
 }
 
+/// The phone's view (Android rung A1, 2026-11-14): a page with the top menu and the bottom strip at
+/// the operator's OnePlus 9 Pro's size, about 412 by 915 points (1440 by 3216 pixels at Android's
+/// scale of 3.5), drawn here at 200% (824 by 1830 pixels) with the phone preview on, so the phone's
+/// touch sizes and its notices are what is drawn. The preview is the process-wide switch, so it is
+/// turned off again even when the render panics (snapshots run single-threaded).
+fn phone_snapshot(name: &str, page: crate::gui::GuiPage) {
+    struct PreviewOff;
+    impl Drop for PreviewOff {
+        fn drop(&mut self) {
+            humanity_core::platform::device::set_phone_preview(false);
+        }
+    }
+    humanity_core::platform::device::set_phone_preview(true);
+    let _off = PreviewOff;
+    render_page_png_at(name, 824, 1830, 200.0, |ctx, theme, state| {
+        state.launcher_last_character = "Ana".to_string();
+        state.launcher_last_world = "home:".to_string();
+        wip_strip_frame(ctx, theme, state, page);
+    });
+}
+
+/// Play on a phone: the world's section holds the notice (what the 3D world needs, what works
+/// instead) where a desktop has Enter the world.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_phone_play() {
+    phone_snapshot("phone_play", crate::gui::GuiPage::Play);
+}
+
+/// Chat on a phone: the three columns and the top menu at about 412 points wide.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_phone_chat() {
+    phone_snapshot("phone_chat", crate::gui::GuiPage::Chat);
+}
+
+/// Settings on a phone: the left list, a section and the touch-sized controls.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_phone_settings() {
+    phone_snapshot("phone_settings", crate::gui::GuiPage::Settings);
+}
+
 /// One organisation for the Organisations snapshots (docs/design/organisations.md): founded by the
 /// signed-in owner, with an admin, a driver, a member who keeps their name to organisers (then
 /// removed by someone who may not), a custom role and an open invitation, so the members, the

@@ -163,6 +163,7 @@
         "engine",
         "save_load",
         "wasm_entry",
+        "android",
         "lib.rs",
         "main.rs",
         "save_load_body_tests",

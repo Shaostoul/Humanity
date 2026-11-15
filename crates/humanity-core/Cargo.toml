@@ -40,7 +40,6 @@ notify = { workspace = true, optional = true }
 memory-stats = { workspace = true, optional = true }
 kira = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
-keyring = { workspace = true, optional = true }
 aes-gcm = { workspace = true, optional = true }
 pbkdf2 = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
@@ -50,6 +49,11 @@ web-sys = { workspace = true, optional = true }
 js-sys = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
+
+# The key store (auto_unlock.rs): not on Android, where keyring has no backend and its in-memory
+# mock would forget the key when the app closes (rung A1, docs/design/platforms.md).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+keyring = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, optional = true }

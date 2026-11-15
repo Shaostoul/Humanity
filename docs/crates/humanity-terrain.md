@@ -27,7 +27,7 @@ both it compiles once and stays built.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-terrain/src/planet_chunks.rs` 4,740 of 4,740, `crates/humanity-terrain/src/grass.rs` 2,558 of 2,640, `crates/humanity-terrain/src/grass_mesh.rs` 948 of 1,000, `crates/humanity-terrain/src/drawn_surface.rs` 1,004 of 1,100, `crates/humanity-terrain/src/water_patches.rs` 317 of 450, `crates/humanity-terrain/src/grass_fields.rs` 238 of 350.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 23, `test-support` 8, `map-build` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 5.
-- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 169, gui 33, renderer 33, systems 7.
+- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 169, renderer 34, gui 33, systems 7.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 283 tests, and this runs exactly them, checked against every test's name:
 
@@ -55,7 +55,7 @@ just test-lib --crate humanity-terrain
 | `plant_mesh` | 4 | engine 2, renderer 2 |
 | `drawn_surface` | 3 | engine 3 |
 
-And 88 more items, 138 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
+And 89 more items, 139 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
 <!-- end generated -->
 
 ## Rules

@@ -271,7 +271,24 @@ impl GuiState {
     }
 
     /// Into the 3D world. Never a step: the history stays on the page you left.
+    ///
+    /// On a phone there is no 3D world yet (Android rung A1): the Play hub opens instead, where
+    /// the world's section says why (`humanity_core::platform::device::Capability::World3d`).
     pub fn enter_world(&mut self) {
+        use humanity_core::platform::device::{has, Capability};
+        self.enter_world_if(has(Capability::World3d));
+    }
+
+    /// [`Self::enter_world`] with whether this device has the 3D world given, so a test can ask
+    /// for a phone's answer without the process-wide phone preview.
+    pub(crate) fn enter_world_if(&mut self, world: bool) {
+        if !world {
+            self.launcher_open_select = false;
+            if self.active_page != GuiPage::Play {
+                self.go(GuiPage::Play, How::Beside);
+            }
+            return;
+        }
         self.note_page_left();
         self.active_page = GuiPage::None;
     }

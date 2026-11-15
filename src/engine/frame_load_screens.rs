@@ -16,6 +16,16 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // Track page before egui frame for cursor grab transitions
     let page_before_frame = state.gui_state.active_page;
 
+    // A phone has no 3D world yet (Android rung A1, humanity_core::platform::device): whatever
+    // asked for it (a key, a notice, a first step) lands on the Play hub, which says why in words,
+    // and the world is never loaded. `GuiState::enter_world` does the same at the click.
+    if state.gui_state.active_page == GuiPage::None
+        && !humanity_core::platform::device::has(humanity_core::platform::device::Capability::World3d)
+    {
+        state.gui_state.launcher_open_select = false;
+        state.gui_state.go(GuiPage::Play, crate::gui::How::Beside);
+    }
+
     // Lazy-load 3D world on first Enter World (code LOD: chat loads fast, 3D loads when needed)
     if state.gui_state.active_page == GuiPage::None && !state.world_loaded {
         load_world(state);

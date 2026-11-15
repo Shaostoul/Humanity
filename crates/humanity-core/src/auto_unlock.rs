@@ -113,10 +113,36 @@ impl KeychainSlot {
     }
 }
 
+/// Android has no key store here yet (rung A1, 2026-11-14): the `keyring` crate has no Android
+/// backend, and without one it falls back to an IN-MEMORY mock that would "remember" the key until
+/// the app closed and then silently forget it. So the phone build has no keyring at all
+/// (Cargo.toml gates it out) and these say so: a stash is refused in words, a load finds nothing
+/// (the passphrase prompt), a clear has nothing to clear. Settings shows why
+/// (`platform::device::Capability::KeyStore`). The Android Keystore through JNI is the real fix.
+#[cfg(target_os = "android")]
+mod no_key_store {
+    use super::KeychainSlot;
+
+    pub fn keychain_stash(_slot: KeychainSlot, _public_key_hex: &str, _bytes: &[u8; 32]) -> Result<(), String> {
+        Err("this phone build cannot remember your key in the device's key store yet; your passphrase still unlocks it".into())
+    }
+
+    pub fn keychain_load(_slot: KeychainSlot, _public_key_hex: &str) -> Result<Option<[u8; 32]>, String> {
+        Ok(None)
+    }
+
+    pub fn keychain_clear(_slot: KeychainSlot, _public_key_hex: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+#[cfg(target_os = "android")]
+pub use no_key_store::{keychain_clear, keychain_load, keychain_stash};
+
 /// Stash 32 bytes in the OS keychain under the given slot+identity.
 /// Returns Err(_) on platform failure (no keyring backend available,
 /// permissions denied, etc.) — caller MUST handle by leaving the user on
 /// the passphrase path.
+#[cfg(not(target_os = "android"))]
 pub fn keychain_stash(slot: KeychainSlot, public_key_hex: &str, bytes: &[u8; 32]) -> Result<(), String> {
     let account = keychain_account(slot, public_key_hex);
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, &account)
@@ -135,6 +161,7 @@ pub fn keychain_stash(slot: KeychainSlot, public_key_hex: &str, bytes: &[u8; 32]
 /// is genuinely absent (user cleared it, new device, etc.) so the caller
 /// can route to the passphrase prompt without treating a missing entry as
 /// an error. Returns Err for actual platform failures.
+#[cfg(not(target_os = "android"))]
 pub fn keychain_load(slot: KeychainSlot, public_key_hex: &str) -> Result<Option<[u8; 32]>, String> {
     let account = keychain_account(slot, public_key_hex);
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, &account)
@@ -158,6 +185,7 @@ pub fn keychain_load(slot: KeychainSlot, public_key_hex: &str) -> Result<Option<
 /// Remove a keychain entry. Used by the Settings "Forget this device"
 /// button and when switching modes. Missing entries are NOT an error
 /// (idempotent).
+#[cfg(not(target_os = "android"))]
 pub fn keychain_clear(slot: KeychainSlot, public_key_hex: &str) -> Result<(), String> {
     let account = keychain_account(slot, public_key_hex);
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, &account)
