@@ -28,6 +28,9 @@ pub mod surface_move;
 pub mod persistence;
 
 pub mod time;
+/// The simulation's seed: a run that must repeat (the soak, the step ladder) starts the systems'
+/// own random streams from it; the windowed game sets none (headless sim runner, 2026-11-15).
+pub mod sim_seed;
 /// The two channels a system speaks to the person on: the world's own lines (held until the person
 /// enters a world) and replies to a page action (shown at once). BUG-258, 2026-11-06.
 pub mod notices;

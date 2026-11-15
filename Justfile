@@ -1289,6 +1289,20 @@ launch-bg:
     @node scripts/dxc-beside-exe.js
     HUMANITY_NO_FOCUS=1 HUMANITY_NO_HANDOFF=1 ./target/release/HumanityOS.exe
 
+# Game days of the homestead's systems stepped in seconds, with no window, no GPU and no
+# listener (the headless sim runner, docs/design/headless-sim-runner.md): `just sim-soak` (7
+# days at the safe step), `just sim-soak --days 30`, `--step 600 --force`, `--report FILE` for
+# the JSON. The release exe, checked fresh first. `just sim-ladder` measures which systems hold
+# at which step and the safe step (data/sim/step_tolerances.ron records it). The Dev page's
+# Simulation section runs the same soak from inside the app.
+sim-soak *args:
+    @node scripts/check-fresh-exe.js --quiet
+    ./target/release/HumanityOS.exe --sim soak {{args}}
+
+sim-ladder *args:
+    @node scripts/check-fresh-exe.js --quiet
+    ./target/release/HumanityOS.exe --sim ladder {{args}}
+
 # Check game code for errors (fast, no binary)
 check-game:
     cargo check --features native

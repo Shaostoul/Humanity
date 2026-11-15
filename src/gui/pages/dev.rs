@@ -163,6 +163,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // ── Music (2026-11-06): the danger knob and what the music is doing ──
             crate::gui::pages::dev_music::draw_card(ui, theme, state);
             ui.add_space(theme.spacing_sm);
+            // ── Simulation (2026-11-15): a week of the homestead with no window or GPU ──
+            crate::gui::pages::dev_sim::draw_card(ui, theme, state);
+            ui.add_space(theme.spacing_sm);
             // ── Characters (2026-11-09): the skeleton overlay ──
             draw_characters_card(ui, theme, state);
             draw_image_card(ui, theme);

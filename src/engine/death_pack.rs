@@ -18,6 +18,7 @@
 use glam::{DQuat, DVec3, Quat, Vec3};
 
 use crate::engine::state::EngineState;
+use crate::gui::GuiState;
 use crate::renderer::RenderObject;
 use humanity_systems::death_pack::{self as dp, items_words, minutes_words, DeathMode, DeathNote, Landing, LeftPack, PackEvent, PackPlace, PackSpot};
 
@@ -33,48 +34,95 @@ pub(crate) struct PackEngine {
     mats: Option<[usize; 2]>,
 }
 
+impl PackEngine {
+    /// A new frame: the celestial loop notes this frame's body frames after this (frame_ecs,
+    /// right before the systems slice; it was the first line of `after_tick`).
+    pub(crate) fn new_frame(&mut self) {
+        self.frames.clear();
+    }
+}
+
 /// One body's placement in render space this frame: its centre and its orientation.
 pub(crate) type BodyAt = (String, DVec3, DQuat);
 
 /// The Death setting as the player has it (Settings > Gameplay > Death).
 fn mode(state: &EngineState) -> DeathMode {
-    DeathMode::from_level(state.gui_state.settings.level("death")).unwrap_or_default()
+    mode_of(&state.gui_state)
 }
 
-/// Right after the systems tick, every frame: a new death, a death that came back with a
-/// save, and the packs' clocks. See the file's header.
-pub(crate) fn after_tick(state: &mut EngineState, dt: f32) {
-    // A new frame: the celestial loop notes this frame's body frames after this.
-    state.death_packs.frames.clear();
-    let cause = state
-        .data_store
+/// [`mode`] on the GUI's state alone.
+fn mode_of(gui: &GuiState) -> DeathMode {
+    DeathMode::from_level(gui.settings.level("death")).unwrap_or_default()
+}
+
+/// Where the player is when the systems tick, for the pack a Realistic death leaves
+/// (`spot_for_death`): read before the tick, plain data and borrowed sources, so the systems
+/// slice (engine/frame_sim.rs, the headless sim runner's increment 2) runs with no
+/// `EngineState`. Only read when a death happens.
+pub(crate) struct FallSite<'a> {
+    /// The body the frame lock holds (the player is on or over its ground), if any.
+    pub lock_body: Option<&'a str>,
+    /// The eye in that body's frame (`EngineState::frame_lock_anchor`).
+    pub lock_anchor: DVec3,
+    /// Where the planets' ground comes from; None in a run with no planet loaded.
+    pub ground: Option<crate::engine::planet_build::GroundSources<'a>>,
+    /// The feet in the ship's own metres.
+    pub feet: Vec3,
+    /// The eye's height over the feet, metres.
+    pub eye_height: f32,
+    /// The floor under the feet (`CameraController::ground_floor`).
+    pub floor_under: f32,
+}
+
+impl<'a> FallSite<'a> {
+    /// A body standing aboard with its eye at `eye` (ship metres) `eye_height` over the floor, no
+    /// planet: a run of the sim with no camera (the homestead stepped by engine/sim_home.rs).
+    pub(crate) fn aboard(eye: Vec3, eye_height: f32) -> Self {
+        let feet = eye - Vec3::Y * eye_height;
+        FallSite { lock_body: None, lock_anchor: DVec3::ZERO, ground: None, feet, eye_height, floor_under: feet.y }
+    }
+}
+
+/// Right after the systems tick, every frame (the systems slice, engine/frame_sim.rs): a new
+/// death, a death that came back with a save, and the packs' clocks. See the file's header.
+/// `site` is where the player is, read only when a Realistic death in the world needs a place
+/// for the pack. (It took `EngineState` until the headless sim runner's increment 2.)
+pub(crate) fn after_tick(
+    world: &mut hecs::World,
+    data: &humanity_core::hot_reload::data_store::DataStore,
+    gui: &mut GuiState,
+    world_loaded: bool,
+    dt: f32,
+    site: &FallSite<'_>,
+) {
+    let cause = data
         .get::<std::sync::Mutex<Option<String>>>("player_death")
         .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
     if let Some(cause) = cause {
-        state.gui_state.player_death_cause = Some(cause);
-        let mode = mode(state);
+        gui.player_death_cause = Some(cause);
+        let mode = mode_of(gui);
         // Out of the world (the menus tick the systems too) there is nowhere to leave it.
-        let spot = if mode == DeathMode::Realistic && state.world_loaded { spot_for_death(state) } else { None };
-        let note = dp::on_death(&mut state.game_world.world, mode, spot);
+        let spot = if mode == DeathMode::Realistic && world_loaded { spot_for_death(site, gui) } else { None };
+        let note = dp::on_death(world, mode, spot);
         if let DeathNote::Left { items, place_words, .. } = &note {
             log::info!("[Death] Realistic: {items} items left in a pack {place_words}");
         }
-        state.gui_state.death_pack.note = Some(note);
+        gui.death_pack.note = Some(note);
     }
-    if state.gui_state.player_death_cause.is_none() {
+    if gui.player_death_cause.is_none() {
         // Alive (respawned, or a living save loaded): no death on screen.
-        state.gui_state.death_pack.note = None;
-        dp::settle(&mut state.game_world.world);
-    } else if state.gui_state.death_pack.note.is_none() {
+        gui.death_pack.note = None;
+        dp::settle(world);
+    } else if gui.death_pack.note.is_none() {
         // A death that came back with a save: quit on the death screen, loaded again.
-        state.gui_state.death_pack.note = Some(dp::note_for_loaded_death(&state.game_world.world, mode(state)));
+        gui.death_pack.note = Some(dp::note_for_loaded_death(world, mode_of(gui)));
     }
     // The packs' clocks count play: in the world and alive, never the menus before it.
-    if state.world_loaded && state.gui_state.player_death_cause.is_none() {
-        let events = dp::count_down(&mut state.game_world.world, f64::from(dt), &state.gui_state.death_pack.rules);
-        let keep = state.gui_state.death_pack.rules.keep_minutes_of_play;
+    if world_loaded && gui.player_death_cause.is_none() {
+        let events = dp::count_down(world, f64::from(dt), &gui.death_pack.rules);
+        let keep = gui.death_pack.rules.keep_minutes_of_play;
         for e in events {
-            state.gui_state.world_notice(pack_notice(&e, keep));
+            gui.world_notice(pack_notice(&e, keep));
         }
     }
 }
@@ -125,14 +173,14 @@ pub(crate) fn pack_notice(e: &PackEvent, keep_minutes: f64) -> String {
 /// to. On or over a body with no ground to walk to near them (no dry ground within the shore
 /// search, or no known surface) the ship's nearest floor too, said as such
 /// (`aboard_landing`). None only with no rooms at all (nothing to stand on has loaded).
-fn spot_for_death(state: &EngineState) -> Option<PackSpot> {
-    let rules = &state.gui_state.death_pack.rules;
+fn spot_for_death(site: &FallSite<'_>, gui: &GuiState) -> Option<PackSpot> {
+    let rules = &gui.death_pack.rules;
     // Set when the frame lock holds a body but no ground on it could take the pack.
     let mut no_ground = false;
-    if let Some(body) = state.frame_lock_body.as_deref() {
-        if let Some(g) = crate::engine::planet_build::Ground::for_body(state, body) {
-            let eye_h = f64::from(state.controller.eye_height());
-            let found = dp::ground_spot(state.frame_lock_anchor, eye_h, rules, |d| {
+    if let Some(body) = site.lock_body {
+        if let Some(g) = site.ground.and_then(|src| src.ground(body)) {
+            let eye_h = f64::from(site.eye_height);
+            let found = dp::ground_spot(site.lock_anchor, eye_h, rules, |d| {
                 let r = g.radius(d);
                 (r, g.under_water(d, r))
             });
@@ -147,20 +195,17 @@ fn spot_for_death(state: &EngineState) -> Option<PackSpot> {
         // No dry ground within the search, or no known surface: the ship's nearest floor.
         no_ground = true;
     }
-    // The camera in the ship's own metres (the home is drawn at home-local + station_off,
-    // aboard and off the station alike: ipc.rs `camera_home_position`).
-    let feet = crate::engine::ipc::camera_home_position(state.camera.position, state.station_off)
-        - Vec3::Y * state.controller.eye_height();
-    let rooms: Vec<(Vec3, Vec3)> = state.gui_state.room_bounds.iter().map(|r| (r.min, r.max)).collect();
+    // The feet in the ship's own metres (`FallSite::feet`).
+    let rooms: Vec<(Vec3, Vec3)> = gui.room_bounds.iter().map(|r| (r.min, r.max)).collect();
     let s = dp::aboard_spot(
         &rooms,
-        feet,
-        state.controller.ground_floor(),
+        site.feet,
+        site.floor_under,
         rules.wall_clearance_m,
         rules.room_slack_m,
         rules.open_space_m,
     )?;
-    let name = state.gui_state.room_bounds.get(s.room).map_or("", |r| r.display_name.as_str());
+    let name = gui.room_bounds.get(s.room).map_or("", |r| r.display_name.as_str());
     Some(PackSpot {
         place: PackPlace::Aboard { at: s.at.to_array() },
         place_words: room_words(name),

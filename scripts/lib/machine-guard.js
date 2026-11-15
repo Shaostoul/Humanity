@@ -139,7 +139,9 @@ const BUILDS = WATCHED.filter((n) => !isGameName(n));
 
 // Windows query. ExecutablePath matters as much as the pid for the game: it is
 // what separates our own rig copy (ours by construction - only sweeps launch
-// from a rig dir) from the operator's game or another agent's rig.
+// from a rig dir) from the operator's game or another agent's rig. CommandLine
+// (2026-11-15) separates a simulation run (`HumanityOS --sim ...`, isSimRun)
+// from a game: same exe, no window and no GPU.
 function psQuery() {
   const filter = WATCHED.concat(OPERATOR_APPS)
     .map((n) => (n === GAME ? `Name LIKE '%${n}'` : `Name='${n}'`))
@@ -147,9 +149,17 @@ function psQuery() {
   return (
     'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter ' +
     `\\"${filter}\\"` +
-    " | ForEach-Object { $_.ProcessId.ToString() + '|' + $_.Name + '|' + $_.ExecutablePath }\""
+    " | ForEach-Object { $_.ProcessId.ToString() + '|' + $_.Name + '|' + $_.ExecutablePath + '|' + $_.CommandLine }\""
   );
 }
+
+/// Is this process a simulation run, `HumanityOS --sim soak` and the like (the headless sim
+/// runner, docs/design/headless-sim-runner.md risk 4, 2026-11-15)? The same exe as the game, but
+/// it opens no window, touches no GPU and binds no listener: the systems stepped on one CPU core
+/// for seconds. It is no game instance and no build, so nothing here counts it (the CPU share
+/// guard still holds it below normal priority). Decided by the command line, the one thing that
+/// tells it from a boot; a process whose command line we may not read is not one (erring loud).
+const isSimRun = (p) => !!p && isGameName(p.name) && /(^|\s)--sim(\s|$)/.test(String(p.cmd || ""));
 
 /// Parse the `pid|name|exe` lines the query prints into records. PURE: the
 /// whole point is that a test can hand it a busy machine without one existing.
@@ -163,11 +173,14 @@ function parseProcs(text) {
     .map((l) => {
       const a = l.indexOf("|");
       const b = l.indexOf("|", a + 1);
-      if (a < 0) return { pid: Number(l), name: "", exe: "" };
+      if (a < 0) return { pid: Number(l), name: "", exe: "", cmd: "" };
       const pid = Number(l.slice(0, a));
       const name = b < 0 ? l.slice(a + 1).trim() : l.slice(a + 1, b).trim();
-      const exe = b < 0 ? "" : l.slice(b + 1).trim();
-      return { pid, name, exe };
+      // The command line is the rest after the third bar: it may hold bars of its own.
+      const c = b < 0 ? -1 : l.indexOf("|", b + 1);
+      const exe = b < 0 ? "" : (c < 0 ? l.slice(b + 1) : l.slice(b + 1, c)).trim();
+      const cmd = c < 0 ? "" : l.slice(c + 1).trim();
+      return { pid, name, exe, cmd };
     })
     .filter((p) => Number.isFinite(p.pid) && p.pid > 0);
 }
@@ -197,9 +210,10 @@ function defaultLister() {
   }
 }
 
-/// Everything the OS can see right now from the watched set.
+/// Everything the OS can see right now from the watched set, less the simulation runs (isSimRun:
+/// no window, no GPU, no build).
 function listProcs() {
-  return parseProcs(lister ? lister() : defaultLister());
+  return parseProcs(lister ? lister() : defaultLister()).filter((p) => !isSimRun(p));
 }
 
 /// Only the game. verify-runtime and verify-screens gate on this: their rule is
@@ -888,6 +902,8 @@ module.exports = {
   WATCHED,
   GAME,
   isGameName,
+  // 2026-11-15: `HumanityOS --sim ...` runs, which no guard counts (headless sim runner risk 4).
+  isSimRun,
   // 2026-10-22: the operator's own GPU-heavy programs: a picture or timing rig waits for
   // them, a behaviour rig runs beside them in low impact (scripts/lib/rig-needs.js).
   OPERATOR_APPS,

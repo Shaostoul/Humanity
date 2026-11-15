@@ -12,7 +12,7 @@
 //! machine with no simulated role, furniture, has none in the windowed game either; the check is
 //! now the power and water machines, and every live machine at its drawn spot.)
 use super::*;
-use crate::engine::sim_boot::{self, SimBootOptions};
+use crate::engine::sim_boot;
 use humanity_core::ecs::components::{Controllable, HomeMachine, MachineInstanceId};
 
 /// The game's data folder, as the windowed game finds it.
@@ -28,23 +28,11 @@ fn scratch_saves(tag: &str) -> std::path::PathBuf {
     dir
 }
 
-/// Boot the sim and enter the homestead the way the windowed game does, with no GPU.
+/// Boot the sim and enter the homestead the way the windowed game does, with no GPU (the same
+/// calls the soak and the day tests make, engine/sim_home.rs `enter`).
 fn enter_homestead(tag: &str) -> (sim_boot::SimBoot, GuiState, WorldSim) {
-    let data_dir = data_dir();
-    let _ = humanity_core::storage::DATA_DIR.set(data_dir.clone());
-    let mut sim = sim_boot::boot(SimBootOptions { data_dir: data_dir.clone(), saves_dir: scratch_saves(tag), config: None });
-    let mut gui = GuiState::default();
-    crate::engine::registries::load_data_registries(&mut sim.data_store, &data_dir);
-    sim_boot::starter_vehicles(&mut sim.game_world, &sim.data_store);
-    let home_save = sim.home_save.take();
-    sim_boot::apply_home_save(&mut sim.game_world, &mut sim.data_store, &mut gui, home_save.as_ref(), &data_dir);
-    let built = build(Parts {
-        data_dir: &data_dir,
-        world: &mut sim.game_world.world,
-        data_store: &mut sim.data_store,
-        gui: &mut gui,
-    });
-    (sim, gui, built)
+    let home = crate::engine::sim_home::enter(&data_dir(), scratch_saves(tag));
+    (home.sim, home.gui, home.built)
 }
 
 #[test]

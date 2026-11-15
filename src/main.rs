@@ -3,6 +3,7 @@
 //! Modes:
 //!   Default (native feature):  Full desktop app (renderer + relay + game)
 //!   --headless:                Server-only mode (relay, no GPU)
+//!   --sim soak | ladder:       The homestead's systems stepped with no window or GPU (native)
 //!
 //! On desktop startup, checks for a newer versioned exe and delegates to it.
 
@@ -24,6 +25,16 @@ fn main() {
     std::hint::black_box(&SOURCE_STAMP);
     let args: Vec<String> = std::env::args().collect();
     let headless = args.iter().any(|a| a == "--headless");
+
+    // ── The simulation runs (2026-11-15, the headless sim runner's increment 2,
+    //    docs/design/headless-sim-runner.md): `--sim soak` steps game days of the homestead's
+    //    systems in seconds and prints a report, `--sim ladder` measures how coarse a step each
+    //    system stands. No window, no GPU, no relay, no listener and no hand-off to a newer exe;
+    //    saves only in a scratch folder. Run and exit before anything else starts. ──
+    #[cfg(feature = "native")]
+    if args.iter().any(|a| a == "--sim") {
+        std::process::exit(humanity_engine::engine::sim_soak::cli_main(&args));
+    }
 
     // ── Operator-only release-signing tooling (native builds). Runs + exits
     //    before any window/relay startup AND before find_newer_exe delegation.

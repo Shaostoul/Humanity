@@ -116,6 +116,9 @@ pub mod browser;
 pub mod dev;
 /// The Dev page's Music card: the danger knob and what the music is doing (2026-11-06).
 pub mod dev_music;
+/// The Dev page's Simulation card: a week of the homestead stepped with no window or GPU, the
+/// in-app twin of `HumanityOS --sim soak` (2026-11-15).
+pub mod dev_sim;
 pub mod planet_tuner;
 // Resource budgets increment 1: the live GPU/CPU/VRAM/RAM pies, shown as a
 // section of the Dev tab (the page-sized sibling of the F2 overlay).

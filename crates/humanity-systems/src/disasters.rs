@@ -142,6 +142,8 @@ pub struct DisasterSystem {
     active_disasters: Vec<ActiveDisaster>,
     /// Random number generator.
     rng: StdRng,
+    /// Whether the first tick has looked for the run's seed (`sim_seed`, 2026-11-15).
+    seed_checked: bool,
     /// Pending chain-reaction disasters to spawn next tick.
     pending_chains: Vec<ActiveDisaster>,
 }
@@ -153,6 +155,7 @@ impl DisasterSystem {
             elapsed: 0.0,
             active_disasters: Vec::new(),
             rng: StdRng::from_os_rng(),
+            seed_checked: false,
             pending_chains: Vec::new(),
         }
     }
@@ -296,7 +299,13 @@ impl System for DisasterSystem {
         "DisasterSystem"
     }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
+        if !self.seed_checked {
+            self.seed_checked = true;
+            if let Some(seed) = crate::sim_seed::for_system(data, crate::sim_seed::DISASTERS) {
+                self.rng = StdRng::seed_from_u64(seed);
+            }
+        }
         // Drain pending chain reactions into active list.
         self.active_disasters.append(&mut self.pending_chains);
 

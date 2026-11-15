@@ -27,7 +27,7 @@ both it compiles once and stays built.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-terrain/src/planet_chunks.rs` 4,713 of 4,740, `crates/humanity-terrain/src/grass.rs` 2,558 of 2,640, `crates/humanity-terrain/src/grass_mesh.rs` 948 of 1,000, `crates/humanity-terrain/src/drawn_surface.rs` 1,004 of 1,100, `crates/humanity-terrain/src/water_patches.rs` 317 of 450, `crates/humanity-terrain/src/grass_fields.rs` 238 of 350.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 23, `test-support` 8, `map-build` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 5.
-- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 171, renderer 38, gui 33, systems 7.
+- **May be used by** (the plan): systems, relay, renderer, gui, engine. **Used today by:** engine 175, renderer 38, gui 33, systems 7.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 290 tests, and this runs exactly them, checked against every test's name:
 
@@ -39,13 +39,13 @@ just test-lib --crate humanity-terrain
 
 | Item | References | From |
 |---|---:|---|
+| `planet_heightmap::PlanetHeightmap` | 18 | engine 17, systems 1 |
 | `planet::PlanetDef` | 17 | engine 13, systems 2, gui 1, renderer 1 |
-| `planet_heightmap::PlanetHeightmap` | 17 | engine 16, systems 1 |
 | `tree_registry::registry` | 9 | engine 6, renderer 3 |
+| `ocean_mask::OceanMask` | 8 | engine 7, systems 1 |
 | `planet_chunks::DetailNoise` | 8 | engine 8 |
-| `ocean_mask::OceanMask` | 7 | engine 6, systems 1 |
+| `terrain_tiles::TerrainTiles` | 8 | engine 7, systems 1 |
 | `planet_chunks` | 7 | engine 6, systems 1 |
-| `terrain_tiles::TerrainTiles` | 7 | engine 6, systems 1 |
 | `icosphere::Icosphere` | 6 | engine 5, renderer 1 |
 | `osm_region::dir_to_latlon_f64` | 4 | engine 4 |
 | `planet_albedo::PlanetAlbedo` | 4 | engine 4 |
@@ -55,7 +55,7 @@ just test-lib --crate humanity-terrain
 | `plant_mesh` | 4 | engine 2, renderer 2 |
 | `drawn_surface` | 3 | engine 3 |
 
-And 95 more items, 144 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
+And 95 more items, 145 references (`node scripts/crate-cards.js --interface humanity-terrain` lists them all).
 <!-- end generated -->
 
 ## Rules

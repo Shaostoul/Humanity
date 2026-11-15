@@ -5728,6 +5728,28 @@ restart.
 
 ## Developer Tooling
 
+### The simulation soak: game days of the homestead in seconds, no window or GPU (2026-11-15)
+The headless sim runner's increment 2 (`docs/design/headless-sim-runner.md`). The world's
+systems step from the simulation's own parts, `frame_sim::systems_slice` (`src/engine/frame_sim.rs`),
+the one step the windowed frame's ECS stage (`frame_ecs.rs`), the soak and the no-GPU tests all
+run. `src/engine/sim_home.rs` enters the homestead the way the game does (sim_boot, the
+registries, the save's progress, world_sim::build), plants the opening quest's tower and reads
+every system's quantities by name (the clock, the body's needs, the crops, the batteries, the
+tanks, the home's air, home storage, the herd). `HumanityOS --sim soak [--days N] [--step S]
+[--force] [--report FILE]` (`just sim-soak`, `src/engine/sim_soak.rs`) steps N game days at the
+safe step and prints days per second, each system's state at the end of every day and the step's
+measured error against a fine step; a step past the safe one is refused without `--force`.
+`--sim ladder` (`just sim-ladder`) steps one span at 10, 60, 600 and 3,600 s against 1 s and says
+which systems hold at which step; the tolerances and the safe step are data,
+`data/sim/step_tolerances.ron`. Two runs give identical reports; the run's seed
+(`crates/humanity-systems/src/sim_seed.rs`) starts the weather's and the disasters' random
+streams, for the planet runs to come (the homestead aboard sees no weather).
+The machine guard does not count a `--sim` run as a game (`scripts/lib/machine-guard.js`
+`isSimRun`). In the app: Dev > Simulation, Run a week (`src/gui/pages/dev_sim.rs`), the same
+command as a separate low-priority process, its report on the card. Tests:
+`src/engine/frame_sim_tests.rs` (a game day with no GPU, the split-step test at the frame's dt,
+the ladder holding the recorded safe step, repeat runs), `tests/sim_gpu_free_lint.rs`.
+
 ### The play journal and F8, Mark this moment (2026-10-24, rung 1 of docs/design/play-journal.md)
 While the game runs it keeps what happened, by kind, in small capped files in a `journal` folder
 beside its logs (the operator's install: %APPDATA%/HumanityOS/journal): `log` (every warning and

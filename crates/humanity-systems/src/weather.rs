@@ -281,6 +281,9 @@ pub struct WeatherSystem {
     env: BodyEnvironment,
     /// Random number generator (Send + Sync compatible).
     rng: StdRng,
+    /// Whether the first tick has looked for the run's seed (`sim_seed`, 2026-11-15): a run that
+    /// must repeat restarts `rng` from it; the windowed game sets none and keeps the entropy.
+    seed_checked: bool,
 }
 
 impl WeatherSystem {
@@ -309,6 +312,7 @@ impl WeatherSystem {
             active_gust_mps: 0.0,
             env: BodyEnvironment::default(),
             rng: StdRng::from_os_rng(),
+            seed_checked: false,
         }
     }
 
@@ -493,6 +497,12 @@ impl System for WeatherSystem {
     }
 
     fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
+        if !self.seed_checked {
+            self.seed_checked = true;
+            if let Some(seed) = crate::sim_seed::for_system(data, crate::sim_seed::WEATHER) {
+                self.rng = StdRng::seed_from_u64(seed);
+            }
+        }
         // Determine current season + hour from the GameTime that TimeSystem
         // exports into the DataStore (behind a Mutex); fall back to Spring
         // noon if absent. The hour feeds the day/night temperature swing on

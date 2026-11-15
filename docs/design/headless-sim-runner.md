@@ -2,7 +2,7 @@
 
 The operator, 2026-10-22: "The simpler we make it for you to sim gameplay at rates beyond human
 comprehension. I can handle maybe 3x speed comfortably. Could you do 1-billion-x?" This is the
-design (a planning agent's, read-only, from the code at v0.1543.x). Increments 0 and 1 are built;
+design (a planning agent's, read-only, from the code at v0.1543.x). Increments 0, 1 and 2 are built;
 what is built, and what the frame's file-size split (2026-11-14) already did for increments 2 and
 3, is in "Built so far" after the increments. The line numbers in sections 1 and 2 are the v0.1543
 lib.rs's, kept as the record of what was tangled; that file is now a dispatcher and the frame is
@@ -181,7 +181,7 @@ The windowed rigs still run in each release batch.
 |---|---|---|---|
 | 0 | **Built 2026-10-30.** Measure: stage timers around the walk aboard, the planet walk, the bridges, the settles | numbers in this doc; the untimed part of `frame_total` shrinks | 0.5 d |
 | 1 | **Built 2026-11-15.** Setup split: `engine::sim_boot` and `engine::world_sim::build` (GPU uploads stay in `world_load`) | windowed game unchanged (verify-runtime, verify-storeys); a lib test builds the homestead with no GPU | 3 d |
-| 2 | Systems slice and the first headless value: lib.rs 5770-6721 into `frame_sim::systems_slice`; `--sim soak`; sim seeds | a 7-day soak in seconds; the dt ladder report; the split-step test over every system; byte-identical repeat runs | 2-3 d |
+| 2 | **Built 2026-11-15** (the ECS stage; the bridges stay for increment 3). Systems slice and the first headless value: lib.rs 5770-6721 into `frame_sim::systems_slice`; `--sim soak`; sim seeds | a 7-day soak in seconds; the dt ladder report; the split-step test over every system; byte-identical repeat runs | 2-3 d |
 | 3 | Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
 | 4 | `gpu: Option<Gpu>`, `EngineState::boot(opts, gpu)`; sim-side mesh creation becomes dirty flags | `--sim` enters the homestead and walks with no EventLoop and no wgpu Instance; windowed rigs green | 3-5 d |
 | 5 | Transport and headless rigs (the `Verb` table, stdin JSON lines, `--headless` on verify-storeys and verify-falls aboard) | headless and windowed verdicts agree (75/75); the floorless sandbox fails headless too | 3 d |
@@ -249,13 +249,72 @@ showcase poll is still in the present branch), and no `FrameClock` exists. Incre
 "lib.rs 5770-6721", is now `frame_bridges.rs`, `frame_bridges_npc.rs` and `frame_ecs.rs`; inside
 `frame_ecs::run` the tick itself (`world_hold::tick`) already takes only the sim's parts.
 
-**Increment 2, the first step**: make `frame_ecs::run`'s body a function of the sim's parts
-(`frame_sim::systems_slice(system_runner, world, data_store, gui, dt)`), refactoring the five calls
-in it that still take `EngineState` the way increment 1 did (a parts function, the state one
-calling it): `stock_piles::publish_home_stock`, `take_consumed_home_stock`,
-`receive_machine_outputs`, `age_home_storage` and `death_pack::after_tick`. Then a lib test that
-enters the homestead as `world_sim_tests.rs` does and steps `systems_slice` through a game day,
-and `HumanityOS --sim soak` in main.rs driving the same calls.
+**Increment 2, the systems slice and the first headless value** (2026-11-15). The ECS stage's
+body is `frame_sim::systems_slice(SimParts { runner, world, data, gui, world_loaded }, dt, &FallSite)`
+(`src/engine/frame_sim.rs`), the one step the windowed frame (`frame_ecs.rs`), the soak and the
+no-GPU tests run. The five calls in it that took `EngineState` take the parts
+(`stock_piles::publish_home_stock`, `take_consumed_home_stock`, `receive_machine_outputs`,
+`age_home_storage`, `death_pack::after_tick`); their state versions had no other caller and are
+gone. Where the player stands for a Realistic death's pack is `death_pack::FallSite` (the frame
+lock, the camera's feet, `planet_build::GroundSources` borrowed field by field), read before the
+step. The order audit: the packs' per-frame body list is cleared before the tick instead of after
+it, and the fall site is read before the tick instead of after; nothing between reads either.
+
+- `src/engine/sim_home.rs`: the homestead entered as the game enters it (stepping into the world
+  as `showroom_confirm` does: without it the systems are held, BUG-253, and nothing moves), the
+  opening quest's tower planted as the Plant button plants it, and every system's quantities read
+  by name (`OBSERVABLES`: clock, body, crops, batteries, tanks, air, storage, herd).
+- `src/engine/sim_soak.rs`: `HumanityOS --sim soak [--days N] [--step S] [--force]` and `--sim
+  ladder` (`just sim-soak`, `just sim-ladder`; main.rs dispatches before any window, relay or
+  hand-off). Each run is a fresh homestead on its own thread, scratch saves, the run's seed
+  (`humanity_systems::sim_seed`: the weather's and the disasters' streams; the thread-shared draws
+  are listed there as not yet seeded). The tolerances, the ladder, the check step and the safe step
+  are `data/sim/step_tolerances.ron`: a quantity holds within `abs` plus `rel` times how far it
+  moved at the reference step. The Dev page's Simulation card runs the soak as a separate process
+  (`src/gui/pages/dev_sim.rs`); the ladder is CLI debt (`docs/design/in-app-ops.md`). The machine
+  guard does not count a `--sim` run (`isSimRun`, risk 4).
+- Tests (`src/engine/frame_sim_tests.rs`): a game day at the safe step with no GPU; the split-step
+  test, two minutes at the frame's 1/60 s against 1, 10 and 60 s; the ladder holding the recorded
+  safe step over two hours; two runs of one seed identical over a day; the refusal of a step past
+  the safe one. The split-step test's first run found **BUG-314**: every load the air step drives
+  spawned at its full draw and the electrical sim integrates before the air step writes it, so a
+  world's first step billed 3.1 kW of air handlers for the whole step (522 Wh at 600 s, most of what
+  the ladder had first blamed on the 600 s step); they start idle now.
+
+**Measured** (release build, i7-8700K, one core, 2026-11-15):
+
+| Run | Steps | Wall time | |
+|---|---|---|---|
+| Ladder, 24 h at the 1 s reference | 86,400 | 38.0 s | 0.44 ms a step |
+| 24 h at 10 s / 60 s / 600 s / 3,600 s | 8,640 / 1,440 / 144 / 24 | 3.75 / 0.63 / 0.063 / 0.012 s | |
+| **7-day soak at the 600 s safe step** | 1,008 | **0.45 s** | **15.7 game days a second, 1.36 million x real time** |
+| The soak's error check: its first day again at 10 s | 8,640 | 3.8 s | |
+
+The whole 7-day soak, entry and error check included, took 4.5 s of wall time. Entering the
+homestead takes 0.08 s. The ladder over a day: every quantity holds at 10, 60 and 600 s; at
+3,600 s the batteries are off by 408 Wh (255.6 allowed: the sun sampled once an hour, the
+design's "staircase dawn"), so **the safe step is 600 s**, and the soak's measured error at it is
+47.6 Wh on the batteries (255.6 allowed), 0.13 L on the tanks, 0.012 on crop health and nothing
+measurable elsewhere. Two runs give identical reports, with or without the seed: the homestead
+aboard sees no weather (the weather's clouds reach solar panels and bodies on a planet's ground),
+so the seed is for the planet runs to come. What the 7 days show of the
+untouched homestead: the batteries fill on day 1 and hold, the tanks fill by day 3, the crops
+grow every second, the body goes without a drink and dies of dehydration 2.6 game days in
+(nobody drinks in an untouched run; the report says so), and the herd says it has nothing to eat.
+
+**Not yet in the soak** (the bridges, `frame_bridges.rs` and `frame_bridges_npc.rs`, still take
+`EngineState`): the body's per-frame environment (`survival_env::publish`: the sealed home's air
+around the body, the felt gravity; the soak's body keeps what the boot gave it) and the GUI's
+requests (eat, drink, plant, craft) except the planting the soak makes itself. The Settings levels
+(body heat, illness, animal care, death) are published once at the soak's entry
+(`survival_env::publish_levels`), the garden levels by `sim_boot::apply_home_save`.
+
+**Increment 3, the first step**: the bridges' world-feeding half on the sim's parts as
+`frame_sim::bridges_slice` (`survival_env::publish`'s environment with the body's position and
+gait as plain values, `frame_lock::publish_body_environment`, the eat, drink, use, plant and craft
+request bridges), run by the windowed frame and by `Homestead::step` before `systems_slice`, so
+the soak's body breathes the home's air the frame publishes and a soak script can eat and drink;
+then `FrameClock` and the frame split proper.
 
 ## Risks
 

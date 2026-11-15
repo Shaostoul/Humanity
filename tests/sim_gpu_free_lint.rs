@@ -12,15 +12,32 @@
 //! - the windowed game calls them where it builds the world (lib.rs `resumed`, world_load.rs
 //!   `load_world`), and lib.rs registers no system of its own, so there is no second setup to drift.
 //!
+//! - the frame's ECS stage steps the systems through `frame_sim::systems_slice` and ticks nothing
+//!   itself (increment 2), so the soak and the windowed game run one step.
+//!
 //! Seen red 2026-11-15: with `use crate::engine::state::EngineState;` added to world_sim.rs it
 //! failed "src/engine/world_sim.rs line 20 names `EngineState`"; with `if headless {}` added to
-//! sim_boot.rs's `boot`, "src/engine/sim_boot.rs line 65 names `headless`".
+//! sim_boot.rs's `boot`, "src/engine/sim_boot.rs line 65 names `headless`". Increment 2's checks,
+//! the same day: an `EngineState` field planted in frame_sim.rs's `SimParts` failed "frame_sim.rs
+//! line 24 names `EngineState`", and a second `world_hold::tick(` planted in frame_ecs.rs failed
+//! "frame_ecs.rs calls `world_hold::tick(` itself".
 
 use std::fs;
 use std::path::PathBuf;
 
 /// The simulation side's files: built with no GPU.
-const SIM_FILES: &[&str] = &["src/engine/sim_boot.rs", "src/engine/world_sim.rs", "src/engine/world_sim_tests.rs"];
+/// Increment 2 (2026-11-15) added the systems slice, `frame_sim.rs`, one step of the systems on
+/// the sim's parts, and `sim_home.rs` and `sim_soak.rs`, the homestead entered and stepped and
+/// the `--sim soak` run.
+const SIM_FILES: &[&str] = &[
+    "src/engine/sim_boot.rs",
+    "src/engine/world_sim.rs",
+    "src/engine/world_sim_tests.rs",
+    "src/engine/frame_sim.rs",
+    "src/engine/frame_sim_tests.rs",
+    "src/engine/sim_home.rs",
+    "src/engine/sim_soak.rs",
+];
 
 /// Words that mean the GPU, the window, the GUI's painter, or the state that holds them. Matched
 /// as whole identifiers in code, comments stripped.
@@ -91,4 +108,17 @@ fn the_windowed_game_builds_its_world_through_the_sim_side() {
         world_load.contains("world_sim::build("),
         "world_load.rs `load_world` no longer builds the home's simulation through `world_sim::build`"
     );
+    // The windowed frame steps the systems through the slice (increment 2), and the slice alone
+    // ticks them: no second copy of the step in the frame's ECS stage.
+    let frame_ecs = read("src/engine/frame_ecs.rs");
+    assert!(
+        frame_ecs.lines().any(|l| code_of(l).contains("frame_sim::systems_slice(")),
+        "frame_ecs.rs no longer steps the systems through `frame_sim::systems_slice`: the windowed game and the soak would drift apart"
+    );
+    for word in ["world_hold::tick(", ".tick("] {
+        assert!(
+            !frame_ecs.lines().any(|l| code_of(l).contains(word)),
+            "frame_ecs.rs calls `{word}` itself: the systems are ticked inside `frame_sim::systems_slice` only"
+        );
+    }
 }

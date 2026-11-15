@@ -43,15 +43,37 @@ const foreignIn = (text, own = OWN) => withFake(text, () => MG.foreignProcs(own)
 test("parseProcs reads pid, name and exe out of the query output", () => {
   const rows = MG.parseProcs(`4242|HumanityOS.exe|${RIG_EXE}\r\n9001|rustc.exe|${RUSTC}\r\n`);
   assert.deepStrictEqual(rows, [
-    { pid: 4242, name: "HumanityOS.exe", exe: RIG_EXE },
-    { pid: 9001, name: "rustc.exe", exe: RUSTC },
+    { pid: 4242, name: "HumanityOS.exe", exe: RIG_EXE, cmd: "" },
+    { pid: 9001, name: "rustc.exe", exe: RUSTC, cmd: "" },
   ]);
 });
 
 test("parseProcs survives a process whose path we cannot read", () => {
   // Win32_Process returns an empty ExecutablePath for a process the query
   // cannot open. It still counts: erring loud is correct here.
-  assert.deepStrictEqual(MG.parseProcs("9001|cargo.exe|"), [{ pid: 9001, name: "cargo.exe", exe: "" }]);
+  assert.deepStrictEqual(MG.parseProcs("9001|cargo.exe|"), [{ pid: 9001, name: "cargo.exe", exe: "", cmd: "" }]);
+});
+
+// A SIMULATION RUN (2026-11-15, docs/design/headless-sim-runner.md risk 4): `HumanityOS --sim soak`
+// is the game's own exe stepping the systems with no window, no GPU and no listener. Counted as a
+// game instance it would hold every rig for the seconds it runs (and refuse verify-runtime
+// outright); the command line, the fourth field, is what tells it from a boot.
+// Red check, run 2026-11-15 with listProcs's isSimRun filter removed: "a --sim run was counted as
+// a HumanityOS instance" ([4242, 6060] against [4242]).
+test("a --sim run is no game instance, by its command line", () => {
+  const SIM = `6060|HumanityOS.exe|${FOREIGN_EXE}|"${FOREIGN_EXE}" --sim soak --days 7`;
+  const rows = MG.parseProcs(SIM);
+  assert.deepStrictEqual(rows, [{ pid: 6060, name: "HumanityOS.exe", exe: FOREIGN_EXE, cmd: `"${FOREIGN_EXE}" --sim soak --days 7` }]);
+  assert.strictEqual(MG.isSimRun(rows[0]), true);
+  withFake(`${CLEAN}\n${SIM}`, () => {
+    assert.deepStrictEqual(MG.listInstances().map((p) => p.pid), [4242], "a --sim run was counted as a HumanityOS instance");
+    assert.deepStrictEqual(foreignIn(`${CLEAN}\n${SIM}`).map((p) => p.pid), [], "a --sim run held a rig as a contender");
+  });
+  // A boot is still a boot: a game with no command line we can read, or other flags, counts.
+  for (const cmd of ["", `"${FOREIGN_EXE}"`, `"${FOREIGN_EXE}" --simulate`, `"${FOREIGN_EXE}" --headless`]) {
+    assert.strictEqual(MG.isSimRun({ pid: 1, name: "HumanityOS.exe", exe: FOREIGN_EXE, cmd }), false, `isSimRun(${JSON.stringify(cmd)})`);
+  }
+  assert.strictEqual(MG.isSimRun({ pid: 1, name: "rustc.exe", exe: RUSTC, cmd: "rustc --sim" }), false, "only the game's exe is a sim run");
 });
 
 test("the watch list covers the game and the build tools, and nothing idle", () => {

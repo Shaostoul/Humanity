@@ -162,22 +162,28 @@ fn fire_warmth(state: &EngineState) -> f64 {
     fires::warmth_at(&state.game_world.world, registry, body, middle, up)
 }
 
-/// Once per frame: publish the survival context, the body heat mode and the
-/// illness mode (BUG-162, `systems::illness`).
-pub(crate) fn publish(state: &mut EngineState) {
-    // Each level of Settings > Gameplay (data/gameplay/levels.json, 2026-11-11) into its system's
-    // mode; a level the system does not know plays as the system's default.
-    let levels = &state.gui_state.settings;
+/// Each level of Settings > Gameplay (data/gameplay/levels.json, 2026-11-11) into its system's
+/// mode; a level the system does not know plays as the system's default. The first part of
+/// `publish`, on the sim's parts, so the soak's systems play the person's levels too (published
+/// once at its entry, engine/sim_home.rs; the headless sim runner's increment 2).
+pub(crate) fn publish_levels(gui: &crate::gui::GuiState, data: &mut humanity_core::hot_reload::data_store::DataStore) {
+    let levels = &gui.settings;
     let mode = body_heat::Mode::from_level(levels.level("body_heat")).unwrap_or_default();
     let illness = humanity_systems::illness::Mode::from_level(levels.level("illness")).unwrap_or_default();
     // Farm animals (2026-10-12, first-hour audit S6): what neglect does to them.
     let animals = humanity_systems::animal_care::Mode::from_level(levels.level("animal_care")).unwrap_or_default();
     // Death (2026-11-11): Off holds the player's health at its floor in the systems that take it.
     let death = humanity_systems::death_pack::DeathMode::from_level(levels.level("death")).unwrap_or_default();
-    state.data_store.insert(body_heat::MODE_KEY, mode);
-    state.data_store.insert(humanity_systems::illness::MODE_KEY, illness);
-    state.data_store.insert(humanity_systems::animal_care::MODE_KEY, animals);
-    state.data_store.insert(humanity_systems::death_pack::MODE_KEY, death);
+    data.insert(body_heat::MODE_KEY, mode);
+    data.insert(humanity_systems::illness::MODE_KEY, illness);
+    data.insert(humanity_systems::animal_care::MODE_KEY, animals);
+    data.insert(humanity_systems::death_pack::MODE_KEY, death);
+}
+
+/// Once per frame: publish the survival context, the body heat mode and the
+/// illness mode (BUG-162, `systems::illness`).
+pub(crate) fn publish(state: &mut EngineState) {
+    publish_levels(&state.gui_state, &mut state.data_store);
 
     // The air where the player stands: temperature, humidity, wind, what is
     // falling and the pressure, all from the weather's at-player export

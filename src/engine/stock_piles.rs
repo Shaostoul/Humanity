@@ -180,7 +180,12 @@ pub fn rack_slots(origin: Vec3, size: Vec3, filler: &humanity_ship::structure::Z
 /// Labels of the home's storage zones ("Barn"): a place in the organize tree
 /// with the same label is where that zone's stock is filed.
 fn storage_room_labels(state: &crate::engine::state::EngineState) -> Vec<String> {
-    let Some(ship) = state.gui_state.ship_structure.as_ref() else {
+    storage_rooms_of(&state.gui_state)
+}
+
+/// [`storage_room_labels`] on the GUI's state alone.
+fn storage_rooms_of(gui: &crate::gui::GuiState) -> Vec<String> {
+    let Some(ship) = gui.ship_structure.as_ref() else {
         return Vec::new();
     };
     let Some(home) = ship.zones.get(ship.home_zone_index()) else {
@@ -225,26 +230,25 @@ pub fn in_storage_room(places: &[crate::gui::Place], path: &str, rooms: &[String
 /// Hand-made goods the backpack could not take (BUG-147, the
 /// `crafting::home_store::HAND_MADE_TO_STORAGE` channel) are filed the same
 /// way, keeping the grade the crafter gave them.
-pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineState) {
-    let made: Vec<(String, u32)> = state
-        .data_store
+/// On the sim's parts since the headless sim runner's increment 2 (2026-11-15): the systems
+/// slice, engine/frame_sim.rs, runs it with no `EngineState`.
+pub(crate) fn receive_machine_outputs(data: &humanity_core::hot_reload::data_store::DataStore, gui: &mut crate::gui::GuiState) {
+    let made: Vec<(String, u32)> = data
         .get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs")
         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
         .unwrap_or_default();
-    let hand_made: Vec<(String, u32, u8)> = state
-        .data_store
+    let hand_made: Vec<(String, u32, u8)> = data
         .get::<std::sync::Mutex<Vec<(String, u32, u8)>>>(humanity_systems::crafting::home_store::HAND_MADE_TO_STORAGE)
         .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
         .unwrap_or_default();
     if made.is_empty() && hand_made.is_empty() {
         return;
     }
-    let rooms = storage_room_labels(state);
-    let container = store_path(&state.gui_state.places, &rooms).unwrap_or_else(|| "Home".to_string());
-    let reg = state.data_store.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
+    let rooms = storage_rooms_of(gui);
+    let container = store_path(&gui.places, &rooms).unwrap_or_else(|| "Home".to_string());
+    let reg = data.get::<humanity_systems::inventory::ItemRegistry>("item_registry");
     // A machine turns out standard goods (2026-09-26, crafting::quality).
-    let standard = state
-        .data_store
+    let standard = data
         .get::<humanity_systems::crafting::quality::QualityLevels>("quality_levels")
         .map_or(0, |l| l.standard());
     let made = made.into_iter().map(|(id, qty)| {
@@ -252,7 +256,7 @@ pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineSt
         (id, qty, quality)
     });
     for (id, qty, quality) in made.chain(hand_made) {
-        let pool = &mut state.gui_state.placed_items;
+        let pool = &mut gui.placed_items;
         if let Some(p) = pool
             .iter_mut()
             .find(|p| p.key == id && p.container == container && p.wear == 0 && p.quality == quality)
@@ -276,23 +280,27 @@ pub(crate) fn receive_machine_outputs(state: &mut crate::engine::state::EngineSt
 ///
 /// KNOWN GAP: a chest built on a planet is aged by the home's air too; what the planet's
 /// own air does to it is not modelled per chest yet.
-pub(crate) fn age_home_storage(state: &mut crate::engine::state::EngineState) {
+/// On the sim's parts (the systems slice, engine/frame_sim.rs).
+pub(crate) fn age_home_storage(
+    world: &mut hecs::World,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
+    placed: &mut [humanity_systems::inventory::placed::PlacedItem],
+) {
     use std::sync::Mutex;
     let key = humanity_systems::food::STORAGE_AGING_KEY;
-    if state.data_store.get::<Mutex<f64>>(key).is_none() {
-        state.data_store.insert(key, Mutex::new(0.0_f64));
+    if data.get::<Mutex<f64>>(key).is_none() {
+        data.insert(key, Mutex::new(0.0_f64));
         return;
     }
-    let secs = state
-        .data_store
+    let secs = data
         .get::<Mutex<f64>>(key)
         .and_then(|m| m.lock().ok().map(|mut owed| std::mem::take(&mut *owed)))
         .unwrap_or(0.0);
     let food = humanity_systems::food::consume_kinds();
-    humanity_systems::inventory::placed::age_food(&mut state.gui_state.placed_items, secs, |k| food.contains_key(k));
+    humanity_systems::inventory::placed::age_food(placed, secs, |k| food.contains_key(k));
     // And in a pack left where the player fell (2026-10-04, systems::death_pack), at the same
     // rate: aboard that is the ship's air; on a planet, the planet chest's known gap above.
-    humanity_systems::death_pack::age_food(&mut state.game_world.world, secs, |k| food.contains_key(k));
+    humanity_systems::death_pack::age_food(world, secs, |k| food.contains_key(k));
 }
 
 /// Home storage for this tick (v0.737 for the automated machines; the build
@@ -301,10 +309,14 @@ pub(crate) fn age_home_storage(state: &mut crate::engine::state::EngineState) {
 /// and draw on, and kept on the GUI for the Crafting page. A chest built on a
 /// planet is left out: it is the player's, but what it holds is on that
 /// planet, not in the home. Returns the snapshot, for
-/// [`take_consumed_home_stock`] after the tick.
-pub(crate) fn publish_home_stock(state: &mut crate::engine::state::EngineState) -> std::collections::HashMap<String, u32> {
-    let stock = publish_stock(&state.game_world.world, &mut state.data_store, &state.gui_state.placed_items);
-    state.gui_state.home_stock = stock.clone();
+/// [`take_consumed_home_stock`] after the tick. On the sim's parts (engine/frame_sim.rs).
+pub(crate) fn publish_home_stock(
+    world: &hecs::World,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
+    gui: &mut crate::gui::GuiState,
+) -> std::collections::HashMap<String, u32> {
+    let stock = publish_stock(world, data, &gui.placed_items);
+    gui.home_stock = stock.clone();
     stock
 }
 
@@ -325,10 +337,12 @@ pub(crate) fn publish_stock(
 /// "home_stock" map from `before`) comes out of the placed containers, so the
 /// two layers agree. First-found first; emptied stacks disappear.
 pub(crate) fn take_consumed_home_stock(
-    state: &mut crate::engine::state::EngineState,
+    world: &hecs::World,
+    data: &humanity_core::hot_reload::data_store::DataStore,
+    gui: &mut crate::gui::GuiState,
     before: &std::collections::HashMap<String, u32>,
 ) {
-    take_stock(&state.game_world.world, &state.data_store, &mut state.gui_state.placed_items, before);
+    take_stock(world, data, &mut gui.placed_items, before);
 }
 
 /// [`take_consumed_home_stock`] on its parts.

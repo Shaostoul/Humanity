@@ -2554,6 +2554,15 @@
     "feet_on_world_hint": "Puts every person's feet on the floor, stair or slope under them (the animation mode in Settings says how). Turn it off to see bodies as their animations alone draw them, feet sinking or floating, to compare. With Show skeletons on, each planted foot's spot on the ground is marked too.",
     "image": "Image",
     "taa_view_hint": "Shows what temporal anti-aliasing sees instead of the picture.",
+    "sim": {
+      "about": "Steps a fresh copy of the homestead through game days in seconds, with no window and no graphics card, and reports what each system holds at the end of each day: the clock, the body's needs, the crops, the batteries, the water and the air. It runs as a separate program; your own game and saves are not touched.",
+      "done": "The soak finished",
+      "failed": "The soak did not finish. What it said:",
+      "run": "Run a week",
+      "run_hint": "Starts a soak: 7 game days of a fresh homestead at the safe step, as a separate program at low priority. The report appears here when it finishes, with how far off the step was against a fine one.",
+      "running": "Running a week of the homestead:",
+      "title": "Simulation"
+    },
     "taa_view": {
       "picture": "Picture",
       "motion": "Motion",

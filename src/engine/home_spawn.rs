@@ -370,6 +370,24 @@ pub(crate) fn spawn_home_machine_entity(
             let _ = world.insert_one(e, humanity_core::ecs::components::BurnsFuels(b.fuels.clone()));
         }
     }
+    // A load the air step drives starts idle (BUG-314, 2026-11-15): an exhaust fan, a humidifier,
+    // an air handler, a CO2 scrubber or a heater has its draw written by its controller every step
+    // (farming::humidity, systems::life_support), the way a work station starts idle until a craft
+    // raises it. Spawned at its full draw, the first step of a world billed every one at its
+    // nameplate for the whole step, because the electrical sim integrates a step before the air
+    // step writes its draw: 1/60 s in the windowed game, but a whole step in the soak, 52 Wh at a
+    // 60 s step for the homestead's seven air handlers and its recycler (3.1 kW), which the
+    // headless sim runner's split-step test caught (src/engine/frame_sim_tests.rs).
+    let driven = def.ventilation_m3_h > 0.0
+        || def.humidifies_l_h > 0.0
+        || def.dehumidifies_m3_h > 0.0
+        || def.scrubs_co2_kg_day > 0.0
+        || def.heats_w > 0.0;
+    if driven {
+        if let Ok(mut pc) = world.get::<&mut PowerConsumer>(e) {
+            pc.draw_watts = 0.0;
+        }
+    }
     // Economy automation (v0.663): a machine with an `auto_recipe` continuously
     // runs that recipe against the home inventory (CraftingSystem's AutoRefine
     // arm). The smelter auto-smelts drone-delivered ore; the workbench turns the
@@ -442,7 +460,8 @@ mod tests {
                 .iter()
                 .map(|(_, (a, p, _, pc))| (a.airflow_m3_h, a.watts, p.lpm, p.needs_power, pc.draw_watts))
                 .collect();
-            assert_eq!(handlers, vec![(1842.0, 325.0, 0.0, true, 325.0)], "{file}");
+            // Its full draw is 325 W; it starts idle, its draw the air step's to write (BUG-314).
+            assert_eq!(handlers, vec![(1842.0, 325.0, 0.0, true, 0.0)], "{file}");
             let scrubbers: Vec<_> = world.query::<(&Co2Scrubber, &PowerConsumer)>().iter().map(|(_, (s, pc))| (s.rated_kg_day, s.watts, pc.priority)).collect();
             assert_eq!(scrubbers, vec![(4.74, 860.0, 1)], "{file}");
             assert_eq!(spawned.len(), 2);
@@ -898,7 +917,10 @@ mod tests {
             };
             let p = spawn(&mut world, "heat_pump");
             assert!(world.get::<&HeatPump>(p).is_ok() && world.get::<&SpaceHeater>(p).is_ok(), "{file}: a heat pump");
-            assert_eq!(world.get::<&PowerConsumer>(p).map(|pc| pc.draw_watts).ok(), Some(620.0), "{file}: on the home's power");
+            // On the home's power at its 620 W rating, starting idle: its thermostat writes its draw
+            // on the air step's first run (BUG-314).
+            assert_eq!(world.get::<&SpaceHeater>(p).map(|h| h.watts).ok(), Some(620.0), "{file}: the heat pump's rating");
+            assert_eq!(world.get::<&PowerConsumer>(p).map(|pc| pc.draw_watts).ok(), Some(0.0), "{file}: on the home's power, idle until its thermostat runs");
             let s = spawn(&mut world, "wood_stove");
             assert!(world.get::<&FuelStove>(s).is_ok() && world.get::<&BurnsFuels>(s).is_ok(), "{file}: a stove");
             assert_eq!(world.get::<&SpaceHeater>(s).map(|h| h.watts).ok(), Some(0.0), "{file}: it draws nothing");

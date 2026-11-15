@@ -206,22 +206,56 @@ impl<'a> Ground<'a> {
     /// The ground of `body`, or None when it has no planet definition (no
     /// known surface to stand a piece on).
     pub(crate) fn for_body(state: &'a EngineState, body: &str) -> Option<Self> {
-        let def = state.planet_defs.get(body)?;
+        GroundSources::of(state).ground(body)
+    }
+}
+
+/// What a [`Ground`] is made from: the planets' definitions, heightmaps, Earth's tiles and ocean
+/// mask and the drawn patches, borrowed field by field, so a caller can hold them beside a
+/// mutable borrow of the sim's own parts (the systems slice's death spot, engine/death_pack.rs,
+/// the headless sim runner's increment 2).
+#[derive(Clone, Copy)]
+pub(crate) struct GroundSources<'a> {
+    pub defs: &'a std::collections::HashMap<String, PlanetDef>,
+    pub heightmaps: &'a std::collections::HashMap<String, std::sync::Arc<humanity_terrain::planet_heightmap::PlanetHeightmap>>,
+    pub tiles: &'a humanity_terrain::terrain_tiles::TerrainTiles,
+    pub ocean: Option<&'a humanity_terrain::ocean_mask::OceanMask>,
+    pub chunk_states: &'a std::collections::HashMap<String, humanity_terrain::planet_chunks::ChunkState>,
+}
+
+impl<'a> GroundSources<'a> {
+    /// The running game's.
+    pub(crate) fn of(state: &'a EngineState) -> Self {
+        GroundSources {
+            defs: &state.planet_defs,
+            heightmaps: &state.planet_heightmaps,
+            tiles: &state.terrain_tiles,
+            ocean: state.ocean_mask.as_ref(),
+            chunk_states: &state.planet_chunk_states,
+        }
+    }
+
+    /// The ground of `body`, or None when it has no planet definition.
+    pub(crate) fn ground(self, body: &str) -> Option<Ground<'a>> {
+        let def = self.defs.get(body)?;
         let earth = body == "earth";
         Some(Ground {
             def,
-            hm: state.planet_heightmaps.get(body).map(|a| a.as_ref()),
+            hm: self.heightmaps.get(body).map(|a| a.as_ref()),
             detail: humanity_terrain::planet_chunks::DetailNoise::new(def.terrain_seed),
-            tiles: earth.then_some(&state.terrain_tiles),
-            ocean: if earth { state.ocean_mask.as_ref() } else { None },
-            drawn_depth: state
-                .planet_chunk_states
+            tiles: earth.then_some(self.tiles),
+            ocean: if earth { self.ocean } else { None },
+            drawn_depth: self
+                .chunk_states
                 .get(body)
                 .and_then(|cs| cs.last_drawn.iter().map(|p| p.depth).max())
                 .unwrap_or(0),
             earth,
         })
     }
+}
+
+impl<'a> Ground<'a> {
 
     /// The ground's radius under a unit direction of the body's frame: the
     /// drawn patch surface when the renderer has drawn one here, else the

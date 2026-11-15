@@ -1,0 +1,51 @@
+// How coarse a step each of the homestead's systems stands (the headless sim runner's increment
+// 2, 2026-11-15; docs/design/headless-sim-runner.md section 3, "Slow processes stepped coarsely").
+//
+// A coarse step is judged against the reference step over the same span from the same start and
+// seed: a quantity holds when it lands within `abs` (its own unit) plus `rel` times how far it
+// moved over the span at the reference step (from its reading after the first step, past what
+// that step only sets up: the home's air reads 0 until the air step first runs). `--sim ladder` (`just sim-ladder`) steps the span at
+// every step in `ladder_s` and prints which quantities hold at which step; the largest step at
+// which every quantity holds, every smaller one holding too, is the safe step, recorded below.
+// `--sim soak` steps at the safe step unless told otherwise, refuses a coarser one without
+// --force, and measures its own step's error over `check_hours` in every report. The lib test
+// frame_sim_tests.rs fails when the recorded safe step no longer holds.
+//
+// One row per quantity in src/engine/sim_home.rs OBSERVABLES (a test checks both ways).
+(
+    // The fine step the others are judged against, game seconds.
+    reference_step_s: 1.0,
+    // The largest step at which every quantity held on the last ladder, game seconds.
+    safe_step_s: 600.0,
+    // The steps the ladder tries, smallest first, game seconds.
+    ladder_s: [10.0, 60.0, 600.0, 3600.0],
+    // The span the ladder and the soak's error check step, game hours: a whole day, so the sun
+    // rises and sets inside it.
+    check_hours: 24.0,
+    // The step the soak's error check judges its step against, game seconds: the ladder holds it
+    // to the reference step, and a day of it takes seconds where a day of 1 s steps takes over a
+    // minute.
+    check_step_s: 10.0,
+    // The seed every run starts from (humanity_systems::sim_seed).
+    seed: 20261115,
+    observables: [
+        (id: "clock.elapsed_s", abs: 0.001, rel: 0.0, why: "The clock adds each step's seconds; any step lands on the same second."),
+        (id: "vitals.satiation", abs: 0.01, rel: 0.01, why: "Fullness falls at a steady rate between meals; a step only rounds it."),
+        (id: "vitals.hydration", abs: 0.01, rel: 0.01, why: "Hydration falls at a steady rate between drinks."),
+        (id: "vitals.energy", abs: 0.05, rel: 0.01, why: "Rest drains while awake at a steady rate."),
+        (id: "vitals.oxygen", abs: 0.05, rel: 0.01, why: "Blood oxygen holds in breathable air."),
+        (id: "vitals.body_temp_c", abs: 0.02, rel: 0.02, why: "Core temperature settles toward the room's; a coarse step may overshoot the settling."),
+        (id: "vitals.waste", abs: 0.05, rel: 0.01, why: "Waste rises at a steady rate."),
+        (id: "body.health", abs: 0.1, rel: 0.01, why: "Health holds while the body's needs are met."),
+        (id: "crops.count", abs: 0.0, rel: 0.0, why: "No crop is planted, harvested or lost in an untouched day."),
+        (id: "crops.growing_s", abs: 1.0, rel: 0.001, why: "Each crop counts the seconds it grows; the farm's own clock settles exactly."),
+        (id: "crops.health", abs: 0.5, rel: 0.02, why: "Crop health follows water and light; a coarse step samples them later."),
+        (id: "power.battery_wh", abs: 5.0, rel: 0.02, why: "The batteries integrate the solar surplus and the load; the sun is sampled once a step."),
+        (id: "water.tank_l", abs: 1.0, rel: 0.02, why: "The tanks integrate the purifier's flow and the household's draw."),
+        (id: "air.o2_g_m3", abs: 0.05, rel: 0.02, why: "The air's oxygen follows breathing and the plants."),
+        (id: "air.co2_g_m3", abs: 0.05, rel: 0.02, why: "The air's carbon dioxide follows breathing and the scrubbers."),
+        (id: "air.vapour_g_m3", abs: 0.05, rel: 0.02, why: "The air's vapour follows breathing, the plants and the air handlers."),
+        (id: "storage.items", abs: 0.0, rel: 0.0, why: "Nothing enters or leaves home storage in an untouched day unless a machine makes it."),
+        (id: "herd.animals", abs: 0.0, rel: 0.0, why: "No animal is born or lost in an untouched day."),
+    ],
+)

@@ -267,6 +267,10 @@ pub mod frame_look_env;
 pub mod frame_bridges;
 pub mod frame_bridges_npc;
 pub mod frame_ecs;
+/// One step of the world's systems from the simulation's parts, no GPU (the headless sim
+/// runner's increment 2, docs/design/headless-sim-runner.md): the windowed frame's ECS stage, the
+/// soak and the no-GPU day tests all step it.
+pub mod frame_sim;
 pub mod frame_copresence;
 pub mod frame_save_editor;
 pub mod frame_lists_home;
@@ -362,6 +366,12 @@ pub mod stock_piles;
 /// `world_load` uploads and draws what they build.
 pub mod sim_boot;
 pub mod world_sim;
+/// The homestead entered and stepped with no GPU, and what each system holds read by name
+/// (increment 2): the soak and the no-GPU day tests drive it.
+pub mod sim_home;
+/// `HumanityOS --sim soak` and `--sim ladder`: game days of the homestead stepped in seconds, a
+/// report of every system's state and the step's measured error (increment 2).
+pub mod sim_soak;
 pub mod world_load;
 
 // Tests of the crates below that reach the engine to do it, moved up from beside their code (the crate
