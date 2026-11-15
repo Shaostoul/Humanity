@@ -1612,7 +1612,10 @@
   footerEl.innerHTML =
     '<button class="footer-toggle" id="footer-toggle" aria-label="Toggle footer">▲</button>' +
     '<div class="footer-content" id="footer-content">' +
-      '<span id="hos-footer-label">HumanityOS, Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
+      // The licence (2026-11-14, LICENSING.md): the code AGPL-3.0-or-later, the Library and docs CC BY-SA
+      // 4.0, the data CC0 (it was CC0 for everything before). The name span is what the desktop app
+      // rewrites with its version below, so the licence link keeps its words and its hint.
+      '<span id="hos-footer-label"><span id="hos-footer-name">HumanityOS</span>, <a href="https://github.com/Shaostoul/Humanity/blob/main/LICENSING.md" target="_blank" data-i18n="footer.licence" data-i18n-tip="footer.licence_hint" data-tip-desc="Opens LICENSING.md on GitHub: the code is under the GNU AGPL 3.0, the Library and docs under CC BY-SA 4.0, and the data under CC0.">free and open source</a></span>' +
       '<div class="footer-links">' +
         '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
         // The project's own copy of the code, a pull mirror of GitHub (2026-09-29).
@@ -2157,7 +2160,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1561.0';
+    var CURRENT_VERSION = '0.1562.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -2259,11 +2262,10 @@
     }
 
     // Show version info in footer when running in desktop app
-    var footerLabel = document.getElementById('hos-footer-label');
-    if (footerLabel && window.__HOS_APP_VERSION) {
-      footerLabel.innerHTML = 'HumanityOS, App v' + window.__HOS_APP_VERSION +
-        ' · Web v' + CURRENT_VERSION +
-        ', Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a>';
+    var footerName = document.getElementById('hos-footer-name');
+    if (footerName && window.__HOS_APP_VERSION) {
+      footerName.textContent = 'HumanityOS, App v' + window.__HOS_APP_VERSION +
+        ' · Web v' + CURRENT_VERSION;
     }
 
     // Delay the check so it doesn't compete with page load.

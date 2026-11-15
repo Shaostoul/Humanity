@@ -20,6 +20,10 @@
  *    the file (fetchBytes(signal) answers its bytes), reads it, and draws it,
  *    only when something changed, with 4x multisampling, turned by the mouse or
  *    a finger. It returns {close()}, which gives every WebGL object back.
+ *  - Inspect (the model inspector, docs/design/model-inspector.md), where
+ *    web/shared/model-inspect.js is loaded: its report, the node tree and
+ *    the lines over the model (axes, bounds, collision shapes), drawn on a 2D
+ *    canvas over the picture with the view's own camera.
  *
  * A classic script in the browser (window.HosModelView), a CommonJS module
  * under Node, where scripts/tests/model-view-web.test.js runs the readers and
@@ -1391,8 +1395,18 @@ void main() {
     canvas.setAttribute('aria-label', name);
     const message = el('p', 'model-view-message', 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;margin:0;padding:var(--space-lg);font-size:var(--text-sm);color:var(--text-muted);');
     const line = el('p', 'model-view-line', 'margin:var(--space-sm) 0 0;font-size:var(--text-xs);color:var(--text-muted);');
-    stage.append(canvas, message);
-    container.replaceChildren(stage, line);
+    // The model inspector's parts (docs/design/model-inspector.md): its lines over the picture, Inspect
+    // under the view, and its panel. Only where web/shared/model-inspect.js is loaded.
+    const MI = o.inspector || root.HosModelInspect || null;
+    const overlay = el('canvas', 'model-view-overlay', 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:none;');
+    const bar = el('div', 'model-view-inspect-bar', 'display:none;margin-top:var(--space-sm);gap:var(--space-sm);');
+    const inspectButton = el('button', o.buttonClass || 'files-btn files-btn-small');
+    inspectButton.type = 'button';
+    inspectButton.id = 'model-view-inspect';
+    bar.append(inspectButton);
+    const panel = el('div', 'model-view-inspect', 'display:none;max-height:360px;overflow:auto;margin-top:var(--space-sm);font-size:var(--text-xs);');
+    stage.append(canvas, overlay, message);
+    container.replaceChildren(stage, line, bar, panel);
 
     let phase = 'starting';
     let closed = false;
@@ -1409,6 +1423,9 @@ void main() {
     const pointers = new Map();
     let lastTap = null;
     let drawnSize = ''; // the view's width and pixel ratio when it was last drawn
+    let inspection = null; // the model inspector's reading, once the model is read
+    let inspecting = false;
+    const look = { selected: null, row: 0, axes: true, bounds: true, boxes: true, collision: true };
 
     function say(text, warn) {
       message.textContent = text;
@@ -1460,6 +1477,7 @@ void main() {
       try {
         renderer.draw({ cam, width: w * dpr, height: h * dpr, background: background() });
         forgotten = false;
+        drawOverlay();
       } catch (e) {
         // The browser's graphics refused (a shader it would not build, memory it would not give):
         // not the file's fault, so not the file's words. The reason goes to the console for a developer.
@@ -1574,11 +1592,184 @@ void main() {
     canvas.addEventListener('dblclick', reset);
     canvas.addEventListener('contextmenu', noMenu);
 
+    // ── The model inspector (docs/design/model-inspector.md; the desktop's inspect_view.rs) ──
+    // Inspect under the view: the report, what is shown, the size and pivot, the node tree with
+    // every empty selectable, the textures and the clips, and the lines drawn over the model on a
+    // 2D canvas, seen through the view's own camera. Only where web/shared/model-inspect.js is
+    // loaded (the Files page); its words are en.json's (window.i18n).
+    function inspectWords(key, vars) {
+      const t = root.i18n && typeof root.i18n.t === 'function' ? root.i18n.t(key) : key;
+      return vars ? fill(String(t).replace(/\{\{(\w+)\}\}/g, '{$1}'), vars) : t;
+    }
+    function cssVar(name, fallback) {
+      try {
+        if (win && typeof win.getComputedStyle === 'function') {
+          const v = win.getComputedStyle(container).getPropertyValue(name);
+          if (v && v.trim()) return v.trim();
+        }
+      } catch (e) { /* the fallback below */ }
+      return fallback;
+    }
+    function setInspecting(on) {
+      inspecting = !!on && !!inspection;
+      inspectButton.textContent = inspectWords(inspecting ? 'model_inspect.hide' : 'model_inspect.inspect');
+      inspectButton.title = inspectWords(inspecting ? 'model_inspect.hide_hint' : 'model_inspect.inspect_hint');
+      panel.style.display = inspecting ? 'block' : 'none';
+      if (inspecting) renderPanel();
+      drawOverlay();
+    }
+    function drawOverlay() {
+      if (!inspecting || !inspection || !cam || closed) { overlay.style.display = 'none'; return; }
+      overlay.style.display = 'block';
+      const [w, h] = canvasSize();
+      const dpr = (win && win.devicePixelRatio) || 1;
+      overlay.width = Math.max(1, Math.round(w * dpr));
+      overlay.height = Math.max(1, Math.round(h * dpr));
+      const g = typeof overlay.getContext === 'function' ? overlay.getContext('2d') : null;
+      if (!g) return;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      g.clearRect(0, 0, w, h);
+      const vp = multiply(projectionMatrix(cam, w / h), viewMatrix(cam));
+      const clip = (p) => [0, 1, 2, 3].map((r) => vp[r] * p[0] + vp[4 + r] * p[1] + vp[8 + r] * p[2] + vp[12 + r]);
+      const scr = (c) => [(c[0] / c[3] * 0.5 + 0.5) * w, (0.5 - c[1] / c[3] * 0.5) * h];
+      const NEAR = 1e-5;
+      function seg(a, b, colour, width, dash) {
+        let ca = clip(a);
+        let cb = clip(b);
+        if (ca[3] <= NEAR && cb[3] <= NEAR) return;
+        if (ca[3] <= NEAR) { const k = (NEAR - ca[3]) / (cb[3] - ca[3]); ca = ca.map((v, i) => v + (cb[i] - v) * k); }
+        else if (cb[3] <= NEAR) { const k = (NEAR - cb[3]) / (ca[3] - cb[3]); cb = cb.map((v, i) => v + (ca[i] - v) * k); }
+        const p = scr(ca);
+        const q = scr(cb);
+        g.strokeStyle = colour;
+        g.lineWidth = width;
+        g.setLineDash(dash ? [6, 4] : []);
+        g.beginPath();
+        g.moveTo(p[0], p[1]);
+        g.lineTo(q[0], q[1]);
+        g.stroke();
+      }
+      function label(p, text, colour, dx, dy) {
+        const c = clip(p);
+        if (c[3] <= NEAR) return;
+        const s = scr(c);
+        g.fillStyle = colour;
+        g.font = '11px sans-serif';
+        g.fillText(text, s[0] + (dx || 0), s[1] + (dy || 0));
+      }
+      const boxEdges = (mn, mx) => {
+        const c = (i) => [i & 1 ? mx[0] : mn[0], i & 2 ? mx[1] : mn[1], i & 4 ? mx[2] : mn[2]];
+        return [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]].map(([a, b]) => [c(a), c(b)]);
+      };
+      const ins = inspection;
+      const sz = [0, 1, 2].map((k) => ins.max[k] - ins.min[k]);
+      const radius = Math.max(Math.hypot(sz[0], sz[1], sz[2]) / 2, 1e-4);
+      if (look.collision) for (const wire of ins.colliders) for (const [a, b] of wire.edges) seg(a, b, cssVar('--inspect-collision', '#38dbdb'), 1);
+      if (look.bounds) for (const [a, b] of boxEdges(ins.min, ins.max)) seg(a, b, cssVar('--inspect-bounds', '#dbdbea'), 1);
+      const fit = ins.catalog[look.row] || ins.catalog[0];
+      if (look.boxes && fit) for (const [a, b] of boxEdges(fit.min, fit.max)) seg(a, b, cssVar('--inspect-box', '#f5bd1f'), 2, true);
+      const axes = [cssVar('--axis-x', '#e64d42'), cssVar('--axis-y', '#66d152'), cssVar('--axis-z', '#528ff5')];
+      const text = cssVar('--text-primary', '#e8e8ea');
+      if (look.axes) {
+        const L = radius * 0.35;
+        [[1, 0, 0], [0, 1, 0], [0, 0, 1]].forEach((d, k) => seg([0, 0, 0], d.map((v) => v * L), axes[k], 2.5));
+        label([0, L * 1.12, 0], inspectWords('model_inspect.up'), axes[1]);
+        label([0, 0, L * 1.12], inspectWords('model_inspect.front'), axes[2]);
+        ins.nodes.forEach((n, slot) => {
+          if (n.kind !== 'empty') return;
+          const chosen = look.selected === slot;
+          const at = [n.world[12], n.world[13], n.world[14]];
+          const len = radius * (chosen ? 0.22 : 0.1);
+          [0, 1, 2].forEach((k) => {
+            const v = [n.world[k * 4], n.world[k * 4 + 1], n.world[k * 4 + 2]];
+            const l = Math.hypot(v[0], v[1], v[2]) || 1;
+            seg(at, [at[0] + v[0] / l * len, at[1] + v[1] / l * len, at[2] + v[2] / l * len], axes[k], chosen ? 2.5 : 1.5);
+          });
+          if (chosen) label(at, n.name || inspectWords('model_inspect.unnamed'), text, 6, -6);
+        });
+      }
+    }
+    function renderPanel() {
+      const ins = inspection;
+      const node = (tag, className, textValue, css) => { const e = el(tag, className, css); if (textValue !== undefined) e.textContent = textValue; return e; };
+      const heading = (key) => node('h4', 'model-view-inspect-heading', inspectWords(key), 'margin:var(--space-sm) 0 var(--space-xs);font-size:var(--text-xs);color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.04em;');
+      const lineOf = (textValue, colour) => node('p', 'model-view-inspect-line', textValue, 'margin:0 0 var(--space-xs);color:' + (colour || 'var(--text-primary)') + ';');
+      const parts = [];
+      parts.push(heading('model_inspect.report'));
+      const count = (lv) => ins.findings.filter((f) => f.level === lv).length;
+      parts.push(lineOf(inspectWords('model_inspect.counts', { problems: count('problem'), checks: count('check'), notes: count('note') }), 'var(--text-secondary)'));
+      for (const f of ins.findings) {
+        const row = node('p', 'model-view-finding model-view-finding-' + f.level, undefined, 'margin:0 0 var(--space-xs);');
+        const colour = f.level === 'problem' ? 'var(--danger)' : f.level === 'check' ? 'var(--warning)' : 'var(--text-muted)';
+        const tag = node('strong', 'model-view-finding-level', inspectWords('model_inspect.level.' + f.level) + ' ', 'color:' + colour + ';');
+        const words = MI.wordsOf(f, { [f.code]: inspectWords('model_inspect.finding.' + f.code) });
+        row.append(tag, doc.createTextNode(words));
+        parts.push(row);
+      }
+      parts.push(heading('model_inspect.show_heading'));
+      const toggles = [['axes', 'show_axes'], ['bounds', 'show_bounds']];
+      if (ins.catalog.length) toggles.push(['boxes', 'show_box']);
+      if (ins.colliders.length) toggles.push(['collision', 'show_collision']);
+      for (const [k, key] of toggles) {
+        const lab = node('label', 'model-view-inspect-toggle', undefined, 'display:block;margin:0 0 var(--space-xs);color:var(--text-primary);');
+        lab.title = inspectWords('model_inspect.' + key + '_hint');
+        const box = el('input', 'model-view-inspect-check');
+        box.type = 'checkbox';
+        box.checked = !!look[k];
+        box.addEventListener('change', () => { look[k] = !!box.checked; drawOverlay(); });
+        lab.append(box, doc.createTextNode(' ' + inspectWords('model_inspect.' + key)));
+        parts.push(lab);
+      }
+      parts.push(heading('model_inspect.size_heading'));
+      const sz = [0, 1, 2].map((k) => MI.m2(ins.max[k] - ins.min[k]));
+      parts.push(lineOf(inspectWords('model_inspect.size_line', { w: sz[0], h: sz[1], d: sz[2] })));
+      parts.push(lineOf(inspectWords(ins.stl ? 'model_inspect.units_stl' : 'model_inspect.units_gltf'), 'var(--text-secondary)'));
+      parts.push(lineOf(inspectWords('model_inspect.parts_line', { parts: ins.parts, materials: ins.materials }), 'var(--text-secondary)'));
+      if (!ins.stl) {
+        parts.push(heading('model_inspect.nodes_heading'));
+        if (!ins.nodes.length) parts.push(lineOf(inspectWords('model_inspect.no_nodes'), 'var(--text-muted)'));
+        ins.nodes.forEach((n, slot) => {
+          const kind = n.kind === 'empty' ? (n.convention ? inspectWords('model_inspect.kind_empty', { kind: n.convention }) : inspectWords('model_inspect.kind_empty_none'))
+            : n.kind === 'lod' ? inspectWords('model_inspect.kind_lod', { n: n.convention }) : inspectWords('model_inspect.kind_' + n.kind);
+          const b = node('button', 'model-view-node' + (look.selected === slot ? ' selected' : ''), (n.name || inspectWords('model_inspect.unnamed')) + ' (' + kind + ')',
+            'display:block;background:' + (look.selected === slot ? 'var(--bg-tertiary)' : 'none') + ';border:0;padding:1px 4px;margin-left:' + Math.min(n.depth, 12) * 10 + 'px;cursor:pointer;font-size:var(--text-xs);text-align:left;color:' + (n.kind === 'empty' ? 'var(--accent)' : 'var(--text-primary)') + ';');
+          b.type = 'button';
+          b.title = inspectWords('model_inspect.node_hint');
+          b.addEventListener('click', () => { look.selected = look.selected === slot ? null : slot; renderPanel(); drawOverlay(); });
+          parts.push(b);
+        });
+        parts.push(heading('model_inspect.textures_heading'));
+        if (!ins.textures.length) parts.push(lineOf(inspectWords('model_inspect.no_textures'), 'var(--text-muted)'));
+        for (const t of ins.textures) {
+          parts.push(t.size ? lineOf(inspectWords('model_inspect.texture_line', { material: t.material, slot: t.slot, file: t.file, w: t.size[0], h: t.size[1] }))
+            : lineOf(inspectWords('model_inspect.texture_missing_line', { material: t.material, slot: t.slot, file: t.file }), 'var(--danger)'));
+        }
+        parts.push(heading('model_inspect.clips_heading'));
+        if (!ins.clips.length) parts.push(lineOf(inspectWords('model_inspect.no_clips'), 'var(--text-muted)'));
+        for (const c of ins.clips) parts.push(lineOf(inspectWords('model_inspect.clip_line', { name: c.name, seconds: c.seconds.toFixed(2), channels: c.channels })));
+        if (ins.skins) parts.push(lineOf(inspectWords('model_inspect.skins', { n: ins.skins }), 'var(--text-secondary)'));
+      }
+      panel.replaceChildren(...parts);
+    }
+    /** The conventions file, from the page (o.conventions) or the server's data folder. */
+    async function loadConventions() {
+      if (o.conventions) return { conventions: o.conventions };
+      try {
+        const res = await fetch('/data/models/inspect_conventions.json', { cache: 'no-cache' });
+        if (!res.ok) throw new Error('the server answered ' + res.status);
+        return { conventions: await res.json() };
+      } catch (e) {
+        return { conventions: {}, error: String((e && e.message) || e) };
+      }
+    }
+    inspectButton.addEventListener('click', () => setInspecting(!inspecting));
+
     function show() {
       phase = 'shown';
       message.style.display = 'none';
       canvas.style.display = 'block';
       line.textContent = fill(WORDS.shown, { name, triangles: thousands(model.triangles) });
+      if (inspection) { bar.style.display = 'flex'; setInspecting(false); }
       fitHeight();
       if (typeof root.ResizeObserver === 'function') {
         // Drawn again only when its width (or the screen's pixel ratio) changed, not for the height
@@ -1607,6 +1798,7 @@ void main() {
       renderer.onRestored = () => { dirty = true; invalidate(); };
       phase = 'fetching';
       say(fill(WORDS.fetching, { name, size: words(size) }));
+      const conventionsWait = MI ? loadConventions() : null;
       let bytes = null;
       try {
         bytes = await o.fetchBytes(ctl ? ctl.signal : undefined);
@@ -1624,6 +1816,11 @@ void main() {
       if (closed) return;
       try {
         model = parseModel(fileName, bytes);
+        if (MI) {
+          // The inspection reads the same bytes; a fault in it never stops the view.
+          const conv = await conventionsWait;
+          try { inspection = MI.inspect(fileName, bytes, { conventions: conv.conventions, conventionsError: conv.error }); } catch (e) { inspection = null; }
+        }
         bytes = null;
         await renderer.prepare(model);
       } catch (e) {
@@ -1654,7 +1851,7 @@ void main() {
     }
 
     const done = start();
-    return { close, done, phase: () => phase, camera: () => cam, reset };
+    return { close, done, phase: () => phase, camera: () => cam, reset, inspection: () => inspection, inspect: (on) => setInspecting(on !== false) };
   }
 
   const api = {

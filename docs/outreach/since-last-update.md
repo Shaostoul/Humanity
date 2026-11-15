@@ -13,7 +13,18 @@ Each line is written the way a player would hear it; the release notes and
 
 ### Next release
 
+### v0.1562.0 (15 November 2026)
+
 - A new licence: the code is now under the GNU AGPL 3.0, so anyone who runs a changed HumanityOS server must share its source; the Library and docs are under CC BY-SA 4.0, so Wikipedia's text can come in, credited; game data and the Humanity Accord stay public domain; and a short policy keeps the name HumanityOS for the real thing.
+- Skills: the base set, with no cap; each stage says in plain words what you can do, everything you do trains its own skill, and a new Skills page shows the next step. 103 of the statements were corrected against primary sources before shipping.
+- Organisations: members, roles, invitations, a directory and an audit log, with nothing kept on the server; Sponsor-a-Can first.
+- Rooms look finished: skirting and crown moulding round every room with mitred corners, chosen per room or per wall in the build editor.
+- A model inspector: see a 3D model's attachment points, axes, size, catalog box and collision shapes before you use it, in the app and on the website.
+- The homestead: furniture stands flush against its walls, and glass roofs carry glazing bars so they read as roofs.
+- Music: one place chooses what plays, and house, drum and bass, synthwave and ambient join the genres.
+- Far trees cost less: each card is a tight outline around its tree, and the GPU draws only the ones in view.
+- Android, first rung: the app builds as a phone app on GitHub's free build machines and says plainly what a phone cannot do yet.
+- Fixed: the chat's text box hiding below the window in some channels, and films through ffmpeg looping without a picture on a busy computer.
 
 ### v0.1561.0 (14 November 2026)
 
