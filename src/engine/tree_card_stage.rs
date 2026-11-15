@@ -82,8 +82,9 @@ pub(crate) fn note(cs: &ChunkState, radius_m: f64, hide_m: f32, far_m: f32, atla
         .unwrap_or(0);
     if LAST_LOG_S.swap(now_s, Ordering::Relaxed) != now_s {
         let t = r.tally;
+        let (culled_patches, culled_quads) = crate::renderer::tree_card_cull::last_culled();
         log::info!(
-            "[TreeCards] drawn={} card_patches={} cards={} in_window={} max_depth={} hide={:.0}m far={:.0}m atlas={} floor={}",
+            "[TreeCards] drawn={} card_patches={} cards={} in_window={} max_depth={} hide={:.0}m far={:.0}m atlas={} floor={} culled_patches={culled_patches} culled_quads={culled_quads}",
             t.drawn_patches,
             t.card_patches,
             t.cards,
@@ -107,7 +108,12 @@ pub(crate) fn done_json() -> serde_json::Value {
         return serde_json::Value::Null;
     }
     let t = r.tally;
+    // The GPU card cull (renderer/tree_card_cull.rs): the card patches whose cards it took (equal to
+    // card_patches when every card tail was found; 0 with the showcase `card_cull` "0") and their quads.
+    let (culled_patches, culled_quads) = crate::renderer::tree_card_cull::last_culled();
     serde_json::json!({
+        "culled_patches": culled_patches,
+        "culled_quads": culled_quads,
         "drawn_patches": t.drawn_patches,
         "card_patches": t.card_patches,
         "cards": t.cards,

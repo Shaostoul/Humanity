@@ -689,6 +689,7 @@ impl Renderer {
                     0,
                     bytemuck::bytes_of(&self.patch_batch_rot.to_cols_array_2d()),
                 );
+                self.card_cull_dispatch(n); // after the uniforms it reads (renderer/tree_card_cull.rs)
                 // Increment 2: indirect args for the one-submit path. Each
                 // entry's first_instance selects the instance-attribute
                 // element (honored in hardware; the builtin would not be).
@@ -906,19 +907,19 @@ impl Renderer {
                     pass.set_vertex_buffer(2, arena.vertex_buf.slice(..));
                     pass.set_vertex_buffer(1, arena.instance_buf.slice(..));
                     pass.set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                    // Per-draw loop stays here even with indirect support:
-                    // the 6 km caster cull keeps this to a few dozen draws,
-                    // and a separate culled args buffer isn't worth it.
+                    // The ground per draw (the 6 km caster cull keeps it to a few dozen), then the
+                    // cards the GPU cull kept in the shadow map's box, one winding each, in one.
                     for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
                         if (d.position - cast_center).length_squared() > 6_000.0_f32 * 6_000.0 {
                             continue;
                         }
                         pass.draw_indexed(
-                            d.slot.istart..d.slot.istart + d.slot.icount,
+                            d.slot.istart..d.slot.istart + self.patch_icount(i, d),
                             d.slot.vstart as i32,
                             (i as u32)..(i as u32 + 1),
                         );
                     }
+                    self.draw_patch_cards_sun(&mut pass);
                 }
             }
             self.queue.submit(std::iter::once(senc.finish()));
@@ -1588,14 +1589,10 @@ impl Renderer {
                 render_pass
                     .set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
                 if self.patch_indirect {
-                    // Increment 2: the whole batch in ONE command. This is
-                    // what removes the ~1.5 us x N draw-encoding cost that
-                    // still dominated after increment 1.
-                    render_pass.multi_draw_indexed_indirect(
-                        &arena.indirect_buf,
-                        0,
-                        patch_batch_n as u32,
-                    );
+                    // Increment 2: the whole batch in ONE command (the ~1.5 us x N draw-encoding
+                    // cost dominated after increment 1); each card patch's ground then its kept
+                    // cards when the tree card cull ran (renderer/tree_card_cull.rs).
+                    self.draw_patches_main(&mut render_pass, patch_batch_n);
                 } else {
                     for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
                         render_pass.draw_indexed(

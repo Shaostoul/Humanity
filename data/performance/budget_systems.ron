@@ -55,7 +55,9 @@
         // lookup table refreshed each frame near an atmosphere. gpu.aurora:
         // the fullscreen additive emission pass that adds the aurora after
         // the cloud composite (renderer/emission_pass.rs).
-        sources: ["gpu.celestial", "gpu.celestial_t", "gpu.sky_view", "gpu.aurora"],
+        // gpu.card_cull: the far tree cards' cull before the world surface pass
+        // (renderer/tree_card_cull.rs, 2026-11-14).
+        sources: ["gpu.celestial", "gpu.celestial_t", "gpu.sky_view", "gpu.aurora", "gpu.card_cull"],
         locked: true,
         base_frac: 0.35,
         color: "nav_sim",

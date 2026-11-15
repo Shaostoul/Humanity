@@ -542,6 +542,8 @@ impl Renderer {
             None => (0, 0),
         };
         set_vram("vram.patch_arena", arena_used);
+        // The far tree cards: their share of the arena above plus the cull's records and buffers.
+        set_vram("vram.tree_cards", self.patch_arena.as_ref().map_or(0, |a| a.cards.vram_bytes()));
         set_vram("vram.patch_arena_reserved", arena_reserved);
 
         // Classic meshes (homestead geometry, trees, props, unbatched patches). Each buffer counted

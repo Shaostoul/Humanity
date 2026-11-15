@@ -176,6 +176,39 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   (`scripts/lib/tree-cards-check.js`; verify-runtime's `fuji-forest-ground` carries it), and the
   showcase `card_floor` "0" is the red twin (`fuji-forest-ground-no-floor`, a control that passes
   only by failing).
+- **The cards are culled on the GPU before they are drawn (2026-11-14, `renderer/tree_card_cull.rs`,
+  `assets/shaders/tree_card_cull.wgsl`).** Each patch mesh ends in its cards (the patch builder
+  emits the skirt BEFORE the trees: keep it so, or `card_tail_quads` finds no tail and the patch
+  draws whole, unculled; `vegetation_bakes_into_deep_land_patches_deterministically` holds it). The
+  arena keeps one cull record a card quad (`CardRecords`); one compute dispatch a frame keeps a quad
+  for the main view when its bounding sphere meets the kept window and the camera's frustum, and for
+  the sun view when it meets the shadow map's box, and writes compact index buffers and one indirect
+  draw a patch. **The main view's kept indices go into a range reserved INSIDE the patch arena's
+  index buffer** (`CardCull::region`, grown at upload), so one multi-draw carries each patch's
+  ground and then its kept cards in the frame loop's front-to-back order, the order the whole-patch
+  draw had. Do not split it into "all ground, then all cards": the first cut did, and at
+  `fuji-forest-ground` it cost 2 ms MORE than no cull (23.0 against 21.1 ms `gpu.celestial`), since
+  near cards drawn early had been hiding the ground behind them from the depth test. The sun pass
+  draws its ground per patch (`Renderer::patch_icount`) and then its kept cards from a buffer of its
+  own, ONE winding a quad (it draws without face culling). The cull reads the SAME
+  uniform buffers the draws read (the celestial camera, the light camera, the shadow uniform's hide
+  and far, the batch rotation), so it must be dispatched after they are written and before the sun
+  pass (`card_cull_dispatch` sits right after the patch instance upload). The shader's rule has a
+  Rust twin (`cpu_keeps`, `the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps`). Showcase
+  `card_cull` "0" is the red twin; a device without multi-draw indirect draws every patch whole.
+  **Measured 2026-11-14** (same boot, medians of four interleaved arms, RTX 4070 at 2560 x 1387,
+  default 1,500 m; other agents were compiling, so only the `gpu.*` columns are readings): the
+  world surface pass 21.3 to 20.3 ms at `fuji-forest-ground`, 17.4 to 15.8 at `fuji-forest-hillside`,
+  13.7 to 12.2 at `fuji-forest-far`, 15.1 to 14.0 at `black-forest-far`; the sun pass 1.9 to 1.6,
+  1.9 to 1.5, 1.5 to 1.2 and 2.3 to 1.7; the cull itself 0.02 ms. The profile arms (hot-reload
+  patches in the same boot: the card vertices moved off screen, or every card fragment discarded at
+  the top of `fs_terrain` and `fs_shadow`) put the cards' whole cost at 6.3 to 8.0 ms of the world
+  surface pass before the cull and 5.0 to 7.0 after it: what is LEFT is shading the card pixels
+  that show (3.0 to 5.7 ms) and launching and discarding the transparent part of the kept cards
+  (1.5 to 2.5 ms, the sprite fills a fifth to a quarter of its square). The next rungs: a hull per
+  atlas tile instead of the square (trimmed cards, the transparent area never rasterized), a
+  depth prepass for card overdraw, and a lower-detail card set for the sun pass (cards still cast
+  1.0 to 1.5 ms there). Agent scratch: `cp-ab2/` (pictures) and `cp-analyze.js`.
 
 ## f32 at planet scale
 

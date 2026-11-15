@@ -1848,6 +1848,12 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         crate::engine::tree_card_stage::set_floor_on(t != "0");
         log::info!("Showcase: card_floor -> {}", crate::engine::tree_card_stage::floor_on());
     }
+    // The tree card cull (renderer/tree_card_cull.rs, 2026-11-14): {"card_cull":"0"} draws every card in
+    // its patch, as before (the red twin, and the cost A/B's other arm); "1" or "auto" culls again.
+    if let Some(t) = grab("card_cull") {
+        crate::renderer::tree_card_cull::set_pinned_on(t != "0");
+        log::info!("Showcase: card_cull -> {}", crate::renderer::tree_card_cull::pinned_on());
+    }
     if let Some(t) = grab("near_levels") {
         state.renderer.local_shadows.near_pin = match t.as_str() {
             "auto" | "1" => None,

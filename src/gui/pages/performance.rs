@@ -623,6 +623,12 @@ mod tests {
             "vram.driver_allocated",
             "recorded for the HUMANITY_FRAME_COSTS JSON drop; the pie uses reserved",
         ),
+        (
+            "vram.tree_cards",
+            "the far tree cards' share of vram.patch_arena (their geometry and the cull's reserved \
+             range) plus the cull's own small buffers (renderer/tree_card_cull.rs); the Tree \
+             silhouette distance setting states it, and a pie slice would count the arena twice",
+        ),
     ];
 
     /// Ids the registry may name before (or after) their recorder exists:

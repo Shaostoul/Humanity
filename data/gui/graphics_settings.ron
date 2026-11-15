@@ -58,6 +58,8 @@
         "cpu.grass_harvest": "graphics.pass.grass_harvest",
         "cpu.particles_sim": "graphics.pass.particles_sim",
         "vram.patch_arena": "graphics.pass.patch_arena",
+        "vram.tree_cards": "graphics.pass.tree_cards",
+        "gpu.card_cull": "graphics.pass.card_cull",
         "vram.meshes": "graphics.pass.meshes",
         "vram.grass": "graphics.pass.grass",
         "vram.particles": "graphics.pass.particles_memory",
@@ -90,7 +92,9 @@
         // ── Detail distances by item type ──
         (id: "tree_model_distance", cost: [Shares(["gpu.scene"]), Cpu(["cpu.near_tree_harvest"])]),
         (id: "near_tree_budget", cost: [Computed, Shares(["gpu.scene"])]),
-        (id: "veg_tree_card_m", cost: [Shares(["gpu.celestial"])]),
+        // The far tree cards (2026-11-14, renderer/tree_card_cull.rs): drawn in the world surface pass
+        // and the sun shadow pass, culled first by gpu.card_cull; their memory is vram.tree_cards.
+        (id: "veg_tree_card_m", cost: [Shares(["gpu.celestial", "gpu.shadow"]), Gpu(["gpu.card_cull"]), Memory(["vram.tree_cards"])]),
         (id: "tree_density", cost: [Shares(["gpu.celestial", "gpu.scene"])]),
         (id: "grass_far_m", cost: [Computed, Cpu(["cpu.grass_harvest"]), Memory(["vram.grass"])]),
         (id: "grass_harvest_cap", cost: [Memory(["vram.grass"]), Cpu(["cpu.grass_harvest"])]),

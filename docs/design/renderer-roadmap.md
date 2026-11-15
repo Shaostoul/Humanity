@@ -733,7 +733,8 @@ cards need depth-15 patches and only the tile tier reached them. At `fuji-forest
 out over the last tenth under Temporal and run to a hard edge at Off, and the dissolve is still:
 consecutive captures there differ by a mean of 0.07 codes under Temporal against 0.08 at Off. The
 stage costs 7 to 10 ms of `gpu.celestial` at the forest vantages, so the forest rows of the table
-above are frames without any card.) The hair's sun and room-light shadows still cast the core alone (the shadow passes have no
+above are frames without any card. The GPU card cull, `renderer/tree_card_cull.rs`, took 1.4 to 2.0 ms
+of it back the same day; what is left is shading the cards that show, docs/ai/renderer.md.) The hair's sun and room-light shadows still cast the core alone (the shadow passes have no
 history; section 3.3's "casts with its true coverage" needs a pattern that PCF, not a history,
 averages). Stacked hair cards share one threshold per pixel, so two overlapping half-transparent
 layers cover like one; Wyman and McGuire's object-space hash would decorrelate them, at the price of

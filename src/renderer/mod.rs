@@ -88,9 +88,8 @@ pub mod gpu_costs;
 pub mod ground_textures;
 pub mod floating_origin;
 pub mod hologram;
-/// The megashader's shared 2D lattice value noise and its CPU twin (BUG-103:
-/// corners hashed from the INTEGER lattice point, so neighbouring cells can
-/// never disagree about a shared corner).
+/// The megashader's shared 2D lattice value noise and its CPU twin (BUG-103: corners hashed from
+/// the INTEGER lattice point, so neighbouring cells can never disagree about a shared corner).
 pub mod lattice_noise;
 pub mod light;
 pub mod line;
@@ -105,6 +104,7 @@ pub mod patch_arena;
 /// The own-mesh pool's books (2026-11-10): each near person's mesh a range of buffers made once.
 pub mod mesh_pool;
 pub mod tree_mesh;
+pub mod tree_card_cull;
 pub mod particles;
 pub mod particles_gpu;
 pub mod pipeline;
@@ -2371,7 +2371,7 @@ impl Renderer {
         self.patch_arena
             .as_mut()
             .expect("just created")
-            .upload(&self.queue, vertices, indices)
+            .upload(&self.device, &self.queue, vertices, indices)
     }
 
     /// Return a patch's arena ranges to the free lists (eviction).

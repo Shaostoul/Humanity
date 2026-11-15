@@ -1991,16 +1991,61 @@ pub fn build_patch_mesh_at_density(
         &mut indices,
     );
 
+    // ── Skirt (design constraint 3) ──
+    // A vertical apron hanging from the border toward the planet center,
+    // sealing cracks against ANY coarser/finer neighbor. Depth scales with
+    // patch size (bigger patches can disagree by more meters).
+    let edge_m = patch_edge_arc_m(id.depth, radius_m);
+    let skirt_depth = (edge_m * SKIRT_EDGE_FRACTION).clamp(SKIRT_MIN_M, SKIRT_MAX_M);
+    let border = boundary_indices(n);
+    let m = border.len();
+    for s in 0..m {
+        let ia = border[s];
+        let ib = border[(s + 1) % m];
+        let b0 = offsets[ia];
+        let b1 = offsets[ib];
+        // Drop straight toward the planet center (along the vertex's own
+        // radial direction) so the apron is truly vertical.
+        let s0 = b0 - dirs[ia].as_vec3() * skirt_depth as f32;
+        let s1 = b1 - dirs[ib].as_vec3() * skirt_depth as f32;
+        // One color + one smooth normal per segment (flat-shading transport
+        // requires all 3 corners of a face to carry identical packed color).
+        // Same surface_color source as the grid faces so the apron blends
+        // in; no slope shading (the normal is radial, shade would be 1.0),
+        // and the water flag follows the same below-sea rule.
+        let mean_e = (elevs[ia] + elevs[ib]) / 2.0;
+        let mid_dir = midpoint(dirs[ia], dirs[ib]);
+        let color = surface_color(def, albedo, mid_dir.as_vec3(), mean_e);
+        let skirt_water = !bathymetric && def.has_water && mean_e < sea;
+        let nrm = mid_dir.as_vec3().to_array();
+        // Winding: walking the border CCW (seen from outside), the wall
+        // must face AWAY from the patch interior; (s0, s1, b1) + (s0, b1,
+        // b0) give outward-facing CCW triangles (derivation in the increment
+        // notes; a flipped skirt would be backface-culled exactly when it
+        // is needed).
+        for tri in [[s0, s1, b1], [s0, b1, b0]] {
+            for p in tri {
+                indices.push(vertices.len() as u32);
+                vertices.push(SurfaceVertexData {
+                    position: p.to_array(),
+                    normal: nrm,
+                    color,
+                    water: skirt_water,
+                    tree_card: false,
+                });
+            }
+        }
+    }
+
     // ── Procedural vegetation (v0.888; planet-fixed cells v0.897) ──
     // Crossed-quad trunks + diamond canopies for TREES. Plant positions and
     // looks come from a PLANET-FIXED lat/lon cell grid hashed per cell, so
     // every patch depth regenerates the identical plants and LOD swaps never
-    // reshuffle the forest.
-    //
-    // GRASS IS NOT HERE ANY MORE (v0.1090). It used to ride this same loop as
-    // a second pass; it is now the camera-relative instanced strand layer
-    // (`near_grass_instances`), so this block is trees only and the pass loop
-    // that switched between them is gone.
+    // reshuffle the forest. GRASS IS NOT HERE (v0.1090): it is the camera-relative
+    // instanced strand layer (`near_grass_instances`), so this block is trees only.
+    // LAST in the mesh (2026-11-14): every card is 4 vertices and 12 indices at the
+    // tail, after the skirt, which is where the GPU card cull finds them
+    // (renderer/tree_card_cull.rs `card_tail_quads`; held by its tail test).
     {
         let range_m = match source {
             ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
@@ -2410,52 +2455,6 @@ pub fn build_patch_mesh_at_density(
         }
     }
 
-    // ── Skirt (design constraint 3) ──
-    // A vertical apron hanging from the border toward the planet center,
-    // sealing cracks against ANY coarser/finer neighbor. Depth scales with
-    // patch size (bigger patches can disagree by more meters).
-    let edge_m = patch_edge_arc_m(id.depth, radius_m);
-    let skirt_depth = (edge_m * SKIRT_EDGE_FRACTION).clamp(SKIRT_MIN_M, SKIRT_MAX_M);
-    let border = boundary_indices(n);
-    let m = border.len();
-    for s in 0..m {
-        let ia = border[s];
-        let ib = border[(s + 1) % m];
-        let b0 = offsets[ia];
-        let b1 = offsets[ib];
-        // Drop straight toward the planet center (along the vertex's own
-        // radial direction) so the apron is truly vertical.
-        let s0 = b0 - dirs[ia].as_vec3() * skirt_depth as f32;
-        let s1 = b1 - dirs[ib].as_vec3() * skirt_depth as f32;
-        // One color + one smooth normal per segment (flat-shading transport
-        // requires all 3 corners of a face to carry identical packed color).
-        // Same surface_color source as the grid faces so the apron blends
-        // in; no slope shading (the normal is radial, shade would be 1.0),
-        // and the water flag follows the same below-sea rule.
-        let mean_e = (elevs[ia] + elevs[ib]) / 2.0;
-        let mid_dir = midpoint(dirs[ia], dirs[ib]);
-        let color = surface_color(def, albedo, mid_dir.as_vec3(), mean_e);
-        let skirt_water = !bathymetric && def.has_water && mean_e < sea;
-        let nrm = mid_dir.as_vec3().to_array();
-        // Winding: walking the border CCW (seen from outside), the wall
-        // must face AWAY from the patch interior; (s0, s1, b1) + (s0, b1,
-        // b0) give outward-facing CCW triangles (derivation in the increment
-        // notes; a flipped skirt would be backface-culled exactly when it
-        // is needed).
-        for tri in [[s0, s1, b1], [s0, b1, b0]] {
-            for p in tri {
-                indices.push(vertices.len() as u32);
-                vertices.push(SurfaceVertexData {
-                    position: p.to_array(),
-                    normal: nrm,
-                    color,
-                    water: skirt_water,
-                    tree_card: false,
-                });
-            }
-        }
-    }
-
     PatchMesh {
         mesh: SurfaceMeshData { vertices, indices },
         anchor,
@@ -2495,12 +2494,9 @@ pub use water_patches::*;
 // ── Per-planet runtime cache (engine side; holds renderer mesh handles as
 // plain indices so this module stays GPU-free and testable) ──
 
-/// One allocated patch: element ranges in the renderer's shared arenas. `base_vertex`
-/// for the draw is `vstart`; indices are stored patch-local (0-based).
-///
-/// Defined here, beside the cache that holds one per batched patch, since the crate split's
-/// rung 0: it is four numbers, and the cache keeping it is what keeps this module GPU-free. The
-/// renderer's patch arena (renderer/patch_arena.rs) hands them out and takes them back.
+/// One allocated patch: element ranges in the renderer's shared arenas (`base_vertex` for the draw
+/// is `vstart`; indices are patch-local). Defined here beside the cache that holds one (crate split
+/// rung 0, keeping this module GPU-free); renderer/patch_arena.rs hands them out and takes them back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PatchSlot {
     pub vstart: u32,
@@ -3683,8 +3679,12 @@ pub(crate) mod tests {
             a1.mesh.vertices.len(),
             baseline
         );
-        // Shallow patch: no vegetation.
-        let shallow = PatchId::root(id.face).child(3).child(3);
+        // The cards are the mesh's TAIL, four coloured-card quads a tree here (no imagery): the GPU card
+        // cull reads them from there (renderer/tree_card_cull.rs `card_tail_quads`). Red 2026-11-14 with
+        // the skirt after the trees: "0 trailing card vertices for 281 trees".
+        let tail = a1.mesh.vertices.iter().rev().take_while(|v| v.tree_card).count();
+        assert_eq!(tail, 16 * a1.card_trees as usize, "the cards are not the mesh's tail: {tail} trailing card vertices for {} trees", a1.card_trees);
+        let shallow = PatchId::root(id.face).child(3).child(3); // a shallow patch: no vegetation
         let s1 = build_patch_mesh(&def, &src, None, &shallow);
         assert!(s1.mesh.vertices.len() <= baseline, "vegetation sprouted at depth 2");
     }
@@ -3743,9 +3743,9 @@ pub(crate) mod tests {
             "cards emit {card_verts} vertices for {card_idx} indices - the 4-corner sharing \
              regressed (the old unshared form was 1:1)"
         );
-        // First card's triangle list, relative to its own base vertex.
-        let base = pm.mesh.indices[grid_idx];
-        let first: Vec<u32> = pm.mesh.indices[grid_idx..grid_idx + 12]
+        // First card's triangle list (after the grid AND the skirt: the cards are the tail).
+        let base = pm.mesh.indices[grid_idx + skirt_idx];
+        let first: Vec<u32> = pm.mesh.indices[grid_idx + skirt_idx..grid_idx + skirt_idx + 12]
             .iter()
             .map(|i| i - base)
             .collect();

@@ -129,6 +129,9 @@ pub const GPU_IDS_WITHOUT_CPU_TWIN: &[&str] = &[
     // The frosted films' far sides (2026-11-14, renderer/film_blur.rs): recorded inside
     // `cpu.film_blur` with the coverage and the pyramid, so no per-pass CPU twin.
     "gpu.film_far",
+    // The far tree cards' cull (2026-11-14, renderer/tree_card_cull.rs): one compute pass recorded
+    // inside `cpu.celestial`, so no per-pass CPU twin.
+    "gpu.card_cull",
 ];
 
 /// Whether `gpu.x` has a `cpu.x` stage the no-timestamp fallback can read.

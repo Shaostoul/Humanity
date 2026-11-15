@@ -99,6 +99,17 @@ impl RangeAlloc {
         true
     }
 
+    /// Raise the capacity to `cap`, the new elements free (merged into a free run that reaches the
+    /// old end). The tree card records grow this way (`tree_card_cull::CardRecords`).
+    pub fn grow_to(&mut self, cap: u32) {
+        if cap <= self.cap {
+            return;
+        }
+        let old = self.cap;
+        self.cap = cap;
+        self.free(old, cap - old);
+    }
+
     /// The longest free run (what the largest single allocation can be now).
     pub fn largest_free(&self) -> u32 {
         self.free.iter().map(|(_, l)| *l).max().unwrap_or(0)
@@ -162,7 +173,7 @@ impl PatchInstance {
 /// One multi_draw_indexed_indirect entry (wgpu arg order: index_count,
 /// instance_count, first_index, base_vertex, first_instance).
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct IndirectArgs {
     pub index_count: u32,
     pub instance_count: u32,
@@ -189,6 +200,9 @@ pub struct PatchArena {
     /// One-shot log flag: the first alloc failure after a success logs
     /// (no silent caps), then stays quiet until pressure clears.
     overflow_logged: bool,
+    /// The tree card cull: every card quad's cull record, and the per-frame cull into indirect
+    /// draws (renderer/tree_card_cull.rs, 2026-11-14).
+    pub cards: super::tree_card_cull::CardCull,
 }
 
 impl PatchArena {
@@ -257,7 +271,9 @@ impl PatchArena {
         let index_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Patch Arena Indices"),
             size: icap as u64 * 4,
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            // STORAGE: the tree card cull writes the main view's kept card indices into a range
+            // reserved here (renderer/tree_card_cull.rs), so they draw in the patches' own list.
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
             mapped_at_creation: false,
         });
         // Instance data is a VERTEX buffer (slot 1, step_mode Instance) --
@@ -293,7 +309,7 @@ impl PatchArena {
                 resource: batch_buf.as_entire_binding(),
             }],
         });
-        Self {
+        let mut arena = Self {
             vertex_buf,
             index_buf,
             instance_buf,
@@ -303,13 +319,41 @@ impl PatchArena {
             valloc: RangeAlloc::new(vcap),
             ialloc: RangeAlloc::new(icap),
             overflow_logged: false,
+            cards: super::tree_card_cull::CardCull::new(device),
+        };
+        arena.reserve_card_region(device, super::tree_card_cull::REGION_START);
+        arena
+    }
+
+    /// Reserve (or grow to) `want` indices of the index buffer for the tree card cull's main view,
+    /// at a 256-byte-aligned start (a storage binding's offset rule), within the device's binding
+    /// size. Keeps the old range when no free run fits.
+    fn reserve_card_region(&mut self, device: &wgpu::Device, want: u32) {
+        let want = want.min(super::tree_card_cull::CardCull::max_region(device)) & !63;
+        let (old_start, old_cap) = self.cards.region;
+        if want <= old_cap {
+            return;
         }
+        let Some(raw) = self.ialloc.alloc(want + 64) else {
+            log::warn!("[TreeCards] no room for {want} card indices in the patch arena: the cull keeps {old_cap}");
+            return;
+        };
+        let start = (raw + 63) & !63;
+        // Hand back the alignment slack on both sides, and the old range.
+        self.ialloc.free(raw, start - raw);
+        self.ialloc.free(start + want, raw + want + 64 - (start + want));
+        if old_cap > 0 {
+            self.ialloc.free(old_start, old_cap);
+            log::info!("[TreeCards] the main view's card range grew to {want} indices");
+        }
+        self.cards.region = (start, want);
     }
 
     /// Allocate arena ranges and upload the geometry. None = arena full
     /// (or geometry empty); the caller falls back to a classic mesh.
     pub fn upload(
         &mut self,
+        device: &wgpu::Device,
         queue: &wgpu::Queue,
         vertices: &[Vertex],
         indices: &[u32],
@@ -340,6 +384,11 @@ impl PatchArena {
             bytemuck::cast_slice(vertices),
         );
         queue.write_buffer(&self.index_buf, istart as u64 * 4, bytemuck::cast_slice(indices));
+        self.cards.records.add(device, queue, vstart, vertices, indices);
+        let wanted = self.cards.wanted.get();
+        if wanted > self.cards.region.1 {
+            self.reserve_card_region(device, wanted.saturating_add(wanted / 2));
+        }
         Some(PatchSlot {
             vstart,
             vcount: vertices.len() as u32,
@@ -349,6 +398,7 @@ impl PatchArena {
     }
 
     pub fn release(&mut self, slot: PatchSlot) {
+        self.cards.records.remove(slot.vstart);
         self.valloc.free(slot.vstart, slot.vcount);
         self.ialloc.free(slot.istart, slot.icount);
     }
