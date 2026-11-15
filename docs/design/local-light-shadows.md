@@ -729,6 +729,100 @@ compute-skinned once a frame into a shadow pool (the compute shader needs an out
 from its source's, `skinning.wgsl` `vertex_base` serves both today) and drawn as a skinned set (the
 crowd's 540 draws).
 
+### Built: the film pyramid as one compute pass, the swaying leaves and the middle tier on the GPU (2026-11-14, rung 4)
+
+The three items above, in that order, and BUG-305 on the way.
+
+- **The pyramid as one compute pass** (`film_blur.rs` `encode_pyramid`, `cs_base` and `cs_down` in
+  `film_blur.wgsl`, the same arithmetic as `fs_base` and `fs_down`): a dispatch per level over the
+  whole level, shading only the level's rectangle and writing 0 (coverage 0) everywhere else; one
+  upload of all six levels' numbers into 256-byte slots; the level groups made with the pyramid (they
+  hold only its own views, the sampler and the params buffer), the base group kept while the scene
+  and depth views are the same ones (`TextureView` is Eq), the coverage group made once; with the
+  reuse switch off every group is made again every frame. The pyramid gained `STORAGE_BINDING`
+  (rgba16float storage writes are core WebGPU). Red twin: showcase `film_passes` "1", the six
+  render passes (`encode_pyramid_passes`).
+- **The swaying plants as sway sets** (`shadow_gpu::SetKind::Sway`,
+  `assets/shaders/shadow_atlas_sway.wgsl`): types 19 to 22 (photoscanned meshes, procedural plants,
+  cluster cards, baked bark), one indirect command per material a face. The wind is vs_main's own
+  `wind_displace` copied verbatim (the file defines `camera`, `vs_model` and `vs_rot` for it; `vs_rot`
+  is the inverse transpose, exact for the translate-rotate-scale matrices every caster is) and fed the
+  per-draw loop's own wind and clock (`lit_uniform`'s `light7_cone_inner` and `sun_color.w`, written
+  once a frame); the fragment test is fs_shadow's LOD dither and its type 19 and 21 cuts. The
+  instance's extra carries the type, the wind class (`shadow_gpu::wind_class`, vs_main's selection
+  twinned) and the LOD fade. A FINDING, not changed here: `lit_uniform` zeroes both the wind and the
+  clock, so the room-light shadows of swaying plants, on either path, stand at the fallback breeze's
+  lean at clock 0 and never sway; the sway sets keep exactly that, so the picture is unchanged.
+- **The middle tier from a shadow pool** (`renderer/shadow_pool.rs`, a child module of
+  local_shadows): each middle-tier or shadow-only body whose sphere reaches a shadow view is
+  compute-skinned ONCE a frame into one pool buffer (the near bodies' `skinning.wgsl`, which gained an
+  `out_base` separate from its source's `vertex_base` and a flag that skips the last-pose write;
+  params 32 bytes), each person a range of it (`shadow_pool::plan`, grown to the largest crowd met,
+  a power of two); its regions join the GPU path as plain and card-hair casters with a batch of their
+  own each, the model matrix the palette's (`skinning::rows_to_model`), the bounds the body sphere.
+  A body's regions are now ranges of ONE index buffer, so a body is one vertex source. The per-draw
+  loop skips the draws taken (`Skinning::shadow_gpu`). Red twins: `shadow_gpu_sway` "0",
+  `shadow_gpu_crowd` "0".
+- **BUG-305, on the way** (merged to main on its own): an off-screen view (a hi-res screenshot, a
+  camera screen) with a film in sight panicked in wgpu validation, because the coverage pass paired
+  the window-sized mark with the view-sized depth. The blur now stands down in any off-screen view
+  (`blur_fits`) and the coverage pass, `FilmBlur::encode_coverage`, refuses a depth of another size.
+  A hi-res screenshot therefore shows films unblurred.
+
+**Measured** (2026-11-14, RTX 4070, release build, the rig at 2560 x 1387, `same_park`; "new" four
+captures of this rung, "old" three of its red twins together (`film_passes` "1", `shadow_gpu_sway`
+"0", `shadow_gpu_crowd` "0": rung 3 as merged), alternated, medians; night on one boot, noon on
+another). **The machine was NOT quiet**: the captures ran between about 10:05 and 10:25 Pacific, and three to
+five other agents compiled throughout (the build slot showed two or three compiles running and up to nine waiting at
+every check; every capture was marked contaminated), so these are wall-clock processor numbers on a
+busy machine, with outliers of 7 to 11 ms in single captures that the medians absorb; captures
+`s4-ab-night` and `s4-ab-noon` in the session scratchpad.
+
+| Vantage | `cpu.shadow_local` old / new | `cpu.film_blur` old / new | `gpu.shadow_local` old / new |
+|---|---|---|---|
+| shadow-hall-chair-night | 1.73 / 1.47 (-15%) | 0.005 / 0.005 (no film on screen) | 0.307 / 0.309 |
+| shadow-racks-night | 2.39 / 2.14 (-11%) | 2.33 / 0.70 | 0.252 / 0.257 |
+| film-racks-night | 3.13 / 2.88 (-8%) | 1.31 / 0.65 (-50%) | 0.324 / 0.326 |
+| anim-crowd-near | 2.06 / 1.83 (-11%) | 0.96 / 0.59 | 0.246 / 0.169 |
+| home-racks-noon | 1.62 / 1.59 | 0.76 / 0.51 | 0.302 / 0.302 |
+| film-racks-noon | 3.29 / 1.41 | 0.81 / 0.43 | 0.307 / 0.307 |
+| shadow-racks-noon | 2.03 / 1.96 | 0.93 / 0.86 | 0.253 / 0.246 |
+| home-overview-noon | 2.12 / 2.40 (noise: new 1.03 to 3.14) | 0.94 / 0.63 | 0.732 / 0.732 |
+| planet-built-inside | 0.78 / 0.88 | 0.005 / 0.005 | 0.010 / 0.011 |
+
+What moved: **the per-draw loop is empty** where it was busiest. The hall's 151 classic caster draws
+(94 cutouts) went to 0, drawn instead as about 50 sway sets (one per leaf and card material) in 169
+commands over its 43 views; the crowd's 453 to 483 skinned body draws and 14 cutouts went to 0, its
+363 regions of 36 bodies drawn from the shadow pool (32 MB at that crowd) in a few sets. **The film
+pyramid's own cost fell from 620 to 700 microseconds to about 200** (the `[FilmBlur]` log line:
+setup 36, far sides of 14 films 180, coverage 150, pyramid 200, smoothed), which is most of
+`cpu.film_blur`'s halving. **What did not move enough**: `cpu.shadow_local` fell 8 to 15% (the 0.3 ms
+target is not met) and `cpu.film_blur` sits at 0.4 to 0.7 ms (target 0.2). The shadow split now reads
+uploads 250 to 550 microseconds, recording the draws (the per-face set tests and about 170 indirect
+commands) about 400, the submit about 250 and the GPU cull's commands 150: what is left is no longer
+per-caster work but per-face and per-frame structure. The caster gathering for the new classes
+(model matrices for about 200 swaying casters; the pool's gather of 500 middle draws) moved into
+`cpu.shadow_near` (0.25 to 0.55 ms in the crowd), so the thread span (`cpu.span.shadow_atlas`) of
+the crowd stayed level (2.36 / 2.46) while the hall's fell (2.08 / 1.91). GPU time is unchanged
+everywhere except the crowd, where drawing the pool's copies is cheaper than skinning each body
+again per face (0.246 to 0.169 ms).
+
+**The pictures are the same**: the share of pixels more than 4 codes apart, new against old, sits
+inside the share between two captures of one arm everywhere (the hall 1.9 to 2.1% against 1.6 to
+1.8%, the racks at night 0.4 to 0.6% against 0.35 to 0.5%, the crowd 3.0 to 3.5% against 3.2 to
+3.3%, the noon racks 1.1 to 1.3% against 0.5 to 1.1%, the films 7.2 to 7.8% against 7.1 to 8.1%,
+which is the films' own temporal noise). The gates pass: `shadow-metrics.mjs --gate` (the racks at
+night keep 0.423 of their light under the shadow), `home-shadow-metrics.mjs --gate` on/off (the
+shelf keeps 0.201, the open floor moves 0.02 codes, the hut's floor keeps 0.123).
+
+**Next, in the order they pay** (none of it per-caster any more): the uploads (the cull's views and
+the shadow table each frame, `write_shadow_table`), the per-face set tests on the processor (one sway
+set per material made the hall's set count 51: a bindless or texture-array albedo would make the
+plants ONE set), the submit (the atlas's own encoder could ride the scene's, as the film blur's did),
+and for the film blur the far sides and the coverage (two passes of 14 draws each; the coverage could
+be a second target of the far-side pass). Then a quiet-machine re-measure, which this rung could not
+get.
+
 ## 11. Questions only the operator can answer
 
 1. **How many lamps should Full shadow?** Rung 1 shadows the 8 that matter most where you look

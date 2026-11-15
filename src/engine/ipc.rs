@@ -1884,6 +1884,19 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.local_shadows.gpu_more_off = t == "0";
         log::info!("Showcase: shadow_gpu_more -> {}", !state.renderer.local_shadows.gpu_more_off);
     }
+    // Rung 4's red twins (2026-11-14, the picture must stay the same, only the cost moves):
+    // {"shadow_gpu_sway":"0"} puts the swaying plants (types 19 to 22) back on the per-draw loop;
+    // {"shadow_gpu_crowd":"0"} puts the middle-tier bodies and the first-person twin back on it,
+    // skinned in the vertex stage once per face (renderer/shadow_pool.rs). "1" or "auto" puts each
+    // back on the GPU-driven path.
+    if let Some(t) = grab("shadow_gpu_sway") {
+        state.renderer.local_shadows.sway_off = t == "0";
+        log::info!("Showcase: shadow_gpu_sway -> {}", !state.renderer.local_shadows.sway_off);
+    }
+    if let Some(t) = grab("shadow_gpu_crowd") {
+        state.renderer.local_shadows.crowd_off = t == "0";
+        log::info!("Showcase: shadow_gpu_crowd -> {}", !state.renderer.local_shadows.crowd_off);
+    }
     // {"partial_shadows":"0"}: glass and frosted film cast nothing, as before 2026-11-13 (the partial
     // casters' red twin, renderer/shadow_transmit.rs: the light through a tent is undimmed again);
     // "1" or "auto" puts them back.
@@ -1906,6 +1919,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     if let Some(t) = grab("film_v1") {
         state.renderer.film_blur.v1 = t == "1";
         log::info!("Showcase: film_v1 -> {}", state.renderer.film_blur.v1);
+    }
+    // {"film_passes":"1"}: the blur's pyramid as six render passes, each with its own bind group and
+    // upload, as rung 3 merged it (2026-11-14; the red twin of the one compute pass, for a same-boot
+    // A/B of `cpu.film_blur`); "0" or "auto" puts the compute pass back.
+    if let Some(t) = grab("film_passes") {
+        state.renderer.film_blur.passes = t == "1";
+        log::info!("Showcase: film_passes -> {}", state.renderer.film_blur.passes);
     }
     if let Some(t) = grab("partial_shadows") {
         state.renderer.local_shadows.partial_off = t == "0";

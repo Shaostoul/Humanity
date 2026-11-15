@@ -31,7 +31,7 @@
 //!    coverage, coverage in alpha), each level above a 13-tap downsample of the one below, up to
 //!    `MAX_LEVELS`; layer 1's base holds the view depth of the nearest surface. Only the rectangle
 //!    of the screen the films cover is processed (`screen_rect`, `level_rect`): the rest of every
-//!    level is cleared, coverage 0, which is what it is.
+//!    level is written 0, coverage 0, which is what it is. One compute pass, a dispatch per level.
 //! 4. THE NEAR SIDES (the see-through pass as before, film mode NEAR): each film's faces toward the
 //!    eye discard the far ones and blend the pyramid in (`film_frost`, 90-fragment-main.wgsl): the
 //!    level whose texels match the disc's radius on screen, four bilinear taps round it, colour over
@@ -58,9 +58,19 @@
 //! A KNOWN LIMIT: other see-through things behind a film (a window beyond a tent) are drawn after
 //! the pyramid, so through the film they show only at the sheet's straight-through share (1 - haze).
 //!
-//! NOTHING KEPT ACROSS FRAMES: the pyramid and the mask are rebuilt every frame they are used, their
-//! bind groups made every frame; the textures are resources sized to the window, made when the
-//! setting turns on and dropped when it turns off.
+//! WHY ONE COMPUTE PASS (2026-11-14, rung 4). The log line split the remaining processor cost: the
+//! pyramid's six render passes took 0.62 to 0.7 ms of `cpu.film_blur`'s 0.8 to 1.0 even over a 5 x 5
+//! rectangle, six passes, six bind groups and six uploads. Now one compute pass of six dispatches
+//! (`encode_pyramid`), one upload of all six levels' numbers, the level groups made with the
+//! pyramid and the coverage's group made once. Showcase `film_passes` "1" is its red twin, the six
+//! render passes again.
+//!
+//! NOTHING KEPT ACROSS FRAMES: the pyramid and the mask are rebuilt every frame they are used; the
+//! textures are resources sized to the window, made when the setting turns on and dropped when it
+//! turns off. The bind groups that hold only the pyramid's own views live with it (they cannot go
+//! stale: they die with what they bind), the base's is kept while the scene and depth views are the
+//! same ones, and with the reuse switch off (`humanity_core::reuse::enabled()`) every one of them is
+//! made again every frame.
 
 use super::*;
 
@@ -125,6 +135,51 @@ pub fn haze(params2: [f32; 4]) -> f32 {
 /// `film_covered` in 90-fragment-main.wgsl.
 pub fn covered_mean(b: [f32; 4]) -> Option<[f32; 3]> {
     (b[3] > 1e-4).then(|| [b[0] / b[3], b[1] / b[3], b[2] / b[3]])
+}
+
+/// A pyramid level's texel (`dx`, `dy`) from the level below (`src`, `src_size` texels; the level
+/// itself `dst_size`): the 13-tap downsample of bilinear taps (clamped at the edges) round the
+/// texel's centre, as the full-screen triangle placed it. CPU twin of `down13` in film_blur.wgsl
+/// (`cs_down`, `fs_down`).
+pub fn down_texel(src: impl Fn(u32, u32) -> [f32; 4], src_size: (u32, u32), dst_size: (u32, u32), dx: u32, dy: u32) -> [f32; 4] {
+    let tap = |u: f32, v: f32| {
+        let (fx, fy) = (u * src_size.0 as f32 - 0.5, v * src_size.1 as f32 - 0.5);
+        let (x0, y0) = (fx.floor(), fy.floor());
+        let (ax, ay) = (fx - x0, fy - y0);
+        let cx = |x: f32| x.clamp(0.0, (src_size.0 - 1) as f32) as u32;
+        let cy = |y: f32| y.clamp(0.0, (src_size.1 - 1) as f32) as u32;
+        let (a, b, c, d) = (src(cx(x0), cy(y0)), src(cx(x0 + 1.0), cy(y0)), src(cx(x0), cy(y0 + 1.0)), src(cx(x0 + 1.0), cy(y0 + 1.0)));
+        let mut o = [0.0f32; 4];
+        for k in 0..4 {
+            o[k] = (a[k] * (1.0 - ax) + b[k] * ax) * (1.0 - ay) + (c[k] * (1.0 - ax) + d[k] * ax) * ay;
+        }
+        o
+    };
+    let (u, v) = ((dx as f32 + 0.5) / dst_size.0 as f32, (dy as f32 + 0.5) / dst_size.1 as f32);
+    let (tx, ty) = (1.0 / src_size.0 as f32, 1.0 / src_size.1 as f32);
+    const TAPS: [(f32, f32, f32); 13] = [
+        (0.0, 0.0, 0.125),
+        (-2.0, -2.0, 0.03125),
+        (2.0, -2.0, 0.03125),
+        (-2.0, 2.0, 0.03125),
+        (2.0, 2.0, 0.03125),
+        (0.0, -2.0, 0.0625),
+        (-2.0, 0.0, 0.0625),
+        (2.0, 0.0, 0.0625),
+        (0.0, 2.0, 0.0625),
+        (-1.0, -1.0, 0.125),
+        (1.0, -1.0, 0.125),
+        (-1.0, 1.0, 0.125),
+        (1.0, 1.0, 0.125),
+    ];
+    let mut acc = [0.0f32; 4];
+    for (ox, oy, w) in TAPS {
+        let t = tap(u + tx * ox, v + ty * oy);
+        for k in 0..4 {
+            acc[k] += t[k] * w;
+        }
+    }
+    acc
 }
 
 /// Layer 0 of the pyramid's base texel (`bx`, `by`) from a render of `size`: the 4 x 4 tent
@@ -262,10 +317,24 @@ pub(crate) struct Pyramid {
     _mask_tex: wgpu::Texture,
     mask: wgpu::TextureView,
     size: (u32, u32),
+    /// The compute pyramid's groups for levels 1 and up (`FilmBlur::down_groups`), made with the
+    /// pyramid: they hold only its own views, the down sampler and the params buffer, so they live
+    /// exactly as long as what they bind. With the reuse switch off they are made again every frame.
+    down_groups: Vec<wgpu::BindGroup>,
+    /// The compute base's group and the scene and depth views it was made for (a view's identity is
+    /// its key: `wgpu::TextureView` is Eq). Made again whenever either view is a different one, and
+    /// every frame with the reuse switch off. Scratch for drawing inside `&self`, never state.
+    base_group: std::cell::RefCell<Option<(wgpu::TextureView, wgpu::TextureView, wgpu::BindGroup)>>,
 }
 
 impl Pyramid {
-    fn new(device: &wgpu::Device, size: (u32, u32)) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, size: (u32, u32), blur: &FilmBlur) -> Self {
+        let mut p = Self::textures(device, size);
+        p.down_groups = blur.down_groups(device, &p);
+        p
+    }
+
+    fn textures(device: &wgpu::Device, size: (u32, u32)) -> Self {
         let (bw, bh) = base_size(size.0, size.1);
         let n = levels_for(size.0, size.1);
         let tex = device.create_texture(&wgpu::TextureDescriptor {
@@ -275,7 +344,7 @@ impl Pyramid {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: PYRAMID_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
         let view = tex.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() });
@@ -302,9 +371,35 @@ impl Pyramid {
             view_formats: &[],
         });
         let mask = mask_tex.create_view(&wgpu::TextureViewDescriptor::default());
-        Pyramid { _tex: tex, view, levels, depth_base, _mask_tex: mask_tex, mask, size }
+        Pyramid { _tex: tex, view, levels, depth_base, _mask_tex: mask_tex, mask, size, down_groups: Vec::new(), base_group: std::cell::RefCell::new(None) }
     }
 }
+
+/// One pyramid level's numbers: the source's size and its inverse, the projection's depth terms and
+/// the base's "every texel counts" flag, and the level's rectangle (x0, y0, x1, y1) in its own
+/// texels. 48 bytes, LOCKSTEP with film_blur.wgsl `BlurParams`.
+pub fn level_params(src: (u32, u32), proj: &Mat4, all_count: bool, rect: Rect) -> [u32; 12] {
+    let f = |v: f32| v.to_bits();
+    [
+        f(src.0 as f32),
+        f(src.1 as f32),
+        f(1.0 / src.0 as f32),
+        f(1.0 / src.1 as f32),
+        f(proj.z_axis.z),
+        f(proj.w_axis.z),
+        f(0.0),
+        f(if all_count { 1.0 } else { 0.0 }),
+        rect.0,
+        rect.1,
+        rect.0 + rect.2,
+        rect.1 + rect.3,
+    ]
+}
+
+/// Each level's slot in the params buffer: a uniform binding's offset must be a multiple of the
+/// device's alignment, which is at most 256.
+const PARAMS_SLOT: u64 = 256;
+const PARAMS_BYTES: u64 = 48;
 
 /// The film blur's GPU state.
 pub struct FilmBlur {
@@ -315,15 +410,24 @@ pub struct FilmBlur {
     /// Showcase pin `film_v1` "1": the merged version (2026-11-13) for a same-boot A/B: its own
     /// encoder and submit, no coverage, the whole screen processed.
     pub v1: bool,
+    /// Showcase pin `film_passes` "1": the pyramid as six render passes, each with its own bind
+    /// group and upload, as rung 3 merged it (2026-11-14; the compute pyramid's red twin).
+    pub passes: bool,
     base_pso: wgpu::RenderPipeline,
     down_pso: wgpu::RenderPipeline,
+    /// The compute pyramid: the base and the levels above it, one dispatch each in one pass.
+    base_cs: wgpu::ComputePipeline,
+    down_cs: wgpu::ComputePipeline,
     cover_pso: wgpu::RenderPipeline,
+    /// The coverage pass's group (its camera buffer only): made once, with the buffer.
+    cover_group: wgpu::BindGroup,
     /// Linear, clamped: the downsample's taps.
     down_sampler: wgpu::Sampler,
     /// Linear between texels and between levels, clamped: what the film's shading samples with
     /// (group 0 binding 13).
     pub read_sampler: wgpu::Sampler,
-    params: Vec<wgpu::Buffer>,
+    /// Every level's numbers, one 256-byte slot each, written in one upload a frame.
+    params: wgpu::Buffer,
     cover_cam: wgpu::Buffer,
     cover_inst: wgpu::Buffer,
     /// The far-side pass's camera uniform (film mode FAR) and its group 0, made with the scene's
@@ -358,6 +462,9 @@ impl FilmBlur {
         };
         let base_pso = pso("fs_base", "Film Blur Base Pipeline", &[target(PYRAMID_FORMAT), target(PYRAMID_FORMAT)]);
         let down_pso = pso("fs_down", "Film Blur Down Pipeline", &[target(PYRAMID_FORMAT)]);
+        let cs = |entry: &str, label: &str| device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor { label: Some(label), layout: None, module: &module, entry_point: Some(entry), compilation_options: Default::default(), cache: None });
+        let base_cs = cs("cs_base", "Film Blur Base Compute");
+        let down_cs = cs("cs_down", "Film Blur Down Compute");
         let instance_attrs = [
             wgpu::VertexAttribute { offset: 0, shader_location: 1, format: wgpu::VertexFormat::Float32x4 },
             wgpu::VertexAttribute { offset: 16, shader_location: 2, format: wgpu::VertexFormat::Float32x4 },
@@ -411,8 +518,13 @@ impl FilmBlur {
             ..Default::default()
         });
         let buffer = |label: &str, size: u64, usage: wgpu::BufferUsages| device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size, usage: usage | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        let params = (0..MAX_LEVELS).map(|_| buffer("Film Blur Params", 32, wgpu::BufferUsages::UNIFORM)).collect();
+        let params = buffer("Film Blur Params", MAX_LEVELS as u64 * PARAMS_SLOT, wgpu::BufferUsages::UNIFORM);
         let cover_cam = buffer("Film Blur Coverage Camera", 64, wgpu::BufferUsages::UNIFORM);
+        let cover_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Film Blur Coverage BG"),
+            layout: &cover_pso.get_bind_group_layout(0),
+            entries: &[wgpu::BindGroupEntry { binding: 5, resource: cover_cam.as_entire_binding() }],
+        });
         let cover_inst = buffer("Film Blur Coverage Instances", MAX_COVER_FILMS as u64 * COVER_INSTANCE_BYTES, wgpu::BufferUsages::VERTEX);
         let far_camera = buffer("Film Far Side Camera", std::mem::size_of::<camera::CameraUniforms>() as u64, wgpu::BufferUsages::UNIFORM);
         let dummy = device.create_texture(&wgpu::TextureDescriptor {
@@ -426,7 +538,85 @@ impl FilmBlur {
             view_formats: &[],
         });
         let dummy_view = dummy.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() });
-        FilmBlur { on: true, pin: None, v1: false, base_pso, down_pso, cover_pso, down_sampler, read_sampler, params, cover_cam, cover_inst, far_camera, far_group: None, pyramid: None, dummy_view, split_avg: std::cell::Cell::new([0.0; 4]), last_log: std::cell::Cell::new(None) }
+        FilmBlur {
+            on: true,
+            pin: None,
+            v1: false,
+            passes: false,
+            base_pso,
+            down_pso,
+            base_cs,
+            down_cs,
+            cover_pso,
+            cover_group,
+            down_sampler,
+            read_sampler,
+            params,
+            cover_cam,
+            cover_inst,
+            far_camera,
+            far_group: None,
+            pyramid: None,
+            dummy_view,
+            split_avg: std::cell::Cell::new([0.0; 4]),
+            last_log: std::cell::Cell::new(None),
+        }
+    }
+
+    /// One level's params slot as a uniform binding.
+    fn params_slot(&self, lvl: usize) -> wgpu::BindingResource<'_> {
+        wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &self.params, offset: lvl as u64 * PARAMS_SLOT, size: wgpu::BufferSize::new(PARAMS_BYTES) })
+    }
+
+    /// The compute pyramid's groups for levels 1 and up: the level below through the down sampler,
+    /// the level itself as the storage target, its params slot.
+    fn down_groups(&self, device: &wgpu::Device, pyr: &Pyramid) -> Vec<wgpu::BindGroup> {
+        (1..pyr.levels.len())
+            .map(|lvl| {
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Film Blur Down Compute BG"),
+                    layout: &self.down_cs.get_bind_group_layout(0),
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&pyr.levels[lvl - 1]) },
+                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.down_sampler) },
+                        wgpu::BindGroupEntry { binding: 2, resource: self.params_slot(lvl) },
+                        wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&pyr.levels[lvl]) },
+                    ],
+                })
+            })
+            .collect()
+    }
+
+    /// The compute base's group: the scene, its depth and the coverage mark read, the base's two
+    /// layers written.
+    fn base_group(&self, device: &wgpu::Device, pyr: &Pyramid, scene: &wgpu::TextureView, depth: &wgpu::TextureView) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Film Blur Base Compute BG"),
+            layout: &self.base_cs.get_bind_group_layout(0),
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(scene) },
+                wgpu::BindGroupEntry { binding: 2, resource: self.params_slot(0) },
+                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(depth) },
+                wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&pyr.mask) },
+                wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&pyr.levels[0]) },
+                wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&pyr.depth_base) },
+            ],
+        })
+    }
+
+    /// Every level's numbers in one upload (one 256-byte slot each).
+    fn write_params(&self, queue: &wgpu::Queue, pyr: &Pyramid, proj: &Mat4, rect: Rect, all_count: bool) {
+        let (w, h) = pyr.size;
+        let mut bytes = vec![0u8; pyr.levels.len() * PARAMS_SLOT as usize];
+        let mut src = (w, h);
+        for lvl in 0..pyr.levels.len() {
+            let r = level_rect(rect, lvl as u32, (w, h));
+            let p = level_params(src, proj, all_count, r);
+            let at = lvl * PARAMS_SLOT as usize;
+            bytes[at..at + PARAMS_BYTES as usize].copy_from_slice(bytemuck::cast_slice(&p));
+            src = if lvl == 0 { base_size(w, h) } else { ((src.0 / 2).max(1), (src.1 / 2).max(1)) };
+        }
+        queue.write_buffer(&self.params, 0, &bytes);
     }
 
     /// Whether the blur is asked for: the pin, else the setting.
@@ -444,24 +634,59 @@ impl FilmBlur {
         self.pyramid.as_ref().map_or(0, |p| pyramid_bytes(p.size.0, p.size.1))
     }
 
-    /// Record the pyramid (step 3 of the file's header) into `encoder`: the base from `scene` (each
-    /// texel weighed by the pyramid's coverage mark, or by one with `all_count`) and `depth`, then
-    /// each level from the one below, each pass only over `rect` (render pixels) carried to its
-    /// level; the rest of every level cleared. `timer` names the passes' timestamps.
+    /// Record the pyramid (step 3 of the file's header) into `encoder` as ONE compute pass: the base
+    /// from `scene` (each texel weighed by the pyramid's coverage mark, or by one with `all_count`)
+    /// and `depth`, then each level from the one below, one dispatch per level over the whole level,
+    /// shading only `rect` (render pixels) carried to that level and writing 0 everywhere else. One
+    /// upload of every level's numbers; the level groups are the pyramid's own, the base's kept
+    /// while the scene and depth views are the same ones (all made again every frame with the reuse
+    /// switch off). `timer` is the pass's timestamps.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn encode_pyramid<'t>(&self, device: &wgpu::Device, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, pyr: &Pyramid, scene: &wgpu::TextureView, depth: &wgpu::TextureView, proj: &Mat4, rect: Rect, all_count: bool, timer: &dyn Fn() -> Option<wgpu::RenderPassTimestampWrites<'t>>) {
+    pub(crate) fn encode_pyramid(&self, device: &wgpu::Device, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, pyr: &Pyramid, scene: &wgpu::TextureView, depth: &wgpu::TextureView, proj: &Mat4, rect: Rect, all_count: bool, timer: Option<wgpu::ComputePassTimestampWrites<'_>>) {
+        let reuse = humanity_core::reuse::enabled();
+        self.write_params(queue, pyr, proj, rect, all_count);
+        let fresh_down = (!reuse).then(|| self.down_groups(device, pyr));
+        let down = fresh_down.as_deref().unwrap_or(&pyr.down_groups);
+        let mut cached = pyr.base_group.borrow_mut();
+        let keep = reuse && cached.as_ref().is_some_and(|(s, d, _)| s == scene && d == depth);
+        if !keep {
+            *cached = Some((scene.clone(), depth.clone(), self.base_group(device, pyr, scene, depth)));
+        }
+        let Some((_, _, base)) = cached.as_ref() else { return };
+        let (bw, bh) = base_size(pyr.size.0, pyr.size.1);
+        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Film Blur Pyramid Compute"), timestamp_writes: timer });
+        for lvl in 0..pyr.levels.len() {
+            let (lw, lh) = ((bw >> lvl).max(1), (bh >> lvl).max(1));
+            if lvl == 0 {
+                pass.set_pipeline(&self.base_cs);
+                pass.set_bind_group(0, base, &[]);
+            } else {
+                if lvl == 1 {
+                    pass.set_pipeline(&self.down_cs);
+                }
+                pass.set_bind_group(0, &down[lvl - 1], &[]);
+            }
+            pass.dispatch_workgroups(lw.div_ceil(8), lh.div_ceil(8), 1);
+        }
+    }
+
+    /// The red twin (showcase `film_passes` "1"): the pyramid as rung 3 merged it, six render
+    /// passes, each with a bind group made and an upload of its own, every level cleared whole and
+    /// shaded only over `rect` carried to it. `timer` names the passes' timestamps.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn encode_pyramid_passes<'t>(&self, device: &wgpu::Device, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, pyr: &Pyramid, scene: &wgpu::TextureView, depth: &wgpu::TextureView, proj: &Mat4, rect: Rect, all_count: bool, timer: &dyn Fn() -> Option<wgpu::RenderPassTimestampWrites<'t>>) {
         let (w, h) = pyr.size;
         let mut src_size = (w, h);
         for (lvl, target) in pyr.levels.iter().enumerate() {
-            let p: [f32; 8] = [src_size.0 as f32, src_size.1 as f32, 1.0 / src_size.0 as f32, 1.0 / src_size.1 as f32, proj.z_axis.z, proj.w_axis.z, 0.0, if all_count { 1.0 } else { 0.0 }];
-            queue.write_buffer(&self.params[lvl], 0, bytemuck::cast_slice(&p));
+            let p = level_params(src_size, proj, all_count, level_rect(rect, lvl as u32, (w, h)));
+            queue.write_buffer(&self.params, lvl as u64 * PARAMS_SLOT, bytemuck::cast_slice(&p));
             let group = if lvl == 0 {
                 device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Film Blur Base BG"),
                     layout: &self.base_pso.get_bind_group_layout(0),
                     entries: &[
                         wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(scene) },
-                        wgpu::BindGroupEntry { binding: 2, resource: self.params[lvl].as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 2, resource: self.params_slot(lvl) },
                         wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(depth) },
                         wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&pyr.mask) },
                     ],
@@ -473,7 +698,7 @@ impl FilmBlur {
                     entries: &[
                         wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&pyr.levels[lvl - 1]) },
                         wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.down_sampler) },
-                        wgpu::BindGroupEntry { binding: 2, resource: self.params[lvl].as_entire_binding() },
+                        wgpu::BindGroupEntry { binding: 2, resource: self.params_slot(lvl) },
                     ],
                 })
             };
@@ -506,7 +731,7 @@ impl FilmBlur {
     /// `MAX_COVER_FILMS`). Records nothing and returns false when the depth is not the mark's size
     /// (`blur_fits`: an off-screen view's depth), which `film_blur_ready` has already refused.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn encode_coverage<'t>(&self, device: &wgpu::Device, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, pyr: &Pyramid, depth: &wgpu::TextureView, depth_size: (u32, u32), view_proj: &[[f32; 4]; 4], films: &[(&mesh::Mesh, Mat4)], timer: Option<wgpu::RenderPassTimestampWrites<'t>>) -> bool {
+    pub(crate) fn encode_coverage<'t>(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, pyr: &Pyramid, depth: &wgpu::TextureView, depth_size: (u32, u32), view_proj: &[[f32; 4]; 4], films: &[(&mesh::Mesh, Mat4)], timer: Option<wgpu::RenderPassTimestampWrites<'t>>) -> bool {
         if !blur_fits(pyr.size, depth_size, false) {
             return false;
         }
@@ -514,11 +739,6 @@ impl FilmBlur {
         queue.write_buffer(&self.cover_cam, 0, bytemuck::cast_slice(view_proj));
         let models: Vec<[f32; 16]> = shown.iter().map(|(_, m)| m.to_cols_array()).collect();
         queue.write_buffer(&self.cover_inst, 0, bytemuck::cast_slice(&models));
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Film Blur Coverage BG"),
-            layout: &self.cover_pso.get_bind_group_layout(0),
-            entries: &[wgpu::BindGroupEntry { binding: 5, resource: self.cover_cam.as_entire_binding() }],
-        });
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Film Coverage Pass"),
             timestamp_writes: timer,
@@ -527,7 +747,7 @@ impl FilmBlur {
             ..Default::default()
         });
         pass.set_pipeline(&self.cover_pso);
-        pass.set_bind_group(0, &group, &[]);
+        pass.set_bind_group(0, &self.cover_group, &[]);
         pass.set_vertex_buffer(1, self.cover_inst.slice(..));
         for (j, (mesh, _)) in shown.iter().enumerate() {
             pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
@@ -561,8 +781,9 @@ impl Renderer {
         if (want && have == Some(size)) || (!want && have.is_none()) {
             return;
         }
+        self.film_blur.pyramid = None;
         self.film_blur.pyramid = want.then(|| {
-            let p = Pyramid::new(&self.device, size);
+            let p = Pyramid::new(&self.device, size, &self.film_blur);
             let (bw, bh) = base_size(size.0, size.1);
             log::info!("[FilmBlur] pyramid {bw} x {bh}, {} levels, coverage at {} x {} ({:.1} MB)", p.levels.len(), size.0, size.1, pyramid_bytes(size.0, size.1) as f64 / 1_048_576.0);
             p
@@ -698,11 +919,15 @@ impl Renderer {
         if !fb.v1 {
             let shown: Vec<(&mesh::Mesh, Mat4)> = films.iter().filter_map(|&i| Some((self.meshes.get(objects[i].mesh)?, Mat4::from_scale_rotation_translation(objects[i].scale, objects[i].rotation, objects[i].position)))).collect();
             let depth = (self.depth_texture.width(), self.depth_texture.height());
-            fb.encode_coverage(&self.device, &self.queue, encoder, pyr, &self.depth_view, depth, &u.view_proj, &shown, self.pass_timer("gpu.film_blur"));
+            fb.encode_coverage(&self.queue, encoder, pyr, &self.depth_view, depth, &u.view_proj, &shown, self.pass_timer("gpu.film_blur"));
         }
         lap(2);
-        let timer = || self.pass_timer("gpu.film_blur");
-        fb.encode_pyramid(&self.device, &self.queue, encoder, pyr, self.scene.view(), &self.depth_view, &camera.projection_matrix(), rect, fb.v1, &timer);
+        if fb.passes || fb.v1 {
+            let timer = || self.pass_timer("gpu.film_blur");
+            fb.encode_pyramid_passes(&self.device, &self.queue, encoder, pyr, self.scene.view(), &self.depth_view, &camera.projection_matrix(), rect, fb.v1, &timer);
+        } else {
+            fb.encode_pyramid(&self.device, &self.queue, encoder, pyr, self.scene.view(), &self.depth_view, &camera.projection_matrix(), rect, false, self.compute_pass_timer("gpu.film_blur"));
+        }
         if let Some(own) = own {
             self.queue.submit(std::iter::once(own.finish()));
         }

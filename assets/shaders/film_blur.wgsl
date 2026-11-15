@@ -32,6 +32,9 @@ struct BlurParams {
     // w: 1 when the base weighs every texel one, coverage or none (showcase `film_v1` "1", the
     // merged look: the outline borrows what is beside the tent).
     proj: vec4<f32>,
+    // This level's rectangle in its own texels (x0, y0, x1, y1, the far edges exclusive): the
+    // compute entries shade inside it and write 0 (coverage 0) everywhere else.
+    rect: vec4<u32>,
 };
 
 @group(0) @binding(0) var src_tex: texture_2d<f32>;
@@ -116,9 +119,8 @@ struct BaseOut {
     @location(1) depth: vec4<f32>,
 };
 
-@fragment
-fn fs_base(i: FullOut) -> BaseOut {
-    let base = vec2<i32>(i.pos.xy) * 2;
+fn base_at(texel: vec2<i32>) -> BaseOut {
+    let base = texel * 2;
     let lim = vec2<i32>(params.src.xy) - vec2<i32>(1);
     var tent = array<f32, 4>(1.0, 3.0, 3.0, 1.0);
     let all_count = params.proj.w > 0.5;
@@ -146,8 +148,56 @@ fn fs_base(i: FullOut) -> BaseOut {
     return BaseOut(acc, vec4<f32>(z, 0.0, 0.0, 0.0));
 }
 
+@fragment
+fn fs_base(i: FullOut) -> BaseOut {
+    return base_at(vec2<i32>(i.pos.xy));
+}
+
 // Each level above the base: the one below downsampled (layer 0 only).
 @fragment
 fn fs_down(i: FullOut) -> @location(0) vec4<f32> {
     return down13(i.uv);
+}
+
+// ── THE PYRAMID AS ONE COMPUTE PASS (2026-11-14, rung 4; film_blur.rs `encode_pyramid`): the six
+// render passes above (now only showcase `film_passes` "1", the red twin) cost the processor 0.62
+// to 0.7 ms a frame, six passes, six bind groups and six uploads, whatever the rectangle. The same
+// arithmetic as `fs_base` and `fs_down`, one dispatch per level over the WHOLE level: inside the
+// level's rectangle it shades, outside it writes 0 (coverage 0, which is what the render passes'
+// clear left there). The destination level is a storage view (rgba16float storage writes are core
+// WebGPU); the level below is read through the sampler as before, another mip of the same texture,
+// and the pass orders the dispatches. ──
+@group(0) @binding(6) var dst_colour: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(7) var dst_depth: texture_storage_2d<rgba16float, write>;
+
+fn in_rect(p: vec2<u32>) -> bool {
+    return all(p >= params.rect.xy) && all(p < params.rect.zw);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn cs_base(@builtin(global_invocation_id) id: vec3<u32>) {
+    let size = textureDimensions(dst_colour);
+    if (any(id.xy >= size)) {
+        return;
+    }
+    var o = BaseOut(vec4<f32>(0.0), vec4<f32>(0.0));
+    if (in_rect(id.xy)) {
+        o = base_at(vec2<i32>(id.xy));
+    }
+    textureStore(dst_colour, id.xy, o.colour);
+    textureStore(dst_depth, id.xy, o.depth);
+}
+
+@compute @workgroup_size(8, 8, 1)
+fn cs_down(@builtin(global_invocation_id) id: vec3<u32>) {
+    let size = textureDimensions(dst_colour);
+    if (any(id.xy >= size)) {
+        return;
+    }
+    var c = vec4<f32>(0.0);
+    if (in_rect(id.xy)) {
+        // The texel's centre in the level's uv, where the full-screen triangle's uv lands.
+        c = down13((vec2<f32>(id.xy) + vec2<f32>(0.5)) / vec2<f32>(size));
+    }
+    textureStore(dst_colour, id.xy, c);
 }

@@ -633,3 +633,199 @@ fn a_skinned_body_casts_from_the_vertices_skinned_this_frame() {
     let (al1, ar1) = frame(&mut gpu, true);
     assert!(al1 > 100 && ar1 == 0, "the arena copy is a frame stale: {al1} left, {ar1} right");
 }
+
+/// The text of a WGSL function `name` in `src`, its comments and blank space removed (so the copy and
+/// the original compare by what they compute).
+fn wgsl_fn_code(src: &str, name: &str) -> String {
+    let start = src.find(&format!("fn {name}(")).unwrap_or_else(|| panic!("fn {name}"));
+    let body = &src[start..];
+    let mut depth = 0i32;
+    let mut end = body.len();
+    for (i, ch) in body.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = i + 1;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    body[..end].lines().map(|l| l.split("//").next().unwrap_or("").trim()).filter(|l| !l.is_empty()).collect::<Vec<_>>().join(" ")
+}
+
+/// THE SWAY SETS' WIND IS vs_main's, AND THEIR CUTS ARE fs_shadow's (rung 4, 2026-11-14): the sway
+/// shader's `wind_displace` is the vertex stage's own function, code for code; the classes it is
+/// called with are the ones vs_main picks (the CPU twin `wind_class` against the selection's lines);
+/// and its type 19 and type 21 cuts and the LOD dither are fs_shadow's lines.
+///
+/// Seen red 2026-11-14 with the sway copy's gust floor drifted to 0.6: "the sway shader's
+/// wind_displace is vs_main's".
+#[test]
+fn the_sway_sets_wind_is_vs_mains() {
+    let pbr = crate::renderer::shader_loader::assembled_pbr_source();
+    assert_eq!(wgsl_fn_code(&pbr, "wind_displace"), wgsl_fn_code(SWAY_WGSL, "wind_displace"), "the sway shader's wind_displace is vs_main's");
+    // vs_main's selection, line for line, and the twin's answers.
+    for line in [
+        "if (wind_mt >= 19.5 && wind_mt < 20.5) {",
+        "wind_class = select(2.0, 0.0, material.params.w < -0.5);",
+        "} else if (wind_mt >= 20.5 && wind_mt < 21.5) {",
+        "wind_class = 2.0; // type 21: foliage cluster card",
+        "} else if (wind_mt >= 21.5 && wind_mt < 22.5) {",
+        "wind_class = 1.0; // type 22: baked-bark wood mesh",
+        "} else if (wind_mt >= 18.5 && wind_mt < 19.5) {",
+        "wind_class = clamp(material.params.w, 0.0, 2.0); // type 19: opt-in",
+    ] {
+        assert!(pbr.lines().any(|l| l.trim() == line), "vs_main's wind class selection has `{line}`");
+    }
+    for (t, w, want) in [(20.0, 0.0, 2.0), (20.0, -1.0, 0.0), (21.0, 5.0, 2.0), (22.0, 0.0, 1.0), (19.0, 1.0, 1.0), (19.0, 0.0, 0.0), (19.0, 7.0, 2.0), (19.0, -3.0, 0.0), (5.0, 2.0, 0.0)] {
+        assert_eq!(wind_class(t, w), want, "type {t} with params.w {w}");
+    }
+    for t in [18.4f32, 18.6, 19.9, 21.0, 22.4, 22.6, 26.0] {
+        assert_eq!(gpu_sway_type(t), (18.5..22.5).contains(&t), "type {t}");
+    }
+    // fs_shadow's cuts and dither, line for line.
+    let start = pbr.find("fn fs_shadow(").expect("fs_shadow");
+    let fs = &pbr[start..start + pbr[start..].find("// ── 4. TYPE 12").expect("the type 12 step")];
+    let lines: Vec<&str> = fs
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.starts_with("let mesh_tex") || l.starts_with("let cc_") || l.starts_with("if (mesh_tex.a") || l.starts_with("if (cc_tex.a") || l.starts_with("let bayer_i") || l.starts_with("let b =") || l.starts_with("vec2<f32>(cc_u"))
+        .collect();
+    assert!(lines.len() >= 8, "fs_shadow's lines: {lines:?}");
+    for l in &lines {
+        assert!(SWAY_WGSL.contains(l), "fs_shadow's line `{l}` is not in the sway shader");
+    }
+}
+
+/// THE SWAY SET BENDS WITH THE WIND AND CUTS BY ITS ALBEDO, on the GPU (rung 4, 2026-11-14): a 12 m
+/// stem (a 1-unit quad scaled 12, baked bark, wind class 1) in a 20 m/s wind along +x, drawn through
+/// the sway set into an orthographic tile looking down z. Its top quarter's shadow leans downwind by
+/// what vs_main's formula gives there (a cantilever lean of h * min(h / 12, 1) * 0.24 at the gust's
+/// 0.65, 1.05 to 1.87 m over that quarter) while its foot stays put; with wind class 0 nothing moves.
+/// Then a cluster card (type 21) whose albedo is clear on its left half and opaque on its right casts
+/// only from its right half.
+///
+/// Seen red 2026-11-14 with vs_sway never calling `wind_displace`: "the wind leans the top quarter
+/// downwind by vs_main's 1.05 to 1.87 m: 0 m".
+#[test]
+#[cfg(feature = "native")]
+fn the_sway_set_bends_with_the_wind_and_cuts_by_the_albedo() {
+    use wgpu::util::DeviceExt;
+    let Some(opened) = device() else { return };
+    let (device, queue) = (&opened.device, &opened.queue);
+    let (vl, tl) = layouts(&device);
+    let mut gpu = GpuCasters::new(&device, &vl, &tl);
+    let quad: Vec<humanity_core::vertex::Vertex> = [(-0.05f32, 0.0f32, 0.0f32), (0.05, 0.0, 1.0), (-0.05, 1.0, 0.0), (0.05, 1.0, 1.0)].iter().map(|&(x, y, u)| humanity_core::vertex::Vertex { position: [x, y, 0.0], normal: [0.0, 0.0, 1.0], uv: [u, y] }).collect();
+    let usage = wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC;
+    let vbuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("stem"), contents: bytemuck::cast_slice(&quad), usage });
+    let ibuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("stem indices"), contents: bytemuck::cast_slice(&[0u32, 1, 2, 2, 1, 3]), usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC });
+    let meshes = vec![crate::renderer::mesh::Mesh { vertex_buffer: vbuf, prev_vertex_buffer: None, index_buffer: ibuf, index_count: 6, first_index: 0, base_vertex: 0, bounds: [0.0, 0.5, 0.0, 1.0] }];
+    // The tile: x from -6 to 6 m, y from -1 to 13 m (looking down z).
+    let (side, x0, x1, y0, y1) = (96u32, -6.0f32, 6.0f32, -1.0f32, 13.0f32);
+    let vp = Mat4::orthographic_rh(x0, x1, y0, y1, -1.0, 1.0);
+    let view_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("views"), contents: bytemuck::cast_slice(&[vp.to_cols_array()]), usage: wgpu::BufferUsages::STORAGE });
+    let view_group = device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &vl, entries: &[wgpu::BindGroupEntry { binding: 0, resource: view_buf.as_entire_binding() }] });
+    let views = vec![CullView::sun(&frustum_planes(&vp), Vec3::ZERO, (x1 - x0) / side as f32, 0)];
+    // The card's albedo: two texels, the left clear, the right opaque, read nearest.
+    let albedo = device.create_texture_with_data(
+        &queue,
+        &wgpu::TextureDescriptor { label: Some("albedo"), size: wgpu::Extent3d { width: 2, height: 1, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format: wgpu::TextureFormat::Rgba8Unorm, usage: wgpu::TextureUsages::TEXTURE_BINDING, view_formats: &[] },
+        wgpu::util::TextureDataOrder::LayerMajor,
+        &[255, 255, 255, 0, 255, 255, 255, 255],
+    );
+    let sampler = device.create_sampler(&wgpu::SamplerDescriptor { mag_filter: wgpu::FilterMode::Nearest, min_filter: wgpu::FilterMode::Nearest, ..Default::default() });
+    let albedo_view = albedo.create_view(&Default::default());
+    let albedo_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: None,
+        layout: &tl,
+        entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&albedo_view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) }],
+    });
+    let depth = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("tile"),
+        size: wgpu::Extent3d { width: side, height: side, depth_or_array_layers: 1 },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth32Float,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let dview = depth.create_view(&Default::default());
+    gpu.draw_pipes().expect("pipes").write_sway(&queue, [1.0, 0.0, 0.0, 20.0], 0.0);
+    // One frame: the quad as one caster of the sway set at `scale`, with `extra`; the covered texels
+    // as (x metres, y metres).
+    let frame = |gpu: &mut GpuCasters, scale: f32, extra: [f32; 4]| -> Vec<(f32, f32)> {
+        gpu.book.begin_frame(true);
+        let slot = gpu.place(&device, 0, 1, &meshes[0]).expect("placed");
+        let model = Mat4::from_scale(Vec3::splat(scale));
+        let casters = vec![CullCaster::new(model.to_cols_array(), Vec3::new(0.0, scale * 0.5, 0.0), scale, 0, false).with_extra(extra)];
+        gpu.upload(&device, &queue, CullParams { cull_off: 1, ..Default::default() }, &views, &casters, &[slot.batch()], 1, 4, true);
+        let mut enc = device.create_command_encoder(&Default::default());
+        gpu.encode(&mut enc, &meshes, None);
+        {
+            let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("tile"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &dview, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                ..Default::default()
+            });
+            let dp = gpu.draw_pipes().expect("pipes");
+            pass.set_pipeline(&dp.sway);
+            pass.set_bind_group(0, &view_group, &[]);
+            pass.set_bind_group(1, &albedo_group, &[]);
+            pass.set_bind_group(2, &dp.sway_group, &[]);
+            let (sv, si) = gpu.arena().expect("arena");
+            pass.set_vertex_buffer(0, sv.slice(..));
+            pass.set_vertex_buffer(1, gpu.instances().expect("instances").slice(..));
+            pass.set_index_buffer(si.slice(..), wgpu::IndexFormat::Uint32);
+            assert!(gpu.draw_set(&mut pass, 0, 0, 0, 1));
+        }
+        let row = (side as u64 * 4).div_ceil(256) * 256;
+        let buf = device.create_buffer(&wgpu::BufferDescriptor { label: None, size: row * side as u64, usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        enc.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo { texture: &depth, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::DepthOnly },
+            wgpu::TexelCopyBufferInfo { buffer: &buf, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row as u32), rows_per_image: Some(side) } },
+            wgpu::Extent3d { width: side, height: side, depth_or_array_layers: 1 },
+        );
+        queue.submit(Some(enc.finish()));
+        let slice = buf.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        device.poll(wgpu::Maintain::Wait);
+        let bytes = slice.get_mapped_range().to_vec();
+        let mut covered = Vec::new();
+        for y in 0..side as usize {
+            for x in 0..side as usize {
+                let at = y * row as usize + x * 4;
+                if f32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]) < 1.0 {
+                    let mx = x0 + (x as f32 + 0.5) / side as f32 * (x1 - x0);
+                    let my = y1 - (y as f32 + 0.5) / side as f32 * (y1 - y0);
+                    covered.push((mx, my));
+                }
+            }
+        }
+        covered
+    };
+    let mean_x = |c: &[(f32, f32)], lo: f32, hi: f32| {
+        let xs: Vec<f32> = c.iter().filter(|p| p.1 >= lo && p.1 < hi).map(|p| p.0).collect();
+        assert!(!xs.is_empty(), "texels between {lo} and {hi} m up");
+        xs.iter().sum::<f32>() / xs.len() as f32
+    };
+    // Baked bark (type 22), still and in the wind.
+    let still = frame(&mut gpu, 12.0, [22.0, 0.0, 0.0, 0.0]);
+    let windy = frame(&mut gpu, 12.0, [22.0, 1.0, 0.0, 0.0]);
+    let (top_still, top_windy) = (mean_x(&still, 9.0, 12.0), mean_x(&windy, 9.0, 12.0));
+    let (foot_still, foot_windy) = (mean_x(&still, 0.0, 3.0), mean_x(&windy, 0.0, 3.0));
+    assert!(top_still.abs() < 0.2, "the still stem stands straight: its top at x {top_still}");
+    let lean = top_windy - top_still;
+    assert!((0.9..2.0).contains(&lean), "the wind leans the top quarter downwind by vs_main's 1.05 to 1.87 m: {lean} m");
+    assert!((foot_windy - foot_still).abs() < 0.3, "the foot stays put: it moved {} m", foot_windy - foot_still);
+    // A cluster card (type 21), still: only its opaque right half casts.
+    let card = frame(&mut gpu, 12.0, [21.0, 0.0, 0.0, 0.0]);
+    let left = card.iter().filter(|p| p.0 < -0.1).count();
+    let right = card.iter().filter(|p| p.0 > 0.1).count();
+    assert!(left == 0 && right > 20, "the card casts from its opaque half only: {left} texels left of its middle, {right} right");
+}

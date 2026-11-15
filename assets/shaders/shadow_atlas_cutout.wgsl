@@ -10,8 +10,9 @@
 // y the alpha threshold).
 //
 // ONLY CARD HAIR (type 26) is routed here (shadow_gpu::gpu_cutout_type): the photoscanned leaves
-// (19) and cluster cards (21) sway in the megashader's vertex stage, and the sprite tree cards (12)
-// are terrain, so those stay on the per-draw loop. The test below is fs_shadow's type 26 branch
+// (19) and cluster cards (21) sway in the megashader's vertex stage, so since rung 4 (2026-11-14)
+// they are the sway sets' (shadow_atlas_sway.wgsl), and the sprite tree cards (12) are terrain, which
+// stay on the per-draw loop. The test below is fs_shadow's type 26 branch
 // (90-fragment-main.wgsl) written again, LOCKSTEP (local_shadows' tests compare the two).
 
 @group(0) @binding(0) var<storage, read> view_proj: array<mat4x4<f32>>;

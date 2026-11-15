@@ -45,6 +45,10 @@ use super::light::RoomLight;
 use super::*;
 use glam::Vec4;
 
+/// The middle tier skinned once a frame into a shadow pool and drawn by the GPU-driven sets (rung 4).
+#[path = "shadow_pool.rs"]
+mod shadow_pool;
+
 /// Where the levels are read from (relative to the data folder's parent, as the other Settings data
 /// files are). Settings > Graphics > Light and sky > Room light shadows.
 pub const LEVELS_PATH: &str = "data/gui/shadow_levels.json";
@@ -689,6 +693,9 @@ struct Caster {
     /// A PARTIAL caster (glass, frosted film: renderer/shadow_transmit.rs): drawn into the
     /// transmittance atlas with what it passes, never into the depth atlas. Its `model` is set.
     partial: Option<shadow_transmit::Partial>,
+    /// A middle-tier body's region drawn from the shadow pool (renderer/shadow_pool.rs): its batch
+    /// of its own (its range of the pool, its region of the body's indices), never shared by mesh.
+    pool: Option<shadow_gpu::CullBatch>,
 }
 
 /// A GPU-driven caster's place this frame (`Caster::gpu`).
@@ -957,6 +964,15 @@ pub struct LocalShadows {
     /// GPU-driven path, as merged on 2026-11-13; the skinned bodies, the card hair and the sheets go
     /// back to the per-draw loop (the red twin of carrying the path to them, 2026-11-14).
     pub gpu_more_off: bool,
+    /// Showcase pin `shadow_gpu_sway` "0": the swaying plants (types 19 to 22) go back to the per-draw
+    /// loop, as merged on 2026-11-14 (the sway sets' red twin, rung 4).
+    pub sway_off: bool,
+    /// Showcase pin `shadow_gpu_crowd` "0": the middle-tier bodies and the first-person twin go back
+    /// to the per-draw loop, skinned in the vertex stage per face, as merged on 2026-11-14 (the shadow
+    /// pool's red twin, rung 4; renderer/shadow_pool.rs).
+    pub crowd_off: bool,
+    /// The middle tier's shadow pool (renderer/shadow_pool.rs).
+    pool: shadow_pool::ShadowPool,
     /// Which mesh is which batch this frame (by mesh id; u32::MAX = none), cleared after each frame
     /// for the entries it set. Reuse: scratch memory only, nothing in it outlives the frame.
     batch_scratch: Vec<u32>,
@@ -1024,6 +1040,9 @@ impl LocalShadows {
             gpu,
             gpu_off: false,
             gpu_more_off: false,
+            sway_off: false,
+            crowd_off: false,
+            pool: shadow_pool::ShadowPool::new(device),
             transmit: shadow_transmit::TransmitPass::new(device),
             partial_off: false,
             batch_scratch: Vec::new(),
@@ -1071,7 +1090,7 @@ impl LocalShadows {
     /// camera buffers.
     pub fn vram_bytes(&self) -> u64 {
         let atlas = self.atlas.as_ref().map_or(0, |a| a.2 as u64 * a.2 as u64 * 4);
-        atlas + self.table.size() + self.view_cams.as_ref().map_or(0, |b| b.size()) + self.fast.vram_bytes() + self.gpu.vram_bytes() + self.transmit.vram_bytes()
+        atlas + self.table.size() + self.view_cams.as_ref().map_or(0, |b| b.size()) + self.fast.vram_bytes() + self.gpu.vram_bytes() + self.transmit.vram_bytes() + self.pool.vram_bytes()
     }
 
     /// The atlas side in use (0 = none).
@@ -1297,7 +1316,10 @@ impl Renderer {
                 let fast = partial.is_none() && !self.local_shadows.fast_off && takes_fast_path(mat.material_type, cutout);
                 // Card hair that does not sway: alpha-tested by the GPU-driven cutout sets.
                 let gpu_cut = cutout && !self.local_shadows.fast_off && shadow_gpu::gpu_cutout_type(mat.material_type) && takes_fast_path(mat.material_type, false);
-                let model = if fast || gpu_cut || partial.is_some() { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
+                // A swaying plant (types 19 to 22, rung 4): the wind as vs_main moves it and its cut,
+                // by the GPU-driven sway sets. Never a skinned body (none is a plant type).
+                let sway = partial.is_none() && !fast && !gpu_cut && !self.local_shadows.fast_off && shadow_gpu::gpu_sway_type(mat.material_type) && mesh.prev_vertex_buffer.is_none();
+                let model = if fast || gpu_cut || sway || partial.is_some() { Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position).to_cols_array() } else { [0.0; 16] };
                 // THE GPU-DRIVEN CASTERS (shadow_gpu): a plain caster, a card-hair cutout or a sheet,
                 // from the arena (a still mesh copied in once) or from the skinned bodies' own buffers
                 // (their vertices skinned this frame, the ones the main view draws). Showcase
@@ -1310,6 +1332,8 @@ impl Renderer {
                     more.then_some(shadow_gpu::SetKind::Sheet)
                 } else if gpu_cut {
                     more.then_some(shadow_gpu::SetKind::Cutout(o.material))
+                } else if sway {
+                    (more && !self.local_shadows.sway_off).then_some(shadow_gpu::SetKind::Sway(o.material))
                 } else if fast {
                     (more || !skinned).then_some(shadow_gpu::SetKind::Plain)
                 } else {
@@ -1346,6 +1370,7 @@ impl Renderer {
                         let extra = match (partial, gpu_cut) {
                             (Some(p), _) => p.to_vec4(),
                             (None, true) => [mat.material_type, mat.params2[2], 0.0, 0.0],
+                            _ if sway => [mat.material_type, shadow_gpu::wind_class(mat.material_type, mat.emissive), obj.fade, 0.0],
                             _ => [0.0; 4],
                         };
                         gpu = Some(GpuPick { set, batch: u32::MAX, extra });
@@ -1354,11 +1379,23 @@ impl Renderer {
                 if gpu_on && gpu.is_none() && fast {
                     fast_left += 1;
                 }
-                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, gpu, partial });
+                casters.push(Caster { obj, centre, radius, cutout, fast, sun_only, model, gpu, partial, pool: None });
                 if casters.len() >= MAX_OBJECTS {
                     break;
                 }
             }
+        }
+
+        // The middle tier and the first-person twin from the shadow pool (renderer/shadow_pool.rs):
+        // each body that reaches a view skinned once, its regions GPU-driven casters. Showcase
+        // `shadow_gpu_crowd` "0" (or `shadow_gpu_more` "0") leaves them all on the per-draw loop.
+        let mut pool_casters = 0u32;
+        if gpu_on && !self.local_shadows.gpu_more_off && !self.local_shadows.crowd_off && !self.local_shadows.fast_off && casters.len() < MAX_OBJECTS {
+            let reaches_view = |centre: Vec3, radius: f32| sun_planes.as_ref().is_some_and(|p| sphere_in(p, centre, radius)) || picked.iter().zip(&reaches).any(|(&li, &reach)| centre.distance(lights[li].pos) < reach + radius);
+            pool_casters = self.gather_pool_casters(&mut casters, &mut gpu_sets, &mut gpu_sources, reaches_view);
+        } else {
+            self.local_shadows.pool.forget_jobs();
+            self.skin_set_shadow_gpu(Vec::new());
         }
 
         // The GPU-driven casters' batches: one per mesh of a set, each set's batches one run (its
@@ -1382,6 +1419,17 @@ impl Renderer {
                 let first = batches.len() as u32;
                 for &i in members {
                     let c = &mut casters[i as usize];
+                    // A shadow pool body's region: a batch of its own (its range of the pool).
+                    if let Some(mut batch) = c.pool {
+                        batch.set = s as u32;
+                        batch.set_first = first;
+                        if let Some(p) = c.gpu.as_mut() {
+                            p.batch = batches.len() as u32;
+                        }
+                        batches.push(batch);
+                        gpu_casters += 1;
+                        continue;
+                    }
                     let m = c.obj.mesh;
                     if scratch[m] == u32::MAX {
                         let batch = if gpu_sets[s].source == 0 {
@@ -1404,7 +1452,9 @@ impl Renderer {
                     gpu_casters += 1;
                 }
                 for &i in members {
-                    scratch[casters[i as usize].obj.mesh] = u32::MAX;
+                    if casters[i as usize].pool.is_none() {
+                        scratch[casters[i as usize].obj.mesh] = u32::MAX;
+                    }
                 }
                 set_runs[s] = (first, batches.len() as u32 - first);
             }
@@ -1703,6 +1753,11 @@ impl Renderer {
             let cull_casters: Vec<shadow_gpu::CullCaster> = casters.iter().filter_map(|c| c.gpu.map(|p| shadow_gpu::CullCaster::new(c.model, c.centre, c.radius, p.batch, c.sun_only).with_extra(p.extra))).collect();
             let params = shadow_gpu::CullParams { cam: cam_planes.map(|p| p.to_array()), cull_off: u32::from(self.local_shadows.cull_off), margin, ..Default::default() };
             self.local_shadows.gpu.upload(&self.device, &self.queue, params, &cull_views, &cull_casters, &batches, gpu_sets.len() as u32, bound, humanity_core::reuse::enabled());
+            // The sway sets' wind and clock: the per-draw loop's view uniform's own (`lit_uniform`).
+            if let (true, Some(dp)) = (gpu_sets.iter().any(|s| matches!(s.kind, shadow_gpu::SetKind::Sway(_))), self.local_shadows.gpu.draw_pipes()) {
+                let u = self.lit_uniform(camera.uniforms());
+                dp.write_sway(&self.queue, u.light_cone_inner[7], u.sun_color[3]);
+            }
         } else {
             self.local_shadows.gpu.n_views = 0;
         }
@@ -1752,6 +1807,8 @@ impl Renderer {
         // ── 6. Draw: this frame's skinning first (the near bodies' vertices), then each view. ──
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Shadow Atlas Encoder") });
         self.encode_skinning(&mut encoder);
+        // The middle tier's bodies that cast, each skinned once into the shadow pool.
+        self.encode_shadow_pool(&mut encoder);
         lap(2, &mut mark);
         // The arena's copies and the GPU's cull, before either atlas pass reads what they write.
         let cull_timer = if self.local_shadows.gpu.n_views > 0 { self.gpu_timers.as_ref().and_then(|t| t.compute_writes("gpu.shadow_local")) } else { None };
@@ -1816,16 +1873,24 @@ impl Renderer {
                         }
                         let (pipe, material) = match set.kind {
                             shadow_gpu::SetKind::Cutout(m) => (1u8, m),
+                            shadow_gpu::SetKind::Sway(m) => (2u8, m),
                             _ => (0u8, usize::MAX),
                         };
                         let Some((sv, si_buf)) = (if set.source == 0 { self.local_shadows.gpu.arena() } else { gpu_sources.get(set.source as usize - 1).map(|(v, i)| (v, i)) }) else { continue };
                         let was = gpu_bound;
                         if was.map(|b| b.0) != Some(pipe) {
-                            pass.set_pipeline(if pipe == 1 { &dp.cutout } else { &dp.plain });
+                            pass.set_pipeline(match pipe {
+                                1 => &dp.cutout,
+                                2 => &dp.sway,
+                                _ => &dp.plain,
+                            });
                             pass.set_bind_group(0, &fp.group, &[]);
                             pass.set_vertex_buffer(1, inst.slice(..));
+                            if pipe == 2 {
+                                pass.set_bind_group(2, &dp.sway_group, &[]);
+                            }
                         }
-                        if pipe == 1 && was.map(|b| (b.0, b.1)) != Some((1, material)) {
+                        if pipe != 0 && was.map(|b| (b.0, b.1)) != Some((pipe, material)) {
                             let group = self.materials.get(material).and_then(|m| m.shadow_albedo_group()).unwrap_or(&self.shadow_pass_texture_bind_group);
                             pass.set_bind_group(1, group, &[]);
                         }
@@ -2050,12 +2115,13 @@ impl Renderer {
                         shadow_gpu::SetKind::Plain => "plain".to_string(),
                         shadow_gpu::SetKind::Cutout(m) => format!("cutout of material {m}"),
                         shadow_gpu::SetKind::Sheet => "sheets".to_string(),
+                        shadow_gpu::SetKind::Sway(m) => format!("sway of material {m}"),
                     };
                     format!("{kind} from {} ({} meshes)", if s.source == 0 { "the arena".to_string() } else { format!("skinned buffers {}", s.source) }, r.1)
                 })
                 .collect();
             log::info!(
-                "[Shadows] GPU-driven casters ({:?}{}): {} views drawn from the GPU's own list in {} commands ({} draw sets: {}), {} casters of {} meshes culled on the GPU ({} of them written to it this frame), {} plain casters left on the per-draw loop, {} meshes copied into the arena this frame; the arena holds {} meshes ({:.1} MB with the cull's buffers); {} classic caster draws ({} of them cutouts) and {} skinned body draws (the middle tier and the first-person twin) on the per-draw loop",
+                "[Shadows] GPU-driven casters ({:?}{}): {} views drawn from the GPU's own list in {} commands ({} draw sets: {}), {} casters of {} meshes culled on the GPU ({} of them written to it this frame), {} plain casters left on the per-draw loop, {} meshes copied into the arena this frame; the arena holds {} meshes ({:.1} MB with the cull's buffers); {} classic caster draws ({} of them cutouts) and {} skinned body draws (the middle tier and the first-person twin) on the per-draw loop; {} middle-tier regions of {} bodies drawn from the shadow pool ({:.1} MB){}{}",
                 stats.path,
                 if self.local_shadows.gpu_more_off { ", plain arena casters only: shadow_gpu_more 0" } else { "" },
                 stats.gpu_views,
@@ -2071,7 +2137,12 @@ impl Renderer {
                 g.vram_bytes() as f64 / 1_048_576.0,
                 classic_draws,
                 classic_cutouts,
-                skinned_draws
+                skinned_draws,
+                pool_casters,
+                self.local_shadows.pool.jobs().len(),
+                self.local_shadows.pool.vram_bytes() as f64 / 1_048_576.0,
+                if self.local_shadows.sway_off { ", swaying plants on the per-draw loop: shadow_gpu_sway 0" } else { "" },
+                if self.local_shadows.crowd_off { ", middle tier on the per-draw loop: shadow_gpu_crowd 0" } else { "" }
             );
             log::info!(
                 "[Shadows] cpu this frame (microseconds; smoothed over about twenty frames in brackets): cull the faces {} ({:.0}), uploads {} ({:.0}), the near bodies' skinning {} ({:.0}), the arena's copies and the GPU cull's commands {} ({:.0}), record the draws {} ({:.0}), submit {} ({:.0})",

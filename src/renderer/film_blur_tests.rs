@@ -170,7 +170,7 @@ fn a_film_in_a_view_of_another_size_records_no_coverage_and_no_validation_error(
     let (device, queue) = (&gpu.device, &gpu.queue);
     let (w, h) = (64u32, 32u32);
     let blur = FilmBlur::new(&device);
-    let pyr = Pyramid::new(&device, (w, h));
+    let pyr = Pyramid::new(&device, (w, h), &blur);
     // A film over the left half of the screen (clip space, the view-projection the identity).
     let quad: Vec<humanity_core::vertex::Vertex> = [(-1.0f32, -1.0f32), (0.0, -1.0), (-1.0, 1.0), (0.0, 1.0)].iter().map(|&(x, y)| humanity_core::vertex::Vertex { position: [x, y, 0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect();
     let vbuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("film"), contents: bytemuck::cast_slice(&quad), usage: wgpu::BufferUsages::VERTEX });
@@ -195,7 +195,7 @@ fn a_film_in_a_view_of_another_size_records_no_coverage_and_no_validation_error(
     let run = |dw: u32, dh: u32| -> bool {
         let view = depth(dw, dh);
         let mut enc = device.create_command_encoder(&Default::default());
-        let recorded = blur.encode_coverage(&device, &queue, &mut enc, &pyr, &view, (dw, dh), &identity, &films, None);
+        let recorded = blur.encode_coverage(&queue, &mut enc, &pyr, &view, (dw, dh), &identity, &films, None);
         queue.submit(Some(enc.finish()));
         device.poll(wgpu::Maintain::Wait);
         recorded
@@ -293,7 +293,7 @@ fn the_blur_reads_nothing_outside_the_coverage_mask() {
     let (device, queue) = (&gpu.device, &gpu.queue);
     let (w, h) = (64u32, 32u32);
     let blur = FilmBlur::new(&device);
-    let pyr = Pyramid::new(&device, (w, h));
+    let pyr = Pyramid::new(&device, (w, h), &blur);
     let scene_tex = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("test scene"),
         size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
@@ -336,7 +336,7 @@ fn the_blur_reads_nothing_outside_the_coverage_mask() {
     let proj = Mat4::perspective_infinite_reverse_rh(1.0, 2.0, 0.05);
     let run = |all_count: bool| {
         let mut enc = device.create_command_encoder(&Default::default());
-        blur.encode_pyramid(&device, &queue, &mut enc, &pyr, &scene_view, &depth_view, &proj, (0, 0, w, h), all_count, &|| None);
+        blur.encode_pyramid(&device, &queue, &mut enc, &pyr, &scene_view, &depth_view, &proj, (0, 0, w, h), all_count, None);
         queue.submit(Some(enc.finish()));
         (0..levels_for(w, h)).map(|lvl| read_level(&device, &queue, &pyr, lvl)).collect::<Vec<_>>()
     };
@@ -368,4 +368,87 @@ fn the_blur_reads_nothing_outside_the_coverage_mask() {
     let x_edge = lw / 2 - 1;
     let brightened = covered_mean(texels[x_edge as usize]).expect("weighed by one")[0];
     assert!(brightened > 0.5, "the merged look brightens the outline at level 2: {brightened}");
+}
+
+/// THE COMPUTE PYRAMID IS ITS CPU TWIN, LEVEL BY LEVEL, AND 0 OUTSIDE THE RECTANGLE (rung 4,
+/// 2026-11-14): a 90 x 46 render (odd sizes at every level: 45 x 23, 22 x 11, 11 x 5, 5 x 2, 2 x 1)
+/// of a varied scene under a coverage mark that holds only part of it. The one compute pass is run
+/// over the whole render first (so every texel holds something), then over a smaller rectangle:
+/// every level's texel inside that level's rectangle equals its CPU twin (`base_texel` for the base,
+/// `down_texel` of the GPU's own level below for the rest) and every texel outside it is 0, as the
+/// render passes' clear left it. The red twin (`encode_pyramid_passes`, showcase `film_passes`)
+/// gives the same levels.
+///
+/// Seen red 2026-11-14 with `cs_down` sampling at each texel's corner (no `+ 0.5`): "level 1 texel
+/// (5, 1) inside the rectangle (4, 0, 13, 10), channel 0: GPU 0 against CPU 0.013050424".
+#[test]
+#[cfg(feature = "native")]
+fn the_compute_pyramid_is_its_cpu_twin_level_by_level() {
+    let Some(opened) = device() else { return };
+    let (device, queue) = (&opened.device, &opened.queue);
+    let (w, h) = (90u32, 46u32);
+    let blur = FilmBlur::new(&device);
+    let pyr = Pyramid::new(&device, (w, h), &blur);
+    let tex = |label, format, usage| {
+        device.create_texture(&wgpu::TextureDescriptor { label: Some(label), size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 }, mip_level_count: 1, sample_count: 1, dimension: wgpu::TextureDimension::D2, format, usage, view_formats: &[] })
+    };
+    let scene_tex = tex("test scene", wgpu::TextureFormat::Rgba32Float, wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST);
+    let value = |x: u32, y: u32| [((x * 7 + y * 3) % 11) as f32 * 0.2, ((x + y * 5) % 7) as f32 * 0.3, if (x / 4 + y / 4) % 2 == 0 { 1.5 } else { 0.25 }];
+    let covers = |x: u32, y: u32| x > 12 && x < 70 && y > 5 && (x + y) % 9 != 0;
+    let texels: Vec<f32> = (0..h).flat_map(|y| (0..w).flat_map(move |x| [value(x, y)[0], value(x, y)[1], value(x, y)[2], 1.0])).collect();
+    let full = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
+    queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &scene_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All }, bytemuck::cast_slice(&texels), wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 16), rows_per_image: Some(h) }, full);
+    let mask_row = 256u32;
+    let mask: Vec<u8> = (0..h).flat_map(|y| (0..mask_row).map(move |x| if x < w && covers(x, y) { 255u8 } else { 0 })).collect();
+    queue.write_texture(wgpu::TexelCopyTextureInfo { texture: &pyr._mask_tex, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All }, &mask, wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(mask_row), rows_per_image: Some(h) }, full);
+    let depth = tex("test depth", wgpu::TextureFormat::Depth32Float, wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT);
+    let (scene_view, depth_view) = (scene_tex.create_view(&Default::default()), depth.create_view(&Default::default()));
+    let proj = Mat4::perspective_infinite_reverse_rh(1.0, 2.0, 0.05);
+    let levels = levels_for(w, h);
+    let read_all = || (0..levels).map(|lvl| read_level(&device, &queue, &pyr, lvl)).collect::<Vec<_>>();
+    let run = |rect: Rect, passes: bool| {
+        let mut enc = device.create_command_encoder(&Default::default());
+        if passes {
+            blur.encode_pyramid_passes(&device, &queue, &mut enc, &pyr, &scene_view, &depth_view, &proj, rect, false, &|| None);
+        } else {
+            blur.encode_pyramid(&device, &queue, &mut enc, &pyr, &scene_view, &depth_view, &proj, rect, false, None);
+        }
+        queue.submit(Some(enc.finish()));
+        read_all()
+    };
+    let near = |a: f32, b: f32| (a - b).abs() <= 4e-3 + 4e-3 * b.abs();
+    run((0, 0, w, h), false);
+    let rect = (30, 14, 24, 12);
+    let gpu = run(rect, false);
+    let mut shaded = 0;
+    for lvl in 0..levels as usize {
+        let (lw, lh, texels) = &gpu[lvl];
+        let (rx, ry, rw, rh) = level_rect(rect, lvl as u32, (w, h));
+        for (i, t) in texels.iter().enumerate() {
+            let (x, y) = (i as u32 % lw, i as u32 / lw);
+            let inside = x >= rx && x < rx + rw && y >= ry && y < ry + rh;
+            let cpu = if !inside {
+                [0.0; 4]
+            } else if lvl == 0 {
+                base_texel(value, |x, y| if covers(x, y) { 1.0 } else { 0.0 }, (w, h), x, y, false)
+            } else {
+                let (sw, sh, below) = &gpu[lvl - 1];
+                down_texel(|sx, sy| below[(sy * sw + sx) as usize], (*sw, *sh), (*lw, *lh), x, y)
+            };
+            shaded += inside as u32;
+            for k in 0..4 {
+                assert!(near(t[k], cpu[k]), "level {lvl} texel ({x}, {y}) {} the rectangle {:?}, channel {k}: GPU {} against CPU {}", if inside { "inside" } else { "outside" }, (rx, ry, rw, rh), t[k], cpu[k]);
+            }
+        }
+    }
+    assert!(shaded > 100, "the rectangle covers texels at every level ({shaded} shaded)");
+    // The red twin's six render passes give the same levels.
+    let passes = run(rect, true);
+    for (lvl, ((_, _, a), (lw, _, b))) in gpu.iter().zip(&passes).enumerate() {
+        for (i, (ta, tb)) in a.iter().zip(b).enumerate() {
+            for k in 0..4 {
+                assert!(near(ta[k], tb[k]), "level {lvl} texel ({}, {}) channel {k}: compute {} against the render passes {}", i as u32 % lw, i as u32 / lw, ta[k], tb[k]);
+            }
+        }
+    }
 }

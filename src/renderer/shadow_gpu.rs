@@ -59,6 +59,9 @@ pub const CULL_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/a
 const PLAIN_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/shadow_atlas_instanced.wgsl"));
 /// The cutout sets' shader (card hair's alpha test, LOCKSTEP with `fs_shadow`'s type 26 branch).
 pub const CUTOUT_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/shadow_atlas_cutout.wgsl"));
+/// The sway sets' shader (the swaying plants: vs_main's `wind_displace` copied verbatim, and
+/// fs_shadow's dither and type 19 and 21 cuts, LOCKSTEP; rung 4, 2026-11-14).
+pub const SWAY_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/assets/shaders/shadow_atlas_sway.wgsl"));
 
 /// Bytes of one arena vertex: the mesh's own `Vertex`, copied whole so the fast path's pipeline
 /// reads the arena exactly as it reads a mesh.
@@ -217,6 +220,9 @@ pub enum SetKind {
     Cutout(usize),
     /// See-through sheets, into the transmittance atlas (shadow_transmit's pipeline).
     Sheet,
+    /// The swaying plants of one material (rung 4, 2026-11-14): their vertices moved by the wind as
+    /// vs_main moves them, their albedo bound for the type 19 and 21 cuts (`SWAY_WGSL`).
+    Sway(usize),
 }
 
 /// One draw set: its kind and its vertex source (0 the arena, then each skinned buffer pair met).
@@ -232,10 +238,42 @@ pub const MAX_SETS: usize = 64;
 
 /// Whether a cutout caster can be drawn by the GPU-driven cutout pipeline
 /// (`assets/shaders/shadow_atlas_cutout.wgsl`): only card hair (type 26) has its test there; the
-/// photoscanned leaves (19) and the cluster cards (21) sway in the megashader's vertex stage, and the
-/// sprite tree cards (12) are terrain, so those stay on the per-draw loop.
+/// photoscanned leaves (19) and the cluster cards (21) sway in the megashader's vertex stage, so they
+/// are the sway sets' (`gpu_sway_type`, rung 4), and the sprite tree cards (12) are terrain, which stay
+/// on the per-draw loop.
 pub fn gpu_cutout_type(material_type: f32) -> bool {
     (25.5..26.5).contains(&material_type)
+}
+
+/// Whether a caster is drawn by the GPU-driven sway sets (`SWAY_WGSL`): the plant types whose
+/// vertices vs_main's wind may move (19 photoscanned meshes, 20 procedural plants, 21 cluster cards,
+/// 22 baked bark). Grass (23) is instanced and the water shell (16) has its own vertex stage, so
+/// those stay on the per-draw loop.
+pub fn gpu_sway_type(material_type: f32) -> bool {
+    (18.5..22.5).contains(&material_type)
+}
+
+/// A material's wind class as vs_main picks it (00-bindings-vertex.wgsl, "WHICH MATERIALS SWAY"):
+/// 0 still, 1 woody (lean and sway), 2 foliage (and flutter). `params_w` is the material's
+/// `params.w` (`Material::emissive`): type 19's opt-in, type 20's rigid flag (negative). CPU twin,
+/// LOCKSTEP (`the_sway_sets_wind_is_vs_mains`).
+pub fn wind_class(material_type: f32, params_w: f32) -> f32 {
+    let t = material_type;
+    if (19.5..20.5).contains(&t) {
+        if params_w < -0.5 {
+            0.0
+        } else {
+            2.0
+        }
+    } else if (20.5..21.5).contains(&t) || (22.5..23.5).contains(&t) {
+        2.0
+    } else if (21.5..22.5).contains(&t) {
+        1.0
+    } else if (18.5..19.5).contains(&t) {
+        params_w.clamp(0.0, 2.0)
+    } else {
+        0.0
+    }
 }
 
 /// One `DrawIndexedIndirect` argument set, as the shader writes it and the GPU reads it.
@@ -538,6 +576,11 @@ pub struct GpuCasters {
 pub struct DrawPipes {
     pub plain: wgpu::RenderPipeline,
     pub cutout: wgpu::RenderPipeline,
+    /// The sway sets' pipeline (`SWAY_WGSL`): group 0 the views, 1 the material's albedo, 2 the wind.
+    pub sway: wgpu::RenderPipeline,
+    /// The wind and its clock for the sway sets (`write_sway`), and their group (the sets' group 2).
+    sway_params: wgpu::Buffer,
+    pub sway_group: wgpu::BindGroup,
 }
 
 impl DrawPipes {
@@ -587,10 +630,30 @@ impl DrawPipes {
                 cache: None,
             })
         };
+        let sway_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Shadow GPU Sway Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
+                count: None,
+            }],
+        });
+        let sway_params = device.create_buffer(&wgpu::BufferDescriptor { label: Some("Shadow GPU Sway Wind"), size: 32, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let sway_group = device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("Shadow GPU Sway Wind BG"), layout: &sway_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: sway_params.as_entire_binding() }] });
         DrawPipes {
             plain: make("Shadow GPU Plain Pipeline", PLAIN_WGSL, "vs_shadow_instanced", None, &[view_layout], &plain_vertex, &instance_attrs[..4]),
             cutout: make("Shadow GPU Cutout Pipeline", CUTOUT_WGSL, "vs_cutout", Some("fs_cutout"), &[view_layout, texture_layout], &cut_vertex, &instance_attrs),
+            sway: make("Shadow GPU Sway Pipeline", SWAY_WGSL, "vs_sway", Some("fs_sway"), &[view_layout, texture_layout, &sway_layout], &cut_vertex, &instance_attrs),
+            sway_params,
+            sway_group,
         }
+    }
+
+    /// The sway sets' wind for this frame: `wind` the camera uniform's `light7_cone_inner` and
+    /// `clock` its `sun_color.w`, the values the per-draw loop's view uniform holds.
+    pub fn write_sway(&self, queue: &wgpu::Queue, wind: [f32; 4], clock: f32) {
+        queue.write_buffer(&self.sway_params, 0, bytemuck::cast_slice(&[wind, [0.0, 0.0, 0.0, clock]]));
     }
 }
 

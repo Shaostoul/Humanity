@@ -82,10 +82,16 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   `fs_shadow`'s type 26 test written again: change one, change both,
   `the_cutout_sets_test_is_fs_shadows`) and the see-through sheets (shadow_transmit's pipeline,
   whose 80-byte instance is the cull's), and a compute-skinned body's set reads its OWN buffers,
-  the vertices the main view draws. Still on the per-draw loop: the swaying classes, the sprite tree
-  cards, the middle-tier bodies and the first-person twin (skinned in the vertex shader, so nothing
-  skinned to cast from). Showcase `shadow_gpu` "0" is the per-draw loop's red twin and
-  `shadow_gpu_more` "0" the 2026-11-13 state (plain arena casters only); a device without the three
+  the vertices the main view draws. Rung 4 (2026-11-14) added the SWAY sets (types 19 to 22,
+  `shadow_atlas_sway.wgsl`: vs_main's `wind_displace` copied verbatim, so a change to the wind is
+  made in both, `the_sway_sets_wind_is_vs_mains` compares the two; the wind and clock are the
+  per-draw loop's `lit_uniform` values) and the SHADOW POOL (`renderer/shadow_pool.rs`, a child
+  module of local_shadows): each middle-tier body that casts is compute-skinned once into it
+  (`skinning.wgsl`'s `out_base`, `flags` bit 0 = no last-pose write) and its regions drawn as plain
+  and card-hair sets. Still on the per-draw loop: the sprite tree cards and grass. Showcase
+  `shadow_gpu` "0" is the per-draw loop's red twin, `shadow_gpu_more` "0" the 2026-11-13 state
+  (plain arena casters only), `shadow_gpu_sway` "0" and `shadow_gpu_crowd` "0" rung 4's twins; a
+  device without the three
   features (`shadow_gpu::required_features`) runs the per-draw loop and Settings names what it lacks.
   Measured (2026-11-13): `cpu.shadow_local` in the hall 2.52 to 1.54 ms, the plain casters' 933
   instances in 46 commands (the 2026-11-14 numbers: `docs/design/local-light-shadows.md` section 10).

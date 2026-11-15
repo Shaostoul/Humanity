@@ -54,6 +54,17 @@ use wgpu::util::DeviceExt;
 
 /// Bytes per palette row (one `vec4<f32>`).
 const ROW_BYTES: u64 = 16;
+/// Bytes of one compute dispatch's numbers (skinning.wgsl `SkinParams`).
+pub(super) const SKIN_PARAMS_BYTES: u64 = 32;
+
+/// One compute dispatch's numbers (skinning.wgsl `SkinParams`, LOCKSTEP): the body's vertex count,
+/// where its joints and its morph block start in the palette (from its model matrix at
+/// `model_index`), where its vertices start in the source (`vertex_base`) and where its skinned copy
+/// goes (`out_base`: the same place for a near place, its range of the shadow pool for a shadow
+/// job), and whether to skip the last-pose write (`no_prev`: a shadow job has no motion target).
+pub(super) fn skin_params(vertex_count: u32, model_index: u32, vertex_base: u32, out_base: u32, no_prev: bool) -> [u32; 8] {
+    [vertex_count, model_index + JOINTS_AT, model_index + MORPH_BLOCK_AT, vertex_base, out_base, u32::from(no_prev), 0, 0]
+}
 /// Bytes per skinned output vertex (the ordinary `Vertex`: 8 floats).
 const OUT_VERTEX_BYTES: u64 = 32;
 /// The compute shader's workgroup width (`@workgroup_size(64)`).
@@ -99,6 +110,29 @@ struct NearSlot {
     prev: wgpu::Buffer,
     meshes: Vec<usize>,
     regions: usize,
+}
+
+/// A shadow draw of the middle tier or a shadow-only twin, with what the shadow pool needs to skin
+/// its body once and draw this region from the GPU's own list (renderer/shadow_pool.rs).
+pub(super) struct SkinShadowDraw {
+    /// Its number in this frame's shadow draws (the middle tier, then the shadow-only twins).
+    pub draw: usize,
+    pub body: usize,
+    pub material: usize,
+    /// Where its model matrix is in the palette (its joints and morph block follow).
+    pub model_index: u32,
+    /// Its model matrix (the palette's three rows): the body space the skinned copy is in, to render space.
+    pub model: Mat4,
+    /// Its bounding sphere in render space (`shadow_sphere`).
+    pub centre: Vec3,
+    pub radius: f32,
+    /// The body's index buffer and this region's range of it.
+    pub indices: wgpu::Buffer,
+    pub first_index: u32,
+    pub index_count: u32,
+    /// The body's vertices and where they start in its source buffer.
+    pub vertex_count: u32,
+    pub vertex_base: u32,
 }
 
 /// A middle body's region to draw this frame.
@@ -167,6 +201,10 @@ pub struct Skinning {
     /// whose head the eye camera's copy folds away but whose shadow keeps it
     /// (`skin_shadow_only`; docs/design/character-animation.md section 17).
     shadow_only: Vec<MiddleDraw>,
+    /// Which of this frame's shadow draws (the middle tier, then the shadow-only twins) the shadow
+    /// atlas draws from the shadow pool on the GPU (2026-11-14, renderer/shadow_pool.rs): the per-draw
+    /// loop (`draw_skinned_shadow`) leaves those out. Set each frame by the atlas, cleared with the rest.
+    shadow_gpu: Vec<bool>,
     /// Group 1 of the VS PSO: the identity object uniform, the palette and a body's morphs.
     vs_layout: wgpu::BindGroupLayout,
     vs_object: wgpu::Buffer,
@@ -309,7 +347,7 @@ impl Renderer {
             let vs_bind = Skinning::vs_bind_group(&self.device, &sk.vs_layout, &sk.vs_object, &sk.palette, &sk.prev_palette, &zero_morphs);
             let params = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Own Mesh Skinning Params"),
-                size: 16,
+                size: SKIN_PARAMS_BYTES,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
@@ -470,7 +508,7 @@ impl Renderer {
     pub fn skin_vram_bytes(&self) -> u64 {
         let Some(sk) = self.skinning.as_ref() else { return 0 };
         let first_pooled = sk.own.as_ref().map_or(sk.bodies.len(), |o| o.first_body);
-        let shared: u64 = sk.bodies[..first_pooled].iter().map(|b| b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _, _)| ib.size()).sum::<u64>()).sum();
+        let shared: u64 = sk.bodies[..first_pooled].iter().map(|b| b.vertices.size() + b.morphs.size() + region_index_bytes(&b.regions)).sum();
         let places: u64 = sk.slots[..first_pooled].iter().flatten().map(|s| s.out.size() + s.prev.size() + s.params.size()).sum();
         let pooled = sk.own.as_ref().map_or(0, |o| o.sources.size() + o.outputs.size() + o.prev_outputs.size() + o.indices.size() + o.zero_morphs.size() + (sk.slots.len() - o.first_body) as u64 * 16);
         // The previous palette beside the palette (temporal anti-aliasing).
@@ -493,18 +531,29 @@ impl Renderer {
     /// A body's GPU buffers from its mesh.
     fn make_skinned_body(&mut self, model: &SkinnedModelData) -> SkinnedBody {
         let mut vertices: Vec<SkinnedVertex> = Vec::with_capacity(model.vertex_count());
-        let mut regions = Vec::with_capacity(model.primitives.len());
+        // Every region's indices in ONE buffer, each region a range of it (2026-11-14, rung 4 of the
+        // room light shadows): a body is then one vertex source for the shadow atlas's GPU-driven
+        // sets (renderer/shadow_pool.rs), not one per region, and every draw already takes a first
+        // index.
+        let mut indices: Vec<u32> = Vec::new();
+        let mut ranges = Vec::with_capacity(model.primitives.len());
         for prim in &model.primitives {
             let base = vertices.len() as u32;
             vertices.extend_from_slice(&prim.vertices);
-            let indices: Vec<u32> = prim.indices.iter().map(|i| i + base).collect();
-            let ib = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Skinned Body Region Indices"),
-                contents: bytemuck::cast_slice(&indices),
-                usage: wgpu::BufferUsages::INDEX,
-            });
-            regions.push((ib, 0, indices.len() as u32));
+            let first = indices.len() as u32;
+            indices.extend(prim.indices.iter().map(|i| i + base));
+            ranges.push((first, indices.len() as u32 - first));
         }
+        // An index buffer may not be empty.
+        if indices.is_empty() {
+            indices.push(0);
+        }
+        let ib = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Skinned Body Indices"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let regions: Vec<(wgpu::Buffer, u32, u32)> = ranges.into_iter().map(|(first, count)| (ib.clone(), first, count)).collect();
         // A storage binding may not be empty.
         if vertices.is_empty() {
             vertices.push(bytemuck::Zeroable::zeroed());
@@ -551,7 +600,7 @@ impl Renderer {
                 return own.book.held(h).map_or(0, |held| held.bytes());
             }
         }
-        sk.bodies.get(body).map_or(0, |b| b.vertices.size() + b.morphs.size() + b.regions.iter().map(|(ib, _, _)| ib.size()).sum::<u64>())
+        sk.bodies.get(body).map_or(0, |b| b.vertices.size() + b.morphs.size() + region_index_bytes(&b.regions))
     }
 
     /// Start a frame's skinning: nothing queued, the palette empty.
@@ -562,6 +611,7 @@ impl Renderer {
             sk.jobs.clear();
             sk.middle.clear();
             sk.shadow_only.clear();
+            sk.shadow_gpu.clear();
             sk.dispatch_pending.set(false);
         }
     }
@@ -707,7 +757,7 @@ impl Renderer {
             let b = &sk.bodies[body];
             // The fourth word: where the body's vertices start in its buffers (its range of the
             // own-mesh pool; 0 for a body with buffers of its own).
-            self.queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&[b.vertex_count, model_index + JOINTS_AT, model_index + MORPH_BLOCK_AT, b.base_vertex]));
+            self.queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&skin_params(b.vertex_count, model_index, b.base_vertex, b.base_vertex, false)));
         }
         // The dispatches themselves ride the scene pass's own encoder (`encode_skinning`), ahead of
         // its render pass: a submit of their own cost 0.46 ms of CPU a frame for one body (measured
@@ -789,7 +839,11 @@ impl Renderer {
             let mut bound_pso = false;
             let mut bound_material = usize::MAX;
             let mut bound_body = usize::MAX;
-            for d in sk.middle.iter().chain(sk.shadow_only.iter()) {
+            for (i, d) in sk.middle.iter().chain(sk.shadow_only.iter()).enumerate() {
+                // Drawn from the shadow pool on the GPU this frame (renderer/shadow_pool.rs).
+                if sk.shadow_gpu.get(i).copied().unwrap_or(false) {
+                    continue;
+                }
                 let Some(material) = self.materials.get(d.material) else { continue };
                 if material.casts_cutout_shadow() != cutout {
                     continue;
@@ -830,7 +884,48 @@ impl Renderer {
         if sk.vs_pso.ready().is_none() {
             return Vec::new();
         }
-        sk.middle.iter().chain(sk.shadow_only.iter()).filter_map(|d| shadow_sphere(&sk.staging, d.model_index)).collect()
+        sk.middle.iter().chain(sk.shadow_only.iter()).enumerate().filter(|(i, _)| !sk.shadow_gpu.get(*i).copied().unwrap_or(false)).filter_map(|(_, d)| shadow_sphere(&sk.staging, d.model_index)).collect()
+    }
+
+    /// This frame's shadow draws the per-draw loop would make (the middle tier, then the shadow-only
+    /// twins), each with what the shadow pool needs to skin and draw it instead
+    /// (renderer/shadow_pool.rs): `draw` numbers them in that order (`skin_set_shadow_gpu`).
+    pub(super) fn skin_shadow_draws(&self) -> Vec<SkinShadowDraw> {
+        let Some(sk) = self.skinning.as_ref() else { return Vec::new() };
+        sk.middle
+            .iter()
+            .chain(sk.shadow_only.iter())
+            .enumerate()
+            .filter_map(|(draw, d)| {
+                let body = sk.bodies.get(d.body)?;
+                let (indices, first_index, index_count) = body.regions.get(d.region)?;
+                let (centre, radius) = shadow_sphere(&sk.staging, d.model_index)?;
+                let r = d.model_index as usize * 3;
+                let model = rows_to_model(sk.staging.get(r..r + 3)?);
+                Some(SkinShadowDraw { draw, body: d.body, material: d.material, model_index: d.model_index, model, centre, radius, indices: indices.clone(), first_index: *first_index, index_count: *index_count, vertex_count: body.vertex_count, vertex_base: body.base_vertex })
+            })
+            .collect()
+    }
+
+    /// Which shadow draws (numbered as `skin_shadow_draws` numbers them) the atlas draws from the
+    /// shadow pool this frame, so the per-draw loop leaves them out.
+    pub(super) fn skin_set_shadow_gpu(&mut self, on_gpu: Vec<bool>) {
+        if let Some(sk) = self.skinning.as_mut() {
+            sk.shadow_gpu = on_gpu;
+        }
+    }
+
+    /// What a shadow pool job binds for `body`: this frame's palette and last frame's, the body's
+    /// source vertices and its morph targets.
+    pub(super) fn skin_job_buffers(&self, body: usize) -> Option<[wgpu::Buffer; 4]> {
+        let sk = self.skinning.as_ref()?;
+        let b = sk.bodies.get(body)?;
+        Some([sk.palette.clone(), sk.prev_palette.clone(), b.vertices.clone(), b.morphs.clone()])
+    }
+
+    /// The compute skinning shader (assets/shaders/skinning.wgsl), for the shadow pool's own pipeline.
+    pub(super) fn skin_compute_source() -> &'static str {
+        COMPUTE_WGSL
     }
 
     /// How many joints a registered body has (the palette rows it needs are three per joint).
@@ -855,7 +950,7 @@ impl Renderer {
         });
         let params = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Skinning Params"),
-            size: 16,
+            size: SKIN_PARAMS_BYTES,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -984,7 +1079,7 @@ impl Skinning {
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: wgpu::BufferSize::new(16) },
+                    ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: wgpu::BufferSize::new(SKIN_PARAMS_BYTES) },
                     count: None,
                 },
                 // The body's morph targets.
@@ -1077,6 +1172,7 @@ impl Skinning {
             dispatch_pending: std::cell::Cell::new(false),
             middle: Vec::new(),
             shadow_only: Vec::new(),
+            shadow_gpu: Vec::new(),
             vs_layout,
             vs_object,
             vs_pso,
@@ -1187,6 +1283,23 @@ impl Skinning {
 
 /// The SkinnedVertex stride the VS path reads.
 const SKINNED_STRIDE: u64 = SkinnedVertex::BYTES as u64;
+
+/// A palette matrix's three rows (row r = (m_r0, m_r1, m_r2, t_r): `skin_apply` takes dot(row, p)) as
+/// the model matrix they are, for a pass that places a body-space copy (renderer/shadow_pool.rs).
+pub(super) fn rows_to_model(rows: &[[f32; 4]]) -> Mat4 {
+    Mat4::from_cols(
+        glam::Vec4::new(rows[0][0], rows[1][0], rows[2][0], 0.0),
+        glam::Vec4::new(rows[0][1], rows[1][1], rows[2][1], 0.0),
+        glam::Vec4::new(rows[0][2], rows[1][2], rows[2][2], 0.0),
+        glam::Vec4::new(rows[0][3], rows[1][3], rows[2][3], 1.0),
+    )
+}
+
+/// The bytes of a body's index buffers, each counted once (a shared body's regions are ranges of one).
+fn region_index_bytes(regions: &[(wgpu::Buffer, u32, u32)]) -> u64 {
+    let distinct: std::collections::HashSet<&wgpu::Buffer> = regions.iter().map(|(ib, _, _)| ib).collect();
+    distinct.iter().map(|ib| ib.size()).sum()
+}
 
 fn storage_entry(binding: u32, visibility: wgpu::ShaderStages, read_only: bool) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {

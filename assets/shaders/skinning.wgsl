@@ -25,12 +25,25 @@
 // the pool's buffers, so a body's vertices start at `vertex_base` in `source` and its skinned copy
 // at the same place in `skinned` (0 for a body with buffers of its own). The morph targets are read
 // by the body's own vertex number (a pooled body has none on: its shape is in its vertices).
+//
+// THE SHADOW POOL (2026-11-14, rung 4 of the room light shadows, src/renderer/shadow_pool.rs): a
+// middle-tier body that casts into a shadow view is skinned here once a frame into the shadow pool,
+// so the shadow atlas draws it from the GPU's own list instead of skinning it in the vertex stage
+// once per face. Its copy goes where the pool puts it (`out_base`, separate from `vertex_base`, its
+// place in `source`), and it has no motion target, so `flags` bit 0 skips the last-pose write.
 
 struct SkinParams {
     vertex_count: u32,
     joint_base: u32,
     morph_base: u32,
     vertex_base: u32,
+    // Where the skinned copy starts in `skinned` (and `prev_skinned`): `vertex_base` for a near
+    // place, the body's range of the shadow pool for a shadow job.
+    out_base: u32,
+    // Bit 0: skip the last-pose write (a shadow job binds no motion target).
+    flags: u32,
+    pad0: u32,
+    pad1: u32,
 };
 
 @group(0) @binding(0) var<storage, read> palette: array<vec4<f32>>;
@@ -107,21 +120,23 @@ fn cs_skin(@builtin(global_invocation_id) gid: vec3<u32>) {
     } else {
         n = vec3<f32>(0.0, 1.0, 0.0);
     }
-    // Last frame's pose, positions only (the motion target needs no normal).
-    var q = joint_apply_prev(j01 & 0xffffu, pos) * w01.x;
-    if (w01.y > 0.0) {
-        q = q + joint_apply_prev(j01 >> 16u, pos) * w01.y;
+    let o = (params.out_base + i) * 8u;
+    // Last frame's pose, positions only (the motion target needs no normal); none for a shadow job.
+    if ((params.flags & 1u) == 0u) {
+        var q = joint_apply_prev(j01 & 0xffffu, pos) * w01.x;
+        if (w01.y > 0.0) {
+            q = q + joint_apply_prev(j01 >> 16u, pos) * w01.y;
+        }
+        if (w23.x > 0.0) {
+            q = q + joint_apply_prev(j23 & 0xffffu, pos) * w23.x;
+        }
+        if (w23.y > 0.0) {
+            q = q + joint_apply_prev(j23 >> 16u, pos) * w23.y;
+        }
+        prev_skinned[o] = q.x;
+        prev_skinned[o + 1u] = q.y;
+        prev_skinned[o + 2u] = q.z;
     }
-    if (w23.x > 0.0) {
-        q = q + joint_apply_prev(j23 & 0xffffu, pos) * w23.x;
-    }
-    if (w23.y > 0.0) {
-        q = q + joint_apply_prev(j23 >> 16u, pos) * w23.y;
-    }
-    let o = (params.vertex_base + i) * 8u;
-    prev_skinned[o] = q.x;
-    prev_skinned[o + 1u] = q.y;
-    prev_skinned[o + 2u] = q.z;
     skinned[o] = p.x;
     skinned[o + 1u] = p.y;
     skinned[o + 2u] = p.z;
