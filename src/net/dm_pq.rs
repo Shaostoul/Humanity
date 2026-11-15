@@ -233,6 +233,11 @@ pub const CTL_QUIET_ALLOW: &str = "[[hum:quiet-allow:v1]]";
 /// `[[hum:task:v1]]{"tasks":[...]}` (gui/mine_tasks.rs). Never shown as a message by either app.
 /// Must match the web client exactly (web/shared/mine-tasks.js, web/chat/crypto.js CTL_TASK).
 pub const CTL_TASK: &str = "[[hum:task:v1]]";
+/// Organisations, rung 2 (docs/design/organisations.md, 2026-11-15): a change an organisation's log
+/// took, sent to each member (and to my own devices): `[[hum:org:v1]]` and the carried text
+/// `{"hum_org":1,"org":...,"objects":[...]}` (gui/org_mail.rs). Never shown as a message by either
+/// app. Must match the web client exactly (web/shared/org-mail.js CTL_ORG, web/chat/crypto.js).
+pub const CTL_ORG: &str = "[[hum:org:v1]]";
 
 /// Encrypted-attachment marker (2026-08-24). A DM whose text starts with this
 /// carries a base64 JSON payload `{url,k,n,name,mime,size}` instead of prose:

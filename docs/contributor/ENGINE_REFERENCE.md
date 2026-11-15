@@ -163,7 +163,6 @@ pub trait System: Send + Sync {
 | pages/market.rs | 387 | **Working** | Marketplace |
 | pages/crafting.rs | 434 | **Working** | Crafting UI |
 | pages/inventory.rs | 411 | **Working** | Inventory management |
-| pages/guilds.rs | 466 | **Working** | Guild system |
 | pages/calculator.rs | 345 | **Working** | Calculator |
 | pages/notes.rs | 315 | **Working** | Notes/journal |
 | pages/wallet.rs | 292 | **Working** | Wallet |

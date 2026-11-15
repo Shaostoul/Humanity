@@ -46,7 +46,7 @@ HumanityOS (native top menu)
 |   |- Watch              -> Watch page
 |   |- Studio             -> Studio page (streaming; no page title - see OPEN-5)
 |   |- Files              -> Files page (files.rs)
-|   |- Guilds             -> Guilds page
+|   |- Organisations      -> Orgs page (orgs.rs; Guilds retired into it 2026-11-15)
 |- Life            -> Homes page ("Your home"; "Life" is a working name, the operator's to choose)
 |   |- Profile            -> Real page (sidebar "Profile")
 |   |- Tasks              -> Tasks page (kanban)
@@ -85,7 +85,7 @@ united-humanity.us / public.guide (web)
 |   | Tools | Library | Settings          (*see OPEN items)
 |- mobile drawer
 |   |- Main (mirrors the app): the header list + Humanity Accord
-|   |- Community and trade: Watch | Files | Wallet | Market | Trade | Guilds
+|   |- Community and trade: Watch | Files | Wallet | Market | Trade | Organisations
 |   |   | Donate | Civilization | Governance | Laws
 |   |   | Identity | Recovery | Roadmap
 |   |- Tools, system and dev: Calculator | Calendar | Notes | Bookmarks

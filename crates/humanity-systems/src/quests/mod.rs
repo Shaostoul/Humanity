@@ -1916,10 +1916,14 @@ mod quest_tests {
         let _ = notices(&data);
         data.insert("camera_position", glam::Vec3::new(56.5, 1.7, 40.0));
         sys.tick(&mut world, 0.0, &data);
+        // A skill's words come from data/i18n/en.json in the desktop build; the server build, which
+        // has no words file, names it by its id (skills/mod.rs `SkillDef::name`). Before this the
+        // relay battery failed here on every run since Skills rung 1 (found 2026-11-15).
+        let skill = if cfg!(feature = "native") { "Smelting and metallurgy" } else { "metallurgy" };
         assert_eq!(
             notices(&data),
             vec![
-                "Quest complete: First Steps. You received 2 Iron Ingot and 30 Smelting and metallurgy XP.".to_string(),
+                format!("Quest complete: First Steps. You received 2 Iron Ingot and 30 {skill} XP."),
                 "New quest: Toolsmith. Forge a hammer: Esc > Crafting > Craft Hammer > Craft.".to_string(),
             ],
             "finishing First Steps tells the player"

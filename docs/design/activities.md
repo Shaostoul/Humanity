@@ -248,7 +248,7 @@ the table carries the first two paths.
 | `trading` Trading | live | trading | FEATURES: "Trade Page"; `src/gui/pages/trade.rs`; `src/gui/pages/vendor.rs`; design: `economy_model.md` | The trading post vendor, escrow trades that move real items, and the market; a sale or purchase and a settled trade with another player train trading (skills rung 1). |
 | `fleet_contribution` Contributing to the fleet | live | none | FEATURES: "Fleet ledger (2026-10-04)"; `src/gui/pages/fleet_ledger.rs`; `src/engine/fleet.rs`; design: `ship-homes-and-logistics.md` | Each player's used and contributed ledger on the relay; the fleet's supply is unlimited in early development. |
 | `governance` Voting and governance | live | civics, mediation | FEATURES: "Native Governance page: live feed + signed voting + proposal form (v0.660)"; `src/gui/pages/governance.rs`; design: `laws.md` | The in-game ship vote (slag armour per ship, slag.md) is designed on top of it. |
-| `guilds_cooperatives` Guilds and cooperatives | partial | civics, leadership | FEATURES: "Guilds Page"; `src/gui/pages/guilds.rs`; design: `gameplay-loop-map.md` | The Guilds page browses and joins real guilds; guild production pools (the Cooperative mode) are designed in gameplay-loop-map.md T4. |
+| `organisations_cooperatives` Organisations and cooperatives | partial | civics, leadership | FEATURES: "Organisations: members, roles, invitations, a private directory, a signed audit log (both, rung 1, 2026-11-14)"; `src/gui/pages/orgs.rs`; design: `gameplay-loop-map.md` | The Organisations page founds and runs real organisations (guilds retired into it on 2026-11-15); production pools (the Cooperative mode) are designed in gameplay-loop-map.md T4. |
 | `conversation` Talking with people aboard | live | none | FEATURES: "Embeddable AI, rung 3: the talk card, written for everyone and AI for those who chose it (2026-11-12)"; `src/engine/talk.rs`; `data/dialogues.ron`; design: `embeddable-ai.md` | Written dialogue for everyone; an AI brain only for those who chose to download one. |
 | `teaching` Teaching | idea | teaching | none | educational-gameplay.md names cooperative skill application; nothing lets one player teach another. |
 | `leadership_crew` Leading a crew | idea | leadership | `data/npc` | Relay crew NPCs follow a data-driven chore rotation (FEATURES.md, Crew Chore AI); nobody directs them. |
@@ -282,7 +282,7 @@ The closure ladder's rule ([gameplay-loop-map.md](gameplay-loop-map.md)): stakes
 **sinks before faucets**, one-player economy before community, reuse before new systems. Most of
 its ten rungs have since shipped (death and recovery, construction, credits and the vendor, quest
 repair, market and trade wiring, much of "environment matters", creatures and combat, abilities,
-guilds). What is still open is mostly the same rule one level down: the game makes plenty and too
+guilds, since retired into organisations). What is still open is mostly the same rule one level down: the game makes plenty and too
 little of what it makes gets *used*. So the activities that come first are the ones that consume
 something already produced, then the ones that make a dead skill trainable, then new chains.
 

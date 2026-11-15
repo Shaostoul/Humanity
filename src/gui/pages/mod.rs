@@ -70,7 +70,7 @@ pub mod notes;
 pub mod civilization;
 pub mod wallet;
 pub mod crafting;
-pub mod guilds;
+// Guilds retired into Organisations (orgs) on 2026-11-15: docs/design/organisations.md, "Decided".
 pub mod orgs;
 pub mod trade;
 pub mod bugs;

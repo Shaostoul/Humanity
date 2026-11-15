@@ -95,7 +95,6 @@ const CONVERTED: &[GuiPage] = &[
     GuiPage::Wallet,
     GuiPage::Donate,
     GuiPage::BugReport,
-    GuiPage::Guilds,
     GuiPage::Orgs,
     GuiPage::Governance,
     GuiPage::Humanity,

@@ -293,8 +293,9 @@ arrays of domain objects, no `vec![Thing::a(), Thing::b(), Thing::c()]`. The che
 feature must pass: `docs/design/infinite-of-x.md`.
 
 **The removed tables stay removed (privacy hardening, 2026-08-23/24).** The relay no longer has
-`direct_messages`, `listing_messages`, `groups`/`group_members`/`group_messages` or `follows`: do
-NOT re-add them. If a feature seems to need a server-side social edge, the certificate pattern
+`direct_messages`, `listing_messages`, `groups`/`group_members`/`group_messages` or `follows`, nor
+(2026-11-15, guilds retired into organisations, which keep nothing on the relay)
+`guilds`/`guild_members`/`guild_invites`: do NOT re-add them. If a feature seems to need a server-side social edge, the certificate pattern
 (client-held, statelessly verified) is the house answer. Detail: `docs/ai/storage.md`.
 
 ## Account words: one concept, one word (operator, 2026-09-29)

@@ -1330,11 +1330,6 @@
       "category": "platform",
       "definition": "A named room in chat where a group of people talk, such as #global. Channels belong to one server, and an admin can make one read-only or private."
     },
-    "guild": {
-      "term": "Guild",
-      "category": "platform",
-      "definition": "A named group you join inside a server, with its own members, description, and owner. Guild-only chat channels are not built yet, so today a guild is membership and identity rather than a separate space."
-    },
     "kanban": {
       "term": "Kanban Board",
       "category": "platform",

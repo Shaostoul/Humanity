@@ -244,6 +244,12 @@ pub(crate) fn ingest_dm(gui_state: &mut GuiState, inner: &DmInner) -> bool {
     if crate::engine::mine_tasks::screens_dm(gui_state, inner) {
         return false;
     }
+    // Organisations (rung 2): a change from a fellow member, an invitation, or my own from another
+    // device is judged and merged into the log, never shown; the fold checks every entry. Before the
+    // reach rule below: a fellow member need not be a friend (the server already let it through).
+    if crate::engine::org_mail::screens_dm(gui_state, inner) {
+        return false;
+    }
     if matches!(
         inner.text.as_str(),
         crate::net::dm_pq::CTL_FOLLOW | crate::net::dm_pq::CTL_UNFOLLOW | crate::net::dm_pq::CTL_FRIEND_CERT

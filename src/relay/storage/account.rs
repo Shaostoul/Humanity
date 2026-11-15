@@ -196,9 +196,6 @@ impl Storage {
             grab("trades", "SELECT id, status, initiator_items, recipient_items, created_at, completed_at FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1", &[&key]);
             grab("trade_orders", "SELECT id, item_type, item_id, quantity, remaining_qty, price_per_unit, currency, status, created_at FROM trade_orders WHERE seller_key = ?1", &[&key]);
             grab("trade_history", "SELECT id, item_type, item_id, quantity, price_per_unit, total_price, timestamp FROM trade_history WHERE buyer_key = ?1 OR seller_key = ?1", &[&key]);
-            grab("guilds_owned", "SELECT id, name, description, created_at FROM guilds WHERE owner_key = ?1", &[&key]);
-            grab("guild_memberships", "SELECT guild_id, role, joined_at FROM guild_members WHERE public_key = ?1", &[&key]);
-            grab("guild_invites_made", "SELECT id, guild_id, code, expires_at FROM guild_invites WHERE created_by = ?1", &[&key]);
             grab("streams", "SELECT id, title, category, started_at, ended_at FROM streams WHERE streamer_key = ?1", &[&key]);
             grab("stream_chat", "SELECT id, stream_id, content, timestamp FROM stream_chat WHERE from_name = ?1 COLLATE NOCASE", &[&name]);
             grab("assets", "SELECT id, filename, file_type, category, size_bytes, url, uploaded_at FROM assets WHERE owner_key = ?1", &[&key]);
@@ -461,14 +458,6 @@ impl Storage {
             // keeps the trade with their key taken out.
             del("trades", "DELETE FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1", &[&key]);
             del("trade_orders", "DELETE FROM trade_orders WHERE seller_key = ?1", &[&key]);
-            // A guild they own is closed, with its members' places and invites; in anyone else's
-            // guild they leave it.
-            del("guilds_owned_members", "DELETE FROM guild_members WHERE guild_id IN (SELECT id FROM guilds WHERE owner_key = ?1)", &[&key]);
-            del("guilds_owned_invites", "DELETE FROM guild_invites WHERE guild_id IN (SELECT id FROM guilds WHERE owner_key = ?1)", &[&key]);
-            del("guilds_owned", "DELETE FROM guilds WHERE owner_key = ?1", &[&key]);
-            let _ = conn.execute("UPDATE guilds SET member_count = MAX(member_count - 1, 0) WHERE id IN (SELECT guild_id FROM guild_members WHERE public_key = ?1)", params![key]);
-            del("guild_memberships", "DELETE FROM guild_members WHERE public_key = ?1", &[&key]);
-            del("guild_invites_made", "DELETE FROM guild_invites WHERE created_by = ?1", &[&key]);
             // Their streams with what was said in them, and what they said in anyone's.
             del("streams_chat", "DELETE FROM stream_chat WHERE stream_id IN (SELECT id FROM streams WHERE streamer_key = ?1)", &[&key]);
             del("streams", "DELETE FROM streams WHERE streamer_key = ?1", &[&key]);
@@ -613,9 +602,6 @@ impl Storage {
             OR EXISTS(SELECT 1 FROM bug_reports WHERE reporter_key = ?1)
             OR EXISTS(SELECT 1 FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1)
             OR EXISTS(SELECT 1 FROM trade_orders WHERE seller_key = ?1)
-            OR EXISTS(SELECT 1 FROM guilds WHERE owner_key = ?1)
-            OR EXISTS(SELECT 1 FROM guild_members WHERE public_key = ?1)
-            OR EXISTS(SELECT 1 FROM guild_invites WHERE created_by = ?1)
             OR EXISTS(SELECT 1 FROM streams WHERE streamer_key = ?1)
             OR EXISTS(SELECT 1 FROM assets WHERE owner_key = ?1)
             OR EXISTS(SELECT 1 FROM user_skills WHERE user_key = ?1)

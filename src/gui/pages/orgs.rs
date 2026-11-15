@@ -16,6 +16,7 @@ use humanity_core::i18n::{t, t_dyn, tf, tn};
 use humanity_protocol::object::Object;
 use humanity_protocol::org::{self, Act, Directory, Listing, OrgState, ReadRefusal, Role, Shown};
 
+use crate::gui::org_mail::{self, MailState, OutItem};
 use crate::gui::orgs_store::{OrgStore, StoreProblem};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, Hint};
@@ -75,6 +76,11 @@ pub struct OrgsPage {
     set_directory: Directory,
     pub status: String,
     roles_book: Option<org::RoleBook>,
+    /// Delivery's memory (rung 2, engine/org_mail.rs): sends awaiting answers, members the server
+    /// could not reach, notes parked for the log that proves their sender.
+    pub(crate) mail: MailState,
+    /// The member a handover is being offered to (the Settings tab), as key hex.
+    handover_to: String,
 }
 
 impl Default for OrgsPage {
@@ -106,6 +112,8 @@ impl Default for OrgsPage {
             set_directory: Directory::Members,
             status: String::new(),
             roles_book: None,
+            mail: MailState::default(),
+            handover_to: String::new(),
         }
     }
 }
@@ -198,18 +206,78 @@ impl OrgsPage {
     /// Load this identity's store when the identity changes.
     fn ensure_store(&mut self, state: &GuiState) {
         let me = state.profile_public_key.clone();
+        self.ensure_store_with(&me, state.private_key_bytes.as_deref());
+    }
+
+    /// [`Self::ensure_store`] from the key and seed (the engine's delivery, engine/org_mail.rs, calls
+    /// it with the page not drawn). True when a store for `me` is open. Test builds never read or
+    /// write the person's real file.
+    pub(crate) fn ensure_store_with(&mut self, me: &str, seed: Option<&[u8]>) -> bool {
         if self.store.is_some() && self.store_for == me {
-            return;
+            return true;
         }
         self.folded.clear();
         self.selected = None;
-        self.store = state.private_key_bytes.as_ref().filter(|_| !me.is_empty()).map(|seed| OrgStore::load(seed, &me));
-        self.store_for = me;
+        self.mail = Default::default();
+        #[cfg(not(test))]
+        let open = |seed: &[u8]| OrgStore::load(seed, me);
+        #[cfg(test)]
+        let open = |seed: &[u8]| OrgStore::load_at(seed, None);
+        self.store = seed.filter(|_| !me.is_empty()).map(open);
+        self.store_for = me.to_string();
+        self.store.is_some()
     }
 
     /// Use an in-memory store (tests, snapshots).
     pub fn with_store(store: OrgStore, me_hex: &str) -> Self {
         Self { store: Some(store), store_for: me_hex.to_string(), ..Default::default() }
+    }
+
+    // ── For the delivery (engine/org_mail.rs) ──
+
+    pub(crate) fn objects(&self, org_id: &str) -> &[Object] {
+        self.store.as_ref().map(|s| s.objects(org_id)).unwrap_or(&[])
+    }
+    pub(crate) fn add(&mut self, org_id: &str, objects: Vec<Object>) -> usize {
+        self.store.as_mut().map(|s| s.add(org_id, objects)).unwrap_or(0)
+    }
+    pub(crate) fn pick(&self, org_id: &str, ids: &[String]) -> Vec<Object> {
+        self.store.as_ref().map(|s| s.pick(org_id, ids)).unwrap_or_default()
+    }
+    pub(crate) fn queue(&mut self, items: Vec<OutItem>) {
+        if let Some(s) = self.store.as_mut() {
+            s.queue(items);
+        }
+    }
+    pub(crate) fn outbox_len(&self) -> usize {
+        self.store.as_ref().map_or(0, |s| s.outbox().len())
+    }
+    pub(crate) fn outbox_item(&self, i: usize) -> Option<OutItem> {
+        self.store.as_ref().and_then(|s| s.outbox().get(i).cloned())
+    }
+    pub(crate) fn take_out(&mut self, i: usize) -> Option<OutItem> {
+        self.store.as_mut().and_then(|s| s.take_out(i))
+    }
+    pub(crate) fn flush_store(&self) {
+        if let Some(s) = self.store.as_ref() {
+            s.flush();
+        }
+    }
+    /// How many deliveries of `org_id` wait to go.
+    fn waiting_for(&self, org_id: &str) -> usize {
+        self.store.as_ref().map_or(0, |s| s.outbox().iter().filter(|i| i.org == org_id).count())
+    }
+
+    /// A delivered text brought an organisation this device did not hold: when it holds an open
+    /// invitation for me, the page shows it (as opening the text would).
+    pub(crate) fn note_invitation(&mut self, org_id: &str, st: &OrgState, me: &[u8], now: u64) {
+        if st.member(me).is_some() {
+            return;
+        }
+        if let Some(inv) = st.open_invites(now).into_iter().find(|i| i.who == me) {
+            self.pending_invite = Some((org_id.to_string(), inv.id.clone()));
+            self.status = tf("orgs.mail.invited", &[("org", &st.name)]);
+        }
     }
 
     fn book(&mut self) -> Option<&org::RoleBook> {
@@ -242,15 +310,49 @@ impl OrgsPage {
         let o = org::build_founding(&keypair(seed), &f, now_ms())?;
         let id = o.object_id().map_err(|e| e.to_string())?.to_hex();
         self.store.as_mut().ok_or("no store")?.add(&id, vec![o]);
+        // My other devices hold it too (rung 2).
+        let me = hex::encode(keypair(seed).public_key());
+        self.queue(org_mail::chunked(&id, &me, std::slice::from_ref(&id)));
         Ok(id)
     }
 
+    /// What a new entry of `act` follows (rung 2): the heads of this log as a member's fold sees
+    /// it; for an acceptance, as the invitee's fold sees the invitation (a member's fold holds the
+    /// invitation's entries, whose own `prev` name entries it leaves out).
+    fn prev_for(&mut self, org_id: &str, act: &Act) -> Vec<String> {
+        if matches!(act, Act::Accept { .. }) {
+            let objects = self.store.as_ref().map(|s| s.objects(org_id).to_vec()).unwrap_or_default();
+            return org::fold_invitation(org_id, &objects, now_ms()).map(|st| st.heads).unwrap_or_default();
+        }
+        self.state_of(org_id).map(|st| st.heads.clone()).unwrap_or_default()
+    }
+
     /// Sign one change to `org_id` with `seed`'s key, keep it, and say whether the fold applied it.
+    ///
+    /// Rung 2: an applied change is queued at once for delivery (saved with the log, sent by
+    /// engine/org_mail.rs): to my own other devices, to every member it concerns, and an invitation
+    /// to the person invited (gui/org_mail.rs `deliveries`).
     pub fn sign(&mut self, seed: &[u8], org_id: &str, act: Act) -> Result<(Object, Option<org::Refusal>), String> {
-        let o = org::build_entry(&keypair(seed), org_id, &act, now_ms())?;
+        let prev = self.prev_for(org_id, &act);
+        let kp = keypair(seed);
+        let o = org::build_entry(&kp, org_id, &act, &prev, now_ms())?;
         let id = o.object_id().map_err(|e| e.to_string())?.to_hex();
         self.store.as_mut().ok_or("no store")?.add(org_id, vec![o.clone()]);
-        let refused = self.state_of(org_id).and_then(|st| st.log.iter().find(|l| l.entry_id == id)).and_then(|l| l.refused);
+        // An acceptance is judged as the invitee sees the invitation; anything else as a member does.
+        let after = if matches!(act, Act::Accept { .. }) {
+            org::fold_invitation(org_id, self.objects(org_id), now_ms()).ok()
+        } else {
+            self.state_of(org_id).cloned()
+        };
+        let refused = after.as_ref().and_then(|st| st.log.iter().find(|l| l.entry_id == id)).and_then(|l| l.refused);
+        if let (None, Some(st)) = (refused, after.as_ref()) {
+            let invitation = match &act {
+                Act::Invite { .. } => st.invites.get(&id).map(|i| std::iter::once(org_id.to_string()).chain(i.support.iter().cloned()).chain(std::iter::once(id.clone())).collect::<Vec<_>>()),
+                _ => None,
+            };
+            let items = org_mail::deliveries(st, &kp.public_key(), &id, &act, invitation.as_deref());
+            self.queue(items);
+        }
         Ok((o, refused))
     }
 
@@ -258,7 +360,8 @@ impl OrgsPage {
     pub fn open_text(&mut self, text: &str, me: &[u8]) -> Result<(String, usize), String> {
         let (org_id, objects) = org::parse_bundle(text)?;
         let added = self.store.as_mut().ok_or("no store")?.add(&org_id, objects);
-        let st = self.state_of(&org_id).ok_or("no_founding")?;
+        // As the invitee sees it: a member's fold holds the invitation's entries (rung 2).
+        let st = org::fold_invitation(&org_id, self.objects(&org_id), now_ms()).map_err(|_| "no_founding")?;
         let pending = st.open_invites(now_ms()).into_iter().find(|i| i.who == me && st.member(me).is_none()).map(|i| i.id.clone());
         self.pending_invite = pending.map(|i| (org_id.clone(), i));
         Ok((org_id, added))
@@ -327,7 +430,7 @@ fn draw_body(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, page: &mut 
     }
     ui.add_space(theme.spacing_md);
     match page.view {
-        View::List => draw_list(ui, theme, page),
+        View::List => draw_list(ui, theme, state, page),
         View::Found => draw_found(ui, theme, state, page),
         View::Open => draw_open(ui, theme, state, page),
         View::Org => draw_org(ui, theme, state, page),
@@ -359,7 +462,9 @@ fn draw_out_text(ui: &mut egui::Ui, theme: &Theme, page: &mut OrgsPage) {
     });
 }
 
-fn draw_list(ui: &mut egui::Ui, theme: &Theme, page: &mut OrgsPage) {
+fn draw_list(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut OrgsPage) {
+    draw_invitation(ui, theme, state, page);
+    draw_out_text(ui, theme, page);
     let ids = page.store.as_ref().map(OrgStore::ids).unwrap_or_default();
     if ids.is_empty() {
         ui.label(RichText::new(t("orgs.none_yet")).color(theme.text_muted()));
@@ -439,8 +544,17 @@ fn draw_open(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut Orgs
             Err(e) => page.status = t_dyn(&format!("orgs.bad.{e}")).to_string(),
         }
     }
+    draw_invitation(ui, theme, state, page);
+    draw_out_text(ui, theme, page);
+}
+
+/// An invitation for me, from an opened text or delivered as a sealed message (rung 2): who
+/// invited me, to what, until when, and Accept.
+fn draw_invitation(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut OrgsPage) {
     if let Some((org_id, inv_id)) = page.pending_invite.clone() {
-        let Some(st) = page.state_of(&org_id) else { return };
+        // As the invitee sees it: a member's fold holds the invitation's entries (rung 2).
+        let Ok(st) = org::fold_invitation(&org_id, page.objects(&org_id), now_ms()) else { return };
+        let st = &st;
         let Some(inv) = st.invites.get(&inv_id) else { return };
         let inviter = shown_word(&Shown::Named { did: humanity_protocol::did::did_for_pubkey(&inv.by), name: st.member(&inv.by).and_then(|m| m.name.clone()), role: None });
         let words = tf("orgs.invited", &[("inviter", &inviter), ("org", &st.name), ("role", &role_word(st, &inv.role))]);
@@ -453,6 +567,8 @@ fn draw_open(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut Orgs
                     if let Some(seed) = state.private_key_bytes.clone() {
                         match page.sign(&seed, &org_id, Act::Accept { invite: inv_id.clone() }) {
                             Ok((o, None)) => {
+                                // Joining a group is civics practice (data/skills/practice.json).
+                                humanity_systems::skills::queue_practice("join_org");
                                 page.out_text = org::bundle_text(&org_id, &[o]);
                                 page.out_note = "orgs.send_back";
                                 page.pending_invite = None;
@@ -469,7 +585,6 @@ fn draw_open(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut Orgs
             });
         });
     }
-    draw_out_text(ui, theme, page);
 }
 
 fn draw_org(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut OrgsPage) {
@@ -493,6 +608,7 @@ fn draw_org(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, page: &mut OrgsP
     if st.waiting > 0 {
         ui.label(RichText::new(tn("orgs.waiting", st.waiting as i64, &[])).size(theme.font_size_small).color(theme.text_muted()));
     }
+    draw_delivery(ui, theme, &st, page);
     draw_out_text(ui, theme, page);
     ui.add_space(theme.spacing_sm);
     ui.horizontal_wrapped(|ui| {
@@ -788,6 +904,84 @@ fn draw_me(ui: &mut egui::Ui, theme: &Theme, st: &OrgState, me: &[u8], page: &mu
     } else if widgets::Button::danger(t("orgs.leave")).hint("orgs.leave_hint").show(ui, theme) {
         *todo = Some(Act::Leave);
     }
+    ui.add_space(theme.spacing_md);
+    draw_handover(ui, theme, st, me, page, todo);
+}
+
+/// How delivery stands for this organisation (rung 2): how changes travel, what waits to go, which
+/// members the server could not reach (their "who can reach me"), and what waits for an earlier
+/// change.
+fn draw_delivery(ui: &mut egui::Ui, theme: &Theme, st: &OrgState, page: &OrgsPage) {
+    ui.label(RichText::new(t("orgs.mail.how")).size(theme.font_size_small).color(theme.text_muted()));
+    let waiting = page.waiting_for(&st.org_id);
+    if waiting > 0 {
+        ui.label(RichText::new(tn("orgs.mail.waiting", waiting as i64, &[])).size(theme.font_size_small).color(theme.text_secondary()));
+    }
+    let names: Vec<String> = page
+        .mail
+        .unreachable
+        .iter()
+        .filter(|(o, _)| *o == st.org_id)
+        .filter_map(|(_, k)| hex::decode(k).ok())
+        .map(|k| shown_word(&Shown::Named { did: humanity_protocol::did::did_for_pubkey(&k), name: st.member(&k).and_then(|m| m.name.clone()), role: None }))
+        .collect();
+    if !names.is_empty() {
+        ui.label(RichText::new(tf("orgs.mail.unreachable", &[("names", &names.join(", "))])).size(theme.font_size_small).color(theme.warning()));
+    }
+    if st.held > 0 {
+        ui.label(RichText::new(tn("orgs.held", st.held as i64, &[])).size(theme.font_size_small).color(theme.text_muted()));
+    }
+}
+
+/// Handing the organisation on (rung 2): the owner offers it to a member, the member it names
+/// takes it here, and the owner's role moves only with both signatures.
+fn draw_handover(ui: &mut egui::Ui, theme: &Theme, st: &OrgState, me: &[u8], page: &mut OrgsPage, todo: &mut Option<Act>) {
+    let now = now_ms();
+    let open = st.open_transfer(now).cloned();
+    let name_of = |key: &[u8]| shown_word(&Shown::Named { did: humanity_protocol::did::did_for_pubkey(key), name: st.member(key).and_then(|m| m.name.clone()), role: None });
+    if let Some(tr) = open.as_ref().filter(|tr| tr.who == me) {
+        widgets::card(ui, theme, |ui| {
+            ui.label(RichText::new(tf("orgs.handover.offered_you", &[("who", &name_of(&tr.by)), ("when", &when(tr.until))])).color(theme.text_primary()));
+            if widgets::Button::primary(t("orgs.handover.take")).hint("orgs.handover.take_hint").show(ui, theme) {
+                *todo = Some(Act::AcceptTransfer { transfer: tr.id.clone() });
+            }
+        });
+        return;
+    }
+    if st.member(me).map(|m| m.role.as_str()) != Some(org::OWNER) {
+        return;
+    }
+    ui.label(RichText::new(t("orgs.handover.title")).size(theme.font_size_heading).color(theme.accent()));
+    widgets::body_hint(ui, theme, t("orgs.handover.intro"));
+    if let Some(tr) = open {
+        ui.label(RichText::new(tf("orgs.handover.offered", &[("who", &name_of(&tr.who)), ("when", &when(tr.until))])).color(theme.text_secondary()));
+        if widgets::Button::secondary(t("orgs.handover.withdraw")).hint("orgs.handover.withdraw_hint").show(ui, theme) {
+            *todo = Some(Act::Withdraw { invite: tr.id });
+        }
+        return;
+    }
+    let others: Vec<(String, String)> = st.members.values().filter(|m| m.key != me).map(|m| (hex::encode(&m.key), name_of(&m.key))).collect();
+    widgets::form_row(ui, theme, t("orgs.handover.member"), |ui| {
+        let chosen = others.iter().find(|(k, _)| *k == page.handover_to).map(|(_, n)| n.clone()).unwrap_or_else(|| t("orgs.handover.pick").to_string());
+        egui::ComboBox::from_id_salt("orgs_handover_to")
+            .selected_text(chosen)
+            .show_ui(ui, |ui| {
+                for (k, n) in &others {
+                    ui.selectable_value(&mut page.handover_to, k.clone(), n).hint("orgs.handover.member_hint");
+                }
+            })
+            .response
+            .hint("orgs.handover.member_hint");
+    });
+    let picked = hex::decode(&page.handover_to).ok().filter(|k| st.member(k).is_some() && k.as_slice() != me);
+    ui.add_enabled_ui(picked.is_some(), |ui| {
+        if widgets::Button::primary(t("orgs.handover.offer")).hint("orgs.handover.offer_hint").show(ui, theme) {
+            if let Some(who) = picked.clone() {
+                *todo = Some(Act::Transfer { who, until: now + 7 * 86_400_000 });
+                page.handover_to.clear();
+            }
+        }
+    });
 }
 
 fn forget_button(ui: &mut egui::Ui, theme: &Theme, st: &OrgState, page: &mut OrgsPage) {

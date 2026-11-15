@@ -47,7 +47,7 @@
     "trade_completed": { "skills": ["trading"], "xp": 12 },
     "cast_vote": { "skills": ["civics"], "xp": 6 },
     "submit_proposal": { "skills": ["civics"], "xp": 10 },
-    "join_guild": { "skills": ["civics"], "xp": 6 },
+    "join_org": { "skills": ["civics"], "xp": 6 },
 
     "finish_track": { "skills": ["music"], "xp": 20 }
   }

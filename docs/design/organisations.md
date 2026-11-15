@@ -1,11 +1,14 @@
 # Organisations: a group that runs itself
 
 **Status: planned 2026-11-14; rung 1 (members, roles, invitations, the directory, the audit log,
-both apps) built the same day.** Code: `crates/humanity-protocol/src/org.rs` (the signed log, its
+both apps) built the same day; rung 2 (delivery as sealed DMs, handing the organisation on, the
+order and checkpoint rules, guilds retired) built 2026-11-15 (section 8b).** Code: `crates/humanity-protocol/src/org.rs` (the signed log, its
 fold, the directory and the audit log: the rules every app and every server agree on),
 `src/gui/pages/orgs.rs` and `src/gui/orgs_store.rs` (the desktop page and the logs kept on the
 device), `web/shared/org-log.js` and `web/pages/orgs-app.js` (the same rules and the page on the
-website), `data/orgs/roles.json` (the roles a new organisation starts with, and every permission).
+website), `data/orgs/roles.json` (the roles a new organisation starts with, and every permission). Rung 2's
+delivery: `src/gui/org_mail.rs` (the rules) and `src/engine/org_mail.rs` (the sockets) on the
+desktop, `web/shared/org-mail.js` and the Delivery section of `web/pages/orgs-app.js` on the website.
 Algorithms: `docs/reference/cryptography.md` ("Organisations").
 
 ## Why, in the operator's words
@@ -68,9 +71,11 @@ An organisation is a group with:
 Guilds (`src/relay/storage/guilds.rs`, FEATURES "Guild System") are a server's rows: `guild_members`
 lists who belongs to which guild in the clear, on one server. That is the shape the privacy
 hardening removed everywhere else (`groups`, `follows`). Organisations do everything guilds do
-(create, invite, members, roles) without that list. **Recommendation (question 2 below):** once
-rung 2 delivers changes without copying, retire guilds into organisations: the Guilds page becomes
-the Organisations page and the three guild tables are dropped (no migration: nobody uses them yet).
+(create, invite, members, roles) without that list. **Retired 2026-11-15 (decided 2026-11-14):** the
+Guilds page, its routes (`/api/guilds`, the web page `/guilds`, which now sends a browser to
+`/orgs`), its words and its three tables are gone; the relay drops the tables from a database that
+still has them (`the_live_database_sheds_the_guild_tables`), with no migration, since nobody used
+them. `tests/guilds_retired_lint.rs` keeps them gone.
 
 ## 2. How membership and roles are proven
 
@@ -91,12 +96,14 @@ A role map is `{id, name, rank, perms}`: `id` lowercase letters, digits and `_` 
 id is the founding object's `object_id` (BLAKE3 of its canonical bytes): self-certifying, minted by
 no server.
 
-**`org_entry_v1`, one change.** `references = [org_id]`; payload `{act, ...}`:
+**`org_entry_v1`, one change.** `references = [org_id, prev...]`, where `prev` (rung 2, at most 16,
+sorted) names the entries its signer's log held as its heads when they signed it: the applied entries
+no other applied entry follows (`OrgState::heads`). Payload `{act, ...}`:
 
 | `act` | Fields | Who may sign it |
 |---|---|---|
 | `invite` | `who` (the invitee's public key), `role`, `until` (ms) | `members.invite`, and the role ranks below the signer's |
-| `withdraw` | `invite` (the invite's entry id) | `members.invite`, or the inviter |
+| `withdraw` | `invite` (the invite's entry id, or a handover's) | `members.invite`, or the inviter; a handover only by the owner who offered it |
 | `accept` | `invite` | Only the invitee named in it, before `until`, once, if not withdrawn |
 | `remove` | `who` | `members.remove`, and the member ranks below the signer |
 | `leave` | (none) | Any member except an owner |
@@ -105,12 +112,20 @@ no server.
 | `role_drop` | `role` (an id) | `roles.define`; a custom role ranked below the signer; its holders become members |
 | `listing` | `name` (up to 60), `level` | The member themself: how they appear in the directory (`members` or `organisers`) |
 | `settings` | any of `name`, `about`, `directory` | `org.settings` |
+| `transfer` | `who`, `until` (ms) | The owner only, to another member: an offer, which changes nothing by itself; a newer one replaces an older one (rung 2) |
+| `accept_transfer` | `transfer` (the handover's entry id) | Only the member it names, before `until`, while its giver is still the owner: they become the owner and the giver an admin (rung 2) |
 
 ### 2.2 The fold
 
 Every app computes the current state the same way: drop entries whose signature does not verify or
-that name another organisation; drop duplicates by `object_id`; sort by `(created_at, object_id)`;
-apply each in turn, refusing any whose signer lacks the permission at that point. A refused entry
+that name another organisation; drop duplicates by `object_id`; HOLD any entry that follows (its
+`prev`) an entry not here, or one itself held: it is counted, never applied and never refused, until
+what it follows arrives (rung 2); order the rest so every entry comes after what it follows, the
+earliest `(created_at, object_id)` first among those ready; apply each in turn, refusing any whose
+signer lacks the permission at that point; then apply the checkpoint rule (section 2.5) and fold
+again until it voids nothing new. Someone holding only an invitation folds it with
+`fold_invitation`, which places an entry by what is there instead of holding it (an invitation
+leaves out the entries the inviter's own entries follow) and voids nothing. A refused entry
 stays in the audit log marked "not applied" with its reason, so nothing is hidden and nothing
 changes. An entry dated more than five minutes ahead of the reader's clock waits until it is not.
 
@@ -127,16 +142,22 @@ all of them.
 
 Every role has a rank. You can act only on people and roles ranked below your own, so an admin can
 never remove or demote the owner or another admin, and nobody can hand out more than they hold.
-The owner cannot leave or be removed; handing the organisation on is rung 2 (`transfer`, signed by
-the owner and accepted by the new owner).
+The owner cannot leave or be removed; they hand the organisation on (rung 2): a `transfer` the owner
+signs, then the named member's `accept_transfer`, both kept in the log; the owner role moves only when
+both verify, and the giver becomes an admin.
 
-### 2.5 Known limit of rung 1, and its fix
+### 2.5 Checkpoints (rung 2): a backdated change is voided
 
-Ordering trusts each entry's own `created_at`. A removed admin could sign an entry dated before
-their removal, and an app that had not yet seen that entry would apply it. Rung 2 adds
-**checkpoints**: the owner's app signs, with each change it sends, the set of entry ids it holds; an
-entry dated before a checkpoint that does not name it is refused by every app. Until then the audit
-log shows every entry with its signer, so a backdated one is visible.
+Rung 1's ordering trusted each entry's own `created_at`, so a removed admin could sign an entry
+dated before their removal and an app that had not seen it would apply it. Rung 2 closes it with the
+`prev` history every entry carries. A **checkpoint** is an applied entry that takes a role away: a
+`remove`, an `assign` to a lower-ranked role, or an `accept_transfer` (for the giver). Every entry
+by the person it takes the role from that would come before it in the order and is NOT in its
+history (its signer had not seen it) is **voided**: refused, shown in the record of changes as "its
+signer lost their role to a change made without seeing it". Removing someone therefore voids
+whatever they did that the remover had not seen, which is also what a careful organiser would want.
+The plan's earlier wording (the owner's app signing the set of ids it holds) became this: the
+history is in every entry already, so nothing extra is signed.
 
 ## 3. What the relay stores and what stays on devices
 
@@ -216,12 +237,12 @@ every change of its source, and every frame with the reuse switch off).
 | Rung | What it adds | Per frame (page open) | Fold, on a change | Network |
 |---|---|---|---|---|
 | **1** | The log, the fold, roles as data, invitations accepted by the invitee, the directory with privacy levels, the audit log, both apps, the registry's `orgs.*` actions | under 0.5 ms to draw 200 members | about 0.3 ms a signature checked: 200 entries in about 60 ms, on a change only | None: the person carries text (about 7 KB an entry) |
-| **2** | Delivery as sealed DMs to each member and to your own devices; transfer of ownership; checkpoints; organisers-only names kept from members | unchanged | unchanged | One sealed DM per member per change (about 8 KB padded); a 50-member group's change is about 400 KB in total, once |
+| **2** | Delivery as sealed DMs to each member and to your own devices; transfer of ownership; checkpoints; guilds retired (built 2026-11-15). Organisers-only names kept from members moves to rung 3 (section 8b) | unchanged | unchanged | One sealed DM per member per change (about 8 KB padded); a 50-member group's change is about 400 KB in total, once |
 | **3** | A shared calendar with RSVP and reminders; announcements; opening a P2P group chat for members | under 1 ms (a month view) | unchanged | One sealed DM per member per event change |
 | **4** | Sign-up forms, surveys and a booking page (for members, or a public page through a server) | under 1 ms | unchanged | Replies travel as sealed DMs to the organisers; a public booking page is the one place a server sees a form, by the organisation's choice |
 | **5** | Shared folders (the Files page with an organisation place) and shared tables; organisation-scoped tasks | under 1 ms | unchanged | Files by the existing file passes and transfers; table edits as sealed DMs |
 | **6** | Decisions: `proposal_v1` scoped to an organisation, the roster as electorate | unchanged | unchanged | One proposal and one vote object each, as today |
-| **7** | Large organisations: an organisation key, one sealed blob per change in an opaque mailbox; public organisations listed by a server; guilds retired | unchanged | unchanged | One blob per change, about 8 KB, whatever the size |
+| **7** | Large organisations: an organisation key, one sealed blob per change in an opaque mailbox; public organisations listed by a server | unchanged | unchanged | One blob per change, about 8 KB, whatever the size |
 | **8** | The game twin: an organisation as a ship's crew or cooperative, roles mapped to ship ranks | none in the 3D frame (ranks resolved on change) | unchanged | Only gameplay state, as today |
 | **9** | Printable material through Typst | none | none | none |
 
@@ -255,6 +276,44 @@ entries to bound the fold; rung 7 lifts the cap with checkpoints).
 - **Not wired yet:** an AI drives the page through the registry's list today, not yet through the
   dev IPC (the registry's own rung for device actions).
 
+## 8b. Rung 2, as built (2026-11-15)
+
+- **The rules** (`crates/humanity-protocol/src/org.rs`, twin `web/shared/org-log.js`): `prev`,
+  holding, the causal order, checkpoints, `transfer` and `accept_transfer`, `fold_invitation`. The
+  frozen log `scripts/tests/fixtures/org-log-v1.json` was rebuilt on purpose with `prev` (rung 1's
+  entries had none) and now also holds a handover, a refused acceptance by the wrong member, a voided
+  change by the old owner and a held entry; both apps fold it to the hand-written record.
+- **Delivery** (`src/gui/org_mail.rs`, `src/engine/org_mail.rs`; website `web/shared/org-mail.js`
+  and the Delivery section of `web/pages/orgs-app.js`): each signed change is queued at once, kept in
+  the encrypted organisations file (desktop) or value (website) until sent, and sent as a sealed-sender
+  v2 DM `[[hum:org:v1]]{carried text}` to every member of the organisation as it is after the change,
+  to the person a removal names, and to my own mailbox (my other devices); an invitation also goes to
+  the person invited as the invitation text. Sealing uses only the key on the member's own key card,
+  checked and pinned (a member with no card yet is asked for one and waits). Sends go at the server's
+  `dm_put` pace. The inviter's app, seeing an acceptance of its own invitation, forwards it to the
+  other members and sends the new member the whole log.
+- **Taking** a note: from my own key; from a member (or an open invitee or handover recipient) of an
+  organisation I am in; or an invitation for me from its inviter. A note from someone this device
+  does not yet know as a member waits in memory for the log that proves them; anything else is not
+  merged, so a removed member's or a stranger's notes never fill the log. Whatever is taken, the fold
+  checks.
+- **Through "who can reach me"**: a member whose message setting keeps the sender out gets nothing
+  (the relay refuses the note, reason `reach`); the page names them and offers Share the latest. The
+  desktop's notes carry the friendship pass the member gave the sender, as every control message does;
+  **the website's do not yet** (the passes live in the chat's own store), so from the website a member
+  whose setting is "friends" is reached only through the fallback for now.
+- **Proof**: `org::tests` (held then applied, a backdated change voided, a handover needs both
+  signatures, the frozen log), `org_mail_tests` in `src/gui` (whole notes, a removed member stops
+  receiving, who is taken, the inviter forwards, the website's notes of one delivery applied here),
+  `engine/org_mail_tests.rs` (two desktop apps: invitation, acceptance, the whole log, a change
+  applied in the other app, the removal reaching the removed member and nothing after it; a forged or
+  stranger's change never applied), `scripts/tests/org-log-web.test.js` and `org-mail-web.test.js`
+  (the website's twins, the same note bytes `scripts/tests/fixtures/org-note-v1.json`).
+- **Not in rung 2** (moved to rung 3): keeping an organisers-only member's chosen name out of what is
+  sent to other members. The name sits in a signed `listing` entry, and every member must hold every
+  entry for `prev` to work, so this needs the name to travel apart from the entry (a commitment in
+  the entry, the words sealed to organisers), a format change of its own.
+
 ## Decided (operator, 2026-11-14)
 
 Asked which real group goes first (recommended: Sponsor-a-Can, so every rung is tested by people
@@ -268,11 +327,11 @@ and guilds retire into organisations.
 1. **Which real group goes first?** Recommendation: Sponsor-a-Can, the volunteer group you already
    help run, so every rung is tested by people who need it (members, a shared calendar for cart
    days, sign-ups, the delivery route as a shared table).
-2. **Retire guilds into organisations once rung 2 lands?** Recommendation: yes. Guilds keep a member
-   list in the clear on one server; organisations do the same job without it. One page, one word.
+2. **Retire guilds into organisations once rung 2 lands?** Decided 2026-11-14 ("Agreed."); done
+   2026-11-15 (section 1.2).
 3. **Should a member be able to see other members' public keys?** Rung 1 cannot hide them (every
    member holds the log). Recommendation: accept it for organisations up to rung 7, say so on the
    page (done), and give organisations that need members hidden from each other rung 7's
    organisation key, where organisers can hold entries only organisers read.
-4. **Should the owner be able to hand the organisation on?** Recommendation: yes, in rung 2, signed
-   by the owner and accepted by the new owner, the way an invitation is.
+4. **Should the owner be able to hand the organisation on?** Built in rung 2 as recommended: the
+   owner's `transfer`, the new owner's `accept_transfer`, both in the log.

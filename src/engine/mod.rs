@@ -46,6 +46,9 @@ pub mod quiet_allow;
 /// Tasks of my own (docs/design/tasks.md, 2026-11-02): made, sent as notes to myself and taken
 /// from them; the board's list never replaces them (BUG-217).
 pub mod mine_tasks;
+/// Organisations, rung 2 (docs/design/organisations.md, 2026-11-15): an organisation's changes sent
+/// to its members as sealed DMs, and taken from them (gui/org_mail.rs holds the rules).
+pub mod org_mail;
 /// Reports the admins can check (step D of docs/design/blocking-and-safe-mode.md, 2026-10-09):
 /// the Report dialog's opening and sending, and the relay's `report_received` and `reports`.
 pub mod report;

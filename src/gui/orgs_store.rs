@@ -7,8 +7,10 @@
 //! with a random 96-bit nonce per save, under BLAKE3 `derive_key("hum/orgs/v1", seed)` (its own
 //! domain; docs/reference/cryptography.md, "Organisations"), the file named by a hash of the
 //! identity, so a copied file names nobody and says nothing without the seed. Inside, JSON
-//! `{"v": 1, "orgs": [<carried text of each organisation>]}`: each organisation's log in the very
-//! shape a person carries (`org::bundle_text`). No server holds any of it.
+//! `{"v": 1, "orgs": [<carried text of each organisation>], "outbox": [...]}`: each organisation's log
+//! in the very shape a person carries (`org::bundle_text`), and (rung 2) the deliveries not sent yet
+//! (`gui::org_mail::OutItem`, an optional field: a body without it opens with nothing waiting). No
+//! server holds any of it.
 //!
 //! A FILE THAT DOES NOT OPEN IS NEVER WRITTEN OVER (the rule of src/gui/mine_tasks.rs): it is
 //! renamed aside to `<name>.unreadable-<unix seconds>` and the page says so.
@@ -20,6 +22,8 @@ use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng as AesOsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use humanity_protocol::object::Object;
 use humanity_protocol::org;
+
+use crate::gui::org_mail::OutItem;
 
 /// The key-derivation domain of the file's key.
 const FILE_KEY_DOMAIN: &str = "hum/orgs/v1";
@@ -40,6 +44,8 @@ pub struct OrgStore {
     path: Option<PathBuf>,
     key: [u8; 32],
     logs: BTreeMap<String, Vec<Object>>,
+    /// Deliveries not sent yet (rung 2), oldest first.
+    outbox: Vec<OutItem>,
     /// Bumped on every change: the page refolds an organisation when it moves.
     version: u64,
     problem: Option<StoreProblem>,
@@ -47,6 +53,11 @@ pub struct OrgStore {
 
 /// The organisations in a body's JSON text (`{"v": 1, "orgs": [...]}`), each as (id, objects).
 pub fn parse_body(text: &str) -> Option<BTreeMap<String, Vec<Object>>> {
+    parse_body_full(text).map(|(logs, _)| logs)
+}
+
+/// The logs and the deliveries waiting in a body's JSON text.
+fn parse_body_full(text: &str) -> Option<(BTreeMap<String, Vec<Object>>, Vec<OutItem>)> {
     let v: serde_json::Value = serde_json::from_str(text).ok()?;
     if v["v"].as_u64() != Some(BODY_VERSION) {
         return None;
@@ -58,15 +69,17 @@ pub fn parse_body(text: &str) -> Option<BTreeMap<String, Vec<Object>>> {
         org::merge(&id, &mut log, objects);
         logs.insert(id, log);
     }
-    Some(logs)
+    let outbox = v["outbox"].as_array().map(|a| a.iter().filter_map(OutItem::from_json).collect()).unwrap_or_default();
+    Some((logs, outbox))
 }
 
-fn body_text(logs: &BTreeMap<String, Vec<Object>>) -> String {
+fn body_text(logs: &BTreeMap<String, Vec<Object>>, outbox: &[OutItem]) -> String {
     let orgs: Vec<serde_json::Value> = logs
         .iter()
         .filter_map(|(id, objs)| serde_json::from_str::<serde_json::Value>(&org::bundle_text(id, objs)).ok())
         .collect();
-    serde_json::json!({ "v": BODY_VERSION, "orgs": orgs }).to_string()
+    let outbox: Vec<serde_json::Value> = outbox.iter().map(OutItem::to_json).collect();
+    serde_json::json!({ "v": BODY_VERSION, "orgs": orgs, "outbox": outbox }).to_string()
 }
 
 fn set_aside(path: &Path) -> StoreProblem {
@@ -95,7 +108,7 @@ impl OrgStore {
 
     /// A store at `path` (`None`: kept in memory only, as for a test or no identity yet).
     pub fn load_at(seed: &[u8], path: Option<PathBuf>) -> Self {
-        let mut s = Self { path, key: blake3::derive_key(FILE_KEY_DOMAIN, seed), logs: BTreeMap::new(), version: 0, problem: None };
+        let mut s = Self { path, key: blake3::derive_key(FILE_KEY_DOMAIN, seed), logs: BTreeMap::new(), outbox: Vec::new(), version: 0, problem: None };
         let Some(path) = s.path.clone() else { return s };
         let raw = match std::fs::read(&path) {
             Ok(raw) => raw,
@@ -112,9 +125,12 @@ impl OrgStore {
             })
             .flatten()
             .and_then(|plain| String::from_utf8(plain).ok())
-            .and_then(|text| parse_body(&text));
+            .and_then(|text| parse_body_full(&text));
         match opened {
-            Some(logs) => s.logs = logs,
+            Some((logs, outbox)) => {
+                s.logs = logs;
+                s.outbox = outbox;
+            }
             None => s.problem = Some(set_aside(&path)),
         }
         s
@@ -151,9 +167,44 @@ impl OrgStore {
     /// Forget an organisation on this device (the log stays with its other members).
     pub fn forget(&mut self, org_id: &str) {
         if self.logs.remove(org_id).is_some() {
+            self.outbox.retain(|i| i.org != org_id);
             self.version += 1;
             self.save();
         }
+    }
+
+    /// Keep deliveries to send (saved at once, so a crash before the send loses nothing).
+    pub fn queue(&mut self, items: Vec<OutItem>) {
+        if items.is_empty() {
+            return;
+        }
+        for it in items {
+            if !self.outbox.contains(&it) {
+                self.outbox.push(it);
+            }
+        }
+        self.save();
+    }
+
+    /// The deliveries waiting, oldest first.
+    pub fn outbox(&self) -> &[OutItem] {
+        &self.outbox
+    }
+
+    /// Take the waiting delivery at `index` out (the caller sends it, or queues it again).
+    pub fn take_out(&mut self, index: usize) -> Option<OutItem> {
+        (index < self.outbox.len()).then(|| self.outbox.remove(index))
+    }
+
+    /// Save now (after [`take_out`] and the sends it led to).
+    pub fn flush(&self) {
+        self.save();
+    }
+
+    /// The objects of `org_id` whose ids are `ids`, in the log's order.
+    pub fn pick(&self, org_id: &str, ids: &[String]) -> Vec<Object> {
+        let want: std::collections::BTreeSet<&str> = ids.iter().map(String::as_str).collect();
+        self.objects(org_id).iter().filter(|o| o.object_id().is_ok_and(|h| want.contains(h.to_hex().as_str()))).cloned().collect()
     }
 
     fn save(&self) {
@@ -162,7 +213,7 @@ impl OrgStore {
             return;
         }
         let nonce = Aes256Gcm::generate_nonce(&mut AesOsRng);
-        let Ok(ct) = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.key)).encrypt(&nonce, body_text(&self.logs).as_bytes()) else {
+        let Ok(ct) = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&self.key)).encrypt(&nonce, body_text(&self.logs, &self.outbox).as_bytes()) else {
             return;
         };
         let mut bytes = nonce.as_slice().to_vec();

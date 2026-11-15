@@ -37,12 +37,20 @@ const orgId = founding.objectId;
 const subs = [founding.submission];
 const steps = [];
 const ids = {};
-async function step(name, who, act, refused = null) {
+// The heads of the log so far: what an app signing now names as its `prev` (rung 2).
+async function heads() {
+  const { state } = await org.fold(orgId, subs, clock, { blake3, pqVerify });
+  return state.heads;
+}
+// Sign `act` one second on, following the heads (or `opts.prev`, dated `opts.at`), and keep it.
+async function step(name, who, act, refused = null, opts = {}) {
   clock += 1000;
-  const { objectId, submission } = await org.buildEntry(orgId, act, { authorPublicKey: who.pub, sign: who.sign, blake3, createdAt: clock });
+  const prev = opts.prev || await heads();
+  const at = opts.at || clock;
+  const { objectId, submission } = await org.buildEntry(orgId, act, { authorPublicKey: who.pub, sign: who.sign, blake3, createdAt: at, prev });
   subs.push(submission);
   ids[name] = objectId;
-  steps.push({ name, entry: objectId, refused });
+  steps.push({ name, entry: objectId, refused, at });
   return objectId;
 }
 const until = () => clock + 7 * 86_400_000;
@@ -66,6 +74,18 @@ await step('r accepts', r, { act: 'accept', invite: ids['invite r'] });
 await step('admin removes r', admin, { act: 'remove', who: r.pub });
 await step('admin tries to remove owner', admin, { act: 'remove', who: owner.pub }, 'owner_stays');
 await step('owner renames', owner, { act: 'settings', name: 'Cart crew of Kitsap', about: null, directory: null });
+// Rung 2 (2026-11-15): the owner offers the organisation to the admin; only the member it names can
+// take it, and taking it moves the owner role. A change the old owner signed meanwhile, which the
+// new owner had not seen when taking it, is voided (the checkpoint).
+await step('owner offers to admin', owner, { act: 'transfer', who: admin.pub, until: until() });
+await step('mo takes it', mo, { act: 'accept_transfer', transfer: ids['owner offers to admin'] }, 'not_the_recipient');
+const seen = await heads();
+await step('owner renames unseen', owner, { act: 'settings', name: 'Not seen', about: null, directory: null }, 'voided', { prev: seen, at: clock + 500 });
+await step('admin takes it', admin, { act: 'accept_transfer', transfer: ids['owner offers to admin'] }, null, { prev: seen });
+// A held entry: it follows a change this log does not hold (made, never kept), so it waits.
+const unkept = await org.buildEntry(orgId, { act: 'listing', name: 'Mo M', level: 'members' }, { authorPublicKey: mo.pub, sign: mo.sign, blake3, createdAt: clock + 100, prev: await heads() });
+const heldEntry = await org.buildEntry(orgId, { act: 'listing', name: 'Mo again', level: 'members' }, { authorPublicKey: mo.pub, sign: mo.sign, blake3, createdAt: clock + 200, prev: [unkept.objectId] });
+subs.push(heldEntry.submission);
 const now = clock + 1000;
 
 const did = (k) => org.didFor(k, blake3);
@@ -74,8 +94,8 @@ const expect = {
   directory: 'members',
   roles: ['owner', 'admin', 'member', 'driver'],
   members: Object.fromEntries([
-    [did(owner.pub), { role: 'owner', name: null, listing: 'members' }],
-    [did(admin.pub), { role: 'admin', name: null, listing: 'members' }],
+    [did(owner.pub), { role: 'admin', name: null, listing: 'members' }],
+    [did(admin.pub), { role: 'owner', name: null, listing: 'members' }],
     [did(mo.pub), { role: 'driver', name: 'Mo', listing: 'members' }],
     [did(shy.pub), { role: 'member', name: 'Shy', listing: 'organisers' }],
   ].sort()),
@@ -85,6 +105,7 @@ const expect = {
   directory_as_admin: { named: 4, private: 0 },
   // A stranger (x, who never accepted) reads neither.
   stranger_refused: 'not_a_member',
+  held: 1,
   // Every line of the log, the founding first: the entry id and why it was refused (null = applied).
   log: [{ entry: orgId, refused: null }, ...steps.map((s) => ({ entry: s.entry, refused: s.refused }))],
 };
@@ -100,6 +121,7 @@ const got = {
   directory_as_member: (({ named, private: p }) => ({ named: named.length, private: p }))(org.directoryFor(state, mo.pub)),
   directory_as_admin: (({ named, private: p }) => ({ named: named.length, private: p }))(org.directoryFor(state, admin.pub)),
   stranger_refused: org.directoryFor(state, x.pub).refused,
+  held: state.held,
   log: state.log.map((l) => ({ entry: l.entryId, refused: l.refused })),
 };
 if (JSON.stringify(got) !== JSON.stringify(expect)) {

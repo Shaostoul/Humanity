@@ -12,6 +12,16 @@
 //!
 //! The website's twin is `web/shared/org-log.js`; both fold the frozen log
 //! scripts/tests/fixtures/org-log-v1.json (built by the website's code) to the state recorded beside it.
+//!
+//! RUNG 2 (2026-11-15): every entry names what it follows, `references = [org id, prev...]`, the
+//! heads of its signer's log when they signed it ([`OrgState::heads`]). An entry whose `prev` is not
+//! all here yet is HELD (counted, never applied, never refused) until it arrives, so changes can be
+//! delivered in any order; entries are applied in an order that keeps every entry after what it
+//! names (ties by `(created_at, object_id)`). A removal, a demotion or a handover is a CHECKPOINT:
+//! an entry by the person it took a role from that its signer had not seen (not in its `prev`
+//! history) and that would come before it is VOIDED, so a removed admin cannot backdate a change
+//! (section 2.5 of the design). The owner hands the organisation on with `transfer`, which only the
+//! named member's `accept_transfer` completes.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,6 +43,8 @@ pub const BUNDLE_VERSION: u64 = 1;
 pub const MAX_ENTRIES: usize = 10_000;
 /// An entry dated further ahead of the reader's clock than this waits until it is not.
 pub const FUTURE_SLACK_MS: u64 = 5 * 60 * 1000;
+/// The most entries one entry names as what it follows (`references[1..]`).
+pub const PREV_MAX: usize = 16;
 /// The owner's role id. Exactly one member holds it (rung 2 adds handing it on).
 pub const OWNER: &str = "owner";
 /// The role every organisation has for people with no other.
@@ -170,6 +182,10 @@ pub enum Act {
     RoleDrop { role: String },
     Listing { name: String, level: Listing },
     Settings { name: Option<String>, about: Option<String>, directory: Option<Directory> },
+    /// The owner offers the organisation to member `who` until `until` (rung 2).
+    Transfer { who: Vec<u8>, until: u64 },
+    /// The member named in handover `transfer` takes it: only now does the owner role move.
+    AcceptTransfer { transfer: String },
 }
 
 impl Act {
@@ -186,6 +202,8 @@ impl Act {
             Act::RoleDrop { .. } => "role_drop",
             Act::Listing { .. } => "listing",
             Act::Settings { .. } => "settings",
+            Act::Transfer { .. } => "transfer",
+            Act::AcceptTransfer { .. } => "accept_transfer",
         }
     }
 }
@@ -354,6 +372,11 @@ fn act_value(a: &Act) -> Value {
                 e.push(("directory", cbor_text(d.as_str())));
             }
         }
+        Act::Transfer { who, until } => {
+            e.push(("who", cbor_bytes(who)));
+            e.push(("until", cbor_int(*until)));
+        }
+        Act::AcceptTransfer { transfer } => e.push(("transfer", cbor_text(transfer))),
     }
     cbor_map(e)
 }
@@ -370,14 +393,41 @@ pub fn build_founding(kp: &DilithiumKeypair, f: &Founding, now_ms: u64) -> Resul
         .map_err(|e| e.to_string())
 }
 
-/// Sign one change to organisation `org_id`.
-pub fn build_entry(kp: &DilithiumKeypair, org_id: &str, act: &Act, now_ms: u64) -> Result<Object, String> {
-    ObjectBuilder::new(ENTRY_TYPE)
-        .created_at(now_ms)
-        .reference(org_id)
-        .payload_cbor(&act_value(act))
-        .and_then(|b| b.sign(kp))
-        .map_err(|e| e.to_string())
+/// Sign one change to organisation `org_id`, following `prev` (the heads of the signer's log,
+/// [`OrgState::heads`]; empty when it holds no applied entry yet). `prev` is written sorted.
+pub fn build_entry(kp: &DilithiumKeypair, org_id: &str, act: &Act, prev: &[String], now_ms: u64) -> Result<Object, String> {
+    let mut prev: Vec<String> = prev.to_vec();
+    prev.sort();
+    prev.dedup();
+    if prev.len() > PREV_MAX {
+        return Err("prev: too many".into());
+    }
+    let mut b = ObjectBuilder::new(ENTRY_TYPE).created_at(now_ms).reference(org_id);
+    for p in &prev {
+        b = b.reference(p);
+    }
+    b.payload_cbor(&act_value(act)).and_then(|b| b.sign(kp)).map_err(|e| e.to_string())
+}
+
+/// Whether `s` is an object id as text: 64 lowercase hex digits.
+fn is_id(s: &str) -> bool {
+    s.len() == 64 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// What an entry says it follows (`references[1..]`), or `None` when that list is not acceptable:
+/// more than [`PREV_MAX`], a repeat, something that is not an object id, or the organisation itself.
+pub fn prev_of(obj: &Object) -> Option<Vec<String>> {
+    let prev: Vec<String> = obj.references.iter().skip(1).cloned().collect();
+    if prev.len() > PREV_MAX {
+        return None;
+    }
+    let mut seen = BTreeSet::new();
+    for p in &prev {
+        if !is_id(p) || Some(p) == obj.references.first() || !seen.insert(p.as_str()) {
+            return None;
+        }
+    }
+    Some(prev)
 }
 
 // ── Decoding ──
@@ -465,6 +515,8 @@ pub fn parse_act(obj: &Object) -> Option<Act> {
             }
             Act::Settings { name, about, directory }
         }
+        "transfer" => Act::Transfer { who: bytes_of(&m, "who")?, until: uint_of(&m, "until")? },
+        "accept_transfer" => Act::AcceptTransfer { transfer: text_of(&m, "transfer")? },
         _ => return None,
     };
     Some(act)
@@ -600,6 +652,16 @@ pub enum Refusal {
     RemovedSince,
     OwnerStays,
     BuiltInRole,
+    /// Only the owner hands the organisation on (and a handover lapses when its giver no longer is).
+    OwnerOnly,
+    NoSuchHandover,
+    /// The handover was taken, withdrawn, replaced by a newer one, or ran out.
+    HandoverClosed,
+    /// Only the member a handover names can take it.
+    NotTheRecipient,
+    /// Its signer lost their role (removed, demoted, or the organisation handed on) by a change whose
+    /// signer had not seen it: a checkpoint (section 2.5).
+    Voided,
 }
 
 impl Refusal {
@@ -621,6 +683,11 @@ impl Refusal {
             Refusal::RemovedSince => "removed_since",
             Refusal::OwnerStays => "owner_stays",
             Refusal::BuiltInRole => "built_in_role",
+            Refusal::OwnerOnly => "owner_only",
+            Refusal::NoSuchHandover => "no_such_handover",
+            Refusal::HandoverClosed => "handover_closed",
+            Refusal::NotTheRecipient => "not_the_recipient",
+            Refusal::Voided => "voided",
         }
     }
 }
@@ -657,6 +724,21 @@ pub struct Invite {
     pub withdrawn: bool,
 }
 
+/// A handover the owner offered (rung 2): open until taken, withdrawn, replaced or past `until`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Transfer {
+    pub id: String,
+    pub who: Vec<u8>,
+    pub until: u64,
+    pub by: Vec<u8>,
+    pub at: u64,
+    /// The giver's standing when they offered it.
+    pub support: BTreeSet<String>,
+    pub used: bool,
+    /// Withdrawn by the owner, or replaced by a newer handover.
+    pub withdrawn: bool,
+}
+
 /// One line of the audit log: an entry whose signature verified, applied or not.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LogLine {
@@ -685,8 +767,14 @@ pub struct OrgState {
     pub members: BTreeMap<String, Member>,
     /// Every invitation, by its entry id.
     pub invites: BTreeMap<String, Invite>,
-    /// Every verified entry in fold order, the founding first.
+    /// Every handover, by its entry id.
+    pub transfers: BTreeMap<String, Transfer>,
+    /// Every verified entry in fold order, the founding first (held entries are not in it).
     pub log: Vec<LogLine>,
+    /// The applied entries no other applied entry follows: what a new entry names as its `prev`.
+    pub heads: Vec<String>,
+    /// Entries waiting for an entry they follow that is not here yet (rung 2): never applied.
+    pub held: usize,
     /// Entries dated too far ahead of the reader's clock, waiting.
     pub waiting: usize,
     /// Objects dropped before the fold: bad signatures, another organisation's, no date.
@@ -719,13 +807,46 @@ impl OrgState {
     pub fn open_invites(&self, now_ms: u64) -> Vec<&Invite> {
         self.invites.values().filter(|i| !i.used && !i.withdrawn && i.until >= now_ms).collect()
     }
+    /// The handover open at `now_ms`, if any (a newer one replaces an older one).
+    pub fn open_transfer(&self, now_ms: u64) -> Option<&Transfer> {
+        self.transfers.values().find(|t| !t.used && !t.withdrawn && t.until >= now_ms)
+    }
+    /// The owner's key (exactly one member holds the owner role).
+    pub fn owner(&self) -> Option<&[u8]> {
+        self.members.values().find(|m| m.role == OWNER).map(|m| m.key.as_slice())
+    }
+}
+
+/// One verified entry, as the fold holds it.
+struct Verified<'a> {
+    at: u64,
+    obj: &'a Object,
+    /// What it follows; `None` when its `prev` list is not acceptable (refused as malformed).
+    prev: Option<Vec<String>>,
 }
 
 /// Fold `objects` (organisation `org_id`'s founding and entries, in any order, duplicates
 /// allowed) into the current state, as every app does. `now_ms` is the reader's clock.
+///
+/// Rung 2: an entry following one that is not here waits (`held`); the rest are applied in an order
+/// that keeps every entry after what it follows, ties by `(created_at, object_id)`; then each
+/// checkpoint (an applied removal, demotion or handover) voids the entries of the person it took a
+/// role from that came before it unseen by its signer, and the fold runs again until none is new.
 pub fn fold(org_id: &str, objects: &[Object], now_ms: u64) -> Result<OrgState, FoldError> {
+    fold_as(org_id, objects, now_ms, true)
+}
+
+/// The fold for someone who holds only part of a log: an invitation, which carries the founding, the
+/// invite and the entries that prove the inviter (never the member list, section 3.1). An entry
+/// following one that is not here is placed by what is here instead of held. Used only to find and
+/// show an invitation before joining; what a member's app applies is always [`fold`].
+pub fn fold_invitation(org_id: &str, objects: &[Object], now_ms: u64) -> Result<OrgState, FoldError> {
+    fold_as(org_id, objects, now_ms, false)
+}
+
+fn fold_as(org_id: &str, objects: &[Object], now_ms: u64, hold: bool) -> Result<OrgState, FoldError> {
     let mut founding: Option<(&Object, Founding)> = None;
-    let mut entries: BTreeMap<(u64, String), &Object> = BTreeMap::new();
+    let mut entries: BTreeMap<String, Verified> = BTreeMap::new();
     let mut dropped = 0usize;
     let mut waiting = 0usize;
     for o in objects {
@@ -749,7 +870,7 @@ pub fn fold(org_id: &str, objects: &[Object], now_ms: u64) -> Result<OrgState, F
                     dropped += 1;
                     continue;
                 };
-                if entries.contains_key(&(at, id.clone())) {
+                if entries.contains_key(&id) {
                     continue;
                 }
                 if o.verify_signature().is_err() {
@@ -760,7 +881,7 @@ pub fn fold(org_id: &str, objects: &[Object], now_ms: u64) -> Result<OrgState, F
                     waiting += 1;
                     continue;
                 }
-                entries.insert((at, id), o);
+                entries.insert(id, Verified { at, obj: o, prev: prev_of(o) });
             }
             FOUNDING_TYPE => {}
             _ => dropped += 1,
@@ -770,19 +891,124 @@ pub fn fold(org_id: &str, objects: &[Object], now_ms: u64) -> Result<OrgState, F
         }
     }
     let (fobj, f) = founding.ok_or(FoldError::NoFounding)?;
+
+    // Verified: an entry that follows one not here, or one that is itself held, waits.
+    let mut held: BTreeSet<String> = BTreeSet::new();
+    loop {
+        let mut more = false;
+        for (id, e) in &entries {
+            if hold && !held.contains(id) && e.prev.as_ref().is_some_and(|p| p.iter().any(|q| !entries.contains_key(q) || held.contains(q))) {
+                held.insert(id.clone());
+                more = true;
+            }
+        }
+        if !more {
+            break;
+        }
+    }
+    let order = causal_order(&entries, &held);
+    let pos: BTreeMap<&str, usize> = order.iter().enumerate().map(|(i, id)| (id.as_str(), i)).collect();
+    let mut voided: BTreeSet<String> = BTreeSet::new();
+    loop {
+        let (st, checkpoints) = run(org_id, fobj, &f, &entries, &order, &voided, (held.len(), waiting, dropped));
+        if !hold {
+            // Part of a log cannot tell what a checkpoint's signer had seen: no voiding here.
+            return Ok(st);
+        }
+        let mut more: BTreeSet<String> = BTreeSet::new();
+        for (r, who) in &checkpoints {
+            let past = causal_past(&entries, r);
+            let Some(&at) = pos.get(r.as_str()) else { continue };
+            for id in &order[..at] {
+                if !past.contains(id.as_str()) && entries[id].obj.author_public_key == *who && !voided.contains(id) {
+                    more.insert(id.clone());
+                }
+            }
+        }
+        if more.is_empty() {
+            return Ok(st);
+        }
+        voided.extend(more);
+    }
+}
+
+/// The entries not held, each after every entry it follows; among those ready, the earliest
+/// `(created_at, object_id)` first (Kahn's algorithm). The website's twin orders the same way.
+fn causal_order(entries: &BTreeMap<String, Verified>, held: &BTreeSet<String>) -> Vec<String> {
+    let mut left: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut followers: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let mut ready: BTreeSet<(u64, &str)> = BTreeSet::new();
+    for (id, e) in entries {
+        if held.contains(id) {
+            continue;
+        }
+        // Only what is here counts (a held fold holds the rest; an invitation's places by it).
+        let prev: Vec<&String> = e.prev.as_deref().unwrap_or(&[]).iter().filter(|p| entries.contains_key(*p)).collect();
+        left.insert(id.as_str(), prev.len());
+        for p in &prev {
+            followers.entry(p.as_str()).or_default().push(id.as_str());
+        }
+        if prev.is_empty() {
+            ready.insert((e.at, id.as_str()));
+        }
+    }
+    let mut order = Vec::with_capacity(left.len());
+    while let Some((_, id)) = ready.pop_first() {
+        order.push(id.to_string());
+        for f in followers.get(id).map(Vec::as_slice).unwrap_or(&[]) {
+            if let Some(n) = left.get_mut(f) {
+                *n -= 1;
+                if *n == 0 {
+                    ready.insert((entries[*f].at, f));
+                }
+            }
+        }
+    }
+    order
+}
+
+/// Every entry `from` follows, directly or through others: what its signer had seen.
+fn causal_past<'a>(entries: &'a BTreeMap<String, Verified>, from: &str) -> BTreeSet<&'a str> {
+    let mut past = BTreeSet::new();
+    let mut stack: Vec<&str> = entries.get(from).and_then(|e| e.prev.as_deref()).map(|p| p.iter().map(String::as_str).collect()).unwrap_or_default();
+    while let Some(id) = stack.pop() {
+        let Some((k, e)) = entries.get_key_value(id) else { continue };
+        if past.insert(k.as_str()) {
+            if let Some(p) = &e.prev {
+                stack.extend(p.iter().map(String::as_str));
+            }
+        }
+    }
+    past
+}
+
+/// One pass of the fold over `order` with `voided` refused: the state, and each checkpoint applied
+/// (the entry, and the key of the person it took a role from).
+fn run(
+    org_id: &str,
+    fobj: &Object,
+    f: &Founding,
+    entries: &BTreeMap<String, Verified>,
+    order: &[String],
+    voided: &BTreeSet<String>,
+    (held, waiting, dropped): (usize, usize, usize),
+) -> (OrgState, Vec<(String, Vec<u8>)>) {
     let founded_at = fobj.created_at.unwrap_or(0);
     let founder = fobj.author_public_key.clone();
     let mut st = OrgState {
         org_id: org_id.to_string(),
         founded_at,
         founder: founder.clone(),
-        name: f.name,
-        about: f.about,
+        name: f.name.clone(),
+        about: f.about.clone(),
         directory: f.directory,
-        roles: f.roles,
+        roles: f.roles.clone(),
         members: BTreeMap::new(),
         invites: BTreeMap::new(),
+        transfers: BTreeMap::new(),
         log: Vec::new(),
+        heads: Vec::new(),
+        held,
         waiting,
         dropped,
     };
@@ -795,23 +1021,37 @@ pub fn fold(org_id: &str, objects: &[Object], now_ms: u64) -> Result<OrgState, F
     let mut left_at: BTreeMap<String, u64> = BTreeMap::new();
     // Each custom role's defining entries (with their support), for a holder's standing.
     let mut role_support: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut checkpoints: Vec<(String, Vec<u8>)> = Vec::new();
 
-    for ((at, id), o) in entries {
-        let actor = o.author_public_key.clone();
-        let act = parse_act(o);
+    for id in order {
+        let e = &entries[id];
+        let at = e.at;
+        let actor = e.obj.author_public_key.clone();
+        let act = parse_act(e.obj);
         let subject = match &act {
-            Some(Act::Invite { who, .. } | Act::Remove { who } | Act::Assign { who, .. }) => Some(who.clone()),
-            Some(Act::Accept { .. } | Act::Leave | Act::Listing { .. }) => Some(actor.clone()),
+            Some(Act::Invite { who, .. } | Act::Remove { who } | Act::Assign { who, .. } | Act::Transfer { who, .. }) => Some(who.clone()),
+            Some(Act::Accept { .. } | Act::Leave | Act::Listing { .. } | Act::AcceptTransfer { .. }) => Some(actor.clone()),
             _ => None,
         };
         let refused = match &act {
             None => Some(Refusal::Malformed),
+            Some(_) if e.prev.is_none() => Some(Refusal::Malformed),
             Some(_) if at < founded_at => Some(Refusal::BeforeFounding),
-            Some(a) => apply(&mut st, &mut left_at, &mut role_support, &id, at, &actor, a).err(),
+            Some(_) if voided.contains(id) => Some(Refusal::Voided),
+            Some(a) => apply(&mut st, &mut left_at, &mut role_support, &mut checkpoints, id, at, &actor, a).err(),
         };
-        st.log.push(LogLine { entry_id: id, at, actor, act, subject, refused });
+        st.log.push(LogLine { entry_id: id.clone(), at, actor, act, subject, refused });
     }
-    Ok(st)
+    // The heads: applied entries no applied entry follows, the latest PREV_MAX of them.
+    let applied: Vec<&str> = st.log.iter().skip(1).filter(|l| l.refused.is_none()).map(|l| l.entry_id.as_str()).collect();
+    let followed: BTreeSet<&str> = applied.iter().filter_map(|id| entries[*id].prev.as_ref()).flatten().map(String::as_str).collect();
+    let mut heads: Vec<(u64, &str)> = applied.iter().filter(|id| !followed.contains(*id)).map(|id| (entries[*id].at, *id)).collect();
+    heads.sort_unstable();
+    let skip = heads.len().saturating_sub(PREV_MAX);
+    let mut heads: Vec<String> = heads[skip..].iter().map(|(_, id)| id.to_string()).collect();
+    heads.sort();
+    st.heads = heads;
+    (st, checkpoints)
 }
 
 /// The actor's standing plus their own membership-making entries: what an entry they sign leans on.
@@ -823,6 +1063,7 @@ fn apply(
     st: &mut OrgState,
     left_at: &mut BTreeMap<String, u64>,
     role_support: &mut BTreeMap<String, BTreeSet<String>>,
+    checkpoints: &mut Vec<(String, Vec<u8>)>,
     id: &str,
     at: u64,
     actor: &[u8],
@@ -853,6 +1094,17 @@ fn apply(
             );
         }
         Act::Withdraw { invite } => {
+            // The field names the entry withdrawn: an invitation, or (rung 2) a handover.
+            if let Some(t) = st.transfers.get(invite) {
+                if t.by != actor {
+                    return Err(Refusal::OwnerOnly);
+                }
+                if t.used {
+                    return Err(Refusal::HandoverClosed);
+                }
+                st.transfers.get_mut(invite).expect("checked").withdrawn = true;
+                return Ok(());
+            }
             let inv = st.invites.get(invite).ok_or(Refusal::NoSuchInvite)?;
             if inv.by != actor {
                 need(st, perm::INVITE)?;
@@ -910,6 +1162,7 @@ fn apply(
             let did = target.did.clone();
             st.members.remove(&did);
             left_at.insert(did, at);
+            checkpoints.push((id.to_string(), who.clone()));
         }
         Act::Leave => {
             let m = st.member(actor).ok_or(Refusal::NotAMember)?;
@@ -926,8 +1179,13 @@ fn apply(
             if target.role == OWNER {
                 return Err(Refusal::OwnerStays);
             }
-            if r.rank >= ar || st.rank_of(who).unwrap_or(0) >= ar {
+            let (new_rank, old_rank) = (r.rank, st.rank_of(who).unwrap_or(0));
+            if new_rank >= ar || old_rank >= ar {
                 return Err(Refusal::RankTooLow);
+            }
+            if new_rank < old_rank {
+                // A demotion is a checkpoint: what they signed that the demoter had not seen is void.
+                checkpoints.push((id.to_string(), who.clone()));
             }
             let mut standing = target.standing.clone();
             standing.extend(support_of(st, actor));
@@ -998,6 +1256,49 @@ fn apply(
             if let Some(d) = directory {
                 st.directory = *d;
             }
+        }
+        Act::Transfer { who, until } => {
+            if st.member(actor).map(|m| m.role.as_str()) != Some(OWNER) {
+                return Err(Refusal::OwnerOnly);
+            }
+            if who.as_slice() == actor {
+                return Err(Refusal::Malformed);
+            }
+            if st.member(who).is_none() {
+                return Err(Refusal::NotAMember);
+            }
+            let support = support_of(st, actor);
+            // A newer handover replaces any still open.
+            for t in st.transfers.values_mut().filter(|t| !t.used) {
+                t.withdrawn = true;
+            }
+            st.transfers.insert(id.to_string(), Transfer { id: id.to_string(), who: who.clone(), until: *until, by: actor.to_vec(), at, support, used: false, withdrawn: false });
+        }
+        Act::AcceptTransfer { transfer } => {
+            let t = st.transfers.get(transfer).ok_or(Refusal::NoSuchHandover)?.clone();
+            if t.who != actor {
+                return Err(Refusal::NotTheRecipient);
+            }
+            if t.used || t.withdrawn || at > t.until {
+                return Err(Refusal::HandoverClosed);
+            }
+            // The owner role moves only from the owner: both signatures, the offer and this, stand.
+            let giver = match st.member(&t.by) {
+                Some(m) if m.role == OWNER => m.clone(),
+                _ => return Err(Refusal::OwnerOnly),
+            };
+            let heir = st.member(actor).ok_or(Refusal::NotAMember)?.clone();
+            let both = [t.id.clone(), id.to_string()];
+            let m = st.members.get_mut(&heir.did).expect("checked");
+            m.role = OWNER.into();
+            m.standing.extend(t.support.iter().cloned());
+            m.standing.extend(both.iter().cloned());
+            let g = st.members.get_mut(&giver.did).expect("checked");
+            g.role = ADMIN.into();
+            g.standing.extend(both.iter().cloned());
+            st.transfers.get_mut(transfer).expect("checked").used = true;
+            // The handover is a checkpoint for the giver, as a demotion is.
+            checkpoints.push((id.to_string(), t.by.clone()));
         }
     }
     Ok(())

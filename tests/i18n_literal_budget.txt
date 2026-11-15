@@ -76,7 +76,7 @@
 2 src/gui/pages/placeholder.rs
 56 src/gui/pages/planet_tuner.rs
 34 src/gui/pages/profile.rs
-26 src/gui/pages/real.rs
+25 src/gui/pages/real.rs
 44 src/gui/pages/relay_control.rs
 32 src/gui/pages/safety.rs
 5 src/gui/pages/safety_group_reports.rs

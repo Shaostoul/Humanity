@@ -357,6 +357,10 @@ fn bg_screen(gs: &mut GuiState, store: &mut crate::net::dm_store::DmStore, inner
     if crate::engine::mine_tasks::screens_dm(gs, inner) {
         return true;
     }
+    // Organisations (rung 2): the logs are the identity's, so a note by way of a parked server counts.
+    if crate::engine::org_mail::screens_dm(gs, inner) {
+        return true;
+    }
     // Ship homes 5b: a household permit note is kept in, or listed as given in, that server's
     // store (engine/household.rs), never stored or shown as a message.
     if crate::engine::household::screens_dm_parked(gs, store, inner) {

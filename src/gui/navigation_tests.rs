@@ -92,7 +92,7 @@ fn every_page_in_the_rows_exists() {
     let want: Vec<(&str, Vec<&str>)> = vec![
         ("humanity", vec!["directory", "governance", "laws", "donate"]),
         ("play", vec!["characters", "quests", "inventory", "crafting"]),
-        ("chat", vec!["watch", "studio", "files", "guilds", "orgs"]),
+        ("chat", vec!["watch", "studio", "files", "orgs"]),
         ("own_life", vec!["profile", "tasks", "maps", "wallet", "market", "trade"]),
         ("apps", vec!["notes", "calendar", "calculator", "music", "browser"]),
         ("library", vec!["how_to"]),

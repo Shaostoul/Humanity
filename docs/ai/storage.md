@@ -56,8 +56,11 @@ reports_v2     (id, reporter_key, target_key, context, reason, note, evidence, e
 **Removed (privacy hardening, do NOT re-add):** `direct_messages` (the DM
 social graph, 2026-08-23), `listing_messages` (plaintext buyer-seller threads,
 broadcast to everyone, 2026-08-23), `groups`/`group_members`/`group_messages`
-(plaintext legacy groups, 2026-08-23), and `follows` (the last server-side
-social graph, 2026-08-24). Marketplace contact rides sealed-sender DMs; groups
+(plaintext legacy groups, 2026-08-23), `follows` (the last server-side
+social graph, 2026-08-24), and `guilds`/`guild_members`/`guild_invites` (a
+member list in the clear, dropped at start when guilds retired into
+organisations, 2026-11-15; organisations live on members' devices,
+docs/design/organisations.md). Marketplace contact rides sealed-sender DMs; groups
 are the E2EE P2P signed-object system; following/friendship are client-side
 (sealed control DMs + client-held Dilithium friendship certificates verified
 statelessly). If a feature seems to need a server-side social edge, the

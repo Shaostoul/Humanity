@@ -65,7 +65,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 /// Render the currently-selected Profile section's content into `ui`. The
 /// **Real** tab composes Profile's sections alongside Wallet / Market / Trade /
-/// Guilds in ONE unified section_nav page. The caller supplies the panel + scroll
+/// Organisations in ONE unified section_nav page. The caller supplies the panel + scroll
 /// area.
 pub fn draw_section_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     match state.profile_section {

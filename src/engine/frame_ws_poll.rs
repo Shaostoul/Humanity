@@ -54,6 +54,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
     // This person's own profile: show the server's copy, ask for it, send a wanted save (BUG-196).
     crate::gui::pages::own_profile::pump(&mut state.gui_state);
     crate::engine::dm::pace_owed_passes(&mut state.gui_state, std::time::Instant::now()); // passes the sweep held back, at the server's pace
+    crate::engine::org_mail::pump(&mut state.gui_state, std::time::Instant::now()); // organisations' changes to their members, at the same pace
     crate::engine::file_transfer::pump(&mut state.gui_state); // device-to-device big files: offers, connections, dialling
     crate::engine::key_cards::pump(&mut state.gui_state); // key cards wanted: asked of the server, a batch at a time
     crate::engine::notify::pump(state); // Settings > Notifications' test notice and sound preview, when asked

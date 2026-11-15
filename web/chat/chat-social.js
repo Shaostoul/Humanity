@@ -1026,6 +1026,9 @@ async function ingestDmControl(inner) {
   // from my mailbox itself; here one is never stored, listed or shown, whoever
   // sent it (crypto.js CTL_TASK).
   if (typeof inner.text === 'string' && typeof CTL_TASK === 'string' && inner.text.startsWith(CTL_TASK)) return true;
+  // Organisations (rung 2): the Organisations page reads these notes from my mailbox itself;
+  // here one is never stored, listed or shown, whoever sent it (crypto.js CTL_ORG).
+  if (typeof inner.text === 'string' && typeof CTL_ORG === 'string' && inner.text.startsWith(CTL_ORG)) return true;
   // A choice note (10n): a text that starts with its marker is never shown.
   if (typeof isChoiceNoteText === 'function' && isChoiceNoteText(inner.text)) {
     await ingestChoiceNote(inner);

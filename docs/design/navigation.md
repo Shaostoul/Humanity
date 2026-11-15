@@ -216,7 +216,7 @@ twice and no label stands for two pages. The colours are one per category (new t
 |---|---|---|---|
 | 1 | **Humanity**: the overview (the bands You, Your character and Us; the six question cards; the latest updates) | red (`nav_reality`) | Mission · People *(new)* · Governance · Laws · Rules *(new on the desktop)* · Donate · Roadmap *(new on the desktop)* · Devlog *(new on the desktop)* |
 | 2 | **Play**: the world, first person, with the character and world played last (its hint names them, C1) | purple (`nav_sim`) | Characters · Worlds *(new)* · Servers *(new)* · Quests · Inventory · Crafting |
-| 3 | **Chat**: the chat | cyan (`section_cyan`) | Watch · Studio · Files · Guilds |
+| 3 | **Chat**: the chat | cyan (`section_cyan`) | Watch · Studio · Files · Organisations (Guilds retired into it, 2026-11-15) |
 | 4 | **Home**: your home and your real life (two-realities.md: "Home = your real life") | green (`nav_legacy_green`) | Profile · Tasks · Maps · Wallet · Market · Trade |
 | 5 | **Apps**: every program in one place | blue (`nav_tools`) | Notes · Calendar · Calculator · Browser |
 | 6 | **Library**: everything to read | magenta (`section_magenta`) | How-to |

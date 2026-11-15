@@ -21,7 +21,6 @@
     { "file": "web/pages/download.html", "path": "/download", "description": "page_meta.download" },
     { "file": "web/pages/files.html", "path": "/files", "description": "page_meta.files" },
     { "file": "web/pages/governance.html", "path": "/governance", "description": "governance.meta_description" },
-    { "file": "web/pages/guilds.html", "path": "/guilds", "description": "page_meta.guilds" },
     { "file": "web/pages/hi.html", "path": "/hi", "description": "page_meta.hi" },
     { "file": "web/pages/home.html", "path": "/home", "description": "page_meta.home" },
     { "file": "web/pages/how-to.html", "path": "/how-to", "description": "page_meta.how_to" },

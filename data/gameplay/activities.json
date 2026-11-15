@@ -988,16 +988,16 @@
       "note": "The in-game ship vote (slag armour per ship, slag.md) is designed on top of it."
     },
     {
-      "id": "guilds_cooperatives", "family": "community", "name": "Guilds and cooperatives", "skills": ["civics", "leadership"], "status": "partial",
-      "evidence": ["src/gui/pages/guilds.rs"],
-      "features_heading": "Guilds Page",
+      "id": "organisations_cooperatives", "family": "community", "name": "Organisations and cooperatives", "skills": ["civics", "leadership"], "status": "partial",
+      "evidence": ["src/gui/pages/orgs.rs"],
+      "features_heading": "Organisations: members, roles, invitations, a private directory, a signed audit log (both, rung 1, 2026-11-14)",
       "design_doc": "docs/design/gameplay-loop-map.md", "levels_setting": null, "tier": "T4",
-      "real_life_twin": "Guilds are real groups on the relay",
+      "real_life_twin": "Organisations are real groups, kept on their members' devices",
       "real_life_twin_path": "data/library/organising_shared_work.md",
       "engagement_modes": ["direct", "cooperative"],
       "consumes": ["membership", "contributions"], "produces": ["a shared pool (designed)"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "The Guilds page browses and joins real guilds; guild production pools (the Cooperative mode) are designed in gameplay-loop-map.md T4."
+      "note": "The Organisations page founds and runs real organisations (guilds retired into it on 2026-11-15); production pools (the Cooperative mode) are designed in gameplay-loop-map.md T4."
     },
     {
       "id": "conversation", "family": "community", "name": "Talking with people aboard", "skills": [], "no_skill_reason": "Talking is living. It will train languages once people aboard speak other languages, and conflict resolution when a talk settles a dispute.", "status": "live",

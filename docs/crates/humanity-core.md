@@ -35,12 +35,12 @@ just test-lib --crate humanity-core
 | Item | References | From |
 |---|---:|---|
 | `hot_reload::data_store::DataStore` | 130 | systems 82, engine 44, gui 2, net 1, ship 1 |
-| `i18n::t` | 109 | gui 100, engine 8, systems 1 |
+| `i18n::t` | 110 | gui 101, engine 8, systems 1 |
 | `storage::data_dir` | 90 | gui 48, systems 24, engine 10, ship 5, relay 2, net 1 |
 | `reuse::enabled` | 85 | engine 34, gui 25, renderer 21, systems 3, relay 2 |
 | `debug::push_debug` | 82 | gui 42, net 23, engine 17 |
 | `ecs::components` | 77 | systems 58, engine 18, ship 1 |
-| `i18n` | 73 | gui 73 |
+| `i18n` | 72 | gui 72 |
 | `embedded_data::note_builtin_copy` | 66 | systems 16, ship 15, gui 13, relay 13, renderer 6, engine 1, net 1, terrain 1 |
 | `ecs::components::Transform` | 59 | engine 40, systems 15, gui 1, net 1, relay 1, ship 1 |
 | `frame_costs::stage` | 53 | engine 31, systems 16, gui 4, renderer 2 |

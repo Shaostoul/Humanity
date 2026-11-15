@@ -176,7 +176,7 @@
     "/accord": [
       "humanity-accord"
     ],
-    "/guilds": [
+    "/server-settings": [
       "federation",
       "groups-vs-servers"
     ],
@@ -204,6 +204,6 @@
     "Quests": "/onboarding",
     "Library": "/accord",
     "Real": "/identity",
-    "ServerSettings": "/guilds"
+    "ServerSettings": "/server-settings"
   }
 }

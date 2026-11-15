@@ -2,7 +2,7 @@
 //!
 //! ONE page with a `section_nav` sidebar that folds in Profile's sections
 //! (Body / Identity / Notes / Network / Interests / Skills / Social /
-//! Streaming) PLUS Wallet, Market, Trade, Guilds — per the operator's call to
+//! Streaming) PLUS Wallet, Market, Trade, Organisations — per the operator's call to
 //! merge Profile's sidebar in rather than special-case it.
 //!
 //! This IS the profile editor. `GuiPage::Profile` is only an alias that forwards
@@ -20,7 +20,8 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
 use super::profile;
-use super::{wallet, market, trade, guilds};
+use super::{wallet, market, trade, orgs};
+use humanity_core::i18n::t;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── Unified left section-nav sidebar (the TOC) ──
@@ -65,9 +66,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // Trade + Guilds rejoined the nav here (v0.699): both are P2P
                 // social/economy surfaces that fit alongside Market, and both
                 // had been stranded (only reachable via the removed category
-                // overview pages) since the v0.196 nav rewrite.
+                // overview pages) since the v0.196 nav rewrite. Guilds retired into
+                // Organisations on 2026-11-15 (docs/design/organisations.md, "Decided"),
+                // so the place Guilds held leads to the Organisations page.
                 SectionNavItem::new("trade", "Trade", life),
-                SectionNavItem::new("guilds", "Guilds", life),
+                SectionNavItem::new("orgs", t("nav.orgs"), life),
             ];
             // Profile selector at the top (operator 2026-06-07: "add a profile
             // selector. I only want one profile"). One base character today; the
@@ -90,7 +93,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "wallet" => wallet::draw(ctx, theme, state),
         "market" => market::draw(ctx, theme, state),
         "trade" => trade::draw(ctx, theme, state),
-        "guilds" => guilds::draw(ctx, theme, state),
+        "orgs" => orgs::draw(ctx, theme, state),
         // Anything else is a Profile section — point Profile at it + render.
         other => {
             state.profile_section = profile::section_from_id(other);

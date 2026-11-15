@@ -16,10 +16,10 @@ the relay rather than on top of it.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `net/`
-- **Size:** 31,703 lines in 60 files, 4,038 of them in 14 test files.
+- **Size:** 31,708 lines in 60 files, 4,038 of them in 14 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 48.
 - **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 54, protocol 32.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 358, engine 101.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 362, engine 101.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 269 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -32,11 +32,11 @@ just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gu
 | Item | References | From |
 |---|---:|---|
 | `net::file_risk::file_type` | 18 | gui 18 |
+| `net::dm_pq::DmInner` | 13 | gui 9, engine 4 |
 | `net::dm_store::DmStore` | 13 | gui 9, engine 4 |
-| `net::warnings::GUARD_LINE` | 13 | gui 12, engine 1 |
-| `net::dm_pq::DmInner` | 12 | gui 8, engine 4 |
 | `net::identity::pq_sign_chat` | 12 | gui 12 |
 | `net::protected::ProtectedAction` | 12 | gui 12 |
+| `net::warnings::GUARD_LINE` | 12 | gui 11, engine 1 |
 | `net::ws_client::WsClient` | 11 | gui 6, engine 5 |
 | `net::sync::RemoteNpc` | 8 | engine 6, gui 2 |
 | `net::sync::RemotePlayer` | 8 | engine 7, gui 1 |
@@ -47,7 +47,7 @@ just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gu
 | `net::dm_pq::seal_v2` | 5 | gui 5 |
 | `net::household::PermitKey` | 5 | engine 5 |
 
-And 191 more items, 315 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
+And 193 more items, 319 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
 <!-- end generated -->
 
 ## Rules

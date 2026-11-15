@@ -58,7 +58,7 @@ group's theme token; a dot separates groups. Snapshot of the whole row at the op
 | 4 | Humanity | reality red | Humanity | the mission landing, Governance, Laws, Directory, Donate (its own side list) |
 | 5 | Chat | legacy red | Chat | messages, groups, servers |
 | 6-8 | Studio, Watch, Files | legacy red | their pages | stream, watch streams, the files people share |
-| 9 | Profile | legacy green | Profile (`GuiPage::Real`) | your body and measurements, identity, notes, network profile, skills, links; Wallet; Market, Trade, Guilds |
+| 9 | Profile | legacy green | Profile (`GuiPage::Real`) | your body and measurements, identity, notes, network profile, skills, links; Wallet; Market, Trade, Organisations (Guilds until 2026-11-15) |
 | 10 | Home | legacy green | Home | your homestead's design and loops, the household, the animals, where you live |
 | 11 | Quests | sim purple | Quests | the game's quests |
 | 12 | Tasks | sim purple | Tasks | real to-dos (kanban), with the learn-by-doing chains suggested |

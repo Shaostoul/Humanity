@@ -73,10 +73,6 @@ fn seed(db: &Storage, key: &str, name: &str, other: &str) {
         x("INSERT INTO trades (id, initiator_key, recipient_key, created_at) VALUES (?1, ?2, ?3, 1)", &[&format!("trade-{key}"), &key, &other]);
         x("INSERT INTO trade_orders (seller_key, item_type, quantity, remaining_qty, price_per_unit, created_at) VALUES (?1, 'wood', 1, 1, 1.0, 1)", &[&key]);
         x("INSERT INTO trade_history (order_id, buyer_key, seller_key, item_type, quantity, price_per_unit, total_price, timestamp) VALUES (1, ?1, ?2, 'wood', 1, 1.0, 1.0, 1)", &[&key, &other]);
-        x("INSERT INTO guilds (id, name, owner_key, created_at, member_count) VALUES (?1, 'G', ?2, 'now', 2)", &[&format!("guild-{key}"), &key]);
-        x("INSERT OR IGNORE INTO guild_members (guild_id, public_key, joined_at) VALUES (?1, ?2, 'now')", &[&format!("guild-{key}"), &other]);
-        x("INSERT OR IGNORE INTO guild_members (guild_id, public_key, joined_at) VALUES (?1, ?2, 'now')", &[&format!("guild-{other}"), &key]);
-        x("INSERT INTO guild_invites (id, guild_id, created_by, code, expires_at) VALUES (?1, ?2, ?3, ?4, 1)", &[&format!("gi-{key}"), &format!("guild-{other}"), &key, &format!("code-{key}")]);
         x("INSERT INTO streams (streamer_key, started_at) VALUES (?1, 1)", &[&key]);
         x("INSERT INTO stream_chat (stream_id, content, from_name, timestamp) VALUES (last_insert_rowid(), 'hi', ?1, 1)", &[&name]);
         x("INSERT INTO assets (id, owner_key, filename, file_type, category, url) VALUES (?1, ?2, 'f', 'model', 'c', '/u')", &[&format!("asset-{key}"), &key]);
@@ -117,7 +113,7 @@ fn an_erase_leaves_nothing_of_the_person_and_the_export_holds_what_it_missed() {
     seed(&db, BEA, "Bea", ANN);
 
     let export = db.export_account(ANN, "Ann");
-    for label in ["settings_sync", "computer_details", "task_comments", "signed_objects", "groups_started", "votes", "trades", "guilds_owned", "skills"] {
+    for label in ["settings_sync", "computer_details", "task_comments", "signed_objects", "groups_started", "votes", "trades", "skills"] {
         assert!(export[label].as_array().is_some_and(|a| !a.is_empty()), "the export holds {label}: {}", export[label]);
     }
 
@@ -149,9 +145,6 @@ fn an_erase_leaves_nothing_of_the_person_and_the_export_holds_what_it_missed() {
         ("SELECT COUNT(*) FROM trades WHERE initiator_key = ?1 OR recipient_key = ?1", ANN),
         ("SELECT COUNT(*) FROM trade_orders WHERE seller_key = ?1", ANN),
         ("SELECT COUNT(*) FROM trade_history WHERE buyer_key = ?1 OR seller_key = ?1", ANN),
-        ("SELECT COUNT(*) FROM guilds WHERE owner_key = ?1", ANN),
-        ("SELECT COUNT(*) FROM guild_members WHERE public_key = ?1 OR guild_id = 'guild-a1a1a1a1'", ANN),
-        ("SELECT COUNT(*) FROM guild_invites WHERE created_by = ?1", ANN),
         ("SELECT COUNT(*) FROM streams WHERE streamer_key = ?1", ANN),
         ("SELECT COUNT(*) FROM stream_chat WHERE from_name = 'Ann' AND ?1 = ?1", ANN),
         ("SELECT COUNT(*) FROM assets WHERE owner_key = ?1", ANN),
@@ -176,13 +169,11 @@ fn an_erase_leaves_nothing_of_the_person_and_the_export_holds_what_it_missed() {
     assert_eq!(count(&db, "SELECT COUNT(*) FROM bug_reports WHERE title = ?1 AND reporter_key = '' AND browser_info = ''", "t"), 1, "the report stays for the admins, unnamed");
     assert_eq!(count(&db, "SELECT votes FROM bug_reports WHERE title = 'Theirs' AND reporter_key = ?1", BEA), 0, "Ann's vote is taken off Bea's report");
     assert_eq!(count(&db, "SELECT COUNT(*) FROM channels WHERE id = ?1 AND created_by = ''", "room-a1a1a1a1"), 1, "the room stays, without its maker");
-    assert_eq!(count(&db, "SELECT member_count FROM guilds WHERE id = ?1", "guild-b2b2b2b2"), 1, "Bea's guild counts one fewer");
     // Bea's own things are all still there.
     for (sql, bind) in [
         ("SELECT COUNT(*) FROM user_data WHERE public_key = ?1", BEA),
         ("SELECT COUNT(*) FROM p2p_groups WHERE creator_fp = ?1", &fp(BEA)),
         ("SELECT COUNT(*) FROM signed_objects WHERE author_fp = ?1", &fp(BEA)),
-        ("SELECT COUNT(*) FROM guilds WHERE owner_key = ?1", BEA),
         ("SELECT COUNT(*) FROM reputation WHERE public_key = ?1", BEA),
     ] {
         assert!(count(&db, sql, bind) >= 1, "Bea's row is kept: {sql}");

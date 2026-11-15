@@ -412,7 +412,8 @@ is not built yet.
 | Server-info endpoint | ✅ | Description, owner_key, funding, member_count (v0.25.0) |
 | Server game state authority | ✅ | Authoritative server for game state validation (v0.40.0) |
 | Admin analytics dashboard | ✅ | Server metrics, user activity, system health monitoring (v0.40.0) |
-| Guild system | ✅ | Create, join, search guilds with invite codes (v0.41.0) |
+| ~~Guild system~~ | ❌ | **Retired into Organisations (2026-11-15).** Built v0.41.0; its member list sat in the clear on one server, so the pages, routes and tables were removed and `/guilds` redirects to `/orgs` (docs/design/organisations.md, "Decided") |
+| Organisations | ✅ | Rung 1 (2026-11-14): members, roles, invitations, the directory, the signed record of changes, both apps, logs on members' devices only. Rung 2 (2026-11-15): every change delivered to the members as sealed-sender v2 DMs, held until what it follows arrives, checkpoints void backdated changes, handing the organisation on (docs/design/organisations.md section 8b). Rungs 3 to 9 planned |
 | Reputation system | ✅ | Points, levels, leaderboard for community standing (v0.41.0) |
 | Unified binary deploy | ✅ | systemd service uses `HumanityOS --headless`, relay.db at /opt/Humanity/data/ (v0.90.0) |
 

@@ -256,7 +256,8 @@ fn repo() -> &'static Path {
 ///   lines and a click would fire on the first honest addition.
 ///   The six new files join at measured + ~40%, not +3%, for that same reason.
 ///   IF YOU NEED ROOM NEXT: in `api.rs` the Admin Analytics block (~460 lines)
-///   and the Guilds block (~280) are the next two coherent banners; in
+///   is the next coherent banner (the Guilds block, ~280, left on 2026-11-15
+///   when guilds retired into organisations); in
 ///   `msg_handlers.rs` it is the GAME-STATE half (`handle_game_join` through
 ///   `persist_player_progress`, ~1_060 lines), which has a sibling file named
 ///   `handlers/game_state.rs` already waiting for it.

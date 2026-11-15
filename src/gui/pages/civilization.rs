@@ -15,7 +15,7 @@ use crate::gui::{GuiCivStats, GuiState};
 use egui::{RichText, Vec2};
 
 /// Background fetch of the aggregated stats (public endpoint; same
-/// worker-thread + mpsc pattern as the Guilds page).
+/// worker-thread + mpsc pattern as the other relay-fed pages).
 fn spawn_civ_fetch(state: &mut GuiState) {
     let base = state.server_url.trim_end_matches('/').to_string();
     let (tx, rx) = std::sync::mpsc::channel();

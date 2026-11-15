@@ -42,6 +42,10 @@ pub(crate) fn on_frame(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
     if crate::engine::household::on_answer(gs, &answer) {
         return true;
     }
+    // An organisation note (rung 2): settled there.
+    if crate::engine::org_mail::on_answer(gs, &answer) {
+        return true;
+    }
     // An answer after the 30 seconds finds nothing: that send already counts as not taken, and
     // the pass it carried stays among the unanswered, to be withdrawn with the others.
     let Some(put) = gs.pending_puts.take(answer.reference()) else { return true };

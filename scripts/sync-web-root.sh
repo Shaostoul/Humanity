@@ -42,6 +42,9 @@ rm -f "$DST"/pages/media-*.js
 # /dev), its Calculator, Notes, Calendar and Browser are on Apps, and Recovery is linked from
 # Settings. The hub page had no script of its own (its styles were inline).
 rm -f "$DST/platform.html"
+# Retired 2026-11-15: Guilds retired into Organisations (/orgs; nginx sends /guilds there). The
+# page had no script of its own.
+rm -f "$DST/guilds.html"
 # Retired 2026-07-30: three catalogs merged into data/external/catalog.json.
 rm -f "$DST/data/resources.json" "$DST/data/resources/catalog.json" "$DST/data/tools/catalog.json"
 

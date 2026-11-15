@@ -115,6 +115,7 @@ pub(crate) mod personal_store;
 /// other devices by sealed notes to myself (engine/mine_tasks.rs), never readable by a server.
 pub mod mine_tasks;
 pub mod orgs_store; // the organisations an identity belongs to, encrypted on this device (docs/design/organisations.md)
+pub mod org_mail; // rung 2: an organisation's changes as sealed DMs to its members (engine/org_mail.rs sends)
 pub use state_types::*;
 /// The P2P trade types (`gui/trade_types.rs`, 2026-09-29).
 mod trade_types;
@@ -333,9 +334,9 @@ pub enum GuiPage {
     Calendar,
     Crafting,
     Wallet,
-    Guilds,
     Trade,
     BugReport,
+    // Guilds retired into Orgs on 2026-11-15 (docs/design/organisations.md, "Decided"): a guild's member list sat in the clear on one server.
     Orgs, // organisations: members, roles, invitations, the directory, the audit log (docs/design/organisations.md)
     // v0.415.0 removed Resources (into the Library) and Onboarding (into Humanity and Quests); their config strings migrate in config_str_to_page.
     Library,
@@ -433,7 +434,7 @@ pub enum GuiPage {
     // OverviewSettings. Settings content lives in `settings.rs` (its own
     // internal SettingsCategory router, still fully reachable via the
     // top-level Settings tab); the stranded working pages Calculator/Files
-    // (then in Platform; on Apps since the Platform tab went, 2026-10-20) and Trade/Guilds (now in Real) were rehomed in the
+    // (then in Platform; on Apps since the Platform tab went, 2026-10-20) and Trade/Guilds (Trade now in Real; Guilds retired into Orgs, 2026-11-15) were rehomed in the
     // same release. See the 2026-07-04 page-access audit.
 }
 
@@ -1460,29 +1461,6 @@ pub struct GuiState {
     /// `prev_views_on_screen`.
     pub views_on_screen: Vec<&'static str>,
     pub prev_views_on_screen: Vec<&'static str>,
-
-    // ── Guilds state (live from the relay's REST guild API, v0.757) ──
-    pub guilds: Vec<GuiGuild>,
-    /// Selection by GUILD ID (refetches reorder the vector).
-    pub guild_selected: Option<String>,
-    pub guild_search: String,
-    pub guild_show_create: bool,
-    pub guild_new_name: String,
-    pub guild_new_desc: String,
-    pub guild_new_color: egui::Color32,
-    /// Set once the list fetch has run this session; cleared to refetch.
-    pub guilds_loaded: bool,
-    /// In-flight list fetch (all guilds + my memberships merged).
-    pub guilds_rx: Option<std::sync::mpsc::Receiver<Result<Vec<GuiGuild>, String>>>,
-    /// In-flight create/join/leave action; Ok(msg) triggers a refetch.
-    pub guild_action_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
-    /// One-line guild feedback ("Joined", errors).
-    pub guild_status: String,
-    /// Member list for the OPEN guild detail: (display name, role).
-    pub guild_members: Vec<(String, String)>,
-    pub guild_members_for: String,
-    pub guild_members_rx:
-        Option<std::sync::mpsc::Receiver<Result<Vec<(String, String)>, String>>>,
 
     // ── Bridged game state (written by lib.rs each frame) ──
 
@@ -3591,22 +3569,6 @@ impl Default for GuiState {
             quest_chain: None,
             views_on_screen: Vec::new(),
             prev_views_on_screen: Vec::new(),
-
-            // Guilds defaults
-            guilds: Vec::new(),
-            guild_selected: None,
-            guilds_loaded: false,
-            guilds_rx: None,
-            guild_action_rx: None,
-            guild_status: String::new(),
-            guild_members: Vec::new(),
-            guild_members_for: String::new(),
-            guild_members_rx: None,
-            guild_search: String::new(),
-            guild_show_create: false,
-            guild_new_name: String::new(),
-            guild_new_desc: String::new(),
-            guild_new_color: egui::Color32::from_rgb(46, 134, 193), // theme-exempt: seed value of the create-guild colour picker (guilds.rs color_edit_button_srgba); sent to the relay as guild data, and Default for GuiState has no Theme in scope.
 
             player_health: 100.0,
             player_health_max: 100.0,

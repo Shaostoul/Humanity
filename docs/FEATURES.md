@@ -1418,18 +1418,31 @@ enforced). Invitations work only when the invitee signs their acceptance; an inv
 its proof chain, never a private member list. The directory has a level for the list (members,
 organisers, anyone) and for each member (named to members, or to organisers only); the record of
 changes is for members. Kept encrypted on each member's device (desktop file, browser storage);
-the relay refuses `org_` objects. Rung 1 carries changes as text to copy; rung 2 sends sealed
-messages. Every action is in the admin action registry as `orgs.*`, `"run": "device"`. The
+the relay refuses `org_` objects. **Rung 2 (2026-11-15):** every change reaches every member, and
+your own other devices, as a sealed-sender v2 DM (`[[hum:org:v1]]`) sealed to their checked key card,
+queued and kept until sent, at the server's pace, through their "who can reach me" (a member it
+cannot reach is named on the page, with Share the latest as the fallback); an invitation reaches the
+invitee the same way, and the inviter's app sends a new member the whole log. Entries name what they
+follow (`prev`): one that arrives early waits (held), and a removal, demotion or handover voids what
+the person it took a role from signed unseen (checkpoints). The owner hands the organisation on
+(`transfer`, accepted by the named member with `accept_transfer`; both signatures). Guilds retired into
+Organisations. Every action is in the admin action registry as `orgs.*`, `"run": "device"`. The
 whole plan and its nine rungs: `docs/design/organisations.md`.
 - Rules: `crates/humanity-protocol/src/org.rs` (+ `org_tests.rs`), web twin `web/shared/org-log.js`; frozen cross-language log `scripts/tests/fixtures/org-log-v1.json` (`scripts/gen-org-fixture.mjs`), tests `scripts/tests/org-log-web.test.js`
 - Native: `src/gui/pages/orgs.rs` (+ `orgs_tests.rs`), `src/gui/orgs_store.rs`; Chat > Organisations
+- Delivery (rung 2): `src/gui/org_mail.rs` (+ `org_mail_tests.rs`, the rules), `src/engine/org_mail.rs` (+ `org_mail_tests.rs`, two apps end to end), web `web/shared/org-mail.js` and the Delivery section of `web/pages/orgs-app.js`; marker `CTL_ORG` in `src/net/dm_pq.rs` and `web/chat/crypto.js`; cross-language note fixture `scripts/tests/fixtures/org-note-v1.json` (`scripts/gen-org-note-fixture.mjs`), test `scripts/tests/org-mail-web.test.js`
 - Web: `web/pages/orgs.html`, `web/pages/orgs-app.js`, `getPqOrgsKey` in `web/shared/pq-relay-auth.js`
 - Server: the refusal in `src/relay/storage/signed_objects.rs` (`is_organisation_object`), `src/relay/storage/orgs_guard_tests.rs`; registry `data/admin/actions.json` (`orgs.*`)
 
-### Guild System
-Create, join, search, and manage guilds with invite codes.
-- Web: `web/pages/guilds.html`
-- Server: `src/relay/storage/guilds.rs`
+### Guild System (retired into Organisations, 2026-11-15)
+Guilds retired into Organisations on 2026-11-15: see the Organisations entry above and
+`docs/design/organisations.md` ("Decided"). A guild's member list sat in the clear on one server, the
+shape the privacy hardening removed everywhere else; an organisation's lives on its members' devices.
+The Guilds pages (native and web), the guild REST routes and the three guild tables are gone: the
+relay drops `guilds`, `guild_members` and `guild_invites` at start, `/guilds` redirects to `/orgs`
+(`scripts/nginx/humanity.conf`), and the place Guilds held in Profile's section list and the web
+drawer leads to Organisations. Pinned by `tests/guilds_retired_lint.rs` and
+`src/relay/storage/orgs_guard_tests.rs`.
 
 ### Reputation System
 Points, levels, and leaderboard for community standing.
@@ -2651,10 +2664,6 @@ Nova still roll out as vehicles. On a planet, in open space and as a guest on
 a shared ship, only the backpack counts, and the page says why.
 - Native: `src/gui/pages/crafting.rs`, `crates/humanity-systems/src/crafting/home_store.rs`
   (`HomeStore`, `Draw`), `src/engine/built_uses.rs` (`home_storage_here`)
-
-### Guilds Page
-Guild management in native UI.
-- Native: `src/gui/pages/guilds.rs`
 
 ### Trade Page
 P2P trading interface. Since v0.1433.0 a trade moves real items: an offer line
@@ -4570,8 +4579,9 @@ declared transfers. Wired verbs: the walk-up collect by yield, building (masonry
 (mushrooms for a fungus), composting waste, a bee colony, running power, water, data and air lines,
 laying out walls, deploying a vehicle kit, distance swum, climbed, driven and carried, reaching a quest
 destination, a landed strike (the weapon's `skill` in `data/equipment.csv`, unarmed for bare hands),
-a hunting kill, vendor sales and settled trades, votes, proposals and joining a guild, finishing a
-music track. A save's retired skill ids are dropped, not mapped. The Skills page: native Profile >
+a hunting kill, vendor sales and settled trades, votes and proposals, finishing a music track
+(joining a guild taught civics until guilds retired into organisations on 2026-11-15; accepting an
+invitation on the Organisations page sends `join_org`, `data/skills/practice.json`, since then). A save's retired skill ids are dropped, not mapped. The Skills page: native Profile >
 Skills (`src/gui/pages/profile_skills.rs`, snapshot `profile_skills`) and the website's Profile Skills
 tab (`web/pages/profile.html`, the real-life twin kept in the browser), each skill's stage in words,
 its "I can" list, the next stage's and the bar to it, by family. Tests:

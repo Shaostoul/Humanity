@@ -2810,7 +2810,7 @@ pub async fn handle_game_join(
     raw: &serde_json::Value,
 ) {
     // Clamp the display name like every other relay name path (chat 48,
-    // channels 24, guilds 50) -- v0.779: an unclamped name was stamped into
+    // channels 24) -- v0.779: an unclamped name was stamped into
     // the persisted world entity, every broadcast, and every future joiner's
     // snapshot, so a single oversized join bloated them all permanently.
     let player_name = {

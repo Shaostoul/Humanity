@@ -21,7 +21,7 @@
 
 use super::pages::{
     apps, browser, bugs, calculator, calendar, chat, crafting, donate, governance,
-    dev_tab, guilds, homes, how_to, humanity, identity, inventory, laws, library, maps, market, music, notes, orgs, play, profile, quests,
+    dev_tab, homes, how_to, humanity, identity, inventory, laws, library, maps, market, music, notes, orgs, play, profile, quests,
     files, real, relay_control, server_settings, settings, studio, tasks, testing,
     trade, wallet, watch,
 };
@@ -64,7 +64,6 @@ pub fn draw_tool_page(ctx: &egui::Context, page: GuiPage, theme: &mut Theme, sta
         GuiPage::Calendar => calendar::draw(ctx, theme, state),
         GuiPage::Crafting => crafting::draw(ctx, theme, state),
         GuiPage::Wallet => wallet::draw(ctx, theme, state),
-        GuiPage::Guilds => guilds::draw(ctx, theme, state),
         GuiPage::Orgs => orgs::draw(ctx, theme, state),
         GuiPage::Trade => trade::draw(ctx, theme, state),
         GuiPage::BugReport => bugs::draw(ctx, theme, state),
@@ -120,7 +119,6 @@ pub fn page_id(page: GuiPage) -> &'static str {
         GuiPage::Calendar => "calendar",
         GuiPage::Crafting => "crafting",
         GuiPage::Wallet => "wallet",
-        GuiPage::Guilds => "guilds",
         GuiPage::Orgs => "orgs",
         GuiPage::Trade => "trade",
         GuiPage::BugReport => "bugs",
@@ -176,7 +174,6 @@ pub const ALL_PAGES: &[GuiPage] = &[
     GuiPage::Calendar,
     GuiPage::Crafting,
     GuiPage::Wallet,
-    GuiPage::Guilds,
     GuiPage::Orgs,
     GuiPage::Trade,
     GuiPage::BugReport,

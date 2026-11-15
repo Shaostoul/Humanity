@@ -56,7 +56,8 @@ const LEGACY_OFFENDERS: &[&str] = &[
     // file-size ratchet, which is NOT allowlisted, so the note moved onto the
     // literal's own line where it belongs. Everything still in gui/mod.rs (the
     // two colour-picker seed values in `Default for GuiState`) was already
-    // inline-exempt.
+    // inline-exempt. (`GuiGuild` and the guild colour-picker seed went on
+    // 2026-11-15, when Guilds retired into Organisations; the calendar's stays.)
     // Voice-meter state colors + status dots — semantic transient state
     // visualization. Roadmap calls these "mostly legitimate". Audit then
     // either annotate `theme-exempt` or move the palette to theme.ron.

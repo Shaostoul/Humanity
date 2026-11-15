@@ -432,8 +432,8 @@ pub fn practice_distance(data: &DataStore, id: &str, metres: f32, quality: Optio
     }
 }
 
-/// Practice done on a page that holds no DataStore (a vote cast on the Governance page, a guild
-/// joined): queued here and taught by the SkillSystem's next tick. In memory only.
+/// Practice done on a page that holds no DataStore (a vote cast on the Governance page, an
+/// organisation joined): queued here and taught by the SkillSystem's next tick. In memory only.
 static QUEUED_PRACTICE: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
 
 /// Queue the verb `id` from a page with no DataStore; `practice` runs it on the next tick.

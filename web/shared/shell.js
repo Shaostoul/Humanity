@@ -581,7 +581,7 @@
     .hub-nav .mobile-menu-btn {
       /* v0.699.2: shown on desktop too as a "More" overflow menu. The drawer
          holds every page that doesn't fit the 14-tab app-mirror row, so on
-         desktop those pages (Trade, Guilds, Wallet, Market, Governance,
+         desktop those pages (Trade, Organisations, Wallet, Market, Governance,
          Calendar, Notes, ...) were unreachable by click -- exactly the
          "hidden pages I can't access" the 2026-07-04 audit surfaced. */
       display: inline-flex;
@@ -1221,7 +1221,8 @@
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
       mobileLink('/trade',     'Trade') +
-      mobileLink('/guilds',    'Guilds') +
+      // Organisations (2026-11-14; Guilds retired into them on 2026-11-15, and /guilds now leads here).
+      mobileLink('/orgs',      'Organisations') +
       mobileLink('/donate',    'Donate') +
       mobileLink('/civilization', 'Civilization') +
       mobileLink('/governance', 'Governance') +

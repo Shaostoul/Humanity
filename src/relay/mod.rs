@@ -1382,12 +1382,8 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/trade/orders/{id}", delete(api::cancel_trade_order))
         .route("/api/trade/orders/{id}/fill", post(api::fill_trade_order))
         .route("/api/trade/history", get(api::get_trade_history))
-        // Guilds
-        .route("/api/guilds", get(api::get_guilds).post(api::create_guild))
-        .route("/api/guilds/{id}", get(api::get_guild).patch(api::update_guild).delete(api::delete_guild))
-        .route("/api/guilds/{id}/members", get(api::get_guild_members).post(api::join_guild))
-        .route("/api/guilds/{id}/leave", post(api::leave_guild))
-        .route("/api/guilds/{id}/invite", post(api::create_guild_invite))
+        // No guild routes: guilds retired into organisations on 2026-11-15, and an organisation
+        // lives on its members' devices, never on a server (docs/design/organisations.md).
         // Bug reports
         .route("/api/bugs", get(api::get_bugs).post(api::create_bug))
         .route("/api/bugs/details", post(api::bug_details))

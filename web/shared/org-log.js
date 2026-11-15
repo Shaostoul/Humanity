@@ -17,6 +17,7 @@ export const ENTRY_TYPE = 'org_entry_v1';
 export const BUNDLE_VERSION = 1;
 export const MAX_ENTRIES = 10000;
 export const FUTURE_SLACK_MS = 5 * 60 * 1000;
+export const PREV_MAX = 16;
 export const OWNER = 'owner';
 export const ADMIN = 'admin';
 export const MEMBER = 'member';
@@ -123,6 +124,8 @@ export function actPayload(a) {
       if (a.about != null) t('about', a.about);
       if (a.directory != null) t('directory', a.directory);
       break;
+    case 'transfer': e.push([cborText('who'), cborBytes(a.who)]); e.push([cborText('until'), cborUint(a.until)]); break;
+    case 'accept_transfer': t('transfer', a.transfer); break;
     default: throw new Error(`org-log: unknown act ${a.act}`);
   }
   return cborMap(e);
@@ -135,9 +138,11 @@ export async function buildFounding(f, { authorPublicKey, sign, blake3, createdA
   return buildSignedObject({ objectType: FOUNDING_TYPE, payload: foundingPayload(f), authorPublicKey, sign, blake3, createdAt: createdAt ?? Date.now() });
 }
 
-/** Sign one change to organisation `orgId`. */
-export async function buildEntry(orgId, act, { authorPublicKey, sign, blake3, createdAt }) {
-  return buildSignedObject({ objectType: ENTRY_TYPE, payload: actPayload(act), references: [orgId], authorPublicKey, sign, blake3, createdAt: createdAt ?? Date.now() });
+/** Sign one change to organisation `orgId`, following `prev` (the heads of the signer's log, `state.heads`; written sorted). */
+export async function buildEntry(orgId, act, { authorPublicKey, sign, blake3, createdAt, prev }) {
+  const after = [...new Set(prev || [])].sort();
+  if (after.length > PREV_MAX) throw new Error('org-log: prev: too many');
+  return buildSignedObject({ objectType: ENTRY_TYPE, payload: actPayload(act), references: [orgId, ...after], authorPublicKey, sign, blake3, createdAt: createdAt ?? Date.now() });
 }
 
 // ── Decoding ──
@@ -194,6 +199,8 @@ export function parseAct(sub) {
       if (name == null && about == null && directory == null) return null;
       return { act: 'settings', name, about, directory };
     }
+    case 'transfer': return b('who') && isUint(m.until) ? { act: 'transfer', who: b('who'), until: num(m.until) } : null;
+    case 'accept_transfer': return s('transfer') != null ? { act: 'accept_transfer', transfer: s('transfer') } : null;
     default: return null;
   }
 }
@@ -266,11 +273,90 @@ export function merge(orgId, log, incoming, blake3) {
 
 // ── The fold ──
 
+/** What an entry follows (`references[1..]`), or null when that list is not acceptable. */
+export function prevOf(sub) {
+  const refs = sub.references || [];
+  const prev = refs.slice(1);
+  if (prev.length > PREV_MAX) return null;
+  const seen = new Set();
+  for (const p of prev) {
+    if (typeof p !== 'string' || !/^[0-9a-f]{64}$/.test(p) || p === refs[0] || seen.has(p)) return null;
+    seen.add(p);
+  }
+  return prev;
+}
+
 /**
  * Fold the submissions of organisation `orgId` into its state, as every app does. Returns
- * `{ state }` or `{ error: 'no_founding' }`. `deps` = `{ blake3, pqVerify }`.
+ * `{ state }` or `{ error: 'no_founding' }`. `deps` = `{ blake3, pqVerify }`. Rung 2, as
+ * crates/humanity-protocol/src/org.rs `fold`: an entry following one not here is held; the rest
+ * apply in an order keeping each after what it follows (ties by created_at, then object id); each
+ * applied checkpoint voids the entries of the person it took a role from that came before it unseen.
  */
-export async function fold(orgId, subs, nowMs, deps) {
+export async function fold(orgId, subs, nowMs, deps) { return foldAs(orgId, subs, nowMs, deps, true); }
+
+/** The fold of part of a log (an invitation): an entry following one not here is placed by what is here. */
+export async function foldInvitation(orgId, subs, nowMs, deps) { return foldAs(orgId, subs, nowMs, deps, false); }
+
+/** The smallest of `ready` by (at, id), removed: a binary heap kept as an array. */
+function heapPush(h, x) {
+  h.push(x);
+  let i = h.length - 1;
+  while (i > 0) { const p = (i - 1) >> 1; if (!before(h[i], h[p])) break; [h[i], h[p]] = [h[p], h[i]]; i = p; }
+}
+function heapPop(h) {
+  const top = h[0]; const last = h.pop();
+  if (h.length) {
+    h[0] = last; let i = 0;
+    for (;;) {
+      const l = 2 * i + 1; const r = l + 1; let m = i;
+      if (l < h.length && before(h[l], h[m])) m = l;
+      if (r < h.length && before(h[r], h[m])) m = r;
+      if (m === i) break;
+      [h[i], h[m]] = [h[m], h[i]]; i = m;
+    }
+  }
+  return top;
+}
+// Rust orders by (created_at, object_id) through a BTreeSet: numbers, then hex strings.
+function before(a, b) { return a.at < b.at || (a.at === b.at && a.id < b.id); }
+
+function causalOrder(entries, held) {
+  const left = new Map(); const followers = new Map(); const ready = [];
+  for (const [id, e] of entries) {
+    if (held.has(id)) continue;
+    const prev = (e.prev || []).filter((p) => entries.has(p));
+    left.set(id, prev.length);
+    for (const p of prev) { if (!followers.has(p)) followers.set(p, []); followers.get(p).push(id); }
+    if (!prev.length) heapPush(ready, { at: e.at, id });
+  }
+  const order = [];
+  while (ready.length) {
+    const { id } = heapPop(ready);
+    order.push(id);
+    for (const f of followers.get(id) || []) {
+      if (!left.has(f)) continue;
+      const n = left.get(f) - 1; left.set(f, n);
+      if (n === 0) heapPush(ready, { at: entries.get(f).at, id: f });
+    }
+  }
+  return order;
+}
+
+function causalPast(entries, from) {
+  const past = new Set();
+  const stack = [...((entries.get(from) || {}).prev || [])];
+  while (stack.length) {
+    const id = stack.pop();
+    const e = entries.get(id);
+    if (!e || past.has(id)) continue;
+    past.add(id);
+    for (const p of e.prev || []) stack.push(p);
+  }
+  return past;
+}
+
+async function foldAs(orgId, subs, nowMs, deps, hold) {
   const { blake3 } = deps;
   let founding = null;
   const entries = new Map();
@@ -284,43 +370,79 @@ export async function fold(orgId, subs, nowMs, deps) {
       if (f && s.created_at != null) founding = { sub: s, f, key: b64d(s.author_public_key_b64) }; else dropped++;
     } else if (s.object_type === ENTRY_TYPE && (s.references || [])[0] === orgId) {
       if (s.created_at == null) { dropped++; continue; }
-      const k = `${s.created_at}|${id}`;
-      if (entries.has(k)) continue;
+      if (entries.has(id)) continue;
       const v = await verifyObjectSubmission(s, deps);
       if (!v.ok) { dropped++; continue; }
       if (s.created_at > nowMs + FUTURE_SLACK_MS) { waiting++; continue; }
-      entries.set(k, { at: s.created_at, id, sub: s, key: b64d(s.author_public_key_b64) });
+      entries.set(id, { at: s.created_at, id, sub: s, key: b64d(s.author_public_key_b64), prev: prevOf(s) });
     } else if (s.object_type !== FOUNDING_TYPE) {
       dropped++;
     }
     if (entries.size > MAX_ENTRIES) break;
   }
   if (!founding) return { error: 'no_founding' };
+  // Held: an entry that follows one not here, or one itself held, waits.
+  const held = new Set();
+  for (let more = hold; more;) {
+    more = false;
+    for (const [id, e] of entries) {
+      if (!held.has(id) && e.prev && e.prev.some((q) => !entries.has(q) || held.has(q))) { held.add(id); more = true; }
+    }
+  }
+  const order = causalOrder(entries, held);
+  const pos = new Map(order.map((id, i) => [id, i]));
+  const voided = new Set();
+  for (;;) {
+    const { st, checkpoints } = run(orgId, founding, entries, order, voided, { held: held.size, waiting, dropped }, blake3);
+    if (!hold) return { state: st };
+    const more = new Set();
+    for (const [r, who] of checkpoints) {
+      const past = causalPast(entries, r);
+      const at = pos.get(r);
+      for (const id of order.slice(0, at)) {
+        if (!past.has(id) && sameBytes(entries.get(id).key, who) && !voided.has(id)) more.add(id);
+      }
+    }
+    if (!more.size) return { state: st };
+    for (const id of more) voided.add(id);
+  }
+}
+
+function run(orgId, founding, entries, order, voided, counts, blake3) {
   const did = (k) => didFor(k, blake3);
   const foundedAt = founding.sub.created_at;
   const st = {
     orgId, foundedAt, founder: founding.key, name: founding.f.name, about: founding.f.about,
     directory: founding.f.directory, roles: founding.f.roles.map((r) => ({ ...r, perms: r.perms.slice() })),
-    members: new Map(), invites: new Map(), log: [], waiting, dropped, did,
+    members: new Map(), invites: new Map(), transfers: new Map(), log: [], heads: [],
+    held: counts.held, waiting: counts.waiting, dropped: counts.dropped, did,
   };
   st.members.set(did(founding.key), { key: founding.key, did: did(founding.key), role: OWNER, name: null, listing: 'members', joinedAt: foundedAt, standing: new Set() });
   st.log.push({ entryId: orgId, at: foundedAt, actor: founding.key, act: null, subject: null, refused: null });
   const leftAt = new Map();
   const roleSupport = new Map();
-  // Rust orders by (created_at, object_id) through a BTreeMap: numbers, then hex strings.
-  const ordered = [...entries.values()].sort((a, b) => (a.at - b.at) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  for (const e of ordered) {
+  const checkpoints = [];
+  for (const id of order) {
+    const e = entries.get(id);
     const act = parseAct(e.sub);
     let subject = null;
-    if (act && (act.act === 'invite' || act.act === 'remove' || act.act === 'assign')) subject = act.who;
-    else if (act && (act.act === 'accept' || act.act === 'leave' || act.act === 'listing')) subject = e.key;
+    if (act && (act.act === 'invite' || act.act === 'remove' || act.act === 'assign' || act.act === 'transfer')) subject = act.who;
+    else if (act && (act.act === 'accept' || act.act === 'leave' || act.act === 'listing' || act.act === 'accept_transfer')) subject = e.key;
     let refused = null;
-    if (!act) refused = 'malformed';
+    if (!act || !e.prev) refused = 'malformed';
     else if (e.at < foundedAt) refused = 'before_founding';
-    else refused = apply(st, leftAt, roleSupport, e.id, e.at, e.key, act);
+    else if (voided.has(id)) refused = 'voided';
+    else refused = apply(st, leftAt, roleSupport, checkpoints, e.id, e.at, e.key, act);
     st.log.push({ entryId: e.id, at: e.at, actor: e.key, act, subject, refused });
   }
-  return { state: st };
+  // The heads: applied entries no applied entry follows, the latest PREV_MAX of them.
+  const applied = st.log.slice(1).filter((l) => !l.refused).map((l) => l.entryId);
+  const followed = new Set();
+  for (const id of applied) for (const p of entries.get(id).prev || []) followed.add(p);
+  const heads = applied.filter((id) => !followed.has(id)).map((id) => ({ at: entries.get(id).at, id }));
+  heads.sort((a, b) => (before(a, b) ? -1 : before(b, a) ? 1 : 0));
+  st.heads = heads.slice(Math.max(0, heads.length - PREV_MAX)).map((h) => h.id).sort();
+  return { st, checkpoints };
 }
 
 export function roleOf(st, id) { return st.roles.find((r) => r.id === id) || null; }
@@ -328,10 +450,14 @@ export function memberOf(st, key) { return st.members.get(st.did(key)) || null; 
 export function rankOf(st, key) { const m = memberOf(st, key); const r = m && roleOf(st, m.role); return r ? r.rank : null; }
 export function can(st, key, p) { const m = memberOf(st, key); const r = m && roleOf(st, m.role); return !!(r && r.perms.includes(p)); }
 export function openInvites(st, nowMs) { return [...st.invites.values()].filter((i) => !i.used && !i.withdrawn && i.until >= nowMs); }
+/** The handover open at `nowMs`, or null (a newer one replaces an older one). */
+export function openTransfer(st, nowMs) { return [...st.transfers.values()].find((t) => !t.used && !t.withdrawn && t.until >= nowMs) || null; }
+/** The owner's key (exactly one member holds the owner role). */
+export function ownerOf(st) { const m = [...st.members.values()].find((x) => x.role === OWNER); return m ? m.key : null; }
 
 function supportOf(st, key) { const m = memberOf(st, key); return new Set(m ? m.standing : []); }
 
-function apply(st, leftAt, roleSupport, id, at, actor, a) {
+function apply(st, leftAt, roleSupport, checkpoints, id, at, actor, a) {
   const actorDid = st.did(actor);
   const actorRank = rankOf(st, actor);
   if (a.act !== 'accept' && actorRank == null) return 'not_a_member';
@@ -349,6 +475,14 @@ function apply(st, leftAt, roleSupport, id, at, actor, a) {
       return null;
     }
     case 'withdraw': {
+      // The field names the entry withdrawn: an invitation, or (rung 2) a handover.
+      const tr = st.transfers.get(a.invite);
+      if (tr) {
+        if (!sameBytes(tr.by, actor)) return 'owner_only';
+        if (tr.used) return 'handover_closed';
+        tr.withdrawn = true;
+        return null;
+      }
       const inv = st.invites.get(a.invite);
       if (!inv) return 'no_such_invite';
       if (!sameBytes(inv.by, actor) && (r = need(PERM.INVITE))) return r;
@@ -383,6 +517,7 @@ function apply(st, leftAt, roleSupport, id, at, actor, a) {
       if (t.role === OWNER) return 'owner_stays';
       if ((rankOf(st, a.who) ?? 0) >= ar) return 'rank_too_low';
       st.members.delete(t.did); leftAt.set(t.did, at);
+      checkpoints.push([id, a.who]);
       return null;
     }
     case 'leave': {
@@ -399,7 +534,10 @@ function apply(st, leftAt, roleSupport, id, at, actor, a) {
       const role = roleOf(st, a.role);
       if (!role) return 'no_such_role';
       if (t.role === OWNER) return 'owner_stays';
-      if (role.rank >= ar || (rankOf(st, a.who) ?? 0) >= ar) return 'rank_too_low';
+      const oldRank = rankOf(st, a.who) ?? 0;
+      if (role.rank >= ar || oldRank >= ar) return 'rank_too_low';
+      // A demotion is a checkpoint: what they signed that the demoter had not seen is void.
+      if (role.rank < oldRank) checkpoints.push([id, a.who]);
       const standing = new Set(t.standing);
       for (const x of supportOf(st, actor)) standing.add(x);
       standing.add(id);
@@ -446,6 +584,37 @@ function apply(st, leftAt, roleSupport, id, at, actor, a) {
       if (a.name != null) st.name = a.name.trim();
       if (a.about != null) st.about = a.about;
       if (a.directory != null) st.directory = a.directory;
+      return null;
+    }
+    case 'transfer': {
+      const m = memberOf(st, actor);
+      if (!m || m.role !== OWNER) return 'owner_only';
+      if (sameBytes(a.who, actor)) return 'malformed';
+      if (!memberOf(st, a.who)) return 'not_a_member';
+      const support = supportOf(st, actor);
+      // A newer handover replaces any still open.
+      for (const x of st.transfers.values()) if (!x.used) x.withdrawn = true;
+      st.transfers.set(id, { id, who: a.who, until: a.until, by: actor, at, support, used: false, withdrawn: false });
+      return null;
+    }
+    case 'accept_transfer': {
+      const tr = st.transfers.get(a.transfer);
+      if (!tr) return 'no_such_handover';
+      if (!sameBytes(tr.who, actor)) return 'not_the_recipient';
+      if (tr.used || tr.withdrawn || at > tr.until) return 'handover_closed';
+      // The owner role moves only from the owner: both signatures, the offer and this, stand.
+      const giver = memberOf(st, tr.by);
+      if (!giver || giver.role !== OWNER) return 'owner_only';
+      const heir = memberOf(st, actor);
+      if (!heir) return 'not_a_member';
+      heir.role = OWNER;
+      for (const x of tr.support) heir.standing.add(x);
+      heir.standing.add(tr.id); heir.standing.add(id);
+      giver.role = ADMIN;
+      giver.standing.add(tr.id); giver.standing.add(id);
+      tr.used = true;
+      // The handover is a checkpoint for the giver, as a demotion is.
+      checkpoints.push([id, tr.by]);
       return null;
     }
     default: return 'malformed';

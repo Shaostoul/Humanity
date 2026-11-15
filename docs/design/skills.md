@@ -212,8 +212,8 @@ when each row is added.
 | Skill | What it covers | Trains from | Can rise | Origin |
 |---|---|---|---|---|
 | `trading` Trading | Prices, negotiation, bookkeeping | `trading` | wire | kept |
-| `civics` Civics and governance | Proposals, voting methods, meetings, rules and rights | `governance`, `guilds_cooperatives` | wire | split from leadership |
-| `leadership` Leadership | Leading a crew, delegating, planning, organising events | `leadership_crew`, `guilds_cooperatives`, `events_gatherings` | build | kept, narrowed |
+| `civics` Civics and governance | Proposals, voting methods, meetings, rules and rights | `governance`, `organisations_cooperatives` | wire | split from leadership |
+| `leadership` Leadership | Leading a crew, delegating, planning, organising events | `leadership_crew`, `organisations_cooperatives`, `events_gatherings` | build | kept, narrowed |
 | `teaching` Teaching | Explaining, demonstrating, checking understanding | `teaching` | build | new |
 | `mediation` Conflict resolution | Listening, de-escalation, mediating disputes | `governance` | wire | new |
 
@@ -402,7 +402,7 @@ life in one language, and never mixes them up:
   it expires, with a reminder before it does (a workplace first aid certificate lasts three years in Great Britain, A8). A photo of
   the certificate is optional; the app never asks for an official number.
 - **The guides.** Each stage links its Library guides and curriculum topics.
-- **Private by default.** You choose what to share and with whom (a guild looking for a certified
+- **Private by default.** You choose what to share and with whom (an organisation looking for a certified
   electrician, a friend teaching you to bake).
 
 **What exists today.** The web Tasks page lets a real-life task award XP to a linked skill
@@ -625,7 +625,9 @@ never a throwaway.
   walls and structures (drafting), deploying a vehicle kit (mechanics), distance swum, climbed,
   driven and carried under load, reaching a quest destination (navigation), a landed strike (the
   weapon's skill, unarmed for bare hands), a hunting kill, vendor sales and settled trades, votes,
-  proposals and joining a guild (civics), finishing a music track.
+  proposals (civics), finishing a music track. (Joining a guild taught civics until guilds retired
+  into organisations on 2026-11-15; accepting an invitation on the Organisations page sends
+  `join_org`, `data/skills/practice.json`, since then.)
 - The Skills page in both apps: native Profile > Skills (`src/gui/pages/profile_skills.rs`) and the
   website's Profile Skills tab, each skill's stage in words, its "I can" list, the next stage's list
   and the bar to it, grouped by family.

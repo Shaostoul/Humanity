@@ -1225,6 +1225,26 @@ impl Storage {
             info!("Migration: dropped the first recovery tables (recovery_pieces replaces them; no trusted person is named on the server)");
         }
 
+        // Migration (guilds retired into organisations, 2026-11-15, docs/design/organisations.md
+        // "Decided"): DROP the guild tables. `guild_members` listed who belonged to which guild
+        // in the clear on one server, the shape the privacy hardening removed everywhere else
+        // (the groups and follows tables above); an organisation keeps its member list on its
+        // members' devices instead. Nobody used guilds, so nothing is migrated (no compatibility
+        // code before launch, CLAUDE.md). Their indexes go with them; secure_delete zeroes the
+        // pages and the checkpoint after the commit folds them out of the log (`scrub_wal`).
+        let has_guilds = ["guilds", "guild_members", "guild_invites"]
+            .iter()
+            .any(|t| conn.prepare(&format!("SELECT 1 FROM {t} LIMIT 0")).is_ok());
+        if has_guilds {
+            conn.execute_batch(
+                "DROP TABLE IF EXISTS guild_invites;
+                 DROP TABLE IF EXISTS guild_members;
+                 DROP TABLE IF EXISTS guilds;",
+            )?;
+            scrub_wal = true;
+            info!("Migration: dropped the guild tables (guilds retired into organisations, which no server holds)");
+        }
+
         // Migration: add reply_to columns to messages for threaded replies.
         let has_reply_to: bool = conn
             .prepare("SELECT reply_to_from FROM messages LIMIT 0")
@@ -3001,44 +3021,6 @@ impl Storage {
             info!("FTS5 not available — falling back to LIKE search");
         }
 
-        // Guilds tables.
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS guilds (
-                id           TEXT PRIMARY KEY,
-                name         TEXT NOT NULL,
-                description  TEXT NOT NULL DEFAULT '',
-                owner_key    TEXT NOT NULL,
-                icon         TEXT NOT NULL DEFAULT '',
-                color        TEXT NOT NULL DEFAULT '#4488ff',
-                created_at   TEXT NOT NULL,
-                member_count INTEGER NOT NULL DEFAULT 0
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_guilds_owner ON guilds(owner_key);
-
-            CREATE TABLE IF NOT EXISTS guild_members (
-                guild_id    TEXT NOT NULL,
-                public_key  TEXT NOT NULL,
-                role        TEXT NOT NULL DEFAULT 'member',
-                joined_at   TEXT NOT NULL,
-                PRIMARY KEY (guild_id, public_key)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_guild_members_key ON guild_members(public_key);
-
-            CREATE TABLE IF NOT EXISTS guild_invites (
-                id              TEXT PRIMARY KEY,
-                guild_id        TEXT NOT NULL,
-                created_by      TEXT NOT NULL,
-                code            TEXT NOT NULL UNIQUE,
-                uses_remaining  INTEGER NOT NULL DEFAULT 1,
-                expires_at      INTEGER NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_guild_invites_code ON guild_invites(code);
-            CREATE INDEX IF NOT EXISTS idx_guild_invites_guild ON guild_invites(guild_id);"
-        )?;
-
         // Reputation tables.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS reputation (
@@ -3246,7 +3228,6 @@ mod civilization;
 /// storage::files until 2026-10-19, when Files became the page people put their files on).
 pub mod data_files;
 mod bugs;
-mod guilds;
 mod reputation;
 mod game_persistence;
 mod game_bans;
@@ -3276,7 +3257,6 @@ pub mod private_files;
 pub mod docs_accord;
 
 pub use civilization::CivilizationStats;
-pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
 pub use notification_prefs::{sent_or_null, NotifPrefs, NotifPrefsChange, PushKind};
 pub use bugs::BugReport;
 pub use reputation::{ReputationRecord, ReputationEventRecord};

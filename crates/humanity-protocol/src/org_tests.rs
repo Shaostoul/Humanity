@@ -29,10 +29,17 @@ impl World {
         let o = build_founding(owner, &f, T0).expect("founds");
         World { org: o.object_id().unwrap().to_hex(), objects: vec![o], clock: T0 }
     }
-    /// Sign `act` by `kp` one second after the last change; its entry id.
+    /// Sign `act` by `kp` one second after the last change, following the heads (as an app does);
+    /// its entry id.
     fn sign(&mut self, kp: &DilithiumKeypair, act: Act) -> String {
+        let prev = self.state().heads;
         self.clock += 1000;
-        let o = build_entry(kp, &self.org, &act, self.clock).expect("signs");
+        let at = self.clock;
+        self.sign_as(kp, act, &prev, at)
+    }
+    /// Sign `act` following `prev`, dated `at`, and keep it; its entry id.
+    fn sign_as(&mut self, kp: &DilithiumKeypair, act: Act, prev: &[String], at: u64) -> String {
+        let o = build_entry(kp, &self.org, &act, prev, at).expect("signs");
         let id = o.object_id().unwrap().to_hex();
         self.objects.push(o);
         id
@@ -160,7 +167,10 @@ fn a_non_member_cannot_read_a_private_directory() {
     let inv = w.invite(&admin, &stranger, MEMBER);
     let text = w.state().invite_bundle(&w.objects, &inv).expect("the bundle");
     let (org, objs) = parse_bundle(&text).expect("parses");
-    let theirs = fold(&org, &objs, w.clock).expect("the invitee folds it");
+    // A member's fold holds what follows entries the invitation leaves out (rung 2); the invitee's
+    // fold places them by what is there.
+    assert!(!fold(&org, &objs, w.clock).expect("folds").invites.contains_key(&inv));
+    let theirs = fold_invitation(&org, &objs, w.clock).expect("the invitee folds it");
     let known: BTreeSet<String> = theirs.log.iter().flat_map(|l| [Some(l.actor.clone()), l.subject.clone()]).flatten().map(|k| did_for_pubkey(&k)).collect();
     let expect: BTreeSet<String> = [&owner, &admin, &stranger].iter().map(|k| did_for_pubkey(&k.public_key())).collect();
     assert_eq!(known, expect, "the invitation names only its proof chain");
@@ -232,7 +242,7 @@ fn every_membership_change_appears_in_the_audit_log_signed_by_its_actor() {
     w.sign(&owner, Act::RoleDrop { role: "driver".into() });
 
     // A forged entry: a real one with its signature broken.
-    let mut forged = build_entry(&a, &w.org, &Act::Remove { who: owner.public_key() }, w.clock + 1).unwrap();
+    let mut forged = build_entry(&a, &w.org, &Act::Remove { who: owner.public_key() }, &w.state().heads, w.clock + 1).unwrap();
     forged.signature[10] ^= 0xff;
     let forged_id = forged.object_id().unwrap().to_hex();
     w.objects.push(forged);
@@ -309,7 +319,10 @@ fn the_shipped_roles_found_an_organisation() {
 /// Red first, 2026-11-14: with `need(st, perm::REMOVE)?` and the `inv.who != actor` check taken
 /// out, the members differed from the record (Mo's attempt to remove Shy applied); the website's
 /// twin, with its invitee check taken out, read `already_member` where the record says
-/// `not_the_invitee`.
+/// `not_the_invitee`. Rung 2, 2026-11-15 (the log rebuilt on purpose with `prev`, a handover, a
+/// wrong member's acceptance, a voided change and a held entry): with holding switched off, with
+/// the voiding pass returning after the first fold, and with the handover's recipient check taken
+/// out, this test failed each time.
 #[test]
 fn the_frozen_log_folds_as_recorded() {
     let path = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("scripts/tests/fixtures/org-log-v1.json");
@@ -342,4 +355,101 @@ fn the_frozen_log_folds_as_recorded() {
     assert_eq!(count(st.directory_for(&reader("admin")).unwrap()), e["directory_as_admin"]);
     assert_eq!(st.directory_for(&reader("stranger")), Err(ReadRefusal::NotAMember));
     assert_eq!(e["stranger_refused"], "not_a_member");
+    assert_eq!(st.held as u64, e["held"].as_u64().unwrap(), "the entry following one this log does not hold waits");
+}
+
+/// Rung 2: an entry delivered before an entry it follows waits (held: never applied, never refused)
+/// and applies once that entry arrives, whatever order delivery took.
+///
+/// Red first, 2026-11-15: with the held loop in `fold_as` skipped (`hold &&` made `false &&`),
+/// "nothing that follows it is refused" failed: B's listing, delivered before B's acceptance, was
+/// refused as not_a_member instead of waiting.
+#[test]
+fn an_entry_that_arrives_before_what_it_follows_waits_then_applies() {
+    let (owner, a, b) = (key(1), key(2), key(3));
+    let mut w = World::found(&owner, Directory::Members);
+    w.join(&owner, &a, ADMIN);
+    let inv = w.invite(&a, &b, MEMBER);
+    let accept = w.sign(&b, Act::Accept { invite: inv });
+    let listing = w.sign(&b, Act::Listing { name: "Bea".into(), level: Listing::Members });
+    let want = w.state();
+    let early: Vec<Object> = w.objects.iter().filter(|o| o.object_id().unwrap().to_hex() != accept).cloned().collect();
+    let st = fold(&w.org, &early, w.clock).unwrap();
+    assert_eq!(st.held, 1, "the listing waits for the acceptance it follows");
+    assert!(st.log.iter().all(|l| l.entry_id != listing), "nothing that follows it is refused, or applied");
+    assert!(st.member(&b.public_key()).is_none());
+    let mut all = early.clone();
+    all.push(w.objects.iter().find(|o| o.object_id().unwrap().to_hex() == accept).unwrap().clone());
+    let st = fold(&w.org, &all, w.clock).unwrap();
+    assert_eq!(st.held, 0);
+    assert_eq!(st.log, want.log);
+    assert_eq!(st.member(&b.public_key()).and_then(|m| m.name.clone()).as_deref(), Some("Bea"));
+}
+
+/// Rung 2, the checkpoint (section 2.5): a removed admin signs a removal dated before their own
+/// removal, following only what they had seen then. The owner, who removed them without seeing it,
+/// is the checkpoint: the backdated change is voided on every app, so the member it named stays.
+///
+/// Red first, 2026-11-15: with the voiding loop in `fold_as` returning after the first pass, "the
+/// backdated removal is voided" failed: it was applied and C was gone.
+#[test]
+fn a_change_backdated_before_its_signers_removal_is_voided() {
+    let (owner, a, c) = (key(1), key(2), key(4));
+    let mut w = World::found(&owner, Directory::Members);
+    w.join(&owner, &a, ADMIN);
+    w.join(&a, &c, MEMBER);
+    let seen = w.state().heads;
+    let at = w.clock;
+    // The owner removes A, having seen nothing A did after this point.
+    let removal = w.sign(&owner, Act::Remove { who: a.public_key() });
+    // A, removed, signs a removal of C dated before their own removal, following what they had seen.
+    let backdated = w.sign_as(&a, Act::Remove { who: c.public_key() }, &seen, at + 500);
+    let st = w.state();
+    assert_eq!(w.refusal_of(&removal), None);
+    assert_eq!(w.refusal_of(&backdated), Some(Refusal::Voided), "the backdated removal is voided");
+    assert!(st.member(&c.public_key()).is_some(), "C stays");
+    // The same change the owner HAD seen (it is in what the removal follows) stands.
+    let mut w2 = World::found(&owner, Directory::Members);
+    w2.join(&owner, &a, ADMIN);
+    w2.join(&a, &c, MEMBER);
+    let seen_change = w2.sign(&a, Act::Listing { name: "Al".into(), level: Listing::Members });
+    w2.sign(&owner, Act::Remove { who: a.public_key() });
+    assert_eq!(w2.refusal_of(&seen_change), None, "a change the remover had seen stands");
+}
+
+/// Rung 2: the owner hands the organisation on only with both signatures: the owner's offer and the
+/// named member's acceptance. Someone else's acceptance, an offer by a non-owner, a withdrawn offer
+/// and an offer alone move nothing; the acceptance moves the owner role and makes the giver an admin.
+///
+/// Red first, 2026-11-15: with the `t.who != actor` check taken out of `AcceptTransfer`, "only the
+/// member it names can take it" failed (C became the owner).
+#[test]
+fn a_handover_needs_both_signatures() {
+    let (owner, a, c) = (key(1), key(2), key(4));
+    let mut w = World::found(&owner, Directory::Members);
+    w.join(&owner, &a, ADMIN);
+    w.join(&a, &c, MEMBER);
+    let by_admin = w.sign(&a, Act::Transfer { who: c.public_key(), until: w.clock + 86_400_000 });
+    assert_eq!(w.refusal_of(&by_admin), Some(Refusal::OwnerOnly), "only the owner offers it");
+    let offer = w.sign(&owner, Act::Transfer { who: a.public_key(), until: w.clock + 86_400_000 });
+    assert_eq!(w.state().owner(), Some(owner.public_key().as_slice()), "an offer alone moves nothing");
+    let wrong = w.sign(&c, Act::AcceptTransfer { transfer: offer.clone() });
+    assert_eq!(w.refusal_of(&wrong), Some(Refusal::NotTheRecipient), "only the member it names can take it");
+    assert_eq!(w.state().owner(), Some(owner.public_key().as_slice()));
+    // A withdrawn offer cannot be taken.
+    let mut w2 = World::found(&owner, Directory::Members);
+    w2.join(&owner, &a, ADMIN);
+    let offer2 = w2.sign(&owner, Act::Transfer { who: a.public_key(), until: w2.clock + 86_400_000 });
+    w2.sign(&owner, Act::Withdraw { invite: offer2.clone() });
+    let late = w2.sign(&a, Act::AcceptTransfer { transfer: offer2 });
+    assert_eq!(w2.refusal_of(&late), Some(Refusal::HandoverClosed));
+    // Both signatures: the role moves.
+    let taken = w.sign(&a, Act::AcceptTransfer { transfer: offer });
+    assert_eq!(w.refusal_of(&taken), None);
+    let st = w.state();
+    assert_eq!(st.owner(), Some(a.public_key().as_slice()));
+    assert_eq!(st.member(&owner.public_key()).map(|m| m.role.as_str()), Some(ADMIN));
+    // The new owner can now do what only an owner may: remove the old one, now an admin.
+    let out = w.sign(&a, Act::Remove { who: owner.public_key() });
+    assert_eq!(w.refusal_of(&out), None);
 }
