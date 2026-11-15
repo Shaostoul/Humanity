@@ -4236,9 +4236,11 @@ mod storey_fields_tests {
             // and 6d0d37b140c4343b). Then the ladder hatch's guards G4 and G5 moved apart to leave
             // a 0.8 m gap over the ladder, and the greenhouse's zone rose to the 6 m roof with its
             // room (the increment's review, 2026-10-21, homestead-upper-floor.md section 12; it was
-            // 3c5231aeb7eda208 and 747cdf9e8cf1d567).
-            "395ca90c0b7aea56",
-            "e8477b1870a5c5ca",
+            // 3c5231aeb7eda208 and 747cdf9e8cf1d567). Then the shower room's high window moved
+            // 0.1 m east so its casing and stool clear the shower under it (room finishes rung 2,
+            // 2026-11-15; it was 395ca90c0b7aea56 and e8477b1870a5c5ca).
+            "c919258cd1e60407",
+            "2cbd4bb7bedbff4b",
             "da22405ff5cb9a36",
             "ffb704a6e5cf699b",
         ];

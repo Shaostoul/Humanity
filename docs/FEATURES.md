@@ -5150,6 +5150,25 @@ and an optional control panel.
 - Native: `crates/humanity-ship/src/home_structure.rs` (`Opening`, `OpeningKind`; `style` is a data-driven String), `crates/humanity-systems/src/door_anim.rs` (style to `PanelMotion`), `crates/humanity-ship/src/door_panels.rs` (`panel_placements`, `PanelPlacement`)
 - Editor: `src/gui/pages/construction.rs` (`OPENING_STYLES` const)
 
+### Room Finishes: skirting, crown, casings, sills and rails (2026-11-14, 2026-11-15)
+Every room's walls carry real swept trim at trade sizes, mitred at every corner the way a joiner
+fits it: a skirting along the floor and a crown under the ceiling (rung 1); a casing round every door
+and window on each face, mitred at the head, the skirting stopping against its outer edge; a stool
+(inside sill) under each window running past the casing with the casing board under it as the apron,
+or the window framed on all four sides when its face has no stool; a chair rail and a picture rail
+where chosen, stopped at the casings (rung 2). Chosen per room, per interior wall side and per outer
+wall's inside face, each field falling back to the room purpose's default; casings ripped narrower
+near a corner or the crown. Baked with the home, one draw per trim material, a neighbour's home at a
+coarse outline.
+- Native: `crates/humanity-ship/src/room_finishes.rs` (`Finish`, `WallFinish`, `ShellFinish`, the
+  catalog and `resolve`), `crates/humanity-ship/src/room_trim.rs` (the outline, the runs, `layout`,
+  `bake_trim`), `crates/humanity-ship/src/room_casings.rs` (`Frame`, `fit`, `frame_sweeps`, `rip`)
+- Editor: `src/gui/pages/construction/finishes.rs` (Room finish, This wall's finish, Outer walls of
+  this room: seven pickers each and a to-scale drawing of every section)
+- Data: `data/blueprints/room_finishes.ron` (profiles, materials, `fit` heights, defaults by room
+  purpose); design: `docs/design/room-finishes.md`
+- Dev: the showcase's `{"room_trim":"0"}` bakes the homes with no trim, for a same-boot look and cost
+
 ### Door Control Panels (v0.567)
 Walk up to a manual door and press E at its control panel to open it; the panel mounts beside the door at
 hand height.

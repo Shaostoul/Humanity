@@ -1,7 +1,9 @@
-//! THE TRIM SWEPT ALONG EVERY ROOM'S WALLS (room finishes rung 1, docs/design/room-finishes.md):
-//! a skirting at the foot of each wall face and a crown where the wall meets the ceiling, each a
-//! profile from data/blueprints/room_finishes.ron swept along the face, MITRED where two faces meet
-//! (inside and outside corners alike), stopped square at a door (and, for the crown, at an opening
+//! THE TRIM SWEPT ALONG EVERY ROOM'S WALLS (room finishes rungs 1 and 2, docs/design/room-finishes.md):
+//! a skirting at the foot of each wall face and a crown where the wall meets the ceiling, and where
+//! a room chooses them a chair rail and a picture rail across it, each a profile from
+//! data/blueprints/room_finishes.ron swept along the face, MITRED where two faces meet (inside and
+//! outside corners alike), stopped square against each opening's casing (room_casings.rs: the
+//! skirting at a door, a rail at whatever casing or window stool it meets, the crown at an opening
 //! that reaches into it), in the material the face resolves to (room_finishes.rs). Baked once with
 //! the home's other meshes; nothing here runs per frame.
 //!
@@ -19,8 +21,9 @@
 //! zone is no room's, and carries no trim.
 
 use crate::fibonacci::TrimGroup;
-use crate::home_structure::{perimeter_pieces, storey_index, wall_in_storey, HomeStructure, ShellCut, Storey, Zone, CORNER_COLUMN_SEGMENTS, SLAB_DRAW_LIFT_M, STOREY_EPS};
-use crate::room_finishes::{catalog, ProfileKind, ResolvedFinish, TrimProfile};
+use crate::home_structure::{perimeter_pieces, storey_index, wall_in_storey, HomeStructure, OpeningKind, ShellCut, Storey, Zone, CORNER_COLUMN_SEGMENTS, SLAB_DRAW_LIFT_M, STOREY_EPS};
+use crate::room_casings::{fit, frame_sweeps, FitRoom, Frame, Line, LineOpening, OpeningId};
+use crate::room_finishes::{catalog, closed_section, triangulate, ProfileKind, ResolvedFinish, TrimProfile};
 use glam::{Vec2, Vec3};
 use humanity_core::vertex::Vertex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -57,7 +60,7 @@ const ROOM_PROBE_M: f32 = 0.05;
 const JOIN_M: f32 = 1e-4;
 
 /// What a boundary edge belongs to.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum Src {
     /// A long face of interior wall `wall`, `left` the side on your left walking from its `a` to `b`.
     Face { wall: usize, left: bool },
@@ -332,36 +335,63 @@ fn zone_at<'a>(hs: &'a HomeStructure, storeys: &[Storey], k: usize, p: Vec2) -> 
         .min_by(|a, b| (a.size.0 * a.size.2).partial_cmp(&(b.size.0 * b.size.2)).unwrap_or(std::cmp::Ordering::Equal))
 }
 
-/// The stretches of a piece an opening keeps a trim off, as (t0, t1) along the piece: the openings
-/// in its wall (or the corridor cuts through its shell edge) whose height band `blocks` says reaches
-/// the trim. (bottom, top) are body-local heights.
-fn blocked(piece: &Piece, hs: &HomeStructure, cuts: &[ShellCut], blocks: impl Fn(f32, f32) -> bool) -> Vec<(f32, f32)> {
-    // The piece's ends in the line's own coordinate (metres from its start) and the openings on it.
-    let (origin, dir, spans): (Vec2, Vec2, Vec<(f32, f32)>) = match piece.src {
+//// The line a piece lies on (its wall's centreline, or its perimeter edge) with the openings along
+/// it: a wall's doors and windows, or the corridor cuts through that edge of the shell. None for a
+/// piece no opening can be in (a wall's end, a column).
+fn line_of(piece: &Piece, hs: &HomeStructure, cuts: &[ShellCut]) -> Option<Line> {
+    match piece.src {
         Src::Face { wall, .. } => {
             let wl = &hs.walls[wall];
-            let a = Vec2::new(wl.a.0, wl.a.1);
-            let dir = (Vec2::new(wl.b.0, wl.b.1) - a).normalize_or_zero();
-            let spans = wl.openings.iter().filter(|o| blocks(wl.base + o.sill, wl.base + o.sill + o.height)).map(|o| (o.at, o.at + o.width)).collect();
-            (a, dir, spans)
+            let origin = Vec2::new(wl.a.0, wl.a.1);
+            let dir = (Vec2::new(wl.b.0, wl.b.1) - origin).normalize_or_zero();
+            let openings = wl
+                .openings
+                .iter()
+                .enumerate()
+                .map(|(index, o)| {
+                    let bottom = wl.base + o.sill;
+                    LineOpening { id: OpeningId::Wall { wall, index }, s0: o.at, s1: o.at + o.width, bottom, top: bottom + o.height, door: o.kind == OpeningKind::Door }
+                })
+                .collect();
+            Some(Line { origin, dir, openings })
         }
         Src::Shell { edge } => {
             let (w, d) = (hs.width.max(1.0), hs.depth.max(1.0));
             let corners = [Vec2::new(0.0, 0.0), Vec2::new(w, 0.0), Vec2::new(w, d), Vec2::new(0.0, d)];
             let (a, b) = (corners[edge], corners[(edge + 1) % 4]);
-            let spans = cuts.iter().filter(|c| c.edge == edge && blocks(c.base, c.base + c.height)).map(|c| (c.at, c.at + c.width)).collect();
-            (a, (b - a).normalize_or_zero(), spans)
+            let openings = cuts
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| c.edge == edge)
+                .map(|(index, c)| LineOpening { id: OpeningId::Cut { index }, s0: c.at, s1: c.at + c.width, bottom: c.base, top: c.base + c.height, door: true })
+                .collect();
+            Some(Line { origin: a, dir: (b - a).normalize_or_zero(), openings })
         }
-        _ => return Vec::new(),
-    };
-    let (sa, sb) = ((piece.a - origin).dot(dir), (piece.b - origin).dot(dir));
+        _ => None,
+    }
+}
+
+/// The stretches of a piece a horizontal trim between heights `y0` and `y1` stops short of, as
+/// (t0, t1) along the piece: each opening on its line whose height band reaches the trim, widened
+/// by how far that opening's casing on this face reaches past it (`Frame::reach`: the casing's
+/// width, with a window stool's horns where the trim takes in the stool), so the trim stops
+/// against the casing's outer edge. An opening this face does not case keeps the trim off its own
+/// width only (a skirting stopping at the jamb, as before casings).
+fn gaps(piece: &Piece, line: Option<&Line>, frames: &[Frame], y0: f32, y1: f32) -> Vec<(f32, f32)> {
+    let Some(line) = line else { return Vec::new() };
+    let (sa, sb) = (line.s(piece.a), line.s(piece.b));
     if (sb - sa).abs() < 1e-6 {
         return Vec::new();
     }
-    spans
-        .into_iter()
-        .filter_map(|(o0, o1)| {
-            let (t0, t1) = ((o0 - sa) / (sb - sa), (o1 - sa) / (sb - sa));
+    line.openings
+        .iter()
+        .filter_map(|op| {
+            let reach = match frames.iter().find(|f| f.face == piece.src && f.opening == op.id) {
+                Some(f) => f.reach(y0, y1)?,
+                None if y0 < op.top - 1e-3 && y1 > op.bottom + 1e-3 => 0.0,
+                None => return None,
+            };
+            let (t0, t1) = ((op.s0 - reach - sa) / (sb - sa), (op.s1 + reach - sa) / (sb - sa));
             let (lo, hi) = (t0.min(t1).max(0.0), t0.max(t1).min(1.0));
             (hi > lo).then_some((lo, hi))
         })
@@ -388,18 +418,84 @@ fn keep_between(mut gaps: Vec<(f32, f32)>) -> Vec<(f32, f32, bool, bool)> {
     out
 }
 
+/// One piece of a storey's outline with what its trim is made of: its line and openings, its
+/// resolved finish, the floor it stands on and the ceiling over it.
+struct FacePiece {
+    piece: Piece,
+    line: Option<Line>,
+    fin: ResolvedFinish<'static>,
+    floor: f32,
+    ceiling: f32,
+}
+
+impl FacePiece {
+    /// Where a crown on this face has its foot (None: it has no crown, or it is a partition that
+    /// stops short of the ceiling); else the ceiling, or the wall's top.
+    fn head_limit(&self) -> f32 {
+        match self.fin.crown {
+            Some(c) if self.piece.top >= self.ceiling - 0.02 => self.ceiling.min(self.piece.top) - c.height(),
+            _ => self.ceiling.min(self.piece.top),
+        }
+    }
+}
+
+/// The stretch of the face `piece` lies on that is open to its room, along `line`: the piece
+/// joined with every piece of the same face touching it (a slab's edge or a crossing wall behind
+/// it splits a face without ending it), so a casing near a split still has its room.
+fn face_extent(all: &[FacePiece], piece: &Piece, line: &Line) -> (f32, f32) {
+    let span = |p: &Piece| {
+        let (a, b) = (line.s(p.a), line.s(p.b));
+        (a.min(b), a.max(b))
+    };
+    let (mut lo, mut hi) = span(piece);
+    loop {
+        let mut grew = false;
+        for f in all.iter().filter(|f| f.piece.src == piece.src && (f.piece.n - piece.n).length() < 1e-3) {
+            let (a, b) = span(&f.piece);
+            if a < lo - 1e-6 && b >= lo - JOIN_M {
+                lo = a;
+                grew = true;
+            }
+            if b > hi + 1e-6 && a <= hi + JOIN_M {
+                hi = b;
+                grew = true;
+            }
+        }
+        if !grew {
+            return (lo, hi);
+        }
+    }
+}
+
+/// Everything the trim is laid out from: the horizontal runs (skirting, crown, rails) and the
+/// casings round the openings. The bake sweeps both; the tests read both.
+pub(crate) struct Layout {
+    pub runs: Vec<Run<'static>>,
+    pub frames: Vec<Frame>,
+}
+
 /// Every trim run of the home (each storey's outline, its rooms' finishes resolved, cut at the
-/// openings). The bake sweeps them; the tests read them.
+/// openings and their casings), for the tests (the bake reads the whole `layout`).
+#[cfg(test)]
 pub(crate) fn runs(hs: &HomeStructure, cuts: &[ShellCut]) -> Vec<Run<'static>> {
+    layout(hs, cuts).runs
+}
+
+/// THE LAYOUT: each storey's outline into pieces with their finishes, the casing fitted round each
+/// opening on each face, then the horizontal runs stopped at those casings, and the corners joined.
+pub(crate) fn layout(hs: &HomeStructure, cuts: &[ShellCut]) -> Layout {
     let cat = catalog();
     let storeys = hs.storeys();
     let feet = hs.wall_feet();
     let (w, d, h) = (hs.width.max(1.0), hs.depth.max(1.0), hs.height.max(1.0));
     let mut out: Vec<Run<'static>> = Vec::new();
+    let mut frames: Vec<Frame> = Vec::new();
     for k in 0..storeys.len() {
         let storey = storeys[k];
         let polys = storey_polys(hs, &storeys, k, &feet);
         let floor_y = if k == 0 { 0.0 } else { storey.floor + SLAB_DRAW_LIFT_M };
+        // The pieces with their finishes.
+        let mut faces: Vec<FacePiece> = Vec::new();
         for whole in outline(&polys, w, d) {
             for piece in split_at_slabs(whole, hs) {
                 let probe = (piece.a + piece.b) * 0.5 + piece.n * ROOM_PROBE_M;
@@ -412,6 +508,7 @@ pub(crate) fn runs(hs: &HomeStructure, cuts: &[ShellCut]) -> Vec<Run<'static>> {
                 }
                 let face = match piece.src {
                     Src::Face { wall, left } => Some(hs.walls[wall].finish.side(left)),
+                    Src::Shell { edge } => Some(hs.shell_finish.edge(edge)),
                     _ => None,
                 };
                 let fin: ResolvedFinish<'static> = cat.resolve(face, zone.map(|z| &z.finish), zone.and_then(|z| z.room_type.as_deref()));
@@ -422,24 +519,77 @@ pub(crate) fn runs(hs: &HomeStructure, cuts: &[ShellCut]) -> Vec<Run<'static>> {
                     .filter(|s| s.underside() > storey.floor + 0.1 && s.contains(probe.x, probe.y))
                     .map(|s| s.underside())
                     .fold(h, f32::min);
-                let mut push = |kind: ProfileKind, profile: &'static TrimProfile, y: f32, gaps: Vec<(f32, f32)>| {
-                    let dv = piece.b - piece.a;
-                    for (t0, t1, fa, fb) in keep_between(gaps) {
-                        out.push(Run { kind, a: piece.a + dv * t0, b: piece.a + dv * t1, n: piece.n, profile, material: fin.material.id.as_str(), y, free_a: fa, free_b: fb });
-                    }
-                };
-                if let Some(p) = fin.skirting {
-                    let top = floor_y + p.height();
-                    // A door, or a window down to the floor, stops it: an opening whose foot is under its top.
-                    push(ProfileKind::Skirting, p, floor_y, blocked(&piece, hs, cuts, |bottom, _| bottom < top - 1e-3));
+                faces.push(FacePiece { line: line_of(&piece, hs, cuts), piece, fin, floor: floor_y, ceiling });
+            }
+        }
+        // The casings: each opening cased on each face whose piece holds its middle and whose
+        // finish has a casing, if it fits.
+        let storey_frames_from = frames.len();
+        for f in &faces {
+            let (Some(casing), Some(line)) = (f.fin.casing, f.line.as_ref()) else { continue };
+            let (sa, sb) = (line.s(f.piece.a), line.s(f.piece.b));
+            let (lo, hi) = (sa.min(sb), sa.max(sb));
+            let face_origin = f.piece.a - line.dir * sa;
+            for op in &line.openings {
+                let mid = (op.s0 + op.s1) * 0.5;
+                if mid < lo || mid >= hi || op.bottom < storey.floor - 0.05 || op.bottom >= storey.top - 0.05 {
+                    continue;
                 }
-                if let Some(p) = fin.crown {
-                    // Only where the wall meets the ceiling: a wall that stops short of it is a partition.
-                    if piece.top >= ceiling - 0.02 {
-                        let y = ceiling.min(piece.top);
-                        let foot = y - p.height();
-                        push(ProfileKind::Crown, p, y, blocked(&piece, hs, cuts, |_, top| top > foot + 1e-3));
+                // The room it may spread into: the face's open stretch, and half the way to a
+                // neighbouring opening at the same heights (two casings butt there).
+                let mut room = face_extent(&faces, &f.piece, line);
+                for o in line.openings.iter().filter(|o| o.id != op.id && o.bottom < op.top && o.top > op.bottom) {
+                    if o.s1 <= op.s0 {
+                        room.0 = room.0.max((o.s1 + op.s0) * 0.5);
+                    } else if o.s0 >= op.s1 {
+                        room.1 = room.1.min((op.s1 + o.s0) * 0.5);
                     }
+                }
+                let at = FitRoom {
+                    room,
+                    head_limit: f.head_limit(),
+                    floor: f.floor,
+                    skirting_top: f.floor + f.fin.skirting.map_or(0.0, |p| p.height()),
+                    horn: cat.fit.sill_horn_m,
+                };
+                if let Some(fr) = fit(f.piece.src, op, face_origin, line.dir, f.piece.n, &at, casing, f.fin.sill, f.fin.material.id.as_str()) {
+                    frames.push(fr);
+                }
+            }
+        }
+        let storey_frames = &frames[storey_frames_from..];
+        // The horizontal runs, each stopped at the openings and the casings it meets.
+        for f in &faces {
+            let (piece, fin) = (&f.piece, &f.fin);
+            let mut push = |kind: ProfileKind, profile: &'static TrimProfile, y: f32, band: (f32, f32)| {
+                let dv = piece.b - piece.a;
+                for (t0, t1, fa, fb) in keep_between(gaps(piece, f.line.as_ref(), storey_frames, band.0, band.1)) {
+                    out.push(Run { kind, a: piece.a + dv * t0, b: piece.a + dv * t1, n: piece.n, profile, material: fin.material.id.as_str(), y, free_a: fa, free_b: fb });
+                }
+            };
+            if let Some(p) = fin.skirting {
+                // A door, or a window down to the floor, stops it, at its casing's edge.
+                push(ProfileKind::Skirting, p, f.floor, (f.floor - 1.0, f.floor + p.height()));
+            }
+            if let Some(p) = fin.crown {
+                // Only where the wall meets the ceiling: a wall that stops short of it is a partition.
+                if piece.top >= f.ceiling - 0.02 {
+                    let y = f.ceiling.min(piece.top);
+                    push(ProfileKind::Crown, p, y, (y - p.height(), y + 1.0));
+                }
+            }
+            if let Some(p) = fin.chair_rail {
+                // Centred at its height over the floor, where the wall stands that high.
+                let y = f.floor + cat.fit.chair_rail_centre_m - p.height() * 0.5;
+                if piece.top >= y + p.height() + 0.005 && y + p.height() < f.ceiling {
+                    push(ProfileKind::ChairRail, p, y, (y, y + p.height()));
+                }
+            }
+            if let Some(p) = fin.picture_rail {
+                // Its top a set drop under the ceiling, where the wall reaches that high.
+                let y = f.ceiling - cat.fit.picture_rail_below_ceiling_m - p.height();
+                if piece.top >= y + p.height() + 0.005 && y > f.floor + 0.5 {
+                    push(ProfileKind::PictureRail, p, y, (y, y + p.height()));
                 }
             }
         }
@@ -462,10 +612,10 @@ pub(crate) fn runs(hs: &HomeStructure, cuts: &[ShellCut]) -> Vec<Run<'static>> {
         out[i].free_b |= !has_next[i];
         out[i].free_a |= !has_prev[i];
     }
-    out
+    Layout { runs: out, frames }
 }
 
-/// The run that ends where `run` starts (and the one starting where it ends), for the mitres.
+// The run that ends where `run` starts (and the one starting where it ends), for the mitres.
 fn neighbour<'a>(all: &'a [Run<'static>], at: Vec2, kind: ProfileKind, y: f32, starts: bool) -> Option<&'a Run<'static>> {
     all.iter().find(|r| r.kind == kind && (r.y - y).abs() < 0.05 && if starts { !r.free_a && (r.a - at).length() < JOIN_M } else { !r.free_b && (r.b - at).length() < JOIN_M })
 }
@@ -541,69 +691,117 @@ fn quad(v: &mut Vec<Vertex>, idx: &mut Vec<u32>, p: [Vec3; 4], nrm: [Vec3; 4], u
     }
 }
 
-/// Sweep one run into `v`/`idx`: a quad per profile segment (smooth across a gentle bend of the
-/// profile, crisp across a fillet), and a cap on each stopped end.
-fn sweep(all: &[Run<'static>], run: &Run<'static>, pts: &[(f32, f32)], v: &mut Vec<Vertex>, idx: &mut Vec<u32>) {
-    if pts.len() < 2 || (run.b - run.a).length() < 1e-4 {
-        return;
-    }
+//// ONE STRAIGHT PIECE OF TRIM READY TO SWEEP, horizontal (a skirting, a crown, a rail, a stool) or
+/// not (a casing's leg): every profile point's position at each end (mitred or square), the world
+/// directions the profile's `out` and `up` axes point (for the normals), the way it runs, and
+/// which ends are capped.
+#[derive(Debug, Clone)]
+pub(crate) struct Swept {
+    /// What it is (the tests tell a frame's legs, stool and apron apart by it).
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub kind: ProfileKind,
+    pub material: &'static str,
+    pub pts: Vec<(f32, f32)>,
+    pub s: Vec<Vec3>,
+    pub e: Vec<Vec3>,
+    pub out: Vec3,
+    pub up: Vec3,
+    pub along: Vec3,
+    pub cap_a: bool,
+    pub cap_b: bool,
+}
+
+/// A horizontal run as a [`Swept`], its ends mitred onto its neighbours (`run_ends`).
+pub(crate) fn run_swept(all: &[Run<'static>], run: &Run<'static>, pts: &[(f32, f32)]) -> Swept {
     let up = if run.kind == ProfileKind::Crown { -1.0 } else { 1.0 };
     let (s, e) = run_ends(all, run, pts);
     let at = |p: Vec2, u: f32| Vec3::new(p.x, run.y + up * u, p.y);
-    let n3 = Vec3::new(run.n.x, 0.0, run.n.y);
+    Swept {
+        kind: run.kind,
+        material: run.material,
+        pts: pts.to_vec(),
+        s: s.iter().zip(pts).map(|(p, q)| at(*p, q.1)).collect(),
+        e: e.iter().zip(pts).map(|(p, q)| at(*p, q.1)).collect(),
+        out: Vec3::new(run.n.x, 0.0, run.n.y),
+        up: Vec3::Y * up,
+        along: Vec3::new(run.b.x - run.a.x, 0.0, run.b.y - run.a.y).normalize_or_zero(),
+        cap_a: run.free_a,
+        cap_b: run.free_b,
+    }
+}
+
+/// Sweep one piece into `v`/`idx`: a quad per profile segment (smooth across a gentle bend of the
+/// profile, crisp across a fillet), and a cap on each stopped end, the cross-section filled (from
+/// the wall corner (0, 0) for a skirting or a crown, whose outline ends on the floor or ceiling).
+fn emit(sw: &Swept, v: &mut Vec<Vertex>, idx: &mut Vec<u32>) {
+    let pts = &sw.pts;
+    if pts.len() < 2 || (sw.e[0] - sw.s[0]).length() < 1e-4 && (sw.e[pts.len() - 1] - sw.s[pts.len() - 1]).length() < 1e-4 {
+        return;
+    }
     // Each segment's normal: the profile's (-du, do), carried into the world.
     let seg_n: Vec<Vec3> = pts
         .windows(2)
         .map(|w| {
             let m = Vec2::new(-(w[1].1 - w[0].1), w[1].0 - w[0].0).normalize_or_zero();
-            (n3 * m.x + Vec3::Y * (up * m.y)).normalize_or_zero()
+            (sw.out * m.x + sw.up * m.y).normalize_or_zero()
         })
         .collect();
     let smooth = |a: Vec3, b: Vec3| a.dot(b) > 0.766; // under 40 degrees apart
-    let len = (run.b - run.a).length();
+    let len = (sw.e[0] - sw.s[0]).length();
     let mut arc = 0.0f32;
     for j in 0..seg_n.len() {
         let nj = seg_n[j];
+        if nj == Vec3::ZERO {
+            continue;
+        }
         let n0 = if j > 0 && smooth(seg_n[j - 1], nj) { (seg_n[j - 1] + nj).normalize() } else { nj };
         let n1 = if j + 1 < seg_n.len() && smooth(seg_n[j + 1], nj) { (seg_n[j + 1] + nj).normalize() } else { nj };
-        let (a0, a1) = (at(s[j], pts[j].1), at(s[j + 1], pts[j + 1].1));
-        let (b0, b1) = (at(e[j], pts[j].1), at(e[j + 1], pts[j + 1].1));
         let seg = Vec2::new(pts[j + 1].0 - pts[j].0, pts[j + 1].1 - pts[j].1).length();
         let (u0, u1) = (arc, arc + seg);
         arc = u1;
-        quad(v, idx, [a0, a1, b1, b0], [n0, n1, n1, n0], [[0.0, u0], [0.0, u1], [len, u1], [len, u0]], nj);
+        quad(v, idx, [sw.s[j], sw.s[j + 1], sw.e[j + 1], sw.e[j]], [n0, n1, n1, n0], [[0.0, u0], [0.0, u1], [len, u1], [len, u0]], nj);
     }
-    // The stopped ends: the cross-section filled from the wall corner (0, 0).
-    let dir = Vec3::new(run.b.x - run.a.x, 0.0, run.b.y - run.a.y).normalize_or_zero();
-    for (ends, face, free) in [(&s, -dir, run.free_a), (&e, dir, run.free_b)] {
-        if !free {
+    // The stopped ends: the cross-section filled.
+    let section = closed_section(pts);
+    let tris = triangulate(&section);
+    for (ends, face, cap) in [(&sw.s, -sw.along, sw.cap_a), (&sw.e, sw.along, sw.cap_b)] {
+        if !cap {
             continue;
         }
-        let corner_plan = ends[0] - run.n * pts[0].0; // the wall's line at this end
-        let c = at(corner_plan, 0.0);
-        for j in 0..pts.len() - 1 {
-            let (p0, p1) = (at(ends[j], pts[j].1), at(ends[j + 1], pts[j + 1].1));
-            tri(v, idx, [c, p0, p1], [face; 3], [[0.0, 0.0], [pts[j].0, pts[j].1], [pts[j + 1].0, pts[j + 1].1]], face);
+        let base = ends[0] - sw.out * pts[0].0 - sw.up * pts[0].1; // the wall corner at this end
+        let at = |p: (f32, f32)| base + sw.out * p.0 + sw.up * p.1;
+        for t in &tris {
+            let (a, b, c) = (section[t[0]], section[t[1]], section[t[2]]);
+            tri(v, idx, [at(a), at(b), at(c)], [face; 3], [[a.0, a.1], [b.0, b.1], [c.0, c.1]], face);
         }
     }
 }
 
-/// THE BAKE: every trim run of the home swept, one group per trim material (sorted by its id, so a
-/// rebuild keeps its draw order). Empty when the showcase has turned the trim off.
+/// THE BAKE: every trim run and every casing of the home swept, one group per trim material
+/// (sorted by its id, so a rebuild keeps its draw order). Empty when the showcase has turned the
+/// trim off.
 pub fn bake_trim(hs: &HomeStructure, cuts: &[ShellCut], detail: TrimDetail) -> Vec<TrimGroup> {
     if !trim_drawn() {
         return Vec::new();
     }
-    let all = runs(hs, cuts);
+    let lay = layout(hs, cuts);
     let cat = catalog();
     let mut groups: std::collections::BTreeMap<&str, (Vec<Vertex>, Vec<u32>)> = std::collections::BTreeMap::new();
-    for run in &all {
+    for run in &lay.runs {
         let pts: Vec<(f32, f32)> = match detail {
             TrimDetail::Full => run.profile.points.clone(),
             TrimDetail::Coarse => run.profile.coarse(),
         };
-        let g = groups.entry(run.material).or_default();
-        sweep(&all, run, &pts, &mut g.0, &mut g.1);
+        if pts.len() < 2 || (run.b - run.a).length() < 1e-4 {
+            continue;
+        }
+        let sw = run_swept(&lay.runs, run, &pts);
+        let g = groups.entry(sw.material).or_default();
+        emit(&sw, &mut g.0, &mut g.1);
+    }
+    for sw in lay.frames.iter().flat_map(|f| frame_sweeps(f, detail)) {
+        let g = groups.entry(sw.material).or_default();
+        emit(&sw, &mut g.0, &mut g.1);
     }
     groups
         .into_iter()

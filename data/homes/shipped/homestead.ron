@@ -279,7 +279,7 @@
                     ),
                     (
                         kind: Window,
-                        at: 17.0,
+                        at: 17.1,
                         width: 1.4,
                         sill: 1.7,
                         height: 0.8,

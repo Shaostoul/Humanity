@@ -920,7 +920,7 @@ mod tests {
             height: 3.0,
             shell_material: 1,
             roof_material: 4,
-            shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default(),
             open_shell: Vec::new(),
             walls: vec![InteriorWall { finish: Default::default(),
                 a: (0.0, 5.0),

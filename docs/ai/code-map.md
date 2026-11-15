@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1558 Rust files (799,132 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,896 lines) under `web/`.
+1559 Rust files (800,265 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,920 lines) under `web/`.
 
 ## Folders
 
@@ -25,7 +25,7 @@
 - `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
 - `crates/humanity-music/src/` (37 files)
 - `crates/humanity-protocol/src/` (31 files)
-- `crates/humanity-ship/src/` (44 files)
+- `crates/humanity-ship/src/` (45 files)
 - `crates/humanity-ship/src/crowd_nav/` (7 files): CROWD NAVIGATION (rung 1, 2026-11-13; the whole plan is docs/design/crowd-navigation.md): people who walk somewhere, through doors, round...
 - `crates/humanity-ship/src/machines/` (1 files): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427).
 - `crates/humanity-ship/src/station/` (3 files): Crewed stations: the player's homestead as a real orbiting, pointed object.
@@ -308,11 +308,11 @@
 - `door_panels.rs` (647): Door/window PANEL PLACEMENT (v0.537): the static, world-space geometry of the panel that fills each opening cut into a wall. Main items: ResolvedLock, PanelPlacement, ship_panel_placements, neighbour_panel_placements, feet_reach_door, door_actor_distance, corridor_panel_placements, panel_placements (+4 more).
 - `door_points.rs` (442): DOOR POINTS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"): the ship's places and every corridor's door points, computed by the Rust corridor geometry, so a rig tha... Main items: RoutePlace, RouteDoor, StoreyWalls, DoorPoints, door_points, STEP_IN_M.
 - `fibonacci.rs` (2148): Room layout generator. Main items: LayoutStyle, WallKind, WallSet, OpeningKind, Opening, RoomConfig, HomesteadLayout, TrimProfiles (+17 more).
-- `home_structure.rs` (4237): The home as a FIXED outer box + freely-designed INTERIOR WALLS (v0.532, the node/wall redesign). Main items: OpeningKind, ShellCut, OpenSpan, Opening, LockInstance, InteriorWall, SurfaceLayer, FloorSlab (+38 more).
+- `home_structure.rs` (4243): The home as a FIXED outer box + freely-designed INTERIOR WALLS (v0.532, the node/wall redesign). Main items: OpeningKind, ShellCut, OpenSpan, Opening, LockInstance, InteriorWall, SurfaceLayer, FloorSlab (+38 more).
 - `hull.rs` (1160): Hull wrap generation (increment D of docs/design/ship-superstructure.md): a generated exterior shell around the ship's zone cluster so the outside finally reads as a VESSEL instead of floating boxes. Main items: HullStation, HullGreeble, HullProfile, HullAxis, HullFrame, PlanRect, ResolvedStation, HullGeom (+6 more).
 - `layout.rs` (186): Ship layout, data-driven definitions loaded from RON files. Main items: Direction, RoomType, ShipClass, DoorDef, RoomDef, DeckDef, ShipDef, ShipLayout.
 - `levels.rs` (185): The LEVELS of a ship (Maps increment 3, "into the ship, deck by deck", docs/design/maps-zoom-to-anything.md section 5.7): the floors a person can be on aboard, from the bodies standing in it, so th... Main items: ShipLevel, level_name, standing_bodies, ship_levels, levels_of, level_at, by_ordinal, level_cuts (+2 more).
-- `lib.rs` (109): humanity-ship: the home and the ship as places a person stands in (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-ship.md).
+- `lib.rs` (111): humanity-ship: the home and the ship as places a person stands in (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-ship.md).
 - `lifts.rs` (85): The ship's ELEVATORS as plain data (v0.590, ship homes increment 7): each one aboard with its key, its base, its turn, its type and the STOPS its shaft spans, read from the ship's zones. Main items: LiftKey, Lift, lifts.
 - `lock_types.rs` (120): Lock TYPES registry (v0.570): the data-driven catalog of locks a door (or wall) can carry, loaded from `data/blueprints/lock_types.ron`. Main items: LockType, LockInteraction, DefeatMethod, LockState, lock_types, lock_type.
 - `machines.rs` (5842): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+51 more).
@@ -320,8 +320,9 @@
 - `neighbours.rs` (840): NEIGHBOURS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"). Main items: Neighbour, NeighbourView, glass_drawn, set_glass_drawn, views_made, neighbour_view, neighbour_view_at.
 - `pipe_marking.rs` (917): Pipe MARKING (2026-10-04): the coloured bands that say what flows inside a pipe, the way real piping is marked, generated from what the line actually carries. Main items: MarkingMode, PlacementRules, SchemeColour, ContentMarking, MarkingScheme, MarkingSchemes, MarkerReason, MarkerSite (+7 more).
 - `pipe_materials.rs` (210): What a pipe, hose or cable is MADE OF, as drawn today (2026-10-04; since 2026-11-02 a view of the one material catalog). Main items: BodyLook, PipeMaterials, pipe_materials.
-- `room_finishes.rs` (381): ROOM FINISHES, rung 1 (docs/design/room-finishes.md): the catalog of trim profiles and trim materials (data/blueprints/room_finishes.ron), the choice a room or a wall face makes from it ([`Finish`]... Main items: ProfileKind, TrimProfile, TrimLookKind, TrimMaterial, TrimLook, Finish, WallFinish, RoomTypeDefault (+5 more).
-- `room_trim.rs` (618): THE TRIM SWEPT ALONG EVERY ROOM'S WALLS (room finishes rung 1, docs/design/room-finishes.md): a skirting at the foot of each wall face and a crown where the wall meets the ceiling, each a profile f... Main items: TrimDetail, Src, Piece, Run, trim_drawn, set_trim_drawn, runs, mitre (+2 more).
+- `room_casings.rs` (282): DOOR AND WINDOW CASINGS (room finishes rung 2, docs/design/room-finishes.md): the board a joiner fits round every opening on each face that has a room in front of it, as a profile from data/bluepri... Main items: OpeningId, LineOpening, Line, Frame, FitRoom, fit, rip, frame_sweeps (+2 more).
+- `room_finishes.rs` (622): ROOM FINISHES, rungs 1 and 2 (docs/design/room-finishes.md): the catalog of trim profiles (skirting, crown, casing, window sill, chair rail, picture rail) and trim materials (data/blueprints/room_f... Main items: ProfileKind, TrimProfile, TrimFit, TrimLookKind, TrimMaterial, TrimLook, Finish, WallFinish (+10 more).
+- `room_trim.rs` (816): THE TRIM SWEPT ALONG EVERY ROOM'S WALLS (room finishes rungs 1 and 2, docs/design/room-finishes.md): a skirting at the foot of each wall face and a crown where the wall meets the ceiling, and where... Main items: TrimDetail, Src, Piece, Run, Layout, Swept, trim_drawn, set_trim_drawn (+6 more).
 - `room_types.rs` (394): Room-type registry: the single source of truth for what a room is FOR. Main items: RoomTypeDef, RoomActionDef, RoomBounds, RoomTypeRegistry, RoomFunction.
 - `rooms.rs` (205): Room mesh generation, procedural box rooms with door openings. Main items: generate_room_mesh.
 - `run_anchors.rs` (202): Anchors for runs, as data: `data/piping/anchors.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 12). Main items: AnchorKind, FixesTo, AnchorMesh, Anchor, Anchors, anchors.
@@ -329,7 +330,7 @@
 - `run_fittings.rs` (217): Fittings for runs, as data: `data/piping/fittings.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 6.2). Main items: FittingKind, Centreline, FittingMesh, Fitting, Fittings, fittings.
 - `run_rules.rs` (783): The "to code" rules for runs, as data: `data/piping/run_rules.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` section 7.1). Main items: Standing, Applies, BendMin, Near, Target, Lay, Zone, Shared (+14 more).
 - `ship_space.rs` (473): Where a point is in the ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): aboard or not, and whose air it breathes. Main items: Aabb, AirSpaces, AirAt, tube_box, in_box, aboard_at, home_air_volume_m3, air_top (+3 more).
-- `ship_structure.rs` (4295): ShipStructure: MANY enclosed zones on one ship (increment A of docs/design/ship-superstructure.md, v0.754). Main items: ShipCorridor, CorridorAxis, CorridorGeom, CorridorMouth, ShipZone, PlotDoor, Plot, HomeDesign (+22 more).
+- `ship_structure.rs` (4297): ShipStructure: MANY enclosed zones on one ship (increment A of docs/design/ship-superstructure.md, v0.754). Main items: ShipCorridor, CorridorAxis, CorridorGeom, CorridorMouth, ShipZone, PlotDoor, Plot, HomeDesign (+22 more).
 - `sight.rs` (879): WHAT THE EYE CAN SEE ABOARD, IN THREE DIMENSIONS (ship homes increment 7 review). Main items: SlabBox, PieceTop, PieceSolid, SightBlockers, ReachBlockers, Foot, solid_pieces, ship_solid_pieces (+7 more).
 - `standing.rs` (905): WHERE A PERSON CAN STAND on a storey of a home (ship homes increment 7, the review of the homestead's upper floor, 2026-10-21). Main items: NoStanding, KeepOut, top_at, stands_at, solid_keep_outs, standing_on, standing_on_clear_of, nearest_standing (+2 more).
 - `starts.rs` (602): The STARTS: the kinds of home a new player can start in, as data (ship homes increment 6, docs/design/ship-homes-increment-6-plan.md section 3.1). Main items: Engagement, EngagementDefaults, Household, HomeContent, Start, Starts, HeldHome, StartOffer (+9 more).
@@ -877,7 +878,7 @@
 - `state_types.rs` (1758): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+45 more).
 - `theme.rs` (1279): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (6450): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
+- `ui_snapshots.rs` (6453): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
 - `world_entry.rs` (86): Whether the person is in a world, and the world held still and quiet until they are (BUG-253, 2026-11-06).
 - tests: `a11y_tests.rs`, `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`, `history_tests.rs`, `layers_tests.rs`, `mine_tasks_tests.rs`, `navigation_tests.rs`, `org_mail_tests.rs`
 
@@ -1056,7 +1057,7 @@
 
 ## src/gui/pages/construction/
 
-- `finishes.rs` (217): ROOM FINISHES in the build editor (room finishes rung 1, docs/design/room-finishes.md): the selected room's (zone's) skirting, crown and trim material, and the selected wall's own choice per side,...
+- `finishes.rs` (327): ROOM FINISHES in the build editor (room finishes rungs 1 and 2, docs/design/room-finishes.md): the selected room's (zone's) skirting, crown, casing, window sill, chair rail, picture rail and trim m...
 - `ship_tools.rs` (858): The SHIP-level tools at the top of the Construction page's left panel: the zone selector, the corridors, and the plots and districts.
 - `storeys.rs` (473): STOREYS in the B editor (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md, "Editor (C2)"): the storey selector in the left panel, the floor-slab tools beside it, and the detail pa... Main items: StoreyEditor, choose_storey, select_slab, remove_slab_in_editor, set_slab_tool, storey_cut_key_of, editor_cut_of.
 
@@ -1758,7 +1759,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8057): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8081): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

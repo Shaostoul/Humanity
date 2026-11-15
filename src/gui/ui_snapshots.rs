@@ -5136,29 +5136,32 @@ fn snapshot_construction_storeys() {
     });
 }
 
-/// A home of two rooms parted by a wall with a door (room finishes rung 1): the living room with
-/// its own skirting chosen, the study at its defaults, the parting wall's east side in oak.
+/// A home of two rooms parted by a wall with a door and a window (room finishes rungs 1 and 2): the
+/// living room with its own skirting, a chair rail and a picture rail chosen, the study at its
+/// defaults, the parting wall's east side in oak, the north outer wall's picture rail taken off.
 fn finishes_snapshot_ship() -> humanity_ship::ship_structure::ShipStructure {
     let body: humanity_ship::home_structure::HomeStructure = ron::from_str(
         "(width: 12.0, depth: 8.0, height: 3.0, roof_material: 1, \
-         walls: [(a: (6.0, 0.0), b: (6.0, 8.0), material: 2, openings: [(kind: Door, at: 3.5, width: 0.9, height: 2.1)], \
+         walls: [(a: (6.0, 0.0), b: (6.0, 8.0), material: 2, openings: [(kind: Door, at: 3.5, width: 0.9, height: 2.1), (kind: Window, at: 5.5, width: 1.2, sill: 0.9, height: 1.3)], \
                   finish: (left: (material: Some(\"oak\"))))], \
          zones: [(id: \"room-living\", type_id: \"room_common\", origin: (0.0, 0.0, 0.0), size: (6.0, 3.0, 8.0), label: \"Living room\", \
-                  room_type: Some(\"livingroom\"), finish: (skirting: Some(\"ogee_170\"))), \
-                 (id: \"room-study\", type_id: \"room_common\", origin: (6.0, 0.0, 0.0), size: (6.0, 3.0, 8.0), label: \"Study\", room_type: Some(\"study\"))])",
+                  room_type: Some(\"livingroom\"), finish: (skirting: Some(\"ogee_170\"), chair_rail: Some(\"torus_dado_58\"), picture_rail: Some(\"picture_rail_45\"))), \
+                 (id: \"room-study\", type_id: \"room_common\", origin: (6.0, 0.0, 0.0), size: (6.0, 3.0, 8.0), label: \"Study\", room_type: Some(\"study\"))], \
+         shell_finish: (north: (picture_rail: Some(\"none\"))))",
     )
     .expect("the snapshot's home parses");
     let zone = humanity_ship::ship_structure::ShipZone { id: "home".into(), label: "Player Home".into(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body };
     humanity_ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() }
 }
 
-// The B editor with a ROOM selected (room finishes rung 1): under its room type, its finish, the
-// skirting chosen, the crown and material at the living room's usual choices, and the drawing of the
-// cross-sections. `just snapshot construction_finishes`.
+// The B editor with a ROOM selected (room finishes rungs 1 and 2): under its room type, its finish,
+// the skirting and both rails chosen, the crown, casing, sill and material at the living room's
+// usual choices, the drawing of every cross-section, and the outer walls' block (open, since the
+// north wall has a choice). `just snapshot construction_finishes`.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_construction_finishes() {
-    render_page_png("construction_finishes", 1280, 1200, |ctx, theme, state| {
+    render_page_png("construction_finishes", 1280, 2000, |ctx, theme, state| {
         if state.ship_structure.is_none() {
             state.ship_structure = Some(finishes_snapshot_ship());
         }
@@ -5173,12 +5176,12 @@ fn snapshot_construction_finishes() {
     });
 }
 
-// The B editor with the parting WALL selected (room finishes rung 1): its own finish, one block per
-// side headed by the room it faces, the study's side in oak. `just snapshot construction_wall_finish`.
+// The B editor with the parting WALL selected (room finishes rungs 1 and 2): its own finish, one block
+// per side headed by the room it faces, the study's side in oak. `just snapshot construction_wall_finish`.
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_construction_wall_finish() {
-    render_page_png("construction_wall_finish", 1280, 1400, |ctx, theme, state| {
+    render_page_png("construction_wall_finish", 1280, 1800, |ctx, theme, state| {
         if state.ship_structure.is_none() {
             state.ship_structure = Some(finishes_snapshot_ship());
         }

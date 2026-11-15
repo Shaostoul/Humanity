@@ -34,7 +34,8 @@
 use crate::crowd_nav::Footprint;
 use crate::machines::{MachineHome, PlacedMachine, ZoneRect};
 use crate::room_finishes::ProfileKind;
-use crate::room_trim::{runs, Run};
+use crate::room_casings::Frame;
+use crate::room_trim::{layout, runs, Run};
 use crate::ship_structure::HomeDesign;
 use crate::starts::Starts;
 use crate::wall_collision::{wall_segments, SegmentKind, WallSegment};
@@ -376,4 +377,86 @@ fn a_piece_against_a_wall_stands_against_its_skirting() {
     }
     let moved = fit_problems(kind, design, file, &home);
     assert!(moved.iter().any(|m| m.contains("bookshelf_5 stands 0.020 m into the 0.020 m skirting")), "a piece against the wall's face stands in its skirting: {moved:?}");
+}
+
+/// The boxes a casing's parts fill: (along its face's line, from s to s), how far off the face,
+/// (between heights): the two legs and the head, a window's stool and apron or its bottom piece.
+fn casing_boxes(f: &Frame) -> Vec<((f32, f32), f32, (f32, f32))> {
+    let (w, d) = (f.width, f.casing.depth());
+    let mut out = vec![((f.s0 - w, f.s0), d, (f.foot(), f.top + w)), ((f.s1, f.s1 + w), d, (f.foot(), f.top + w)), ((f.s0 - w, f.s1 + w), d, (f.top, f.top + w))];
+    if !f.door {
+        match (f.sill, f.stool_under()) {
+            (Some(sill), Some(under)) => {
+                out.push(((f.s0 - w - f.horn, f.s1 + w + f.horn), sill.depth(), (under, f.bottom)));
+                if f.apron {
+                    out.push(((f.s0 - w, f.s1 + w), d, (under - w, under)));
+                }
+            }
+            _ => out.push(((f.s0 - w, f.s1 + w), d, (f.bottom - w, f.bottom))),
+        }
+    }
+    out
+}
+
+/// Every piece standing in a door's or a window's casing (room finishes rung 2): a piece whose box
+/// takes in a point of a casing part's box (sampled along it and through its depth) at heights both
+/// stand across, by more than `TOL_M`.
+fn casing_problems(kind: &str, design: &HomeDesign, file: &str, home: &MachineHome) -> Vec<String> {
+    let frames = layout(&design.body, &[]).frames;
+    let mut out = Vec::new();
+    for p in placed(design, home) {
+        let f = Footprint::of_placed(&p);
+        let hit = frames.iter().find(|fr| {
+            casing_boxes(fr).into_iter().any(|((a0, a1), depth, (y0, y1))| {
+                f.y0 < y1 - 0.01
+                    && f.y1 > y0 + 0.01
+                    && (0..=4).any(|i| {
+                        (0..=2).any(|j| {
+                            let q = fr.origin + fr.dir * (a0 + (a1 - a0) * i as f32 / 4.0) + fr.n * (depth * (0.1 + 0.4 * j as f32));
+                            f.distance(q.x, q.y) < -TOL_M
+                        })
+                    })
+            })
+        });
+        if let Some(fr) = hit {
+            let c = fr.origin + fr.dir * ((fr.s0 + fr.s1) * 0.5);
+            out.push(format!("{kind} / {file}: {} stands in the casing of the {} at ({:.2}, {:.2}), {:.2} m wide", p.id, if fr.door { "door" } else { "window" }, c.x, c.y, fr.s1 - fr.s0));
+        }
+    }
+    out
+}
+
+/// NO PIECE STANDS IN A DOOR'S OR A WINDOW'S CASING (room finishes rung 2 met furniture,
+/// 2026-11-15): casings changed no piece's place, so every piece of every shipped home with every
+/// household stands clear of every casing, stool and apron. Moved on a copy to stand across a
+/// door's casing, a piece is caught.
+///
+/// RED on 2026-11-15's data, the first run: "homestead / home.ron: shower_2 stands in the casing of
+/// the window at (51.70, 30.05), 1.40 m wide" (and home_solo.ron's), the shower room's high window
+/// (sill 1.7 m) over the shower in its corner, whose stool's horn stood 43 mm into the shower's box.
+/// Casings move no furniture, so the window moved instead: 0.1 m east (data/homes/homestead.ron
+/// and its shipped copy), clear by 57 mm. The moved-piece half seen red with `casing_problems`
+/// sampling no points: "a piece standing across a door's casing is caught: []".
+#[test]
+fn no_piece_stands_in_a_casing() {
+    let mut out = Vec::new();
+    for (kind, design, file) in shipped_homes() {
+        let home = MachineHome::load(&repo().join("data").join("machines").join(&file)).unwrap_or_else(|| panic!("data/machines/{file} parses"));
+        out.extend(casing_problems(&kind, &design, &file, &home));
+    }
+    assert!(out.is_empty(), "{} piece(s) in a casing:\n{}", out.len(), out.join("\n"));
+
+    // A floor-standing piece moved to stand across a ground-floor door's casing, on a copy.
+    let homes = shipped_homes();
+    let (kind, design, file) = homes.iter().find(|(k, _, f)| k == "homestead" && f == "home.ron").expect("the homestead's family home is checked");
+    let mut home = MachineHome::load(&repo().join("data").join("machines").join(file)).expect("home.ron parses");
+    let fr = layout(&design.body, &[]).frames.into_iter().find(|f| f.door && f.floor < 0.01).expect("a cased door downstairs");
+    let p = placed(design, &home).into_iter().find(|p| p.pos.1 < 1.0 && p.shape == "box" && p.size.0 < 1.0 && p.size.2 < 1.0).expect("a small box piece on the ground floor");
+    let at = fr.origin + fr.dir * (fr.s0 - fr.width * 0.5) + fr.n * (p.size.2 * 0.5);
+    for inst in home.instances.iter_mut().filter(|i| i.id == p.id) {
+        inst.offset.0 += at.x - p.pos.0;
+        inst.offset.2 += at.y - p.pos.2;
+    }
+    let moved = casing_problems(kind, design, file, &home);
+    assert!(moved.iter().any(|m| m.contains(&p.id)), "a piece standing across a door's casing is caught: {moved:?}");
 }

@@ -1,8 +1,11 @@
 # Room finishes: trim, wall, floor and ceiling finishes, per room with a per-wall override
 
-Status: **rung 1 built (2026-11-14)**: skirting and crown swept along every room's walls with
-mitred corners, stopped at doors, from profile data, chosen per room and per wall side in the build
-editor, with defaults by room purpose. Rungs 2 to 6 are planned below.
+Status: **rungs 1 and 2 built**. Rung 1 (2026-11-14): skirting and crown swept along every room's
+walls with mitred corners, from profile data, chosen per room and per wall side in the build
+editor, with defaults by room purpose. Rung 2 (2026-11-15): a casing round every door and window
+on each face, mitred at the head, a stool and apron under each window, the skirting stopped
+against the casing's edge, chair and picture rails stopped at the casings, and the outer walls'
+inside faces chosen per wall like an interior wall's side. Rungs 3 to 6 are planned below.
 
 The operator, 2026-11-14: "What else could we do to improve the look of rooms? What about like
 floor and ceiling trim? Should we make it easily configurable per wall or room or something?"
@@ -33,17 +36,26 @@ One file, `data/blueprints/room_finishes.ron` (read by
 
 - **Profiles**: a cross-section as (out, up) points in metres, the visible face only, from where it
   meets the wall to where it meets the floor (skirting), the ceiling (crown) or the opening's edge
-  (casing). A `kind` says where it is swept: `Skirting`, `Crown`, `Casing`; rung 2 adds `ChairRail`
-  and `PictureRail`. Sizes are common trade sizes (skirting 95 to 170 mm tall, 15 to 20 mm thick;
-  a plaster cove about 75 mm each way; a sprung crown about 95 mm drop).
+  (casing). A `kind` says where it is swept: `Skirting`, `Crown`, `Casing`, `Sill` (a window's
+  stool), `ChairRail`, `PictureRail`. A board fixed to the wall along both edges (a casing, a
+  rail, a stool) runs from the wall at one edge round to the wall at the other, so its edge facing
+  the opening, or its underside, is drawn too. Sizes are common trade sizes (skirting 95 to 170 mm
+  tall, 15 to 20 mm thick; a plaster cove about 75 mm each way; a sprung crown about 95 mm drop;
+  a casing 58 to 70 mm wide; a stool 22 to 25 mm thick standing about 45 mm off the wall; a chair
+  rail 45 to 58 mm, a picture rail 45 mm tall).
+- **Fit**: where the trim not tied to a floor, a ceiling or an opening goes: a chair rail centred
+  0.9 m up, a picture rail's top 0.3 m under the ceiling, a stool's horns 20 mm past the casing.
 - **Trim materials**: an id, a `look` (Paint, Wood, Metal), a base colour, roughness and
   metallic. The look picks the shader's material type; colours are data, independent of the
   app's theme (the theme colours the app's panels, never the world).
-- **Room-purpose defaults**: rows of `data/rooms.ron` keys with the skirting, crown and material
-  each gets, and a fallback row, so no room needs setting by hand. Living rooms and bedrooms: a
-  torus skirting and a plaster cove in white enamel; a study: an ogee skirting and a sprung crown
-  in oak; kitchen and bathroom: a plain square-edge board, no crown; working rooms: a rubber cove
-  base; gardens and growing rooms: nothing.
+- **Room-purpose defaults**: rows of `data/rooms.ron` keys with the skirting, crown, casing, sill,
+  rails and material each gets, and a fallback row, so no room needs setting by hand. Living rooms
+  and bedrooms: a torus skirting, a plaster cove and an ogee casing with a bullnosed stool, in
+  white enamel; a study: an ogee skirting, a sprung crown and the ogee casing in oak; kitchen and
+  bathroom: a plain square-edge board, no crown, a pencil-round casing and a square stool; working
+  rooms: a rubber cove base and the openings left in their steel; gardens and growing rooms:
+  nothing. The rails are off in every room until someone chooses one (a rail at 0.9 m would stand
+  into the furniture placed flush against the skirting).
 - **Names** are words by key: `finishes.profile.<id>` and `finishes.material.<id>` in
   `data/i18n/en.json` (a test fails when a row has no words).
 
@@ -63,6 +75,9 @@ catalog id, the word `none`, or left open. It is stored where the thing it finis
 - **A wall side's** on its wall: `InteriorWall::finish`, a `WallFinish` with `left` and `right`
   (left: on your left walking from the wall's `a` to its `b`, seen from above with x east and z
   south).
+- **An outer wall's inside face** on the home (rung 2): `HomeStructure::shell_finish`, a
+  `ShellFinish` with `north` (the z = 0 edge), `east`, `south` and `west`, each over the rooms
+  along it as an interior wall's side is over its room.
 
 Both are left out of the file while empty, so every home saved before finishes is written byte
 for byte as before.
@@ -71,9 +86,9 @@ for byte as before.
 default, else the fallback. So a wall side can change only the material and keep the room's
 profiles. An id the catalog lacks falls to the fallback's (the editor names it in a warning line).
 
-The perimeter shell's four inner faces take their rooms' finish; a per-edge override for them is
-rung 2 (`HomeStructure::shell_finish`, four optional choices), since the editor does not select
-the shell as a wall today.
+The perimeter shell's four inner faces resolve through `shell_finish` first (rung 2), then their
+rooms'. The editor does not select the shell as a wall, so its choices sit under the room's, one
+block for each outer wall the selected room runs along (section 6).
 
 ## 4. Geometry: the swept trim (rung 1, `crates/humanity-ship/src/room_trim.rs`)
 
@@ -96,11 +111,35 @@ two runs meeting at a corner share every vertex exactly (the test reads them). A
 than about 14 degrees stops the mitre at 8 times the offset; a run shorter than its two inside
 mitres collapses to a wedge rather than turning inside out.
 
-**Openings.** The skirting stops square at a door's jambs (and at a window that reaches down into
-it, a glazed door); the crown stops only where an opening reaches up into it. A corridor's cut
-through the shell is a door to the trim. A stopped end gets an end cap (the cross-section filled
-from the wall corner). Rung 2's casings then stand in those gaps and the skirting dies into their
-plinth blocks.
+**Openings.** Every horizontal trim stops square where an opening's trim crosses its height band:
+at the casing's outer edge where the face cases that opening (rung 2), with the stool's horns
+where the band takes in a window's stool, else at the opening's own edge. So the skirting stops
+against a door's casing (and a glazed door's), a chair rail against a door's casing and a window's
+stool, and the crown only where an opening reaches up into it. A corridor's cut through the shell
+is a door to the trim. A stopped end gets an end cap, the cross-section filled by ear clipping
+(`room_finishes::triangulate`, which the editor's drawing fills with too), so a beaded skirting or
+a picture rail's hook caps cleanly.
+
+**Casings (rung 2, `crates/humanity-ship/src/room_casings.rs`).** Each opening is cased on each
+face whose piece of the outline holds its middle and whose finish has a casing. In the face's plane
+(metres along the wall's line, height) a door's casing is three parts: the legs from the floor up
+the jambs and the head across, each the casing profile with its `up` axis pointing away from the
+opening, MITRED at the two head corners by the same offset-line formula the plan mitres use (the
+two parts' lines at each profile offset cross on the 45-degree diagonal, so the leg's end and the
+head's start share every point). A window whose foot is 0.3 m or more over the floor stands on its
+stool: the legs start at the opening's foot, the stool's top is level with it and runs the casing's
+width and its horns past each jamb, the apron (the casing board) hangs under it as wide as the
+casing outside to outside, and is left off where it would reach down into the skirting. A window
+whose face has no stool ("none") is framed on all four sides, mitred at every corner. Near a
+corner, the crown or the ceiling the casing is ripped narrower (its profile sawn at the room left,
+a sawn edge from the wall to the face), two openings closer than two casings butt halfway between
+them, and under 30 mm left a casing is not fitted on that face, the skirting then stopping at the
+jamb as before. Casings take the face's material, so a wall side's
+oak cases its doors in oak.
+
+**Rails (rung 2).** A chair rail is swept like the skirting at its height (centred 0.9 m over the
+floor) where the wall stands that high; a picture rail with its top 0.3 m under the ceiling where
+the wall reaches it. Both mitre at the corners and stop at the casings (above).
 
 **Heights.** The skirting sits on the storey's floor (the slab's drawn top upstairs). The crown
 sits under the ceiling over that face: the lowest slab underside above the floor, else the roof;
@@ -131,15 +170,22 @@ twin for screenshots and for timing what the trim costs. Permanent dev tooling.
 ## 6. Configuring it: GUI-first, in the build editor
 
 - **A room**: select its zone (click its box in the build view). Under its room type the panel
-  shows *Room finish*: three pickers (Skirting, Crown, Trim material), each starting at "Usual for
-  this room: <name>", then None, then the catalog's rows; a drawing of the two cross-sections at
-  scale in the trim's colour; and *Use the usual choices* to take every choice back. The home
+  shows *Room finish*: seven pickers (Skirting, Crown, Casing, Window sill, Chair rail, Picture
+  rail, Trim material), each starting at "Usual for this room: <name>", then None, then the
+  catalog's rows; a drawing of every cross-section at true scale in the trim's colour (the
+  skirting and crown against the wall, the rails, the casing seen from above beside its opening,
+  the sill with its apron); and *Use the usual choices* to take every choice back. The home
   rebuilds on each change, so the 3D view is the full-size preview.
+- **An outer wall** (rung 2): under the room's block, *Outer walls of this room* (folded until one
+  has a choice) holds one block per outer wall the room runs along ("North outer wall"), each
+  picker starting at "As the rooms: <name>". A choice there sets that wall's whole inside
+  face, every room along it.
 - **A wall**: select it. The panel shows *This wall's finish*, one block per side headed "Side
   facing <room>", each picker starting at "As the room: <name>", with its own drawing.
 - **An AI or a person editing data**: the same fields in the home's RON (`finish: (skirting:
-  Some("ogee_170"))` on a zone, `finish: (left: (material: Some("oak")))` on a wall). The editor's
-  save writes them; the shipped homes set none and take the defaults.
+  Some("ogee_170"), chair_rail: Some("torus_dado_58"))` on a zone, `finish: (left: (material:
+  Some("oak")))` on a wall, `shell_finish: (north: (picture_rail: Some("none")))` on the home). The
+  editor's save writes them; the shipped homes set none and take the defaults.
 
 Rung 3 adds the wall, floor and ceiling pickers to the same panel, with swatches.
 
@@ -184,6 +230,37 @@ drawing the trim as it draws the walls; the trim stays in them (operator, 2026-1
 under the bar. If a later rung pushes it over, the trim is split per room so a lamp draws only its
 own room's (the walls' bake would split the same way).
 
+**Rung 2** (2026-11-15, `shipped_homes_bake_their_trim_within_budget` prints the counts):
+
+| | Rung 1 | Rung 2 |
+|---|---|---|
+| The homestead, full detail | 15,518 vertices | 22,424 (1.44x, the budget about 1.5x) |
+| The household homestead | 9,552 | 15,078 |
+| The row houses | (not recorded) | 6,626 to 10,194 |
+| A neighbour's homestead, coarse | 2,928 | 5,384 |
+| Bake, the homestead, debug test build | about 10 ms | 13 to 20 ms, at a build or edit only |
+| Video memory, the homestead | about 0.6 MB | about 0.8 MB |
+| Draws | one per trim material | unchanged: the casings, stools and rails join their face's material group |
+
+GPU time, same boot, trim off then on at rung 1's three poses and a fourth that frames a door and
+two windows (the dining room; the vantage named for the bedroom window lands there since the
+layout changed), medians from the frame-cost files. Every capture shared the machine with other
+agents' compiles, so these too are readings to re-take on an idle machine; noon and night agree
+within 0.1 ms except one noon reading.
+
+| Vantage | GPU, all passes (night) | Main pass | Lamps' shadow maps | Noon, all passes |
+|---|---|---|---|---|
+| Great room | 23.06 -> 23.93 ms (+3.8%) | +0.45 ms | 0.70 -> 1.13 ms | 23.02 -> 23.90 (+3.8%) |
+| Upstairs bedroom | 22.09 -> 22.92 (+3.8%) | +0.34 | 0.56 -> 1.04 | 22.27 -> 23.16 (+4.0%) |
+| Kitchen | 26.28 -> 27.19 (+3.5%) | +0.55 | 0.72 -> 1.09 | 26.19 -> 27.19 (+3.8%) |
+| Dining room (door, two windows) | 19.77 -> 20.66 (+4.5%) | +0.41 | 0.69 -> 1.15 | 19.55 -> 20.83 (+6.5%) |
+
+All the trim together costs about 0.9 ms, rung 2's share of it about 0.3 ms over rung 1's 0.6.
+Under the 5% bar at every pose at night; one noon reading in the dining room went over (6.5%),
+and the same pose at night read 4.5%. Half of the cost is the lamps' shadow maps (+0.4 to 0.5 ms
+against rung 1's +0.2 to 0.26), so the per-room split named above is the next step if a clean
+reading confirms the trim over the bar.
+
 At a terrace of homes (Row Street) the neighbours' coarse trim adds a few thousand vertices each,
 merged into the same few draws. Later rungs keep the same rule: every finish is baked, merged by
 look and drawn at a lower detail for a neighbour; wall and floor finishes are shader patterns
@@ -193,10 +270,12 @@ geometry, so they cost per-pixel time, measured per rung, and no vertices.
 ## 9. The rungs
 
 1. **Skirting and crown** (built 2026-11-14): this document's sections 2 to 6.
-2. **Casings, sills, rails, and the shell's override**: door and window casings swept round each
-   opening with mitred heads and plinth blocks the skirting stops on; window sills (a stool and an
-   apron); chair and picture rails at their heights, stopped at openings; a per-edge finish for
-   the perimeter shell. Budget: about 1.5x rung 1's vertices.
+2. **Casings, sills, rails, and the shell's override** (built 2026-11-15): door and window casings
+   swept round each opening with mitred heads, the skirting stopping against the casing's edge;
+   window sills (a stool and an apron); chair and picture rails at their heights, stopped at the
+   casings; a per-edge finish for the perimeter shell. Budget: about 1.5x rung 1's vertices
+   (section 8). Plinth blocks (a block at a casing's foot the skirting dies into, thicker than
+   both) are left for a later rung as an optional row on a casing.
 3. **Wall finishes**: paint colours (data, theme-independent), wallpaper patterns, tile with grout
    (tile size, grout width and colour as data; a kitchen splashback and a bathroom's tile by
    default), wood panelling (wainscot to the chair rail). Shader patterns keyed per wall face over

@@ -73,8 +73,10 @@ pub mod rooms;
 /// Room finishes (docs/design/room-finishes.md): the trim catalog, a room's or a wall face's choice,
 /// and how a face's finish resolves.
 pub mod room_finishes;
-/// The trim swept along every room's walls, mitred at the corners and stopped at the doors.
+/// The trim swept along every room's walls, mitred at the corners and stopped at the casings.
 pub mod room_trim;
+/// The casings round each door and window, mitred at the head, and a window's stool and apron.
+pub(crate) mod room_casings;
 pub mod ship_structure;
 /// Where on a storey of a home a person can stand: a floor with room over it, inside the rooms,
 /// never a glass lid or an opening (ship homes increment 7; the build editor's close).

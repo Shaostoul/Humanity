@@ -30,7 +30,7 @@ fn body(w: f32, d: f32, walls: Vec<InteriorWall>) -> HomeStructure {
         road_edges: Vec::new(),
         zones: Vec::new(),
         rail_nodes: Vec::new(),
-        rail_edges: Vec::new(),
+        rail_edges: Vec::new(), shell_finish: Default::default(),
     }
 }
 

@@ -16,15 +16,15 @@ shared ship's rules are the same on both sides.
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-ship/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-ship/src/assembly.rs`, `crates/humanity-ship/src/build_frames.rs`, `crates/humanity-ship/src/conduits.rs`, `crates/humanity-ship/src/pipe_materials.rs`, `crates/humanity-ship/src/run_rules.rs`, `crates/humanity-ship/src/run_fittings.rs`, `crates/humanity-ship/src/run_anchors.rs`, `crates/humanity-ship/src/run_benders.rs`, `crates/humanity-ship/src/pipe_marking.rs`, `crates/humanity-ship/src/door_panels.rs`, `crates/humanity-ship/src/door_points.rs`, `crates/humanity-ship/src/fibonacci.rs`, `crates/humanity-ship/src/home_structure.rs`, `crates/humanity-ship/src/levels.rs`, `crates/humanity-ship/src/lifts.rs`, `crates/humanity-ship/src/hull.rs`, `crates/humanity-ship/src/layout.rs`, `crates/humanity-ship/src/lock_types.rs`, `crates/humanity-ship/src/moves.rs`, `crates/humanity-ship/src/neighbours.rs`, `crates/humanity-ship/src/ship_space.rs`, `crates/humanity-ship/src/transit.rs`, `crates/humanity-ship/src/rooms.rs`, `crates/humanity-ship/src/room_finishes.rs`, `crates/humanity-ship/src/room_trim.rs`, `crates/humanity-ship/src/ship_structure.rs`, `crates/humanity-ship/src/standing.rs`, `crates/humanity-ship/src/storey_edits.rs`, `crates/humanity-ship/src/starts.rs`, `crates/humanity-ship/src/structure.rs`, `crates/humanity-ship/src/sight.rs`, `crates/humanity-ship/src/wall_collision.rs`, `crates/humanity-ship/src/crowd_nav/`, `crates/humanity-ship/src/room_types.rs`, `crates/humanity-ship/src/machines.rs` + `crates/humanity-ship/src/machines/`, `crates/humanity-ship/src/station/`
+  - no gate (every build): `crates/humanity-ship/src/assembly.rs`, `crates/humanity-ship/src/build_frames.rs`, `crates/humanity-ship/src/conduits.rs`, `crates/humanity-ship/src/pipe_materials.rs`, `crates/humanity-ship/src/run_rules.rs`, `crates/humanity-ship/src/run_fittings.rs`, `crates/humanity-ship/src/run_anchors.rs`, `crates/humanity-ship/src/run_benders.rs`, `crates/humanity-ship/src/pipe_marking.rs`, `crates/humanity-ship/src/door_panels.rs`, `crates/humanity-ship/src/door_points.rs`, `crates/humanity-ship/src/fibonacci.rs`, `crates/humanity-ship/src/home_structure.rs`, `crates/humanity-ship/src/levels.rs`, `crates/humanity-ship/src/lifts.rs`, `crates/humanity-ship/src/hull.rs`, `crates/humanity-ship/src/layout.rs`, `crates/humanity-ship/src/lock_types.rs`, `crates/humanity-ship/src/moves.rs`, `crates/humanity-ship/src/neighbours.rs`, `crates/humanity-ship/src/ship_space.rs`, `crates/humanity-ship/src/transit.rs`, `crates/humanity-ship/src/rooms.rs`, `crates/humanity-ship/src/room_finishes.rs`, `crates/humanity-ship/src/room_trim.rs`, `crates/humanity-ship/src/room_casings.rs`, `crates/humanity-ship/src/ship_structure.rs`, `crates/humanity-ship/src/standing.rs`, `crates/humanity-ship/src/storey_edits.rs`, `crates/humanity-ship/src/starts.rs`, `crates/humanity-ship/src/structure.rs`, `crates/humanity-ship/src/sight.rs`, `crates/humanity-ship/src/wall_collision.rs`, `crates/humanity-ship/src/crowd_nav/`, `crates/humanity-ship/src/room_types.rs`, `crates/humanity-ship/src/machines.rs` + `crates/humanity-ship/src/machines/`, `crates/humanity-ship/src/station/`
   - test builds only: `crates/humanity-ship/src/homestead_layout_tests.rs`, `crates/humanity-ship/src/home_program_tests.rs`, `crates/humanity-ship/src/furniture_fit_tests.rs`, `crates/humanity-ship/src/open_shell_tests.rs`, `crates/humanity-ship/src/crossing_tests.rs`
-- **Size:** 38,689 lines in 55 files, 3,540 of them in 10 test files.
+- **Size:** 39,709 lines in 56 files, 3,829 of them in 10 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-ship/src/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 5, `native` 3.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 58.
-- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 382, gui 166, relay 41, systems 29.
+- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 382, gui 164, relay 41, systems 29.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 426 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 432 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-ship
@@ -50,7 +50,7 @@ just test-lib --crate humanity-ship
 | `machines::RoomGeom` | 8 | engine 8 |
 | `starts::Starts` | 8 | engine 4, relay 4 |
 
-And 210 more items, 432 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
+And 209 more items, 430 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -116,10 +116,13 @@ And 210 more items, 432 references (`node scripts/crate-cards.js --interface hum
   the `Run` model replaces `connections` and `conduit_edges`; `ConduitKind`, the catalog's `kinds`
   rows and `pipe_materials.rs`'s view go with it. Rungs 3, 7 and 8 read `run_benders`,
   `run_fittings`, `run_anchors` and `run_rules`, which nothing evaluates yet.
-- **Room finishes rung 2 next** ([room-finishes.md](../design/room-finishes.md), section 9): door
-  and window casings swept round each opening (the skirting already stops at the jambs), sills,
-  chair and picture rails, and a per-edge finish for the perimeter shell. `room_trim.rs` finds the
-  faces and mitres; `room_finishes.rs` holds the catalog and the resolution.
+- **Room finishes rung 3 next** ([room-finishes.md](../design/room-finishes.md), section 9): wall
+  finishes (paint, wallpaper, tile with grout, panelling) as shader patterns over the wall mesh.
+  Rungs 1 and 2 are built: `room_trim.rs` finds the faces, lays out and mitres the horizontal runs
+  (skirting, crown, chair and picture rails) and bakes them; `room_casings.rs` fits the casing,
+  stool and apron round each opening on each face (mitred heads, ripped near a corner);
+  `room_finishes.rs` holds the catalog and the resolution (wall side or outer wall
+  (`HomeStructure::shell_finish`), then room, then purpose, then fallback).
 - **A crate of its own since rung 2 (2026-11-02):** `crates/humanity-ship/`, the old `ship` module
   as the crate root, with `machines` and `station` under it. The crates above it (relay, net,
   renderer, gui) are cut in rungs 3 and 4. Source: [crate-split.md](../design/crate-split.md),

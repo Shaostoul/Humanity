@@ -6,11 +6,22 @@
 // (crates/humanity-ship/src/room_trim.rs):
 //   out  how far the trim stands from the wall, into the room
 //   up   for a Skirting, the height above the floor; for a Crown, the drop below the ceiling;
-//        for a Casing (rung 2), the distance across the board from the opening's edge
+//        for a Casing, the distance across the board from the opening's edge (0) to its outer
+//        edge; for a ChairRail, a PictureRail or a Sill (a window's stool), the height above the
+//        board's underside
 // Each list is the VISIBLE face only, in order from where it meets the wall to where it meets the
-// floor (a Skirting) or the ceiling (a Crown), so nothing hidden against the wall is drawn.
+// floor (a Skirting) or the ceiling (a Crown), so nothing hidden against the wall is drawn. A board
+// fixed to the wall along both edges (a Casing, a rail, a Sill) runs from the wall at its top or
+// outer edge round to the wall at its other edge, (0.0, 0.0): its edge facing the opening, or its
+// underside, is seen too.
 // Sizes are common trade sizes (a skirting 95 to 170 mm tall and 15 to 20 mm thick, a plaster cove
 // about 70 mm each way, a sprung crown about 115 mm on the face), as a joinery catalogue lists them.
+//
+// FIT: where the trim not tied to a floor, a ceiling or an opening goes. A chair (dado) rail is
+// fixed about a third of the way up a room's wall, its centre near 0.9 m (32 to 36 inches in a US
+// trim guide, 0.9 to 1.0 m in a UK one); a picture rail 0.3 to 0.5 m under the ceiling; a window
+// stool's horns run about 20 mm past the casing at each end. Rails stop against casings and
+// window trim, never cross them.
 //
 // MATERIALS: `look` picks how the shader draws it (Paint: the colour at the given roughness;
 // Wood: the procedural grain; Metal: brushed metal over the colour). Colours are the base colour,
@@ -36,10 +47,27 @@ RoomFinishCatalog(
         (id: "cove_70", kind: Crown, points: [(0.0, 0.075), (0.004, 0.075), (0.004, 0.071), (0.0053, 0.0579), (0.0091, 0.0454), (0.0153, 0.0338), (0.0236, 0.0236), (0.0338, 0.0153), (0.0454, 0.0091), (0.0579, 0.0053), (0.071, 0.004), (0.075, 0.004), (0.075, 0.0)]),
         (id: "ogee_crown_115", kind: Crown, points: [(0.0, 0.095), (0.005, 0.095), (0.005, 0.09), (0.008, 0.088), (0.014, 0.0838), (0.02, 0.0779), (0.026, 0.0692), (0.032, 0.0585), (0.038, 0.047), (0.044, 0.0355), (0.05, 0.0248), (0.056, 0.0161), (0.062, 0.0102), (0.068, 0.008), (0.072, 0.006), (0.076, 0.006), (0.076, 0.0)]),
         (id: "stepped_cornice_90", kind: Crown, points: [(0.0, 0.09), (0.012, 0.09), (0.012, 0.06), (0.025, 0.06), (0.025, 0.03), (0.04, 0.03), (0.04, 0.0)]),
-        // Casing (door and window surrounds, rung 2). From the board's outer edge to the opening.
-        (id: "flat_casing_70", kind: Casing, points: [(0.0, 0.07), (0.016, 0.07), (0.018, 0.068), (0.018, 0.002), (0.016, 0.0)]),
-        (id: "ogee_casing_70", kind: Casing, points: [(0.0, 0.07), (0.008, 0.07), (0.0111, 0.0694), (0.0137, 0.0677), (0.0154, 0.0651), (0.016, 0.062), (0.016, 0.05), (0.018, 0.002), (0.016, 0.0)]),
+        // Casing (architrave: the board round a door or a window, rung 2). From the board's outer
+        // edge on the wall, over its face, to the opening's edge and back to the wall along the edge
+        // that faces into the opening. Mitred at the head; a door's legs stand on the floor and the
+        // skirting stops against them; a window's stand on its stool, the same board under the stool
+        // as its apron. 57 to 70 mm wide and 15 to 20 mm thick are the common sizes.
+        (id: "flat_casing_70", kind: Casing, points: [(0.0, 0.07), (0.016, 0.07), (0.018, 0.068), (0.018, 0.002), (0.016, 0.0), (0.0, 0.0)]),
+        (id: "pencil_round_casing_58", kind: Casing, points: [(0.0, 0.058), (0.012, 0.058), (0.0144, 0.0573), (0.0157, 0.056), (0.016, 0.054), (0.016, 0.002), (0.014, 0.0), (0.0, 0.0)]),
+        (id: "ogee_casing_70", kind: Casing, points: [(0.0, 0.07), (0.008, 0.07), (0.0111, 0.0694), (0.0137, 0.0677), (0.0154, 0.0651), (0.016, 0.062), (0.016, 0.05), (0.018, 0.002), (0.016, 0.0), (0.0, 0.0)]),
+        // Window stool (the inside sill, rung 2): the shelf across the foot of a window, its top level
+        // with the opening's foot, standing past the casing. From the wall along its top, round its
+        // nosing, back to the wall along its underside. 22 to 25 mm thick.
+        (id: "bullnose_stool_25", kind: Sill, points: [(0.0, 0.025), (0.0325, 0.025), (0.0413, 0.0213), (0.045, 0.0125), (0.0413, 0.0037), (0.0325, 0.0), (0.0, 0.0)]),
+        (id: "square_stool_22", kind: Sill, points: [(0.0, 0.022), (0.038, 0.022), (0.040, 0.020), (0.040, 0.002), (0.038, 0.0), (0.0, 0.0)]),
+        // Chair (dado) rail (rung 2): a moulding across the wall, from the wall at its top round to
+        // the wall at its underside. 45 to 70 mm tall, about 20 mm proud.
+        (id: "torus_dado_58", kind: ChairRail, points: [(0.0, 0.058), (0.008, 0.058), (0.0141, 0.0556), (0.0185, 0.0505), (0.020, 0.044), (0.0185, 0.0375), (0.0141, 0.0324), (0.010, 0.030), (0.010, 0.010), (0.013, 0.006), (0.010, 0.002), (0.006, 0.0), (0.0, 0.0)]),
+        (id: "square_rail_45", kind: ChairRail, points: [(0.0, 0.045), (0.016, 0.045), (0.018, 0.043), (0.018, 0.002), (0.016, 0.0), (0.0, 0.0)]),
+        // Picture rail (rung 2): a rail whose rounded top lip takes a picture hook. About 45 mm tall.
+        (id: "picture_rail_45", kind: PictureRail, points: [(0.0, 0.045), (0.010, 0.045), (0.017, 0.043), (0.0215, 0.038), (0.022, 0.033), (0.019, 0.030), (0.012, 0.029), (0.012, 0.006), (0.009, 0.002), (0.0, 0.0)]),
     ],
+    fit: (chair_rail_centre_m: 0.9, picture_rail_below_ceiling_m: 0.3, sill_horn_m: 0.02),
     materials: [
         (id: "white_enamel", look: Paint, color: (0.86, 0.85, 0.82), roughness: 0.3, metallic: 0.0),
         (id: "warm_white", look: Paint, color: (0.87, 0.83, 0.74), roughness: 0.3, metallic: 0.0),
@@ -50,19 +78,22 @@ RoomFinishCatalog(
         (id: "brushed_steel", look: Metal, color: (0.62, 0.63, 0.66), roughness: 0.35, metallic: 0.9),
     ],
     by_room_type: [
-        // The living rooms: a torus skirting and a plaster cove, in white enamel.
-        (room_types: ["livingroom", "dining", "hall", "entry", "commons", "guest_bedroom", "bedroom", "dressing", "nursery", "quarters"], skirting: "torus_145", crown: "cove_70", material: "white_enamel"),
-        // A study: the deeper ogee skirting and a sprung crown, in oak.
-        (room_types: ["study"], skirting: "ogee_170", crown: "ogee_crown_115", material: "oak"),
+        // The rails (chair_rail, picture_rail) are "none" in every room until someone chooses one:
+        // a rail would stand into the furniture placed flush against the skirting.
+        // The living rooms: a torus skirting and a plaster cove, in white enamel, the doors and
+        // windows cased in the matching ogee, a bullnosed stool under each window.
+        (room_types: ["livingroom", "dining", "hall", "entry", "commons", "guest_bedroom", "bedroom", "dressing", "nursery", "quarters"], skirting: "torus_145", crown: "cove_70", material: "white_enamel", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "none"),
+        // A study: the deeper ogee skirting and a sprung crown, in oak, cased to match.
+        (room_types: ["study"], skirting: "ogee_170", crown: "ogee_crown_115", material: "oak", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "none"),
         // Kitchen and bathroom: a plain board that wipes clean, no crown (the tile and splashback
-        // finishes are rung 3).
-        (room_types: ["kitchen", "bathroom"], skirting: "square_edge_95", crown: "none", material: "white_enamel"),
+        // finishes are rung 3), a plain casing and a square stool.
+        (room_types: ["kitchen", "bathroom"], skirting: "square_edge_95", crown: "none", material: "white_enamel", casing: "pencil_round_casing_58", sill: "square_stool_22", chair_rail: "none", picture_rail: "none"),
         // A wet room is tiled and coved into the floor (rung 3): no timber trim.
-        (room_types: ["wetroom"], skirting: "none", crown: "none", material: "white_enamel"),
-        // Working rooms: a rubber cove base, no crown.
-        (room_types: ["workshop", "garage", "depot", "hangar", "storage", "recycling", "life_support", "reactor", "engineering", "laboratory", "server_room", "armory", "gym", "medbay", "cargo", "brig", "airlock", "bridge", "computer", "network", "respawner", "observatory"], skirting: "cove_base_100", crown: "none", material: "grey_rubber"),
+        (room_types: ["wetroom"], skirting: "none", crown: "none", material: "white_enamel", casing: "none", sill: "none", chair_rail: "none", picture_rail: "none"),
+        // Working rooms: a rubber cove base, no crown, the openings left in their steel.
+        (room_types: ["workshop", "garage", "depot", "hangar", "storage", "recycling", "life_support", "reactor", "engineering", "laboratory", "server_room", "armory", "gym", "medbay", "cargo", "brig", "airlock", "bridge", "computer", "network", "respawner", "observatory"], skirting: "cove_base_100", crown: "none", material: "grey_rubber", casing: "none", sill: "none", chair_rail: "none", picture_rail: "none"),
         // Growing rooms and the outdoors: nothing.
-        (room_types: ["garden", "ranch", "hydroponics"], skirting: "none", crown: "none", material: "white_enamel"),
+        (room_types: ["garden", "ranch", "hydroponics"], skirting: "none", crown: "none", material: "white_enamel", casing: "none", sill: "none", chair_rail: "none", picture_rail: "none"),
     ],
-    fallback: (skirting: "square_edge_95", crown: "none", material: "white_enamel"),
+    fallback: (skirting: "square_edge_95", crown: "none", material: "white_enamel", casing: "flat_casing_70", sill: "square_stool_22", chair_rail: "none", picture_rail: "none"),
 )

@@ -602,6 +602,12 @@ pub struct HomeStructure {
     /// while it is, so those files (and the ship's hash) are exactly as before.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open_shell: Vec<OpenSpan>,
+    /// The perimeter shell's own finish, one choice per outer wall's inside face (room finishes
+    /// rung 2, docs/design/room-finishes.md): over the rooms' choices along it, as an interior
+    /// wall's side is. Left out of the file while empty, so every home saved before is written as
+    /// before.
+    #[serde(default, skip_serializing_if = "crate::room_finishes::ShellFinish::is_empty")]
+    pub shell_finish: crate::room_finishes::ShellFinish,
     /// PLACED LIGHTS (v0.571): real local lights the home carries, so a room is lit even with the
     /// sun / global illumination turned OFF. Each references a `light_types.ron` type. Empty -> the
     /// renderer falls back to its auto one-light-per-room synthesis (no regression).
@@ -1747,7 +1753,7 @@ impl HomeStructure {
             road_edges: Vec::new(),
             zones: Vec::new(),
             rail_nodes: Vec::new(),
-            rail_edges: Vec::new(),
+            rail_edges: Vec::new(), shell_finish: Default::default(),
         };
         let meshes = stub.meshes_with_cuts(cuts, None);
         let mut groups: Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> = meshes
@@ -2920,7 +2926,7 @@ mod tests {
     use super::*;
 
     fn box_only() -> HomeStructure {
-        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() }
+        HomeStructure { width: 55.0, depth: 89.0, height: 3.0, shell_material: 1, roof_material: 4, walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default() }
     }
 
     /// v0.631 superstructure M1: zones add/remove with unique ids, the zone_types registry parses, and a
@@ -2995,7 +3001,7 @@ mod tests {
             road_edges: Vec::new(),
             zones: Vec::new(),
             rail_nodes: Vec::new(),
-            rail_edges: Vec::new(),
+            rail_edges: Vec::new(), shell_finish: Default::default(),
         };
         // Baseline: no zones -> generate_meshes still works (existing behavior unchanged).
         let base = hs.generate_meshes();
@@ -3177,7 +3183,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 30.0, depth: 30.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default(),
         };
         // A right-angle chain A(0,0) - B(10,0) - C(10,10): B is a degree-2 through-node.
         h.road_nodes.push(RoadNode { id: 1, pos: (0.0, 0.0) });
@@ -3206,7 +3212,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 40.0, depth: 40.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default(),
         };
         let base = wall_vcount(&h.generate_meshes());
         // Two train platforms; unpaired -> no track yet.
@@ -3228,7 +3234,7 @@ mod tests {
         let mut h = HomeStructure {
             width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4,
             walls: Vec::new(), shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None,
-            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default(),
         };
         let n1 = h.unique_road_node_id();
         h.road_nodes.push(RoadNode { id: n1, pos: (2.0, 2.0) });
@@ -3375,7 +3381,7 @@ mod tests {
                     Opening { kind: OpeningKind::Window, at: 10.0, width: 1.5, sill: 1.0, height: 1.2, style: "fixed".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new() },
                 ],
             )],
-            shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default(),
         };
         let tmp = std::env::temp_dir().join(format!("humanity_home_structure_rt_{}.ron", std::process::id()));
         h.save(&tmp).expect("save");
@@ -3413,7 +3419,7 @@ mod tests {
     fn locks_round_trip_through_save() {
         use crate::lock_types::LockState;
         let h = HomeStructure {
-            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
+            width: 20.0, depth: 20.0, height: 3.0, shell_material: 1, roof_material: 4, shell_thickness: None, open_shell: Vec::new(), floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(), shell_finish: Default::default(),
             walls: vec![wall((2.0, 2.0), (2.0, 12.0), vec![
                 Opening { kind: OpeningKind::Door, at: 2.0, width: 1.0, sill: 0.0, height: 2.1, style: "swing".into(), open_dist: 2.6, locked: false, auto_open: false, control_panel: true,
                     locks: vec![
