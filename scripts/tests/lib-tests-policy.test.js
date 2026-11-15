@@ -202,6 +202,21 @@ test("a run that goes silent (a thread that reports, then cannot exit) is stoppe
     assert.match(r.out, /FAILED: the test program printed nothing for 0\.05 minutes, so it was stopped: a hung test/);
     assert.match(r.out, /the hung test is one of these \d+:[\s\S]*\n  hangs_silently_when_asked/);
     assert.ok(!fs.existsSync(path.join(root, "target", "lib-tests", "last-full-pass.json")), "a stopped run is not a pass");
+    // Point 7 (2026-11-14): every thread's stack, dumped before it was stopped, saved beside the
+    // run's log, and the stuck test's thread printed by name with its frames. (The cached suite's
+    // exe is moved away from its debug file, so its frames are addresses here; that the frames
+    // name functions when the PDB is beside the program, as cargo leaves it, is
+    // scripts/tests/stack-dump.test.js.) RED before point 7: no "Thread ... when it was stopped"
+    // line and no stacks file; the report could only name the tests in flight.
+    if (process.platform === "win32" && process.arch === "x64") {
+      assert.match(r.out, /Thread "hangs_silently_when_asked" when it was stopped \(innermost first\):\n(    \S+\n){3,}/);
+      const stacks = /Every thread's stack when it was stopped: (.*\.stacks\.txt)/.exec(r.out);
+      const log = /The run's output up to then: (.*\.log)/.exec(r.out);
+      assert.ok(stacks && log, r.out);
+      assert.strictEqual(path.dirname(stacks[1]), path.dirname(log[1]), "the dump is saved beside the log");
+      assert.match(fs.readFileSync(stacks[1], "utf8"), /^thread \d+ "hangs_silently_when_asked":$/m);
+      assert.match(fs.readFileSync(log[1], "utf8"), /running \d+ tests?/);
+    }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(runLog(root), { force: true });

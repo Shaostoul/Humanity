@@ -33,13 +33,29 @@ For each compile of our crate (the 700 dependency crates are not gated) it:
   and what compiles waiting longer need. First come, first served; a small compile passes a big
   one only when both fit. It says so on the build's output, with the numbers and what is
   running, and gives up waiting after 60 minutes (compiling anyway, loudly).
+- **never waits on room only the head of the line could free** (2026-11-14). With NONE of our
+  compiles running, the first compile in line that fits on its own with half the margin starts.
+  Usually that is the head: nothing of ours can grow beside it, since everyone behind waits for
+  it. When even that leaves no room for the head (the rest of the machine holds the memory), the
+  first compile behind it that fits goes instead, one at a time, and the head is first again the
+  moment it finishes. Before this, a 14.4 GB lib-test needing 16.4 GB with 16.3 GB free and
+  nothing compiling held 14 compiles behind it for 17 minutes, and then peaked at 10.7 GB. The
+  rule is `decide()` in the wrapper's source; its tests simulate the line, red on the old rule.
+  `just build-slot-status` lists the line in order with what the rule says to each.
 - **retries** a compile that died of memory (exit 0xC0000409, "memory allocation of N bytes
   failed", "LLVM ERROR: out of memory", Win32 error 1455, E0786), up to three attempts, asking
   for more room each time. The dead attempt's error lines are not passed to cargo, so a compile
   that succeeded on its second try shows no errors. Every retry is a line in
   `%LOCALAPPDATA%\HumanityOS\build-slot\oom-retries.txt`.
-- **learns** each kind of compile's peak (the whole process tree, the linker included, from a
-  Windows job object) and its CPU seconds, in `peaks.txt` beside it.
+- **learns** each kind of compile's peaks (the whole process tree, the linker included) and its
+  CPU seconds, in `peaks.txt` beside it: the commit peak (from a Windows job object), checked
+  against free commit memory, and since 2026-11-14 the working-set peak (each process of the
+  tree's own peak, summed), checked against free physical memory. Before, the commit peak was
+  the physical need too, and a compile commits about a fifth more than it ever holds in RAM: the
+  deadlocked lib-test's 14.4 GB was 13.4 GB of commit plus 10%, where its working set had peaked
+  at 11.4 GB (12.2 GB with the 10%). Each need is the largest of the kind's last ten plus 10%,
+  so one full compile among incremental ones sets it (a lib-test is 13.3 GB full, 10.7 GB
+  incremental); the physical need is never below 3/4 of the commit need.
 
 What you do with it:
 
@@ -82,6 +98,15 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   cannot exit stops every line after it (scripts/tests/fixtures/lib-tests/tiny_suite.rs makes
   that hang on purpose; plain libtest stays silent past 60 s). libtest starts tests in name order,
   so the suspects are the first unfinished ones, at most one per test thread.
+- **Before a stalled (or timed-out) program is stopped, every thread's stack is dumped**
+  (2026-11-14): `target/lib-tests/hang-<time>-<program>.stacks.txt`, beside `.log`, the run's
+  output up to then, and the report prints the frames of each thread named after a test (libtest
+  names them so): which test is stuck, and where. The dumper is
+  `scripts/stackdump/hos-stackdump.rs` (std-only Rust, dbghelp's StackWalk64 over each thread,
+  each suspended only for its walk), built by `scripts/lib/stack-dump.js` into
+  `target/test-cache` like the lints. It runs itself below normal priority and takes symbols only
+  from the program's own folder (never a symbol server). Use it by hand on any frozen program:
+  `node -e "console.log(require('./scripts/lib/stack-dump.js').dumpStacks(<pid>, 'stacks.txt'))"`.
 - **Beside the operator's GPU game, the tests that open a GPU device stand down.** That freeze
   was beside helldivers2.exe, at the tests that open a real device (renderer::scene_target's
   round trips run in every full run), and the same run passed in 232 s once the game closed.

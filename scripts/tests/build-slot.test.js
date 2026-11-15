@@ -132,6 +132,56 @@ test("compiles started together take turns through the slot; with it off they di
   }
 });
 
+// The 2026-11-14 deadlock through the real wrapper: a head that needs 14.4 GB + 2 GB margin with
+// 16.3 GB free and none of ours running. The stand-in kills a copy that runs beside another, so a
+// rule that let the compiles behind it start beside it fails here too.
+// RED on the rule before the fix (its wrapper built from the parent commit's source, 2026-11-14):
+// nothing started; after 30 s the head was still "WAITING for memory: needs 14.1 GB + 2.0 GB
+// margin" with "Running: none of ours", and the two behind it waited with it.
+test("with none of ours running, a head the full margin does not fit starts, and the line follows", { skip: !windows && "process checks are Windows" }, async () => {
+  const exe = wrapper();
+  const d = tmp("idle_head");
+  const kids = [];
+  const startTracked = (env) => {
+    const p = new Promise((resolve) => {
+      const c = spawn(exe, [process.execPath, FAKE, "--crate-name", "humanity_engine", "--emit=dep-info,link", "--test", "--cfg", 'feature="native"'], { env, windowsHide: true });
+      kids.push(c);
+      let out = "";
+      let err = "";
+      c.stdout.on("data", (x) => (out += x));
+      c.stderr.on("data", (x) => (err += x));
+      c.on("close", (code) => resolve({ code, out, err }));
+    });
+    return p;
+  };
+  const killer = setTimeout(() => kids.forEach((c) => c.kill()), 30_000);
+  try {
+    fs.writeFileSync(path.join(d, "mem.txt"), "16300 16300");
+    const base = { FAKE_RUSTC_DIR: d, FAKE_RUSTC_MS: "800", HOS_BUILD_SLOT_ATTEMPTS: "1" };
+    const head = startTracked(slotEnv(d, { ...base, HOS_BUILD_SLOT_PEAK_MB: "14400" }));
+    // The head is first in line: it has decided (held or waiting) before the others arrive.
+    const t0 = Date.now();
+    while (!fs.existsSync(path.join(d, "slot")) || !fs.readdirSync(path.join(d, "slot")).some((f) => /^(held|wait)-/.test(f))) {
+      assert.ok(Date.now() - t0 < 10_000, "the head never decided");
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    // Two behind it, each 8 GB: one fits at a time, and neither beside the head.
+    const behind = [startTracked(slotEnv(d, { ...base, HOS_BUILD_SLOT_PEAK_MB: "8000" })), startTracked(slotEnv(d, { ...base, HOS_BUILD_SLOT_PEAK_MB: "8000" }))];
+    const results = await Promise.all([head, ...behind]);
+    const said = results.map((r) => r.out).join("\n");
+    for (const r of results) assert.strictEqual(r.code, 0, `a compile failed or was stopped after 30 s:\n${said}`);
+    assert.match(results[0].out, /none of our compiles is running, so it starts with the idle margin \(1\.0 GB\)/);
+    const runs = runsOf(d);
+    const starts = runs.filter((x) => x.what === "start").sort((a, b) => a.at - b.at);
+    const ends = runs.filter((x) => x.what === "end-ok").sort((a, b) => a.at - b.at);
+    assert.strictEqual(ends.length, 3, JSON.stringify(runs));
+    for (let i = 1; i < starts.length; i++) assert.ok(starts[i].at >= ends[i - 1].at, `run ${i} started beside another: ${JSON.stringify(runs)}`);
+  } finally {
+    clearTimeout(killer);
+    fs.rmSync(d, { recursive: true, force: true });
+  }
+});
+
 test("an out-of-memory death is retried; an ordinary error is not, and is shown", { skip: !windows && "Windows" }, async () => {
   const exe = wrapper();
   const d = tmp("retry");
@@ -156,6 +206,33 @@ test("an out-of-memory death is retried; an ordinary error is not, and is shown"
     assert.strictEqual(runsOf(e).filter((x) => x.what === "start").length, 1);
   } finally {
     fs.rmSync(e, { recursive: true, force: true });
+  }
+});
+
+// The physical need is learned from the whole tree's working set (2026-11-14): rustc's own leaves
+// out the linker it starts at the end. A bin crate links, so its tree is rustc AND the linker.
+// RED with the tree watch switched off (TreeWatch::finish returning 0, so the ledger fell back to
+// rustc's own working set), 2026-11-14: "the tree's working set (73 MB) counts the linker beside
+// rustc's own (73 MB)" failed; with the watch on, 133 MB against 70 MB.
+test("real cargo, real rustc: a linked crate's ledger line counts the linker's working set too", { skip: !windows && "job objects are Windows" }, () => {
+  const exe = wrapper();
+  const d = tmp("cargo_ws");
+  try {
+    const crate = path.join(d, "tinybin");
+    fs.mkdirSync(path.join(crate, "src"), { recursive: true });
+    fs.writeFileSync(path.join(crate, "Cargo.toml"), '[package]\nname = "tinybin"\nversion = "0.1.0"\nedition = "2021"\n\n[workspace]\n');
+    fs.writeFileSync(path.join(crate, "src", "main.rs"), 'fn main() {\n    let v: Vec<String> = (0..1000).map(|i| format!("{i}")).collect();\n    println!("{}", v.len());\n}\n');
+    const r = spawnSync("cargo", ["build"], { cwd: crate, encoding: "utf8", env: slotEnv(d, { CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER: exe, CARGO_TARGET_DIR: path.join(d, "t") }) });
+    assert.strictEqual(r.status, 0, r.stdout + r.stderr);
+    const log = fs.readFileSync(path.join(d, "slot", "build-slot.log"), "utf8");
+    const m = /done tinybin \(other-build-none\) .* working set (\d+) MB \(rustc alone (\d+) MB\)/.exec(log);
+    assert.ok(m, log);
+    const [tree, own] = [Number(m[1]), Number(m[2])];
+    assert.ok(own > 0 && tree > own, `the tree's working set (${tree} MB) counts the linker beside rustc's own (${own} MB)`);
+    const line = fs.readFileSync(path.join(d, "slot", "peaks.txt"), "utf8").trim().split(" ");
+    assert.strictEqual(Number(line[4]), tree, "the ledger keeps the tree's working set");
+  } finally {
+    fs.rmSync(d, { recursive: true, force: true });
   }
 });
 

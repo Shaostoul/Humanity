@@ -24,17 +24,22 @@
 //!      of compiles that started waiting before it (first come, first served; a smaller one
 //!      may pass a bigger one only when both fit). The room is the smaller of the free
 //!      physical memory (what a compile can get without paging; no paging is allowed by
-//!      default) and the free commit memory (what an allocation can get at all). It logs the
-//!      wait and gives up waiting after a ceiling, compiling anyway with a loud line.
+//!      default) and the free commit memory (what an allocation can get at all). With none of
+//!      our compiles running, the first in line that fits on its own with a smaller margin
+//!      starts, so the line never waits on room only its own head could free (2026-11-14; the
+//!      rule and its reasons: decide()). It logs the wait and gives up waiting after a
+//!      ceiling, compiling anyway with a loud line.
 //!   2. RUN rustc, passing its output straight through to cargo line by line (cargo needs
 //!      the artifact lines as they come). Error diagnostics are held back until rustc exits.
 //!   3. RETRY. When rustc died of memory (an out-of-memory signature in its output, or an
 //!      exit code Windows uses for it), it waits for more room and compiles again, up to
 //!      three attempts, with a loud line each time. The held-back errors of a retried attempt
 //!      are dropped, so a compile that succeeded on its second try shows no errors.
-//!   4. LEARN. The peak of every successful compile (the whole process tree, the linker
-//!      included, read from a Windows job object) is written to a ledger, and the expected
-//!      peak of each kind of compile is the largest of its last ten, plus 10%.
+//!   4. LEARN. The peaks of every successful compile (the whole process tree, the linker
+//!      included: its commit from a Windows job object, its working set summed over the job's
+//!      processes) are written to a ledger, and the expected need of each kind of compile is
+//!      the largest of its last ten, plus 10%: the working set against free physical memory,
+//!      the commit against free commit memory (learned_need says why two, 2026-11-14).
 //!
 //! Admission is decided under a lock file and recorded in files named after the process,
 //! checked by process id AND start time (Windows reuses ids), the pattern of
@@ -57,6 +62,7 @@
 //!   HUMANITY_BUILD_SLOT=off          no gating at all
 //!   HOS_BUILD_SLOT_DIR=<dir>         the slot's folder
 //!   HOS_BUILD_SLOT_MARGIN_MB=2048    room kept free beyond the expected peak
+//!   HOS_BUILD_SLOT_IDLE_MARGIN_MB=<margin/2>  the margin with none of our compiles running
 //!   HOS_BUILD_SLOT_PAGING_MB=0       how far past free physical memory a compile may page
 //!   HOS_BUILD_SLOT_MAX_WAIT_MIN=60   the ceiling on one wait
 //!   HOS_BUILD_SLOT_POLL_MS=2000      how often a waiting compile looks again
@@ -303,16 +309,37 @@ struct Mem {
 struct Policy {
     margin_mb: u64,
     paging_mb: u64,
+    /// the margin when none of our compiles is running (see decide)
+    idle_margin_mb: u64,
 }
 
-/// The rule's two numbers, from the environment or the defaults: 2 GB kept free beyond the
+/// The rule's numbers, from the environment or the defaults: 2 GB kept free beyond the
 /// expected peak, and no paging. Paging is the waste this exists to stop (see the header).
+/// With none of our compiles running, half the margin (see decide).
 fn policy() -> Policy {
-    Policy { margin_mb: env_u64("HOS_BUILD_SLOT_MARGIN_MB", 2048), paging_mb: env_u64("HOS_BUILD_SLOT_PAGING_MB", 0) }
+    let margin_mb = env_u64("HOS_BUILD_SLOT_MARGIN_MB", 2048);
+    Policy { margin_mb, paging_mb: env_u64("HOS_BUILD_SLOT_PAGING_MB", 0), idle_margin_mb: env_u64("HOS_BUILD_SLOT_IDLE_MARGIN_MB", margin_mb / 2).min(margin_mb) }
 }
 
-/// The room a new compile can count on: the smaller of free commit memory and free
-/// physical memory plus the paging allowance, less what is already promised.
+/// What a compile needs at its peak, or what is promised to compiles: commit memory (what
+/// Windows must promise it) and physical memory (what it holds in RAM).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct Need {
+    commit_mb: u64,
+    phys_mb: u64,
+}
+
+impl Need {
+    fn both(mb: u64) -> Need {
+        Need { commit_mb: mb, phys_mb: mb }
+    }
+    fn plus(self, o: Need) -> Need {
+        Need { commit_mb: self.commit_mb + o.commit_mb, phys_mb: self.phys_mb + o.phys_mb }
+    }
+}
+
+/// The room a new compile can count on, for the lines a person reads: the smaller of free
+/// commit memory and free physical memory plus the paging allowance, less what is promised.
 fn room_mb(mem: &Mem, policy: &Policy, promised_mb: u64) -> i64 {
     let physical = mem.avail_phys_mb + policy.paging_mb;
     let base = mem.avail_commit_mb.min(physical);
@@ -324,10 +351,75 @@ fn still_to_grow_mb(expect_mb: u64, current_mb: u64) -> u64 {
     expect_mb.saturating_sub(current_mb)
 }
 
-/// May a compile needing `need_mb` start now? `promised_mb` is what admitted compiles may
-/// still grow by plus the needs of compiles waiting longer than this one.
-fn fits(mem: &Mem, policy: &Policy, promised_mb: u64, need_mb: u64) -> bool {
-    room_mb(mem, policy, promised_mb) >= (need_mb + policy.margin_mb) as i64
+/// Does a compile needing `need` fit now, `margin_mb` kept free beyond it? `promised` is what
+/// admitted compiles may still grow by plus the needs of compiles ahead of it in line.
+fn fits(mem: &Mem, policy: &Policy, promised: Need, need: Need, margin_mb: u64) -> bool {
+    let phys_room = (mem.avail_phys_mb + policy.paging_mb) as i64 - promised.phys_mb as i64;
+    let commit_room = mem.avail_commit_mb as i64 - promised.commit_mb as i64;
+    phys_room >= (need.phys_mb + margin_mb) as i64 && commit_room >= (need.commit_mb + margin_mb) as i64
+}
+
+/// One compile in line for room, as every waiting compile sees it (its wait- record).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct InLine {
+    pid: u32,
+    since_ms: u64,
+    need: Need,
+}
+
+/// What the rule says to one waiting compile.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Verdict {
+    /// It fits beside what runs, with the full margin, after everyone ahead of it.
+    Start,
+    /// None of ours is running and it is the first in line that fits on its own (with the idle
+    /// margin); `passed` compiles ahead of it cannot start even so.
+    Alone { passed: usize },
+    /// Wait and look again.
+    Wait,
+}
+
+/// THE ADMISSION RULE (pure; the queue simulation in the tests runs it). `line` is every
+/// compile waiting for room, `me` among them; `running` how many of ours hold room now and
+/// `growth` what they may still grow by.
+///
+/// 1. FIRST COME, FIRST SERVED. A compile starts when it fits, with the full margin, beside
+///    what the running ones may still grow by AND the needs of every compile ahead of it in
+///    line. A later compile passes an earlier one only when there is room for both.
+/// 2. WITH NONE OF OURS RUNNING (2026-11-14). Then the rule above can deadlock: the head of
+///    the line waits for memory that is not ours to free, and everyone behind it counts the
+///    head's need as promised, so nothing runs at all. On 2026-11-14 a lib-test expected at
+///    14.4 GB needed 16.4 GB with the margin, 16.3 GB was free, none of ours was compiling, 14
+///    compiles waited behind it, and the head waited 17 minutes (then peaked at 10.7 GB). So,
+///    with none of ours running, the FIRST compile in line that fits ON ITS OWN with the idle
+///    margin (half the margin by default) starts:
+///    - Usually that is the head itself. The smaller margin is safe there because the margin is
+///      for what else may grow while it compiles, and none of ours can (everyone behind it
+///      waits for it, rule 1), while its need is already the largest of its kind's last ten
+///      peaks plus 10%. The out-of-memory retry stays the net under that.
+///    - When even that leaves no room for the head (the rest of the machine holds the memory),
+///      the first compile behind it that fits on its own goes instead, ONE at a time: once it
+///      runs, rule 1 counts the head against everyone again. When it finishes, none of ours runs
+///      again, so the head is looked at first, and it starts before anyone behind it the moment
+///      the machine has room for it. Nobody behind it ever holds the head's room hostage.
+fn decide(mem: &Mem, policy: &Policy, running: usize, growth: Need, line: &[InLine], me: u32) -> Verdict {
+    let mut line: Vec<InLine> = line.to_vec();
+    line.sort_by_key(|w| (w.since_ms, w.pid));
+    let Some(pos) = line.iter().position(|w| w.pid == me) else {
+        return Verdict::Wait;
+    };
+    let ahead = line[..pos].iter().fold(Need::default(), |a, w| a.plus(w.need));
+    if fits(mem, policy, growth.plus(ahead), line[pos].need, policy.margin_mb) {
+        return Verdict::Start;
+    }
+    if running > 0 {
+        return Verdict::Wait;
+    }
+    let alone = |w: &InLine| fits(mem, policy, Need::default(), w.need, policy.idle_margin_mb);
+    match line.iter().position(alone) {
+        Some(first) if first == pos => Verdict::Alone { passed: pos },
+        _ => Verdict::Wait,
+    }
 }
 
 /// The expected peak from the ledger's observations for a kind (newest last): the largest
@@ -345,6 +437,9 @@ fn learned_peak_mb(observed: &[u64], seed: u64) -> Option<u64> {
 const PLAUSIBLE_PEAK_MB: u64 = 1024 * 1024;
 
 /// One ledger line: epoch-seconds kind peak-commit-MB seconds peak-working-set-MB cpu-seconds.
+/// The working set is the whole tree's since 2026-11-14 (TreeWatch); older lines hold rustc's
+/// own, which leaves out the linker, and fall out of every kind's last ten within ten compiles
+/// (until then the 3/4-of-commit floor in learned_need covers the linker kinds).
 fn ledger_line(epoch_s: u64, kind: &str, peak_mb: u64, secs: u64, ws_mb: u64, cpu_s: f64) -> String {
     format!("{} {} {} {} {} {:.0}\n", epoch_s, kind, peak_mb, secs, ws_mb, cpu_s.max(0.0))
 }
@@ -360,16 +455,49 @@ fn append_ledger_line(path: &std::path::Path, line: &str) {
     }
 }
 
-/// A ledger line's peak for `kind`, or None when the line is not exactly the six fields
-/// `ledger_line` writes, with a plausible peak (the ledger may still hold torn lines from before
-/// `append_ledger_line`, and a hand edit may leave anything).
-fn ledger_peak(line: &str, kind: &str) -> Option<u64> {
+/// A ledger line's (commit peak, working-set peak) for `kind`, or None when the line is not
+/// exactly the six fields `ledger_line` writes, with a plausible commit peak (the ledger may still
+/// hold torn lines from before `append_ledger_line`, and a hand edit may leave anything). The
+/// working set is 0 when it could not be read, and above the plausible peak it reads as 0 too.
+fn ledger_peaks(line: &str, kind: &str) -> Option<(u64, u64)> {
     let f: Vec<&str> = line.split(' ').collect();
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     if f.len() != 6 || f[1] != kind || !digits(f[0]) || f[0].len() != 10 || !f[2..].iter().all(|s| digits(s)) {
         return None;
     }
-    f[2].parse().ok().filter(|&mb| mb > 0 && mb < PLAUSIBLE_PEAK_MB)
+    let commit = f[2].parse().ok().filter(|&mb| mb > 0 && mb < PLAUSIBLE_PEAK_MB)?;
+    let ws = f[4].parse().ok().filter(|&mb| mb < PLAUSIBLE_PEAK_MB).unwrap_or(0);
+    Some((commit, ws))
+}
+
+/// The expected need of a kind from its ledger lines (commit, working set; newest last), or the
+/// seed for both when it has none (2026-11-14).
+///
+/// WHY TWO. The slot keys on free PHYSICAL memory (the header), but until 2026-11-14 the need it
+/// compared against free physical memory was the COMMIT peak (the job object's figure), and a
+/// compile commits more than it ever holds in RAM: over the last ten lib-test-native compiles
+/// of 2026-11-14 rustc's peak working set was 82% of the tree's commit peak (8.9 against 10.8 GB
+/// on average, 11.4 against 13.6 at the largest). So the 14.4 GB the deadlocked head was
+/// expected to need (13.4 GB, the largest commit of its last ten, plus 10%) asked for about 2 GB
+/// more physical memory than any of those compiles held; learned from the working set it is
+/// 12.2 GB, which fitted the 16.3 GB free with the full margin. Commit is still checked, against
+/// free commit memory, with the commit peak.
+///
+/// The physical need is never below 3/4 of the commit need: a working set measured while Windows
+/// was trimming it under memory pressure reads low, and learning from it would admit more
+/// compiles into the same pressure. (The ratio was 0.71 to 0.88 for every kind rustc dominates.)
+/// Both are the largest of the last ten plus 10% (learned_peak_mb), so one full compile among
+/// incremental ones (13.3 against 10.7 GB for a lib-test) still sets the need: which kind the
+/// next compile will be is not known before it runs.
+fn learned_need(observed: &[(u64, u64)], seed: u64) -> Need {
+    let commits: Vec<u64> = observed.iter().map(|o| o.0).collect();
+    let commit = learned_peak_mb(&commits, seed).unwrap_or(seed);
+    let wss: Vec<u64> = observed.iter().map(|o| o.1).filter(|&ws| ws > 0).collect();
+    let phys = match learned_peak_mb(&wss, seed) {
+        Some(p) => p.max(commit * 3 / 4),
+        None => commit,
+    };
+    Need { commit_mb: commit, phys_mb: phys }
 }
 
 // ── records: who holds room, who waits ────────────────────────────────────────────
@@ -382,7 +510,10 @@ struct Record {
     child_pid: u32,
     kind: String,
     crate_name: String,
+    /// the expected commit peak, MB
     mb: u64,
+    /// the expected physical (working set) peak, MB
+    phys_mb: u64,
     since_ms: u64,
     cwd: String,
 }
@@ -390,12 +521,16 @@ struct Record {
 impl Record {
     fn to_text(&self) -> String {
         format!(
-            "pid={}\nstart={}\nchild_pid={}\nkind={}\ncrate={}\nmb={}\nsince_ms={}\ncwd={}\n",
-            self.pid, self.start, self.child_pid, self.kind, self.crate_name, self.mb, self.since_ms, self.cwd
+            "pid={}\nstart={}\nchild_pid={}\nkind={}\ncrate={}\nmb={}\nphys_mb={}\nsince_ms={}\ncwd={}\n",
+            self.pid, self.start, self.child_pid, self.kind, self.crate_name, self.mb, self.phys_mb, self.since_ms, self.cwd
         )
+    }
+    fn need(&self) -> Need {
+        Need { commit_mb: self.mb, phys_mb: self.phys_mb }
     }
     fn parse(text: &str) -> Option<Record> {
         let mut r = Record::default();
+        let mut phys = None;
         for line in text.lines() {
             let (k, v) = match line.split_once('=') {
                 Some(x) => x,
@@ -408,11 +543,15 @@ impl Record {
                 "kind" => r.kind = v.to_string(),
                 "crate" => r.crate_name = v.to_string(),
                 "mb" => r.mb = v.parse().ok()?,
+                "phys_mb" => phys = Some(v.parse().ok()?),
                 "since_ms" => r.since_ms = v.parse().ok()?,
                 "cwd" => r.cwd = v.to_string(),
                 _ => {}
             }
         }
+        // A record written by a wrapper from before the physical need (one still compiling while
+        // the new one was installed) promises its commit need in both.
+        r.phys_mb = phys.unwrap_or(r.mb);
         if r.pid == 0 {
             None
         } else {
@@ -507,6 +646,15 @@ mod sys {
     pub const STILL_ACTIVE: u32 = 259;
     pub const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION: i32 = 9;
     pub const JOB_OBJECT_BASIC_ACCOUNTING_INFORMATION: i32 = 1;
+    pub const JOB_OBJECT_BASIC_PROCESS_ID_LIST: i32 = 3;
+
+    /// JOBOBJECT_BASIC_PROCESS_ID_LIST with room for 256 processes (a compile has two or three).
+    #[repr(C)]
+    pub struct JobProcessIdList {
+        pub assigned: u32,
+        pub in_list: u32,
+        pub ids: [usize; 256],
+    }
     pub const JOB_OBJECT_LIMIT_JOB_MEMORY: u32 = 0x0000_0200;
     pub const ERROR_ACCESS_DENIED: i32 = 5;
 
@@ -616,31 +764,32 @@ fn alive(pid: u32, _start: u64) -> bool {
     std::path::Path::new(&format!("/proc/{pid}")).exists()
 }
 
-/// A process's private (commit) memory now, MB; 0 when it cannot be read.
+/// What a process holds now, MB: its private (commit) memory and its working set (physical
+/// memory); zeros when it cannot be read.
 #[cfg(windows)]
-fn private_mb(pid: u32) -> u64 {
+fn usage_mb(pid: u32) -> Need {
     if pid == 0 {
-        return 0;
+        return Need::default();
     }
     unsafe {
         let h = sys::OpenProcess(sys::PROCESS_QUERY_LIMITED_INFORMATION | sys::PROCESS_VM_READ, 0, pid);
         if h.is_null() {
-            return 0;
+            return Need::default();
         }
         let mut pmc: sys::ProcessMemoryCounters = std::mem::zeroed();
         pmc.cb = std::mem::size_of::<sys::ProcessMemoryCounters>() as u32;
         let ok = sys::K32GetProcessMemoryInfo(h, &mut pmc, pmc.cb);
         sys::CloseHandle(h);
         if ok == 0 {
-            0
+            Need::default()
         } else {
-            pmc.pagefile_usage as u64 / MB
+            Need { commit_mb: pmc.pagefile_usage as u64 / MB, phys_mb: pmc.working_set_size as u64 / MB }
         }
     }
 }
 #[cfg(not(windows))]
-fn private_mb(_pid: u32) -> u64 {
-    0
+fn usage_mb(_pid: u32) -> Need {
+    Need::default()
 }
 
 fn now_ms() -> u64 {
@@ -761,6 +910,100 @@ fn child_peaks_mb(child: &std::process::Child) -> (u64, u64) {
             (0, 0)
         } else {
             (pmc.peak_pagefile_usage as u64 / MB, pmc.peak_working_set_size as u64 / MB)
+        }
+    }
+}
+
+/// A handle the watcher thread may carry (Windows handles are process-wide).
+#[cfg(windows)]
+struct SendHandle(sys::Handle);
+#[cfg(windows)]
+unsafe impl Send for SendHandle {}
+
+/// The peak PHYSICAL memory of a compile's whole process tree (2026-11-14). A job object reports
+/// the tree's peak commit, not its working set, and rustc's own working set leaves out the
+/// linker it starts at the end (for bin-release-native the linker is most of it: 2.0 GB of
+/// commit against rustc's own 0.6 GB working set). So a thread lists the job's processes every
+/// 200 ms while the compile runs, opens each new one, and at the end each one's own peak working
+/// set is read and the peaks are summed. The sum of the peaks is never below the peak of the
+/// sum: it can over-count a tree whose processes peaked at different moments, never under-count.
+#[cfg(windows)]
+struct TreeWatch {
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<std::thread::JoinHandle<Vec<SendHandle>>>,
+}
+
+#[cfg(windows)]
+impl TreeWatch {
+    /// Watch `job` until finish() (or drop). The job must outlive the watch: declare the watch
+    /// after the job, so it drops (and joins its thread) first.
+    fn start(job: &Job) -> TreeWatch {
+        use std::sync::atomic::Ordering;
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = stop.clone();
+        let job_h = SendHandle(job.0);
+        let thread = std::thread::spawn(move || {
+            let job_h = job_h;
+            let mut seen: Vec<u32> = Vec::new();
+            let mut handles: Vec<SendHandle> = Vec::new();
+            loop {
+                // Read the flag BEFORE listing, so the last pass still lists once after it is set.
+                let last = flag.load(Ordering::Acquire);
+                unsafe {
+                    let mut list: sys::JobProcessIdList = std::mem::zeroed();
+                    let ok = sys::QueryInformationJobObject(
+                        job_h.0,
+                        sys::JOB_OBJECT_BASIC_PROCESS_ID_LIST,
+                        &mut list as *mut _ as *mut _,
+                        std::mem::size_of::<sys::JobProcessIdList>() as u32,
+                        std::ptr::null_mut(),
+                    );
+                    if ok != 0 {
+                        for &id in list.ids.iter().take((list.in_list as usize).min(list.ids.len())) {
+                            let pid = id as u32;
+                            if pid != 0 && !seen.contains(&pid) {
+                                seen.push(pid);
+                                let h = sys::OpenProcess(sys::PROCESS_QUERY_LIMITED_INFORMATION | sys::PROCESS_VM_READ, 0, pid);
+                                if !h.is_null() {
+                                    handles.push(SendHandle(h));
+                                }
+                            }
+                        }
+                    }
+                }
+                if last {
+                    return handles;
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        });
+        TreeWatch { stop, thread: Some(thread) }
+    }
+
+    /// Stop watching and return the summed peak working sets of every process seen, MB.
+    fn finish(&mut self) -> u64 {
+        self.stop.store(true, std::sync::atomic::Ordering::Release);
+        let handles = self.thread.take().and_then(|t| t.join().ok()).unwrap_or_default();
+        let mut bytes = 0u64;
+        for h in handles {
+            unsafe {
+                let mut pmc: sys::ProcessMemoryCounters = std::mem::zeroed();
+                pmc.cb = std::mem::size_of::<sys::ProcessMemoryCounters>() as u32;
+                if sys::K32GetProcessMemoryInfo(h.0, &mut pmc, pmc.cb) != 0 {
+                    bytes += pmc.peak_working_set_size as u64;
+                }
+                sys::CloseHandle(h.0);
+            }
+        }
+        bytes / MB
+    }
+}
+
+#[cfg(windows)]
+impl Drop for TreeWatch {
+    fn drop(&mut self) {
+        if self.thread.is_some() {
+            let _ = self.finish();
         }
     }
 }
@@ -898,14 +1141,13 @@ impl Slot {
     }
 
     /// The expected peak for a kind: the ledger's, or the seed.
-    fn expected_mb(&self, kind: &str) -> u64 {
+    fn expected(&self, kind: &str) -> Need {
         if let Some(p) = env::var("HOS_BUILD_SLOT_PEAK_MB").ok().and_then(|v| v.parse().ok()) {
-            return p;
+            return Need::both(p);
         }
-        let seed = seed_peak_mb(kind);
         let text = fs::read_to_string(self.dir.join("peaks.txt")).unwrap_or_default();
-        let observed: Vec<u64> = text.lines().filter_map(|l| ledger_peak(l, kind)).collect();
-        learned_peak_mb(&observed, seed).unwrap_or(seed)
+        let observed: Vec<(u64, u64)> = text.lines().filter_map(|l| ledger_peaks(l, kind)).collect();
+        learned_need(&observed, seed_peak_mb(kind))
     }
 
     fn record_peak(&self, kind: &str, peak_mb: u64, secs: u64, ws_mb: u64, cpu_s: f64) {
@@ -956,9 +1198,12 @@ impl<'a> Drop for Held<'a> {
     }
 }
 
-/// What admitted compiles may still grow by.
-fn promised_by_holders(holders: &[Record], me: u32) -> u64 {
-    holders.iter().filter(|h| h.pid != me).map(|h| still_to_grow_mb(h.mb, private_mb(h.child_pid))).sum()
+/// What admitted compiles may still grow by, each kind of memory against its own expected peak.
+fn promised_by_holders(holders: &[Record], me: u32) -> Need {
+    holders.iter().filter(|h| h.pid != me).fold(Need::default(), |a, h| {
+        let now = usage_mb(h.child_pid);
+        a.plus(Need { commit_mb: still_to_grow_mb(h.mb, now.commit_mb), phys_mb: still_to_grow_mb(h.phys_mb, now.phys_mb) })
+    })
 }
 
 /// A line for the person (or agent) watching the build. On STDOUT, deliberately: cargo
@@ -971,9 +1216,18 @@ fn say(line: &str) {
     let _ = e.flush();
 }
 
+/// "14.4 GB (11.0 GB physical)": a need for the lines a person reads.
+fn need_text(n: Need) -> String {
+    if n.phys_mb == n.commit_mb {
+        gb(n.commit_mb)
+    } else {
+        format!("{} physical ({} commit)", gb(n.phys_mb), gb(n.commit_mb))
+    }
+}
+
 /// Wait until this compile fits, then hold its room. Never fails: past the ceiling it
 /// proceeds anyway, saying so.
-fn admit<'a>(slot: &'a Slot, unit: &Unit, need_mb: u64, arrived_ms: u64, policy: &Policy) -> Held<'a> {
+fn admit<'a>(slot: &'a Slot, unit: &Unit, need: Need, arrived_ms: u64, policy: &Policy) -> Held<'a> {
     let poll = Duration::from_millis(env_u64("HOS_BUILD_SLOT_POLL_MS", 2000).max(50));
     let ceiling = Duration::from_secs(env_u64("HOS_BUILD_SLOT_MAX_WAIT_MIN", 60) * 60);
     let wait_name = format!("wait-{}.txt", slot.me);
@@ -983,7 +1237,8 @@ fn admit<'a>(slot: &'a Slot, unit: &Unit, need_mb: u64, arrived_ms: u64, policy:
         child_pid: 0,
         kind: unit.kind.clone(),
         crate_name: unit.crate_name.clone(),
-        mb: need_mb,
+        mb: need.commit_mb,
+        phys_mb: need.phys_mb,
         since_ms: arrived_ms,
         cwd: env::current_dir().map(|p| p.display().to_string()).unwrap_or_default(),
     };
@@ -994,69 +1249,84 @@ fn admit<'a>(slot: &'a Slot, unit: &Unit, need_mb: u64, arrived_ms: u64, policy:
         let decision = {
             let _lock = slot.lock();
             let mem = memory();
-            let holders = slot.live("held-");
+            let holders: Vec<Record> = slot.live("held-").into_iter().filter(|h| h.pid != slot.me).collect();
             let waiters = slot.live("wait-");
-            let older: u64 = waiters
-                .iter()
-                .filter(|w| w.pid != slot.me && (w.since_ms, w.pid) < (arrived_ms, slot.me))
-                .map(|w| w.mb)
-                .sum();
-            let promised = promised_by_holders(&holders, slot.me) + older;
+            // The line: every waiting compile's record, this one's as it is now.
+            let mut line: Vec<InLine> = waiters.iter().filter(|w| w.pid != slot.me).map(|w| InLine { pid: w.pid, since_ms: w.since_ms, need: w.need() }).collect();
+            line.push(InLine { pid: slot.me, since_ms: arrived_ms, need });
+            let growth = promised_by_holders(&holders, slot.me);
+            let verdict = decide(&mem, policy, holders.len(), growth, &line, slot.me);
             let over_ceiling = t0.elapsed() >= ceiling;
-            if fits(&mem, policy, promised, need_mb) || over_ceiling {
+            if verdict != Verdict::Wait || over_ceiling {
                 let held = Record { since_ms: now_ms(), ..mine.clone() };
                 let _ = slot.write_record(&format!("held-{}.txt", slot.me), &held);
                 slot.remove(&wait_name);
-                Ok((held, mem, promised, over_ceiling, holders.len()))
+                Ok((held, mem, growth, verdict, over_ceiling, holders.len()))
             } else {
                 if !announced {
                     let _ = slot.write_record(&wait_name, &mine);
                 }
-                Err((mem, promised, holders, waiters.len()))
+                Err((mem, growth, holders, line))
             }
         };
         match decision {
-            Ok((rec, mem, promised, over_ceiling, n_holders)) => {
+            Ok((rec, mem, growth, verdict, over_ceiling, n_holders)) => {
                 let waited = t0.elapsed().as_secs();
-                if over_ceiling {
+                if verdict == Verdict::Wait && over_ceiling {
                     let msg = format!(
                         "{} ({}): WAITED {} min, the ceiling, and the machine never had room for {} (+{} margin); compiling anyway. Room now {} with {} promised to {} other compile(s). Out of memory here is retried.",
-                        unit.crate_name, unit.kind, waited / 60, gb(need_mb), gb(policy.margin_mb), gb(room_mb(&mem, policy, 0).max(0) as u64), gb(promised), n_holders
+                        unit.crate_name, unit.kind, waited / 60, need_text(need), gb(policy.margin_mb), gb(room_mb(&mem, policy, 0).max(0) as u64), need_text(growth), n_holders
+                    );
+                    say(&msg);
+                    slot.log(&msg);
+                } else if let Verdict::Alone { passed } = verdict {
+                    let why = if passed == 0 {
+                        format!("none of our compiles is running, so it starts with the idle margin ({}) instead of waiting for room only it could free", gb(policy.idle_margin_mb))
+                    } else {
+                        format!(
+                            "the {passed} compile(s) ahead of it cannot start even with none of ours running (the rest of the machine holds the memory), so it goes first, alone; they are first in line again the moment it finishes"
+                        )
+                    };
+                    let msg = format!(
+                        "{} ({}): starting after {} s: {}. Needs {}; physical free {}, commit free {}.",
+                        unit.crate_name, unit.kind, waited, why, need_text(need), gb(mem.avail_phys_mb), gb(mem.avail_commit_mb)
                     );
                     say(&msg);
                     slot.log(&msg);
                 } else if announced {
-                    let msg = format!("{} ({}): room for {} after waiting {} s; compiling.", unit.crate_name, unit.kind, gb(need_mb), waited);
+                    let msg = format!("{} ({}): room for {} after waiting {} s; compiling.", unit.crate_name, unit.kind, need_text(need), waited);
                     say(&msg);
                     slot.log(&msg);
                 } else {
                     slot.log(&format!(
-                        "admit {} ({}) need {} MB; commit free {} MB, physical free {} MB, promised {} MB",
-                        unit.crate_name, unit.kind, need_mb, mem.avail_commit_mb, mem.avail_phys_mb, promised
+                        "admit {} ({}) need {} MB physical, {} MB commit; commit free {} MB, physical free {} MB, promised {} MB physical",
+                        unit.crate_name, unit.kind, need.phys_mb, need.commit_mb, mem.avail_commit_mb, mem.avail_phys_mb, growth.phys_mb
                     ));
                 }
                 return Held { slot, rec };
             }
-            Err((mem, promised, holders, n_waiters)) => {
+            Err((mem, growth, holders, line)) => {
                 if !announced || last_note.elapsed() >= Duration::from_secs(60) {
                     let others: Vec<String> = holders
                         .iter()
-                        .filter(|h| h.pid != slot.me)
-                        .map(|h| format!("{} ({}, {} of {})", h.crate_name, h.kind, gb(private_mb(h.child_pid)), gb(h.mb)))
+                        .map(|h| format!("{} ({}, {} of {})", h.crate_name, h.kind, gb(usage_mb(h.child_pid).phys_mb), gb(h.phys_mb)))
                         .collect();
+                    let ahead = line.iter().filter(|w| (w.since_ms, w.pid) < (arrived_ms, slot.me)).fold(Need::default(), |a, w| a.plus(w.need));
                     let msg = format!(
-                        "{} ({}): {} for memory: needs {} + {} margin; commit free {}, physical free {} (+{} paging allowed), {} promised to compiles already running or waiting longer. Running: {}. Waiting: {}. Ceiling {} min; HUMANITY_BUILD_SLOT=off skips the wait.",
+                        "{} ({}): {} for memory: needs {} + {} margin; commit free {}, physical free {} (+{} paging allowed); {} promised to compiles already running, {} to {} waiting longer. Running: {}. Waiting: {}. Ceiling {} min; HUMANITY_BUILD_SLOT=off skips the wait.",
                         unit.crate_name,
                         unit.kind,
                         if announced { format!("still waiting ({} s)", t0.elapsed().as_secs()) } else { "WAITING".to_string() },
-                        gb(need_mb),
+                        need_text(need),
                         gb(policy.margin_mb),
                         gb(mem.avail_commit_mb),
                         gb(mem.avail_phys_mb),
                         gb(policy.paging_mb),
-                        gb(promised),
+                        need_text(growth),
+                        need_text(ahead),
+                        line.iter().filter(|w| (w.since_ms, w.pid) < (arrived_ms, slot.me)).count(),
                         if others.is_empty() { "none of ours".to_string() } else { others.join(", ") },
-                        n_waiters,
+                        line.len(),
                         ceiling.as_secs() / 60
                     );
                     say(&msg);
@@ -1077,8 +1347,10 @@ struct Outcome {
     oom: Option<&'static str>,
     held_lines: Vec<String>,
     peak_mb: u64,
-    /// rustc's peak working set (physical memory), MB, for the ledger
+    /// the whole tree's peak working set (physical memory), MB, for the ledger (TreeWatch)
     ws_mb: u64,
+    /// rustc's own peak working set, MB, for the log beside the tree's
+    own_ws_mb: u64,
     /// CPU seconds of the whole tree (job accounting), for the ledger
     cpu_s: f64,
     secs: u64,
@@ -1093,6 +1365,9 @@ fn run_once(rustc: &OsStr, args: &[OsString], held: &mut Held, cap_mb: Option<u6
         use std::os::windows::io::AsRawHandle;
         Job::holding(child.as_raw_handle() as sys::Handle, cap_mb)
     };
+    // Declared after the job, so it drops (joining its thread) before the job closes.
+    #[cfg(windows)]
+    let mut watch = job.as_ref().map(TreeWatch::start);
     #[cfg(not(windows))]
     let _ = cap_mb;
     let mut held_lines = Vec::new();
@@ -1128,13 +1403,14 @@ fn run_once(rustc: &OsStr, args: &[OsString], held: &mut Held, cap_mb: Option<u6
         oom = oom_exit_signature(code);
     }
     #[cfg(windows)]
-    let (peak_mb, ws_mb, cpu_s) = {
-        let (own, ws) = child_peaks_mb(&child);
-        (job.as_ref().map(|j| j.peak_mb()).unwrap_or(0).max(own), ws, job.as_ref().map(|j| j.cpu_s()).unwrap_or(0.0))
+    let (peak_mb, ws_mb, own_ws_mb, cpu_s) = {
+        let (own, own_ws) = child_peaks_mb(&child);
+        let tree_ws = watch.as_mut().map(|w| w.finish()).unwrap_or(0);
+        (job.as_ref().map(|j| j.peak_mb()).unwrap_or(0).max(own), tree_ws.max(own_ws), own_ws, job.as_ref().map(|j| j.cpu_s()).unwrap_or(0.0))
     };
     #[cfg(not(windows))]
-    let (peak_mb, ws_mb, cpu_s) = (0, 0, 0.0);
-    Ok(Outcome { code, oom: if status.success() { None } else { oom }, held_lines, peak_mb, ws_mb, cpu_s, secs: t0.elapsed().as_secs() })
+    let (peak_mb, ws_mb, own_ws_mb, cpu_s) = (0, 0, 0, 0.0);
+    Ok(Outcome { code, oom: if status.success() { None } else { oom }, held_lines, peak_mb, ws_mb, own_ws_mb, cpu_s, secs: t0.elapsed().as_secs() })
 }
 
 /// No gate: run rustc with this process's own output, return its exit code.
@@ -1160,7 +1436,7 @@ fn gated(rustc: &OsStr, args: &[OsString], unit: Unit) -> i32 {
     let attempts = env_u64("HOS_BUILD_SLOT_ATTEMPTS", 3).max(1);
     let test_cap = env::var("HOS_BUILD_SLOT_TEST_OOM_MB").ok().and_then(|v| v.parse::<u64>().ok());
     let arrived = now_ms();
-    let mut need = slot.expected_mb(&unit.kind);
+    let mut need = slot.expected(&unit.kind);
     let mut last: Option<Outcome> = None;
     for attempt in 1..=attempts {
         let mut held = admit(&slot, &unit, need, arrived, &policy);
@@ -1180,7 +1456,10 @@ fn gated(rustc: &OsStr, args: &[OsString], unit: Unit) -> i32 {
             if out.peak_mb > 0 && cap.is_none() {
                 slot.record_peak(&unit.kind, out.peak_mb, out.secs, out.ws_mb, out.cpu_s);
             }
-            slot.log(&format!("done {} ({}) in {} s (cpu {:.0} s), peak {} MB (working set {} MB), attempt {}", unit.crate_name, unit.kind, out.secs, out.cpu_s, out.peak_mb, out.ws_mb, attempt));
+            slot.log(&format!(
+                "done {} ({}) in {} s (cpu {:.0} s), peak {} MB commit, working set {} MB (rustc alone {} MB), attempt {}",
+                unit.crate_name, unit.kind, out.secs, out.cpu_s, out.peak_mb, out.ws_mb, out.own_ws_mb, attempt
+            ));
             if attempt > 1 {
                 say(&format!("{} ({}): attempt {} SUCCEEDED after the out-of-memory retry (peak {}).", unit.crate_name, unit.kind, attempt, gb(out.peak_mb)));
             }
@@ -1200,7 +1479,8 @@ fn gated(rustc: &OsStr, args: &[OsString], unit: Unit) -> i32 {
                 }
                 append_retry_ledger(&slot, &unit, attempt, sig, out.peak_mb);
                 // Ask for more room next time: what it reached, or what was expected, plus a quarter.
-                need = need.max(out.peak_mb) + need.max(out.peak_mb) / 4;
+                let more = |n: u64, seen: u64| n.max(seen) + n.max(seen) / 4;
+                need = Need { commit_mb: more(need.commit_mb, out.peak_mb), phys_mb: more(need.phys_mb, out.ws_mb) };
                 last = Some(out);
             }
             Some(sig) => {
@@ -1272,29 +1552,38 @@ fn print_status() -> i32 {
         gb(policy.paging_mb)
     );
     let holders = slot.live("held-");
-    let waiters = slot.live("wait-");
+    let mut waiters = slot.live("wait-");
+    waiters.sort_by_key(|w| (w.since_ms, w.pid));
     println!("compiling       {}", holders.len());
     for h in &holders {
+        let now = usage_mb(h.child_pid);
         println!(
-            "  {} ({}) pid {} rustc {}: now {}, expected peak {}, for {} s, in {}",
+            "  {} ({}) pid {} rustc {}: now {} of {} physical ({} of {} commit), for {} s, in {}",
             h.crate_name,
             h.kind,
             h.pid,
             h.child_pid,
-            gb(private_mb(h.child_pid)),
+            gb(now.phys_mb),
+            gb(h.phys_mb),
+            gb(now.commit_mb),
             gb(h.mb),
             now_ms().saturating_sub(h.since_ms) / 1000,
             h.cwd
         );
     }
-    println!("waiting         {}", waiters.len());
+    // The line in its order, and what the rule says to each one right now (none of them is
+    // started by this: each decides for itself on its next look).
+    let line: Vec<InLine> = waiters.iter().map(|w| InLine { pid: w.pid, since_ms: w.since_ms, need: w.need() }).collect();
+    let growth = promised_by_holders(&holders, 0);
+    println!("waiting         {} (first in line first)", waiters.len());
     for w in &waiters {
-        println!("  {} ({}) pid {}: needs {}, waiting {} s, in {}", w.crate_name, w.kind, w.pid, gb(w.mb), now_ms().saturating_sub(w.since_ms) / 1000, w.cwd);
+        let v = decide(&m, &policy, holders.len(), growth, &line, w.pid);
+        println!("  {} ({}) pid {}: needs {}, waiting {} s, rule says {:?}, in {}", w.crate_name, w.kind, w.pid, need_text(w.need()), now_ms().saturating_sub(w.since_ms) / 1000, v, w.cwd);
     }
     let kinds = ["lib-check-native", "lib-build-native", "lib-test-native", "lib-release-native", "lib-check-relay", "lib-test-relay", "bin-release-native", "bin-build-native"];
     println!("expected peaks  (learned from this machine's ledger, else the seed)");
     for k in kinds {
-        println!("  {:<22} {}", k, gb(slot.expected_mb(k)));
+        println!("  {:<22} {}", k, need_text(slot.expected(k)));
     }
     0
 }
@@ -1378,6 +1667,11 @@ mod tests {
         s.split_whitespace().map(String::from).collect()
     }
 
+    /// A ledger line's commit peak for `kind`.
+    fn ledger_peak(line: &str, kind: &str) -> Option<u64> {
+        ledger_peaks(line, kind).map(|(commit, _)| commit)
+    }
+
     #[test]
     fn classifies_cargos_real_command_lines() {
         // Shapes copied from the rustc command lines cargo 1.88 ran on 2026-10-22.
@@ -1450,26 +1744,26 @@ mod tests {
     fn mem(commit: u64, phys: u64) -> Mem {
         Mem { avail_commit_mb: commit, avail_phys_mb: phys, commit_limit_mb: 0, total_phys_mb: 0 }
     }
-    // The defaults: 2 GB margin, no paging.
-    const P: Policy = Policy { margin_mb: 2048, paging_mb: 0 };
+    // The defaults: 2 GB margin, no paging, half the margin with none of ours running.
+    const P: Policy = Policy { margin_mb: 2048, paging_mb: 0, idle_margin_mb: 1024 };
 
     #[test]
     fn admission_keys_on_physical_memory_then_commit_and_counts_promises() {
         // Plenty of both: 11 GB + 2 margin fits in 24 GB of physical memory.
-        assert!(fits(&mem(118_000, 24_000), &P, 0, 11_000));
+        assert!(fits(&mem(118_000, 24_000), &P, Need::both(0), Need::both(11_000), P.margin_mb));
         // Physical is the limit (the 100 GB page file): 12 GB free cannot take 11 + 2, though
         // commit has 118 GB. This is the thrash the slot stops.
-        assert!(!fits(&mem(118_000, 12_000), &P, 0, 11_000));
-        assert!(fits(&mem(118_000, 13_100), &P, 0, 11_000));
+        assert!(!fits(&mem(118_000, 12_000), &P, Need::both(0), Need::both(11_000), P.margin_mb));
+        assert!(fits(&mem(118_000, 13_100), &P, Need::both(0), Need::both(11_000), P.margin_mb));
         // Commit is the limit (the old 8 GB page file): 12 GB of commit, 24 GB physical.
-        assert!(!fits(&mem(12_000, 24_000), &P, 0, 11_000));
+        assert!(!fits(&mem(12_000, 24_000), &P, Need::both(0), Need::both(11_000), P.margin_mb));
         // Promised room counts: 24 less 12 promised = 12, short of 13; less 10 = 14 fits.
-        assert!(!fits(&mem(118_000, 24_000), &P, 12_000, 11_000));
-        assert!(fits(&mem(118_000, 24_000), &P, 10_000, 11_000));
+        assert!(!fits(&mem(118_000, 24_000), &P, Need::both(12_000), Need::both(11_000), P.margin_mb));
+        assert!(fits(&mem(118_000, 24_000), &P, Need::both(10_000), Need::both(11_000), P.margin_mb));
         // A paging allowance, when someone sets one, is counted on the physical side only.
-        let paging = Policy { margin_mb: 2048, paging_mb: 8192 };
-        assert!(fits(&mem(118_000, 6_000), &paging, 0, 11_000));
-        assert!(!fits(&mem(6_000, 6_000), &paging, 0, 11_000));
+        let paging = Policy { margin_mb: 2048, paging_mb: 8192, idle_margin_mb: 1024 };
+        assert!(fits(&mem(118_000, 6_000), &paging, Need::both(0), Need::both(11_000), paging.margin_mb));
+        assert!(!fits(&mem(6_000, 6_000), &paging, Need::both(0), Need::both(11_000), paging.margin_mb));
     }
 
     #[test]
@@ -1488,6 +1782,42 @@ mod tests {
         assert_eq!(learned_peak_mb(&v, 10_000), Some(6_600));
         // never below half the seed
         assert_eq!(learned_peak_mb(&[1_000], 10_000), Some(5_000));
+    }
+
+    /// The ten lib-test-native ledger lines before the 2026-11-14 deadlock (commit MB, rustc's
+    /// working set MB), copied from this machine's peaks.txt, 14:04 that day.
+    const LIB_TEST_2026_11_14: [(u64, u64); 10] = [
+        (13_427, 11_375),
+        (9_342, 7_277),
+        (10_764, 8_929),
+        (13_180, 11_069),
+        (10_728, 8_894),
+        (13_254, 11_179),
+        (13_264, 11_173),
+        (10_740, 8_911),
+        (10_721, 8_885),
+        (10_301, 8_366),
+    ];
+
+    /// The physical need is learned from the working set, not the commit (learned_need).
+    /// RED on the learning before 2026-11-14 (the commit peak used as the physical need too):
+    /// the head needed 14,769 MB of physical memory, and with the full margin it did not fit the
+    /// 16,691 MB that was free with none of ours running (the deadlock's other half).
+    #[test]
+    fn the_physical_need_is_learned_from_the_working_set() {
+        let need = learned_need(&LIB_TEST_2026_11_14, seed_peak_mb("lib-test-native"));
+        // 13,427 + 10% = 14,769 MB commit (the "14.4 GB" of the log); 11,375 + 10% = 12,512 MB physical.
+        assert_eq!(need, Need { commit_mb: 14_769, phys_mb: 12_512 });
+        let that_moment = mem(114_000, 16_691);
+        assert!(fits(&that_moment, &P, Need::default(), need, P.margin_mb), "12.2 GB + 2 GB margin fits 16.3 GB");
+        assert!(!fits(&that_moment, &P, Need::default(), Need::both(need.commit_mb), P.margin_mb), "the old need, 14.4 GB as physical, did not");
+        // Never below 3/4 of the commit need (a working set trimmed under pressure reads low).
+        assert_eq!(learned_need(&[(12_000, 2_000)], 11_000), Need { commit_mb: 13_200, phys_mb: 9_900 });
+        // No working set read (0): the commit need stands for both; no lines at all: the seed.
+        assert_eq!(learned_need(&[(8_000, 0)], 11_000), Need::both(8_800));
+        assert_eq!(learned_need(&[], 11_000), Need::both(11_000));
+        // The ledger's own lines read back as (commit, working set).
+        assert_eq!(ledger_peaks(ledger_line(1_793_683_300, "lib-test-native", 9_800, 312, 7_400, 640.0).trim_end(), "lib-test-native"), Some((9_800, 7_400)));
     }
 
     #[test]
@@ -1538,9 +1868,124 @@ mod tests {
 
     #[test]
     fn records_round_trip() {
-        let r = Record { pid: 42, start: 133_000_000_000, child_pid: 7, kind: "lib-test-native".into(), crate_name: "humanity_engine".into(), mb: 11_000, since_ms: 5, cwd: "C:\\Humanity".into() };
+        let r = Record { pid: 42, start: 133_000_000_000, child_pid: 7, kind: "lib-test-native".into(), crate_name: "humanity_engine".into(), mb: 11_000, phys_mb: 9_000, since_ms: 5, cwd: "C:\\Humanity".into() };
         assert_eq!(Record::parse(&r.to_text()), Some(r));
         assert_eq!(Record::parse("garbage"), None);
+        // A record with no physical need (a wrapper from before it, still compiling while this
+        // one was installed) promises its commit need as both.
+        let old = Record::parse("pid=9\nmb=11000\nsince_ms=1\n").unwrap();
+        assert_eq!(old.need(), Need::both(11_000));
+    }
+
+    // ── the queue, simulated ────────────────────────────────────────────────────────
+    // A model of this machine and its line: every waiting compile looks again each poll (one
+    // tick, 2 s), the decisions are taken one at a time under the lock and each sees what the
+    // ones before it left, and a compile holds what it really uses (`uses`) from its start while
+    // the rule counts what it may still grow by to its expected peak (`need`). The commit side
+    // has the 100 GB page file, so physical memory is the limit, as it is on the dev PC.
+
+    #[derive(Clone, Copy)]
+    struct SimJob {
+        arrive: u64,
+        need: Need,
+        uses: Need,
+        ticks: u64,
+    }
+
+    /// The tick each job started at (None: not within `ticks`). `outside(t)`: the physical memory
+    /// the rest of the machine uses at tick t. `newest_first`: the order the waiting compiles
+    /// look in within a tick (arbitrary on the real machine; newest first is the order that would
+    /// let a rule's newcomer jump the line).
+    fn simulate(jobs: &[SimJob], outside: &dyn Fn(u64) -> u64, policy: &Policy, ticks: u64, newest_first: bool) -> Vec<Option<u64>> {
+        const TOTAL_PHYS: u64 = 32_768;
+        let mut started: Vec<Option<u64>> = vec![None; jobs.len()];
+        for t in 0..ticks {
+            let mut order: Vec<usize> = (0..jobs.len()).filter(|&i| jobs[i].arrive <= t && started[i].is_none()).collect();
+            if newest_first {
+                order.reverse();
+            }
+            for &i in &order {
+                let running: Vec<usize> = (0..jobs.len()).filter(|&j| matches!(started[j], Some(s) if t < s + jobs[j].ticks)).collect();
+                let used = running.iter().fold(Need::default(), |a, &j| a.plus(jobs[j].uses));
+                let growth = running.iter().fold(Need::default(), |a, &j| {
+                    a.plus(Need { commit_mb: still_to_grow_mb(jobs[j].need.commit_mb, jobs[j].uses.commit_mb), phys_mb: still_to_grow_mb(jobs[j].need.phys_mb, jobs[j].uses.phys_mb) })
+                });
+                let mem = Mem {
+                    avail_commit_mb: 100_000 - used.commit_mb,
+                    avail_phys_mb: TOTAL_PHYS.saturating_sub(outside(t) + used.phys_mb),
+                    commit_limit_mb: 132_000,
+                    total_phys_mb: TOTAL_PHYS,
+                };
+                let line: Vec<InLine> = (0..jobs.len())
+                    .filter(|&j| jobs[j].arrive <= t && started[j].is_none())
+                    .map(|j| InLine { pid: j as u32 + 1, since_ms: jobs[j].arrive * 2000, need: jobs[j].need })
+                    .collect();
+                if decide(&mem, policy, running.len(), growth, &line, i as u32 + 1) != Verdict::Wait {
+                    started[i] = Some(t);
+                }
+            }
+        }
+        started
+    }
+
+    /// The 2026-11-14 deadlock, in its own numbers (the slot log, pid 16076): a lib-test expected
+    /// to peak at 14.4 GB (14,746 MB) needed 16.4 GB with the margin, the machine had 16.3 GB
+    /// (16,691 MB) free with NONE of our compiles running, and 14 small compiles (lints and the
+    /// workspace's small crates, 1.5 GB each) waited behind it. Each of them counted the head's
+    /// 14.4 GB as promised, so nothing ran, and the only thing that could have freed the head's
+    /// room was the head. It waited 17 minutes and then peaked at 10.7 GB.
+    ///
+    /// RED on the rule before 2026-11-14 (first come, first served with the full margin, the head
+    /// counted against everyone behind it), seen running this test that day:
+    ///   "after 300 ticks (10 min) 0 of 15 compiles had started: [None, None, ... None]"
+    #[test]
+    fn the_queue_never_waits_on_room_only_its_own_head_could_free() {
+        let mut jobs = vec![SimJob { arrive: 0, need: Need::both(14_746), uses: Need { commit_mb: 10_719, phys_mb: 8_885 }, ticks: 172 }];
+        for k in 1..=14 {
+            jobs.push(SimJob { arrive: k, need: Need::both(1_536), uses: Need::both(110), ticks: 2 });
+        }
+        let outside = |_t: u64| 32_768 - 16_691;
+        for newest_first in [true, false] {
+            let s = simulate(&jobs, &outside, &P, 300, newest_first);
+            let n = s.iter().filter(|x| x.is_some()).count();
+            assert_eq!(n, jobs.len(), "after 300 ticks (10 min) {n} of {} compiles had started: {s:?}", jobs.len());
+            // The head went first, and at once: nothing of ours was running.
+            assert_eq!(s[0], Some(0), "{s:?}");
+        }
+    }
+
+    /// When the head cannot start even on an idle machine (the rest of the machine holds the
+    /// memory), the compiles behind it go one at a time instead of waiting with it; the moment
+    /// the machine has room for the head, it goes next: before any compile that starts after
+    /// that moment, however many keep arriving behind it.
+    ///
+    /// RED on the rule before 2026-11-14: "small compile 1 (arrived at tick 1) never started: it
+    /// waited behind a head that could not start" (nothing behind the head ever ran).
+    #[test]
+    fn behind_a_head_that_cannot_start_the_line_moves_and_the_head_goes_next() {
+        let head = SimJob { arrive: 0, need: Need::both(14_746), uses: Need { commit_mb: 10_719, phys_mb: 8_885 }, ticks: 172 };
+        let mut jobs = vec![head];
+        // A small compile every 3 ticks for 20 minutes.
+        for k in 0..200u64 {
+            jobs.push(SimJob { arrive: 1 + 3 * k, need: Need::both(1_536), uses: Need::both(110), ticks: 2 });
+        }
+        // 13 GB free on an idle machine until tick 300, then 16 GB: room for the head only with
+        // nothing of ours running.
+        let outside = |t: u64| if t < 300 { 32_768 - 13_000 } else { 32_768 - 16_000 };
+        for newest_first in [true, false] {
+            let s = simulate(&jobs, &outside, &P, 1_200, newest_first);
+            for (i, j) in jobs.iter().enumerate().skip(1) {
+                if j.arrive < 290 {
+                    let st = s[i].unwrap_or_else(|| panic!("small compile {i} (arrived at tick {}) never started: it waited behind a head that could not start", j.arrive));
+                    assert!(st <= j.arrive + 10, "small compile {i} arrived at {} and started at {st}: {s:?}", j.arrive);
+                }
+            }
+            let h = s[0].expect("the head started once the machine had room for it");
+            assert!((300..=303).contains(&h), "the head went at tick {h}, not as soon as the compile running at tick 300 finished");
+            let jumped: Vec<usize> = (1..jobs.len()).filter(|&i| matches!(s[i], Some(st) if st > 300 && st < h)).collect();
+            assert!(jumped.is_empty(), "compiles {jumped:?} started after the room appeared and before the head (tick {h})");
+            assert!(s.iter().all(|x| x.is_some()), "every compile ran in the end: {s:?}");
+        }
     }
 
     #[test]

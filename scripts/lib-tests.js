@@ -16,7 +16,8 @@
 //                          mark per test, the way -q prints
 //   --run-timeout-min N    fail if the test RUN (not the build) takes longer than N minutes
 //   --stall-min N          fail if the test program prints nothing for N minutes (default 15,
-//                          0 = never), naming the tests that were in flight (2026-11-01)
+//                          0 = never), naming the tests that were in flight (2026-11-01) and
+//                          printing the stuck test thread's stack (point 7, 2026-11-14)
 //   --gpu-anyway           let the tests that open a GPU device run beside the operator's GPU
 //                          game (by default they stand down: point 4 below; beside it they may hang)
 //   --crate <name>         build and run only this workspace member's tests (repeatable; 2026-11-01).
@@ -110,6 +111,11 @@
 //      the program itself, naming the test, before the 15-minute stall stop. It also hands them
 //      HUMANITY_DXC_DIR, the game's fast DX12 shader compiler found the way the rigs find it
 //      (scripts/lib/dxc-dlls.js), unless it is already set: on FXC a big pipeline takes minutes.
+//   7. That thread dump, made a tool (2026-11-14): before a program this script stops (stalled,
+//      or past --run-timeout-min) is stopped, every thread's stack is dumped
+//      (scripts/lib/stack-dump.js over scripts/stackdump/): target/lib-tests/hang-<time>-<program>
+//      .stacks.txt, beside .log, the run's output up to then. libtest names each test's thread
+//      after its test, so the report prints the stuck test's frames: which test, and where.
 
 "use strict";
 const fs = require("fs");
@@ -117,6 +123,7 @@ const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 const L = require("./lib/test-pass-ledger.js");
 const P = require("./lib/lib-test-programs.js");
+const SD = require("./lib/stack-dump.js");
 
 // HOS_LIB_TESTS_ROOT and HOS_LIB_TESTS_EXE are for scripts/tests/lib-tests-policy.test.js: another
 // checkout (a throwaway repository), and the test programs to run instead of building ours (one
@@ -409,7 +416,10 @@ function runProgram(exe, args, timeoutMin) {
     let stalled = false;
     let timedOut = false;
     let stallTimer = null;
+    let hang = null;
     const stop = () => {
+      // Every thread's stack BEFORE it is stopped (2026-11-14), saved beside the run's log.
+      hang = saveHang(exe, c.pid, out);
       c.kill();
       // A process that cannot be killed must not hang this script too.
       setTimeout(() => finish(1), 30 * 1000).unref();
@@ -451,11 +461,43 @@ function runProgram(exe, args, timeoutMin) {
       if (timer) clearTimeout(timer);
       if (partial && parsed) onLine(partial);
       if (compact && midLine) process.stdout.write("\n");
-      resolve({ code, out: out + extra, timedOut, stalled, secs: Math.round((Date.now() - t0) / 1000), done, warned, parsed });
+      resolve({ code, out: out + extra, timedOut, stalled, secs: Math.round((Date.now() - t0) / 1000), done, warned, parsed, hang });
     };
     c.on("error", (e) => finish(1, String(e)));
     c.on("close", (code) => finish(code === null ? 1 : code));
   });
+}
+
+/**
+ * A test program that went quiet (or ran past its limit), before it is stopped (2026-11-14): its
+ * output so far as a log, and every thread's stack beside it (scripts/lib/stack-dump.js). libtest
+ * names each test's thread after its test, so the dump says which test is stuck, and where; the
+ * GPU-hang investigation of that day found a freeze is one thread dump away from an answer.
+ */
+function saveHang(exe, pid, out) {
+  const d = new Date();
+  const two = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+  const base = path.join(ROOT, "target", "lib-tests", `hang-${stamp}-${path.basename(exe).replace(/\.exe$/i, "")}`);
+  fs.mkdirSync(path.dirname(base), { recursive: true });
+  fs.writeFileSync(`${base}.log`, out);
+  console.error(`\nlib-tests: the test program went quiet; dumping every thread's stack before stopping it...`);
+  const dump = SD.dumpStacks(pid, `${base}.stacks.txt`);
+  return { log: `${base}.log`, stacks: dump.file, ok: dump.ok, error: dump.error, ms: dump.ms };
+}
+
+/** From a stack dump, each thread named after a test (libtest names them so), with its frames. */
+function namedThreads(dumpText, names) {
+  const out = [];
+  let cur = null;
+  for (const line of dumpText.split(/\r?\n/)) {
+    const m = /^thread \d+ "(.*)":$/.exec(line);
+    if (m) {
+      cur = names.has(m[1]) ? { name: m[1], frames: [] } : null;
+      if (cur) out.push(cur);
+    } else if (cur && line.startsWith("    ")) cur.frames.push(line.trim());
+  }
+  return out;
 }
 
 /** The tests a run of `args` selects, in libtest's run order (by name), or null. */
@@ -505,6 +547,22 @@ function hangReport(exe, args, res, why) {
     for (const n of res.warned) console.error(`  ${n}`);
   }
   for (const l of gpuTurnReport(res.out)) console.error(l);
+  if (res.hang) {
+    // The stack dump taken before it was stopped (point 7): each test thread's frames, innermost first.
+    const h = res.hang;
+    if (h.ok) {
+      const text = fs.existsSync(h.stacks) ? fs.readFileSync(h.stacks, "utf8") : "";
+      const threads = namedThreads(text, new Set(list || [...res.warned]));
+      for (const t of threads) {
+        console.error(`Thread "${t.name}" when it was stopped (innermost first):`);
+        for (const f of t.frames.slice(0, 16)) console.error(`    ${f}`);
+        if (t.frames.length > 16) console.error(`    ... ${t.frames.length - 16} more in the dump`);
+      }
+      if (!threads.length) console.error("No thread was named after a test: the dump has every thread, by id.");
+    } else console.error(`The stack dump failed (${h.error}).`);
+    console.error(`Every thread's stack when it was stopped: ${h.stacks}`);
+    console.error(`The run's output up to then: ${h.log}`);
+  }
   console.error("A test thread that reports its result and then cannot exit stops ALL of libtest's output, its 60-second warnings included (scripts/lib-tests.js, point 5).");
   if (busy.length) console.error(`${busy.join(", ")} was running; the GPU tests stood down (crates/humanity-core/src/test_gpu.rs), so look past them.`);
   else console.error("If one of the operator's GPU games was running, this run did not know it (scripts/lib/operator-apps.json lists them).");
