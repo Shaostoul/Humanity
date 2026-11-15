@@ -1,5 +1,5 @@
-//! The bottom of every app page: the unfinished-software warning, and later the chat footer above
-//! it (docs/design/app-bottom-strip.md, 2026-10-30).
+//! The bottom of every app page: the unfinished-software warning, and the chat footer above it
+//! ([`chat_footer`], 2026-11-15) (docs/design/app-bottom-strip.md, 2026-10-30).
 //!
 //! The operator, 2026-10-30: "I feel we should slap an anchored warning somewhere on the menu
 //! pages not fps mode camera, that explains this software is wip and not to trust it with your
@@ -8,7 +8,7 @@
 //! We could include a link on the wip warning to a page about more details about the warning and
 //! development."
 //!
-//! THE STACK, bottom up: the warning, then (rung 2 of the plan) the chat footer, then the page.
+//! THE STACK, bottom up: the warning, then the chat footer (rungs 2 and 3), then the page.
 //! egui stacks bottom panels in the order they are added, the first one outermost, so [`draw`]
 //! adds the warning first and anything above it after. lib.rs calls [`draw`] once a frame, after
 //! the top menu and BEFORE the page draws, so the page's own bottom panels (the crafting queue,
@@ -52,12 +52,13 @@ use crate::gui::{GuiPage, GuiState, VERSION};
 
 pub mod mute;
 pub use mute::WipMute;
+pub mod chat_footer;
 
 /// The Library document the warning's link opens (`docs/user/rights/unfinished_software.md`; the
 /// slug is its file name, `scripts/build-library.js` `slugOf`). A test checks the shipped Library has it.
 pub const DETAILS_SLUG: &str = "unfinished-software";
 
-/// The warning's panel, by id. The chat footer (rung 2) gets its own, added after this one.
+/// The warning's panel, by id. The chat footer has its own (chat_footer.rs), added after this one.
 const WARNING_PANEL: &str = "hos_wip_strip";
 
 /// Where the strip notes its height for the frame it drew in: (the context's pass number, height).
@@ -65,8 +66,9 @@ fn height_key() -> egui::Id {
     egui::Id::new(WARNING_PANEL).with("height")
 }
 
-/// How tall the bottom strip is on this frame, in points: 0 when it did not draw (the
-/// first-person world, a 1.0 build, a mute in force) or has not drawn yet this frame.
+/// How tall the bottom strip is on this frame, in points: the warning and the chat footer on it
+/// together; 0 when neither drew (the first-person world, a 1.0 build or a mute in force with the
+/// footer off) or the strip has not drawn yet this frame.
 ///
 /// For a window or area anchored to the bottom of the screen (2026-10-30): egui anchors to the
 /// whole screen (`screen_rect`), not to the room the bottom panels leave, so such a window adds
@@ -137,6 +139,9 @@ pub(crate) fn draw_at(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, 
     if wip_shown(version) && !muted {
         draw_warning(ctx, theme, state, version, now);
     }
+    // The chat footer stands on the warning (on the window's bottom while the warning is muted).
+    let footer = chat_footer::draw(ctx, theme, state);
+    add_height(ctx, footer);
     if details_window_open(ctx) {
         if in_first_run_setup(state) {
             draw_details_window(ctx, theme, state);
@@ -185,9 +190,14 @@ fn draw_warning(ctx: &egui::Context, theme: &Theme, state: &mut GuiState, versio
                 });
             });
         });
+    add_height(ctx, panel.response.rect.height());
+}
+
+/// Add a layer's height to the strip's for this frame ([`height`]): the warning's, then the footer's.
+fn add_height(ctx: &egui::Context, h: f32) {
+    let total = height(ctx) + h;
     let pass = ctx.cumulative_pass_nr();
-    let h = panel.response.rect.height();
-    ctx.data_mut(|d| d.insert_temp(height_key(), (pass, h)));
+    ctx.data_mut(|d| d.insert_temp(height_key(), (pass, total)));
 }
 
 /// The window that shows the warning's page over the first-run setup, by id.

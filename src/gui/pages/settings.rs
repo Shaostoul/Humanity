@@ -1406,6 +1406,13 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         }
         widgets::setting_hint(ui, theme, hint, t("settings.nav_preview_desc"));
 
+        // The chat footer on every page but Chat (gui/bottom_strip/chat_footer.rs, 2026-11-15):
+        // Off, Folded, Unfolded; its key is the keymap's (data/keymaps.ron), named in the hint.
+        if crate::gui::bottom_strip::chat_footer::setting_row(ui, theme, &mut state.chat_footer) {
+            state.settings_dirty = true;
+        }
+        widgets::setting_hint(ui, theme, hint, &crate::gui::bottom_strip::chat_footer::setting_words(&state.keymaps));
+
         // The hint-display mode itself (Full / Hover / Off): how every
         // description on this page, and every control's hover hint, is shown.
         if hint_display_picker(ui, theme, &mut state.settings.hint_display) {

@@ -91,21 +91,27 @@ struct Asked {
 pub(crate) fn origin_here(state: &GuiState) -> Origin {
     let server = norm_server_url(&state.connected_server_url);
     let channel = state.chat_active_channel.clone();
-    let shown = if let Some(room) = commons_room_of(&channel) {
-        format!("#{room}")
-    } else if let Some(key) = channel.strip_prefix("dm:") {
-        crate::engine::dm::dm_display_name(state, key)
-    } else if let Some(gid) = channel.strip_prefix("p2pgroup:") {
-        state.p2p_groups.iter().find(|g| g.group_id == gid).map_or_else(|| gid.to_string(), |g| g.name.clone())
-    } else {
-        format!("#{}", state.chat_channels.iter().find(|c| c.id == channel).map_or(channel.as_str(), |c| c.name.as_str()))
-    };
+    let shown = conversation_name(state, &channel);
     let label = if server.is_empty() {
         tf("chat_video_dock.from_here", &[("channel", &shown)])
     } else {
         tf("chat_video_dock.from", &[("channel", &shown), ("server", &server_display_name(&server))])
     };
     Origin { server, channel, label }
+}
+
+/// A conversation's name as a person reads it: "#room" (a Commons room by its room), a person by
+/// the name the DMs show, a group by its name. The dock's "From ..." line and the chat footer's.
+pub(crate) fn conversation_name(state: &GuiState, channel: &str) -> String {
+    if let Some(room) = commons_room_of(channel) {
+        format!("#{room}")
+    } else if let Some(key) = channel.strip_prefix("dm:") {
+        crate::engine::dm::dm_display_name(state, key)
+    } else if let Some(gid) = channel.strip_prefix("p2pgroup:") {
+        state.p2p_groups.iter().find(|g| g.group_id == gid).map_or_else(|| gid.to_string(), |g| g.name.clone())
+    } else {
+        format!("#{}", state.chat_channels.iter().find(|c| c.id == channel).map_or(channel, |c| c.name.as_str()))
+    }
 }
 
 /// The dock's width in a room `room_width` points wide.

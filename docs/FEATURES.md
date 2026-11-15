@@ -1717,14 +1717,34 @@ takes no room; a mute ends at its time, at the next launch for a session's (the 
 and with a new version (one rule, `scripts/tests/fixtures/wip-mute-cases.json`); kept on the device
 only (config.json `wip_mute`; the browser's localStorage/sessionStorage `hos_wip_mute`). The title
 screen (website: the front page) and the warning's own Library page show it whatever the mute.
-- Native: `src/gui/bottom_strip.rs` (called by `src/lib.rs` before the page; the chat footer is planned
-  above it), `src/gui/bottom_strip/mute.rs` (the mute, its menu, the Settings row; tests in
+- Native: `src/gui/bottom_strip.rs` (called by `src/lib.rs` before the page; the chat footer stands
+  on it, below), `src/gui/bottom_strip/mute.rs` (the mute, its menu, the Settings row; tests in
   `mute_tests.rs`), snapshots `wip_strip`, `wip_strip_narrow`, `wip_strip_title`, `wip_details`,
   `wip_strip_muted`, `wip_mute_menu`, `wip_strip_title_muted`, `wip_mute_settings`
 - Web: `web/shared/shell.js` (`wipStrip`, `.hos-wip-strip`, `hosWipMuted`, `window.hosWipMute`; the
   footer stands on it through `--hos-wip-h`, a spacer ends the page), `web/pages/settings-app.js`
   (`renderWipMuteRow`), `scripts/tests/wip-strip-web.test.js`, `wip-mute-web.test.js`,
   `wip-strip-room-web.test.js`
+
+### Chat footer (desktop app, 2026-11-15)
+The current conversation as a footer above the unfinished-software warning on every page behind the
+top menu except Chat (rungs 2 and 3 of `docs/design/app-bottom-strip.md`, section 4). **Folded** (the
+default): one line the warning's height, the conversation's name, its newest message as "name:
+words" cut to the line, how many other conversations are unread (the Chat page's own unread marks),
+Open in Chat and Show more. **Unfolded:** a strip 180 points tall at first, resizable from its top
+edge between 120 points and 40% of the window (the height kept), the last 50 messages newest at the
+bottom and the box to type in. **Off** in Settings, and always off on the Chat page, the title
+screen, in the first-person world, on in-world screens and when not signed in to a server. One
+conversation, two views: the same `chat_active_channel`, the same draft (`chat_input`), the Chat
+page's own message rows and composer and its send path (`send_composed_content`). Settings >
+Appearance > Chat footer (Off, Folded, Unfolded; config.json `chat_footer`); Alt+C folds and unfolds
+it, read from its `data/keymaps.ron` row (`id: "chat_footer_fold"`). Its height is in
+`bottom_strip::height`, so the toasts, the dialogs and the chat videos' dock stand on it. Desktop
+only (the operator's decision 4, 2026-11-02).
+- Native: `src/gui/bottom_strip/chat_footer.rs` (tests in `chat_footer_tests.rs`), the rows and the
+  composer shared with the Chat page in `src/gui/pages/chat/rows.rs` and
+  `src/gui/pages/chat/composer.rs` (`Place::Page`, `Place::Footer`), the keymap's shortcut rows in
+  `src/gui/pages/keymap.rs` (`shortcut`), snapshots `chat_footer_folded`, `chat_footer_unfolded`
 
 ### Real/Sim Toggle
 Global context switch between real-life tools and simulation mode. Stored in localStorage.

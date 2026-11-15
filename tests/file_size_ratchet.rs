@@ -35,6 +35,11 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-15: `gui/pages/chat.rs` 4_700 -> 2_830. The chat footer (docs/design/
+///   app-bottom-strip.md section 4) draws the Chat page's own message rows and composer, so both
+///   moved out whole into `gui/pages/chat/rows.rs` and `gui/pages/chat/composer.rs` (2_744 lines
+///   left that day); the two join the list at their measured sizes so neither becomes the next
+///   monolith.
 /// - 2026-11-14: `src/lib.rs` 16_700 -> 2_400, the file-size split's step 1
 ///   (docs/design/crate-split.md, "Step 1's stage list"): `window_event`, the whole frame in one
 ///   function, cut into one module per frame stage, `src/engine/frame_*.rs`, in the order the frame
@@ -459,7 +464,9 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/engine/frame_water.rs", 750),
     ("src/engine/frame_near_trees.rs", 700),
     ("crates/humanity-systems/src/surface_walk.rs", 474),
-    ("src/gui/pages/chat.rs", 4_700),
+    ("src/gui/pages/chat.rs", 2_830),
+    ("src/gui/pages/chat/rows.rs", 1_150),
+    ("src/gui/pages/chat/composer.rs", 680),
     ("src/gui/pages/chat/left_panel.rs", 1_900),
     ("src/gui/pages/chat/modals.rs", 1_550),
     ("src/gui/pages/chat/p2p_groups.rs", 800),

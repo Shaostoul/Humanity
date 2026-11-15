@@ -1,9 +1,9 @@
 # The bottom of the app screen: an unfinished-software warning, a chat footer, an Overview page
 
 **Status (2026-10-30):** planned whole; **rung 1 built** (the warning, both apps, its Library
-page); **its mute built 2026-11-02** (section 3.5, from his answer to decision 1). The chat footer
-and the Overview page wait for the work now changing Home, Quests, Tasks and the chat's
-notifications to merge (section 6). Decisions for the operator are in section 7; nothing here is
+page); **its mute built 2026-11-02** (section 3.5, from his answer to decision 1); **the chat
+footer, rungs 2 and 3, built 2026-11-15 on the desktop** (section 4.7). The Overview page waits for
+the plan for the top menu (decision 5). Decisions for the operator are in section 7; nothing here is
 decided for him except where his own words say so.
 
 ## 0. The operator's words (2026-10-30)
@@ -230,13 +230,13 @@ A playing chat video whose row leaves the view moves into a small box (docs/desi
 when the person leaves the chat: "Let's have it follow around app. Like how we have the chat footer
 on nonchat pages." So it is drawn in this layer (gui/layers.rs 30, the footer's) on every app page,
 never in the first-person world and never on an in-world screen, at the right edge standing on the
-strip (`room_above`): on the warning today, on the chat footer once that is built (the footer's
-height then comes off the room the same way). On a page it is placed clear of the page's own
-controls, or shown as a slim tab where it would cover them; on the Chat page it sits at the side of
-the message list instead. When the footer is built, the two stack: the footer across the bottom, the
-dock above it at the right.
+strip (`room_above`): on the warning, and on the chat footer when it shows (since 2026-11-15 the
+footer's height is part of `bottom_strip::height`, so it comes off the room the same way). On a page
+it is placed clear of the page's own controls, or shown as a slim tab where it would cover them; on
+the Chat page it sits at the side of the message list instead. The two stack: the footer across the
+bottom, the dock above it at the right.
 
-## 4. The chat footer (rungs 2 and 3, NOT BUILT)
+## 4. The chat footer (rungs 2 and 3, BUILT 2026-11-15, desktop)
 
 ### 4.1 What it is
 
@@ -252,7 +252,7 @@ the chat on a given nonchat page".
 - **Folded** (the default when on, rung 2): one line, the warning's height. The current channel's
   name, its latest message as "name: words" cut to the line, the unread count when there is one, an
   unfold arrow, and Open in Chat.
-- **Unfolded** (rung 3): a short, wide strip of the current channel, about 180 px tall by default,
+- **Unfolded** (rung 3): a short, wide strip of the current channel, 220 points tall by default (about 180 in the first plan; raised at merge on 2026-11-15 so more than three lines of messages show),
   resizable from its top edge between about 120 px and 40% of the window: the last messages, newest
   at the bottom as on the Chat page, and the composer under them.
 
@@ -286,7 +286,51 @@ for the notifications work to merge.
 
 The website's chat is its own page, and a footer on every other page would open a relay
 connection on every page. Native first (the operator said "for the desktop app"); the website only
-if he wants it (decision 7.4), standing on the warning through `--hos-wip-h`.
+if he wants it (decision 7.4), standing on the warning through `--hos-wip-h`. **Not built on the
+website (2026-11-15):** his answer to decision 4 was "Let's do desktop only for now", so the
+2026-11-15 job built the desktop app's footer only; a website footer is his call to reopen.
+
+### 4.7 Built (2026-11-15), and where
+
+The desktop app's footer, as planned above, with these choices made while building it (each his to
+overrule):
+
+- **Where it shows:** every page behind the top menu except Chat. Off on the title screen too: it
+  has no top menu, holds the first-run setup, and is the game's own front; the footer starts on the
+  pages behind the menu. "Signed in to a server" is a server the app connected to and was not
+  disconnected from by hand (`connected_server_url`, not `ws_manually_disconnected`), not the
+  socket's state of the moment, so a reconnect does not make the footer come and go.
+- **The unread count** is how many other conversations carry the Chat page's unread mark (the dots
+  in its channel list: the active server's rooms and DMs, and each other signed-in server's). The
+  notification list's count is the bell's, already on every page in the header.
+- **Unfolded** lays out the last 50 messages (`ROWS_SHOWN`); the Chat page has the rest. The strip
+  stays between 120 points and 40% of the window; the height is kept when a drag of the edge ends,
+  not when a smaller window clamps it. In the footer the composer may take up to 80% of the strip
+  (60% on the Chat page), so its box is never pushed out of a strip at its lowest.
+- **The footer's composer** is the Chat page's (`pages/chat/composer.rs`, `Place::Footer`): reply
+  banner, typing line, who can read the channel, the line limit's counter, the box, @mentions,
+  Send. It leaves out the Chat page's search, pins, help and Attach buttons, which open the Chat
+  page's own panels: Open in Chat is beside it. The two keep their measurements apart and share
+  the box (`chat_composer_input`), so the draft, its caret and a focus request follow the person.
+- **The folded line's message** is the newest the rows would show (`rows::newest`, the same filter
+  as the rows, blocked people left out) through `rows::preview`: what the protected setup withholds
+  stays withheld, a file reads "(a file)", the formatting marks are taken out.
+- **The key** is Alt+C, read from its row in `data/keymaps.ron` (`id: "chat_footer_fold"`, the F1
+  list's Menu block), so changing the row changes the key; it folds and unfolds, and never turns
+  an Off footer on (Settings does).
+
+| Part | Where |
+|---|---|
+| The footer | `src/gui/bottom_strip/chat_footer.rs`, drawn by `bottom_strip::draw_at` after the warning |
+| The rows and the composer, one copy each | `src/gui/pages/chat/rows.rs`, `src/gui/pages/chat/composer.rs` (moved whole out of `chat.rs`, 4_366 lines to 2_744) |
+| Setting | config.json `chat_footer` {`mode`, `height`}, read leniently; Settings > Appearance > Chat footer |
+| Key | `data/keymaps.ron` (`id`), `pages/keymap.rs` `shortcut` |
+| Words | `data/i18n/en.json` `chat_footer.*` (and the moved rows' and composer's words, `chat.*`) |
+| Tests | `chat_footer_tests.rs` (drawn on a page and not on Chat, the title screen, in the world or signed out; folded is one line; unfolded's box on screen above the warning and with it muted; a typed line through the Chat page's send path; the same draft; Off takes no room; the key; windows stand on it; the unread count; the lenient read), `keymap.rs` (every shortcut row reads) |
+| Pictures | `tests/snapshots/chat_footer_folded.png`, `chat_footer_unfolded.png` |
+
+**Left for later:** a channel picker in the footer itself (today Open in Chat changes channel); the
+Chat page's Attach, search and pins from the footer; the website (decision 4).
 
 ## 5. The Overview page (rungs 4 to 6, NOT BUILT)
 
@@ -353,12 +397,12 @@ active character changes; no file is read per frame; no cache is kept.
 1. **The warning** (BUILT 2026-10-30): both apps, its words, its token, its Library page, its
    tests, its snapshots. Checks: `just lints`, `just test-lib`, the relay check,
    `node --test scripts/tests/`, `node scripts/check-doc-links.js`, the snapshots read by eye.
-2. **The chat footer, folded:** after the chat notifications work merges. Extract the row
-   renderer and composer from `chat.rs`; the folded line; Open in Chat; the Settings row. Checks:
-   a headless test that sending from the footer goes through the Chat page's send path, a snapshot
-   folded over the Inventory page.
-3. **The chat footer, unfolded:** the strip, its resize, the composer, the keymap entry. Checks:
-   the same draft on both views; a snapshot unfolded.
+2. **The chat footer, folded** (BUILT 2026-11-15, section 4.7): extract the row renderer and
+   composer from `chat.rs`; the folded line; Open in Chat; the Settings row. Checks: a headless test
+   that sending from the footer goes through the Chat page's send path, a snapshot folded over the
+   Inventory page.
+3. **The chat footer, unfolded** (BUILT 2026-11-15): the strip, its resize, the composer, the
+   keymap entry. Checks: the same draft on both views; a snapshot unfolded.
 4. **The Overview, Sim side, live:** the tiles from `tiles.json`, the readers, the demo
    character; reachable from the menu. Checks: snapshots with the demo state, a test that every
    tile's reader exists.

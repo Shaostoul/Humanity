@@ -17,6 +17,41 @@ use crate::gui::{GuiPage, GuiState};
 pub struct KeyBind {
     pub action: String,
     pub keys: String,
+    /// For an app shortcut whose handler reads its key from this file (2026-11-15): the name it is
+    /// looked up by ([`shortcut`]), so the key shown on this list is the key that works. Empty for
+    /// a row that only describes.
+    #[serde(default)]
+    pub id: String,
+}
+
+/// The shortcut the row named `id` gives, from the keymaps as loaded (`GuiState::keymaps`): its
+/// `keys` read as modifiers and one key joined by `+` ("Alt+C", "Ctrl+Shift+K"). None when no row
+/// has that name or its keys are not one plain combination, so a broken row does nothing rather
+/// than something else (a test holds every row with an id to a combination that reads).
+pub(crate) fn shortcut(keymaps: &[KeymapContext], id: &str) -> Option<egui::KeyboardShortcut> {
+    let bind = keymaps.iter().flat_map(|c| c.binds.iter()).find(|b| !id.is_empty() && b.id == id)?;
+    parse_shortcut(&bind.keys)
+}
+
+/// "Alt+C" as egui's shortcut: any of Ctrl, Alt and Shift, then exactly one key egui names.
+pub(crate) fn parse_shortcut(keys: &str) -> Option<egui::KeyboardShortcut> {
+    let mut modifiers = egui::Modifiers::NONE;
+    let mut key = None;
+    for part in keys.split('+').map(str::trim) {
+        match part {
+            "Ctrl" => modifiers = modifiers | egui::Modifiers::COMMAND,
+            "Alt" => modifiers = modifiers | egui::Modifiers::ALT,
+            "Shift" => modifiers = modifiers | egui::Modifiers::SHIFT,
+            _ if key.is_none() => key = Some(egui::Key::from_name(part)?),
+            _ => return None,
+        }
+    }
+    Some(egui::KeyboardShortcut::new(modifiers, key?))
+}
+
+/// The shortcut's keys as the keymap writes them, for a hint ("Alt+C").
+pub(crate) fn shortcut_words(keymaps: &[KeymapContext], id: &str) -> Option<String> {
+    keymaps.iter().flat_map(|c| c.binds.iter()).find(|b| !id.is_empty() && b.id == id).map(|b| b.keys.clone())
 }
 
 /// All bindings for one screen / mode, matched by `context`.
@@ -39,7 +74,7 @@ pub fn load_keymaps(data_dir: &std::path::Path) -> Vec<KeymapContext> {
 fn fallback() -> Vec<KeymapContext> {
     vec![KeymapContext {
         context: "World".into(),
-        binds: vec![KeyBind { action: "Keymap (this list)".into(), keys: "F1 (hold)".into() }],
+        binds: vec![KeyBind { action: "Keymap (this list)".into(), keys: "F1 (hold)".into(), id: String::new() }],
     }]
 }
 
@@ -341,6 +376,25 @@ mod tests {
                  discovery surface for it, so an unlisted hotkey is invisible"
             );
         }
+    }
+
+    /// A ROW WITH AN ID IS A SHORTCUT THAT WORKS (2026-11-15): its handler reads its key from this
+    /// file by the id, so every such row must read as one combination, and the chat footer's must
+    /// be there (gui/bottom_strip/chat_footer.rs). Seen red 2026-11-15 with the row's id taken out
+    /// of data/keymaps.ron: "data/keymaps.ron has no chat_footer_fold row".
+    #[test]
+    fn every_shortcut_row_reads_and_the_chat_footers_is_there() {
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        let maps = load_keymaps(&dir);
+        for b in maps.iter().flat_map(|c| c.binds.iter()).filter(|b| !b.id.is_empty()) {
+            assert!(parse_shortcut(&b.keys).is_some(), "{:?} ({:?}) is not one key combination", b.id, b.keys);
+        }
+        let id = crate::gui::bottom_strip::chat_footer::KEY_ID;
+        assert!(shortcut(&maps, id).is_some(), "data/keymaps.ron has no {id} row");
+        assert_eq!(parse_shortcut("Alt+C"), Some(egui::KeyboardShortcut::new(egui::Modifiers::ALT, egui::Key::C)));
+        assert_eq!(parse_shortcut("Ctrl+Shift+K").map(|s| s.modifiers), Some(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT));
+        assert_eq!(parse_shortcut("F1 (hold)"), None, "a description is not a shortcut");
+        assert_eq!(parse_shortcut("Alt+C+D"), None, "two keys are not one combination");
     }
 
     /// REPORT A PROBLEM IS IN THE PINNED HELP PANEL (navigation rung 2; docs/design/navigation.md,

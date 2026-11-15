@@ -2,7 +2,7 @@
 # still writes straight into a UI call instead of asking data/i18n/en.json by key.
 # Checked by tests/i18n_lint.rs (its header says how to lower these). The numbers
 # only go DOWN; a file not listed has a budget of zero.
-# Total: 2457
+# Total: 2432
 2 src/gui/drop_files.rs
 2 src/gui/model_view/mod.rs
 1 src/gui/pages/apps.rs
@@ -11,7 +11,7 @@
 15 src/gui/pages/apps/game_detail.rs
 5 src/gui/pages/apps/library.rs
 9 src/gui/pages/browser.rs
-53 src/gui/pages/chat.rs
+28 src/gui/pages/chat.rs
 1 src/gui/pages/chat/attach_step.rs
 4 src/gui/pages/chat/attach_view.rs
 8 src/gui/pages/chat/blocking.rs

@@ -782,15 +782,9 @@ pub struct GuiState {
     // v0.197.0: removed `context_real`. Real/Sim toggle deleted —
     // pages commit to Real, game-mode equivalents live inside the
     // game loop (FPS) rather than as toggleable views.
-    /// Whether the first-run concept tour (Onboarding page) has been
-    /// completed. v0.198.0: new users land on Onboarding after identity
-    /// setup so they understand what HumanityOS IS before being dropped
-    /// into chat. Once they click "Open the Chat" from Onboarding
-    /// (or skip it explicitly) this flips true and they go straight
-    /// to Chat on subsequent launches. Existing users created before
-    /// this field defaults to true via the AppConfig migration so they
-    /// don't get force-routed into the tour they've never seen but
-    /// don't need.
+    /// Whether the first-run concept tour (Onboarding page) has been completed (v0.198.0): new users
+    /// land on it after identity setup, and once they open the Chat from it (or skip it) this flips
+    /// true; installs from before it default to true through the AppConfig migration.
     pub concept_tour_seen: bool,
     /// The controls hint (I, E, hold Alt, hold F1) was shown on the first entry into the world;
     /// it is shown once ever (AppConfig `controls_hint_shown`, gui/first_steps.rs).
@@ -800,6 +794,9 @@ pub struct GuiState {
     /// The unfinished-software warning muted for a while (gui/bottom_strip/mute.rs; AppConfig
     /// `wip_mute` keeps one with a time, never one for this session).
     pub wip_mute: Option<bottom_strip::WipMute>,
+    /// The chat footer on the other pages: off, folded or unfolded, and its height (AppConfig
+    /// `chat_footer`, gui/bottom_strip/chat_footer.rs).
+    pub chat_footer: bottom_strip::chat_footer::ChatFooter,
     /// Default page to load after onboarding (Chat by default).
     pub default_page: GuiPage,
 
@@ -3303,6 +3300,7 @@ impl Default for GuiState {
             controls_hint_shown: false,
             first_minutes: first_minutes::FirstMinutes::default(),
             wip_mute: None,
+            chat_footer: Default::default(),
             default_page: GuiPage::Humanity,
 
             // Task board defaults

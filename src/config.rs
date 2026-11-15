@@ -313,6 +313,11 @@ pub struct AppConfig {
     /// which a new version ends. A mute of this session is never written here. Absent = not muted.
     #[serde(default, deserialize_with = "crate::gui::bottom_strip::mute::read_kept", skip_serializing_if = "Option::is_none")]
     pub wip_mute: Option<crate::gui::bottom_strip::WipMute>,
+    /// The chat footer on the pages other than Chat (2026-11-15, gui/bottom_strip/chat_footer.rs):
+    /// `mode` ("off", "folded", "unfolded") and the unfolded strip's `height` in points. Read
+    /// leniently: a record this build cannot read is the default (folded, 180). Absent = the default.
+    #[serde(default, deserialize_with = "crate::gui::bottom_strip::chat_footer::read_kept")]
+    pub chat_footer: crate::gui::bottom_strip::chat_footer::ChatFooter,
     // Settings
     #[serde(default = "default_fov")]
     pub fov: f32,
@@ -1591,6 +1596,7 @@ impl AppConfig {
             controls_hint_shown: state.controls_hint_shown,
             first_minutes: state.first_minutes.clone(),
             wip_mute: crate::gui::bottom_strip::mute::kept(state.wip_mute.as_ref()),
+            chat_footer: state.chat_footer.clone(),
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
             invert_y: state.settings.invert_y,
@@ -1802,6 +1808,7 @@ impl AppConfig {
         state.controls_hint_shown = self.controls_hint_shown;
         state.first_minutes = self.first_minutes.clone();
         state.wip_mute = crate::gui::bottom_strip::mute::kept(self.wip_mute.as_ref());
+        state.chat_footer = self.chat_footer.clone();
         state.settings.fov = self.fov;
         // Guard against a non-positive saved value (a 0.0 would freeze the camera look).
         state.settings.mouse_sensitivity = if self.mouse_sensitivity > 0.0 {

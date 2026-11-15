@@ -3419,6 +3419,42 @@ fn snapshot_wip_strip_title() {
     crate::gui::pages::main_menu::set_version_for_snapshot(None);
 }
 
+/// The chat footer (docs/design/app-bottom-strip.md section 4, rungs 2 and 3) over the Inventory
+/// page, signed in to a server, in `mode`; the check refuses a picture without the footer's line.
+fn chat_footer_snapshot(name: &str, mode: crate::gui::bottom_strip::chat_footer::Mode) {
+    render_page_png_checked(
+        name,
+        1280,
+        720,
+        crate::gui::font_size::DEFAULT_PERCENT,
+        |ctx, theme, state| {
+            state.connected_server_url = "https://united-humanity.us".into();
+            state.chat_footer.mode = mode;
+            wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Inventory);
+        },
+        |_, out| {
+            let words = humanity_core::i18n::t("chat_footer.open_in_chat");
+            crate::gui::screen_surface::find_text_in_shapes(&out.shapes, words).map(|_| ()).ok_or_else(|| format!("the footer's {words:?} is not drawn"))
+        },
+    );
+}
+
+/// The chat footer folded: one line on the warning, the channel, its newest message, the unread
+/// count, Open in Chat and Show more.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_footer_folded() {
+    chat_footer_snapshot("chat_footer_folded", crate::gui::bottom_strip::chat_footer::Mode::Folded);
+}
+
+/// The chat footer unfolded: the last messages newest at the bottom and the box to type in, on
+/// the warning, the page above it.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_chat_footer_unfolded() {
+    chat_footer_snapshot("chat_footer_unfolded", crate::gui::bottom_strip::chat_footer::Mode::Unfolded);
+}
+
 /// Where What this means leads: the Library open on the page about the warning, the strip still
 /// under it.
 #[test]
