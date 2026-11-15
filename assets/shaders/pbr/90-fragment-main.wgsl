@@ -2573,6 +2573,15 @@ fn fs_cloud(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> Frag
 // is built from `camera.celestial_uniforms()` with only view_proj replaced,
 // so view_pos really is the eye. The reason to omit these is the one above,
 // not a wrong distance.)
+// THE ONE EXCEPTION, PER CARD AND NOT HERE (2026-11-14, the far cards'
+// performance rung 2, an orchestrator decision): a card WHOLLY inside the hide
+// radius never reaches this pass. The GPU card cull leaves it out of the sun's
+// draw (renderer/tree_card_cull.rs `keeps_sun`), because every tree inside that
+// radius has its 3D model, which casts its own shadow there: card and model
+// together cast a doubled, board-shaped shade under the near trees. A card the
+// ring crosses still casts, so no model's tree is ever left without a shadow,
+// and nothing here moves with the viewer except which of two casters of the
+// same tree is drawn.
 //
 // COST. A fragment stage forfeits the depth-only double-rate rasterisation,
 // which is why the classic path SPLITS: renderer::mod binds the plain

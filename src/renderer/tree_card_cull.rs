@@ -15,8 +15,8 @@
 //! "Optimizing the Graphics Pipeline with Compute", GDC 2016: a compute pass tests each small piece
 //! of geometry against the view and compacts the survivors' indices into an indirect draw).
 //! - The cards are the TAIL of each patch mesh (the patch builder emits them after the skirt):
-//!   [`card_tail_quads`] finds them at upload, checking every index, and [`CardRecords`] keeps one
-//!   cull record per card quad (its centre in the patch frame and its bounding radius).
+//!   [`card_tail`] finds them at upload, checking every index, and [`CardRecords`] keeps one
+//!   cull record per card face (its centre in the patch frame and its bounding radius).
 //! - Each frame [`CardCull::dispatch`] runs one compute workgroup per card-bearing drawn patch
 //!   (`assets/shaders/tree_card_cull.wgsl`). The main view keeps a quad when its bounding sphere
 //!   meets the kept window (read from the same shadow uniform `fs_terrain` reads) and the camera's
@@ -38,6 +38,14 @@
 //! decide every edge, the hashed dissolve included. Showcase `card_cull` "0" is the red twin (the
 //! cards drawn in their patches as before), and the same-boot cost A/B's other arm. A device
 //! without multi-draw indirect keeps the per-patch draws, cards included, as before.
+//!
+//! RUNG 2 (2026-11-14): a card face is no longer always a quad. It is the polygon fitted to its
+//! atlas tile's visible texels (`humanity_terrain::card_hull`), `n` vertices fanned twice, so the
+//! cull reads each patch's face size off its tail ([`card_tail`]) and writes `6 (n - 2)` indices a
+//! kept face for the main view and `3 (n - 2)` (one winding) for the sun; `n` 4 is exactly the quad.
+//! And the sun view leaves out a face whose bounding sphere lies wholly inside the hide radius
+//! (an orchestrator decision): every tree there has its 3D model, which casts its own shadow, so
+//! the card's was a second, board-shaped one. Showcase `card_sun_hide` "0" is that rule's red twin.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -55,25 +63,31 @@ pub const CULL_WGSL: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/a
 /// The shader's jitter widening of the main view's side planes (radians of view times distance).
 pub const JITTER_MARGIN: f32 = 0.004;
 
-/// The index pattern of one card quad (`planet_chunks` `emit_card` and `emit_sprite_card`): the
-/// quad, then the quad wound backwards so it survives back-face culling from either side.
+/// The index pattern of one card quad (`planet_chunks` `emit_card`, and a sprite card face drawn
+/// as the full square): the quad, then the quad wound backwards so it survives back-face culling
+/// from either side. `card_hull::face_indices(4)`; a fitted face of `n` vertices is
+/// `face_indices(n)`.
 pub const QUAD_INDICES: [u32; 12] = [0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2];
 
-/// The main view's first reserved index range: four million indices (16 MB of the arena's index
-/// buffer, a third of a million card quads in view). Grown at upload when a frame wanted more.
-pub const REGION_START: u32 = 1 << 22;
+/// The most vertices a card face has (`card_hull::MAX_VERTS`).
+pub const MAX_FACE_VERTS: u32 = humanity_terrain::card_hull::MAX_VERTS as u32;
+
+/// The main view's first reserved index range: eight million indices (32 MB of the arena's index
+/// buffer, about 350,000 six-vertex card faces in drawn patches at 24 indices each; the forest
+/// vantages carry 117,000 to 243,000). Grown at upload when a frame wanted more.
+pub const REGION_START: u32 = 1 << 23;
 
 /// The showcase `card_cull` pin: true while it is "0" (the red twin).
 static PINNED_OFF: AtomicBool = AtomicBool::new(false);
 
-/// The last cull's card patches and quads (0 and 0 with the cull off), for the tree card counter
+/// The last cull's card patches and faces (0 and 0 with the cull off), for the tree card counter
 /// (engine/tree_card_stage.rs: the `[TreeCards]` line and every screenshot's done file).
 static LAST_JOBS: AtomicU32 = AtomicU32::new(0);
-static LAST_QUADS: AtomicU32 = AtomicU32::new(0);
+static LAST_FACES: AtomicU32 = AtomicU32::new(0);
 
-/// The last cull's (card patches, card quads) it tested.
+/// The last cull's (card patches, card faces) it tested.
 pub fn last_culled() -> (u32, u32) {
-    (LAST_JOBS.load(Ordering::Relaxed), LAST_QUADS.load(Ordering::Relaxed))
+    (LAST_JOBS.load(Ordering::Relaxed), LAST_FACES.load(Ordering::Relaxed))
 }
 
 /// Set the showcase `card_cull` pin (`on` false = the cards drawn in their patches, as before).
@@ -86,46 +100,68 @@ pub fn pinned_on() -> bool {
     !PINNED_OFF.load(Ordering::Relaxed)
 }
 
+/// The showcase `card_sun_hide` pin: true while it is "0" (the cards inside the hide radius cast
+/// sun shadows again, the red twin).
+static SUN_HIDE_OFF: AtomicBool = AtomicBool::new(false);
+
+/// Set the showcase `card_sun_hide` pin (`on` false = the near cards cast again).
+pub fn set_sun_hide(on: bool) {
+    SUN_HIDE_OFF.store(!on, Ordering::Relaxed);
+}
+
+/// Are the faces wholly inside the hide radius left out of the sun pass?
+pub fn sun_hide() -> bool {
+    !SUN_HIDE_OFF.load(Ordering::Relaxed)
+}
+
 /// Is this vertex a tree card's (a sprite card's negative uv, or a coloured card's flag bit)?
 fn is_card_vertex(v: &Vertex) -> bool {
     v.uv[0] < -0.5 || humanity_terrain::planet_surface::unpack_uv_tree_card(v.uv)
 }
 
-/// How many tree card quads sit at the tail of a patch mesh: the trailing card vertices, four a
-/// quad, whose indices are the last twelve a quad in [`QUAD_INDICES`] order. 0 when the tail is not
-/// exactly that (the patch then draws whole, cards included, as before the cull).
-pub fn card_tail_quads(vertices: &[Vertex], indices: &[u32]) -> u32 {
-    let n = vertices.iter().rev().take_while(|v| is_card_vertex(v)).count();
-    if n == 0 || n % 4 != 0 || indices.len() < n * 3 {
-        return 0;
+/// The tree card faces at the tail of a patch mesh, as (faces, vertices a face): the trailing card
+/// vertices, `n` a face for one `n` from 3 to [`MAX_FACE_VERTS`], whose indices are the last
+/// `6 (n - 2)` a face in `card_hull::face_indices(n)` order. None when the tail is not exactly that
+/// (the patch then draws whole, cards included, as before the cull): no card at all, a face size
+/// that changes inside the patch, or a ground index reaching into the cards.
+pub fn card_tail(vertices: &[Vertex], indices: &[u32]) -> Option<(u32, u32)> {
+    let total = vertices.iter().rev().take_while(|v| is_card_vertex(v)).count();
+    if total == 0 {
+        return None;
     }
-    let quads = n / 4;
-    let v0 = (vertices.len() - n) as u32;
-    let tail = &indices[indices.len() - quads * 12..];
-    let ok = tail.chunks_exact(12).enumerate().all(|(q, c)| {
-        let base = v0 + 4 * q as u32;
-        c.iter().zip(QUAD_INDICES).all(|(&i, p)| i == base + p)
-    });
-    // Nothing before the tail may reach into it (a card vertex drawn by the ground's range would
-    // vanish with the cull).
-    if !ok || indices[..indices.len() - quads * 12].iter().any(|&i| i >= v0) {
-        return 0;
-    }
-    quads as u32
+    let v0 = (vertices.len() - total) as u32;
+    (3..=MAX_FACE_VERTS as usize).find_map(|n| {
+        let per = 6 * (n - 2);
+        if total % n != 0 || indices.len() < total / n * per {
+            return None;
+        }
+        let faces = total / n;
+        let pattern = humanity_terrain::card_hull::face_indices(n as u32);
+        let tail = &indices[indices.len() - faces * per..];
+        let ok = tail.chunks_exact(per).enumerate().all(|(q, c)| {
+            let base = v0 + (n * q) as u32;
+            c.iter().zip(&pattern).all(|(&i, &p)| i == base + p)
+        });
+        // Nothing before the tail may reach into it (a card vertex drawn by the ground's range
+        // would vanish with the cull).
+        (ok && !indices[..indices.len() - faces * per].iter().any(|&i| i >= v0)).then_some((faces as u32, n as u32))
+    })
 }
 
-/// One quad's cull record: its centre in the patch frame and the radius that bounds its corners.
-pub fn quad_record(corners: [[f32; 3]; 4]) -> [f32; 4] {
-    let p = corners.map(Vec3::from);
-    let c = (p[0] + p[1] + p[2] + p[3]) * 0.25;
+/// One face's cull record: its centre in the patch frame and the radius that bounds its vertices.
+pub fn face_record(vertices: &[[f32; 3]]) -> [f32; 4] {
+    let p: Vec<Vec3> = vertices.iter().map(|&v| Vec3::from(v)).collect();
+    let c = p.iter().copied().sum::<Vec3>() / p.len().max(1) as f32;
     let r = p.iter().map(|q| q.distance(c)).fold(0.0f32, f32::max);
     [c.x, c.y, c.z, r]
 }
 
 /// The rule the shader applies, on the processor (its twin: change one, change both). `c` is the
-/// quad's centre in render space, `r` its radius; `cam_vp`/`cam_pos` the main view, `hide`/`far`
-/// the kept window, `light_vp` the sun's matrix. Returns (main view keeps it, sun view keeps it).
-pub fn cpu_keeps(c: Vec3, r: f32, cam_vp: Mat4, cam_pos: Vec3, hide: f32, far: f32, light_vp: Mat4) -> (bool, bool) {
+/// face's centre in render space, `r` its radius; `cam_vp`/`cam_pos` the main view, `hide`/`far`
+/// the kept window, `light_vp` the sun's matrix, `sun_hide` whether a face wholly inside the hide
+/// radius is left out of the sun view. Returns (main view keeps it, sun view keeps it).
+#[allow(clippy::too_many_arguments)]
+pub fn cpu_keeps(c: Vec3, r: f32, cam_vp: Mat4, cam_pos: Vec3, hide: f32, far: f32, light_vp: Mat4, sun_hide: bool) -> (bool, bool) {
     let row = |m: Mat4, i: usize| m.row(i);
     let dist = |p: Vec4| (p.truncate().dot(c) + p.w) / p.truncate().length().max(1.0e-20);
     let d = c.distance(cam_pos);
@@ -133,18 +169,27 @@ pub fn cpu_keeps(c: Vec3, r: f32, cam_vp: Mat4, cam_pos: Vec3, hide: f32, far: f
     let (r0, r1, r3) = (row(cam_vp, 0), row(cam_vp, 1), row(cam_vp, 3));
     let main = d + r >= hide && d - r <= far && [r3 + r0, r3 - r0, r3 + r1, r3 - r1].iter().all(|&p| dist(p) >= rm);
     let (l0, l1, l2, l3) = (row(light_vp, 0), row(light_vp, 1), row(light_vp, 2), row(light_vp, 3));
-    let sun = [l3 + l0, l3 - l0, l3 + l1, l3 - l1, l2, l3 - l2].iter().all(|&p| dist(p) >= -r);
+    let near = sun_hide && d + r < hide;
+    let sun = !near && [l3 + l0, l3 - l0, l3 + l1, l3 - l1, l2, l3 - l2].iter().all(|&p| dist(p) >= -r);
     (main, sun)
 }
 
-/// Where a patch's cards are: how many quads, and their first record.
+/// Where a patch's cards are: how many faces, their first record, and the vertices a face.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CardTail {
-    pub quads: u32,
+    pub faces: u32,
     pub rec: u32,
+    pub verts: u32,
 }
 
-/// The cull records of every card quad in the patch arena, one `[f32; 4]` each, in a storage buffer
+impl CardTail {
+    /// The main view's indices a face (both windings).
+    pub fn main_per(&self) -> u32 {
+        6 * self.verts.saturating_sub(2)
+    }
+}
+
+/// The cull records of every card face in the patch arena, one `[f32; 4]` each, in a storage buffer
 /// that grows by doubling (its old contents copied across at once, so later writes land after).
 pub struct CardRecords {
     buf: wgpu::Buffer,
@@ -160,7 +205,7 @@ pub struct CardRecords {
 }
 
 const RECORD_BYTES: u64 = 16;
-/// The first record buffer: a million quads (16 MB).
+/// The first record buffer: a million faces (16 MB).
 const RECORDS_START: u32 = 1 << 20;
 
 impl CardRecords {
@@ -187,7 +232,7 @@ impl CardRecords {
             if cap >= self.max {
                 if !self.full_logged {
                     self.full_logged = true;
-                    log::warn!("[TreeCards] the card record buffer is at its limit ({cap} quads): new card patches draw whole, unculled, until eviction frees room");
+                    log::warn!("[TreeCards] the card record buffer is at its limit ({cap} faces): new card patches draw whole, unculled, until eviction frees room");
                 }
                 return None;
             }
@@ -199,36 +244,34 @@ impl CardRecords {
             self.buf = buf;
             self.alloc.grow_to(grown);
             self.generation += 1;
-            log::info!("[TreeCards] the card record buffer grew to {grown} quads ({:.0} MB)", grown as f64 * RECORD_BYTES as f64 / 1_048_576.0);
+            log::info!("[TreeCards] the card record buffer grew to {grown} faces ({:.0} MB)", grown as f64 * RECORD_BYTES as f64 / 1_048_576.0);
         }
     }
 
     /// A patch was uploaded at `vstart`: find its card tail and write its records.
     pub fn add(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, vstart: u32, vertices: &[Vertex], indices: &[u32]) {
-        let quads = card_tail_quads(vertices, indices);
-        if quads == 0 {
-            return;
-        }
-        let Some(rec) = self.take(device, queue, quads) else { return };
+        let Some((faces, verts)) = card_tail(vertices, indices) else { return };
+        let Some(rec) = self.take(device, queue, faces) else { return };
         self.full_logged = false;
-        let v0 = vertices.len() - quads as usize * 4;
-        let recs: Vec<[f32; 4]> = vertices[v0..].chunks_exact(4).map(|q| quad_record([q[0].position, q[1].position, q[2].position, q[3].position])).collect();
+        let v0 = vertices.len() - (faces * verts) as usize;
+        let recs: Vec<[f32; 4]> = vertices[v0..].chunks_exact(verts as usize).map(|q| face_record(&q.iter().map(|v| v.position).collect::<Vec<_>>())).collect();
         queue.write_buffer(&self.buf, rec as u64 * RECORD_BYTES, bytemuck::cast_slice(&recs));
-        self.tails.insert(vstart, CardTail { quads, rec });
-        self.card_bytes += quads as u64 * Self::quad_bytes();
+        let t = CardTail { faces, rec, verts };
+        self.card_bytes += Self::tail_bytes(&t);
+        self.tails.insert(vstart, t);
     }
 
     /// A patch's slot was released: free its records.
     pub fn remove(&mut self, vstart: u32) {
         if let Some(t) = self.tails.remove(&vstart) {
-            self.alloc.free(t.rec, t.quads);
-            self.card_bytes -= t.quads as u64 * Self::quad_bytes();
+            self.alloc.free(t.rec, t.faces);
+            self.card_bytes -= Self::tail_bytes(&t);
         }
     }
 
-    /// Patch arena memory one card quad takes: four vertices and twelve indices.
-    fn quad_bytes() -> u64 {
-        4 * std::mem::size_of::<Vertex>() as u64 + 12 * 4
+    /// Patch arena memory a patch's cards take: `verts` vertices and `6 (verts - 2)` indices a face.
+    fn tail_bytes(t: &CardTail) -> u64 {
+        t.faces as u64 * (t.verts as u64 * std::mem::size_of::<Vertex>() as u64 + t.main_per() as u64 * 4)
     }
 
     pub fn tail(&self, vstart: u32) -> Option<CardTail> {
@@ -237,20 +280,26 @@ impl CardRecords {
 }
 
 /// One card-bearing drawn patch, as the shader reads it (`Job`): its translation, first record,
-/// quads, first card vertex (absolute), its offsets into the main window and the sun buffer (12 and
-/// 6 indices a quad), and `arg`, its card draw's place in the main argument list.
+/// faces, first card vertex (absolute), its offsets into the main window and the sun buffer
+/// (`6 (n - 2)` and `3 (n - 2)` indices a face), `arg`, its card draw's place in the main argument
+/// list, `verts`, the vertices a face (`n`), and `flags` (bit 0: leave the faces wholly inside the
+/// hide radius out of the sun view).
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CullJob {
     pub pos: [f32; 4],
     pub rec: u32,
-    pub quads: u32,
+    pub faces: u32,
     pub v0: u32,
     pub dst: u32,
     pub sdst: u32,
     pub arg: u32,
-    pub pad: [u32; 2],
+    pub verts: u32,
+    pub flags: u32,
 }
+
+/// `CullJob::flags` bit 0: the sun view leaves out the faces wholly inside the hide radius.
+pub const JOB_SUN_HIDE: u32 = 1;
 
 /// One frame's plan: the jobs; the main view's argument list (per patch in draw order its ground,
 /// then, for a card patch, its cards in the reserved window, the count zeroed for the shader to
@@ -268,23 +317,24 @@ pub struct Plan {
 
 /// Plan a frame: every drawn patch with a card tail becomes a job (when `on`, and while its cards
 /// fit the `region` (first index, capacity) reserved in the arena's index buffer), and its ground
-/// draw stops short of its cards. `tail` answers a patch's first vertex.
-pub fn plan(draws: &[PatchDraw], on: bool, region: (u32, u32), tail: impl Fn(u32) -> Option<CardTail>) -> Plan {
+/// draw stops short of its cards. `tail` answers a patch's first vertex; `flags` goes to every job.
+pub fn plan(draws: &[PatchDraw], on: bool, region: (u32, u32), flags: u32, tail: impl Fn(u32) -> Option<CardTail>) -> Plan {
     let mut p = Plan::default();
     for (i, d) in draws.iter().enumerate() {
         let ground = |count| IndirectArgs { index_count: count, instance_count: 1, first_index: d.slot.istart, base_vertex: d.slot.vstart as i32, first_instance: i as u32 };
-        let fits = |t: &CardTail| on && t.quads > 0 && t.quads * 12 <= d.slot.icount && t.quads * 4 <= d.slot.vcount && p.main_indices + 12 * t.quads <= region.1;
+        let fits = |t: &CardTail| on && t.faces > 0 && t.verts >= 3 && t.faces * t.main_per() <= d.slot.icount && t.faces * t.verts <= d.slot.vcount && p.main_indices + t.faces * t.main_per() <= region.1;
         match tail(d.slot.vstart).filter(fits) {
             Some(t) => {
-                p.ground.push(d.slot.icount - 12 * t.quads);
-                p.main_args.push(ground(d.slot.icount - 12 * t.quads));
-                let v0 = d.slot.vstart + d.slot.vcount - 4 * t.quads;
-                p.jobs.push(CullJob { pos: [d.position.x, d.position.y, d.position.z, 0.0], rec: t.rec, quads: t.quads, v0, dst: p.main_indices, sdst: p.sun_indices, arg: p.main_args.len() as u32, pad: [0; 2] });
+                let main = t.faces * t.main_per();
+                p.ground.push(d.slot.icount - main);
+                p.main_args.push(ground(d.slot.icount - main));
+                let v0 = d.slot.vstart + d.slot.vcount - t.faces * t.verts;
+                p.jobs.push(CullJob { pos: [d.position.x, d.position.y, d.position.z, 0.0], rec: t.rec, faces: t.faces, v0, dst: p.main_indices, sdst: p.sun_indices, arg: p.main_args.len() as u32, verts: t.verts, flags });
                 let cards = |first_index| IndirectArgs { index_count: 0, instance_count: 1, first_index, base_vertex: 0, first_instance: i as u32 };
                 p.main_args.push(cards(region.0 + p.main_indices));
                 p.sun_args.push(cards(p.sun_indices));
-                p.main_indices += 12 * t.quads;
-                p.sun_indices += 6 * t.quads;
+                p.main_indices += main;
+                p.sun_indices += main / 2;
             }
             None => {
                 p.ground.push(d.slot.icount);
@@ -379,10 +429,11 @@ impl CardCull {
     /// `timer` is asked only when the pass is recorded (a timer pair taken and never written reads
     /// as an unrecorded pass).
     pub fn dispatch<'t>(&self, device: &wgpu::Device, queue: &wgpu::Queue, inputs: &Inputs<'_>, draws: &[PatchDraw], on: bool, timer: impl FnOnce() -> Option<wgpu::ComputePassTimestampWrites<'t>>) {
-        let p = plan(draws, on, inputs.region, |v| self.records.tail(v));
+        let flags = if sun_hide() { JOB_SUN_HIDE } else { 0 };
+        let p = plan(draws, on, inputs.region, flags, |v| self.records.tail(v));
         if on {
             // What the whole frame would want, for the arena to grow the region to.
-            let want: u32 = draws.iter().filter_map(|d| self.records.tail(d.slot.vstart)).map(|t| 12 * t.quads).sum();
+            let want: u32 = draws.iter().filter_map(|d| self.records.tail(d.slot.vstart)).map(|t| t.faces * t.main_per()).sum();
             self.wanted.set(self.wanted.get().max(want));
         }
         let mut f = self.frame.borrow_mut();
@@ -390,7 +441,7 @@ impl CardCull {
         f.n_jobs = p.jobs.len() as u32;
         f.n_main = p.main_args.len() as u32;
         LAST_JOBS.store(f.n_jobs, Ordering::Relaxed);
-        LAST_QUADS.store(p.jobs.iter().map(|j| j.quads).sum(), Ordering::Relaxed);
+        LAST_FACES.store(p.jobs.iter().map(|j| j.faces).sum(), Ordering::Relaxed);
         if p.jobs.is_empty() {
             return;
         }

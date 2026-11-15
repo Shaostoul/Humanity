@@ -1526,23 +1526,35 @@ mod tree_stream_agreement_tests {
     /// tree's direction. So no card height, footprint, drop or ground radius
     /// has to be reproduced here - the one quantity the two streams must agree
     /// about comes straight off the geometry the GPU will draw.
+    ///
+    /// Since the tight outlines (2026-11-14, `card_hull`) a sprite face is a polygon of the
+    /// table's vertex count, not always the square: any two of its vertices with different u
+    /// (decoded from the tile encoding) are joined and the point at u 0.5 taken, which lies on
+    /// the same radial line (the face is an affine image of its tile), so this holds for any
+    /// outline.
     fn card_dirs(pm: &PatchMesh) -> Vec<DVec3> {
-        let corners: Vec<glam::Vec3> = pm
-            .mesh
-            .vertices
-            .iter()
-            .filter(|v| v.tree_card)
-            .map(|v| glam::Vec3::from(v.position))
-            .collect();
-        assert_eq!(
-            corners.len() % 4,
-            0,
-            "tree cards are emitted four vertices at a time; got {}",
-            corners.len()
-        );
-        corners
-            .chunks(4)
-            .map(|q| (pm.anchor + ((q[0] + q[1]) * 0.5).as_dvec3()).normalize())
+        let cards: Vec<&crate::planet_surface::SurfaceVertexData> =
+            pm.mesh.vertices.iter().filter(|v| v.tree_card).collect();
+        let sprite = cards.first().is_some_and(|v| v.color[0] < -0.5);
+        let n = if sprite { crate::card_hull::hull_table()[0].n as usize } else { 4 };
+        assert_eq!(cards.len() % n, 0, "tree cards are emitted {n} vertices a face; got {}", cards.len());
+        let u_of = |v: &crate::planet_surface::SurfaceVertexData| {
+            let a = -v.color[1];
+            (a - a.floor()) * 2.0
+        };
+        cards
+            .chunks(n)
+            .map(|q| {
+                let mid = if sprite {
+                    let (p0, u0) = (glam::Vec3::from(q[0].position), u_of(q[0]));
+                    let j = q.iter().position(|v| (u_of(v) - u0).abs() > 1.0e-3).expect("a face with width");
+                    let (p1, u1) = (glam::Vec3::from(q[j].position), u_of(q[j]));
+                    p0 + (p1 - p0) * ((0.5 - u0) / (u1 - u0))
+                } else {
+                    (glam::Vec3::from(q[0].position) + glam::Vec3::from(q[1].position)) * 0.5
+                };
+                (pm.anchor + mid.as_dvec3()).normalize()
+            })
             .collect()
     }
 

@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1546 Rust files (796,086 lines) under `src/` and `crates/*/src/`; 147 JavaScript files (91,296 lines) under `web/`.
+1548 Rust files (796,906 lines) under `src/` and `crates/*/src/`; 147 JavaScript files (91,296 lines) under `web/`.
 
 ## Folders
 
@@ -43,7 +43,7 @@
 - `crates/humanity-systems/src/quests/` (3 files): Quest system, data-driven quest progression loaded from RON files.
 - `crates/humanity-systems/src/skills/` (3 files): Skill progression: learn by doing the real procedure, named stages, no cap.
 - `crates/humanity-systems/src/vehicles/` (3 files): Vehicle & mech system, entering/exiting vehicles, mech torso twist, jump jets, heat management, and vehicle movement control.
-- `crates/humanity-terrain/src/` (41 files)
+- `crates/humanity-terrain/src/` (43 files)
 - `crates/humanity-terrain/src/map_build/` (6 files): THE MAP PACK BUILDER (whole-Earth maps rung 2, 2026-11-09; docs/design/whole-earth-maps.md section 8.2): our own Rust tool, no Planetiler...
 - `src/` (11 files)
 - `src/ai/` (16 files): Embeddable AI, rungs 1 and 2: the door, with no model inside it (docs/design/embeddable-ai.md, section 14 items 1 and 2; built 2026-11-09).
@@ -533,6 +533,7 @@
 ## crates/humanity-terrain/src/
 
 - `asteroid.rs` (670): Sparse octree voxel volume for asteroids. Main items: VoxelType, Octree, AsteroidClass, AsteroidDef, Asteroid, VOXEL_SIZE.
+- `card_hull.rs` (414): TIGHT TREE CARD OUTLINES (2026-11-14, the far tree cards' performance rung 2). Main items: CardHull, fit, face_indices, set_pin, pin, set_tile_alpha, hull_table, mean_area (+5 more).
 - `celestial_projection.rs` (179): The celestial pass's projection: the one reverse-Z matrix, its near and far planes and the sky threshold that every planet-scale view is built from. Main items: celestial_projection, celestial_projection_f64, celestial_depth_at, CELESTIAL_NEAR_M, CELESTIAL_FAR_M, CELESTIAL_SKY_M.
 - `drawn_surface_fixtures.rs` (126): The Silverdale fixtures of the map pack tests (BUG-156, drawn_surface_pack_tests.rs), which the simulation's walk test uses too (systems::crossing_tests::drawn_surface_pack): the shipped Earth, the... Main items: Meshes, real_earth, silverdale_map, near_stand, patch_containing, drawn_radius_along, probe_grid, STAND_LAT (+1 more).
 - `drawn_surface.rs` (1005): The DRAWN patch surface: the ground you can actually SEE. Main items: DrawnPatchSurface, patch_lattice_radius, drawn_leaf_containing.
@@ -542,21 +543,21 @@
 - `grass.rs` (2559): Near-field grass STRANDS: the sward layer. Main items: NearGrass, coverage_path_files, coverage_path_source, grass_peak_per_m2, grass_peak_per_m2_at, grass_layer_on, grass_mid_per_m2, grass_far_m (+28 more).
 - `heightmap.rs` (333): Procedural terrain generation on icosphere faces using layered noise. Main items: Biome, TerrainGenerator.
 - `icosphere.rs` (159): Icosphere generation with recursive subdivision. Main items: Face, Icosphere.
-- `lib.rs` (100): humanity-terrain: planets as shapes and numbers (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-terrain.md).
+- `lib.rs` (103): humanity-terrain: planets as shapes and numbers (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-terrain.md).
 - `map_beds.rs` (595): ROAD BEDS AND BUILDING PADS, inside the one ground formula (whole-Earth maps, the rung between 2 and 3, 2026-11-09; docs/design/whole-earth-maps.md sections 6.1 to 6.3). Main items: Road, Pad, BedTile, neighbour_tiles.
 - `map_ground.rs` (1164): THE MAP GROUND: the installed whole-Earth map packs, drawn into the one ground formula (rung 2, 2026-11-09; docs/design/whole-earth-maps.md sections 3.6, 4, 5 and 9.5). Main items: Body, PackState, BuiltMask, MapGround, RoadNear, PadNear, MapSet, PublishedForTest (+11 more).
 - `map_levels.rs` (214): The whole-Earth map's data files (rung 2, 2026-11-09): `data/maps/levels.ron` (the data levels, the lattice, the road classes and the shore band's numbers) and `data/maps/places.ron` (named places:... Main items: ShoreProfile, ShoreParams, BedClass, BedParams, PackDetail, MapLevels, PlaceGates, Place (+1 more).
 - `map_pack.rs` (821): MAP PACKS: the whole-Earth map files, one per depth-6 terrain patch (whole-Earth maps rung 2, 2026-11-09; docs/design/whole-earth-maps.md sections 3.4, 9.2 and 12). Main items: ChunkKind, LayerInfo, PackManifest, ChunkEntry, Pack, WaterRingKind, WaterRing, MapWay (+27 more).
 - `map_tiles.rs` (429): MAP TILES KEYED TO THE TERRAIN'S OWN QUADTREE (whole-Earth maps, rung 1, 2026-11-09; docs/design/whole-earth-maps.md sections 3 and 4.2). Main items: ClippedLine, ClippedRing, level_for_depth, ancestor_at, descendants_at, tiles_for_patch, tile_containing_dir, tile_containing (+12 more).
 - `near_tree_gate.rs` (257): WHEN the near-field tree harvest re-runs (the `[NearTree] recompute` gate in the frame loop), as one pure function so the rule can be read and tested without a planet. Main items: NearTreeRecompute, HarvestInputs, near_tree_recompute_reason, NEAR_TREE_REHARVEST_M, NEAR_TREE_CHANGE_MIN_INTERVAL_S.
-- `near_trees.rs` (2164): NEAR-FIELD TREE HARVEST: enumerating the planet-fixed vegetation stream into concrete 3D tree instances standing on the drawn ground. Main items: NearTree, ModelCoverage, NearTreeCounts, TreeSlot, TreeDraw, NearTreeDrawPlan, tree_density_clamped, trees_in_cell (+15 more).
+- `near_trees.rs` (2176): NEAR-FIELD TREE HARVEST: enumerating the planet-fixed vegetation stream into concrete 3D tree instances standing on the drawn ground. Main items: NearTree, ModelCoverage, NearTreeCounts, TreeSlot, TreeDraw, NearTreeDrawPlan, tree_density_clamped, trees_in_cell (+15 more).
 - `ocean_events.rs` (1005): Analytic ocean disaster fields: tsunami soliton, rogue wave group, Rankine vortex (maelstrom / waterspout base), hurricane eyewall. Main items: Vortex, Soliton, RogueWave, Hurricane, EventModifiers, OceanEvents, OceanEventFrame, PinnedOceanEvents (+46 more).
 - `ocean_fft.rs` (987): FFT ocean (water-fft.md increment 1, v0.1029): a JONSWAP-spectrum statistical sea on a camera-anchored periodic tile, computed on the CPU and shared VERBATIM between the GPU displacement texture an... Main items: OceanFft, OceanCascades, whitecap_coverage, crest_estimate_m, wind_target_rms_m, wave_height_shoaled_fft_m, FFT_TILE_M, FFT_N (+15 more).
 - `ocean_mask.rs` (209): Ocean mask: which cells of a planet's lat/lon grid are CONNECTED ocean. Main items: OceanMask, OCEAN_MASK_MAGIC.
 - `ocean_waves.rs` (255): CPU twin of the ocean-shell wave height (pbr_simple.wgsl, material type 16). Main items: WaveTrain, shoal_top_m, shoal_factor, shoal_factor_at, wave_height_shoaled_m, wave_height_m, swell_height_m, TRAINS (+3 more).
 - `osm_region.rs` (1584): OSM features around an origin: the local metric frame, a polygon ear clipper, and the 3D extrusion mesher. Main items: OsmRoad, OsmBuilding, WaterKind, OsmWater, OsmRegion, MeshGround, RegionMeshKind, RegionMeshClass (+21 more).
 - `planet_albedo.rs` (449): Real surface-color (albedo) grids for sky planets (Earth ships with one). Main items: PlanetAlbedo, srgb_byte_to_linear, linear_to_srgb_byte, ALBEDO_MAGIC.
-- `planet_chunks.rs` (4741): Chunked planetary LOD: a quadtree of surface patch meshes whose detail follows the camera (2026-07-11, the FTL close-approach increment). Main items: DetailNoise, PatchId, FrustumPlanes, PatchBounds, RadialBand, ChunkParams, DeepTiles, Selection (+71 more).
+- `planet_chunks.rs` (4714): Chunked planetary LOD: a quadtree of surface patch meshes whose detail follows the camera (2026-07-11, the FTL close-approach increment). Main items: DetailNoise, PatchId, FrustumPlanes, PatchBounds, RadialBand, ChunkParams, DeepTiles, Selection (+71 more).
 - `planet_heightmap.rs` (577): Real-elevation heightmaps for sky planets (Earth ships with one). Main items: BilinearTap, PlanetHeightmap, dir_to_latlon_deg, dir_to_latlon_deg_f64, latlon_to_dir, latlon_bilinear_tap, quantize_meters, HEIGHTMAP_MAGIC.
 - `planet_surface.rs` (1369): Procedural fractal planet surfaces for the sky renderer (v0.763). Main items: SurfaceVertexData, SurfaceMeshData, SurfaceSampler, displaced_radius, displaced_radius_f64, displaced_radius_f64_true, classify_color, surface_color (+17 more).
 - `planet.rs` (646): Planet definitions + icosphere LOD selection. Main items: PlanetDef, PlanetLod, PlanetRenderer, projected_pixel_diameter, lod_level_for_pixels, EARTH_SCALE_HEIGHT_RATIO, MAX_SKY_SUBDIVISION.
@@ -566,7 +567,7 @@
 - `tree_card_stage.rs` (255): THE TREE CARD STAGE: its supply and its counter (BUG-301, 2026-11-14). Main items: CardFloor, CardTally, tally, tally_from.
 - `tree_registry.rs` (451): The tree species list (`data/vegetation/trees.ron`) and the two tables the card atlas is drawn from: which atlas tile each (species, variant) owns, and how each tile was framed. Main items: TreeDef, ClusterLayerDef, ClusterDef, TreeRegistry, CardFootprint, ClusterLayer, registry, tiles_in_use (+6 more).
 - `water_patches.rs` (318): THE WATER SHELL's own patch meshes: the sea sphere, tessellated and skirted by the same quadtree the ground uses, but built by different rules. Main items: water_band, build_water_patch_mesh, water_geomorph_parents, build_water_patch_mesh_at, WATER_MAX_PATCH_DEPTH, WATER_CELL_CODE_SCALE, WATER_MAX_LEAVES.
-- tests: `crossing_tests.rs`, `drawn_surface_pack_tests.rs`, `map_beds_tests.rs`, `map_ground_tests.rs`, `map_pack_tests.rs`, `map_tiles_tests.rs`, `planet_chunks_reuse_tests.rs`
+- tests: `card_hull_tests.rs`, `crossing_tests.rs`, `drawn_surface_pack_tests.rs`, `map_beds_tests.rs`, `map_ground_tests.rs`, `map_pack_tests.rs`, `map_tiles_tests.rs`, `planet_chunks_reuse_tests.rs`
 
 ## crates/humanity-terrain/src/map_build/
 
@@ -675,7 +676,7 @@
 - `frame_save_editor.rs` (530): Saving and the construction editor (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: paid machines removed since the last frame, the showroom's stage,... Main items: run.
 - `frame_settles.rs` (634): Settling the world's state into the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the ECS and data store bridged into `GuiState`, the collect n... Main items: run.
 - `frame_shells.rs` (1292): A planet's SHELLS: the cloud deck and the atmosphere dome, built once per frame for any body large enough on screen to be worth them, and pushed into the transparent celestial list in the order the... Main items: ShellState, ShellView, push_planet_shells.
-- `frame_sky_body.rs` (1804): One body of the solar system (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs (the loop over the bodies in the solar system block, now `frame_sky`) as it was: th... Main items: run.
+- `frame_sky_body.rs` (1807): One body of the solar system (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs (the loop over the bodies in the solar system block, now `frame_sky`) as it was: th... Main items: run.
 - `frame_sky_light.rs` (509): The sun's light and shadows (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs (the solar system block, now `frame_sky`) as it was: the sun's direction into the hu... Main items: run.
 - `frame_sky_orbits.rs` (134): Orbit lines (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs (the solar system block, now `frame_sky`) as it was: each body's orbit drawn as a line in the theme'... Main items: run.
 - `frame_sky.rs` (146): The real solar system around the home (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the sky's clock and the values every body shares, each body of... Main items: SkyBodies, run.
@@ -708,7 +709,7 @@
 - `input.rs` (387): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, apply_game_action, cloud_dev_flag.
 - `interact.rs` (832): INTERACTIONS IN THE WORLD (character animation rung 2b, 2026-11-10; docs/design/character-animation.md sections 3.3 and 17; the anchors and their poses are `humanity_animation::interact`). Main items: Placed, ObjectRef, SeatPlan, Engaged, InteractRuntime, ChairSlide, Handle, plan_seat (+17 more).
 - `ipc_parse.rs` (389): Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested alone: screenshot request and done file, screen status, notification prefs, planet tooltip. Main items: ScreenshotSize, NotifPrefsPayload, parse_screenshot_request, screenshot_output_path, screenshot_done_json, merge_provider_status, planet_tooltip_info, parse_notification_prefs (+1 more).
-- `ipc.rs` (6677): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, RequestWatch, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value (+62 more).
+- `ipc.rs` (6693): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, RequestWatch, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value (+62 more).
 - `key_cards.rs` (352): Key cards in the desktop app (2026-10-22, docs/design/key-cards.md): signing our own card, asking servers for other people's, checking every one, pinning, and the change notice. Main items: KeyCardsState, sign_own_card, on_identity, ensure_pins, want, want_people, note_listed, on_signed_in (+8 more).
 - `keybind_capture.rs` (166): Keybind CAPTURE step (Settings > Controls, 2026-08-12), extracted from lib.rs's raw winit keyboard arm per the monolith ratchet. Main items: handle_keybind_capture.
 - `launch_focus.rs` (411): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, quiet_asked, show_window_behind, show_window_behind_as, show_window_behind.
@@ -762,7 +763,7 @@
 - `talk.rs` (210): The talk card each frame (rung 3 of docs/design/embeddable-ai.md, 2026-11-12): Main items: frame.
 - `tray_window.rs` (509): Closing to the tray (notifications rung 2, part 2, 2026-10-31; docs/design/notifications.md, "The tray"): with Settings > Notifications > "Closing the window keeps HumanityOS running in the tray" o... Main items: Posted, event_loop, event_loop_android, wake, posted, keeps_running, can_hide, close_to_tray (+5 more).
 - `tray.rs` (571): The notification-area (tray) icon (notifications rung 2, part 2, 2026-10-31; docs/design/notifications.md, "The tray"). Main items: TrayState, pending, serves_clicks, allowed, icon_can_be_seen, pump, TRAY_ENV, TRAY_CLICKS_ENV.
-- `tree_card_stage.rs` (154): The tree card stage in the frame loop (BUG-301, 2026-11-14; the terrain half is `humanity_terrain::tree_card_stage`). Main items: set_floor_on, floor_on, floor_for, note, done_json.
+- `tree_card_stage.rs` (219): The tree card stage in the frame loop (BUG-301, 2026-11-14; the terrain half is `humanity_terrain::tree_card_stage`). Main items: set_floor_on, floor_on, floor_for, note, done_json, set_hull_pin, hull_rebuilds, hull_pending.
 - `tree_ground.rs` (241): THE GROUND UNDER THE NEAR TREES, read out for the rig (BUG-156, 2026-10-05). Main items: report, write_report, REPORT_PATH, FLOAT_TOLERANCE_M.
 - `walk_pace.rs` (120): HOW FAST A PERSON WALKS AND RUNS, by the walking pace mode (2026-11-09). Main items: Pace, pace_for, apply.
 - `warnings.rs` (329): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's half that touches the app state. Main items: ensure_loaded, sender_of, checked_sender, shown_under, dismiss_key, message_key, links_held, holds_own_phrase (+1 more).
@@ -1544,7 +1545,7 @@
 - `atmo_luts.rs` (763): Atmosphere LUTs, stage 1 of the Hillaire-2020 sky pipeline (docs/dev/rendering-research-atmosphere-water.md section 1.1; staged plan in the 2026-07-25 journal). Main items: TransLutParams, u_to_mu, v_to_r, transmittance_lut, f32_to_f16_bits, lut_to_f16_bytes, multiple_scattering_lut, sky_view_radiance (+6 more).
 - `atmosphere.rs` (624): Analytic atmosphere scattering: the Rust mirror of the WGSL math. Main items: atmo_exposure, near_haze_scale, shell_packing, erfcx, chapman, od_to_space, rayleigh_phase, hg_phase (+12 more).
 - `bc7.rs` (497): BC7 TEXTURES (2026-11-10, the look's garment textures; docs/design/character-animation.md section 16): the DDS files our converter writes (`scripts/gen-makehuman-look.js` through `scripts/lib/bc7.j... Main items: Bc7File, decode_block, decode_level, level_bytes, read_dds, PARTITIONS2, ANCHORS2.
-- `billboard_bake.rs` (4886): Automated billboard sprite baker (v0.959, operator call 2026-07-25: "bake our own... Main items: BakeMode, BakePart, BakeCpuModel, ClusterSpriteImage, BakeReport, CpuSprite, proc_key, crown_depth_extinction (+15 more).
+- `billboard_bake.rs` (4903): Automated billboard sprite baker (v0.959, operator call 2026-07-25: "bake our own... Main items: BakeMode, BakePart, BakeCpuModel, ClusterSpriteImage, BakeReport, CpuSprite, proc_key, crown_depth_extinction (+15 more).
 - `bloom.rs` (394): Bloom post-process effect. Main items: BloomPass.
 - `bounced_light_detail.rs` (563): BOUNCED LIGHT DETAIL (2026-10-20): Settings > Graphics > Light and sky. Main items: DetailLevel, AdapterMemory, probe_memory_bytes, memory_words, mb_words, atlas_max_probes, parse_detail_levels, detail_levels (+12 more).
 - `camera.rs` (2165): Three-mode camera system: FirstPerson, ThirdPerson, Orbit. Main items: Underfoot, FloorAt, CameraUniforms, CameraMode, Projection, Camera, CameraController, WALK_SPEED_MPS (+8 more).
@@ -1610,7 +1611,7 @@
 - `test_gpu.rs` (502): THE ONE WAY A TEST GETS A GPU DEVICE (2026-11-14). Main items: Ask, Gpu, Turn, open, backends, take_turn, OPEN_WAIT, TURN_WAIT (+3 more).
 - `texture_pool.rs` (388): THE GARMENT TEXTURE POOL (2026-11-10, the look's textures; docs/design/character-animation.md section 16): garment textures live in SLOTS of a few same-size GPU textures, allocated once per size wh... Main items: SlotClass, Take, SlotPool, GpuPool, note_block_compression, block_compression, block_compression_feature, MIP_MIN_PX (+1 more).
 - `tree_allometry.rs` (541): HOW THICK IS WOOD: the generator's radius and taper model (v0.1103). Main items: stem_butt_slenderness_band, stem_base_radius, generations_for, limb_tip_radius, limb_base_radius_at, fork_child_radius, lateral_branch_radius, TRUNK_FLARE_PEAK (+4 more).
-- `tree_card_cull.rs` (525): THE TREE CARD CULL (2026-11-14): the far tree cards are drawn only where they can show. Main items: CardTail, CardRecords, CullJob, Plan, Inputs, CardCull, last_culled, set_pinned_on (+9 more).
+- `tree_card_cull.rs` (576): THE TREE CARD CULL (2026-11-14): the far tree cards are drawn only where they can show. Main items: CardTail, CardRecords, CullJob, Plan, Inputs, CardCull, last_culled, set_pinned_on (+13 more).
 - `tree_cards.rs` (451): FOLIAGE CARD ARRANGEMENT: how the cards of one tuft sit around a twig.
 - `tree_mesh.rs` (5957): Procedural planet-surface trees (v0.1066). Main items: TreeParts, BarkRun, BarkSeg, TreeBuild, ClusterCards, CrownEnvelope, Junction, LimbShape (+14 more).
 - `tree_species.rs` (744): The SPECIES ARCHITECTURE: how each `form` lays out a crown (v0.1102).

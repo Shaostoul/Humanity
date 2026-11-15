@@ -1841,6 +1841,22 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.renderer.taa.hashed = t != "0";
         log::info!("Showcase: taa_hashed -> {}", state.renderer.taa.hashed);
     }
+    // The far tree cards' outlines (performance rung 2, humanity_terrain::card_hull): {"card_hull":"0"}
+    // draws every card as the full square of its atlas tile again (the red twin, the rung 1 geometry);
+    // "4", "6" or "8" a polygon of that many vertices fitted to the tile's visible texels; "auto" the
+    // default. The patches carrying cards are built again in place, a few a frame (the done file's
+    // tree_cards.hull_pending counts what is left).
+    if let Some(t) = grab("card_hull") {
+        let queued = crate::engine::tree_card_stage::set_hull_pin(&t, &state.planet_chunk_states);
+        log::info!("Showcase: card_hull -> {} ({queued} card patches to build again)", humanity_terrain::card_hull::pin());
+    }
+    // {"card_sun_hide":"0"}: the cards inside the near 3D trees' hide radius cast sun shadows again
+    // (the red twin: the doubled shadow under the near trees); "1" or "auto" leaves them out of the
+    // sun pass in the GPU card cull (renderer/tree_card_cull.rs).
+    if let Some(t) = grab("card_sun_hide") {
+        crate::renderer::tree_card_cull::set_sun_hide(t != "0");
+        log::info!("Showcase: card_sun_hide -> {}", crate::renderer::tree_card_cull::sun_hide());
+    }
     // The tree card stage's depth floor (BUG-301, engine/tree_card_stage.rs): {"card_floor":"0"}
     // draws the ground to the planet's own cap again, so without the tile tier there is no card
     // stage (the red twin, and the cost A/B's other arm); "1" or "auto" puts the floor back.

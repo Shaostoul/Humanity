@@ -17,8 +17,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
+use humanity_terrain::card_hull;
 use humanity_terrain::planet::PlanetDef;
-use humanity_terrain::planet_chunks::ChunkState;
+use humanity_terrain::planet_chunks::{ChunkState, PatchId};
 use humanity_terrain::tree_card_stage::{tally, CardFloor, CardTally};
 
 /// The showcase `card_floor` pin: true while it is "0" (the floor off).
@@ -82,9 +83,10 @@ pub(crate) fn note(cs: &ChunkState, radius_m: f64, hide_m: f32, far_m: f32, atla
         .unwrap_or(0);
     if LAST_LOG_S.swap(now_s, Ordering::Relaxed) != now_s {
         let t = r.tally;
-        let (culled_patches, culled_quads) = crate::renderer::tree_card_cull::last_culled();
+        let (culled_patches, culled_faces) = crate::renderer::tree_card_cull::last_culled();
+        let (hull, hull_pending, sun_hide) = (card_hull::pin(), hull_pending(), crate::renderer::tree_card_cull::sun_hide());
         log::info!(
-            "[TreeCards] drawn={} card_patches={} cards={} in_window={} max_depth={} hide={:.0}m far={:.0}m atlas={} floor={} culled_patches={culled_patches} culled_quads={culled_quads}",
+            "[TreeCards] drawn={} card_patches={} cards={} in_window={} max_depth={} hide={:.0}m far={:.0}m atlas={} floor={} culled_patches={culled_patches} culled_faces={culled_faces} hull={hull} hull_pending={hull_pending} sun_hide={sun_hide}",
             t.drawn_patches,
             t.card_patches,
             t.cards,
@@ -109,11 +111,11 @@ pub(crate) fn done_json() -> serde_json::Value {
     }
     let t = r.tally;
     // The GPU card cull (renderer/tree_card_cull.rs): the card patches whose cards it took (equal to
-    // card_patches when every card tail was found; 0 with the showcase `card_cull` "0") and their quads.
-    let (culled_patches, culled_quads) = crate::renderer::tree_card_cull::last_culled();
+    // card_patches when every card tail was found; 0 with the showcase `card_cull` "0") and their faces.
+    let (culled_patches, culled_faces) = crate::renderer::tree_card_cull::last_culled();
     serde_json::json!({
         "culled_patches": culled_patches,
-        "culled_quads": culled_quads,
+        "culled_faces": culled_faces,
         "drawn_patches": t.drawn_patches,
         "card_patches": t.card_patches,
         "cards": t.cards,
@@ -123,7 +125,70 @@ pub(crate) fn done_json() -> serde_json::Value {
         "far_m": r.far_m,
         "atlas_ready": r.atlas_ready,
         "floor": r.floor,
+        // The outlines (performance rung 2, humanity_terrain::card_hull): the showcase pin (0 = the
+        // full square), the baked outlines' mean share of the square, the card patches still to be
+        // built again with the current outline (0 once a switch has landed), and whether the faces
+        // inside the hide radius are left out of the sun pass.
+        "hull": card_hull::pin(),
+        "hull_area": card_hull::mean_area(),
+        "hull_pending": hull_pending(),
+        "sun_hide": crate::renderer::tree_card_cull::sun_hide(),
     })
+}
+
+// ── The outline switch (the far cards' performance rung 2, humanity_terrain::card_hull) ──
+
+/// Card patches waiting to be built again with the current outline, by body: filled when the
+/// showcase `card_hull` pin changes, drained a few a frame by [`hull_rebuilds`].
+static HULL_STALE: Mutex<Vec<(String, PatchId)>> = Mutex::new(Vec::new());
+
+/// Set the showcase `card_hull` pin ("0" the full square, the red twin; "4", "6" or "8" a fitted
+/// outline of that many vertices; "auto" the default) and queue every built patch that carries
+/// cards to be built again in place with it. Returns how many were queued.
+pub(crate) fn set_hull_pin(value: &str, states: &std::collections::HashMap<String, ChunkState>) -> usize {
+    let k = if value == "auto" { card_hull::DEFAULT_K } else { value.parse::<u8>().unwrap_or(card_hull::DEFAULT_K) };
+    let before = card_hull::pin();
+    card_hull::set_pin(k);
+    if card_hull::pin() == before {
+        return 0; // unchanged (a rig's per-vantage reset): nothing to build again
+    }
+    let mut q = HULL_STALE.lock().unwrap_or_else(|p| p.into_inner());
+    q.clear();
+    for (body, cs) in states {
+        q.extend(cs.cache.iter().filter(|(_, e)| e.card_trees > 0).map(|(id, _)| (body.clone(), *id)));
+    }
+    q.len()
+}
+
+/// Up to `n` of `body`'s queued card patches that are still built (and not already in `skip`), to
+/// build again this frame.
+pub(crate) fn hull_rebuilds(body: &str, cs: &ChunkState, n: usize, skip: &[PatchId]) -> Vec<PatchId> {
+    let mut q = HULL_STALE.lock().unwrap_or_else(|p| p.into_inner());
+    if q.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    q.retain(|(b, id)| {
+        if b != body {
+            return true; // another body's: its own frame takes it
+        }
+        if !cs.cache.contains_key(id) {
+            return false; // evicted since: whatever builds it next uses the new outline
+        }
+        if out.len() >= n {
+            return true; // this frame is full: a later one takes it
+        }
+        if !skip.contains(id) {
+            out.push(*id); // (one already rebuilding this frame is rebuilt with the new outline)
+        }
+        false
+    });
+    out
+}
+
+/// Card patches still waiting for the current outline (the done file's `hull_pending`).
+pub(crate) fn hull_pending() -> usize {
+    HULL_STALE.lock().map_or(0, |q| q.len())
 }
 
 #[cfg(test)]

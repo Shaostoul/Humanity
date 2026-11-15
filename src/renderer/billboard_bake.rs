@@ -416,6 +416,8 @@ impl Renderer {
         }
         let reg = humanity_terrain::tree_registry::registry();
         let mut report = BakeReport::default();
+        // Each baked tile's covered share and its outline's share of the square, for the log.
+        let mut outlines: Vec<String> = Vec::new();
         for (i, t) in reg.trees.iter().enumerate() {
             for v in 0..t.variants.max(1) {
                 report.stems += 1;
@@ -519,6 +521,16 @@ impl Renderer {
                 };
                 self.copy_tile_into_atlas(&targets.color, tile);
                 humanity_terrain::tree_registry::set_card_footprint(tile, fp);
+                // The tile's tight outline (the far cards' performance rung 2,
+                // humanity_terrain::card_hull): fitted to the alpha the GPU
+                // actually baked, read back once a tile, so the far card draws
+                // that polygon instead of the whole square.
+                if let Some(rgba) = self.read_texture_rgba8(&targets.color, ATLAS_TILE_PX, ATLAS_TILE_PX) {
+                    let alpha: Vec<u8> = rgba.chunks_exact(4).map(|p| p[3]).collect();
+                    let cover = alpha.iter().filter(|&&a| a > 0).count() as f32 / alpha.len().max(1) as f32;
+                    let area = humanity_terrain::card_hull::set_tile_alpha(tile, &alpha, ATLAS_TILE_PX);
+                    outlines.push(format!("{tile}:{:.0}/{:.0}%", 100.0 * cover, 100.0 * area));
+                }
                 report.tiles_baked += 1;
                 if let Some(dir) = dump_dir {
                     let path = dir.join(format!("tile{tile:02}_{}_v{v}.png", t.id));
@@ -554,6 +566,11 @@ impl Renderer {
             ATLAS_COLS,
             ATLAS_ROWS,
             ATLAS_TILE_PX,
+        );
+        log::info!(
+            "[Bake] card outlines ({}-vertex, tile:covered/outline share of the square): {}",
+            humanity_terrain::card_hull::DEFAULT_K,
+            outlines.join(" ")
         );
         if !self.tree_atlas_ready {
             log::error!("[Bake] tree atlas EMPTY: no species produced a tile");

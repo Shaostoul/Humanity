@@ -32,6 +32,9 @@ pub mod far_trees;
 /// The tree card stage's supply (the depth floor the selection refines to within the card
 /// distance, so the stage exists without the tile tier) and its per-frame counter (BUG-301).
 pub mod tree_card_stage;
+/// The far tree cards' tight outlines: a polygon fitted to each baked atlas tile's visible texels,
+/// drawn instead of the full square (performance rung 2, 2026-11-14), and the card face emitter.
+pub mod card_hull;
 /// The tree species list (data/vegetation/trees.ron), the card atlas's tile for each species
 /// and variant, and each tile's framing: plain data the patch builder and the renderer's tree
 /// builder both read (the top of `renderer::tree_mesh` until the crate split's rung 0).

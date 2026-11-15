@@ -2130,7 +2130,13 @@ pub fn build_patch_mesh_at_density(
         // this tree's height against the baked one, dropped so the tree's base
         // lands on the ground. `v01` now spans the FRAME rather than the tree,
         // which is what the baked pixels actually occupy.
+        //
+        // OUTLINE (2026-11-14, the far cards' performance rung 2): each face is
+        // the polygon fitted to its tile's visible texels (`card_hull`), not the
+        // whole square, so the transparent rest is never rasterized. One
+        // snapshot of each table a patch build, so every face here has one size.
         let fp_table = crate::tree_registry::card_footprint_table();
+        let hull_table = crate::card_hull::hull_table();
         let emit_sprite_card = |base: glam::Vec3,
                                     up: glam::Vec3,
                                     side: glam::Vec3,
@@ -2138,41 +2144,8 @@ pub fn build_patch_mesh_at_density(
                                     tile: u32,
                                     vertices: &mut Vec<SurfaceVertexData>,
                                     indices: &mut Vec<u32>| {
-            let fp = fp_table[(tile as usize).min(fp_table.len() - 1)];
-            let (s, drop_m) = sprite_card_frame(fp, h);
-            let foot = base - up * drop_m;
-            let corner = |u01: f32, v01: f32| -> (glam::Vec3, [f32; 3]) {
-                let p = foot + up * (s * v01) + side * (s * (u01 - 0.5));
-                let enc_x = -((1 + tile) as f32 + u01 * 0.5);
-                (p, [-1.0, enc_x, v01])
-            };
-            // INDEXED, same four-corner sharing as emit_card above. Sprite
-            // corners each carry a DIFFERENT u01 on the SMOOTH uv channel
-            // (that is how the tile encoding rides), so the shared corner
-            // keeps exactly the attributes it had per triangle - do not
-            // "fix" them into agreeing.
-            let corners = [
-                corner(0.0, 0.0), // c00
-                corner(1.0, 0.0), // c10
-                corner(1.0, 1.0), // c11
-                corner(0.0, 1.0), // c01
-            ];
-            let nrm = up.to_array();
-            let base_i = vertices.len() as u32;
-            for (p, col) in corners {
-                vertices.push(SurfaceVertexData {
-                    position: p.to_array(),
-                    normal: nrm,
-                    color: col,
-                    water: false,
-                    tree_card: true,
-                });
-            }
-            // c00=0, c10=1, c11=2, c01=3: the original
-            // [c00,c10,c11] [c00,c11,c01] [c00,c11,c10] [c00,c01,c11].
-            for i in [0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2] {
-                indices.push(base_i + i);
-            }
+            let t = (tile as usize).min(fp_table.len() - 1);
+            crate::card_hull::emit_sprite_card(base, up, side, h, tile, fp_table[t], &hull_table[t], vertices, indices);
         };
         let want_trees = id.depth >= TREE_MIN_DEPTH;
         // Spherical point-in-triangle: a direction is inside the patch when

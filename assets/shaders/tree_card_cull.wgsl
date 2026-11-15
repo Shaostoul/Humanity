@@ -1,14 +1,14 @@
 // THE TREE CARD CULL (2026-11-14, renderer/tree_card_cull.rs has the whole story).
 //
-// One workgroup per terrain patch that carries tree cards. Each thread takes quads of that patch
-// and tests the quad's bounding sphere (its cull record: centre in the patch frame, radius):
+// One workgroup per terrain patch that carries tree cards. Each thread takes card faces of that
+// patch and tests the face's bounding sphere (its cull record: centre in the patch frame, radius):
 // - the MAIN view keeps it when the sphere meets the window the fragment stage keeps (the hide
 //   radius to the far cutoff, read from the SAME shadow uniform fs_terrain reads) and the camera's
 //   frustum (the SAME camera uniform the draw reads, its four side planes, widened for the
 //   temporal jitter);
 // - the SUN view keeps it when the sphere meets the shadow map's box (the light's own matrix, all
 //   six planes: what lies outside them is clipped away anyway).
-// A kept quad's indices are appended to its patch's region of the compact index buffer and its
+// A kept face's indices are appended to its patch's region of the compact index buffer and its
 // count added to the patch's indirect draw. The main view's compact indices are a window of the
 // patch arena's own index buffer, and its card draw sits right after the patch's ground draw in one
 // argument list, so the cards keep the draw order the whole-patch draw had (renderer/tree_card_cull.rs). The main view takes both windings (the pass culls back
@@ -17,8 +17,14 @@
 //
 // Every test is a bounding sphere against a plane or a distance, so it only ever keeps MORE than
 // the per-pixel tests let through: those still decide every edge, and the picture does not change.
+//
+// RUNG 2 (2026-11-14): a card face is the polygon fitted to its atlas tile (humanity_terrain::
+// card_hull), `verts` vertices fanned from the first and then the fan wound backwards, so a kept face
+// writes 6 (verts - 2) indices to the main view and 3 (verts - 2) (the first winding) to the sun;
+// verts 4 is the quad's pattern exactly. With `flags` bit 0 the sun view also leaves out a face
+// wholly inside the hide radius: the near 3D tree standing there casts its own shadow.
 // The Rust twin of `keeps_main` and `keeps_sun` is `tree_card_cull::cpu_keeps`; change one, change
-// both (`the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps`).
+// both (`the_gpu_cull_keeps_exactly_the_faces_the_rust_twin_keeps`).
 
 struct Cam {
     view_proj: mat4x4<f32>,
@@ -34,19 +40,20 @@ struct ShadowU {
 };
 
 // One card-bearing drawn patch. `pos` = its translation (render space); `rec` its first cull
-// record; `quads` its card count; `v0` its first card vertex in the arena (absolute); `dst` and
-// `sdst` its regions in the main window and the sun buffer (12 and 6 indices a quad); `arg` its
-// card draw's place in the main argument list.
+// record; `faces` its card face count; `v0` its first card vertex in the arena (absolute); `dst` and
+// `sdst` its regions in the main window and the sun buffer (6 (verts - 2) and 3 (verts - 2) indices
+// a face); `arg` its card draw's place in the main argument list; `verts` the vertices a face;
+// `flags` bit 0 = the sun view leaves out faces wholly inside the hide radius.
 struct Job {
     pos: vec4<f32>,
     rec: u32,
-    quads: u32,
+    faces: u32,
     v0: u32,
     dst: u32,
     sdst: u32,
     arg: u32,
-    pad1: u32,
-    pad2: u32,
+    verts: u32,
+    flags: u32,
 };
 
 @group(0) @binding(0) var<uniform> cam: Cam;
@@ -88,7 +95,11 @@ fn keeps_main(c: vec3<f32>, r: f32) -> bool {
         && plane_dist(r3 + r1, c) >= rm && plane_dist(r3 - r1, c) >= rm;
 }
 
-fn keeps_sun(c: vec3<f32>, r: f32) -> bool {
+fn keeps_sun(c: vec3<f32>, r: f32, hide_near: bool) -> bool {
+    // Wholly inside the hide radius: the near 3D tree casts this tree's shadow.
+    if (hide_near && distance(c, cam.view_pos.xyz) + r < su.params.w) {
+        return false;
+    }
     let m = light.view_proj;
     let r0 = row(m, 0u);
     let r1 = row(m, 1u);
@@ -103,35 +114,33 @@ fn keeps_sun(c: vec3<f32>, r: f32) -> bool {
 fn cull_cards(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     let j = jobs[wg.x];
     let sun_on = su.params.x > 0.5;
-    for (var q = lid.x; q < j.quads; q = q + WORKGROUP) {
+    let hide_near = (j.flags & 1u) != 0u;
+    let tris = j.verts - 2u;
+    for (var q = lid.x; q < j.faces; q = q + WORKGROUP) {
         let rec = recs[j.rec + q];
         let c = (rot * vec4<f32>(rec.xyz, 0.0)).xyz + j.pos.xyz;
-        let v = j.v0 + 4u * q;
+        let v = j.v0 + j.verts * q;
         if (keeps_main(c, rec.w)) {
-            let o = j.dst + atomicAdd(&main_args[j.arg * 5u], 12u);
-            // The patch builder's twelve (planet_chunks emit_card / emit_sprite_card): the quad,
-            // then the quad wound backwards.
-            main_idx[o] = v;
-            main_idx[o + 1u] = v + 1u;
-            main_idx[o + 2u] = v + 2u;
-            main_idx[o + 3u] = v;
-            main_idx[o + 4u] = v + 2u;
-            main_idx[o + 5u] = v + 3u;
-            main_idx[o + 6u] = v;
-            main_idx[o + 7u] = v + 2u;
-            main_idx[o + 8u] = v + 1u;
-            main_idx[o + 9u] = v;
-            main_idx[o + 10u] = v + 3u;
-            main_idx[o + 11u] = v + 2u;
+            let o = j.dst + atomicAdd(&main_args[j.arg * 5u], 6u * tris);
+            // The patch builder's pattern (card_hull::face_indices): the fan from the face's
+            // first vertex, then the same fan wound backwards.
+            for (var t = 0u; t < tris; t = t + 1u) {
+                main_idx[o + 3u * t] = v;
+                main_idx[o + 3u * t + 1u] = v + t + 1u;
+                main_idx[o + 3u * t + 2u] = v + t + 2u;
+                let b = o + 3u * (tris + t);
+                main_idx[b] = v;
+                main_idx[b + 1u] = v + t + 2u;
+                main_idx[b + 2u] = v + t + 1u;
+            }
         }
-        if (sun_on && keeps_sun(c, rec.w)) {
-            let o = j.sdst + atomicAdd(&sun_args[wg.x * 5u], 6u);
-            sun_idx[o] = v;
-            sun_idx[o + 1u] = v + 1u;
-            sun_idx[o + 2u] = v + 2u;
-            sun_idx[o + 3u] = v;
-            sun_idx[o + 4u] = v + 2u;
-            sun_idx[o + 5u] = v + 3u;
+        if (sun_on && keeps_sun(c, rec.w, hide_near)) {
+            let o = j.sdst + atomicAdd(&sun_args[wg.x * 5u], 3u * tris);
+            for (var t = 0u; t < tris; t = t + 1u) {
+                sun_idx[o + 3u * t] = v;
+                sun_idx[o + 3u * t + 1u] = v + t + 1u;
+                sun_idx[o + 3u * t + 2u] = v + t + 2u;
+            }
         }
     }
 }

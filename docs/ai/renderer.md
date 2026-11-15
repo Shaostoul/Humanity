@@ -178,9 +178,9 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   only by failing).
 - **The cards are culled on the GPU before they are drawn (2026-11-14, `renderer/tree_card_cull.rs`,
   `assets/shaders/tree_card_cull.wgsl`).** Each patch mesh ends in its cards (the patch builder
-  emits the skirt BEFORE the trees: keep it so, or `card_tail_quads` finds no tail and the patch
+  emits the skirt BEFORE the trees: keep it so, or `card_tail` finds no tail and the patch
   draws whole, unculled; `vegetation_bakes_into_deep_land_patches_deterministically` holds it). The
-  arena keeps one cull record a card quad (`CardRecords`); one compute dispatch a frame keeps a quad
+  arena keeps one cull record a card face (`CardRecords`); one compute dispatch a frame keeps a face
   for the main view when its bounding sphere meets the kept window and the camera's frustum, and for
   the sun view when it meets the shadow map's box, and writes compact index buffers and one indirect
   draw a patch. **The main view's kept indices go into a range reserved INSIDE the patch arena's
@@ -190,11 +190,11 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   `fuji-forest-ground` it cost 2 ms MORE than no cull (23.0 against 21.1 ms `gpu.celestial`), since
   near cards drawn early had been hiding the ground behind them from the depth test. The sun pass
   draws its ground per patch (`Renderer::patch_icount`) and then its kept cards from a buffer of its
-  own, ONE winding a quad (it draws without face culling). The cull reads the SAME
+  own, ONE winding a face (it draws without face culling). The cull reads the SAME
   uniform buffers the draws read (the celestial camera, the light camera, the shadow uniform's hide
   and far, the batch rotation), so it must be dispatched after they are written and before the sun
   pass (`card_cull_dispatch` sits right after the patch instance upload). The shader's rule has a
-  Rust twin (`cpu_keeps`, `the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps`). Showcase
+  Rust twin (`cpu_keeps`, `the_gpu_cull_keeps_exactly_the_faces_the_rust_twin_keeps`). Showcase
   `card_cull` "0" is the red twin; a device without multi-draw indirect draws every patch whole.
   **Measured 2026-11-14** (same boot, medians of four interleaved arms, RTX 4070 at 2560 x 1387,
   default 1,500 m; other agents were compiling, so only the `gpu.*` columns are readings): the
@@ -209,6 +209,48 @@ just merge chores (`docs/ai/orchestrator.md`, section 4).
   atlas tile instead of the square (trimmed cards, the transparent area never rasterized), a
   depth prepass for card overdraw, and a lower-detail card set for the sun pass (cards still cast
   1.0 to 1.5 ms there). Agent scratch: `cp-ab2/` (pictures) and `cp-analyze.js`.
+- **Each card face is its tile's OUTLINE, not the square (rung 2, 2026-11-14,
+  `humanity_terrain::card_hull`).** The bake reads every atlas tile back from the GPU and fits a
+  convex polygon of at most six vertices around the texels a bilinear sample can reach (1.25 texels
+  past each covered centre), cut down from the hull one edge at a time by least added area and never
+  off the tile (Persson's particle trimming; Unreal's particle cutouts). It always CONTAINS the hull,
+  so no visible texel is lost and the hashed edge and the far dissolve are decided per pixel as
+  before. The patch builder draws each face as that polygon fanned twice (`card_hull::face_indices`:
+  `6 (n - 2)` indices, the square's are exactly the old quad's); before the bake, or for a tile
+  that failed, the face is the square padded to the patch's size. The cull reads a patch's face size
+  off its tail (`card_tail`: 3 to 8 vertices, one size a patch, else the patch draws whole), so keep
+  every face of one patch the same size: the builder takes one snapshot of the table a build. The
+  `[Bake] card outlines` line gives every tile's covered and outline share of its square (covered 7
+  to 17%, the six-vertex outline 30 to 38%). Showcase `card_hull` "0" is the full square (the red
+  twin, the rung 1 geometry), "4", "6", "8" the fitted counts; a change rebuilds the card patches in
+  place a few a frame (the done file's `tree_cards.hull_pending` counts what is left, `hull` and
+  `hull_area` say what is drawn). Why six: over the shipped atlas six vertices cover 0.340 of the
+  square, eight 0.337 and four 0.604, and the six-vertex arm was the cheapest at three of the four
+  vantages (fewer, fatter triangles).
+- **A card WHOLLY inside the hide radius casts no sun shadow (rung 2, an orchestrator decision).**
+  Every tree inside that radius has its 3D model, which casts its own shadow; the card's was a second,
+  board-shaped one on the ground under the near trees. The cull's sun view drops a face whose sphere
+  lies inside the radius (`keeps_sun`, its twin `cpu_keeps`), a face the ring crosses still casts,
+  and fs_shadow's per-pixel rule is unchanged (its comment says why). Showcase `card_sun_hide` "0" is
+  the red twin. The crop (agent scratch `c2-r2-crop-near-shadow.png`) shows the extra dark blots
+  beside the model shadows going; nothing else in the frame moves beyond the capture noise.
+- **Measured 2026-11-14 for rung 2** (same boot, medians of four interleaved arms against rung 1's
+  square path, RTX 4070 at 2560 x 1387, default 1,500 m; another agent compiling, so only `gpu.*`
+  are readings; the eight-vertex outline was the measured arm, six is cheaper still): the world
+  surface pass 20.36 to 19.57 ms at `fuji-forest-ground`, 15.98 to 15.61 at `fuji-forest-hillside`,
+  12.55 to 11.94 at `fuji-forest-far`, 13.91 to 13.51 at `black-forest-far`; the sun pass 1.31 to
+  1.09, 1.22 to 1.10, 0.95 to 0.85, 1.07 to 0.92; the cull 0.03 ms more (0.13 to 0.21);
+  `vram.tree_cards` 183 to 192 MB at the ground vantage. Pictures: square against outline differs
+  no more than two captures of the same arm. The profile arms (hot-reload patches, same boot) put
+  the cards' sun pass share at 0.45 to 0.81 ms, so no lighter sun-pass set was built, and the cards'
+  world surface cost at 4.2 to 5.7 ms: 2.2 to 2.5 ms rasterizing and launching the outlines' pixels
+  (the visible ones included), 1.8 to 3.2 ms shading the ones that show, 1.0 to 2.4 ms of that the
+  lighting tail (`frag_tail`; the sun shadow lookup under 0.9 ms of it, single noisy arms). No picture-neutral cut was
+  found for the shading: every cheaper lighting tail changes the far forest's light, and
+  `frag_prologue` is a few derivatives, so moving the card's alpha test above it buys nothing. The
+  next rungs: a card depth prepass (each card pixel shaded once; a pipeline change, since the
+  ground and the cards share one draw), or an agreed cheaper far-card lighting. Agent scratch:
+  `c2-r2-ab1/` (pictures, costs), `c2-r2-plan.json`, `c2-r2-analyze.js`.
 
 ## f32 at planet scale
 

@@ -11,21 +11,39 @@ fn vert(uv: [f32; 2], p: [f32; 3]) -> Vertex {
 /// A sprite card's uv (tile 0, u 0.5): what `Mesh::planet_surface_vertices` hands the arena.
 const SPRITE_UV: [f32; 2] = [-1.25, 0.5];
 
-/// A patch mesh: `g` ground vertices in a fan, then `quads` sprite cards whose corners sit around
-/// `centre(q)` (a 6 m by 10 m card standing on it).
+/// One card face's `n` vertices around its centre: the 6 m by 10 m square card for 4, else a
+/// polygon inside it (an outline, as `card_hull` fits one), counter-clockwise.
+fn face_offsets(n: u32) -> Vec<Vec3> {
+    if n == 4 {
+        return [(-3.0, -5.0), (3.0, -5.0), (3.0, 5.0), (-3.0, 5.0)].iter().map(|&(x, y)| Vec3::new(x, y, 0.0)).collect();
+    }
+    (0..n).map(|i| {
+        let a = -std::f32::consts::FRAC_PI_2 + i as f32 * std::f32::consts::TAU / n as f32;
+        Vec3::new(3.0 * a.cos(), 5.0 * a.sin(), 0.0)
+    }).collect()
+}
+
+/// A patch mesh: `g` ground vertices in a fan, then `quads` sprite card faces of 4 vertices whose
+/// corners sit around `centre(q)` (a 6 m by 10 m card standing on it).
 fn patch_with(g: u32, quads: u32, centre: impl Fn(u32) -> Vec3) -> (Vec<Vertex>, Vec<u32>) {
+    patch_faces(g, quads, 4, centre)
+}
+
+/// [`patch_with`] with faces of `n` vertices in the builder's fan order (`card_hull::face_indices`).
+fn patch_faces(g: u32, quads: u32, n: u32, centre: impl Fn(u32) -> Vec3) -> (Vec<Vertex>, Vec<u32>) {
     let mut vs: Vec<Vertex> = (0..g).map(|i| vert([1000.0, 0.5], [i as f32, 0.0, 0.0])).collect();
     let mut is = Vec::new();
     for i in 1..g.saturating_sub(1) {
         is.extend([0, i, i + 1]);
     }
+    let pattern = humanity_terrain::card_hull::face_indices(n);
     for q in 0..quads {
         let c = centre(q);
         let base = vs.len() as u32;
-        for (dx, dy) in [(-3.0, -5.0), (3.0, -5.0), (3.0, 5.0), (-3.0, 5.0)] {
-            vs.push(vert(SPRITE_UV, (c + Vec3::new(dx, dy, 0.0)).to_array()));
+        for o in face_offsets(n) {
+            vs.push(vert(SPRITE_UV, (c + o).to_array()));
         }
-        is.extend(QUAD_INDICES.map(|p| base + p));
+        is.extend(pattern.iter().map(|p| base + p));
     }
     (vs, is)
 }
@@ -41,10 +59,25 @@ fn patch(g: u32, quads: u32) -> (Vec<Vertex>, Vec<u32>) {
 /// planet_chunks half of this pair, `vegetation_bakes_into_deep_land_patches_deterministically`,
 /// read "the cards are not the mesh's tail: 0 trailing card vertices for 281 trees"; the skirted
 /// case below is that mesh's shape.
+///
+/// Rung 2 (faces of any vertex count, read off the tail): seen red 2026-11-14 with the rung 1 reader
+/// (four vertices a face only) against the eight-vertex outline: "an outline tail was not found:
+/// None".
 #[test]
 fn the_card_tail_is_found_only_when_it_is_exactly_the_cards() {
     let (vs, is) = patch(10, 3);
-    assert_eq!(card_tail_quads(&vs, &is), 3);
+    assert_eq!(card_tail(&vs, &is), Some((3, 4)));
+    for n in [3, 5, 6, 8] {
+        let (fv, fi) = patch_faces(10, 5, n, |q| Vec3::new(q as f32 * 10.0, 0.0, 0.0));
+        assert_eq!(card_tail(&fv, &fi), Some((5, n)), "an outline tail was not found: {:?}", card_tail(&fv, &fi));
+    }
+    // Faces of two sizes in one patch (a coloured quad after an outline): not one tail, draw whole.
+    let (mut mixed, mut mi) = patch_faces(10, 2, 8, |q| Vec3::new(q as f32 * 10.0, 0.0, 0.0));
+    let b = mixed.len() as u32;
+    mixed.extend(face_offsets(4).into_iter().map(|o| vert(SPRITE_UV, o.to_array())));
+    mi.extend(QUAD_INDICES.map(|p| b + p));
+    assert_eq!(card_tail(&mixed, &mi), None, "a tail of two face sizes was read as one");
+    let card_tail_quads = |v: &[Vertex], i: &[u32]| card_tail(v, i).map_or(0, |(f, n)| if n == 4 { f } else { 0 });
     // A coloured card (a planet without the sprite atlas) carries the flag bit instead.
     let mut coloured = vs.clone();
     for v in &mut coloured[10..] {
@@ -72,12 +105,36 @@ fn the_card_tail_is_found_only_when_it_is_exactly_the_cards() {
     assert_eq!(card_tail_quads(&vs[1..], &is), 0, "three trailing card vertices short of a quad passed");
 }
 
-/// The record bounds the quad: its centre is the corners' mean and its radius reaches every corner.
+/// The record bounds the face: its centre is the vertices' mean and its radius reaches every one.
 #[test]
-fn a_quad_record_bounds_its_corners() {
-    let r = quad_record([[0.0, 0.0, 0.0], [6.0, 0.0, 0.0], [6.0, 10.0, 0.0], [0.0, 10.0, 0.0]]);
+fn a_face_record_bounds_its_vertices() {
+    let r = face_record(&[[0.0, 0.0, 0.0], [6.0, 0.0, 0.0], [6.0, 10.0, 0.0], [0.0, 10.0, 0.0]]);
     assert_eq!(&r[..3], &[3.0, 5.0, 0.0]);
     assert!((r[3] - 34f32.sqrt()).abs() < 1.0e-5, "radius {}", r[3]);
+    let oct: Vec<[f32; 3]> = face_offsets(8).iter().map(|o| (*o + Vec3::new(1.0, 2.0, 3.0)).to_array()).collect();
+    let r = face_record(&oct);
+    assert!(oct.iter().all(|p| Vec3::from(*p).distance(Vec3::new(r[0], r[1], r[2])) <= r[3] + 1.0e-5));
+}
+
+/// THE NEAR FACES LEAVE THE SUN PASS (an orchestrator decision, 2026-11-14): a face wholly inside
+/// the hide radius casts no sun shadow (its tree's 3D model does), one the ring crosses still does,
+/// and with the rule off (the red twin) both cast. The main view is untouched by it.
+#[test]
+fn faces_wholly_inside_the_hide_radius_leave_the_sun_pass() {
+    let cam_pos = Vec3::ZERO;
+    let cam_vp = humanity_terrain::celestial_projection::celestial_projection(60.0, 1.0) * Mat4::look_at_rh(cam_pos, Vec3::NEG_Z, Vec3::Y);
+    let light_vp = Mat4::orthographic_rh(-500.0, 500.0, -500.0, 500.0, 0.0, 8000.0) * Mat4::look_at_rh(Vec3::Y * 4000.0, Vec3::ZERO, Vec3::Z);
+    let (hide, far) = (93.0, 1500.0);
+    let inside = cpu_keeps(Vec3::new(0.0, 0.0, -60.0), 6.0, cam_vp, cam_pos, hide, far, light_vp, true);
+    let crossing = cpu_keeps(Vec3::new(0.0, 0.0, -90.0), 6.0, cam_vp, cam_pos, hide, far, light_vp, true);
+    let off = cpu_keeps(Vec3::new(0.0, 0.0, -60.0), 6.0, cam_vp, cam_pos, hide, far, light_vp, false);
+    assert_eq!(inside, (false, false), "a face wholly inside the hide radius still cast a sun shadow");
+    assert_eq!(crossing, (true, true), "a face the ring crosses lost its shadow (or its picture)");
+    assert_eq!(off, (false, true), "with the rule off the near face casts again");
+    set_sun_hide(false);
+    assert!(!sun_hide());
+    set_sun_hide(true);
+    assert!(sun_hide());
 }
 
 fn slot(vstart: u32, vcount: u32, istart: u32, icount: u32) -> PatchSlot {
@@ -96,15 +153,16 @@ fn the_plan_draws_the_ground_short_of_the_cards_and_packs_the_regions() {
         PatchDraw { slot: slot(40, 26, 84, 48), position: Vec3::new(-4.0, 0.0, 0.0), fade: 0.0 },
     ];
     let tail = |v: u32| match v {
-        0 => Some(CardTail { quads: 3, rec: 100 }),
-        40 => Some(CardTail { quads: 2, rec: 7 }),
+        0 => Some(CardTail { faces: 3, rec: 100, verts: 4 }),
+        40 => Some(CardTail { faces: 2, rec: 7, verts: 4 }),
         _ => None,
     };
-    let p = plan(&draws, true, (1000, 1_000_000), tail);
+    let p = plan(&draws, true, (1000, 1_000_000), JOB_SUN_HIDE, tail);
+    assert!(p.jobs.iter().all(|j| j.flags == JOB_SUN_HIDE && j.verts == 4), "the flags and face size ride every job");
     assert_eq!(p.ground, vec![60 - 36, 24, 48 - 24]);
     assert_eq!(p.jobs.len(), 2);
-    assert_eq!((p.jobs[0].rec, p.jobs[0].quads, p.jobs[0].v0, p.jobs[0].dst, p.jobs[0].sdst), (100, 3, 30 - 12, 0, 0));
-    assert_eq!((p.jobs[1].rec, p.jobs[1].quads, p.jobs[1].v0, p.jobs[1].dst, p.jobs[1].sdst), (7, 2, 40 + 26 - 8, 36, 18));
+    assert_eq!((p.jobs[0].rec, p.jobs[0].faces, p.jobs[0].v0, p.jobs[0].dst, p.jobs[0].sdst), (100, 3, 30 - 12, 0, 0));
+    assert_eq!((p.jobs[1].rec, p.jobs[1].faces, p.jobs[1].v0, p.jobs[1].dst, p.jobs[1].sdst), (7, 2, 40 + 26 - 8, 36, 18));
     assert_eq!(p.jobs[0].pos, [1.0, 2.0, 3.0, 0.0]);
     let a = |x: &IndirectArgs| (x.index_count, x.instance_count, x.first_index, x.base_vertex, x.first_instance);
     let main: Vec<_> = p.main_args.iter().map(a).collect();
@@ -112,9 +170,16 @@ fn the_plan_draws_the_ground_short_of_the_cards_and_packs_the_regions() {
     assert_eq!((p.jobs[0].arg, p.jobs[1].arg), (1, 4));
     assert_eq!((p.sun_args[1].first_index, p.sun_args[1].first_instance), (18, 2));
     assert_eq!((p.main_indices, p.sun_indices), (60, 30));
-    let full = plan(&draws, true, (1000, 40), tail);
+    let full = plan(&draws, true, (1000, 40), 0, tail);
     assert_eq!((full.jobs.len(), full.ground[2], full.main_args.len()), (1, 48, 4), "a patch past the reserved range draws whole");
-    let off = plan(&draws, false, (1000, 1_000_000), tail);
+    // Eight-vertex outlines: 36 main and 18 sun indices a face, the ground short by 36 a face.
+    let outline = |v: u32| match v {
+        0 => Some(CardTail { faces: 1, rec: 0, verts: 8 }),
+        _ => None,
+    };
+    let o = plan(&draws, true, (1000, 1_000_000), 0, outline);
+    assert_eq!((o.ground[0], o.jobs[0].v0, o.main_indices, o.sun_indices), (60 - 36, 30 - 8, 36, 18));
+    let off = plan(&draws, false, (1000, 1_000_000), 0, tail);
     assert!(off.jobs.is_empty());
     assert_eq!(off.ground, vec![60, 24, 48], "with the cull off every patch draws whole");
 }
@@ -162,19 +227,25 @@ fn read_u32s(device: &wgpu::Device, queue: &wgpu::Queue, src: &wgpu::Buffer, wor
     out
 }
 
-/// THE GPU KEEPS EXACTLY THE QUADS THE RUST TWIN KEEPS: cards scattered all round a camera (inside
+/// THE GPU KEEPS EXACTLY THE FACES THE RUST TWIN KEEPS: cards scattered all round a camera (inside
 /// the hide radius, past the far cutoff, behind it, off to the sides, outside the sun's box), in
-/// three patches under a rotated batch, culled on the device. Per patch and per view the indirect
-/// count is twelve (main) or six (sun) indices a kept quad, the compact indices are each kept
-/// quad's own vertices in the builder's order, and the kept set is `cpu_keeps`'s. Runs on the GPU
-/// (skipped, and said, when the operator's GPU program is running).
+/// three patches under a rotated batch, culled on the device, the patches' faces of 4, 8 and 6
+/// vertices (rung 2's outlines) and the sun view leaving out the faces inside the hide radius.
+/// Per patch and per view the indirect count is `6 (n - 2)` (main) or `3 (n - 2)` (sun) indices a
+/// kept face, the compact indices are each kept face's own vertices in the builder's order, and
+/// the kept set is `cpu_keeps`'s. Runs on the GPU (skipped, and said, when the operator's GPU
+/// program is running).
+///
+/// Rung 2 seen red 2026-11-14 with the shader's sun-hide test removed: "patch 0 sun: the GPU kept
+/// 104 faces, the twin 85"; and with the tail reader held to four vertices a face (rung 1's), the
+/// eight- and six-vertex patches drew whole and "every patch fits the window" failed.
 ///
 /// Seen red 2026-11-14 with the shader's sun near plane written the OpenGL way (`r3 + r2`, depth
 /// -1 to 1, where wgpu's is 0 to 1): "patch 0 sun: the GPU kept 145 quads, the twin 104". (The
 /// first scene, a high sun and a deep box, kept the mutant: nothing in it lay past the depth planes.)
 #[test]
 #[cfg(feature = "native")]
-fn the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps() {
+fn the_gpu_cull_keeps_exactly_the_faces_the_rust_twin_keeps() {
     let Some(opened) = device() else {
         println!("the card cull GPU test needs a GPU it may use: not run");
         return;
@@ -209,8 +280,10 @@ fn the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps() {
     // Three patches of N cards each on a spiral out to 500 m (patch-local), at three translations.
     const N: u32 = 360;
     let positions = [Vec3::new(10.0, 0.0, -20.0), Vec3::new(-150.0, 2.0, 30.0), Vec3::new(60.0, -1.0, -250.0)];
+    let face_verts = [4u32, 8, 6];
     let mut draws = Vec::new();
     let mut locals: Vec<Vec<Vec3>> = Vec::new();
+    let mut records: Vec<Vec<[f32; 4]>> = Vec::new();
     let (mut vstart, mut istart) = (1000u32, 0u32);
     for (k, pos) in positions.iter().enumerate() {
         let centre = |q: u32| {
@@ -218,19 +291,22 @@ fn the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps() {
             let r = 5.0 + q as f32 * 1.4;
             Vec3::new(a.cos() * r, (q % 7) as f32, a.sin() * r)
         };
-        let (vs, is) = patch_with(12, N, centre);
+        let (vs, is) = patch_faces(12, N, face_verts[k], centre);
         cull.records.add(&device, &queue, vstart, &vs, &is);
         locals.push((0..N).map(|q| centre(q)).collect());
+        // The records exactly as the cull computes them, from the same vertices.
+        records.push(vs[12..].chunks_exact(face_verts[k] as usize).map(|f| face_record(&f.iter().map(|v| v.position).collect::<Vec<_>>())).collect());
         draws.push(PatchDraw { slot: slot(vstart, vs.len() as u32, istart, is.len() as u32), position: *pos, fade: 0.0 });
         vstart += vs.len() as u32 + 17;
         istart += is.len() as u32;
     }
     // The arena's index buffer stand-in, the main window reserved at index 256 (a 1 KB offset).
-    let region = (256u32, 16384u32);
+    let region = (256u32, 65536u32);
     let index = device.create_buffer(&wgpu::BufferDescriptor { label: Some("arena indices"), size: (region.0 + region.1) as u64 * 4, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
     cull.dispatch(&device, &queue, &Inputs { camera: &cam_b, light: &light_b, shadow: &su_b, rot: &rot_b, index: &index, region }, &draws, true, || None);
     let [main_args, sun_args, sun_idx] = cull.outputs();
-    let p = plan(&draws, true, region, |v| cull.records.tail(v));
+    let p = plan(&draws, true, region, JOB_SUN_HIDE, |v| cull.records.tail(v));
+    assert!(sun_hide(), "the dispatch ran with the near faces left out of the sun view");
     assert_eq!(p.jobs.len(), 3, "every patch fits the window");
     let margs = read_u32s(&device, &queue, &main_args, 5 * p.main_args.len() as u64);
     let sargs = read_u32s(&device, &queue, &sun_args, 5 * 3);
@@ -238,21 +314,22 @@ fn the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps() {
     let sidx = read_u32s(&device, &queue, &sun_idx, p.sun_indices as u64);
     let (mut any_main_cut, mut any_sun_cut, mut any_kept) = (false, false, false);
     for (k, job) in p.jobs.iter().enumerate() {
-        // Twelve hand-built corners' bounding sphere (the record) moved into render space.
-        let twin: Vec<(bool, bool)> = locals[k]
+        // Each face's bounding sphere (its record, from the hand-built vertices) moved into render
+        // space.
+        let n = face_verts[k];
+        let twin: Vec<(bool, bool)> = records[k]
             .iter()
-            .map(|l| {
-                let r = 34f32.sqrt();
-                cpu_keeps(rot.transform_vector3(*l) + positions[k], r, cam_vp, cam_pos, hide, far, light_vp)
-            })
+            .map(|r| cpu_keeps(rot.transform_vector3(Vec3::new(r[0], r[1], r[2])) + positions[k], r[3], cam_vp, cam_pos, hide, far, light_vp, true))
             .collect();
+        let pattern = humanity_terrain::card_hull::face_indices(n);
+        let per = pattern.len();
         let decode = |idx: &[u32], per: usize, count: u32, dst: u32, pattern: &[u32]| -> Vec<u32> {
             let mut kept: Vec<u32> = idx[dst as usize..(dst + count) as usize]
                 .chunks_exact(per)
                 .map(|c| {
-                    let q = (c[0] - job.v0) / 4;
-                    let base = job.v0 + 4 * q;
-                    assert!(c.iter().zip(pattern).all(|(&i, &pt)| i == base + pt), "patch {k}: indices {c:?} are not quad {q}'s own in the builder's order");
+                    let q = (c[0] - job.v0) / n;
+                    let base = job.v0 + n * q;
+                    assert!(c.iter().zip(pattern).all(|(&i, &pt)| i == base + pt), "patch {k}: indices {c:?} are not face {q}'s own in the builder's order");
                     q
                 })
                 .collect();
@@ -262,18 +339,25 @@ fn the_gpu_cull_keeps_exactly_the_quads_the_rust_twin_keeps() {
         let m = job.arg as usize * 5;
         let (mc, sc) = (margs[m], sargs[k * 5]);
         assert_eq!(&margs[m + 1..m + 5], &[1, region.0 + job.dst, 0, k as u32], "patch {k}: the card draw's other arguments");
-        assert_eq!(margs[m - 5], draws[k].slot.icount - 12 * N, "patch {k}: its ground draw, right before its cards, stops short of them");
-        assert_eq!(mc % 12, 0);
-        assert_eq!(sc % 6, 0);
-        let gpu_main = decode(&midx, 12, mc, region.0 + job.dst, &QUAD_INDICES);
-        let gpu_sun = decode(&sidx, 6, sc, job.sdst, &QUAD_INDICES[..6]);
+        assert_eq!(margs[m - 5], draws[k].slot.icount - per as u32 * N, "patch {k}: its ground draw, right before its cards, stops short of them");
+        assert_eq!(mc % per as u32, 0);
+        assert_eq!(sc % (per / 2) as u32, 0);
+        let gpu_main = decode(&midx, per, mc, region.0 + job.dst, &pattern);
+        let gpu_sun = decode(&sidx, per / 2, sc, job.sdst, &pattern[..per / 2]);
         let twin_main: Vec<u32> = (0..N).filter(|&q| twin[q as usize].0).collect();
         let twin_sun: Vec<u32> = (0..N).filter(|&q| twin[q as usize].1).collect();
-        assert_eq!(gpu_main, twin_main, "patch {k} main: the GPU kept {} quads, the twin {}", gpu_main.len(), twin_main.len());
-        assert_eq!(gpu_sun, twin_sun, "patch {k} sun: the GPU kept {} quads, the twin {}", gpu_sun.len(), twin_sun.len());
+        assert_eq!(gpu_main, twin_main, "patch {k} main: the GPU kept {} faces, the twin {}", gpu_main.len(), twin_main.len());
+        assert_eq!(gpu_sun, twin_sun, "patch {k} sun: the GPU kept {} faces, the twin {}", gpu_sun.len(), twin_sun.len());
         any_main_cut |= twin_main.len() < N as usize;
         any_sun_cut |= twin_sun.len() < N as usize;
         any_kept |= !twin_main.is_empty() && !twin_sun.is_empty();
     }
-    assert!(any_main_cut && any_sun_cut && any_kept, "the scene must keep some quads and cut some in each view, or it tests nothing");
+    assert!(any_main_cut && any_sun_cut && any_kept, "the scene must keep some faces and cut some in each view, or it tests nothing");
+    // The sun-hide rule must have had something to drop, or it was not tested: faces in the sun's
+    // box wholly inside the hide radius.
+    let near_in_box = locals.iter().enumerate().flat_map(|(k, l)| l.iter().map(move |c| (k, *c))).filter(|(k, c)| {
+        let p = rot.transform_vector3(*c) + positions[*k];
+        cpu_keeps(p, 6.0, cam_vp, cam_pos, hide, far, light_vp, false).1 && !cpu_keeps(p, 6.0, cam_vp, cam_pos, hide, far, light_vp, true).1
+    }).count();
+    assert!(near_in_box > 0, "no face inside the hide radius was in the sun's box: the sun-hide rule went untested");
 }

@@ -59,6 +59,13 @@ const STICKY_PIN_RESETS = Object.freeze({
   // The tree card cull (2026-11-14, renderer/tree_card_cull.rs): "0" draws every card in its terrain
   // patch, outside the kept window and the view included (the red twin, and the cost A/B's other arm).
   card_cull: "1",
+  // The far tree cards' outlines (rung 2, humanity_terrain::card_hull): "0" draws every card as the
+  // full square of its atlas tile (the red twin), "4"/"6"/"8" a fitted polygon; "auto" the default.
+  // A change rebuilds the card patches in place (the done file's tree_cards.hull_pending).
+  card_hull: "auto",
+  // "0" lets the cards inside the near 3D trees' hide radius cast sun shadows again (the red twin of
+  // rung 2's sun-hide rule in renderer/tree_card_cull.rs).
+  card_sun_hide: "1",
   fov: "auto",
   // Settings > Gameplay > Pipe markings: "auto" hands the mode back to the setting.
   pipe_marking: "auto",

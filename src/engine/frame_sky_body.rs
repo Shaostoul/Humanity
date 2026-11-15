@@ -635,7 +635,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
             humanity_core::reuse::enabled(),
             chunks::reuse_off_rebuild_share(new_builds.len()),
         );
-        let to_build: Vec<chunks::PatchId> = new_builds.into_iter().chain(rebuilds).collect();
+        // The showcase `card_hull` switch: the patches carrying tree cards built again in place
+        // with the new outline (engine/tree_card_stage.rs).
+        let hull = crate::engine::tree_card_stage::hull_rebuilds(&b.id, cs, budget_left.max(8), &rebuilds);
+        let to_build: Vec<chunks::PatchId> = new_builds.into_iter().chain(rebuilds).chain(hull).collect();
         if !to_build.is_empty() {
             let albedo = state.planet_albedos.get(&b.id).map(|a| a.as_ref());
             let detail = &cs.detail;
