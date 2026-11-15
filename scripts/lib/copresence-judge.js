@@ -1498,20 +1498,24 @@ function judgeGuest(guest) {
 // looking at the pictures could tell. This counts the figure's own colour in
 // the picture instead.
 
-/// Another player's body is teal (lib.rs "Remote players": base colour
-/// [0.15, 0.75, 0.85], slightly emissive). Measured lit in the vehicle bay on
-/// 2026-10-03: (80, 193, 204); the floor there reads (181, 186, 192) and the
-/// wall (61, 72, 87), neither of which passes. Relative, not absolute, so a
-/// dimmer light still reads as teal.
+/// The scripted walker's teal: its skin and hair are [0.15, 0.75, 0.85] (verify-copresence.js
+/// WALKER_LOOK, second-player.js --look-colour), the colour the old box figure's body was (lib.rs
+/// "Remote players", still drawn when the character data does not load). Since character
+/// animation rung 1 (2026-11-08) another player is a skinned, clothed body, so its face, arms,
+/// hands and hair show the teal. The box measured lit in the vehicle bay on 2026-10-03:
+/// (80, 193, 204); the floor there reads (181, 186, 192) and the wall (61, 72, 87), neither of
+/// which passes. Relative, not absolute, so a dimmer light still reads as teal.
 function isFigureTeal(r, g, b) {
   return g > 80 && g - r > 50 && b - r > 50 && Math.abs(g - b) < 60;
 }
 
-/// Fewest teal pixels that count as the figure being seen. At the rig's 6 m
-/// the body is about 42 x 175 pixels in a 2560 x 1387 picture (6,771 counted
-/// on 2026-10-03), so this is about a fifth of it: a figure partly behind
-/// something still passes, a covered or absent one reads near zero.
-const FIGURE_MIN_PX = 1500;
+/// Fewest teal pixels that count as the figure being seen. At the rig's 6 m the skinned body's
+/// teal face, arms, hands and hair came to 1,154 and 1,184 pixels in a 2560 x 1387 picture
+/// (2026-11-15, run 20261115-131603), and nothing else in either picture was teal (0 outside the
+/// box); with the walker's natural look the same pictures held 0. So this is about a third of
+/// it: a figure partly behind something still passes, a covered or absent one reads near zero.
+/// (The box figure of 2026-10-03 showed 6,771, the whole body teal.)
+const FIGURE_MIN_PX = 400;
 
 /// Count figure-teal pixels in `img` ({ width, height, rgba }, scripts/lib/
 /// png.js decode). With `nameplate` ([x, y], window pixels, where the game

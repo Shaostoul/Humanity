@@ -417,6 +417,11 @@ const WALK_S = Math.ceil(APPROACH_MAX_S + (2 * RADIUS) / SPEED + 2);
 // in (loading the post-quantum library, deriving the keys) takes a few seconds.
 const RECORD_S = WALK_S + 10;
 const WALKER_NAME = "TestBotCrosser"; // the TestBot prefix keeps it off the member list
+// Every scripted walker's skin and hair, the old remote-player teal (2026-11-15): since character
+// animation rung 1 (2026-11-08) another player is a skinned, clothed body, not a teal box, so
+// figure_visible finds the body by its face, hands and hair in this colour (copresence-judge.js
+// isFigureTeal), the real body as a person sees it, not a stand-in.
+const WALKER_LOOK = "0.15,0.75,0.85";
 const WALKER_SEED = "verify-copresence-walker";
 // The figure is drawn this far behind the walker (src/net/sync.rs INTERP_DELAY_S).
 const DRAW_DELAY_S = 0.15;
@@ -995,6 +1000,7 @@ async function main() {
       "--radius", String(RADIUS),
       "--speed", String(SPEED),
       "--seconds", String(WALK_S),
+      "--look-colour", WALKER_LOOK,
     ];
     const walkerStarted = Date.now();
     walker = spawn(process.execPath, walkerArgs, { cwd: REPO, stdio: ["ignore", "pipe", "pipe"] });
@@ -1915,6 +1921,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
       "--radius", String(RADIUS),
       "--speed", String(SPEED),
       "--seconds", "0", // until this rig stops it
+      "--look-colour", WALKER_LOOK,
       ...extra,
     ];
     const from = walkerOut.length;

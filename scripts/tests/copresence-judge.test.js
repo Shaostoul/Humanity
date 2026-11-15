@@ -266,6 +266,36 @@ test("teal far from where the nameplate is does not count for it", () => {
   assert.equal(figurePixels(picture({ figureAt: 360 })).count, 40 * 150, "without a nameplate the whole picture is counted");
 });
 
+// Since character animation rung 1 (2026-11-08) the other player is a skinned, clothed body: the
+// rig's walker wears teal skin and hair (verify-copresence.js WALKER_LOOK), so only its face, arms,
+// hands and hair are teal (1,154 and 1,184 px in the run of 2026-11-15). A clothed figure: a 24 x 28
+// px teal head and hair, two 8 x 40 px teal arms, a blue shirt and dark jeans; and the same figure in
+// its natural look, the walker's own skin and hair, which is how the check read 0 that morning.
+function clothed({ skin = [80, 193, 204] } = {}) {
+  const width = 400;
+  const height = 400;
+  const rgba = new Uint8Array(width * height * 4);
+  const paint = (x0, y0, x1, y1, c) => {
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) rgba.set([...c, 255], (y * width + x) * 4);
+  };
+  paint(0, 0, width, height, [181, 186, 192]); // floor
+  paint(188, 100, 212, 128, skin); // head and hair
+  paint(184, 128, 216, 190, [40, 60, 120]); // shirt
+  paint(176, 130, 184, 170, skin); // left arm
+  paint(216, 130, 224, 170, skin); // right arm
+  paint(186, 190, 214, 260, [30, 35, 60]); // jeans
+  return { width, height, rgba };
+}
+
+test("a clothed body counts by its teal face, arms and hair; in its natural look it reads nothing", () => {
+  const f = figurePixels(clothed(), [200, 90]);
+  assert.equal(f.count, 24 * 28 + 2 * 8 * 40);
+  assert.ok(f.count >= FIGURE_MIN_PX, `${f.count} teal px against at least ${FIGURE_MIN_PX}`);
+  const natural = figurePixels(clothed({ skin: [184, 134, 107] }), [200, 90]);
+  assert.equal(natural.count, 0, "the walker's natural skin is not teal: without WALKER_LOOK the check fails");
+  assert.ok(natural.count < FIGURE_MIN_PX);
+});
+
 // The capture can land a second or more after the nameplate was asked for (a busy
 // machine, 2026-10-04: asked at x 1505, the figure captured at x 1286, so "0
 // teal px under its nameplate" with the figure in plain view). Asked again right

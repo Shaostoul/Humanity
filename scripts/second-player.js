@@ -253,6 +253,10 @@ second-player: a scripted second player that walks around the shared world.
                     6): a row of data/homes/starts.ron, such as cabin or homestead.
                     Without it the relay gives the default (a homestead). A plot
                     this identity already holds is kept whatever is asked.
+  --look-colour R,G,B  skin and hair in this one colour (linear, 0 to 1 each), so a
+                    rig can find the body in a picture by its colour: the
+                    co-presence rig sends teal (0.15,0.75,0.85). Without it the
+                    player has its fixed, natural look.
   --forwarded-for IP  the address this connection says it comes from, in the
                     X-Forwarded-For header nginx writes in front of a live
                     relay. A relay signs up at most five NEW accounts an hour
@@ -302,7 +306,7 @@ function parseOptions(argv) {
   const known = new Set([
     "--server", "--name", "--seed", "--path", "--axis", "--center", "--radius",
     "--speed", "--seconds", "--chat", "--route", "--route-speed", "--home-spawn",
-    "--forwarded-for", "--start",
+    "--forwarded-for", "--start", "--look-colour",
   ]);
   const flags = new Set(["--allow-remote", "--help", "-h"]);
   const raw = {};
@@ -372,6 +376,15 @@ function parseOptions(argv) {
     start = String(raw["--start"]).trim();
     if (!START_ID_RULE.test(start)) throw new Error("--start must be a start id like cabin or homestead (a-z, 0-9, - and _, at most 32)");
   }
+  // One colour for skin and hair (2026-11-15): since every person is a skinned, clothed body
+  // (character animation rung 1, 2026-11-08) a rig cannot find the figure by the old teal box, so it
+  // asks for a body whose face, hands and hair are a colour nothing else in the room is.
+  let look = LOOK;
+  if (raw["--look-colour"] !== undefined) {
+    const c = String(raw["--look-colour"]).split(",").map(Number);
+    if (c.length !== 3 || !c.every((v) => Number.isFinite(v) && v >= 0 && v <= 1)) throw new Error("--look-colour must be three numbers from 0 to 1 like 0.15,0.75,0.85");
+    look = { ...LOOK, skin: c, hair: c };
+  }
 
   return {
     help: false,
@@ -390,6 +403,7 @@ function parseOptions(argv) {
     homeSpawn,
     forwardedFor,
     start,
+    look,
     chat: raw["--chat"] === undefined ? null : String(raw["--chat"]),
     allowRemote: !!raw["--allow-remote"],
   };
@@ -2120,7 +2134,7 @@ async function main() {
 
   let welcome;
   try {
-    welcome = await joinWorld(client, opts.name, { ship, homeSpawn: opts.homeSpawn, start: opts.start });
+    welcome = await joinWorld(client, opts.name, { look: opts.look, ship, homeSpawn: opts.homeSpawn, start: opts.start });
   } catch (e) {
     client.close();
     return fail(2, e.message);
