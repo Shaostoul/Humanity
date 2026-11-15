@@ -54,6 +54,8 @@ const STICKY_PIN_RESETS = Object.freeze({
   // all opaque, glass roofs drawn solid and the hull shut over them, so the near sun view shades their
   // yards (the red twin).
   neighbour_glass: "1",
+  // The room trim (2026-11-14, ship/room_trim.rs): "0" bakes the homes without skirting and crown.
+  room_trim: "1",
   // The tree card cull (2026-11-14, renderer/tree_card_cull.rs): "0" draws every card in its terrain
   // patch, outside the kept window and the view included (the red twin, and the cost A/B's other arm).
   card_cull: "1",

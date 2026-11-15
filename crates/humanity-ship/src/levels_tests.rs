@@ -22,7 +22,10 @@ fn all_vertices(m: &HomesteadMeshes) -> Vec<(Vec3, Vec3)> {
     for w in &m.material_walls {
         take(&w.0);
     }
-    for (v, _) in [&m.walls, &m.trim, &m.windows, &m.mirrors, &m.ceilings, &m.ceilings_opaque] {
+    for g in &m.trim {
+        take(&g.verts);
+    }
+    for (v, _) in [&m.walls, &m.windows, &m.mirrors, &m.ceilings, &m.ceilings_opaque] {
         take(v);
     }
     out

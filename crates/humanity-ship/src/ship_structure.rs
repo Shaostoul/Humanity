@@ -40,7 +40,7 @@
 //! from the plot. `validate` refuses overlapping plots, zones and corridor tubes.
 
 use humanity_core::vertex::Vertex;
-use crate::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
+use crate::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo, TrimGroup};
 use crate::home_structure::{HomeStructure, ShellCut, Zone};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
@@ -2042,7 +2042,7 @@ impl ShipStructure {
             .map(|n| format!("{type_id}-{n}"))
             .find(|id| !self.districts.iter().any(|d| &d.id == id))
             .unwrap_or_default();
-        self.districts.push(Zone { id: id.clone(), type_id: type_id.to_string(), origin, size, label: String::new(), room_type: None });
+        self.districts.push(Zone { finish: Default::default(), id: id.clone(), type_id: type_id.to_string(), origin, size, label: String::new(), room_type: None });
         id
     }
 
@@ -2148,7 +2148,7 @@ impl ShipStructure {
             floors: Vec::new(),
             walls: (Vec::new(), Vec::new()),
             material_walls: Vec::new(),
-            trim: (Vec::new(), Vec::new()),
+            trim: Vec::new(),
             windows: (Vec::new(), Vec::new()),
             mirrors: (Vec::new(), Vec::new()),
             ceilings: (Vec::new(), Vec::new()),
@@ -2181,7 +2181,7 @@ impl ShipStructure {
                 out.material_walls.push((shift_verts(v, o), i, c));
             }
             merge_shifted(&mut out.walls, m.walls, o);
-            merge_shifted(&mut out.trim, m.trim, o);
+            TrimGroup::merge_into(&mut out.trim, m.trim, o);
             merge_shifted(&mut out.windows, m.windows, o);
             merge_shifted(&mut out.mirrors, m.mirrors, o);
             if z.body.roof_is_glass() {
@@ -3378,7 +3378,7 @@ mod tests {
     fn overlapping_plots_zones_and_tubes_are_refused() {
         let child = |id: &str, parent: &str, z: f32, depth: f32, lat: f32| Plot { parent: Some(parent.to_string()), ..plot(id, z, depth, lat) };
         let mut district_ship = overlap_fixture(vec![plot("p1", 0.0, 10.0, 5.0)], vec![]);
-        district_ship.districts.push(Zone {
+        district_ship.districts.push(Zone { finish: Default::default(),
             id: "res".into(),
             type_id: "residential".into(),
             origin: (-50.0, 0.0, -50.0),

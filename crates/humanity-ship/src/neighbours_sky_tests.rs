@@ -55,7 +55,10 @@ fn sun_blockers(m: &HomesteadMeshes) -> Vec<[Vec3; 3]> {
             take(v, i);
         }
     }
-    for (v, i) in [&m.walls, &m.trim, &m.mirrors] {
+    for g in &m.trim {
+        take(&g.verts, &g.indices);
+    }
+    for (v, i) in [&m.walls, &m.mirrors] {
         take(v, i);
     }
     out

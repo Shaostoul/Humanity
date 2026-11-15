@@ -1,0 +1,68 @@
+// HumanityOS ROOM FINISHES: the trim a room is finished with, as data (docs/design/room-finishes.md).
+// Read by crates/humanity-ship/src/room_finishes.rs (embedded at build time, like wall_materials.ron).
+// Add a profile, a material or a room-type default by adding a line here: no code.
+//
+// PROFILES are cross-sections in metres, (out, up), swept along the walls with mitred corners
+// (crates/humanity-ship/src/room_trim.rs):
+//   out  how far the trim stands from the wall, into the room
+//   up   for a Skirting, the height above the floor; for a Crown, the drop below the ceiling;
+//        for a Casing (rung 2), the distance across the board from the opening's edge
+// Each list is the VISIBLE face only, in order from where it meets the wall to where it meets the
+// floor (a Skirting) or the ceiling (a Crown), so nothing hidden against the wall is drawn.
+// Sizes are common trade sizes (a skirting 95 to 170 mm tall and 15 to 20 mm thick, a plaster cove
+// about 70 mm each way, a sprung crown about 115 mm on the face), as a joinery catalogue lists them.
+//
+// MATERIALS: `look` picks how the shader draws it (Paint: the colour at the given roughness;
+// Wood: the procedural grain; Metal: brushed metal over the colour). Colours are the base colour,
+// on the same scale as wall_materials.ron. Trim enamel is semi-gloss, so painted trim is 0.3 rough.
+//
+// DEFAULTS by room purpose (`room_types`, data/rooms.ron keys): what a room is finished with until
+// someone chooses otherwise, so nothing needs setting by hand. "none" means no trim of that kind.
+// A room no row names (or a room with no zone) takes `fallback`.
+//
+// The words a person reads are keys in data/i18n/en.json: finishes.profile.<id> and
+// finishes.material.<id> (a test fails when one is missing).
+RoomFinishCatalog(
+    profiles: [
+        // Skirting (baseboard). From the wall contact at the top down to the floor.
+        (id: "square_edge_95", kind: Skirting, points: [(0.0, 0.095), (0.013, 0.095), (0.015, 0.093), (0.015, 0.0)]),
+        (id: "bullnose_120", kind: Skirting, points: [(0.0, 0.12), (0.006, 0.12), (0.0097, 0.1194), (0.0131, 0.1177), (0.0157, 0.1151), (0.0174, 0.1117), (0.018, 0.108), (0.018, 0.0)]),
+        (id: "torus_145", kind: Skirting, points: [(0.0, 0.145), (0.008, 0.145), (0.0118, 0.1442), (0.0151, 0.1421), (0.0172, 0.1388), (0.018, 0.135), (0.0172, 0.1312), (0.0151, 0.1279), (0.0118, 0.1258), (0.008, 0.125), (0.008, 0.122), (0.015, 0.121), (0.015, 0.0)]),
+        (id: "ogee_170", kind: Skirting, points: [(0.0, 0.17), (0.006, 0.17), (0.006, 0.168), (0.0066, 0.1643), (0.0082, 0.1605), (0.0104, 0.1568), (0.013, 0.153), (0.0156, 0.1493), (0.0178, 0.1455), (0.0194, 0.1418), (0.02, 0.138), (0.02, 0.134), (0.018, 0.132), (0.018, 0.0)]),
+        (id: "colonial_133", kind: Skirting, points: [(0.0, 0.133), (0.004, 0.133), (0.0063, 0.1325), (0.0082, 0.1312), (0.0095, 0.1293), (0.01, 0.127), (0.01, 0.121), (0.0105, 0.1187), (0.0118, 0.1168), (0.0137, 0.1155), (0.016, 0.115), (0.016, 0.0)]),
+        // A rubber cove base: a 3 mm sheet whose toe flares onto the floor (workshops, plant rooms).
+        (id: "cove_base_100", kind: Skirting, points: [(0.0, 0.1), (0.003, 0.1), (0.003, 0.014), (0.0036, 0.0103), (0.0053, 0.0069), (0.0079, 0.0043), (0.0113, 0.0026), (0.015, 0.002), (0.015, 0.0)]),
+        // Crown (cornice, coving). From the wall contact down at its drop, up to the ceiling.
+        (id: "cove_70", kind: Crown, points: [(0.0, 0.075), (0.004, 0.075), (0.004, 0.071), (0.0053, 0.0579), (0.0091, 0.0454), (0.0153, 0.0338), (0.0236, 0.0236), (0.0338, 0.0153), (0.0454, 0.0091), (0.0579, 0.0053), (0.071, 0.004), (0.075, 0.004), (0.075, 0.0)]),
+        (id: "ogee_crown_115", kind: Crown, points: [(0.0, 0.095), (0.005, 0.095), (0.005, 0.09), (0.008, 0.088), (0.014, 0.0838), (0.02, 0.0779), (0.026, 0.0692), (0.032, 0.0585), (0.038, 0.047), (0.044, 0.0355), (0.05, 0.0248), (0.056, 0.0161), (0.062, 0.0102), (0.068, 0.008), (0.072, 0.006), (0.076, 0.006), (0.076, 0.0)]),
+        (id: "stepped_cornice_90", kind: Crown, points: [(0.0, 0.09), (0.012, 0.09), (0.012, 0.06), (0.025, 0.06), (0.025, 0.03), (0.04, 0.03), (0.04, 0.0)]),
+        // Casing (door and window surrounds, rung 2). From the board's outer edge to the opening.
+        (id: "flat_casing_70", kind: Casing, points: [(0.0, 0.07), (0.016, 0.07), (0.018, 0.068), (0.018, 0.002), (0.016, 0.0)]),
+        (id: "ogee_casing_70", kind: Casing, points: [(0.0, 0.07), (0.008, 0.07), (0.0111, 0.0694), (0.0137, 0.0677), (0.0154, 0.0651), (0.016, 0.062), (0.016, 0.05), (0.018, 0.002), (0.016, 0.0)]),
+    ],
+    materials: [
+        (id: "white_enamel", look: Paint, color: (0.86, 0.85, 0.82), roughness: 0.3, metallic: 0.0),
+        (id: "warm_white", look: Paint, color: (0.87, 0.83, 0.74), roughness: 0.3, metallic: 0.0),
+        (id: "soft_grey", look: Paint, color: (0.58, 0.59, 0.58), roughness: 0.3, metallic: 0.0),
+        (id: "charcoal", look: Paint, color: (0.17, 0.18, 0.19), roughness: 0.3, metallic: 0.0),
+        (id: "oak", look: Wood, color: (0.55, 0.40, 0.24), roughness: 0.5, metallic: 0.0),
+        (id: "grey_rubber", look: Paint, color: (0.30, 0.31, 0.32), roughness: 0.8, metallic: 0.0),
+        (id: "brushed_steel", look: Metal, color: (0.62, 0.63, 0.66), roughness: 0.35, metallic: 0.9),
+    ],
+    by_room_type: [
+        // The living rooms: a torus skirting and a plaster cove, in white enamel.
+        (room_types: ["livingroom", "dining", "hall", "entry", "commons", "guest_bedroom", "bedroom", "dressing", "nursery", "quarters"], skirting: "torus_145", crown: "cove_70", material: "white_enamel"),
+        // A study: the deeper ogee skirting and a sprung crown, in oak.
+        (room_types: ["study"], skirting: "ogee_170", crown: "ogee_crown_115", material: "oak"),
+        // Kitchen and bathroom: a plain board that wipes clean, no crown (the tile and splashback
+        // finishes are rung 3).
+        (room_types: ["kitchen", "bathroom"], skirting: "square_edge_95", crown: "none", material: "white_enamel"),
+        // A wet room is tiled and coved into the floor (rung 3): no timber trim.
+        (room_types: ["wetroom"], skirting: "none", crown: "none", material: "white_enamel"),
+        // Working rooms: a rubber cove base, no crown.
+        (room_types: ["workshop", "garage", "depot", "hangar", "storage", "recycling", "life_support", "reactor", "engineering", "laboratory", "server_room", "armory", "gym", "medbay", "cargo", "brig", "airlock", "bridge", "computer", "network", "respawner", "observatory"], skirting: "cove_base_100", crown: "none", material: "grey_rubber"),
+        // Growing rooms and the outdoors: nothing.
+        (room_types: ["garden", "ranch", "hydroponics"], skirting: "none", crown: "none", material: "white_enamel"),
+    ],
+    fallback: (skirting: "square_edge_95", crown: "none", material: "white_enamel"),
+)

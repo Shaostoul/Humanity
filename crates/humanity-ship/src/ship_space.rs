@@ -394,7 +394,7 @@ mod tests {
 
     /// A zone of a room on a storey: its min corner and size, a room type of none.
     fn zone(id: &str, origin: (f32, f32, f32), size: (f32, f32, f32)) -> crate::home_structure::Zone {
-        crate::home_structure::Zone { id: id.into(), type_id: "room_hall".into(), origin, size, label: String::new(), room_type: None }
+        crate::home_structure::Zone { finish: Default::default(), id: id.into(), type_id: "room_hall".into(), origin, size, label: String::new(), room_type: None }
     }
 
     /// AIR REACHES OVER A SLAB AND THE ROOMS ON IT (ship homes increment 7, plan section 3:

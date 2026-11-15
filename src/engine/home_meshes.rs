@@ -150,9 +150,9 @@ pub(crate) fn assign_slots(
 
 /// How many meshes each of the home's shell families needs for `m`, in the order
 /// `apply_homestead_meshes` keeps their slots: the opaque floors; the combined walls; the wall
-/// materials with the glass floor slabs after them; the trim; the windows; the mirrors; the glass
-/// roofs' ceilings; the opaque roofs' ceilings; the glass roofs' glazing bars. A combined family
-/// needs one mesh, or none when empty.
+/// materials with the glass floor slabs after them; the trim (one per trim look); the windows; the
+/// mirrors; the glass roofs' ceilings; the opaque roofs' ceilings; the glass roofs' glazing bars. A
+/// combined family needs one mesh, or none when empty.
 pub(crate) fn shell_family_needs(m: &humanity_ship::fibonacci::HomesteadMeshes) -> [usize; 9] {
     let one = |b: &(Vec<humanity_core::vertex::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
     let glass = m.floors.iter().filter(|f| !is_opaque_floor(f.2)).count();
@@ -160,7 +160,7 @@ pub(crate) fn shell_family_needs(m: &humanity_ship::fibonacci::HomesteadMeshes) 
         m.floors.len() - glass,
         one(&m.walls),
         m.material_walls.len() + glass,
-        one(&m.trim),
+        m.trim.len(),
         one(&m.windows),
         one(&m.mirrors),
         one(&m.ceilings),
@@ -229,7 +229,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
         std::mem::take(&mut state.homestead_floors),
         held(state.homestead_walls),
         state.homestead_material_walls.drain(..).map(|(mi, ma, _)| (mi, ma)).collect(),
-        held(state.homestead_trim),
+        std::mem::take(&mut state.homestead_trim),
         held(state.homestead_windows),
         held(state.homestead_mirrors),
         held(state.homestead_ceiling),
@@ -275,7 +275,13 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
         mat_walls.push((slot.0, slot.1, true));
     }
     state.homestead_material_walls = mat_walls;
-    state.homestead_trim = fill_one(r, &trim_s, &homestead.trim, ([0.42, 0.30, 0.18, 1.0], 0.0, 0.7, 3.0, 0.0));
+    // The trim (room finishes rung 1): each group in its trim material's look
+    // (room_finishes.rs `TrimMaterial::trim_look`), opaque, never emissive.
+    for (&slot, g) in trim_s.iter().zip(&homestead.trim) {
+        let l = g.look;
+        fill_slot(r, slot, &g.verts, &g.indices, (l.rgba, l.metallic, l.roughness, l.material_type, 0.0));
+    }
+    state.homestead_trim = trim_s;
     // Tinted glass (alpha 0.45), transparent pass. NO emissive (v0.780): the old 0.12
     // self-emission bypassed lighting, so windows GLOWED in the dark (operator field report: "the
     // glass texture is emissive"). Glass now only shows light that actually falls on/through it.

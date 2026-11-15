@@ -285,7 +285,7 @@ mod tests {
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
         let reg = RoomTypeRegistry::load(&dir);
         let mut h: HomeStructure = ron::from_str("(width: 10.0, depth: 10.0, height: 3.0)").expect("parses");
-        let zone = |id: &str, room_type: Option<&str>| Zone {
+        let zone = |id: &str, room_type: Option<&str>| Zone { finish: Default::default(),
             id: id.to_string(),
             type_id: "room_study".to_string(),
             origin: (0.0, 0.0, 0.0),

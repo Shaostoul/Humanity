@@ -5081,6 +5081,58 @@ fn snapshot_construction_storeys() {
     });
 }
 
+/// A home of two rooms parted by a wall with a door (room finishes rung 1): the living room with
+/// its own skirting chosen, the study at its defaults, the parting wall's east side in oak.
+fn finishes_snapshot_ship() -> humanity_ship::ship_structure::ShipStructure {
+    let body: humanity_ship::home_structure::HomeStructure = ron::from_str(
+        "(width: 12.0, depth: 8.0, height: 3.0, roof_material: 1, \
+         walls: [(a: (6.0, 0.0), b: (6.0, 8.0), material: 2, openings: [(kind: Door, at: 3.5, width: 0.9, height: 2.1)], \
+                  finish: (left: (material: Some(\"oak\"))))], \
+         zones: [(id: \"room-living\", type_id: \"room_common\", origin: (0.0, 0.0, 0.0), size: (6.0, 3.0, 8.0), label: \"Living room\", \
+                  room_type: Some(\"livingroom\"), finish: (skirting: Some(\"ogee_170\"))), \
+                 (id: \"room-study\", type_id: \"room_common\", origin: (6.0, 0.0, 0.0), size: (6.0, 3.0, 8.0), label: \"Study\", room_type: Some(\"study\"))])",
+    )
+    .expect("the snapshot's home parses");
+    let zone = humanity_ship::ship_structure::ShipZone { id: "home".into(), label: "Player Home".into(), purpose: "residence".into(), origin: (0.0, 0.0, 0.0), body };
+    humanity_ship::ship_structure::ShipStructure { zones: vec![zone], ..Default::default() }
+}
+
+// The B editor with a ROOM selected (room finishes rung 1): under its room type, its finish, the
+// skirting chosen, the crown and material at the living room's usual choices, and the drawing of the
+// cross-sections. `just snapshot construction_finishes`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_construction_finishes() {
+    render_page_png("construction_finishes", 1280, 1200, |ctx, theme, state| {
+        if state.ship_structure.is_none() {
+            state.ship_structure = Some(finishes_snapshot_ship());
+        }
+        state.construction_active = true;
+        // The room-type registry the app loads on entering the editor, so the panel resolves
+        // "livingroom" as the app does (unloaded, it warns that the key is unknown).
+        if state.room_type_registry.types.is_empty() {
+            state.room_type_registry = humanity_ship::room_types::RoomTypeRegistry::load(std::path::Path::new("data"));
+        }
+        state.construction_zone_selected = Some("room-living".into());
+        crate::gui::pages::construction::draw(ctx, theme, state);
+    });
+}
+
+// The B editor with the parting WALL selected (room finishes rung 1): its own finish, one block per
+// side headed by the room it faces, the study's side in oak. `just snapshot construction_wall_finish`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_construction_wall_finish() {
+    render_page_png("construction_wall_finish", 1280, 1400, |ctx, theme, state| {
+        if state.ship_structure.is_none() {
+            state.ship_structure = Some(finishes_snapshot_ship());
+        }
+        state.construction_active = true;
+        state.construction_wall_selected = Some(0);
+        crate::gui::pages::construction::draw(ctx, theme, state);
+    });
+}
+
 page_snapshot!(snapshot_tasks, "tasks", tasks, 1280, 900);
 
 /// The Tasks page's suggested cards (2026-10-30) in use: three chains already

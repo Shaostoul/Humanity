@@ -214,9 +214,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // Windows are TRANSPARENT, so they go in their own list (below).
         let mut shell = vec![
             state.homestead_walls,
-            state.homestead_trim,
             state.homestead_mirrors,
         ];
+        // The trim, one slot per trim look (room finishes rung 1).
+        shell.extend(state.homestead_trim.iter().copied().map(Some));
         // Opaque roof: gated on show_roof (off by default so the sky shows). A GLASS
         // roof (v0.539) is a sealed CLEAR ceiling -- always visible, drawn transparent
         // below, so you see the stars through it without hiding the seal.

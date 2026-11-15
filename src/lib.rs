@@ -1993,7 +1993,7 @@ mod native_app {
                 ui_ipc: None,
                 homestead_walls: None,
                 homestead_material_walls: Vec::new(),
-                homestead_trim: None,
+                homestead_trim: Vec::new(),
                 homestead_windows: None,
                 homestead_mirrors: None,
                 homestead_ceiling: None,

@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1542 Rust files (794,457 lines) under `src/` and `crates/*/src/`; 147 JavaScript files (91,246 lines) under `web/`.
+1546 Rust files (796,086 lines) under `src/` and `crates/*/src/`; 147 JavaScript files (91,296 lines) under `web/`.
 
 ## Folders
 
@@ -25,7 +25,7 @@
 - `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
 - `crates/humanity-music/src/` (36 files)
 - `crates/humanity-protocol/src/` (31 files)
-- `crates/humanity-ship/src/` (41 files)
+- `crates/humanity-ship/src/` (44 files)
 - `crates/humanity-ship/src/crowd_nav/` (7 files): CROWD NAVIGATION (rung 1, 2026-11-13; the whole plan is docs/design/crowd-navigation.md): people who walk somewhere, through doors, round...
 - `crates/humanity-ship/src/machines/` (1 files): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427).
 - `crates/humanity-ship/src/station/` (3 files): Crewed stations: the player's homestead as a real orbiting, pointed object.
@@ -62,7 +62,7 @@
 - `src/gui/pages/apps/` (12 files): Apps (2026-10-19): the Games library and the Tools page made one page (the operator: "What do you think about changing the name of ...
 - `src/gui/pages/calculator/` (1 files): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input.
 - `src/gui/pages/chat/` (51 files): 3-panel chat page matching the website layout.
-- `src/gui/pages/construction/` (2 files): Construction editor (v0.455+).
+- `src/gui/pages/construction/` (3 files): Construction editor (v0.455+).
 - `src/gui/pages/dev_agents/` (4 files): Dev > Claude: what Claude is doing (operator, 2026-10-22, the integrations between HumanityOS and Claude Code).
 - `src/gui/pages/files/` (52 files): The Files page (called the Media page until 2026-10-19; increment 2 of docs/design/files-showcase.md, 2026-10-11): the pictures, videos,...
 - `src/gui/pages/how_to/` (6 files): The How-to page (docs/design/how-to.md, increment 1, 2026-10-23): step-by-step procedures for real life and for this app, from data/how_t...
@@ -306,19 +306,21 @@
 - `conduits.rs` (336): Procedural CONDUIT ROUTING (v0.535): the realistic routed pipes/cords the operator asked for -- "the straight lines that pass through everything for the pipes is wrong. Main items: ConduitKind, ConduitFitting, FittingKind, ConduitRoute, route_conduit, add_slab_passthroughs.
 - `door_panels.rs` (647): Door/window PANEL PLACEMENT (v0.537): the static, world-space geometry of the panel that fills each opening cut into a wall. Main items: ResolvedLock, PanelPlacement, ship_panel_placements, neighbour_panel_placements, feet_reach_door, door_actor_distance, corridor_panel_placements, panel_placements (+4 more).
 - `door_points.rs` (442): DOOR POINTS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"): the ship's places and every corridor's door points, computed by the Rust corridor geometry, so a rig tha... Main items: RoutePlace, RouteDoor, StoreyWalls, DoorPoints, door_points, STEP_IN_M.
-- `fibonacci.rs` (2111): Room layout generator. Main items: LayoutStyle, WallKind, WallSet, OpeningKind, Opening, RoomConfig, HomesteadLayout, TrimProfiles (+16 more).
-- `home_structure.rs` (4163): The home as a FIXED outer box + freely-designed INTERIOR WALLS (v0.532, the node/wall redesign). Main items: OpeningKind, ShellCut, OpenSpan, Opening, LockInstance, InteriorWall, SurfaceLayer, FloorSlab (+35 more).
+- `fibonacci.rs` (2148): Room layout generator. Main items: LayoutStyle, WallKind, WallSet, OpeningKind, Opening, RoomConfig, HomesteadLayout, TrimProfiles (+17 more).
+- `home_structure.rs` (4237): The home as a FIXED outer box + freely-designed INTERIOR WALLS (v0.532, the node/wall redesign). Main items: OpeningKind, ShellCut, OpenSpan, Opening, LockInstance, InteriorWall, SurfaceLayer, FloorSlab (+38 more).
 - `hull.rs` (1160): Hull wrap generation (increment D of docs/design/ship-superstructure.md): a generated exterior shell around the ship's zone cluster so the outside finally reads as a VESSEL instead of floating boxes. Main items: HullStation, HullGreeble, HullProfile, HullAxis, HullFrame, PlanRect, ResolvedStation, HullGeom (+6 more).
 - `layout.rs` (186): Ship layout, data-driven definitions loaded from RON files. Main items: Direction, RoomType, ShipClass, DoorDef, RoomDef, DeckDef, ShipDef, ShipLayout.
 - `levels.rs` (185): The LEVELS of a ship (Maps increment 3, "into the ship, deck by deck", docs/design/maps-zoom-to-anything.md section 5.7): the floors a person can be on aboard, from the bodies standing in it, so th... Main items: ShipLevel, level_name, standing_bodies, ship_levels, levels_of, level_at, by_ordinal, level_cuts (+2 more).
-- `lib.rs` (104): humanity-ship: the home and the ship as places a person stands in (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-ship.md).
+- `lib.rs` (109): humanity-ship: the home and the ship as places a person stands in (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-ship.md).
 - `lifts.rs` (85): The ship's ELEVATORS as plain data (v0.590, ship homes increment 7): each one aboard with its key, its base, its turn, its type and the STOPS its shaft spans, read from the ship's zones. Main items: LiftKey, Lift, lifts.
 - `lock_types.rs` (120): Lock TYPES registry (v0.570): the data-driven catalog of locks a door (or wall) can carry, loaded from `data/blueprints/lock_types.ron`. Main items: LockType, LockInteraction, DefeatMethod, LockState, lock_types, lock_type.
 - `machines.rs` (5805): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427). Main items: MachineStat, MachinePower, MachineDef, FuelBurn, CameraPose, ScreenDef, MachineStorage, MachineInstance (+51 more).
 - `moves.rs` (375): Moving aboard the shared ship (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale", and its section 5.10): how fast the relay lets a person go, how a game says a... Main items: SharedWorldRules, MovingRules, DeliveryRules, MoveDecl, floor_distance, feet_y, on_my_storey, in_reach (+7 more).
-- `neighbours.rs` (831): NEIGHBOURS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"). Main items: Neighbour, NeighbourView, glass_drawn, set_glass_drawn, views_made, neighbour_view, neighbour_view_at.
+- `neighbours.rs` (840): NEIGHBOURS (increment 2 of docs/design/ship-homes-and-logistics.md, "Meet in the Commons"). Main items: Neighbour, NeighbourView, glass_drawn, set_glass_drawn, views_made, neighbour_view, neighbour_view_at.
 - `pipe_marking.rs` (917): Pipe MARKING (2026-10-04): the coloured bands that say what flows inside a pipe, the way real piping is marked, generated from what the line actually carries. Main items: MarkingMode, PlacementRules, SchemeColour, ContentMarking, MarkingScheme, MarkingSchemes, MarkerReason, MarkerSite (+7 more).
 - `pipe_materials.rs` (210): What a pipe, hose or cable is MADE OF, as drawn today (2026-10-04; since 2026-11-02 a view of the one material catalog). Main items: BodyLook, PipeMaterials, pipe_materials.
+- `room_finishes.rs` (381): ROOM FINISHES, rung 1 (docs/design/room-finishes.md): the catalog of trim profiles and trim materials (data/blueprints/room_finishes.ron), the choice a room or a wall face makes from it ([`Finish`]... Main items: ProfileKind, TrimProfile, TrimLookKind, TrimMaterial, TrimLook, Finish, WallFinish, RoomTypeDefault (+5 more).
+- `room_trim.rs` (618): THE TRIM SWEPT ALONG EVERY ROOM'S WALLS (room finishes rung 1, docs/design/room-finishes.md): a skirting at the foot of each wall face and a crown where the wall meets the ceiling, each a profile f... Main items: TrimDetail, Src, Piece, Run, trim_drawn, set_trim_drawn, runs, mitre (+2 more).
 - `room_types.rs` (394): Room-type registry: the single source of truth for what a room is FOR. Main items: RoomTypeDef, RoomActionDef, RoomBounds, RoomTypeRegistry, RoomFunction.
 - `rooms.rs` (205): Room mesh generation, procedural box rooms with door openings. Main items: generate_room_mesh.
 - `run_anchors.rs` (202): Anchors for runs, as data: `data/piping/anchors.ron` (2026-11-02, spline routing rung 0, `docs/design/spline-routing.md` sections 5.3 and 12). Main items: AnchorKind, FixesTo, AnchorMesh, Anchor, Anchors, anchors.
@@ -334,7 +336,7 @@
 - `structure.rs` (1201): Structural building pieces (v0.583): the data-driven registry for every NON-machine, NON-wall buildable element -- stairs, ramps, ladders, elevators, teleporters, train platforms, roads, ... Main items: StructureKind, MeshShape, GuardSpec, HandrailSpec, StructureType, ZoneType, ZoneFiller, ExtrusionProfile (+29 more).
 - `transit.rs` (265): Transit links (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"): the jumps aboard that are not walking. Main items: TransitLink.
 - `wall_collision.rs` (1689): First-person wall + door collision for the home_structure (v0.556). Main items: SegmentKind, WallSegment, door_panel_segment, wall_segments, wall_segments_with_shell_cuts, sight_segments_with_shell_cuts, ship_wall_segments, ship_sight_segments (+10 more).
-- tests: `crossing_tests.rs`, `furniture_fit_tests.rs`, `home_program_tests.rs`, `home_structure_mesh_tests.rs`, `homestead_layout_tests.rs`, `levels_tests.rs`, `neighbours_sky_tests.rs`, `open_shell_tests.rs`
+- tests: `crossing_tests.rs`, `furniture_fit_tests.rs`, `home_program_tests.rs`, `home_structure_mesh_tests.rs`, `homestead_layout_tests.rs`, `levels_tests.rs`, `neighbours_sky_tests.rs`, `open_shell_tests.rs`, `room_trim_tests.rs`
 
 ## crates/humanity-ship/src/crowd_nav/
 
@@ -655,7 +657,7 @@
 - `frame_house_power.rs` (177): The home's power and world-scale flight (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: switched-on lights drawing their wattage through one power... Main items: run.
 - `frame_hud_voice.rs` (161): The performance counters, voice keys and the updater (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: the FPS counter and the F2 overlay's frame-ti... Main items: run.
 - `frame_keys.rs` (807): The frame's keyboard input (the file-size split, step 1, 2026-11-14): the window's `KeyboardInput` event, moved out of `window_event` in src/lib.rs as it was. Main items: run.
-- `frame_lists_home.rs` (527): The home's draw lists (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: the frame's draw lists taken from `EngineState::draw_bufs` (into `FrameVars`... Main items: run.
+- `frame_lists_home.rs` (528): The home's draw lists (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: the frame's draw lists taken from `EngineState::draw_bufs` (into `FrameVars`... Main items: run.
 - `frame_lists_world.rs` (441): The world's draw lists (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: deployed vehicles, the barn's visible storage, and the game time and weather b... Main items: run.
 - `frame_load_screens.rs` (124): The network, loading and the in-world screens (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: the network pump (`engine::frame_net`), the page ope... Main items: run.
 - `frame_lock.rs` (915): The camera's frame lock to a planet: its altitude bands (surface walking below 10 km, co-rotation to 100 km, inertial flight by 1,000 km) and the sun, cloud and god-ray numbers that follow from it. Main items: ground_radius_m, current_planet_spin, sun_azimuth, ground_anchor, ocean_anchor256, cloud_ground_params, godray_scale, above_air (+14 more).
@@ -695,7 +697,7 @@
 - `garden_mirror.rs` (629): The Garden data the Inventory page shows: every crop with its card (N-P-K, light, pH, pollination, picking, the air, weeds, the outlook), the pests and row covers per area, weeds, pollination and t... Main items: Rows, build_for_this_frame, build_for_wall_screen, pick, build, SLICES.
 - `geom.rs` (290): Pure geometry for the build editor's gizmos: snapping a dragged corner or object, the light rotation rings' size and pick tolerance, the light range wireframe, and ray tests against a ring and a box. Main items: snap_node_position, snap_to_alignment, light_ring_radius, light_ring_pick_tolerance, range_sphere_edges, ray_ring_closest, ray_aabb_hit, LIGHT_RING_ANGULAR_RADIUS.
 - `group_report.rs` (414): A report about a group reaches the group's creator (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10): the desktop app's half that touches the app state, the socket and the server. Main items: Outgoing, target_for, start_finding, creator_found, creator_put, prepare, note_sent, refused (+10 more).
-- `home_meshes.rs` (3784): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: Slot, HomeDraw, GizmoRoom, GardenDraw, TentDraw, TentRoll, TentMeshes, PlantPass (+50 more).
+- `home_meshes.rs` (3790): The 3D home's meshes, built and uploaded: homestead rooms, hull wrap, machines and their pipes, the garden's plants, door and window panels, and room lights. Main items: Slot, HomeDraw, GizmoRoom, GardenDraw, TentDraw, TentRoll, TentMeshes, PlantPass (+50 more).
 - `home_plot.rs` (3979): Your home on the shared ship (increment 1b of docs/design/ship-homes-and-logistics.md). Main items: PlotBox, WelcomeHome, WelcomeContext, OtherKind, JoinGate, JoinStep, ServerFollow, HomeBoxChange (+73 more).
 - `home_probe.rs` (97): The home's air, water and power as the HUD reads them, for the dev IPC's recorder (the `home_systems` block of `debug/remote_players_done.json`, engine/ipc.rs) and the dev MCP's `game_home_state` t... Main items: json.
 - `home_reuse.rs` (144): THE HOME'S REUSES AND THE REUSE SWITCH (2026-11-13; CLAUDE.md, the reuse rule; `humanity_core::reuse`). Main items: StockKey, home_rebuild_due, garden_full_rebuild_due, stock_layout_kept, model_material_kept, frame, HOME_REUSE_OFF_REBUILD_S, GARDEN_REUSE_OFF_REBUILD_S.
@@ -706,7 +708,7 @@
 - `input.rs` (387): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, apply_game_action, cloud_dev_flag.
 - `interact.rs` (832): INTERACTIONS IN THE WORLD (character animation rung 2b, 2026-11-10; docs/design/character-animation.md sections 3.3 and 17; the anchors and their poses are `humanity_animation::interact`). Main items: Placed, ObjectRef, SeatPlan, Engaged, InteractRuntime, ChairSlide, Handle, plan_seat (+17 more).
 - `ipc_parse.rs` (389): Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested alone: screenshot request and done file, screen status, notification prefs, planet tooltip. Main items: ScreenshotSize, NotifPrefsPayload, parse_screenshot_request, screenshot_output_path, screenshot_done_json, merge_provider_status, planet_tooltip_info, parse_notification_prefs (+1 more).
-- `ipc.rs` (6667): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, RequestWatch, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value (+62 more).
+- `ipc.rs` (6677): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, RequestWatch, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value (+62 more).
 - `key_cards.rs` (352): Key cards in the desktop app (2026-10-22, docs/design/key-cards.md): signing our own card, asking servers for other people's, checking every one, pinning, and the change notice. Main items: KeyCardsState, sign_own_card, on_identity, ensure_pins, want, want_people, note_listed, on_signed_in (+8 more).
 - `keybind_capture.rs` (166): Keybind CAPTURE step (Settings > Controls, 2026-08-12), extracted from lib.rs's raw winit keyboard arm per the monolith ratchet. Main items: handle_keybind_capture.
 - `launch_focus.rs` (411): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, quiet_asked, show_window_behind, show_window_behind_as, show_window_behind.
@@ -718,7 +720,7 @@
 - `map_meshes.rs` (463): THE WHOLE-EARTH MAP IN THE WORLD (whole-Earth maps rung 2, 2026-11-09; docs/design/whole-earth-maps.md sections 3.6 and 12). Main items: District, MapMeshState, DistrictGround, set_pack_max_depth, set_pack_within_m, deep_tiles, pack_detail_now, drawn_names (+2 more).
 - `map_rig_ship.rs` (110): The Maps page's ship verbs and the ship block of the rig's report (Maps increment 3, "into the ship, deck by deck"): permanent dev tooling the probe rig's ship vantages drive the page with, beside... Main items: parse, apply, report.
 - `map_rig.rs` (243): The Maps page's dev verbs and the rig's report (Maps increments 1 and 2): permanent dev tooling the probe rig's map vantages drive the page with, moved out of `engine/map_view.rs` in increment 2 wh... Main items: showcase, parse_map_verb, write_report_if_due, report_json, apply_verb.
-- `map_tiles.rs` (383): PLAN TILES (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7, "Plan tiles for multi-kilometre ships"): the Maps page's straight-down plan of a level is drawn from tiles rendered once from... Main items: PlanItem, MapTilesGpu, plan_items, dirty_rects, touched, to_evict, frame, tile_to_bake (+3 more).
+- `map_tiles.rs` (384): PLAN TILES (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7, "Plan tiles for multi-kilometre ships"): the Maps page's straight-down plan of a level is drawn from tiles rendered once from... Main items: PlanItem, MapTilesGpu, plan_items, dirty_rects, touched, to_evict, frame, tile_to_bake (+3 more).
 - `map_view.rs` (313): The Maps page's WORLD layer (Maps increment 1, docs/design/maps-zoom-to-anything.md 5.2 and 5.6): the real world rendered from the map's camera, so the ship on the map is the real ship, every mesh... Main items: Target, MapViewGpu, render_camera, frame, world_layer_due.
 - `mess_hall.rs` (213): THE MESS HALL SERVES (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): E at the mess hall's serving counter opens its card, which offers a free crew meal and drinki... Main items: Counter, Meal, card_offers_meal, nearest_counter_m, take_meal, fill_bottles, take_meal_at, fill_bottles_at (+3 more).
 - `mine_tasks.rs` (153): Tasks of my own: the desktop's half that touches the app and the sockets (docs/design/tasks.md rung 1, 2026-11-02, fixing BUG-217). Main items: ensure, add, change, delete, flush, screens_dm.
@@ -753,7 +755,7 @@
 - `sfx.rs` (113): The game's one-shot sounds, played on the volume slider each belongs to (BUG-265, 2026-11-07). Main items: play_one, play_queued, play_click, wanted_volumes, sync_volumes, NOTICE_BUS.
 - `shared_build.rs` (1364): The pieces the server keeps, the game's side (ship homes increment 5, "building only on your own plot", 2026-10-05; docs/design/ship-homes-increment-5-plan.md sections 3.4 and 3.5). Main items: Gate, GateInput, Unbuild, SharedBuild, Ctx, ScreenView, kept_words, gate (+22 more).
 - `shore_probe.rs` (241): THE SHORE PROBE: the ground along a transect across a coast, read out for the rig (whole-Earth maps, rung 1, 2026-11-09; docs/design/whole-earth-maps.md section 5.5). Main items: parse_ends, transect, report, write_report, REPORT_PATH, STEP_M_DEFAULT.
-- `state.rs` (1297): `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world, GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types. Main items: GrowSpot, ConstructionGrab, GizmoRole, HoverGizmo, ObjectGrab, ConstructionGizmoGrab, EngineState, EditorSnapshot (+3 more).
+- `state.rs` (1298): `EngineState`, everything the native app keeps between frames (renderer, camera, ECS world, GUI state, audio, planets, home meshes), plus the build editor's grab, hover and undo types. Main items: GrowSpot, ConstructionGrab, GizmoRole, HoverGizmo, ObjectGrab, ConstructionGizmoGrab, EngineState, EditorSnapshot (+3 more).
 - `stock_piles.rs` (894): Visible storage (2026-09-26; the gameplay arc's step 4). Main items: kind_for_class, stored_volumes, unit_counts, assign_kinds, pile_positions, rack_slots, in_storage_room, receive_machine_outputs (+18 more).
 - `storey_probe.rs` (223): What the dev IPC reports of the walk between storeys (ship homes increment 7, 2026-10-21). Main items: room_json, lifts_json, cars_now, frame_json, done_json, parse_face.
 - `survival_env.rs` (1020): The survival environment context, published once a frame (moved out of lib.rs 2026-09-27, when it grew the body heat inputs). Main items: ExposedAir, Whereabouts, upwind_from, outside_context, warmed_by_fires, publish, whereabouts, refresh_ship_spaces (+2 more).
@@ -869,7 +871,7 @@
 - `state_types.rs` (1834): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+47 more).
 - `theme.rs` (1279): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (6343): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
+- `ui_snapshots.rs` (6395): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
 - `world_entry.rs` (86): Whether the person is in a world, and the world held still and quiet until they are (BUG-253, 2026-11-06).
 - tests: `a11y_tests.rs`, `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`, `history_tests.rs`, `layers_tests.rs`, `mine_tasks_tests.rs`, `navigation_tests.rs`
 
@@ -922,7 +924,7 @@
 - `chat.rs` (4367): 3-panel chat page matching the website layout. Main items: follow_volume_settings_link, draw, hold_to_confirm_button, channel_display_label, dm_recency_order, draw_ingame_chat, composer_text_h, composer_extra_cap (+22 more).
 - `civilization.rs` (245): Civilization dashboard - the community's REAL numbers from the connected relay (GET /api/civilization, v0.757 closure ladder rung 10). Main items: poll_stats, draw_live_body, draw_stat_card.
 - `cloud_dev.rs` (1026): F10 cloud dev panel (v0.1254.4, operator request). Main items: DevTest, dev_tests, test_mark, draw.
-- `construction.rs` (4113): Construction editor (v0.455+). Main items: draw, sync_ship_machine_lock, exec_construction_command.
+- `construction.rs` (4119): Construction editor (v0.455+). Main items: draw, sync_ship_machine_lock, exec_construction_command.
 - `crafting.rs` (983): Crafting page, full crafting interface with sidebar categories, recipe list, detail panel, and craft queue with progress bars. Main items: pretty_id, draw, hub_summary.
 - `dev_ai.rs` (369): Dev > AI (2026-11-09; docs/design/embeddable-ai.md, 12.1; rung 1): the AI engine as a developer sees it. Main items: draw, ask_test_question, pretend_for_snapshot.
 - `dev_journal.rs` (303): Dev > Journal (2026-10-24, rung 2 of docs/design/play-journal.md): the play journal in the app, so reading what the game recorded never needs a terminal or the dev MCP (the GUI-first rule). Main items: KindRow, MarkRow, Snapshot, Act, listed_kinds, read_snapshot, clear, draw (+1 more).
@@ -1046,6 +1048,7 @@
 
 ## src/gui/pages/construction/
 
+- `finishes.rs` (217): ROOM FINISHES in the build editor (room finishes rung 1, docs/design/room-finishes.md): the selected room's (zone's) skirting, crown and trim material, and the selected wall's own choice per side,...
 - `ship_tools.rs` (858): The SHIP-level tools at the top of the Construction page's left panel: the zone selector, the corridors, and the plots and districts.
 - `storeys.rs` (473): STOREYS in the B editor (ship homes increment 7, docs/design/ship-homes-increment-7-plan.md, "Editor (C2)"): the storey selector in the left panel, the floor-slab tools beside it, and the detail pa... Main items: StoreyEditor, choose_storey, select_slab, remove_slab_in_editor, set_slab_tool, storey_cut_key_of, editor_cut_of.
 
@@ -1748,7 +1751,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8002): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8052): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

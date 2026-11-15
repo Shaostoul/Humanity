@@ -58,9 +58,13 @@ fn signatures(m: &HomesteadMeshes) -> Vec<String> {
         let (nv, ni, h) = geometry_sig(v, i);
         out.push(format!("material_wall {} v {nv} i {ni} h {h:016x}", rgba_bits(c)));
     }
+    // The trim line is the empty family it was when the pin was taken: since rung 1 of the room
+    // finishes (docs/design/room-finishes.md) the trim is swept along the rooms (room_trim.rs) and
+    // tested on its own there, and this pin keeps proving every other family is drawn as it was.
+    let trim_as_pinned: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
     for (name, (v, i)) in [
         ("walls", &m.walls),
-        ("trim", &m.trim),
+        ("trim", &trim_as_pinned),
         ("windows", &m.windows),
         ("mirrors", &m.mirrors),
         ("ceilings", &m.ceilings),
@@ -194,7 +198,7 @@ fn slab(a: (f32, f32), b: (f32, f32), top: f32) -> FloorSlab {
 
 /// A wall from `a` to `b`, standing on `base`, `height` tall, of `material`.
 fn wall_on(a: (f32, f32), b: (f32, f32), base: f32, height: f32, material: u32) -> InteriorWall {
-    InteriorWall { a, b, base, height, material, openings: Vec::new(), thickness: None, layers: Vec::new() }
+    InteriorWall { finish: Default::default(), a, b, base, height, material, openings: Vec::new(), thickness: None, layers: Vec::new() }
 }
 
 /// Every triangle of a mesh: its three corners and the normal its first corner declares.

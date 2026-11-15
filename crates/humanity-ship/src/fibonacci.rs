@@ -358,8 +358,11 @@ pub struct HomesteadMeshes {
     /// renders in its picked material's color (v0.552). A color with alpha < 1 (glass) renders in
     /// the transparent pass. Empty for the fibonacci path.
     pub material_walls: Vec<(Vec<Vertex>, Vec<u32>, [f32; 4])>,
-    /// (vertices, indices) for all baseboard + crown + frame trim combined (v0.453).
-    pub trim: (Vec<Vertex>, Vec<u32>),
+    /// The trim, one group per trim material (docs/design/room-finishes.md, rung 1): the box home's
+    /// skirting and crown swept along every room's walls (room_trim.rs), each group drawn in its
+    /// material's look; the legacy fibonacci path's baseboards, crown and frames as one group in
+    /// its wood brown (v0.453).
+    pub trim: Vec<TrimGroup>,
     /// (vertices, indices) for all window glass panes combined (v0.453).
     pub windows: (Vec<Vertex>, Vec<u32>),
     /// (vertices, indices) for all mirror / portal panels combined (v0.453).
@@ -379,6 +382,40 @@ pub struct HomesteadMeshes {
     pub roof_frame: (Vec<Vertex>, Vec<u32>),
     /// Room metadata (id, center, dimensions, flags)
     pub room_info: Vec<RoomInfo>,
+}
+
+/// One trim group of `HomesteadMeshes::trim`: its mesh and the look it is drawn in.
+#[derive(Debug, Clone)]
+pub struct TrimGroup {
+    pub verts: Vec<Vertex>,
+    pub indices: Vec<u32>,
+    pub look: crate::room_finishes::TrimLook,
+}
+
+impl TrimGroup {
+    /// The legacy fibonacci trim's look: the wood grain (the shader's type 3) at roughness 0.7.
+    pub const LEGACY_LOOK: crate::room_finishes::TrimLook =
+        crate::room_finishes::TrimLook { rgba: [0.42, 0.30, 0.18, 1.0], metallic: 0.0, roughness: 0.7, material_type: 3.0 };
+
+    /// Merge `groups` into `into`, a group whose look `into` already has joining it (its indices
+    /// moved past what is there), so each look is one draw however many zones or homes add to it.
+    pub fn merge_into(into: &mut Vec<TrimGroup>, groups: Vec<TrimGroup>, shift: glam::Vec3) {
+        for mut g in groups {
+            if shift != glam::Vec3::ZERO {
+                for v in &mut g.verts {
+                    v.position = (glam::Vec3::from(v.position) + shift).to_array();
+                }
+            }
+            match into.iter_mut().find(|t| t.look == g.look) {
+                Some(t) => {
+                    let base = t.verts.len() as u32;
+                    t.verts.append(&mut g.verts);
+                    t.indices.extend(g.indices.into_iter().map(|i| i + base));
+                }
+                None => into.push(g),
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1619,7 +1656,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
         floors,
         walls: (wall_v, wall_i),
         material_walls: Vec::new(),
-        trim: (trim_v, trim_i),
+        trim: if trim_v.is_empty() { Vec::new() } else { vec![TrimGroup { verts: trim_v, indices: trim_i, look: TrimGroup::LEGACY_LOOK }] },
         windows: (win_v, win_i),
         mirrors: (mir_v, mir_i),
         ceilings: (ceil_v, ceil_i),
@@ -1844,7 +1881,7 @@ mod tests {
         let layout = load_homestead_layout(&dir).expect("layout parses");
         let m = generate_from_layout(&layout);
         assert!(!m.walls.0.is_empty(), "walls generated");
-        assert!(!m.trim.0.is_empty(), "trim (baseboards/crown/frames) generated");
+        assert!(m.trim.iter().any(|g| !g.verts.is_empty()), "trim (baseboards/crown/frames) generated");
         assert!(!m.windows.0.is_empty(), "bedroom windows generated");
         assert!(!m.mirrors.0.is_empty(), "wetroom mirror generated");
         assert!(!m.ceilings.0.is_empty(), "ceilings generated (for the roof toggle)");
@@ -1971,7 +2008,7 @@ mod tests {
         assert!(with_door.walls.0.len() > solid.walls.0.len(),
             "the door cut adds wall segments (was {}, now {})", solid.walls.0.len(), with_door.walls.0.len());
         assert!(with_door.windows.0.is_empty(), "a door is not glazed");
-        assert!(!with_door.trim.0.is_empty(), "casing/baseboard still emitted");
+        assert!(with_door.trim.iter().any(|g| !g.verts.is_empty()), "casing/baseboard still emitted");
     }
 
     /// A placed window emits glass, positioned at its FREE centre height v (not the default sill).

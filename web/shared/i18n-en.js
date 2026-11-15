@@ -1968,6 +1968,32 @@ window.HOS_I18N_EN = {
     "err_days_max": "Voting window must be {{max}} days or fewer.",
     "meta_description": "Make proposals and vote on them together, for your own community or for all of humanity, and see how the votes add up."
   },
+  "construction": {
+    "finish_crown": "Crown",
+    "finish_crown_hint": "Chooses the moulding that runs where the walls meet the ceiling.",
+    "finish_inherit_default": "Usual for this room: {{name}}",
+    "finish_inherit_hint": "Follows the room's choice, so it changes when the room's does.",
+    "finish_inherit_room": "As the room: {{name}}",
+    "finish_intro": "The trim round this room's walls: a skirting board along the floor and a crown moulding where the walls meet the ceiling. Each starts at the usual choice for what the room is for; change any of them and the room is rebuilt at once.",
+    "finish_material": "Trim material",
+    "finish_material_hint": "Chooses what the skirting and crown are made of or painted.",
+    "finish_none": "None",
+    "finish_option_hint": "Uses this one.",
+    "finish_preview_hint": "A cut through the skirting (left) and the crown (right), drawn to scale in the trim's colour.",
+    "finish_preview_none": "No trim",
+    "finish_reset": "Use the usual choices",
+    "finish_reset_hint": "Takes back every choice here, so the room follows the usual ones for its purpose again.",
+    "finish_skirting": "Skirting",
+    "finish_skirting_hint": "Chooses the board that runs along the foot of the walls.",
+    "finish_title": "Room finish",
+    "finish_unknown": "Not in the finishes list, so the plain default is used: {{ids}}",
+    "finish_wall_intro": "A different trim on one side of this wall only. Anything left as the room keeps the room's choice.",
+    "finish_wall_reset": "Use the rooms' choices",
+    "finish_wall_reset_hint": "Takes back this wall's own choices, so both sides follow their rooms again.",
+    "finish_wall_side": "Side facing {{room}}",
+    "finish_wall_side_open": "Side facing no room",
+    "finish_wall_title": "This wall's finish"
+  },
   "crafting": {
     "page_title": "Crafting, HumanityOS",
     "title": "Crafting",
@@ -6794,6 +6820,30 @@ window.HOS_I18N_EN = {
     "load_failed": "The privacy page could not be loaded just now. The same words are on GitHub:",
     "on_github": "the privacy page on GitHub",
     "on_github_hint": "Opens the privacy page in the project's public code on GitHub, in a new tab."
+  },
+  "finishes": {
+    "material": {
+      "brushed_steel": "Brushed steel",
+      "charcoal": "Charcoal",
+      "grey_rubber": "Grey rubber",
+      "oak": "Oak",
+      "soft_grey": "Soft grey",
+      "warm_white": "Warm white",
+      "white_enamel": "White enamel"
+    },
+    "profile": {
+      "bullnose_120": "Bullnose, 120 mm",
+      "colonial_133": "Colonial, 133 mm",
+      "cove_70": "Plaster cove, 75 mm",
+      "cove_base_100": "Rubber cove base, 100 mm",
+      "flat_casing_70": "Flat casing, 70 mm",
+      "ogee_170": "Ogee, 170 mm",
+      "ogee_casing_70": "Ogee casing, 70 mm",
+      "ogee_crown_115": "Ogee crown, 95 mm drop",
+      "square_edge_95": "Square edge, 95 mm",
+      "stepped_cornice_90": "Stepped cornice, 90 mm",
+      "torus_145": "Torus, 145 mm"
+    }
   },
   "footer": {
     "licence": "free and open source",

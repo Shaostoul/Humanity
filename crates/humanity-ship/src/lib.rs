@@ -70,6 +70,11 @@ pub mod ship_space;
 /// Transit links: a teleporter and its partner, by stable ids (increment 4).
 pub mod transit;
 pub mod rooms;
+/// Room finishes (docs/design/room-finishes.md): the trim catalog, a room's or a wall face's choice,
+/// and how a face's finish resolves.
+pub mod room_finishes;
+/// The trim swept along every room's walls, mitred at the corners and stopped at the doors.
+pub mod room_trim;
 pub mod ship_structure;
 /// Where on a storey of a home a person can stand: a floor with room over it, inside the rooms,
 /// never a glass lid or an opening (ship homes increment 7; the build editor's close).

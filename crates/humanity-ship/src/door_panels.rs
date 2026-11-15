@@ -392,7 +392,7 @@ mod tests {
             height: 3.0,
             shell_material: 1,
             roof_material: 4,
-            walls: vec![InteriorWall {
+            walls: vec![InteriorWall { finish: Default::default(),
                 a: (0.0, 0.0),
                 b: (10.0, 0.0), // along +X
                 base: 0.0,

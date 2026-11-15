@@ -84,6 +84,7 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "data/blueprints/lock_types.ron",
     "data/blueprints/opening_styles.ron",
     "data/blueprints/road_types.ron",
+    "data/blueprints/room_finishes.ron",
     "data/blueprints/structure_types.ron",
     "data/blueprints/wall_materials.ron",
     "data/blueprints/zone_filler.ron",

@@ -39,7 +39,7 @@ fn two_rooms() -> HomeStructure {
     body(
         10.0,
         10.0,
-        vec![InteriorWall {
+        vec![InteriorWall { finish: Default::default(),
             a: (0.0, 5.0),
             b: (10.0, 5.0),
             base: 0.0,

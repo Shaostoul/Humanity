@@ -93,6 +93,8 @@ struct NeighbourKey {
     zones: Vec<(String, (f32, f32, f32), f32, f32, f32)>,
     /// Whether the neighbours' glass is drawn as glass (`glass_drawn`; false is the red twin).
     glass: bool,
+    /// Whether the trim is baked (room_trim.rs `trim_drawn`; the showcase's `room_trim`).
+    trim: bool,
 }
 
 impl NeighbourKey {
@@ -106,6 +108,7 @@ impl NeighbourKey {
                 .map(|z| (z.id.clone(), z.origin, z.body.width, z.body.depth, z.body.height))
                 .collect(),
             glass: glass_drawn(),
+            trim: crate::room_trim::trim_drawn(),
         }
     }
 }
@@ -281,6 +284,9 @@ fn bake(neighbours: &[Neighbour], level: Option<f32>, glass: bool) -> (Homestead
             }));
             g.1.extend(idx.iter().map(|i| i + base));
         }
+        // Its trim at low detail (room_trim.rs `TrimDetail::Coarse`), in the trim family with the
+        // player's own: one draw per trim look across every home.
+        crate::fibonacci::TrimGroup::merge_into(&mut out.trim, shell.trim.clone(), glam::Vec3::new(o.0, o.1, o.2));
         append_moved(&mut glass_slabs, &shell.glass_slabs, o);
         append_moved(&mut out.ceilings, &shell.glass_roof, o);
         append_moved(&mut out.roof_frame, &shell.glass_roof_frame, o);
@@ -304,7 +310,7 @@ fn empty_meshes() -> HomesteadMeshes {
         floors: Vec::new(),
         walls: (Vec::new(), Vec::new()),
         material_walls: Vec::new(),
-        trim: (Vec::new(), Vec::new()),
+        trim: Vec::new(),
         windows: (Vec::new(), Vec::new()),
         mirrors: (Vec::new(), Vec::new()),
         ceilings: (Vec::new(), Vec::new()),
@@ -356,7 +362,8 @@ impl NeighbourView {
     }
 
     /// Append everything the neighbours draw to `out`: copies of the meshes baked when the view
-    /// was made (`bake`, which fills the floors, the opaque walls and the two ceiling buffers).
+    /// was made (`bake`, which fills the floors, the opaque walls, the two ceiling buffers and the
+    /// trim).
     pub fn draw_into(&self, out: &mut HomesteadMeshes) {
         let m = &self.meshes;
         out.floors.extend(m.floors.iter().cloned());
@@ -364,6 +371,8 @@ impl NeighbourView {
         append(&mut out.ceilings, &m.ceilings);
         append(&mut out.ceilings_opaque, &m.ceilings_opaque);
         append(&mut out.roof_frame, &m.roof_frame);
+        // Their trim at low detail, merged into the player's own trim groups by look (one draw a look).
+        crate::fibonacci::TrimGroup::merge_into(&mut out.trim, m.trim.clone(), glam::Vec3::ZERO);
     }
 
     /// Every neighbour corridor's door mouths, both ends (`ShipStructure::tube_mouths`): where the

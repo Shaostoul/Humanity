@@ -86,7 +86,7 @@ pub fn slab_name(i: usize, s: &FloorSlab) -> String {
 /// A new wall from `a` to `b` on the chosen storey: it stands on the storey's floor and rises to
 /// the next floor (or the roof), in the body's shell material.
 pub fn new_wall_on_storey(hs: &HomeStructure, es: EditStorey, a: (f32, f32), b: (f32, f32)) -> InteriorWall {
-    InteriorWall {
+    InteriorWall { finish: Default::default(),
         a,
         b,
         base: es.storey.floor,
@@ -110,7 +110,7 @@ pub const GUARD_TYPE: &str = "guard";
 pub fn new_guard_on_storey(es: EditStorey, a: (f32, f32), b: (f32, f32)) -> Option<InteriorWall> {
     let material = crate::home_structure::wall_materials().iter().find(|m| m.form.as_deref() == Some(GUARD_TYPE))?;
     let height = crate::structure::structure_type(GUARD_TYPE)?.size.1;
-    Some(InteriorWall {
+    Some(InteriorWall { finish: Default::default(),
         a,
         b,
         base: es.storey.floor,

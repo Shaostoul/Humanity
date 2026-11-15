@@ -1977,6 +1977,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         }
         log::info!("Showcase: neighbour_glass -> {}", humanity_ship::neighbours::glass_drawn());
     }
+    // {"room_trim":"0"} bakes the homes with no trim (no skirting and no crown: the rooms as they
+    // were before room finishes rung 1, docs/design/room-finishes.md), "1" with it: a same-boot look
+    // at what the trim adds and what drawing it costs (crates/humanity-ship/src/room_trim.rs
+    // `TRIM_DRAWN`; the home's meshes rebuild only when it changes). Permanent dev tooling.
+    if let Some(t) = grab("room_trim") {
+        if humanity_ship::room_trim::set_trim_drawn(t != "0") {
+            crate::engine::home_meshes::rebuild_homestead(state);
+        }
+        log::info!("Showcase: room_trim -> {}", humanity_ship::room_trim::trim_drawn());
+    }
     // {"cloud_chord_foot":"1"} restores the pre-v0.1268 chord-frozen
     // detail scale, so one run can capture both sides of that change.
     if let Some(t) = grab("cloud_chord_foot") {

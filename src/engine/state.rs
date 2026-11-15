@@ -688,8 +688,9 @@ pub(crate) struct EngineState {
     /// Per-material home walls (v0.552): (mesh, material, is_transparent) for each picked wall
     /// material, so each wall renders in its own color (the home-structure path).
     pub(crate) homestead_material_walls: Vec<(usize, usize, bool)>,
-    /// Homestead trim mesh (baseboards, crown, door/window frames) + material. (v0.453)
-    pub(crate) homestead_trim: Option<(usize, usize)>,
+    /// The home's trim, one mesh + material per trim look (room finishes rung 1,
+    /// docs/design/room-finishes.md: the skirting and crown in each room's material). (v0.453)
+    pub(crate) homestead_trim: Vec<(usize, usize)>,
     /// Homestead window-glass mesh + material. (v0.453)
     pub(crate) homestead_windows: Option<(usize, usize)>,
     /// Homestead mirror / portal panel mesh + material. (v0.453)

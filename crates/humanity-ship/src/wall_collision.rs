@@ -922,7 +922,7 @@ mod tests {
             roof_material: 4,
             shell_thickness: None, floors: Vec::new(), lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new(),
             open_shell: Vec::new(),
-            walls: vec![InteriorWall {
+            walls: vec![InteriorWall { finish: Default::default(),
                 a: (0.0, 5.0),
                 b: (10.0, 5.0),
                 base: 0.0,

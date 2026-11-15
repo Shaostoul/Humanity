@@ -229,7 +229,8 @@ fn tile_camera(key: &TileKey, level: &ShipLevel, me: &crate::gui::MapSelf) -> cr
 fn tile_lists(state: &EngineState) -> (Vec<RenderObject>, Vec<RenderObject>) {
     let at_origin = |(mesh, material): (usize, usize)| RenderObject { fade: 0.0, position: Vec3::ZERO, rotation: glam::Quat::IDENTITY, scale: Vec3::ONE, mesh, material };
     let mut opaque: Vec<RenderObject> = state.homestead_floors.iter().copied().map(at_origin).collect();
-    opaque.extend([state.homestead_walls, state.homestead_trim, state.homestead_mirrors].into_iter().flatten().map(at_origin));
+    opaque.extend([state.homestead_walls, state.homestead_mirrors].into_iter().flatten().map(at_origin));
+    opaque.extend(state.homestead_trim.iter().copied().map(at_origin));
     let mut transparent = Vec::new();
     for &(mesh, material, glass) in &state.homestead_material_walls {
         if glass { transparent.push(at_origin((mesh, material))) } else { opaque.push(at_origin((mesh, material))) }

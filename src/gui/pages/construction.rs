@@ -22,6 +22,8 @@ use ship_tools::{draw_corridor_section, draw_plots_and_districts, draw_ship_zone
 // in pages/construction/storeys.rs.
 pub(crate) mod storeys;
 pub use storeys::StoreyEditor;
+// A room's and a wall's finish (skirting, crown, trim material), in pages/construction/finishes.rs.
+mod finishes;
 
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
@@ -1089,6 +1091,8 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         }
                     });
             }
+            // The wall's own finish, per side (room finishes rung 1).
+            changed |= finishes::wall_finish_controls(ui, theme, state, sel);
 
             ui.add_space(theme.spacing_md);
             ui.label(RichText::new("Openings").strong().color(theme.text_primary()));
@@ -2706,6 +2710,8 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
     }
+    // The room's finish (room finishes rung 1): its skirting, crown and trim material.
+    finishes::zone_finish_controls(ui, theme, state, &id);
     let (mut o, mut s, mut ch) = (z.origin, z.size, false);
     ui.horizontal(|ui| {
         ui.label(RichText::new("at").size(theme.font_size_small).color(theme.text_muted()));
