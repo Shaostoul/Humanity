@@ -481,6 +481,20 @@ view (a `.gltf` keeps Read its text). Web `web/shared/model-inspect.js` with the
 `--catalog` (every catalog row's box against its fitted model, and models referenced but missing).
 Theme tokens `axis_x`, `axis_y`, `axis_z`, `inspect_bounds`, `inspect_box`, `inspect_collision`.
 
+**Furniture boxes match their models (2026-11-15, the model inspector's rung 2 data half):** every
+catalog row's box (`data/machines/*.ron`) is its fitted model's footprint at a real height, each row's
+data comment saying where the size comes from (a queen bed's length, a wardrobe's hanger depth, a
+dining chair's seat height). `MachineDef::model_yaw` turns a model inside its box (the bed's 270), read
+by the fit and draw (`GltfCpuMesh::fit_for_machine`), the interaction anchors
+(`PlacedMachine::anchor_yaw_deg`), the inspector on both apps and the command line. The catalog check
+fails on a row off its model unless `data/models/catalog_fit_exceptions.json` lists it with a reason
+(`every_catalog_box_fits_its_fitted_model`; `--catalog` exits 1). A piece whose model is in a download
+pack not installed says so on its walk-up card, with the pack, its size and Settings > Graphics >
+Furniture models (`model_packs.card_not_installed`). Wall-backed furniture stands against the room's
+skirting, not into it (`furniture_fit_tests`, the skirting resolved as the trim bake resolves it), unless
+its model clears it (`MachineDef::clears_skirting`, the desk on legs, held to the model's geometry by
+`a_row_that_clears_the_skirting_has_room_for_it`).
+
 **Round 5 (2026-10-12, v0.1491.0 to v0.1493.0; plan `docs/design/media-round-5-plan.md`):**
 - Relay: an item edited in place, files and a cover added and removed (`src/relay/media_edit.rs`, signed, the edit over its JSON exactly as sent); members-only moves every file; removing an item removes them all; downloads and views counted once a person a UTC day (`src/relay/media_counts.rs`, X-Real-IP, a key for members-only); `/media/<id>` served by the relay with Open Graph tags (`src/relay/media_page.rs`, routed by nginx); a licence per item (`data/files/licences.json`, `src/relay/files_licences.rs`); a keep undone only by the same or a higher role.
 - Native: "Media on {host}", Media and Admin tabs (the Media settings moved out of Server Settings, `media/admin.rs`), Sort, scroll paging, the shelf per category (`media/filters.rs`), the item's page (`media/item_view.rs`), Edit with the licence and its warnings, files and cover (`media/edit.rs`), counted downloads (`media/open.rs`), the hosting paragraph beside Add to Media; the server strip on the server pages (`src/gui/pages/server_strip.rs`, `GuiState::switch_to_server`).

@@ -4046,6 +4046,8 @@ mod multi_select_tests {
             provides: None,
             anchors: Vec::new(),
             model: None,
+            model_yaw: 0.0,
+            clears_skirting: false,
             screen: None,
             camera: None,
             camera_px: humanity_ship::machines::CAMERA_PX_DEFAULT,

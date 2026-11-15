@@ -109,8 +109,9 @@ pub fn overlay(painter: &egui::Painter, theme: &Theme, rect: Rect, view_proj: Ma
     if look.boxes {
         if let Some(f) = insp.catalog.get(look.row).or_else(|| insp.catalog.first()) {
             let stroke = Stroke::new(2.0_f32, theme.inspect_box());
+            // The box is in the model's turned frame (the row's model_yaw): turned back onto the file.
             for [a, b] in box_edges(f.min, f.max) {
-                if let Some([p, q]) = pr.line(a, b) {
+                if let Some([p, q]) = pr.line(f.file_point(a), f.file_point(b)) {
                     painter.extend(egui::Shape::dashed_line(&[p, q], stroke, 6.0, 4.0));
                 }
             }

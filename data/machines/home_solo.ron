@@ -482,7 +482,16 @@
         // primitive fallback. ──
         "bed": (
             shape: "box",
-            size: (2.00, 0.60, 1.00),
+            // SIZE: a queen bed's length: a queen mattress is 80 in (2.03 m) long, US standard mattress sizes,
+            // and beddouble.gltf fitted to 0.68 m tall (its headboard; the covers at 0.45 m) is 2.04 m long
+            // and 1.73 m wide. Wider than a queen frame (about 1.6 m): the model is wider for its length than
+            // a real bed, and a uniform fit keeps its proportions; a person lying in it needs the length.
+            // The model lies along its file's +Z with its head there; model_yaw 270 turns it so its head is
+            // at the box's -X end; each home turns the box so the head stands where its room wants it
+            // (between the nightstands in the family homestead, against an end wall in the row houses).
+            // Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 2.00 x 0.60 x 1.00: a single bed's box under a double model turned across it.
+            size: (2.04, 0.68, 1.73),
+            model_yaw: 270.0,
             color: (0.42, 0.44, 0.50),
             label: "Bed",
             category: "Furniture",
@@ -507,7 +516,10 @@
         ),
         "nightstand": (
             shape: "box",
-            size: (0.50, 0.55, 0.40),
+            // SIZE: a nightstand is about 0.45 to 0.6 m wide and 0.4 to 0.45 m deep, its top a few cm over the
+            // mattress (the bed's covers stand at 0.45 m). cabinetbeddrawertable.gltf at 0.55 m tall is
+            // 0.56 x 0.45 m. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 0.50 x 0.40 m.
+            size: (0.56, 0.55, 0.45),
             color: (0.52, 0.38, 0.24),
             label: "Nightstand",
             category: "Furniture",
@@ -527,7 +539,10 @@
         ),
         "wardrobe": (
             shape: "box",
-            size: (1.20, 2.00, 0.60),
+            // SIZE: a two-door wardrobe: 2.0 m tall, about 0.6 m deep so a coat hanger (about 0.45 m) hangs across
+            // it, 0.9 to 1.0 m wide. bookcasecloseddoors.gltf at 2.0 m tall is 0.94 x 0.59 m.
+            // Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 1.20 m wide: 0.26 m of box beside the doors nobody could see.
+            size: (0.94, 2.00, 0.59),
             color: (0.52, 0.38, 0.24),
             label: "Wardrobe",
             category: "Furniture",
@@ -547,7 +562,11 @@
         ),
         "couch": (
             shape: "box",
-            size: (2.00, 0.80, 0.90),
+            // SIZE: an apartment-size three-seat sofa is 1.7 to 1.9 m wide; this one's seat stands at 0.40 m
+            // (a lounge sofa's 0.38 to 0.43 m; the seats in data/characters/interactions.ron were measured
+            // there). loungesofa.gltf at 0.8 m tall is 1.70 x 0.71 m, shallower than most sofas (0.85 m and
+            // more). Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 2.00 x 0.90 m.
+            size: (1.70, 0.80, 0.71),
             color: (0.42, 0.44, 0.50),
             label: "Couch",
             category: "Furniture",
@@ -570,7 +589,10 @@
         ),
         "chair": (
             shape: "box",
-            size: (0.50, 0.90, 0.50),
+            // SIZE: a dining chair's seat stands 0.45 to 0.48 m up (17 to 19 in); chaircushion.gltf at 0.9 m
+            // tall puts it at 0.47 m and stands 0.39 x 0.39 m, a little narrower than most chairs (0.43
+            // to 0.5 m). Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 0.50 x 0.50 m.
+            size: (0.39, 0.90, 0.39),
             color: (0.52, 0.38, 0.24),
             label: "Chair",
             category: "Furniture",
@@ -613,7 +635,10 @@
         ),
         "side_table": (
             shape: "box",
-            size: (1.50, 0.75, 0.80),
+            // SIZE: a coffee table stands 0.40 to 0.46 m tall; tablecoffee.gltf at 0.46 m is 1.32 x 0.80 m, as in
+            // home.ron since v0.1324. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 1.50 x 0.75 x 0.80: fitted to 0.75 m the model was
+            // 2.16 x 1.30 m.
+            size: (1.32, 0.46, 0.80),
             color: (0.52, 0.38, 0.24),
             label: "Side table",
             category: "Furniture",
@@ -633,7 +658,11 @@
         ),
         "bookshelf": (
             shape: "box",
-            size: (1.00, 2.00, 0.35),
+            // SIZE: a tall bookcase is 0.9 m (36 in) wide and about 2.0 m tall; bookcaseopen.gltf at 2.0 m tall
+            // is 0.91 m wide and 0.57 m deep, deeper than a real bookcase (0.30 to 0.35 m), because the
+            // model is, and a uniform fit keeps its proportions. A better-proportioned model is the fix.
+            // Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 1.00 x 0.35 m, so the back 0.22 m of the drawn shelf stood in the wall behind it.
+            size: (0.91, 2.00, 0.57),
             color: (0.52, 0.38, 0.24),
             label: "Bookshelf",
             category: "Furniture",
@@ -654,6 +683,10 @@
         "desk": (
             shape: "box",
             size: (1.40, 0.75, 0.70),
+            // clears_skirting: desk.gltf stands on four legs set 20 to 24 mm in from every edge of its top
+            // (measured on the model fitted to this height, below 0.17 m, the tallest skirting), so its top
+            // meets the wall over the skirting, as a desk on legs does (furniture_fit_tests).
+            clears_skirting: true,
             color: (0.52, 0.38, 0.24),
             label: "Desk",
             category: "Furniture",
@@ -673,7 +706,10 @@
         ),
         "shelf": (
             shape: "box",
-            size: (1.00, 1.80, 0.30),
+            // SIZE: a low bookcase, 0.9 m tall and wide; bookcaseopenlow.gltf at 0.9 m is 0.90 x 0.56 m (deeper
+            // than a real one, 0.30 m, because the model is), as in home.ron since v0.1324. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15).
+            // Was 1.00 x 1.80 x 0.30: fitted to 1.8 m the model was 1.80 x 1.13 m.
+            size: (0.90, 0.90, 0.56),
             color: (0.52, 0.38, 0.24),
             label: "Shelf unit",
             category: "Furniture",
@@ -693,7 +729,11 @@
         ),
         "pantry_cabinet": (
             shape: "box",
-            size: (2.00, 2.00, 0.60),
+            // SIZE: a kitchen base cabinet at worktop height, 0.9 m (36 in, the usual worktop height);
+            // kitchencabinet.gltf at 0.9 m is 0.86 x 0.90 m, as in home.ron since v0.1324. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15).
+            // Was 2.00 x 2.00 x 0.60: fitted to 2.0 m the base cabinet stood as a 1.91 x 2.00 m block across
+            // its box.
+            size: (0.86, 0.90, 0.90),
             color: (0.52, 0.38, 0.24),
             label: "Pantry cabinet",
             category: "Furniture",
@@ -755,7 +795,10 @@
         ),
         "tool_rack": (
             shape: "box",
-            size: (1.50, 1.00, 0.20),
+            // SIZE: a rolling tool chest with its top cabinet, as in home.ron: the SimReady model at its own
+            // height, 1.09 m, is 0.76 x 0.35 m. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was a standing coat rack
+            // (coatrackstanding.gltf, 0.35 x 0.35 m fitted to 1.0 m) in a 1.50 x 0.20 m box.
+            size: (0.76, 1.088, 0.345),
             color: (0.40, 0.40, 0.42),
             label: "Tool rack",
             category: "Furniture",
@@ -771,11 +814,14 @@
             storage: [],
             auto_recipe: None,
             container_type: Some("tool_cabinet"),
-            model: Some("assets/models/furniture/coatrackstanding/coatrackstanding.gltf"),
+            model: Some("assets/models/simready/equipment_rolling_tool_chest_cabinet_combo_d01/equipment_rolling_tool_chest_cabinet_combo_d01.glb"),
         ),
         "freezer": (
             shape: "box",
-            size: (1.00, 1.80, 0.70),
+            // SIZE: an upright freezer or a counter-depth refrigerator: 1.8 m tall, 0.84 m (33 in) wide, about
+            // 0.6 m (24 in) deep to sit flush with the kitchen cabinets. kitchenfridge.gltf at 1.8 m tall
+            // is 0.84 x 0.57 m. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 1.00 x 0.70 m.
+            size: (0.84, 1.80, 0.57),
             color: (0.88, 0.90, 0.92),
             label: "Freezer",
             category: "Furniture",
@@ -1348,7 +1394,7 @@
             id: "tool_rack_2",
             machine: "tool_rack",
             room: "room-plant",
-            offset: (11.7, 0.0, 43.0),
+            offset: (11.763, 0.0, 43),
             rotation: 90.0,
             zone: "home",
         ),
@@ -1356,7 +1402,7 @@
             id: "shelf_3",
             machine: "shelf",
             room: "room-plant",
-            offset: (11.6, 0.0, 46.0),
+            offset: (11.655, 0.0, 46),
             rotation: 90.0,
             zone: "home",
         ),
@@ -1364,7 +1410,7 @@
             id: "kitchen_sink_1",
             machine: "kitchen_sink",
             room: "room-kitchen",
-            offset: (34.4, 0.0, 47.4),
+            offset: (34.315, 0.0, 47.4),
             rotation: 270.0,
             zone: "home",
         ),
@@ -1380,7 +1426,7 @@
             id: "pantry_cabinet_1",
             machine: "pantry_cabinet",
             room: "room-pantry",
-            offset: (38.95, 0.0, 43.5),
+            offset: (38.95, 0.0, 43.515),
             rotation: 180.0,
             zone: "home",
         ),
@@ -1388,7 +1434,7 @@
             id: "pantry_cabinet_2",
             machine: "pantry_cabinet",
             room: "room-pantry",
-            offset: (40.95, 0.0, 43.5),
+            offset: (40.95, 0.0, 43.515),
             rotation: 180.0,
             zone: "home",
         ),
@@ -1396,7 +1442,7 @@
             id: "shelf_1",
             machine: "shelf",
             room: "room-pantry",
-            offset: (34.2, 0.0, 44.6),
+            offset: (34.345, 0.0, 44.6),
             rotation: 270.0,
             zone: "home",
         ),
@@ -1404,7 +1450,7 @@
             id: "freezer_1",
             machine: "freezer",
             room: "room-pantry",
-            offset: (41.45, 0.0, 45.5),
+            offset: (41.515, 0.0, 45.5),
             rotation: 0.0,
             zone: "home",
         ),
@@ -1452,7 +1498,7 @@
             id: "shelf_2",
             machine: "shelf",
             room: "room-wetroom",
-            offset: (45.7, 3.0, 37.6),
+            offset: (45.7, 3.0, 37.67),
             rotation: 0.0,
             zone: "home",
         ),
@@ -1484,7 +1530,7 @@
             id: "shower_2",
             machine: "shower",
             room: "room-shower",
-            offset: (50.5, 0.0, 30.5),
+            offset: (50.515, 0.0, 30.515),
             rotation: 0.0,
             zone: "home",
         ),
@@ -1532,7 +1578,7 @@
             id: "standing_mirror_1",
             machine: "standing_mirror",
             room: "room-bedroom",
-            offset: (41.8, 3.0, 32.5),
+            offset: (41.892, 3.0, 32.5),
             rotation: 90.0,
             zone: "home",
         ),
@@ -1540,7 +1586,7 @@
             id: "wardrobe_1",
             machine: "wardrobe",
             room: "room-dressing",
-            offset: (44.65, 3.0, 32.0),
+            offset: (44.637, 3.0, 32),
             rotation: 90.0,
             zone: "home",
         ),
@@ -1589,7 +1635,7 @@
             id: "bookshelf_2",
             machine: "bookshelf",
             room: "room-study",
-            offset: (50.4, 3.0, 31.4),
+            offset: (50.355, 3.0, 31.4),
             rotation: 270.0,
             zone: "home",
         ),
@@ -1597,7 +1643,7 @@
             id: "bookshelf_3",
             machine: "bookshelf",
             room: "room-study",
-            offset: (50.4, 3.0, 32.5),
+            offset: (50.355, 3.0, 32.5),
             rotation: 270.0,
             zone: "home",
         ),
@@ -1677,7 +1723,7 @@
             id: "bookshelf_1",
             machine: "bookshelf",
             room: "room-common",
-            offset: (42.225, 0.0, 44.4),
+            offset: (42.353, 0.0, 44.4),
             rotation: 270.0,
             zone: "home",
         ),
@@ -1694,7 +1740,7 @@
             id: "tool_rack_1",
             machine: "tool_rack",
             room: "room-workshop",
-            offset: (33.7, 0.0, 33.0),
+            offset: (33.763, 0.0, 33),
             rotation: 90.0,
             zone: "home",
         ),
@@ -1710,7 +1756,7 @@
             id: "shelf_4",
             machine: "shelf",
             room: "room-workshop",
-            offset: (33.8, 0.0, 44.0),
+            offset: (33.655, 0.0, 44),
             rotation: 90.0,
             zone: "home",
         ),

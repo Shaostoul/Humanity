@@ -1,0 +1,10 @@
+{
+  "_about": [
+    "Catalog rows whose box is known not to fit the model drawn for it, each with its reason (the model inspector, docs/design/model-inspector.md section 4).",
+    "Every other catalog row in data/machines/*.ron that draws a model must have a box its fitted model fits (turned by its model_yaw, scaled to its height) within the tolerance in inspect_conventions.json, because the walk, the collision and the flush placement follow the box while the eye follows the model.",
+    "Held by gui::model_view::inspect_tests::every_catalog_box_fits_its_fitted_model, which fails on a row that does not fit and is not listed here, and on a listed row that fits now or is gone, so this list only shrinks. node scripts/inspect-model.js --catalog prints the same check.",
+    "A row whose model is in a download pack (data/models/packs.ron) that is not installed is not an exception: the check names its pack and judges it wherever the pack is installed.",
+    "Each entry: { \"file\": the machine file, \"id\": the catalog row, \"reason\": why its box cannot match its model yet, and what would fix it }."
+  ],
+  "exceptions": []
+}

@@ -54,7 +54,10 @@
         ),
         "nightstand": (
             shape: "box",
-            size: (0.50, 0.55, 0.40),
+            // SIZE: a nightstand is about 0.45 to 0.6 m wide and 0.4 to 0.45 m deep, its top a few cm over the
+            // mattress (the bed's covers stand at 0.45 m). cabinetbeddrawertable.gltf at 0.55 m tall is
+            // 0.56 x 0.45 m. Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 0.50 x 0.40 m.
+            size: (0.56, 0.55, 0.45),
             color: (0.52, 0.38, 0.24),
             label: "Nightstand",
             category: "Furniture",
@@ -74,7 +77,10 @@
         ),
         "wardrobe": (
             shape: "box",
-            size: (1.20, 2.00, 0.60),
+            // SIZE: a two-door wardrobe: 2.0 m tall, about 0.6 m deep so a coat hanger (about 0.45 m) hangs across
+            // it, 0.9 to 1.0 m wide. bookcasecloseddoors.gltf at 2.0 m tall is 0.94 x 0.59 m.
+            // Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 1.20 m wide: 0.26 m of box beside the doors nobody could see.
+            size: (0.94, 2.00, 0.59),
             color: (0.52, 0.38, 0.24),
             label: "Wardrobe",
             category: "Furniture",
@@ -95,6 +101,10 @@
         "desk": (
             shape: "box",
             size: (1.40, 0.75, 0.70),
+            // clears_skirting: desk.gltf stands on four legs set 20 to 24 mm in from every edge of its top
+            // (measured on the model fitted to this height, below 0.17 m, the tallest skirting), so its top
+            // meets the wall over the skirting, as a desk on legs does (furniture_fit_tests).
+            clears_skirting: true,
             color: (0.52, 0.38, 0.24),
             label: "Desk",
             category: "Furniture",
@@ -119,7 +129,7 @@
             id: "bed_single_1",
             machine: "bed_single",
             room: "room-cabin",
-            offset: (2.12, 0.0, 0.48),
+            offset: (2.102, 0.0, 0.498),
             rotation: 0.0,
             zone: "home",
         ),
@@ -127,7 +137,7 @@
             id: "nightstand_1",
             machine: "nightstand",
             room: "room-cabin",
-            offset: (0.85, 0.0, 0.23),
+            offset: (0.812, 0.0, 0.273),
             rotation: 180.0,
             zone: "home",
         ),
@@ -136,7 +146,7 @@
             id: "wardrobe_1",
             machine: "wardrobe",
             room: "room-cabin",
-            offset: (0.63, 0.0, 2.17),
+            offset: (0.63, 0.0, 2.157),
             rotation: 0.0,
             zone: "home",
         ),

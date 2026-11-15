@@ -6962,6 +6962,8 @@
       "catalog_across": "{{row}} ({{file}}): the model, fitted to {{h}} m tall, is {{w}} x {{d}} m on the floor, turned across its {{box_w}} x {{box_d}} m box, and even turned a quarter it would not fit. Walking, collision and placement follow the box, not the model.",
       "catalog_box": "{{row}} ({{file}}): its box is {{box_w}} x {{box_d}} m on the floor, but the model, fitted to {{h}} m tall, is {{w}} x {{d}} m. Walking, collision and placement follow the box, not the model.",
       "catalog_fits": "{{row}} ({{file}}): the model, fitted to {{h}} m tall, is {{w}} x {{d}} m on the floor and fits its {{box_w}} x {{box_d}} m box.",
+      "catalog_in_pack": "Catalog row {{row}} ({{file}}): its model is in the {{pack}} pack ({{mb}} MB), which is not installed on this computer, so its box is not judged here. Settings > Graphics > Furniture models downloads it.",
+      "catalog_model_absent": "Catalog row {{row}} ({{file}}): its model {{model}} is not on this computer and no download pack holds it.",
       "catalog_turned": "{{row}} ({{file}}): the model, fitted to {{h}} m tall, is {{w}} x {{d}} m on the floor, turned across its {{box_w}} x {{box_d}} m box: a quarter turn would fit it. Walking, collision and placement follow the box.",
       "collision_none": "No collision shapes: no physics.ron beside it and no mesh named as one. The game uses its catalog box.",
       "collision_off": "The {{count}} collision shapes do not match the visible model: they stand up to {{gap}} m off it. What you bump into will not be what you see.",
@@ -7042,6 +7044,8 @@
     "licence": {
       "cc_by": "[[CC BY]] 4.0, based on NVIDIA SimReady Assets, by NVIDIA: anyone may use, change and share them, as long as NVIDIA is credited. Unlike HumanityOS's own data and models, they are not public domain."
     },
+    "card_model_unread": "Drawn as a plain box: its 3D model could not be read.",
+    "card_not_installed": "Drawn as a plain box: its 3D model is in the {{pack}} pack ({{mb}} MB), which Settings > Graphics > Furniture models downloads.",
     "core": "Home furniture, fixtures and tools",
     "pack": {
       "simready_medical": "Medical Bay"

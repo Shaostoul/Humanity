@@ -747,7 +747,7 @@ pub fn draw(
             // the operator reported as invisible-in-practice (v0.730).
             if let Some(i) = state.selected_machine {
                 if let Some(label) = state.machine_labels.get(i) {
-                    let size = machine_card_size(label);
+                    let size = machine_card_size_in(painter, label);
                     let card = Rect::from_min_size(
                         Pos2::new(center.x - size.x * 0.5, screen.top() + screen.height() * 0.22),
                         size,
@@ -1902,6 +1902,17 @@ fn machine_card_size(label: &crate::gui::MachineLabel) -> Vec2 {
     Vec2::new(CARD_W, h)
 }
 
+/// The card's size as drawn: `machine_card_size`'s height, and wide enough for its name and its
+/// longest stat line at the card's fonts (a SimReady credit line or a plain-box line is wider than
+/// `CARD_W`, and the values are right-aligned, so a narrow card let them run off its left edge).
+fn machine_card_size_in(painter: &egui::Painter, label: &crate::gui::MachineLabel) -> Vec2 {
+    let base = machine_card_size(label);
+    let width = |s: &str, size: f32| painter.layout_no_wrap(s.to_string(), FontId::proportional(size), Color32::WHITE).size().x;
+    let name = width(&label.name, 13.0);
+    let stat = label.stats.iter().map(|s| width(&s.value, 11.0) + 18.0).fold(0.0_f32, f32::max);
+    Vec2::new(base.x.max(name.max(stat) + CARD_PAD * 2.0), base.y)
+}
+
 /// Draw the card body (background, name header, two-column stat rows) into `card`.
 /// `pinned` gives it an accent border (the E-opened station).
 fn draw_machine_card_body(painter: &egui::Painter, theme: &Theme, card: Rect, label: &crate::gui::MachineLabel, pinned: bool) {
@@ -2108,7 +2119,7 @@ pub fn draw_npc_talk_card(ctx: &egui::Context, theme: &Theme, state: &mut GuiSta
 
 /// Floating card next to a machine's screen dot.
 fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label: &crate::gui::MachineLabel) {
-    let size = machine_card_size(label);
+    let size = machine_card_size_in(painter, label);
     let card = Rect::from_min_size(Pos2::new(anchor.x + 12.0, anchor.y - size.y * 0.5), size);
     draw_machine_card_body(painter, theme, card, label, false);
     // A connector tick from the dot to the card.
@@ -2125,7 +2136,8 @@ fn paint_stat_icon(painter: &egui::Painter, rect: Rect, kind: &str, color: Color
         "nutrient" => icons::paint_leaf(painter, rect, color),
         // "contents" = what's inside a typed container (v0.728) — same box
         // family as storage, reads as "the stuff in the box".
-        "storage" | "contents" => icons::paint_box(painter, rect, color),
+        // "model": the piece is drawn as its plain box (its model not installed or unreadable).
+        "storage" | "contents" | "model" => icons::paint_box(painter, rect, color),
         "progress" => icons::paint_cog(painter, rect, color),
         _ => {
             painter.circle_filled(rect.center(), rect.width() * 0.22, color);

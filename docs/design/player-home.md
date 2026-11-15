@@ -442,11 +442,13 @@ Four things, in the order they cost the design something.
    big."
 
    The mesh is now scaled UNIFORMLY at parse time so its height matches the
-   declared height (`GltfCpuMesh::scale_to_height`, used by
-   `AssetManager::parse_gltf_mesh_textured_fit_height`, called from
-   `src/engine/home_meshes.rs`). Height, because that is the dimension a person
-   reads scale from and it does not care which way round the model was authored
-   (the double bed's long axis disagrees with the `size` beside it). Uniform,
+   declared height (`GltfCpuMesh::scale_to_height`, through
+   `GltfCpuMesh::fit_for_machine` in `src/engine/home_meshes.rs`). Height,
+   because that is the dimension a person reads scale from and it does not care
+   which way round the model was authored. (The double bed's long axis disagreed
+   with the `size` beside it; since 2026-11-15 a row turns its model inside its
+   box with `model_yaw`, and every catalog box matches its fitted model,
+   docs/design/model-inspector.md section 4.) Uniform,
    because a per-axis stretch to the declared box would visibly distort every
    piece. About the origin, because these models stand on y = 0 and should stay
    on the floor.

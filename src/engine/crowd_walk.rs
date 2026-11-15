@@ -358,7 +358,7 @@ mod tests {
                 if !matches!(a.kind, AnchorKind::Sit | AnchorKind::Lie) {
                     continue;
                 }
-                let turn = glam::Quat::from_rotation_y(p.rotation.to_radians());
+                let turn = glam::Quat::from_rotation_y(p.anchor_yaw_deg().to_radians());
                 let point = |l: [f32; 3]| Vec3::from(p.pos) + turn * Vec3::from(l);
                 let approach = point(a.approach);
                 let eye = Vec3::new(approach.x, eye_over(p), approach.z);
@@ -432,7 +432,7 @@ mod tests {
                             continue;
                         }
                         seats += 1;
-                        let placed = Placed { anchor: ai, origin: Vec3::from(p.pos), yaw: p.rotation.to_radians(), object: ObjectRef::Machine(i) };
+                        let placed = Placed { anchor: ai, origin: Vec3::from(p.pos), yaw: p.anchor_yaw_deg().to_radians(), object: ObjectRef::Machine(i) };
                         let own = furniture[i];
                         let others: Vec<Footprint> = furniture.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, f)| *f).collect();
                         let plan = plan_seat(a, &placed, Some(&own), &others, &walls);

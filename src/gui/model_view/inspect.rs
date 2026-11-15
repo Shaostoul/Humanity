@@ -192,6 +192,8 @@ pub struct CatalogRow {
     pub label: String,
     pub shape: String,
     pub size: [f32; 3],
+    /// The row's `model_yaw`: the turn its model gets inside its box before the fit, degrees.
+    pub model_yaw: f32,
 }
 
 /// How a catalog box and its fitted model agree.
@@ -217,10 +219,32 @@ pub struct CatalogFit {
     /// Off, and nearer to fitting turned a quarter than as it is: the model lies across its box
     /// (the bed, 2026-11-14), and is the wrong size besides.
     pub across: bool,
-    /// The box in the viewer's (the file's) frame: the game's fit undone, so it is drawn round the
-    /// model as the game places it.
+    /// The box in the model's TURNED frame (its file's positions turned by the row's `model_yaw`):
+    /// the game's fit undone. Drawn round the model in the file's frame by turning its corners back
+    /// (`CatalogFit::file_point`).
     pub min: Vec3,
     pub max: Vec3,
+    /// The row's `model_yaw`, degrees.
+    pub yaw: f32,
+}
+
+impl CatalogFit {
+    /// A point of the turned frame (`min`, `max`) back in the file's frame, where the viewer draws:
+    /// the turn by `yaw` undone.
+    pub fn file_point(&self, p: Vec3) -> Vec3 {
+        let (s, c) = crate::assets::quarter_exact_sin_cos(-self.yaw);
+        Vec3::new(c * p.x + s * p.z, p.y, -s * p.x + c * p.z)
+    }
+}
+
+/// The bounds of `pos` turned about up by `yaw_deg` (`GltfCpuMesh::turn_about_up`'s turn): what the
+/// fit measures for a row whose model is turned inside its box.
+pub fn turned_bounds(pos: &[Vec3], yaw_deg: f32) -> (Vec3, Vec3) {
+    let (s, c) = crate::assets::quarter_exact_sin_cos(yaw_deg);
+    pos.iter().fold((Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)), |(a, b), v| {
+        let t = Vec3::new(c * v.x + s * v.z, v.y, -s * v.x + c * v.z);
+        (a.min(t), b.max(t))
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -374,9 +398,9 @@ pub fn catalog_rows(path: &Path) -> Vec<CatalogRow> {
             if !keys.iter().any(|k| k == model) {
                 continue;
             }
-            let row = CatalogRow { file: fname.clone(), id: id.clone(), label: def.label.clone(), shape: def.shape.clone(), size: [def.size.0, def.size.1, def.size.2] };
+            let row = CatalogRow { file: fname.clone(), id: id.clone(), label: def.label.clone(), shape: def.shape.clone(), size: [def.size.0, def.size.1, def.size.2], model_yaw: def.model_yaw };
             // A ship row merged into every home file is one row.
-            if !out.iter().any(|r| r.id == row.id && r.size == row.size) {
+            if !out.iter().any(|r| r.id == row.id && r.size == row.size && r.model_yaw == row.model_yaw) {
                 out.push(row);
             }
         }
@@ -386,9 +410,10 @@ pub fn catalog_rows(path: &Path) -> Vec<CatalogRow> {
 
 // ── The fit, as the game does it ─────────────────────────────────────────────
 
-/// The game's fit of a model whose first part spans `raw_min..raw_max` (positions as written) to a
-/// catalog row: `GltfCpuMesh::fit_for_machine` (scale uniformly about the origin to the row's
-/// height, then centre the footprint), compared with the row's box within `tol`.
+/// The game's fit of a model whose first part spans `raw_min..raw_max` (its positions turned by the
+/// row's `model_yaw`, `turned_bounds`) to a catalog row: `GltfCpuMesh::fit_for_machine` (turn, scale
+/// uniformly about the origin to the row's height, then centre the footprint), compared with the
+/// row's box within `tol`.
 pub fn fit(raw_min: Vec3, raw_max: Vec3, row: &CatalogRow, tol: &Tolerance) -> CatalogFit {
     let raw = (raw_max - raw_min).max(Vec3::ZERO);
     let target = row.size[1];
@@ -418,7 +443,7 @@ pub fn fit(raw_min: Vec3, raw_max: Vec3, row: &CatalogRow, tol: &Tolerance) -> C
     let (hw, hd) = (box_wd[0] * 0.5 / s, box_wd[1] * 0.5 / s);
     let min = Vec3::new(cx - hw, 0.0, cz - hd);
     let max = Vec3::new(cx + hw, target / s, cz + hd);
-    CatalogFit { row: row.clone(), scale: s, fitted, box_wd, verdict, across, min, max }
+    CatalogFit { row: row.clone(), scale: s, fitted, box_wd, verdict, across, min, max, yaw: row.model_yaw }
 }
 
 /// Metres to two decimals, the report's way.
@@ -668,9 +693,8 @@ fn inspect_gltf(bytes: &[u8], model: &Model, ctx: &Context, out: &mut Inspection
 
     // What the game draws: a catalog model's first mesh's first part, positions as written.
     let first = doc.meshes().next();
-    let engine = first.as_ref().and_then(|m| m.primitives().next()).and_then(|p| triangles(&p, &bufs)).map(|(pos, _)| {
-        pos.iter().fold((Vec3::splat(f32::INFINITY), Vec3::splat(f32::NEG_INFINITY)), |(a, b), v| (a.min(*v), b.max(*v)))
-    });
+    let engine_pos = first.as_ref().and_then(|m| m.primitives().next()).and_then(|p| triangles(&p, &bufs)).map(|(pos, _)| pos);
+    let engine = engine_pos.as_deref().map(|pos| turned_bounds(pos, 0.0));
     // The game ignores the first mesh's node: it differs when that node moves, turns or scales it,
     // or when no visible node shows it at all.
     let first_moved = first.as_ref().is_some_and(|m| {
@@ -688,7 +712,9 @@ fn inspect_gltf(bytes: &[u8], model: &Model, ctx: &Context, out: &mut Inspection
             out.findings.push(Finding::new(Level::Problem, code, &[("y", m2(rmin.y.abs()))]));
         }
         for row in &ctx.catalog {
-            let f = fit(rmin, rmax, row, &tol);
+            // Turned inside its box first, as the game turns it (the row's model_yaw).
+            let (tmin, tmax) = engine_pos.as_deref().map_or((rmin, rmax), |pos| turned_bounds(pos, row.model_yaw));
+            let f = fit(tmin, tmax, row, &tol);
             let vars = [
                 ("row", row.id.clone()),
                 ("file", row.file.clone()),

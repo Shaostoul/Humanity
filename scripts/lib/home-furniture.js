@@ -123,7 +123,7 @@ function items(inside) {
 }
 
 /**
- * A machine home (data/machines/<home>.ron): { catalog: { name: { shape, size, label } },
+ * A machine home (data/machines/<home>.ron): { catalog: { name: { shape, size, label, model?, model_yaw? } },
  * placements: [{ id, machine, offset: [x, y, z], rotation, zone }] } with its arrays expanded
  * (`MachineHome::all_instances`: row r, column c at origin + (c * spacing.0, 0, r * spacing.1),
  * id `<prefix>_<index>`, unturned).
@@ -144,6 +144,9 @@ function readMachineHome(text) {
     catalog[m[1]] = { shape: scalar(def, "shape") || "box", size: numbers(bracketed(def, "size")), label: scalar(def, "label") || "" };
     const model = scalar(def, "model");
     if (model) catalog[m[1]].model = model;
+    // `model_yaw`: the turn the model gets inside its box (model inspector rung 2), degrees.
+    const yaw = scalar(def, "model_yaw");
+    if (typeof yaw === "number" && yaw !== 0) catalog[m[1]].model_yaw = yaw;
     entry.lastIndex = end + 1;
   }
   const placements = items(bracketed(root, "instances")).map((it) => ({

@@ -13,9 +13,10 @@
 //  2. A model exported in centimetres is called out, and a second part the game would drop is said.
 //  3. A .gltf reads its own outside files (never above its folder), and a missing picture is named.
 //  4. The words are en.json's, filled (no key and no {{placeholder}} left).
-//  5. The catalog boxes against their fitted models, IN REPORT MODE: the list is printed for the
-//     furniture fixes that follow and the test does not fail on it yet; it fails only when it checks
-//     almost nothing.
+//  5. Every catalog box fits its fitted model (turned by its model_yaw), or is a known exception
+//     with its reason (data/models/catalog_fit_exceptions.json); a row whose model is in a download
+//     pack not installed here is named with its pack. Failing since the furniture fixes
+//     (2026-11-15), as the desktop's every_catalog_box_fits_its_fitted_model fails.
 //
 // HOS_WEB_DIR points the test at another copy of web/ (used to see each test red).
 // Seen red 2026-11-14, each with one break made in a copy of web/shared/model-inspect.js under
@@ -111,15 +112,33 @@ test('every finding has its words from en.json, filled', () => {
   }
 });
 
-// THE CATALOG REPORT (2026-11-14, report mode: it lists, it does not fail yet). The same list as
-// `node scripts/inspect-model.js --catalog` and the desktop's
-// `catalog_boxes_against_their_fitted_models_report`.
-test('catalog boxes against their fitted models (report mode)', () => {
+// THE CATALOG CHECK (report mode 2026-11-14, failing since the furniture fixes of 2026-11-15). The
+// same rule as `node scripts/inspect-model.js --catalog` (which exits 1 on an unexcused row) and the
+// desktop's `every_catalog_box_fits_its_fitted_model`. Seen red 2026-11-15 with the wardrobe's box
+// back at 1.20 m wide: "cabin.ron wardrobe: box 1.2 x 0.59 m, fitted 0.941 x 0.588 m (off)" (and
+// `--catalog` exited 1).
+test('every catalog box fits its fitted model, or is a known exception', () => {
   const r = CLI.catalogReport();
-  console.log(`Catalog boxes that do not fit their models: ${r.mismatches.length} of ${r.checked} checked rows; ${r.missing.length} models not on this computer.`);
-  for (const m of r.mismatches) console.log(`  ${m.file} ${m.id}: box ${m.box_m[0]} x ${m.box_m[1]} m, fitted ${m.fitted_m[0]} x ${m.fitted_m[2]} m (${m.verdict}${m.across ? ', across' : ''})`);
-  for (const m of r.missing) console.log(`  ${m.file} ${m.id}: ${m.model} is not on this computer`);
+  for (const m of r.missing) console.log(`  ${m.words}`);
+  for (const m of r.exceptions) console.log(`  known: ${m.file} ${m.id}: ${m.reason}`);
   assert.ok(r.checked >= 10, `only ${r.checked} catalog models were checked`);
+  assert.ok(r.missing.every((m) => m.pack), `a missing model no download pack holds: ${r.missing.filter((m) => !m.pack).map((m) => m.model).join(', ')}`);
+  assert.ok(r.exceptions.every((m) => m.reason && m.reason.trim()), 'every known exception says why');
+  assert.deepStrictEqual(r.mismatches.map((m) => `${m.file} ${m.id}: box ${m.box_m[0]} x ${m.box_m[1]} m, fitted ${m.fitted_m[0]} x ${m.fitted_m[2]} m (${m.verdict})`), [], `catalog box(es) do not fit their fitted models`);
+  for (const e of CLI.fitExceptions()) assert.ok(r.exceptions.some((m) => m.file === e.file && m.id === e.id), `the exception ${e.file} ${e.id} names no row whose box is off: take it out of data/models/catalog_fit_exceptions.json`);
+});
+
+// A ROW TURNED INSIDE ITS BOX (model_yaw, 2026-11-15): the double bed's model lies along its file's
+// +Z; its row (a box long along x) fits only with the quarter turn, and the turn is glam's sense,
+// so its headboard (the tall part, at the file's far +Z) lands at the box's -X end. Seen red with the
+// turn left out of the fit (`turnedBounds(engine.positions, 0)`): "catalog_turned".
+test("a model turned by its row's model_yaw fits its box, its head where the turn puts it", () => {
+  const bed = [path.join(ROOT, 'assets', 'models', 'furniture', 'beddouble', 'beddouble.gltf')];
+  const turned = Object.assign(row('bed', [2.04, 0.68, 1.73]), { model_yaw: 270 });
+  const insp = CLI.inspectFile(bed[0], [turned, row('bed_unturned', [2.04, 0.68, 1.73])]);
+  assert.deepStrictEqual(insp.catalog.map((f) => f.verdict), ['fits', 'turned']);
+  const [mn, mx] = MI.turnedBounds([[0, 0, 0], [0, 1, 1.125]], 270);
+  assert.deepStrictEqual([mn[0], mx[0], mn[2], mx[2]], [-1.125, 0, 0, 0], "the file's +Z end turns to -X");
 });
 
 // THE WEBSITE'S INSPECT MODE (web/shared/model-view.js with model-inspect.js loaded): once the

@@ -3848,25 +3848,44 @@ fn model_inspector_viewer(rel: &str, rows: Vec<crate::gui::model_view::inspect::
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_model_inspector() {
-    let row = crate::gui::model_view::inspect::CatalogRow { file: "test.ron".into(), id: "planted_wide".into(), label: "Planted".into(), shape: "box".into(), size: [2.0, 0.5, 1.0] };
+    let row = crate::gui::model_view::inspect::CatalogRow { file: "test.ron".into(), id: "planted_wide".into(), label: "Planted".into(), shape: "box".into(), size: [2.0, 0.5, 1.0], model_yaw: 0.0 };
     let viewer = std::cell::RefCell::new(model_inspector_viewer("scripts/tests/fixtures/inspect/planted/planted.glb", vec![row], Some(3)));
     render_page_png("model_inspector", 1280, 760, |ctx, theme, _state| {
         egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 1240.0));
     });
 }
 
-/// The model inspector on the home's double bed against its catalog row (data/machines/home.ron,
-/// 2.0 x 1.0 m): the dashed box and the fitted model lie across each other, and the report says so
-/// (the mismatch the 2026-11-14 homestead fixes found by walking into it).
+/// The model inspector on the home's double bed against its catalog row (data/machines/home.ron):
+/// since the furniture fixes (2026-11-15) the row turns the model a quarter inside its box
+/// (`model_yaw` 270, its head to the box's -X end) and its box is the model's own 2.04 x 1.73 m at
+/// 0.68 m tall, so the dashed box lies round the model and the report says it fits. Before, the
+/// 2.0 x 1.0 m box lay across the model (the mismatch the 2026-11-14 homestead fixes found by
+/// walking into it).
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_model_inspector_bed() {
     let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
     let home = humanity_systems::grow_machines::load_home(&repo.join("data/machines/home.ron")).expect("the home");
     let def = home.catalog.get("bed").expect("the bed row");
-    let row = crate::gui::model_view::inspect::CatalogRow { file: "home.ron".into(), id: "bed".into(), label: def.label.clone(), shape: def.shape.clone(), size: [def.size.0, def.size.1, def.size.2] };
+    let row = crate::gui::model_view::inspect::CatalogRow { file: "home.ron".into(), id: "bed".into(), label: def.label.clone(), shape: def.shape.clone(), size: [def.size.0, def.size.1, def.size.2], model_yaw: def.model_yaw };
     let viewer = std::cell::RefCell::new(model_inspector_viewer("assets/models/furniture/beddouble/beddouble.gltf", vec![row], None));
     render_page_png("model_inspector_bed", 1280, 760, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 1240.0));
+    });
+}
+
+/// The model inspector on the home's bookshelf against its catalog row (data/machines/home.ron): its
+/// box (0.91 x 0.57 m at 2.0 m tall since the furniture fixes, 2026-11-15) round the fitted model,
+/// which the old 1.00 x 0.35 m box cut through, the back 0.22 m of the drawn shelf in the wall.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_model_inspector_bookshelf() {
+    let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
+    let home = humanity_systems::grow_machines::load_home(&repo.join("data/machines/home.ron")).expect("the home");
+    let def = home.catalog.get("bookshelf").expect("the bookshelf row");
+    let row = crate::gui::model_view::inspect::CatalogRow { file: "home.ron".into(), id: "bookshelf".into(), label: def.label.clone(), shape: def.shape.clone(), size: [def.size.0, def.size.1, def.size.2], model_yaw: def.model_yaw };
+    let viewer = std::cell::RefCell::new(model_inspector_viewer("assets/models/furniture/bookcaseopen/bookcaseopen.gltf", vec![row], None));
+    render_page_png("model_inspector_bookshelf", 1280, 760, |ctx, theme, _state| {
         egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 1240.0));
     });
 }

@@ -84,12 +84,19 @@ node scripts/inspect-model.js assets/models/furniture/beddouble/beddouble.gltf
 node scripts/inspect-model.js --catalog        # every catalog row with a model: its box against its fitted model
 ```
 
+With `--catalog` it also lists the known exceptions with their reasons
+(`data/models/catalog_fit_exceptions.json`) and each row whose model is in a download pack not installed
+on this computer, with the pack, its size and where a person gets it (Settings > Graphics > Furniture
+models); it exits 1 when a row's box does not fit its model and is not a known exception.
+
 ## 4. The fit, exactly as the game does it
 
 A catalog row (`data/machines/*.ron`, a `MachineDef` with `model: Some(...)`) draws its model through
 `AssetManager::parse_gltf_mesh_with_texture` and `GltfCpuMesh::fit_for_machine`: the **first mesh's
-first primitive**, its positions as written (no node transform), scaled uniformly about the origin to
-the row's height (`size.1`), then its footprint centred on the origin. The inspector computes the same
+first primitive**, its positions as written (no node transform), **turned about up by the row's
+`model_yaw`** (degrees, the instance `rotation`'s sense; 0 when the row has none), scaled uniformly about
+the origin to the row's height (`size.1`), then its footprint centred on the origin. The interaction
+anchors (`data/characters/interactions.ron`) are in the model's frame and turn with it. The inspector computes the same
 fit and compares the fitted footprint (x by z) with the box (`size.0` by `size.2`):
 
 - it fits when each side is within the tolerance (10% of the box side, at least 5 cm);
@@ -100,10 +107,25 @@ fit and compares the fitted footprint (x by z) with the box (`size.0` by `size.2
   (`catalog_box`: the bookshelf, 0.91 x 0.57 m against 1.00 x 0.35 m).
 
 The first run (2026-11-14) found 12 of 61 catalog rows off their models and 6 rows naming SimReady
-medical models that are not on the computer; `node scripts/inspect-model.js --catalog` lists them.
+medical models that are not on the computer. **The furniture fixes (2026-11-15) made every box agree
+with its fitted model**: the mirror was fixed by BUG-309; the bed turned with `model_yaw` 270 and took a
+queen bed's length (2.04 x 1.73 m at 0.68 m tall); the nightstand, wardrobe, couch, chair, bookshelf and
+freezer took their models' footprints at their real heights; the solo homestead's side table, shelf,
+pantry cabinet and tool rack took the family home's fixed rows (v0.1324). Each row's data comment says
+where its size comes from. Every re-sized piece was re-placed in all nine machine files, standing
+against the skirting (`crates/humanity-ship/src/furniture_fit_tests.rs`). The six medical models are the
+Medical Bay pack (`data/models/packs.ron`, 14.7 MB, a release asset under the tag `assets-simready-1`),
+downloaded from Settings > Graphics > Furniture models; until it is installed each draws its plain box
+and its card says why and where to get it (`model_packs.card_not_installed`), and the check names the
+pack instead of judging the row.
 
-A test pins the inspector's fit to the engine's own (`fit_for_machine`) on every catalog model, so
-the two can never drift.
+**The check fails since then** (`gui::model_view::inspect_tests::every_catalog_box_fits_its_fitted_model`,
+and its twin in `scripts/tests/model-inspect.test.js`): a row whose box does not fit is a test failure
+unless `data/models/catalog_fit_exceptions.json` lists it with its reason (empty today), and a listed row
+that fits or is gone fails too, so the list only shrinks.
+
+A test pins the inspector's fit to the engine's own (`fit_for_machine`, the turn included) on every
+catalog model, so the two can never drift.
 
 ## 5. Rungs
 
@@ -117,17 +139,18 @@ the two can never drift.
 - the overlay is drawn over the model (x-ray, never hidden inside it), from the theme's axis and
   inspector colours;
 - `node scripts/inspect-model.js <file>` prints the same report as JSON, `--catalog` the mismatch
-  list; a test runs the catalog check in report mode (it lists, it does not fail yet) for the
-  furniture fixes that follow.
+  list; a test ran the catalog check in report mode (it listed, it did not fail) for the furniture
+  fixes that followed, and fails since they landed (2026-11-15, section 4).
 - The website mirrors the Inspect mode in its viewer (`web/shared/model-view.js` with
   `web/shared/model-inspect.js`): the report, the node tree and the overlay. It has no HumanityOS
   folder and no catalog (a model on a server is not a catalog entry), so it shows no catalog box.
 
 **Rung 2: editing the catalog box from the inspector.** "Fit the box to the model" and "Turn the
 model a quarter" on a catalog row, written back to `data/machines/<file>.ron` through the HumanityOS
-folder's save (its `.bak` kept), the row's height kept unless asked. Needs a `model_yaw` field on
-`MachineDef` (the turn the model gets inside its box) so a model turned across its box is fixed by
-data, not by re-exporting it.
+folder's save (its `.bak` kept), the row's height kept unless asked. **Its data half is built
+(2026-11-15)**: `MachineDef::model_yaw`, the turn the model gets inside its box, read by the game's fit
+and draw, the anchors, the inspector (desktop and website) and the command line, so a model turned
+across its box is fixed by data, not by re-exporting it; the two buttons remain.
 
 **Rung 3: turret and seat preview.** A seat empty or a catalog anchor (interactions.ron) shows the
 body's figure sitting or lying there; a mount shows its yaw and pitch limits as arcs and turns through

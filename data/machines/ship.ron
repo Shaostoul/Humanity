@@ -355,7 +355,10 @@
         ),
         "chair": (
             shape: "box",
-            size: (0.50, 0.90, 0.50),
+            // SIZE: a dining chair's seat stands 0.45 to 0.48 m up (17 to 19 in); chaircushion.gltf at 0.9 m
+            // tall puts it at 0.47 m and stands 0.39 x 0.39 m, a little narrower than most chairs (0.43
+            // to 0.5 m). Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 0.50 x 0.50 m.
+            size: (0.39, 0.90, 0.39),
             color: (0.52, 0.38, 0.24),
             label: "Chair",
             category: "Furniture",
@@ -378,7 +381,11 @@
         ),
         "couch": (
             shape: "box",
-            size: (2.00, 0.80, 0.90),
+            // SIZE: an apartment-size three-seat sofa is 1.7 to 1.9 m wide; this one's seat stands at 0.40 m
+            // (a lounge sofa's 0.38 to 0.43 m; the seats in data/characters/interactions.ron were measured
+            // there). loungesofa.gltf at 0.8 m tall is 1.70 x 0.71 m, shallower than most sofas (0.85 m and
+            // more). Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 2.00 x 0.90 m.
+            size: (1.70, 0.80, 0.71),
             color: (0.42, 0.44, 0.50),
             label: "Couch",
             category: "Furniture",

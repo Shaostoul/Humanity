@@ -26,7 +26,16 @@
     catalog: {
         "bed": (
             shape: "box",
-            size: (2.00, 0.60, 1.00),
+            // SIZE: a queen bed's length: a queen mattress is 80 in (2.03 m) long, US standard mattress sizes,
+            // and beddouble.gltf fitted to 0.68 m tall (its headboard; the covers at 0.45 m) is 2.04 m long
+            // and 1.73 m wide. Wider than a queen frame (about 1.6 m): the model is wider for its length than
+            // a real bed, and a uniform fit keeps its proportions; a person lying in it needs the length.
+            // The model lies along its file's +Z with its head there; model_yaw 270 turns it so its head is
+            // at the box's -X end; each home turns the box so the head stands where its room wants it
+            // (between the nightstands in the family homestead, against an end wall in the row houses).
+            // Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 2.00 x 0.60 x 1.00: a single bed's box under a double model turned across it.
+            size: (2.04, 0.68, 1.73),
+            model_yaw: 270.0,
             color: (0.42, 0.44, 0.50),
             label: "Bed",
             category: "Furniture",
@@ -72,7 +81,10 @@
         ),
         "wardrobe": (
             shape: "box",
-            size: (1.20, 2.00, 0.60),
+            // SIZE: a two-door wardrobe: 2.0 m tall, about 0.6 m deep so a coat hanger (about 0.45 m) hangs across
+            // it, 0.9 to 1.0 m wide. bookcasecloseddoors.gltf at 2.0 m tall is 0.94 x 0.59 m.
+            // Box = the model fitted to this height (node scripts/inspect-model.js --catalog, 2026-11-15). Was 1.20 m wide: 0.26 m of box beside the doors nobody could see.
+            size: (0.94, 2.00, 0.59),
             color: (0.52, 0.38, 0.24),
             label: "Wardrobe",
             category: "Furniture",

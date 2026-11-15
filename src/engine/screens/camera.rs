@@ -327,6 +327,7 @@ mod tests {
             stats: Vec::new(),
             rotation,
             model: None,
+            model_yaw: 0.0,
             screen: None,
             camera,
             camera_px: humanity_ship::machines::CAMERA_PX_DEFAULT,

@@ -304,6 +304,23 @@ pub struct MachineDef {
     /// a bad model never blanks the machine.
     #[serde(default)]
     pub model: Option<String>,
+    /// The turn the MODEL gets inside its box, degrees about up, glam's sense like the instance's
+    /// `rotation` (model inspector rung 2, 2026-11-15; docs/design/model-inspector.md section 4): a
+    /// model authored lying across the way its box runs (the double bed's long axis is the file's
+    /// +Z, its box and its room run along x) is turned by data, never re-exported. A quarter turn at
+    /// a time unless a model needs otherwise. Applied before the fit (`GltfCpuMesh::fit_for_machine`),
+    /// so the fitted footprint, the box, the collision and the flush placement all agree; the
+    /// interaction anchors (data/characters/interactions.ron) are in the model's frame and turn with
+    /// it (`PlacedMachine::anchor_yaw_deg`). 0, the default: the model as authored.
+    #[serde(default, skip_serializing_if = "is_zero_f32")]
+    pub model_yaw: f32,
+    /// The piece's model leaves room behind it for a room's skirting (a recessed plinth or a back
+    /// on feet), so it stands with its back against the wall above the skirting rather than against
+    /// the skirting's face (room finishes rung 1 met furniture, 2026-11-15). False, the default: a
+    /// solid back stands against the skirting's face, as real furniture does
+    /// (`furniture_fit_tests`). Which a row is, and why, is said in its data comment.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub clears_skirting: bool,
     /// An in-world SCREEN on one face of this machine (in-world screens,
     /// rung 2; docs/design/in-world-screens.md): a flat display that shows a
     /// native app page the player can look at, click, scroll and type into.
@@ -422,6 +439,14 @@ pub const CAMERA_FOV_RANGE_DEG: (f32, f32) = (10.0, 150.0);
 pub const CAMERA_LENS_BELOW_TOP_M: f32 = 0.05;
 
 impl PlacedMachine {
+    /// The turn of the model's own frame in the world, degrees: the instance's `rotation` plus the
+    /// def's `model_yaw`. The interaction anchors (data/characters/interactions.ron) are written in
+    /// the model's frame (the bed's head is its file's +Z), so they are placed by this, not by
+    /// `rotation` alone.
+    pub fn anchor_yaw_deg(&self) -> f32 {
+        self.rotation + self.model_yaw
+    }
+
     /// Where this machine's camera looks from, when it has one. `None` for
     /// a machine whose def has no `camera`.
     pub fn camera_pose(&self) -> Option<CameraPose> {
@@ -770,6 +795,11 @@ pub fn default_machine_zone() -> String {
 /// an editor save writes it only on the machines that set it.
 fn is_false(v: &bool) -> bool {
     !*v
+}
+
+/// Serde's "leave it out" test for a number that defaults to 0 (`MachineDef::model_yaw`).
+fn is_zero_f32(v: &f32) -> bool {
+    *v == 0.0
 }
 
 /// One placed machine.
@@ -1455,6 +1485,9 @@ pub struct PlacedMachine {
     /// GLB model path from the def (v0.734) — the renderer draws this instead
     /// of the primitive when set (primitive stays the fallback on load error).
     pub model: Option<String>,
+    /// The def's `model_yaw`: the turn the model gets inside its box before it is fitted
+    /// (`GltfCpuMesh::fit_for_machine`).
+    pub model_yaw: f32,
     /// The def's screen, carried through so the renderer can build the
     /// display quad and the input ray-test next to the body (rung 2).
     pub screen: Option<ScreenDef>,
@@ -3022,6 +3055,7 @@ impl MachineHome {
                 stats: self.stats_for(&inst.machine),
                 rotation: inst.rotation,
                 model: def.model.clone(),
+                model_yaw: def.model_yaw,
                 // The instance's own page wins over the def's default, so two
                 // wall screens of one catalog type can show different pages.
                 screen: screen_def.map(|mut s| {
@@ -3458,6 +3492,8 @@ mod tests {
             provides: None,
             anchors: Vec::new(),
             model: None,
+            model_yaw: 0.0,
+            clears_skirting: false,
             screen: None,
             camera: None,
             camera_px: CAMERA_PX_DEFAULT,
@@ -5680,6 +5716,7 @@ mod camera_px_tests {
             stats: Vec::new(),
             rotation: 0.0,
             model: None,
+            model_yaw: 0.0,
             screen: None,
             camera: Some((0.0, -8.0, 70.0)),
             camera_px: CAMERA_PX_DEFAULT,

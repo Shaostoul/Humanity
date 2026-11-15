@@ -187,7 +187,9 @@ const ROUTE = {
   /// from inside its door; the ground hall looking up the stair.
   shots: [
     { id: "upper_hall", at: [35.4, 38.75], storey: "upper", yaw: Math.PI / 2, pitch: -0.22, note: "the upper hall from the stair-top landing, east over the stairwell and its guards G1 and G2" },
-    { id: "bedroom", at: [41.0, 36.0], storey: "upper", yaw: -Math.PI / 2 - 0.35, pitch: -0.12, note: "the upstairs bedroom from inside its door" },
+    // 2 cm west of (41.0, 36.0) since 2026-11-15: shelf_6 stands against the bedroom's skirting, 18 mm
+    // off the wall, so the old spot came 0.39 m from it (the route keeps 0.40 m clear).
+    { id: "bedroom", at: [40.98, 36.0], storey: "upper", yaw: -Math.PI / 2 - 0.35, pitch: -0.12, note: "the upstairs bedroom from inside its door" },
     { id: "ground_hall_up_stairs", at: [44.6, 38.7], storey: "ground", yaw: -Math.PI / 2, pitch: 0.32, note: "the ground hall looking west up the stair, the slab's edge over its foot and the stairwell open above" },
   ],
 };

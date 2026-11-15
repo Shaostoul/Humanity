@@ -129,13 +129,55 @@ impl GltfCpuMesh {
         }
     }
 
-    /// What a placed machine's model goes through before it is drawn: fitted to the declared height
-    /// ([`Self::scale_to_height`]) and its footprint centred on the placement
-    /// ([`Self::centre_footprint`]). Both machine paths, the world load's and the rebuild's, call it.
-    pub fn fit_for_machine(&mut self, target_height: f32) {
+    /// Turn the model about up through its origin by `yaw_deg` degrees, glam's sense (a machine's
+    /// `rotation`: +Z turns toward +X): positions and normals alike. A quarter turn is exact (no
+    /// sine of 90 degrees a hair off 1), so a turned footprint is the authored one with its sides
+    /// swapped, as the inspector computes it. A no-op for 0 or a number that is not finite.
+    pub fn turn_about_up(&mut self, yaw_deg: f32) {
+        let (s, c) = quarter_exact_sin_cos(yaw_deg);
+        if s == 0.0 && c == 1.0 {
+            return;
+        }
+        for v in &mut self.vertices {
+            let (x, z) = (v.position[0], v.position[2]);
+            v.position[0] = c * x + s * z;
+            v.position[2] = -s * x + c * z;
+            let (nx, nz) = (v.normal[0], v.normal[2]);
+            v.normal[0] = c * nx + s * nz;
+            v.normal[2] = -s * nx + c * nz;
+        }
+    }
+
+    /// What a placed machine's model goes through before it is drawn: turned inside its box by the
+    /// def's `model_yaw` ([`Self::turn_about_up`]; model inspector rung 2, 2026-11-15), fitted to
+    /// the declared height ([`Self::scale_to_height`]) and its footprint centred on the placement
+    /// ([`Self::centre_footprint`]). The draw path (`engine::home_meshes::build_machine_bodies`)
+    /// and the tests that hold the inspector to it call it.
+    pub fn fit_for_machine(&mut self, target_height: f32, model_yaw_deg: f32) {
+        self.turn_about_up(model_yaw_deg);
         self.scale_to_height(target_height);
         self.centre_footprint();
     }
+}
+
+/// The sine and cosine of a turn of `yaw_deg` degrees, exact for a whole number of quarter turns
+/// (0, 90, 180, 270 and their negatives and multiples): the model fit's turn
+/// ([`GltfCpuMesh::turn_about_up`]) and the inspector's (`gui::model_view::inspect::fit`) use it so
+/// the two land on the same footprint. A turn that is not finite is no turn.
+pub fn quarter_exact_sin_cos(yaw_deg: f32) -> (f32, f32) {
+    if !yaw_deg.is_finite() {
+        return (0.0, 1.0);
+    }
+    let quarters = yaw_deg / 90.0;
+    if (quarters - quarters.round()).abs() < 1e-4 {
+        return match (quarters.round() as i64).rem_euclid(4) {
+            0 => (0.0, 1.0),
+            1 => (1.0, 0.0),
+            2 => (0.0, -1.0),
+            _ => (-1.0, 0.0),
+        };
+    }
+    yaw_deg.to_radians().sin_cos()
 }
 
 /// Is a file's parsed copy used again instead of reading and parsing the file? Only while reuse
@@ -265,30 +307,6 @@ impl AssetManager {
         Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
     }
 
-    /// As [`parse_gltf_mesh`](Self::parse_gltf_mesh), but the geometry is
-    /// first scaled uniformly to stand `target_height` metres tall (see
-    /// [`GltfCpuMesh::scale_to_height`]).
-    ///
-    /// Machines have TWO model paths, and both must fit or the home changes
-    /// size the first time anything rebuilds it: this one draws the machines
-    /// at world load, and the textured one draws them on every later rebuild
-    /// from the construction editor. Fixing only the rebuild path is how the
-    /// first attempt at this looked, in the capture rig, as though nothing had
-    /// happened at all.
-    #[cfg(feature = "native")]
-    pub fn parse_gltf_mesh_fit_height(
-        &self,
-        device: &wgpu::Device,
-        relative_path: &str,
-        target_height: f32,
-    ) -> Result<crate::renderer::mesh::Mesh, String> {
-        let path = self.resolve_model_path(relative_path);
-        let (document, buffers) = import_without_images(&path)?;
-        let mut cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
-        cpu.fit_for_machine(target_height);
-        Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
-    }
-
     /// Resolve a model path: `data_dir` first (the distributed/moddable tree,
     /// e.g. data/models/x.glb), then the data dir's PARENT (the dev repo
     /// root, so assets/models/x.gltf works in a checkout). Same rule
@@ -394,25 +412,6 @@ impl AssetManager {
         relative_path: &str,
     ) -> Result<(crate::renderer::mesh::Mesh, Option<(Vec<u8>, u32, u32)>), String> {
         let (cpu, texture) = self.parse_gltf_mesh_with_texture(relative_path)?;
-        let mesh = crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices);
-        Ok((mesh, texture))
-    }
-
-    /// As [`parse_gltf_mesh_textured`](Self::parse_gltf_mesh_textured), but
-    /// the geometry is first scaled uniformly to stand `target_height` metres
-    /// tall (see [`GltfCpuMesh::scale_to_height`]). This is what the home's
-    /// machines use, so a model is drawn at the real-world size its `size`
-    /// in `data/machines/*.ron` declares instead of at whatever scale it
-    /// happened to be authored at.
-    #[cfg(feature = "native")]
-    pub fn parse_gltf_mesh_textured_fit_height(
-        &self,
-        device: &wgpu::Device,
-        relative_path: &str,
-        target_height: f32,
-    ) -> Result<(crate::renderer::mesh::Mesh, Option<(Vec<u8>, u32, u32)>), String> {
-        let (mut cpu, texture) = self.parse_gltf_mesh_with_texture(relative_path)?;
-        cpu.fit_for_machine(target_height);
         let mesh = crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices);
         Ok((mesh, texture))
     }

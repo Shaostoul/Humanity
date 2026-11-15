@@ -66,7 +66,7 @@ fn every_modelled_machine_in_the_home_is_drawn_at_its_declared_height() {
 }
 
 /// EVERY MODELLED MACHINE IN THE SHIPPED HOME IS DRAWN CENTRED ON ITS PLACEMENT: after the machine
-/// fit (`GltfCpuMesh::fit_for_machine`, what both machine paths draw), each model's footprint is
+/// fit (`GltfCpuMesh::fit_for_machine`, what the machine draw path does), each model's footprint is
 /// centred on its origin within a centimetre, so it stands where its label, pick volume, collision
 /// and the Boxes level's box stand. The second assertion keeps it honest: at least one model was
 /// authored off-centre, so centring is not a no-op this test cannot see.
@@ -104,7 +104,7 @@ fn every_modelled_machine_in_the_home_is_drawn_centred_on_its_placement() {
         if ax.abs().max(az.abs()) > 0.05 {
             off_centre_as_authored += 1;
         }
-        cpu.fit_for_machine(def.size.1);
+        cpu.fit_for_machine(def.size.1, def.model_yaw);
         let (cx, cz) = centre(&cpu);
         assert!(
             cx.abs() <= 0.01 && cz.abs() <= 0.01,

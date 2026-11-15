@@ -175,13 +175,15 @@ test("the real homestead's furniture reads, the pieces the storeys route keeps c
   assert.strictEqual(fps.length, h.placements.length, "every placement's machine is in the catalog");
   const shelf = fps.find((f) => f.id === "shelf_6");
   assert.ok(shelf, "shelf_6, against the bedroom's east wall beside its door");
-  // A 0.9 x 0.56 shelf turned 90 degrees at (41.67, 36.55): x 41.39 to 41.95, z 36.1 to 37.0,
-  // flush against the wall's face at 41.95. Until 2026-11-14 it stood at (41.75, 36.6), 0.08 m
-  // into the wall (crates/humanity-ship/src/furniture_fit_tests.rs); moved flush, it also moved
-  // 5 cm north, so the storeys route's walk west along z 37.45 keeps 0.45 m from it.
-  near(HF.distance(shelf, 41.39, 36.55), 0, "its west face");
-  near(HF.distance(shelf, 41.95, 36.55), 0, "its east face, on the wall's face");
-  near(HF.distance(shelf, 41.67, 37.0), 0, "its south face");
+  // A 0.9 x 0.56 shelf turned 90 degrees at (41.652, 36.55): x 41.372 to 41.932, z 36.1 to 37.0,
+  // flush against the bedroom's skirting, whose face stands 18 mm off the wall's at 41.95 (a
+  // torus_145 skirting, data/blueprints/room_finishes.ron; 2026-11-15). Until 2026-11-14 it stood
+  // at (41.75, 36.6), 0.08 m into the wall (crates/humanity-ship/src/furniture_fit_tests.rs); moved
+  // flush, it also moved 5 cm north, so the storeys route's walk west along z 37.45 keeps 0.45 m
+  // from it.
+  near(HF.distance(shelf, 41.372, 36.55), 0, "its west face");
+  near(HF.distance(shelf, 41.932, 36.55), 0, "its east face, on the skirting's face");
+  near(HF.distance(shelf, 41.652, 37.0), 0, "its south face");
   const wardrobe = fps.find((f) => f.id === "wardrobe_3");
   assert.ok(wardrobe && HF.stopsBody(wardrobe, 3, 1.7, 0.4), "wardrobe_3 stands upstairs, in the dressing room against U7");
 });

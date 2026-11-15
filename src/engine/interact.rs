@@ -375,7 +375,8 @@ impl Engaged {
 }
 
 /// The anchors a placed machine offers, placed in the world (by its label's index): its definition's
-/// `anchors`, each at the machine's draw position and turn.
+/// `anchors`, each at the machine's draw position and turn, its model's turn inside its box
+/// (`model_yaw`) added: the anchors are written in the model's frame.
 pub(crate) fn machine_anchors(state: &EngineState, lib: &CharacterLibrary, label: usize) -> Vec<Placed> {
     let (Some(l), Some(obj), Some(home)) = (state.gui_state.machine_labels.get(label), state.machine_objects.get(label), state.gui_state.home_machines.as_ref()) else {
         return Vec::new();
@@ -387,7 +388,7 @@ pub(crate) fn machine_anchors(state: &EngineState, lib: &CharacterLibrary, label
     def.anchors
         .iter()
         .filter_map(|id| lib.anchors.index(id))
-        .map(|anchor| Placed { anchor, origin, yaw: obj.3.to_radians(), object: ObjectRef::Machine(label) })
+        .map(|anchor| Placed { anchor, origin, yaw: (obj.3 + def.model_yaw).to_radians(), object: ObjectRef::Machine(label) })
         .collect()
 }
 
@@ -408,7 +409,7 @@ pub(crate) fn machine_anchor_near(state: &EngineState, lib: &CharacterLibrary, a
             if flip != 0.0 && def.kind != AnchorKind::Station {
                 continue;
             }
-            let p = Placed { anchor, origin: obj.2, yaw: obj.3.to_radians() + flip, object: ObjectRef::Machine(i) };
+            let p = Placed { anchor, origin: obj.2, yaw: (obj.3 + mdef.model_yaw).to_radians() + flip, object: ObjectRef::Machine(i) };
             let (root, _) = p.root(def);
             let d = horizontal(root - at).length().min(horizontal(p.approach(def) - at).length());
             if (root.y - at.y).abs() < 1.0 && d <= reach && best.is_none_or(|(b, _)| d < b) {

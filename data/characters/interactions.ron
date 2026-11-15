@@ -11,7 +11,9 @@
 //
 // THE OBJECT'S FRAME: metres, +Y up, the object's own +Z, from the middle of its footprint on the
 // floor (where a placed machine stands: its model is fitted to its height and centred on its
-// footprint, src/assets/mod.rs `fit_for_machine`). A door's frame is its panel's: x from the door's
+// footprint, src/assets/mod.rs `fit_for_machine`). For a machine that is its MODEL's frame: a row
+// whose model is turned inside its box (`model_yaw`, the bed's 270) turns its anchors with it
+// (`PlacedMachine::anchor_yaw_deg`), so a seat stays on the seat the eye sees. A door's frame is its panel's: x from the door's
 // FREE edge back toward its hinge, y up from its sill, z out of the wall (both faces are tried, the
 // one the person stands on wins). A ladder or a workbench is used from whichever side the person is
 // on (the row is written for its -Z side and mirrored).
@@ -47,7 +49,8 @@
 // Every seat height below was measured from the drawn model, fitted to its definition's height as the
 // game fits it (a 10 cm grid of the highest up-facing surface, 2026-11-10): the chair's seat 0.47 m
 // (chaircushion.gltf at 0.90 m), the couch's 0.40 m (loungesofa.gltf at 0.80 m), the bed's covers
-// 0.40 m with the pillows 0.42 to 0.45 m toward its +Z head (beddouble.gltf at 0.60 m), the workbench
+// 0.45 m with the pillows 0.48 to 0.51 m toward its +Z head (beddouble.gltf at 0.68 m, 2026-11-15:
+// its box took a queen bed's length, so every bed anchor below grew by 0.68 / 0.60), the workbench
 // top 0.85 m (its definition's height).
 [
     // A chair (data/machines: "chair"), facing its -Z, its back toward +Z: the seat from z -0.20 to
@@ -113,14 +116,14 @@
         reach_m: 1.4,
     ),
     // The bed's edge (data/machines: "bed"): sitting on its +X side, facing out, on the covers at
-    // 0.40 m (the bed's head is +Z).
+    // 0.45 m (the bed's head is its model's +Z; model_yaw turns the row's whole frame).
     (
         id: "bed_edge",
         kind: Sit,
-        root: (1.02, 0.0, -0.20),
+        root: (1.16, 0.0, -0.23),
         facing_deg: 90.0,
-        approach: (1.30, 0.0, -0.20),
-        contacts: [(part: Hips, at: (0.62, 0.40, -0.20))],
+        approach: (1.47, 0.0, -0.23),
+        contacts: [(part: Hips, at: (0.70, 0.45, -0.23))],
         enter: (clip: Some("sit_down"), max_s: 1.6),
         hold: (clip: Some("sit_idle"), max_s: 2.0),
         exit: (clip: Some("sit_up"), max_s: 1.3),
@@ -133,10 +136,10 @@
     (
         id: "bed_lie",
         kind: Lie,
-        root: (0.0, 0.0, -0.12),
+        root: (0.0, 0.0, -0.14),
         facing_deg: 180.0,
-        approach: (1.25, 0.0, -0.12),
-        contacts: [(part: Hips, at: (0.0, 0.40, -0.12))],
+        approach: (1.42, 0.0, -0.14),
+        contacts: [(part: Hips, at: (0.0, 0.45, -0.14))],
         enter: (pose: Some(Lie), max_s: 1.4),
         hold: (pose: Some(Lie), max_s: 2.0),
         exit: (pose: Some(Lie), max_s: 1.2),
