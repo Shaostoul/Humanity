@@ -55,12 +55,12 @@ pub(crate) fn map_level_meshes(g: &GuiState) -> Option<humanity_ship::fibonacci:
 }
 
 /// The world layer's lists while a level is shown: the frame's own, less the roof (both ceiling
-/// meshes), the hull, and anything standing over a cut (a person upstairs while the ground level
+/// meshes and the glass roof's glazing bars), the hull, and anything standing over a cut (a person upstairs while the ground level
 /// is shown; the frame's machines, doors and plants are already left out by `HomeDraw::cut`).
 /// None when no level is shown: the frame's lists as they are.
 pub(crate) fn inside_lists(state: &EngineState, opaque: &[RenderObject], transparent: &[RenderObject], overlay: &[RenderObject]) -> Option<[Vec<RenderObject>; 3]> {
     crate::gui::pages::maps::ship_view::shown_level(&state.gui_state.maps)?;
-    let lid: Vec<usize> = [state.homestead_ceiling, state.homestead_ceiling_opaque, state.homestead_hull].into_iter().flatten().map(|(m, _)| m).collect();
+    let lid: Vec<usize> = [state.homestead_ceiling, state.homestead_ceiling_opaque, state.homestead_roof_frame, state.homestead_hull].into_iter().flatten().map(|(m, _)| m).collect();
     let cut = &state.home_draw.cut;
     let keep = |o: &&RenderObject| !lid.contains(&o.mesh) && (o.position == glam::Vec3::ZERO || !cut.hides(o.position));
     let take = |list: &[RenderObject]| list.iter().filter(keep).cloned().collect::<Vec<_>>();

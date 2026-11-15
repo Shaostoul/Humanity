@@ -3816,6 +3816,15 @@ up.
   bed the player is sitting or lying on is left out while the interaction holds. Tests
   `crowd_walk::tests::*` (cannot walk into a table, every shipped seat and bed still reached, a rug
   does not block)
+- Every placed piece flush with its wall and in none (2026-11-14): for every shipped home design with
+  every household's machine file its starts give it, no piece stands more than 5 mm into a wall, a
+  piece on the floor with a side within 0.10 m of a parallel wall face is flush with it, and a piece
+  hanging within 0.30 m of a wall (a mirror, a wall basin, a wall screen) hangs flush on it; a piece
+  standing on another (a monitor on a desk) is that piece's. Each problem names the piece, the wall and
+  the centre that stands flush. A piece's FOOTPRINT is kept inside its zone (`machines::zone_world_pos`,
+  `plan_half_extents`), not its centre a flat 0.3 m in, so a thin piece can stand flush on a shell.
+  Test `furniture_fit_tests::every_placed_piece_is_flush_with_its_wall_and_in_none` (red on the day's
+  data: 96 pieces in 9 machine files)
 
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`
@@ -4966,6 +4975,14 @@ readouts, and its connection points (ports) with direction arrows and per-utilit
 The home-construction data model (replaced the old rooms-as-sliding-AABBs approach): a FIXED outer box
 (the mothership allotment, default 55x89x3 m steel, glass roof) plus freely-placed INTERIOR WALLS; rooms
 EMERGE from the walls via grid flood-fill rather than being placed as boxes.
+
+A glass roof is drawn on its GLAZING BARS (2026-11-14): the glass row of wall_materials.ron says how
+a roof of it is glazed (`glazing`: 1.2 x 2.4 m panes on 60 x 120 mm aluminium bars), and
+`home_structure::glass_roof_frame` hangs the bars under the roof, whole panes each way; the engine
+draws them (the shell family `homestead_roof_frame`) exactly when the glass roof is, and leaves them
+out of build mode's top-down view and the map's level cut. Before, the homestead's upper rooms looked
+straight out at the stars with nothing to show a roof was there. Test
+`home_structure::mesh_tests::a_glass_roof_is_carried_on_glazing_bars`.
 
 ### HomeStructure Model + the Ship Superstructure (v0.766 - v0.769)
 The serialized home body: box dims + shell/roof material, interior walls, placed lights, placed

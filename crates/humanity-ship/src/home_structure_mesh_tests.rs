@@ -551,3 +551,57 @@ fn the_stairs_carry_handrails_at_the_findings_height() {
         assert!((top - rail.size.1).abs() < 1e-3, "the {side} rail's top stands {top:.4} m over the nosing line, want {}", rail.size.1);
     }
 }
+
+/// A GLASS ROOF IS CARRIED ON GLAZING BARS (2026-11-14, BUG-310). The homestead's upper rooms rise to the
+/// shell's glass roof (docs/design/homestead-upper-floor.md), and seen from inside it read as no
+/// roof at all: the storeys rig's upper_hall and bedroom shots (2026-10-22 and 2026-11-14) showed
+/// the stars straight overhead, with nothing to show a pane was there. Now a glass roof draws the
+/// bars its panes sit on (wall_materials.ron, the glass row's `glazing`), whole panes each way,
+/// hung under the roof inside the box; an opaque roof draws none.
+///
+/// Red with the glass row's `glazing` taken out of wall_materials.ron: "the glass roof of a 55 x
+/// 89 m body has no glazing bars".
+#[test]
+fn a_glass_roof_is_carried_on_glazing_bars() {
+    let (w, d, h) = (55.0, 89.0, 6.0);
+    let body = bare(w, d, h);
+    assert!(body.roof_is_glass(), "a bare body's roof is glass");
+    let m = body.generate_meshes();
+    let (v, i) = &m.roof_frame;
+    assert!(!v.is_empty(), "the glass roof of a {w} x {d} m body has no glazing bars");
+    let g = glass_roof_glazing().expect("the glass material says how a glass roof is glazed");
+    // Whole panes each way: 55 / 1.2 rounds to 46 panes (45 bars), 89 / 2.4 to 37 (36 cross bars),
+    // each bar one double-sided box (`wall_box`): 48 corners and 72 indices.
+    let nx = (w / g.pane_m.0).round() as usize;
+    let nz = (d / g.pane_m.1).round() as usize;
+    assert_eq!(v.len(), 48 * (nx - 1 + nz - 1), "{} bars along z and {} across", nx - 1, nz - 1);
+    assert_eq!(i.len(), 72 * (nx - 1 + nz - 1));
+    // Under the roof, inside the box, no deeper than a bar.
+    for c in v {
+        let [x, y, z] = c.position;
+        assert!(x >= -1e-3 && x <= w + 1e-3 && z >= -1e-3 && z <= d + 1e-3, "a bar corner at ({x}, {z}) is outside the box");
+        assert!(y <= h + 1e-4 && y >= h - g.bar_m.1 - 1e-4, "a bar corner at height {y} is not hung under the {h} m roof");
+    }
+    // A pane between two bars is the glazing's size, within the rounding to whole panes.
+    let pane = w / nx as f32;
+    assert!((pane - g.pane_m.0).abs() < 0.05, "panes {pane} m across, the glazing says {}", g.pane_m.0);
+    // An opaque roof is not glazed.
+    let mut steel = bare(w, d, h);
+    steel.roof_material = 1;
+    assert!(steel.generate_meshes().roof_frame.0.is_empty(), "a steel roof has no glazing bars");
+}
+
+/// A NEIGHBOUR'S GLASS ROOF IS CARRIED ON ITS BARS TOO (BUG-310, after BUG-307 drew the neighbours' glass
+/// roofs as glass): the shell bake that keeps a glass roof keeps its glazing bars, the same bars the
+/// home's own roof has; the all-opaque bake has none. Red with the bars left out of `bake_shell`
+/// (its `glass_roof_frame` line removed): "a neighbour's kept glass roof has no glazing bars".
+#[test]
+fn a_neighbours_glass_roof_keeps_its_glazing_bars() {
+    let body = bare(20.0, 18.0, 6.0);
+    let own = body.generate_meshes().roof_frame;
+    let kept = body.bake_shell(&[], true);
+    assert!(!kept.glass_roof.0.is_empty(), "the glass roof is kept as glass");
+    assert!(!kept.glass_roof_frame.0.is_empty(), "a neighbour's kept glass roof has no glazing bars");
+    assert_eq!(kept.glass_roof_frame.0.len(), own.0.len(), "the same bars as the home's own glass roof");
+    assert!(body.bake_shell(&[], false).glass_roof_frame.0.is_empty(), "the all-opaque bake has no glass roof to carry");
+}

@@ -432,6 +432,20 @@ if (!DATA.deck || DATA.deck.why) {
     "(scripts/lib/falls-judge.js pickAboardDeck); see why above, and move the deck or the room.",
   ]);
 }
+// The furniture (2026-11-14): the walk stops at every placed piece, so a piece in a leg's way
+// refuses here, named, before a boot that would fail the leg for a reason nobody can read.
+{
+  const inTheWay = FJ.furnitureProblems(DATA);
+  if (inTheWay.length) {
+    refuse([
+      "verify-falls: REFUSED - furniture stands in the legs' way (scripts/lib/falls-judge.js furnitureProblems):",
+      ...inTheWay.map((p) => `  - ${p}`),
+      "Move the piece (data/machines/home.ron) or the leg. Nothing was booted.",
+    ]);
+  }
+}
+// The manifest keeps the data the run was judged against, not the furniture's 300 footprints.
+const { furniture: _furniture, ...DATA_KEPT } = DATA;
 
 // ── the rig ──────────────────────────────────────────────────────────────────────────────────────
 function ensureJunction(link, target) {
@@ -595,7 +609,7 @@ async function main() {
     exe: EXE,
     binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
-    data: DATA,
+    data: DATA_KEPT,
     // Where the planet legs run: written before the boot, so a run that stopped before them is
     // judged as missing them (the judge requires the planet legs of any run that planned them).
     planet: DATA.planet,

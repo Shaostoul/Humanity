@@ -2153,6 +2153,7 @@ impl ShipStructure {
             mirrors: (Vec::new(), Vec::new()),
             ceilings: (Vec::new(), Vec::new()),
             ceilings_opaque: (Vec::new(), Vec::new()),
+            roof_frame: (Vec::new(), Vec::new()),
             room_info: Vec::new(),
         };
         // NEIGHBOURS (increment 2): every other plot drawn as its kind's default design, with its
@@ -2188,6 +2189,8 @@ impl ShipStructure {
             } else {
                 merge_shifted(&mut out.ceilings_opaque, m.ceilings, o);
             }
+            // The glass roof's glazing bars (empty under an opaque roof), drawn with the glass.
+            merge_shifted(&mut out.roof_frame, m.roof_frame, o);
             // A body never fills ceilings_opaque itself today, but merge it anyway so a future
             // body-level split cannot silently drop geometry here.
             merge_shifted(&mut out.ceilings_opaque, m.ceilings_opaque, o);

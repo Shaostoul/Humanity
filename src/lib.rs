@@ -1973,6 +1973,7 @@ mod native_app {
                 homestead_ceiling: None,
                 homestead_ceiling_opaque: None,
                 homestead_ceiling_glass: false,
+                homestead_roof_frame: None,
                 homestead_hull: None,
                 hull_profile: None,
                 homestead_layout: None,

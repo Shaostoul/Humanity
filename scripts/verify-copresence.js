@@ -317,7 +317,10 @@ const {
   judgeTeleporter,
   storeyWalls,
   groundWalls,
+  furnitureNearTargets,
 } = require("./lib/copresence-judge.js");
+const HF = require("./lib/home-furniture.js");
+const { readBody } = require("./lib/falls-judge.js");
 const png = require("./lib/png.js");
 // The line a walker logs when the relay corrects it, one pattern for the walker and this rig.
 const { CORRECTED_RE } = require("./second-player.js");
@@ -4927,6 +4930,16 @@ async function mainHousehold() {
     process.on(sig, () => process.exit(code));
   }
   log("── --household, household permits ──");
+  // The walk into her home ends at HOUSE_INSIDE, in a homestead's great room (2026-11-14): the walk
+  // stops at furniture, so a piece moved onto that spot refuses here, named, before the two boots.
+  {
+    const rd = (...p) => fs.readFileSync(path.join(REPO, ...p), "utf8");
+    const body = readBody(rd("crates", "humanity-ship", "src", "wall_collision.rs"));
+    const furniture = HF.footprints(HF.readMachineHome(rd("data", "machines", "home.ron")));
+    const floor = HOUSE_INSIDE.local[1] - (Number.isFinite(body.eye_m) ? body.eye_m : 1.7);
+    const near = furnitureNearTargets([{ what: "the walk into her home's end (HOUSE_INSIDE)", at: [HOUSE_INSIDE.local[0], HOUSE_INSIDE.local[2]], floor }], furniture, body);
+    if (near.length) refuse(["REFUSED: furniture stands where a walk ends (scripts/lib/copresence-judge.js furnitureNearTargets):", ...near.map((p) => `  - ${p}`), "Move the piece (data/machines/home.ron) or the target. Nothing was booted."]);
+  }
   const ok = await runHouseholdOnce(stamp, cleanups);
   process.exit(ok ? 0 : 2);
 }

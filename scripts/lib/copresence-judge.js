@@ -38,6 +38,8 @@
 
 "use strict";
 
+const HF = require("./home-furniture.js");
+
 /// The limits, each with its reason.
 const LIMITS = {
   /// How far a frame's speed may stray from the walker's, as a share: 10%.
@@ -2208,7 +2210,36 @@ function judgeTeleporter(tele) {
   return { pass: checks.every((c) => c.ok), checks };
 }
 
+/**
+ * The rig's fixed walk targets inside a home that a piece of furniture stands too near (2026-11-14,
+ * after BUG-306). Since 2026-11-13 the walk stops at every placed piece standing across the body's
+ * knee-to-eye band (src/engine/crowd_walk.rs `furniture_walls_near`), so a piece moved onto a
+ * target stops the walk short of it, and the step fails after a long boot for a reason nobody can
+ * read. `targets` are { what, at: [x, z] home metres, floor }, `furniture` home-furniture.js
+ * footprints, `body` { radius_m, eye_m, knee_m } (wall_collision.rs, falls-judge.js `readBody`).
+ * Each target keeps the body's radius and `slackM` (the storeys rig's FURNITURE_SLACK_M) clear.
+ * Returns the problems; [] when every target is clear; nothing read is a problem, never a pass.
+ * The ROUTES between the door points are planned at run time from the game's walls
+ * (`storeyWalls`), which do not carry the furniture yet. Pure.
+ */
+function furnitureNearTargets(targets, furniture, body, slackM = 0.1) {
+  if (!body || ![body.radius_m, body.eye_m, body.knee_m].every(Number.isFinite)) return ["could not read PLAYER_RADIUS, EYE_HEIGHT_M and KNEE_M (crates/humanity-ship/src/wall_collision.rs)"];
+  if (!Array.isArray(furniture) || furniture.length === 0) return ["read no furniture from data/machines/home.ron: the walk targets could not be checked against what the walk stops at"];
+  const need = body.radius_m + slackM;
+  const at = (p) => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`;
+  const out = [];
+  for (const t of targets || []) {
+    for (const fp of furniture) {
+      if (!HF.stopsBody(fp, t.floor, body.eye_m, body.knee_m)) continue;
+      const gap = HF.clearance(fp, t.at);
+      if (gap < need) out.push(`${t.what}: standing at ${at(t.at)} comes ${gap.toFixed(2)} m from the ${fp.label} "${fp.id}" at ${at(fp.centre)} (the walk stops a body ${body.radius_m} m round at furniture; a target keeps ${need.toFixed(2)} m clear)`);
+    }
+  }
+  return out;
+}
+
 module.exports = {
+  furnitureNearTargets,
   turnInPlace,
   TURN_IN_PLACE_M,
   walkYaw,

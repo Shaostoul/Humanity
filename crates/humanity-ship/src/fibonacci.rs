@@ -373,6 +373,10 @@ pub struct HomesteadMeshes {
     /// roofs): rendered with the opaque ceiling material, gated by the show-roof toggle exactly
     /// like the old single opaque roof. Empty on the fibonacci path (which keeps `ceilings`).
     pub ceilings_opaque: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices) for the glazing bars under every GLASS roof (2026-11-14,
+    /// `home_structure::glass_roof_frame`): opaque, drawn whenever the glass roof is. Empty on the
+    /// fibonacci path and under an opaque roof.
+    pub roof_frame: (Vec<Vertex>, Vec<u32>),
     /// Room metadata (id, center, dimensions, flags)
     pub room_info: Vec<RoomInfo>,
 }
@@ -1620,6 +1624,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
         mirrors: (mir_v, mir_i),
         ceilings: (ceil_v, ceil_i),
         ceilings_opaque: (Vec::new(), Vec::new()),
+        roof_frame: (Vec::new(), Vec::new()),
         room_info,
     }
 }

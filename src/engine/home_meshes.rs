@@ -151,8 +151,9 @@ pub(crate) fn assign_slots(
 /// How many meshes each of the home's shell families needs for `m`, in the order
 /// `apply_homestead_meshes` keeps their slots: the opaque floors; the combined walls; the wall
 /// materials with the glass floor slabs after them; the trim; the windows; the mirrors; the glass
-/// roofs' ceilings; the opaque roofs' ceilings. A combined family needs one mesh, or none when empty.
-pub(crate) fn shell_family_needs(m: &humanity_ship::fibonacci::HomesteadMeshes) -> [usize; 8] {
+/// roofs' ceilings; the opaque roofs' ceilings; the glass roofs' glazing bars. A combined family
+/// needs one mesh, or none when empty.
+pub(crate) fn shell_family_needs(m: &humanity_ship::fibonacci::HomesteadMeshes) -> [usize; 9] {
     let one = |b: &(Vec<humanity_core::vertex::Vertex>, Vec<u32>)| usize::from(!b.0.is_empty());
     let glass = m.floors.iter().filter(|f| !is_opaque_floor(f.2)).count();
     [
@@ -164,6 +165,7 @@ pub(crate) fn shell_family_needs(m: &humanity_ship::fibonacci::HomesteadMeshes) 
         one(&m.mirrors),
         one(&m.ceilings),
         one(&m.ceilings_opaque),
+        one(&m.roof_frame),
     ]
 }
 
@@ -223,7 +225,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
     state.home_draw.edits += 1;
     let needs = shell_family_needs(&homestead);
     let held = |s: Option<Slot>| s.into_iter().collect::<Vec<_>>();
-    let prior: [Vec<Slot>; 8] = [
+    let prior: [Vec<Slot>; 9] = [
         std::mem::take(&mut state.homestead_floors),
         held(state.homestead_walls),
         state.homestead_material_walls.drain(..).map(|(mi, ma, _)| (mi, ma)).collect(),
@@ -232,6 +234,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
         held(state.homestead_mirrors),
         held(state.homestead_ceiling),
         held(state.homestead_ceiling_opaque),
+        held(state.homestead_roof_frame),
     ];
     let renderer = &mut state.renderer;
     let (slots, idle) = assign_slots(&mut state.home_draw.spare, prior.into_iter().zip(needs).collect(), || new_slot(renderer));
@@ -239,8 +242,8 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
     for s in idle {
         park_slot(r, s);
     }
-    let [floor_s, wall_s, mat_wall_s, trim_s, window_s, mirror_s, ceiling_s, ceiling_opaque_s]: [Vec<Slot>; 8] =
-        slots.try_into().expect("eight shell families");
+    let [floor_s, wall_s, mat_wall_s, trim_s, window_s, mirror_s, ceiling_s, ceiling_opaque_s, roof_frame_s]: [Vec<Slot>; 9] =
+        slots.try_into().expect("nine shell families");
     // Floors (one mesh + material per room). A glass floor slab is not one of them: the render
     // loop draws `homestead_floors` in the opaque pass, so it goes with the glass walls below.
     let (opaque_floors, glass_floors): (Vec<_>, Vec<_>) = homestead.floors.into_iter().partition(|f| is_opaque_floor(f.2));
@@ -299,6 +302,17 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
     // OPAQUE-roof zones' ceilings (v0.754): their own slot with the same opaque material the
     // single opaque roof used, rendered only when show_roof is on (see the render loop).
     state.homestead_ceiling_opaque = fill_one(r, &ceiling_opaque_s, &homestead.ceilings_opaque, opaque_look);
+    // The glass roofs' glazing bars (2026-11-14): opaque, in their material's colour (aluminium,
+    // wall_materials.ron), a powder-coated finish (not metallic, fairly rough), drawn as the
+    // brushed-metal type. Drawn and hidden with the glass roof (frame_lists_home).
+    state.homestead_roof_frame = fill_one(r, &roof_frame_s, &homestead.roof_frame, (roof_frame_rgba(), 0.0, 0.55, 1.0, 0.0));
+}
+
+/// The glazing bars' colour: their material's (the glass roof's `glazing.bar_material`), opaque.
+fn roof_frame_rgba() -> [f32; 4] {
+    let m = humanity_ship::home_structure::glass_roof_glazing().map_or(5, |g| g.bar_material);
+    let c = humanity_ship::home_structure::HomeStructure::material_color(m);
+    [c[0], c[1], c[2], 1.0]
 }
 
 /// Regenerate + upload the HULL WRAP (ship-superstructure increment D): the generated

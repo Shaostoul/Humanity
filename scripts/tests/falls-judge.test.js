@@ -1160,6 +1160,35 @@ test("RED: a build older than the body probe, a missing leg, a panic, built-in d
 
 // ── The rig's --dry-verdict over saved runs ──────────────────────────────────────────────────────
 
+// THE FURNITURE IN THE LEGS' WAY (2026-11-14, after BUG-306): the walk stops at every placed piece,
+// so the rig refuses before it boots when a piece stands in a leg's way (`furnitureProblems`), as
+// the storeys rig does. RED first: with `furnitureProblems` returning [] the crate on the stairs'
+// start below plans with 0 problems; with the check, 1, naming the crate and the leg.
+test("RED: a piece in a leg's way refuses before the boot; upstairs, under the knee or far off it does not", () => {
+  assert.ok(DATA.body && DATA.body.radius_m === 0.3 && DATA.body.knee_m === 0.4, `the walk's body read from wall_collision.rs: ${JSON.stringify(DATA.body)}`);
+  assert.ok(DATA.furniture.length > 250, `the homestead's furniture read: ${DATA.furniture.length} pieces`);
+  assert.deepStrictEqual(FJ.furnitureProblems(DATA), [], "the tree's furniture is out of every leg's way");
+  const st = DATA.stairs;
+  // A 0.6 m crate standing on the stairs' start, the ground floor.
+  const crate = (y0, y1, at = [st.foot[0], st.foot[2]]) => ({ id: "crate_test", machine: "crate", label: "Crate", centre: at, half: [0.3, 0.3], yaw: 0, y0, y1 });
+  const withPiece = (fp) => ({ ...DATA, furniture: [...DATA.furniture, fp] });
+  const caught = FJ.furnitureProblems(withPiece(crate(0, 0.6)));
+  assert.strictEqual(caught.length, 1, caught.join("\n"));
+  assert.ok(/the walk up the stairs, to their first step: .* comes 0\.00 m from the Crate "crate_test"/.test(caught[0]), caught[0]);
+  assert.deepStrictEqual(FJ.furnitureProblems(withPiece(crate(3.0, 3.6))), [], "the same crate upstairs is no ground walk's");
+  assert.deepStrictEqual(FJ.furnitureProblems(withPiece(crate(0, 0.02))), [], "a rug under the knee is walked over");
+  assert.deepStrictEqual(FJ.furnitureProblems(withPiece(crate(0, 0.6, [st.foot[0] + 5, st.foot[2] + 5]))), [], "a crate 5 m off is out of the way");
+  // Where the walk off the deck lands, and the step off the ladder's top.
+  const dk = DATA.deck;
+  const land = [dk.stand[0], dk.stand[2] + dk.edge_m + dk.walk_on_m];
+  assert.ok(FJ.furnitureProblems(withPiece(crate(0, 0.9, land))).some((p) => p.startsWith("where the walk off the deck lands")), "a bed where the deck walk lands");
+  const H = DATA.ladder.hatch;
+  assert.ok(FJ.furnitureProblems(withPiece(crate(H.floor_m, H.floor_m + 1.0, [H.step_to[0], H.step_to[2]]))).some((p) => p.startsWith("the step off the ladder's top")), "a chest where the ladder's step ends");
+  // Nothing read is a refusal, never a pass.
+  assert.ok(/read no furniture/.test(FJ.furnitureProblems({ ...DATA, furniture: [] })[0]));
+  assert.ok(/could not read PLAYER_RADIUS/.test(FJ.furnitureProblems({ ...DATA, body: { radius_m: null } })[0]));
+});
+
 test("the rig judges a saved run: green passes, the hand-off shape fails, nothing is booted", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hos-falls-judge-"));
   try {

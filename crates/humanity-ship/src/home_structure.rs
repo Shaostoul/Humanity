@@ -914,7 +914,32 @@ pub struct WallMaterial {
     /// collides and parts rooms as the wall it is.
     #[serde(default)]
     pub form: Option<String>,
+    /// How a ROOF of this material is carried (2026-11-14): glass is laid on glazing bars, so a
+    /// glass roof is drawn with its bars under it (`glass_roof_frame`). None for every material a
+    /// roof is not laid in panes of.
+    #[serde(default)]
+    pub glazing: Option<Glazing>,
 }
+
+/// The glazing bars a roof of panes is laid on (wall_materials.ron `glazing`).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Glazing {
+    /// A pane's size, metres: across the bars (their spacing along x) and along them (the spacing
+    /// of the cross bars along z).
+    pub pane_m: (f32, f32),
+    /// A bar's face width and its depth under the glass, metres.
+    pub bar_m: (f32, f32),
+    /// The bars' material (a wall-material id), for their colour.
+    pub bar_material: u32,
+}
+
+/// The glazing bars of the glass roof (the glass material's `glazing`), when it has them.
+pub fn glass_roof_glazing() -> Option<Glazing> {
+    wall_material(GLASS_MATERIAL_ID).and_then(|m| m.glazing)
+}
+
+/// The wall-material id a roof is glass at (`HomeStructure::roof_is_glass`).
+pub const GLASS_MATERIAL_ID: u32 = 4;
 
 /// The wall-material registry, parsed once. Embedded at compile time so both the editor and the
 /// renderer read the same list with no runtime path dependency. Edit the .ron + rebuild to change it.
@@ -1110,7 +1135,7 @@ impl HomeStructure {
     /// True when the roof is a clear/glass shell (the renderer draws it transparent in the see-through
     /// pass rather than as an opaque ceiling). (v0.539)
     pub fn roof_is_glass(&self) -> bool {
-        self.roof_material == 4
+        self.roof_material == GLASS_MATERIAL_ID
     }
 
     /// The body's STOREYS, bottom up (ship homes increment 7, plan section 2): the bands between 0,
@@ -1245,6 +1270,11 @@ impl HomeStructure {
             floors.push((slab_glass.0, slab_glass.1, [g[0], g[1], g[2], glass_slab_face_alpha()], GLASS_ROOF_TYPE));
         }
         let ceilings = floor_quad(Vec3::new(0.0, h, 0.0), Vec3::new(w, 0.0, d));
+        // A glass roof's glazing bars (2026-11-14), hung under it and drawn with it.
+        let roof_frame = match (self.roof_is_glass(), glass_roof_glazing()) {
+            (true, Some(g)) => glass_roof_frame(w, d, h, &g),
+            _ => (Vec::new(), Vec::new()),
+        };
 
         // Walls grouped BY MATERIAL so each renders in its own color (v0.552): the 4 outer box walls
         // (shell material) + every interior wall (its own picked material) + the corner columns. A
@@ -1628,6 +1658,7 @@ impl HomeStructure {
             mirrors: (Vec::new(), Vec::new()),
             ceilings,
             ceilings_opaque: (Vec::new(), Vec::new()),
+            roof_frame,
             room_info: self.detect_rooms(),
         }
     }
@@ -1724,6 +1755,9 @@ pub struct ShellBake {
     /// A glass roof, for the transparent ceiling pass a zone's glass roof is drawn in (empty unless
     /// the glass is kept and the roof is glass; an opaque roof is one of `opaque`).
     pub glass_roof: (Vec<Vertex>, Vec<u32>),
+    /// The glazing bars that glass roof is carried on (`glass_roof_frame`, BUG-310), drawn with the
+    /// home's own bars (`HomesteadMeshes::roof_frame`); empty with no glass roof kept.
+    pub glass_roof_frame: (Vec<Vertex>, Vec<u32>),
 }
 
 impl HomeStructure {
@@ -1802,9 +1836,15 @@ impl HomeStructure {
         // The ceiling: a glass roof kept as glass, else the OPAQUE roof colour (src/lib.rs's
         // non-glass ceiling material).
         let mut glass_roof: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        let mut bars: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
         if !meshes.ceilings.0.is_empty() {
             if keep_glass && self.roof_is_glass() {
                 glass_roof = meshes.ceilings;
+                // Its glazing bars, as the home's own glass roof has them (BUG-310): without them a
+                // neighbour's glass roof reads as no roof at all.
+                if let Some(g) = glass_roof_glazing() {
+                    bars = glass_roof_frame(self.width.max(1.0), self.depth.max(1.0), self.height.max(1.0), &g);
+                }
             } else {
                 let c = OPAQUE_CEILING_RGBA;
                 groups.push((meshes.ceilings.0, meshes.ceilings.1, [c[0], c[1], c[2]]));
@@ -1815,7 +1855,7 @@ impl HomeStructure {
             const TRIM_RGB: [f32; 3] = [0.42, 0.30, 0.18];
             groups.push((meshes.trim.0, meshes.trim.1, TRIM_RGB));
         }
-        ShellBake { opaque: groups, glass_slabs, glass_roof }
+        ShellBake { opaque: groups, glass_slabs, glass_roof, glass_roof_frame: bars }
     }
 
     /// A fresh road-node id (max existing + 1, or 1). (v0.586)
@@ -2225,6 +2265,30 @@ fn point_seg_dist(px: f32, pz: f32, a: (f32, f32), b: (f32, f32)) -> f32 {
     let t = if len2 < 1e-9 { 0.0 } else { ((apx * abx + apz * abz) / len2).clamp(0.0, 1.0) };
     let (cx, cz) = (a.0 + abx * t, a.1 + abz * t);
     ((px - cx).powi(2) + (pz - cz).powi(2)).sqrt()
+}
+
+/// The glazing bars under a glass roof over a `w` x `d` box whose roof is at `h` (2026-11-14), in the
+/// box's own metres. Bars run along z, a pane apart across x; cross bars run along x, a pane's length
+/// apart along z, three quarters as deep, so no two faces lie in one plane where they cross. Each
+/// way the box's length is split into whole panes of about the glazing's size, so the panes at the
+/// shell are no narrower than the rest; the shell itself carries the outer edge. Seen from inside,
+/// the bars are what makes a glass roof read as a roof: until this, the homestead's upper rooms
+/// looked straight out at the stars through a pane with nothing to show it was there.
+pub fn glass_roof_frame(w: f32, d: f32, h: f32, g: &Glazing) -> (Vec<Vertex>, Vec<u32>) {
+    let mut out = (Vec::new(), Vec::new());
+    let (bar_w, bar_d) = (g.bar_m.0.max(0.005), g.bar_m.1.max(0.005));
+    let panes = |len: f32, pane: f32| (len / pane.max(0.1)).round().max(1.0) as usize;
+    let (nx, nz) = (panes(w, g.pane_m.0), panes(d, g.pane_m.1));
+    for k in 1..nx {
+        let x = w * k as f32 / nx as f32;
+        merge(&mut out, wall_box(Vec3::new(x, 0.0, 0.0), Vec3::new(x, 0.0, d), h - bar_d, bar_d, bar_w));
+    }
+    let cross_d = bar_d * 0.75;
+    for k in 1..nz {
+        let z = d * k as f32 / nz as f32;
+        merge(&mut out, wall_box(Vec3::new(0.0, 0.0, z), Vec3::new(w, 0.0, z), h - cross_d, cross_d, bar_w));
+    }
+    out
 }
 
 /// Append (verts, indices) onto an accumulator, offsetting the appended indices.

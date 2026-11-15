@@ -1377,17 +1377,47 @@ pub fn resolve_zone_rect<'a>(zones: &'a [ZoneRect], id: &str) -> Option<&'a Zone
 }
 
 /// Where a machine stands in SHIP metres: its ZONE-LOCAL offset (metres from the zone box's
-/// min corner; y up from the zone's deck) kept 0.3 m inside the zone's footprint, plus the
-/// zone's origin. Zone-local since increment 1a of docs/design/ship-homes-and-logistics.md, so
-/// a home's machines ride its plot wherever the plot is (they used to be absolute positions
-/// clamped into the zone, which piled every machine against the box edge once a home moved).
-/// The one formula `placements` and the world load both use.
-pub fn zone_world_pos(zr: &ZoneRect, offset: (f32, f32, f32)) -> (f32, f32, f32) {
+/// min corner; y up from the zone's deck) kept so its footprint stays inside the zone's box,
+/// plus the zone's origin. `half` is how far the footprint reaches from its centre along the
+/// zone's x and z (`plan_half_extents`); (0, 0) keeps only the centre inside. Zone-local since
+/// increment 1a of docs/design/ship-homes-and-logistics.md, so a home's machines ride its plot
+/// wherever the plot is (they used to be absolute positions clamped into the zone, which piled
+/// every machine against the box edge once a home moved). The one formula `placements` and the
+/// world load both use.
+///
+/// Until 2026-11-14 the centre was kept a flat 0.3 m inside the box whatever the piece's size, so
+/// nothing thinner than 0.6 m could stand flush against the shell: the homestead's bathroom mirror
+/// on the east shell (written at x 54.8, flush at 54.955) was drawn at 54.7, 0.255 m out in the air,
+/// and the Commons' recreation screen, written flush on its west wall at 0.06, hung at 0.3.
+pub fn zone_world_pos(zr: &ZoneRect, offset: (f32, f32, f32), half: (f32, f32)) -> (f32, f32, f32) {
     let (ox, oy, oz) = zr.origin;
     let (w, d, _h) = zr.size;
-    let x = offset.0.clamp(0.3, (w - 0.3).max(0.3));
-    let z = offset.2.clamp(0.3, (d - 0.3).max(0.3));
+    let x = offset.0.clamp(half.0, (w - half.0).max(half.0));
+    let z = offset.2.clamp(half.1, (d - half.1).max(half.1));
     (ox + x, oy + offset.1, oz + z)
+}
+
+/// How far a machine's footprint reaches from its centre along the zone's x and z: the box
+/// `crowd_nav::Footprint::of_placed` makes of it (a box its size, a cylinder or a sphere its
+/// radius, `size.0`, each way, a pyramid its base) turned by its yaw. What `zone_world_pos` keeps
+/// inside the zone.
+pub fn plan_half_extents(shape: &str, size: (f32, f32, f32), rotation_deg: f32) -> (f32, f32) {
+    let (hx, hz) = match shape {
+        "sphere" | "cylinder" => return (size.0, size.0),
+        "pyramid" => (size.0 * 0.5, size.0 * 0.5),
+        _ => (size.0 * 0.5, size.2 * 0.5),
+    };
+    let (s, c) = rotation_deg.to_radians().sin_cos();
+    (c.abs() * hx + s.abs() * hz, s.abs() * hx + c.abs() * hz)
+}
+
+/// A machine's drawn size: its def's, or, for a screen resized in the build editor
+/// (`screen_size_m`), the body that fits its picture (`body_size_for_display`).
+pub fn drawn_size(def: &MachineDef, inst: &MachineInstance) -> (f32, f32, f32) {
+    match (&def.screen, inst.screen_size_m) {
+        (Some(sd), Some(display)) => body_size_for_display(def.size, &sd.face, sd.bezel_m, display),
+        _ => def.size,
+    }
 }
 
 /// The colours the build editor's 3D port gizmos draw a connection kind in, LINEAR light
@@ -2439,8 +2469,9 @@ impl MachineHome {
     /// Since increment 1a offsets are zone-local, so subtracting two offsets in different zones
     /// measured the home's battery to the Commons at 10 m instead of the real 75 m.
     fn run_pos(inst: &MachineInstance, zones: Option<&[ZoneRect]>) -> (f32, f32, f32) {
+        // Its centre kept inside the zone: a run's length needs no footprint (`zone_world_pos`).
         match zones.and_then(|z| resolve_zone_rect(z, &inst.zone)) {
-            Some(zr) => zone_world_pos(zr, inst.offset),
+            Some(zr) => zone_world_pos(zr, inst.offset, (0.0, 0.0)),
             None => inst.offset,
         }
     }
@@ -2942,10 +2973,11 @@ impl MachineHome {
         for inst in self.all_instances() {
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
             let (x, y, z, floor_y, ceiling_y) = if let Some(zones) = zones {
-                // Zone-local x/z, kept inside the machine's zone, placed at that zone's origin;
-                // y from that zone's floor (`zone_world_pos`).
+                // Zone-local x/z, its footprint kept inside the machine's zone, placed at that
+                // zone's origin; y from that zone's floor (`zone_world_pos`).
                 let Some(zr) = resolve_zone_rect(zones, &inst.zone) else { continue };
-                let (x, y, z) = zone_world_pos(zr, inst.offset);
+                let half = plan_half_extents(&def.shape, drawn_size(def, &inst), inst.rotation);
+                let (x, y, z) = zone_world_pos(zr, inst.offset, half);
                 let (_, oy, _) = zr.origin;
                 (x, y, z, oy, oy + zr.size.2)
             } else {
@@ -4703,7 +4735,7 @@ mod tests {
     fn machine_clamps_into_its_zones_footprint_at_that_zones_origin() {
         let mut home = pos_test_home();
         home.instances = vec![
-            // At the commons zone's very corner: kept 0.3 m inside, at 70.3 x, 5.3 z.
+            // At the commons zone's very corner: its 1 m box kept inside, its centre at 70.5 x, 5.5 z.
             MachineInstance { id: "shop".into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "commons".into(), screen_source: None, screen_size_m: None },
             // Inside the commons footprint: zone origin + offset, y on the commons deck (y=2).
             MachineInstance { id: "stall".into(), machine: "box".into(), room: "g".into(), offset: (5.0, 0.0, 5.0), rotation: 0.0, zone: "commons".into(), screen_source: None, screen_size_m: None },
@@ -4716,14 +4748,14 @@ mod tests {
         ];
         let placed = home.placements(&std::collections::HashMap::new(), Some(&zones));
         let shop = placed.iter().find(|p| p.id == "shop").unwrap();
-        assert!((shop.pos.0 - 70.3).abs() < 1e-5, "clamped to the commons' near x edge, got {}", shop.pos.0);
-        assert!((shop.pos.2 - 5.3).abs() < 1e-5, "clamped to the commons' near z edge, got {}", shop.pos.2);
+        assert!((shop.pos.0 - 70.5).abs() < 1e-5, "clamped to the commons' near x edge, got {}", shop.pos.0);
+        assert!((shop.pos.2 - 5.5).abs() < 1e-5, "clamped to the commons' near z edge, got {}", shop.pos.2);
         assert_eq!(shop.floor_y, 2.0, "floor is the commons deck height");
         assert_eq!(shop.ceiling_y, 8.0, "ceiling is deck + zone height");
         let stall = placed.iter().find(|p| p.id == "stall").unwrap();
         assert_eq!(stall.pos, (75.0, 2.0, 10.0), "an in-footprint machine is unmoved, y on its deck");
         let lost = placed.iter().find(|p| p.id == "lost").unwrap();
-        assert!(lost.pos.0 <= 55.0 - 0.3 + 1e-5 && lost.pos.2 <= 89.0 - 0.3 + 1e-5, "a stale zone id falls back to the home footprint");
+        assert!(lost.pos.0 <= 55.0 - 0.5 + 1e-5 && lost.pos.2 <= 89.0 - 0.5 + 1e-5, "a stale zone id falls back to the home footprint");
         assert_eq!(lost.floor_y, 0.0);
     }
 
@@ -5139,9 +5171,30 @@ mod tests {
         assert_eq!(b.floor_y, 0.0);
         assert_eq!(b.ceiling_y, 3.0, "ceiling from the box height");
         let s = placed.iter().find(|p| p.id == "s1").unwrap();
-        // offset (0,0,0) clamps to (0.3, _, 0.3); sphere lifts by radius 0.5.
-        assert!((s.pos.0 - 0.3).abs() < 1e-5 && (s.pos.2 - 0.3).abs() < 1e-5);
+        // offset (0,0,0) clamps to (0.5, _, 0.5), the radius, so the ball is inside the box; it lifts by
+        // its radius 0.5.
+        assert!((s.pos.0 - 0.5).abs() < 1e-5 && (s.pos.2 - 0.5).abs() < 1e-5);
         assert!((s.pos.1 - 0.5).abs() < 1e-5, "sphere rests on floor 0 lifted by its radius");
+    }
+
+    /// 2026-11-14: a piece's FOOTPRINT is kept inside its zone, not its centre a flat 0.3 m in, so a
+    /// thin piece stands flush against the zone's edge (a mirror on the shell). Red with the old
+    /// clamp: the 0.03 m deep mirror written at x 54.985 was drawn at 54.7, 0.285 m out in the air.
+    #[test]
+    fn a_thin_piece_stands_flush_against_the_zones_edge() {
+        let mut home = pos_test_home();
+        let mut mirror = test_def("box");
+        mirror.size = (0.6, 0.8, 0.03);
+        home.catalog.insert("mirror".to_string(), mirror);
+        let at = |id: &str, rotation: f32| MachineInstance { id: id.into(), machine: "mirror".into(), room: "g".into(), offset: (54.985, 1.1, 30.0), rotation, zone: "home".into(), screen_source: None, screen_size_m: None };
+        // Turned a quarter, its 0.03 m depth runs along x: flush. Unturned, its 0.6 m width runs
+        // along x, so it is kept 0.3 m in, its edge on the zone's.
+        home.instances = vec![at("turned", 90.0), at("square", 0.0)];
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(55.0, 89.0, 3.0)));
+        let x = |id: &str| placed.iter().find(|p| p.id == id).unwrap().pos.0;
+        assert!((x("turned") - 54.985).abs() < 1e-4, "a thin piece stands where it is written, flush: {}", x("turned"));
+        assert!((x("square") - 54.7).abs() < 1e-4, "a wide piece is kept inside by its half width: {}", x("square"));
+        assert_eq!(plan_half_extents("cylinder", (0.4, 1.0, 9.0), 33.0), (0.4, 0.4), "a cylinder reaches its radius every way");
     }
 
     /// v0.538: a negative legacy offset (a real shipped value) still RESOLVES (visible) in box mode,
@@ -5152,8 +5205,8 @@ mod tests {
         home.instances = vec![MachineInstance { id: "solar".into(), machine: "box".into(), room: "garage".into(), offset: (-7.0, 0.0, -22.0), rotation: 0.0, zone: "home".into(), screen_source: None, screen_size_m: None }];
         let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(55.0, 89.0, 3.0)));
         assert_eq!(placed.len(), 1, "a negative-offset machine is visible, not skipped");
-        assert!((placed[0].pos.0 - 0.3).abs() < 1e-5, "negative x clamps to the near edge, inside the box");
-        assert!((placed[0].pos.2 - 0.3).abs() < 1e-5, "negative z clamps to the near edge, inside the box");
+        assert!((placed[0].pos.0 - 0.5).abs() < 1e-5, "negative x clamps to the near edge, its 1 m box inside the box");
+        assert!((placed[0].pos.2 - 0.5).abs() < 1e-5, "negative z clamps to the near edge, its 1 m box inside the box");
     }
 
     /// v0.538: the shipped home.ron renders EVERY machine in box mode (the direct regression test for

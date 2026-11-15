@@ -705,6 +705,10 @@ pub(crate) struct EngineState {
     /// transparent pass (you see the stars through it) instead of as an opaque ceiling. Set by
     /// apply_homestead_meshes from the HomeStructure's roof_material.
     pub(crate) homestead_ceiling_glass: bool,
+    /// The glass roofs' GLAZING BARS (2026-11-14, `home_structure::glass_roof_frame`): opaque,
+    /// drawn exactly when the glass roof is (first person, not build mode) and left out of the map's
+    /// cut like every lid. None under opaque roofs.
+    pub(crate) homestead_roof_frame: Option<(usize, usize)>,
     /// HULL WRAP plating mesh + material (ship-superstructure increment D): the generated
     /// exterior shell around the whole zone cluster, lofted from data/blueprints/
     /// hull_profile.ron with cutouts over glass roofs + glass corridor lids. Opaque pass,

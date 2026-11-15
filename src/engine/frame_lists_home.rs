@@ -228,6 +228,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         if state.gui_state.show_roof {
             shell.push(state.homestead_ceiling_opaque);
         }
+        // The glass roof's GLAZING BARS (2026-11-14): opaque, shown and hidden exactly with the
+        // glass roof they carry (below: first person, never build mode's top-down view).
+        if state.homestead_ceiling_glass && !state.gui_state.construction_active {
+            shell.push(state.homestead_roof_frame);
+        }
         // The HULL WRAP (increment D): exterior plating around the whole zone
         // cluster, holes already cut over glass roofs + glass corridor lids.
         // Gated by Show hull (H / Settings) so interior shots + the top-down

@@ -1850,3 +1850,27 @@ test("RED: what a verdict adds up to: contaminated is shown as such and is never
   const both = outcomeLine("RESULT: ", [ok, starved, bad], "co-presence checks");
   assert.match(both, /^RESULT: FAIL {2}1\/3 passed; failed: on_time; not judged \(machine starved\): steady_speed$/);
 });
+
+// THE FURNITURE AT A WALK'S END (2026-11-14, after BUG-306): the walk stops at every placed piece, so
+// the household run refuses before its boots when a piece stands where its walk into her home ends
+// (HOUSE_INSIDE, (49, 44) in a homestead's great room, ground floor). RED first: with
+// `furnitureNearTargets` returning [] the crate on the spot below is not named.
+const { furnitureNearTargets } = require("../lib/copresence-judge.js");
+const HF = require("../lib/home-furniture.js");
+const { readBody } = require("../lib/falls-judge.js");
+test("RED: furniture where a walk ends refuses before the boot; the homestead's spot is clear", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const repo = path.join(__dirname, "..", "..");
+  const body = readBody(fs.readFileSync(path.join(repo, "crates", "humanity-ship", "src", "wall_collision.rs"), "utf8"));
+  const furniture = HF.footprints(HF.readMachineHome(fs.readFileSync(path.join(repo, "data", "machines", "home.ron"), "utf8")));
+  const spot = { what: "the walk into her home's end", at: [49, 44], floor: 0 };
+  assert.deepStrictEqual(furnitureNearTargets([spot], furniture, body), [], "the great room's spot is clear of the homestead's furniture");
+  const crate = { id: "crate_test", machine: "crate", label: "Crate", centre: [49.2, 44], half: [0.3, 0.3], yaw: 0, y0: 0, y1: 0.6 };
+  const caught = furnitureNearTargets([spot], [...furniture, crate], body);
+  assert.strictEqual(caught.length, 1, caught.join("\n"));
+  assert.match(caught[0], /^the walk into her home's end: standing at \(49\.00, 44\.00\) comes 0\.00 m from the Crate "crate_test"/);
+  assert.deepStrictEqual(furnitureNearTargets([{ ...spot, floor: 3 }], [...furniture, crate], body).filter((p) => p.includes("crate_test")), [], "upstairs, the ground crate is under the knees");
+  assert.match(furnitureNearTargets([spot], [], body)[0], /read no furniture/);
+  assert.match(furnitureNearTargets([spot], furniture, {})[0], /could not read PLAYER_RADIUS/);
+});

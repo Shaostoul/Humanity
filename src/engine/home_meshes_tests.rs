@@ -184,7 +184,7 @@ fn the_cut_away_toggled_again_and_again_keeps_the_shells_slots() {
     assert_ne!(whole, cut_needs, "the cut-away needs the same meshes as the whole ship, so this proves nothing");
     let mut made = 0usize;
     let mut spare: Vec<Slot> = Vec::new();
-    let mut held: Vec<Vec<Slot>> = vec![Vec::new(); 8];
+    let mut held: Vec<Vec<Slot>> = vec![Vec::new(); 9];
     let (mut made_by_round, mut problems) = (Vec::new(), Vec::new());
     for round in 0..6 {
         let needs = if round % 2 == 0 { whole } else { cut_needs };
@@ -477,7 +477,7 @@ fn world_entries_again_and_again_keep_the_machines_slots() {
     let shell = shell_family_needs(&ship.generate_meshes());
     let mut draw = HomeDraw::default();
     let mut made = 0usize;
-    let mut shell_slots: Vec<Vec<Slot>> = vec![Vec::new(); 8];
+    let mut shell_slots: Vec<Vec<Slot>> = vec![Vec::new(); 9];
     let (mut made_by_entry, mut problems) = (Vec::new(), Vec::new());
     for entry in 0..6 {
         let (got, _) = assign_slots(&mut draw.spare, shell_slots.into_iter().zip(shell).collect(), || {

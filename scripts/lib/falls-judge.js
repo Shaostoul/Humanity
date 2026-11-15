@@ -106,6 +106,7 @@
 "use strict";
 
 const path = require("path");
+const HF = require("./home-furniture.js");
 
 /// The limits, each with its reason.
 const LIMITS = {
@@ -505,6 +506,83 @@ function pickAboardDeck(types, zones, floors, walls, bodyHeight, eyeM = 1.7) {
   };
 }
 
+/// How far every walk and placement aboard keeps clear of the furniture beyond the body's radius,
+/// metres: the storeys rig's FURNITURE_SLACK_M (scripts/lib/storeys-judge.js), for the same reason
+/// (the walk turns and settles within a few centimetres of where the rig aimed it).
+const FURNITURE_SLACK_M = 0.1;
+
+/** The walk's body (crates/humanity-ship/src/wall_collision.rs): its radius, its eye over its feet
+ *  and its knee, which say which furniture stops it (home-furniture.js `stopsBody`) and how near. */
+function readBody(text) {
+  const c = (name) => {
+    const m = String(text || "").match(new RegExp(`\\bconst\\s+${name}\\s*:\\s*f32\\s*=\\s*(-?[\\d.]+)\\s*;`));
+    return m ? Number(m[1]) : null;
+  };
+  return { radius_m: c("PLAYER_RADIUS"), eye_m: c("EYE_HEIGHT_M"), knee_m: c("KNEE_M") };
+}
+
+/**
+ * THE FURNITURE IN THE LEGS' WAY (2026-11-14, after BUG-306): since 2026-11-13 the player's walk
+ * stops at every placed piece that stands across the body's knee-to-eye band
+ * (src/engine/crowd_walk.rs `furniture_walls_near`), so a piece moved onto a leg's path stops the
+ * walk short of the edge or the step it is about, and the leg fails for a reason nobody can read
+ * after a ten-minute boot. The storeys rig checks its route before it boots; this does the same for
+ * every walk and placement of the legs aboard, against the furniture of data/machines/home.ron
+ * (home-furniture.js, the footprints `Footprint::of_placed` makes), each on its own storey:
+ * - the deck legs: the walk across the deck and off its south edge (on the deck's top), and where
+ *   it lands (on the ground);
+ * - the placement beside the deck: on the ground, and at the deck's height over it;
+ * - the stairs: the walk from the start to the first step (the flight itself rises off the floor
+ *   the pieces stand on), and the top tread the walk down starts from (the upper floor);
+ * - the ladder: the stand in the hatch's hole, and the step off the top across the floor.
+ * Returns the problems, each naming the leg, the piece and the gap; [] when every leg is clear.
+ */
+function furnitureProblems(data) {
+  const body = data && data.body;
+  if (!body || ![body.radius_m, body.eye_m, body.knee_m].every(Number.isFinite)) {
+    return ["could not read PLAYER_RADIUS, EYE_HEIGHT_M and KNEE_M (crates/humanity-ship/src/wall_collision.rs): the legs could not be checked against the furniture"];
+  }
+  const furniture = data.furniture;
+  if (!Array.isArray(furniture) || furniture.length === 0) {
+    return ["read no furniture from data/machines/home.ron: the legs could not be checked against what the walk stops at"];
+  }
+  const need = body.radius_m + FURNITURE_SLACK_M;
+  const xz = (p) => (p.length === 3 ? [p[0], p[2]] : p);
+  const at = (p) => `(${p[0].toFixed(2)}, ${p[1].toFixed(2)})`;
+  const problems = [];
+  const clear = (what, floor, p, q = null) => {
+    const [a, b] = [xz(p), q ? xz(q) : xz(p)];
+    for (const fp of furniture) {
+      if (!HF.stopsBody(fp, floor, body.eye_m, body.knee_m)) continue;
+      const gap = HF.clearance(fp, a, b);
+      if (gap >= need) continue;
+      const where = q ? `the straight walk ${at(a)} to ${at(b)}` : `standing at ${at(a)}`;
+      problems.push(`${what}: ${where} comes ${gap.toFixed(2)} m from the ${fp.label} "${fp.id}" at ${at(fp.centre)} (the walk stops a body ${body.radius_m} m round at furniture; the leg keeps ${need.toFixed(2)} m clear)`);
+    }
+  };
+  const dk = data.deck;
+  if (dk && !dk.why) {
+    const end = [dk.stand[0], dk.stand[2] + dk.edge_m + dk.walk_on_m];
+    clear("the walk off the deck", dk.top_m, dk.stand, end);
+    clear("where the walk off the deck lands", 0, end);
+    clear("the placement beside the deck, on the ground", 0, dk.placed_eye);
+    clear("the placement beside the deck, at the deck's height", dk.top_m, dk.placed_eye);
+  }
+  const st = data.stairs;
+  if (st) {
+    const r = (st.rot_deg * Math.PI) / 180;
+    const first = [st.pos[0] - (st.size[2] / 2) * Math.sin(r), st.pos[2] - (st.size[2] / 2) * Math.cos(r)];
+    clear("the walk up the stairs, to their first step", st.pos[1], st.foot, first);
+    clear("the stairs-down leg's start, on the top tread", st.top_m, st.top_tread_eye);
+  }
+  const H = data.ladder && data.ladder.hatch;
+  if (H) {
+    clear("the ladder leg's stand, in the hatch's hole", data.ladder.pos[1], H.stand);
+    clear("the step off the ladder's top onto the floor", H.floor_m, [data.ladder.pos[0], data.ladder.pos[2]], H.step_to);
+  }
+  return problems;
+}
+
 /** data/planets/<body>.ron: { gravity_m_s2, curved } (the top-level `gravity:`, and whether a
  *  `gravity_curve` makes it vary with altitude, in which case the game's own reading stands). */
 function readPlanetGravity(text) {
@@ -523,6 +601,10 @@ function readTreeData(repo, readFile = (p) => require("fs").readFileSync(p, "utf
   const floors = readHomeFloors(home);
   const deck = pickAboardDeck(types, readHomeZones(home), floors, readHomeWalls(home), readHomeHeight(home));
   return {
+    /// The walk's body and the homestead's furniture (data/machines/home.ron), what the legs keep
+    /// clear of (`furnitureProblems`).
+    body: readBody(rd("crates", "humanity-ship", "src", "wall_collision.rs")),
+    furniture: HF.footprints(HF.readMachineHome(rd("data", "machines", "home.ron"))),
     falls: readFalls(rd("data", "medical", "falls.ron")),
     gravity_m_s2: readGravity(rd("data", "game.csv")),
     effects: readEffects(rd("data", "status_effects.csv")),
@@ -1110,6 +1192,9 @@ module.exports = {
   pickDeck,
   ABOARD_DECK,
   pickAboardDeck,
+  FURNITURE_SLACK_M,
+  readBody,
+  furnitureProblems,
   readTreeData,
   readSpeed,
   harmAt,

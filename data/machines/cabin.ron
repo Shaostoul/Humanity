@@ -145,7 +145,7 @@
             id: "desk_1",
             machine: "desk",
             room: "room-cabin",
-            offset: (2.4, 0.0, 2.12),
+            offset: (2.42, 0.0, 2.12),
             rotation: 0.0,
             zone: "home",
         ),

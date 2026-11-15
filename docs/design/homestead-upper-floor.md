@@ -36,7 +36,10 @@ It rests on three things:
 - **One slab layer at top 3.0 m (9 ft 10 in), 0.25 m (10 in) thick,** covers the
   whole acre except the greenhouse and three openings: the stairwell, the elevator
   shaft and a ladder hatch. Nineteen rectangles (section 1). The ceiling below is
-  2.75 m (9 ft 0 in), the upper storey's 3.0 m, to the glass shell roof.
+  2.75 m (9 ft 0 in), the upper storey's 3.0 m, to the glass shell roof. The upper
+  rooms look up through that glass on purpose; since 2026-11-14 it is drawn on its
+  glazing bars (1.2 x 2.4 m panes, wall_materials.ron `glazing`), which is what tells
+  it from no roof at all (the storeys rig's shots showed only stars overhead).
 - **Upstairs, eight rooms.** The five quiet-wing rooms keep their exact x/z
   rectangles and ids and rise 3.0 m; a 2.5 m (8 ft 2 in) upper hall stands over the
   ground hall's north half; a back corridor on the workshop's roof and a lift lobby

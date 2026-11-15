@@ -283,6 +283,7 @@ fn bake(neighbours: &[Neighbour], level: Option<f32>, glass: bool) -> (Homestead
         }
         append_moved(&mut glass_slabs, &shell.glass_slabs, o);
         append_moved(&mut out.ceilings, &shell.glass_roof, o);
+        append_moved(&mut out.roof_frame, &shell.glass_roof_frame, o);
         if let Some(g) = &n.tube {
             push_corridor_tube(&mut out, g, n.design.body.shell_material);
         }
@@ -308,6 +309,8 @@ fn empty_meshes() -> HomesteadMeshes {
         mirrors: (Vec::new(), Vec::new()),
         ceilings: (Vec::new(), Vec::new()),
         ceilings_opaque: (Vec::new(), Vec::new()),
+        // Filled by `bake`: a neighbour's glass roof's glazing bars (`ShellBake::glass_roof_frame`).
+        roof_frame: (Vec::new(), Vec::new()),
         room_info: Vec::new(),
     }
 }
@@ -360,6 +363,7 @@ impl NeighbourView {
         out.material_walls.extend(m.material_walls.iter().cloned());
         append(&mut out.ceilings, &m.ceilings);
         append(&mut out.ceilings_opaque, &m.ceilings_opaque);
+        append(&mut out.roof_frame, &m.roof_frame);
     }
 
     /// Every neighbour corridor's door mouths, both ends (`ShipStructure::tube_mouths`): where the

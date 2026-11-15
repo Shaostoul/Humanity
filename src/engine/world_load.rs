@@ -353,7 +353,9 @@ pub(crate) fn load_world(state: &mut EngineState) {
                         // Zone-local offset at the zone's origin (increment 1a): the same
                         // `zone_world_pos` placements() uses, so the two cannot drift.
                         let zr = humanity_ship::machines::resolve_zone_rect(zones, &inst.zone)?;
-                        let (x, y, z) = humanity_ship::machines::zone_world_pos(zr, inst.offset);
+                        let size = humanity_ship::machines::drawn_size(def, inst);
+                        let half = humanity_ship::machines::plan_half_extents(&def.shape, size, inst.rotation);
+                        let (x, y, z) = humanity_ship::machines::zone_world_pos(zr, inst.offset, half);
                         Vec3::new(x, y, z)
                     } else {
                         let &(center, floor_y, _ceiling_y) = rooms.get(inst.room.as_str())?;

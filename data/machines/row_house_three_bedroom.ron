@@ -144,7 +144,7 @@
             id: "wall_screen_1",
             machine: "wall_screen",
             room: "room-living",
-            offset: (4.25, 1.2, 6.35),
+            offset: (4.25, 1.2, 6.44),
             rotation: 0.0,
             zone: "home",
         ),
