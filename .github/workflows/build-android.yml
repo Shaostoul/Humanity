@@ -105,4 +105,5 @@ jobs:
       - name: Say why a release has no APK
         if: startsWith(github.ref, 'refs/tags/') && hashFiles('dist/HumanityOS-android-arm64.apk') == ''
         shell: bash
-        run: echo "::warning::This release has no APK: the signing secrets are not set, so the build is test-signed and stays a workflow artifact (android/README.md)."
+        run: |
+          echo "::warning::This release has no APK: the signing secrets are not set, so the build is test-signed and stays a workflow artifact (android/README.md)."
