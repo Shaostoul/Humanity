@@ -154,3 +154,74 @@ fn the_bar_settles_and_shrinks_back_when_the_text_does() {
     assert!((back.top() - one.top()).abs() < 1.0, "and with the text cleared it is back where one line sat: {one:?} then {back:?}");
 }
 
+
+/// THE BOX YOU TYPE IN STANDS ABOVE THE UNFINISHED-SOFTWARE WARNING, WITH THE LINE ABOVE IT
+/// (operator, 2026-11-15, v0.1561.0, on a Commons room: "I can't see the chat bar to type in for
+/// some reason", and "the chat bar is even off screen when I mute the wip notice"). Drawn as the
+/// app draws a frame: the warning first (gui/bottom_strip.rs, a bottom panel added before the page),
+/// then the chat page, on #fire-disciples, a Commons room anyone can read, as an admin (so the line
+/// above the box says only who can read it). The whole box, and the line, sit above the warning's
+/// top edge; with the warning muted (not drawn), above the window's bottom edge.
+///
+/// The cause was not the warning: the bar recorded the text box's height as the scroll area's
+/// `inner_rect` (egui's minimum scrolled height, 64 px) instead of the 21 px it drew, so the bar's
+/// other parts read 64 px short. Seen red 2026-11-15 with that measurement back: "the whole box
+/// stands above the warning (its top at 776): drawn [[249.0 786.0] - [827.5 807.0]]".
+#[test]
+fn the_box_stands_above_the_warning_with_its_line() {
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    let theme = crate::gui::theme::load_theme();
+    let mut state = GuiState::default();
+    state.go(crate::gui::GuiPage::Chat, crate::gui::How::Replace);
+    state.profile_public_key = "my_key".into();
+    state.chat_active_channel = "commons:fire-disciples".into();
+    state.chat_channels.push(crate::gui::ChatChannel {
+        id: "fire-disciples".into(),
+        name: "fire-disciples".into(),
+        read_level: humanity_protocol::chat_access::ReadLevel::Anyone,
+        ..Default::default()
+    });
+    state.chat_users.push(crate::gui::ChatUser { name: "me".into(), public_key: "my_key".into(), role: "admin".into(), status: "online".into() });
+    // The warning's height is noted for the frame it drew in, so it is read inside the frame.
+    let strip = std::cell::Cell::new(0.0_f32);
+    let run = |ctx: &egui::Context, state: &mut GuiState| {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN)), ..Default::default() };
+        ctx.run(input, |ctx| {
+            crate::gui::bottom_strip::draw_for_version(ctx, &theme, state, "0.1561.0");
+            strip.set(crate::gui::bottom_strip::height(ctx));
+            draw(ctx, &theme, state);
+        })
+    };
+    for _ in 0..4 {
+        run(&ctx, &mut state);
+    }
+    let out = run(&ctx, &mut state);
+    let strip = strip.get();
+    assert!(strip > 10.0, "the warning is drawn (a 0.x version): {strip}");
+    let strip_top = SCREEN.y - strip;
+    let line = crate::gui::screen_surface::find_text_in_shapes(&out.shapes, humanity_core::i18n::t("chat.access_read_anyone"))
+        .expect("the line above the box says who can read the room");
+    let r = ctx.read_response(egui::Id::new("chat_composer_input")).expect("the box is drawn");
+    let seen = r.interact_rect;
+    assert!(
+        seen.height() >= r.rect.height() - 0.5 && r.rect.bottom() <= strip_top + 0.5,
+        "the whole box stands above the warning (its top at {strip_top}): drawn {:?}, visible {seen:?}",
+        r.rect
+    );
+    assert!(line.rect.bottom() <= r.rect.top() + 0.5, "the line sits above the box: {:?} / {:?}", line.rect, r.rect);
+
+    // Muted: no warning, the chat to the window's bottom edge, the box still wholly on screen.
+    let ctx = egui::Context::default();
+    crate::gui::fonts::install_font_fallbacks(&ctx);
+    for _ in 0..5 {
+        frame(&ctx, &theme, &mut state);
+    }
+    let r = ctx.read_response(egui::Id::new("chat_composer_input")).expect("the box is drawn");
+    assert!(
+        r.interact_rect.height() >= r.rect.height() - 0.5 && r.rect.bottom() <= SCREEN.y + 0.5,
+        "with the warning muted the whole box is on screen: drawn {:?}, visible {:?}",
+        r.rect,
+        r.interact_rect
+    );
+}

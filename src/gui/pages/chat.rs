@@ -1858,7 +1858,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let mut over_limit = line_limit::limit_here(state).map(|n| widgets::over_limit::layouter(theme, n, false));
                     // Its own space in the row, exactly that tall: the row beside the buttons offers
                     // only a few lines on its own.
-                    let composer = ui
+                    let composer_alloc = ui
                         .allocate_ui_with_layout(egui::vec2(composer_text_w, box_want), Layout::top_down(Align::Min), |ui| {
                         egui::ScrollArea::vertical()
                         .id_salt("chat_composer_scroll")
@@ -1879,8 +1879,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                             edit.show(ui)
                         })
-                        })
-                        .inner;
+                        });
+                    // The space the box took in the row (its allocation, as drawn).
+                    let composer_drawn_h = composer_alloc.response.rect.height();
+                    let composer = composer_alloc.inner;
                     // The text's own height, for next frame's offer and the bar's reservation.
                     let text_h = composer.inner.response.rect.height();
                     let text_id = egui::Id::new(TEXT_H_ID);
@@ -1888,8 +1890,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         ui.ctx().data_mut(|d| d.insert_temp(text_id, text_h));
                         ui.ctx().request_repaint();
                     }
-                    // The box's height as shown, so the bar's other parts can be measured below.
-                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(INPUT_BOX_H_ID), composer.inner_rect.height()));
+                    // The box's height as shown, so the bar's other parts can be measured below: the
+                    // space it took in the row, NOT the scroll area's `inner_rect`, which egui reports at
+                    // its minimum scrolled height (64 px) whatever the box shows. With that figure the
+                    // bar's other parts read 64 px too small. While they were under 64 px the difference
+                    // went negative, the first-frame 52 px estimate stood in and happened to fit; once the
+                    // line above the box (who can read this channel, 2026-11-02) made them taller, the bar
+                    // reserved about 22 px for 70 px of content and the box drew under the window's
+                    // bottom edge (operator, 2026-11-15: "I can't see the chat bar to type in").
+                    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(INPUT_BOX_H_ID), composer_drawn_h));
                     // Lines beyond the first, for next frame's bar height.
                     let extra = composer_extra_of(&composer.inner.galley);
                     let extra_id = egui::Id::new(COMPOSER_EXTRA_ID);
