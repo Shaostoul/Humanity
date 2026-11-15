@@ -9,7 +9,7 @@
 //!
 //! This lint makes that gap IMPOSSIBLE to reintroduce silently:
 //!   * Every `impl System for X` under `crates/humanity-systems/src/` must be EITHER registered in
-//!     `src/lib.rs` (the native runtime runner) OR listed in `DEFERRED_SYSTEMS`
+//!     `src/engine/sim_boot.rs` (the native runtime runner; `src/lib.rs` until 2026-11-15) OR listed in `DEFERRED_SYSTEMS`
 //!     with a written reason. A new system that's neither fails the build.
 //!   * The core runtime registries + game_time must stay wired into `src/lib.rs`.
 //!
@@ -157,7 +157,9 @@ fn implemented_systems() -> BTreeSet<String> {
 /// System type names registered in src/lib.rs (the native runtime runner) via
 /// `register(X::new())` or `register(X)`.
 fn registered_systems() -> BTreeSet<String> {
-    let src = fs::read_to_string(manifest_dir().join("src").join("lib.rs")).unwrap_or_default();
+    // The runner is built in src/engine/sim_boot.rs, without the GPU, since 2026-11-15 (the
+    // headless sim runner's increment 1); lib.rs `resumed` calls it.
+    let src = fs::read_to_string(manifest_dir().join("src").join("engine").join("sim_boot.rs")).unwrap_or_default();
     let mut set = BTreeSet::new();
     for (i, _) in src.match_indices("register(") {
         let after = &src[i + "register(".len()..];
@@ -208,7 +210,7 @@ fn every_implemented_system_is_registered_or_deferred() {
         .collect();
     assert!(
         unclassified.is_empty(),
-        "These systems have `impl System` but are neither registered in src/lib.rs nor listed in \
+        "These systems have `impl System` but are neither registered in src/engine/sim_boot.rs nor listed in \
          DEFERRED_SYSTEMS with a reason. Register them, or defer them on purpose:\n  {}",
         unclassified
             .iter()
@@ -278,6 +280,11 @@ fn frame_src() -> String {
     names.retain(|n| n.starts_with("frame_") && n.ends_with(".rs"));
     names.sort();
     let mut src = src_file("lib.rs");
+    // The startup's simulation, built without the GPU (2026-11-15): the DataStore's slots are made there.
+    for sim in ["engine/sim_boot.rs", "engine/world_sim.rs"] {
+        src.push('\n');
+        src.push_str(&src_file(sim));
+    }
     for n in names {
         src.push('\n');
         src.push_str(&src_file(&format!("engine/{n}")));

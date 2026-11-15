@@ -354,6 +354,11 @@ pub mod garden_levels;
 pub mod state;
 /// Visible storage: crates in the storage zones and tank level bars.
 pub mod stock_piles;
+/// The world's simulation built without the GPU (the headless sim runner's increment 1,
+/// docs/design/headless-sim-runner.md): `sim_boot` at startup, `world_sim` at world entry.
+/// `world_load` uploads and draws what they build.
+pub mod sim_boot;
+pub mod world_sim;
 pub mod world_load;
 
 // Tests of the crates below that reach the engine to do it, moved up from beside their code (the crate

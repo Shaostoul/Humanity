@@ -670,10 +670,16 @@ pub(crate) fn current_placements(state: &EngineState) -> Option<Vec<humanity_shi
 /// zone home places every machine in its zone whatever the rooms; a room layout skips a machine
 /// whose room is not there, as `MachineHome::placements` says). None without a machine layout.
 pub(crate) fn placements_now(state: &EngineState) -> Option<Vec<humanity_ship::machines::PlacedMachine>> {
+    placements_of(&state.gui_state)
+}
+
+/// `placements_now` on the GUI state alone (the household's layout, the room boxes and the ship),
+/// so the sim side and its test read what the world load draws without a renderer
+/// (engine/world_sim.rs).
+pub(crate) fn placements_of(gui: &crate::gui::GuiState) -> Option<Vec<humanity_ship::machines::PlacedMachine>> {
     use std::collections::HashMap;
-    let home = state.gui_state.home_machines.as_ref()?;
-    let rooms: HashMap<String, humanity_ship::machines::RoomGeom> = state
-        .gui_state
+    let home = gui.home_machines.as_ref()?;
+    let rooms: HashMap<String, humanity_ship::machines::RoomGeom> = gui
         .room_bounds
         .iter()
         .map(|rb| {
@@ -688,7 +694,7 @@ pub(crate) fn placements_now(state: &EngineState) -> Option<Vec<humanity_ship::m
             )
         })
         .collect();
-    let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
+    let zone_rects = gui.ship_structure.as_ref().map(|s| s.zone_rects());
     Some(home.placements(&rooms, zone_rects.as_deref()))
 }
 

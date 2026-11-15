@@ -1038,9 +1038,14 @@ pub(crate) fn home_frame(ship: &ShipStructure) -> Option<crate::save_load::HomeF
 /// live ship. Taken away when there is no frame (the legacy layout), so a save then records
 /// none.
 pub(crate) fn publish_home_frame(state: &mut EngineState) {
-    match state.gui_state.ship_structure.as_ref().and_then(home_frame) {
-        Some(f) => state.data_store.insert(crate::save_load::HOME_FRAME_KEY, f),
-        None => state.data_store.remove(crate::save_load::HOME_FRAME_KEY),
+    publish_home_frame_on(state.gui_state.ship_structure.as_ref(), &mut state.data_store);
+}
+
+/// `publish_home_frame` on its own parts, for the sim side (engine/world_sim.rs).
+pub(crate) fn publish_home_frame_on(ship: Option<&ShipStructure>, data: &mut humanity_core::hot_reload::data_store::DataStore) {
+    match ship.and_then(home_frame) {
+        Some(f) => data.insert(crate::save_load::HOME_FRAME_KEY, f),
+        None => data.remove(crate::save_load::HOME_FRAME_KEY),
     }
 }
 
@@ -1208,9 +1213,13 @@ pub(crate) fn saved_or_default_box(saved: Option<[[f32; 3]; 2]>, ship: Option<&S
 /// The world load, once the home is built (engine/world_load.rs): the save applied at startup
 /// (before there was a ship) left the box its home stood on in the DataStore
 /// (`save_load::LOADED_HOME_BOX_KEY`); carry its pieces to the plot the home is built on.
-pub(crate) fn carry_loaded_save_home(state: &mut EngineState) {
-    let home = state.gui_state.ship_structure.as_ref().and_then(home_box);
-    if let Some((pieces, vehicles, marked)) = carry_loaded_box(&mut state.game_world.world, &mut state.data_store, home) {
+pub(crate) fn carry_loaded_save_home(
+    ship: Option<&ShipStructure>,
+    world: &mut hecs::World,
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
+) {
+    let home = ship.and_then(home_box);
+    if let Some((pieces, vehicles, marked)) = carry_loaded_box(world, data, home) {
         if pieces + vehicles + marked > 0 {
             log::info!("Loaded save: carried {pieces} built pieces and {vehicles} vehicles to the home's plot ({marked} left where they stood)");
         }

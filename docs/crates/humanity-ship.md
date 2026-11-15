@@ -22,7 +22,7 @@ shared ship's rules are the same on both sides.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-ship/src/levels.rs` 184 of 200.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 5, `native` 3.
 - **May use** (the plan): core. **Uses today** (references in non-test code): core 58.
-- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 372, gui 166, relay 41, systems 29.
+- **May be used by** (the plan): systems, relay, gui, engine. **Used today by:** engine 382, gui 166, relay 41, systems 29.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 426 tests, and this runs exactly them, checked against every test's name:
 
@@ -34,23 +34,23 @@ just test-lib --crate humanity-ship
 
 | Item | References | From |
 |---|---:|---|
-| `ship_structure::ShipStructure` | 26 | engine 17, gui 4, systems 3, relay 2 |
+| `ship_structure::ShipStructure` | 27 | engine 18, gui 4, systems 3, relay 2 |
 | `machines::MachineHome` | 20 | engine 15, gui 4, systems 1 |
 | `room_types::RoomBounds` | 16 | gui 12, engine 3, systems 1 |
 | `lock_types::LockState` | 13 | engine 8, gui 5 |
-| `machines::PlacedMachine` | 12 | engine 12 |
+| `machines::PlacedMachine` | 13 | engine 13 |
 | `ship_structure` | 12 | engine 10, gui 1, relay 1 |
 | `machines::ConduitEnd` | 11 | gui 7, engine 4 |
 | `structure::structure_type` | 11 | engine 6, gui 4, relay 1 |
 | `door_panels::PanelPlacement` | 10 | engine 10 |
 | `home_structure::HomeStructure` | 10 | engine 9, gui 1 |
+| `wall_collision::WallSegment` | 10 | engine 10 |
 | `machines::MachinePower` | 9 | gui 6, systems 2, engine 1 |
 | `home_structure` | 8 | gui 6, engine 2 |
 | `machines::RoomGeom` | 8 | engine 8 |
 | `starts::Starts` | 8 | engine 4, relay 4 |
-| `station::to_hull` | 8 | engine 8 |
 
-And 209 more items, 426 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
+And 210 more items, 432 references (`node scripts/crate-cards.js --interface humanity-ship` lists them all).
 <!-- end generated -->
 
 ## Rules

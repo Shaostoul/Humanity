@@ -356,10 +356,16 @@ fn air_spaces_of(state: &EngineState) -> Option<humanity_ship::ship_space::AirSp
 /// start is on the ship's ventilation (a cabin, `own_air: false`, ship homes increment 6) is the
 /// ship's air (`ShipStructure::air_spaces_for`).
 pub(crate) fn refresh_ship_spaces(state: &mut EngineState) {
+    (state.ship_air, state.aboard_bounds) = ship_spaces(state.gui_state.ship_structure.as_ref());
+}
+
+/// `refresh_ship_spaces` on the ship alone: whose air each place breathes, and where aboard ends,
+/// for the sim side (engine/world_sim.rs).
+pub(crate) fn ship_spaces(
+    ship: Option<&humanity_ship::ship_structure::ShipStructure>,
+) -> (humanity_ship::ship_space::AirSpaces, Option<humanity_ship::ship_space::Aabb>) {
     let own_air = crate::engine::save_slot::live_own_air();
-    let ship = state.gui_state.ship_structure.as_ref();
-    state.ship_air = ship.map(|s| s.air_spaces_for(own_air)).unwrap_or_default();
-    state.aboard_bounds = ship.and_then(|s| s.aboard_bounds());
+    (ship.map(|s| s.air_spaces_for(own_air)).unwrap_or_default(), ship.and_then(|s| s.aboard_bounds()))
 }
 
 /// The air a body feels inside the home (2026-10-05, BUG-155): temperature

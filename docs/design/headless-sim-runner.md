@@ -2,8 +2,11 @@
 
 The operator, 2026-10-22: "The simpler we make it for you to sim gameplay at rates beyond human
 comprehension. I can handle maybe 3x speed comfortably. Could you do 1-billion-x?" This is the
-design (a planning agent's, read-only, from the code at v0.1543.x). Nothing here is built yet;
-the increments are at the end.
+design (a planning agent's, read-only, from the code at v0.1543.x). Increments 0 and 1 are built;
+what is built, and what the frame's file-size split (2026-11-14) already did for increments 2 and
+3, is in "Built so far" after the increments. The line numbers in sections 1 and 2 are the v0.1543
+lib.rs's, kept as the record of what was tangled; that file is now a dispatcher and the frame is
+39 stage files (`src/engine/frame_*.rs`, the table in docs/design/crate-split.md).
 
 ## The short answer
 
@@ -176,8 +179,8 @@ The windowed rigs still run in each release batch.
 
 | # | Increment | Proof | Effort |
 |---|---|---|---|
-| 0 | Measure: stage timers around the walk aboard, the planet walk, the bridges, the settles | numbers in this doc; the untimed part of `frame_total` shrinks | 0.5 d |
-| 1 | Setup split: `engine::sim_boot` and `engine::world_sim::build` (GPU uploads stay in `world_load`) | windowed game unchanged (verify-runtime, verify-storeys); a lib test builds the homestead with no GPU | 3 d |
+| 0 | **Built 2026-10-30.** Measure: stage timers around the walk aboard, the planet walk, the bridges, the settles | numbers in this doc; the untimed part of `frame_total` shrinks | 0.5 d |
+| 1 | **Built 2026-11-15.** Setup split: `engine::sim_boot` and `engine::world_sim::build` (GPU uploads stay in `world_load`) | windowed game unchanged (verify-runtime, verify-storeys); a lib test builds the homestead with no GPU | 3 d |
 | 2 | Systems slice and the first headless value: lib.rs 5770-6721 into `frame_sim::systems_slice`; `--sim soak`; sim seeds | a 7-day soak in seconds; the dt ladder report; the split-step test over every system; byte-identical repeat runs | 2-3 d |
 | 3 | Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
 | 4 | `gpu: Option<Gpu>`, `EngineState::boot(opts, gpu)`; sim-side mesh creation becomes dirty flags | `--sim` enters the homestead and walks with no EventLoop and no wgpu Instance; windowed rigs green | 3-5 d |
@@ -190,6 +193,69 @@ The windowed rigs still run in each release batch.
 About 27-35 agent-days. 1 to 5 are mostly sequential (all touch lib.rs, the hottest shared file:
 land 3 and 4 as verbatim moves in quiet windows, staged by hunk, both `cargo check`s on the staged
 tree); 6 to 9 can run in parallel afterwards. First real value (game-week soaks) after increment 2.
+
+## Built so far
+
+**Increment 0** (2026-10-30): the stage timers, measured and tiled in docs/design/sim-frame-cost.md
+(the spans add up to `cpu.frame_total`). Part of increment 7 came with it: FarmingSystem runs on
+its own clock (docs/design/farm-clock.md rung 2).
+
+**Increment 1, the setup split** (2026-11-15). The world's simulation is built without the GPU, by
+the same code in both paths:
+
+- `src/engine/sim_boot.rs` (`boot(SimBootOptions) -> SimBoot`, then `starter_vehicles` and
+  `apply_home_save`): the ECS world, the DataStore's slots, the 24 systems in tick order, the live
+  save chosen, the fresh player, the asteroids, the menu's live home power, the starter vehicles
+  and the save's progress with its time-away catch-up. Moved verbatim from lib.rs `resumed`
+  (lib.rs 2,372 to 1,871 lines; sim_boot.rs 584). The options carry the data folder, the saves folder
+  (a test gives a scratch one) and the config as read.
+- `src/engine/world_sim.rs` (`build(Parts) -> WorldSim`): at world entry, the ship assembled with
+  the home on its plot, the save's pieces carried to it, the walls and sight walls, the room
+  boxes, whose air each place breathes, where the player arrives, the household's machines as
+  live entities with their levels, the herd, the wilds and the home's air space, with the home's
+  geometry returned as data (world_sim.rs about 600 lines with the herd and the wilds; world_load.rs
+  1,409 to 956). `world_load::load_world` calls it first, then uploads and draws
+  (the meshes, room GI, the hull, the lights, the machines' bodies, the screens, the decorations,
+  the grow plots, the pipes, the doors) in the order those ran before. The one order change: the
+  drawing that ran between the sim steps now runs after all of them; none of it reads what the
+  sim steps write (it reads the ship, set first, and the household's layout, read only by the
+  machines' bodies, which ran after it before too), and the entities spawn in the same order.
+  `spawn_herd` and `spawn_wilds` moved there from world_load.rs; `publish_home_frame_on`,
+  `carry_loaded_save_home`, `survival_env::ship_spaces` and `home_meshes::placements_of` are the
+  four helpers that took `EngineState` and now take the parts.
+- `world_sim_tests.rs`: the homestead entered with no wgpu Instance, no window and no
+  `EngineState`, checked against what the windowed game holds (every system registered, the ship
+  with rooms and walls, every live machine standing where the world load draws it and every drawn
+  machine with a power or water role live, the air space, the player arriving in a room).
+- `tests/sim_gpu_free_lint.rs`: no wgpu, winit, egui, renderer, `Window` or `EngineState` in the
+  sim files' code, no `headless` (the "no `if headless`" rule, started), and the windowed game
+  built through them (lib.rs registers no system of its own). `tests/engine_wiring_lint.rs` reads
+  the registrations from sim_boot.rs.
+
+Still tangled at world entry, for increment 4 (sim-side mesh creation becoming dirty flags): the
+grow plots (`publish_grow_plots` publishes the anchors `build_machine_bodies` records while it
+builds meshes), the chairs (filled by the same builder), the door panels (`rebuild_door_panels`
+builds each door's mesh and its open state together), the station's orbit and the planet bakes
+(later in `load_world`, already GPU-free in what they compute, left in place so nothing reorders).
+
+**What the frame's file-size split already did** (2026-11-14, docs/design/crate-split.md, "Step 1's
+stage list"). Increment 3's verbatim move is done in its first half: `window_event` is 39 stage
+files in frame order, and the sim stages are files of their own (`frame_clock`, `frame_station`,
+`frame_move_setup`, `frame_walk_aboard`, `frame_planet_walk`, `frame_collide_drive`,
+`frame_look_env`, `frame_bridges`, `frame_bridges_npc`, `frame_ecs`, `frame_settles`). Not done:
+every stage still takes `&mut EngineState`, the sim stages are interleaved with view stages
+(the settles run after the draw lists; door easing is still inside the home's draw list; the
+showcase poll is still in the present branch), and no `FrameClock` exists. Increment 2's slice,
+"lib.rs 5770-6721", is now `frame_bridges.rs`, `frame_bridges_npc.rs` and `frame_ecs.rs`; inside
+`frame_ecs::run` the tick itself (`world_hold::tick`) already takes only the sim's parts.
+
+**Increment 2, the first step**: make `frame_ecs::run`'s body a function of the sim's parts
+(`frame_sim::systems_slice(system_runner, world, data_store, gui, dt)`), refactoring the five calls
+in it that still take `EngineState` the way increment 1 did (a parts function, the state one
+calling it): `stock_piles::publish_home_stock`, `take_consumed_home_stock`,
+`receive_machine_outputs`, `age_home_storage` and `death_pack::after_tick`. Then a lib test that
+enters the homestead as `world_sim_tests.rs` does and steps `systems_slice` through a game day,
+and `HumanityOS --sim soak` in main.rs driving the same calls.
 
 ## Risks
 

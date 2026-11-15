@@ -35,6 +35,11 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-15: `src/lib.rs` 2_400 -> 1_930, the headless sim runner's increment 1
+///   (docs/design/headless-sim-runner.md): the world's simulation at startup (the DataStore's
+///   slots, every system, the live save, the starter vehicles, the save's progress) moved to
+///   `src/engine/sim_boot.rs`, built without the GPU (1_871 lines left that day). The sim's setup
+///   goes there or in `src/engine/world_sim.rs`, never back into lib.rs.
 /// - 2026-11-15: `gui/pages/chat.rs` 4_700 -> 2_830. The chat footer (docs/design/
 ///   app-bottom-strip.md section 4) draws the Chat page's own message rows and composer, so both
 ///   moved out whole into `gui/pages/chat/rows.rs` and `gui/pages/chat/composer.rs` (2_744 lines
@@ -457,7 +462,7 @@ fn repo() -> &'static Path {
 ///   budgets are the plan's, 1_650 and 2_500, which leave the lanes that must
 ///   touch them (1A, 1G, 2A) their room and no more.
 const BUDGETS: &[(&str, usize)] = &[
-    ("src/lib.rs", 2_400),
+    ("src/lib.rs", 1_930),
     ("src/engine/frame_sky_body.rs", 1_850),
     ("src/engine/frame_ws_poll.rs", 1_800),
     ("src/engine/frame_shells.rs", 1_300),
