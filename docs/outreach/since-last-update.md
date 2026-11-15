@@ -13,6 +13,12 @@ Each line is written the way a player would hear it; the release notes and
 
 ### Next release
 
+### v0.1563.0 (15 November 2026)
+
+- The chat follows you around the app: a footer on every page but Chat, one line folded, or the latest messages and a box to type in unfolded, with the same conversation and draft as the Chat page (Alt+C, or turn it off in Settings).
+- Furniture is the size it looks: footprints match the models, the bed lies the right way at a real queen length, and furniture against a wall stands on the skirting.
+- The phone build compiles on GitHub's free build machines.
+
 ### v0.1562.0 (15 November 2026)
 
 - A new licence: the code is now under the GNU AGPL 3.0, so anyone who runs a changed HumanityOS server must share its source; the Library and docs are under CC BY-SA 4.0, so Wikipedia's text can come in, credited; game data and the Humanity Accord stay public domain; and a short policy keeps the name HumanityOS for the real thing.

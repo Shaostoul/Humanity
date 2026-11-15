@@ -217,6 +217,29 @@
   }
 
   // ── The fit, as the game does it (GltfCpuMesh::fit_for_machine) ──
+  // A turn of yawDeg degrees about up, glam's sense (+Z toward +X), exact for whole quarter turns
+  // (assets::quarter_exact_sin_cos): [sin, cos].
+  function quarterSinCos(yawDeg) {
+    if (!Number.isFinite(yawDeg)) return [0, 1];
+    const q = yawDeg / 90;
+    if (Math.abs(q - Math.round(q)) < 1e-4) return [[0, 1], [1, 0], [0, -1], [-1, 0]][((Math.round(q) % 4) + 4) % 4];
+    const r = (yawDeg * Math.PI) / 180;
+    return [Math.sin(r), Math.cos(r)];
+  }
+  // The bounds of positions turned by a row's model_yaw (GltfCpuMesh::turn_about_up), what the fit
+  // measures for a model turned inside its box: [min, max].
+  function turnedBounds(positions, yawDeg) {
+    const [s, c] = quarterSinCos(yawDeg || 0);
+    const mn = [Infinity, Infinity, Infinity];
+    const mx = [-Infinity, -Infinity, -Infinity];
+    for (const v of positions) {
+      const p = [c * v[0] + s * v[2], v[1], -s * v[0] + c * v[2]];
+      for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k]); mx[k] = Math.max(mx[k], p[k]); }
+    }
+    return [mn, mx];
+  }
+  // rawMin..rawMax: the first part's positions turned by the row's model_yaw (turnedBounds). The
+  // box (min, max) is in that turned frame; yaw says how to turn it back onto the file.
   function fit(rawMin, rawMax, row, tol) {
     tol = Object.assign({}, TOL, tol || {});
     const raw = [0, 1, 2].map((k) => Math.max(rawMax[k] - rawMin[k], 0));
@@ -233,7 +256,7 @@
     const cz = (rawMin[2] + rawMax[2]) / 2;
     const hw = boxWd[0] / 2 / s;
     const hd = boxWd[1] / 2 / s;
-    return { row, scale: s, fitted, box: boxWd, verdict, across, min: [cx - hw, 0, cz - hd], max: [cx + hw, target / s, cz + hd] };
+    return { row, scale: s, fitted, box: boxWd, verdict, across, min: [cx - hw, 0, cz - hd], max: [cx + hw, target / s, cz + hd], yaw: row.model_yaw || 0 };
   }
 
   // ── The inspection ──
@@ -440,7 +463,9 @@
         find('problem', engineMin[1] > 0 ? 'base_above' : 'base_below', { y: m2(Math.abs(engineMin[1])) });
       }
       for (const row of catalog) {
-        const f = fit(engineMin, engineMax, row, tol);
+        // Turned inside its box first, as the game turns it (the row's model_yaw).
+        const [tMin, tMax] = turnedBounds(engine.positions, row.model_yaw);
+        const f = fit(tMin, tMax, row, tol);
         const vars = { row: row.id, file: row.file, box_w: m2(f.box[0]), box_d: m2(f.box[1]), h: m2(f.fitted[1]), w: m2(f.fitted[0]), d: m2(f.fitted[2]) };
         const code = f.verdict === 'fits' ? 'catalog_fits' : f.verdict === 'turned' ? 'catalog_turned' : f.across ? 'catalog_across' : 'catalog_box';
         find(f.verdict === 'fits' ? 'note' : 'problem', code, vars);
@@ -525,7 +550,7 @@
     return template.replace(/\{\{(\w+)\}\}/g, (m, k) => (finding.vars[k] !== undefined ? String(finding.vars[k]) : m));
   }
 
-  const api = { inspect, fit, parsePhysics, plainName, emptyRule, isCollision, lodOf, imageSize, wordsOf, m2, MAX_EDGES };
+  const api = { inspect, fit, turnedBounds, quarterSinCos, parsePhysics, plainName, emptyRule, isCollision, lodOf, imageSize, wordsOf, m2, MAX_EDGES };
   if (typeof module === 'object' && module && module.exports) module.exports = api;
   else root.HosModelInspect = api;
 })(typeof window !== 'undefined' ? window : globalThis);
