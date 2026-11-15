@@ -162,7 +162,8 @@ fn main() {
         // Version info embedded in the exe properties
         res.set("ProductName", "HumanityOS");
         res.set("FileDescription", "HumanityOS - End poverty, unite humanity");
-        res.set("LegalCopyright", "Public Domain (CC0)");
+        // The code's licence since 2026-11-14 (LICENSING.md; it was CC0 before).
+        res.set("LegalCopyright", "Copyright (C) Shaostoul and the HumanityOS contributors. Free software: GNU AGPL-3.0-or-later");
         if let Err(e) = res.compile() {
             eprintln!("winres error: {}", e);
         }

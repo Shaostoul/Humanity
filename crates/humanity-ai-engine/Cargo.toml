@@ -27,6 +27,8 @@ name = "humanity-ai-engine"
 # catalog from rung 2), and a new engine arrives only with an app release that names it (7.4).
 version = "1.1.0"
 edition = "2021"
+# Its own [workspace], so it names the licence itself: the code's, AGPL-3.0-or-later (LICENSING.md).
+license = "AGPL-3.0-or-later"
 publish = false
 
 [lib]

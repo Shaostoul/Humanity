@@ -66,10 +66,11 @@ been downloaded by many people without trouble ("reputation"). Today HumanityOS 
   Registration is free for individuals (an ID check and a selfie) and an MSIX package is signed and
   hosted by Microsoft for free. The account publishes under the account holder's own name.
 - **The free certificate for open-source projects** (SignPath Foundation) requires "an OSI-approved
-  Open Source license". HumanityOS is CC0 today, which the OSI never approved, so it does not qualify
-  as written. Plan B of the pending licence vote (AGPL-3.0 for code,
-  [`2026-10-25-licence-options.md`](../reference/findings/2026-10-25-licence-options.md)) would. The
-  publisher name Windows shows would then be "SignPath Foundation".
+  Open Source license". Since 2026-11-14 HumanityOS's code is AGPL-3.0-or-later, which the OSI approved
+  in 2008, so it meets that rule (plan B of
+  [`2026-10-25-licence-options.md`](../reference/findings/2026-10-25-licence-options.md), adopted in
+  [`2026-11-14-licence-change.md`](../reference/findings/2026-11-14-licence-change.md)); SignPath's
+  other conditions still apply. The publisher name Windows shows would then be "SignPath Foundation".
 
 ## Direct downloads, platform by platform
 
@@ -153,12 +154,14 @@ world follows with its own lighter settings.
    a free individual account. A Store install updates through the Store, so the Store build turns
    off the desktop updater and says so in Settings. Before listing: the California age-signal law
    (below) and the Store's policies for the wallet and the relay, which the finding did not read.
-2. **W2, free signing for direct downloads (after the licence vote).** If the vote lands on an
-   OSI-approved licence: apply to SignPath Foundation, add the signing step to the release workflow
+2. **W2, free signing for direct downloads.** The licence condition is met since 2026-11-14 (the code
+   is AGPL-3.0-or-later, OSI-approved; plan B, chosen that day): apply to SignPath Foundation, add the signing step to the release workflow
    (it signs builds made in CI from the repository), publish the "Code signing policy" page it
    requires (team roles, the privacy line), turn on multi-factor sign-in for every member, and
    approve each release by hand. First ask SignPath whether the DXC DLLs the Windows build loads
-   when present count against its "No proprietary code" rule.
+   when present count against its "No proprietary code" rule, and whether the CC0 data and the CC BY-SA
+   docs in the download count as "components" under its "OSI-approved ... for all components" rule
+   ([`2026-11-14-licence-change.md`](../reference/findings/2026-11-14-licence-change.md)).
 3. **W3, the download page says what each state means.** `web/pages/download.html` already tells
    people about "Run anyway"; it should also say why the warning appears, that Smart App Control may
    block an unsigned build, and what changes once signing lands.
@@ -276,10 +279,8 @@ Each with a recommendation, the free routes first.
    but an individual account publishes "under your own name", so your legal name would show as the
    publisher, and it needs an ID check with a selfie. *Recommendation:* yes, if you are comfortable
    with your name on it; if not, skip it and rely on W2.
-2. **Post the licence vote?** SignPath Foundation's free certificate needs an OSI-approved licence;
-   CC0 is not one. You said you will vote for plan B (AGPL-3.0 code), which qualifies.
-   *Recommendation:* post the vote proposal soon; free Windows signing for direct downloads waits on
-   its result.
+2. **The licence (answered 2026-11-14).** You chose plan B ("Let's do it."): the code is
+   AGPL-3.0-or-later, which SignPath's licence rule accepts, so W2 no longer waits on the licence.
 3. **Start Android now, app pages first?** *Recommendation:* yes. It is free, it is your phone, and
    rungs A1 and A2 need nothing from anyone else.
 4. **Register a free Limited Distribution account before 2027?** It needs your own Google account

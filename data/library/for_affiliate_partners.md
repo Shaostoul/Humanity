@@ -92,7 +92,7 @@ simple for you. Those details are exactly what early partners get to help
 decide; there is no rate card yet because there is no product yet.
 
 The backdrop that explains why there is no rate card: HumanityOS is
-public domain (CC0), with no company, no nonprofit, no equity, and
+free and open source, with no company, no nonprofit, no equity, and
 nothing for sale. The project is one maintainer and volunteers, funded by
 personal gifts. Any partner storefront will follow that same honesty.
 

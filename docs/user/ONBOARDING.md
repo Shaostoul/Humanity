@@ -21,7 +21,7 @@ life-OS, but:
 - No sign-up: your account is a cryptographic key that lives on your device
 - No tracking, no ads, no central authority
 - Federated, anyone can host a server; users keep their identity across all servers
-- Public domain (CC0), no permission required to use, fork, or deploy
+- Free and open source (the code under the AGPL, the Library under CC BY-SA, the data CC0), no permission required to use, fork, or deploy
 
 What's live right now: chat channels, end-to-end encrypted DMs, voice/video calls,
 streaming, follow system, project boards, marketplace, asset library, inventory
@@ -56,7 +56,7 @@ Poverty is not just lack of money, it's lack of capability. People trapped in sy
 they can't understand, knowledge they can't access, skills they never learned. The
 solution is education, tools, and community built at civilizational scale.
 
-Everything here is public domain. This belongs to everyone, present and future.
+Everything here is free and open source. This belongs to everyone, present and future.
 
 ---
 

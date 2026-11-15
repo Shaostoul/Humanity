@@ -1437,13 +1437,26 @@
     "public_domain": {
       "term": "Public Domain",
       "category": "platform",
-      "definition": "Work that nobody owns the copyright to, free for anyone to use, change, sell, or build on with no permission and no conditions. HumanityOS and the Humanity Accord are both released this way.",
+      "definition": "Work that nobody owns the copyright to, free for anyone to use, change, sell, or build on with no permission and no conditions. HumanityOS's game data and the Humanity Accord are released this way (CC0), and so was everything HumanityOS published before 14 November 2026.",
       "link": "https://en.wikipedia.org/wiki/Public_domain"
     },
     "cc0": {
       "term": "CC0",
       "category": "platform",
-      "definition": "A legal tool that places a work in the public domain worldwide by waiving every copyright claim the author holds. HumanityOS uses it, which is why the project can never be fenced off or sold back to you."
+      "definition": "A legal tool that places a work in the public domain worldwide by waiving every copyright claim the author holds. HumanityOS uses it for its game data and the Humanity Accord, and used it for everything it published before 14 November 2026; its code is now under the AGPL and its Library under CC BY-SA.",
+      "link": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "agpl": {
+      "term": "AGPL",
+      "category": "platform",
+      "definition": "The GNU Affero General Public License, the licence HumanityOS's code is under (version 3 or any later version). Anyone may use, change, share and even sell the code; whoever shares a changed version, or runs one as a server that other people use, must offer those people its source code under the same licence. That is what keeps every copy of HumanityOS open.",
+      "link": "https://www.gnu.org/licenses/agpl-3.0.html"
+    },
+    "cc by-sa": {
+      "term": "CC BY-SA",
+      "category": "platform",
+      "definition": "Creative Commons Attribution-ShareAlike, the licence HumanityOS's Library and documentation are under (version 4.0). Anyone may share and adapt the text, even to sell it, as long as they credit its makers, link the licence, say what they changed, and share what they adapt under the same licence. Wikipedia uses it too, which is why its text can be adapted into the Library with credit.",
+      "link": "https://creativecommons.org/licenses/by-sa/4.0/"
     },
     "cc by": {
       "term": "CC BY",
@@ -1454,7 +1467,7 @@
     "public domain": {
       "term": "Public Domain",
       "category": "platform",
-      "definition": "Belonging to everyone. Nobody holds the rights to a work in the public domain, so anyone may use, copy, change and share it, for any purpose, without asking. HumanityOS is placed there with CC0.",
+      "definition": "Belonging to everyone. Nobody holds the rights to a work in the public domain, so anyone may use, copy, change and share it, for any purpose, without asking. HumanityOS places its game data and the Humanity Accord there with CC0.",
       "link": "https://en.wikipedia.org/wiki/Public_domain"
     },
     "warranty": {

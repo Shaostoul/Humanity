@@ -41,8 +41,8 @@ const ROOTS = ["data", "assets/icons", "assets/shaders", "assets/models", "asset
 
 /** Single files the download carries: the licence files travel with every download (the ODbL offer
  * for the OpenStreetMap region files and the CC BY-SA offer for the star catalogues are in
- * LICENSES.md, 2026-11-08). */
-const FILES = ["LICENSE", "LICENSES.md", "CREDITS.md"];
+ * LICENSES.md, 2026-11-08), and LICENSING.md says which licence covers which folder (2026-11-14). */
+const FILES = ["LICENSE", "LICENSING.md", "LICENSES.md", "CREDITS.md"];
 
 /** What is left out of ROOTS: each rule a test on a POSIX path relative to the repo root, and why. */
 const EXCLUDED = [

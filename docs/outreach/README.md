@@ -33,7 +33,7 @@ which means each has a shareable link, for example:
 
 Send the link that matches the person. When in doubt, send the core doc.
 
-They are also plain markdown files, public domain like everything else.
+They are also plain markdown files, under CC BY-SA 4.0 like the rest of the Library.
 Copy them into an email, print them, translate them, or hand them to
 someone as paper. No permission needed, ever.
 
@@ -41,7 +41,7 @@ someone as paper. No permission needed, ever.
 
 - Truth over polish. Nothing is claimed as shipped unless it is shipped.
   The game is in active development and the docs say so.
-- The money truth is stated plainly: public domain, no company, no equity,
+- The money truth is stated plainly: free and open source, no company, no equity,
   support is a personal gift and not tax-deductible.
 - No partisan or nation-specific framing. Any leader of any community in
   any country can read their brief without feeling targeted.

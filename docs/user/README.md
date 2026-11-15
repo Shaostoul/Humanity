@@ -30,7 +30,8 @@ inventory, grow a garden in the simulation, and read the in-app Library.
   back it up with a 24-word phrase. Nobody can lock you out, and nobody can read your
   private messages, not even the people running the server.
 - **You own your data.** No ads, no tracking, no selling you.
-- **It is free and public-domain (CC0).** Use it, share it, change it, forever.
+- **It is free and open source.** Use it, share it, change it, forever; its licences keep every copy open
+  ([LICENSING.md](../../LICENSING.md)).
 - **It works your way.** Run it in a browser, install the desktop app, or join any
   server you trust. Your identity travels with you.
 

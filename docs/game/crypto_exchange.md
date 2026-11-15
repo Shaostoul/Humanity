@@ -15,7 +15,7 @@ Non-custodial payment layer enabling donations (crypto + USD) and peer-to-peer v
 4. **Non-custodial**, the server NEVER holds private keys or custodies funds.
 5. **Identity reuse**, derive wallet addresses from existing Ed25519 keypairs where possible.
 6. **No build step**, client libraries loaded via `<script>` tags or ESM imports, consistent with the rest of HumanityOS.
-7. **CC0 compatible**, no proprietary dependencies in core payment logic.
+7. **Licence compatible** (the code is AGPL-3.0-or-later, LICENSING.md), no proprietary dependencies in core payment logic.
 
 ---
 

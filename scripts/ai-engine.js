@@ -320,14 +320,14 @@ function pack() {
   entries.push({ name: 'licenses/llama.cpp-LICENSE.txt', data: fs.readFileSync(path.join(src.dir, 'LICENSE')) });
   notices.push(`llama.cpp and ggml (the "ggml authors"), MIT: licenses/llama.cpp-LICENSE.txt. The source is the llama.cpp folder of the crate ${LLAMA_CRATE} ${src.version} (crates.io checksum ${src.checksum}${src.vcs ? `, utilityai/llama-cpp-rs commit ${src.vcs}` : ''}).`);
   entries.push({ name: 'licenses/humanity-ai-engine-LICENSE.txt', data: fs.readFileSync(path.join(ROOT, 'LICENSE')) });
-  notices.push(`humanity-ai-engine ${version} (HumanityOS, this program and its C door src/llama/shim.c), CC0 1.0: licenses/humanity-ai-engine-LICENSE.txt`);
+  notices.push(`humanity-ai-engine ${version} (HumanityOS, this program and its C door src/llama/shim.c), AGPL-3.0-or-later: licenses/humanity-ai-engine-LICENSE.txt`);
   for (const c of linkedCrates(env)) {
     const dir = path.dirname(c.manifest_path);
     const files = licenceFiles(dir);
     const ours = c.name.startsWith('humanity-');
     if (ours) {
       entries.push({ name: `licenses/${c.name}-LICENSE.txt`, data: fs.readFileSync(path.join(ROOT, 'LICENSE')) });
-      notices.push(`${c.name} ${c.version} (HumanityOS), CC0 1.0: licenses/${c.name}-LICENSE.txt`);
+      notices.push(`${c.name} ${c.version} (HumanityOS), AGPL-3.0-or-later: licenses/${c.name}-LICENSE.txt`);
       continue;
     }
     if (!files.length) fail(`the crate ${c.name} ${c.version} has no licence file in ${dir}`);

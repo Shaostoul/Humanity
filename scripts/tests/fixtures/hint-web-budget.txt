@@ -1,7 +1,7 @@
 # The website HINT ratchet's budgets: per page, how many controls still have no plain-language
 # hint (data-tip-desc / data-i18n-tip). Checked by scripts/tests/hints-web.test.js; the numbers
 # only go DOWN, and a page not listed has a budget of zero.
-# Controls without a hint: 868 of 1422
+# Controls without a hint: 866 of 1463
 1 page accord
 46 page admin
 2 page backups-admin
@@ -33,5 +33,5 @@
 1 web/shared/markdown.js
 1 web/shared/phrase-cover.js
 12 web/shared/settings.js
-22 web/shared/shell.js
+20 web/shared/shell.js
 1 web/shared/upload-window.js

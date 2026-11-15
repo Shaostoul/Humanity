@@ -2,7 +2,7 @@
 
 **Own your tools. Own your life. Own your future.**
 
-A free app where people chat, plan, trade, and build together. No sign-up, no owner, no ads, public domain. The infrastructure for cooperation, made for everyone.
+A free app where people chat, plan, trade, and build together. No sign-up, no owner, no ads, free and open source. The infrastructure for cooperation, made for everyone.
 
 🌐 **[united-humanity.us](https://united-humanity.us)** &nbsp; · &nbsp; 💬 **[Chat](https://united-humanity.us/chat)** &nbsp; · &nbsp; 📥 **[Download](https://united-humanity.us/download)** &nbsp; · &nbsp; 💜 **[Discord](https://discord.gg/9XxmmeQnWC)**
 
@@ -33,9 +33,9 @@ The first time you open HumanityOS, your phone or computer creates a **post-quan
 
 There's no lock-in to a central server. Anyone can run a copy. **Your identity works on any server you join**, your credentials follow you, your messages and contacts come with you. If one server goes down, you keep going. Server-to-server federation is live between united-humanity.us and public.guide, and fail-closed - a network with no center can't be shut down from one.
 
-### 3. Public domain - really
+### 3. Free and open source, and it stays that way
 
-The code, the docs and the commits we wrote are in the public domain ([CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)). Copy it, fork it, sell it, teach from it. **No attribution required.** A few real-world datasets we ship keep their own open terms and travel with the bundle: the OpenStreetMap map regions are ODbL 1.0 and ask for credit on any map drawn from them, the Gaia star catalogue is CC-BY-SA-IGO 3.0, and some planetary textures are CC-BY 4.0. Every one is listed with its obligation in [LICENSES.md](LICENSES.md). Built by volunteers, owned by humanity.
+Copy it, fork it, sell it, teach from it. The code is under the [GNU AGPL 3.0 or later](LICENSE): anyone who shares a changed version, or runs one as a server for other people, shares its source too, so nobody can take HumanityOS private. The Library and the docs are under [CC BY-SA 4.0](docs/LICENSE) (credit us, share alike), which lets them take in other share-alike knowledge such as Wikipedia. The game data is public domain ([CC0 1.0](data/LICENSE)), and so is the Humanity Accord. Which folder is under which licence: [LICENSING.md](LICENSING.md). Everything released before 14 November 2026 was CC0 and stays public domain. A few real-world datasets we ship keep their own open terms and travel with the bundle: the OpenStreetMap map regions are ODbL 1.0 and ask for credit on any map drawn from them, the Gaia star catalogue is CC-BY-SA-IGO 3.0, and some planetary textures are CC-BY 4.0. Every one is listed with its obligation in [LICENSES.md](LICENSES.md). Built by volunteers, owned by humanity.
 
 ---
 
@@ -292,7 +292,7 @@ Anything less is a path toward pain, suffering, despair, and eventually extincti
 
 ## 📜 License
 
-[**CC0 1.0 Universal**](https://creativecommons.org/publicdomain/zero/1.0/) - public domain. No permission required, no attribution required. This belongs to everyone.
+**Code:** [GNU AGPL 3.0 or later](LICENSE). **Library and docs:** [CC BY-SA 4.0](docs/LICENSE). **Data and the Humanity Accord:** [CC0 1.0](data/LICENSE), public domain. The folder-by-folder map is [LICENSING.md](LICENSING.md); the name "HumanityOS" has its own short policy, [docs/legal/trademark-policy.md](docs/legal/trademark-policy.md): fork freely, under your own name.
 
 ---
 

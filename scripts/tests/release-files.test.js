@@ -118,7 +118,7 @@ test("everything else under the folders still ships: only the rules' files are l
   const leftGarments = left.filter((l) => l.path.startsWith(GARMENTS)).map((l) => l.path).sort();
   assert.deepStrictEqual(leftGarments, ON_DISK.filter((p) => p.endsWith(".png") && !p.endsWith(".thumb.png")));
   // The licence files travel with every download.
-  for (const f of ["LICENSE", "LICENSES.md", "CREDITS.md"]) assert.ok(SET.has(f), `${f} ships`);
+  for (const f of ["LICENSE", "LICENSING.md", "LICENSES.md", "CREDITS.md", "data/LICENSE", "data/library/LICENSE"]) assert.ok(SET.has(f), `${f} ships`);
 });
 
 // RED CHECK: gen-data-manifest.js as it was (its own walk of data/, assets/icons and assets/shaders),

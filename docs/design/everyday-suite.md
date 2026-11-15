@@ -85,8 +85,10 @@ Routes: **native** (build it in egui first, then mirror it on the website), **em
 licensed library inside our program), **beside** (a separate open program run next to ours),
 **bridge** (we speak its open protocol or file format), **point** (the Apps page links people to it;
 `data/external/catalog.json` already lists LibreOffice, ONLYOFFICE, CryptPad, Etherpad, KeePassXC,
-Kdenlive, Shotcut and others). Licence rule behind the routes: HumanityOS is CC0 and ships as one
-program, so GPL or AGPL code can only run beside it, never inside it.
+Kdenlive, Shotcut and others). Licence rule behind the routes: HumanityOS was CC0 when they were chosen, and ships as one
+program, so GPL or AGPL code could only run beside it, never inside it. Since 2026-11-14 the code is
+AGPL-3.0-or-later (LICENSING.md), so GPL-3.0 and AGPL-3.0 code may now be built in (AGPL section 13);
+GPL-2.0-only code still may not. Each route keeps its reasons until it is weighed again.
 
 ### 2.1 Mail
 

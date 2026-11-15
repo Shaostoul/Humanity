@@ -1131,7 +1131,8 @@ check-library-counts:
 check-schema-paths:
     node scripts/check-schema-paths.js --docs
 # Refuse a verbatim quotation from a source the registry marks use: facts. The
-# operator rule is that only public domain ships in the bundle, and the registry
+# operator rule is that only public domain ships in the bundle (since 2026-11-14 share-alike text may
+# also be copied, credited, into the Library, use: library), and the registry
 # says per source which half it is in. Three guides broke this in one day and a
 # fourth had 24 such quotations, none of them carelessly: the licence question is
 # invisible at the moment of writing unless you go and look. Put

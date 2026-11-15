@@ -14,7 +14,8 @@ November 3 is January 3, 2027.
 NLnet is transitioning from NGI Zero to the new Open Internet Stack
 effort. Historically: grants 5,000 to 50,000 EUR, individuals eligible,
 concise English proposals with an R&D focus and a European dimension,
-all outputs under free/open licenses (we are CC0; trivially satisfied).
+all outputs under free/open licenses (since 2026-11-14 the code is AGPL-3.0-or-later, the docs
+CC BY-SA 4.0 and the data CC0, LICENSING.md; satisfied).
 
 ## Prep checklist (start September 3)
 
@@ -26,8 +27,8 @@ all outputs under free/open licenses (we are CC0; trivially satisfied).
       follow their disclosure rules exactly.
 - [ ] Draft the proposal: strongest angles are the post-quantum
       identity/E2EE stack in production, serverless federated identity
-      (no home servers), self-hostable relay, and the CC0 commons
-      posture. Concrete R&D scope beats a general "fund the project"
+      (no home servers), self-hostable relay, and the open commons
+      posture (AGPL code, so a changed server stays open). Concrete R&D scope beats a general "fund the project"
       ask; scope a fundable work package.
 - [ ] Budget: propose a specific amount tied to the work package.
 - [ ] Operator reviews, submits via their form before the deadline,
@@ -128,10 +129,10 @@ Either answer is worth having. Record it in the outcome log below.
   operator's own DID returns 404). Second choice: making federation genuinely
   multi-operator. Third: metadata protection, which our own privacy essay names as
   unbuilt and genuinely hard.
-- **CC0 is FSF-recognised as free but is not OSI-approved.** NLnet requires outputs
-  under "a recognised free and open source license". Dual-licensing the software
-  under MIT or Apache-2.0 alongside CC0 removes an argument we should not have to
-  have.
+- **Settled 2026-11-14: the code is now AGPL-3.0-or-later**, which the OSI and the FSF
+  both recognise (docs/reference/findings/2026-11-14-licence-change.md). NLnet requires
+  outputs under "a recognised free and open source license"; this note used to warn that
+  CC0 is FSF-recognised as free but not OSI-approved.
 - The whole form is about 18,000 characters of prose across all fields, and they
   say it should take under an hour. Attachments are explicitly not needed.
 

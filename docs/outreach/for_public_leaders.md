@@ -32,7 +32,7 @@ rough, and some of it will break. Where something is not ready, we say so.
 A school, a public library, or an agricultural extension program can adopt
 HumanityOS without a contract, a license, a vendor, or a budget line. There
 is no tender to run, no terms to negotiate, and no renewal to fund next
-year. The software is in the public domain. Download it, copy it, hand it
+year. The software is free and open source. Download it, copy it, hand it
 to every classroom in your district. Nobody will ever send an invoice.
 
 What it builds is capability: households that can meet more of their own
@@ -68,10 +68,13 @@ copy of the code and your own server would keep working unchanged.
 
 ## No lock-in, by construction
 
-The project's own code, documents and game data are released under CC0, the
-most permissive public-domain dedication that exists: any government, school
-or community may fork it, translate it, rename it, rebrand it and adapt it
-to local crops and local law, owing us nothing and asking nobody.
+The project's own code is under the GNU AGPL 3.0, its documents under CC BY-SA
+4.0 and its game data in the public domain (CC0): any government, school or
+community may fork it, translate it, rename it and adapt it to local crops
+and local law, owing us nothing and asking nobody. The licences ask two things
+in return: credit, and that a changed version you pass on, or run as a server
+for other people, stays open under the same terms. A fork goes by its own name
+(https://github.com/Shaostoul/Humanity/blob/main/docs/legal/trademark-policy.md).
 
 A few third-party datasets we ship keep their original open terms and travel
 with the bundle. Two of them carry share-alike terms, which ask more than
@@ -83,8 +86,10 @@ archive, not an optional extra. Every one is listed with what it asks in
 https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md. Nothing in that
 list costs money, and nothing can be revoked.
 
-This is not a promise we might later withdraw. Public domain cannot be taken
-back. Lock-in is not merely avoided; it is impossible by construction.
+This is not a promise we might later withdraw. An open licence, once given,
+cannot be taken back, and every version released before 14 November 2026 is
+public domain for good. Lock-in is not merely avoided; it is impossible by
+construction.
 
 ## The encryption question, answered plainly
 
@@ -125,7 +130,7 @@ nothing is owed and nothing is lost.
 The software costs nothing, and there is no catch waiting behind that
 sentence. There is no company and no nonprofit. There is no equity, no
 investor, and nothing for sale. The project is maintained by its lead and
-by volunteers, human and AI, and released into the public domain as it is
+by volunteers, human and AI, and released as free and open source as it is
 built. People who choose to support the work give to the maintainer directly,
 on Patreon at https://www.patreon.com/Shaostoul: he receives it
 personally, so it is not tax-deductible, and it buys no influence.

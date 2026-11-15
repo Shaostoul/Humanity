@@ -210,16 +210,20 @@ console.log('');
 // authority can have that authority's own words shipped inside the release. A
 // topic resting on a copyrighted extension bulletin can only cite it, with the
 // fact restated in our words. A topic resting on a placeholder rests on nothing.
-const prov = { bundle: 0, facts_only: 0, placeholder: 0, none: 0 };
+// A share-alike source marked use: library (2026-11-14, the Library is CC BY-SA 4.0) may have its
+// words copied into the Library with credit, so it is counted on its own line, not as public domain.
+const prov = { bundle: 0, library: 0, facts_only: 0, placeholder: 0, none: 0 };
 for (const t of topics) {
   const cites = (t.sources || []).map(c => sourceById.get(c)).filter(Boolean);
   if (!cites.length) { prov.none++; continue; }
   if (cites.some(s => s.kind === 'placeholder')) { prov.placeholder++; continue; }
-  if (cites.some(s => s.bundle)) { prov.bundle++; continue; }
+  if (cites.some(s => s.bundle && s.use === 'verbatim')) { prov.bundle++; continue; }
+  if (cites.some(s => s.use === 'library')) { prov.library++; continue; }
   prov.facts_only++;
 }
 console.log('  PROVENANCE (what the citations actually are)');
 console.log('    public-domain authority : ' + String(prov.bundle).padStart(3) + '  ' + pc(prov.bundle) + '  its own words may ship in the bundle');
+console.log('    share-alike, credited   : ' + String(prov.library).padStart(3) + '  ' + pc(prov.library) + '  its words may be copied into the Library with credit');
 console.log('    cite-only authority     : ' + String(prov.facts_only).padStart(3) + '  ' + pc(prov.facts_only) + '  copyrighted, so we restate the fact ourselves');
 console.log('    placeholder             : ' + String(prov.placeholder).padStart(3) + '  ' + pc(prov.placeholder) + '  names nobody; a citation still owed');
 console.log('    uncited                 : ' + String(prov.none).padStart(3) + '  ' + pc(prov.none));
@@ -282,7 +286,8 @@ if (process.argv.includes('--sources')) {
   const used = new Map();
   for (const t of topics) for (const c of t.sources || []) used.set(c, (used.get(c) || 0) + 1);
   const groups = [
-    ['SHIPS IN THE BUNDLE (public domain)', s => s.bundle],
+    ['SHIPS IN THE BUNDLE (public domain)', s => s.bundle && s.use === 'verbatim'],
+    ['COPIED INTO THE LIBRARY WITH CREDIT (share-alike, since 2026-11-14)', s => s.use === 'library'],
     ['CITE ONLY (copyrighted; restate the fact)', s => !s.bundle && s.use === 'facts' && s.kind !== 'placeholder'],
     ['FETCHED AT RUNTIME (share-alike; never bundled)', s => s.use === 'fetch'],
     ['PLACEHOLDER (not yet a citation)', s => s.kind === 'placeholder'],

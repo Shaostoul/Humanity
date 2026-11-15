@@ -120,7 +120,7 @@ You do not have to wait for release day to be part of this.
 - Follow the work: https://github.com/Shaostoul/Humanity
 - Why we are building it: https://united-humanity.us/mission
 
-Everything is free and public domain (CC0), forever. There is no company
+Everything is free and open source, forever. There is no company
 and nothing for sale. If you ever choose to support the work, a gift to
 the maintainer (on Patreon at https://www.patreon.com/Shaostoul, or the
 other links at https://united-humanity.us/donate) goes to him

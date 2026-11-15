@@ -7,6 +7,7 @@
 name = "humanity-protocol"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 # Names the repo root for the code, env!("HUMANITY_REPO_ROOT"); the one every crate under crates/ shares.
 build = "../repo_root.rs"

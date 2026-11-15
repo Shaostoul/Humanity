@@ -35,8 +35,8 @@ into your actual garden, your actual rain barrel, your actual power
 budget. The game world is in active development and is not fully
 playable yet.
 
-The code and the documents are released into the public domain, and so is
-the game data we made ourselves. A few outside datasets we ship, such as the
+The code (GNU AGPL) and the documents (CC BY-SA) are free and open source,
+and the game data we made ourselves is in the public domain (CC0). A few outside datasets we ship, such as the
 OpenStreetMap town maps and the star catalogues, keep their own free
 licences. Those two are share-alike (ODbL 1.0 and CC BY-SA 4.0), so they
 ask for credit and that adapted copies travel under the same terms, not
@@ -74,12 +74,13 @@ It quietly reduces what governments must handle in a crisis.
 
 Nothing. Not as a promotion, but structurally.
 
-HumanityOS is public domain under CC0. That is a legal act, not a
-pricing decision: no one holds a copyright to sell, license, or fence
-off later. There is no company behind it, no nonprofit, no investors, no
+HumanityOS is free and open source under licences that cannot be
+taken back. That is a legal act, not a pricing decision: anyone may
+copy, change and share it, and a changed copy has to stay open, so
+nobody can fence it off later. There is no company behind it, no nonprofit, no investors, no
 equity, and nothing for sale. There is no premium tier waiting behind
 the free one, because there is no owner to collect on it. A promise of
-"free forever" depends on someone keeping it. Public domain does not.
+"free forever" depends on someone keeping it. An open licence does not.
 It is free the way arithmetic is free.
 
 ## What we ask

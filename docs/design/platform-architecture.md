@@ -53,7 +53,7 @@ HumanityOS exists to end poverty and unite humanity in peaceful harmony. It is n
 
 **Survive everything.** Earthquakes, hurricanes, wars, infrastructure collapse, solar flares. This platform is the coordination layer for civilization. It must function when cell towers are down, when data centers are offline, when governments fall. Federated architecture and offline-first design are survival mechanisms, not features.
 
-**Open source, public domain (CC0).** This infrastructure belongs to everyone. No corporation, government, or individual can own it, restrict it, or shut it down. The code is CC0, no license, no restrictions, no copyright claims. Fork it, modify it, deploy it. That is the point.
+**Free and open source.** This infrastructure belongs to everyone. No corporation, government, or individual can own it, restrict it, or shut it down. Since 2026-11-14 the code is under the GNU AGPL 3.0 or later (it was CC0 before): fork it, modify it, deploy it, and a changed server run for other people offers them its source. The docs are CC BY-SA 4.0 and the data CC0 (LICENSING.md). That is the point.
 
 **Education through everything.** Every interaction is an opportunity to learn. The game teaches real skills. The marketplace teaches economics. The governance system teaches civics. The construction system teaches engineering. Nothing is gamified for its own sake, every system models reality faithfully enough to transfer knowledge to the physical world.
 
@@ -694,7 +694,7 @@ Each relay is sovereign, its operator sets the rules. But the platform provides 
 
 No individual, corporation, or government controls HumanityOS:
 
-- The code is CC0, anyone can fork and deploy
+- The code is free and open source (AGPL-3.0-or-later), anyone can fork and deploy
 - The federation is permissionless, anyone can run a relay
 - Identity is self-sovereign, no registration authority
 - Governance is per-community, each relay sets its own rules

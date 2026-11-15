@@ -115,4 +115,4 @@ Civilizational cooperation principles without domination as the default.
 
 ---
 
-*Public domain (CC0). This belongs to humanity, present and future.*
+*Free and open source (AGPL-3.0 code, CC BY-SA 4.0 docs, CC0 data). This belongs to humanity, present and future.*

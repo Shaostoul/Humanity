@@ -3,7 +3,9 @@
 HumanityOS ships real-world measurements, not invented ones. Some of the sources
 carry obligations. This file records them for anyone redistributing the repo or a
 release bundle; the in-app **Settings > Credits** page shows the same list to
-players, generated from `data/credits.ron`.
+players, generated from `data/credits.ron`. The project's OWN work is mapped folder by folder in
+[`LICENSING.md`](LICENSING.md) (code AGPL-3.0-or-later, Library and docs CC BY-SA 4.0, data CC0);
+this file is about other people's.
 
 If you add a data source, add a row to `data/credits.ron` in the same commit. A
 unit test (`crates/humanity-core/src/credits.rs`) fails if a source marked `attribution_required`
@@ -151,10 +153,10 @@ consequences this project has to state rather than assume.**
    own server, and no licence text currently travels with it.
 
 This is the same shape as the OpenStreetMap problem and it means the root
-`LICENSE`, a bare CC0 dedication, does not describe the whole tree. The project
-dedicates to the public domain what its contributors wrote. It also
-redistributes third-party works, some share-alike, that it cannot and does not
-dedicate.
+`LICENSE` (the AGPL, which covers the project's code) does not describe the whole
+tree. The project licenses what its contributors wrote, folder by folder
+([`LICENSING.md`](LICENSING.md)). It also redistributes third-party works, some
+share-alike, that it cannot and does not relicense.
 
 - **ESA Gaia** - the optional ULTRA catalogue (G<14, ~25M stars) and the
   integrated galaxy glow baked from it. Gaia asks for this acknowledgement:
@@ -173,8 +175,8 @@ on **NVIDIA SimReady Assets** (<https://huggingface.co/datasets/nvidia/simready-
 **by NVIDIA**, licensed under **CC BY 4.0**
 (<https://creativecommons.org/licenses/by/4.0/>). They stay CC BY 4.0 inside this
 project: they are NOT public domain, unlike the CC0 model packs credited in
-`assets/models/LICENSE-cc0-model-packs.md` and unlike what the project's
-contributors wrote.
+`assets/models/LICENSE-cc0-model-packs.md` and unlike the project's own data and
+media (CC0, [`LICENSING.md`](LICENSING.md)).
 
 HumanityOS converted each one from OpenUSD to glTF and modified it (joined and
 simplified its mesh, baked its materials into one texture set, moved its origin,

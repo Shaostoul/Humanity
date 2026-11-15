@@ -2,7 +2,7 @@
 # writes into the page instead of asking data/i18n/en.json by key. Checked by
 # scripts/tests/i18n-web.test.js (its header says how to lower these). The numbers only
 # go DOWN; a file not listed has a budget of zero.
-# Total: 4016
+# Total: 4006
 68 web/chat/app.js
 24 web/chat/chat-dms.js
 8 web/chat/chat-fleet.js
@@ -29,7 +29,7 @@
 10 web/chat/view/messageMenu.js
 8 web/chat/view/pillPopup.js
 1 web/chat/view/timestampPill.js
-402 web/home/technical.html
+398 web/home/technical.html
 4 web/pages/accord-app.js
 3 web/pages/accord.html
 16 web/pages/admin-app.js
@@ -39,7 +39,7 @@
 4 web/pages/apps.html
 12 web/pages/backups-admin.js
 118 web/pages/dev.html
-195 web/pages/download.html
+191 web/pages/download.html
 11 web/pages/files-add.js
 27 web/pages/files-admin.js
 44 web/pages/files-app.js
@@ -64,7 +64,7 @@
 40 web/pages/recovery.html
 12 web/pages/roadmap-app.js
 30 web/pages/roadmap.html
-112 web/pages/rules.html
+111 web/pages/rules.html
 196 web/pages/settings-app.js
 500 web/pages/settings.html
 8 web/pages/tasks-app.js
@@ -82,7 +82,7 @@
 4 web/shared/level-picker.js
 3 web/shared/reach.js
 17 web/shared/settings.js
-58 web/shared/shell.js
+57 web/shared/shell.js
 1 web/shared/strip-metadata.js
 2 web/shared/sw.js
 1 web/shared/upload-window.js

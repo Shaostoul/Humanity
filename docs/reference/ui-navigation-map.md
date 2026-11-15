@@ -90,7 +90,7 @@ united-humanity.us / public.guide (web)
 |   |   | Identity | Recovery | Roadmap
 |   |- Tools, system and dev: Calculator | Calendar | Notes | Bookmarks
 |   |   | Data files (/files) | Ops | Bug Reports | Dev
-|- footer: CC0 | GitHub | Take Tour       (no internal page links)
+|- footer: licence link (LICENSING.md) | GitHub | Take Tour       (no internal page links)
 |- not in any nav: /devlog /wallet-guide /mission /admin /agents
 ```
 

@@ -292,7 +292,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_secondary()),
                     );
                     ui.add_space(theme.spacing_sm);
-                    widgets::glossary_words(ui, theme, t_marked("donate.free_cc0"), theme.font_size_body, theme.text_secondary());
+                    widgets::glossary_words(ui, theme, t_marked("donate.free_open_source"), theme.font_size_body, theme.text_secondary());
                     ui.label(
                         RichText::new(t("donate.one_person"))
                             .size(theme.font_size_body)

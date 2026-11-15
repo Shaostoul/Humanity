@@ -177,4 +177,4 @@ That's what I'm here to do.
 
 ---
 
-*Everything here is public domain. Use it, share it, build on it.*
+*Everything here is free and open source. Use it, share it, build on it.*

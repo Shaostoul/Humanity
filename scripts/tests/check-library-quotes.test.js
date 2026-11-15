@@ -19,6 +19,7 @@ const REGISTRY = [
   { id: "penn-state-extension", name: "Penn State Extension", use: "facts", licence: "copyright-university" },
   { id: "cdc", name: "Centers for Disease Control and Prevention", use: "verbatim", licence: "public-domain-us-gov" },
   { id: "usda", name: "United States Department of Agriculture", use: "verbatim", licence: "public-domain-us-gov" },
+  { id: "wikipedia", name: "Wikipedia", use: "library", licence: "cc-by-sa" },
 ];
 const needles = Q.buildNeedles(REGISTRY);
 const check = (text) => Q.checkDocument("t.md", text, needles);
@@ -50,6 +51,17 @@ test("a restate-only source named nearer still wins over a quotable one", () => 
   const p = check(text);
   assert.strictEqual(p.length, 1);
   assert.strictEqual(p[0].id, "nchfp");
+});
+
+// The licence change (2026-11-14): the Library is CC BY-SA 4.0, so a share-alike source marked
+// `use: library` may be quoted there, with its credit. Seen RED against the checker as it stood
+// before (CHECKER=<copy of the 2026-11-13 file>): the quotation was blamed on Penn State Extension,
+// named earlier, because a use: library source was not a name the checker knew.
+test("a share-alike source the Library may copy (use: library) owns its quotation", () => {
+  const text =
+    "Penn State Extension covers the same ground. " +
+    'Wikipedia\'s article on the subject puts it as "a seed bank stores seeds to preserve genetic diversity".';
+  assert.deepStrictEqual(check(text), [], "Wikipedia is named nearer and its words may be copied into the Library");
 });
 
 test("a short alias matches only as a whole word", () => {

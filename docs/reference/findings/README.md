@@ -717,3 +717,10 @@ what we will say about it.
   Privacy & Security step); iPhone and iPad (the free 7-day limit, the EU routes, the wallet rule,
   GitHub's free macOS runners); Android (sideloading, developer verification from 2027, Play's fee
   and 12-tester rule; F-Droid unreadable to Claude); Flathub's Generative AI policy; PWAs in stores.
+- [`2026-11-14-licence-change.md`](2026-11-14-licence-change.md),
+  the move from CC0 to plan B (the operator: "Let's do it."): the AGPL-3.0's section 13 duty on a
+  changed server, its section 14 "or any later version" and why the project names it (no
+  contributor agreement), the OSI's 2008 approval, what CC BY-SA 4.0 asks of an adaptation,
+  Wikipedia's terms, CC0's irrevocable waiver (old releases stay public domain), no licence covering
+  the name, copyleft reaching only human authorship, and the git history's authors (only the
+  operator; Claude co-authors, whose outputs Anthropic assigns to the user). Not legal advice.

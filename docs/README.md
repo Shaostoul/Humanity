@@ -1,6 +1,6 @@
 # HumanityOS documentation
 
-Welcome. HumanityOS is a free, open-source (CC0) cooperative platform whose goal is to
+Welcome. HumanityOS is a free, open-source cooperative platform whose goal is to
 help end poverty and unite humanity, by giving every person, and every AI, the tools
 to meet their own needs: water, energy, food, shelter, knowledge, and a voice.
 
@@ -128,4 +128,7 @@ These are the operational "heartbeat" docs the team reads often:
 
 ---
 
-Everything here is CC0. Copy it, fork it, improve it, no permission needed.
+Everything here is CC BY-SA 4.0 ([LICENSE](LICENSE)): copy it, adapt it, improve it, no permission
+needed, as long as you credit HumanityOS and share what you adapt the same way. The Humanity Accord
+(`accord/`) is CC0, public domain. Which licence covers which folder: [LICENSING.md](../LICENSING.md).
+The name has its own short policy: [legal/trademark-policy.md](legal/trademark-policy.md).

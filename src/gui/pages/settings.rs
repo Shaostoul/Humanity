@@ -33,6 +33,9 @@ mod graphics_tests;
 /// Settings > Privacy > "Calls and voice rooms" (10p, 2026-10-22): Private, Direct, or Direct
 /// also asking a public service, and who can see the person's address in each.
 mod calls;
+/// Settings > Credits, its first section (2026-11-14, LICENSING.md): HumanityOS's own licences, and
+/// buttons to the licence map, the source code and the policy for the name.
+mod own_licence;
 /// Settings > Notifications (2026-10-30, docs/design/notifications.md): this device's choices, the
 /// person's synced switches and quiet hours, and the muted list. `send_synced` and the mute menu
 /// items are shared with the chat's DM cog and its Mute server / Mute room menus.
@@ -4078,8 +4081,9 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 /// surfaces where its notice actually appears - so this page doubles as the
 /// audit of whether we are honouring them.
 pub(crate) fn draw_credits_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    own_licence::draw_own_licence(ui, theme);
     ui.label(
-        RichText::new("Real-world data HumanityOS is built on")
+        RichText::new(humanity_core::i18n::t("credits.others_heading"))
             .size(theme.font_size_heading)
             .strong()
             .color(theme.text_primary()),

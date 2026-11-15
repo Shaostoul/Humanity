@@ -287,8 +287,8 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             t_marked("humanity.why_identity_body"));
         scope_block(ui, theme, t("humanity.why_remade"),
             t("humanity.why_remade_body"));
-        scope_block(ui, theme, t("humanity.why_public"),
-            t("humanity.why_public_body"));
+        scope_block(ui, theme, t("humanity.why_open"),
+            t("humanity.why_open_body"));
     }));
     ui.add_space(theme.spacing_md);
 

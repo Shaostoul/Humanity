@@ -9,8 +9,9 @@ opposite. It leads with the parts that usually get buried.
 
 There is nothing to invest in here in the traditional sense. There is no
 company, no nonprofit, no equity, no revenue, and no exit. Everything we write is
-released into the public domain under CC0, so nobody owns it and none of the
-usual instruments apply. You cannot buy a stake in it, and neither can
+free and open source: the code under the GNU AGPL, the Library and docs under CC BY-SA,
+the game data in the public domain (CC0). Nobody can own it outright and none
+of the usual instruments apply. You cannot buy a stake in it, and neither can
 anyone else. (A few third-party data files we ship with it, such as
 planetary imagery and star catalogues, stay under their own free licences
 and are credited by name on our Credits page. Nothing in the stack is
@@ -37,7 +38,7 @@ Some of what is built is rough, and some will break. We say so on our own
 mission page, because hiding it would betray the reason the project
 exists.
 
-## Why public domain is the point, not a bug
+## Why open licences are the point, not a bug
 
 Tools meant to end poverty cannot be owned. The moment someone owns them,
 they become the next gate: a subscription, a license, an acquisition, a
@@ -46,8 +47,10 @@ poverty persists is that scarcity of access is profitable to whoever holds
 the gate. Read the full argument here:
 https://united-humanity.us/library#the-five-adversaries
 
-CC0 removes the gate permanently. No one can capture HumanityOS, buy it,
-fence it off, or sell it back to the people it was built for. An investor
+Its licences remove the gate permanently. Anyone may copy, change and share
+HumanityOS, and anyone who shares a changed copy, or runs one as a server for
+other people, has to share it openly too. No one can capture HumanityOS, buy
+it, fence it off, or sell it back to the people it was built for. An investor
 cannot capture it, and that is exactly why a funder can trust it. Your
 money cannot be redirected into someone's exit, because there is no exit.
 Whatever your support builds stays free for everyone, forever.

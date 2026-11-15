@@ -71,8 +71,9 @@ https://united-humanity.us/mission
 
 ## What it costs, honestly
 
-Nothing. HumanityOS is free and released into the public domain, which
-means it belongs to everyone, forever, and can never be sold back to you.
+Nothing. HumanityOS is free and open source, under licences that keep every copy
+open, which means it belongs to everyone, forever, and can never be sold
+back to you.
 
 There is no company behind it and no nonprofit. It is built by a
 maintainer and volunteers, and it runs on personal gifts. If your family

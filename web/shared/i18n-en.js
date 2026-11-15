@@ -1248,7 +1248,7 @@ window.HOS_I18N_EN = {
     "nav_directory": "Directory",
     "mission": "End poverty. Unite humanity.",
     "for_you": "For you: the tools to feed, power, and provide for yourself and the people you love.",
-    "for_all": "For all of us: a fair way to end poverty together. No tyrants, no corporations, no catch. Free and public domain, for every human and every AI.",
+    "for_all": "For all of us: a fair way to end poverty together. No tyrants, no corporations, no catch. Free and open source, for every human and every AI.",
     "start_here": "Start here",
     "start_here_desc": "New here? Pick a place to begin, then read as much or as little below as you like.",
     "get_oriented": "Get oriented",
@@ -1261,7 +1261,7 @@ window.HOS_I18N_EN = {
     "shape_rules_hint": "Opens Governance, where people suggest new rules and vote on them together.",
     "why_exists": "Why this exists",
     "why_exists_1": "HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.",
-    "why_exists_2": "Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, [[open source|open_source]], and released into the [[public domain|public_domain]] under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.",
+    "why_exists_2": "Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free and [[open source|open_source]], under licences that keep every copy of it open to everyone, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.",
     "early_days": "Early days, built in the open",
     "early_days_1": "HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.",
     "early_days_2": "No team, ours included, can test everything. Real people, in every kind of place, on every kind of device and connection, find what we never could. So a bug you hit or a gap you notice is not the project failing. It is the project working: building in the open is how it gets better. Tell us what breaks, and you are already helping build it.",
@@ -1288,8 +1288,8 @@ window.HOS_I18N_EN = {
     "why_identity_body": "Your identity is a key on your device, not an account a company can suspend. The network is [[federated|federation]], with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.",
     "why_remade": "Built to be remade by anyone",
     "why_remade_body": "Every plant, recipe, quest, and price is a plain data file, not locked-up code. A teacher in a remote village can add the crops that grow in their soil and the lessons their people need, with no programming, and pass it on as a single file. The tool bends to fit the place, instead of forcing every place to fit the tool.",
-    "why_public": "Public domain, forever",
-    "why_public_body": "The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.",
+    "why_open": "Free and open, forever",
+    "why_open_body": "The whole thing belongs to everyone and can never be fenced off or sold back to you: anyone who shares a changed copy has to share it openly too. The tools that end one family's poverty stay free for every family, on this world and the next.",
     "protects": "What it protects",
     "protects_body": "Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.",
     "protects_speech": "Free speech",
@@ -1297,7 +1297,7 @@ window.HOS_I18N_EN = {
     "protects_privacy": "Privacy, even from us",
     "protects_privacy_body": "Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device with [[post-quantum|post_quantum]] encryption, the kind built to resist even tomorrow's computers, and the server holds nothing but unreadable ciphertext. Even we cannot read them, and a warrant cannot force us to hand over what does not exist.",
     "protects_yours": "What is yours stays yours",
-    "protects_yours_body": "Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is [[public domain|public_domain]], so it can never be bought, locked down, or rented back to you.",
+    "protects_yours_body": "Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is free and [[open source|open_source]], and its licence makes every changed copy share its source too, so it can never be bought, locked down, or rented back to you.",
     "protects_locked_out": "You can never be locked out",
     "protects_locked_out_body": "There is no company account to suspend and no password for anyone else to reset. Your account is a key on your own device, which you can restore from your 24-word [[recovery phrase]] or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.",
     "protects_rules": "Rules made by the people they bind",
@@ -2084,7 +2084,6 @@ window.HOS_I18N_EN = {
     "page_title": "Donate, HumanityOS",
     "subtitle": "Support HumanityOS",
     "subtitle_web": "Support HumanityOS.",
-    "free_cc0": "HumanityOS is free and [[public-domain|public_domain]] ([[CC0]]), with no company or nonprofit behind it.",
     "one_person": "It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.",
     "eli5_simple": "Two ways to give: straight to the maintainer, which is not tax-deductible, or to the nonprofit Sponsor-a-Can, which is.",
     "eli5_expert": "Donation page. Reads the giving routes from /data/donate/routes.json, the other direct links from /data/donate/methods.json, endorsed charities from /data/donate/charities.json and the FAQ from /data/donate/faq.json (the same four files the desktop app's Donate page reads), plus the connected server's funding block from /api/server-info.",
@@ -2097,6 +2096,7 @@ window.HOS_I18N_EN = {
     "more_ways": "More ways to give to the maintainer directly",
     "more_ways_note": "These also go to the maintainer personally, and are not tax-deductible.",
     "funding_goal_title": "Funding Goal",
+    "free_open_source": "HumanityOS is free and [[open source|open_source]] (the code under the [[AGPL]], the Library under [[CC BY-SA]], the data under [[CC0]]), with no company or nonprofit behind it.",
     "funding_goal": "Funding goal",
     "goal_usd": "${{amount}}",
     "send_sol_label": "Send SOL or SPL tokens",
@@ -2318,6 +2318,11 @@ window.HOS_I18N_EN = {
     "learn_more_hint": "Opens a longer explanation of this word on another website, in a new tab.",
     "close_hint": "Closes this explanation."
   },
+  "technical": {
+    "licence_body": "The project's code is under the GNU AGPL 3.0 or later: share a changed version, or run one as a server for other people, and you share its source too. The Library and docs are CC BY-SA 4.0, and the game data and the Humanity Accord are CC0. Everything released before 14 November 2026 was CC0 and stays so. LICENSING.md maps every folder. Data from outside sources keeps its own licence (OpenStreetMap map data, for example, is ODbL and credited where it is drawn); LICENSES.md lists each one, and the app shows them in Settings, Credits.",
+    "licence_fact": "AGPL-3.0 code, CC BY-SA docs, CC0 data",
+    "licence_lede": "The project's code is free and open source under the GNU AGPL 3.0 or later; the Library and docs are CC BY-SA 4.0 and the data CC0. Read the code, run a node, fork it, or take the parts you want."
+  },
   "tour": {
     "card_name": "The first five minutes",
     "counter": "Step {{n}} of {{total}}",
@@ -2446,6 +2451,17 @@ window.HOS_I18N_EN = {
     "network_seen_by": "Everyone on a server you use can see this profile. While you are in the public member directory, the servers it is linked with keep a copy too, without what you keep for friends.",
     "lock_public_note": "Public: everyone on this server can see it, and the servers this one is linked with too while you are in the public member directory.",
     "interests_kept_here": "Kept on this device only: nothing on this tab is sent to any server."
+  },
+  "credits": {
+    "licensing": "Which licence covers what",
+    "licensing_hint": "Opens LICENSING.md on GitHub in your browser: which folders are under the AGPL, CC BY-SA and CC0, and what each one asks of you.",
+    "name_policy": "The name HumanityOS",
+    "name_policy_hint": "Opens the policy for the name HumanityOS on GitHub in your browser: what anyone may do with it, and why a fork must not call itself HumanityOS.",
+    "others_heading": "Real-world data HumanityOS is built on",
+    "own_body": "HumanityOS is free and [[open source|open_source]]. Its code is under the [[AGPL]] 3.0 or later: anyone may use, change and share it, and a changed copy that someone shares, or runs as a server for other people, must share its source too. The Library and the documentation are under [[CC BY-SA]] 4.0: credit HumanityOS and share what you adapt the same way. The game data and the Humanity Accord are [[public domain|public_domain]] ([[CC0]]). No licence covers the name: a fork goes by a name of its own.",
+    "own_heading": "HumanityOS's own licences",
+    "source": "Source code",
+    "source_hint": "Opens HumanityOS's source code on GitHub in your browser, the code this app is built from."
   },
   "dev": {
     "journal_marked": "Marked #{{n}}. A Claude session can read what happened around it (the play journal).",
@@ -3835,6 +3851,10 @@ window.HOS_I18N_EN = {
     "ffmpeg_opening": "{{name}} {{why}}.\nStarting it with your ffmpeg, which plays it as it goes. Nothing is converted or saved.",
     "ffmpeg_starting": "starting"
   },
+  "download": {
+    "licence_banner": "HumanityOS is free and open source. Use it, change it, share it, sell it; a changed copy stays open for everyone.",
+    "source_licence": "The code is free and open source under the [[AGPL]] 3.0 or later, the Library and docs under [[CC BY-SA]] 4.0, and the data under [[CC0]]. Clone, build, verify:"
+  },
   "files": {
     "places": {
       "label": "Places",
@@ -3999,6 +4019,9 @@ window.HOS_I18N_EN = {
     "send_anyway_hint": "Sends the file exactly as it is, hidden details and all. Your app signs this choice with your own key, so nothing else can make it for you.",
     "not_sent": "The file was not sent.",
     "cannot_sign": "The file was not sent: your key is not unlocked on this device, so your choice to send it with its hidden details could not be signed."
+  },
+  "rules": {
+    "disagree_body": "You can leave, and you can start your own. The software is free and open source, a server is a single binary, and nothing here punishes you for running one. The Accord is explicit that forking a community is legitimate rather than disloyal. A space that could not be left, or could not be replaced, would not be worth being in."
   },
   "screens": {
     "settings_title": "Screen settings: {{name}}",
@@ -5450,7 +5473,7 @@ window.HOS_I18N_EN = {
     "library": "Everything HumanityOS has written, in one place: free guides, the Humanity Accord, and a dictionary for every term.",
     "maps": "Zoom from your own street out to the whole galaxy: the real Earth, the planets and the stars on one map.",
     "market": "A market for buying, selling and offering services to other people, like a flea market everyone can use.",
-    "mission": "Why HumanityOS exists: end poverty through self-sufficiency, protect the freedoms that keep power honest, and keep it all public domain forever.",
+    "mission": "Why HumanityOS exists: end poverty through self-sufficiency, protect the freedoms that keep power honest, and keep it all free and open forever.",
     "notes": "Write notes or keep a daily log in your browser; a note you lock with a passphrase is encrypted so only you can read it.",
     "onboarding": "Learn to secure clean water, grow your own food and make your own power through step-by-step chains of tasks.",
     "ops": "A behind-the-scenes look at how the app is running in your browser right now: its connection, its storage and what it has saved.",
@@ -5482,6 +5505,8 @@ window.HOS_I18N_EN = {
     "on_github_hint": "Opens the privacy page in the project's public code on GitHub, in a new tab."
   },
   "footer": {
+    "licence": "free and open source",
+    "licence_hint": "Opens LICENSING.md on GitHub: the code is under the GNU AGPL 3.0, the Library and docs under CC BY-SA 4.0, and the data under CC0.",
     "privacy": "Privacy",
     "privacy_hint": "Opens the privacy page: what this server keeps about you, for how long, and how to erase it."
   },
@@ -5552,7 +5577,7 @@ window.HOS_I18N_EN = {
     "size": "Size: {{mb}} MB",
     "licence_label": "Licence: {{words}}",
     "licence": {
-      "cc_by": "[[CC BY]] 4.0, based on NVIDIA SimReady Assets, by NVIDIA: anyone may use, change and share them, as long as NVIDIA is credited. Unlike the rest of HumanityOS, they are not public domain."
+      "cc_by": "[[CC BY]] 4.0, based on NVIDIA SimReady Assets, by NVIDIA: anyone may use, change and share them, as long as NVIDIA is credited. Unlike HumanityOS's own data and models, they are not public domain."
     },
     "core": "Home furniture, fixtures and tools",
     "pack": {

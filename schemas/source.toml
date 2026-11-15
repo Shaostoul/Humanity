@@ -20,6 +20,13 @@
 # be checked, so every source carries `licence` and `use`, and the gate reads
 # them.
 #
+# AMENDED 2026-11-14 (the licence change, plan B; the operator: "Let's do it.";
+# docs/reference/findings/2026-11-14-licence-change.md). The Library and the
+# docs are now CC BY-SA 4.0, so a CC BY-SA source's text may be copied INTO THE
+# LIBRARY (docs/ and data/library/) with the credit its licence asks for: that
+# is `use = "library"`. Nowhere else: the data stays CC0 and the code AGPL, so
+# share-alike text still never goes into data/ outside the Library.
+#
 # The distinction that makes this workable is that FACTS ARE NOT COPYRIGHTABLE
 # (Feist v. Rural Telephone Service, 499 U.S. 340, 1991). Copyright protects
 # expression and creative selection, not the fact that chinook salmon spawn in a
@@ -95,14 +102,21 @@ required = true
 description = """
 public-domain-us-gov - a work of the US federal government, 17 U.S.C. 105.
 public-domain        - public domain for another reason, such as age.
-cc-*, odbl           - share-alike. Fetched at runtime and cached, never bundled.
+cc-by-sa             - share-alike. Since 2026-11-14 its text may be copied into
+                       the Library, credited (use = "library"); otherwise cited
+                       or fetched.
+cc-by, cc-by-nc-sa,
+odbl                 - fetched at runtime and cached, or cited for facts. Not
+                       copied: NC terms do not fit a Library anyone may sell
+                       from, ODbL is a database licence, and CC BY into the
+                       Library was not looked at on 2026-11-14.
 copyright-*          - ordinary copyright. Cite the facts, copy nothing.
 unknown              - not yet determined. Treated as copyright by the gate.
 """
 
 [fields.use]
 type = "enum"
-values = ["verbatim", "facts", "fetch"]
+values = ["verbatim", "facts", "fetch", "library"]
 required = true
 description = """
 verbatim - the material itself may be copied into data/ and shipped.
@@ -110,6 +124,12 @@ facts    - the body may be cited as the authority for a fact we restate in our
            own words. Its text, tables and arrangement may not be copied.
 fetch    - not bundled at all; fetched at runtime when a player asks for it and
            cached on their machine, so the licence never travels with a release.
+library  - (2026-11-14) a CC BY-SA source whose text may be copied into the
+           Library (docs/ and data/library/, themselves CC BY-SA 4.0) and only
+           there, with the credit its licence asks for: the work's title and a
+           link to it (which credits its authors), the licence and its link,
+           and a note of what was changed. Never into data/ outside the
+           Library, never into code.
 """
 
 [fields.bundle]
@@ -117,7 +137,8 @@ type = "bool"
 required = true
 description = """
 Whether material from this source may ship inside the release archive. True
-only for `use = "verbatim"`. The gate derives nothing from this field, it
+for `use = "verbatim"`, and for `use = "library"` (the Library ships in
+data/library/, its credit and licence with it). The gate derives nothing from this field, it
 CHECKS it against licence and use, so a wrong answer here is caught rather than
 believed.
 """

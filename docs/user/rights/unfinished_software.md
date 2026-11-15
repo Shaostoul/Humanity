@@ -87,18 +87,26 @@ promise. It is given away free, to everyone, and you take it as it is. If it
 turns out to be wrong or broken, nobody has promised to fix it for you, though we
 do want to hear about it and usually do fix it.
 
-This is what the project's licence already says. HumanityOS is released into the
-public domain under CC0 1.0, which says:
+This is what the project's licence already says. HumanityOS's code is under the
+GNU Affero General Public License, version 3 or any later version, whose section 15
+says:
 
-> Affirmer offers the Work as-is and makes no representations or warranties of
-> any kind concerning the Work, express, implied, statutory or otherwise,
-> including without limitation warranties of title, merchantability, fitness for
-> a particular purpose, non infringement, or the absence of latent or other
-> defects, accuracy, or the present or absence of errors, whether or not
-> discoverable, all to the greatest extent permissible under applicable law.
+> THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+> APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+> HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+> OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+> THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+> PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+> IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+> ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
 
-"Affirmer" is the person who released it. The whole licence is the project's
-[LICENSE](https://github.com/Shaostoul/Humanity/blob/main/LICENSE) file.
+Its section 16 limits what the makers can be held liable for, "UNLESS REQUIRED BY
+APPLICABLE LAW OR AGREED TO IN WRITING". The Library and the documentation (CC BY-SA
+4.0) and the game data (CC0 1.0) are given as is in their own licences' words. The
+whole licence is the project's
+[LICENSE](https://github.com/Shaostoul/Humanity/blob/main/LICENSE) file, and
+[LICENSING.md](https://github.com/Shaostoul/Humanity/blob/main/LICENSING.md) says
+which licence covers what.
 
 To the extent the law allows, the people who make HumanityOS are not responsible
 for loss or harm that comes from using it. That has a limit, and it is right

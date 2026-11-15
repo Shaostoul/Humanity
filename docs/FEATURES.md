@@ -1760,6 +1760,17 @@ High contrast, reduced motion, font scaling, colorblind mode filters.
 
 ## Server and Infrastructure
 
+### Licences: which licence covers what (2026-11-14)
+Plan B of the licence findings: the code is AGPL-3.0-or-later (root `LICENSE`, every `Cargo.toml`), the Library
+and docs CC BY-SA 4.0 (`docs/LICENSE`, `data/library/LICENSE`), the data and the Humanity Accord CC0
+(`data/LICENSE`, `docs/accord/LICENSE`); releases before the change stay CC0. `LICENSING.md` maps every folder
+and ships in the download; `docs/legal/trademark-policy.md` keeps the name for the real HumanityOS. Settings >
+Credits opens with the project's own licences and buttons to the map, the source and the name policy; the web
+footer links the map on every page. Share-alike sources may be copied, credited, into the Library
+(`use: library` in `data/sources/registry.json`).
+- Native: `src/gui/pages/settings/own_licence.rs` (words `credits.*`); Web: `web/shared/shell.js` (`footer.licence`),
+  `web/pages/download.html` (`download.*`); Finding: `docs/reference/findings/2026-11-14-licence-change.md`
+
 ### WebSocket Relay
 Message routing with authentication, rate limiting, federation.
 - Server: `src/relay/relay.rs` (~5800 LOC)

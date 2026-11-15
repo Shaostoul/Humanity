@@ -236,6 +236,10 @@ In practice: if you're adding a feature, check `docs/design/` for relevant specs
 
 If you're unsure whether a change is the right approach, open an issue or ask in the chat first. Small PRs are easier to review than large ones.
 
+### The licence of what you contribute
+
+A contribution is accepted under the licence of the folder it lands in ([LICENSING.md](LICENSING.md)): code under the GNU AGPL 3.0 or later, Library and documentation text under CC BY-SA 4.0, data under CC0 1.0. Opening a pull request means you agree to that. Bring in someone else's work only when its licence allows it, with its licence file beside it and a line in `LICENSES.md` or `data/credits.ron`. Never paste text from a source the registry marks `use: facts` (`data/sources/registry.json`); restate the fact in your own words and cite the source. A fork is welcome under its own name: [docs/legal/trademark-policy.md](docs/legal/trademark-policy.md).
+
 ---
 
 ## Review Philosophy

@@ -111,4 +111,4 @@ If that resonates, welcome. Let's build.
 
 ---
 
-*Public domain. No permission needed. Just purpose.*
+*Free and open source. No permission needed. Just purpose.*

@@ -3,8 +3,9 @@
 HumanityOS is free and open to everyone, and some of what it needs can only come from people. This is
 the list of roles we are looking for, kept current as new ones come up. Started 8 November 2026.
 
-Everything a volunteer gives is shared with the world the same way the project is: dedicated to the
-public domain (CC0), so anyone may use it for anything, forever. Nobody is paid, and nobody is asked
+Everything a volunteer gives is shared with the world the same way the project is: recordings and
+data dedicated to the public domain (CC0), code under the GNU AGPL and writing under CC BY-SA, so
+anyone may use it, forever. Nobody is paid, and nobody is asked
 for money.
 
 **This page lists roles, never people.** The names and contact details of people who offer to help

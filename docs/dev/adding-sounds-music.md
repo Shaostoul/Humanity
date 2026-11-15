@@ -138,8 +138,8 @@ Follow the same ownership pattern every other subsystem uses:
 
 ## Licensing rules
 
-- **CC0 strongly preferred** (the whole project is CC0; CC0 sounds keep it
-  clean). Good sources: freesound.org (filter license = CC0), Sonniss GDC
+- **CC0 strongly preferred** (the project's own data and media are CC0,
+  LICENSING.md; CC0 sounds keep them clean). Good sources: freesound.org (filter license = CC0), Sonniss GDC
   packs (check each pack's terms), kenney.nl (CC0).
 - CC-BY is acceptable if CC0 truly is not available, but then attribution is
   MANDATORY.

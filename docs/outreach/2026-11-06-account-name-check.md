@@ -205,7 +205,9 @@ box at sign-up (it counts for you), and cut from the front half, never the AI li
   regions under ODbL 1.0, two star catalogues under CC BY-SA, some planet textures under CC BY 4.0,
   and the Minor Planet Center's asteroid orbits under that centre's own conditions;
   [`LICENSES.md`](../../LICENSES.md)). So the text says "open-source tools and guides", never
-  "everything is public domain".
+  "everything is public domain". (Added 2026-11-14: the licence has since changed to plan B, the code
+  AGPL-3.0-or-later, the documents CC BY-SA 4.0 and the data CC0, [`LICENSING.md`](../../LICENSING.md);
+  "open-source tools and guides" holds as written.)
 - **The limits**: X's 160 is the figure given for this work (X's help pages refused automated
   reading); Bluesky's 256 graphemes is its profile record's `description` field, `maxGraphemes:
   256` (`lexicons/app/bsky/actor/profile.json` in Bluesky's `bsky` repository, read 6 November

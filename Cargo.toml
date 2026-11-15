@@ -16,6 +16,10 @@ resolver = "2"
 [workspace.package]
 version = "0.1561.0"
 edition = "2021"
+# The code's licence (2026-11-14, plan B of docs/reference/findings/2026-10-25-licence-options.md; the
+# change and why "-or-later": docs/reference/findings/2026-11-14-licence-change.md). The Library and the
+# docs are CC BY-SA 4.0 and the data CC0, which LICENSING.md maps folder by folder.
+license = "AGPL-3.0-or-later"
 
 # Every dependency more than one member uses, with its version and features in ONE place: a member names
 # it `{ workspace = true }` (and `optional = true` where a feature turns it on). Why each one is here: the
@@ -81,6 +85,7 @@ windows = { version = "0.62", features = ["ApplicationModel", "ApplicationModel_
 name = "humanity-engine"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "HumanityOS"

@@ -200,7 +200,10 @@ carry the identical license to this repo.
 `LICENSE` is **CC0 1.0 Universal**. Every mature open-source tree generator is GPL: Arbaro
 GPL-2, Blender Sapling GPL-2, improved-sapling GPL-2, friggog/tree-gen GPL-3. **None can be
 ported here.** Even permissive ones (ez-tree MIT, proctree BSD-3) require retaining a copyright
-notice, a genuine wart in a public-domain dedication.
+notice, a genuine wart in a public-domain dedication. (2026-11-14: the code is now
+AGPL-3.0-or-later, LICENSING.md. GPL-3.0 code such as tree-gen may now be combined with it, AGPL
+section 13; GPL-2.0-only code still may not, and GPL-2.0-or-later code only as GPL-3.0. Read each
+project's own licence notice before porting anything. The Weber-Penn route below stays the clean one.)
 
 The clean route is the one Arbaro, Sapling and tree-gen each independently took: **implement
 from the Weber-Penn paper**, whose Appendix and equations are complete enough. Read permissive

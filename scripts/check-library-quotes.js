@@ -7,7 +7,12 @@
 // the bundle and anything else is fetched at runtime. data/sources/registry.json
 // encodes that per source: `use: verbatim` means the source's own words may
 // ship, `use: facts` means restate the fact in our own words, because facts are
-// not copyrightable (Feist v. Rural Telephone) but expression is.
+// not copyrightable (Feist v. Rural Telephone) but expression is. Since the
+// licence change of 2026-11-14 (the Library is CC BY-SA 4.0,
+// docs/reference/findings/2026-11-14-licence-change.md) there is a third kind,
+// `use: library`: a share-alike source whose words may be copied into the
+// Library with the credit its licence asks for. Its quotations are not flagged
+// here; whether the credit is there is the writer's and the reviewer's to check.
 //
 // On 2026-09-15 three separate guides were found breaking that rule in one day:
 //
@@ -108,7 +113,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function buildNeedles(registry) {
   const needles = [];
   for (const s of registry) {
-    if (s.use !== 'facts' && s.use !== 'verbatim') continue;
+    if (s.use !== 'facts' && s.use !== 'verbatim' && s.use !== 'library') continue;
     const add = (frag, deliberate) => {
       const f = String(frag).trim().toLowerCase();
       if (!deliberate && f.length < 5) return; // a derived name this short identifies nothing

@@ -11,6 +11,10 @@ Each line is written the way a player would hear it; the release notes and
 
 ## Shipped
 
+### Next release
+
+- A new licence: the code is now under the GNU AGPL 3.0, so anyone who runs a changed HumanityOS server must share its source; the Library and docs are under CC BY-SA 4.0, so Wikipedia's text can come in, credited; game data and the Humanity Accord stay public domain; and a short policy keeps the name HumanityOS for the real thing.
+
 ### v0.1561.0 (14 November 2026)
 
 - Far forests: distant tree cards draw out to the Tree silhouette distance for the first time in any release.

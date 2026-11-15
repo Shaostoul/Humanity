@@ -30,7 +30,8 @@ Because poverty is not only a lack of money, it is a lack of capability: knowled
 cannot reach, skills you were never taught, systems you cannot understand. HumanityOS
 exists to hand those capabilities to anyone, for free, so people can help themselves and
 each other. It is built to outlast any one company or founder. That is why it is
-public-domain (CC0): it belongs to everyone, now and in the future.
+free and open source, under licences that keep every copy of it open: it belongs to everyone, now and in
+the future.
 
 ## Who is it for?
 

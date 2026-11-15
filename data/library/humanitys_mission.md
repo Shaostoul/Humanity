@@ -13,10 +13,10 @@ software that helps me, my family, and my friends survive and thrive,
 and depend far less on fragile supply chains and corrupt corporations.
 
 Here is why that matters to you. The same tools that lift one family
-out of poverty lift any family. So HumanityOS is free, open source, and
-released into the public domain under CC0, with no catch and nothing to
-sell. Ending my own poverty and ending yours turned out to be the same
-project.
+out of poverty lift any family. So HumanityOS is free and open source,
+under licences that keep every copy of it open to everyone, with no catch
+and nothing to sell. Ending my own poverty and ending yours turned out to
+be the same project.
 
 ---
 
@@ -124,10 +124,10 @@ can add the crops that grow in their soil and the lessons their people
 need, with no programming, and pass it on as a single file. The tool
 bends to fit the place, instead of forcing every place to fit the tool.
 
-**Public domain, forever.** The whole thing belongs to everyone and can
-never be fenced off or sold back to you. The tools that end one
-family's poverty stay free for every family, on this world and the
-next.
+**Free and open, forever.** The whole thing belongs to everyone and can
+never be fenced off or sold back to you: anyone who shares a changed
+copy has to share it openly too. The tools that end one family's
+poverty stay free for every family, on this world and the next.
 
 ---
 
@@ -155,7 +155,8 @@ warrant cannot force us to hand over what does not exist.
 
 **What is yours stays yours.** Your identity, your keys, your words,
 and your tools belong to you, not to a platform that can revoke them.
-The whole system is public domain, so it can never be bought, locked
+The whole system is free and open source, and its licence makes every
+changed copy share its source too, so it can never be bought, locked
 down, or rented back to you.
 
 **You can never be locked out.** There is no company account to suspend and

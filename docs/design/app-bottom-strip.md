@@ -103,7 +103,8 @@ and the Library; he is weighing an Overview page instead, or as well (section 5.
 
 From the dated finding, `docs/reference/findings/2026-10-30-wip-warning-and-liability.md`, which
 read the licence, the UK, EU and Washington law from primary sources. Its short answer, which the
-words follow: the licence (CC0 1.0) already disclaims warranties but has no liability limit; a
+words follow: the licence (CC0 1.0 when it was read; since 2026-11-14 the code is under the AGPL,
+whose section 16 does limit liability) already disclaimed warranties but had no liability limit; a
 warning makes the risk obvious and warnings count in every law read; no warning makes anyone
 immune, and several rules forbid excluding liability for death or injury from negligence.
 
@@ -130,7 +131,7 @@ details page carries the limit that can honestly be claimed: "to the extent the 
 (slug `unfinished-software`; `node scripts/build-library.js`), so the desktop Library and the
 website's `/library#unfinished-software` show one document. It says what unfinished means here
 (BUG-216 and the 48-of-60 species review as real examples; saves may not carry over before 1.0),
-what not to rely on it for, what "as is, with no warranty" means with CC0's own words, the
+what not to rely on it for, what "as is, with no warranty" means with the licence's own words (the AGPL's section 15 since 2026-11-14), the
 "to the extent the law allows" sentence and its honest limit, when the warning goes (1.0), how the
 project is built, how to report a problem, and the emergency line.
 
@@ -144,7 +145,7 @@ before 1.0; a server's world that may be reset; a server that may go away, with 
 what stays yours all the same (the account is a key on the person's own device, backed by the
 recovery phrase; direct messages sealed, with the algorithm names from
 `docs/reference/cryptography.md`; room messages NOT sealed; "these describe how it is built, they
-are not promises"); what is not promised (as is, CC0's words, the "to the extent the law allows"
+are not promises"); what is not promised (as is, the licence's words, the "to the extent the law allows"
 sentence, what not to rely on, the emergency line); why the warning is there (honesty, the
 finding); muting it (where, how long, what it does and does not do); when it goes away; how to
 report a problem; the roadmap and the road to 1.0. It stays inside the finding's limits: no word

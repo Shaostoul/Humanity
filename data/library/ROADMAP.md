@@ -773,4 +773,4 @@ with more than 1,300 tagged releases); for the granular per-release history see
   `data/roadmap.json`) and `web/pages/roadmap-app.js` (which renders it). Edit this
   file, regenerate, and everyone sees the change.
 - **Want something on here?** Open an issue or a discussion, or (for contributors)
-  propose an edit to this file. The roadmap is CC0 like everything else.
+  propose an edit to this file. The roadmap is CC BY-SA 4.0 like the rest of the docs.
