@@ -157,6 +157,13 @@
   --map-room-fill: #8c94a3;
   --map-room-edge: rgba(204, 214, 235, 0.75);
   --map-room-fill-alpha: 0.32;
+  /* The model inspector: its axes, the bounds, the catalog box and the collision shapes */
+  --axis-x: #e64d42;
+  --axis-y: #66d152;
+  --axis-z: #528ff5;
+  --inspect-bounds: rgba(219, 219, 235, 0.8);
+  --inspect-box: #f5bd1f;
+  --inspect-collision: rgba(56, 219, 219, 0.85);
 
   /* Radii */
   --radius-sm: 3.9643755px;
@@ -300,6 +307,12 @@
   --badge-verified: #1f6fae;
   --badge-donor: #7d3f98;
   --badge-live: #c0322a;
+  --axis-x: #b3261e;
+  --axis-y: #2e7d32;
+  --axis-z: #1f5fbf;
+  --inspect-bounds: rgba(40, 40, 52, 0.8);
+  --inspect-box: #8a6100;
+  --inspect-collision: rgba(0, 120, 128, 0.9);
   --dm-bg: #f6e6e6;
   --dm-row-bg: #f0dada;
   --dm-row-hover: #e8cccc;

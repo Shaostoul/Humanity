@@ -19,7 +19,7 @@ core, ship and terrain, draws nothing, and the server compiles it too.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-systems/src/surface_walk.rs` 462 of 474.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 9, `test-support` 8.
 - **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 474, ship 29, terrain 7.
-- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 608, gui 183, relay 10.
+- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 608, gui 184, relay 10.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 888 tests, and this runs exactly them, checked against every test's name:
 
@@ -41,13 +41,13 @@ just test-lib --crate humanity-systems
 | `inventory::Inventory` | 10 | engine 10 |
 | `inventory::containers::Container` | 9 | engine 9 |
 | `persistence::slot_path` | 9 | engine 8, gui 1 |
+| `grow_machines::load_home` | 7 | engine 5, gui 2 |
 | `inventory` | 7 | engine 6, gui 1 |
 | `inventory::TransferOp` | 7 | gui 5, engine 2 |
 | `persistence::live_save::active_home_machines_path` | 7 | engine 7 |
 | `skills::practice` | 7 | engine 7 |
-| `time::GameTime` | 7 | engine 7 |
 
-And 380 more items, 631 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
+And 380 more items, 632 references (`node scripts/crate-cards.js --interface humanity-systems` lists them all).
 <!-- end generated -->
 
 ## Rules

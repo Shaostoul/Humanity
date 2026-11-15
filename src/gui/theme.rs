@@ -98,6 +98,21 @@ pub struct Theme {
     pub map_room_edge: C,
     #[serde(default = "default_map_room_fill_alpha")]
     pub map_room_fill_alpha: f32,
+    /// The model inspector (docs/design/model-inspector.md): the three axes it draws at the
+    /// origin and on every empty, the box round the visible model, the catalog box it is fitted
+    /// to, and the collision shapes.
+    #[serde(default = "default_axis_x")]
+    pub axis_x: C,
+    #[serde(default = "default_axis_y")]
+    pub axis_y: C,
+    #[serde(default = "default_axis_z")]
+    pub axis_z: C,
+    #[serde(default = "default_inspect_bounds")]
+    pub inspect_bounds: C,
+    #[serde(default = "default_inspect_box")]
+    pub inspect_box: C,
+    #[serde(default = "default_inspect_collision")]
+    pub inspect_collision: C,
     pub border: C,
     pub border_focus: C,
     pub badge_admin: C,
@@ -603,6 +618,12 @@ impl Theme {
     pub fn map_reference(&self) -> Color32 { Self::c32(&self.map_reference) }
     pub fn map_room_fill(&self) -> Color32 { Self::c32(&self.map_room_fill) }
     pub fn map_room_edge(&self) -> Color32 { Self::c32(&self.map_room_edge) }
+    pub fn axis_x(&self) -> Color32 { Self::c32(&self.axis_x) }
+    pub fn axis_y(&self) -> Color32 { Self::c32(&self.axis_y) }
+    pub fn axis_z(&self) -> Color32 { Self::c32(&self.axis_z) }
+    pub fn inspect_bounds(&self) -> Color32 { Self::c32(&self.inspect_bounds) }
+    pub fn inspect_box(&self) -> Color32 { Self::c32(&self.inspect_box) }
+    pub fn inspect_collision(&self) -> Color32 { Self::c32(&self.inspect_collision) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
     pub fn border_focus(&self) -> Color32 { Self::c32(&self.border_focus) }
 
@@ -942,6 +963,12 @@ fn default_map_label_size() -> f32 { 12.5 }
 fn default_map_room_fill() -> C { (0.55, 0.58, 0.64, 1.0) } // a neutral grey-blue floor
 fn default_map_room_edge() -> C { (0.80, 0.84, 0.92, 0.75) } // a pale line round a room
 fn default_map_room_fill_alpha() -> f32 { 0.32 }
+fn default_axis_x() -> C { (0.90, 0.30, 0.26, 1.0) } // an x axis: red
+fn default_axis_y() -> C { (0.40, 0.82, 0.32, 1.0) } // a y axis (up): green
+fn default_axis_z() -> C { (0.32, 0.56, 0.96, 1.0) } // a z axis (front): blue
+fn default_inspect_bounds() -> C { (0.86, 0.86, 0.92, 0.8) } // the box round a model's visible parts
+fn default_inspect_box() -> C { (0.96, 0.74, 0.12, 1.0) } // the catalog box a model is fitted to
+fn default_inspect_collision() -> C { (0.22, 0.86, 0.86, 0.85) } // collision shapes drawn as lines
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
 fn default_badge_padding() -> f32 { 6.0 }
@@ -1085,6 +1112,12 @@ fn default_theme() -> Theme {
         map_room_fill: default_map_room_fill(),
         map_room_edge: default_map_room_edge(),
         map_room_fill_alpha: default_map_room_fill_alpha(),
+        axis_x: default_axis_x(),
+        axis_y: default_axis_y(),
+        axis_z: default_axis_z(),
+        inspect_bounds: default_inspect_bounds(),
+        inspect_box: default_inspect_box(),
+        inspect_collision: default_inspect_collision(),
         border: (0.165, 0.165, 0.208, 1.0),            // #2a2a35
         border_focus: (0.929, 0.549, 0.141, 1.0),      // #ED8C24
         badge_admin: (0.9, 0.5, 0.13, 1.0),

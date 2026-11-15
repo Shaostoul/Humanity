@@ -88,6 +88,11 @@ pub struct AppFolder {
     pub guide: Option<Guide>,
     /// One line about the last thing done.
     pub status: String,
+    /// The file chosen is a 3D model (a `.glb`, `.gltf` or `.stl`): it opens in the 3D view with
+    /// the model inspector (docs/design/model-inspector.md) instead of as text.
+    pub model: Option<crate::gui::model_view::Viewer>,
+    /// A `.gltf` (which is text) shown as its text instead (Read its text).
+    pub model_text: bool,
 }
 
 /// The app's own folder, as this run found its data ([`app_folder_for`]).
@@ -247,6 +252,9 @@ pub(crate) fn choose(af: &mut AppFolder, path: &Path) {
     af.selected = Some(path.to_path_buf());
     af.dirty = false;
     af.status.clear();
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    af.model = crate::gui::model_view::load::viewable_local(&name).then(|| crate::gui::model_view::Viewer::open_local(path));
+    af.model_text = false;
     match read_text(path) {
         Ok(text) => {
             af.content = text;
@@ -329,6 +337,23 @@ pub(crate) fn draw_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         super::viewer::nothing_chosen(ui, theme, CHOOSE_LINE);
         return;
     };
+    // A 3D model: the 3D view fills the pane, Inspect and Close's place in its foot (a `.gltf`,
+    // which is text, keeps Read its text there).
+    let has_text = af.not_text.is_none();
+    if let Some(viewer) = af.model.as_mut().filter(|_| !af.model_text) {
+        let seen = ui.max_rect().bottom().min(ui.clip_rect().bottom());
+        let room = egui::vec2(ui.available_width(), (seen - ui.cursor().top()).max(0.0));
+        let mut to_text = false;
+        viewer.show_fit(ui, theme, room, f32::INFINITY, &mut |ui| {
+            if has_text {
+                to_text |= widgets::Button::secondary(t("model_inspect.read_text")).tooltip(t("model_inspect.read_text_hint")).show(ui, theme);
+            }
+        });
+        if to_text {
+            af.model_text = true;
+        }
+        return;
+    }
     if let Some(why) = af.not_text.clone() {
         super::viewer::nothing_chosen(ui, theme, &why);
         return;
@@ -345,10 +370,15 @@ pub(crate) fn draw_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.add_space(theme.spacing_xs);
     }
     let mut save_it = false;
+    let mut to_model = false;
+    let is_model = af.model.is_some();
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
         // The row at the foot, sized as panes.rs `foot_row` sizes the middle pane's rows.
         super::panes::foot_row(ui, egui::Id::new("app_folder_save_row"), false, |ui| {
             save_it = ui.add_enabled_ui(af.dirty, |ui| widgets::Button::primary("Save").tooltip("Write the change to the file. Its previous version is kept beside it.").show(ui, theme)).inner;
+            if is_model {
+                to_model = widgets::Button::secondary(t("model_inspect.view_3d")).tooltip(t("model_inspect.view_3d_hint")).show(ui, theme);
+            }
             if !af.status.is_empty() {
                 ui.label(RichText::new(&af.status).size(theme.font_size_small).color(theme.text_muted()));
             }
@@ -364,11 +394,19 @@ pub(crate) fn draw_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             });
         });
     });
+    if to_model {
+        // Saved or not, the 3D view reads the file as it is on the disk.
+        af.model_text = false;
+    }
     if save_it {
         match save(&path, &af.content) {
             Ok(words) => {
                 af.dirty = false;
                 af.status = words;
+                // A saved `.gltf` is read again for its 3D view and inspection.
+                if is_model {
+                    af.model = Some(crate::gui::model_view::Viewer::open_local(&path));
+                }
             }
             Err(words) => af.status = words,
         }
@@ -463,6 +501,37 @@ mod tests {
         let text = dir.join("notes.md");
         std::fs::write(&text, "# Notes\n").unwrap();
         assert_eq!(read_text(&text).unwrap(), "# Notes\n");
+    }
+
+    /// A 3D MODEL OPENS IN THE 3D VIEW, WITH THE INSPECTOR (2026-11-14, docs/design/model-inspector.md):
+    /// choosing a `.glb` opens a viewer that reads it from the disk and inspects it (the planted
+    /// test model's faults are in its report); a `.gltf` opens in the viewer too and keeps its text
+    /// for Read its text; a text file opens no viewer.
+    /// Seen red 2026-11-14 with `choose` leaving `model` unset: "a .glb opens in the 3D view".
+    #[test]
+    fn a_model_opens_in_the_3d_view_with_the_inspector() {
+        let repo = Path::new(env!("HUMANITY_REPO_ROOT"));
+        let mut af = AppFolder::default();
+        choose(&mut af, &repo.join("scripts/tests/fixtures/inspect/planted/planted.glb"));
+        let viewer = af.model.as_mut().expect("a .glb opens in the 3D view");
+        // The viewer reads on its own thread: draw it until it is ready.
+        let (ctx, theme) = crate::gui::pages::files::tests::ctx_and_theme();
+        for _ in 0..400 {
+            let _ = ctx.run(egui::RawInput::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| viewer.show(ui, &theme, 800.0));
+            });
+            if viewer.ready() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(viewer.ready(), "the model was read");
+        let codes: Vec<&str> = viewer.inspection().expect("inspected").findings.iter().map(|f| f.code).collect();
+        assert!(codes.contains(&"empty_wrong_way") && codes.contains(&"collision_off"), "{codes:?}");
+        choose(&mut af, &repo.join("scripts/tests/fixtures/inspect/missing/missing.gltf"));
+        assert!(af.model.is_some() && af.not_text.is_none(), "a .gltf opens in 3D and keeps its text");
+        choose(&mut af, &repo.join("scripts/tests/fixtures/inspect/planted/physics.ron"));
+        assert!(af.model.is_none(), "a text file opens no viewer");
     }
 
     /// A guide the Library has, by its file in the Library's own folder.

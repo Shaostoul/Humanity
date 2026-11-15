@@ -1,0 +1,15 @@
+// The planted test model's physics (scripts/gen-inspect-fixtures.js): one collider whose hull,
+// mesh 2, stands 1 m off the visible model along +x. Read by src/assets/model_physics.rs.
+(
+    source: "planted",
+    package_id: "test.planted",
+    mass_kg: Some(10.0),
+    center_of_mass_m: Some((0.0, 0.25, 0.0)),
+    bodies: [
+        (name: "body", mass_kg: Some(10.0), kinematic: false, principal_inertia_kg_m2: None),
+    ],
+    colliders: [
+        (body: "body", part: "hull_offset", approximation: "convexHull", hull_mesh: Some(2), friction: Some(0.5), static_friction: Some(0.5), restitution: Some(0.1)),
+    ],
+    joints: [],
+)

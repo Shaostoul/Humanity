@@ -1601,6 +1601,12 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Maps: belt dust (ice)", &mut theme.map_belt_outer as *mut _),
                     ("Maps: room fill (a room with no type colour)", &mut theme.map_room_fill as *mut _),
                     ("Maps: room edges and walls", &mut theme.map_room_edge as *mut _),
+                    ("Model inspector: x axis", &mut theme.axis_x as *mut _),
+                    ("Model inspector: y axis (up)", &mut theme.axis_y as *mut _),
+                    ("Model inspector: z axis (front)", &mut theme.axis_z as *mut _),
+                    ("Model inspector: bounds", &mut theme.inspect_bounds as *mut _),
+                    ("Model inspector: catalog box", &mut theme.inspect_box as *mut _),
+                    ("Model inspector: collision shapes", &mut theme.inspect_collision as *mut _),
                 ];
                 for (label, ptr) in labels_right {
                     let color_tuple = unsafe { &mut *ptr };

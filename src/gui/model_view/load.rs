@@ -186,6 +186,73 @@ pub fn viewable(name: &str) -> bool {
     lower.ends_with(".glb") || lower.ends_with(".stl")
 }
 
+/// Whether a file on this computer of this name opens in the viewer: a `.glb` or an `.stl`, and a
+/// `.gltf`, whose outside files are read from beside it ([`load_local`]; the model inspector,
+/// docs/design/model-inspector.md, rung 1). A `.gltf` on a server is not offered: its outside files
+/// are not there.
+pub fn viewable_local(name: &str) -> bool {
+    viewable(name) || name.to_ascii_lowercase().ends_with(".gltf")
+}
+
+/// Read the model file at `path` on this computer, a `.gltf`'s outside files from its own folder
+/// (never from above it: [`outside_file`]).
+pub fn load_local(path: &std::path::Path) -> Result<Model, String> {
+    let bytes = read_local(path)?;
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    if name.to_ascii_lowercase().ends_with(".stl") {
+        return load_stl(&bytes);
+    }
+    load_gltf(&bytes, path.parent())
+}
+
+/// The bytes of a model file on this computer, at most [`MAX_MODEL_BYTES`].
+pub fn read_local(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    let len = std::fs::metadata(path).map_err(unreadable)?.len();
+    if len > MAX_MODEL_BYTES as u64 {
+        return Err(too_large_words(len as i64));
+    }
+    std::fs::read(path).map_err(unreadable)
+}
+
+/// The bytes of the outside file `uri` a `.gltf` in `dir` names, when it is a plain relative path
+/// to a file in `dir` or below it, at most [`MAX_MODEL_BYTES`]; None for anything else (an address,
+/// an absolute path, a path climbing out of the folder, a file that is not there). A model file is
+/// only allowed to read its own files.
+pub fn outside_file(dir: &std::path::Path, uri: &str) -> Option<Vec<u8>> {
+    let decoded = percent_decode(uri)?;
+    if decoded.is_empty() || decoded.contains(':') || decoded.starts_with('/') || decoded.starts_with('\\') {
+        return None;
+    }
+    let rel = std::path::Path::new(&decoded);
+    if rel.components().any(|c| !matches!(c, std::path::Component::Normal(_) | std::path::Component::CurDir)) {
+        return None;
+    }
+    let full = dir.join(rel);
+    let (Ok(base), Ok(real)) = (dir.canonicalize(), full.canonicalize()) else { return None };
+    if !real.starts_with(&base) || std::fs::metadata(&real).ok()?.len() > MAX_MODEL_BYTES as u64 {
+        return None;
+    }
+    std::fs::read(real).ok()
+}
+
+/// A URI's `%xx` escapes turned back into bytes (`my%20texture.png`); None when it is not UTF-8.
+fn percent_decode(uri: &str) -> Option<String> {
+    let b = uri.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            let hex = std::str::from_utf8(&b[i + 1..i + 3]).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 /// Read `bytes`, named `name` (the ending says which kind).
 pub fn load(name: &str, bytes: &[u8]) -> Result<Model, String> {
     if bytes.len() > MAX_MODEL_BYTES {
@@ -344,6 +411,12 @@ pub fn load_glb(bytes: &[u8]) -> Result<Model, String> {
     if bytes.len() < 12 || &bytes[0..4] != b"glTF" {
         return Err(unreadable("it is not a binary glTF (.glb) file"));
     }
+    load_gltf(bytes, None)
+}
+
+/// A `.glb`, or a `.gltf` whose outside files are read from `dir` ([`outside_file`]); with no
+/// `dir`, a file pointing outside itself is refused (a buffer) or drawn without it (a picture).
+pub fn load_gltf(bytes: &[u8], dir: Option<&std::path::Path>) -> Result<Model, String> {
     if draco_listed(bytes, "extensionsRequired") {
         return Err(DRACO_WORDS.to_string());
     }
@@ -360,7 +433,11 @@ pub fn load_glb(bytes: &[u8]) -> Result<Model, String> {
     for b in doc.buffers() {
         let data = match b.source() {
             gltf::buffer::Source::Bin => gltf.blob.clone().ok_or_else(|| unreadable("its binary part is missing"))?,
-            gltf::buffer::Source::Uri(uri) => data_uri(uri).ok_or_else(|| unreadable("it points to outside files, which a .glb should not"))?,
+            gltf::buffer::Source::Uri(uri) => match (data_uri(uri), dir) {
+                (Some(b), _) => b,
+                (None, Some(d)) => outside_file(d, uri).ok_or_else(|| unreadable(format!("its file {uri} is not beside it")))?,
+                (None, None) => return Err(unreadable("it points to outside files, which a .glb should not")),
+            },
         };
         if data.len() < b.length() {
             return Err(unreadable("a buffer is shorter than it says"));
@@ -485,7 +562,7 @@ pub fn load_glb(bytes: &[u8]) -> Result<Model, String> {
             let slot = match material_slots.get(&mat.index()) {
                 Some(&s) => s,
                 None => {
-                    let made = material(&mat, &buffers, &mut image_slots, &mut m.images)?;
+                    let made = material(&mat, &buffers, dir, &mut image_slots, &mut m.images)?;
                     m.materials.push(made);
                     material_slots.insert(mat.index(), m.materials.len() - 1);
                     m.materials.len() - 1
@@ -506,19 +583,27 @@ pub fn load_glb(bytes: &[u8]) -> Result<Model, String> {
 /// read from its JSON before the glTF reader (which refuses an unknown required extension with less
 /// useful words).
 fn draco_listed(bytes: &[u8], key: &str) -> bool {
-    if bytes.len() < 20 {
-        return false;
-    }
-    let len = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
-    let Some(json) = bytes.get(20..20usize.saturating_add(len)) else { return false };
+    let Some(json) = gltf_json(bytes) else { return false };
     let Ok(v) = serde_json::from_slice::<serde_json::Value>(json) else { return false };
     v.get(key)
         .and_then(|e| e.as_array())
         .is_some_and(|a| a.iter().any(|x| x.as_str() == Some("KHR_draco_mesh_compression")))
 }
 
+/// The JSON part of a glTF file: a `.glb`'s first chunk, or a `.gltf` whole.
+pub fn gltf_json(bytes: &[u8]) -> Option<&[u8]> {
+    if bytes.starts_with(b"glTF") {
+        if bytes.len() < 20 {
+            return None;
+        }
+        let len = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]) as usize;
+        return bytes.get(20..20usize.saturating_add(len));
+    }
+    Some(bytes)
+}
+
 /// The bytes of a `data:` URI written into the file (base64), None for anything else.
-fn data_uri(uri: &str) -> Option<Vec<u8>> {
+pub fn data_uri(uri: &str) -> Option<Vec<u8>> {
     use base64::Engine as _;
     let rest = uri.strip_prefix("data:")?;
     let (head, data) = rest.split_once(',')?;
@@ -550,7 +635,7 @@ fn walk<'a>(node: &gltf::Node<'a>, parent: Mat4, depth: usize, visits: &mut usiz
 /// Check that `a`'s elements lie inside its buffer view and the view inside its buffer, so the
 /// glTF reader never steps outside the file; and, when `want` is given, that its elements are that
 /// type.
-fn check_accessor(a: &gltf::Accessor, buffers: &[Vec<u8>], want: Option<(gltf::accessor::DataType, gltf::accessor::Dimensions)>) -> Result<(), String> {
+pub(crate) fn check_accessor(a: &gltf::Accessor, buffers: &[Vec<u8>], want: Option<(gltf::accessor::DataType, gltf::accessor::Dimensions)>) -> Result<(), String> {
     if a.sparse().is_some() {
         return Err(unreadable("it uses sparse accessors, which the viewer cannot read yet"));
     }
@@ -598,7 +683,7 @@ fn smooth_normals(positions: &[[f32; 3]], idx: &[u32], out: &mut Vec<[f32; 3]>) 
 }
 
 /// The viewer's material for a glTF material, its pictures decoded into `images` once each.
-fn material(mat: &gltf::Material, buffers: &[Vec<u8>], slots: &mut std::collections::HashMap<usize, usize>, images: &mut Vec<Image>) -> Result<Material, String> {
+fn material(mat: &gltf::Material, buffers: &[Vec<u8>], dir: Option<&std::path::Path>, slots: &mut std::collections::HashMap<usize, usize>, images: &mut Vec<Image>) -> Result<Material, String> {
     let pbr = mat.pbr_metallic_roughness();
     let mut texture = |t: Option<gltf::texture::Texture>| -> Result<Option<Tex>, String> {
         let Some(t) = t else { return Ok(None) };
@@ -613,9 +698,11 @@ fn material(mat: &gltf::Material, buffers: &[Vec<u8>], slots: &mut std::collecti
                 let end = view.offset().checked_add(view.length()).filter(|&e| e <= buffer.len()).ok_or_else(|| unreadable("a picture runs past its buffer"))?;
                 buffer[view.offset()..end].to_vec()
             }
-            gltf::image::Source::Uri { uri, .. } => match data_uri(uri) {
+            gltf::image::Source::Uri { uri, .. } => match data_uri(uri).or_else(|| dir.and_then(|d| outside_file(d, uri))) {
                 Some(b) => b,
-                None => return Ok(None), // a picture outside the file: drawn without it
+                // A picture outside the file (or, for a file on this computer, not beside it):
+                // drawn without it, and the inspector names it (inspect.rs, texture_missing).
+                None => return Ok(None),
             },
         };
         let img = decode_image(&bytes)?;

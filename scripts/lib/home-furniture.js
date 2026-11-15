@@ -140,7 +140,10 @@ function readMachineHome(text) {
     const end = closer(cat, open);
     if (end < 0) break;
     const def = cat.slice(open + 1, end);
+    // `model`: the row's 3D model, when it draws one (the model inspector, scripts/inspect-model.js).
     catalog[m[1]] = { shape: scalar(def, "shape") || "box", size: numbers(bracketed(def, "size")), label: scalar(def, "label") || "" };
+    const model = scalar(def, "model");
+    if (model) catalog[m[1]].model = model;
     entry.lastIndex = end + 1;
   }
   const placements = items(bracketed(root, "instances")).map((it) => ({

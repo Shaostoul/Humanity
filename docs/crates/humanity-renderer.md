@@ -19,7 +19,7 @@ static check cannot see.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `renderer/materials.rs` 500 of 500, `renderer/mod.rs` 2,800 of 2,800, `renderer/tree_cards.rs` 450 of 450, `renderer/celestial.rs` 1,945 of 1,950, `renderer/capture.rs` 299 of 300, `renderer/tree_species.rs` 743 of 750, `renderer/tree_allometry.rs` 540 of 560, `renderer/tree_mesh.rs` 5,956 of 6,400, `renderer/scene_draw.rs` 660 of 750, `renderer/overlay_draw.rs` 390 of 550, `renderer/material_bind_groups.rs` 231 of 350, `renderer/view_depth.rs` 160 of 250, `renderer/surface.rs` 311 of 500, `renderer/shadow_cutout.rs` 102 of 250.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 76, `wasm` 3.
 - **May use** (the plan): core, terrain. **Uses today** (references in non-test code): core 101, terrain 34.
-- **May be used by** (the plan): gui, engine. **Used today by:** engine 367, gui 62.
+- **May be used by** (the plan): gui, engine. **Used today by:** engine 367, gui 63.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 602 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -47,7 +47,7 @@ just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_t
 | `assets::AssetManager` | 6 | engine 6 |
 | `renderer` | 6 | engine 6 |
 
-And 125 more items, 219 references (`node scripts/crate-cards.js --interface humanity-renderer` lists them all).
+And 125 more items, 220 references (`node scripts/crate-cards.js --interface humanity-renderer` lists them all).
 <!-- end generated -->
 
 ## Rules

@@ -3785,6 +3785,56 @@ fn snapshot_model_viewer() {
     });
 }
 
+/// The model inspector (docs/design/model-inspector.md, rung 1) on `rel` (under the repo), with
+/// `rows` as its catalog boxes and the node `selected` chosen in its tree: the viewer's Inspect mode,
+/// the panel beside the view.
+fn model_inspector_viewer(rel: &str, rows: Vec<crate::gui::model_view::inspect::CatalogRow>, selected: Option<usize>) -> crate::gui::model_view::Viewer {
+    use crate::gui::model_view::{inspect, load, Viewer};
+    let repo = std::path::Path::new(env!("HUMANITY_REPO_ROOT"));
+    let path = repo.join(rel);
+    let bytes = std::fs::read(&path).expect("the model");
+    let model = load::load_local(&path).expect("reads");
+    let conventions = inspect::Conventions::parse(&std::fs::read_to_string(repo.join("data/models/inspect_conventions.json")).expect("conventions")).expect("parse");
+    let ctx = inspect::Context { dir: path.parent().map(|p| p.to_path_buf()), physics: crate::assets::model_physics::ModelPhysics::beside(&path), catalog: rows, conventions, conventions_error: None };
+    let name = path.file_name().unwrap().to_string_lossy().to_string();
+    let insp = inspect::inspect(&name, &bytes, &model, &ctx);
+    let mut viewer = Viewer::with_inspection(&name, model, insp);
+    viewer.inspecting = true;
+    viewer.look.selected = selected;
+    viewer
+}
+
+/// The model inspector on the planted test model (scripts/gen-inspect-fixtures.js): the report with
+/// its faults (the collision hull 1 m off, the muzzle pointing in, the door too small, the tilted
+/// mount, the empty with no name and the one no convention names, the box it does not fit), the
+/// node tree with the muzzle selected and named in the view, the origin's axes with up and front,
+/// every empty's axes, the bounds, the catalog box (dashed) and the collision shapes as lines.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_model_inspector() {
+    let row = crate::gui::model_view::inspect::CatalogRow { file: "test.ron".into(), id: "planted_wide".into(), label: "Planted".into(), shape: "box".into(), size: [2.0, 0.5, 1.0] };
+    let viewer = std::cell::RefCell::new(model_inspector_viewer("scripts/tests/fixtures/inspect/planted/planted.glb", vec![row], Some(3)));
+    render_page_png("model_inspector", 1280, 760, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 1240.0));
+    });
+}
+
+/// The model inspector on the home's double bed against its catalog row (data/machines/home.ron,
+/// 2.0 x 1.0 m): the dashed box and the fitted model lie across each other, and the report says so
+/// (the mismatch the 2026-11-14 homestead fixes found by walking into it).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_model_inspector_bed() {
+    let repo = std::path::PathBuf::from(env!("HUMANITY_REPO_ROOT"));
+    let home = humanity_systems::grow_machines::load_home(&repo.join("data/machines/home.ron")).expect("the home");
+    let def = home.catalog.get("bed").expect("the bed row");
+    let row = crate::gui::model_view::inspect::CatalogRow { file: "home.ron".into(), id: "bed".into(), label: def.label.clone(), shape: def.shape.clone(), size: [def.size.0, def.size.1, def.size.2] };
+    let viewer = std::cell::RefCell::new(model_inspector_viewer("assets/models/furniture/beddouble/beddouble.gltf", vec![row], None));
+    render_page_png("model_inspector_bed", 1280, 760, |ctx, theme, _state| {
+        egui::CentralPanel::default().show(ctx, |ui| viewer.borrow_mut().show(ui, theme, 1240.0));
+    });
+}
+
 /// The chat's 3D window (View in 3D on a model's card, gui/model_view `draw_window`) on a short
 /// window at Font Size 175%, a long file name making the line under the view wrap: Close the 3D
 /// view sits inside the window, the view given the height left (BUG-251; the operator saw the

@@ -6,12 +6,15 @@
 
 pub mod camera;
 pub mod gpu;
+pub mod inspect;
+pub mod inspect_view;
 pub mod load;
 
 use crate::gui::theme::Theme;
 use camera::Orbit;
 use egui::{RichText, Ui};
 use humanity_core::i18n::{t, tf};
+use inspect::Inspection;
 use load::Model;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -75,13 +78,13 @@ fn next_id() -> u64 {
 /// What the loading worker reports.
 enum Progress {
     Reading,
-    Done(Result<Model, String>),
+    Done(Result<(Model, Inspection), String>),
 }
 
 enum Stage {
     Fetching(Receiver<Progress>),
     Reading(Receiver<Progress>),
-    Ready { model: Arc<Model>, key: u64 },
+    Ready { model: Arc<Model>, key: u64, inspection: Arc<Inspection> },
     Failed(String),
 }
 
@@ -93,6 +96,9 @@ pub struct Viewer {
     size: i64,
     stage: Stage,
     orbit: Option<Orbit>,
+    /// The inspector is open beside the view (docs/design/model-inspector.md), and what it shows.
+    pub inspecting: bool,
+    pub look: inspect_view::Look,
 }
 
 impl Viewer {
@@ -102,28 +108,66 @@ impl Viewer {
         let stage = if size > load::MAX_MODEL_BYTES as i64 {
             Stage::Failed(load::too_large_words(size))
         } else {
-            let (tx, rx) = std::sync::mpsc::channel();
             let file = name.to_string();
-            std::thread::Builder::new()
-                .name("model_view_load".into())
-                .spawn(move || {
-                    let result = fetch().and_then(|bytes| {
-                        let _ = tx.send(Progress::Reading);
-                        load::load(&file, &bytes)
-                    });
-                    let _ = tx.send(Progress::Done(result));
+            Self::spawn(move |tx| {
+                fetch().and_then(|bytes| {
+                    let _ = tx.send(Progress::Reading);
+                    let model = load::load(&file, &bytes)?;
+                    let inspection = inspect::inspect(&file, &bytes, &model, &inspect::Context::fetched());
+                    Ok((model, inspection))
                 })
-                .map(|_| Stage::Fetching(rx))
-                .unwrap_or_else(|e| Stage::Failed(fetch_failed(e)))
+            })
         };
-        Viewer { id: next_id(), name: name.to_string(), size, stage, orbit: None }
+        Self::new(name, size, stage)
+    }
+
+    /// Open a viewer for the model file at `path` on this computer (the Files page's HumanityOS
+    /// folder): a `.gltf`'s outside files read from beside it, and the inspection given everything
+    /// around the file (its physics.ron, the catalog rows that draw it).
+    pub fn open_local(path: &std::path::Path) -> Viewer {
+        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let size = std::fs::metadata(path).map(|m| m.len() as i64).unwrap_or(0);
+        let path = path.to_path_buf();
+        let file = name.clone();
+        let stage = Self::spawn(move |tx| {
+            let bytes = load::read_local(&path)?;
+            let _ = tx.send(Progress::Reading);
+            let model = if file.to_ascii_lowercase().ends_with(".stl") { load::load_stl(&bytes)? } else { load::load_gltf(&bytes, path.parent())? };
+            let inspection = inspect::inspect(&file, &bytes, &model, &inspect::Context::local(&path));
+            Ok((model, inspection))
+        });
+        Self::new(&name, size, stage)
+    }
+
+    /// Run `work` on the loading thread, its progress told through the stage.
+    fn spawn(work: impl FnOnce(&std::sync::mpsc::Sender<Progress>) -> Result<(Model, Inspection), String> + Send + 'static) -> Stage {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("model_view_load".into())
+            .spawn(move || {
+                let result = work(&tx);
+                let _ = tx.send(Progress::Done(result));
+            })
+            .map(|_| Stage::Fetching(rx))
+            .unwrap_or_else(|e| Stage::Failed(fetch_failed(e)))
+    }
+
+    fn new(name: &str, size: i64, stage: Stage) -> Viewer {
+        Viewer { id: next_id(), name: name.to_string(), size, stage, orbit: None, inspecting: false, look: inspect_view::Look::default() }
     }
 
     /// A viewer already holding `model` (the snapshot tests draw only a few frames).
     #[cfg(test)]
     pub fn with_model(name: &str, model: Model) -> Viewer {
+        Self::with_inspection(name, model, Inspection::default())
+    }
+
+    /// A viewer already holding `model` and its inspection (the Inspect mode's snapshot).
+    #[cfg(test)]
+    pub fn with_inspection(name: &str, model: Model, inspection: Inspection) -> Viewer {
         let orbit = Some(Orbit::fit(&model.bounds));
-        Viewer { id: next_id(), name: name.to_string(), size: 0, stage: Stage::Ready { model: Arc::new(model), key: next_id() }, orbit }
+        let stage = Stage::Ready { model: Arc::new(model), key: next_id(), inspection: Arc::new(inspection) };
+        Viewer { orbit, ..Self::new(name, 0, stage) }
     }
 
     /// Whether the model is in and ready to turn.
@@ -144,9 +188,9 @@ impl Viewer {
                         self.stage = Stage::Reading(rx);
                     }
                 }
-                Ok(Progress::Done(Ok(model))) => {
+                Ok(Progress::Done(Ok((model, inspection)))) => {
                     self.orbit = Some(Orbit::fit(&model.bounds));
-                    self.stage = Stage::Ready { model: Arc::new(model), key: next_id() };
+                    self.stage = Stage::Ready { model: Arc::new(model), key: next_id(), inspection: Arc::new(inspection) };
                     return;
                 }
                 Ok(Progress::Done(Err(words))) => {
@@ -178,7 +222,7 @@ impl Viewer {
     pub fn show_fit(&mut self, ui: &mut Ui, theme: &Theme, room: egui::Vec2, canvas_most: f32, foot: &mut dyn FnMut(&mut Ui)) {
         self.poll();
         let size_words = crate::gui::pages::files::api::size_words(self.size);
-        let (model, key) = match &self.stage {
+        let (model, key, inspection) = match &self.stage {
             Stage::Fetching(_) => {
                 ui.label(RichText::new(format!("Fetching {} ({size_words})...", self.name)).size(theme.font_size_body).color(theme.text_muted()));
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
@@ -196,14 +240,29 @@ impl Viewer {
                 foot(ui);
                 return;
             }
-            Stage::Ready { model, key } => (model.clone(), *key),
+            Stage::Ready { model, key, inspection } => (model.clone(), *key, inspection.clone()),
         };
         let width = room.x.max(1.0);
+        // The foot: Inspect (or Hide the inspector, docs/design/model-inspector.md) beside the
+        // caller's own (its Close the 3D view).
+        let mut toggle = false;
+        let inspecting = self.inspecting;
+        let mut row = |ui: &mut Ui| {
+            ui.horizontal_wrapped(|ui| {
+                let pressed = if inspecting {
+                    crate::gui::widgets::Button::secondary(t("model_inspect.hide")).tooltip(t("model_inspect.hide_hint")).show(ui, theme)
+                } else {
+                    crate::gui::widgets::Button::secondary(t("model_inspect.inspect")).tooltip(t("model_inspect.inspect_hint")).show(ui, theme)
+                };
+                toggle |= pressed;
+                foot(ui);
+            });
+        };
         // The line under the view, laid out at the view's width, and the foot, measured where
         // nobody sees it: the view is given what they leave.
         let help = tf("model_view.help", &[("name", &self.name), ("triangles", &load::thousands(model.triangles))]);
         let help = ui.painter().layout(help, egui::FontId::proportional(theme.font_size_small), theme.text_muted(), width);
-        let foot_height = measured_height(ui, width, foot);
+        let foot_height = measured_height(ui, width, &mut row);
         let gap = ui.spacing().item_spacing.y;
         let with_help = room.y - help.size().y - foot_height - 2.0 * gap;
         // A room too short for a view worth turning AND the line (a stacked pane on a short window)
@@ -211,18 +270,49 @@ impl Viewer {
         let keep_help = with_help >= MIN_VIEW.min(canvas_most);
         let height = if keep_help { with_help } else { room.y - foot_height - gap }.min(canvas_most);
         if height >= 1.0 {
-            self.canvas(ui, theme, &model, key, egui::vec2(width, height));
+            if self.inspecting {
+                // The inspector beside the view on a wide pane, under it on a narrow one; either
+                // way inside the height the view was given, so Close stays where it was.
+                if width >= INSPECT_SIDE_BY_SIDE {
+                    let panel_w = (width * 0.38).clamp(240.0, 460.0);
+                    let view_w = (width - panel_w - ui.spacing().item_spacing.x).max(1.0);
+                    ui.horizontal_top(|ui| {
+                        self.canvas(ui, theme, &model, key, Some(&inspection), egui::vec2(view_w, height));
+                        ui.vertical(|ui| {
+                            ui.set_width(panel_w);
+                            inspect_view::panel(ui, theme, &inspection, &mut self.look, height);
+                        });
+                    });
+                } else {
+                    let view_h = (height * 0.55).max(1.0);
+                    self.canvas(ui, theme, &model, key, Some(&inspection), egui::vec2(width, view_h));
+                    inspect_view::panel(ui, theme, &inspection, &mut self.look, (height - view_h - gap).max(0.0));
+                }
+            } else {
+                self.canvas(ui, theme, &model, key, None, egui::vec2(width, height));
+            }
         }
         if keep_help {
             // The galley as measured, so the line takes exactly the room it was given.
             ui.add(egui::Label::new(help));
         }
-        foot(ui);
+        row(ui);
+        if toggle {
+            self.inspecting = !self.inspecting;
+        }
+    }
+
+    /// The inspection of the model shown, once it is read.
+    pub fn inspection(&self) -> Option<&Inspection> {
+        match &self.stage {
+            Stage::Ready { inspection, .. } => Some(inspection),
+            _ => None,
+        }
     }
 
     /// The view itself, `size` points: the person's hands on it (drag turns, right-drag or
     /// Shift-drag moves, scroll zooms, double-click starts over), and the GPU's picture of it.
-    fn canvas(&mut self, ui: &mut Ui, theme: &Theme, model: &Arc<Model>, key: u64, size: egui::Vec2) {
+    fn canvas(&mut self, ui: &mut Ui, theme: &Theme, model: &Arc<Model>, key: u64, inspection: Option<&Inspection>, size: egui::Vec2) {
         let viewer = self.id;
         let Some(orbit) = self.orbit.as_mut() else { return };
         let height = size.y;
@@ -254,23 +344,31 @@ impl Viewer {
         let ppp = ui.ctx().pixels_per_point();
         let px = [(rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32];
         let view = orbit.view();
+        let view_proj = orbit.projection(rect.width() / rect.height()) * view;
         let paint = gpu::Paint {
             viewer,
             model: model.clone(),
             model_key: key,
             view,
-            view_proj: orbit.projection(rect.width() / rect.height()) * view,
+            view_proj,
             eye: orbit.eye(),
             size: px,
             background: egui::Rgba::from(theme.bg_card()).to_array(),
         };
         ui.painter().add(egui_wgpu::Callback::new_paint_callback(rect, paint));
+        // The inspector's lines over the picture (inspect_view.rs), seen through the same camera.
+        if let Some(insp) = inspection {
+            inspect_view::overlay(&ui.painter_at(rect), theme, rect, view_proj, insp, &self.look);
+        }
     }
 }
 
 /// The shortest view worth turning, in points: below it [`Viewer::show_fit`] leaves out the line
 /// under the view rather than squeeze the view to nothing.
 pub const MIN_VIEW: f32 = 64.0;
+
+/// The narrowest viewer, in points, that puts the inspector beside the view rather than under it.
+pub const INSPECT_SIDE_BY_SIDE: f32 = 560.0;
 
 /// The view's height where nothing limits it, for a viewer `width` points wide.
 pub fn preferred_canvas(width: f32) -> f32 {

@@ -1,0 +1,29 @@
+{
+  "about": "The model inspector's conventions (docs/design/model-inspector.md, section 2): which node names mark an attachment point (an empty) and what each needs, which mark a collision shape or a level of detail, the sizes a model may plausibly be, and how closely a catalog box, a collision shape and a level empty must match. Read by src/gui/model_view/inspect.rs and web/shared/model-inspect.js (the website and scripts/inspect-model.js). A new kind of empty is a new row here, never code. A node with no mesh is an empty when its name matches a row, or when it has no children; one with children and no matching name is a group. Names match case-insensitively on their start, after a Blender suffix like .001 is dropped. forward: outward (its +Z points away from the model's middle), level (its +Z lies flat and its +Y points up), any. size: the empty's scale is a size in metres (Space Engineers' detector and door dummies), between min_m and max_m on each axis.",
+  "empties": [
+    { "id": "mount", "prefixes": ["mount", "hardpoint", "turret_base", "weapon_mount"], "forward": "level", "size": null },
+    { "id": "muzzle", "prefixes": ["muzzle", "barrel_end", "fire_point", "firepoint"], "forward": "outward", "size": null },
+    { "id": "seat", "prefixes": ["seat", "sit_", "chair_point"], "forward": "level", "size": null },
+    { "id": "door", "prefixes": ["door", "doorway", "hatch"], "forward": "level", "size": { "min_m": 0.4, "max_m": 4.0 } },
+    { "id": "light", "prefixes": ["light", "lamp", "spotlight"], "forward": "any", "size": null },
+    { "id": "socket", "prefixes": ["socket", "attach", "snap"], "forward": "any", "size": null },
+    { "id": "hand", "prefixes": ["hand", "grip", "handle"], "forward": "any", "size": null },
+    { "id": "camera", "prefixes": ["camera", "eye", "view"], "forward": "any", "size": null },
+    { "id": "exhaust", "prefixes": ["exhaust", "thruster", "nozzle"], "forward": "outward", "size": null },
+    { "id": "port", "prefixes": ["port", "conveyor", "pipe_", "cable_"], "forward": "outward", "size": { "min_m": 0.02, "max_m": 3.0 } },
+    { "id": "spawn", "prefixes": ["spawn", "respawn"], "forward": "level", "size": null }
+  ],
+  "collision": {
+    "prefixes": ["ucx_", "ubx_", "usp_", "ucp_", "collision", "collider", "col_"],
+    "suffixes": ["-colonly", "-col", "_col", "_collision", "_collider"]
+  },
+  "lod": { "marker": "_lod" },
+  "scale": { "tallest_m": 50.0, "smallest_m": 0.005 },
+  "tolerance": {
+    "catalog_share": 0.10,
+    "catalog_floor_m": 0.05,
+    "collision_share": 0.10,
+    "collision_floor_m": 0.05,
+    "level_cos": 0.95
+  }
+}

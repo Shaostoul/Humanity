@@ -174,6 +174,13 @@ function buildCss(tokens) {
   lines.push(`  --map-room-fill: ${c('map_room_fill')};`);
   lines.push(`  --map-room-edge: ${c('map_room_edge')};`);
   lines.push(`  --map-room-fill-alpha: ${n(t.map_room_fill_alpha, 0.32)};`);
+  lines.push('  /* The model inspector: its axes, the bounds, the catalog box and the collision shapes */');
+  lines.push(`  --axis-x: ${c('axis_x')};`);
+  lines.push(`  --axis-y: ${c('axis_y')};`);
+  lines.push(`  --axis-z: ${c('axis_z')};`);
+  lines.push(`  --inspect-bounds: ${c('inspect_bounds')};`);
+  lines.push(`  --inspect-box: ${c('inspect_box')};`);
+  lines.push(`  --inspect-collision: ${c('inspect_collision')};`);
   lines.push('');
   lines.push('  /* Radii */');
   lines.push(`  --radius-sm: ${n(t.border_radius_widget, 3)}px;`);
@@ -397,6 +404,14 @@ const LIGHT = {
   '--map-reference': 'same',
   '--map-room-fill': 'same',
   '--map-room-edge': 'same',
+  // The model inspector's lines over a light view: the axes keep their colours, darkened to read on
+  // a pale ground; the bounds turn from a pale line to a dark one.
+  '--axis-x': '#b3261e',
+  '--axis-y': '#2e7d32',
+  '--axis-z': '#1f5fbf',
+  '--inspect-bounds': 'rgba(40, 40, 52, 0.8)',
+  '--inspect-box': '#8a6100',
+  '--inspect-collision': 'rgba(0, 120, 128, 0.9)',
 };
 
 /** Emit the light block, refusing to run if it does not cover every colour

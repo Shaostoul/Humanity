@@ -8,6 +8,11 @@ Native first, the website mirrors it, both from this one spec: the same files, w
 controls, lighting and limits. Desktop: `src/gui/model_view/` (an egui paint callback drawing the
 model with the app's GPU). Website: `web/shared/model-view.js` (WebGL 2, no outside library).
 
+Since 2026-11-14 every view has **Inspect**, the model inspector: its node tree, empties, axes,
+bounds, catalog box, collision shapes and a report in plain words (docs/design/model-inspector.md).
+On the desktop the Files page's HumanityOS folder also opens a `.gltf` with its outside files, read
+from beside it (`load::load_local`).
+
 ## What it opens
 
 - **`.glb`** (binary glTF 2.0): meshes on their nodes (each node's matrix or translation, rotation

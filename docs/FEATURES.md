@@ -466,6 +466,21 @@ paint callback drawing PBR into its own MSAA picture; pipelines registered in `l
 `web/shared/model-view.js` (WebGL 2). Not shown where the protected setup hides the person's pictures
 (web `media-item.js` `hiddenBy`, which also made the website's Media page follow the setup at all).
 
+**Model inspector (2026-11-14, rung 1 of docs/design/model-inspector.md):** Inspect beside Close the
+3D view, both apps: the report in plain words (wrong scale, pivot, a catalog box the fitted model does
+not fit or lies across, collision shapes off the model, missing textures, an empty with no name, of no
+convention, pointing the wrong way, tilted or the wrong size, a model the game will draw differently
+from what you see), the node tree with every empty selectable, the origin's axes with up and front, each
+empty's axes, the bounds, the catalog box and the collision shapes (physics.ron hulls and meshes named
+as collision) drawn over the model. Conventions as data: `data/models/inspect_conventions.json`.
+Desktop `src/gui/model_view/inspect.rs` (the inspection, the game's own fit pinned to
+`fit_for_machine` by a test) and `inspect_view.rs` (overlay and panel); the HumanityOS folder now opens
+`.glb`, `.gltf` (its outside files read from beside it, never above its folder) and `.stl` in the 3D
+view (a `.gltf` keeps Read its text). Web `web/shared/model-inspect.js` with the Inspect mode in
+`model-view.js`. Command line: `node scripts/inspect-model.js <file>` (the report as JSON) and
+`--catalog` (every catalog row's box against its fitted model, and models referenced but missing).
+Theme tokens `axis_x`, `axis_y`, `axis_z`, `inspect_bounds`, `inspect_box`, `inspect_collision`.
+
 **Round 5 (2026-10-12, v0.1491.0 to v0.1493.0; plan `docs/design/media-round-5-plan.md`):**
 - Relay: an item edited in place, files and a cover added and removed (`src/relay/media_edit.rs`, signed, the edit over its JSON exactly as sent); members-only moves every file; removing an item removes them all; downloads and views counted once a person a UTC day (`src/relay/media_counts.rs`, X-Real-IP, a key for members-only); `/media/<id>` served by the relay with Open Graph tags (`src/relay/media_page.rs`, routed by nginx); a licence per item (`data/files/licences.json`, `src/relay/files_licences.rs`); a keep undone only by the same or a higher role.
 - Native: "Media on {host}", Media and Admin tabs (the Media settings moved out of Server Settings, `media/admin.rs`), Sort, scroll paging, the shelf per category (`media/filters.rs`), the item's page (`media/item_view.rs`), Edit with the licence and its warnings, files and cover (`media/edit.rs`), counted downloads (`media/open.rs`), the hosting paragraph beside Add to Media; the server strip on the server pages (`src/gui/pages/server_strip.rs`, `GuiState::switch_to_server`).
