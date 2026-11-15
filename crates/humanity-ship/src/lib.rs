@@ -54,6 +54,12 @@ mod home_program_tests;
 /// Every piece placed in every shipped home flush with its wall and in none (2026-11-14).
 #[cfg(test)]
 mod furniture_fit_tests;
+/// No furniture stands in a doorway, and every room is walked into round its furniture.
+#[cfg(test)]
+mod doorway_tests;
+/// Every vantage in scripts/home-vantages.json stands in the room it names.
+#[cfg(test)]
+mod home_vantage_tests;
 /// Open spans in a shell: open to the eye, joined for the walk only to a shared zone (2026-11-13).
 #[cfg(test)]
 mod open_shell_tests;

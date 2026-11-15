@@ -3913,6 +3913,18 @@ up.
   `plan_half_extents`), not its centre a flat 0.3 m in, so a thin piece can stand flush on a shell.
   Test `furniture_fit_tests::every_placed_piece_is_flush_with_its_wall_and_in_none` (red on the day's
   data: 96 pieces in 9 machine files)
+- No piece in a doorway, and every room walked into round its furniture (2026-11-15, BUG-315): in
+  all nine shipped homes, in front of every doorway (an interior door that opens, the front door cut
+  through the shell) on each side it is come through from, a zone the doorway's full width and
+  1.22 m deep holds no piece (the 2010 ADA Standards' push-side front approach, quoted in the test;
+  deeper where a swinging leaf is wider); and on every storey, at the player's radius, a body stands
+  a step inside every doorway and walks from one of each room's doorways to its middle, as the
+  crowd's navigation mesh builds the floor. Tests `doorway_tests::no_piece_stands_in_a_doorway` (red
+  on the day's data: 19 pieces in 7 machine files, the kitchen counter across the pantry's sliding
+  door among them) and `doorway_tests::every_room_is_walked_into_round_its_furniture` (red: 4). The
+  homestead's photo vantages (scripts/home-vantages.json) are held to the rooms they name, on their
+  storeys and clear of the furniture: `home_vantage_tests::every_home_vantage_stands_in_the_room_it_names`
+  (red: the six upstairs rooms' rows at the ground floor's eye, `10-bedroom` in the dining room)
 
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`

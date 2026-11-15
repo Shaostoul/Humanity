@@ -587,8 +587,14 @@ const ROUTE_BEFORE_BUG_306 = {
   shots: SJ.ROUTE.shots.map((s) => (s.id === "bedroom" ? { ...s, at: [41.45, 36.0] } : s)),
 };
 
+// shelf_6 back where it stood then: on 2026-11-15 it moved 2.55 m south along the bedroom's east
+// wall, out of the bedroom door's clear zone (crates/humanity-ship/src/doorway_tests.rs), so the
+// route of before BUG-306 meets it only on a copy of the tree that puts it back.
+const TREE_BEFORE_BUG_306 = JSON.parse(JSON.stringify(TREE));
+TREE_BEFORE_BUG_306.furniture.find((f) => f.id === "shelf_6").centre = [41.652, 36.55];
+
 test("BUG-306: a route through the furniture refuses before anything boots, the route of before it among them", () => {
-  const old = SJ.buildPlan(TREE, ROUTE_BEFORE_BUG_306).problems;
+  const old = SJ.buildPlan(TREE_BEFORE_BUG_306, ROUTE_BEFORE_BUG_306).problems;
   assert.ok(old.some((p) => /the stair top to the bedroom: .*\(41\.45, 39\.90\) to \(41\.45, 36\.40\).*"shelf_6"/.test(p)), old.join("\n"));
   assert.ok(old.some((p) => /the wall leg upstairs: .*"wardrobe_3"/.test(p)), old.join("\n"));
   assert.ok(old.some((p) => /the screenshot "bedroom": .*"shelf_6"/.test(p)), old.join("\n"));

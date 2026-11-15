@@ -165,7 +165,7 @@
             id: "grow_bed_1",
             machine: "grow_bed",
             room: "room-yard",
-            offset: (13.5, 0.0, 1.2),
+            offset: (13.85, 0.0, 1.2),
             rotation: 0.0,
             zone: "home",
         ),

@@ -133,11 +133,13 @@ const ROUTE = {
   /// From the stair-top landing to the bedroom: south onto the gallery (its middle, between the
   /// guard G1 at z 39.3 and the upper hall's south wall U3 at 40.5), east along it to the bedroom
   /// door's middle (U4's door at x 41.0 to 41.9), north through it to half a metre inside, west
-  /// along U4 past the shelf that stands against the room's east wall beside the door (shelf_6,
-  /// x 41.47 to 42.03, z 36.15 to 37.05), and on into the middle of the room (away from its walls:
-  /// see HUD_WALL_MARGIN_M). Until 2026-11-14 the route went on north from the door to (41.45,
-  /// 36.4), through the shelf, which the walk passed through until it began stopping at furniture
-  /// (2026-11-13): the body slid west along the shelf's side and never reached the point (BUG-306).
+  /// along U4, and on into the middle of the room (away from its walls: see HUD_WALL_MARGIN_M).
+  /// Until 2026-11-14 the route went on north from the door to (41.45, 36.4), through the shelf
+  /// that then stood against the room's east wall beside the door (shelf_6, z 36.1 to 37.0), which
+  /// the walk passed through until it began stopping at furniture (2026-11-13): the body slid west
+  /// along the shelf's side and never reached the point (BUG-306). Since 2026-11-15 the shelf
+  /// stands 2.55 m further south along that wall, out of the door's clear zone
+  /// (crates/humanity-ship/src/doorway_tests.rs).
   gallery_z: 39.9,
   bedroom_door_x: 41.45,
   bedroom_in: [
@@ -188,7 +190,8 @@ const ROUTE = {
   shots: [
     { id: "upper_hall", at: [35.4, 38.75], storey: "upper", yaw: Math.PI / 2, pitch: -0.22, note: "the upper hall from the stair-top landing, east over the stairwell and its guards G1 and G2" },
     // 2 cm west of (41.0, 36.0) since 2026-11-15: shelf_6 stands against the bedroom's skirting, 18 mm
-    // off the wall, so the old spot came 0.39 m from it (the route keeps 0.40 m clear).
+    // off the wall, so the old spot came 0.39 m from it (the route keeps 0.40 m clear). The shelf
+    // has since moved 2.55 m south, out of the bedroom door's clear zone.
     { id: "bedroom", at: [40.98, 36.0], storey: "upper", yaw: -Math.PI / 2 - 0.35, pitch: -0.12, note: "the upstairs bedroom from inside its door" },
     { id: "ground_hall_up_stairs", at: [44.6, 38.7], storey: "ground", yaw: -Math.PI / 2, pitch: 0.32, note: "the ground hall looking west up the stair, the slab's edge over its foot and the stairwell open above" },
   ],

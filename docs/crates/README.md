@@ -22,7 +22,7 @@ happens to the code.
 |---|---:|---|---|---:|
 | [humanity-core](humanity-core.md) | 19,480 | nothing | The bottom of the stack: the small pieces every other crate leans on. | 0 |
 | [humanity-protocol](humanity-protocol.md) | 15,747 | core | What the app and the server must agree on, byte for byte. | 0 |
-| [humanity-ship](humanity-ship.md) | 39,709 | core | The home and the ship as places a person stands in. | 0 |
+| [humanity-ship](humanity-ship.md) | 40,292 | core | The home and the ship as places a person stands in. | 0 |
 | [humanity-terrain](humanity-terrain.md) | 32,208 | core | Planets as shapes and numbers. | 0 |
 | [humanity-systems](humanity-systems.md) | 83,385 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
 | [humanity-music](humanity-music.md) | 16,913 | core | The game's own music, composed live, and the ship's hum (docs/design/music.md). | 0 |
