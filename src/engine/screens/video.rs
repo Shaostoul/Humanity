@@ -2387,8 +2387,14 @@ mod tests {
             let s = p.status();
             assert!(!s["media"]["opening"].as_bool().unwrap());
             assert_eq!(s["media"]["resolved"].as_str().map(PathBuf::from), Some(mp4.clone()), "the source itself plays: {s}");
-            // Pictures flow from ffmpeg at the fixture's size.
-            let deadline = Instant::now() + Duration::from_secs(10);
+            // Pictures flow from ffmpeg at the fixture's size. 60 s, a hang guard and not a speed
+            // check (2026-11-15): "pictures from ffmpeg: 0" failed four full runs on 2026-11-14 and
+            // 15, because the clock ran while a starved ffmpeg started and this 2 s clip wrapped
+            // before its first picture, round after round. The player now waits for a stream's
+            // first picture (`VideoPlayer::hold_for_first_picture`, pinned by stream_tests.rs's
+            // `a_slow_ffmpeg_start_skips_no_picture`), and a busy machine may take seconds to start
+            // ffmpeg; a player that never delivers fails at any deadline.
+            let deadline = Instant::now() + Duration::from_secs(60);
             let mut frames = 0;
             while Instant::now() < deadline && frames < 5 {
                 if p.advance() {
@@ -2438,7 +2444,9 @@ mod tests {
         // Both parts, as one film: one part alone is a second.
         assert!(p.player.as_ref().unwrap().duration_s() > 1.5, "{}", p.player.as_ref().unwrap().duration_s());
         let mut frames = 0;
-        let deadline = Instant::now() + Duration::from_secs(10);
+        // 60 s, a hang guard (2026-11-15: "pictures from the disc: 0" in four full runs; the same
+        // cause and fix as the MP4 test's wait above).
+        let deadline = Instant::now() + Duration::from_secs(60);
         while Instant::now() < deadline && frames < 5 {
             if p.advance() {
                 assert_eq!((p.last_frame().unwrap().width, p.last_frame().unwrap().height), (320, 180));
@@ -2804,16 +2812,28 @@ mod tests {
 
     /// Time to the first picture of a short clip the person's ffmpeg handles (20 s of 1280x720,
     /// MPEG-4 Part 2 and AC-3): from `open_path` to the first picture handed to the screen.
-    /// The bound is 2 s. Measured on the dev machine (i7-8700K, 2026-11-13, other agents
-    /// compiling): 0.247 s by the ffmpeg-as-it-plays road, so the bound leaves eight times that
-    /// for a busier machine while staying well under the 5.97 s the old road took.
+    /// Measured on the dev machine (i7-8700K, 2026-11-13, other agents compiling): 0.247 s by the
+    /// ffmpeg-as-it-plays road, against the 5.97 s the old road took. (Until 2026-11-15 the bound
+    /// was a fixed 2 s; it is relative now, below.)
     ///
     /// RED first (2026-11-13, the code before this change built with this test): "the first
     /// picture took 5.965 s (bound 2 s)" (the whole clip had to become AV1 before its first
     /// picture).
+    ///
+    /// JUDGED AGAINST A SHORT CLIP IN THE SAME RUN, NOT A FIXED 2 s (2026-11-15,
+    /// data/coordination/flaky-tests.jsonl: five full runs on 2026-11-14 and 15 read 2.4 to 5.7 s,
+    /// each passing alone). The first picture waits on three ffmpeg processes starting (the look,
+    /// the pictures, the sound), and with every core busy with builds a process start takes
+    /// seconds: the fixed bound judged the machine. The defect it guards makes the wait grow with
+    /// the clip (the old road converted all of it first: 16 s for a one-minute clip), while the road
+    /// that plays as it goes waits the same for any length. So the 20 s clip's first picture is
+    /// timed beside a 2 s clip's, the two taking turns, each the fastest of three opens, and the
+    /// long one may take at most twice the short one's time and half a second more. Red again
+    /// 2026-11-15 with the whole clip encoded to AV1 by ffmpeg before the look answered (as the old
+    /// road converted it): "the first picture of a 20 s clip took 5.862 s against 1.501 s for a 2 s
+    /// clip (bound 3.503 s): it waits on the whole clip".
     #[test]
     fn a_short_clip_shows_its_first_picture_quickly() {
-        const BOUND: Duration = Duration::from_secs(2);
         let Some(ffmpeg) = ffmpeg::find_ffmpeg("") else {
             println!("skipped: no ffmpeg on this machine");
             return;
@@ -2821,24 +2841,36 @@ mod tests {
         // The ffmpeg road: Windows's own decoders play this clip (MPEG-4 Part 2 and AC-3 in
         // Matroska), so they are off on this thread.
         crate::media::system_decoders_off_on_this_thread();
-        let work = scratch("ttff");
-        let clip = make_ffmpeg_only_clip(&ffmpeg, &work, 20);
-        let mut p = VideoProvider::new(DEMO);
-        p.display_px = Some((1280, 720));
-        let t0 = Instant::now();
-        p.open_path(&clip);
-        let mut first = None;
-        while t0.elapsed() < Duration::from_secs(120) && p.error.is_none() {
-            if p.advance() {
-                first = Some(t0.elapsed());
-                break;
+        let (work_long, work_short) = (scratch("ttff_long"), scratch("ttff_short"));
+        let long = make_ffmpeg_only_clip(&ffmpeg, &work_long, 20);
+        let short = make_ffmpeg_only_clip(&ffmpeg, &work_short, 2);
+        let first_picture = |clip: &Path| {
+            let mut p = VideoProvider::new(DEMO);
+            p.display_px = Some((1280, 720));
+            let t0 = Instant::now();
+            p.open_path(clip);
+            while t0.elapsed() < Duration::from_secs(120) && p.error.is_none() {
+                if p.advance() {
+                    return t0.elapsed();
+                }
+                std::thread::sleep(Duration::from_millis(2));
             }
-            std::thread::sleep(Duration::from_millis(2));
+            panic!("no first picture within 120 s: {:?}", p.error);
+        };
+        let (mut best_long, mut best_short) = (Duration::MAX, Duration::MAX);
+        for _ in 0..3 {
+            best_short = best_short.min(first_picture(&short));
+            best_long = best_long.min(first_picture(&long));
         }
-        assert!(p.error.is_none(), "{:?}", p.error);
-        let first = first.expect("a first picture within 120 s");
-        println!("time to the first picture: {:.3} s", first.as_secs_f64());
-        assert!(first < BOUND, "the first picture took {:.3} s (bound {} s)", first.as_secs_f64(), BOUND.as_secs());
+        let bound = best_short * 2 + Duration::from_millis(500);
+        println!("time to the first picture: {:.3} s for 20 s, {:.3} s for 2 s (bound {:.3} s)", best_long.as_secs_f64(), best_short.as_secs_f64(), bound.as_secs_f64());
+        assert!(
+            best_long <= bound,
+            "the first picture of a 20 s clip took {:.3} s against {:.3} s for a 2 s clip (bound {:.3} s): it waits on the whole clip",
+            best_long.as_secs_f64(),
+            best_short.as_secs_f64(),
+            bound.as_secs_f64()
+        );
     }
 
 }

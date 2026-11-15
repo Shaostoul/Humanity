@@ -74,6 +74,8 @@ mod tests;
 #[cfg(test)]
 mod tests_audio;
 #[cfg(test)]
+mod tests_cost;
+#[cfg(test)]
 mod tests_piece;
 #[cfg(test)]
 mod tests_page;

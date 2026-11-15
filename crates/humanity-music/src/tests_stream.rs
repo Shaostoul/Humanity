@@ -210,17 +210,14 @@ fn an_underrun_fades_without_a_click() {
     assert!(streamed_alone[(attack_out) as usize + 2000].abs() > 0.0, "the note with the ring plays on past its attack");
 }
 
-/// The audio thread's cost of `voices` notes of the core recording at once over twelve keys, each
-/// streamed (its attack in memory, the rest from a ring) or held whole: the best of three runs of 1.5 s, timed
-/// block by block (the worker's passes, between blocks, are another thread's work and not timed).
-/// The mean without the slowest 2% of blocks (the OS taking the core mid-block, as the score's own
-/// gate says), and the 99th percentile, each the best of the three runs (other programs' work lands
-/// in one run's tail, not in all three).
-fn block_cost(streamed: bool, voices: usize) -> (f64, f64) {
+/// The audio thread's cost of `voices` notes of the core recording (`rate`, `whole`) at once over
+/// twelve keys, each streamed (its attack in memory, the rest from a ring) or held whole: one run of
+/// 1.5 s from scratch, timed block by block (the worker's passes, between blocks, are another
+/// thread's work and not timed). The test takes each block's fastest of several runs
+/// (`tests_cost::fastest_blocks`).
+fn block_times(rate: u32, whole: &[[i16; 2]], streamed: bool, voices: usize) -> Vec<f64> {
     let file = core_file();
-    let (rate, whole) = crate::decode::decode_file(&file).unwrap();
-    let mut best = (f64::MAX, f64::MAX);
-    for _ in 0..3 {
+    {
         let pool = StreamPool::new(&StreamSettings::default());
         let opener = Arc::new(FileOpener::default());
         let source = opener.register(&file);
@@ -231,7 +228,7 @@ fn block_cost(streamed: bool, voices: usize) -> (f64, f64) {
             .map(|k| {
                 let mut z = match streamed {
                     true => zone(whole[..24000].to_vec(), rate, Some(ZoneStream { pool: pool.clone(), source, frames: None })),
-                    false => zone(whole.clone(), rate, None),
+                    false => zone(whole.to_vec(), rate, None),
                 };
                 (z.low_note, z.high_note) = (40 + k, 40 + k);
                 z
@@ -260,13 +257,8 @@ fn block_cost(streamed: bool, voices: usize) -> (f64, f64) {
         if streamed {
             assert_eq!(vp.streaming(), voices, "every note still streams at the end");
         }
-        times.sort_by(|a, b| a.total_cmp(b));
-        let kept = &times[..(times.len() as f64 * 0.98) as usize];
-        let mean = kept.iter().sum::<f64>() / kept.len() as f64;
-        let p99 = times[(times.len() as f64 * 0.99) as usize];
-        best = (best.0.min(mean), best.1.min(p99));
+        times
     }
-    best
 }
 
 /// THE AUDIO THREAD'S COST WITH STREAMING ON stays within music.md section 14's budget, and streaming
@@ -281,14 +273,77 @@ fn block_cost(streamed: bool, voices: usize) -> (f64, f64) {
 /// whole". (The first version, against one recording shared by every note, read 0.123 against 0.092:
 /// every note reading the same memory flattered the whole-file side, so the baseline now gives each
 /// key its own copy, as separate files are.)
+///
+/// MEASURED SO A LOADED MACHINE DOES NOT FAIL IT (2026-11-15, data/coordination/flaky-tests.jsonl:
+/// "32 streamed notes 0.0752 ms a block against 0.0538 ms held whole" and 0.0837 against 0.0665,
+/// two full runs on 2026-11-14, each passing alone). The three cases were measured one after the
+/// other, each the best of its own three runs, so the streamed 32 and the whole 32 were read at
+/// different moments of a machine whose load swings costs twice over, and the ratio judged the load.
+/// Now the three cases, and the calm score that scales the absolute budget, take turns through five
+/// rounds, and each block's time is its fastest of the five (`tests_cost`): measured 2026-11-15
+/// beside other agents' builds, 32 streamed 0.0510 ms against 0.0467 held whole (9% over).
+///
+/// THE QUARTER IS JUDGED ON A QUIET MACHINE ONLY (2026-11-15). Measured that way, five rounds
+/// beside other agents' release builds still failed one: "32 streamed notes 0.0631 ms a block
+/// against 0.0500 ms held whole", the whole 32 up 6% on its other rounds and the streamed 32 up
+/// 24%. That is not noise a minimum removes: reading 32 rings the worker has just written is more
+/// sensitive to builds crowding the processor's shared cache than reading recordings straight
+/// through, so under that load the ratio itself moves, and the quarter's margin (9% measured, the
+/// red 39%) is too thin to judge there. So this suite test holds the 16 notes to the budget and
+/// the 32 to twice the whole (red 2026-11-15 with a lock taken on every frame read from a ring:
+/// "32 streamed notes 0.1117 ms a block against 0.0470 ms held whole (at most twice on a loaded
+/// machine)"), and
+/// `quiet_streaming_costs_at_most_a_quarter_more_than_whole` (ignored here) holds the quarter, run
+/// by `just music-quiet-budgets`, which waits for a machine with no build running.
 #[test]
 fn the_block_cost_stays_within_budget_with_streaming_on() {
     let _heavy = heavy();
-    let (s16, s16_p99) = block_cost(true, 16);
-    let (s32, _) = block_cost(true, 32);
-    let (w32, _) = block_cost(false, 32);
-    println!("16 streamed notes: {s16:.4} ms a block on average, {s16_p99:.4} ms at the 99th percentile; 32 streamed {s32:.4} ms, 32 held whole {w32:.4} ms");
-    assert!(s16 <= 0.05, "16 streamed notes: {s16:.4} ms a block on average (budget 0.05)");
-    assert!(s16_p99 <= 0.25, "16 streamed notes: {s16_p99:.4} ms at the 99th percentile (budget 0.25)");
-    assert!(s32 <= w32 * 1.25, "32 streamed notes {s32:.4} ms a block against {w32:.4} ms held whole");
+    let c = streaming_costs();
+    assert!(c.s16.mean <= 0.05 * c.scale, "16 streamed notes: {:.4} ms a block on average (budget {:.4}; the calm score {:.4} ms beside it)", c.s16.mean, 0.05 * c.scale, c.calm);
+    assert!(c.s16.p99 <= 0.25 * c.scale, "16 streamed notes: {:.4} ms at the 99th percentile (budget {:.4})", c.s16.p99, 0.25 * c.scale);
+    assert!(c.s32 <= c.w32 * 2.0, "32 streamed notes {:.4} ms a block against {:.4} ms held whole (at most twice on a loaded machine)", c.s32, c.w32);
+}
+
+/// 32 streamed notes cost at most a quarter more than the same 32 held whole: the gate above's
+/// quarter, for a quiet machine (`just music-quiet-budgets`; why, in the test above). Still RED
+/// for its defect (2026-11-15, the sequentially consistent fence on every frame read from a ring):
+/// "32 streamed notes 0.0651 ms a block against 0.0470 ms held whole".
+#[test]
+#[ignore = "a timing judged on a quiet machine only: just music-quiet-budgets"]
+fn quiet_streaming_costs_at_most_a_quarter_more_than_whole() {
+    let _heavy = heavy();
+    let c = streaming_costs();
+    assert!(c.s32 <= c.w32 * 1.25, "32 streamed notes {:.4} ms a block against {:.4} ms held whole", c.s32, c.w32);
+}
+
+/// The streaming gates' measurements: 16 and 32 streamed notes, 32 held whole, and the calm score
+/// that scales the absolute budget, taking turns through five rounds, each block its fastest.
+struct StreamingCosts {
+    s16: crate::tests_cost::BlockCost,
+    s32: f64,
+    w32: f64,
+    calm: f64,
+    scale: f64,
+}
+
+fn streaming_costs() -> StreamingCosts {
+    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, BlockCost};
+    let lib = shipped();
+    let (rate, whole) = crate::decode::decode_file(&core_file()).unwrap();
+    let whole = &whole;
+    let lib = &lib;
+    let subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = vec![
+        Box::new(move || calm_blocks(lib, 1)),
+        Box::new(move || block_times(rate, whole, true, 16)),
+        Box::new(move || block_times(rate, whole, true, 32)),
+        Box::new(move || block_times(rate, whole, false, 32)),
+    ];
+    let blocks = fastest_blocks(5, subjects);
+    let (calm, scale) = scale_of(&blocks[..1]);
+    let c = StreamingCosts { s16: BlockCost::of(&blocks[1]), s32: BlockCost::of(&blocks[2]).mean, w32: BlockCost::of(&blocks[3]).mean, calm, scale };
+    println!(
+        "16 streamed notes: {:.4} ms a block on average, {:.4} ms at the 99th percentile; 32 streamed {:.4} ms, 32 held whole {:.4} ms (the calm score {calm:.4} ms beside them)",
+        c.s16.mean, c.s16.p99, c.s32, c.w32
+    );
+    c
 }

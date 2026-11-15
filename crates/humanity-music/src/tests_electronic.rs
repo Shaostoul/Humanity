@@ -514,41 +514,62 @@ fn deep_dubstep_renders_at_the_music_target() {
 /// octave down, and longer bass and growl releases): "deep dubstep's drop: 0.0689 ms a block on
 /// average", the machine loaded (the calm score 0.0595 that hour); with the dub pad and shorter
 /// releases it measured 0.0354 ms, the calm score 0.0374 in the same run.
+///
+/// Against the calm score in the same run (2026-11-14, the merged lesson: with other agents
+/// building, every cost here swings twice over): the budgets scale by how much slower than its
+/// quiet 0.037 ms the calm score ran (never below 1). With the wavetable growl and the pulse-width
+/// pad among a piece's draws (rung E5) the drop read 0.0514 ms while the calm score read 0.0455 ms
+/// and 0.0666 ms in two measures of that same run.
+///
+/// MEASURED SO A LOADED MACHINE DOES NOT FAIL IT (2026-11-15, data/coordination/flaky-tests.jsonl,
+/// five entries on 2026-11-14 and 15, each passing alone): the slow tail failed, "deep dubstep's
+/// drop: 0.5150 ms at the 99th percentile" with its mean at 0.0553 ms (the calm score 0.0667 ms that
+/// run), a few dozen preempted blocks of 3750 filling the slowest 1%; and the calm score was read
+/// after the five seeds, at another moment than the drop. Now the drop and the calm score are
+/// rendered taking turns, and each block's time is its fastest of three renders (`tests_cost`).
+/// Measured 2026-11-15 beside other agents' builds: 0.0330 ms, the calm score 0.0414 ms beside it.
+/// Still RED for a costlier drop: with 0.03 ms of busy work added to each of the drop's blocks
+/// (not the calm score's), "deep dubstep's drop: 0.0697 ms a block on average (budget 0.0531; the
+/// calm score 0.0393 ms beside it)". (The wobble's two saws as seven-voice unisons read 0.0436 ms
+/// beside a calm score of 0.0416: costlier, and still within the budget, as the gate allows the
+/// drop half as much again as it costs now.)
 #[test]
 fn deep_dubstep_fits_the_audio_budget() {
+    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, time_blocks, BlockCost};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
     let beat = 60.0 / 140.0;
+    let seeds = [1u64, 2, 3, 4, 5];
+    let voices = std::cell::RefCell::new([0.0f64; 5]);
+    let (lib_ref, voices_ref) = (&lib, &voices);
+    let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
+    for seed in [1u64, 2, 3] {
+        subjects.push(Box::new(move || calm_blocks(lib_ref, seed)));
+    }
+    for (k, seed) in seeds.into_iter().enumerate() {
+        subjects.push(Box::new(move || {
+            let mut s = dubstep(lib_ref, seed);
+            crate::render::render_score(&mut s, RATE, 24.0 * 4.0 * beat + 1.0);
+            let mut heard = 0.0;
+            let times = time_blocks((10.0 * RATE / 128.0) as usize, |buf| {
+                s.render(buf);
+                heard += s.status().voices as f64;
+            });
+            voices_ref.borrow_mut()[k] = heard / times.len() as f64;
+            times
+        }));
+    }
+    let blocks = fastest_blocks(3, subjects);
+    let (calm, scale) = scale_of(&blocks[..3]);
     let mut best = (f64::MAX, f64::MAX);
-    for seed in [1u64, 2, 3, 4, 5] {
-        let mut s = dubstep(&lib, seed);
-        crate::render::render_score(&mut s, RATE, 24.0 * 4.0 * beat + 1.0);
-        let mut times = Vec::new();
-        let mut voices = 0.0;
-        for _ in 0..(10.0 * RATE / 128.0) as usize {
-            let mut buf = [[0f32; 2]; 128];
-            let t0 = std::time::Instant::now();
-            s.render(&mut buf);
-            times.push(t0.elapsed().as_secs_f64() * 1000.0);
-            voices += s.status().voices as f64;
-        }
-        times.sort_by(|a, b| a.total_cmp(b));
-        let kept = &times[..(times.len() as f64 * 0.98) as usize];
-        let mean = kept.iter().sum::<f64>() / kept.len() as f64;
-        let p99 = times[(times.len() as f64 * 0.99) as usize];
-        println!("deep dubstep seed {seed}: {mean:.4} ms a block, {:.1} voices on average", voices / times.len() as f64);
-        if mean < best.0 {
-            best = (mean, p99);
+    for (k, times) in blocks[3..].iter().enumerate() {
+        let c = BlockCost::of(times);
+        println!("deep dubstep seed {}: {:.4} ms a block, {:.1} voices on average", seeds[k], c.mean, voices.borrow()[k]);
+        if c.mean < best.0 {
+            best = (c.mean, c.p99);
         }
     }
-    // Against the calm score in the same run (2026-11-14, the merged lesson: with other agents
-    // building, every cost here swings twice over): the budgets scale by how much slower than its
-    // quiet 0.037 ms the calm score ran this time (never below 1). With the wavetable growl and the
-    // pulse-width pad among a piece's draws (rung E5) the drop read 0.0514 ms while the calm score
-    // read 0.0455 ms and 0.0666 ms in two measures of that same run.
-    let calm = crate::tests_e5::calm_ms(&lib);
-    let scale = (calm / 0.037).max(1.0);
-    println!("deep dubstep's drop: {:.4} ms a block on average, {:.4} ms at the 99th percentile (the calm score {calm:.4} ms this run)", best.0, best.1);
-    assert!(best.0 <= 0.05 * scale, "deep dubstep's drop: {:.4} ms a block on average (budget {:.4}; the calm score {calm:.4} ms this run)", best.0, 0.05 * scale);
-    assert!(best.1 <= 0.25 * scale, "deep dubstep's drop: {:.4} ms at the 99th percentile", best.1);
+    println!("deep dubstep's drop: {:.4} ms a block on average, {:.4} ms at the 99th percentile (the calm score {calm:.4} ms beside it)", best.0, best.1);
+    assert!(best.0 <= 0.05 * scale, "deep dubstep's drop: {:.4} ms a block on average (budget {:.4}; the calm score {calm:.4} ms beside it)", best.0, 0.05 * scale);
+    assert!(best.1 <= 0.25 * scale, "deep dubstep's drop: {:.4} ms at the 99th percentile (budget {:.4})", best.1, 0.25 * scale);
 }

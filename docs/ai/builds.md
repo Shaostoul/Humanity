@@ -89,6 +89,25 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   and one was BUG-201, the file link losing datagrams on a loaded machine. A test that comes
   back to the ledger gets its cause found (run it many times beside a busy machine, before and
   after); the fix is a test that waits for the event it means, never a longer timeout.
+- **The causes the 2026-11-15 sweep found, so the next timing test is written right:**
+  - A wait ends by TIME, never by a count of turns or frames: the web tests' `settle()` gave up
+    after 5000 idle turns, about 27 ms, less than one WebCrypto call takes on a busy machine
+    (`choice-web.test.js`).
+  - A budget against a baseline measures the two through the same minutes, TAKING TURNS, and
+    takes each block's fastest of several renders where the work is deterministic
+    (`crates/humanity-music/src/tests_cost.rs`); a baseline read before or after judges the load.
+    Where two paths respond to load differently (reading freshly written rings against reading
+    straight through), even that moves the ratio: the suite keeps a loose bound and the fine one
+    runs on a quiet machine (`just music-quiet-budgets`, `#[ignore]`d `quiet_*` tests).
+  - A count read the moment a reply arrives races the thread that adds to it: wait for the count
+    (`net_live.rs`). A clock the code owns is frozen for the test (`DmRateLimits::freeze`).
+  - A hang guard is sized for a machine whose every core is busy: Windows lets a starved
+    below-normal thread wait about four seconds before it boosts it.
+  - A test that only fails under load can be a real defect only load shows: "pictures from ffmpeg:
+    0" was the player's clock running while a starved ffmpeg started, so a short clip wrapped
+    before its first picture forever; the player now waits for a stream's first picture
+    (`VideoPlayer::hold_for_first_picture`), pinned without load by a test that slows ffmpeg's
+    start on purpose (`a_slow_ffmpeg_start_skips_no_picture`).
 - `--run-timeout-min N` limits the test RUN, not the build before it or a wait in the slot.
 - **A run that prints nothing for 15 minutes is stopped and fails** (`--stall-min N`, 0 = never),
   naming the tests that were in flight. On 2026-11-01 the full run froze at 3,852 of 5,584 for two

@@ -447,7 +447,7 @@ the screen test's own timing).
 | 1 min 1280x692 H.264 + AAC MKV | 16.4 s (3.7x real time; a two-hour film about 32 min) | 0.21 s (the look 0.06 s) | 0.26 s |
 | 1 min disc title, 2 VOB parts | 5.9 s (10x real time; a two-hour title about 12 min) | 0.15 s (the look 0.05 s) | 0.14 s |
 | the 2 s 320x180 fixture | 0.3 s | 0.11 s | |
-| 20 s 1280x720 MPEG-4 (the screen test) | 5.97 s (the test's red run) | 0.25 s (bound in the test: 2 s) | |
+| 20 s 1280x720 MPEG-4 (the screen test) | 5.97 s (the test's red run) | 0.25 s (the test's bound since 2026-11-15: twice a 2 s clip's time in the same run, plus 0.5 s; a fixed 2 s judged a busy machine) | |
 
 And on disk: BEFORE kept every converted film (the dev machine's
 `media/cache` held one two-hour film, 595 MB); AFTER writes nothing. Decoding
@@ -458,6 +458,16 @@ while a film plays is the colour conversion on the decode thread, the same one t
 uses (about 2.7 ms a 1080p picture in the release build, "Measurements" above). A debug test
 build runs that converter unoptimised and shows only about 13 pictures a second at 1280x692
 (`bench_first_picture`), which says nothing about the release exe.
+
+**The clock waits for a stream's first picture (2026-11-15, BUG-312).** Every start and every seek on this
+road starts an ffmpeg process, and with every core busy (full test runs beside other agents' builds)
+that took 2.4 to 5.7 s to hand over its first picture while the clock ran on. A film skipped those
+seconds; the 2 s fixture never showed a picture at all, because its clock reached the end, the screen
+wrapped it, the wrap's seek started ffmpeg again, and that one was late too. Now the clock stands
+still, and the sound with it, from a start or a seek until the first picture after it is decoded, as
+a player buffers before it plays (`VideoPlayer::hold_for_first_picture`; the decoders inside the app
+start no process and are left as they were). `a_slow_ffmpeg_start_skips_no_picture` pins it by
+making every picture pass wait 3 s before it starts ffmpeg.
 
 ### A video playing in a chat row (2026-11-06)
 

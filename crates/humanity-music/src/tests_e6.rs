@@ -722,44 +722,62 @@ fn the_new_genres_render_at_the_music_target() {
 /// genre is measured before the verdict. RED first (2026-11-14), as first balanced: "synthwave: 0.0914
 /// ms a block on average (budget 0.0871; the calm score 0.0645 ms this run)" (its supersaw arpeggio's
 /// notes ringing 0.35 s each, three wavetable pad voices).
+///
+/// MEASURED SO A LOADED MACHINE DOES NOT FAIL IT (2026-11-15, data/coordination/flaky-tests.jsonl:
+/// "synthwave: 0.0603 ms a block on average (budget 0.0563; the calm score 0.0417 ms this run)" in
+/// a full run, and 0.0643 against 0.0631 the same night, each passing alone). The calm score was
+/// read once, in the test's first half second, and the genres over the next ten, so a machine
+/// getting busier in between failed a genre against a baseline taken while it was quieter. Now each
+/// genre is measured beside the calm score through the same minutes, the renders taking turns, and
+/// each block's time is its fastest of three renders (`tests_cost`, which says why that keeps an
+/// expensive engine expensive). Measured 2026-11-15 beside other agents' builds: synthwave 0.0443
+/// ms, the calm score 0.0420 ms beside it. Still RED for its defect the same day, with every
+/// unison copy computed three times over (`osc.rs`), in the full run and again alone:
+/// "synthwave: 0.0552 ms a block on average (budget 0.0523; the calm score 0.0387 ms beside it)".
 #[test]
 fn the_new_genres_fit_the_audio_budget() {
+    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, time_blocks, BlockCost};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
-    let calm = crate::tests_e5::calm_ms(&lib);
-    let scale = (calm / 0.037).max(1.0);
     let mut wrong = Vec::new();
     for (id, bars_in) in [("house", 48.0), ("drum_and_bass", 24.0), ("synthwave", 24.0), ("ambient", 0.0)] {
-        let mut best = (f64::MAX, f64::MAX, 0.0);
+        let voices = std::cell::RefCell::new([0.0f64; 3]);
+        let (lib, voices) = (&lib, &voices);
+        let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
         for seed in [1u64, 2, 3] {
-            let mut s = genre_score(&lib, id, seed);
-            crate::render::render_score(&mut s, RATE, 0.05);
-            let bpm = s.composer().tempo() as f64;
-            let skip = if bars_in > 0.0 { bars_in * 4.0 * 60.0 / bpm } else { 30.0 };
-            crate::render::render_score(&mut s, RATE, skip);
-            let mut times = Vec::new();
-            let mut voices = 0.0;
-            for _ in 0..(8.0 * RATE / 128.0) as usize {
-                let mut buf = [[0f32; 2]; 128];
-                let t0 = std::time::Instant::now();
-                s.render(&mut buf);
-                times.push(t0.elapsed().as_secs_f64() * 1000.0);
-                voices += s.status().voices as f64;
-            }
-            times.sort_by(|a, b| a.total_cmp(b));
-            let kept = &times[..(times.len() as f64 * 0.98) as usize];
-            let mean = kept.iter().sum::<f64>() / kept.len() as f64;
-            let p99 = times[(times.len() as f64 * 0.99) as usize];
-            if mean < best.0 {
-                best = (mean, p99, voices / times.len() as f64);
+            subjects.push(Box::new(move || calm_blocks(lib, seed)));
+        }
+        for (k, seed) in [1u64, 2, 3].into_iter().enumerate() {
+            subjects.push(Box::new(move || {
+                let mut s = genre_score(lib, id, seed);
+                crate::render::render_score(&mut s, RATE, 0.05);
+                let bpm = s.composer().tempo() as f64;
+                let skip = if bars_in > 0.0 { bars_in * 4.0 * 60.0 / bpm } else { 30.0 };
+                crate::render::render_score(&mut s, RATE, skip);
+                let mut heard = 0.0;
+                let times = time_blocks((8.0 * RATE / 128.0) as usize, |buf| {
+                    s.render(buf);
+                    heard += s.status().voices as f64;
+                });
+                voices.borrow_mut()[k] = heard / times.len() as f64;
+                times
+            }));
+        }
+        let blocks = fastest_blocks(3, subjects);
+        let (calm, scale) = scale_of(&blocks[..3]);
+        let mut best = (f64::MAX, f64::MAX, 0.0);
+        for (k, times) in blocks[3..].iter().enumerate() {
+            let c = BlockCost::of(times);
+            if c.mean < best.0 {
+                best = (c.mean, c.p99, voices.borrow()[k]);
             }
         }
-        println!("{id}: {:.4} ms a block on average, {:.4} ms at the 99th percentile, {:.1} voices (the calm score {calm:.4} ms this run)", best.0, best.1, best.2);
+        println!("{id}: {:.4} ms a block on average, {:.4} ms at the 99th percentile, {:.1} voices (the calm score {calm:.4} ms beside it)", best.0, best.1, best.2);
         if best.0 > 0.05 * scale {
-            wrong.push(format!("{id}: {:.4} ms a block on average (budget {:.4}; the calm score {calm:.4} ms this run)", best.0, 0.05 * scale));
+            wrong.push(format!("{id}: {:.4} ms a block on average (budget {:.4}; the calm score {calm:.4} ms beside it)", best.0, 0.05 * scale));
         }
         if best.1 > 0.25 * scale {
-            wrong.push(format!("{id}: {:.4} ms at the 99th percentile", best.1));
+            wrong.push(format!("{id}: {:.4} ms at the 99th percentile (budget {:.4})", best.1, 0.25 * scale));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("; "));

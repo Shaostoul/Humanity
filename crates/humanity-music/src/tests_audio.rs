@@ -506,10 +506,23 @@ fn the_audio_thread_cost_per_block_is_within_the_budget() {
     println!("the calm score: {:.4} ms a block on average, {:.4} ms at the 99th percentile", best.0, best.1);
     assert!(best.0 <= 0.05, "the calm score: {:.4} ms a block on average (budget 0.0500)", best.0);
     assert!(best.1 <= 0.25, "the calm score: {:.4} ms at the 99th percentile (budget 0.25)", best.1);
-    let mut b = BedEngine::new(RATE, 1, BedContext::default());
-    let r = render_bed(&mut b, RATE, 20.0);
-    println!("the hum: {:.4} ms a block on average", r.block_us_mean / 1000.0);
-    assert!(r.block_us_mean / 1000.0 <= 0.02, "the hum: {:.4} ms a block (budget 0.02)", r.block_us_mean / 1000.0);
+    // The hum the same way (2026-11-15): 20 s rendered REPS times from scratch, each block its
+    // fastest. It was one render's plain mean, and on 2026-11-15 a run beside other agents' builds
+    // read "the hum: 0.0409 ms a block (budget 0.02)" and passed alone: a handful of blocks the OS
+    // interrupted for milliseconds each, among 7500, doubled the mean of an engine that costs
+    // about a hundredth of a millisecond. Still RED for its defect (2026-11-15, 0.03 ms of busy
+    // work added to every block of the bed's `render`): "the hum: 0.0366 ms a block (budget 0.02)".
+    let mut hum = vec![f64::MAX; (20.0 * RATE / 128.0) as usize];
+    for _ in 0..REPS {
+        let mut b = BedEngine::new(RATE, 1, BedContext::default());
+        let times = crate::tests_cost::time_blocks(hum.len(), |buf| b.render(buf));
+        for (h, t) in hum.iter_mut().zip(times) {
+            *h = h.min(t);
+        }
+    }
+    let hum_mean = hum.iter().sum::<f64>() / hum.len() as f64;
+    println!("the hum: {hum_mean:.4} ms a block on average");
+    assert!(hum_mean <= 0.02, "the hum: {hum_mean:.4} ms a block (budget 0.02)");
 }
 
 // ----- `render` allocates nothing ----------------------------------------------------------------

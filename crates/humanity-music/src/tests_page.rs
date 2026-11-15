@@ -289,33 +289,38 @@ fn a_mute_silences_a_part_without_changing_the_piece() {
 /// building): 0.031 to 0.039 ms a block off, the analyser about 0.007 ms (eight times the band work
 /// added 0.055), under the noise of one run. Seen RED: with the band filters run eight times over,
 /// "with the page open: 0.0864 ms a block (budget 0.05 + 0.01 for the page)".
+///
+/// MEASURED SO A LOADED MACHINE DOES NOT FAIL IT (2026-11-15): the page closed and the page open
+/// were measured one after the other against fixed budgets, so a machine busy with other agents'
+/// builds read the same engine slower and the difference between them judged the load. Now the two
+/// take turns, each block its fastest of three renders (`tests_cost`), and both budgets scale by
+/// how much slower than its quiet 0.037 ms the calm score (the page closed IS the calm score) ran
+/// beside them. Still RED for its defect (2026-11-15, the band filters run eight times over): "the
+/// analyser alone: 0.0294 ms a block (budget 0.0150; about 0.007 when measured)".
 #[test]
 fn the_pages_analyser_is_within_the_budget() {
+    use crate::tests_cost::{fastest_blocks, time_blocks, BlockCost, CALM_QUIET_MS};
     let _heavy = crate::tests_audio::heavy();
     let lib = shipped();
     let mood = lib.mood_index("mothership_calm").unwrap() as u16;
-    let cost = |analyse: bool| {
-        let mut best = f64::MAX;
-        for seed in [1u64, 2, 3, 4, 5] {
-            let ctx = MusicContext { mood, analyse, ..Default::default() };
-            let mut s = ScoreEngine::new(res(&lib), 48000.0, seed, ctx);
-            crate::render::render_score(&mut s, 48000.0, 2.0);
-            let mut times = Vec::new();
-            for _ in 0..(8.0 * 48000.0 / 128.0) as usize {
-                let mut buf = [[0f32; 2]; 128];
-                let t0 = std::time::Instant::now();
-                s.render(&mut buf);
-                times.push(t0.elapsed().as_secs_f64() * 1000.0);
-            }
-            times.sort_by(|a, b| a.total_cmp(b));
-            let kept = &times[..(times.len() as f64 * 0.98) as usize];
-            best = best.min(kept.iter().sum::<f64>() / kept.len() as f64);
+    let lib = &lib;
+    let seeds = [1u64, 2, 3, 4, 5];
+    let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
+    for analyse in [false, true] {
+        for seed in seeds {
+            subjects.push(Box::new(move || {
+                let ctx = MusicContext { mood, analyse, ..Default::default() };
+                let mut s = ScoreEngine::new(res(lib), 48000.0, seed, ctx);
+                crate::render::render_score(&mut s, 48000.0, 2.0);
+                time_blocks((8.0 * 48000.0 / 128.0) as usize, |buf| s.render(buf))
+            }));
         }
-        best
-    };
-    let off = cost(false);
-    let on = cost(true);
+    }
+    let blocks = fastest_blocks(3, subjects);
+    let best = |b: &[Vec<f64>]| b.iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
+    let (off, on) = (best(&blocks[..5]), best(&blocks[5..]));
+    let scale = (off / CALM_QUIET_MS).max(1.0);
     println!("the calm score: {off:.4} ms a block, {on:.4} ms with the Music page's analyser ({:+.4})", on - off);
-    assert!(on <= 0.06, "with the page open: {on:.4} ms a block (budget 0.05 + 0.01 for the page)");
-    assert!(on - off <= 0.015, "the analyser alone: {:.4} ms a block (about 0.007 when measured)", on - off);
+    assert!(on <= 0.06 * scale, "with the page open: {on:.4} ms a block (budget {:.4}: 0.05 + 0.01 for the page, scaled by the calm score's {off:.4} ms)", 0.06 * scale);
+    assert!(on - off <= 0.015 * scale, "the analyser alone: {:.4} ms a block (budget {:.4}; about 0.007 when measured)", on - off, 0.015 * scale);
 }

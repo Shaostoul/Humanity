@@ -250,6 +250,11 @@ pub struct StreamSource {
     /// Pictures a second, asked of ffmpeg (`fps_fraction`).
     pub fps: (u32, u32),
     pub matrix: ColorMatrix,
+    /// Tests: how long each picture pass waits before it starts ffmpeg, standing in for a machine so
+    /// busy that ffmpeg takes seconds to start (`a_slow_ffmpeg_start_skips_no_picture`). Zero
+    /// otherwise; never present in the product.
+    #[cfg(test)]
+    pub slow_start: Duration,
 }
 
 impl StreamSource {
@@ -258,7 +263,17 @@ impl StreamSource {
         let (width, height) = output_size(summary.width, summary.height, summary.sar);
         let fps = fps_fraction(summary.fps);
         let matrix = matrix_for(summary.colour.as_deref(), summary.height);
-        Self { ffmpeg, input, summary, width, height, fps, matrix }
+        Self {
+            ffmpeg,
+            input,
+            summary,
+            width,
+            height,
+            fps,
+            matrix,
+            #[cfg(test)]
+            slow_start: Duration::ZERO,
+        }
     }
 
     /// What `VideoPlayer::info` reports for it: the pipe's picture size, the file's length, and
@@ -578,6 +593,8 @@ pub(super) fn decode_thread(src: Arc<StreamSource>, kill: KillSwitch, shared: Ar
 }
 
 fn decode_pass(src: &StreamSource, kill: &KillSwitch, shared: &Shared, generation: u64, start_s: f64) -> Result<PassEnd, MediaError> {
+    #[cfg(test)]
+    std::thread::sleep(src.slow_start);
     let (running, stdout) = Running::spawn(&src.ffmpeg, &video_args(src, start_s))?;
     kill.set(Some(running.child.clone()));
     // A stop that came while ffmpeg was starting: the kill switch had nothing to kill yet.

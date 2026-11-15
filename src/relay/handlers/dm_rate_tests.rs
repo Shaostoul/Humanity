@@ -164,9 +164,18 @@ fn the_bucket_refills_at_one_a_second() {
 
 /// An account under ten minutes old with no trusted role refills one per five seconds: a second
 /// after its bucket empties, an established account can send again and it cannot.
+///
+/// The limiter's clock is FROZEN (2026-11-15, data/coordination/flaky-tests.jsonl, two entries on
+/// 2026-11-14 in full runs, both "it is told how long is left: [.. Please wait 3 more seconds.]"):
+/// on the wall clock the newcomer's bucket went on refilling while the established account's send
+/// was stored (a database write), and a loaded machine took over a second over that, so a fifth of
+/// a send more had come back and the wait read 3 seconds instead of 4. Frozen, only `rewind`
+/// moves time on, as in the burst and refill tests above. Still RED for its defect (2026-11-15,
+/// with the clock frozen and `refill_secs` ignoring the account's age): "a new account does not".
 #[test]
 fn a_new_accounts_bucket_refills_more_slowly() {
     let st = fresh_state("dmrate_new");
+    st.dm_rate.freeze(); // only `rewind` moves time on, however slow the machine
     let (old, inbox) = pair(&st);
     member(&st, "Newcomer", "rate_newcomer", 0);
     for key in [old, "rate_newcomer"] {

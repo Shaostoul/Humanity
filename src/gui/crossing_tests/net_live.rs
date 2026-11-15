@@ -125,6 +125,20 @@ async fn a_real_frame_survives_the_whole_pipeline_to_a_viewer() {
         "expected a red-ish pixel (BGRA un-swizzled), got {p:?}"
     );
 
-    assert_eq!(publisher.stats().sent.load(Ordering::Relaxed), 1);
+    // The publisher counts what it sent, and the bytes for the bitrate. Waited for, up to 30 s,
+    // and at least one rather than exactly one (2026-11-15, data/coordination/flaky-tests.jsonl:
+    // "left: 0, right: 1" in a full run on 2026-11-15, and once on 2026-10-30 before the move here,
+    // each passing alone). The worker adds to the counts only once `socket.send` has returned, and
+    // the relay can hand the frame to the viewer before that thread is scheduled again on a busy
+    // machine; and a frame offered before the viewer was registered went out to nobody, so the
+    // count is more than one whenever the loop above offered it again. A publisher that never
+    // counts still fails, after 30 s (red 2026-11-15 with the two `fetch_add` lines in the
+    // worker's send taken out: "the publisher counts the frames it sent: 0").
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while publisher.stats().sent.load(Ordering::Relaxed) == 0 && std::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let sent = publisher.stats().sent.load(Ordering::Relaxed);
+    assert!(sent >= 1, "the publisher counts the frames it sent: {sent}");
     assert!(publisher.stats().bytes.load(Ordering::Relaxed) > 0, "bitrate must be measured");
 }

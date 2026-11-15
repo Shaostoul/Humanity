@@ -179,9 +179,20 @@ const countedCrypto = {
   getRandomValues: (a) => globalThis.crypto.getRandomValues(a),
   randomUUID: () => globalThis.crypto.randomUUID(),
 };
+//
+// The wait ends by TIME, 30 s, never by a count of turns (2026-11-15): "10o O1" failed in full runs
+// on a loaded machine and passed alone (docs/PRIORITIES.md, 2026-10-24; the brief of 2026-11-14).
+// 5000 idle turns take about 27 ms, so whenever one WebCrypto call took longer than that on the
+// thread pool (a busy machine), the old count ran out with the call still in flight, settle()
+// returned early and the next assertion read a page that had not finished. Seen 2026-11-15 with
+// every WebCrypto call held 40 ms: 18 of these 24 tests failed with the count of turns, "10o O1"
+// among them, and all 24 passed with the deadline in time. A page that never goes idle fails
+// in words instead of being read half done.
 async function settle() {
+  const until = Date.now() + 30000;
   let idle = 0;
-  for (let i = 0; i < 5000 && idle < 12; i++) {
+  while (idle < 12) {
+    if (Date.now() > until) throw new Error(`the page was still busy after 30 s (${cryptoInFlight} WebCrypto calls in flight)`);
     await new Promise((r) => setImmediate(r));
     idle = cryptoInFlight === 0 ? idle + 1 : 0;
   }

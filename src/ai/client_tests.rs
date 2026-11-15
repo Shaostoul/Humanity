@@ -135,6 +135,15 @@ fn the_engine_runs_in_its_job_at_below_normal_priority() {
 /// When the job's handle closes, as it does when the app exits or crashes, the engine ends (kill on
 /// close): nothing is left running behind the app. Seen red 2026-11-09 with KILL_ON_JOB_CLOSE left out
 /// of the limits: "the engine outlived the job".
+///
+/// The wait is 60 s, not 5 (2026-11-15, data/coordination/flaky-tests.jsonl: "the engine outlived the
+/// job" in two full runs, 2026-11-13 and 11-14, passing alone). Closing the job ends the process
+/// at once, but the process only counts as ended when each of its threads has run its way out,
+/// and the engine runs below normal priority: with every core busy with builds, Windows lets a
+/// starved thread wait about four seconds before it boosts it. An engine the job does NOT kill
+/// never ends here at all (it ends only when its input closes, and the client holds that open), so
+/// the longer wait passes no defect. Red again 2026-11-15 with KILL_ON_JOB_CLOSE left out of the
+/// limits: "the engine outlived the job", after the full 60 s.
 #[cfg(windows)]
 #[test]
 fn the_engine_ends_with_the_app() {
@@ -142,7 +151,7 @@ fn the_engine_ends_with_the_app() {
     c.start();
     until(&mut c, "the hello", running);
     c.drop_job_for_test();
-    assert!(c.process_ended_within(Duration::from_secs(5)), "the engine outlived the job");
+    assert!(c.process_ended_within(Duration::from_secs(60)), "the engine outlived the job");
 }
 
 /// A load past the job's memory cap is refused in words (out_of_memory), and the engine goes on; under

@@ -429,20 +429,32 @@ fn a_persons_build_is_quick_and_its_memory_known() {
     let bi = body_index(&lib, "male");
     let detail: std::collections::BTreeMap<String, f32> = [("nose_hump", 0.6), ("chin_width", -0.4), ("m_waist_circ", 0.5), ("ear_scale", 0.3)].into_iter().map(|(k, v)| (k.to_string(), v)).collect();
     let worn = garments(&lib, &["male_casualsuit02", "shoes03", "short02", "eyebrow003", "eyelashes03"]);
-    let t0 = std::time::Instant::now();
+    // Each build timed on its own, the FASTEST kept, against 1000 ms (2026-11-15). The build does
+    // the same work every time, so a build gone quadratic is slow in every run, while a busy
+    // machine's interruptions land in some runs and not others. Until then the mean of five was
+    // judged against 400 ms, and two full runs (2026-11-13 and 14,
+    // data/coordination/flaky-tests.jsonl) read 436 and 418 ms where the same build reads 77 ms
+    // alone (2026-11-15, other agents compiling): every core busy made it five times slower, so
+    // the fastest of five alone would still have judged the machine. 1000 ms is thirteen times the
+    // build alone and over twice the slowest loaded reading, and a quadratic pass over these
+    // 21,184 vertices costs seconds in this debug build. Red 2026-11-15 with a pass comparing
+    // every vertex with every other added to `build_person`: "the fastest of 5 builds took
+    // 5153.2 ms".
     let runs = 5;
     let mut m = None;
+    let mut ms = f32::MAX;
     for _ in 0..runs {
+        let t0 = std::time::Instant::now();
         m = Some(build(&lib, bi, &detail, &worn, true, true));
+        ms = ms.min(t0.elapsed().as_secs_f32() * 1000.0);
     }
-    let ms = t0.elapsed().as_secs_f32() * 1000.0 / runs as f32;
     let m = m.unwrap();
     let verts = m.model.vertex_count();
     let indices: usize = m.model.primitives.iter().map(|p| p.indices.len()).sum();
     let gpu_bytes = verts * humanity_core::vertex::SkinnedVertex::BYTES + indices * 4 + 32;
     let near_out = verts * 32;
     eprintln!("a dressed person: {ms:.2} ms a build ({} profile), {verts} vertices, {indices} indices: {:.2} MB of mesh, {:.2} MB more for a near place's skinned copy", if cfg!(debug_assertions) { "debug" } else { "release" }, gpu_bytes as f64 / 1048576.0, near_out as f64 / 1048576.0);
-    assert!(ms < 400.0, "a build took {ms:.1} ms");
+    assert!(ms < 1000.0, "the fastest of {runs} builds took {ms:.1} ms");
 }
 
 /// Walk a person's own mesh through a clip on a flat floor with the feet on, the way the frame

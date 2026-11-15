@@ -183,9 +183,14 @@ const countedCrypto = {
   randomUUID: () => globalThis.crypto.randomUUID(),
 };
 
+// settle() ends by TIME, never by a count of turns (2026-11-15, as choice-web.test.js explains):
+// a few thousand idle turns are a few tens of milliseconds, less than one WebCrypto call can take
+// on a busy machine, and the old count returned with the call still in flight.
 async function settle() {
+  const until = Date.now() + 30000;
   let idle = 0;
-  for (let i = 0; i < 5000 && idle < 12; i++) {
+  while (idle < 12) {
+    if (Date.now() > until) throw new Error(`the page was still busy after 30 s (${cryptoInFlight} WebCrypto calls in flight)`);
     await new Promise((r) => setImmediate(r));
     idle = cryptoInFlight === 0 ? idle + 1 : 0;
   }

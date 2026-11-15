@@ -1075,6 +1075,21 @@ samples (a third of its cost), the choir's vibrato once a block, its 50-dB-down 
 skipped, and voices ended 60 dB down. The worst single block in an offline loop includes the OS
 preempting it, so the gate reads the 99th percentile; kira's own buffering covers a rare slow block.
 
+**How the gates measure on a shared machine (2026-11-15, `crates/humanity-music/src/tests_cost.rs`).**
+The genre, deep dubstep, streaming and Music page gates kept failing in full test runs beside other
+agents' builds and passing alone. Each scaled its budget by the calm score "in the same run", but
+read that calm score once, at another moment than the piece it judged, and a block's time includes
+whatever the OS takes from it mid-block. Now the piece and the calm score are rendered from scratch
+several times, TAKING TURNS, and each block's time is its fastest across those renders: the engine
+is deterministic, so an expensive block stays expensive in every render, while an interruption has
+to strike the same block every time to survive. The calm score's own gate and the hum do the same.
+Measured that way beside other builds: synthwave 0.0443 ms against the calm score's 0.0420, deep
+dubstep's drop 0.0330 against 0.0414, 32 streamed notes 9% over 32 held whole. One judgement still
+moved beside release builds: the streamed notes' quarter over notes held whole (one round of five
+read 26% over, the streamed side more sensitive to builds crowding the processor's shared cache), so
+the suite holds it to twice, and `just music-quiet-budgets` judges the quarter when nothing is
+building (scripts/music-quiet-budgets.js waits for that, and fails a run a build walked into).
+
 ## 15. Settings, and the words
 
 In Settings > Audio, beside the existing sliders. Keys go into `data/i18n/en.json` through

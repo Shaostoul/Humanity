@@ -272,6 +272,74 @@ fn a_film_plays_through_ffmpeg_and_seeks() {
     assert!(!alive.load(Ordering::SeqCst), "the decode thread was joined");
 }
 
+/// A SLOW FFMPEG START SKIPS NO PICTURE (2026-11-15, `VideoPlayer::hold_for_first_picture`): every
+/// picture pass of a two-second clip waits 3 s before it starts ffmpeg (`slow_start`, standing in for
+/// a machine so busy that the process takes seconds to start, as full test runs measured on
+/// 2026-11-14), and the clock stands still until the first picture: it reads the start when that
+/// picture comes, the clip then plays to its last picture in order, and a seek waits for its own
+/// first picture the same way. On the wall clock alone the clip's whole length went by before
+/// its first picture, and a screen looping it restarted ffmpeg before any picture came, forever.
+/// RED 2026-11-15 with the call to `hold_for_first_picture` taken out of `poll`: "the clock waited
+/// for the first picture: it read 2.000 s when the picture came after 3.41 s".
+#[test]
+fn a_slow_ffmpeg_start_skips_no_picture() {
+    let Some(ffmpeg) = find_ffmpeg("") else {
+        println!("skipped: no ffmpeg on this machine");
+        return;
+    };
+    const SLOW: Duration = Duration::from_secs(3);
+    let dir = scratch("slowstart");
+    let clip = make_clip(&ffmpeg, &dir, 2);
+    let mut src = look(&ffmpeg, &clip).expect("ffmpeg reads the clip");
+    src.slow_start = SLOW;
+    let mut player = crate::media::VideoPlayer::open_stream(src).expect("opens");
+    let duration = player.duration_s();
+    assert!((duration - 2.0).abs() < 0.1, "{duration}");
+    player.play();
+    // The first picture after the start (or a seek): when it came, and where the clock stood.
+    let first_picture = |player: &mut crate::media::VideoPlayer| {
+        let t0 = Instant::now();
+        let deadline = t0 + Duration::from_secs(120);
+        while Instant::now() < deadline {
+            if let Some(f) = player.poll() {
+                return (f, t0.elapsed(), player.position_s());
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        panic!("no picture within 120 s: {:?}", player.take_error());
+    };
+    let (first, waited, at) = first_picture(&mut player);
+    println!("the first picture came after {:.2} s, the clock at {at:.3} s", waited.as_secs_f64());
+    assert!(waited >= SLOW, "the slow start happened: {waited:?}");
+    assert!(first.pts_s.abs() < 1e-9, "the first picture is the clip's first: {}", first.pts_s);
+    assert!(at < 0.5, "the clock waited for the first picture: it read {at:.3} s when the picture came after {:.2} s", waited.as_secs_f64());
+    // Then the clip plays to its last picture, in order. (How long that takes is not judged: this
+    // debug build converts each 1280x720 picture slower than 30 a second, so the pictures come at
+    // the converter's pace, not the clip's.)
+    let shown = Instant::now();
+    let (mut last_pts, mut pictures) = (first.pts_s, 1);
+    let deadline = shown + Duration::from_secs(60);
+    while Instant::now() < deadline && player.is_playing() {
+        if let Some(f) = player.poll() {
+            assert!(f.pts_s > last_pts, "in order: {} after {last_pts}", f.pts_s);
+            last_pts = f.pts_s;
+            pictures += 1;
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let span = shown.elapsed().as_secs_f64();
+    println!("{pictures} pictures, the last at {last_pts:.3} s, over {span:.2} s");
+    assert!(last_pts > duration - 0.2, "the clip played to its last picture: the last at {last_pts:.3} s");
+    // A seek starts ffmpeg again, and waits for its own first picture.
+    player.seek_to(1.0);
+    player.play();
+    let (landed, waited, at) = first_picture(&mut player);
+    println!("after the seek the first picture came after {:.2} s, the clock at {at:.3} s", waited.as_secs_f64());
+    assert!((landed.pts_s - 1.0).abs() < 0.05, "the seek landed at {}", landed.pts_s);
+    assert!(at < 1.5, "the clock waited for the seek's first picture: it read {at:.3} s");
+    drop(player);
+}
+
 /// A file that is not media: the look says so in ffmpeg's words, it never panics.
 #[test]
 fn a_file_that_is_not_media_is_refused_in_words() {

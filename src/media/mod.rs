@@ -564,6 +564,9 @@ fn probe_mp4(path: &Path, movie: &mp4::Movie) -> Option<MediaInfo> {
 /// earlier audio position never makes the clock run backwards.
 struct Clock {
     playing: bool,
+    /// Playing, but standing still: a film through ffmpeg waiting for its first picture after a
+    /// start or a seek (`VideoPlayer::hold_for_first_picture`). `raw` adds no time while it holds.
+    held: bool,
     anchor: Instant,
     base: f64,
     /// 0.0 means unknown (no clamping at the end).
@@ -582,6 +585,7 @@ impl Clock {
     fn new(duration: f64) -> Self {
         Self {
             playing: false,
+            held: false,
             anchor: Instant::now(),
             base: 0.0,
             duration,
@@ -611,7 +615,7 @@ impl Clock {
 
     /// The raw estimate, before the monotonic guard.
     fn raw(&self) -> f64 {
-        let p = if self.playing { self.base + self.elapsed().as_secs_f64() } else { self.base };
+        let p = if self.playing && !self.held { self.base + self.elapsed().as_secs_f64() } else { self.base };
         if self.duration > 0.0 {
             p.min(self.duration)
         } else {
@@ -636,6 +640,22 @@ impl Clock {
     fn pause(&mut self) {
         self.base = self.raw();
         self.playing = false;
+    }
+
+    /// Stand still where the clock is, still playing (a film waiting for its first picture).
+    fn hold(&mut self) {
+        if !self.held {
+            self.base = self.raw();
+            self.held = true;
+        }
+    }
+
+    /// Run on from where the hold stood, counting time from now.
+    fn release(&mut self) {
+        if self.held {
+            self.held = false;
+            self.anchor = self.now();
+        }
     }
 
     /// Move the clock to `pos` without touching the playing flag (audio sync).
@@ -1232,6 +1252,10 @@ impl VideoPlayer {
         let mut handle = manager.play_stream(data, opts.volume, opts.panning).map_err(MediaError::Audio)?;
         if self.clock.playing {
             handle.seek_to(self.clock.position());
+            // Held for a first picture, the sound waits with the clock (`hold_for_first_picture`).
+            if self.clock.held {
+                handle.pause(zero_tween());
+            }
         } else {
             // kira applies the play and the pause command in the same audio
             // thread pass, so no sound leaks out before the first play().
@@ -1284,6 +1308,10 @@ impl VideoPlayer {
             return;
         }
         self.clock.play();
+        // Held for a first picture, the sound waits with the clock (`hold_for_first_picture`).
+        if self.clock.held {
+            return;
+        }
         if let Some(h) = &mut self.audio {
             h.resume(zero_tween());
         }
@@ -1360,6 +1388,7 @@ impl VideoPlayer {
     /// The newest decoded frame whose pts is at or before the clock, or None
     /// when nothing new is due. Call once per drawn frame.
     pub fn poll(&mut self) -> Option<VideoFrame> {
+        self.hold_for_first_picture();
         self.sync_clock_to_audio();
         let clock = self.clock.position();
         let (frame, ended) = {
@@ -1392,7 +1421,53 @@ impl VideoPlayer {
             self.last_delivered_pts = f.pts_s;
             self.show_next_frame = false;
         }
+        // The first picture is here (or none will come: the pass ended, or failed): run on.
+        if frame.is_some() || ended || self.last_error.is_some() {
+            self.release_hold();
+        }
         frame
+    }
+
+    /// A FILM THROUGH FFMPEG WAITS FOR ITS FIRST PICTURE (2026-11-15, BUG-312). A stream starts an ffmpeg
+    /// process at its start and at every seek (`stream.rs`), and on a busy machine that process took
+    /// seconds to hand over its first picture (2.4 to 5.7 s measured in full test runs on
+    /// 2026-11-14) while the clock ran on from the moment play was asked for. A long film skipped
+    /// those seconds; a clip shorter than that never showed a picture at all: its clock reached the
+    /// end, the screen wrapped it to the start, the wrap's seek started ffmpeg again, and that one
+    /// was late too, round after round (`open_path_plays_an_mp4_through_ffmpeg_as_it_goes` failed
+    /// with "pictures from ffmpeg: 0" four times that day). So, as a player buffers before it
+    /// plays, the clock stands still (and the sound with it) from a start or a seek until the first
+    /// picture after it is decoded, then runs on from there. Only for a stream: the decoders inside
+    /// the app hand over their first picture within a frame or two and start no process.
+    /// `a_slow_ffmpeg_start_skips_no_picture` (stream_tests.rs) pins it.
+    fn hold_for_first_picture(&mut self) {
+        if self.stream.is_none() || !self.show_next_frame || !self.clock.playing || self.clock.held {
+            return;
+        }
+        let waiting = {
+            let q = self.shared.queue.lock().unwrap_or_else(|e| e.into_inner());
+            q.frames.is_empty() && !q.eof && q.error.is_none()
+        };
+        if waiting {
+            self.clock.hold();
+            if let Some(h) = &mut self.audio {
+                h.pause(zero_tween());
+            }
+        }
+    }
+
+    /// End a hold (`hold_for_first_picture`): the clock runs on from where it stood, and the sound
+    /// with it if the player is playing.
+    fn release_hold(&mut self) {
+        if !self.clock.held {
+            return;
+        }
+        self.clock.release();
+        if self.clock.playing {
+            if let Some(h) = &mut self.audio {
+                h.resume(zero_tween());
+            }
+        }
     }
 
     /// Container duration in seconds (0.0 if the file does not declare one).
@@ -1488,7 +1563,7 @@ impl VideoPlayer {
     /// wall clock carries on until the two agree).
     fn sync_clock_to_audio(&mut self) {
         let Some(h) = &self.audio else { return };
-        if !self.clock.playing || h.state() != PlaybackState::Playing {
+        if !self.clock.playing || self.clock.held || h.state() != PlaybackState::Playing {
             return;
         }
         let audio_pos = h.position();

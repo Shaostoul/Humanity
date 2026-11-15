@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1548 Rust files (796,906 lines) under `src/` and `crates/*/src/`; 147 JavaScript files (91,296 lines) under `web/`.
+1549 Rust files (797,355 lines) under `src/` and `crates/*/src/`; 147 JavaScript files (91,296 lines) under `web/`.
 
 ## Folders
 
@@ -23,7 +23,7 @@
 - `crates/humanity-core/src/physics/` (2 files): Physics, Rapier3d world setup and stepping.
 - `crates/humanity-core/src/platform/` (2 files): Platform abstraction for native vs WASM.
 - `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
-- `crates/humanity-music/src/` (36 files)
+- `crates/humanity-music/src/` (37 files)
 - `crates/humanity-protocol/src/` (31 files)
 - `crates/humanity-ship/src/` (44 files)
 - `crates/humanity-ship/src/crowd_nav/` (7 files): CROWD NAVIGATION (rung 1, 2026-11-13; the whole plan is docs/design/crowd-navigation.md): people who walk somewhere, through doors, round...
@@ -244,7 +244,7 @@
 - `instrument.rs` (876): Instruments as data (docs/design/music.md, section 6): `data/music/instruments/<id>.ron`, one file per instrument. Main items: Instrument, InstrumentKind, DrumMachineSpec, DrumTone, DrumNoise, DrumMetal, EnvSpec, Wave (+32 more).
 - `intensity.rs` (97): Danger and action: the score rising with the game's intensity (docs/design/music.md, section 7b). Main items: Band, Gesture, IntensityMap, band_for.
 - `kira_sound.rs` (339): The score and the bed on the sound card: kira 0.12 `Sound`s over the pure engines (docs/design/music.md, section 4.2). Main items: ScoreSoundData, ScoreHandle, BedSoundData, BedHandle.
-- `lib.rs` (88): HumanityOS's live music and the ship's hum (docs/design/music.md; the crate card is docs/crates/humanity-music.md). Main items: session_seed.
+- `lib.rs` (90): HumanityOS's live music and the ship's hum (docs/design/music.md; the crate card is docs/crates/humanity-music.md). Main items: session_seed.
 - `library.rs` (213): The music's data, read from the data folder (on the game thread, never the audio thread): Main items: MusicLibrary, is_recorded_definition, load_wavetables, DEFAULT_GENRE, DEFAULT_MOOD.
 - `mood.rs` (224): Moods as data (docs/design/music.md, section 7): `data/music/moods/<id>.ron`. Main items: RoleKind, KeyCentre, ChordDef, RoleSpec, Pulse, Motif, Mood.
 - `osc.rs` (339): A synth's oscillators (docs/design/music.md sections 6 and 7f): the classic waves, and since rung E5 the PULSE with its width modulated, UNISON (seven saws detuned is the supersaw) and the WAVETABLE. Main items: OscBank, Plan, szabo_detune, szabo_mix, plan, fill, MAX_UNISON, SZABO_OFFSETS.
@@ -257,13 +257,14 @@
 - `settings.rs` (88): The person's music settings (Settings > Music, docs/design/music.md section 15), saved in the app's config.json as one `music` object. Main items: MusicSettings.
 - `sheet.rs` (294): THE SHEET: a piece written down (docs/design/music-page.md section 9). Main items: SheetNote, SheetChord, SheetSection, Sheet, RollNote, transcribe, key_uses_flats, pc_name (+1 more).
 - `stream.rs` (476): Streaming long recordings from disk while a note plays (docs/design/music.md section 23, "Memory", built 2026-11-14). Main items: StreamSettings, FrameSource, SourceOpener, StreamPool, ZoneStream, StreamLease, RingView, Service (+2 more).
-- `tests_audio.rs` (903): The music crate's tests that render sound and measure it: tuning in the rendered audio, the steel pan's and the deep drum's partials and decay, the hum (off the ship, near the drive, in a small roo... Main items: heavy.
+- `tests_audio.rs` (916): The music crate's tests that render sound and measure it: tuning in the rendered audio, the steel pan's and the deep drum's partials and decay, the hum (off the ship, near the drive, in a small roo... Main items: heavy.
+- `tests_cost.rs` (99): Measuring the audio thread's cost per 128-frame block so that a loaded machine does not fail a budget the engine meets (2026-11-15). Main items: BlockCost, fastest_blocks, time_blocks, calm_blocks, scale_of, CALM_QUIET_MS.
 - `tests_e5.rs` (671): Rungs E5 and E4 (docs/design/music.md section 7f, 2026-11-14): the WAVETABLE oscillator that plays the core set's AKWF single cycles, band-limited by octave and morphing; UNISON (the supersaw) and... Main items: calm_ms.
-- `tests_e6.rs` (811): Rungs E3 and E6 (docs/design/music.md section 7g, 2026-11-14): the mix's effects for the electronic genres (the tempo delay, the gated reverb, the reverb's low cut, the downlifter, the reversed cym...
-- `tests_electronic.rs` (555): The electronic rungs (docs/design/music.md section 7d; the research's rungs E1 and E2, 2026-11-13): a genre's structure (sections, builds, snare rolls, the drop) and the bass toolkit (a two-stage f... Main items: power, band_onsets.
-- `tests_page.rs` (322): The Music page's crate half (docs/design/music-page.md): favourites saved and loaded, share codes, the export, the piano roll and the chord symbols, each against an independent reading.
+- `tests_e6.rs` (829): Rungs E3 and E6 (docs/design/music.md section 7g, 2026-11-14): the mix's effects for the electronic genres (the tempo delay, the gated reverb, the reverb's low cut, the downlifter, the reversed cym...
+- `tests_electronic.rs` (576): The electronic rungs (docs/design/music.md section 7d; the research's rungs E1 and E2, 2026-11-13): a genre's structure (sections, builds, snare rolls, the drop) and the bass toolkit (a two-stage f... Main items: power, band_onsets.
+- `tests_page.rs` (327): The Music page's crate half (docs/design/music-page.md): favourites saved and loaded, share codes, the export, the piano roll and the chord symbols, each against an independent reading.
 - `tests_piece.rs` (286): Pieces: variety by seed (docs/design/music.md section 7c; the operator, 2026-11-13: "we don't want the same electro swing song for hours on end, we definitely want variety to the music.
-- `tests_stream.rs` (295): Streaming long recordings (crate::stream; docs/design/music.md section 23, "Memory"): the packet reader against kira's decode, a streamed note against the whole-file note, a stream that falls behin...
+- `tests_stream.rs` (350): Streaming long recordings (crate::stream; docs/design/music.md section 23, "Memory"): the packet reader against kira's decode, a streamed note against the whole-file note, a stream that falls behin...
 - `tune.rs` (104): TUNING A PIECE (docs/design/music-page.md section 6): what a person may change about a piece on the Music page without changing which piece it is. Main items: Tune, PIECE, ROLES, ROLE_IDS, NARROW_TEMPO_SPAN.
 - `tuning.rs` (215): Pitch: the ONE place a frequency is made (docs/design/music.md, section 9). Main items: Tuning, Mode, note_hz, note_hz_f64, pitch_class, parse_note, note_name, scale_step (+2 more).
 - `voice.rs` (1378): The voice pool: 64 voices made once, each a note being played by one instrument kind. Main items: BlockParams, FxBuses, NoteOn, Voice, VoicePool, MAX_VOICES.
@@ -815,7 +816,7 @@
 - `camera.rs` (618): The in-game CAMERA screen (in-world screens, rung 3): a placed camera post looks at the world, and a wall screen whose source is `camera:<that post's instance id>` shows what it sees. Main items: EngineWorld, CameraProvider, pick_due, camera_from_pose, without_own_quads, CAMERA_INTERVAL.
 - `edit.rs` (409): Build mode's handles on an in-world screen (rung 2 of "Aim assist, any size, and each screen's own settings", docs/design/in-world-screens.md, 2026-11-06). Main items: Handle, Frame, ScreenGrab, DragOut, band_m, cog, handle_at, drag (+4 more).
 - `live.rs` (810): The LIVE STREAM screen (in-world screens, rung 3): the MJPEG stream the Watch page decodes (`net::live_viewer`), shown on a wall. Main items: Shown, Display, LastError, LiveStatus, LiveProvider, letterbox_rect, letterbox_into, next_display (+3 more).
-- `video.rs` (2846): The video provider (in-world screens ladder, rung 5, integration): a `video:<path>` screen plays a clip through the purpose-built player in `src/media`, looping, with its sound placed in the world... Main items: Letterbox, Picture, SoundStep, SoundLink, StripTimer, FrameDraw, ScreenView, ScreenActions (+17 more).
+- `video.rs` (2878): The video provider (in-world screens ladder, rung 5, integration): a `video:<path>` screen plays a clip through the purpose-built player in `src/media`, looping, with its sound placed in the world... Main items: Letterbox, Picture, SoundStep, SoundLink, StripTimer, FrameDraw, ScreenView, ScreenActions (+17 more).
 - `web.rs` (489): The web provider: a `web:<url>` screen shows the readable web view on a wall (in-world screens, rung 6 integration; the core reader is `src/web_reader/` and the widget is `src/gui/widgets/web_view.... Main items: WebProvider.
 - tests: `aim_tests.rs`, `edit_tests.rs`
 
@@ -891,7 +892,7 @@
 - `how_to.rs` (66): From how_to/tests.rs: the how-to checker's tests that read the app's list of pages, run again WITH it.
 - `mod.rs` (36): TESTS OF THE CRATES BELOW, TOGETHER WITH THE GUI OR WITH EACH OTHER (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed before each crate is cut").
 - `net_household.rs` (252): From net/household.rs's tests: the household permits, their owners named the way the relay names a plot's owner (`relay::storage::plot_owner_id`).
-- `net_live.rs` (131): From net/live.rs's tests: a real frame survives the whole pipeline to a viewer, through a real relay's live handlers.
+- `net_live.rs` (145): From net/live.rs's tests: a real frame survives the whole pipeline to a viewer, through a real relay's live handlers.
 - `reports.rs` (15): From relay/handlers/reports_tests.rs (`a_message_carrying_a_file_is_never_included_in_a_report`): the one line of it that read the app's side.
 - `ship_lighting.rs` (29): From ship/ship_structure.rs (`lighting_watts_tests`): the shipped lights draw real watts through the renderer's light types.
 - `ship_moves.rs` (90): From ship/moves.rs's tests: the relay's on-foot limit covers the fastest legitimate walk, the renderer's walk and sprint times every speed buff and piece of gear the simulation knows.
@@ -1263,9 +1264,9 @@
 - `dvd.rs` (876): Playing a video DISC on an in-world screen (2026-09-18). Main items: MainTitle, DiscRead, DriveKind, unreadable_message, find_video_ts, parse_title_vob, main_title, list_video_ts (+10 more).
 - `ffmpeg.rs` (578): The person's own ffmpeg, for every file the app's player cannot decode itself (in-world screens ladder; docs/design/media-player.md, "Container and codecs" and "Through ffmpeg as it plays"). Main items: IngestRules, Ingest, Ready, expand_env, parse_ingest_rules, ingest_rules, find_ffmpeg, ffmpeg_command (+14 more).
 - `kind.rs` (125): What a video file is, in a person's words (BUG-228, 2026-11-03). Main items: Container, FileKind, matroska_codec_name.
-- `mod.rs` (1527): Purpose-built media player core (in-world screens ladder, rung 5). Main items: MediaError, VideoFrame, AudioAttach, MediaInfo, VideoPackets, VideoPacket, VideoPlayer, compose_mix (+12 more).
+- `mod.rs` (1602): Purpose-built media player core (in-world screens ladder, rung 5). Main items: MediaError, VideoFrame, AudioAttach, MediaInfo, VideoPackets, VideoPacket, VideoPlayer, compose_mix (+12 more).
 - `mp4.rs` (514): The MP4 container (ISO/IEC 14496-12 and -14) for our own decoders: AV1 video in an MP4, the form video sites hand AV1 out in (BUG-228, 2026-11-03). Main items: Sample, TrackCodec, Track, Movie, SampleReader, not_mp4, open, codec_name (+2 more).
-- `stream.rs` (756): Playing a film through the person's own ffmpeg AS IT PLAYS (2026-11-13). Main items: Summary, StreamSource, Opening, KillSwitch, Y4mHeader, PipeAudio, parse_summary, output_size (+8 more).
+- `stream.rs` (773): Playing a film through the person's own ffmpeg AS IT PLAYS (2026-11-13). Main items: Summary, StreamSource, Opening, KillSwitch, Y4mHeader, PipeAudio, parse_summary, output_size (+8 more).
 - `system.rs` (952): The computer's own video decoders: Windows Media Foundation, for every file our own AV1 and Opus path cannot play, an ordinary MP4 (H.264 video, AAC sound) above all (operator, 2026-10-17: "How do... Main items: SystemAudio, available, declared_starts, probe, probe_sound, still_of, NO_DECODERS, NO_HEVC.
 - `video.rs` (388): AV1 decoding through rav1d (the memory-safe Rust port of dav1d), built without its assembly so no C compiler or nasm is needed, and the YUV to RGBA conversion that turns its pictures into texture-r... Main items: Av1Decoder, ColorMatrix, choose_matrix, yuv420_to_rgba, decode_video.
 - tests: `mp4_tests.rs`, `stream_tests.rs`, `system_tests.rs`, `tests.rs`
