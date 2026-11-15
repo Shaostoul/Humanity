@@ -10,9 +10,11 @@
 //! no "has been running for over 60 seconds" line, and passed in 232 s once the game closed. The
 //! silence is libtest's: its main loop joins each finished test's thread BEFORE it prints that
 //! test's result, and its 60-second warnings are printed from inside the same loop, so one test
-//! thread that reports its result and then cannot exit (most likely the GPU driver's per-thread
-//! cleanup, which Windows runs as the thread exits; nothing was dumped to prove it) stops every
-//! line after it.
+//! thread that reports its result and then cannot exit stops every line after it. (2026-11-14: a
+//! thread dump of the same freeze, without any game, proved a deadlock in NVIDIA's OpenGL and
+//! Vulkan driver against Windows' loader lock, brought in by each GPU test making its own
+//! all-backend instance; the engine's src/renderer/test_gpu.rs now opens every test's device on
+//! the game's backend, one test at a time, and says so in full.)
 //!
 //! So scripts/lib-tests.js looks for those programs before it runs the tests and, when one runs,
 //! sets `HUMANITY_TEST_GPU_BUSY` to their names. A test that would open a device asks `may_use()`
@@ -20,8 +22,9 @@
 //! and returns early when the answer is no. Each test that stood down is written, one name a
 //! line, to the file `HUMANITY_TEST_GPU_SKIPPED` names, and lib-tests.js reads it back and says
 //! loudly which tests did nothing and why, and does not count the run as a full pass of them:
-//! libtest itself counts a test that returned early as passed. tests/gpu_test_gate_lint.rs fails
-//! when a new instance is created in a test without asking first.
+//! libtest itself counts a test that returned early as passed. The engine's tests ask through
+//! src/renderer/test_gpu.rs `open`, which asks first; tests/gpu_test_gate_lint.rs fails on a test
+//! that opens the GPU any other way.
 //!
 //! Run outside lib-tests.js (a bare test program, CI, `cargo test`), neither variable is set and
 //! every test may use the GPU, as before.

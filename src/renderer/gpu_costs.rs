@@ -755,31 +755,13 @@ mod tests {
     #[ignore = "needs a GPU adapter; run explicitly (see the doc comment)"]
     fn gpu_timestamps_resolve_a_real_pass_duration() {
         let _g = serial();
-        if !humanity_core::test_gpu::may_use() {
+        // An adapter without TIMESTAMP_QUERY is named by `open`: the CPU fallback is the live path there.
+        let Some(gpu) = crate::renderer::test_gpu::open(
+            crate::renderer::test_gpu::Ask::new("frame_costs timestamp test").features(wgpu::Features::TIMESTAMP_QUERY),
+        ) else {
             return;
-        }
-        let instance = wgpu::Instance::default();
-        let adapter = match pollster::block_on(instance.request_adapter(&Default::default())) {
-            Some(a) => a,
-            None => {
-                println!("no GPU adapter; skipping");
-                return;
-            }
         };
-        if !adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
-            println!("adapter has no TIMESTAMP_QUERY; the CPU fallback is the live path here");
-            return;
-        }
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("frame_costs timestamp test"),
-                required_features: wgpu::Features::TIMESTAMP_QUERY,
-                required_limits: wgpu::Limits::default(),
-                ..Default::default()
-            },
-            None,
-        ))
-        .expect("device with timestamp queries");
+        let (device, queue) = (&gpu.device, &gpu.queue);
         let timers = GpuTimers::new(&device, &queue).expect("timers on a capable adapter");
 
         // A BIG clear, on purpose: an empty 256x256 pass finishes inside one

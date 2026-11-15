@@ -502,48 +502,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 
     /// A device, or None while the operator's GPU game runs (crates/humanity-core/src/test_gpu.rs).
-    fn device() -> Option<(wgpu::Device, wgpu::Queue, String)> {
-        if !humanity_core::test_gpu::may_use() {
-            return None;
-        }
-        let dxc = std::env::var("HUMANITY_DXC_DIR").ok().map(std::path::PathBuf::from).filter(|d| {
-            d.join("dxcompiler.dll").exists() && d.join("dxil.dll").exists()
-        });
-        let mut backend_options = wgpu::BackendOptions::default();
-        let mut compiler = "FXC".to_string();
-        if let Some(d) = dxc {
-            backend_options.dx12 = wgpu::Dx12BackendOptions {
-                shader_compiler: wgpu::Dx12Compiler::DynamicDxc {
-                    dxc_path: d.join("dxcompiler.dll").to_string_lossy().into_owned(),
-                    dxil_path: d.join("dxil.dll").to_string_lossy().into_owned(),
-                },
-            };
-            compiler = format!("DXC ({})", d.display());
-        }
-        #[cfg(target_os = "windows")]
-        let backends = wgpu::Backends::DX12;
-        #[cfg(not(target_os = "windows"))]
-        let backends = wgpu::Backends::VULKAN | wgpu::Backends::METAL;
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends, backend_options, ..Default::default() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        }))
-        .expect("no adapter");
-        let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("lattice noise test"),
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
-                ..Default::default()
-            },
-            None,
-        ))
-        .expect("no device");
-        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
-        Some((device, queue, format!("{} / {:?} / {compiler}", info.name, info.backend)))
+    fn device() -> Option<crate::renderer::test_gpu::Gpu> {
+        // HUMANITY_DXC_DIR picks DXC for every GPU test now (src/renderer/test_gpu.rs); gpu.describe() names it.
+        crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("lattice noise test").adapter_resolution())
     }
 
     fn run(device: &wgpu::Device, queue: &wgpu::Queue, probes: &[Probe]) -> Vec<[u32; 4]> {
@@ -622,9 +583,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     #[test]
     #[ignore]
     fn the_gpu_runs_the_same_lattice_noise() {
-        let Some((device, queue, what)) = device() else {
+        let Some(gpu) = device() else {
             return;
         };
+        let (device, queue, what) = (&gpu.device, &gpu.queue, gpu.describe());
         println!("[lattice_noise] device: {what}");
         let mut rng = Lcg(0x6E0_1A77);
 

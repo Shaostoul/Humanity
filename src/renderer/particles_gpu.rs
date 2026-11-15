@@ -345,28 +345,10 @@ mod device_tests {
     #[test]
     #[ignore]
     fn compute_pipeline_builds_on_a_real_device() {
-        if !humanity_core::test_gpu::may_use() {
+        let Some(gpu) = crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("particle sim test").adapter_resolution()) else {
             return;
-        }
-        let instance = wgpu::Instance::default();
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        }))
-        .expect("no adapter");
-        let limits = wgpu::Limits::default().using_resolution(adapter.limits());
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("particle sim test"),
-                required_features: wgpu::Features::empty(),
-                required_limits: limits,
-                ..Default::default()
-            },
-            None,
-        ))
-        .expect("no device");
-        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
+        };
+        let (device, queue) = (&gpu.device, &gpu.queue);
 
         let mut gp = GpuParticles::new(&device, 100_000);
         assert_eq!(gp.capacity(), 100_000);

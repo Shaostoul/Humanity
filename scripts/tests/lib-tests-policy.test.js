@@ -208,6 +208,23 @@ test("a run that goes silent (a thread that reports, then cannot exit) is stoppe
   }
 });
 
+// 2026-11-14: the GPU helper (src/renderer/test_gpu.rs) keeps the GPU turn's holder in the file
+// HUMANITY_TEST_GPU_TURN names and writes its watchdog lines straight to stderr; a stopped run says
+// both. Seen red against the runner before point 6: neither line was printed.
+test("a stopped run names the test holding the GPU turn and repeats the watchdog's line", () => {
+  const exe = suiteExe();
+  const root = repo();
+  try {
+    const r = run(root, exe, ["--stall-min", "0.05"], { TINY_SILENT_HANG: "1", TINY_GPU_TURN_HOLDER: "renderer::x::tests::stuck" });
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.match(r.out, /The GPU turn was HELD by renderer::x::tests::stuck/);
+    assert.match(r.out, /\n  GPU TEST STILL RUNNING: renderer::x::tests::stuck has held the GPU for 60 s/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
 test("what counts as the full suite, and the failures list", () => {
   assert.strictEqual(L.isFullRun([]), true);
   assert.strictEqual(L.isFullRun(["--nocapture", "-q", "--test-threads", "4"]), true);

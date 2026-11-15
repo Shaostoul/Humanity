@@ -779,20 +779,40 @@ mod tests {
     ///
     /// Seen red 2026-10-04 on the merged tree (restocking on real seconds): "at 72x: 91 meals
     /// missed in three real hours".
+    ///
+    /// THE THREE SPEEDS RUN SIDE BY SIDE (2026-11-14). It is 648,000 ticks of a whole world, 73 s
+    /// in a debug build on a quiet machine and well over 60 s in every loaded full run, so libtest
+    /// named it "running for over 60 seconds" in every hang of 2026-11-14 and it stood first in
+    /// every list of suspects, though it never failed (112 such lines in the agents' logs, 0
+    /// failures) and nothing in it reads the wall clock: the world's clock is the `dt` it is
+    /// handed. It was not the hang (src/renderer/test_gpu.rs says what was). Each speed is its own
+    /// world, so the three now tick on three threads and the test takes the time of one. Seen red
+    /// the same day with the farms restocking on real seconds again (`stock_stores(dt)` in
+    /// `GameWorld::tick`): "at 72x: 91 meals missed in three real hours", in 35 s of a loaded machine.
     #[test]
     fn the_stores_hold_steady_at_the_shared_clocks_speed() {
-        for scale in [72.0, 1.0, 500.0] {
-            let mut world = stocked_world();
-            world.time_scale = scale;
-            let store = stores(&world)[0];
-            let start = meals_in(&world, store);
-            for _ in 0..(3 * 3600 * 20) {
-                world.tick(0.05);
-            }
-            let missed = count(&world, "meals_missed");
+        // (scale, meals missed, store at the start, store at the end, meals eaten), per speed.
+        let runs: Vec<(f64, u64, f64, f64, u64)> = std::thread::scope(|s| {
+            let each: Vec<_> = [72.0, 1.0, 500.0]
+                .into_iter()
+                .map(|scale| {
+                    s.spawn(move || {
+                        let mut world = stocked_world();
+                        world.time_scale = scale;
+                        let store = stores(&world)[0];
+                        let start = meals_in(&world, store);
+                        for _ in 0..(3 * 3600 * 20) {
+                            world.tick(0.05);
+                        }
+                        (scale, count(&world, "meals_missed"), start, meals_in(&world, store), count(&world, "meals_eaten"))
+                    })
+                })
+                .collect();
+            each.into_iter().map(|h| h.join().expect("a clock speed's world panicked")).collect()
+        });
+        for (scale, missed, start, end, eaten) in runs {
             assert_eq!(missed, 0, "at {scale}x: {missed} meals missed in three real hours");
-            let end = meals_in(&world, store);
-            assert!(end >= start, "at {scale}x the store fell from {start} to {end:.1} in three real hours ({} eaten)", count(&world, "meals_eaten"));
+            assert!(end >= start, "at {scale}x the store fell from {start} to {end:.1} in three real hours ({eaten} eaten)");
         }
     }
 

@@ -255,20 +255,9 @@ fn the_caster_upload_writes_only_what_changed_and_all_with_reuse_off() {
 // The GPU parts need the native build's test helpers (humanity_core::test_gpu, pollster); the relay
 // build compiles the rest.
 #[cfg(feature = "native")]
-fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    if !humanity_core::test_gpu::may_use() {
-        return None;
-    }
-    let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, compatible_surface: None, force_fallback_adapter: false }))?;
-    if !adapter.features().contains(required_features()) {
-        println!("the GPU-driven shadow test needs {:?}: this adapter lacks {:?}, not run", required_features(), missing_features(adapter.features()));
-        return None;
-    }
-    let limits = wgpu::Limits::default().using_resolution(adapter.limits());
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { label: Some("shadow gpu test"), required_features: required_features(), required_limits: limits, ..Default::default() }, None)).ok()?;
-    device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
-    Some((device, queue))
+fn device() -> Option<crate::renderer::test_gpu::Gpu> {
+    // An adapter without the features is named by `open` ("needs ..., which <adapter> does not offer").
+    crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("shadow gpu test").features(required_features()).adapter_resolution())
 }
 
 /// The two layouts the sets' pipelines bind: the fast path's views (group 0) and a material's albedo
@@ -328,7 +317,8 @@ fn read_back(device: &wgpu::Device, queue: &wgpu::Queue, src: &wgpu::Buffer, off
 #[test]
 #[cfg(feature = "native")]
 fn the_gpu_cull_writes_the_draws_the_old_loop_made() {
-    let Some((device, queue)) = device() else { return };
+    let Some(opened) = device() else { return };
+    let (device, queue) = (&opened.device, &opened.queue);
     let cube = crate::renderer::mesh::Mesh::cube(&device);
     let tri_v: Vec<humanity_core::vertex::Vertex> = (0..5).map(|k| humanity_core::vertex::Vertex { position: [k as f32 * 0.1, (k % 2) as f32 * 0.2, 0.0], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect();
     let tri = crate::renderer::mesh::Mesh::from_vertices(&device, &tri_v, &[0, 1, 2, 2, 1, 3, 3, 1, 4]);
@@ -435,7 +425,8 @@ fn the_gpu_cull_writes_the_draws_the_old_loop_made() {
 #[test]
 #[cfg(feature = "native")]
 fn each_new_caster_class_is_culled_by_the_processor_rule() {
-    let Some((device, queue)) = device() else { return };
+    let Some(opened) = device() else { return };
+    let (device, queue) = (&opened.device, &opened.queue);
     let cube = crate::renderer::mesh::Mesh::cube(&device);
     let tri_v: Vec<humanity_core::vertex::Vertex> = (0..5).map(|k| humanity_core::vertex::Vertex { position: [k as f32 * 0.1, (k % 2) as f32 * 0.2, 0.0], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }).collect();
     let tri = crate::renderer::mesh::Mesh::from_vertices(&device, &tri_v, &[0, 1, 2, 2, 1, 3, 3, 1, 4]);
@@ -545,7 +536,8 @@ fn each_new_caster_class_is_culled_by_the_processor_rule() {
 #[cfg(feature = "native")]
 fn a_skinned_body_casts_from_the_vertices_skinned_this_frame() {
     use wgpu::util::DeviceExt;
-    let Some((device, queue)) = device() else { return };
+    let Some(opened) = device() else { return };
+    let (device, queue) = (&opened.device, &opened.queue);
     let (vl, tl) = layouts(&device);
     let mut gpu = GpuCasters::new(&device, &vl, &tl);
     let quad = |x0: f32| -> Vec<humanity_core::vertex::Vertex> {

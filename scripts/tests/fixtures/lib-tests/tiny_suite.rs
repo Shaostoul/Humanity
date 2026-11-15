@@ -80,6 +80,13 @@ fn hangs_silently_when_asked() {
         static NEVER: Never = const { Never };
     }
     if std::env::var("TINY_SILENT_HANG").as_deref() == Ok("1") {
+        // As src/renderer/test_gpu.rs does for a test holding the GPU (2026-11-14): the holder in
+        // the file lib-tests.js names, and the watchdog's line straight to stderr.
+        if let (Ok(holder), Ok(file)) = (std::env::var("TINY_GPU_TURN_HOLDER"), std::env::var("HUMANITY_TEST_GPU_TURN")) {
+            use std::io::Write;
+            let _ = std::fs::write(file, format!("1763100000000 held {holder}\n"));
+            let _ = std::io::stderr().write_all(format!("GPU TEST STILL RUNNING: {holder} has held the GPU for 60 s (src/renderer/test_gpu.rs)\n").as_bytes());
+        }
         NEVER.with(|_| {});
     }
 }

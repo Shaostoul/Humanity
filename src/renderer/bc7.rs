@@ -401,35 +401,13 @@ mod tests {
     #[test]
     #[ignore]
     fn the_gpu_decodes_bc7_as_we_do() {
-        if !humanity_core::test_gpu::may_use() {
+        // An adapter without block compression is named by `open` and the test does nothing.
+        let Some(opened) = crate::renderer::test_gpu::open(
+            crate::renderer::test_gpu::Ask::new("bc7 test").features(wgpu::Features::TEXTURE_COMPRESSION_BC).adapter_resolution(),
+        ) else {
             return;
-        }
-        #[cfg(target_os = "windows")]
-        let backends = wgpu::Backends::DX12;
-        #[cfg(not(target_os = "windows"))]
-        let backends = wgpu::Backends::VULKAN | wgpu::Backends::METAL;
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends, ..Default::default() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        }))
-        .expect("no adapter");
-        if !adapter.features().contains(wgpu::Features::TEXTURE_COMPRESSION_BC) {
-            println!("the_gpu_decodes_bc7_as_we_do: SKIPPED, {} offers no block compression", adapter.get_info().name);
-            return;
-        }
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("bc7 test"),
-                required_features: wgpu::Features::TEXTURE_COMPRESSION_BC,
-                required_limits: wgpu::Limits::default().using_resolution(adapter.limits()),
-                ..Default::default()
-            },
-            None,
-        ))
-        .expect("no device");
-        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
+        };
+        let (device, queue) = (&opened.device, &opened.queue);
         // 64 by 64 blocks: 4096 random blocks, each mode in turn.
         let (bw, bh) = (64u32, 64u32);
         let (w, h) = (bw * 4, bh * 4);
@@ -512,7 +490,7 @@ mod tests {
                 first.get_or_insert((k, m));
             }
         }
-        println!("the GPU ({}) against decode_block, {} random blocks: blocks that differ by mode {wrong:?}", adapter.get_info().name, bw * bh);
+        println!("the GPU ({}) against decode_block, {} random blocks: blocks that differ by mode {wrong:?}", opened.info.name, bw * bh);
         assert!(first.is_none(), "the GPU decodes {} blocks differently (first: block {:?}); by mode {wrong:?}", wrong.iter().sum::<usize>(), first);
     }
 }

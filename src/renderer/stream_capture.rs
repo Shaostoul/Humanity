@@ -232,20 +232,10 @@ mod tests {
     #[ignore = "needs a GPU adapter"]
     fn gpu_readback_returns_the_rendered_pixels_without_stalling() {
         pollster::block_on(async {
-            if !humanity_core::test_gpu::may_use() {
-                return;
-            }
-            let instance = wgpu::Instance::default();
-            let Some(adapter) =
-                instance.request_adapter(&wgpu::RequestAdapterOptions::default()).await
-            else {
-                eprintln!("no GPU adapter; skipping");
+            let Some(gpu) = crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("stream capture test")) else {
                 return;
             };
-            let (device, queue) = adapter
-                .request_device(&wgpu::DeviceDescriptor::default(), None)
-                .await
-                .expect("request_device");
+            let (device, queue) = (&gpu.device, &gpu.queue);
 
             // A texture shaped like the swapchain: COPY_SRC, render-attachment.
             let (w, h) = (64u32, 64u32);

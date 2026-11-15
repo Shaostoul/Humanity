@@ -125,15 +125,15 @@ pub mod skinning;
 pub mod scene_target;
 pub mod scene_format_ab;
 pub mod shader_loader;
-/// Which material types can DISCARD in the sun shadow pass, and the test that
-/// keeps that answer equal to the shader's (v0.1108).
+/// Which material types can DISCARD in the sun shadow pass, and the test that keeps that answer equal to the shader's (v0.1108).
 pub mod shadow_cutout;
+/// The one way a test gets a GPU device: the game's backend, one shared adapter, one test at a time (2026-11-14).
+#[cfg(all(test, feature = "native"))] pub(crate) mod test_gpu;
 /// Shadows from the room lights and the sun near you (2026-11-10, docs/design/local-light-shadows.md).
 pub mod local_shadows;
 /// Beside the shadow atlas (2026-11-13): its GPU-driven casters (the arena, the compute cull, the indirect draws), its partial casters (glass and frosted film in a transmittance atlas), and the blur behind a frosted film (a colour pyramid of the scene behind it).
 pub mod shadow_gpu; pub mod shadow_transmit; pub mod film_blur;
-/// Where the stars are (the catalogue's sky turned into the world by the
-/// date) and how much of them twilight leaves (2026-10-04, BUG-139).
+/// Where the stars are (the catalogue's sky turned into the world by the date) and how much of them twilight leaves (2026-10-04, BUG-139).
 pub mod sky_frame;
 pub mod stars;
 /// Near sun cascades: the home and the planet build sites as sun casters

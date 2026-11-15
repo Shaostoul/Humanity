@@ -409,24 +409,12 @@ pub(crate) fn render_page_png_checked(
     pollster::block_on(async move {
         // ── wgpu device (offscreen) ──
         // Not while the operator's GPU game runs: the page is then not written (crates/humanity-core/src/test_gpu.rs).
-        if !humanity_core::test_gpu::may_use() {
+        // The device comes from the one shared adapter, one GPU test at a time (src/renderer/test_gpu.rs).
+        let Some(gpu) = crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("ui snapshot")) else {
+            eprintln!("ui_snapshots: no GPU device; skipping {name}");
             return;
-        }
-        let instance = wgpu::Instance::default();
-        let adapter = match instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default())
-            .await
-        {
-            Some(a) => a,
-            None => {
-                eprintln!("ui_snapshots: no GPU adapter; skipping {name}");
-                return;
-            }
         };
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor::default(), None)
-            .await
-            .expect("request_device");
+        let (device, queue) = (&gpu.device, &gpu.queue);
         let format = wgpu::TextureFormat::Rgba8Unorm;
 
         // ── egui frame ──

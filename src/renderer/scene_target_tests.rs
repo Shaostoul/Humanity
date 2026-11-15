@@ -53,19 +53,8 @@ const DISPLAY_FORMATS: [wgpu::TextureFormat; 4] = [
 
 /// A device, or None (no adapter, or the operator's GPU game is running: crates/humanity-core/src/test_gpu.rs).
 #[cfg(feature = "native")]
-fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    if !humanity_core::test_gpu::may_use() {
-        return None;
-    }
-    let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&Default::default()))?;
-    Some(
-        pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor { label: Some("present pass test"), ..Default::default() },
-            None,
-        ))
-        .expect("device"),
-    )
+fn device() -> Option<crate::renderer::test_gpu::Gpu> {
+    crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("present pass test"))
 }
 
 /// sRGB encode and decode, the IEC 61966-2-1 pair, on the CPU.
@@ -159,10 +148,11 @@ fn rgb_offsets(format: wgpu::TextureFormat) -> [usize; 3] {
 #[cfg(feature = "native")]
 #[test]
 fn present_pass_is_byte_exact_in_the_display_format_arm() {
-    let Some((device, queue)) = device() else {
+    let Some(gpu) = device() else {
         println!("no GPU adapter; skipping the present-pass round trip");
         return;
     };
+    let (device, queue) = (&gpu.device, &gpu.queue);
     // Not square and not a power of two in height, so a transposed or offset
     // read cannot pass by symmetry. 256 wide = 1024 bytes a row, already a
     // multiple of the 256-byte copy alignment.
@@ -216,10 +206,11 @@ fn present_pass_is_byte_exact_in_the_display_format_arm() {
 #[cfg(feature = "native")]
 #[test]
 fn the_float_scene_target_presents_every_code_and_clamps() {
-    let Some((device, queue)) = device() else {
+    let Some(gpu) = device() else {
         println!("no GPU adapter; skipping the float scene target test");
         return;
     };
+    let (device, queue) = (&gpu.device, &gpu.queue);
     let (w, h) = (256u32, 4u32);
     for format in DISPLAY_FORMATS {
         let srgb = format.is_srgb();
@@ -314,10 +305,11 @@ fn the_float_scene_target_presents_every_code_and_clamps() {
 #[cfg(feature = "native")]
 #[test]
 fn the_dither_breaks_every_band_of_a_dark_ramp_and_keeps_the_mean() {
-    let Some((device, queue)) = device() else {
+    let Some(gpu) = device() else {
         println!("no GPU adapter; skipping the dither ramp test");
         return;
     };
+    let (device, queue) = (&gpu.device, &gpu.queue);
     const N: usize = 64;
     let (w, h) = (8192u32, 64u32);
     for format in DISPLAY_FORMATS {

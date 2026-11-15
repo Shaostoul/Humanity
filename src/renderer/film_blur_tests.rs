@@ -166,7 +166,8 @@ fn the_blur_stands_down_where_the_depth_is_not_the_windows() {
 #[cfg(feature = "native")]
 fn a_film_in_a_view_of_another_size_records_no_coverage_and_no_validation_error() {
     use wgpu::util::DeviceExt;
-    let Some((device, queue)) = device() else { return };
+    let Some(gpu) = device() else { return };
+    let (device, queue) = (&gpu.device, &gpu.queue);
     let (w, h) = (64u32, 32u32);
     let blur = FilmBlur::new(&device);
     let pyr = Pyramid::new(&device, (w, h));
@@ -228,15 +229,8 @@ fn a_film_in_a_view_of_another_size_records_no_coverage_and_no_validation_error(
 // ── On the GPU ───────────────────────────────────────────────────────────────────────────────────
 
 #[cfg(feature = "native")]
-fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    if !humanity_core::test_gpu::may_use() {
-        return None;
-    }
-    let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, compatible_surface: None, force_fallback_adapter: false }))?;
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { label: Some("film blur test"), ..Default::default() }, None)).ok()?;
-    device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
-    Some((device, queue))
+fn device() -> Option<crate::renderer::test_gpu::Gpu> {
+    crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("film blur test"))
 }
 
 #[cfg(feature = "native")]
@@ -295,7 +289,8 @@ fn read_level(device: &wgpu::Device, queue: &wgpu::Queue, pyr: &Pyramid, lvl: u3
 #[test]
 #[cfg(feature = "native")]
 fn the_blur_reads_nothing_outside_the_coverage_mask() {
-    let Some((device, queue)) = device() else { return };
+    let Some(gpu) = device() else { return };
+    let (device, queue) = (&gpu.device, &gpu.queue);
     let (w, h) = (64u32, 32u32);
     let blur = FilmBlur::new(&device);
     let pyr = Pyramid::new(&device, (w, h));

@@ -1277,16 +1277,8 @@ mod tests {
 
     /// A device, or None (then the test says so and passes).
     #[cfg(feature = "native")]
-    fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-        if !humanity_core::test_gpu::may_use() {
-            return None;
-        }
-        let instance = wgpu::Instance::default();
-        let adapter = pollster::block_on(instance.request_adapter(&Default::default()))?;
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None)).ok()?;
-        device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
-        Some((device, queue))
+    fn device() -> Option<crate::renderer::test_gpu::Gpu> {
+        crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("room probes test"))
     }
 
     /// IEEE half float bits to f32 (the atlas is Rgba16Float).
@@ -1352,10 +1344,11 @@ mod tests {
     #[ignore = "needs a GPU adapter; run explicitly (see above)"]
     fn a_level_change_remakes_the_atlas_on_a_real_device() {
         use super::super::bounced_light_detail::detail_level;
-        let Some((device, _queue)) = device() else {
+        let Some(gpu) = device() else {
             println!("no GPU adapter; skipping");
             return;
         };
+        let (device, _queue) = (&gpu.device, &gpu.queue);
         let mut gi = RoomGi::new(&device);
         let high = detail_level("high").budget();
         gi.set_budget(&device, high);
@@ -1400,10 +1393,11 @@ mod tests {
             probe_grid, probe_position, room_ambient, texel_direction, trace_box, Placement, TileMove, DEPTH_N, IRR_N,
             NOT_RESIDENT, SEED_COUNT,
         };
-        let Some((device, queue)) = device() else {
+        let Some(gpu) = device() else {
             println!("no GPU adapter; skipping");
             return;
         };
+        let (device, queue) = (&gpu.device, &gpu.queue);
         let mut gi = RoomGi::new(&device);
         gi.set_budget(&device, ProbeBudget::default());
         let mut hall = RoomBox { min: Vec3::ZERO, max: Vec3::new(40.0, 4.0, 40.0), refl: [[0.5; 3]; 6], lid_transmittance: 0.0 };

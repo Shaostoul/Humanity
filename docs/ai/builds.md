@@ -91,9 +91,29 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
   early, and the script names them in a GPU TESTS NOT RUN banner (libtest counts them as passed).
   The pass is recorded without them: the next full run on the same tree, once the game has
   closed, runs just those and then records the full pass. `--gpu-anyway` runs them beside it
-  (they may hang the run). `tests/gpu_test_gate_lint.rs` (in `just lints` and CI) fails on a
-  `wgpu::Instance` made with no `test_gpu::may_use()` above it in the same function. A renderer
-  change verified beside his game is not verified on the GPU until that follow-up run: say so.
+  (they may hang the run). A renderer change verified beside his game is not verified on the GPU
+  until that follow-up run: say so.
+- **A test reaches the GPU only through `src/renderer/test_gpu.rs` (2026-11-14).** Write
+  `let Some(gpu) = crate::renderer::test_gpu::open(Ask::new("my test")) else { return };` and use
+  `&gpu.device` and `&gpu.queue` (`Ask::features` for features it needs, `Ask::adapter_resolution`
+  for big textures); hold `gpu` to the end of the test. Never make a `wgpu::Instance` or call
+  `request_adapter` / `request_device` in a test: `tests/gpu_test_gate_lint.rs` (in `just lints`
+  and CI) fails on one. Why: on 2026-11-14 the full run froze at about 4,140 of 4,440 in run
+  after run, game or no game. A thread dump of the frozen program proved a deadlock in NVIDIA's
+  OpenGL and Vulkan driver (nvoglv64.dll) against Windows' loader lock: each GPU test made its own
+  `Instance::default()` (in a debug build every backend, OpenGL and Vulkan included) and dropped
+  it, one test's driver thread exited (holding the loader lock, waiting for a driver lock) while
+  another test held that driver lock and loaded a DLL, and every finished test thread then
+  waited to exit, libtest's `join` included. Before the helper: 4 of 13 runs of the GPU tests
+  froze. The helper opens the game's own backend (DX12 on Windows, as `Renderer::new_native`),
+  ONE instance and adapter for the whole program, never dropped, and gives each test its device
+  in turn (CPU tests stay parallel). A device or adapter that does not come within 60 s fails the
+  test, naming it, and every later GPU test fails at once; a test that holds the GPU past 60 s is
+  named on stderr (around libtest's capture), and past 10 minutes the watchdog stops the program
+  with that name, before lib-tests' 15-minute stall stop. lib-tests.js passes
+  `HUMANITY_TEST_GPU_TURN` and, on a stop or a crash, says who held the turn, and passes
+  `HUMANITY_DXC_DIR` (the game's DXC, found as the rigs find it) so the tests' DX12 shaders do
+  not compile on the slow FXC.
 
 ## Lints
 

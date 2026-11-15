@@ -96,6 +96,20 @@
 //      thread that reports and then cannot exit stops every line after it. So a run that prints
 //      nothing for --stall-min minutes (15 by default) is stopped and fails, naming the tests in
 //      flight: the first unfinished ones in name order, since libtest starts them in that order.
+//
+// THE GPU DEADLOCK (2026-11-14). The freezes of 2026-11-14 (about 4,140 of 4,440, run after run,
+// game or no game) were proven from a thread dump: the GPU tests each made their own wgpu instance
+// on every backend, and NVIDIA's OpenGL and Vulkan driver deadlocked against Windows' loader lock
+// as one test's driver thread exited while another loaded a DLL. Every GPU test now opens its
+// device through src/renderer/test_gpu.rs (the game's DX12 backend, one adapter for the program,
+// one test on the GPU at a time; tests/gpu_test_gate_lint.rs holds every test to it).
+//   6. This script hands the test program HUMANITY_TEST_GPU_TURN, a file the helper keeps the GPU
+//      turn's holder in. A stopped or crashed run says who held it, and repeats the helper's
+//      watchdog lines ("GPU TEST STILL RUNNING", "GPU TEST HUNG"), which it writes straight to
+//      stderr so they arrive even while libtest prints nothing; past 10 minutes the watchdog stops
+//      the program itself, naming the test, before the 15-minute stall stop. It also hands them
+//      HUMANITY_DXC_DIR, the game's fast DX12 shader compiler found the way the rigs find it
+//      (scripts/lib/dxc-dlls.js), unless it is already set: on FXC a big pipeline takes minutes.
 
 "use strict";
 const fs = require("fs");
@@ -114,6 +128,17 @@ const BIG = "humanity-engine";
 const PASS_FILE = path.join(ROOT, "target", "lib-tests", "last-full-pass.json");
 const FLAKY_LEDGER = path.join(ROOT, "data", "coordination", "flaky-tests.jsonl");
 const GPU_SKIPPED_FILE = path.join(ROOT, "target", "lib-tests", "gpu-skipped.txt");
+// Which test holds the GPU turn (src/renderer/test_gpu.rs writes it; point 6).
+const GPU_TURN_FILE = path.join(ROOT, "target", "lib-tests", "gpu-turn.txt");
+// The folder holding dxcompiler.dll and dxil.dll for the GPU tests (HUMANITY_DXC_DIR), or null.
+const DXC_DIR = (() => {
+  try {
+    const found = require("./lib/dxc-dlls.js").findDxcDlls({ exe: path.join(ROOT, "target", "debug", "deps", "x.exe"), repo: ROOT });
+    return found.found ? found.dir : null;
+  } catch {
+    return null;
+  }
+})();
 const MAX_RERUNS = 5;
 const DEFAULT_STALL_MIN = 15;
 
@@ -318,6 +343,11 @@ function programEnv(dir) {
   const env = { ...process.env, CARGO_MANIFEST_DIR: dir };
   delete env.HUMANITY_TEST_GPU_BUSY;
   delete env.HUMANITY_TEST_GPU_SKIPPED;
+  env.HUMANITY_TEST_GPU_TURN = GPU_TURN_FILE;
+  // The GPU tests run on DX12, as the game does (src/renderer/test_gpu.rs): hand them the fast
+  // shader compiler the game uses, found where the rigs find it (beside the exe, the repo root,
+  // or a worktree's main checkout), or FXC spends minutes on a big pipeline.
+  if (!env.HUMANITY_DXC_DIR && DXC_DIR) env.HUMANITY_DXC_DIR = DXC_DIR;
   if (busy.length) {
     env.HUMANITY_TEST_GPU_BUSY = busy.join(", ");
     env.HUMANITY_TEST_GPU_SKIPPED = GPU_SKIPPED_FILE;
@@ -474,10 +504,33 @@ function hangReport(exe, args, res, why) {
     console.error("Tests that said they had been running over 60 seconds:");
     for (const n of res.warned) console.error(`  ${n}`);
   }
+  for (const l of gpuTurnReport(res.out)) console.error(l);
   console.error("A test thread that reports its result and then cannot exit stops ALL of libtest's output, its 60-second warnings included (scripts/lib-tests.js, point 5).");
   if (busy.length) console.error(`${busy.join(", ")} was running; the GPU tests stood down (crates/humanity-core/src/test_gpu.rs), so look past them.`);
   else console.error("If one of the operator's GPU games was running, this run did not know it (scripts/lib/operator-apps.json lists them).");
   console.error("Run the suspects alone, one at a time: node scripts/lib-tests.js <name> --exact --verbose");
+}
+
+/**
+ * What the GPU turn says about a stopped or crashed run (point 6): the lines the GPU helper's
+ * watchdog wrote straight to stderr (it names a test that has held the GPU too long, even while
+ * libtest prints nothing), and who held the turn last, from GPU_TURN_FILE.
+ */
+function gpuTurnReport(out) {
+  const lines = [];
+  const said = String(out || "").split(/\r?\n/).filter((l) => /GPU TEST (STILL RUNNING|HUNG):/.test(l));
+  for (const l of [...new Set(said)]) lines.push(`  ${l.trim()}`);
+  let turn = null;
+  try {
+    turn = fs.readFileSync(GPU_TURN_FILE, "utf8").trim();
+  } catch {}
+  const m = turn && /^(\d+) (held|free) (.*)$/.exec(turn);
+  if (m) {
+    const when = new Date(Number(m[1])).toLocaleTimeString("en-GB", { hour12: false });
+    if (m[2] === "held") lines.push(`The GPU turn was HELD by ${m[3]} (since ${when}): that test was still running on the GPU (src/renderer/test_gpu.rs).`);
+    else lines.push(`No test held the GPU turn; the last one was ${m[3]}, given back at ${when} (src/renderer/test_gpu.rs).`);
+  } else if (turn) lines.push(`The GPU turn file says: ${turn}`);
+  return lines;
 }
 
 /** The tests that stood down for the GPU game in this run (point 4), each once, by name. */
@@ -573,6 +626,7 @@ async function main() {
   try {
     fs.mkdirSync(path.dirname(GPU_SKIPPED_FILE), { recursive: true });
     fs.writeFileSync(GPU_SKIPPED_FILE, "");
+    fs.rmSync(GPU_TURN_FILE, { force: true });
   } catch (e) {
     console.error(`lib-tests: could not clear ${GPU_SKIPPED_FILE} (${e.message})`);
   }
@@ -605,6 +659,8 @@ async function main() {
     const names = L.parseFailures(r.out);
     if (!names.length) {
       if (programs.length > 1) console.error(`lib-tests: ${r.name}'s test program exited ${r.code} without a list of failed tests`);
+      // The GPU helper's watchdog stops the program when a test holds the GPU too long: say who.
+      for (const l of gpuTurnReport(r.out)) console.error(l);
       process.exit(r.code);
     }
     for (const name of names) failed.push({ run: r, name });

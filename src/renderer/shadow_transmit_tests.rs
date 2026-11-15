@@ -131,15 +131,8 @@ fn the_transmit_shader_validates() {
 }
 
 #[cfg(feature = "native")]
-fn device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    if !humanity_core::test_gpu::may_use() {
-        return None;
-    }
-    let instance = wgpu::Instance::default();
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, compatible_surface: None, force_fallback_adapter: false }))?;
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { label: Some("shadow transmit test"), ..Default::default() }, None)).ok()?;
-    device.on_uncaptured_error(Box::new(|e| panic!("wgpu validation error: {e}")));
-    Some((device, queue))
+fn device() -> Option<crate::renderer::test_gpu::Gpu> {
+    crate::renderer::test_gpu::open(crate::renderer::test_gpu::Ask::new("shadow transmit test"))
 }
 
 #[cfg(feature = "native")]
@@ -168,7 +161,8 @@ fn f16_to_f32(h: u16) -> f32 {
 #[test]
 #[cfg(feature = "native")]
 fn the_gpu_writes_what_the_sheets_pass() {
-    let Some((device, queue)) = device() else { return };
+    let Some(gpu) = device() else { return };
+    let (device, queue) = (&gpu.device, &gpu.queue);
     let pass = TransmitPass::new(&device);
     let size = 64u32;
     let lamp = Vec3::new(0.0, 2.0, 0.0);
