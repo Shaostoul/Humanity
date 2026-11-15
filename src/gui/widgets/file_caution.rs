@@ -37,5 +37,9 @@ pub fn show_in_folder(path: &std::path::Path) {
         let _ = std::process::Command::new("open").arg(dir).spawn();
         #[cfg(target_os = "linux")]
         let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+        // A phone app may start only its own code (Android rung A1, docs/design/platforms.md:
+        // the file browser on a phone is still to come), so there is no file manager to open.
+        #[cfg(target_os = "android")]
+        log::info!("show in folder: no file manager to open on a phone yet ({})", dir.display());
     }
 }

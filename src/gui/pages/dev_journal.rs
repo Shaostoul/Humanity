@@ -155,6 +155,9 @@ fn open_with_system(path: &Path) {
     let _ = std::process::Command::new("open").arg(path).spawn();
     #[cfg(target_os = "linux")]
     let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    // A phone app may start only its own code (Android rung A1): no program to open it with yet.
+    #[cfg(target_os = "android")]
+    log::info!("open with the system: not on a phone yet ({})", path.display());
 }
 
 /// What a button on the section asked for, applied after the draw.

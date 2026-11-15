@@ -32,7 +32,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use crate::engine::state::EngineState;
-use crate::notifications::{self as n, tray::Action, tray::Look, tray::MenuLine};
+use crate::notifications::{self as n, tray::Action, tray::Look};
+// The platform menu's lines: a phone has no tray (Android rung A1), so only the desktop reads them.
+#[cfg(not(target_os = "android"))]
+use crate::notifications::tray::MenuLine;
 
 /// The environment variable a script sets to give its instance the tray anyway (a rig testing it).
 pub(crate) const TRAY_ENV: &str = "HUMANITY_TRAY";

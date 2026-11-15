@@ -177,9 +177,15 @@ fn viewer_thread(ws_url: String, stop: Arc<AtomicBool>, shared: Arc<ViewerShared
     if let tungstenite::stream::MaybeTlsStream::Plain(s) = socket.get_ref() {
         let _ = s.set_read_timeout(Some(Duration::from_millis(200)));
     }
-    #[cfg(feature = "native")]
+    // The desktop's TLS is the system's (native-tls); a phone's is rustls (Cargo.toml, Android
+    // rung A1), whose stream keeps the socket in its `sock` field.
+    #[cfg(all(feature = "native", not(target_os = "android")))]
     if let tungstenite::stream::MaybeTlsStream::NativeTls(s) = socket.get_ref() {
         let _ = s.get_ref().set_read_timeout(Some(Duration::from_millis(200)));
+    }
+    #[cfg(all(feature = "native", target_os = "android"))]
+    if let tungstenite::stream::MaybeTlsStream::Rustls(s) = socket.get_ref() {
+        let _ = s.sock.set_read_timeout(Some(Duration::from_millis(200)));
     }
 
     while !stop.load(Ordering::Relaxed) {

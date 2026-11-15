@@ -448,8 +448,17 @@ fn set_nonblocking(
         tungstenite::stream::MaybeTlsStream::Plain(s) => {
             let _ = s.set_nonblocking(true);
         }
+        // The desktop's TLS is the system's (native-tls); a phone's is rustls (Cargo.toml, Android
+        // rung A1), whose stream keeps the socket in its `sock` field. Without the phone's arm its
+        // socket stayed blocking and a read waited on the frame (the first Android build,
+        // 2026-11-15, failed to compile on the desktop-only arm alone).
+        #[cfg(not(target_os = "android"))]
         tungstenite::stream::MaybeTlsStream::NativeTls(tls_stream) => {
             let _ = tls_stream.get_mut().set_nonblocking(true);
+        }
+        #[cfg(target_os = "android")]
+        tungstenite::stream::MaybeTlsStream::Rustls(tls_stream) => {
+            let _ = tls_stream.sock.set_nonblocking(true);
         }
         other => {
             // Fallback: try to get the inner stream for any other TLS variant

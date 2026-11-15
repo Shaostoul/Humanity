@@ -3681,6 +3681,9 @@ fn open_in_file_manager(path: &std::path::Path) {
     let _ = std::process::Command::new("open").arg(dir).spawn();
     #[cfg(target_os = "linux")]
     let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+    // A phone app may start only its own code (Android rung A1): no file manager to open yet.
+    #[cfg(target_os = "android")]
+    log::info!("open folder: no file manager to open on a phone yet ({})", dir.display());
 }
 
 /// One "label: path [Open]" row for the Storage section. The Open button
