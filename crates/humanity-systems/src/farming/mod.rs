@@ -2411,7 +2411,12 @@ impl FarmingSystem {
                             // pick only (2026-09-26), so 36 picks of a tomato train
                             // about what one harvest of its season did.
                             let base = if taken.first { 10 } else { 0 };
-                            crate::skills::award_skill_xp(data, "farming", base + qty * 2);
+                            // Skills rung 1: a fungus (a crop that needs no light) trains growing
+                            // mushrooms, every other crop farming, and a healthy season teaches more
+                            // than a stressed one (the crop's season health is the result's quality).
+                            let fungus = plant_registry.and_then(|r| r.get(&plant_id)).map_or(false, |p| !p.needs_light);
+                            let verb = if fungus { "harvest_fungus" } else { "harvest" };
+                            crate::skills::practice_scaled(data, verb, base + qty * 2, Some(crop_season_health));
                             // Quest progress: a harvest of this crop (Harvest
                             // objectives count plants, so a picked one counts once).
                             if taken.first {

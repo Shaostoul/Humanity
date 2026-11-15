@@ -1359,6 +1359,8 @@ impl System for InventorySystem {
                     }
                 }
                 ts.settled.insert(trade_id);
+                // Skills rung 1: a trade settled with another player is trading practice.
+                crate::skills::practice(data, "trade_completed", None);
             }
             break;
         }

@@ -509,6 +509,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                     let reg = state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry");
                     anchor = crate::engine::planet_build::collide_on_site(&state.game_world.world, reg, &lock_body, before, anchor, eye_h);
                 }
+                // Skills rung 1: distance swum is swimming practice (data/skills/practice.json).
+                if submerged && !state.controller.fly_mode {
+                    humanity_systems::skills::practice_distance(&state.data_store, "swim", (anchor - before).length() as f32, None);
+                }
             }
             // Ground radius at the (possibly moved) surface point.
             // v0.1108, THE 2.5 m STILT: the eye now rests on the

@@ -87,7 +87,7 @@
       "written_by": "ai",
       "makes": null,
       "steps": 10,
-      "hash": "7a3aa089541bc5949a13f79c70643222af7faeb0677a276863e1d0a288e028af",
+      "hash": "481d169065b35cea34573d1fba2fa101cc8b6286509732a2f9ee5a68f26974e8",
       "search": "change furnace filter put clean in forced air the right way round so it runs as should anyone with no experience needed furnace's own manual says where its is turn off electrical supply open door or cover and slide old out write down size of one you throw away washable take new same wash by spraying tap water through from side comes rinse let dry into slot arrow on frame pointing flows toward if sits inside blower fan look again does point close back points will not compare filter's do run torn replace rather than washing screwdriver flat"
     },
     {
@@ -202,9 +202,9 @@
     },
     "skills": {
       "cooking": "Cooking",
+      "hvac": "Heating, cooling and ventilation",
       "medicine": "Medicine",
-      "shelter_building": "Shelter Building",
-      "water_purification": "Water Purification"
+      "water_purification": "Safe water"
     },
     "topics": {
       "health_water_illness": "Waterborne and foodborne illness",

@@ -272,7 +272,18 @@ fn csv_names(path: &Path) -> HashMap<String, String> {
 /// The names the page shows for the ids how-tos name.
 fn read_names(data_dir: &Path, lib: &mut Library) {
     lib.item_names = csv_names(&data_dir.join("items.csv"));
-    lib.skill_names = csv_names(&data_dir.join("skills").join("skills.csv"));
+    // A skill's name is a word by key since skills rung 1 (skills.<id>.name in data/i18n/en.json).
+    lib.skill_names = csv_names(&data_dir.join("skills").join("skills.csv"))
+        .into_keys()
+        .map(|id| {
+            // The server build has no word source: there a skill is named by its id.
+            #[cfg(feature = "native")]
+            let name = humanity_core::i18n::t_dyn(&format!("skills.{id}.name")).to_string();
+            #[cfg(not(feature = "native"))]
+            let name = id.replace('_', " ");
+            (id, name)
+        })
+        .collect();
     if let Some(v) = json_of(&data_dir.join("curriculum").join("syllabus.json")) {
         for t in v["topics"].as_array().into_iter().flatten() {
             if let (Some(id), Some(title)) = (t["id"].as_str(), t["title"].as_str()) {

@@ -39,6 +39,7 @@ pub mod safety_protected;
 /// 2026-10-10).
 pub mod safety_group_reports;
 pub mod profile;
+pub mod profile_skills;
 pub mod real;
 /// Play's own page (navigation rung 2, 2026-11-03): who and where you played last, and Enter the
 /// world. (An older play module, the v0.360 Crafting/Studio fold, went in v0.415.0.)

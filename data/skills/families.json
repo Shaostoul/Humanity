@@ -1,0 +1,38 @@
+{
+  "_doc": "The skill families, in the order the Skills page shows them (docs/design/skills.md section 2). A family is for reading and finding; it has no level of its own. Its words are skill_families.<id>.name and .desc in data/i18n/en.json. Every skills.csv row names one of these ids (tests/skills_data_lint.rs).",
+  "families": [
+    {
+      "id": "body"
+    },
+    {
+      "id": "food"
+    },
+    {
+      "id": "making"
+    },
+    {
+      "id": "building"
+    },
+    {
+      "id": "travel"
+    },
+    {
+      "id": "science"
+    },
+    {
+      "id": "safety"
+    },
+    {
+      "id": "combat"
+    },
+    {
+      "id": "community"
+    },
+    {
+      "id": "flow"
+    },
+    {
+      "id": "arts"
+    }
+  ]
+}

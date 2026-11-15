@@ -19,7 +19,9 @@ function defaultScope() {
 /* ── Skill XP curve (data/skills/xp_curve.json, the game's rule; this copy only if the fetch
  * fails, held to the file by scripts/tests/xp-curve-web.test.js, BUG-248) ── */
 let XP_PER_LEVEL = [100,282,519,800,1118,1469,1852,2262,2700,3162];
-let MAX_LEVEL = 10;
+let XP_BASE = 100;
+/** XP to go from level L to L + 1: the table, then the game's rule past it (no top level). */
+function xpToNext(level) { return XP_PER_LEVEL[level] || Math.floor(XP_BASE * Math.pow(level + 1, 1.5)); }
 
 let allTasks = [];
 // Default to 'city', which is where tasks with no explicit scope actually land
@@ -1789,7 +1791,7 @@ Promise.allSettled([
   fetch('/data/skills/xp_curve.json').then(r => r.ok ? r.json() : null).then(d => {
     if (d && Array.isArray(d.xp_per_level) && d.xp_per_level.length) {
       XP_PER_LEVEL = d.xp_per_level;
-      MAX_LEVEL = d.max_level || XP_PER_LEVEL.length;
+      XP_BASE = d.base || XP_BASE;
     }
   }),
 ]).then(init);
@@ -1934,11 +1936,10 @@ function awardSkillXp(skillId, amount) {
     const data = JSON.parse(localStorage.getItem('hos_skills_v1') || '{}');
     if (!data[skillId]) data[skillId] = { level: 0, xp: 0 };
     const s = data[skillId];
-    if (s.level >= MAX_LEVEL) return;
     s.xp = (s.xp || 0) + amount;
     let leveled = false;
-    while (s.level < MAX_LEVEL && s.xp >= (XP_PER_LEVEL[s.level] || 100)) {
-      s.xp -= XP_PER_LEVEL[s.level] || 100;
+    while (s.xp >= xpToNext(s.level)) {
+      s.xp -= xpToNext(s.level);
       s.level++;
       leveled = true;
     }

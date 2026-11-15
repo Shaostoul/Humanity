@@ -14,6 +14,10 @@ pub const GAME_CSV: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/da
 
 // ── Skills ──────────────────────────────────────────────────────────
 pub const SKILLS_CSV: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/skills.csv"));
+/// Each skill's ladder of named stages, the family order and what each verb teaches (skills rung 1).
+pub const SKILL_STAGES_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/stages.json"));
+pub const SKILL_FAMILIES_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/families.json"));
+pub const SKILL_PRACTICE_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/practice.json"));
 
 // ── Chemistry ───────────────────────────────────────────────────────
 pub const ELEMENTS_CSV: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/chemistry/elements.csv"));
@@ -369,6 +373,9 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "plants.csv" => Some(PLANTS_CSV),
         "game.csv" => Some(GAME_CSV),
         "skills/skills.csv" => Some(SKILLS_CSV),
+        "skills/stages.json" => Some(SKILL_STAGES_JSON),
+        "skills/families.json" => Some(SKILL_FAMILIES_JSON),
+        "skills/practice.json" => Some(SKILL_PRACTICE_JSON),
         "chemistry/elements.csv" => Some(ELEMENTS_CSV),
         "chemistry/alloys.csv" => Some(ALLOYS_CSV),
         "chemistry/compounds.csv" => Some(COMPOUNDS_CSV),
@@ -716,6 +723,9 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "plants.csv",
     "game.csv",
     "skills/skills.csv",
+    "skills/stages.json",
+    "skills/families.json",
+    "skills/practice.json",
     "chemistry/elements.csv",
     "chemistry/alloys.csv",
     "chemistry/compounds.csv",

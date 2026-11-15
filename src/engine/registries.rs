@@ -86,7 +86,26 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
         "status_effect_registry",
         humanity_systems::status_effects::StatusEffectRegistry::from_csv,
     );
-    put(store, data_dir, "skills/skills.csv", "skill_registry", SkillRegistry::from_csv);
+    // The skills base set (skills rung 1, 2026-11-14, docs/design/skills.md): the rows, then each
+    // skill's ladder of named stages, the family order and what each live verb teaches.
+    // Each part by the shared rule too: a disk file that does not parse falls back to the built-in
+    // copy (the trial parse is what refuses it).
+    let part = |rel: &str, parse: fn(SkillRegistry, &[u8]) -> Result<SkillRegistry, String>| {
+        humanity_core::embedded_data::load_data_or_embedded(data_dir, rel, |b: &[u8]| parse(SkillRegistry::new(), b).map(|_| b.to_vec()))
+            .unwrap_or_else(|e| {
+                log::warn!("{e}; the skills run without it");
+                Vec::new()
+            })
+    };
+    let stages = part("skills/stages.json", SkillRegistry::with_stages);
+    let families = part("skills/families.json", SkillRegistry::with_families);
+    let practices = part("skills/practice.json", SkillRegistry::with_practices);
+    put(store, data_dir, "skills/skills.csv", "skill_registry", |b: &[u8]| {
+        let reg = SkillRegistry::from_csv(b)?;
+        let reg = if stages.is_empty() { reg } else { reg.with_stages(&stages)? };
+        let reg = if families.is_empty() { reg } else { reg.with_families(&families)? };
+        if practices.is_empty() { Ok(reg) } else { reg.with_practices(&practices) }
+    });
     put(store, data_dir, "equipment.csv", "equipment_registry", humanity_systems::economy::EquipmentRegistry::from_csv);
     // CreatureRegistry (v0.751, ladder rung 7): creatures.csv finally gets
     // its loader. Read by the livestock spawn + walk-up collect bridges.

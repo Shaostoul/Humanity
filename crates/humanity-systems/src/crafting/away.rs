@@ -442,7 +442,7 @@ impl CraftingSystem {
                 if let Some(recipe) = recipes.recipes.get(&rid) {
                     Self::deliver_goods(world, data, recipe, player, m.pad, items, kits, true, false, crate::notices::world);
                     ledger.collect_filed(data);
-                    Self::credit_craft(data, recipe);
+                    Self::credit_craft(data, recipe, None);
                     for (id, q) in &recipe.outputs {
                         *made.entry(id.clone()).or_insert(0) += q;
                     }

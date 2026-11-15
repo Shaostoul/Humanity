@@ -24,14 +24,14 @@ const cell = (s) => String(s).replace(/\|/g, '\\|');
 
 const out = [];
 for (const f of cat.families) {
-  out.push(`### ${f.name}`, '', '| Activity | Status | Skill | Evidence | Note |', '|---|---|---|---|---|');
+  out.push(`### ${f.name}`, '', '| Activity | Status | Skills | Evidence | Note |', '|---|---|---|---|---|');
   for (const a of cat.activities.filter((x) => x.family === f.id)) {
     const ev = [];
     if (a.features_heading) ev.push(`FEATURES: "${a.features_heading}"`);
     for (const p of a.evidence.slice(0, 2)) ev.push('`' + short(p) + '`');
     if (a.design_doc) ev.push('design: `' + a.design_doc.replace('docs/design/', '').replace('docs/game/', 'game/') + '`');
     const st = a.status + (a.operator_to_decide ? ', operator to decide' : '');
-    out.push(`| \`${a.id}\` ${cell(a.name)} | ${st} | ${a.skill || 'none'} | ${cell(ev.join('; ') || 'none')} | ${cell(a.note)} |`);
+    out.push(`| \`${a.id}\` ${cell(a.name)} | ${st} | ${(a.skills || []).join(', ') || 'none'} | ${cell(ev.join('; ') || 'none')} | ${cell(a.note)} |`);
   }
   out.push('');
 }

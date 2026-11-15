@@ -24,7 +24,7 @@ We will add a recipe by copying a line that already works and changing it one pi
    ```
 3. **Find a real recipe line.** Here is one that ships with the game:
    ```
-   smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,metalworking,1,Reduce iron ore into a pure iron ingot
+   smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1,10,smelter_0,metallurgy,1,Reduce iron ore into a pure iron ingot
    ```
    Read it against the header. Each comma moves you to the next column: the id is `smelt_iron`, the display name is `Smelt Iron`, the category is `smelting`, and so on.
 4. **Copy that line.** Select the whole line, copy it (Ctrl+C), click at the very end of the file, press Enter to start a new line, and paste (Ctrl+V).
@@ -34,7 +34,7 @@ We will add a recipe by copying a line that already works and changing it one pi
 8. **Change the outputs.** Same format as inputs. `iron_ingot_0:1` means "produces 1 iron ingot".
 9. **Set the craft time.** A plain number of seconds. `10` means the recipe takes ten seconds.
 10. **Set the station, if any.** Some recipes need a machine, called a station, such as `smelter_0` or `kiln_0`. The value here is that station's item id. Leave this column empty (nothing between the two commas) if the recipe can be made by hand.
-11. **Set the skill, if any.** A skill name like `metalworking`, and after the next comma, the minimum level as a number. Use an empty skill and `0` if no skill is needed.
+11. **Set the skill.** The skill making it trains, as an id like `smithing` (every id is a row of data/skills/skills.csv; every recipe trains one), and after the next comma, the minimum level as a number. Use `0` or `1` for a starter recipe anyone can make.
 12. **Write a short description.** One sentence about what the recipe makes.
 13. **Save the file.** Ctrl+S in Notepad. That is it: your recipe is now part of the game's data.
 
@@ -81,7 +81,7 @@ One line per column, in order:
 | `outputs` | What the recipe produces: same `item_id:quantity` format. |
 | `craft_time_sec` | How many seconds the recipe takes. |
 | `station_required` | The item id of the machine needed (like `smelter_0`), or empty for hand-crafting. |
-| `skill_required` | The skill needed (like `metalworking`), or empty for none. |
+| `skill_required` | The skill it trains and needs (like `smithing`), a row of data/skills/skills.csv. |
 | `skill_level` | The minimum level of that skill, as a number. Use `0` for none. |
 | `description` | A short sentence describing what the recipe makes. |
 

@@ -1158,7 +1158,7 @@
             nutrition_retention: 0.85,
             requires_power: true,
             required_structure: Some("irradiation_chamber"),
-            skill_required: Some("engineering"),
+            skill_required: Some("preserving"),
             skill_level: 6,
             description: "Exposing food to controlled radiation to kill pathogens. Space-age preservation.",
         ),

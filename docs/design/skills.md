@@ -1,9 +1,9 @@
 # Skills: the base set, how a skill levels, what a level gives
 
-**Status: a proposal for the operator to decide, 2026-11-14. Nothing here is a decision** except what
-is quoted from him. The skill table in code is still today's twenty rows (one renamed: alchemy is now
-chemistry, his decision); no new skill enters `data/skills/skills.csv` until he approves the set.
-The evidence is [docs/reference/research/2026-11-14-skill-systems/](../reference/research/2026-11-14-skill-systems/README.md)
+**Status: approved by the operator, 2026-11-14 (see "Decided" below). Rung 1 is built (2026-11-14,
+section 10):** the 90 skills, 11 families and six named stages are data, the twenty old rows are
+migrated, every live verb trains its skill, and the Skills page shows each stage in words. The
+later rungs are listed in section 10. The evidence is [docs/reference/research/2026-11-14-skill-systems/](../reference/research/2026-11-14-skill-systems/README.md)
 (eight real-world frameworks and ten games, each quoted and dated).
 
 Why this exists, in his words (2026-11-14, [activities.md](activities.md) section 6):
@@ -139,7 +139,7 @@ when each row is added.
 | `woodworking` Woodworking | Joinery, carving, furniture, wooden tools | `woodworking` | today | kept |
 | `textiles` Spinning and weaving | Fibre to yarn to cloth; dyeing | `tailoring_weaving` | today | split from tailoring |
 | `tailoring` Sewing and tailoring | Patterns, sewing, mending, garments | `tailoring_weaving` | today | kept, narrowed |
-| `leatherworking` Tanning and leatherworking | Hides to leather; cutting, stitching, care | none yet | build | new (later row: no activity yet) |
+| `leatherworking` Tanning and leatherworking | Hides to leather; cutting, stitching, care | `tailoring_weaving` | today | new (rung 1 found the tan_leather recipe, so it trains now) |
 | `ceramics` Pottery and ceramics | Clay, forming, glazing, firing; bricks, tiles, ceramic filters | `pottery` | today | new (the kiln's recipes) |
 | `glassmaking` Glassmaking | Melting, blowing, casting and annealing glass | `glassmaking` | today | split from metalworking |
 | `chemistry` Chemistry | Soap, medicines, fuels and other compounds; testing what is in a sample | `chemistry`, `testing_lab` | today | renamed alchemy (done 2026-11-14) |
@@ -260,8 +260,9 @@ when each row is added.
 language, once people aboard speak them), sign language, programming (once in-world computers run
 code), sailing and boating (the planet's oceans), horse riding, childcare and caregiving, and
 instrument families for music (keyboard, plucked strings, bowed strings, winds, brass, percussion,
-voice) once instruments are played by hand in the world. Leatherworking, juggling and whip are in the
-tables above as later rows because the operator or a decision has already named them.
+voice) once instruments are played by hand in the world. Juggling and whip are in the tables above as
+later rows because the operator named them (their skills.csv rows carry the reason in
+`untrained_reason`); leatherworking was one too until rung 1 found the tanning recipe that trains it.
 
 ## 3. How a skill levels
 
@@ -278,7 +279,7 @@ statements (Scouts, A5):
 | 2 Beginner | Does the starter procedures alone and spots the common problems | I can bake a basic loaf and tell under-proved from over-proved |
 | 3 Competent | Reliable results on routine work; plans their own work | I can bake a sandwich loaf, rolls and a sourdough without the guide |
 | 4 Proficient | Handles the unusual and improvises | I can rescue a slack dough and adapt a recipe to the flour I have |
-| 5 Expert | Fast, excellent work with no prompts | I can run a full bake for forty people to a standard |
+| 5 Expert | Fast, excellent work with no prompts | I can run a full bake for forty people, on time, with every loaf evenly baked through and every allergen labelled |
 | 6 Master | Creates new methods and certifies others | I can write a lesson and assess other bakers |
 
 Every lower statement stays required. Inside a stage a progress bar fills with practice; today's XP
@@ -438,23 +439,35 @@ the person chooses: "Baking, in the game: Competent. In real life: six bakes log
 | `engineering` | Retired, split into `electrical`, `plumbing`, `hvac`, `life_support`, `networking`, `electronics`, `machining`, `mechanics`, `rigging` and `repair` |
 | `medicine` | Kept; `first_aid` split out |
 
-What the code change touches when the set is approved (none of it now):
+What rung 1 changed (2026-11-14):
 
-- `data/skills/skills.csv`: the new rows, plus `family` and `transfers` columns; names and
-  descriptions to i18n keys; stage statements as data (one file per skill or one stages table).
-- `data/recipes.csv`: 386 recipes re-pointed row by row, by what each makes. Today 43 assembly and 29
-  electronics recipes train engineering, 58 crafting and 18 smelting recipes train metalworking, 27
-  cooking recipes train cooking, and 22 recipes train nothing. A script lists each row's proposed new
-  skill for review before anything changes.
-- The walk-up collect in `src/lib.rs` trains farming for every yield, stone included; it gets the
-  yield's own skill (eggs and milk keeping animals, berries foraging, stone mining).
-- Combat XP (`crates/humanity-systems/src/combat/mod.rs`) picks melee for kinetic kills and ranged for
-  everything else; it gets the weapon's skill from a `skill` column in `data/equipment.csv`, and is
-  earned from technique (section 7), not kills.
-- Quest `xp_rewards`, `data/abilities.csv`'s `skill_required`, the syllabus's skill lists, and the
-  activities catalog's `skill` field (becoming a list).
-- Saves: nobody plays yet, so old skill ids are simply dropped (CLAUDE.md, no backwards
-  compatibility before launch).
+- `data/skills/skills.csv`: the 90 rows with `family`, `xp_per_level`, `transfers` and
+  `untrained_reason` columns, and no `max_level` (no cap); names and descriptions are i18n keys
+  (`skills.<id>.name`, `.desc`); the stages are `data/skills/stages.json` (section 8).
+- `data/recipes.csv`: all 386 recipes re-pointed row by row by what each makes (a script printed
+  every change for review first): woodworking 56, smithing 56, tailoring 40, electronics 32,
+  mechanics 32, cooking 23, chemistry 21, textiles 15, metallurgy 13, baking 12, masonry 11, and
+  the rest across 18 more skills. The 22 that trained nothing now train one (the grain mill's five
+  baking, the charcoal fire making, purify_water safe water, and so on).
+- The walk-up collect (`src/engine/frame_settles.rs`) trained farming for every yield, stone
+  included; each yield now trains its own skill through `data/skills/practice.json` (eggs, milk and
+  wool keeping animals, berries, flax and salt foraging, a log forestry, stone, clay, sand and ore
+  mining).
+- Combat (`crates/humanity-systems/src/combat/mod.rs`) trained melee for every kinetic kill and
+  ranged for everything else. Now a landed strike trains the weapon's own skill (a `skill` column in
+  `data/equipment.csv`: knives blades, the hammer, axe, pickaxe and shovel clubs and axes, the spear
+  staff and spear, bare hands unarmed), and a kill trains only hunting, of a wild animal: technique,
+  not kills (section 7). Archery, marksmanship and throwing wait for a ranged weapon to exist.
+- Quest `xp_rewards`, `data/abilities.csv`'s `skill_required` (the tech abilities: repair, Nano Heal
+  medicine, Deploy Turret gunnery and the rest), the syllabus's skill lists, the how-tos, and the
+  activities catalog (`skills` is now a list). Four references that had never named a skill were
+  fixed on the way: docking's "piloting" (now spaceflight), the manufacturing steps' "crafting",
+  creative arts' "art" and food irradiation's "engineering".
+- **Saves: no mapping, the format unchanged.** A save holds skill ids (`WorldSave.skills`, id to
+  level and XP). Nobody plays yet (CLAUDE.md, no backwards compatibility before launch), so instead of
+  a one-time mapping the SkillSystem drops any saved id the base set does not name on its next tick
+  (guarded so a registry that failed to load never wipes anyone's skills). The shape stayed a map
+  because it was already right: only the vocabulary changed.
 
 ## 7. Three questions the catalog raised
 
@@ -505,24 +518,51 @@ research found no grading body for poi or staff (A7, an absence of evidence rath
 the game's stage statements for those props would be the first of their kind, and the Skills page
 should say so plainly.
 
-## 8. The data, in one sketch
+## 8. The data, as built (rung 1)
 
 ```
 data/skills/skills.csv
-id,name_key,family,description_key,transfers,max_level,xp_per_level
-staff_spinning,skill.staff_spinning,flow,skill.staff_spinning_desc,polearms:0.25|twirling:0.25,30,100
+id,family,xp_per_level,transfers,untrained_reason
+staff_spinning,flow,100,polearms:0.25|twirling:0.25,
+whip,flow,100,,Later row: no activity teaches it yet; the operator named it (skills.md section 7)
 
-data/skills/stages/staff_spinning.ron   (one file per skill: Infinite-of-X)
-stages: [
-  (stage: 1, from_level: 1, can: ["skill.staff_spinning.s1_a", ...],
-   demonstration: (procedure: "staff_figure_eight", standard: "no drop for 20 turns"),
-   topics: ["fire_safety_basics"]),
-  ...
-]
+data/skills/families.json    { "families": [ { "id": "body" }, ... ] }   (page order)
+
+data/skills/stages.json
+{ "stages": [ {"id":"untrained","default_from_level":0}, {"id":"novice","default_from_level":1}, ... ],
+  "ladders": { "staff_spinning": [
+      {"stage":"novice","from_level":1,"can":["skills.staff_spinning.s1_a"]}, ... ] } }
+
+data/skills/practice.json    { "practices": { "connect.power": { "skills": ["electrical"], "xp": 8 },
+                                              "swim": { "skills": ["swimming"], "xp": 5, "per_metres": 25 }, ... } }
 ```
 
+Words are keys of `data/i18n/en.json`: `skills.<id>.name`, `.desc` and `.s<stage>_<letter>` (821 "I
+can" statements, 1 to 3 per stage), `skill_families.<id>.name` and `.desc`, `skill_stages.<id>.name`
+and `.meaning`. A statement moved to another stage takes that stage's number and the next unused
+letter, so a stage's letters can skip (`hunting`'s Proficient is `s4_b`, `s4_c`). Every statement
+starts "I can" and ends with a full stop. The statements were checked against primary sources on
+2026-11-14 (`docs/reference/research/2026-11-14-skill-statement-review/`: 103 corrections to safety,
+law, order and facts); each one corrected or added there names its source in `stages.json`'s
+`sources` (url and date), and `crates/humanity-systems/src/skills/statement_review_tests.rs` holds
+the data to that review. The sketch here had one stages file per skill; the build uses one table because the exe
+embeds its data for a bare install and the website reads it in one fetch, and a skill is still one
+entry (Infinite-of-X). The stage bands default to levels 1, 3, 5, 8, 12 and 17, so today's recipe
+gates (`skill_level` 0 to 5) sit inside Novice to Competent; each skill's numbers can be tuned in its
+ladder. The demonstration and topics per stage come with the assessment rung (section 10).
+
 The curve (`base x level^1.5`, `data/skills/xp_curve.json`) stays the game's rule until the
-operator chooses otherwise; it only fills the bar inside a stage.
+operator chooses otherwise; it fills the bar inside a stage and goes on past Master.
+
+## Decided (operator, 2026-11-14)
+
+The operator approved the base set and every recommendation in section 9, verbatim: "I'm happy with
+the list. I'm happy with all your suggestions in the skills.md. We'll start with that and as people
+play we will probably end up tweaking things." So the 90 skills in 11 families, the six named
+stages with no cap, practice XP only from the real procedure, testing out of any stage, a stage
+never lost (rust and expiry only in realistic mode), simplified assessment by default, the
+migration in section 6 and each answer recommended in section 9 are the plan; the build goes in
+rungs and the set is expected to be tuned as people play.
 
 ## Decided (operator, 2026-11-14)
 
@@ -562,3 +602,59 @@ rungs and the set is expected to be tuned as people play.
    A fantasy school cannot be taught as a real skill, and the real skills should stay real.*
 10. **Knowledge as curriculum.** Maths, physics, biology and the other knowledge areas tracked as
     curriculum topics passed by checks, rather than as skills? *Recommendation: yes (O*NET's split).*
+
+## 10. The build, in rungs
+
+Each rung is a piece of the real system (CLAUDE.md, "Plan the whole feature, build it in rungs"),
+never a throwaway.
+
+**Rung 1, built 2026-11-14.**
+
+- The base set as data (section 8): 90 skills, 11 families, six named stages with "I can" statements
+  and the levels underneath, no cap anywhere (the SkillSystem levels on past Master; the dev button
+  now puts every skill at Master).
+- The migration (section 6), every old id renamed everywhere it was a skill id, saves dropping
+  retired ids rather than mapping them.
+- XP from the real procedure, weighed by difficulty against your level and by the quality of the
+  result where the activity grades it (a hand craft's grade, a crop's season health): see
+  `skills::practice_weight`. Declared transfers speed learning. Each live verb names a practice in
+  `data/skills/practice.json`; recipes teach through their own `skill_required`.
+- Verbs wired in this rung: the walk-up collect (by yield), building (construction, masonry for
+  stone, fire making for the campfire), harvests (farming, growing mushrooms for a fungus), composting
+  waste (sanitation), introducing a bee colony, running power, water, data and air lines, laying out
+  walls and structures (drafting), deploying a vehicle kit (mechanics), distance swum, climbed,
+  driven and carried under load, reaching a quest destination (navigation), a landed strike (the
+  weapon's skill, unarmed for bare hands), a hunting kill, vendor sales and settled trades, votes,
+  proposals and joining a guild (civics), finishing a music track.
+- The Skills page in both apps: native Profile > Skills (`src/gui/pages/profile_skills.rs`) and the
+  website's Profile Skills tab, each skill's stage in words, its "I can" list, the next stage's list
+  and the bar to it, grouped by family.
+
+**Skills with no player verb yet** (their activity runs as a page or a simulation, but nothing lets a
+person do the procedure): rigging (the pulley calculator has no action), astronomy (no telescope is
+placed), reading the weather, tracking and wildlife, conflict resolution (nothing settles a dispute),
+photography (no camera mode), and the testing lab, recycling and salvage. Each gets its XP in the
+increment that builds its procedure (section 1, rule 4).
+
+**Later rungs.**
+
+- **Rung 2, practice quality:** variety (the same task repeated loses value over an in-game day and
+  recovers) and help (a Library guide read for your stage, practising beside someone two stages
+  above), section 3.
+- **Rung 3, stage-ups in words:** the notice at each stage that says what changed ("Shaping is quicker,
+  about 2 minutes, was 4"), with the effects of section 4 (speed, quality, fewer mistakes, safety,
+  less hand-holding) wired to the stage rather than the raw level.
+- **Rung 4, the assessment:** each stage's demonstration (procedure and standard), its curriculum
+  topics and knowledge check, portfolio from Competent and a verifier from Proficient, testing out
+  at any time, and the `skill_learning` setting in `data/gameplay/levels.json` (Off, Simplified,
+  Realistic) with rust and certificate expiry in realistic mode.
+- **Rung 5, teaching:** the teaching skill, verifying learners' demonstrations, Masters certifying.
+- **Rung 6, the fantasy schools (question 9):** the 94 fantasy abilities stop naming a skill and
+  unlock by quest or setting; `tests/skills_data_lint.rs` lists the eleven school ids in
+  `FANTASY_SCHOOLS` until then.
+- **Rung 7, the real-life twin (section 5, question 8):** the learning log, evidence, signed
+  attestations and certificates replace the website's "XP for a real task" (the Tasks page's skill
+  link and the Profile tab's practice buttons).
+- **Rung 8, ranged and prop weapons:** a bow, a sling, a firearm and the flow props as items with a
+  `skill` column, so archery, marksmanship, throwing, gunnery and the flow arts train from a landed
+  shot or a clean figure.

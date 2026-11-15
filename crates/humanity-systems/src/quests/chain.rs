@@ -138,7 +138,7 @@ pub fn with_store_words<R>(data: &humanity_core::hot_reload::data_store::DataSto
     let skills = data.get::<crate::skills::SkillRegistry>("skill_registry");
     let step = |d: &str| super::step_text(d, data);
     let item = |id: &str| items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.to_string());
-    let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.replace('_', " "));
+    let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name()).unwrap_or_else(|| id.replace('_', " "));
     f(&Words { step: &step, item: &item, skill: &skill })
 }
 

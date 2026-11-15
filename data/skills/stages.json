@@ -1,0 +1,847 @@
+{
+  "_doc": "The six named stages every skill shares, plus Untrained (docs/design/skills.md section 3), in order, and every skill's ladder: the level each stage starts at (the numbers underneath; the defaults are 1, 3, 5, 8, 12, 17, tuned per skill) and the keys of its 'I can' statements in data/i18n/en.json. There is no top level: the levels go on past Master and the bar keeps filling. Words: skill_stages.<id>.name and .meaning. One table rather than a file per skill so the exe embeds one file and the website reads it in one fetch. sources: for a statement a dated review corrected or added, the source it rests on (its url and that source's own date); the review, with each source's quotation, is docs/reference/research/2026-11-14-skill-statement-review/README.md. Checked by tests/skills_data_lint.rs and crates/humanity-systems/src/skills/statement_review_tests.rs.",
+  "stages": [
+    {"id":"untrained","default_from_level":0},
+    {"id":"novice","default_from_level":1},
+    {"id":"beginner","default_from_level":3},
+    {"id":"competent","default_from_level":5},
+    {"id":"proficient","default_from_level":8},
+    {"id":"expert","default_from_level":12},
+    {"id":"master","default_from_level":17}
+  ],
+  "ladders": {
+    "fitness": [
+      {"stage":"novice","from_level":1,"can":["skills.fitness.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.fitness.s2_a","skills.fitness.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.fitness.s3_a","skills.fitness.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.fitness.s4_a","skills.fitness.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.fitness.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.fitness.s6_a"]}
+    ],
+    "swimming": [
+      {"stage":"novice","from_level":1,"can":["skills.swimming.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.swimming.s2_a","skills.swimming.s2_b","skills.swimming.s2_c"]},
+      {"stage":"competent","from_level":5,"can":["skills.swimming.s3_a","skills.swimming.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.swimming.s4_a"]},
+      {"stage":"expert","from_level":12,"can":["skills.swimming.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.swimming.s6_a"]}
+    ],
+    "climbing": [
+      {"stage":"novice","from_level":1,"can":["skills.climbing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.climbing.s2_a","skills.climbing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.climbing.s3_a","skills.climbing.s3_b","skills.climbing.s3_c"]},
+      {"stage":"proficient","from_level":8,"can":["skills.climbing.s4_a","skills.climbing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.climbing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.climbing.s6_a"]}
+    ],
+    "first_aid": [
+      {"stage":"novice","from_level":1,"can":["skills.first_aid.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.first_aid.s2_a","skills.first_aid.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.first_aid.s3_a","skills.first_aid.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.first_aid.s4_a","skills.first_aid.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.first_aid.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.first_aid.s6_a"]}
+    ],
+    "medicine": [
+      {"stage":"novice","from_level":1,"can":["skills.medicine.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.medicine.s2_a","skills.medicine.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.medicine.s3_a","skills.medicine.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.medicine.s4_a","skills.medicine.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.medicine.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.medicine.s6_a"]}
+    ],
+    "sanitation": [
+      {"stage":"novice","from_level":1,"can":["skills.sanitation.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.sanitation.s2_a","skills.sanitation.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.sanitation.s3_a","skills.sanitation.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.sanitation.s4_a","skills.sanitation.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.sanitation.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.sanitation.s6_a"]}
+    ],
+    "farming": [
+      {"stage":"novice","from_level":1,"can":["skills.farming.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.farming.s2_a","skills.farming.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.farming.s3_a","skills.farming.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.farming.s4_a","skills.farming.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.farming.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.farming.s6_a"]}
+    ],
+    "animal_husbandry": [
+      {"stage":"novice","from_level":1,"can":["skills.animal_husbandry.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.animal_husbandry.s2_a","skills.animal_husbandry.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.animal_husbandry.s3_a","skills.animal_husbandry.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.animal_husbandry.s4_a","skills.animal_husbandry.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.animal_husbandry.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.animal_husbandry.s6_a"]}
+    ],
+    "beekeeping": [
+      {"stage":"novice","from_level":1,"can":["skills.beekeeping.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.beekeeping.s2_a","skills.beekeeping.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.beekeeping.s3_a","skills.beekeeping.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.beekeeping.s4_a","skills.beekeeping.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.beekeeping.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.beekeeping.s6_a"]}
+    ],
+    "mushroom_growing": [
+      {"stage":"novice","from_level":1,"can":["skills.mushroom_growing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.mushroom_growing.s2_a","skills.mushroom_growing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.mushroom_growing.s3_a","skills.mushroom_growing.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.mushroom_growing.s4_a","skills.mushroom_growing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.mushroom_growing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.mushroom_growing.s6_a"]}
+    ],
+    "foraging": [
+      {"stage":"novice","from_level":1,"can":["skills.foraging.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.foraging.s2_a","skills.foraging.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.foraging.s3_a","skills.foraging.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.foraging.s4_a","skills.foraging.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.foraging.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.foraging.s6_a"]}
+    ],
+    "fishing": [
+      {"stage":"novice","from_level":1,"can":["skills.fishing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.fishing.s2_a","skills.fishing.s2_c","skills.fishing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.fishing.s3_a","skills.fishing.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.fishing.s4_a","skills.fishing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.fishing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.fishing.s6_a"]}
+    ],
+    "hunting": [
+      {"stage":"novice","from_level":1,"can":["skills.hunting.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.hunting.s2_a","skills.hunting.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.hunting.s3_a","skills.hunting.s3_c","skills.hunting.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.hunting.s4_b","skills.hunting.s4_c"]},
+      {"stage":"expert","from_level":12,"can":["skills.hunting.s5_b"]},
+      {"stage":"master","from_level":17,"can":["skills.hunting.s6_a"]}
+    ],
+    "butchery": [
+      {"stage":"novice","from_level":1,"can":["skills.butchery.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.butchery.s2_a","skills.butchery.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.butchery.s3_a","skills.butchery.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.butchery.s4_a","skills.butchery.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.butchery.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.butchery.s6_a"]}
+    ],
+    "cooking": [
+      {"stage":"novice","from_level":1,"can":["skills.cooking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.cooking.s2_a","skills.cooking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.cooking.s3_a","skills.cooking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.cooking.s4_a","skills.cooking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.cooking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.cooking.s6_a"]}
+    ],
+    "baking": [
+      {"stage":"novice","from_level":1,"can":["skills.baking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.baking.s2_a","skills.baking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.baking.s3_a","skills.baking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.baking.s4_a","skills.baking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.baking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.baking.s6_a"]}
+    ],
+    "preserving": [
+      {"stage":"novice","from_level":1,"can":["skills.preserving.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.preserving.s2_a","skills.preserving.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.preserving.s3_a","skills.preserving.s3_c","skills.preserving.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.preserving.s4_b","skills.preserving.s4_c"]},
+      {"stage":"expert","from_level":12,"can":["skills.preserving.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.preserving.s6_a"]}
+    ],
+    "fermenting": [
+      {"stage":"novice","from_level":1,"can":["skills.fermenting.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.fermenting.s2_a","skills.fermenting.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.fermenting.s3_a","skills.fermenting.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.fermenting.s4_a","skills.fermenting.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.fermenting.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.fermenting.s6_a"]}
+    ],
+    "nutrition": [
+      {"stage":"novice","from_level":1,"can":["skills.nutrition.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.nutrition.s2_a","skills.nutrition.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.nutrition.s3_a","skills.nutrition.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.nutrition.s4_a","skills.nutrition.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.nutrition.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.nutrition.s6_a"]}
+    ],
+    "water_purification": [
+      {"stage":"novice","from_level":1,"can":["skills.water_purification.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.water_purification.s2_a","skills.water_purification.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.water_purification.s3_a","skills.water_purification.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.water_purification.s4_a","skills.water_purification.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.water_purification.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.water_purification.s6_a"]}
+    ],
+    "forestry": [
+      {"stage":"novice","from_level":1,"can":["skills.forestry.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.forestry.s2_a","skills.forestry.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.forestry.s3_a","skills.forestry.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.forestry.s4_a","skills.forestry.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.forestry.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.forestry.s6_a"]}
+    ],
+    "mining": [
+      {"stage":"novice","from_level":1,"can":["skills.mining.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.mining.s2_a","skills.mining.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.mining.s3_a","skills.mining.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.mining.s4_a","skills.mining.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.mining.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.mining.s6_a"]}
+    ],
+    "metallurgy": [
+      {"stage":"novice","from_level":1,"can":["skills.metallurgy.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.metallurgy.s2_a","skills.metallurgy.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.metallurgy.s3_a","skills.metallurgy.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.metallurgy.s4_a","skills.metallurgy.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.metallurgy.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.metallurgy.s6_a"]}
+    ],
+    "smithing": [
+      {"stage":"novice","from_level":1,"can":["skills.smithing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.smithing.s2_a","skills.smithing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.smithing.s3_a","skills.smithing.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.smithing.s4_a","skills.smithing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.smithing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.smithing.s6_a"]}
+    ],
+    "welding": [
+      {"stage":"novice","from_level":1,"can":["skills.welding.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.welding.s2_a","skills.welding.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.welding.s3_a","skills.welding.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.welding.s4_a","skills.welding.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.welding.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.welding.s6_a"]}
+    ],
+    "machining": [
+      {"stage":"novice","from_level":1,"can":["skills.machining.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.machining.s2_a","skills.machining.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.machining.s3_a","skills.machining.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.machining.s4_a","skills.machining.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.machining.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.machining.s6_a"]}
+    ],
+    "woodworking": [
+      {"stage":"novice","from_level":1,"can":["skills.woodworking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.woodworking.s2_a","skills.woodworking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.woodworking.s3_a","skills.woodworking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.woodworking.s4_a","skills.woodworking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.woodworking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.woodworking.s6_a"]}
+    ],
+    "textiles": [
+      {"stage":"novice","from_level":1,"can":["skills.textiles.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.textiles.s2_a","skills.textiles.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.textiles.s3_a","skills.textiles.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.textiles.s4_a","skills.textiles.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.textiles.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.textiles.s6_a"]}
+    ],
+    "tailoring": [
+      {"stage":"novice","from_level":1,"can":["skills.tailoring.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.tailoring.s2_a","skills.tailoring.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.tailoring.s3_a","skills.tailoring.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.tailoring.s4_a","skills.tailoring.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.tailoring.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.tailoring.s6_a"]}
+    ],
+    "leatherworking": [
+      {"stage":"novice","from_level":1,"can":["skills.leatherworking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.leatherworking.s2_a","skills.leatherworking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.leatherworking.s3_a","skills.leatherworking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.leatherworking.s4_a","skills.leatherworking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.leatherworking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.leatherworking.s6_a"]}
+    ],
+    "ceramics": [
+      {"stage":"novice","from_level":1,"can":["skills.ceramics.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.ceramics.s2_a","skills.ceramics.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.ceramics.s3_a","skills.ceramics.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.ceramics.s4_a","skills.ceramics.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.ceramics.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.ceramics.s6_a"]}
+    ],
+    "glassmaking": [
+      {"stage":"novice","from_level":1,"can":["skills.glassmaking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.glassmaking.s2_a","skills.glassmaking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.glassmaking.s3_a","skills.glassmaking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.glassmaking.s4_a","skills.glassmaking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.glassmaking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.glassmaking.s6_a"]}
+    ],
+    "chemistry": [
+      {"stage":"novice","from_level":1,"can":["skills.chemistry.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.chemistry.s2_a","skills.chemistry.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.chemistry.s3_a","skills.chemistry.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.chemistry.s4_a","skills.chemistry.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.chemistry.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.chemistry.s6_a"]}
+    ],
+    "electronics": [
+      {"stage":"novice","from_level":1,"can":["skills.electronics.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.electronics.s2_a","skills.electronics.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.electronics.s3_a","skills.electronics.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.electronics.s4_a","skills.electronics.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.electronics.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.electronics.s6_a"]}
+    ],
+    "construction": [
+      {"stage":"novice","from_level":1,"can":["skills.construction.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.construction.s2_a","skills.construction.s2_b","skills.construction.s2_c"]},
+      {"stage":"competent","from_level":5,"can":["skills.construction.s3_a","skills.construction.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.construction.s4_a","skills.construction.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.construction.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.construction.s6_a"]}
+    ],
+    "masonry": [
+      {"stage":"novice","from_level":1,"can":["skills.masonry.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.masonry.s2_a","skills.masonry.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.masonry.s3_a","skills.masonry.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.masonry.s4_a","skills.masonry.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.masonry.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.masonry.s6_a"]}
+    ],
+    "drafting": [
+      {"stage":"novice","from_level":1,"can":["skills.drafting.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.drafting.s2_a","skills.drafting.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.drafting.s3_a","skills.drafting.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.drafting.s4_a","skills.drafting.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.drafting.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.drafting.s6_a"]}
+    ],
+    "electrical": [
+      {"stage":"novice","from_level":1,"can":["skills.electrical.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.electrical.s2_a","skills.electrical.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.electrical.s3_a","skills.electrical.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.electrical.s4_a","skills.electrical.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.electrical.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.electrical.s6_a"]}
+    ],
+    "plumbing": [
+      {"stage":"novice","from_level":1,"can":["skills.plumbing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.plumbing.s2_a","skills.plumbing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.plumbing.s3_a","skills.plumbing.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.plumbing.s4_a","skills.plumbing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.plumbing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.plumbing.s6_a"]}
+    ],
+    "hvac": [
+      {"stage":"novice","from_level":1,"can":["skills.hvac.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.hvac.s2_a","skills.hvac.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.hvac.s3_a","skills.hvac.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.hvac.s4_a","skills.hvac.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.hvac.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.hvac.s6_a"]}
+    ],
+    "life_support": [
+      {"stage":"novice","from_level":1,"can":["skills.life_support.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.life_support.s2_a","skills.life_support.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.life_support.s3_a","skills.life_support.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.life_support.s4_a","skills.life_support.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.life_support.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.life_support.s6_a"]}
+    ],
+    "networking": [
+      {"stage":"novice","from_level":1,"can":["skills.networking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.networking.s2_a","skills.networking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.networking.s3_a","skills.networking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.networking.s4_a","skills.networking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.networking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.networking.s6_a"]}
+    ],
+    "rigging": [
+      {"stage":"novice","from_level":1,"can":["skills.rigging.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.rigging.s2_a","skills.rigging.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.rigging.s3_a","skills.rigging.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.rigging.s4_a","skills.rigging.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.rigging.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.rigging.s6_a"]}
+    ],
+    "mechanics": [
+      {"stage":"novice","from_level":1,"can":["skills.mechanics.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.mechanics.s2_a","skills.mechanics.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.mechanics.s3_a","skills.mechanics.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.mechanics.s4_a","skills.mechanics.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.mechanics.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.mechanics.s6_a"]}
+    ],
+    "repair": [
+      {"stage":"novice","from_level":1,"can":["skills.repair.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.repair.s2_a","skills.repair.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.repair.s3_a","skills.repair.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.repair.s4_a","skills.repair.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.repair.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.repair.s6_a"]}
+    ],
+    "logistics": [
+      {"stage":"novice","from_level":1,"can":["skills.logistics.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.logistics.s2_a","skills.logistics.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.logistics.s3_a","skills.logistics.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.logistics.s4_a","skills.logistics.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.logistics.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.logistics.s6_a"]}
+    ],
+    "driving": [
+      {"stage":"novice","from_level":1,"can":["skills.driving.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.driving.s2_a","skills.driving.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.driving.s3_a","skills.driving.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.driving.s4_a","skills.driving.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.driving.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.driving.s6_a"]}
+    ],
+    "flying": [
+      {"stage":"novice","from_level":1,"can":["skills.flying.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.flying.s2_a","skills.flying.s2_b","skills.flying.s2_c"]},
+      {"stage":"competent","from_level":5,"can":["skills.flying.s3_a","skills.flying.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.flying.s4_a","skills.flying.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.flying.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.flying.s6_a"]}
+    ],
+    "spaceflight": [
+      {"stage":"novice","from_level":1,"can":["skills.spaceflight.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.spaceflight.s2_a","skills.spaceflight.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.spaceflight.s3_a","skills.spaceflight.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.spaceflight.s4_a","skills.spaceflight.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.spaceflight.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.spaceflight.s6_a"]}
+    ],
+    "eva": [
+      {"stage":"novice","from_level":1,"can":["skills.eva.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.eva.s2_a","skills.eva.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.eva.s3_a","skills.eva.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.eva.s4_a","skills.eva.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.eva.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.eva.s6_a"]}
+    ],
+    "drone_operation": [
+      {"stage":"novice","from_level":1,"can":["skills.drone_operation.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.drone_operation.s2_a","skills.drone_operation.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.drone_operation.s3_a","skills.drone_operation.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.drone_operation.s4_a","skills.drone_operation.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.drone_operation.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.drone_operation.s6_a"]}
+    ],
+    "navigation": [
+      {"stage":"novice","from_level":1,"can":["skills.navigation.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.navigation.s2_a","skills.navigation.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.navigation.s3_a","skills.navigation.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.navigation.s4_a","skills.navigation.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.navigation.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.navigation.s6_a"]}
+    ],
+    "geology": [
+      {"stage":"novice","from_level":1,"can":["skills.geology.s1_a","skills.geology.s1_b"]},
+      {"stage":"beginner","from_level":3,"can":["skills.geology.s2_a","skills.geology.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.geology.s3_a","skills.geology.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.geology.s4_a","skills.geology.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.geology.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.geology.s6_a"]}
+    ],
+    "astronomy": [
+      {"stage":"novice","from_level":1,"can":["skills.astronomy.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.astronomy.s2_a","skills.astronomy.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.astronomy.s3_a","skills.astronomy.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.astronomy.s4_a","skills.astronomy.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.astronomy.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.astronomy.s6_a"]}
+    ],
+    "weather": [
+      {"stage":"novice","from_level":1,"can":["skills.weather.s1_a","skills.weather.s1_b"]},
+      {"stage":"beginner","from_level":3,"can":["skills.weather.s2_a","skills.weather.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.weather.s3_a","skills.weather.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.weather.s4_a","skills.weather.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.weather.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.weather.s6_a"]}
+    ],
+    "fire_making": [
+      {"stage":"novice","from_level":1,"can":["skills.fire_making.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.fire_making.s2_a","skills.fire_making.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.fire_making.s3_a","skills.fire_making.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.fire_making.s4_a","skills.fire_making.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.fire_making.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.fire_making.s6_a"]}
+    ],
+    "firefighting": [
+      {"stage":"novice","from_level":1,"can":["skills.firefighting.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.firefighting.s2_a","skills.firefighting.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.firefighting.s3_a","skills.firefighting.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.firefighting.s4_a","skills.firefighting.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.firefighting.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.firefighting.s6_a"]}
+    ],
+    "radiation_safety": [
+      {"stage":"novice","from_level":1,"can":["skills.radiation_safety.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.radiation_safety.s2_a","skills.radiation_safety.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.radiation_safety.s3_a","skills.radiation_safety.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.radiation_safety.s4_a","skills.radiation_safety.s4_b","skills.radiation_safety.s4_c"]},
+      {"stage":"expert","from_level":12,"can":["skills.radiation_safety.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.radiation_safety.s6_a"]}
+    ],
+    "rescue": [
+      {"stage":"novice","from_level":1,"can":["skills.rescue.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.rescue.s2_a","skills.rescue.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.rescue.s3_a","skills.rescue.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.rescue.s4_a","skills.rescue.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.rescue.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.rescue.s6_a"]}
+    ],
+    "tracking": [
+      {"stage":"novice","from_level":1,"can":["skills.tracking.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.tracking.s2_a","skills.tracking.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.tracking.s3_a","skills.tracking.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.tracking.s4_a","skills.tracking.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.tracking.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.tracking.s6_a"]}
+    ],
+    "unarmed": [
+      {"stage":"novice","from_level":1,"can":["skills.unarmed.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.unarmed.s2_a","skills.unarmed.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.unarmed.s3_a","skills.unarmed.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.unarmed.s4_a","skills.unarmed.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.unarmed.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.unarmed.s6_a"]}
+    ],
+    "grappling": [
+      {"stage":"novice","from_level":1,"can":["skills.grappling.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.grappling.s2_a","skills.grappling.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.grappling.s3_a","skills.grappling.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.grappling.s4_a","skills.grappling.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.grappling.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.grappling.s6_a"]}
+    ],
+    "blades": [
+      {"stage":"novice","from_level":1,"can":["skills.blades.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.blades.s2_a","skills.blades.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.blades.s3_a","skills.blades.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.blades.s4_a","skills.blades.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.blades.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.blades.s6_a"]}
+    ],
+    "impact_weapons": [
+      {"stage":"novice","from_level":1,"can":["skills.impact_weapons.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.impact_weapons.s2_a","skills.impact_weapons.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.impact_weapons.s3_a","skills.impact_weapons.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.impact_weapons.s4_a","skills.impact_weapons.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.impact_weapons.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.impact_weapons.s6_a"]}
+    ],
+    "polearms": [
+      {"stage":"novice","from_level":1,"can":["skills.polearms.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.polearms.s2_a","skills.polearms.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.polearms.s3_a","skills.polearms.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.polearms.s4_a","skills.polearms.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.polearms.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.polearms.s6_a"]}
+    ],
+    "archery": [
+      {"stage":"novice","from_level":1,"can":["skills.archery.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.archery.s2_a","skills.archery.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.archery.s3_a","skills.archery.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.archery.s4_a","skills.archery.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.archery.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.archery.s6_a"]}
+    ],
+    "marksmanship": [
+      {"stage":"novice","from_level":1,"can":["skills.marksmanship.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.marksmanship.s2_a","skills.marksmanship.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.marksmanship.s3_a","skills.marksmanship.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.marksmanship.s4_a","skills.marksmanship.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.marksmanship.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.marksmanship.s6_a"]}
+    ],
+    "throwing": [
+      {"stage":"novice","from_level":1,"can":["skills.throwing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.throwing.s2_a","skills.throwing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.throwing.s3_a","skills.throwing.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.throwing.s4_a","skills.throwing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.throwing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.throwing.s6_a"]}
+    ],
+    "gunnery": [
+      {"stage":"novice","from_level":1,"can":["skills.gunnery.s1_a","skills.gunnery.s1_b"]},
+      {"stage":"beginner","from_level":3,"can":["skills.gunnery.s2_a","skills.gunnery.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.gunnery.s3_a","skills.gunnery.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.gunnery.s4_a","skills.gunnery.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.gunnery.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.gunnery.s6_a"]}
+    ],
+    "self_defence": [
+      {"stage":"novice","from_level":1,"can":["skills.self_defence.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.self_defence.s2_a","skills.self_defence.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.self_defence.s3_a","skills.self_defence.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.self_defence.s4_a","skills.self_defence.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.self_defence.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.self_defence.s6_a"]}
+    ],
+    "tactics": [
+      {"stage":"novice","from_level":1,"can":["skills.tactics.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.tactics.s2_a","skills.tactics.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.tactics.s3_a","skills.tactics.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.tactics.s4_a","skills.tactics.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.tactics.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.tactics.s6_a"]}
+    ],
+    "trading": [
+      {"stage":"novice","from_level":1,"can":["skills.trading.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.trading.s2_a","skills.trading.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.trading.s3_a","skills.trading.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.trading.s4_a","skills.trading.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.trading.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.trading.s6_a"]}
+    ],
+    "civics": [
+      {"stage":"novice","from_level":1,"can":["skills.civics.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.civics.s2_a","skills.civics.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.civics.s3_a","skills.civics.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.civics.s4_a","skills.civics.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.civics.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.civics.s6_a"]}
+    ],
+    "leadership": [
+      {"stage":"novice","from_level":1,"can":["skills.leadership.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.leadership.s2_a","skills.leadership.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.leadership.s3_a","skills.leadership.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.leadership.s4_a","skills.leadership.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.leadership.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.leadership.s6_a"]}
+    ],
+    "teaching": [
+      {"stage":"novice","from_level":1,"can":["skills.teaching.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.teaching.s2_a","skills.teaching.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.teaching.s3_a","skills.teaching.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.teaching.s4_a","skills.teaching.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.teaching.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.teaching.s6_a"]}
+    ],
+    "mediation": [
+      {"stage":"novice","from_level":1,"can":["skills.mediation.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.mediation.s2_a","skills.mediation.s2_c","skills.mediation.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.mediation.s3_a"]},
+      {"stage":"proficient","from_level":8,"can":["skills.mediation.s4_a","skills.mediation.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.mediation.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.mediation.s6_a"]}
+    ],
+    "staff_spinning": [
+      {"stage":"novice","from_level":1,"can":["skills.staff_spinning.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.staff_spinning.s2_a","skills.staff_spinning.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.staff_spinning.s3_a","skills.staff_spinning.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.staff_spinning.s4_a","skills.staff_spinning.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.staff_spinning.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.staff_spinning.s6_a"]}
+    ],
+    "poi": [
+      {"stage":"novice","from_level":1,"can":["skills.poi.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.poi.s2_a","skills.poi.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.poi.s3_a","skills.poi.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.poi.s4_a","skills.poi.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.poi.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.poi.s6_a"]}
+    ],
+    "rope_dart": [
+      {"stage":"novice","from_level":1,"can":["skills.rope_dart.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.rope_dart.s2_a","skills.rope_dart.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.rope_dart.s3_a","skills.rope_dart.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.rope_dart.s4_a","skills.rope_dart.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.rope_dart.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.rope_dart.s6_a"]}
+    ],
+    "hoop": [
+      {"stage":"novice","from_level":1,"can":["skills.hoop.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.hoop.s2_a","skills.hoop.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.hoop.s3_a","skills.hoop.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.hoop.s4_a","skills.hoop.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.hoop.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.hoop.s6_a"]}
+    ],
+    "fans": [
+      {"stage":"novice","from_level":1,"can":["skills.fans.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.fans.s2_a","skills.fans.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.fans.s3_a","skills.fans.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.fans.s4_a","skills.fans.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.fans.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.fans.s6_a"]}
+    ],
+    "twirling": [
+      {"stage":"novice","from_level":1,"can":["skills.twirling.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.twirling.s2_a","skills.twirling.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.twirling.s3_a","skills.twirling.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.twirling.s4_a","skills.twirling.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.twirling.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.twirling.s6_a"]}
+    ],
+    "fire_performance": [
+      {"stage":"novice","from_level":1,"can":["skills.fire_performance.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.fire_performance.s2_a","skills.fire_performance.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.fire_performance.s3_a","skills.fire_performance.s3_c","skills.fire_performance.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.fire_performance.s4_a","skills.fire_performance.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.fire_performance.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.fire_performance.s6_a"]}
+    ],
+    "juggling": [
+      {"stage":"novice","from_level":1,"can":["skills.juggling.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.juggling.s2_a","skills.juggling.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.juggling.s3_a","skills.juggling.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.juggling.s4_a","skills.juggling.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.juggling.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.juggling.s6_a"]}
+    ],
+    "whip": [
+      {"stage":"novice","from_level":1,"can":["skills.whip.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.whip.s2_a","skills.whip.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.whip.s3_a","skills.whip.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.whip.s4_a","skills.whip.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.whip.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.whip.s6_a"]}
+    ],
+    "music": [
+      {"stage":"novice","from_level":1,"can":["skills.music.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.music.s2_a","skills.music.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.music.s3_a","skills.music.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.music.s4_a","skills.music.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.music.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.music.s6_a"]}
+    ],
+    "dance": [
+      {"stage":"novice","from_level":1,"can":["skills.dance.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.dance.s2_a","skills.dance.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.dance.s3_a","skills.dance.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.dance.s4_a","skills.dance.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.dance.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.dance.s6_a"]}
+    ],
+    "drawing_painting": [
+      {"stage":"novice","from_level":1,"can":["skills.drawing_painting.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.drawing_painting.s2_a","skills.drawing_painting.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.drawing_painting.s3_a","skills.drawing_painting.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.drawing_painting.s4_a","skills.drawing_painting.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.drawing_painting.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.drawing_painting.s6_a"]}
+    ],
+    "photography": [
+      {"stage":"novice","from_level":1,"can":["skills.photography.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.photography.s2_a","skills.photography.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.photography.s3_a","skills.photography.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.photography.s4_a","skills.photography.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.photography.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.photography.s6_a"]}
+    ],
+    "writing": [
+      {"stage":"novice","from_level":1,"can":["skills.writing.s1_a"]},
+      {"stage":"beginner","from_level":3,"can":["skills.writing.s2_a","skills.writing.s2_b"]},
+      {"stage":"competent","from_level":5,"can":["skills.writing.s3_a","skills.writing.s3_b"]},
+      {"stage":"proficient","from_level":8,"can":["skills.writing.s4_a","skills.writing.s4_b"]},
+      {"stage":"expert","from_level":12,"can":["skills.writing.s5_a"]},
+      {"stage":"master","from_level":17,"can":["skills.writing.s6_a"]}
+    ]
+  },
+  "sources": {
+    "skills.animal_husbandry.s3_b": {"url":"https://www.fda.gov/animal-veterinary/antimicrobial-resistance/gfi-263-frequently-asked-questions-farmers-and-ranchers","date":"2024-05-22 (content current as of)"},
+    "skills.archery.s2_b": {"url":"https://myodfw.com/learn/skill/bow-shooting-tips","date":"no page date (copyright 2026)"},
+    "skills.archery.s4_b": {"url":"https://myodfw.com/learn/skill/bow-shooting-tips","date":"no page date (copyright 2026)"},
+    "skills.astronomy.s2_a": {"url":"https://www.ngdc.noaa.gov/geomag/declination.shtml","date":"undated (read 2026-11-14)"},
+    "skills.baking.s4_b": {"url":"https://www.cdc.gov/carbon-monoxide/about/index.html","date":"2026-10-26"},
+    "skills.baking.s5_a": {"url":"docs/design/skills.md","date":"2026-11-14"},
+    "skills.beekeeping.s1_a": {"url":"https://www.cdc.gov/niosh/outdoor-workers/about/insects-and-scorpions.html","date":"2026-09-28 (last reviewed)"},
+    "skills.beekeeping.s4_a": {"url":"https://www.legislation.gov.uk/uksi/2006/342/article/3","date":"latest revised version (read 2026-11-14)"},
+    "skills.butchery.s2_a": {"url":"https://www.fda.gov/consumers/consumer-updates/are-you-storing-food-safely","date":"2023-01-18 (content current as of)"},
+    "skills.butchery.s2_b": {"url":"https://www.cdc.gov/tularemia/prevention/index.html","date":"2025-09-09"},
+    "skills.ceramics.s1_a": {"url":"https://www.hse.gov.uk/agriculture/dustmasks.htm","date":"updated 2024-08-07; read 2026-11-14"},
+    "skills.ceramics.s4_b": {"url":"https://www.cdc.gov/yellow-book/hcp/preparing-international-travelers/water-disinfection-for-travelers.html","date":"last updated April 23, 2025 (CDC Yellow Book); read 2026-11-14"},
+    "skills.climbing.s1_a": {"url":"https://www.osha.gov/sites/default/files/publications/portable_ladder_qc.pdf","date":"OSHA 3246 Portable Ladder Safety QuickCard (file dated 2020-09-28)"},
+    "skills.climbing.s3_c": {"url":"https://www.alpenverein.de/files/kletterhallen/indoor-klettern-basics-english.pdf","date":"DAV \"Indoor climbing basics\" (English), file dated 2025-04-29"},
+    "skills.construction.s2_c": {"url":"https://www.hse.gov.uk/construction/safetytopics/roofwork.htm","date":"2026-06-05; read 2026-11-14"},
+    "skills.construction.s4_b": {"url":"https://www.hse.gov.uk/construction/safetytopics/roofwork.htm","date":"2026-06-05; read 2026-11-14"},
+    "skills.construction.s5_a": {"url":"https://www.gov.uk/building-regulations-approval","date":"dateModified 2025-01-24; read 2026-11-14"},
+    "skills.cooking.s2_a": {"url":"https://www.cdc.gov/food-safety/prevention/index.html","date":"2025-11-24"},
+    "skills.cooking.s2_b": {"url":"https://www.usfa.fema.gov/prevention/home-fires/prevent-fires/cooking/","date":"2026-09-28 (page last reviewed)"},
+    "skills.cooking.s4_b": {"url":"https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies","date":"2026-03-11 (content current as of)"},
+    "skills.driving.s2_a": {"url":"https://www.gov.uk/driving-lessons-learning-to-drive","date":"page metadata 2026-11-05; read 2026-11-14"},
+    "skills.driving.s3_a": {"url":"https://www.gov.uk/driving-lessons-learning-to-drive","date":"page metadata 2026-11-05; read 2026-11-14"},
+    "skills.drone_operation.s1_a": {"url":"https://www.caa.co.uk/drones/open-category/drone-code/getting-what-you-need-to-fly-legally/","date":"UK CAA Drone and Model Aircraft Code, page build 2026-08-20; read 2026-11-14"},
+    "skills.drone_operation.s3_b": {"url":"https://www.caa.co.uk/drones/open-category/drone-code/where-you-can-fly-points-3-to-9/","date":"UK CAA Drone and Model Aircraft Code, page build 2026-08-20; read 2026-11-14"},
+    "skills.electrical.s2_a": {"url":"https://www.hse.gov.uk/pubns/priced/hsg85.pdf","date":"HSG85 third edition, published 08/2013; read 2026-11-14"},
+    "skills.electrical.s3_a": {"url":"https://assets.publishing.service.gov.uk/media/5a802da7ed915d74e622ceed/BR_PDF_AD_P_2013.pdf","date":"Approved Document P, 2013 edition (England); read 2026-11-14"},
+    "skills.electrical.s4_b": {"url":"https://www.energy.gov/cmei/systems/guide-fire-safety-solar-systems","date":"last updated February 21, 2025 (US Department of Energy); read 2026-11-14"},
+    "skills.electrical.s5_a": {"url":"https://assets.publishing.service.gov.uk/media/5a802da7ed915d74e622ceed/BR_PDF_AD_P_2013.pdf","date":"Approved Document P, 2013 edition (England); read 2026-11-14"},
+    "skills.electronics.s4_a": {"url":"https://www.hse.gov.uk/electricity/faq.htm","date":"last updated 2026-05-07; read 2026-11-14"},
+    "skills.farming.s5_a": {"url":"https://www.epa.gov/lead/healthy-gardening-practices-reduce-exposure-lead-contaminated-soil","date":"2026-09-21 (last updated)"},
+    "skills.fermenting.s2_a": {"url":"https://www.cdc.gov/botulism/prevention/home-canned-foods.html","date":"2024-04-25 (date shown on page)"},
+    "skills.fermenting.s3_a": {"url":"https://nchfp.uga.edu/how/pickle/general-information-pickling/general-information-on-pickling/","date":"undated (read 2026-11-14)"},
+    "skills.fermenting.s4_a": {"url":"https://hgic.clemson.edu/factsheet/basics-of-home-winemaking/","date":"2023-02-24"},
+    "skills.fire_making.s1_a": {"url":"https://smokeybear.com/en/prevention-how-tos/campfire-safety","date":"no page date (footer: 2026 Ad Council)"},
+    "skills.fire_making.s2_b": {"url":"https://smokeybear.com/en/prevention-how-tos/campfire-safety","date":"no page date (footer: 2026 Ad Council)"},
+    "skills.fire_making.s4_b": {"url":"https://www.cdc.gov/carbon-monoxide/about/index.html","date":"2026-10-26"},
+    "skills.fire_performance.s3_b": {"url":"https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf","date":"Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14"},
+    "skills.fire_performance.s3_c": {"url":"https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf","date":"Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14"},
+    "skills.fire_performance.s4_b": {"url":"https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf","date":"Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14"},
+    "skills.firefighting.s3_a": {"url":"https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/fire-extinguishers/","date":"last reviewed 2023-04-01"},
+    "skills.first_aid.s2_a": {"url":"https://www.sja.org.uk/first-aid-advice/severe-bleeding/","date":"clinically reviewed 2026-09-08"},
+    "skills.first_aid.s2_b": {"url":"https://www.sja.org.uk/first-aid-advice/burns-and-scalds/","date":"clinically reviewed 2025-04-28"},
+    "skills.first_aid.s3_a": {"url":"https://www.sja.org.uk/get-advice/first-aid-advice/recovery-position/","date":"clinically reviewed 2025-04-28"},
+    "skills.first_aid.s3_b": {"url":"https://www.sja.org.uk/first-aid-advice/cpr/","date":"clinically reviewed 2026-09-18"},
+    "skills.first_aid.s4_b": {"url":"https://www.sja.org.uk/first-aid-advice/heatstroke/","date":"clinically reviewed 2025-04-28"},
+    "skills.fishing.s1_a": {"url":"https://www.uscgboating.org/multimedia/news-detail.php?id=573","date":"undated news item (2023 statistics; page last modified November 2026)"},
+    "skills.fishing.s2_a": {"url":"https://www.gov.uk/fishing-licences","date":"undated (read 2026-11-14)"},
+    "skills.fishing.s2_c": {"url":"https://www.gov.uk/freshwater-rod-fishing-rules/fish-size-and-catch-limits","date":"undated (read 2026-11-14)"},
+    "skills.fishing.s4_a": {"url":"https://www.gov.uk/freshwater-rod-fishing-rules/fish-size-and-catch-limits","date":"undated (read 2026-11-14)"},
+    "skills.fishing.s5_a": {"url":"https://www.epa.gov/choose-fish-and-shellfish-wisely/should-i-be-concerned-about-eating-fish-and-shellfish","date":"2026-01-12"},
+    "skills.flying.s2_c": {"url":"https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf","date":"14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14"},
+    "skills.flying.s3_a": {"url":"https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf","date":"14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14"},
+    "skills.flying.s4_a": {"url":"https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf","date":"14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14"},
+    "skills.flying.s6_a": {"url":"https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-3.pdf","date":"14 CFR 61.3, official CFR 1-1-25 edition (govinfo); read 2026-11-14"},
+    "skills.foraging.s2_b": {"url":"https://www.legislation.gov.uk/ukpga/1981/69/section/13","date":"up to date with changes in force on or before 2026-11-15"},
+    "skills.foraging.s3_a": {"url":"https://www.cdc.gov/mmwr/volumes/66/wr/mm6621a1.htm","date":"2017-06-02"},
+    "skills.foraging.s5_a": {"url":"https://explore.beatymuseum.ubc.ca/mushroomsup/A_phalloides.html","date":"undated (read 2026-11-14)"},
+    "skills.forestry.s1_a": {"url":"https://teagasc.ie/wp-content/uploads/2025/05/Basic_Chainsaw_Felling_-_IFSG_302.pdf","date":"October 2018 (Health and Safety Authority, Ireland, IFSG 302); read 2026-11-14"},
+    "skills.forestry.s2_b": {"url":"https://teagasc.ie/wp-content/uploads/2025/05/Cross_Cutting_and_Manual_Stacking_-_IFSG_304.pdf","date":"October 2018 (Health and Safety Authority, Ireland, IFSG 304); read 2026-11-14"},
+    "skills.forestry.s4_a": {"url":"https://teagasc.ie/wp-content/uploads/2025/05/Basic_Chainsaw_Felling_-_IFSG_302.pdf","date":"October 2018 (Health and Safety Authority, Ireland, IFSG 302); read 2026-11-14"},
+    "skills.geology.s1_b": {"url":"https://www.msha.gov/stay-out-stay-alive","date":"undated (read 2026-11-14)"},
+    "skills.geology.s4_a": {"url":"https://www.nps.gov/articles/recreational-collection-of-rocks-and-minerals-legal-instruments.htm","date":"2024-01-02 (last updated)"},
+    "skills.gunnery.s1_b": {"url":"https://www.law.cornell.edu/uscode/text/18/922","date":"18 U.S.C. 922(o), current text (no date shown)"},
+    "skills.hunting.s1_a": {"url":"https://idfg.idaho.gov/press/field-hunting-safety-reminders","date":"2013-11-05"},
+    "skills.hunting.s2_a": {"url":"https://idfg.idaho.gov/hunt/education","date":"undated (read 2026-11-14)"},
+    "skills.hunting.s3_c": {"url":"docs/design/skills.md","date":"2026-11-14"},
+    "skills.hunting.s4_c": {"url":"https://www.cdc.gov/chronic-wasting/about/index.html","date":"2026-01-21"},
+    "skills.hunting.s5_b": {"url":"docs/design/skills.md","date":"2026-11-14"},
+    "skills.hvac.s3_a": {"url":"https://www.cpsc.gov/safety-education/safety-guides/carbon-monoxide/carbon-monoxide-fact-sheet","date":"no date shown on page; read 2026-11-14"},
+    "skills.hvac.s4_b": {"url":"https://www.gov.uk/guidance/qualifications-required-to-work-on-equipment-containing-f-gas","date":"dateModified 2026-03-03; read 2026-11-14"},
+    "skills.impact_weapons.s4_b": {"url":"https://www.fs.usda.gov/t-d/pubs/htmlpubs/htm99232823/page04.htm","date":"USDA Forest Service MTDC 9923-2823P (1999; no date on the page)"},
+    "skills.life_support.s2_a": {"url":"https://www.csb.gov/assets/1/6/nitrogen_asphyxiation_safety_bulletin_(6-11-03).pdf","date":"CSB Safety Bulletin No. 2003-10-B, June 2003; read 2026-11-14"},
+    "skills.logistics.s1_a": {"url":"https://www.hse.gov.uk/msd/manual-handling/good-handling-technique.htm","date":"last updated 2 April 2025; read 2026-11-14"},
+    "skills.machining.s1_a": {"url":"https://www.hse.gov.uk/engineering/getting-started.htm","date":"2025-02-24; read 2026-11-14"},
+    "skills.marksmanship.s1_a": {"url":"https://idfg.idaho.gov/press/field-hunting-safety-reminders","date":"2013-11-05"},
+    "skills.marksmanship.s2_a": {"url":"https://www.legislation.gov.uk/ukpga/1968/27/section/1","date":"Firearms Act 1968 s.1, revised text up to date to 2026-11-15"},
+    "skills.marksmanship.s3_b": {"url":"https://www.gov.uk/government/publications/firearms-security-handbook/firearms-security-handbook-2020-accessible","date":"Home Office Firearms security handbook 2020, updated 2021-01-20"},
+    "skills.masonry.s1_a": {"url":"https://www.hse.gov.uk/agriculture/dustmasks.htm","date":"updated 2024-08-07; read 2026-11-14"},
+    "skills.mechanics.s2_b": {"url":"https://www.hse.gov.uk/mvr/mechanical-repair/under-vehicles.htm","date":"2025-09-19; read 2026-11-14"},
+    "skills.mediation.s2_c": {"url":"https://www.gov.uk/looking-after-children-divorce/mediation","date":"read 2026-11-14 (no date captured)"},
+    "skills.medicine.s4_a": {"url":"https://www.cdc.gov/heads-up/response/index.html","date":"2025-09-15"},
+    "skills.metallurgy.s2_b": {"url":"https://www.hse.gov.uk/welding/health-risks-welding.htm","date":"2026-01-09; read 2026-11-14"},
+    "skills.mining.s1_a": {"url":"https://www.hse.gov.uk/agriculture/dustmasks.htm","date":"updated 2024-08-07; read 2026-11-14"},
+    "skills.mining.s3_a": {"url":"https://www.hse.gov.uk/construction/safetytopics/excavations.htm","date":"2022-02-10 (date shown on page); read 2026-11-14"},
+    "skills.nutrition.s3_b": {"url":"https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies","date":"2026-03-11 (content current as of)"},
+    "skills.nutrition.s4_a": {"url":"https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/foods-and-drinks-to-avoid-or-limit.html","date":"2026-04-14"},
+    "skills.preserving.s2_a": {"url":"https://www.cdc.gov/mmwr/volumes/68/wr/mm6844a3.htm","date":"2019-11-08"},
+    "skills.preserving.s2_b": {"url":"https://www.cdc.gov/botulism/prevention/home-canned-foods.html","date":"2024-04-25 (date shown on page)"},
+    "skills.preserving.s3_a": {"url":"https://nchfp.uga.edu/blog/why-do-you-recommend-processing-jams-and-jellies","date":"2018-05-02"},
+    "skills.preserving.s3_c": {"url":"https://www.cdc.gov/botulism/prevention/home-canned-foods.html","date":"2024-04-25 (date shown on page)"},
+    "skills.preserving.s4_c": {"url":"https://www.cdc.gov/botulism/prevention/home-canned-foods.html","date":"2024-04-25 (date shown on page)"},
+    "skills.radiation_safety.s4_b": {"url":"https://www.gov.uk/guidance/space-weather-and-radiation","date":"published 2014-01-01"},
+    "skills.radiation_safety.s4_c": {"url":"https://www.gov.uk/guidance/space-weather-and-radiation","date":"published 2014-01-01"},
+    "skills.repair.s1_a": {"url":"https://www.hse.gov.uk/electricity/faq.htm","date":"last updated 2026-05-07; read 2026-11-14"},
+    "skills.rescue.s3_a": {"url":"https://www.osha.gov/sites/default/files/publications/downed_electrical_wires.pdf","date":"OSHA fact sheet FS-3941, 02/2018"},
+    "skills.rigging.s3_a": {"url":"https://www.hse.gov.uk/pubns/indg290.pdf","date":"INDG290(rev1), published 03/13; read 2026-11-14"},
+    "skills.rigging.s4_b": {"url":"https://www.hse.gov.uk/pubns/indg290.pdf","date":"INDG290(rev1), published 03/13; read 2026-11-14"},
+    "skills.sanitation.s1_a": {"url":"https://www.cdc.gov/clean-hands/about/index.html","date":"2024-02-16"},
+    "skills.sanitation.s2_b": {"url":"https://www.cdc.gov/natural-disasters/safety/index.html","date":"2026-08-26"},
+    "skills.sanitation.s3_b": {"url":"https://www.nps.gov/articles/leave-no-trace-seven-principles.htm","date":"last updated 2022-06-16"},
+    "skills.sanitation.s4_b": {"url":"https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.146","date":"29 CFR 1910.146, current text (no date shown)"},
+    "skills.swimming.s1_a": {"url":"https://www.cdc.gov/drowning/prevention/index.html","date":"2025-09-29"},
+    "skills.swimming.s2_c": {"url":"https://www.cheshirefire.gov.uk/your-safety/water-safety/what-to-do-in-a-water-emergency/","date":"last updated 2026-05-27"},
+    "skills.tracking.s1_a": {"url":"https://www.nps.gov/yell/planyourvisit/safety.htm","date":"last updated 2026-07-28"},
+    "skills.tracking.s2_a": {"url":"https://www.cdc.gov/baylisascaris/about/index.html","date":"2024-11-05"},
+    "skills.unarmed.s3_b": {"url":"https://www.cdc.gov/heads-up/response/index.html","date":"2025-09-15"},
+    "skills.water_purification.s2_b": {"url":"https://www.cdc.gov/water-emergency/about/index.html","date":"2024-09-19"},
+    "skills.water_purification.s3_a": {"url":"https://www.cdc.gov/healthywater/drinking/travel/backcountry_water_treatment.html","date":"2025-01-30"},
+    "skills.weather.s1_b": {"url":"https://www.weather.gov/safety/lightning-tips","date":"undated (read 2026-11-14)"},
+    "skills.weather.s4_b": {"url":"https://www.weather.gov/safety/lightning-tips","date":"undated (read 2026-11-14)"},
+    "skills.welding.s2_b": {"url":"https://www.hse.gov.uk/pubns/indg314.pdf","date":"INDG314(rev1), published 05/13; read 2026-11-14"}
+  }
+}

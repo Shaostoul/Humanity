@@ -139,5 +139,17 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         state.controller.update_camera(&mut state.camera, dt);
     }
 
+    // Skills rung 1 (data/skills/practice.json): metres climbed on a ladder are climbing practice,
+    // and metres walked carrying at least a quarter of what you can carry are logistics practice.
+    let moved = state.camera.position - prev_cam_pos;
+    if moved.y > 0.0 && state.controller.in_climb_zone() {
+        humanity_systems::skills::practice_distance(&state.data_store, "climb", moved.y, None);
+    }
+    let carry = &state.gui_state.carry.input;
+    if carry.capacity_kg > 0.0 && carry.carried_kg >= 0.25 * carry.capacity_kg {
+        let walked = glam::Vec2::new(moved.x, moved.z).length();
+        humanity_systems::skills::practice_distance(&state.data_store, "carry_load", walked, None);
+    }
+
     f.prev_cam_pos = prev_cam_pos;
 }

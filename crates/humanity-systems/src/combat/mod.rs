@@ -39,13 +39,17 @@ fn damage_type_key(t: &DamageType) -> &'static str {
 /// One player melee swing at a target (v0.765): validates the target is a
 /// living creature within `range` of `caster_pos`, queues the kinetic hit on
 /// the damage_events channel, and returns the honest status line. Pure over
-/// world + channel so lib.rs's F-key bridge and the tests share one rule.
+/// world + channel so lib.rs's F-key bridge and the tests share one rule. A landed strike is
+/// practice (skills rung 1, docs/design/skills.md section 7: technique, not kills): it trains
+/// `skill`, the weapon's own (data/equipment.csv `skill`, "unarmed" for bare hands).
+#[allow(clippy::too_many_arguments)]
 pub fn player_swing(
     world: &mut hecs::World,
     data: &DataStore,
     target: hecs::Entity,
     caster_pos: glam::Vec3,
     weapon_name: &str,
+    skill: &str,
     damage: f32,
     range: f32,
 ) -> String {
@@ -79,6 +83,7 @@ pub fn player_swing(
             ));
         }
     }
+    crate::skills::practice_with(data, "landed_strike", skill, None);
     format!("{weapon_name} hits {target_name} for {damage:.0}")
 }
 
@@ -181,7 +186,7 @@ impl System for CombatSystem {
 
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
         let mut rng = rand::rng();
-        for (entity, source_name, source_is_player, killing_type) in deaths_to_handle {
+        for (entity, source_name, source_is_player, _killing_type) in deaths_to_handle {
             let is_player = world.get::<&humanity_core::ecs::components::Controllable>(entity).is_ok();
             let cause = match &source_name {
                 Some(n) => format!("killed by a {n}"),
@@ -209,15 +214,12 @@ impl System for CombatSystem {
                 continue; // players drop no loot
             }
 
-            // The player's killing blow trains a combat skill (v0.762) - the
-            // first XP source for the combat category. Kinetic kills train
-            // melee; everything else (spells, energy) trains ranged.
-            if source_is_player {
-                let skill = match killing_type {
-                    DamageType::Kinetic => "melee",
-                    _ => "ranged",
-                };
-                crate::skills::award_skill_xp(data, skill, 10);
+            // Skills rung 1 (2026-11-14, docs/design/skills.md section 7): combat skills train from
+            // technique (a landed strike trains the weapon's own skill, src/engine/frame_settles.rs),
+            // never from kills, because a count teaches nothing. A kill trains only hunting, and only
+            // of a wild animal (was: every kinetic kill trained one melee skill, the rest ranged).
+            if source_is_player && is_hunted_animal(world, data, entity) {
+                crate::skills::practice(data, "hunt_kill", None);
             }
 
             // Roll loot if the entity has a LootTable: per entry, chance
@@ -297,6 +299,18 @@ impl System for CombatSystem {
             self.active_effects.remove(&key);
         }
     }
+}
+
+/// A kill that is hunting (skills rung 1): a wild animal (creatures.csv `type` animal, hostility
+/// passive or neutral), never one of the player's own herd (a `HerdSlot`) or a hostile creature.
+fn is_hunted_animal(world: &hecs::World, data: &DataStore, entity: hecs::Entity) -> bool {
+    if world.get::<&crate::livestock::HerdSlot>(entity).is_ok() {
+        return false;
+    }
+    let Ok(c) = world.get::<&Creature>(entity) else { return false };
+    data.get::<crate::livestock::CreatureRegistry>("creature_registry")
+        .and_then(|r| r.get(&c.def_id))
+        .map_or(false, |d| d.kind == "animal" && matches!(d.hostility.as_str(), "passive" | "neutral"))
 }
 
 #[cfg(test)]
@@ -391,7 +405,10 @@ mod tests {
             .iter()
             .map(|g| (g.skill_id.clone(), g.amount))
             .collect::<Vec<_>>();
-        assert_eq!(grants, vec![("ranged".to_string(), 10)]);
+        // Skills rung 1 (skills.md section 7): a kill is not practice. Technique trains the weapon's
+        // skill (player_swing) and a kill trains only hunting, of a wild animal; this target is
+        // neither (was: every non-kinetic kill trained ranged).
+        assert!(grants.is_empty(), "a kill teaches nothing by itself: {grants:?}");
 
         // Overkill on a corpse: no double death, no double loot.
         push_hit(50.0);
@@ -469,7 +486,7 @@ mod tests {
         // Hen sits at origin (spawn_hen default Transform).
 
         // In axe range (2.2 + 0.5 tolerance) from 2m away: hit for 14.
-        let msg = player_swing(&mut world, &data, hen, Vec3::new(2.0, 0.0, 0.0), "Axe", 14.0, 2.2);
+        let msg = player_swing(&mut world, &data, hen, Vec3::new(2.0, 0.0, 0.0), "Axe", "impact_weapons", 14.0, 2.2);
         assert!(msg.contains("hits") && msg.contains("14"), "got: {msg}");
         let queued = data
             .get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events")
@@ -482,7 +499,7 @@ mod tests {
         assert!(queued[0].1.source_is_player);
 
         // Too far: refused, nothing queued.
-        let msg = player_swing(&mut world, &data, hen, Vec3::new(9.0, 0.0, 0.0), "Axe", 14.0, 2.2);
+        let msg = player_swing(&mut world, &data, hen, Vec3::new(9.0, 0.0, 0.0), "Axe", "impact_weapons", 14.0, 2.2);
         assert!(msg.contains("Out of reach"), "got: {msg}");
         let n = data
             .get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events")
@@ -494,7 +511,7 @@ mod tests {
 
         // Dead target: refused.
         world.insert_one(hen, Dead::default()).unwrap();
-        let msg = player_swing(&mut world, &data, hen, Vec3::new(1.0, 0.0, 0.0), "Axe", 14.0, 2.2);
+        let msg = player_swing(&mut world, &data, hen, Vec3::new(1.0, 0.0, 0.0), "Axe", "impact_weapons", 14.0, 2.2);
         assert!(msg.contains("Nothing in reach"), "got: {msg}");
     }
 

@@ -182,6 +182,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some(rx) = &state.guild_action_rx {
         match rx.try_recv() {
             Ok(Ok(msg)) => {
+                // Skills rung 1: joining a guild is civics practice (taught on the next tick).
+                if msg == t("guilds.joined") {
+                    humanity_systems::skills::queue_practice("join_guild");
+                }
                 state.guild_status = msg;
                 state.guild_action_rx = None;
                 // Refetch the list + open member panel so the UI shows what

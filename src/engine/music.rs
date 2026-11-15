@@ -926,7 +926,11 @@ pub(crate) fn frame(state: &mut EngineState) {
     }
     if let Some(done) = state.music.poll_export() {
         state.gui_state.music_page.export_status = match done {
-            Ok(path) => crate::gui::pages::music::ExportStatus::Done { path },
+            Ok(path) => {
+                // Skills rung 1: finishing and keeping a track is music-making practice.
+                humanity_systems::skills::practice(&state.data_store, "finish_track", None);
+                crate::gui::pages::music::ExportStatus::Done { path }
+            }
             Err(why) => crate::gui::pages::music::ExportStatus::Failed { why },
         };
     }

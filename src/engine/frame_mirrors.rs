@@ -167,25 +167,17 @@ pub(crate) fn run(state: &mut EngineState) {
                 .query::<(&PlayerSkills, &Controllable)>()
                 .iter()
             {
-                // Show EVERY defined skill with the player's progress
-                // (0 if untrained) — a complete, real skill sheet, not
-                // the old static placeholder list. Grouped by category.
+                // Show EVERY defined skill with the player's progress (0 if untrained): a complete,
+                // real skill sheet, each with its named stage, its "I can" list and the progress to
+                // the next stage (skills rung 1), in family order, then by name.
                 for (id, def) in reg.skills.iter() {
                     let prog = skills.skills.get(id);
                     let level = prog.map(|p| p.level).unwrap_or(0);
                     let xp = prog.map(|p| p.xp).unwrap_or(0);
-                    state.gui_state.skills.push(crate::gui::GuiSkill {
-                        id: id.clone(),
-                        name: def.name.clone(),
-                        category: def.category.clone(),
-                        level,
-                        xp,
-                        xp_needed: def.xp_for_level(level + 1),
-                        max_level: def.max_level,
-                    });
+                    state.gui_state.skills.push(crate::gui::GuiSkill::from_def(def, reg, level, xp));
                 }
                 state.gui_state.skills.sort_by(|a, b| {
-                    a.category.cmp(&b.category).then(a.name.cmp(&b.name))
+                    a.family_order.cmp(&b.family_order).then(a.name.cmp(&b.name))
                 });
                 break;
             }

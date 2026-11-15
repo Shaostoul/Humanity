@@ -833,20 +833,31 @@ pub struct GuiDrone {
     pub pos: [f32; 3],
 }
 
-/// A player skill (live level + XP) for GUI display, synced from the ECS
-/// PlayerSkills component each frame. `xp_needed` is the XP to reach the next
-/// level (per the skill's curve); the bar fills `xp / xp_needed`.
+/// A player skill (level, XP, its named stage) for the Skills page, built by GuiSkill::from_def
+/// (pages/profile_skills.rs) each frame in src/engine/frame_mirrors.rs. No top level.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
 pub struct GuiSkill {
     pub id: String,
     pub name: String,
-    pub category: String,
+    /// Its family id and that family's place in the page order.
+    pub family: String,
+    pub family_order: usize,
     pub level: u32,
     pub xp: u32,
     pub xp_needed: u32,
-    /// The skill's top level (for the quality a level gives, 2026-09-26).
-    pub max_level: u32,
+    /// The level its Master stage starts at (where the quality a level gives stops rising).
+    pub mastery_level: u32,
+    /// The stage reached ("untrained", "novice" .. "master") and the next one (None at Master).
+    pub stage: String,
+    pub next_stage: Option<String>,
+    /// The level the next stage starts at (0 at Master).
+    pub next_from_level: u32,
+    /// Progress from this stage's start to the next stage, 0..1.
+    pub stage_progress: f32,
+    /// The i18n keys of the "I can" statements of every stage reached, and of the next stage.
+    pub can_done: Vec<String>,
+    pub can_next: Vec<String>,
 }
 
 // GuiQuest and GuiAvailableQuest moved to gui/quest_types.rs (2026-10-30).

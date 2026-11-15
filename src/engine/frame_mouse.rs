@@ -176,6 +176,10 @@ pub(crate) fn button(state: &mut EngineState, button: winit::event::MouseButton,
                         use humanity_ship::machines::ConduitEnd;
                         if home.add_conduit_edge(ConduitEnd::Machine(src_id.clone()), ConduitEnd::Node(node_id), util.id()) {
                             state.gui_state.construction_machines_dirty = true;
+                            // Skills rung 1: running a line is that trade's practice (power:
+                            // electrical, water and waste: plumbing, data: networking, air: HVAC
+                            // and life support; data/skills/practice.json).
+                            humanity_systems::skills::practice(&state.data_store, &format!("connect.{}", util.id()), None);
                         }
                     }
                 } else if let Some(target) = port_drop_target(state, &src_id) {
@@ -187,6 +191,7 @@ pub(crate) fn button(state: &mut EngineState, button: winit::event::MouseButton,
                             };
                             if home.add_connection(&from, &to, util.id()) {
                                 state.gui_state.construction_machines_dirty = true;
+                                humanity_systems::skills::practice(&state.data_store, &format!("connect.{}", util.id()), None);
                             }
                         }
                     }

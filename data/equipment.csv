@@ -30,24 +30,27 @@
 #   hat_beanie_0 0.03 = AN ESTIMATE: neither table lists a hat; the head is
 #   about 7% of the skin and a knit cap covers about half of it.
 #   0 = no insulation to speak of (helmets, packs, tools).
-id,slot,clo,armor_kinetic,armor_thermal,armor_energy,armor_chemical,armor_radiation,damage,damage_type,range_m,stat_modifiers,description,grip
-jacket_light_0,chest,0.36,0.02,0.10,0,0.05,0,0,,0,,Windbreaker - keeps light chill off,
-jacket_heavy_0,chest,0.55,0.05,0.25,0,0.05,0,0,,0,,Insulated winter jacket,
-coat_winter_0,chest,0.70,0.05,0.35,0,0.05,0,0,,0,,Thick overcoat for hard cold,
-jumpsuit_0,chest,0.49,0.03,0.10,0.05,0.15,0,0,,0,,Utility one-piece,
-hat_beanie_0,head,0.03,0,0.05,0,0,0,0,,0,,Knit hat - warm head,
-helmet_hard_0,head,0,0.25,0.05,0,0.05,0,0,,0,,Impact protection,
-helmet_combat_0,head,0,0.45,0.10,0.10,0.05,0.05,0,,0,,Ballistic headgear,
-gloves_winter_0,hands,0.05,0,0.10,0,0,0,0,,0,,Insulated gloves,
-gloves_work_0,hands,0.05,0.10,0.05,0,0.10,0,0,,0,,Reinforced grip,
-boots_work_0,feet,0.08,0.15,0.05,0,0.10,0,0,,0,,Steel-toe boots,
-boots_hiking_0,feet,0.08,0.05,0.05,0,0.05,0,0,,0,speed:1.05:multiply,Trail boots - easy stride,
-backpack_small_0,back,0,0,0,0,0,0,0,,0,carry_capacity:10:add,Adds 10 kg of comfortable carry,
-backpack_large_0,back,0,0,0,0,0,0,0,,0,carry_capacity:25:add,Adds 25 kg of comfortable carry,
-hammer_0,grip_r,0,0,0,0,0,0,8,kinetic,2.0,,Swing it - light demolition or defense,power
-axe_0,grip_r,0,0,0,0,0,0,14,kinetic,2.2,,Felling axe - trees fear it and so should wolves,two_handed
-pickaxe_0,grip_r,0,0,0,0,0,0,12,kinetic,2.2,,Rock-breaker that doubles as a weapon,two_handed
-shovel_0,grip_r,0,0,0,0,0,0,7,kinetic,2.2,,Flat-blade earth mover with a mean swing,two_handed
-knife_utility_0,grip_r,0,0,0,0,0,0,6,kinetic,1.6,,Small blade for close work,power
-knife_combat_0,grip_r,0,0,0,0,0,0,12,kinetic,1.8,,Fixed fighting blade,power
-spear_0,grip_r,0,0,0,0,0,0,15,kinetic,3.0,,Thrusting reach - keep the wolf at pole's length,staff
+# skill: the combat skill a landed strike with it trains (skills rung 1, 2026-11-14,
+#   docs/design/skills.md section 7): blades, impact_weapons (clubs, axes and hammers), polearms
+#   (staff and spear); empty for what is not a weapon. Bare hands train unarmed.
+id,slot,clo,armor_kinetic,armor_thermal,armor_energy,armor_chemical,armor_radiation,damage,damage_type,range_m,stat_modifiers,description,grip,skill
+jacket_light_0,chest,0.36,0.02,0.10,0,0.05,0,0,,0,,Windbreaker - keeps light chill off,,
+jacket_heavy_0,chest,0.55,0.05,0.25,0,0.05,0,0,,0,,Insulated winter jacket,,
+coat_winter_0,chest,0.70,0.05,0.35,0,0.05,0,0,,0,,Thick overcoat for hard cold,,
+jumpsuit_0,chest,0.49,0.03,0.10,0.05,0.15,0,0,,0,,Utility one-piece,,
+hat_beanie_0,head,0.03,0,0.05,0,0,0,0,,0,,Knit hat - warm head,,
+helmet_hard_0,head,0,0.25,0.05,0,0.05,0,0,,0,,Impact protection,,
+helmet_combat_0,head,0,0.45,0.10,0.10,0.05,0.05,0,,0,,Ballistic headgear,,
+gloves_winter_0,hands,0.05,0,0.10,0,0,0,0,,0,,Insulated gloves,,
+gloves_work_0,hands,0.05,0.10,0.05,0,0.10,0,0,,0,,Reinforced grip,,
+boots_work_0,feet,0.08,0.15,0.05,0,0.10,0,0,,0,,Steel-toe boots,,
+boots_hiking_0,feet,0.08,0.05,0.05,0,0.05,0,0,,0,speed:1.05:multiply,Trail boots - easy stride,,
+backpack_small_0,back,0,0,0,0,0,0,0,,0,carry_capacity:10:add,Adds 10 kg of comfortable carry,,
+backpack_large_0,back,0,0,0,0,0,0,0,,0,carry_capacity:25:add,Adds 25 kg of comfortable carry,,
+hammer_0,grip_r,0,0,0,0,0,0,8,kinetic,2.0,,Swing it - light demolition or defense,power,impact_weapons
+axe_0,grip_r,0,0,0,0,0,0,14,kinetic,2.2,,Felling axe - trees fear it and so should wolves,two_handed,impact_weapons
+pickaxe_0,grip_r,0,0,0,0,0,0,12,kinetic,2.2,,Rock-breaker that doubles as a weapon,two_handed,impact_weapons
+shovel_0,grip_r,0,0,0,0,0,0,7,kinetic,2.2,,Flat-blade earth mover with a mean swing,two_handed,impact_weapons
+knife_utility_0,grip_r,0,0,0,0,0,0,6,kinetic,1.6,,Small blade for close work,power,blades
+knife_combat_0,grip_r,0,0,0,0,0,0,12,kinetic,1.8,,Fixed fighting blade,power,blades
+spear_0,grip_r,0,0,0,0,0,0,15,kinetic,3.0,,Thrusting reach - keep the wolf at pole's length,staff,polearms

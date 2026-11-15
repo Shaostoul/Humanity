@@ -328,7 +328,7 @@ fn now_block(ui: &mut egui::Ui, theme: &Theme, step: &str) {
     );
 }
 
-/// "2 Iron Ingot, 30 Metalworking XP": a quest's rewards, by name.
+/// "2 Iron Ingot, 30 Smelting and metallurgy XP": a quest's rewards, by name.
 pub(super) fn reward_list(items: &[(String, u32)], xp: &[(String, u32)]) -> String {
     let mut parts: Vec<String> = items.iter().map(|(name, n)| tf("quests.reward_item", &[("n", n), ("item", name)])).collect();
     parts.extend(xp.iter().map(|(skill, n)| tf("quests.reward_xp", &[("n", n), ("skill", skill)])));

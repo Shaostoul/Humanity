@@ -370,7 +370,6 @@
       display: flex; align-items: center; gap: var(--space-xl);
       margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border, #222);
     }
-    #tab-skills #panel-domain-icon { font-size: 2rem; line-height: 1; }
     #tab-skills #panel-domain-title { font-size: 1.4rem; font-weight: 700; }
     #tab-skills #panel-domain-desc { font-size: 0.8rem; color: var(--text-muted, #888); margin-top: var(--space-xs); }
     #tab-skills #panel-domain-overall { margin-left: auto; text-align: right; }
@@ -388,16 +387,14 @@
     #tab-skills .skill-tags { font-size: 0.65rem; color: var(--text-muted, #666); margin-top: var(--space-xs); }
     #tab-skills .skill-level-badge { font-size: 1.4rem; font-weight: 800; color: var(--skill-active-color, #ed8c24); line-height: 1; min-width: 32px; text-align: right; }
     #tab-skills .skill-level-label { font-size: 0.6rem; color: var(--text-muted, #555); text-align: right; text-transform: uppercase; }
+    #tab-skills .skill-can-head { font-size: 0.7rem; font-weight: 600; color: var(--text-muted, #888); margin: var(--space-md) 0 var(--space-xs); }
+    #tab-skills .skill-can { margin: 0 0 var(--space-md) var(--space-xl); padding: 0; font-size: 0.75rem; line-height: 1.4; }
+    #tab-skills .skill-can.next { color: var(--text-muted, #888); }
     #tab-skills .skill-desc { font-size: 0.75rem; color: var(--text-muted, #777); margin-bottom: var(--space-xl); line-height: 1.4; }
 
     #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: var(--radius-sm); margin-bottom: var(--space-xl); position: relative; }
     #tab-skills .xp-bar-fill { height: 100%; border-radius: var(--radius-sm); background: var(--skill-active-color, #ed8c24); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
     #tab-skills .xp-bar-text { position: absolute; right: 0; top: 8px; font-size: 0.6rem; color: var(--text-muted, #555); }
-
-    #tab-skills .level-steps { display: flex; gap: 3px; margin-bottom: var(--space-xl); }
-    #tab-skills .level-pip { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-secondary, #1e1e1e); cursor: pointer; transition: background 0.2s; }
-    #tab-skills .level-pip.filled { background: var(--skill-active-color, #ed8c24); }
-    #tab-skills .level-pip:hover { opacity: 0.8; }
 
     #tab-skills .xp-actions { display: flex; gap: var(--space-md); align-items: center; }
     #tab-skills .xp-btn {
@@ -869,30 +866,28 @@
       <div class="prof-tab" id="tab-skills">
         <div class="section-header personal">
           <div>
-            <h2><span data-icon="dot-green" data-size="16"></span> Skills</h2>
-            <p>Track what you're learning, see how far you've come, and discover new things to get better at.</p>
+            <h2><span data-icon="dot-green" data-size="16"></span> <span data-i18n="skills_page.title">Skills</span></h2>
+            <p data-i18n="skills_page.web_intro">The same skills and stages as the game, for your real life: choose the stage you have reached in each skill and log your practice. It stays in this browser.</p>
           </div>
         </div>
         <div id="skills-app">
           <nav id="domain-sidebar">
-            <h2>Domains</h2>
+            <h2 data-i18n="skills_page.families">Families</h2>
             <div id="domain-list"></div>
           </nav>
           <main id="skill-panel">
             <div id="empty-state">
-              <div class="big">🧠</div>
-              <p>Select a domain to view skills</p>
+              <p data-i18n="skills_page.pick_family">Choose a family to see its skills.</p>
             </div>
             <div id="domain-content" style="display:none">
               <div id="skill-panel-header">
-                <div id="panel-domain-icon"></div>
                 <div>
                   <div id="panel-domain-title"></div>
                   <div id="panel-domain-desc"></div>
                 </div>
                 <div id="panel-domain-overall">
                   <div class="big-level" id="panel-avg-level">0</div>
-                  <div class="big-label">Domain Avg</div>
+                  <div class="big-label" data-i18n="skills_page.practised">Practised</div>
                 </div>
               </div>
               <div class="skill-grid" id="skill-grid"></div>
@@ -1436,122 +1431,27 @@
     // Skills tab, domains, XP, endorsements
     // ═══════════════════════════════════════════════════════
 
-    var SKILL_DOMAINS = [
-      {
-        id: 'life', icon: '🧬', label: 'Life Sciences', color: '#2ecc71',
-        desc: 'Biology, health, medicine, ecology, and agriculture',
-        skills: [
-          { id: 'health',      name: 'Health & Wellness',  tags: 'anatomy, physiology, first aid',     desc: 'Understanding and maintaining the human body, nutrition basics, first aid, physical wellness habits.' },
-          { id: 'medicine',    name: 'Medicine',            tags: 'diagnosis, pharmacology, surgery',   desc: 'Clinical knowledge: identifying illness, medications, procedures, and patient care.' },
-          { id: 'biology',     name: 'Biology',             tags: 'cells, genetics, evolution',         desc: 'Living systems from cellular biology and genetics to evolution and ecological relationships.' },
-          { id: 'agriculture', name: 'Agriculture',         tags: 'farming, horticulture, soil',        desc: 'Growing food and managing land, soil science, crop cycles, livestock, and permaculture.' },
-          { id: 'ecology',     name: 'Ecology',             tags: 'ecosystems, conservation, climate',  desc: 'Interactions between organisms and environments, biodiversity, and conservation practice.' },
-        ]
-      },
-      {
-        id: 'science', icon: '🔭', label: 'Physical Science', color: '#3498db',
-        desc: 'Physics, chemistry, earth science, and astronomy',
-        skills: [
-          { id: 'physics',    name: 'Physics',        tags: 'mechanics, energy, electromagnetism',  desc: 'Laws governing motion, forces, energy, waves, and electromagnetism, from Newtonian to quantum.' },
-          { id: 'chemistry',  name: 'Chemistry',      tags: 'reactions, materials, thermodynamics', desc: 'Atomic structure, chemical reactions, bonding, and materials science.' },
-          { id: 'earth',      name: 'Earth Science',  tags: 'geology, meteorology, hydrology',      desc: 'Geologic processes, weather systems, oceans, and the dynamic Earth.' },
-          { id: 'astronomy',  name: 'Astronomy',      tags: 'cosmology, astrophysics, navigation',  desc: 'Stars, galaxies, celestial mechanics, cosmology, and observational astronomy.' },
-          { id: 'research',   name: 'Research',       tags: 'scientific method, data, peer review', desc: 'Designing experiments, gathering evidence, statistical analysis, and writing scientific findings.' },
-        ]
-      },
-      {
-        id: 'math', icon: '📐', label: 'Mathematics', color: '#9b59b6',
-        desc: 'From arithmetic to calculus and statistics',
-        skills: [
-          { id: 'arithmetic',  name: 'Arithmetic',    tags: 'numbers, fractions, percentages',     desc: 'Foundational number sense: operations, fractions, ratios, percentages, and mental math.' },
-          { id: 'algebra',     name: 'Algebra',       tags: 'equations, functions, variables',     desc: 'Symbolic reasoning, solving equations, graphing functions, and working with variables.' },
-          { id: 'geometry',    name: 'Geometry',      tags: 'shapes, proofs, trigonometry',        desc: 'Spatial reasoning, coordinate geometry, trigonometry, and geometric proofs.' },
-          { id: 'calculus',    name: 'Calculus',      tags: 'derivatives, integrals, limits',      desc: 'Rates of change and accumulation, differentiation, integration, and their applications.' },
-          { id: 'statistics',  name: 'Statistics',    tags: 'probability, data analysis, models',  desc: 'Probability theory, statistical inference, distributions, and data-driven decision making.' },
-        ]
-      },
-      {
-        id: 'technology', icon: '💻', label: 'Technology', color: '#1abc9c',
-        desc: 'Computing, programming, networks, and AI',
-        skills: [
-          { id: 'computing',     name: 'Computing',      tags: 'OS, hardware, security',           desc: 'How computers work, hardware, operating systems, file systems, and cybersecurity basics.' },
-          { id: 'programming',   name: 'Programming',    tags: 'code, algorithms, data structures', desc: 'Writing software: logic, algorithms, data structures, debugging, and multiple languages.' },
-          { id: 'electronics',   name: 'Electronics',    tags: 'circuits, sensors, microcontrollers', desc: 'Electronic circuits, component reading, microcontrollers (Arduino/Pi), and PCB basics.' },
-          { id: 'networks',      name: 'Networks',       tags: 'TCP/IP, protocols, infrastructure',  desc: 'How data moves: protocols, routing, wireless, and building/maintaining networks.' },
-          { id: 'ai',            name: 'AI & Data',      tags: 'machine learning, models, analytics', desc: 'Foundations of machine learning, neural networks, data pipelines, and AI ethics.' },
-        ]
-      },
-      {
-        id: 'engineering', icon: hosIcon('settings', 16), label: 'Engineering', color: '#e67e22',
-        desc: 'Designing and building systems that work',
-        skills: [
-          { id: 'mechanical',   name: 'Mechanical Eng.',  tags: 'machines, thermodynamics, CAD',    desc: 'Designing mechanical systems: statics, dynamics, thermodynamics, and CAD modeling.' },
-          { id: 'electrical',   name: 'Electrical Eng.',  tags: 'power, control, signals',          desc: 'Power systems, control engineering, signal processing, and electrical design.' },
-          { id: 'civil',        name: 'Civil Eng.',        tags: 'structures, infrastructure, GIS',  desc: 'Bridges, buildings, roads, water systems, load analysis and structural design.' },
-          { id: 'chemical',     name: 'Chemical Eng.',     tags: 'processes, materials, reactions',  desc: 'Industrial chemical processes, reactor design, separation techniques, and safety.' },
-          { id: 'systems',      name: 'Systems Eng.',      tags: 'design, integration, lifecycle',   desc: 'Holistic design thinking, requirements, architecture, integration, and lifecycle management.' },
-        ]
-      },
-      {
-        id: 'trades', icon: '🔨', label: 'Trades & Making', color: '#e74c3c',
-        desc: 'Hands-on crafts, construction, and fabrication',
-        skills: [
-          { id: 'construction', name: 'Construction',    tags: 'framing, masonry, roofing',           desc: 'Building structures from framing and foundations to masonry, roofing, and finishing.' },
-          { id: 'plumbing',     name: 'Plumbing',        tags: 'pipes, fixtures, water systems',      desc: 'Installing and repairing water supply, drainage, and fixture systems.' },
-          { id: 'electrical_t', name: 'Electrical Trade', tags: 'wiring, panels, codes',             desc: 'Residential and commercial wiring, panel work, conduit, and NEC code compliance.' },
-          { id: 'metalwork',    name: 'Metalworking',    tags: 'welding, machining, fabrication',     desc: 'Shaping metal via welding, cutting, turning, milling, and casting.' },
-          { id: 'woodwork',     name: 'Woodworking',     tags: 'joinery, furniture, finishing',       desc: 'Hand tools and power tools for furniture making, joinery, and wood finishing.' },
-          { id: 'textiles',     name: 'Textiles',        tags: 'sewing, knitting, weaving, repair',   desc: 'Fabric arts: sewing garments, knitting, weaving, embroidery, and clothing repair.' },
-        ]
-      },
-      {
-        id: 'arts', icon: '🎨', label: 'Arts & Expression', color: '#e91e8c',
-        desc: 'Visual arts, music, writing, design, and performance',
-        skills: [
-          { id: 'visual_art',  name: 'Visual Art',    tags: 'drawing, painting, sculpture',         desc: 'Drawing, painting, printmaking, and sculpture, form, color, composition, and technique.' },
-          { id: 'music',       name: 'Music',         tags: 'theory, instruments, production',      desc: 'Music theory, playing instruments, ear training, composition, and audio production.' },
-          { id: 'writing',     name: 'Writing',       tags: 'prose, poetry, journalism, storytelling', desc: 'Crafting clear, compelling text, fiction, non-fiction, poetry, and technical writing.' },
-          { id: 'design',      name: 'Design',        tags: 'UX, graphic, typography, branding',    desc: 'Visual communication: graphic design, UI/UX, typography, and branding principles.' },
-          { id: 'photo_video', name: 'Photo & Video', tags: 'composition, lighting, editing',       desc: 'Photography composition, camera settings, lighting, and video production/editing.' },
-          { id: 'performance', name: 'Performance',   tags: 'acting, dance, public speaking',       desc: 'Expressing through the body and voice: acting, dance, comedy, and public speaking.' },
-        ]
-      },
-      {
-        id: 'mind', icon: '🧠', label: 'Mind & Communication', color: '#ff9800',
-        desc: 'Thinking, communicating, leading, and understanding',
-        skills: [
-          { id: 'critical',    name: 'Critical Thinking', tags: 'logic, reasoning, argumentation',   desc: 'Evaluating evidence, identifying fallacies, building sound arguments, and problem solving.' },
-          { id: 'languages',   name: 'Languages',          tags: 'linguistics, foreign language',     desc: 'Learning additional languages, linguistics, translation, and intercultural communication.' },
-          { id: 'teaching',    name: 'Teaching',            tags: 'pedagogy, curriculum, coaching',   desc: 'Designing learning experiences, explaining concepts clearly, and mentoring others.' },
-          { id: 'leadership',  name: 'Leadership',          tags: 'management, strategy, teams',      desc: 'Guiding groups toward goals: decision-making, delegation, conflict resolution, and strategy.' },
-          { id: 'economics',   name: 'Economics',           tags: 'markets, finance, policy',         desc: 'How resources are allocated: micro/macroeconomics, personal finance, and economic policy.' },
-          { id: 'philosophy',  name: 'Philosophy',          tags: 'ethics, epistemology, logic',      desc: 'Big questions about existence, knowledge, values, and ethics, both Western and non-Western.' },
-        ]
-      },
-      {
-        id: 'body', icon: '💪', label: 'Body & Fitness', color: '#4caf50',
-        desc: 'Physical capability, nutrition, and survival',
-        skills: [
-          { id: 'strength',    name: 'Strength',      tags: 'weightlifting, calisthenics, power',    desc: 'Building muscular strength and power through resistance training and progressive overload.' },
-          { id: 'endurance',   name: 'Endurance',     tags: 'cardio, running, cycling, stamina',     desc: 'Cardiovascular fitness, running, cycling, swimming, and sustained effort over time.' },
-          { id: 'agility',     name: 'Agility',       tags: 'flexibility, balance, coordination',    desc: 'Mobility, flexibility, balance, reaction speed, and body coordination.' },
-          { id: 'nutrition',   name: 'Nutrition',     tags: 'macros, diet, cooking',                 desc: 'Food science, macronutrients, meal planning, cooking skills, and dietary strategy.' },
-          { id: 'survival',    name: 'Survival',      tags: 'wilderness, navigation, preparedness',  desc: 'Wilderness skills, navigation, shelter, fire-making, first aid, and emergency preparedness.' },
-        ]
-      },
-    ];
+    // ── The skills base set (skills rung 1, 2026-11-14, docs/design/skills.md) ──
+    // The same skills, families and named stages as the game, read from data/skills/ (skills.csv,
+    // families.json, stages.json); every word comes from data/i18n/en.json by key. This tab is the
+    // real-life twin (skills.md section 5): your own record of where you stand, kept in this browser.
+    // The native twin is the Skills section of Profile in the app (src/gui/pages/profile_skills.rs).
+    var SKILLS = [];          // [{ id, family, base, ladder: [{ stage, from_level, can: [keys] }] }]
+    var SKILL_FAMILIES = [];  // family ids, in page order
+    var SKILL_STAGES = [];    // stage ids, Untrained first
 
     // XP curve lives in data/skills/xp_curve.json (shared with the tasks page, and the game's
-    // rule, BUG-248); the literals below are only the offline fallback, held to the file by
-    // scripts/tests/xp-curve-web.test.js.
+    // rule, BUG-248): its first levels as a table, and past the table the same formula, base x
+    // level^1.5, because there is no top level. The literals below are only the offline fallback,
+    // held to the file by scripts/tests/xp-curve-web.test.js.
     var SKILL_XP_PER_LEVEL = [100, 282, 519, 800, 1118, 1469, 1852, 2262, 2700, 3162];
-    var SKILL_MAX_LEVEL = 10;
+    var SKILL_XP_BASE = 100;
     fetch('/data/skills/xp_curve.json')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (d && Array.isArray(d.xp_per_level) && d.xp_per_level.length) {
           SKILL_XP_PER_LEVEL = d.xp_per_level;
-          SKILL_MAX_LEVEL = d.max_level || d.xp_per_level.length;
+          SKILL_XP_BASE = d.base || SKILL_XP_BASE;
         }
       })
       .catch(function () { /* offline: keep the fallback */ });
@@ -1559,7 +1459,9 @@
 
     var skillData = {};
     var skillEndorsements = {};
-    var skill_activeDomain = null;
+    var skill_activeFamily = null;
+
+    function skill_t(key, vars) { return (window.i18n && i18n.t) ? i18n.t(key, vars) : key; }
 
     function skill_loadData() {
       try {
@@ -1569,7 +1471,7 @@
     }
 
     function skill_saveData() {
-      localStorage.setItem(SKILL_STORAGE_KEY, JSON.stringify(skillData));
+      try { localStorage.setItem(SKILL_STORAGE_KEY, JSON.stringify(skillData)); } catch (e) { /* storage blocked */ }
     }
 
     function skill_get(id) {
@@ -1577,165 +1479,203 @@
       return skillData[id];
     }
 
-    function skill_xpForLevel(level) {
-      if (level >= SKILL_MAX_LEVEL) return Infinity;
-      return SKILL_XP_PER_LEVEL[level] || 100;
+    function skill_getById(id) {
+      for (var i = 0; i < SKILLS.length; i++) if (SKILLS[i].id === id) return SKILLS[i];
+      return null;
     }
 
+    /** XP to go from `level` to `level + 1` for a skill of XP base `base` (no top level). */
+    function skill_xpForLevel(level, base) {
+      var b = base || SKILL_XP_BASE;
+      if (b === SKILL_XP_BASE && SKILL_XP_PER_LEVEL[level]) return SKILL_XP_PER_LEVEL[level];
+      return Math.floor(b * Math.pow(level + 1, 1.5));
+    }
+
+    /** How many stages of the skill's ladder `level` has reached (0 = Untrained). */
+    function skill_stageIndex(sk, level) {
+      var n = 0;
+      for (var i = 0; i < sk.ladder.length; i++) if (level >= sk.ladder[i].from_level) n++;
+      return n;
+    }
+
+    /** Progress 0..1 from the start of the stage `level` is in to the next stage. */
+    function skill_stageProgress(sk, level, xp) {
+      var i = skill_stageIndex(sk, level);
+      var next = sk.ladder[i];
+      if (!next) return 1;
+      var start = i > 0 ? sk.ladder[i - 1].from_level : 0;
+      var need = 0, done = xp;
+      for (var l = start; l < next.from_level; l++) need += skill_xpForLevel(l, sk.base);
+      for (var m = start; m < level; m++) done += skill_xpForLevel(m, sk.base);
+      return need > 0 ? Math.min(1, done / need) : 1;
+    }
+
+    function skill_stageName(stage) { return skill_t('skill_stages.' + stage + '.name'); }
+
     function skill_addXp(skillId, amount, cardEl) {
+      var sk = skill_getById(skillId);
+      if (!sk) return;
       var s = skill_get(skillId);
-      if (s.level >= SKILL_MAX_LEVEL) { skill_showToast('Max level reached!'); return; }
+      var before = skill_stageIndex(sk, s.level);
       s.xp += amount;
       var leveled = false;
-      while (s.level < SKILL_MAX_LEVEL && s.xp >= skill_xpForLevel(s.level)) {
-        s.xp -= skill_xpForLevel(s.level);
+      while (s.xp >= skill_xpForLevel(s.level, sk.base)) {
+        s.xp -= skill_xpForLevel(s.level, sk.base);
         s.level++;
         leveled = true;
       }
       skill_saveData();
       skill_refreshCard(skillId, cardEl);
       if (leveled) {
-        cardEl.classList.remove('levelup');
-        void cardEl.offsetWidth;
-        cardEl.classList.add('levelup');
-        skill_showToast('Level up! ' + skill_getById(skillId).name + ' → Lv ' + s.level);
+        cardEl = document.getElementById('card-' + skillId);
+        if (cardEl) { cardEl.classList.remove('levelup'); void cardEl.offsetWidth; cardEl.classList.add('levelup'); }
+        var after = skill_stageIndex(sk, s.level);
+        skill_showToast(after > before
+          ? skill_t('skills_page.stage_up', { skill: skill_t('skills.' + skillId + '.name'), stage: skill_stageName(sk.ladder[after - 1].stage) })
+          : skill_t('skills_page.level_up', { skill: skill_t('skills.' + skillId + '.name'), level: s.level }));
       }
       skill_renderSidebar();
     }
 
-    function skill_setLevel(skillId, level, cardEl) {
+    /** Self-assessment: put the skill at the start of the chosen stage. */
+    function skill_setStage(skillId, stageIdx, cardEl) {
+      var sk = skill_getById(skillId);
+      if (!sk) return;
       var s = skill_get(skillId);
-      s.level = Math.max(0, Math.min(SKILL_MAX_LEVEL, level));
+      s.level = stageIdx > 0 && sk.ladder[stageIdx - 1] ? sk.ladder[stageIdx - 1].from_level : 0;
       s.xp = 0;
       skill_saveData();
       skill_refreshCard(skillId, cardEl);
       skill_renderSidebar();
     }
 
-    function skill_getById(id) {
-      for (var i = 0; i < SKILL_DOMAINS.length; i++) {
-        for (var j = 0; j < SKILL_DOMAINS[i].skills.length; j++) {
-          if (SKILL_DOMAINS[i].skills[j].id === id) return SKILL_DOMAINS[i].skills[j];
-        }
-      }
-      return null;
-    }
+    function skill_familySkills(fam) { return SKILLS.filter(function (s) { return s.family === fam; }); }
 
-    function skill_domainAvg(domain) {
-      var total = 0;
-      for (var i = 0; i < domain.skills.length; i++) total += skill_get(domain.skills[i].id).level;
-      return total / domain.skills.length;
+    function skill_practised(fam) {
+      return skill_familySkills(fam).filter(function (s) { var p = skill_get(s.id); return p.level > 0 || p.xp > 0; }).length;
     }
 
     function skill_renderSidebar() {
       var list = document.getElementById('domain-list');
       if (!list) return;
-      list.innerHTML = SKILL_DOMAINS.map(function(d) {
-        var avg = skill_domainAvg(d);
-        var pct = (avg / SKILL_MAX_LEVEL * 100).toFixed(1);
-        var isActive = skill_activeDomain && skill_activeDomain.id === d.id;
-        return '<div class="domain-item' + (isActive ? ' active' : '') + '" style="--domain-color:' + d.color + '" data-id="' + d.id + '" onclick="skill_selectDomain(\'' + d.id + '\')">' +
+      list.innerHTML = SKILL_FAMILIES.map(function (f) {
+        var total = skill_familySkills(f).length;
+        var done = skill_practised(f);
+        var pct = total ? (done / total * 100).toFixed(1) : 0;
+        var isActive = skill_activeFamily === f;
+        return '<div class="domain-item' + (isActive ? ' active' : '') + '" style="--domain-color:var(--accent)" data-id="' + f + '" role="button" tabindex="0"' +
+          ' data-i18n-tip="skills_page.family_hint" data-tip-desc="' + skill_t('skills_page.family_hint') + '" onclick="skill_selectFamily(\'' + f + '\')">' +
           '<div class="domain-dot"></div>' +
           '<div style="flex:1;min-width:0">' +
-            '<div class="domain-name">' + d.label + '</div>' +
+            '<div class="domain-name">' + skill_t('skill_families.' + f + '.name') + '</div>' +
             '<div class="domain-bar-wrap"><div class="domain-bar-fill" style="width:' + pct + '%"></div></div>' +
           '</div>' +
-          '<div class="domain-avg">' + avg.toFixed(1) + '</div>' +
+          '<div class="domain-avg">' + done + '/' + total + '</div>' +
         '</div>';
       }).join('');
-      if (skill_activeDomain) {
-        var avgEl = document.getElementById('panel-avg-level');
-        if (avgEl) avgEl.textContent = skill_domainAvg(skill_activeDomain).toFixed(1);
+      if (skill_activeFamily) {
+        var countEl = document.getElementById('panel-avg-level');
+        if (countEl) countEl.textContent = skill_practised(skill_activeFamily) + '/' + skill_familySkills(skill_activeFamily).length;
       }
     }
 
-    function skill_selectDomain(id) {
-      skill_activeDomain = SKILL_DOMAINS.find(function(d) { return d.id === id; });
+    function skill_selectFamily(fam) {
+      if (SKILL_FAMILIES.indexOf(fam) < 0) return;
+      skill_activeFamily = fam;
       var emptyEl = document.getElementById('empty-state');
       var contentEl = document.getElementById('domain-content');
       if (emptyEl) emptyEl.style.display = 'none';
       if (contentEl) contentEl.style.display = 'block';
-      document.getElementById('tab-skills').style.setProperty('--skill-active-color', skill_activeDomain.color);
-
-      document.getElementById('panel-domain-icon').textContent = skill_activeDomain.icon;
-      document.getElementById('panel-domain-title').textContent = skill_activeDomain.label;
-      document.getElementById('panel-domain-desc').textContent = skill_activeDomain.desc;
-
-      var avg = skill_domainAvg(skill_activeDomain);
-      document.getElementById('panel-avg-level').textContent = avg.toFixed(1);
-
-      skill_renderGrid(skill_activeDomain);
+      document.getElementById('panel-domain-title').textContent = skill_t('skill_families.' + fam + '.name');
+      document.getElementById('panel-domain-desc').textContent = skill_t('skill_families.' + fam + '.desc');
+      skill_renderGrid(fam);
       skill_renderSidebar();
-      localStorage.setItem('hos_skills_last_domain', id);
+      try { localStorage.setItem('hos_skills_last_family', fam); } catch (e) { /* storage blocked */ }
     }
 
-    function skill_renderGrid(domain) {
+    function skill_renderGrid(fam) {
       var grid = document.getElementById('skill-grid');
       if (!grid) return;
-      grid.innerHTML = domain.skills.map(function(sk) { return skill_buildCard(sk, domain.color); }).join('');
+      grid.innerHTML = skill_familySkills(fam).map(skill_buildCard).join('');
     }
 
-    function skill_buildCard(skill, color) {
-      var s = skill_get(skill.id);
-      var needed = skill_xpForLevel(s.level);
-      var xpPct = s.level >= SKILL_MAX_LEVEL ? 100 : Math.min(100, (s.xp / needed * 100));
-      var pips = '';
-      for (var i = 0; i < SKILL_MAX_LEVEL; i++) {
-        pips += '<div class="level-pip' + (i < s.level ? ' filled' : '') + '" onclick="skill_pipClick(\'' + skill.id + '\', ' + (i+1) + ', this)"></div>';
-      }
+    function skill_list(keys, cls) {
+      return '<ul class="skill-can ' + cls + '">' + keys.map(function (k) { return '<li>' + skill_t(k) + '</li>'; }).join('') + '</ul>';
+    }
 
-      var endorsement = skillEndorsements[skill.id.toLowerCase()];
+    function skill_buildCard(sk) {
+      var s = skill_get(sk.id);
+      var reached = skill_stageIndex(sk, s.level);
+      var stage = reached > 0 ? sk.ladder[reached - 1].stage : 'untrained';
+      var next = sk.ladder[reached];
+      var pct = (skill_stageProgress(sk, s.level, s.xp) * 100).toFixed(1);
+      var name = skill_t('skills.' + sk.id + '.name');
+      var done = [];
+      for (var i = 0; i < reached; i++) done = done.concat(sk.ladder[i].can);
+      var endorsement = skillEndorsements[sk.id];
       var endorseBadge = endorsement && endorsement.count > 0
-        ? '<span style="font-size:0.7rem;color:var(--pg-gold-ink);margin-top:var(--space-xs);display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
+        ? '<span style="font-size:0.7rem;color:var(--pg-gold-ink);margin-top:var(--space-xs);display:block;">🏅 ' + endorsement.count + '</span>'
         : '';
-
-      return '<div class="skill-card" id="card-' + skill.id + '">' +
+      var stageOptions = SKILL_STAGES.map(function (st, idx) {
+        return '<option value="' + idx + '"' + (idx === reached ? ' selected' : '') + '>' + skill_stageName(st) + '</option>';
+      }).join('');
+      var practise = function (n) {
+        return '<button class="xp-btn" data-i18n-tip="skills_page.log_practice_hint" data-tip-desc="' + skill_t('skills_page.log_practice_hint') + '"' +
+          ' onclick="skill_addXp(\'' + sk.id + '\', ' + n + ', document.getElementById(\'card-' + sk.id + '\'))">' + skill_t('skills_page.log_practice', { xp: n }) + '</button>';
+      };
+      return '<div class="skill-card" id="card-' + sk.id + '">' +
         '<div class="skill-card-header">' +
           '<div>' +
-            '<div class="skill-name">' + skill.name + '</div>' +
-            '<div class="skill-tags">' + skill.tags + '</div>' +
+            '<div class="skill-name">' + name + '</div>' +
+            '<div class="skill-tags">' + skill_t('skills_page.stage_level', { stage: skill_stageName(stage), level: s.level }) + '</div>' +
           '</div>' +
-          '<div style="text-align:center">' +
-            '<div class="skill-level-badge">' + s.level + '</div>' +
-            '<div class="skill-level-label">Level</div>' +
-            endorseBadge +
-          '</div>' +
+          '<div style="text-align:center">' + endorseBadge + '</div>' +
         '</div>' +
-        '<div class="skill-desc">' + skill.desc + '</div>' +
-        '<div class="level-steps">' + pips + '</div>' +
-        '<div class="xp-bar-wrap">' +
-          '<div class="xp-bar-fill" style="width:' + xpPct + '%"></div>' +
-          '<div class="xp-bar-text">' + (s.level >= SKILL_MAX_LEVEL ? 'MAX' : s.xp + '/' + needed + ' XP') + '</div>' +
+        '<div class="skill-desc">' + skill_t('skills.' + sk.id + '.desc') + '</div>' +
+        '<div class="xp-bar-wrap" data-i18n-tip="skills_page.progress_hint" data-tip-desc="' + skill_t('skills_page.progress_hint') + '">' +
+          '<div class="xp-bar-fill" style="width:' + pct + '%"></div>' +
+          '<div class="xp-bar-text">' + (next ? skill_t('skills_page.next_stage', { stage: skill_stageName(next.stage), level: next.from_level }) : skill_t('skills_page.at_master')) + '</div>' +
         '</div>' +
+        (done.length
+          ? '<div class="skill-can-head">' + skill_t('skills_page.can_now') + '</div>' + skill_list(done, 'done')
+          : '<div class="skill-can-head">' + skill_t('skills_page.untrained_web') + '</div>') +
+        (next ? '<div class="skill-can-head">' + skill_t('skills_page.can_next', { stage: skill_stageName(next.stage) }) + '</div>' + skill_list(next.can, 'next') : '') +
         '<div class="xp-actions">' +
-          '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 10, document.getElementById(\'card-' + skill.id + '\'))">+10 XP</button>' +
-          '<button class="xp-btn primary" onclick="skill_addXp(\'' + skill.id + '\', 50, document.getElementById(\'card-' + skill.id + '\'))">+50 XP</button>' +
-          '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 100, document.getElementById(\'card-' + skill.id + '\'))">+100 XP</button>' +
-          '<span class="xp-current">' + (s.level >= SKILL_MAX_LEVEL ? '✓ Mastered' : 'Total XP: ' + skill_totalXp(skill.id)) + '</span>' +
-          '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" title="Find community members with this skill" onclick="skill_findUsers(\'' + skill.id + '\', \'' + skill.name.replace(/'/g, "\\'") + '\')">' + hosIcon('users', 14) + ' Find</button>' +
+          '<label class="xp-current">' + skill_t('skills_page.my_stage') + ' ' +
+            '<select data-i18n-tip="skills_page.my_stage_hint" data-tip-desc="' + skill_t('skills_page.my_stage_hint') + '"' +
+            ' onchange="skill_setStage(\'' + sk.id + '\', Number(this.value), document.getElementById(\'card-' + sk.id + '\'))">' + stageOptions + '</select>' +
+          '</label>' +
+          practise(10) + practise(50) +
+          '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" data-i18n-tip="skills_page.find_hint" data-tip-desc="' + skill_t('skills_page.find_hint') + '"' +
+          ' onclick="skill_findUsers(\'' + sk.id + '\', \'' + name.replace(/'/g, "\\'") + '\')">' + hosIcon('users', 14) + ' ' + skill_t('skills_page.find') + '</button>' +
         '</div>' +
       '</div>';
     }
 
-    function skill_pipClick(skillId, level, pipEl) {
-      var cardEl = document.getElementById('card-' + skillId);
-      var s = skill_get(skillId);
-      var newLevel = s.level === level ? level - 1 : level;
-      skill_setLevel(skillId, newLevel, cardEl);
-    }
-
     function skill_refreshCard(skillId, cardEl) {
-      var skill = skill_getById(skillId);
-      if (!skill) return;
-      var color = skill_activeDomain ? skill_activeDomain.color : '#ed8c24';
-      cardEl.outerHTML = skill_buildCard(skill, color);
+      var sk = skill_getById(skillId);
+      if (!sk || !cardEl) return;
+      cardEl.outerHTML = skill_buildCard(sk);
     }
 
-    function skill_totalXp(skillId) {
-      var s = skill_get(skillId);
-      var total = s.xp;
-      for (var i = 0; i < s.level; i++) total += SKILL_XP_PER_LEVEL[i] || 0;
-      return total;
+    /** Read the base set: the rows, the family order and every skill's ladder. */
+    function skill_loadBaseSet() {
+      var text = function (u) { return fetch(u).then(function (r) { return r.ok ? r.text() : ''; }); };
+      return Promise.all([text('/data/skills/skills.csv'), text('/data/skills/families.json'), text('/data/skills/stages.json')])
+        .then(function (parts) {
+          var stages = JSON.parse(parts[2] || '{}');
+          SKILL_FAMILIES = (JSON.parse(parts[1] || '{}').families || []).map(function (f) { return f.id; });
+          SKILL_STAGES = (stages.stages || []).map(function (s) { return s.id; });
+          var lines = parts[0].split(/\r?\n/).filter(function (l) { return l && l.charAt(0) !== '#'; });
+          var head = (lines.shift() || '').split(',');
+          var col = function (name) { return head.indexOf(name); };
+          SKILLS = lines.map(function (l) {
+            var c = l.split(',');
+            return { id: c[col('id')], family: c[col('family')], base: Number(c[col('xp_per_level')]) || SKILL_XP_BASE,
+                     ladder: (stages.ladders || {})[c[col('id')]] || [] };
+          }).sort(function (a, b) { return skill_t('skills.' + a.id + '.name').localeCompare(skill_t('skills.' + b.id + '.name')); });
+        })
+        .catch(function () { /* offline: the tab stays on its empty state */ });
     }
 
     var skillToastTimer = null;
@@ -1796,7 +1736,7 @@
         var e = data.endorsements[i];
         skillEndorsements[e.skill_id.toLowerCase()] = { count: e.count, last_endorser: e.last_endorser };
       }
-      if (skill_activeDomain) skill_renderGrid(skill_activeDomain);
+      if (skill_activeFamily) skill_renderGrid(skill_activeFamily);
     };
 
     /** Request endorsement counts from relay if connected */
@@ -1849,13 +1789,12 @@
 
     // ── Skills init ──
     skill_loadData();
-    skill_renderSidebar();
-
-    // Auto-select last used domain
-    var lastSkillDomain = localStorage.getItem('hos_skills_last_domain');
-    if (lastSkillDomain && SKILL_DOMAINS.find(function(d) { return d.id === lastSkillDomain; })) {
-      skill_selectDomain(lastSkillDomain);
-    }
+    skill_loadBaseSet().then(function () {
+      skill_renderSidebar();
+      var last = null;
+      try { last = localStorage.getItem('hos_skills_last_family'); } catch (e) { /* storage blocked */ }
+      if (SKILL_FAMILIES.length) skill_selectFamily(last && SKILL_FAMILIES.indexOf(last) >= 0 ? last : SKILL_FAMILIES[0]);
+    });
 
     // Try loading endorsements after connection delay
     setTimeout(skill_loadEndorsements, 3000);

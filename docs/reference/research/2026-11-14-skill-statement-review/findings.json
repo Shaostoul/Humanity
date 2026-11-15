@@ -1,0 +1,3112 @@
+{
+  "_doc": "The 2026-11-14 adversarial review of the skills' \"I can\" statements: every finding (key, stage, severity, problem, the statement as it was, why, the reviewer's correction, its source with url, date and quotation) and its outcome. applied: the changes made (reworded, moved to another stage under a new key, or added as a new key) with the words now in data/i18n/en.json; rejected: the reason. The README in this folder is the readable form. crates/humanity-systems/src/skills/statement_review_tests.rs holds the data to it.",
+  "reviewed": "2026-11-14",
+  "checked": {
+    "A": 198,
+    "B": 153,
+    "C": 459
+  },
+  "findings": [
+    {
+      "group": "A",
+      "key": "skills.first_aid.s3_a",
+      "skill": "first_aid",
+      "stage": "competent",
+      "severity": "high",
+      "problem": "safety",
+      "statement": "I can check whether a person is responding and breathing, and place them in the recovery position.",
+      "why": "Read literally, the check always ends in the recovery position, whatever it finds. A person who is unresponsive and NOT breathing normally (occasional gasps are common early in cardiac arrest and do not count) needs an emergency call and CPR at once; rolling them into the recovery position instead delays CPR. The recovery position is only for someone unresponsive but breathing normally. St John Ambulance's CPR page (clinically reviewed 2026-09-18, https://www.sja.org.uk/first-aid-advice/cpr/): \"Ignore occasional, irregular gasps - these are common in the early stages of cardiac arrest.\" and \"If they are not breathing normally, start CPR\".",
+      "correct": "I can check whether a person is responding and breathing normally. If they are unresponsive but breathing normally, I put them in the recovery position and keep checking their breathing; if they are not breathing normally (gasps do not count), I call the emergency number and start CPR.",
+      "source": {
+        "url": "https://www.sja.org.uk/get-advice/first-aid-advice/recovery-position/",
+        "date": "clinically reviewed 2025-04-28",
+        "quote": "It’s safe to place someone in the recovery position who is not responding to you but is breathing normally."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.first_aid.s3_a",
+          "stage": "competent",
+          "text": "I can check whether a person is responding and breathing normally. If they are unresponsive but breathing normally, I put them in the recovery position and keep checking their breathing; if they are not breathing normally (gasps do not count), I call the emergency number and start CPR.",
+          "source": {
+            "url": "https://www.sja.org.uk/get-advice/first-aid-advice/recovery-position/",
+            "date": "clinically reviewed 2025-04-28"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.first_aid.s3_b",
+      "skill": "first_aid",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "vague",
+      "statement": "I can do chest compressions and rescue breaths on a practice dummy at the right pace.",
+      "why": "\"At the right pace\" gives the learner nothing to check, and depth, the compression-to-breath ratio and the defibrillator are missing. No stage of the first aid ladder mentions a defibrillator (AED) at all, though sending for one is part of every basic life support sequence. Same page: \"press down hard, to a depth of about five-six centimetres\", \"after 30 compressions, provide two rescue breaths\" and \"ask a helper to find and bring a defibrillator, if available.\"",
+      "correct": "I can give chest compressions on a practice manikin about 5 to 6 cm deep at 100 to 120 a minute, with 30 compressions to 2 rescue breaths, send someone for a defibrillator, and follow a training defibrillator's spoken instructions.",
+      "source": {
+        "url": "https://www.sja.org.uk/first-aid-advice/cpr/",
+        "date": "clinically reviewed 2026-09-18",
+        "quote": "Push at a rate of 100 to 120 per minute."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.first_aid.s3_b",
+          "stage": "competent",
+          "text": "I can give chest compressions on a practice manikin about 5 to 6 cm deep at 100 to 120 a minute, with 30 compressions to 2 rescue breaths, send someone for a defibrillator, and follow a training defibrillator's spoken instructions.",
+          "source": {
+            "url": "https://www.sja.org.uk/first-aid-advice/cpr/",
+            "date": "clinically reviewed 2026-09-18"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.first_aid.s2_b",
+      "skill": "first_aid",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can cool a burn with clean running water and cover it loosely.",
+      "why": "The statement leaves out how long to cool, the one number that decides whether cooling works; people commonly cool for a few seconds. It also does not warn off ice, creams or butter, or say to take off rings before swelling starts. Same page: \"Do not use ice, creams or gels. They may cause damage and increase the risk of infection.\" and \"Remove any jewellery or clothing, unless stuck to the burn, before the area begins to swell.\" and \"When the burn has cooled, cover the area loosely with cling film, lengthways.\"",
+      "correct": "I can cool a burn under cool running water for at least 20 minutes (never ice, creams or butter), take off rings or clothing near it before it swells unless they are stuck, and then cover it loosely with cling film or a clean plastic bag.",
+      "source": {
+        "url": "https://www.sja.org.uk/first-aid-advice/burns-and-scalds/",
+        "date": "clinically reviewed 2025-04-28",
+        "quote": "Hold it under cool running water for at least 20 minutes or until the pain feels better."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.first_aid.s2_b",
+          "stage": "beginner",
+          "text": "I can cool a burn under cool running water for at least 20 minutes (never ice, creams or butter), take off rings or clothing near it before it swells unless they are stuck, and then cover it loosely with cling film or a clean plastic bag.",
+          "source": {
+            "url": "https://www.sja.org.uk/first-aid-advice/burns-and-scalds/",
+            "date": "clinically reviewed 2025-04-28"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.first_aid.s2_a",
+      "skill": "first_aid",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can press firmly on a bleeding wound with a clean cloth and keep the pressure on.",
+      "why": "Missing two basic precautions: protecting yourself from blood (gloves if you have them) and getting someone to call the emergency number for severe bleeding. Same page: \"Ask a helper to call 999 or 112 for emergency help.\"",
+      "correct": "I can put on gloves if I have them, get someone to call the emergency number for heavy bleeding, and press firmly on the wound with a clean pad, keeping the pressure on.",
+      "source": {
+        "url": "https://www.sja.org.uk/first-aid-advice/severe-bleeding/",
+        "date": "clinically reviewed 2026-09-08",
+        "quote": "With open wounds there's a risk of infection, so wear protective first aid gloves (if available)"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.first_aid.s2_a",
+          "stage": "beginner",
+          "text": "I can put on gloves if I have them, get someone to call the emergency number for heavy bleeding, and press firmly on the wound with a clean pad, keeping the pressure on.",
+          "source": {
+            "url": "https://www.sja.org.uk/first-aid-advice/severe-bleeding/",
+            "date": "clinically reviewed 2026-09-08"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.first_aid.s4_b",
+      "skill": "first_aid",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can spot shock, heat illness and cold injury and begin the right care while help comes.",
+      "why": "\"Begin the right care\" covers three different conditions and says nothing a learner can check. Heatstroke in particular is an emergency: call for help and cool the person straight away. Same page: \"Sit them down and wrap them in a cool, wet sheet.\"",
+      "correct": "I can spot shock, heat exhaustion and heatstroke, and cold injuries such as hypothermia and frostbite, and give the first steps for each while help comes; for heatstroke I call the emergency number and start cooling the person at once with a cool, wet sheet or cold water.",
+      "source": {
+        "url": "https://www.sja.org.uk/first-aid-advice/heatstroke/",
+        "date": "clinically reviewed 2025-04-28",
+        "quote": "Call 999 or 112 for emergency help."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.first_aid.s4_b",
+          "stage": "proficient",
+          "text": "I can spot shock, heat exhaustion and heatstroke, and cold injuries such as hypothermia and frostbite, and give the first steps for each while help comes; for heatstroke I call the emergency number and start cooling the person at once with a cool, wet sheet or cold water.",
+          "source": {
+            "url": "https://www.sja.org.uk/first-aid-advice/heatstroke/",
+            "date": "clinically reviewed 2025-04-28"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.swimming.s1_a",
+      "skill": "swimming",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can enter shallow water with a helper nearby, float on my back and breathe out into the water.",
+      "why": "A helper \"nearby\" is not enough for someone who cannot swim yet: people learning to swim slip under silently, and drowning prevention asks for close, constant watching by someone able to help. The same page also says: \"Life jackets can also be used by weaker swimmers of all ages in and around natural water and swimming pools.\"",
+      "correct": "I can enter shallow water with a helper who can swim watching me closely the whole time and staying within reach, float on my back and breathe out into the water.",
+      "source": {
+        "url": "https://www.cdc.gov/drowning/prevention/index.html",
+        "date": "2025-09-29",
+        "quote": "Designate a responsible adult to supervise closely and constantly when children are in or near water (including bathtubs)."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.swimming.s1_a",
+          "stage": "novice",
+          "text": "I can enter shallow water with a helper who can swim watching me closely the whole time and staying within reach, float on my back and breathe out into the water.",
+          "source": {
+            "url": "https://www.cdc.gov/drowning/prevention/index.html",
+            "date": "2025-09-29"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.swimming.s4_b",
+      "skill": "swimming",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can help someone in trouble using a rope, pole or floating object while staying on dry ground.",
+      "why": "The words are right (reach or throw, stay on dry ground), but they sit at Proficient (level 8), so a learner from Novice to Competent is never taught the rule that keeps would-be rescuers alive, and the most common instinct, jumping in, is what drowns rescuers. It also leaves out calling for help first. The page's steps: \"SHOUT\", \"REACH\", \"THROW\", and \"DON'T GO – Never enter the water yourself, no matter what.\"",
+      "correct": "move to beginner, reworded: I can call the emergency number and help someone in trouble in the water by shouting to them, reaching with a pole or rope, or throwing something that floats, without ever going into the water myself.",
+      "source": {
+        "url": "https://www.cheshirefire.gov.uk/your-safety/water-safety/what-to-do-in-a-water-emergency/",
+        "date": "last updated 2026-05-27",
+        "quote": "Never enter the water to attempt a rescue; instead, use the advice below and call 999 as soon as possible."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "moved",
+          "key": "skills.swimming.s2_c",
+          "stage": "beginner",
+          "text": "I can call the emergency number and help someone in trouble in the water by shouting to them, reaching with a pole or rope, or throwing something that floats, without ever going into the water myself.",
+          "from": "skills.swimming.s4_b",
+          "source": {
+            "url": "https://www.cheshirefire.gov.uk/your-safety/water-safety/what-to-do-in-a-water-emergency/",
+            "date": "last updated 2026-05-27"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.climbing.s1_a",
+      "skill": "climbing",
+      "stage": "novice",
+      "severity": "low",
+      "problem": "factual",
+      "statement": "I can climb a fixed ladder with three points of contact while a helper steadies the base.",
+      "why": "A fixed ladder is part of the building or structure, so \"a helper steadies the base\" does not apply to it; the helper steadying the base belongs to a portable ladder, whose real Novice lesson is setting it on firm, level ground and facing it while climbing. OSHA 29 CFR 1926.1050 (https://www.osha.gov/laws-regs/regulations/standardnumber/1926/1926.1050): a fixed ladder \"means a ladder that cannot be readily moved or carried because it is an integral part of a building or structure.\" The QuickCard also says: \"Use a ladder only on a stable and level surface\".",
+      "correct": "I can climb a short portable ladder set on firm, level ground, facing it and keeping three points of contact, while a helper steadies the base.",
+      "source": {
+        "url": "https://www.osha.gov/sites/default/files/publications/portable_ladder_qc.pdf",
+        "date": "OSHA 3246 Portable Ladder Safety QuickCard (file dated 2020-09-28)",
+        "quote": "Always maintain a 3-point (two hands and a foot, or two feet and a hand) contact on the ladder when climbing."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.climbing.s1_a",
+          "stage": "novice",
+          "text": "I can climb a short portable ladder set on firm, level ground, facing it and keeping three points of contact, while a helper steadies the base.",
+          "source": {
+            "url": "https://www.osha.gov/sites/default/files/publications/portable_ladder_qc.pdf",
+            "date": "OSHA 3246 Portable Ladder Safety QuickCard (file dated 2020-09-28)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.climbing.s4_a",
+      "skill": "climbing",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can climb a route at my level on a rope with a belayer, calling clearly to my partner.",
+      "why": "The ladder puts the learner on a rope with a belayer at Proficient and leading at Expert, but no stage ever teaches belaying, the skill that holds a partner's life and the first thing a roped climber is asked to do in return. A missing prerequisite: belaying is learned on a course, with the brake hand never leaving the rope. The DAV booklet also says: \"Partner check before every climb\".",
+      "correct": "add at competent: I can belay a partner on a top rope after learning on a course, with one hand always on the brake side of the rope, and do a partner check before every climb.",
+      "source": {
+        "url": "https://www.alpenverein.de/files/kletterhallen/indoor-klettern-basics-english.pdf",
+        "date": "DAV \"Indoor climbing basics\" (English), file dated 2025-04-29",
+        "quote": "One hand always holding on to the brake side of the rope."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.climbing.s3_c",
+          "stage": "competent",
+          "text": "I can belay a partner on a top rope, having learned on a course, with one hand always on the brake side of the rope.",
+          "source": {
+            "url": "https://www.alpenverein.de/files/kletterhallen/indoor-klettern-basics-english.pdf",
+            "date": "DAV \"Indoor climbing basics\" (English), file dated 2025-04-29"
+          }
+        }
+      ],
+      "note": "The partner check in the reviewer's words is left out because Competent's s3_b already says it (check my partner's knot and harness, and be checked by them)."
+    },
+    {
+      "group": "A",
+      "key": "skills.medicine.s4_a",
+      "skill": "medicine",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can compare the possible causes of a set of symptoms and say what to watch for next.",
+      "why": "Comparing the possible causes of symptoms is diagnosis. A lay carer's own short list can falsely reassure and delay care for something serious (a stroke, sepsis, a heart attack), and in the US offering diagnoses to others is the practice of medicine, which state law reserves to licensed practitioners. The safe lay skill is to observe, describe and know the warning signs that mean get help now. (No US state statute could be read for the quotation: see the summary.)",
+      "correct": "I can describe a person's symptoms clearly and in order to a health worker, check a trusted health service's list of warning signs, and know which signs mean get help now, leaving the diagnosis to a qualified professional.",
+      "source": {
+        "url": "https://www.cdc.gov/heads-up/response/index.html",
+        "date": "2025-09-15",
+        "quote": "the decision about return to sports is a medical decision that should be made by a healthcare provider."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.medicine.s4_a",
+          "stage": "proficient",
+          "text": "I can describe a person's symptoms clearly and in order to a health worker, check a trusted health service's list of warning signs, and know which signs mean get help now, leaving the diagnosis to a qualified professional.",
+          "source": {
+            "url": "https://www.cdc.gov/heads-up/response/index.html",
+            "date": "2025-09-15"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.sanitation.s4_b",
+      "skill": "sanitation",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can trace where a water or waste system is failing and isolate or fix the problem.",
+      "why": "Tracing a failing waste system leads to septic tanks, pits and manholes, which are confined spaces whose gases can kill within minutes, and would-be rescuers die with the first victim. The statement gives no warning. NIOSH Alert 86-110 (January 1986, https://stacks.cdc.gov/view/cdc/209448): \"It is noted that 60 percent of the deaths in confined spaces involve potential rescuers.\"",
+      "correct": "I can trace where a water or waste system is failing from the outside and isolate or fix simple faults, without ever climbing or leaning into a tank, pit or manhole (its gases can kill in minutes), and I call a qualified plumber or the water authority for anything more.",
+      "source": {
+        "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.146",
+        "date": "29 CFR 1910.146, current text (no date shown)",
+        "quote": "Has limited or restricted means for entry or exit (for example, tanks, vessels, silos, storage bins, hoppers, vaults, and pits are spaces that may have limited means of entry.)"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.sanitation.s4_b",
+          "stage": "proficient",
+          "text": "I can trace where a water or waste system is failing from the outside and isolate or fix simple faults, without ever climbing or leaning into a tank, pit or manhole (its gases can kill in minutes), and I call a qualified plumber or the water authority for anything more.",
+          "source": {
+            "url": "https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.146",
+            "date": "29 CFR 1910.146, current text (no date shown)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.sanitation.s1_a",
+      "skill": "sanitation",
+      "stage": "novice",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can wash my hands properly with soap and clean water at the moments that matter.",
+      "why": "\"Properly\" and \"the moments that matter\" cannot be checked. The CDC gives a time and a list (before, during and after preparing food, after the toilet, after touching animals or waste, before and after caring for someone who is sick).",
+      "correct": "I can wash my hands with soap and clean running water, scrubbing the backs, between the fingers and under the nails for at least 20 seconds, before handling food and after the toilet, touching animals or waste, or caring for someone who is sick.",
+      "source": {
+        "url": "https://www.cdc.gov/clean-hands/about/index.html",
+        "date": "2024-02-16",
+        "quote": "Scrub your hands for at least 20 seconds."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.sanitation.s1_a",
+          "stage": "novice",
+          "text": "I can wash my hands with soap and clean running water, scrubbing the backs, between the fingers and under the nails for at least 20 seconds, before handling food and after the toilet, touching animals or waste, or caring for someone who is sick.",
+          "source": {
+            "url": "https://www.cdc.gov/clean-hands/about/index.html",
+            "date": "2024-02-16"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.sanitation.s2_b",
+      "skill": "sanitation",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can clean, then disinfect, a surface touched by raw meat or a sick person.",
+      "why": "Disinfecting invites mixing products; bleach mixed with ammonia or other cleaners gives off a poisonous gas. The statement should carry that warning.",
+      "correct": "I can clean, then disinfect, a surface touched by raw meat or a sick person, using one disinfectant as its label says and never mixing bleach with ammonia or any other cleaner.",
+      "source": {
+        "url": "https://www.cdc.gov/natural-disasters/safety/index.html",
+        "date": "2026-08-26",
+        "quote": "Never mix bleach with ammonia or any other cleaner."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.sanitation.s2_b",
+          "stage": "beginner",
+          "text": "I can clean, then disinfect, a surface touched by raw meat or a sick person, using one disinfectant as its label says and never mixing bleach with ammonia or any other cleaner.",
+          "source": {
+            "url": "https://www.cdc.gov/natural-disasters/safety/index.html",
+            "date": "2026-08-26"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.sanitation.s3_b",
+      "skill": "sanitation",
+      "stage": "competent",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can set up hand washing and waste disposal for a camp or small group.",
+      "why": "The number that matters most in camp sanitation, how far waste goes from water, is missing, so a learner can \"set up\" a latrine beside a stream and still tick the box. The same page: \"carry water 200 feet away from streams or lakes and use small amounts of biodegradable soap.\"",
+      "correct": "I can set up hand washing and waste disposal for a camp or small group, with latrines or catholes 6 to 8 inches (15 to 20 cm) deep and at least 200 feet (about 60 m) from water, camp and trails, and washing water carried the same distance from streams.",
+      "source": {
+        "url": "https://www.nps.gov/articles/leave-no-trace-seven-principles.htm",
+        "date": "last updated 2022-06-16",
+        "quote": "deposit solid human waste in catholes dug 6 to 8 inches deep, at least 200 feet from water, camp and trails."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.sanitation.s3_b",
+          "stage": "competent",
+          "text": "I can set up hand washing and waste disposal for a camp or small group, with latrines or catholes 6 to 8 inches (15 to 20 cm) deep and at least 200 feet (about 60 m) from water, camp and trails, and washing water carried the same distance from streams.",
+          "source": {
+            "url": "https://www.nps.gov/articles/leave-no-trace-seven-principles.htm",
+            "date": "last updated 2022-06-16"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.fire_making.s1_a",
+      "skill": "fire_making",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can clear a safe spot, keep water and a shovel near, and light a fire with a lighter or match under an adult's eye.",
+      "why": "Lighting a fire is banned or restricted in many places and seasons, but the ladder only asks the learner to \"judge whether fire is allowed\" at Competent (s3_b), after lighting fires since Novice. \"Clear a safe spot\" has no size a learner can check, and \"under an adult's eye\" assumes the learner is a child. The same page: \"ensure you have at least a 10-foot diameter around the site\" and \"Stay at least 15 feet from tents, vegetation, and low-hanging branches.\"",
+      "correct": "I can check that fires are allowed here today, use an existing fire ring or clear a circle at least 10 feet (3 m) across and at least 15 feet (4.5 m) from tents, plants and low branches, keep water and a shovel near, and light a fire with a lighter or match while an experienced person watches.",
+      "source": {
+        "url": "https://smokeybear.com/en/prevention-how-tos/campfire-safety",
+        "date": "no page date (footer: 2026 Ad Council)",
+        "quote": "Don’t build a campfire or dig a fire pit if the campground, area, event rules, or local laws prohibit them."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fire_making.s1_a",
+          "stage": "novice",
+          "text": "I can check that fires are allowed here today, use an existing fire ring or clear a circle at least 10 feet (3 m) across and at least 15 feet (4.5 m) from tents, plants and low branches, keep water and a shovel near, and light a fire with a lighter or match while an experienced person watches.",
+          "source": {
+            "url": "https://smokeybear.com/en/prevention-how-tos/campfire-safety",
+            "date": "no page date (footer: 2026 Ad Council)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.fire_making.s2_b",
+      "skill": "fire_making",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can put a fire fully out until the ashes are cold to the touch.",
+      "why": "It gives the end state but not the method, and \"cold to the touch\" invites touching ashes that can still burn. The same page: \"Pour lots of water on the fire until the hissing sound stops, drowning all the embers\" and \"If your campfire is too hot to touch, it’s too hot to leave.\"",
+      "correct": "I can put a fire fully out by drowning it with water until the hissing stops, stirring the ashes and drowning them again, then holding the back of my hand over them to check that no heat is left.",
+      "source": {
+        "url": "https://smokeybear.com/en/prevention-how-tos/campfire-safety",
+        "date": "no page date (footer: 2026 Ad Council)",
+        "quote": "Hover the back of your hand over the ashes to feel that the embers are cool"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fire_making.s2_b",
+          "stage": "beginner",
+          "text": "I can put a fire fully out by drowning it with water until the hissing stops, stirring the ashes and drowning them again, then holding the back of my hand over them to check that no heat is left.",
+          "source": {
+            "url": "https://smokeybear.com/en/prevention-how-tos/campfire-safety",
+            "date": "no page date (footer: 2026 Ad Council)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.fire_making.s4_b",
+      "skill": "fire_making",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can burn wood into charcoal for the kiln with a steady method.",
+      "why": "Making charcoal means burning wood with little air, which gives off carbon monoxide; it must be done outdoors and away from buildings, never in a shed, garage or tent. \"A steady method\" is also too vague to check.",
+      "correct": "I can burn wood into charcoal outdoors, well away from buildings and never in an enclosed space (it gives off carbon monoxide), using a pit, drum or kiln method I can describe step by step.",
+      "source": {
+        "url": "https://www.cdc.gov/carbon-monoxide/about/index.html",
+        "date": "2026-10-26",
+        "quote": "Never burn charcoal indoors."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fire_making.s4_b",
+          "stage": "proficient",
+          "text": "I can burn wood into charcoal outdoors, well away from buildings and never in an enclosed space (it gives off carbon monoxide), using a pit, drum or kiln method I can describe step by step.",
+          "source": {
+            "url": "https://www.cdc.gov/carbon-monoxide/about/index.html",
+            "date": "2026-10-26"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.firefighting.s3_a",
+      "skill": "firefighting",
+      "stage": "competent",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can put out a small fire with a blanket or the correct extinguisher.",
+      "why": "\"A small fire\" cannot be checked, and the statement does not repeat the conditions for fighting a fire at all (others alerted, the fire service called, an escape route behind you, clear of the smoke). The USFA lists them, and adds: \"alert others, leave the building, and call 911\".",
+      "correct": "I can put out a fire with a fire blanket or the correct extinguisher (pull, aim low, squeeze, sweep), only when others have been alerted, the fire service has been called, the fire is small and contained to one object such as a pan or a bin, I am clear of the smoke and I have an escape route behind me.",
+      "source": {
+        "url": "https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/fire-extinguishers/",
+        "date": "last reviewed 2023-04-01",
+        "quote": "Is the fire small and contained in a single object or to a surface (like a pan or a wastebasket)?"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.firefighting.s3_a",
+          "stage": "competent",
+          "text": "I can put out a fire with a fire blanket or the correct extinguisher (pull, aim low, squeeze, sweep), only when others have been alerted, the fire service has been called, the fire is small and contained to one object such as a pan or a bin, I am clear of the smoke and I have an escape route behind me.",
+          "source": {
+            "url": "https://www.usfa.fema.gov/prevention/home-fires/prepare-for-fire/fire-extinguishers/",
+            "date": "last reviewed 2023-04-01"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.radiation_safety.s4_b",
+      "skill": "radiation_safety",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "factual",
+      "statement": "I can decide when to shelter, and when to leave, during a solar storm.",
+      "why": "True for astronauts and spacecraft (the game's ship), but misleading as a real-life skill: a solar radiation storm is no radiation hazard to people on the ground. NOAA's scale (https://www.spaceweather.gov/noaa-scales-explanation, 2026-11-11) lists the biological effects of the worst storm, S5, only as \"Unavoidable high radiation hazard to astronauts on EVA (extra-vehicular activity)\" and risk to \"passengers and crew in high-flying aircraft at high latitudes\". A real-life learner could come away thinking they should shelter from solar storms. In a real radiation emergency the action is to get inside and stay inside: CDC (https://www.cdc.gov/radiation-emergencies/response/get-inside.html, 2024-04-15): \"Staying inside for at least 24 hours can protect you and your family until it is safe to leave the area.\"",
+      "correct": "In the game: I can decide when to go to the ship's storm shelter, and when to leave it, during a solar storm. In real life: I can say that solar storms are a radiation hazard to astronauts and high-flying aircrew, not to people on the ground, and in a radiation emergency I get inside, stay inside for at least 24 hours and follow official instructions.",
+      "source": {
+        "url": "https://www.gov.uk/guidance/space-weather-and-radiation",
+        "date": "published 2014-01-01",
+        "quote": "far too small to produce an observable health effect."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.radiation_safety.s4_b",
+          "stage": "proficient",
+          "text": "I can decide when to go to the ship's storm shelter, and when to leave it, during a solar storm.",
+          "source": {
+            "url": "https://www.gov.uk/guidance/space-weather-and-radiation",
+            "date": "published 2014-01-01"
+          }
+        },
+        {
+          "kind": "added",
+          "key": "skills.radiation_safety.s4_c",
+          "stage": "proficient",
+          "text": "I can explain that solar storms are a radiation danger to astronauts and high-flying aircrew, not to people on the ground, and in a radiation emergency I get inside, stay inside for at least 24 hours and follow official instructions.",
+          "source": {
+            "url": "https://www.gov.uk/guidance/space-weather-and-radiation",
+            "date": "published 2014-01-01"
+          }
+        }
+      ],
+      "note": "The reviewer's one statement with \"In the game:\" and \"In real life:\" halves is split into two statements, each starting \"I can\" like every other."
+    },
+    {
+      "group": "A",
+      "key": "skills.rescue.s3_a",
+      "skill": "rescue",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can free a person from simple dangers, such as a fallen branch or a stuck door, without being hurt myself.",
+      "why": "After a storm, a fallen branch may be touching or energized by a downed power line, and circuits do not always switch off. Freeing someone from it without checking can kill both people. The same fact sheet: \"Downed wires can energize other nearby objects, such as fences, water pipes, bushes and trees\" and \"Never go near a downed or fallen electric power line.\"",
+      "correct": "I can free a person from simple dangers, such as a fallen branch or a stuck door, after checking that no power line is down or touching it, and without being hurt myself; if a line is down, I keep everyone away and call the emergency number.",
+      "source": {
+        "url": "https://www.osha.gov/sites/default/files/publications/downed_electrical_wires.pdf",
+        "date": "OSHA fact sheet FS-3941, 02/2018",
+        "quote": "Circuits do not always turn off when a power line falls into a tree or onto the ground."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.rescue.s3_a",
+          "stage": "competent",
+          "text": "I can free a person from simple dangers, such as a fallen branch or a stuck door, after checking that no power line is down or touching it, and without being hurt myself; if a line is down, I keep everyone away and call the emergency number.",
+          "source": {
+            "url": "https://www.osha.gov/sites/default/files/publications/downed_electrical_wires.pdf",
+            "date": "OSHA fact sheet FS-3941, 02/2018"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.tracking.s1_a",
+      "skill": "tracking",
+      "stage": "novice",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can keep a safe distance from wildlife and never feed or touch wild animals.",
+      "why": "\"A safe distance\" cannot be checked, and the distance people guess is usually far too short. National parks give numbers; the same page adds: \"and at least 25 yards (23 m) away from all other animals, including bison and elk.\"",
+      "correct": "I can stay at least 100 yards (91 m) from bears, wolves and big cats and at least 25 yards (23 m) from other large animals, or further where local rules say so, and never feed or touch wild animals.",
+      "source": {
+        "url": "https://www.nps.gov/yell/planyourvisit/safety.htm",
+        "date": "last updated 2026-07-28",
+        "quote": "Always stay at least 100 yards (91 m) away from bears, wolves, and cougars"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.tracking.s1_a",
+          "stage": "novice",
+          "text": "I can stay at least 100 yards (91 m) from bears, wolves and big cats and at least 25 yards (23 m) from other large animals, or further where local rules say so, and never feed or touch wild animals.",
+          "source": {
+            "url": "https://www.nps.gov/yell/planyourvisit/safety.htm",
+            "date": "last updated 2026-07-28"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.tracking.s2_a",
+      "skill": "tracking",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can find and describe footprints, droppings and feeding signs.",
+      "why": "Examining droppings invites handling them, and animal droppings carry parasites (raccoon roundworm eggs among them) that infect people who get them on their hands and then into their mouths. The same page: \"People become infected by consuming infectious eggs.\"",
+      "correct": "I can find and describe footprints, droppings and feeding signs without touching droppings with bare hands, and I wash my hands afterwards.",
+      "source": {
+        "url": "https://www.cdc.gov/baylisascaris/about/index.html",
+        "date": "2024-11-05",
+        "quote": "Most infections are in children and others who are more likely to put dirt or animal waste in their mouth by mistake."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.tracking.s2_a",
+          "stage": "beginner",
+          "text": "I can find and describe footprints, droppings and feeding signs without touching droppings with bare hands, and I wash my hands afterwards.",
+          "source": {
+            "url": "https://www.cdc.gov/baylisascaris/about/index.html",
+            "date": "2024-11-05"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.unarmed.s3_b",
+      "skill": "unarmed",
+      "stage": "competent",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can spar lightly with control, defending as often as I attack, and stop at once when my partner taps or calls it.",
+      "why": "Light sparring still brings blows to the head. The statement has no coach present and no rule for a knock to the head; concussion guidance is to stop at once and not return until a health professional says so. The same page: \"the decision about return to sports is a medical decision that should be made by a healthcare provider.\"",
+      "correct": "I can spar lightly with control under a coach's eye, defending as often as I attack, stop at once when my partner taps or calls it, and stop for the day and get checked if either of us takes a hard knock to the head or feels dizzy or confused.",
+      "source": {
+        "url": "https://www.cdc.gov/heads-up/response/index.html",
+        "date": "2025-09-15",
+        "quote": "Remove the athlete from sports participation right away if a concussion is suspected."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.unarmed.s3_b",
+          "stage": "competent",
+          "text": "I can spar lightly with control under a coach's eye, defending as often as I attack, stop at once when my partner taps or calls it, and stop for the day and get checked if either of us takes a hard knock to the head or feels dizzy or confused.",
+          "source": {
+            "url": "https://www.cdc.gov/heads-up/response/index.html",
+            "date": "2025-09-15"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.impact_weapons.s4_b",
+      "skill": "impact_weapons",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can use a tool such as an axe or hammer for its real job, such as splitting wood, with control and a clear work area.",
+      "why": "Splitting wood is a common cause of foot, leg and eye injuries, and the statement names no protective gear or footing. The same manual: \"Always wear good, stout leather boots, at least 8–inches high.\" and \"Stand with your weight evenly distributed with both feet planted about shoulder width apart.\"",
+      "correct": "I can use an axe or hammer for its real job, such as splitting wood, wearing safety glasses and stout boots, with secure footing, feet about shoulder width apart, my spare hand clear of the blade and nobody near me.",
+      "source": {
+        "url": "https://www.fs.usda.gov/t-d/pubs/htmlpubs/htm99232823/page04.htm",
+        "date": "USDA Forest Service MTDC 9923-2823P (1999; no date on the page)",
+        "quote": "Always wear safety glasses or goggles for eye protection."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.impact_weapons.s4_b",
+          "stage": "proficient",
+          "text": "I can use an axe or hammer for its real job, such as splitting wood, wearing safety glasses and stout boots, with secure footing, feet about shoulder width apart, my spare hand clear of the blade and nobody near me.",
+          "source": {
+            "url": "https://www.fs.usda.gov/t-d/pubs/htmlpubs/htm99232823/page04.htm",
+            "date": "USDA Forest Service MTDC 9923-2823P (1999; no date on the page)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.archery.s2_b",
+      "skill": "archery",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can fit and look after my gear, such as the bowstring and arrows, and spot damage before it becomes dangerous.",
+      "why": "Gear care leaves out the best-known way a bow breaks and hurts its archer: dry-firing, releasing a drawn string with no arrow. It belongs with looking after the gear.",
+      "correct": "I can fit and look after my gear, such as the bowstring and arrows, spot damage before it becomes dangerous, and never dry-fire a bow (draw and release it without an arrow).",
+      "source": {
+        "url": "https://myodfw.com/learn/skill/bow-shooting-tips",
+        "date": "no page date (copyright 2026)",
+        "quote": "Never dry-fire a bow – drawing and releasing the string without a nocked arrow."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.archery.s2_b",
+          "stage": "beginner",
+          "text": "I can fit and look after my gear, such as the bowstring and arrows, spot damage before it becomes dangerous, and never dry-fire a bow (draw and release it without an arrow).",
+          "source": {
+            "url": "https://myodfw.com/learn/skill/bow-shooting-tips",
+            "date": "no page date (copyright 2026)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.archery.s4_b",
+      "skill": "archery",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can shoot from other positions, such as kneeling, and at moving or unmarked targets with a safe backstop.",
+      "why": "\"Unmarked targets\" is ambiguous: meant as targets at unknown distances, it can be read as shooting at something not yet identified, which breaks the rule to be sure of your target. The same page: \"Don’t shoot over a ridge if you can’t see what’s on the other side.\"",
+      "correct": "I can shoot from other positions, such as kneeling, and at moving targets or targets at distances I have to judge myself, always sure of my target and of what is in front of and behind it, with a safe backstop.",
+      "source": {
+        "url": "https://myodfw.com/learn/skill/bow-shooting-tips",
+        "date": "no page date (copyright 2026)",
+        "quote": "Take the time to make sure of your target before you shoot, and take note of what’s in front of and behind your target."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.archery.s4_b",
+          "stage": "proficient",
+          "text": "I can shoot from other positions, such as kneeling, and at moving targets or targets at distances I have to judge myself, always sure of my target and of what is in front of and behind it, with a safe backstop.",
+          "source": {
+            "url": "https://myodfw.com/learn/skill/bow-shooting-tips",
+            "date": "no page date (copyright 2026)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.marksmanship.s1_a",
+      "skill": "marksmanship",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can treat every firearm as loaded, keep the muzzle in a safe direction, keep my finger off the trigger and know my backstop.",
+      "why": "Only three and a half of the four basic firearm safety rules: \"know my backstop\" covers what is beyond the target but not being certain of the target itself, and \"keep my finger off the trigger\" lacks \"until I am ready to shoot\". It also does not say that a novice handles firearms only with a qualified instructor. The same release lists: \"Treat every firearm as if it is loaded.\", \"Always control the muzzle of your firearm.\" and \"Never touch a trigger until you are ready to shoot at a game animal or a safe target.\"",
+      "correct": "I can treat every firearm as loaded, keep the muzzle pointed in a safe direction, keep my finger off the trigger until I am ready to shoot, and be certain of my target and what is beyond it, and I handle firearms only with a qualified instructor.",
+      "source": {
+        "url": "https://idfg.idaho.gov/press/field-hunting-safety-reminders",
+        "date": "2013-11-05",
+        "quote": "Be certain of your target and what is beyond it."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.marksmanship.s1_a",
+          "stage": "novice",
+          "text": "I can treat every firearm as loaded, keep the muzzle pointed in a safe direction, keep my finger off the trigger until I am ready to shoot, and be certain of my target and what is beyond it, and I handle firearms only with a qualified instructor.",
+          "source": {
+            "url": "https://idfg.idaho.gov/press/field-hunting-safety-reminders",
+            "date": "2013-11-05"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.marksmanship.s2_a",
+      "skill": "marksmanship",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can check that a firearm is unloaded, load and unload it safely and hold it with a steady stance and grip.",
+      "why": "Handling, loading and owning a firearm needs a licence or certificate in many countries, with age limits, and the ladder never says so, though the skill is offered as something to practise in real life. CLAUDE.md asks the project to say plainly when a law limits something. Great Britain is one example; Canada (a possession licence) and Australia (a firearms licence) are others.",
+      "correct": "Where the law lets me and under a qualified instructor, I can check that a firearm is unloaded, load and unload it safely, and hold it with a steady stance and grip.",
+      "source": {
+        "url": "https://www.legislation.gov.uk/ukpga/1968/27/section/1",
+        "date": "Firearms Act 1968 s.1, revised text up to date to 2026-11-15",
+        "quote": "to have in his possession, or to purchase or acquire, a firearm to which this section applies without holding a firearm certificate in force at the time"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.marksmanship.s2_a",
+          "stage": "beginner",
+          "text": "I can check that a firearm is unloaded, load and unload it safely, and hold it with a steady stance and grip, under a qualified instructor and where the law allows.",
+          "source": {
+            "url": "https://www.legislation.gov.uk/ukpga/1968/27/section/1",
+            "date": "Firearms Act 1968 s.1, revised text up to date to 2026-11-15"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"; \"where the law allows\" is the general legal wording the review brief asks for."
+    },
+    {
+      "group": "A",
+      "key": "skills.marksmanship.s3_b",
+      "skill": "marksmanship",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can safely deal with a simple stoppage the way I was taught, clean and store the firearm, and follow range commands without the guide.",
+      "why": "\"Store the firearm\" says nothing about how. Storage that keeps children and other unauthorised people away from guns prevents deaths and is a legal condition in many places; in Great Britain it is a condition of every firearm certificate. Idaho Fish and Game (https://idfg.idaho.gov/press/field-hunting-safety-reminders, 2013-11-05): \"Store firearms and ammunition separately.\"",
+      "correct": "I can safely deal with a simple stoppage the way I was taught, keeping the muzzle pointed safely, clean the firearm, and store it unloaded and locked away from anyone not allowed to use it, with the ammunition stored separately as the law where I live requires, and I follow range commands without the guide.",
+      "source": {
+        "url": "https://www.gov.uk/government/publications/firearms-security-handbook/firearms-security-handbook-2020-accessible",
+        "date": "Home Office Firearms security handbook 2020, updated 2021-01-20",
+        "quote": "It is a condition of the issue of a firearm certificate that the firearms and shotguns to which the certificate relates must be stored securely at all times so as to prevent, so far as is reasonably practicable, access to the guns by unauthorised persons."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.marksmanship.s3_b",
+          "stage": "competent",
+          "text": "I can safely deal with a simple stoppage the way I was taught, keeping the muzzle pointed safely, clean the firearm, and store it unloaded and locked away from anyone not allowed to use it, with the ammunition stored separately as the law where I live requires, and I follow range commands without the guide.",
+          "source": {
+            "url": "https://www.gov.uk/government/publications/firearms-security-handbook/firearms-security-handbook-2020-accessible",
+            "date": "Home Office Firearms security handbook 2020, updated 2021-01-20"
+          }
+        }
+      ]
+    },
+    {
+      "group": "A",
+      "key": "skills.gunnery.s1_a",
+      "skill": "gunnery",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can follow the safety steps for a mounted weapon: check it is safe, clear the firing zone and call out before firing.",
+      "why": "Written as a skill to learn in real life, but in real life mounted and automatic weapons belong to armed forces and specially authorised users: private ownership is banned or tightly restricted in most countries. In the US it is unlawful except under narrow exceptions (government use, and machine guns lawfully held before the 1986 cut-off). The game statements can stay, but the real-life twin needs to say so, or the skill should be marked game-only.",
+      "correct": "Keep the game statement, and add for real life: In real life, gunnery is learned only in the armed forces or in a simulator; owning or firing mounted or automatic weapons is banned or tightly restricted for private people in most countries.",
+      "source": {
+        "url": "https://www.law.cornell.edu/uscode/text/18/922",
+        "date": "18 U.S.C. 922(o), current text (no date shown)",
+        "quote": "Except as provided in paragraph (2), it shall be unlawful for any person to transfer or possess a machinegun."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.gunnery.s1_b",
+          "stage": "novice",
+          "text": "I can explain that real gunnery is learned only in the armed forces or in a simulator, and that mounted and automatic weapons are banned or tightly restricted for private people in most countries.",
+          "source": {
+            "url": "https://www.law.cornell.edu/uscode/text/18/922",
+            "date": "18 U.S.C. 922(o), current text (no date shown)"
+          }
+        }
+      ],
+      "note": "The game statement s1_a is kept as the reviewer asked; the real-life note becomes an \"I can explain\" statement beside it."
+    },
+    {
+      "group": "B",
+      "key": "skills.preserving.s2_b",
+      "skill": "preserving",
+      "stage": "beginner",
+      "severity": "high",
+      "problem": "factual",
+      "statement": "I can spot spoiled food by its smell, look or swollen container and throw it away without tasting.",
+      "why": "It teaches that spoiled food can be spotted by smell and look. The deadliest preserving hazard gives no such sign: botulinum toxin cannot be seen, smelled or tasted, so a jar that looks and smells fine passes this test and can still kill. The \"without tasting\" part is right and must stay.",
+      "correct": "I can spot the warning signs of spoiled food (a bulging, leaking or spurting container, mould, a bad smell) and throw it out without tasting it, and I know food can carry botulism toxin with no sign at all, so I trust only food preserved by a tested method.",
+      "source": {
+        "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+        "date": "2024-04-25 (date shown on page)",
+        "quote": "You cannot see, smell, or taste the toxin that causes botulism."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.preserving.s2_b",
+          "stage": "beginner",
+          "text": "I can spot the warning signs of spoiled food (a bulging, leaking or spurting container, mould, a bad smell) and throw it out without tasting it, and I know food can carry botulism toxin with no sign at all, so I trust only food preserved by a tested method.",
+          "source": {
+            "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+            "date": "2024-04-25 (date shown on page)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.preserving.s4_a",
+      "skill": "preserving",
+      "stage": "proficient",
+      "severity": "high",
+      "problem": "order",
+      "statement": "I can explain why low-acid food such as vegetables and meat must be pressure canned, and why boiling water is not enough.",
+      "why": "Competent (s3_a) already cans jam and pickles in jars, but the one rule that keeps a home canner alive (low-acid food never goes in a boiling-water bath) only arrives a stage later, at Proficient. A Competent canner who has just learned the water bath for jam is exactly the person who water-baths green beans, the classic home botulism case. No stage ever says \"I can pressure can\", yet Expert (s5_a) preserves a whole season. Small wording issue too: not all vegetables are low-acid in practice (NCHFP: most tomatoes can be water-bath canned once acid is added, and pickled vegetables are acidified).",
+      "correct": "Move to competent, beside s3_a: \"I can explain why low-acid food (meat, fish, poultry, milk and fresh vegetables other than most tomatoes) must be pressure canned and never canned in boiling water.\" Then add at proficient: \"I can pressure can low-acid food with a tested recipe, adjusting for my altitude, in a canner whose gauge has been checked.\"",
+      "source": {
+        "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+        "date": "2024-04-25 (date shown on page)",
+        "quote": "Pressure canning is the only recommended method for canning low-acid foods."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "moved",
+          "key": "skills.preserving.s3_c",
+          "stage": "competent",
+          "text": "I can explain why low-acid food (meat, fish, poultry, milk and fresh vegetables other than most tomatoes) must be pressure canned and never canned in boiling water.",
+          "from": "skills.preserving.s4_a",
+          "after": "skills.preserving.s3_a",
+          "source": {
+            "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+            "date": "2024-04-25 (date shown on page)"
+          }
+        },
+        {
+          "kind": "added",
+          "key": "skills.preserving.s4_c",
+          "stage": "proficient",
+          "text": "I can pressure can low-acid food with a tested recipe, adjusting for my altitude, in a canner whose gauge has been checked.",
+          "source": {
+            "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+            "date": "2024-04-25 (date shown on page)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.preserving.s3_a",
+      "skill": "preserving",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can make jam or pickles in clean, sealed jars using a tested recipe.",
+      "why": "\"Clean, sealed jars\" reads as though sealing a clean jar is enough, which is the open-kettle method USDA and Extension no longer accept. Jams, jellies and pickles get a boiling-water canner process for a set time; moulds can settle in at filling. A tested recipe does include that step, but the statement names only clean and sealed, so a learner can meet it without processing.",
+      "correct": "I can make jam or pickles with a tested recipe and process the filled jars in a boiling-water canner for the time it gives, adjusted for my altitude.",
+      "source": {
+        "url": "https://nchfp.uga.edu/blog/why-do-you-recommend-processing-jams-and-jellies",
+        "date": "2018-05-02",
+        "quote": "recommend a boiling water canning process for jams and jellies"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.preserving.s3_a",
+          "stage": "competent",
+          "text": "I can make jam or pickles with a tested recipe and process the filled jars in a boiling-water canner for the time it gives, adjusted for my altitude.",
+          "source": {
+            "url": "https://nchfp.uga.edu/blog/why-do-you-recommend-processing-jams-and-jellies",
+            "date": "2018-05-02"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.preserving.s2_a",
+      "skill": "preserving",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can salt, dry or cool-store food and say why each method keeps it safe.",
+      "why": "Salting sits at Beginner with only \"say why it keeps food safe\", while curing (salting meat or fish) is a Proficient skill (s4_b) that needs a tested method. Home salt-curing of fish has caused botulism in the United States (CDC, 2019: a mullet salt-cured at home at room temperature). Drying and cool storage are fine at Beginner; salting meat or fish is not.",
+      "correct": "I can dry or cool-store food and say why each method keeps it safe. (Salting meat or fish waits for a tested curing method at proficient, s4_b.)",
+      "source": {
+        "url": "https://www.cdc.gov/mmwr/volumes/68/wr/mm6844a3.htm",
+        "date": "2019-11-08",
+        "quote": "traditional methods of home preparation for these dishes might support conditions that are favorable for toxin production"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.preserving.s2_a",
+          "stage": "beginner",
+          "text": "I can dry or cool-store food and say why each method keeps it safe.",
+          "source": {
+            "url": "https://www.cdc.gov/mmwr/volumes/68/wr/mm6844a3.htm",
+            "date": "2019-11-08"
+          }
+        }
+      ],
+      "note": "The reviewer's bracketed pointer (salting waits for Proficient's tested curing method, s4_b) is a note for the ladder, not words for the statement; it is kept here instead."
+    },
+    {
+      "group": "B",
+      "key": "skills.fermenting.s4_a",
+      "skill": "fermenting",
+      "stage": "proficient",
+      "severity": "high",
+      "problem": "factual",
+      "statement": "I can make beer or wine safely with sanitised equipment and know why the sealed vessel matters.",
+      "why": "A fermenting vessel must NOT be sealed. Yeast makes carbon dioxide that has to escape through an airlock (a one-way valve that lets gas out and keeps air out); the Clemson page says the fermenter could explode from built-up gas without it, and that wine still fermenting in the bottle can shatter the bottles. \"Know why the sealed vessel matters\" teaches the opposite of the airlock's job, and someone who screws a lid onto a glass jug of fermenting wine can be cut by flying glass.",
+      "correct": "I can make beer or wine with sanitised equipment, using an airlock that lets gas out and keeps air out, and I bottle only when fermentation has finished, because trapped gas can burst a fermenter or a bottle.",
+      "source": {
+        "url": "https://hgic.clemson.edu/factsheet/basics-of-home-winemaking/",
+        "date": "2023-02-24",
+        "quote": "allow the carbon dioxide produced during fermentation to escape"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fermenting.s4_a",
+          "stage": "proficient",
+          "text": "I can make beer or wine with sanitised equipment, using an airlock that lets gas out and keeps air out, and I bottle only when fermentation has finished, because trapped gas can burst a fermenter or a bottle.",
+          "source": {
+            "url": "https://hgic.clemson.edu/factsheet/basics-of-home-winemaking/",
+            "date": "2023-02-24"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.fermenting.s2_a",
+      "skill": "fermenting",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can tell a healthy ferment from a bad one by its smell, look and taste.",
+      "why": "Tasting is offered as a way to tell a bad ferment, which is how people make themselves ill; it also contradicts the preserving ladder (s2_b: throw away without tasting). NCHFP on fermented pickles: if spoilage is evident, do not eat. Look and smell come first, and a ferment that fails them is thrown out untasted.",
+      "correct": "I can tell a healthy ferment from a bad one by its smell and look before anyone tastes it, and I throw out one that is slimy, smells rotten or grows fuzzy or coloured mould.",
+      "source": {
+        "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+        "date": "2024-04-25 (date shown on page)",
+        "quote": "Never taste food to see if it's safe."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fermenting.s2_a",
+          "stage": "beginner",
+          "text": "I can tell a healthy ferment from a bad one by its smell and look before anyone tastes it, and I throw out one that is slimy, smells rotten or grows fuzzy or coloured mould.",
+          "source": {
+            "url": "https://www.cdc.gov/botulism/prevention/home-canned-foods.html",
+            "date": "2024-04-25 (date shown on page)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.fermenting.s3_a",
+      "skill": "fermenting",
+      "stage": "competent",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can make yoghurt, vinegar or kombucha without the guide.",
+      "why": "Making vinegar is taught here, and pickling in the preserving ladder, but nothing says homemade vinegar's acid strength is unknown. Pickling and canning recipes are tested with 5 percent vinegar, and the acid level is what stops botulism, so homemade vinegar must not be used for food that will be stored.",
+      "correct": "I can make yoghurt, vinegar or kombucha without the guide, and I know homemade vinegar's strength is unknown, so I never use it to pickle or can food for storage.",
+      "source": {
+        "url": "https://nchfp.uga.edu/how/pickle/general-information-pickling/general-information-on-pickling/",
+        "date": "undated (read 2026-11-14)",
+        "quote": "Do not ... use a vinegar with unknown acidity."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fermenting.s3_a",
+          "stage": "competent",
+          "text": "I can make yoghurt, vinegar or kombucha without the guide, and I know homemade vinegar's strength is unknown, so I never use it to pickle or can food for storage.",
+          "source": {
+            "url": "https://nchfp.uga.edu/how/pickle/general-information-pickling/general-information-on-pickling/",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.cooking.s2_a",
+      "skill": "cooking",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can chop, boil, fry and roast common foods and tell when they are properly cooked through.",
+      "why": "\"Tell when they are properly cooked through\" invites judging by colour and texture, which CDC says cannot show that meat, poultry or eggs are safely cooked (seafood is the exception). The check that works is a food thermometer.",
+      "correct": "I can chop, boil, fry and roast common foods, and check that meat, poultry and egg dishes are cooked through with a food thermometer, not by their colour.",
+      "source": {
+        "url": "https://www.cdc.gov/food-safety/prevention/index.html",
+        "date": "2025-11-24",
+        "quote": "The only way to tell if food is safely cooked is to use a food thermometer."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.cooking.s2_a",
+          "stage": "beginner",
+          "text": "I can chop, boil, fry and roast common foods, and check that meat, poultry and egg dishes are cooked through with a food thermometer, not by their colour.",
+          "source": {
+            "url": "https://www.cdc.gov/food-safety/prevention/index.html",
+            "date": "2025-11-24"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.cooking.s2_b",
+      "skill": "cooking",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can keep raw and cooked food apart and handle hot pans and knives safely.",
+      "why": "Frying is taught at this stage (s2_a) but nothing covers a pan fire. Cooking is by far the leading cause of home fires and home fire injuries (same USFA page), and the deadly instinct is throwing water on burning oil. What works is a lid or baking sheet over the pan and the burner off.",
+      "correct": "I can keep raw and cooked food apart, handle hot pans and knives safely, and put out a small pan fire by sliding a lid over it and turning off the heat, never with water.",
+      "source": {
+        "url": "https://www.usfa.fema.gov/prevention/home-fires/prevent-fires/cooking/",
+        "date": "2026-09-28 (page last reviewed)",
+        "quote": "Use it to cover the pan if it catches on fire. This will put out the fire."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.cooking.s2_b",
+          "stage": "beginner",
+          "text": "I can keep raw and cooked food apart, handle hot pans and knives safely, and put out a small pan fire by sliding a lid over it and turning off the heat, never with water.",
+          "source": {
+            "url": "https://www.usfa.fema.gov/prevention/home-fires/prevent-fires/cooking/",
+            "date": "2026-09-28 (page last reviewed)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.cooking.s4_b",
+      "skill": "cooking",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can change a recipe for an allergy, a diet or a missing ingredient.",
+      "why": "Changing a recipe for an allergy is treated as an ingredient swap. For a severe allergy it is safe only when every label is read for the allergen and the food is kept free of it throughout (cross-contact on a board, pan or spoon is enough); FDA describes reactions that can be fatal.",
+      "correct": "I can change a recipe for an allergy, a diet or a missing ingredient, reading every label for the allergen and keeping the meal free of it from the board to the plate.",
+      "source": {
+        "url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies",
+        "date": "2026-03-11 (content current as of)",
+        "quote": "severe, life-threatening symptoms, often called anaphylaxis, that may involve fatal respiratory problems and shock"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.cooking.s4_b",
+          "stage": "proficient",
+          "text": "I can change a recipe for an allergy, a diet or a missing ingredient, reading every label for the allergen and keeping the meal free of it from the board to the plate.",
+          "source": {
+            "url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies",
+            "date": "2026-03-11 (content current as of)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.nutrition.s3_b",
+      "skill": "nutrition",
+      "stage": "competent",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can adjust a meal for allergies or a common diet such as vegetarian.",
+      "why": "Same gap as cooking s4_b, one stage earlier: adjusting a meal for an allergy without reading labels or guarding against cross-contact. (The two ladders also disagree: nutrition puts allergies at Competent, cooking at Proficient.)",
+      "correct": "I can adjust a meal for allergies, checking every label and keeping out cross-contact, or for a common diet such as vegetarian.",
+      "source": {
+        "url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies",
+        "date": "2026-03-11 (content current as of)",
+        "quote": "the inadvertent introduction of a major food allergen into a product"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.nutrition.s3_b",
+          "stage": "competent",
+          "text": "I can adjust a meal for allergies, checking every label and keeping out cross-contact, or for a common diet such as vegetarian.",
+          "source": {
+            "url": "https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies",
+            "date": "2026-03-11 (content current as of)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.nutrition.s4_a",
+      "skill": "nutrition",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can plan meals for children, older people or hard physical work.",
+      "why": "\"Children\" includes babies, who have their own rules: no honey before 12 months (infant botulism), and feeding guidance from a health professional. The statement gives no hint that the youngest are different.",
+      "correct": "I can plan meals for children, older people or hard physical work, and I know babies have their own rules (no honey before 12 months) and follow a health professional's advice for them.",
+      "source": {
+        "url": "https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/foods-and-drinks-to-avoid-or-limit.html",
+        "date": "2026-04-14",
+        "quote": "Do not give your child honey before 12 months."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.nutrition.s4_a",
+          "stage": "proficient",
+          "text": "I can plan meals for children, older people or hard physical work, and I know babies have their own rules (no honey before 12 months) and follow a health professional's advice for them.",
+          "source": {
+            "url": "https://www.cdc.gov/infant-toddler-nutrition/foods-and-drinks/foods-and-drinks-to-avoid-or-limit.html",
+            "date": "2026-04-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.water_purification.s2_b",
+      "skill": "water_purification",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "factual",
+      "statement": "I can bring water to a full rolling boil to make it safe to drink.",
+      "why": "Two errors. It leaves out the time (CDC: a rolling boil for 1 minute, 3 minutes above 6,500 feet, about 2,000 m). And \"to make it safe to drink\" overclaims: boiling kills germs but cannot make water with fuel, toxic chemicals or radioactive material safe.",
+      "correct": "I can bring water to a rolling boil for one minute (three minutes above about 2,000 m) to kill germs, and I know boiling does not remove chemicals or fuel.",
+      "source": {
+        "url": "https://www.cdc.gov/water-emergency/about/index.html",
+        "date": "2024-09-19",
+        "quote": "You cannot make water containing fuel, toxic chemicals, or radioactive materials safe by boiling or disinfecting it."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.water_purification.s2_b",
+          "stage": "beginner",
+          "text": "I can bring water to a rolling boil for one minute (three minutes above about 2,000 m) to kill germs, and I know boiling does not remove chemicals or fuel.",
+          "source": {
+            "url": "https://www.cdc.gov/water-emergency/about/index.html",
+            "date": "2024-09-19"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.water_purification.s3_a",
+      "skill": "water_purification",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can use a filter or purification tablets and follow the instructions exactly.",
+      "why": "\"A filter or purification tablets\" treats them as equivalent and complete, and \"follow the instructions exactly\" cannot cover what a product does not do. CDC: most portable filters remove parasites but not viruses or bacteria; chlorine and iodine are weak against parasites such as Cryptosporidium.",
+      "correct": "I can use a filter or purification tablets correctly and say what each one misses (most filters let viruses through; chlorine and iodine are weak against parasites such as Cryptosporidium), and combine a filter with a disinfectant when the water needs both.",
+      "source": {
+        "url": "https://www.cdc.gov/healthywater/drinking/travel/backcountry_water_treatment.html",
+        "date": "2025-01-30",
+        "quote": "Chlorine bleach and iodine kill bacteria and viruses but do not work well to kill parasites."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.water_purification.s3_a",
+          "stage": "competent",
+          "text": "I can use a filter or purification tablets correctly and say what each one misses (most filters let viruses through; chlorine and iodine are weak against parasites such as Cryptosporidium), and combine a filter with a disinfectant when the water needs both.",
+          "source": {
+            "url": "https://www.cdc.gov/healthywater/drinking/travel/backcountry_water_treatment.html",
+            "date": "2025-01-30"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.hunting.s1_a",
+      "skill": "hunting",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can show the basic rules of handling a firearm, treating every one as loaded, under a qualified supervisor.",
+      "why": "It names only one of the basic firearm rules and leaves \"the basic rules\" for the assessor to guess. Hunter education teaches four together: treat every firearm as loaded, control the muzzle, keep your finger off the trigger until ready to shoot, and be sure of the target and what is beyond it (the last is at Beginner, s2_b). Muzzle control, the rule that stops a person being shot, is missing.",
+      "correct": "Under a qualified supervisor, I can show the four firearm safety rules: treat every firearm as loaded, keep the muzzle pointed in a safe direction, keep my finger off the trigger until I am ready to shoot, and be sure of my target and what is beyond it.",
+      "source": {
+        "url": "https://idfg.idaho.gov/press/field-hunting-safety-reminders",
+        "date": "2013-11-05",
+        "quote": "Always control the muzzle of your firearm."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.hunting.s1_a",
+          "stage": "novice",
+          "text": "I can show the four firearm safety rules under a qualified supervisor: treat every firearm as loaded, keep the muzzle pointed in a safe direction, keep my finger off the trigger until I am ready to shoot, and be sure of my target and what is beyond it.",
+          "source": {
+            "url": "https://idfg.idaho.gov/press/field-hunting-safety-reminders",
+            "date": "2013-11-05"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"."
+    },
+    {
+      "group": "B",
+      "key": "skills.hunting.s2_a",
+      "skill": "hunting",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can find out and follow the local rules for where, when and what I may hunt.",
+      "why": "\"Local rules for where, when and what\" leaves out the hard requirements almost everywhere: a hunting licence and tags, and a hunter education certificate before you can buy one (Idaho: required for everyone born on or after 1 January 1975). The same Idaho release says it is one of few states where hunter orange is NOT required, so most states require it.",
+      "correct": "I can complete the hunter education course, get the licence and tags the law requires, and find out and follow the local rules for where, when and what I may hunt, including any hunter-orange rule.",
+      "source": {
+        "url": "https://idfg.idaho.gov/hunt/education",
+        "date": "undated (read 2026-11-14)",
+        "quote": "Hunter Ed Certification is required for all hunters born on or after January 1, 1975"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.hunting.s2_a",
+          "stage": "beginner",
+          "text": "I can complete any hunter education course and get the licence and tags the law requires where I hunt, and follow the local rules for where, when and what I may hunt, including any rule on wearing bright orange.",
+          "source": {
+            "url": "https://idfg.idaho.gov/hunt/education",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ],
+      "note": "Generalised: the source is one US state's (Idaho), so \"the hunter education course\" and \"hunter-orange rule\" become \"any hunter education course\" and \"any rule on wearing bright orange\", per the review brief's rule on legal wording."
+    },
+    {
+      "group": "B",
+      "key": "skills.hunting.s4_a",
+      "skill": "hunting",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can choose the shot that gives a quick, humane kill, and follow up carefully if an animal is hurt.",
+      "why": "A Competent hunter already takes shots (s3_a: \"decline a shot beyond\" my range implies shooting within it), but choosing the shot for a quick, humane kill and following up a wounded animal arrive only at Proficient. Both are first-hunt duties, taught in hunter education before any licence, so the ladder lets a person shoot game a whole stage before it asks for humane shot placement.",
+      "correct": "Move to competent: I can choose a shot that gives a quick, humane kill, and follow up carefully if an animal is hurt.",
+      "source": {
+        "url": "docs/design/skills.md",
+        "date": "2026-11-14",
+        "quote": "Every lower statement stays required.",
+        "where": "docs/design/skills.md, section 3, Stages, not numbers"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "moved",
+          "key": "skills.hunting.s3_c",
+          "stage": "competent",
+          "text": "I can choose a shot that gives a quick, humane kill, and follow up carefully if an animal is hurt.",
+          "from": "skills.hunting.s4_a",
+          "after": "skills.hunting.s3_a",
+          "source": {
+            "url": "docs/design/skills.md",
+            "date": "2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.hunting.s5_a",
+      "skill": "hunting",
+      "stage": "expert",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can field dress game cleanly and keep the meat cool, clean and safe to eat.",
+      "why": "Field dressing is the first job after any kill, so a hunter who takes shots at Proficient (s4_a) must already be able to do it; at Expert, the ladder has people killing game a stage before they can handle the carcass. It also misses CDC's precautions for deer and elk: wear latex or rubber gloves, avoid handling the brain and spine, and consider a chronic wasting disease test before eating, following state guidance.",
+      "correct": "Move to proficient, with the first kill: I can field dress game cleanly wearing gloves, keep the meat cool and clean, and have deer or elk tested for chronic wasting disease where my state advises it.",
+      "source": {
+        "url": "https://www.cdc.gov/chronic-wasting/about/index.html",
+        "date": "2026-01-21",
+        "quote": "Strongly consider having the deer or elk tested for CWD before you eat the meat."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "moved",
+          "key": "skills.hunting.s4_c",
+          "stage": "proficient",
+          "text": "I can field dress game cleanly wearing gloves, keep the meat cool and clean, and have deer or elk tested for chronic wasting disease where the local wildlife agency advises it.",
+          "from": "skills.hunting.s5_a",
+          "source": {
+            "url": "https://www.cdc.gov/chronic-wasting/about/index.html",
+            "date": "2026-01-21"
+          }
+        },
+        {
+          "kind": "added",
+          "key": "skills.hunting.s5_b",
+          "stage": "expert",
+          "text": "I can plan and carry out a whole hunt, from scouting to bringing the meat home, safely, within the law and with no prompts.",
+          "source": {
+            "url": "docs/design/skills.md",
+            "date": "2026-11-14"
+          },
+          "source_quote": "| 5 Expert | Fast, excellent work with no prompts |"
+        }
+      ],
+      "note": "\"where my state advises it\" is US wording; generalised to \"where the local wildlife agency advises it\". Moving s5_a down left Expert with no statement (every stage needs one), so s5_b is new: the Expert stage's own meaning (docs/design/skills.md section 3) applied to the whole hunt."
+    },
+    {
+      "group": "B",
+      "key": "skills.fishing.s1_a",
+      "skill": "fishing",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can handle a hook with care and cast only when the space around me is clear.",
+      "why": "Anglers are hurt by hooks but die by drowning, and no fishing stage mentions a life jacket. US Coast Guard: where the cause was known, 75% of boating deaths were drownings, and 87% of those drowned were not wearing a life jacket.",
+      "correct": "I can handle a hook with care, cast only when the space around me is clear, and wear a life jacket in a boat or near deep or fast water.",
+      "source": {
+        "url": "https://www.uscgboating.org/multimedia/news-detail.php?id=573",
+        "date": "undated news item (2023 statistics; page last modified November 2026)",
+        "quote": "Of those drowning victims with reported life jacket usage, 87% were not wearing a life jacket."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fishing.s1_a",
+          "stage": "novice",
+          "text": "I can handle a hook with care, cast only when the space around me is clear, and wear a life jacket in a boat or near deep or fast water.",
+          "source": {
+            "url": "https://www.uscgboating.org/multimedia/news-detail.php?id=573",
+            "date": "undated news item (2023 statistics; page last modified November 2026)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.fishing.s2_a",
+      "skill": "fishing",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can set up a line, bait a hook and land a small fish following the steps.",
+      "why": "No fishing stage mentions a licence, yet most places require one before the first cast. England and Wales: a rod licence for anyone 13 or over fishing for freshwater fish, salmon, trout, smelt or eel, with a fine of up to 2,500 pounds.",
+      "correct": "I can check that I have any licence the water needs and know its size and catch limits, then set up a line, bait a hook and land a small fish following the steps.",
+      "source": {
+        "url": "https://www.gov.uk/fishing-licences",
+        "date": "undated (read 2026-11-14)",
+        "quote": "You can get a fine of up to £2,500 if you’re fishing in these areas and cannot show a valid rod fishing licence when asked."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fishing.s2_a",
+          "stage": "beginner",
+          "text": "I can check that I have any licence the water needs and know its size and catch limits, then set up a line, bait a hook and land a small fish following the steps.",
+          "source": {
+            "url": "https://www.gov.uk/fishing-licences",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.fishing.s4_a",
+      "skill": "fishing",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can release a fish unharmed when it is undersized or out of season.",
+      "why": "Returning an undersized or out-of-season fish is a legal duty from the very first fish a Beginner lands (s2_a), not a Proficient skill. What can stay at Proficient is releasing a fish with the best chance of survival when it is deep-hooked or tired.",
+      "correct": "Move the legal part to beginner: \"I can measure a fish and return one I may not keep, alive and quickly.\" Keep at proficient: \"I can unhook and release a fish with the best chance of survival, even a deep-hooked one.\"",
+      "source": {
+        "url": "https://www.gov.uk/freshwater-rod-fishing-rules/fish-size-and-catch-limits",
+        "date": "undated (read 2026-11-14)",
+        "quote": "You must return fish you cannot keep to the water unharmed."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.fishing.s2_c",
+          "stage": "beginner",
+          "text": "I can measure a fish and return one I may not keep, alive and quickly.",
+          "after": "skills.fishing.s2_a",
+          "source": {
+            "url": "https://www.gov.uk/freshwater-rod-fishing-rules/fish-size-and-catch-limits",
+            "date": "undated (read 2026-11-14)"
+          }
+        },
+        {
+          "kind": "reworded",
+          "key": "skills.fishing.s4_a",
+          "stage": "proficient",
+          "text": "I can unhook and release a fish with the best chance of survival, even a deep-hooked one.",
+          "source": {
+            "url": "https://www.gov.uk/freshwater-rod-fishing-rules/fish-size-and-catch-limits",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.fishing.s5_a",
+      "skill": "fishing",
+      "stage": "expert",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can fish a day to feed a group, handle the catch properly and keep it safe to eat.",
+      "why": "\"Keep it safe to eat\" covers handling but not what the fish carries from its water: mercury and PCBs build up in fish, and local advisories say which fish from which water to limit. Feeding a group from one water makes this matter.",
+      "correct": "I can fish a day to feed a group, check the local fish-eating advice for that water, handle the catch properly and keep it safe to eat.",
+      "source": {
+        "url": "https://www.epa.gov/choose-fish-and-shellfish-wisely/should-i-be-concerned-about-eating-fish-and-shellfish",
+        "date": "2026-01-12",
+        "quote": "look for fish advisories for specific fish and the waterbodies where the fish or shellfish are caught"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fishing.s5_a",
+          "stage": "expert",
+          "text": "I can fish a day to feed a group, check the local fish-eating advice for that water, handle the catch properly and keep it safe to eat.",
+          "source": {
+            "url": "https://www.epa.gov/choose-fish-and-shellfish-wisely/should-i-be-concerned-about-eating-fish-and-shellfish",
+            "date": "2026-01-12"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.beekeeping.s1_a",
+      "skill": "beekeeping",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can wear protective clothing and use a smoker calmly near a hive with an experienced keeper beside me.",
+      "why": "Stings are certain at a hive, and for a person with a severe sting allergy one can be fatal, yet no stage asks the learner to know how they react or what to do. NIOSH tells workers with a history of severe reactions to carry an EpiPen and wear medical identification.",
+      "correct": "With an experienced keeper beside me, I can wear protective clothing and use a smoker calmly near a hive, and I know what to do if I am stung, including when a reaction is an emergency.",
+      "source": {
+        "url": "https://www.cdc.gov/niosh/outdoor-workers/about/insects-and-scorpions.html",
+        "date": "2026-09-28 (last reviewed)",
+        "quote": "carry an EpiPen and wear a medical identification bracelet or necklace"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.beekeeping.s1_a",
+          "stage": "novice",
+          "text": "I can wear protective clothing and use a smoker calmly near a hive with an experienced keeper beside me, and I know what to do if I am stung, including when a reaction is an emergency.",
+          "source": {
+            "url": "https://www.cdc.gov/niosh/outdoor-workers/about/insects-and-scorpions.html",
+            "date": "2026-09-28 (last reviewed)"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"."
+    },
+    {
+      "group": "B",
+      "key": "skills.beekeeping.s4_a",
+      "skill": "beekeeping",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can spot common pests and diseases and take the right first step.",
+      "why": "For some bee diseases the \"right first step\" is a legal report, not a treatment. In England a keeper who knows or suspects American or European foulbrood (the Order's \"notifiable disease\", article 2), small hive beetle or Tropilaelaps must notify the authorities immediately (article 3). Other countries and many US states have their own bee-disease laws (not checked in this pass).",
+      "correct": "I can spot common pests and diseases and take the right first step, including reporting a notifiable disease such as foulbrood to the bee inspector where the law requires it.",
+      "source": {
+        "url": "https://www.legislation.gov.uk/uksi/2006/342/article/3",
+        "date": "latest revised version (read 2026-11-14)",
+        "quote": "shall immediately notify that fact to the Secretary of State."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.beekeeping.s4_a",
+          "stage": "proficient",
+          "text": "I can spot common pests and diseases and take the right first step, including reporting a notifiable disease such as foulbrood to the authorities where the law requires it.",
+          "source": {
+            "url": "https://www.legislation.gov.uk/uksi/2006/342/article/3",
+            "date": "latest revised version (read 2026-11-14)"
+          }
+        }
+      ],
+      "note": "Generalised: \"the bee inspector\" is the English Order's office; \"the authorities\" holds wherever such a law exists."
+    },
+    {
+      "group": "B",
+      "key": "skills.foraging.s2_b",
+      "skill": "foraging",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can find a few plants I know in the right season and place without damaging the area.",
+      "why": "Picking is not allowed everywhere, and the ladder never mentions permission. In Great Britain, uprooting any wild plant without being an authorised person (the owner or occupier, or someone they authorise) is an offence; in US national parks only what each superintendent designates may be gathered (NPS compendium pages; the eCFR text itself could not be read, see summary).",
+      "correct": "I can find a few plants I know in the right season and place, where picking is allowed and with the landowner's permission, without damaging the area.",
+      "source": {
+        "url": "https://www.legislation.gov.uk/ukpga/1981/69/section/13",
+        "date": "up to date with changes in force on or before 2026-11-15",
+        "quote": "not being an authorised person, intentionally uproots any wild plant not included in that Schedule."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.foraging.s2_b",
+          "stage": "beginner",
+          "text": "I can find a few plants I know in the right season and place, where picking is allowed and with the landowner's permission, without damaging the area.",
+          "source": {
+            "url": "https://www.legislation.gov.uk/ukpga/1981/69/section/13",
+            "date": "up to date with changes in force on or before 2026-11-15"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.foraging.s3_a",
+      "skill": "foraging",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can name the dangerous lookalikes of each plant I pick and show how I tell them apart.",
+      "why": "The skill covers fungi (the deadliest foraging mistakes), but this lookalike statement, and s2_a's leaves-flowers-stem method, name only plants. Amatoxin mushrooms cause over 90% of mushroom-poisoning deaths worldwide, and a mushroom is told apart by cap, gills, spore print and the whole base, none of which the ladder mentions.",
+      "correct": "I can name the dangerous lookalikes of each plant or fungus I pick and show how I tell them apart (for a mushroom: its cap, gills, spore print and the whole base).",
+      "source": {
+        "url": "https://www.cdc.gov/mmwr/volumes/66/wr/mm6621a1.htm",
+        "date": "2017-06-02",
+        "quote": "Amatoxins, consisting of alpha, beta, and gamma amanitin, account for >90% of deaths related to mushroom poisoning worldwide."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.foraging.s3_a",
+          "stage": "competent",
+          "text": "I can name the dangerous lookalikes of each plant or fungus I pick and show how I tell them apart (for a mushroom: its cap, gills, spore print and the whole base).",
+          "source": {
+            "url": "https://www.cdc.gov/mmwr/volumes/66/wr/mm6621a1.htm",
+            "date": "2017-06-02"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.foraging.s5_a",
+      "skill": "foraging",
+      "stage": "expert",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can identify plants from poor or incomplete samples by cross-checking several features, and still refuse any doubtful one.",
+      "why": "Identifying from poor or incomplete samples is exactly the death-cap trap: its diagnostic cup sits underground and is lost when the base breaks off, leaving a mushroom that can pass for an edible one. Narrowing down a fragment is a real expert skill (in a poisoning case, say), but the statement must never let an incomplete sample clear anything for eating; \"refuse any doubtful one\" leaves that to judgement.",
+      "correct": "I can narrow down plants and fungi from poor or incomplete samples by cross-checking several features, and I never call one edible unless I have the whole specimen, including the base of a mushroom.",
+      "source": {
+        "url": "https://explore.beatymuseum.ubc.ca/mushroomsup/A_phalloides.html",
+        "date": "undated (read 2026-11-14)",
+        "quote": "if the base breaks off in the soil, its diagnostic cup can easily be missed."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.foraging.s5_a",
+          "stage": "expert",
+          "text": "I can narrow down plants and fungi from poor or incomplete samples by cross-checking several features, and I never call one edible unless I have the whole specimen, including the base of a mushroom.",
+          "source": {
+            "url": "https://explore.beatymuseum.ubc.ca/mushroomsup/A_phalloides.html",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.animal_husbandry.s3_b",
+      "skill": "animal_husbandry",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can handle an animal calmly, check its feet and coat, and treat minor problems.",
+      "why": "\"Treat minor problems\" says nothing about the rules on animal medicines. In the US, medically important antibiotics for animals now need a veterinarian's prescription, and medicines used on food animals carry withdrawal times before their milk, eggs or meat may be used (withdrawal times are from general knowledge and were not quoted from a source in this pass).",
+      "correct": "I can handle an animal calmly, check its feet and coat, and treat minor problems, using medicines only as labelled or prescribed by a vet and keeping to their withdrawal times before using milk, eggs or meat.",
+      "source": {
+        "url": "https://www.fda.gov/animal-veterinary/antimicrobial-resistance/gfi-263-frequently-asked-questions-farmers-and-ranchers",
+        "date": "2024-05-22 (content current as of)",
+        "quote": "As of June 11, 2023, all new affected products entering the marketplace must have prescription labeling."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.animal_husbandry.s3_b",
+          "stage": "competent",
+          "text": "I can handle an animal calmly, check its feet and coat, and treat minor problems, using medicines only as labelled or prescribed by a vet and keeping to their withdrawal times before using milk, eggs or meat.",
+          "source": {
+            "url": "https://www.fda.gov/animal-veterinary/antimicrobial-resistance/gfi-263-frequently-asked-questions-farmers-and-ranchers",
+            "date": "2024-05-22 (content current as of)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.geology.s4_b",
+      "skill": "geology",
+      "stage": "proficient",
+      "severity": "high",
+      "problem": "order",
+      "statement": "I can judge when ground is unstable, such as a slope, an old shaft or a cut face, and keep away.",
+      "why": "Keeping out of old mines and away from cliff edges and the foot of unstable faces is a first-day rule, but it arrives at Proficient, after Competent (s3_a) has already sent the learner to read outcrops and cliffs. MSHA's message is simply \"Stay Out - Stay Alive\": vertical shafts hundreds of feet deep and unprotected, collapsing tunnels, and gases that displace oxygen with no visible sign.",
+      "correct": "Add at novice: \"I can keep out of old mines and tunnels and away from cliff edges and the foot of cut faces.\" Keep at proficient: \"I can judge when ground is unstable, such as a slope, an old shaft or a cut face, and keep away.\"",
+      "source": {
+        "url": "https://www.msha.gov/stay-out-stay-alive",
+        "date": "undated (read 2026-11-14)",
+        "quote": "Many vertical shafts can be hundreds of feet deep and completely unprotected"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.geology.s1_b",
+          "stage": "novice",
+          "text": "I can keep out of old mines and tunnels and away from cliff edges and the foot of cut faces.",
+          "source": {
+            "url": "https://www.msha.gov/stay-out-stay-alive",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ],
+      "note": "s4_b stays as it was, as the reviewer asked; the Novice rule is new."
+    },
+    {
+      "group": "B",
+      "key": "skills.geology.s4_a",
+      "skill": "geology",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can follow clues in soil, stream gravel and rock to trace where an ore may lie.",
+      "why": "Prospecting and taking samples is limited by whose land it is, and the ladder never mentions permission. In US national parks, possessing or disturbing mineral resources is prohibited (36 CFR 2.1, as the NPS states it); private land needs the owner's permission.",
+      "correct": "I can follow clues in soil, stream gravel and rock to trace where an ore may lie, on land where I have permission to look and take samples.",
+      "source": {
+        "url": "https://www.nps.gov/articles/recreational-collection-of-rocks-and-minerals-legal-instruments.htm",
+        "date": "2024-01-02 (last updated)",
+        "quote": "prohibits possessing, destroying, disturbing mineral resources…in park units."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.geology.s4_a",
+          "stage": "proficient",
+          "text": "I can follow clues in soil, stream gravel and rock to trace where an ore may lie, on land where I have permission to look and take samples.",
+          "source": {
+            "url": "https://www.nps.gov/articles/recreational-collection-of-rocks-and-minerals-legal-instruments.htm",
+            "date": "2024-01-02 (last updated)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.weather.s4_b",
+      "skill": "weather",
+      "stage": "proficient",
+      "severity": "high",
+      "problem": "safety",
+      "statement": "I can recognise signs of a thunderstorm or a front approaching and move to shelter.",
+      "why": "Two problems. \"Move to shelter\" does not say what shelter, and the wrong one kills: an isolated tree or a rocky overhang draws lightning, and only a substantial building with wiring or plumbing, or a hard-topped vehicle with the windows up, protects. And the basic lightning rule (\"When Thunder Roars, Go Indoors\", NWS) is placed at Proficient, although a Novice is already outdoors reading the sky (s1_a).",
+      "correct": "Add at novice: \"When I hear thunder I go into a substantial building or a hard-topped vehicle, never under a tree, and stay there 30 minutes after the last thunder.\" Reword at proficient: \"I can recognise the signs of a thunderstorm or a front approaching early and reach safe shelter (a substantial building or a hard-topped vehicle) before it arrives.\"",
+      "source": {
+        "url": "https://www.weather.gov/safety/lightning-tips",
+        "date": "undated (read 2026-11-14)",
+        "quote": "a substantial building with electricity or plumbing or an enclosed, metal-topped vehicle with windows up."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.weather.s1_b",
+          "stage": "novice",
+          "text": "I can go into a substantial building or a hard-topped vehicle as soon as I hear thunder, never shelter under a tree, and stay there until 30 minutes after the last thunder.",
+          "source": {
+            "url": "https://www.weather.gov/safety/lightning-tips",
+            "date": "undated (read 2026-11-14)"
+          }
+        },
+        {
+          "kind": "reworded",
+          "key": "skills.weather.s4_b",
+          "stage": "proficient",
+          "text": "I can recognise the signs of a thunderstorm or a front approaching early and reach safe shelter (a substantial building or a hard-topped vehicle) before it arrives.",
+          "source": {
+            "url": "https://www.weather.gov/safety/lightning-tips",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ],
+      "note": "The Novice rule is reordered so it starts \"I can\"."
+    },
+    {
+      "group": "B",
+      "key": "skills.astronomy.s2_a",
+      "skill": "astronomy",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "factual",
+      "statement": "I can find north at night using a star pattern or a compass.",
+      "why": "A compass shows magnetic north, which differs from true north by the local declination, and Polaris is only visible from the northern hemisphere (in the south one finds south from the Southern Cross). A learner told only \"find north with a compass\" can be off by many degrees.",
+      "correct": "I can find north at night from a star pattern (Polaris in the northern hemisphere; in the southern, I find south from the Southern Cross) or with a compass, knowing a compass shows magnetic north, which can differ from true north.",
+      "source": {
+        "url": "https://www.ngdc.noaa.gov/geomag/declination.shtml",
+        "date": "undated (read 2026-11-14)",
+        "quote": "Magnetic declination, sometimes called magnetic variation, is the angle between magnetic north and true north."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.astronomy.s2_a",
+          "stage": "beginner",
+          "text": "I can find north at night from a star pattern (Polaris in the northern hemisphere; in the southern, I find south from the Southern Cross) or with a compass, knowing a compass shows magnetic north, which can differ from true north.",
+          "source": {
+            "url": "https://www.ngdc.noaa.gov/geomag/declination.shtml",
+            "date": "undated (read 2026-11-14)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.butchery.s2_b",
+      "skill": "butchery",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can break down a small bird or rabbit into its main parts.",
+      "why": "Wild rabbits can carry tularemia, caught through the skin while skinning and gutting; CDC advises gloves. Butchery trains from hunting, so wild game is in scope.",
+      "correct": "I can break down a small bird or rabbit into its main parts, wearing gloves when it is wild game.",
+      "source": {
+        "url": "https://www.cdc.gov/tularemia/prevention/index.html",
+        "date": "2025-09-09",
+        "quote": "Use gloves when handling animals, especially rabbits, muskrats, prairie dogs, and other rodents."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.butchery.s2_b",
+          "stage": "beginner",
+          "text": "I can break down a small bird or rabbit into its main parts, wearing gloves when it is wild game.",
+          "source": {
+            "url": "https://www.cdc.gov/tularemia/prevention/index.html",
+            "date": "2025-09-09"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.butchery.s2_a",
+      "skill": "butchery",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can keep raw meat cold and apart from other food, and clean up properly afterwards.",
+      "why": "\"Cold\" cannot be checked; the figure that keeps raw meat safe is 4 degrees C (40 F) or below.",
+      "correct": "I can keep raw meat at 4 °C (40 °F) or colder and apart from other food, and clean up properly afterwards.",
+      "source": {
+        "url": "https://www.fda.gov/consumers/consumer-updates/are-you-storing-food-safely",
+        "date": "2023-01-18 (content current as of)",
+        "quote": "Keep the refrigerator temperature at or below 40° F (4° C)."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.butchery.s2_a",
+          "stage": "beginner",
+          "text": "I can keep raw meat at 4 °C (40 °F) or colder and apart from other food, and clean up properly afterwards.",
+          "source": {
+            "url": "https://www.fda.gov/consumers/consumer-updates/are-you-storing-food-safely",
+            "date": "2023-01-18 (content current as of)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.farming.s5_a",
+      "skill": "farming",
+      "stage": "expert",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can grow a wide range of crops well and judge soil by touch, smell and sight.",
+      "why": "Touch, smell and sight judge texture and organic matter, but cannot detect contamination such as lead, common near old buildings and roads. An Expert grower should know when only a lab test answers the question, before growing food on unknown ground.",
+      "correct": "I can grow a wide range of crops well, judge soil by touch, smell and sight, and know when to send a sample for a lab test, since contamination such as lead cannot be seen.",
+      "source": {
+        "url": "https://www.epa.gov/lead/healthy-gardening-practices-reduce-exposure-lead-contaminated-soil",
+        "date": "2026-09-21 (last updated)",
+        "quote": "Knowing how much lead is in your soil is a good place to start"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.farming.s5_a",
+          "stage": "expert",
+          "text": "I can grow a wide range of crops well, judge soil by touch, smell and sight, and know when to send a sample for a lab test, since contamination such as lead cannot be seen.",
+          "source": {
+            "url": "https://www.epa.gov/lead/healthy-gardening-practices-reduce-exposure-lead-contaminated-soil",
+            "date": "2026-09-21 (last updated)"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.baking.s4_b",
+      "skill": "baking",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can bake in a wood or camp oven and manage its heat.",
+      "why": "A camp oven heated by charcoal or a gas stove makes carbon monoxide; used in a tent, a garage or indoors it can kill. The statement gives no place rule.",
+      "correct": "I can bake in a wood oven or a camp oven (a camp oven only outdoors, never in a tent or indoors) and manage its heat.",
+      "source": {
+        "url": "https://www.cdc.gov/carbon-monoxide/about/index.html",
+        "date": "2026-10-26",
+        "quote": "Never burn charcoal indoors."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.baking.s4_b",
+          "stage": "proficient",
+          "text": "I can bake in a wood oven or a camp oven (a camp oven only outdoors, never in a tent or indoors) and manage its heat.",
+          "source": {
+            "url": "https://www.cdc.gov/carbon-monoxide/about/index.html",
+            "date": "2026-10-26"
+          }
+        }
+      ]
+    },
+    {
+      "group": "B",
+      "key": "skills.baking.s5_a",
+      "skill": "baking",
+      "stage": "expert",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can run a full bake for forty people to a standard",
+      "why": "\"To a standard\" names no standard that the learner or an assessor can check, unlike the other Expert statements in this group (cooking s5_a names food kept safe throughout). For forty people the standard should include even baking and allergen labelling. (The text is also the design doc's own example, so the doc would change with it; the baking statements also lack the full stop the others have.)",
+      "correct": "I can run a full bake for forty people, on time, with every loaf evenly baked through and every allergen labelled.",
+      "source": {
+        "url": "docs/design/skills.md",
+        "date": "2026-11-14",
+        "quote": "Fast, excellent work with no prompts",
+        "where": "docs/design/skills.md, section 3, the stage table"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.baking.s5_a",
+          "stage": "expert",
+          "text": "I can run a full bake for forty people, on time, with every loaf evenly baked through and every allergen labelled.",
+          "source": {
+            "url": "docs/design/skills.md",
+            "date": "2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.forestry.s1_a",
+      "skill": "forestry",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "vague",
+      "statement": "I can put on helmet, eye and ear protection and chaps, and keep clear while someone experienced fells a tree.",
+      "why": "\"Keep clear\" gives a novice no distance. The felling danger zone is set by distance, and a falling tree, or one that kicks back off its stump, reaches people who think they are clear.",
+      "correct": "I can put on a helmet, eye and ear protection and chaps, and stay at least two tree lengths away while someone experienced fells a tree.",
+      "source": {
+        "url": "https://teagasc.ie/wp-content/uploads/2025/05/Basic_Chainsaw_Felling_-_IFSG_302.pdf",
+        "date": "October 2018 (Health and Safety Authority, Ireland, IFSG 302); read 2026-11-14",
+        "quote": "A safe working distance of two tree lengths must be maintained, unless exceptional conditions and a comprehensive risk assessment dictate otherwise."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.forestry.s1_a",
+          "stage": "novice",
+          "text": "I can put on a helmet, eye and ear protection and chaps, and stay at least two tree lengths away while someone experienced fells a tree.",
+          "source": {
+            "url": "https://teagasc.ie/wp-content/uploads/2025/05/Basic_Chainsaw_Felling_-_IFSG_302.pdf",
+            "date": "October 2018 (Health and Safety Authority, Ireland, IFSG 302); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.forestry.s2_b",
+      "skill": "forestry",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can trim and cut up a small fallen tree into lengths with a hand saw, standing safely.",
+      "why": "A Beginner does starter procedures alone (skills.md). A fallen tree is often under tension or compression, or can roll, and \"standing safely\" does not say how: which side to stand, which side to cut first, and which trees to leave alone. Releasing tension is only taught at Proficient (s4_a).",
+      "correct": "I can trim and cut up a small fallen tree that lies flat and is not bent or caught, using a hand saw, standing on the uphill side, cutting the compressed side first, and leaving any springy or trapped trunk to someone trained.",
+      "source": {
+        "url": "https://teagasc.ie/wp-content/uploads/2025/05/Cross_Cutting_and_Manual_Stacking_-_IFSG_304.pdf",
+        "date": "October 2018 (Health and Safety Authority, Ireland, IFSG 304); read 2026-11-14",
+        "quote": "When cross-cutting on slopes, work on the uphill side of logs if there is a risk of the timber rolling. Reduce excessive tension by first making a cut on the compression side of the log"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.forestry.s2_b",
+          "stage": "beginner",
+          "text": "I can trim and cut up a small fallen tree that lies flat and is not bent or caught, using a hand saw, standing on the uphill side, cutting the compressed side first, and leaving any springy or trapped trunk to someone trained.",
+          "source": {
+            "url": "https://teagasc.ie/wp-content/uploads/2025/05/Cross_Cutting_and_Manual_Stacking_-_IFSG_304.pdf",
+            "date": "October 2018 (Health and Safety Authority, Ireland, IFSG 304); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.forestry.s4_a",
+      "skill": "forestry",
+      "stage": "proficient",
+      "severity": "high",
+      "problem": "safety",
+      "statement": "I can spot and release tension in a tree that is under strain, and deal with one that is caught or leaning wrongly.",
+      "why": "\"Deal with one that is caught\" invites improvising with a hung-up tree, one of the commonest ways tree workers die. The usual improvisations (felling another tree onto it, cutting the tree holding it, climbing it, working under it) are exactly what safety guides forbid.",
+      "correct": "I can spot and release tension safely in a tree that is under strain, and bring down a hung-up tree with a felling lever, turning tool or winch, never by felling another tree onto it, cutting the tree that holds it, climbing it or working under it.",
+      "source": {
+        "url": "https://teagasc.ie/wp-content/uploads/2025/05/Basic_Chainsaw_Felling_-_IFSG_302.pdf",
+        "date": "October 2018 (Health and Safety Authority, Ireland, IFSG 302); read 2026-11-14",
+        "quote": "Do not: fell the supporting tree in an attempt to free the hung-up tree; climb a hung-up tree; fell another tree across the hung-up tree in an attempt to dislodge it; walk or work under a hung-up tree"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.forestry.s4_a",
+          "stage": "proficient",
+          "text": "I can spot and release tension safely in a tree that is under strain, and bring down a hung-up tree with a felling lever, turning tool or winch, never by felling another tree onto it, cutting the tree that holds it, climbing it or working under it.",
+          "source": {
+            "url": "https://teagasc.ie/wp-content/uploads/2025/05/Basic_Chainsaw_Felling_-_IFSG_302.pdf",
+            "date": "October 2018 (Health and Safety Authority, Ireland, IFSG 302); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.mining.s1_a",
+      "skill": "mining",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can wear a helmet, eye and ear protection and a dust mask, and keep clear of loose rock while following the guide.",
+      "why": "Rock and quarry dust carries respirable crystalline silica. A \"dust mask\" in everyday speech is often a nuisance or comfort mask, which gives no real protection. The statement needs a rated, fitted respirator.",
+      "correct": "I can wear a helmet, eye and ear protection and a fitted respirator rated for fine dust (FFP3 or equivalent, not a nuisance dust mask), and keep clear of loose rock while following the guide.",
+      "source": {
+        "url": "https://www.hse.gov.uk/agriculture/dustmasks.htm",
+        "date": "updated 2024-08-07; read 2026-11-14",
+        "quote": "Some retailers also sell products known as nuisance dust masks or comfort masks that look like dust respirators but are not marked with CE or with any standard."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.mining.s1_a",
+          "stage": "novice",
+          "text": "I can wear a helmet, eye and ear protection and a fitted respirator rated for fine dust (FFP3 or equivalent, not a nuisance dust mask), and keep clear of loose rock while following the guide.",
+          "source": {
+            "url": "https://www.hse.gov.uk/agriculture/dustmasks.htm",
+            "date": "updated 2024-08-07; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.mining.s3_a",
+      "skill": "mining",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can plan a dig or quarry face so that it is stable, drains water, and has a clear way out.",
+      "why": "Planning a stable dig is presented as a solo Competent skill with no supports, no safe batter angle and no inspection. Trench and face collapses kill. Where the law applies to the work, a competent person must inspect the supports.",
+      "correct": "I can plan a dig or quarry face so that its sides are supported or cut back to a safe angle, it drains water and has a clear way out, and I have a competent person inspect it before anyone works in it.",
+      "source": {
+        "url": "https://www.hse.gov.uk/construction/safetytopics/excavations.htm",
+        "date": "2022-02-10 (date shown on page); read 2026-11-14",
+        "quote": "No ground can be relied upon to stand unsupported in all circumstances."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.mining.s3_a",
+          "stage": "competent",
+          "text": "I can plan a dig or quarry face so that its sides are supported or cut back to a safe angle, it drains water and has a clear way out, and I have a competent person inspect it before anyone works in it.",
+          "source": {
+            "url": "https://www.hse.gov.uk/construction/safetytopics/excavations.htm",
+            "date": "2022-02-10 (date shown on page); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.metallurgy.s2_b",
+      "skill": "metallurgy",
+      "stage": "beginner",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can sort metals by sight and by simple tests and skim slag off a melt.",
+      "why": "Sorting scrap is the point to reject coated metal. Melting galvanised or painted scrap gives off fumes that cause metal fume fever (and lead or cadmium coatings are worse). The statement teaches sorting with no word on fumes.",
+      "correct": "I can sort metals by sight and by simple tests, set aside galvanised, painted or coated scrap and unknown alloys whose fumes can make me ill, and skim slag off a melt.",
+      "source": {
+        "url": "https://www.hse.gov.uk/welding/health-risks-welding.htm",
+        "date": "2026-01-09; read 2026-11-14",
+        "quote": "Metal fume fever is usually linked to welding or hot work on galvanised metals."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.metallurgy.s2_b",
+          "stage": "beginner",
+          "text": "I can sort metals by sight and by simple tests, set aside galvanised, painted or coated scrap and unknown alloys whose fumes can make me ill, and skim slag off a melt.",
+          "source": {
+            "url": "https://www.hse.gov.uk/welding/health-risks-welding.htm",
+            "date": "2026-01-09; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.welding.s2_b",
+      "skill": "welding",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can clean and clamp joints properly and avoid welding near anything that can burn.",
+      "why": "\"Avoid welding near anything that can burn\" is vague, and it misses the fatal case: welding or cutting a drum, tank or container that once held fuel. Residue in an \"empty\" drum explodes.",
+      "correct": "I can clean and clamp joints properly, move or cover anything that can burn well clear of the sparks, keep an extinguisher and someone watching for fire, and never weld or cut a drum, tank or container that has held fuel or chemicals unless someone trained has made it safe.",
+      "source": {
+        "url": "https://www.hse.gov.uk/pubns/indg314.pdf",
+        "date": "INDG314(rev1), published 05/13; read 2026-11-14",
+        "quote": "Tanks and drums that seem to be ‘empty’ usually still have residues in the bottom, in seams and other crevices. Just a teaspoon of petrol in a drum can be enough to cause an explosion"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.welding.s2_b",
+          "stage": "beginner",
+          "text": "I can clean and clamp joints properly, move or cover anything that can burn well clear of the sparks, keep an extinguisher and someone watching for fire, and never weld or cut a drum, tank or container that has held fuel or chemicals unless someone trained has made it safe.",
+          "source": {
+            "url": "https://www.hse.gov.uk/pubns/indg314.pdf",
+            "date": "INDG314(rev1), published 05/13; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.machining.s1_a",
+      "skill": "machining",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can wear eye protection, tie back hair and loose clothing, and follow the steps to make one simple cut on a lathe or mill.",
+      "why": "The novice lathe and mill statement covers hair and loose clothing but not gloves, rings or watches. A glove caught by a rotating chuck or drill pulls the hand in, a leading cause of serious workshop injuries.",
+      "correct": "I can wear eye protection, tie back hair, take off gloves, rings and watches, keep loose clothing clear, and follow the steps to make one simple cut on a lathe or mill.",
+      "source": {
+        "url": "https://www.hse.gov.uk/engineering/getting-started.htm",
+        "date": "2025-02-24; read 2026-11-14",
+        "quote": "Many serious accidents that occur in engineering workshops could be avoided if the wearing of gloves was prevented whilst working in close proximity to rotating machinery such as drills and lathes."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.machining.s1_a",
+          "stage": "novice",
+          "text": "I can wear eye protection, tie back hair, take off gloves, rings and watches, keep loose clothing clear, and follow the steps to make one simple cut on a lathe or mill.",
+          "source": {
+            "url": "https://www.hse.gov.uk/engineering/getting-started.htm",
+            "date": "2025-02-24; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.ceramics.s1_a",
+      "skill": "ceramics",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can wedge clay and make a simple pinch pot, wearing a dust mask while handling dry clay.",
+      "why": "Dry clay and glaze dust contain crystalline silica. The real control is keeping dust down (wet cleaning, never dry sweeping), and when dust cannot be avoided a rated respirator; a generic \"dust mask\" may be a nuisance mask that does nothing.",
+      "correct": "I can wedge clay and make a simple pinch pot, clean dry clay dust with water or a filtered vacuum instead of sweeping, and wear a rated respirator (FFP3 or equivalent, not a nuisance dust mask) when dust cannot be avoided.",
+      "source": {
+        "url": "https://www.hse.gov.uk/agriculture/dustmasks.htm",
+        "date": "updated 2024-08-07; read 2026-11-14",
+        "quote": "These are not intended for use when a respirator should be worn. You should never use a nuisance dust mask instead"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.ceramics.s1_a",
+          "stage": "novice",
+          "text": "I can wedge clay and make a simple pinch pot, clean dry clay dust with water or a filtered vacuum instead of sweeping, and wear a rated respirator (FFP3 or equivalent, not a nuisance dust mask) when dust cannot be avoided.",
+          "source": {
+            "url": "https://www.hse.gov.uk/agriculture/dustmasks.htm",
+            "date": "updated 2024-08-07; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.ceramics.s4_b",
+      "skill": "ceramics",
+      "stage": "proficient",
+      "severity": "high",
+      "problem": "safety",
+      "statement": "I can make bricks, tiles or a ceramic water filter that works.",
+      "why": "\"A ceramic water filter that works\" invites people to drink filtered water as safe. A clay filter can remove bacteria and protozoa, but filters of this kind do not reliably remove viruses, and a home-made one has not been tested. Drinking water must still be disinfected.",
+      "correct": "I can make bricks or tiles that hold up, and a ceramic water filter whose flow I test, and I still disinfect the water it makes (for example with chlorine), because a filter does not reliably remove viruses.",
+      "source": {
+        "url": "https://www.cdc.gov/yellow-book/hcp/preparing-international-travelers/water-disinfection-for-travelers.html",
+        "date": "last updated April 23, 2025 (CDC Yellow Book); read 2026-11-14",
+        "quote": "Many filters do not reliably remove viruses"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.ceramics.s4_b",
+          "stage": "proficient",
+          "text": "I can make bricks or tiles that hold up, and a ceramic water filter whose flow I test, and I still disinfect the water it makes (for example with chlorine), because a filter does not reliably remove viruses.",
+          "source": {
+            "url": "https://www.cdc.gov/yellow-book/hcp/preparing-international-travelers/water-disinfection-for-travelers.html",
+            "date": "last updated April 23, 2025 (CDC Yellow Book); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.electronics.s4_a",
+      "skill": "electronics",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can repair a damaged board by replacing parts and fixing broken tracks.",
+      "why": "Repairing a board says nothing about power or stored energy. Boards from mains equipment (power supplies, microwave ovens, TVs) hold a dangerous charge in capacitors after unplugging.",
+      "correct": "I can repair a damaged board by replacing parts and fixing broken tracks, with the power off and stored energy in capacitors and batteries released first; mains power supplies and microwave ovens I leave to someone trained.",
+      "source": {
+        "url": "https://www.hse.gov.uk/electricity/faq.htm",
+        "date": "last updated 2026-05-07; read 2026-11-14",
+        "quote": "You can be reasonably sure that your electrical equipment is safe to work on if all sources of energy ... have been securely isolated and any stored energy has been released from the equipment."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.electronics.s4_a",
+          "stage": "proficient",
+          "text": "I can repair a damaged board by replacing parts and fixing broken tracks, with the power off and stored energy in capacitors and batteries released first; mains power supplies and microwave ovens I leave to someone trained.",
+          "source": {
+            "url": "https://www.hse.gov.uk/electricity/faq.htm",
+            "date": "last updated 2026-05-07; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.construction.s4_b",
+      "skill": "construction",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can work safely at height with ladders and scaffold and brace a wall while it is built.",
+      "why": "Working safely at height on ladders and scaffold is placed at Proficient, but the Competent stage (s3_a) already builds a shed roof, which is work at height. Roof work is among the deadliest construction tasks, so height safety must come before the roof.",
+      "correct": "Move to Beginner (before the Competent shed roof): I can set up and climb a ladder safely and tell when scaffold or edge protection is needed. Keep \"brace a wall while it is built\" at Proficient.",
+      "source": {
+        "url": "https://www.hse.gov.uk/construction/safetytopics/roofwork.htm",
+        "date": "2026-06-05; read 2026-11-14",
+        "quote": "High risk: almost one in five deaths in construction work involve roof work."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.construction.s2_c",
+          "stage": "beginner",
+          "text": "I can set up and climb a ladder safely and tell when scaffold or edge protection is needed.",
+          "source": {
+            "url": "https://www.hse.gov.uk/construction/safetytopics/roofwork.htm",
+            "date": "2026-06-05; read 2026-11-14"
+          }
+        },
+        {
+          "kind": "reworded",
+          "key": "skills.construction.s4_b",
+          "stage": "proficient",
+          "text": "I can work safely at height from scaffold and brace a wall while it is built.",
+          "source": {
+            "url": "https://www.hse.gov.uk/construction/safetytopics/roofwork.htm",
+            "date": "2026-06-05; read 2026-11-14"
+          }
+        }
+      ],
+      "note": "The ladder half moves to Beginner as a new statement; Proficient keeps the scaffold and the bracing."
+    },
+    {
+      "group": "C",
+      "key": "skills.construction.s5_a",
+      "skill": "construction",
+      "stage": "expert",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can lead the building of a sound house or ship section to a standard, with no prompts.",
+      "why": "Leading the building of a house is presented with no mention of building approval, permits or inspections, which most places require for a new dwelling.",
+      "correct": "I can lead the building of a sound house or ship section to a standard, with no prompts, getting the building approval or permits it needs and passing its inspections.",
+      "source": {
+        "url": "https://www.gov.uk/building-regulations-approval",
+        "date": "dateModified 2025-01-24; read 2026-11-14",
+        "quote": "You must check if you need approval before you construct or change buildings in certain ways."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.construction.s5_a",
+          "stage": "expert",
+          "text": "I can lead the building of a sound house or ship section to a standard, with no prompts, getting the building approval or permits it needs and passing its inspections.",
+          "source": {
+            "url": "https://www.gov.uk/building-regulations-approval",
+            "date": "dateModified 2025-01-24; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.masonry.s1_a",
+      "skill": "masonry",
+      "stage": "novice",
+      "severity": "low",
+      "problem": "safety",
+      "statement": "I can wear eye protection, gloves and a dust mask, and mix mortar following the steps.",
+      "why": "Mixing dry mortar and cement raises fine dust (cement and sand). \"A dust mask\" may be read as a nuisance mask that does not protect; name a rated respirator.",
+      "correct": "I can wear eye protection, gloves and a rated respirator (FFP3 or equivalent, not a nuisance dust mask), and mix mortar following the steps.",
+      "source": {
+        "url": "https://www.hse.gov.uk/agriculture/dustmasks.htm",
+        "date": "updated 2024-08-07; read 2026-11-14",
+        "quote": "Some retailers also sell products known as nuisance dust masks or comfort masks that look like dust respirators but are not marked with CE or with any standard."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.masonry.s1_a",
+          "stage": "novice",
+          "text": "I can wear eye protection, gloves and a rated respirator (FFP3 or equivalent, not a nuisance dust mask), and mix mortar following the steps.",
+          "source": {
+            "url": "https://www.hse.gov.uk/agriculture/dustmasks.htm",
+            "date": "updated 2024-08-07; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.electrical.s2_a",
+      "skill": "electrical",
+      "stage": "beginner",
+      "severity": "high",
+      "problem": "safety",
+      "statement": "I can use a tester to prove a circuit dead, and never work on a live one.",
+      "why": "A Beginner works alone (skills.md). Proving dead without proving the tester works, before and after, is the classic fatal mistake: a failed tester reads \"dead\" on a live circuit. The guidance also says which testers to use (two-pole testers, not multimeters or volt sticks) and that training is essential.",
+      "correct": "I can prove a circuit dead with a proper two-pole voltage tester, checking the tester on a proving unit before and after the test, testing every conductor, and I never work on a live circuit.",
+      "source": {
+        "url": "https://www.hse.gov.uk/pubns/priced/hsg85.pdf",
+        "date": "HSG85 third edition, published 08/2013; read 2026-11-14",
+        "quote": "It will be necessary to test the instrument before and after use. This may be done by means of a proving unit with a low power output."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.electrical.s2_a",
+          "stage": "beginner",
+          "text": "I can prove a circuit dead with a proper two-pole voltage tester, checking the tester on a proving unit before and after the test, testing every conductor, and I never work on a live circuit.",
+          "source": {
+            "url": "https://www.hse.gov.uk/pubns/priced/hsg85.pdf",
+            "date": "HSG85 third edition, published 08/2013; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.electrical.s3_a",
+      "skill": "electrical",
+      "stage": "competent",
+      "severity": "high",
+      "problem": "legal",
+      "statement": "I can wire a simple circuit with a switch, a light and a fuse or breaker without the guide.",
+      "why": "Wiring a circuit with a breaker \"without the guide\" is presented with no word on the law. In England a new circuit is notifiable building work (a building notice before work, or a registered electrician); other countries require a permit and inspection, and some allow only licensed electricians to do mains work.",
+      "correct": "I can wire a simple circuit with a switch, a light and a fuse or breaker on a training board without the guide, and before touching a real installation I follow the local rules (a permit, notifying building control, or a licensed electrician).",
+      "source": {
+        "url": "https://assets.publishing.service.gov.uk/media/5a802da7ed915d74e622ceed/BR_PDF_AD_P_2013.pdf",
+        "date": "Approved Document P, 2013 edition (England); read 2026-11-14",
+        "quote": "A person intending to carry out building work ... is required to give a building notice or deposit full plans where the work consists of-- (a) the installation of a new circuit"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.electrical.s3_a",
+          "stage": "competent",
+          "text": "I can wire a simple circuit with a switch, a light and a fuse or breaker on a training board without the guide, and before touching a real installation I follow the local rules (a permit, notifying building control, or a licensed electrician).",
+          "source": {
+            "url": "https://assets.publishing.service.gov.uk/media/5a802da7ed915d74e622ceed/BR_PDF_AD_P_2013.pdf",
+            "date": "Approved Document P, 2013 edition (England); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.electrical.s4_b",
+      "skill": "electrical",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can connect a solar panel and battery system so that it is protected.",
+      "why": "Solar panels produce voltage whenever light falls on them and cannot be switched off at the panel, and batteries can deliver very high fault currents. The statement treats a home solar and battery system as a solo Proficient job with no word on either hazard or on licensed installers.",
+      "correct": "I can connect a small solar panel and battery system so that it is protected, covering the panels while I work because they are live in daylight; a system wired into a home I install under a licensed installer, as local rules require.",
+      "source": {
+        "url": "https://www.energy.gov/cmei/systems/guide-fire-safety-solar-systems",
+        "date": "last updated February 21, 2025 (US Department of Energy); read 2026-11-14",
+        "quote": "utilize properly licensed installers to ensure the safety of these systems"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.electrical.s4_b",
+          "stage": "proficient",
+          "text": "I can connect a small solar panel and battery system so that it is protected, covering the panels while I work because they are live in daylight; a system wired into a home I leave to a licensed installer, or work under one, where local rules require it.",
+          "source": {
+            "url": "https://www.energy.gov/cmei/systems/guide-fire-safety-solar-systems",
+            "date": "last updated February 21, 2025 (US Department of Energy); read 2026-11-14"
+          }
+        }
+      ],
+      "note": "The last clause is reworded to read plainly; the review's summary says the \"live in daylight\" wording is common practice with no quoted source, kept because it is plain physics (a lit panel makes voltage)."
+    },
+    {
+      "group": "C",
+      "key": "skills.electrical.s5_a",
+      "skill": "electrical",
+      "stage": "expert",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can plan, install and test a whole system to a standard, safely and with no prompts.",
+      "why": "Planning and installing a whole electrical system is presented as a matter of skill alone. Whole-installation work is notifiable or licensed work almost everywhere.",
+      "correct": "I can plan, install and test a whole system to the local wiring rules, with the permit, notification or licence they require, safely and with no prompts.",
+      "source": {
+        "url": "https://assets.publishing.service.gov.uk/media/5a802da7ed915d74e622ceed/BR_PDF_AD_P_2013.pdf",
+        "date": "Approved Document P, 2013 edition (England); read 2026-11-14",
+        "quote": "is required to give a building notice or deposit full plans where the work consists of-- (a) the installation of a new circuit; (b) the replacement of a consumer unit"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.electrical.s5_a",
+          "stage": "expert",
+          "text": "I can plan, install and test a whole system to the local wiring rules, with the permit, notification or licence they require, safely and with no prompts.",
+          "source": {
+            "url": "https://assets.publishing.service.gov.uk/media/5a802da7ed915d74e622ceed/BR_PDF_AD_P_2013.pdf",
+            "date": "Approved Document P, 2013 edition (England); read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.hvac.s3_a",
+      "skill": "hvac",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can size a heater or cooler for a room and set it up without the guide.",
+      "why": "Setting up a heater \"without the guide\" covers fuel-burning heaters, whose wrong installation or venting causes carbon monoxide poisoning. The statement needs venting, a CO alarm and professional installation for fuel appliances.",
+      "correct": "I can size a heater or cooler for a room and set it up without the guide; a fuel-burning heater I have installed by a qualified person, vented as its maker says, with a carbon monoxide alarm fitted.",
+      "source": {
+        "url": "https://www.cpsc.gov/safety-education/safety-guides/carbon-monoxide/carbon-monoxide-fact-sheet",
+        "date": "no date shown on page; read 2026-11-14",
+        "quote": "Make sure appliances are installed and operated according to the manufacturer's instructions and local building codes. Most appliances should be installed by qualified professionals."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.hvac.s3_a",
+          "stage": "competent",
+          "text": "I can size a heater or cooler for a room and set it up without the guide; a fuel-burning heater I have installed by a qualified person, vented as its maker says, with a carbon monoxide alarm fitted.",
+          "source": {
+            "url": "https://www.cpsc.gov/safety-education/safety-guides/carbon-monoxide/carbon-monoxide-fact-sheet",
+            "date": "no date shown on page; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.hvac.s4_b",
+      "skill": "hvac",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can set up a heat pump or a heat recovery fan and check that it works.",
+      "why": "Setting up a heat pump usually means connecting and charging a refrigerant circuit, which legally needs a qualified technician (F-gas qualifications in the UK; similar refrigerant certification elsewhere).",
+      "correct": "I can choose and place a heat pump or a heat recovery fan and check that it works; connecting or charging the heat pump's refrigerant circuit I leave to a certified refrigerant technician.",
+      "source": {
+        "url": "https://www.gov.uk/guidance/qualifications-required-to-work-on-equipment-containing-f-gas",
+        "date": "dateModified 2026-03-03; read 2026-11-14",
+        "quote": "For RACHP systems you must have qualifications to: install new systems; service and maintain systems; check for leaks"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.hvac.s4_b",
+          "stage": "proficient",
+          "text": "I can choose and place a heat pump or a heat recovery fan and check that it works; connecting or charging the heat pump's refrigerant circuit I leave to a certified refrigerant technician.",
+          "source": {
+            "url": "https://www.gov.uk/guidance/qualifications-required-to-work-on-equipment-containing-f-gas",
+            "date": "dateModified 2026-03-03; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.life_support.s2_a",
+      "skill": "life_support",
+      "stage": "beginner",
+      "severity": "medium",
+      "problem": "factual",
+      "statement": "I can tell the signs of too little oxygen or too much carbon dioxide and call for help quickly.",
+      "why": "The statement teaches people to rely on noticing the signs of low oxygen. Low oxygen usually gives no warning a person can sense before they collapse; only a meter or alarm warns in time. The same is true in real confined spaces.",
+      "correct": "I can read the oxygen and carbon dioxide meters and alarms, know that too little oxygen can knock me out with no warning I would notice, and leave and call for help as soon as a reading or alarm says so.",
+      "source": {
+        "url": "https://www.csb.gov/assets/1/6/nitrogen_asphyxiation_safety_bulletin_(6-11-03).pdf",
+        "date": "CSB Safety Bulletin No. 2003-10-B, June 2003; read 2026-11-14",
+        "quote": "The exposed person has no warning and cannot sense that the oxygen level is too low."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.life_support.s2_a",
+          "stage": "beginner",
+          "text": "I can read the oxygen and carbon dioxide meters and alarms, know that too little oxygen can knock me out with no warning I would notice, and leave and call for help as soon as a reading or alarm says so.",
+          "source": {
+            "url": "https://www.csb.gov/assets/1/6/nitrogen_asphyxiation_safety_bulletin_(6-11-03).pdf",
+            "date": "CSB Safety Bulletin No. 2003-10-B, June 2003; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.rigging.s3_a",
+      "skill": "rigging",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can pick the right knots, pulleys and rope for a load and rig a lift without the guide.",
+      "why": "Choosing rope, pulleys and slings for a lift (Competent) depends on knowing the load's weight and each item's marked safe working load, but that is placed later, at Proficient (s4_b). A rigger who cannot estimate the weight should not be rigging lifts alone.",
+      "correct": "I can work out a load's weight, pick knots, pulleys, slings and rope whose marked safe working load covers it, and rig a simple lift without the guide. (Move the weight estimate here from Proficient.)",
+      "source": {
+        "url": "https://www.hse.gov.uk/pubns/indg290.pdf",
+        "date": "INDG290(rev1), published 03/13; read 2026-11-14",
+        "quote": "Don't... exceed the safe working load of machinery or accessories like chains, slings and grabs."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.rigging.s3_a",
+          "stage": "competent",
+          "text": "I can work out a load's weight, pick knots, pulleys, slings and rope whose marked safe working load covers it, and rig a simple lift without the guide.",
+          "source": {
+            "url": "https://www.hse.gov.uk/pubns/indg290.pdf",
+            "date": "INDG290(rev1), published 03/13; read 2026-11-14"
+          }
+        }
+      ],
+      "note": "The reviewer's bracketed pointer (the weight estimate moves here from Proficient) is a note, not words for the statement; Proficient's s4_b keeps the harder part (sling angles)."
+    },
+    {
+      "group": "C",
+      "key": "skills.rigging.s4_b",
+      "skill": "rigging",
+      "stage": "proficient",
+      "severity": "low",
+      "problem": "vague",
+      "statement": "I can work out a load's weight and choose gear with a safe margin.",
+      "why": "\"A safe margin\" cannot be checked. The checkable rules are: never exceed the marked safe working load, and allow for the extra load sling angles put on each leg; do not lift if the weight is in doubt.",
+      "correct": "I can work out a load's weight, including the extra force that wide sling angles put on each leg, and never use gear beyond its marked safe working load; if I doubt the weight, I do not lift.",
+      "source": {
+        "url": "https://www.hse.gov.uk/pubns/indg290.pdf",
+        "date": "INDG290(rev1), published 03/13; read 2026-11-14",
+        "quote": "Remember that the load in the legs of a sling increases as the angle between the legs increases"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.rigging.s4_b",
+          "stage": "proficient",
+          "text": "I can work out a load's weight, including the extra force that wide sling angles put on each leg, and never use gear beyond its marked safe working load; if I doubt the weight, I do not lift.",
+          "source": {
+            "url": "https://www.hse.gov.uk/pubns/indg290.pdf",
+            "date": "INDG290(rev1), published 03/13; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.mechanics.s2_b",
+      "skill": "mechanics",
+      "stage": "beginner",
+      "severity": "high",
+      "problem": "safety",
+      "statement": "I can change a tyre and a filter and check brakes and belts.",
+      "why": "A Beginner does this alone. Changing a tyre and checking brakes means a raised vehicle with a wheel off; vehicles falling off jacks are the main cause of deaths in vehicle repair. The statement does not say to use axle stands or never to rely on a jack.",
+      "correct": "I can change a tyre and a filter and check brakes and belts, putting the vehicle on axle stands on firm, level ground whenever a wheel is off or any part of me goes under it; I never rely on a jack alone.",
+      "source": {
+        "url": "https://www.hse.gov.uk/mvr/mechanical-repair/under-vehicles.htm",
+        "date": "2025-09-19; read 2026-11-14",
+        "quote": "vehicles are always properly supported - do not rely on jacks alone"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.mechanics.s2_b",
+          "stage": "beginner",
+          "text": "I can change a tyre and a filter and check brakes and belts, putting the vehicle on axle stands on firm, level ground whenever a wheel is off or any part of me goes under it; I never rely on a jack alone.",
+          "source": {
+            "url": "https://www.hse.gov.uk/mvr/mechanical-repair/under-vehicles.htm",
+            "date": "2025-09-19; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.repair.s1_a",
+      "skill": "repair",
+      "stage": "novice",
+      "severity": "medium",
+      "problem": "safety",
+      "statement": "I can unplug a broken item, look it over, and follow the steps to fix a simple fault.",
+      "why": "A novice told \"unplug it and fix a simple fault\" is not warned that some unplugged items keep a dangerous charge (microwave ovens, mains power supplies, TVs).",
+      "correct": "I can unplug a broken item, look it over, and follow the steps to fix a simple fault, and I know that some items, such as microwave ovens and power supplies, hold a dangerous charge after unplugging, so I leave those to someone trained.",
+      "source": {
+        "url": "https://www.hse.gov.uk/electricity/faq.htm",
+        "date": "last updated 2026-05-07; read 2026-11-14",
+        "quote": "any stored energy has been released from the equipment"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.repair.s1_a",
+          "stage": "novice",
+          "text": "I can unplug a broken item, look it over, and follow the steps to fix a simple fault, and I know that some items, such as microwave ovens and power supplies, hold a dangerous charge after unplugging, so I leave those to someone trained.",
+          "source": {
+            "url": "https://www.hse.gov.uk/electricity/faq.htm",
+            "date": "last updated 2026-05-07; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.logistics.s1_a",
+      "skill": "logistics",
+      "stage": "novice",
+      "severity": "low",
+      "problem": "factual",
+      "statement": "I can lift and carry goods with a straight back and label a box, following the steps.",
+      "why": "\"With a straight back\" is folk advice. Official guidance prefers a slight bend of back, hips and knees, the load close to the waist, no twisting, and help for heavy loads.",
+      "correct": "I can lift and carry goods with the load close to my waist, a slight bend in my back, hips and knees, no twisting, and ask for help with anything heavy, and label a box, following the steps.",
+      "source": {
+        "url": "https://www.hse.gov.uk/msd/manual-handling/good-handling-technique.htm",
+        "date": "last updated 2 April 2025; read 2026-11-14",
+        "quote": "Slight bending of your back, hips and knees at the start of the lift is preferable to either fully flexing your back (stooping) or fully flexing your hips and knees (full/deep squatting)."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.logistics.s1_a",
+          "stage": "novice",
+          "text": "I can lift and carry goods with the load close to my waist, a slight bend in my back, hips and knees, no twisting, and ask for help with anything heavy, and label a box, following the steps.",
+          "source": {
+            "url": "https://www.hse.gov.uk/msd/manual-handling/good-handling-technique.htm",
+            "date": "last updated 2 April 2025; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.driving.s2_a",
+      "skill": "driving",
+      "stage": "beginner",
+      "severity": "high",
+      "problem": "legal",
+      "statement": "I can drive on a quiet road, keep a safe distance and obey the signs.",
+      "why": "A Beginner works alone (skills.md), so this reads as driving on a public road alone. A learner needs a provisional licence or permit and a qualified supervising driver; driving alone without a licence is illegal almost everywhere.",
+      "correct": "I can drive on a quiet road with my learner's licence and a qualified driver supervising me, keep a safe distance and obey the signs.",
+      "source": {
+        "url": "https://www.gov.uk/driving-lessons-learning-to-drive",
+        "date": "page metadata 2026-11-05; read 2026-11-14",
+        "quote": "You must have a provisional driving licence for Great Britain or Northern Ireland when you’re learning to drive or ride. You must be supervised when you're learning to drive a car."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.driving.s2_a",
+          "stage": "beginner",
+          "text": "I can drive on a quiet road with my learner's licence and a qualified driver supervising me, keep a safe distance and obey the signs.",
+          "source": {
+            "url": "https://www.gov.uk/driving-lessons-learning-to-drive",
+            "date": "page metadata 2026-11-05; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.driving.s3_a",
+      "skill": "driving",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can drive in traffic and on rough tracks without the guide, keeping a safe speed for the conditions.",
+      "why": "Driving in traffic without a guide is presented with no mention of passing the test and holding a full licence for that kind of vehicle.",
+      "correct": "With a full licence for the vehicle, I can drive in traffic and on rough tracks without the guide, keeping a safe speed for the conditions.",
+      "source": {
+        "url": "https://www.gov.uk/driving-lessons-learning-to-drive",
+        "date": "page metadata 2026-11-05; read 2026-11-14",
+        "quote": "You must be supervised when you’re learning to drive a car."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.driving.s3_a",
+          "stage": "competent",
+          "text": "I can drive in traffic and on rough tracks without the guide, with a full licence for the vehicle, keeping a safe speed for the conditions.",
+          "source": {
+            "url": "https://www.gov.uk/driving-lessons-learning-to-drive",
+            "date": "page metadata 2026-11-05; read 2026-11-14"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"."
+    },
+    {
+      "group": "C",
+      "key": "skills.flying.s3_a",
+      "skill": "flying",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can plan a short flight, check the weather, and fly it and land without the guide.",
+      "why": "Flying a planned flight \"without the guide\" is solo flight, which needs a student pilot certificate and an instructor's solo endorsement (plus a medical where required); carrying passengers needs a pilot licence.",
+      "correct": "Once my instructor has signed me off for solo, I can plan a short flight, check the weather, and fly it and land alone.",
+      "source": {
+        "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf",
+        "date": "14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14",
+        "quote": "A student pilot may not operate an aircraft in solo flight unless that student pilot has received an endorsement in the student's logbook for the specific make and model aircraft to be flown by an authorized instructor"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.flying.s3_a",
+          "stage": "competent",
+          "text": "I can plan a short flight, check the weather, and fly it and land alone, once my instructor has signed me off for solo.",
+          "source": {
+            "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf",
+            "date": "14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"."
+    },
+    {
+      "group": "C",
+      "key": "skills.flying.s4_a",
+      "skill": "flying",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can deal with a failed engine or system and land safely, and change plans for weather.",
+      "why": "Handling an engine failure is placed at Proficient, after the student already flies alone at Competent. Emergency procedures, simulated engine-failure approaches, go-arounds and crosswind landings are all required training BEFORE first solo.",
+      "correct": "Move to Beginner, with an instructor: I can handle a simulated engine failure and other emergencies and land safely. Keep \"a real failure in flight, and changing plans for weather\" at Proficient.",
+      "source": {
+        "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf",
+        "date": "14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14",
+        "quote": "(11) Emergency procedures and equipment malfunctions; (12) Ground reference maneuvers; (13) Approaches to a landing area with simulated engine malfunctions; (14) Slips to a landing; and (15) Go-arounds."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.flying.s2_c",
+          "stage": "beginner",
+          "text": "I can handle a simulated engine failure and other emergencies with an instructor, and land safely.",
+          "source": {
+            "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf",
+            "date": "14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14"
+          }
+        },
+        {
+          "kind": "reworded",
+          "key": "skills.flying.s4_a",
+          "stage": "proficient",
+          "text": "I can deal with a real engine or system failure in flight and land safely, and change plans for weather.",
+          "source": {
+            "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-87.pdf",
+            "date": "14 CFR 61.87, official CFR 1-1-25 edition (govinfo); read 2026-11-14"
+          }
+        }
+      ],
+      "note": "The simulated-failure half moves to Beginner as a new statement starting \"I can\"; Proficient keeps the real failure and the weather."
+    },
+    {
+      "group": "C",
+      "key": "skills.flying.s6_a",
+      "skill": "flying",
+      "stage": "master",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can write a flying lesson and assess other pilots.",
+      "why": "Giving flight training and signing pilots off requires a flight instructor certificate; Master skill alone does not permit it.",
+      "correct": "With a flight instructor certificate, I can write a flying lesson, train other pilots and assess them.",
+      "source": {
+        "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-3.pdf",
+        "date": "14 CFR 61.3, official CFR 1-1-25 edition (govinfo); read 2026-11-14",
+        "quote": "no person other than the holder of a flight instructor certificate issued under this part with the appropriate rating on that certificate may-- (i) Give training required to qualify a person for solo flight"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.flying.s6_a",
+          "stage": "master",
+          "text": "I can hold a flight instructor certificate, write a flying lesson, and train and assess other pilots.",
+          "source": {
+            "url": "https://www.govinfo.gov/content/pkg/CFR-2025-title14-vol2/pdf/CFR-2025-title14-vol2-sec61-3.pdf",
+            "date": "14 CFR 61.3, official CFR 1-1-25 edition (govinfo); read 2026-11-14"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"."
+    },
+    {
+      "group": "C",
+      "key": "skills.drone_operation.s1_a",
+      "skill": "drone_operation",
+      "stage": "novice",
+      "severity": "low",
+      "problem": "legal",
+      "statement": "I can do the pre-flight check, keep the drone in sight, and fly a slow hover in an open area, following the steps.",
+      "why": "The first flight already needs the legal IDs or registration for most drones (in the UK a Flyer ID from 100 g, in the US registration and a safety test for recreational flyers). The ladder never mentions them.",
+      "correct": "Before my first flight I have the ID or registration the law needs for my drone, then I can do the pre-flight check, keep the drone in sight, and fly a slow hover in an open area, following the steps.",
+      "source": {
+        "url": "https://www.caa.co.uk/drones/open-category/drone-code/getting-what-you-need-to-fly-legally/",
+        "date": "UK CAA Drone and Model Aircraft Code, page build 2026-08-20; read 2026-11-14",
+        "quote": "You must get a Flyer ID if you want to fly a drone or model aircraft that weighs 100g or above."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.drone_operation.s1_a",
+          "stage": "novice",
+          "text": "I can get the ID or registration the law needs for my drone before my first flight, then do the pre-flight check, keep the drone in sight, and fly a slow hover in an open area, following the steps.",
+          "source": {
+            "url": "https://www.caa.co.uk/drones/open-category/drone-code/getting-what-you-need-to-fly-legally/",
+            "date": "UK CAA Drone and Model Aircraft Code, page build 2026-08-20; read 2026-11-14"
+          }
+        }
+      ],
+      "note": "Same content, reordered so the statement starts \"I can\"."
+    },
+    {
+      "group": "C",
+      "key": "skills.drone_operation.s3_b",
+      "skill": "drone_operation",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can fly safely around people and obstacles and keep clear of other aircraft.",
+      "why": "\"Fly safely around people\" presents closeness to people as a matter of skill. Most rules set a minimum distance from uninvolved people and forbid flying over crowds, whatever the pilot's skill.",
+      "correct": "I can fly safely around obstacles, keep the distance from people the rules set where I fly (in the UK, 50 m from uninvolved people for most drones, and never over a crowd), and keep clear of other aircraft.",
+      "source": {
+        "url": "https://www.caa.co.uk/drones/open-category/drone-code/where-you-can-fly-points-3-to-9/",
+        "date": "UK CAA Drone and Model Aircraft Code, page build 2026-08-20; read 2026-11-14",
+        "quote": "You must keep a minimum horizontal distance of 50m between your drone or model aircraft and people."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.drone_operation.s3_b",
+          "stage": "competent",
+          "text": "I can fly safely around obstacles, keep as far from people as the rules where I fly require, never fly over a crowd, and keep clear of other aircraft.",
+          "source": {
+            "url": "https://www.caa.co.uk/drones/open-category/drone-code/where-you-can-fly-points-3-to-9/",
+            "date": "UK CAA Drone and Model Aircraft Code, page build 2026-08-20; read 2026-11-14"
+          }
+        }
+      ],
+      "note": "Generalised: the UK distance (50 m from uninvolved people for most drones, from the UK CAA source) stays in the source quote rather than the statement, which holds in any country."
+    },
+    {
+      "group": "C",
+      "key": "skills.fire_performance.s3_b",
+      "skill": "fire_performance",
+      "stage": "competent",
+      "severity": "high",
+      "problem": "order",
+      "statement": "I can run my full routine with unlit props first, and only then a lit one, always with a trained spotter and a fire blanket present.",
+      "why": "This is the first lit spin, but no stage in the ladder teaches fuelling: dipping the wick, spinning off the excess fuel away from the area, keeping fuel capped and away from flame, and never using petrol. Unspun fuel flies off burning onto the performer and the audience. Fire codes require excess fuel removed before ignition.",
+      "correct": "Add before the first lit spin (Competent): I can fuel a prop safely, dipping the wick, spinning off the excess fuel into a spin-off bucket well away from the performance area, keeping the fuel capped and away from flame, and never using petrol. Then: I can run my full routine with unlit props first, and only then a lit one, always with a trained spotter, a fire blanket or wet towel and an extinguisher present.",
+      "source": {
+        "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+        "date": "Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14",
+        "quote": "Excess fuel shall be removed from devices in an approved manner before they are ignited or used in front of an audience. A \"spin out bucket\" shall be utilized to spin off any excess fuel"
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "added",
+          "key": "skills.fire_performance.s3_c",
+          "stage": "competent",
+          "text": "I can fuel a prop safely, dipping the wick, spinning off the excess fuel into a spin-off bucket well away from the performance area, keeping the fuel capped and away from flame, and never using petrol.",
+          "before": "skills.fire_performance.s3_b",
+          "source": {
+            "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+            "date": "Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14"
+          }
+        },
+        {
+          "kind": "reworded",
+          "key": "skills.fire_performance.s3_b",
+          "stage": "competent",
+          "text": "I can run my full routine with unlit props first, and only then a lit one, always with a trained spotter, a fire blanket or wet towel and an extinguisher present.",
+          "source": {
+            "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+            "date": "Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.fire_performance.s4_b",
+      "skill": "fire_performance",
+      "stage": "proficient",
+      "severity": "medium",
+      "problem": "legal",
+      "statement": "I can adjust the setup for different spaces, such as indoors or crowded venues, and decide when not to perform.",
+      "why": "Performing indoors or at crowded venues is treated as a setup decision. Many cities require a fire performance permit, approved distances, safety staff and an extinguisher, and indoor shows need the venue's and fire authority's approval.",
+      "correct": "I can adjust the setup for different spaces, such as indoors or crowded venues, get the venue's and fire authority's permission (a permit in many places), and decide when not to perform.",
+      "source": {
+        "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+        "date": "Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14",
+        "quote": "Each fire performance artist must obtain an \"Individual Fire Performance Art Conditional Use Permit\" for each performance location."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "reworded",
+          "key": "skills.fire_performance.s4_b",
+          "stage": "proficient",
+          "text": "I can adjust the setup for different spaces, such as indoors or crowded venues, get the venue's and fire authority's permission (a permit in many places), and decide when not to perform.",
+          "source": {
+            "url": "https://www.portland.gov/sites/default/files/2020-06/fir-3.07-fire-performance-art-080218-755010.pdf",
+            "date": "Portland Fire & Rescue FMO Policy, Fire Performance Art, revision 8/18; read 2026-11-14"
+          }
+        }
+      ]
+    },
+    {
+      "group": "C",
+      "key": "skills.mediation.s3_b",
+      "skill": "mediation",
+      "stage": "competent",
+      "severity": "medium",
+      "problem": "order",
+      "statement": "I can spot when a disagreement is too serious or unsafe for me and ask for help.",
+      "why": "Recognising when a dispute is unsafe (threats, violence, abuse) comes at Competent, after the Beginner stage already questions both sides alone. Screening for danger comes before trying to settle anything; formal family mediation itself is waived where there has been domestic abuse.",
+      "correct": "Move to Beginner (before s2_b): I can spot when a disagreement involves threats, violence or abuse, or is too serious for me, and get help instead of trying to settle it myself.",
+      "source": {
+        "url": "https://www.gov.uk/looking-after-children-divorce/mediation",
+        "date": "read 2026-11-14 (no date captured)",
+        "quote": "You will not have to go to a MIAM in some circumstances, for example if there’s been domestic abuse."
+      },
+      "outcome": "applied",
+      "changes": [
+        {
+          "kind": "moved",
+          "key": "skills.mediation.s2_c",
+          "stage": "beginner",
+          "text": "I can spot when a disagreement involves threats, violence or abuse, or is too serious for me, and get help instead of trying to settle it myself.",
+          "from": "skills.mediation.s3_b",
+          "before": "skills.mediation.s2_b",
+          "source": {
+            "url": "https://www.gov.uk/looking-after-children-divorce/mediation",
+            "date": "read 2026-11-14 (no date captured)"
+          }
+        }
+      ]
+    }
+  ]
+}

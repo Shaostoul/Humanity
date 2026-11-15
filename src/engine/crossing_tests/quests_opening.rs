@@ -859,7 +859,7 @@ fn walk_the_opening(home_file: &str, plot: &str, dev: bool) {
     assert_eq!(
         game.notices(),
         vec![
-            "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking XP.".to_string(),
+            "Quest complete: First Steps. You received 2 Iron Ingot and 30 Smelting and metallurgy XP.".to_string(),
             "New quest: Toolsmith. Forge a hammer: Esc > Crafting > Craft Hammer > Craft.".to_string(),
         ],
         "{walk}: the end of the opening says what it gave and what comes next"

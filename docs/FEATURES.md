@@ -4500,9 +4500,34 @@ fell for a while, to go back for."). Either way you wake in the respawner with f
 - Design: `docs/design/death-and-your-pack.md`
 
 ### Skills/Progression
-20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `crates/humanity-systems/src/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
+**The base set, skills rung 1 (2026-11-14, docs/design/skills.md, approved by the operator).** 90
+skills in 11 families (`data/skills/skills.csv`, `families.json`), each with six named stages,
+Novice to Master, and 1 to 3 "I can" statements per stage (`data/skills/stages.json`, words by key
+in `data/i18n/en.json`; 821 statements, checked against primary sources on 2026-11-14 with 103
+corrections, each corrected statement's source in `stages.json`'s `sources`, the review in
+`docs/reference/research/2026-11-14-skill-statement-review/` and held by
+`crates/humanity-systems/src/skills/statement_review_tests.rs`); no cap (the levels go on past Master). XP comes from doing the real
+procedure: recipes through their `skill_required` (all 386 re-pointed, none trains nothing), every
+other live verb through `data/skills/practice.json` (`skills::practice`, `practice_first`,
+`practice_scaled`, `practice_with`, `practice_distance`, `queue_practice`), weighed in the
+SkillSystem by difficulty against the level and the result's quality (`practice_weight`), with
+declared transfers. Wired verbs: the walk-up collect by yield, building (masonry for stone), harvests
+(mushrooms for a fungus), composting waste, a bee colony, running power, water, data and air lines,
+laying out walls, deploying a vehicle kit, distance swum, climbed, driven and carried, reaching a quest
+destination, a landed strike (the weapon's `skill` in `data/equipment.csv`, unarmed for bare hands),
+a hunting kill, vendor sales and settled trades, votes, proposals and joining a guild, finishing a
+music track. A save's retired skill ids are dropped, not mapped. The Skills page: native Profile >
+Skills (`src/gui/pages/profile_skills.rs`, snapshot `profile_skills`) and the website's Profile Skills
+tab (`web/pages/profile.html`, the real-life twin kept in the browser), each skill's stage in words,
+its "I can" list, the next stage's and the bar to it, by family. Tests:
+`crates/humanity-systems/src/skills/skill_tests.rs`, `tests/skills_data_lint.rs` (every skill named
+in data is a row, no retired id in code, every practice id in the table),
+`tests/activities_catalog_lint.rs` (every skill trained by an activity or says why),
+`scripts/tests/xp-curve-web.test.js` (no cap on the website). The later rungs: skills.md section 10.
+
+Before rung 1: 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `crates/humanity-systems/src/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
 - Native: `crates/humanity-systems/src/skills/mod.rs`
-- Data: `data/skills/skills.csv`
+- Data: `data/skills/skills.csv`, `data/skills/families.json`, `data/skills/stages.json`, `data/skills/practice.json`, `data/skills/xp_curve.json`
 
 ### AI Behaviors
 5 behavior types (passive, aggressive, herd, predator, guard) with state machines. **⚠️ Native `AISystem` NOT registered, never ticks (the relay drives ambient NPCs separately, server-side). See the lint.**

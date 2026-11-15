@@ -269,7 +269,7 @@
         "moving-water-without-power"
       ],
       "skills": [
-        "engineering"
+        "plumbing"
       ],
       "data": [
         "data/machines/home.ron",
@@ -302,7 +302,7 @@
       ],
       "skills": [
         "fire_making",
-        "engineering"
+        "plumbing"
       ],
       "data": [
         "data/machines/home_solo.ron",
@@ -523,7 +523,7 @@
       ],
       "skills": [
         "farming",
-        "engineering"
+        "plumbing"
       ],
       "data": [
         "data/plants.csv",
@@ -979,8 +979,8 @@
       "summary": "Understand seasons, licensing, safety and the responsibility of taking an animal.",
       "status": "absent",
       "skills": [
-        "ranged",
-        "foraging"
+        "hunting",
+        "tracking"
       ],
       "data": [
         "data/laws/laws.json"
@@ -1209,8 +1209,8 @@
         "cold-storage-without-a-fridge"
       ],
       "skills": [
-        "cooking",
-        "shelter_building"
+        "preserving",
+        "construction"
       ],
       "data": [
         "data/food_system.ron",
@@ -1268,7 +1268,7 @@
       "summary": "Pick a site for water, drainage, sun, wind and hazard.",
       "status": "sourced",
       "skills": [
-        "shelter_building"
+        "construction"
       ],
       "data": [
         "data/locales/<id>/terrain.json"
@@ -1297,7 +1297,7 @@
         "emergency-shelter"
       ],
       "skills": [
-        "shelter_building"
+        "construction"
       ],
       "data": [
         "data/blueprints/basic.ron",
@@ -1330,7 +1330,7 @@
         "how-a-building-stands-up"
       ],
       "skills": [
-        "shelter_building",
+        "construction",
         "woodworking"
       ],
       "data": [
@@ -1361,7 +1361,7 @@
         "foundations-and-ground"
       ],
       "skills": [
-        "shelter_building"
+        "construction"
       ],
       "data": [
         "data/blueprints/basic.ron"
@@ -1391,7 +1391,7 @@
         "framing-a-building"
       ],
       "skills": [
-        "shelter_building",
+        "construction",
         "woodworking"
       ],
       "data": [
@@ -1422,7 +1422,7 @@
         "roofs-and-keeping-water-out"
       ],
       "skills": [
-        "shelter_building"
+        "construction"
       ],
       "data": [
         "data/blueprints/basic.ron"
@@ -1448,7 +1448,8 @@
       "summary": "Keep heat in for the least fuel, and avoid trapping moisture.",
       "status": "sourced",
       "skills": [
-        "shelter_building"
+        "construction",
+        "hvac"
       ],
       "locale_dependent": true,
       "hazard": "caution",
@@ -1473,7 +1474,8 @@
       "summary": "Move air enough to keep the building and the people in it healthy.",
       "status": "sourced",
       "skills": [
-        "shelter_building"
+        "construction",
+        "hvac"
       ],
       "sources": [
         "epa",
@@ -1504,7 +1506,7 @@
       ],
       "skills": [
         "fire_making",
-        "shelter_building"
+        "hvac"
       ],
       "data": [
         "data/status_effects.csv",
@@ -1544,8 +1546,9 @@
         "repairing-a-building"
       ],
       "skills": [
-        "shelter_building",
-        "woodworking"
+        "construction",
+        "woodworking",
+        "repair"
       ],
       "data": [
         "data/blueprints/basic.ron"
@@ -1571,7 +1574,7 @@
         "first-solar-power"
       ],
       "skills": [
-        "engineering"
+        "electrical"
       ],
       "sources": [
         "doe-energy-saver"
@@ -1589,7 +1592,7 @@
         "first-solar-power"
       ],
       "skills": [
-        "engineering"
+        "electrical"
       ],
       "sources": [
         "doe",
@@ -1608,7 +1611,7 @@
         "batteries-and-storage"
       ],
       "skills": [
-        "engineering"
+        "electrical"
       ],
       "data": [
         "data/machines/home.ron",
@@ -1641,7 +1644,7 @@
         "where-your-electrical-work-stops"
       ],
       "skills": [
-        "engineering"
+        "electrical"
       ],
       "data": [
         "data/piping/pipe_materials.ron",
@@ -1671,7 +1674,8 @@
         "choosing-and-running-a-generator"
       ],
       "skills": [
-        "engineering"
+        "electrical",
+        "mechanics"
       ],
       "data": [
         "data/machines/home.ron",
@@ -1795,7 +1799,8 @@
         "water-and-wind-power"
       ],
       "skills": [
-        "engineering"
+        "electrical",
+        "mechanics"
       ],
       "data": [
         "data/machines/home.ron",
@@ -1854,7 +1859,8 @@
       "summary": "Understand strength, temper, corrosion and heat behaviour.",
       "status": "sourced",
       "skills": [
-        "metalworking"
+        "metallurgy",
+        "smithing"
       ],
       "data": [
         "data/chemistry/alloys.csv"
@@ -1887,8 +1893,10 @@
         "fire-performance-clothing"
       ],
       "skills": [
-        "metalworking",
-        "fire_making"
+        "smithing",
+        "fire_making",
+        "staff_spinning",
+        "fire_performance"
       ],
       "sources": [
         "osha",
@@ -2138,7 +2146,7 @@
         "salvage-and-reuse"
       ],
       "skills": [
-        "engineering"
+        "repair"
       ],
       "data": [
         "data/recipes.csv",
@@ -2461,7 +2469,7 @@
       "summary": "Move between units without the error that ruins the batch.",
       "status": "sourced",
       "skills": [
-        "engineering"
+        "drafting"
       ],
       "locale_dependent": false,
       "hazard": "caution",
@@ -2484,7 +2492,7 @@
         "estimating"
       ],
       "skills": [
-        "engineering"
+        "drafting"
       ],
       "data": [
         "data/machines/home.ron"
@@ -2510,8 +2518,9 @@
         "square-level-and-plumb"
       ],
       "skills": [
-        "shelter_building",
-        "woodworking"
+        "construction",
+        "woodworking",
+        "drafting"
       ],
       "data": [
         "data/blueprints/basic.ron"
@@ -2622,7 +2631,8 @@
         "force-levers-and-mechanical-advantage"
       ],
       "skills": [
-        "engineering"
+        "rigging",
+        "mechanics"
       ],
       "data": [
         "data/items.csv",
@@ -2650,7 +2660,7 @@
         "heat-and-how-it-moves"
       ],
       "skills": [
-        "engineering",
+        "hvac",
         "fire_making"
       ],
       "data": [
@@ -2680,7 +2690,7 @@
         "pressure-in-water-air-and-steam"
       ],
       "skills": [
-        "engineering"
+        "plumbing"
       ],
       "data": [
         "data/environment/climate.ron"
@@ -2716,7 +2726,8 @@
         "electricity-and-how-it-flows"
       ],
       "skills": [
-        "engineering"
+        "electrical",
+        "electronics"
       ],
       "data": [
         "data/piping/pipe_materials.ron",
@@ -2745,7 +2756,8 @@
         "light-lenses-and-mirrors"
       ],
       "skills": [
-        "engineering"
+        "photography",
+        "astronomy"
       ],
       "data": [
         "data/garden/lighting.ron",
@@ -2776,7 +2788,7 @@
         "sound-and-hearing"
       ],
       "skills": [
-        "engineering"
+        "music"
       ],
       "data": [
         "data/sounds.toml"
@@ -2802,7 +2814,7 @@
         "floating-and-boats"
       ],
       "skills": [
-        "engineering",
+        "swimming",
         "navigation"
       ],
       "data": [
@@ -2994,7 +3006,7 @@
         "rust-rot-and-decay"
       ],
       "skills": [
-        "metalworking",
+        "metallurgy",
         "woodworking"
       ],
       "data": [
@@ -3376,7 +3388,7 @@
       "summary": "Know which disasters are realistic where you live and prepare for those.",
       "status": "sourced",
       "skills": [
-        "shelter_building"
+        "construction"
       ],
       "data": [
         "data/locales/<id>/hazards.json"
@@ -3666,7 +3678,7 @@
       "summary": "Put and keep a real edge on a blade, because dull tools injure people.",
       "status": "sourced",
       "skills": [
-        "metalworking"
+        "smithing"
       ],
       "locale_dependent": false,
       "hazard": "serious",
@@ -3694,7 +3706,7 @@
       ],
       "skills": [
         "woodworking",
-        "engineering"
+        "machining"
       ],
       "data": [
         "data/items.csv",
@@ -3722,7 +3734,8 @@
         "nails-screws-and-bolts"
       ],
       "skills": [
-        "engineering"
+        "construction",
+        "mechanics"
       ],
       "data": [
         "data/items.csv",
@@ -3752,7 +3765,7 @@
         "working-out-why-something-broke"
       ],
       "skills": [
-        "engineering"
+        "repair"
       ],
       "data": [
         "data/machines/home.ron",
@@ -3779,7 +3792,7 @@
         "keeping-things-working"
       ],
       "skills": [
-        "engineering"
+        "repair"
       ],
       "data": [
         "data/crafting/tools.ron",
@@ -3811,7 +3824,7 @@
         "making-a-tool"
       ],
       "skills": [
-        "metalworking",
+        "smithing",
         "woodworking"
       ],
       "data": [
@@ -3840,7 +3853,7 @@
         "toilets-and-human-waste"
       ],
       "skills": [
-        "shelter_building"
+        "sanitation"
       ],
       "sources": [
         "cdc",
@@ -3879,7 +3892,8 @@
       "summary": "Reuse washing water safely and legally.",
       "status": "sourced",
       "skills": [
-        "engineering"
+        "sanitation",
+        "plumbing"
       ],
       "data": [
         "data/laws/laws.json"
@@ -3986,7 +4000,7 @@
         "rats-flies-mosquitoes-and-ticks"
       ],
       "skills": [
-        "shelter_building"
+        "sanitation"
       ],
       "data": [
         "data/status_effects.csv"

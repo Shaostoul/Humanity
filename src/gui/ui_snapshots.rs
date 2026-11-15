@@ -229,11 +229,7 @@ fn demo_state() -> GuiState {
     ];
 
     // ── Skills + quests ──
-    s.skills = vec![
-        GuiSkill { id: "farming".into(), name: "Farming".into(), category: "Survival".into(), level: 4, xp: 120, xp_needed: 200, max_level: 20 },
-        GuiSkill { id: "mining".into(), name: "Mining".into(), category: "Survival".into(), level: 2, xp: 40, xp_needed: 120, max_level: 20 },
-        GuiSkill { id: "crafting".into(), name: "Crafting".into(), category: "Production".into(), level: 3, xp: 75, xp_needed: 150, max_level: 20 },
-    ];
+    s.skills = snapshot_skills();
     // The opening as the operator was playing it on 2026-10-30: First Steps, on its second step
     // of eight, made the way the quest mirror makes it, from the shipped quests.
     s.quests = vec![snapshot_quest(&shipped_quests(), "gs_first_steps", 1)];
@@ -3932,6 +3928,27 @@ fn snapshot_governance() {
 // Whole-page reviews. Each is its own test so a panic in one (a page that needs
 // state the default GuiState lacks) does not stop the others; run with
 // `--no-fail-fast`. Use `just snapshots` then open tests/snapshots/*.png.
+/// The skill sheet as the frame mirror builds it (GuiSkill::from_def) from the shipped base set,
+/// with a few skills practised so the snapshot shows stages, "I can" lists and bars (skills rung 1).
+fn snapshot_skills() -> Vec<GuiSkill> {
+    let read = |rel: &str| std::fs::read(format!("{}/data/skills/{rel}", env!("HUMANITY_REPO_ROOT"))).unwrap_or_default();
+    let reg = humanity_systems::skills::SkillRegistry::from_csv(&read("skills.csv"))
+        .and_then(|r| r.with_stages(&read("stages.json")))
+        .and_then(|r| r.with_families(&read("families.json")))
+        .expect("the shipped skill data loads");
+    let practised = [("farming", 4, 120), ("baking", 2, 90), ("mining", 6, 300), ("first_aid", 1, 40), ("electrical", 3, 60)];
+    let mut out: Vec<GuiSkill> = reg
+        .skills
+        .values()
+        .map(|d| {
+            let (level, xp) = practised.iter().find(|(id, _, _)| *id == d.id).map_or((0, 0), |(_, l, x)| (*l, *x));
+            GuiSkill::from_def(d, &reg, level, xp)
+        })
+        .collect();
+    out.sort_by(|a, b| a.family_order.cmp(&b.family_order).then(a.name.cmp(&b.name)));
+    out
+}
+
 macro_rules! page_snapshot {
     ($test:ident, $name:literal, $page:ident, $w:literal, $h:literal) => {
         #[test]
@@ -5403,6 +5420,16 @@ fn snapshot_market_publish() {
     });
 }
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
+/// The Profile page's Skills section (skills rung 1, 2026-11-14): the base set by family, each
+/// practised skill's stage in words, its "I can" list and the bar to the next stage.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_profile_skills() {
+    render_page_png("profile_skills", 1280, 1400, |ctx, theme, state| {
+        state.profile_section = crate::gui::ProfileSection::Skills;
+        crate::gui::pages::profile::draw(ctx, theme, state);
+    });
+}
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
 
 /// The Crafting page with a spacecraft pod selected (BUG-147): each part

@@ -99,6 +99,20 @@ impl QualityLevels {
         self.get(q).map_or(1.0, |l| if l.sellable { l.price_multiplier } else { 0.0 })
     }
 
+    /// A grade (1 = the lowest band) as a 0..1 quality: the lowest band 0, the top 1. None for
+    /// grade 0 (not graded) or when no grades are loaded. The skill XP a craft teaches is weighed
+    /// by it (skills::practice_weight, docs/design/skills.md section 3).
+    pub fn fraction(&self, grade: u8) -> Option<f32> {
+        let n = self.levels.len();
+        if grade == 0 || n == 0 {
+            return None;
+        }
+        if n == 1 {
+            return Some(1.0);
+        }
+        Some(((grade as usize).min(n) - 1) as f32 / (n - 1) as f32)
+    }
+
     /// The grade a 0..1 score falls in (its band; the top band includes 1.0).
     /// 0 when no grades are loaded.
     pub fn grade_for(&self, score: f32) -> u8 {
@@ -121,7 +135,9 @@ impl QualityLevels {
 }
 
 /// The crafter's skill as a 0..1 factor: level 1 (or untrained) is
-/// `BEGINNER_FACTOR`, the skill's max level is 1.0, linear between.
+/// `BEGINNER_FACTOR`, the level the skill's Master stage starts at (`max_level` here; skills
+/// have no top level since 2026-11-14, so Master is where the factor stops rising) is 1.0,
+/// linear between.
 pub fn skill_factor(level: u32, max_level: u32) -> f32 {
     let level = level.max(1);
     if max_level <= 1 {

@@ -145,7 +145,7 @@ References skill ids from data/skills/skills.csv."""
 constraints = "Skill id must exist in skills.csv. Level must be achievable (within that skill's max_level)."
 examples = [
     'None',
-    'Some(("metalworking", 5))',
+    'Some(("smithing", 5))',
     'Some(("farming", 10))',
 ]
 

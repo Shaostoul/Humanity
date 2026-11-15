@@ -715,7 +715,7 @@ pub fn completion_notice(
     skills: Option<&crate::skills::SkillRegistry>,
 ) -> String {
     let item = |id: &str| items.and_then(|r| r.items.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.to_string());
-    let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name.clone()).unwrap_or_else(|| id.replace('_', " "));
+    let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name()).unwrap_or_else(|| id.replace('_', " "));
     let mut got: Vec<String> = rewards.iter().map(|(id, q)| format!("{q} {}", item(id))).collect();
     got.extend(xp_rewards.iter().map(|(id, xp)| format!("{xp} {} XP", skill(id))));
     if got.is_empty() {
@@ -990,6 +990,10 @@ impl System for QuestSystem {
 
                 let step = &quest_def.steps[active.current_step];
                 if Self::check_objective(&step.objective, inventory, &at_home, &active.progress, &here) {
+                    // Skills rung 1: finding your way to a place is navigation practice.
+                    if matches!(step.objective, QuestObjective::Travel { .. }) {
+                        crate::skills::practice(data, "reach_destination", None);
+                    }
                     let next_step = active.current_step + 1;
                     if next_step >= quest_def.steps.len() {
                         // Final step completed
@@ -1915,7 +1919,7 @@ mod quest_tests {
         assert_eq!(
             notices(&data),
             vec![
-                "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking XP.".to_string(),
+                "Quest complete: First Steps. You received 2 Iron Ingot and 30 Smelting and metallurgy XP.".to_string(),
                 "New quest: Toolsmith. Forge a hammer: Esc > Crafting > Craft Hammer > Craft.".to_string(),
             ],
             "finishing First Steps tells the player"

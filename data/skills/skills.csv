@@ -1,21 +1,91 @@
-id,name,category,max_level,xp_per_level,description
-foraging,Foraging,survival,20,100,Find edible plants and useful materials in the wild
-shelter_building,Shelter Building,survival,20,150,Construct shelters and housing from available materials
-fire_making,Fire Making,survival,15,80,Start and maintain fires for warmth and cooking
-water_purification,Water Purification,survival,15,120,Find and purify water sources
-navigation,Navigation,survival,20,100,Read maps and navigate by stars and landmarks
-woodworking,Woodworking,crafting,25,120,Shape wood into tools and furniture and structures
-metalworking,Metalworking,crafting,25,150,Smelt ore and forge metal tools and equipment
-cooking,Cooking,crafting,25,80,Prepare food for nutrition and buffs
-tailoring,Tailoring,crafting,20,100,Create and repair clothing and fabric items
-chemistry,Chemistry,crafting,20,200,Make soap and medicines and fuels and other compounds by real chemical reactions
-melee,Melee Combat,combat,30,100,Close-range fighting with weapons and fists
-ranged,Ranged Combat,combat,30,100,Accuracy and damage with bows and firearms
-defense,Defense,combat,25,120,Block and dodge and damage reduction
-tactics,Tactics,combat,20,200,Strategic planning and squad coordination
-trading,Trading,social,20,100,Negotiate better prices and find rare deals
-leadership,Leadership,social,15,250,Inspire groups and manage communities effectively
-farming,Farming,crafting,25,80,Plant and tend and harvest crops efficiently
-mining,Mining,crafting,25,100,Extract ore and stone from rock and asteroids
-engineering,Engineering,science,25,200,Design and build complex machines and systems
-medicine,Medicine,science,20,200,Diagnose and treat injuries and illness
+id,family,xp_per_level,transfers,untrained_reason
+fitness,body,100,,
+swimming,body,100,,
+climbing,body,100,,
+first_aid,body,100,,
+medicine,body,200,,
+sanitation,body,100,,
+farming,food,80,,
+animal_husbandry,food,100,,
+beekeeping,food,100,,
+mushroom_growing,food,100,,
+foraging,food,100,,
+fishing,food,100,,
+hunting,food,100,,
+butchery,food,100,,
+cooking,food,80,,
+baking,food,100,,
+preserving,food,100,,
+fermenting,food,100,,
+nutrition,food,100,,
+water_purification,food,120,,
+forestry,making,100,,
+mining,making,100,,
+metallurgy,making,100,,
+smithing,making,150,,
+welding,making,100,,
+machining,making,100,,
+woodworking,making,120,,
+textiles,making,100,,
+tailoring,making,100,,
+leatherworking,making,100,,
+ceramics,making,100,,
+glassmaking,making,100,,
+chemistry,making,200,,
+electronics,making,100,,
+construction,building,150,,
+masonry,building,100,,
+drafting,building,100,,
+electrical,building,100,,
+plumbing,building,100,,
+hvac,building,100,,
+life_support,building,100,,
+networking,building,100,,
+rigging,building,100,,
+mechanics,building,100,,
+repair,building,100,,
+logistics,building,100,,
+driving,travel,100,,
+flying,travel,100,,
+spaceflight,travel,100,,
+eva,travel,100,,
+drone_operation,travel,100,,
+navigation,travel,100,,
+geology,science,100,,
+astronomy,science,100,,
+weather,science,100,,
+fire_making,safety,80,,
+firefighting,safety,100,,
+radiation_safety,safety,100,,
+rescue,safety,100,,
+tracking,safety,100,,
+unarmed,combat,100,,
+grappling,combat,100,,
+blades,combat,100,,
+impact_weapons,combat,100,,
+polearms,combat,100,,
+archery,combat,100,,
+marksmanship,combat,100,,
+throwing,combat,100,,
+gunnery,combat,100,,
+self_defence,combat,120,,
+tactics,combat,200,,
+trading,community,100,,
+civics,community,100,,
+leadership,community,250,,
+teaching,community,100,,
+mediation,community,100,,
+staff_spinning,flow,100,polearms:0.25|twirling:0.25,
+poi,flow,100,rope_dart:0.25,
+rope_dart,flow,100,,
+hoop,flow,100,,
+fans,flow,100,,
+twirling,flow,100,staff_spinning:0.25,
+fire_performance,flow,100,,
+juggling,flow,100,,Later row: no activity teaches it yet; the operator named it (skills.md section 7)
+whip,flow,100,,Later row: no activity teaches it yet; the operator named it (skills.md section 7)
+music,arts,100,,
+dance,arts,100,,
+drawing_painting,arts,100,,
+photography,arts,100,,
+writing,arts,100,,

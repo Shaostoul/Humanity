@@ -397,49 +397,12 @@ fn draw_interests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Skills").size(theme.font_size_title).color(theme.text_primary()));
+    ui.label(RichText::new(humanity_core::i18n::t("skills_page.title")).size(theme.font_size_title).color(theme.text_primary()));
     ui.add_space(theme.spacing_md);
 
-    widgets::card(ui, theme, |ui| {
-        if !state.skills.is_empty() {
-            // Live skills from the running game: level + XP toward the next level.
-            // Earned by doing actions — craft → recipe's skill, harvest → farming,
-            // mine → mining (SkillSystem applies the XP, the ECS syncs it here).
-            // One row per skill in a Grid so the columns auto-align cleanly
-            // (name | Lv | progress | XP) — was two rows each with a near-empty
-            // bar that read as a stray dot. Operator: "one row, not two ...
-            // cleanly stacked columns."
-            egui::Grid::new("skills_grid")
-                .num_columns(4)
-                .spacing([16.0, theme.row_gap])
-                .show(ui, |ui| {
-                    for sk in state.skills.iter() {
-                        ui.label(RichText::new(&sk.name).color(theme.text_secondary()).size(theme.font_size_body));
-                        ui.label(RichText::new(format!("Lv {}", sk.level)).color(theme.text_primary()).size(theme.font_size_small));
-                        let frac = if sk.xp_needed > 0 {
-                            (sk.xp as f32 / sk.xp_needed as f32).clamp(0.0, 1.0)
-                        } else {
-                            1.0
-                        };
-                        ui.add(egui::ProgressBar::new(frac).desired_width(180.0).desired_height(8.0));
-                        ui.label(
-                            RichText::new(format!("{} / {} XP", sk.xp, sk.xp_needed))
-                                .color(theme.text_muted())
-                                .size(theme.font_size_small),
-                        );
-                        ui.end_row();
-                    }
-                });
-        } else {
-            // No live skill data (not in-world yet). The old static placeholder
-            // list was misleading (wrong skill names, %s) — show a clear hint instead.
-            ui.label(
-                RichText::new("Enter the world to start gaining skills.")
-                    .size(theme.font_size_body)
-                    .color(theme.text_muted()),
-            );
-        }
-    });
+    // The skill sheet (skills rung 1, 2026-11-14): every skill of the base set by family, its
+    // named stage in words, its "I can" list and the bar to the next stage (pages/profile_skills.rs).
+    widgets::card(ui, theme, |ui| super::profile_skills::draw(ui, theme, state));
 
     // ── Abilities (v0.753, ladder rung 8) ── the activation layer: castable
     // actions with an energy cost and a cooldown, gated by skills you level
@@ -525,12 +488,12 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     });
 
-    // Dev: max all skills (testing affordance — unlocks every #8b skill-gated
+    // Dev: every skill to Master (testing affordance; there is no top level since skills rung 1 — unlocks every #8b skill-gated
     // recipe in one click, mirroring "Dev: stock materials" for inventory).
     // Dev play mode + the dev-cheats toggle, both required (task #50 gate).
     if state.dev_cheats_active(theme) {
         ui.add_space(theme.spacing_sm);
-        if widgets::Button::secondary("Dev: max skills").show(ui, theme) {
+        if widgets::Button::secondary(humanity_core::i18n::t("skills_page.dev_master")).hint("skills_page.dev_master_hint").show(ui, theme) {
             state.pending_dev_max_skills = true;
         }
     }

@@ -112,7 +112,7 @@
             ("iron_ingot_0", 2),
         ],
         xp_rewards: [
-            ("metalworking", 30),
+            ("metallurgy", 30),
         ],
         prerequisite: None,
     ),
@@ -131,7 +131,7 @@
             ("wood_plank_0", 4),
         ],
         xp_rewards: [
-            ("metalworking", 20),
+            ("smithing", 20),
             ("woodworking", 10),
         ],
         prerequisite: Some("gs_first_steps"),

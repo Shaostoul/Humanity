@@ -871,6 +871,8 @@ fn introduce_colony(world: &mut hecs::World, data: &DataStore, d: &PollinationDa
     if let Ok(mut mem) = world.get::<&mut SoilMemory>(e) {
         mem.hives.insert(hive.to_string(), HiveColony::default());
     }
+    // Skills rung 1: introducing a colony is beekeeping practice (data/skills/practice.json).
+    crate::skills::practice(data, "introduce_colony", None);
     super::push_reply(
         data,
         format!(

@@ -284,6 +284,8 @@ impl VehicleSystem {
 
         let (position, yaw) = Self::deploy_pose(world, data);
         let name = def.display_name.clone();
+        // Skills rung 1: assembling a kit into a running vehicle is mechanics practice.
+        crate::skills::practice(data, "deploy_vehicle", None);
         world.spawn((
             Vehicle { item_id: def.vehicle_item.clone() },
             Transform {

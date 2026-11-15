@@ -171,6 +171,10 @@ pub struct EquipmentDef {
     /// data/characters/grips.ron; empty for what is worn.
     #[serde(default)]
     pub grip: String,
+    /// The combat skill a landed strike with it trains (skills rung 1): blades, impact_weapons,
+    /// polearms; empty for what is not a weapon (bare hands train unarmed).
+    #[serde(default)]
+    pub skill: String,
 }
 
 /// All equipment stats keyed by item id. DataStore: `"equipment_registry"`.

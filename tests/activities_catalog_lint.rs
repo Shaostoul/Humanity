@@ -8,7 +8,11 @@
 //!
 //!   1. every status is one of live / partial / designed / idea;
 //!   2. every evidence path, design doc and real-life twin path exists in the repo;
-//!   3. every skill id is a row of data/skills/skills.csv;
+//!   3. every id in an activity's `skills` list is a row of data/skills/skills.csv, an activity
+//!      that trains none says why (`no_skill_reason`), and every skill row is trained by at least
+//!      one activity or its `untrained_reason` says why (skills rung 1, 2026-11-14; seen red with
+//!      the catalog's old one-id `skill` field: 93 "`skill` is now the list" lines and 87 skills
+//!      "trained by no activity");
 //!   4. no live entry lacks a source file (a `.rs` under src/ or crates/) or a FEATURES.md heading,
 //!      and no partial entry lacks evidence;
 //!   5. every FEATURES.md heading named is a real heading of docs/FEATURES.md;
@@ -79,6 +83,8 @@ fn read(rel: &str) -> String {
 struct Repo<'a> {
     root: &'a Path,
     skills: BTreeSet<String>,
+    /// Skill rows whose untrained_reason says why no activity trains them yet.
+    untrained: BTreeSet<String>,
     levels: BTreeSet<String>,
     feature_headings: BTreeSet<String>,
     design_doc: String,
@@ -108,6 +114,21 @@ fn skill_ids(csv: &str) -> BTreeSet<String> {
         .skip(1) // the header row
         .filter_map(|l| l.split(',').next())
         .map(|s| s.trim().to_string())
+        .collect()
+}
+
+/// skills.csv rows whose `untrained_reason` column is filled (the last column; the reason holds no
+/// comma, the CSV has no quoting).
+fn untrained_ids(csv: &str) -> BTreeSet<String> {
+    let mut lines = csv.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#'));
+    let header: Vec<&str> = lines.next().unwrap_or("").split(',').collect();
+    let col = header.iter().position(|h| *h == "untrained_reason");
+    lines
+        .filter_map(|l| {
+            let cells: Vec<&str> = l.split(',').collect();
+            let reason = col.and_then(|c| cells.get(c)).map_or("", |s| s.trim());
+            (!reason.is_empty()).then(|| cells[0].trim().to_string())
+        })
         .collect()
 }
 
@@ -186,6 +207,7 @@ fn check(catalog: &str, repo: &Repo) -> Vec<String> {
     };
     let exists = |p: &str| repo.root.join(p).exists();
     let mut seen = BTreeSet::new();
+    let mut trained: BTreeSet<String> = BTreeSet::new();
     for a in acts {
         let id = a.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
         let who = if id.is_empty() { "(no id)".to_string() } else { id.clone() };
@@ -206,10 +228,28 @@ fn check(catalog: &str, repo: &Repo) -> Vec<String> {
         if !STATUSES.contains(&status) {
             bad.push(format!("{who}: status `{status}` is not one of live / partial / designed / idea"));
         }
-        match a.get("skill") {
-            Some(Json::Null) | None => {}
-            Some(Json::Str(s)) if repo.skills.contains(s) => {}
-            Some(other) => bad.push(format!("{who}: skill {} is not a row of data/skills/skills.csv", other.show())),
+        // Skills rung 1 (2026-11-14): one activity may train several skills (skills.md section 1,
+        // rule 6), so `skills` is a list; an activity that trains none says why.
+        if a.get("skill").is_some() {
+            bad.push(format!("{who}: `skill` is now the list `skills` (skills.md section 1, rule 6)"));
+        }
+        let trains = str_list(a.get("skills"));
+        if !matches!(a.get("skills"), Some(Json::Arr(_))) {
+            bad.push(format!("{who}: skills must be a list (empty when it trains none)"));
+        }
+        for s in &trains {
+            if repo.skills.contains(s) {
+                trained.insert(s.clone());
+            } else {
+                bad.push(format!("{who}: skill \"{s}\" is not a row of data/skills/skills.csv"));
+            }
+        }
+        let reason = a.get("no_skill_reason").and_then(|x| x.as_str()).map_or("", str::trim);
+        if trains.is_empty() && reason.is_empty() {
+            bad.push(format!("{who}: trains no skill and gives no no_skill_reason"));
+        }
+        if !trains.is_empty() && !reason.is_empty() {
+            bad.push(format!("{who}: trains skills yet keeps a no_skill_reason"));
         }
         let evidence = str_list(a.get("evidence"));
         for p in &evidence {
@@ -327,6 +367,13 @@ fn check(catalog: &str, repo: &Repo) -> Vec<String> {
             bad.push(format!("decided activity `{s}` is missing from the catalog"));
         }
     }
+    // The inverse (skills.md section 1, rule 4: no skill without a trainer): every skill row is
+    // trained by at least one activity, or its untrained_reason column says why not.
+    for s in &repo.skills {
+        if !trained.contains(s) && !repo.untrained.contains(s) {
+            bad.push(format!("skill `{s}` is trained by no activity and its skills.csv row gives no untrained_reason"));
+        }
+    }
     bad
 }
 
@@ -334,6 +381,7 @@ fn shipped_repo(root: &Path) -> Repo<'_> {
     Repo {
         root,
         skills: skill_ids(&read("data/skills/skills.csv")),
+        untrained: untrained_ids(&read("data/skills/skills.csv")),
         levels: level_ids(&read("data/gameplay/levels.json")),
         feature_headings: headings(&read("docs/FEATURES.md")),
         design_doc: read("docs/design/activities.md"),
@@ -382,29 +430,29 @@ fn broken_fixture_trips_every_check() {
       "frame_budgets": {"none": ""},
       "network_classes": {"local": ""},
       "activities": [
-        {"id": "ok_one", "family": "body", "name": "Fine", "skill": null, "status": "idea", "evidence": [],
+        {"id": "ok_one", "family": "body", "name": "Fine", "skills": ["farming"], "status": "idea", "evidence": [],
          "design_doc": null, "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"}},
-        {"id": "bad_status", "family": "nowhere", "name": "X", "skill": "juggling", "status": "rumoured",
+        {"id": "bad_status", "family": "nowhere", "name": "X", "skills": ["pyromancy"], "status": "rumoured",
          "evidence": ["src/engine/fruting_tent.rs"], "design_doc": "docs/design/nope.md", "tier": "T9",
          "levels_setting": "no_such_level", "features_heading": "No Such Heading",
          "engagement_modes": ["trade", "telepathy"], "budget": {"frame": "huge", "network": "psychic"}},
-        {"id": "live_no_source", "family": "body", "name": "Y", "skill": null, "status": "live",
+        {"id": "live_no_source", "family": "body", "name": "Y", "skills": ["farming"], "status": "live",
          "evidence": ["data/plants.csv"], "tier": "T0", "engagement_modes": ["direct"],
          "budget": {"frame": "none", "network": "local"}},
-        {"id": "designed_no_doc", "family": "body", "name": "Z", "skill": null, "status": "designed",
+        {"id": "designed_no_doc", "family": "body", "name": "Z", "skills": [], "status": "designed",
          "evidence": [], "design_doc": null, "tier": "T0", "engagement_modes": ["direct"],
          "budget": {"frame": "none", "network": "local"}},
-        {"id": "ok_one", "family": "body", "name": "Dupe", "skill": null, "status": "idea", "evidence": [],
+        {"id": "ok_one", "family": "body", "name": "Dupe", "skills": ["farming"], "status": "idea", "evidence": [],
          "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"}},
         {"id": "combat", "family": "body", "name": "Combat", "skill": "melee", "status": "idea", "evidence": [],
          "operator_to_decide": null, "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"}},
-        {"id": "decided_one", "family": "body", "name": "D", "skill": null, "status": "idea", "evidence": [],
+        {"id": "decided_one", "family": "body", "name": "D", "skills": ["farming"], "status": "idea", "evidence": [],
          "operator_to_decide": "still asking?", "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"},
          "operator_decision": {"date": "14 Nov", "quote": "words he never said", "decision": ""}},
-        {"id": "decided_bare", "family": "body", "name": "B", "skill": null, "status": "idea", "evidence": [],
+        {"id": "decided_bare", "family": "body", "name": "B", "skills": ["farming"], "status": "idea", "evidence": [],
          "operator_to_decide": null, "operator_decision": null, "tier": "T0", "engagement_modes": ["direct"],
          "budget": {"frame": "none", "network": "local"}},
-        {"id": "decided_ok", "family": "body", "name": "K", "skill": null, "status": "idea", "evidence": [],
+        {"id": "decided_ok", "family": "body", "name": "K", "skills": ["farming"], "status": "idea", "evidence": [],
          "operator_to_decide": null, "tier": "T0", "engagement_modes": ["direct"], "budget": {"frame": "none", "network": "local"},
          "operator_decision": {"date": "2026-11-14", "quote": "we do want this one", "decision": "In."}}
       ]
@@ -413,7 +461,10 @@ fn broken_fixture_trips_every_check() {
     for needle in [
         "bad_status: family `nowhere`",
         "bad_status: status `rumoured`",
-        "bad_status: skill \"juggling\"",
+        "bad_status: skill \"pyromancy\" is not a row",
+        "combat: `skill` is now the list `skills`",
+        "designed_no_doc: trains no skill and gives no no_skill_reason",
+        "skill `fitness` is trained by no activity",
         "bad_status: evidence path src/engine/fruting_tent.rs does not exist",
         "bad_status: design_doc docs/design/nope.md does not exist",
         "bad_status: features_heading `No Such Heading`",

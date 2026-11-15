@@ -873,7 +873,9 @@ impl System for ConstructionSystem {
             // Completion is PROGRESS (v0.746): the construction quest chain's
             // Build objectives finally advance, and building trains the builder.
             crate::quests::push_quest_event(data, format!("build_{bp_id}"));
-            crate::skills::award_skill_xp(data, "shelter_building", 15);
+            // Skills rung 1: the piece's own entry first (stone trains masonry, the campfire fire
+            // making), then building in general (construction); data/skills/practice.json.
+            crate::skills::practice_first(data, &[format!("build.{bp_id}").as_str(), "build"], None);
             // Placement thunk (v0.985): a finished structure lands audibly.
             crate::push_sfx_event(
                 data,
@@ -1441,6 +1443,8 @@ mod tests {
         let mut data = build_store(shipped_registry(), requests);
         data.insert(shared::OUT_CHANNEL, shared::OutQueue::default());
         data.insert("xp_grants", std::sync::Mutex::new(Vec::<crate::skills::SkillXPEvent>::new()));
+        // What a finished piece teaches comes from data/skills/practice.json (skills rung 1).
+        data.insert("skill_registry", crate::skills::shipped_for_tests());
         data.insert("sfx_events", std::sync::Mutex::new(Vec::<(String, String)>::new()));
         let stock: HashMap<String, u32> = stored.iter().map(|(id, n)| (id.to_string(), *n)).collect();
         data.insert("home_stock", std::sync::Mutex::new(stock));

@@ -10,7 +10,7 @@
   "time": { "active_min": 10, "waiting_min": 0 },
   "difficulty": 1,
   "hazard": "lethal",
-  "skills": ["shelter_building"],
+  "skills": ["hvac"],
   "topics": ["shelter_heating"],
   "reading": ["heating-a-home-safely"],
   "tools": [
@@ -228,7 +228,7 @@
       "note": "Also, when the alarm sounds: never ignore it; do not try to find the source of the CO; immediately move outside to fresh air; call emergency services, the fire department or 911; then do a head count; do not operate the appliance until trained personnel have serviced it. Its symptoms: at low to moderate levels similar to the flu, but without the fever (headache, fatigue, shortness of breath, nausea and dizziness); mental confusion, vomiting, loss of muscular coordination, loss of consciousness and death at high levels. Added by the independent review, 2026-10-24. Read through a page reader."
     }
   ],
-  "review": { "status": "sourced", "hash": "7a3aa089541bc5949a13f79c70643222af7faeb0677a276863e1d0a288e028af", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
+  "review": { "status": "sourced", "hash": "481d169065b35cea34573d1fba2fa101cc8b6286509732a2f9ee5a68f26974e8", "checked": "2026-10-24", "by": "two refutation passes (AI)", "person": null },
   "written_by": "ai",
   "updated": "2026-10-23"
 }

@@ -1,0 +1,54 @@
+{
+  "_doc": "What each live verb teaches (docs/design/skills.md section 3; skills rung 1, 2026-11-14). The code names a verb by id when the player completes it (crates/humanity-systems/src/skills/mod.rs: practice, practice_first, practice_scaled, practice_with, practice_distance) and this table says which skills it trains and how much. skills: the skill ids it trains (empty when the caller names the skill from data: a landed strike trains the weapon's skill column in data/equipment.csv, bare hands unarmed). xp: the base XP per attempt, before the SkillSystem weighs it by difficulty and quality. per_metres: a continuous verb is one attempt per this many metres. A specific id goes before its general one where the code asks for both (build.stone_wall, then build). Recipes teach through their own skill_required column in data/recipes.csv, not this table. Checked by tests/skills_data_lint.rs (every id the code names is here, every skill is a row of skills.csv) and the lib tests in skills/skill_tests.rs (each entry awards what it says).",
+  "practices": {
+    "collect.egg_0": { "skills": ["animal_husbandry"], "xp": 5 },
+    "collect.milk_0": { "skills": ["animal_husbandry"], "xp": 5 },
+    "collect.wool_0": { "skills": ["animal_husbandry"], "xp": 5 },
+    "collect.fruit_berries_0": { "skills": ["foraging"], "xp": 5 },
+    "collect.fiber_flax_0": { "skills": ["foraging"], "xp": 5 },
+    "collect.salt_food_0": { "skills": ["foraging"], "xp": 5 },
+    "collect.wood_log_0": { "skills": ["forestry"], "xp": 5 },
+    "collect.stone_raw_0": { "skills": ["mining"], "xp": 5 },
+    "collect.clay_raw_0": { "skills": ["mining"], "xp": 5 },
+    "collect.sand_0": { "skills": ["mining"], "xp": 5 },
+    "collect.ore_sample_0": { "skills": ["mining"], "xp": 5 },
+    "collect.rare_ore_0": { "skills": ["mining"], "xp": 8 },
+
+    "build": { "skills": ["construction"], "xp": 15 },
+    "build.stone_foundation": { "skills": ["masonry"], "xp": 15 },
+    "build.stone_wall": { "skills": ["masonry"], "xp": 15 },
+    "build.furnace": { "skills": ["masonry"], "xp": 15 },
+    "build.campfire": { "skills": ["fire_making"], "xp": 15 },
+
+    "harvest": { "skills": ["farming"], "xp": 10 },
+    "harvest_fungus": { "skills": ["mushroom_growing"], "xp": 10 },
+    "compost_waste": { "skills": ["sanitation", "farming"], "xp": 6 },
+    "introduce_colony": { "skills": ["beekeeping"], "xp": 20 },
+
+    "connect.power": { "skills": ["electrical"], "xp": 8 },
+    "connect.water": { "skills": ["plumbing"], "xp": 8 },
+    "connect.hot_water": { "skills": ["plumbing"], "xp": 8 },
+    "connect.waste": { "skills": ["plumbing"], "xp": 8 },
+    "connect.data": { "skills": ["networking"], "xp": 8 },
+    "connect.air": { "skills": ["hvac", "life_support"], "xp": 8 },
+    "lay_out": { "skills": ["drafting"], "xp": 4 },
+    "deploy_vehicle": { "skills": ["mechanics"], "xp": 20 },
+
+    "swim": { "skills": ["swimming"], "xp": 5, "per_metres": 25 },
+    "climb": { "skills": ["climbing"], "xp": 5, "per_metres": 5 },
+    "drive": { "skills": ["driving"], "xp": 5, "per_metres": 250 },
+    "carry_load": { "skills": ["logistics"], "xp": 5, "per_metres": 50 },
+    "reach_destination": { "skills": ["navigation"], "xp": 15 },
+
+    "landed_strike": { "skills": [], "xp": 4 },
+    "hunt_kill": { "skills": ["hunting"], "xp": 20 },
+
+    "vendor_trade": { "skills": ["trading"], "xp": 8 },
+    "trade_completed": { "skills": ["trading"], "xp": 12 },
+    "cast_vote": { "skills": ["civics"], "xp": 6 },
+    "submit_proposal": { "skills": ["civics"], "xp": 10 },
+    "join_guild": { "skills": ["civics"], "xp": 6 },
+
+    "finish_track": { "skills": ["music"], "xp": 20 }
+  }
+}

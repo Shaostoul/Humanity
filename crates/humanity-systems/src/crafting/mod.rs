@@ -236,7 +236,7 @@ mod crafting_end_to_end_tests {
             data.get::<std::sync::Mutex<Vec<String>>>("quest_events").unwrap().lock().unwrap().drain(..).collect()
         };
 
-        CraftingSystem::credit_craft(&data, recipes.recipes.get("smelt_iron_graphite").expect("graphite smelt ships"));
+        CraftingSystem::credit_craft(&data, recipes.recipes.get("smelt_iron_graphite").expect("graphite smelt ships"), None);
         assert_eq!(
             drain(&data),
             vec!["craft_smelt_iron_graphite", "make_iron_ingot_0", "make_slag_0"],
@@ -245,7 +245,7 @@ mod crafting_end_to_end_tests {
 
         let arrows = recipes.recipes.get("craft_arrows_batch").expect("arrow batch ships");
         let per_batch = arrows.outputs.iter().find(|(id, _)| id == "arrow_0").map(|(_, q)| *q).expect("makes arrows");
-        CraftingSystem::credit_craft(&data, arrows);
+        CraftingSystem::credit_craft(&data, arrows, None);
         let got = drain(&data);
         assert_eq!(got.iter().filter(|k| k.as_str() == "make_arrow_0").count() as u32, per_batch);
     }
@@ -573,7 +573,7 @@ impl CraftingSystem {
                     .unwrap_or(1),
                 data.get::<crate::skills::SkillRegistry>("skill_registry")
                     .and_then(|r| r.get(skill))
-                    .map(|d| d.max_level)
+                    .map(|d| d.mastery_level())
                     .unwrap_or(1),
             ),
             None => (1, 1),
@@ -782,8 +782,8 @@ impl CraftingSystem {
     /// Post-craft hooks fired when a craft completes: award skill XP (#8a) and
     /// emit a quest-progress event (#8c) for any Craft objective tracking this
     /// recipe. Both no-op cleanly if their channel/skill is absent.
-    fn on_craft_complete(data: &DataStore, recipe: &Recipe) {
-        Self::credit_craft(data, recipe);
+    fn on_craft_complete(data: &DataStore, recipe: &Recipe, graded: Option<f32>) {
+        Self::credit_craft(data, recipe, graded);
         // Craft-complete thunk (v0.985): the workbench hammer lands.
         crate::push_sfx_event(data, "sfx.hammer", "audio/sfx/hammer.ogg");
     }
@@ -791,9 +791,11 @@ impl CraftingSystem {
     /// The skill XP and quest event a completed craft earns, without the
     /// sound: a batch finished while the player was away (crafting::away)
     /// counts the same, but nobody was there to hear it.
-    fn credit_craft(data: &DataStore, recipe: &Recipe) {
+    fn credit_craft(data: &DataStore, recipe: &Recipe, graded: Option<f32>) {
+        // Skills rung 1: weighed by the recipe's difficulty against the crafter's level and by
+        // the grade the hand craft came out at (skills::practice_weight, skills.md section 3).
         if let Some(skill) = &recipe.skill_required {
-            crate::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
+            crate::skills::award_practice(data, skill, 10 + recipe.skill_level * 5, Some(recipe.skill_level), graded);
         }
         crate::quests::push_quest_event(data, format!("craft_{}", recipe.id));
         // One event per unit made, for Make objectives (2026-10-02): a quest
@@ -1694,8 +1696,8 @@ impl CraftingSystem {
         // person just pressed, the world's own line for a craft that finished in time.
         say: fn(&DataStore, String),
     ) {
-        Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say);
-        Self::on_craft_complete(data, recipe);
+        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say);
+        Self::on_craft_complete(data, recipe, graded);
     }
 
     /// `deliver_outputs` without the completion hooks: the goods only.
@@ -1711,7 +1713,10 @@ impl CraftingSystem {
         to_storage: bool,
         overflow_home: bool,
         say: fn(&DataStore, String),
-    ) {
+    ) -> Option<f32> {
+        // The hand craft's grade as a 0..1 quality, for the skill XP it teaches (skills.md
+        // section 3: a good result teaches more than a careless one). None: not graded.
+        let mut graded = None;
         // Split out the vehicle-class outputs (usually none).
         let vehicle_outputs: Vec<(String, u32)> = match vehicle_kits {
             Some(kits) => recipe
@@ -1791,6 +1796,7 @@ impl CraftingSystem {
                 // A hand craft's durable goods are graded by the crafter's
                 // skill (2026-09-26, crafting::quality).
                 let grade = Self::craft_quality(world, data, recipe, target);
+                graded = data.get::<quality::QualityLevels>("quality_levels").and_then(|l| l.fraction(grade));
                 let left = match world.get::<&mut Inventory>(target) {
                     Ok(mut inv) => Self::produce_outputs(&mut inv, &inv_recipe, item_registry, grade),
                     Err(_) => {
@@ -1818,6 +1824,7 @@ impl CraftingSystem {
                 }
             }
         }
+        graded
     }
 }
 
@@ -1887,9 +1894,9 @@ mod skill_xp_tests {
     /// the skill_required column is parsed + the completion hook fires).
     #[test]
     fn completing_a_craft_awards_skill_xp() {
-        // A tiny INSTANT recipe (craft_time 0) that trains metalworking at level 2.
+        // A tiny INSTANT recipe (craft_time 0) that trains metallurgy at level 2.
         let recipe_csv = b"id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
-            test_smelt,Test Smelt,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metalworking,2,test\n";
+            test_smelt,Test Smelt,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metallurgy,2,test\n";
         let recipes = RecipeRegistry::from_csv(recipe_csv).expect("recipes");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
             env!("HUMANITY_REPO_ROOT"),
@@ -1928,7 +1935,7 @@ mod skill_xp_tests {
             .lock()
             .unwrap();
         assert_eq!(grants.len(), 1, "one completed craft → one XP grant");
-        assert_eq!(grants[0].skill_id, "metalworking");
+        assert_eq!(grants[0].skill_id, "metallurgy");
         assert_eq!(grants[0].amount, 20, "10 + skill_level(2)*5 = 20");
     }
 
@@ -1939,9 +1946,9 @@ mod skill_xp_tests {
     fn skill_gate_blocks_under_level_then_allows() {
         use crate::skills::{PlayerSkills, SkillProgress, SkillXPEvent};
 
-        // Instant recipe requiring metalworking Lv 3.
+        // Instant recipe requiring metallurgy Lv 3.
         let recipe_csv = b"id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description\n\
-            test_forge,Test Forge,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metalworking,3,test\n";
+            test_forge,Test Forge,smelting,iron_ore_0:1,iron_ingot_0:1,0,,metallurgy,3,test\n";
         let recipes = RecipeRegistry::from_csv(recipe_csv).expect("recipes");
         let items = ItemRegistry::from_csv(include_bytes!(concat!(
             env!("HUMANITY_REPO_ROOT"),
@@ -1965,7 +1972,7 @@ mod skill_xp_tests {
         let mut skills = PlayerSkills::new();
         skills
             .skills
-            .insert("metalworking".to_string(), SkillProgress { level: 1, xp: 0 });
+            .insert("metallurgy".to_string(), SkillProgress { level: 1, xp: 0 });
         let player = world.spawn((inv, Controllable, skills));
 
         let mut sys = CraftingSystem::new();
@@ -1986,12 +1993,12 @@ mod skill_xp_tests {
             assert_eq!(inv.count_item("iron_ore_0"), 2, "blocked craft consumes nothing");
         }
 
-        // Raise metalworking to Lv 3 → the same craft now succeeds.
+        // Raise metallurgy to Lv 3 → the same craft now succeeds.
         world
             .get::<&mut PlayerSkills>(player)
             .unwrap()
             .skills
-            .insert("metalworking".to_string(), SkillProgress { level: 3, xp: 0 });
+            .insert("metallurgy".to_string(), SkillProgress { level: 3, xp: 0 });
         request(&data);
         sys.tick(&mut world, 0.016, &data);
         {
@@ -3028,10 +3035,10 @@ mod vehicle_factory_tests {
         let mut world = hecs::World::new();
         let mut inv = Inventory::new(16);
         rover_materials(&mut inv);
-        // assemble_rover requires metalworking level 2 (gating starts at 2).
+        // assemble_rover requires mechanics level 2 (gating starts at 2).
         let mut skills = crate::skills::PlayerSkills::new();
         skills.skills.insert(
-            "metalworking".to_string(),
+            "mechanics".to_string(),
             crate::skills::SkillProgress { level: 2, xp: 0 },
         );
         let player_pos = glam::Vec3::new(1.0, 0.0, 1.0);

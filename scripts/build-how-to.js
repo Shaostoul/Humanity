@@ -272,7 +272,8 @@ async function encoderAgrees() {
   })(json('data/library/index.json'));
   const names = {
     items: pick(csvNames('data/items.csv'), used.items),
-    skills: pick(csvNames('data/skills/skills.csv'), used.skills),
+    // Skill names are words by key since skills rung 1 (skills.<id>.name in en.json), not a column.
+    skills: pick(Object.fromEntries(Object.entries(json('data/i18n/en.json').skills || {}).map(([id, v]) => [id, v.name])), used.skills),
     topics: pick(Object.fromEntries((json('data/curriculum/syllabus.json').topics || []).map((t) => [t.id, t.title])), used.topics),
     reading: pick(readingTitles, used.reading),
     places: pick(Object.fromEntries((json('data/laws/laws.json').jurisdictions || []).map((j) => [j.id, j.name])), used.places),

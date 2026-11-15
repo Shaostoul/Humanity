@@ -1,5 +1,5 @@
 {
-  "_doc": "The catalog of the game's activities (the 'minigames'): every one, with its true build status. Design: docs/design/activities.md. Checked by tests/activities_catalog_lint.rs (every evidence path exists, every skill is in data/skills/skills.csv, every status is one of four, every live entry names a source file and a FEATURES.md heading, every levels_setting is in data/gameplay/levels.json, every id appears in the design doc, an open operator_to_decide question stays until he answers, and an answered one is recorded as operator_decision {date, quote, decision} whose quote must be his words as the design doc quotes them). An activity is the DIRECT engagement mode of a domain (docs/design/engagement-modes.md): nobody is forced to play one they dislike. Names are plain English here because nothing renders them yet; when the Play hub, the skills page, quests or tutorials start showing them, add keys with node scripts/i18n-add.js and point name_key at them. Statuses were read from the code and docs/FEATURES.md on 2026-11-14.",
+  "_doc": "The catalog of the game's activities (the 'minigames'): every one, with its true build status. Design: docs/design/activities.md. Checked by tests/activities_catalog_lint.rs (every evidence path exists, every id in an activity's skills list is a row of data/skills/skills.csv, and an activity that trains none says why in no_skill_reason, every status is one of four, every live entry names a source file and a FEATURES.md heading, every levels_setting is in data/gameplay/levels.json, every id appears in the design doc, an open operator_to_decide question stays until he answers, and an answered one is recorded as operator_decision {date, quote, decision} whose quote must be his words as the design doc quotes them). An activity is the DIRECT engagement mode of a domain (docs/design/engagement-modes.md): nobody is forced to play one they dislike. Names are plain English here because nothing renders them yet; when the Play hub, the skills page, quests or tutorials start showing them, add keys with node scripts/i18n-add.js and point name_key at them. Statuses were read from the code and docs/FEATURES.md on 2026-11-14.",
   "statuses": {
     "live": "You can do it in the game today and a simulation decides the result (not a bare timer). Names a source file and a FEATURES.md heading.",
     "partial": "Some of it runs (a recipe, a machine, a page, one half of the loop), but the activity as designed is incomplete, usually because the real procedure is a menu click. Names a source file.",
@@ -31,7 +31,7 @@
   },
   "activities": [
     {
-      "id": "eating_drinking", "family": "body", "name": "Eating and drinking", "skill": null, "status": "live",
+      "id": "eating_drinking", "family": "body", "name": "Eating and drinking", "skills": ["nutrition"], "status": "live",
       "evidence": ["crates/humanity-systems/src/food.rs", "src/engine/mess_hall.rs", "crates/humanity-systems/src/ship_meals.rs", "data/food/ship_stores.ron"],
       "features_heading": "Ship's food stores (ship homes increment 3, 2026-10-04)",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": "vitals_drain", "tier": "T0",
@@ -43,7 +43,7 @@
       "note": "The mess hall's free crew meal is the Background mode for food made real; vitals_drain Off is the simplified mode."
     },
     {
-      "id": "sleeping", "family": "body", "name": "Sleeping and resting", "skill": null, "status": "live",
+      "id": "sleeping", "family": "body", "name": "Sleeping and resting", "skills": [], "no_skill_reason": "Rest is a need, not a trade.", "status": "live",
       "evidence": ["crates/humanity-systems/src/sleep.rs", "data/blueprints/basic.ron"],
       "features_heading": "Construction",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": "vitals_drain", "tier": "T0",
@@ -55,7 +55,7 @@
       "note": "A built bed provides rest: E sleeps 8 game hours (FEATURES.md, Construction, 'A built bed and chest do something')."
     },
     {
-      "id": "hygiene_sanitation", "family": "body", "name": "Hygiene and sanitation", "skill": null, "status": "partial",
+      "id": "hygiene_sanitation", "family": "body", "name": "Hygiene and sanitation", "skills": ["sanitation"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/food.rs", "data/home_outline.json"],
       "features_heading": null,
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T0",
@@ -67,7 +67,7 @@
       "note": "The waste meter and the Compost action that empties it into stored urine run in food.rs; no toilet is placed (home_outline.json says 'not in game yet') and washing is not modelled. Clean Hands is designed in quest-chains.md 2.5."
     },
     {
-      "id": "fitness", "family": "body", "name": "Fitness and exercise", "skill": null, "status": "idea",
+      "id": "fitness", "family": "body", "name": "Fitness and exercise", "skills": ["fitness"], "status": "idea",
       "evidence": ["data/aging_fitness.ron", "crates/humanity-systems/src/aging.rs"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T0",
@@ -79,7 +79,7 @@
       "note": "aging_fitness.ron authors six fitness levels and exercises that nothing reads (AgingSystem is deferred in tests/engine_wiring_lint.rs). respawn-and-revival.md names conditioning as later work."
     },
     {
-      "id": "staying_warm", "family": "body", "name": "Staying warm (and cool)", "skill": null, "status": "live",
+      "id": "staying_warm", "family": "body", "name": "Staying warm (and cool)", "skills": [], "no_skill_reason": "A need met by other skills: fire making, tailoring (insulation) and first aid (cold and heat injury) each train when used for it.", "status": "live",
       "evidence": ["crates/humanity-systems/src/body_heat.rs"],
       "features_heading": "Body heat (2026-09-27)",
       "design_doc": "docs/design/body-heat.md", "levels_setting": "body_heat", "tier": "T0",
@@ -91,7 +91,7 @@
       "note": "Heat made versus heat lost to weather, clothes and shelter; Off / Forgiving / Realistic levels."
     },
     {
-      "id": "first_aid_medicine", "family": "body", "name": "First aid and medicine", "skill": "medicine", "status": "live",
+      "id": "first_aid_medicine", "family": "body", "name": "First aid and medicine", "skills": ["first_aid", "medicine"], "status": "live",
       "evidence": ["crates/humanity-systems/src/wounds.rs", "crates/humanity-systems/src/treatment.rs", "crates/humanity-systems/src/illness.rs", "data/medical"],
       "features_heading": "Wounds and healing (first-hour audit S8, 2026-10-12)",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": "illness", "tier": "T0",
@@ -100,10 +100,10 @@
       "engagement_modes": ["direct", "trade", "cooperative"],
       "consumes": ["bandages", "medical items"], "produces": ["wounds closed", "illness passed"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "Treating a wound gives no medicine XP today; only crafting medical items (12 recipes) does."
+      "note": "Treating a wound gives no XP yet; crafting medical items does (bandages, splints and medkits train first aid, medicines and the surgical kit medicine), and the Nano Heal ability trains medicine."
     },
     {
-      "id": "water_safe", "family": "food", "name": "Finding, purifying and storing water", "skill": "water_purification", "status": "partial",
+      "id": "water_safe", "family": "food", "name": "Finding, purifying and storing water", "skills": ["water_purification"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/fluids.rs", "crates/humanity-systems/src/plumbing.rs", "data/recipes.csv", "data/how_to/water/boil_water_safe.json"],
       "features_heading": "Tap Water and Water Vessels (fluids as litres)",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
@@ -112,10 +112,10 @@
       "engagement_modes": ["direct", "trade", "automation", "cooperative", "background"],
       "consumes": ["rain, tank or ice water", "fuel or power", "filters"], "produces": ["drinking water"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "Tap water, vessels and the water purifier machine run; the hands-on chain (boil, disinfect, filter, distil, rain) is designed in quest-chains.md 2.1. The water_purification skill has no XP source."
+      "note": "Tap water, vessels and the water purifier machine run; the hands-on chain (boil, disinfect, filter, distil, rain) is designed in quest-chains.md 2.1. The purify_water recipe trains water_purification (skills rung 1)."
     },
     {
-      "id": "gardening_farming", "family": "food", "name": "Gardening and farming", "skill": "farming", "status": "live",
+      "id": "gardening_farming", "family": "food", "name": "Gardening and farming", "skills": ["farming"], "status": "live",
       "evidence": ["crates/humanity-systems/src/farming/mod.rs", "crates/humanity-systems/src/farming/soil_ph.rs", "crates/humanity-systems/src/farming/pests.rs", "crates/humanity-systems/src/farming/automation.rs", "data/plants.csv"],
       "features_heading": "Farming",
       "design_doc": "docs/design/survival-garden.md", "levels_setting": "garden_pests", "tier": "T1",
@@ -127,7 +127,7 @@
       "note": "The game's proudest loop. Four garden levels (pests, pollination, soil pH, picking) are its simplified and realistic modes."
     },
     {
-      "id": "mushrooms", "family": "food", "name": "Mushrooms and fruiting tents", "skill": "farming", "status": "live",
+      "id": "mushrooms", "family": "food", "name": "Mushrooms and fruiting tents", "skills": ["mushroom_growing"], "status": "live",
       "evidence": ["src/engine/fruiting_tent.rs", "data/garden/grow_media.ron"],
       "features_heading": "Farming",
       "design_doc": "docs/design/survival-garden.md", "levels_setting": null, "tier": "T1",
@@ -139,7 +139,7 @@
       "note": "Racks of fruiting blocks under a fitted fruiting tent; part of the farming system."
     },
     {
-      "id": "beekeeping", "family": "food", "name": "Beekeeping", "skill": "farming", "status": "partial",
+      "id": "beekeeping", "family": "food", "name": "Beekeeping", "skills": ["beekeeping"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/farming/pollination.rs", "data/garden/pollination.ron"],
       "features_heading": "Farming",
       "design_doc": null, "levels_setting": "pollination", "tier": "T1",
@@ -151,7 +151,7 @@
       "note": "A placed bumblebee hive with a working colony pollinates indoor crops; honeybees, honey and wax do not exist."
     },
     {
-      "id": "livestock", "family": "food", "name": "Keeping animals", "skill": "farming", "status": "live",
+      "id": "livestock", "family": "food", "name": "Keeping animals", "skills": ["animal_husbandry", "butchery"], "status": "live",
       "evidence": ["crates/humanity-systems/src/livestock.rs", "crates/humanity-systems/src/animal_care.rs", "src/gui/pages/herd.rs", "data/livestock/care.ron"],
       "features_heading": "Livestock (v0.751)",
       "design_doc": "docs/design/gameplay-loop-map.md", "levels_setting": "animal_care", "tier": "T1",
@@ -164,7 +164,7 @@
       "note": "Realistic (animals sicken and die) and Forgiving (production only) levels. Products are renewable only (eggs, milk, wool); slaughter for meat is in scope since the operator's hunting and butchering decision (2026-11-14, activities.md section 6) and is not built."
     },
     {
-      "id": "foraging", "family": "food", "name": "Foraging wild food", "skill": "foraging", "status": "partial",
+      "id": "foraging", "family": "food", "name": "Foraging wild food", "skills": ["foraging"], "status": "partial",
       "evidence": ["data/entities/wild_spawns.ron", "crates/humanity-systems/src/livestock.rs", "data/creatures.csv"],
       "features_heading": "Forage flora and resource nodes (v0.978, v0.982)",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
@@ -173,10 +173,10 @@
       "engagement_modes": ["direct", "trade"],
       "consumes": ["time", "knowledge of lookalikes"], "produces": ["berries", "flax fibre"],
       "budget": { "frame": "light", "network": "state" }, "operator_to_decide": null,
-      "note": "Berry bushes and wild flax regrow and collect by walk-up E, but the collect trains farming, not foraging, and nothing teaches identification or lookalikes yet (food_forage in quest-chains.md 2.2)."
+      "note": "Berry bushes, wild flax and salt flats regrow and collect by walk-up E, and each collect trains foraging (skills rung 1, data/skills/practice.json); nothing teaches identification or lookalikes yet (food_forage in quest-chains.md 2.2)."
     },
     {
-      "id": "fishing", "family": "food", "name": "Fishing", "skill": null, "status": "idea",
+      "id": "fishing", "family": "food", "name": "Fishing", "skills": ["fishing"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T1",
@@ -189,7 +189,7 @@
       "note": "In scope under the operator's hunting and butchering decision (2026-11-14, activities.md section 6). Planet shores (ocean.md) are where it would happen."
     },
     {
-      "id": "aquaponics", "family": "food", "name": "Aquaponics (fish and plants together)", "skill": "farming", "status": "partial",
+      "id": "aquaponics", "family": "food", "name": "Aquaponics (fish and plants together)", "skills": ["farming", "animal_husbandry"], "status": "partial",
       "evidence": ["data/machines/home.ron", "crates/humanity-systems/src/grow_machines.rs", "data/garden/grow_media.ron"],
       "features_heading": "Farming",
       "design_doc": "docs/design/survival-garden.md", "levels_setting": null, "tier": "T1",
@@ -202,7 +202,7 @@
       "note": "The tank is placed and draws power; grow_machines.rs counts no fish, and survival-garden.md designs its B12, omega-3 and sludge. Harvesting the fish is in scope under the hunting and butchering decision (2026-11-14)."
     },
     {
-      "id": "cooking", "family": "food", "name": "Cooking", "skill": "cooking", "status": "partial",
+      "id": "cooking", "family": "food", "name": "Cooking", "skills": ["cooking", "nutrition"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/crafting/mod.rs", "crates/humanity-systems/src/crafting/quality.rs", "data/recipes.csv", "data/food_system.ron"],
       "features_heading": "Quality Grades for Crafted Goods",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
@@ -214,7 +214,7 @@
       "note": "31 cooking recipes, gated to the stove and oven (v0.749), with quality grades; the cooking methods and meal quality in food_system.ron are loaded and acted on by nothing, and the procedure is a menu click."
     },
     {
-      "id": "baking_milling", "family": "food", "name": "Milling and baking", "skill": "cooking", "status": "partial",
+      "id": "baking_milling", "family": "food", "name": "Milling and baking", "skills": ["baking"], "status": "partial",
       "evidence": ["data/recipes.csv", "crates/humanity-systems/src/crafting/mod.rs"],
       "features_heading": "Crafting",
       "design_doc": null, "levels_setting": null, "tier": "T1",
@@ -226,7 +226,7 @@
       "note": "grain_mill_0 (5 recipes, no skill) and oven_0 (8) recipes such as grind_flour and cook_bread; recipe-menu only."
     },
     {
-      "id": "preserving", "family": "food", "name": "Preserving: drying, salting, canning, cold storage", "skill": "cooking", "status": "partial",
+      "id": "preserving", "family": "food", "name": "Preserving: drying, salting, canning, cold storage", "skills": ["preserving"], "status": "partial",
       "evidence": ["data/recipes.csv", "crates/humanity-systems/src/food.rs", "data/food_system.ron", "data/how_to/food/test_jar_seals.json"],
       "features_heading": null,
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
@@ -238,7 +238,7 @@
       "note": "Spoilage and its temperature zones run (food.rs) and cook_dried_fruit / cook_dried_meat exist; food_system.ron's preservation_methods are loaded and unused, and salting and canning are designed in quest-chains.md 2.2."
     },
     {
-      "id": "fermenting", "family": "food", "name": "Fermenting", "skill": "cooking", "status": "designed",
+      "id": "fermenting", "family": "food", "name": "Fermenting", "skills": ["fermenting"], "status": "designed",
       "evidence": [],
       "features_heading": null,
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
@@ -250,7 +250,7 @@
       "note": "food_keep_ferment in quest-chains.md 2.2."
     },
     {
-      "id": "brewing", "family": "food", "name": "Brewing (vinegar, kombucha, beer, wine)", "skill": "cooking", "status": "idea",
+      "id": "brewing", "family": "food", "name": "Brewing (vinegar, kombucha, beer, wine)", "skills": ["fermenting"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T1",
@@ -262,7 +262,7 @@
       "note": "No design and no recipe."
     },
     {
-      "id": "composting", "family": "food", "name": "Composting", "skill": "farming", "status": "live",
+      "id": "composting", "family": "food", "name": "Composting", "skills": ["farming"], "status": "live",
       "evidence": ["crates/humanity-systems/src/food.rs", "crates/humanity-systems/src/farming/soil.rs", "data/recipes.csv"],
       "features_heading": "Byproducts and Machine Output to Storage",
       "design_doc": "docs/design/survival-garden.md", "levels_setting": null, "tier": "T1",
@@ -274,7 +274,7 @@
       "note": "The composter machine (6 farming recipes) and the Compost action close waste back to the garden."
     },
     {
-      "id": "seed_saving", "family": "food", "name": "Saving seeds and breeding plants", "skill": "farming", "status": "partial",
+      "id": "seed_saving", "family": "food", "name": "Saving seeds and breeding plants", "skills": ["farming"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/farming/mod.rs", "crates/humanity-systems/src/genetics.rs", "data/genetics.ron"],
       "features_heading": "Farming",
       "design_doc": null, "levels_setting": null, "tier": "T1",
@@ -286,7 +286,7 @@
       "note": "A harvest returns seed in proportion to how well it set (picking_tests.rs, seed_return_follows_the_harvest); choosing and breeding traits is a deferred scaffold (GeneticsSystem)."
     },
     {
-      "id": "gathering_by_hand", "family": "materials", "name": "Gathering wood, stone, clay and ore by hand", "skill": "mining", "status": "partial",
+      "id": "gathering_by_hand", "family": "materials", "name": "Gathering wood, stone, clay and ore by hand", "skills": ["forestry", "mining"], "status": "partial",
       "evidence": ["data/entities/wild_spawns.ron", "crates/humanity-systems/src/livestock.rs", "data/creatures.csv"],
       "features_heading": "Forage flora and resource nodes (v0.978, v0.982)",
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -295,10 +295,10 @@
       "engagement_modes": ["direct", "trade"],
       "consumes": ["time", "a tool (not required)"], "produces": ["logs", "stone", "clay", "salt", "sand", "ore samples"],
       "budget": { "frame": "light", "network": "state" }, "operator_to_decide": null,
-      "note": "Resource nodes collect by walk-up E on a regrow timer. They train farming (the livestock collect bridge), not mining, and there is no hand-mining procedure (pick, chisel, swing)."
+      "note": "Resource nodes collect by walk-up E on a regrow timer; each yield trains its own skill (a fallen log forestry, stone, clay, sand and ore mining; data/skills/practice.json). There is no hand-mining or felling procedure (pick, chisel, swing, saw)."
     },
     {
-      "id": "drone_mining", "family": "materials", "name": "Mining by drone", "skill": "mining", "status": "live",
+      "id": "drone_mining", "family": "materials", "name": "Mining by drone", "skills": ["mining"], "status": "live",
       "evidence": ["crates/humanity-systems/src/mining.rs", "src/engine/drone.rs", "src/engine/mine_tasks.rs"],
       "features_heading": "Economy Automation Phase 1: the living production chain (v0.663)",
       "design_doc": "docs/design/drone-mining.md", "levels_setting": "mining_drone", "tier": "T2",
@@ -310,7 +310,7 @@
       "note": "Commission a drone, give standing orders; it flies, mines and returns ore. This is mostly the Automation mode already; the hands-on game is drone_piloting."
     },
     {
-      "id": "drone_piloting", "family": "materials", "name": "Piloting a mining drone", "skill": "mining", "status": "designed",
+      "id": "drone_piloting", "family": "materials", "name": "Piloting a mining drone", "skills": ["drone_operation"], "status": "designed",
       "evidence": [],
       "features_heading": null,
       "design_doc": "docs/design/drone-mining.md", "levels_setting": "mining_drone", "tier": "T2",
@@ -322,7 +322,7 @@
       "note": "drone-mining.md: 'Piloted mode is optional': the person takes the controls at the rock; realistic remote piloting depends on distance (light delay)."
     },
     {
-      "id": "prospecting", "family": "materials", "name": "Prospecting and survey", "skill": "mining", "status": "designed",
+      "id": "prospecting", "family": "materials", "name": "Prospecting and survey", "skills": ["geology"], "status": "designed",
       "evidence": ["crates/humanity-systems/src/geology.rs"],
       "features_heading": null,
       "design_doc": "docs/design/drone-mining.md", "levels_setting": null, "tier": "T2",
@@ -334,7 +334,7 @@
       "note": "drone-mining.md: a rock must be surveyed first, by the fleet's sensors or a visiting craft. GeologySystem is a deferred scaffold."
     },
     {
-      "id": "smelting_refining", "family": "materials", "name": "Smelting and refining (with its slag)", "skill": "metalworking", "status": "live",
+      "id": "smelting_refining", "family": "materials", "name": "Smelting and refining (with its slag)", "skills": ["metallurgy"], "status": "live",
       "evidence": ["data/recipes.csv", "data/machines/home.ron", "crates/humanity-systems/src/crafting/mod.rs"],
       "features_heading": "Economy Automation Phase 1: the living production chain (v0.663)",
       "design_doc": "docs/design/slag.md", "levels_setting": null, "tier": "T2",
@@ -346,7 +346,7 @@
       "note": "18 smelting and 38 refining recipes; the smelter runs smelt_iron on its own as an AutoRefine machine. slag.md designs slag's every use (the endless sink); none is built."
     },
     {
-      "id": "smithing", "family": "materials", "name": "Smithing and metalworking", "skill": "metalworking", "status": "partial",
+      "id": "smithing", "family": "materials", "name": "Smithing and metalworking", "skills": ["smithing"], "status": "partial",
       "evidence": ["data/recipes.csv", "crates/humanity-systems/src/crafting/tools.rs", "crates/humanity-systems/src/crafting/quality.rs"],
       "features_heading": "Hand Tools and Tool Wear",
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -358,7 +358,7 @@
       "note": "forge_0 (39) and anvil_station_0 (5) recipes with tool wear and quality grades; the procedure (heat, strike, quench) is a menu click."
     },
     {
-      "id": "welding", "family": "materials", "name": "Welding and joining metal", "skill": "metalworking", "status": "idea",
+      "id": "welding", "family": "materials", "name": "Welding and joining metal", "skills": ["welding"], "status": "idea",
       "evidence": ["data/items.csv"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -370,7 +370,7 @@
       "note": "A welding torch item exists (items.csv) and no recipe or tool rule uses it; engine-architecture.md's education table names welding as a taught skill."
     },
     {
-      "id": "woodworking", "family": "materials", "name": "Woodworking", "skill": "woodworking", "status": "partial",
+      "id": "woodworking", "family": "materials", "name": "Woodworking", "skills": ["woodworking"], "status": "partial",
       "evidence": ["data/recipes.csv", "crates/humanity-systems/src/crafting/tools.rs"],
       "features_heading": "Hand Tools and Tool Wear",
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -382,7 +382,7 @@
       "note": "45 recipes trained by woodworking (workbench, sawmill, hand); menu crafting."
     },
     {
-      "id": "tailoring_weaving", "family": "materials", "name": "Spinning, weaving and tailoring", "skill": "tailoring", "status": "partial",
+      "id": "tailoring_weaving", "family": "materials", "name": "Spinning, weaving and tailoring", "skills": ["textiles", "tailoring", "leatherworking"], "status": "partial",
       "evidence": ["data/recipes.csv"],
       "features_heading": "Crafting",
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -394,7 +394,7 @@
       "note": "39 textile recipes on the loom and the sewing machine (tan_leather among them); menu crafting. Clothes feed staying_warm."
     },
     {
-      "id": "pottery", "family": "materials", "name": "Pottery and ceramics", "skill": null, "status": "partial",
+      "id": "pottery", "family": "materials", "name": "Pottery and ceramics", "skills": ["ceramics"], "status": "partial",
       "evidence": ["data/recipes.csv"],
       "features_heading": "Crafting",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T2",
@@ -403,10 +403,10 @@
       "engagement_modes": ["direct", "trade"],
       "consumes": ["clay", "fuel"], "produces": ["pots", "bricks", "ceramic water filters"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "kiln_0 has 9 recipes trained by three different skills (metalworking, woodworking, shelter_building) or none; water_filter_ceramic is designed in quest-chains.md 2.1."
+      "note": "kiln_0 has 9 recipes: the seven clay ones train ceramics and the two charcoal ones fire making (skills rung 1, skills.md section 7); water_filter_ceramic is designed in quest-chains.md 2.1."
     },
     {
-      "id": "glassmaking", "family": "materials", "name": "Glassmaking", "skill": "metalworking", "status": "partial",
+      "id": "glassmaking", "family": "materials", "name": "Glassmaking", "skills": ["glassmaking"], "status": "partial",
       "evidence": ["data/recipes.csv"],
       "features_heading": "Crafting",
       "design_doc": "docs/design/slag.md", "levels_setting": null, "tier": "T2",
@@ -418,7 +418,7 @@
       "note": "smelt_glass, draw_glass_fiber and craft_fiberglass exist; slag.md designs slag into glass and wool."
     },
     {
-      "id": "chemistry", "family": "materials", "name": "Chemistry: soap, medicines, fuels, compounds", "skill": "chemistry", "status": "partial",
+      "id": "chemistry", "family": "materials", "name": "Chemistry: soap, medicines, fuels, compounds", "skills": ["chemistry"], "status": "partial",
       "evidence": ["data/recipes.csv", "data/chemistry"],
       "features_heading": "Chemistry Database",
       "design_doc": "docs/design/ingredients-and-labels.md", "levels_setting": null, "tier": "T2",
@@ -427,10 +427,10 @@
       "engagement_modes": ["direct", "trade", "automation"],
       "consumes": ["salts", "oils", "plant matter", "power"], "produces": ["soap", "medicines", "fuel", "compounds"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "29 chemistry recipes, 14 on the chemistry set, trained by medicine, engineering, chemistry (3) or none."
+      "note": "29 chemistry recipes, 14 on the chemistry set: chemistry trains the soaps, fuels, materials and compounds, medicine the medicines, first aid the oral rehydration salts and bandages, farming the compost (skills rung 1)."
     },
     {
-      "id": "recycling_salvage", "family": "materials", "name": "Recycling and salvage", "skill": null, "status": "idea",
+      "id": "recycling_salvage", "family": "materials", "name": "Recycling and salvage", "skills": ["metallurgy", "repair"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -442,7 +442,7 @@
       "note": "No recipe takes a finished item apart. closed-loop-test.md and homestead-solo-design.md recycle water and air, not goods."
     },
     {
-      "id": "fabrication_printing", "family": "materials", "name": "Fabrication and 3D printing", "skill": "engineering", "status": "idea",
+      "id": "fabrication_printing", "family": "materials", "name": "Fabrication and 3D printing", "skills": ["machining", "drafting"], "status": "idea",
       "evidence": ["data/recipes.csv"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -454,7 +454,7 @@
       "note": "build_3d_printer makes a printer item; nothing prints with it."
     },
     {
-      "id": "electronics", "family": "materials", "name": "Electronics", "skill": "engineering", "status": "partial",
+      "id": "electronics", "family": "materials", "name": "Electronics", "skills": ["electronics"], "status": "partial",
       "evidence": ["data/recipes.csv"],
       "features_heading": "Crafting",
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -466,7 +466,7 @@
       "note": "35 electronics_bench_0 recipes; menu crafting, no circuit is built or tested by hand."
     },
     {
-      "id": "construction", "family": "building", "name": "Construction", "skill": "shelter_building", "status": "live",
+      "id": "construction", "family": "building", "name": "Construction", "skills": ["construction", "masonry"], "status": "live",
       "evidence": ["crates/humanity-systems/src/construction/mod.rs", "src/engine/build_place.rs", "data/blueprints/basic.ron"],
       "features_heading": "Construction",
       "design_doc": "docs/design/construction-architecture.md", "levels_setting": null, "tier": "T2",
@@ -475,10 +475,10 @@
       "engagement_modes": ["direct", "trade", "cooperative"],
       "consumes": ["planks", "stone", "ingots", "time"], "produces": ["structures that provide rest, storage, fire, machines"],
       "budget": { "frame": "light", "network": "state" }, "operator_to_decide": null,
-      "note": "Blueprint, ghost, timed build, a Structure with what it provides; construction gives shelter_building XP."
+      "note": "Blueprint, ghost, timed build, a Structure with what it provides; a finished piece trains construction, a stone one masonry, the campfire fire making (data/skills/practice.json)."
     },
     {
-      "id": "home_layout", "family": "building", "name": "Home layout and interior design", "skill": "shelter_building", "status": "live",
+      "id": "home_layout", "family": "building", "name": "Home layout and interior design", "skills": ["drafting"], "status": "live",
       "evidence": ["crates/humanity-ship/src/home_structure.rs", "src/engine/editor.rs", "src/gui/pages/construction.rs"],
       "features_heading": "HomeStructure Model + the Ship Superstructure (v0.766 - v0.769)",
       "design_doc": "docs/design/home-design.md", "levels_setting": null, "tier": "T1",
@@ -490,7 +490,7 @@
       "note": "The build editor: interior walls, openings, door panels and locks, lights, storeys."
     },
     {
-      "id": "electrical", "family": "building", "name": "Electrical power and wiring", "skill": "engineering", "status": "live",
+      "id": "electrical", "family": "building", "name": "Electrical power and wiring", "skills": ["electrical"], "status": "live",
       "evidence": ["crates/humanity-systems/src/electrical.rs", "crates/humanity-systems/src/solar.rs", "crates/humanity-systems/src/ship_power.rs"],
       "features_heading": "Live Electrical System",
       "design_doc": "docs/design/utility-wiring.md", "levels_setting": null, "tier": "T1",
@@ -502,7 +502,7 @@
       "note": "Supply, demand and battery state of charge; wires route through conduits in the build editor."
     },
     {
-      "id": "plumbing", "family": "building", "name": "Plumbing", "skill": "engineering", "status": "live",
+      "id": "plumbing", "family": "building", "name": "Plumbing", "skills": ["plumbing"], "status": "live",
       "evidence": ["crates/humanity-systems/src/plumbing.rs"],
       "features_heading": "Live Water / Plumbing Sim + Power Coupling (v0.608)",
       "design_doc": "docs/design/spline-routing.md", "levels_setting": null, "tier": "T1",
@@ -514,7 +514,7 @@
       "note": "Per plumbing island, coupled to power; pipes carry materials and marker bands."
     },
     {
-      "id": "climate_control", "family": "building", "name": "Heating and cooling a home", "skill": "engineering", "status": "live",
+      "id": "climate_control", "family": "building", "name": "Heating and cooling a home", "skills": ["hvac"], "status": "live",
       "evidence": ["crates/humanity-systems/src/farming/heat.rs"],
       "features_heading": "Farming",
       "design_doc": "docs/design/body-heat.md", "levels_setting": null, "tier": "T1",
@@ -526,7 +526,7 @@
       "note": "Electric heaters, a heat pump and a certified wood stove, built at a workbench (FEATURES.md, under Farming, 'Heaters')."
     },
     {
-      "id": "life_support", "family": "building", "name": "Air and life support", "skill": "engineering", "status": "live",
+      "id": "life_support", "family": "building", "name": "Air and life support", "skills": ["life_support"], "status": "live",
       "evidence": ["crates/humanity-systems/src/atmosphere.rs", "crates/humanity-systems/src/life_support.rs"],
       "features_heading": "Live Air / Atmosphere Sim + power -> air -> Vitals (v0.617 - v0.618)",
       "design_doc": "docs/design/ship-life-support.md", "levels_setting": "life_support", "tier": "T1",
@@ -538,7 +538,7 @@
       "note": "Station supplied (Background) or Realistic levels."
     },
     {
-      "id": "data_networking", "family": "building", "name": "Data cabling and networks", "skill": "engineering", "status": "partial",
+      "id": "data_networking", "family": "building", "name": "Data cabling and networks", "skills": ["networking"], "status": "partial",
       "evidence": ["crates/humanity-core/src/utilities.rs"],
       "features_heading": "Data / Telecom Media, Stage 1 (v0.619)",
       "design_doc": "docs/design/telecom.md", "levels_setting": null, "tier": "T1",
@@ -550,7 +550,7 @@
       "note": "Stages 1 to 3 shipped (media, link physics, routing); nothing in the game needs a working link yet, and stage 4 (detection) is designed."
     },
     {
-      "id": "pulleys_rigging", "family": "building", "name": "Pulleys and rigging", "skill": "engineering", "status": "partial",
+      "id": "pulleys_rigging", "family": "building", "name": "Pulleys and rigging", "skills": ["rigging"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/pulley/mod.rs", "data/pulleys/pulleys.ron", "src/gui/pages/calculator.rs"],
       "features_heading": "Pulleys: the block-and-tackle designer (native, rung 1, 2026-11-13)",
       "design_doc": "docs/design/pulleys.md", "levels_setting": null, "tier": "T2",
@@ -562,7 +562,7 @@
       "note": "Rung 1 built the model, the data, the Calculator mode and the geometry; rigging a block in the world is a later rung."
     },
     {
-      "id": "vehicle_building", "family": "building", "name": "Building vehicles", "skill": "engineering", "status": "partial",
+      "id": "vehicle_building", "family": "building", "name": "Building vehicles", "skills": ["drafting", "mechanics"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/vehicles/mod.rs", "data/vehicles/kits.ron", "data/recipes.csv"],
       "features_heading": "Economy Automation Phase 2, Stage 1: Vehicle Kits (v0.677)",
       "design_doc": null, "levels_setting": null, "tier": "T5",
@@ -574,7 +574,7 @@
       "note": "A kit is crafted and deploys into a real vehicle; there is no part-by-part assembly."
     },
     {
-      "id": "ship_building", "family": "building", "name": "Building ships", "skill": "engineering", "status": "idea",
+      "id": "ship_building", "family": "building", "name": "Building ships", "skills": ["construction", "drafting", "mechanics"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T5",
@@ -586,7 +586,7 @@
       "note": "mothership-master-plan.md plans the fleet's ships and slag.md's per-ship vote on armour; no player shipyard is designed."
     },
     {
-      "id": "running_machines", "family": "building", "name": "Running machines", "skill": "engineering", "status": "live",
+      "id": "running_machines", "family": "building", "name": "Running machines", "skills": [], "no_skill_reason": "No skill of its own: running a machine by hand trains the skill of what it makes; a machine left to run alone makes standard goods and trains nobody.", "status": "live",
       "evidence": ["src/gui/pages/hud.rs", "data/machines/home.ron", "crates/humanity-systems/src/machine_levels.rs"],
       "features_heading": "Machine Walk-Up Cards (live)",
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -598,7 +598,7 @@
       "note": "Walk-up cards with live values and an Auto-build recipe picker; the machines then run on their own."
     },
     {
-      "id": "maintenance_repair", "family": "building", "name": "Maintenance and repair", "skill": "engineering", "status": "partial",
+      "id": "maintenance_repair", "family": "building", "name": "Maintenance and repair", "skills": ["mechanics", "repair"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/crafting/tools.rs", "crates/humanity-systems/src/abilities.rs"],
       "features_heading": "Hand Tools and Tool Wear",
       "design_doc": "docs/game/construction.md", "levels_setting": null, "tier": "T2",
@@ -610,7 +610,7 @@
       "note": "Hand tools wear and break; the Repair ability heals the player's target. Machines and structures do not wear, so nothing needs repairing."
     },
     {
-      "id": "hauling_logistics", "family": "building", "name": "Carrying, hauling and logistics", "skill": null, "status": "partial",
+      "id": "hauling_logistics", "family": "building", "name": "Carrying, hauling and logistics", "skills": ["rigging", "logistics"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/encumbrance.rs", "src/engine/carry_load.rs"],
       "features_heading": "Carrying weight (2026-10-04, BUG-136)",
       "design_doc": "docs/design/ship-homes-and-logistics.md", "levels_setting": "carry", "tier": "T2",
@@ -622,7 +622,7 @@
       "note": "Carrying weight slows and stops an overloaded body; goods physically moved between homes and the fleet are designed in ship-homes-and-logistics.md."
     },
     {
-      "id": "storage", "family": "building", "name": "Storage and containers", "skill": null, "status": "live",
+      "id": "storage", "family": "building", "name": "Storage and containers", "skills": ["logistics"], "status": "live",
       "evidence": ["crates/humanity-systems/src/inventory/mod.rs", "data/containers"],
       "features_heading": "Typed Containers (volume-capped vessels)",
       "design_doc": "docs/design/containers.md", "levels_setting": null, "tier": "T2",
@@ -634,7 +634,7 @@
       "note": "Volume-capped typed vessels, wrong-class damage, visible racks and tank gauges."
     },
     {
-      "id": "walking_climbing", "family": "moving", "name": "Walking, climbing and falling well", "skill": null, "status": "live",
+      "id": "walking_climbing", "family": "moving", "name": "Walking, climbing and falling well", "skills": ["climbing"], "status": "live",
       "evidence": ["crates/humanity-systems/src/surface_move.rs", "crates/humanity-systems/src/falls.rs", "crates/humanity-systems/src/player.rs"],
       "features_heading": "Ladder Climb (v0.589)",
       "design_doc": "docs/design/gravity-and-movement.md", "levels_setting": "walk_pace", "tier": "T0",
@@ -646,7 +646,7 @@
       "note": "Stairs, ramps, ladders, elevators, teleporters; falls hurt by how hard a body lands."
     },
     {
-      "id": "swimming", "family": "moving", "name": "Swimming", "skill": null, "status": "partial",
+      "id": "swimming", "family": "moving", "name": "Swimming", "skills": ["swimming"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/surface_move.rs"],
       "features_heading": "Carrying weight (2026-10-04, BUG-136)",
       "design_doc": "docs/design/ocean.md", "levels_setting": null, "tier": "T0",
@@ -658,7 +658,7 @@
       "note": "A swimming movement mode exists on planet surfaces; breath, cold water and drowning are not modelled."
     },
     {
-      "id": "driving", "family": "moving", "name": "Driving", "skill": null, "status": "partial",
+      "id": "driving", "family": "moving", "name": "Driving", "skills": ["driving"], "status": "partial",
       "evidence": ["src/lib.rs", "crates/humanity-systems/src/vehicles/mod.rs", "data/vehicles/kits.ron"],
       "features_heading": "Economy Automation Phase 2, Stage 3 slice 1: Vehicles Move (v0.680-v0.682)",
       "design_doc": null, "levels_setting": null, "tier": "T5",
@@ -670,7 +670,7 @@
       "note": "Get into a cab and drive (src/lib.rs, driving_vehicle) or summon a vehicle; arcade movement, no fuel use."
     },
     {
-      "id": "rail_transit", "family": "moving", "name": "Rail and transit aboard", "skill": null, "status": "partial",
+      "id": "rail_transit", "family": "moving", "name": "Rail and transit aboard", "skills": [], "no_skill_reason": "Riding transit aboard is travel, not a trade.", "status": "partial",
       "evidence": ["crates/humanity-ship/src/transit.rs", "crates/humanity-ship/src/structure.rs"],
       "features_heading": "Train / Rail Line (v0.592)",
       "design_doc": "docs/game/ship_zoning_transit.md", "levels_setting": null, "tier": "T5",
@@ -682,7 +682,7 @@
       "note": "Train platforms pair into a rail line and transit links move a person aboard; the rail cars are render-only."
     },
     {
-      "id": "shuttle_trip", "family": "moving", "name": "The shuttle down to a planet and back", "skill": null, "status": "designed",
+      "id": "shuttle_trip", "family": "moving", "name": "The shuttle down to a planet and back", "skills": ["flying", "spaceflight"], "status": "designed",
       "evidence": [],
       "features_heading": null,
       "design_doc": "docs/design/leaving-the-ship.md", "levels_setting": null, "tier": "T5",
@@ -694,7 +694,7 @@
       "note": "A proposal: booking, boarding and the trip phase by phase (section 4)."
     },
     {
-      "id": "piloting", "family": "moving", "name": "Piloting spacecraft", "skill": null, "status": "idea",
+      "id": "piloting", "family": "moving", "name": "Piloting spacecraft", "skills": ["spaceflight"], "status": "idea",
       "evidence": ["crates/humanity-systems/src/flight.rs"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T5",
@@ -706,7 +706,7 @@
       "note": "flight.rs keeps the fleet's flight state and the felt gravity; nobody flies a craft. leaving-the-ship.md makes the player a shuttle passenger."
     },
     {
-      "id": "docking", "family": "moving", "name": "Docking and station-keeping", "skill": null, "status": "designed",
+      "id": "docking", "family": "moving", "name": "Docking and station-keeping", "skills": ["spaceflight"], "status": "designed",
       "evidence": ["crates/humanity-systems/src/docking.rs", "data/docking.ron"],
       "features_heading": null,
       "design_doc": "docs/design/leaving-the-ship.md", "levels_setting": null, "tier": "T5",
@@ -718,7 +718,7 @@
       "note": "DockingSystem (the airlock state machine) is a deferred scaffold."
     },
     {
-      "id": "zero_g_eva", "family": "moving", "name": "Zero-g movement and spacewalks", "skill": null, "status": "designed",
+      "id": "zero_g_eva", "family": "moving", "name": "Zero-g movement and spacewalks", "skills": ["eva"], "status": "designed",
       "evidence": ["data/status_effects.csv"],
       "features_heading": null,
       "design_doc": "docs/design/gravity-and-movement.md", "levels_setting": null, "tier": "T5",
@@ -730,7 +730,7 @@
       "note": "The operator's direction (2026-09-15): grappling hooks, jet packs, mag boots, ropes, ladders. The zero_gravity status effect row exists."
     },
     {
-      "id": "navigation", "family": "moving", "name": "Navigation by map and by stars", "skill": "navigation", "status": "partial",
+      "id": "navigation", "family": "moving", "name": "Navigation by map and by stars", "skills": ["navigation"], "status": "partial",
       "evidence": ["src/engine/map_view.rs", "crates/humanity-systems/src/quests/mod.rs"],
       "features_heading": "Maps Page",
       "design_doc": "docs/game/celestial_navigation.md", "levels_setting": null, "tier": "T5",
@@ -739,10 +739,10 @@
       "engagement_modes": ["direct", "automation"],
       "consumes": ["a map", "the sky"], "produces": ["knowing where you are"],
       "budget": { "frame": "light", "network": "local" }, "operator_to_decide": null,
-      "note": "The map and Travel quest steps exist; no compass, sextant or star fix, and the navigation skill has no XP source."
+      "note": "The map and Travel quest steps exist; reaching a quest destination trains navigation (skills rung 1). No compass, sextant or star fix yet."
     },
     {
-      "id": "exploring", "family": "moving", "name": "Exploring and sightseeing", "skill": "navigation", "status": "partial",
+      "id": "exploring", "family": "moving", "name": "Exploring and sightseeing", "skills": ["navigation"], "status": "partial",
       "evidence": ["data/quests/exploration.ron", "data/entities/destinations.ron", "data/scenic_views.ron"],
       "features_heading": "Quests",
       "design_doc": null, "levels_setting": null, "tier": "T5",
@@ -754,7 +754,7 @@
       "note": "Exploration quests walk to destinations (Travel objectives)."
     },
     {
-      "id": "geology", "family": "science", "name": "Geology", "skill": "mining", "status": "idea",
+      "id": "geology", "family": "science", "name": "Geology", "skills": ["geology"], "status": "idea",
       "evidence": ["crates/humanity-systems/src/geology.rs", "data/geology.ron"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T2",
@@ -766,7 +766,7 @@
       "note": "GeologySystem is a deferred scaffold."
     },
     {
-      "id": "botany_identification", "family": "science", "name": "Botany and identifying plants", "skill": "foraging", "status": "designed",
+      "id": "botany_identification", "family": "science", "name": "Botany and identifying plants", "skills": ["foraging"], "status": "designed",
       "evidence": ["data/plants.csv"],
       "features_heading": null,
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
@@ -778,7 +778,7 @@
       "note": "Wild Food, Carefully (food_forage, quest-chains.md 2.2) designs lookalikes; species data needs its refutation pass before it reaches a screen."
     },
     {
-      "id": "astronomy", "family": "science", "name": "Astronomy and stargazing", "skill": null, "status": "partial",
+      "id": "astronomy", "family": "science", "name": "Astronomy and stargazing", "skills": ["astronomy"], "status": "partial",
       "evidence": ["src/renderer/stars.rs", "crates/humanity-systems/src/astronomy.rs", "data/astronomy_tools.ron"],
       "features_heading": "Stars Renderer",
       "design_doc": null, "levels_setting": null, "tier": "T5",
@@ -790,7 +790,7 @@
       "note": "The real star catalog is in the sky to look at; telescopes are a deferred scaffold (AstronomySystem)."
     },
     {
-      "id": "testing_lab", "family": "science", "name": "Testing soil, water and air", "skill": null, "status": "designed",
+      "id": "testing_lab", "family": "science", "name": "Testing soil, water and air", "skills": ["farming", "water_purification", "chemistry", "life_support"], "status": "designed",
       "evidence": ["crates/humanity-systems/src/farming/soil_ph.rs"],
       "features_heading": null,
       "design_doc": "docs/design/engagement-modes.md", "levels_setting": "soil_ph", "tier": "T1",
@@ -802,7 +802,7 @@
       "note": "engagement-modes.md's investigation pattern (soil sample, why it matters, cheapest fix) is the design; soil pH and nutrients are simulated underneath."
     },
     {
-      "id": "weather_reading", "family": "science", "name": "Reading the weather", "skill": null, "status": "partial",
+      "id": "weather_reading", "family": "science", "name": "Reading the weather", "skills": ["weather"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/weather.rs", "crates/humanity-systems/src/precipitation.rs", "src/gui/pages/hud.rs"],
       "features_heading": "Weather System",
       "design_doc": "docs/design/environment-fields.md", "levels_setting": null, "tier": "T1",
@@ -814,7 +814,7 @@
       "note": "The weather is simulated and the HUD line reads the air you stand in; forecasting from clouds, wind and pressure is not an activity yet."
     },
     {
-      "id": "ecology", "family": "science", "name": "Ecology and pest management", "skill": "farming", "status": "partial",
+      "id": "ecology", "family": "science", "name": "Ecology and pest management", "skills": ["farming"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/farming/pests.rs", "crates/humanity-systems/src/farming/weeds.rs", "crates/humanity-systems/src/ecology.rs"],
       "features_heading": "The garden's and the ship's gameplay levels (2026-11-12)",
       "design_doc": null, "levels_setting": "garden_pests", "tier": "T1",
@@ -826,7 +826,7 @@
       "note": "Garden pests, diseases and weeds run; wider ecology (populations, contagion) is the deferred EcologySystem."
     },
     {
-      "id": "firefighting", "family": "risk", "name": "Fire safety and firefighting", "skill": null, "status": "designed",
+      "id": "firefighting", "family": "risk", "name": "Fire safety and firefighting", "skills": ["firefighting"], "status": "designed",
       "evidence": ["crates/humanity-systems/src/fire.rs", "data/fire_system.ron"],
       "features_heading": null,
       "design_doc": "docs/design/fire-props-and-combustion.md", "levels_setting": null, "tier": "X1",
@@ -838,7 +838,7 @@
       "note": "FireSystem (spread and suppression) is a deferred scaffold; smoke alarms are designed in quest-chains.md 2.3 (warm_alarm). Fire visuals run locally, never networked."
     },
     {
-      "id": "fire_making", "family": "risk", "name": "Making and tending a fire", "skill": "fire_making", "status": "partial",
+      "id": "fire_making", "family": "risk", "name": "Making and tending a fire", "skills": ["fire_making"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/construction/fires.rs", "crates/humanity-systems/src/abilities.rs", "data/abilities.csv"],
       "features_heading": "Abilities (v0.753)",
       "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T0",
@@ -847,10 +847,10 @@
       "engagement_modes": ["direct"],
       "consumes": ["stone", "logs"], "produces": ["heat", "a place to cook"],
       "budget": { "frame": "light", "network": "state" }, "operator_to_decide": null,
-      "note": "The Campfire ability builds a campfire that burns down, takes a log on E and warms the body; it needs no skill and gives no fire_making XP. Making a Fire is designed in quest-chains.md 2.3."
+      "note": "The Campfire ability builds a campfire that burns down, takes a log on E and warms the body; building it trains fire making, and so do the kiln charcoal recipes (skills rung 1). Making a Fire is designed in quest-chains.md 2.3."
     },
     {
-      "id": "damage_control", "family": "risk", "name": "Damage control and hull breaches", "skill": "engineering", "status": "designed",
+      "id": "damage_control", "family": "risk", "name": "Damage control and hull breaches", "skills": ["firefighting"], "status": "designed",
       "evidence": ["src/gui/pages/dev_music.rs"],
       "features_heading": null,
       "design_doc": "docs/design/engine-architecture.md", "levels_setting": null, "tier": "X1",
@@ -862,7 +862,7 @@
       "note": "engine-architecture.md section 6 (Hull Breach Simulation) is the design; only the music's breach alarm exists (the Dev page's knob)."
     },
     {
-      "id": "point_defense", "family": "risk", "name": "Point defense against debris and attackers", "skill": null, "status": "designed",
+      "id": "point_defense", "family": "risk", "name": "Point defense against debris and attackers", "skills": ["gunnery", "tactics"], "status": "designed",
       "evidence": ["data/machines/home.ron"],
       "features_heading": null,
       "design_doc": "docs/game/turret-defense-minigame.md", "levels_setting": null, "tier": "X1",
@@ -876,7 +876,7 @@
       "note": "A marker defense_turret sits on the garage hull. Build, maintain, operate."
     },
     {
-      "id": "radiation_shielding", "family": "risk", "name": "Radiation and shielding", "skill": "engineering", "status": "designed",
+      "id": "radiation_shielding", "family": "risk", "name": "Radiation and shielding", "skills": ["radiation_safety"], "status": "designed",
       "evidence": [],
       "features_heading": null,
       "design_doc": "docs/design/slag.md", "levels_setting": null, "tier": "X1",
@@ -888,7 +888,7 @@
       "note": "slag.md designs slag and rock as shielding mass, with a player vote per ship on armour."
     },
     {
-      "id": "disaster_response", "family": "risk", "name": "Disaster response", "skill": null, "status": "designed",
+      "id": "disaster_response", "family": "risk", "name": "Disaster response", "skills": ["firefighting", "rescue"], "status": "designed",
       "evidence": ["crates/humanity-systems/src/disasters.rs", "crates/humanity-systems/src/weather_events.rs", "data/weather/events.ron"],
       "features_heading": null,
       "design_doc": "docs/design/weather-water-roadmap.md", "levels_setting": null, "tier": "X1",
@@ -900,7 +900,7 @@
       "note": "The extreme-weather event registry exists (weather-water-roadmap.md section 5) and DisasterSystem is a deferred scaffold; nothing asks the player to respond."
     },
     {
-      "id": "wildlife_safety", "family": "risk", "name": "Living with wildlife", "skill": null, "status": "live",
+      "id": "wildlife_safety", "family": "risk", "name": "Living with wildlife", "skills": ["tracking"], "status": "live",
       "evidence": ["crates/humanity-systems/src/ai/mod.rs", "crates/humanity-systems/src/livestock.rs"],
       "features_heading": "Combat (v0.760 - v0.765)",
       "design_doc": "docs/design/gameplay-loop-map.md", "levels_setting": "hostile_wildlife", "tier": "X1",
@@ -912,7 +912,7 @@
       "note": "Predators hunt prey and the player and livestock flee them; the home is a safe zone and wolves are out of its wild spawns."
     },
     {
-      "id": "combat", "family": "risk", "name": "Combat", "skill": "melee", "status": "live",
+      "id": "combat", "family": "risk", "name": "Combat", "skills": ["unarmed", "grappling", "blades", "impact_weapons", "polearms", "archery", "marksmanship", "throwing", "gunnery", "self_defence", "tactics"], "status": "live",
       "evidence": ["crates/humanity-systems/src/combat/mod.rs", "data/equipment.csv"],
       "features_heading": "Combat (v0.760 - v0.765)",
       "design_doc": "docs/design/gameplay-loop-map.md", "levels_setting": "death", "tier": "X1",
@@ -923,10 +923,10 @@
       "budget": { "frame": "heavy", "network": "realtime" },
       "operator_to_decide": null,
       "operator_decision": { "date": "2026-11-14", "quote": "Eventually we want to support all forms of combat.", "decision": "All forms, eventually: PvP arenas and sport combat, and PvE as humans against non-humans; PvP comes first, as the proving ground for gear balance. Offense and defense skills both stay." },
-      "note": "Melee swing, offensive abilities, armour per damage type, loot; kills train melee or ranged. No arena, sport bout or PvP mode exists yet; the base skill set proposal is docs/design/skills.md."
+      "note": "Melee swing, offensive abilities, armour per damage type, loot. A landed strike trains the weapon's skill (data/equipment.csv: blades, impact_weapons, polearms; bare hands unarmed) and a kill trains only hunting, of a wild animal (skills rung 1, skills.md section 7). No arena, sport bout or PvP mode exists yet."
     },
     {
-      "id": "hunting_butchering", "family": "risk", "name": "Hunting and butchering", "skill": null, "status": "partial",
+      "id": "hunting_butchering", "family": "risk", "name": "Hunting and butchering", "skills": ["hunting", "butchery", "tracking", "archery", "marksmanship", "throwing"], "status": "partial",
       "evidence": ["crates/humanity-systems/src/combat/mod.rs", "data/creatures.csv"],
       "features_heading": "Combat (v0.760 - v0.765)",
       "design_doc": null, "levels_setting": null, "tier": "X1",
@@ -940,7 +940,7 @@
       "note": "IN (operator, 2026-11-14; his words in activities.md section 6). How graphic it looks follows CLAUDE.md's dual-modes rule. Today a player's killing blow rolls the creature's loot (a wolf: raw meat, fur, bone) into the pack; there is no butchering procedure."
     },
     {
-      "id": "rescue_revival", "family": "risk", "name": "Rescue and revival", "skill": "medicine", "status": "designed",
+      "id": "rescue_revival", "family": "risk", "name": "Rescue and revival", "skills": ["first_aid", "medicine", "rescue"], "status": "designed",
       "evidence": ["crates/humanity-systems/src/death_pack.rs"],
       "features_heading": null,
       "design_doc": "docs/design/respawn-and-revival.md", "levels_setting": "death", "tier": "X1",
@@ -952,7 +952,7 @@
       "note": "Death and the left pack are live (death_pack.rs); reviving someone else is the design in respawn-and-revival.md."
     },
     {
-      "id": "trading", "family": "community", "name": "Trading", "skill": "trading", "status": "live",
+      "id": "trading", "family": "community", "name": "Trading", "skills": ["trading"], "status": "live",
       "evidence": ["src/gui/pages/trade.rs", "src/gui/pages/vendor.rs", "crates/humanity-systems/src/economy/mod.rs"],
       "features_heading": "Trade Page",
       "design_doc": "docs/design/economy_model.md", "levels_setting": null, "tier": "T3",
@@ -961,10 +961,10 @@
       "engagement_modes": ["direct", "automation", "cooperative"],
       "consumes": ["goods", "credits"], "produces": ["what you need", "credits"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "The trading post vendor, escrow trades that move real items, and the market. The trading skill has no XP source."
+      "note": "The trading post vendor, escrow trades that move real items, and the market; a sale or purchase and a settled trade with another player train trading (skills rung 1)."
     },
     {
-      "id": "fleet_contribution", "family": "community", "name": "Contributing to the fleet", "skill": null, "status": "live",
+      "id": "fleet_contribution", "family": "community", "name": "Contributing to the fleet", "skills": [], "no_skill_reason": "An engagement mode: it gives away what other activities made, and those train their own skills.", "status": "live",
       "evidence": ["src/gui/pages/fleet_ledger.rs", "src/engine/fleet.rs"],
       "features_heading": "Fleet ledger (2026-10-04)",
       "design_doc": "docs/design/ship-homes-and-logistics.md", "levels_setting": null, "tier": "T4",
@@ -976,7 +976,7 @@
       "note": "Each player's used and contributed ledger on the relay; the fleet's supply is unlimited in early development."
     },
     {
-      "id": "governance", "family": "community", "name": "Voting and governance", "skill": "leadership", "status": "live",
+      "id": "governance", "family": "community", "name": "Voting and governance", "skills": ["civics", "mediation"], "status": "live",
       "evidence": ["src/gui/pages/governance.rs"],
       "features_heading": "Native Governance page: live feed + signed voting + proposal form (v0.660)",
       "design_doc": "docs/design/laws.md", "levels_setting": null, "tier": "T4",
@@ -988,7 +988,7 @@
       "note": "The in-game ship vote (slag armour per ship, slag.md) is designed on top of it."
     },
     {
-      "id": "guilds_cooperatives", "family": "community", "name": "Guilds and cooperatives", "skill": "leadership", "status": "partial",
+      "id": "guilds_cooperatives", "family": "community", "name": "Guilds and cooperatives", "skills": ["civics", "leadership"], "status": "partial",
       "evidence": ["src/gui/pages/guilds.rs"],
       "features_heading": "Guilds Page",
       "design_doc": "docs/design/gameplay-loop-map.md", "levels_setting": null, "tier": "T4",
@@ -1000,7 +1000,7 @@
       "note": "The Guilds page browses and joins real guilds; guild production pools (the Cooperative mode) are designed in gameplay-loop-map.md T4."
     },
     {
-      "id": "conversation", "family": "community", "name": "Talking with people aboard", "skill": null, "status": "live",
+      "id": "conversation", "family": "community", "name": "Talking with people aboard", "skills": [], "no_skill_reason": "Talking is living. It will train languages once people aboard speak other languages, and conflict resolution when a talk settles a dispute.", "status": "live",
       "evidence": ["src/engine/talk.rs", "data/dialogues.ron"],
       "features_heading": "Embeddable AI, rung 3: the talk card, written for everyone and AI for those who chose it (2026-11-12)",
       "design_doc": "docs/design/embeddable-ai.md", "levels_setting": null, "tier": "T4",
@@ -1012,7 +1012,7 @@
       "note": "Written dialogue for everyone; an AI brain only for those who chose to download one."
     },
     {
-      "id": "teaching", "family": "community", "name": "Teaching", "skill": null, "status": "idea",
+      "id": "teaching", "family": "community", "name": "Teaching", "skills": ["teaching"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T4",
@@ -1024,7 +1024,7 @@
       "note": "educational-gameplay.md names cooperative skill application; nothing lets one player teach another."
     },
     {
-      "id": "leadership_crew", "family": "community", "name": "Leading a crew", "skill": "leadership", "status": "idea",
+      "id": "leadership_crew", "family": "community", "name": "Leading a crew", "skills": ["leadership"], "status": "idea",
       "evidence": ["data/npc"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T4",
@@ -1036,7 +1036,7 @@
       "note": "Relay crew NPCs follow a data-driven chore rotation (FEATURES.md, Crew Chore AI); nobody directs them."
     },
     {
-      "id": "events_gatherings", "family": "community", "name": "Events and gatherings", "skill": null, "status": "idea",
+      "id": "events_gatherings", "family": "community", "name": "Events and gatherings", "skills": ["leadership"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": "T4",
@@ -1048,7 +1048,7 @@
       "note": "The recreation room exists aboard (data/machines/ship.ron); nothing schedules a gathering in the game."
     },
     {
-      "id": "music", "family": "arts", "name": "Music", "skill": null, "status": "partial",
+      "id": "music", "family": "arts", "name": "Music", "skills": ["music"], "status": "partial",
       "evidence": ["crates/humanity-music", "src/gui/pages/music", "src/engine/music.rs"],
       "features_heading": "The Music page: explore, tune, keep, export and see the music (2026-11-13)",
       "design_doc": "docs/design/music.md", "levels_setting": null, "tier": null,
@@ -1060,7 +1060,7 @@
       "note": "The score is composed live and the Music page lets a person explore, tune, keep and export pieces. Playing an instrument by hand in the world is not in music.md."
     },
     {
-      "id": "fire_props", "family": "arts", "name": "Fire props and flow arts", "skill": null, "status": "designed",
+      "id": "fire_props", "family": "arts", "name": "Fire props and flow arts", "skills": ["staff_spinning", "poi", "rope_dart", "hoop", "fans", "twirling", "fire_performance"], "status": "designed",
       "evidence": [],
       "features_heading": null,
       "design_doc": "docs/design/fire-props-and-combustion.md", "levels_setting": null, "tier": null,
@@ -1072,7 +1072,7 @@
       "note": "1:1 fire staff, poi, fire axe and darts with real fire, smoke and gases; nothing is built."
     },
     {
-      "id": "painting", "family": "arts", "name": "Painting and drawing", "skill": null, "status": "idea",
+      "id": "painting", "family": "arts", "name": "Painting and drawing", "skills": ["drawing_painting"], "status": "idea",
       "evidence": ["crates/humanity-systems/src/creative_arts.rs", "data/creative_arts.ron"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": null,
@@ -1084,7 +1084,7 @@
       "note": "CreativeArtsSystem (works progressing at a rate per day) is a deferred scaffold; painting by hand is not designed."
     },
     {
-      "id": "photography_film", "family": "arts", "name": "Photography and film", "skill": null, "status": "partial",
+      "id": "photography_film", "family": "arts", "name": "Photography and film", "skills": ["photography"], "status": "partial",
       "evidence": ["src/engine/screens.rs", "src/gui/pages/studio.rs"],
       "features_heading": "Live feeds and in-game cameras on screens (in-world screens rung 3, 2026-09-16)",
       "design_doc": "docs/design/in-world-screens.md", "levels_setting": null, "tier": null,
@@ -1096,7 +1096,7 @@
       "note": "In-game cameras feed in-world screens; a player camera or photo mode is not built."
     },
     {
-      "id": "writing", "family": "arts", "name": "Writing", "skill": null, "status": "idea",
+      "id": "writing", "family": "arts", "name": "Writing", "skills": ["writing"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": null,
@@ -1108,7 +1108,7 @@
       "note": "Nothing writable exists in the world."
     },
     {
-      "id": "dance", "family": "arts", "name": "Dance", "skill": null, "status": "idea",
+      "id": "dance", "family": "arts", "name": "Dance", "skills": ["dance"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": null,
@@ -1120,7 +1120,7 @@
       "note": "Needs the character animation rungs (character-animation.md)."
     },
     {
-      "id": "watching_together", "family": "arts", "name": "Watching together on in-world screens", "skill": null, "status": "live",
+      "id": "watching_together", "family": "arts", "name": "Watching together on in-world screens", "skills": [], "no_skill_reason": "Leisure.", "status": "live",
       "evidence": ["src/engine/screens.rs"],
       "features_heading": "Video on in-world screens (native, in-world screens rung 5 integration, 2026-09-16)",
       "design_doc": "docs/design/in-world-screens.md", "levels_setting": null, "tier": null,
@@ -1132,7 +1132,7 @@
       "note": "Video and the readable web play on walls; YouTube, Twitch and Rumble wait on the embedded browser (embedded-browser.md)."
     },
     {
-      "id": "screen_games", "family": "arts", "name": "Games played on in-world screens", "skill": null, "status": "idea",
+      "id": "screen_games", "family": "arts", "name": "Games played on in-world screens", "skills": [], "no_skill_reason": "Leisure; a game with a real rating of its own (chess) can carry it later.", "status": "idea",
       "evidence": ["src/engine/screens.rs"],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": null,
@@ -1144,7 +1144,7 @@
       "note": "The screens exist to play on; no in-world game (board, card, arcade) does."
     },
     {
-      "id": "sports", "family": "arts", "name": "Sports and physical games", "skill": null, "status": "idea",
+      "id": "sports", "family": "arts", "name": "Sports and physical games", "skills": ["fitness"], "status": "idea",
       "evidence": [],
       "features_heading": null,
       "design_doc": null, "levels_setting": null, "tier": null,

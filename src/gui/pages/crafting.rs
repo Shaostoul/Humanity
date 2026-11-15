@@ -806,7 +806,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             .skill_required
             .as_ref()
             .and_then(|s| state.skills.iter().find(|k| &k.id == s))
-            .map_or((1, 1), |k| (k.level, k.max_level));
+            .map_or((1, 1), |k| (k.level, k.mastery_level));
         let f = skill_factor(lvl, max);
         let q = &state.quality_levels;
         let lo = q.name(q.grade_for(score(f, 0.0))).unwrap_or("?").to_string();

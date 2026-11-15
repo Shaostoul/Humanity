@@ -145,6 +145,8 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             let fwd = state.camera.forward_xz();
             if throttle != 0.0 {
                 vpos += fwd * speed * throttle * dt;
+                // Skills rung 1: distance driven is driving practice (data/skills/practice.json).
+                humanity_systems::skills::practice_distance(&state.data_store, "drive", (speed * throttle * dt).abs(), None);
             }
             // Body long axis is +X: derive the body yaw from the
             // actual forward vector (same formula the transit

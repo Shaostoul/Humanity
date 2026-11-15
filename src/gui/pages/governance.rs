@@ -388,6 +388,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         match rx.try_recv() {
             Ok(Ok((pid, choice))) => {
                 state.governance_vote_rx = None;
+                // Skills rung 1: a vote cast is civics practice (taught on the next tick).
+                humanity_systems::skills::queue_practice("cast_vote");
                 state.governance_my_votes.insert(pid, choice);
                 // Honest wording: the server keeps the FIRST vote per voter
                 // (INSERT OR IGNORE) but still 200s a duplicate submission, so
@@ -413,6 +415,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         match rx.try_recv() {
             Ok(Ok(())) => {
                 state.governance_propose_rx = None;
+                humanity_systems::skills::queue_practice("submit_proposal");
                 state.governance_vote_status = t("governance.proposal_submitted").to_string();
                 state.governance_new_title.clear();
                 state.governance_new_body.clear();

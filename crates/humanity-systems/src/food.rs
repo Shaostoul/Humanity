@@ -1006,6 +1006,9 @@ impl System for FoodSystem {
                         log::warn!("[Sanitation] pack full: {lost}x fertilizer_0 lost");
                     }
                     log::info!("[Sanitation] composted waste -> {units}x fertilizer_0");
+                    // Skills rung 1: handling waste safely trains hygiene and sanitation (and farming,
+                    // for the compost it makes): data/skills/practice.json.
+                    crate::skills::practice(data, "compost_waste", None);
                 }
                 // The same action draws the urine tank off: every whole
                 // person-day becomes one stored urine for the garden. What

@@ -28,11 +28,11 @@
 
 ## Current state (verified)
 
-- SkillSystem live: 20 skills (data/skills/skills.csv), XP curve
-  base*level^1.5, level gates on recipes (level 2+), XP from crafting,
-  farming, mining. 10 of 20 skills have no XP source (all combat, social,
-  and most survival-category skills). Level-ups log only; no player
-  feedback. Skill level does nothing but gate.
+- SkillSystem live: since skills rung 1 (2026-11-14) the approved base set of 90 skills in 11
+  families with six named stages and no cap (data/skills/, docs/design/skills.md), XP curve
+  base*level^1.5, level gates on recipes (level 2+), XP from every live verb (recipes,
+  data/skills/practice.json) weighed by difficulty and quality. Six skills still wait for a
+  player verb (skills.md section 10). Level-ups log only; the stage-up notice is rung 3.
 - Quests partial: Gather/Craft/Harvest objectives work; Build/Travel/Talk
   have no emitters; no accept UI; QuestTracker not saved; rewards are items
   only (no XP field).
@@ -76,7 +76,7 @@ metalworking,Metalworking,crafting,25,150,"...",craft_speed:0.02|craft_quality:0
   "We need to figure out what skills we should bother including. Then we need to make sure we
   understand how they are leveled and what leveling them does for us." The base skill set, how
   each levels and what a level gives come first (docs/design/activities.md section 6); the
-  proposal for him to decide is [skills.md](skills.md) (2026-11-14).
+  base set is [skills.md](skills.md), approved by him on 2026-11-14 and built from rung 1.
 - Every untrainable skill gets its trainer when its system activates
   (combat skills with CombatSystem, trading with the vendor, navigation
   with the unified map travel events, foraging with wild Harvestables).

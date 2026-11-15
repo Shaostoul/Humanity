@@ -17,7 +17,7 @@
 id,name,category,inputs,outputs,craft_time_sec,station_required,skill_required,skill_level,description
 # Iron slag: worldsteel ("Steel industry co-products", April 2021) gives about 275 kg of blast-furnace
 # slag per tonne of iron. A 3 kg ingot leaves about 0.83 kg, rounded to one 1 kg unit (2026-09-26).
-smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1|slag_0:1,10,smelter_0,metalworking,1,Reduce iron ore into a pure iron ingot
+smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1|slag_0:1,10,smelter_0,metallurgy,1,Reduce iron ore into a pure iron ingot
 # Slag (byproducts, 2026-09-26): about 2.2 t of slag per t of copper (Gorai, Jana and Premchand 2003,
 # a review of copper slag characteristics and uses in Resources, Conservation and Recycling 39:299-313;
 # later reviews give 2.2-3 t). A 2.8 kg ingot leaves 6.2 kg, so 6 slag of 1 kg; the rest of the ore
@@ -25,9 +25,9 @@ smelt_iron,Smelt Iron,smelting,iron_ore_0:2|coal_0:1,iron_ingot_0:1|slag_0:1,10,
 # the carbon. Iron and steel get none yet: blast-furnace slag is 275 kg per t (worldsteel fact sheet,
 # April 2021), 1 slag per 3 kg iron ingot, but smelt_iron's outputs are pinned by a test in
 # crates/humanity-systems/src/crafting/mod.rs; converter slag is 126 kg per t, under half a unit per steel ingot.
-smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore into a pure copper ingot and skim off the slag
-smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore into a nickel ingot
-smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metalworking,4,Refine platinum-group ore into a platinum ingot
+smelt_copper,Smelt Copper,smelting,copper_ore_0:2|coal_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metallurgy,1,Reduce copper ore into a pure copper ingot and skim off the slag
+smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,smelter_0,metallurgy,2,Reduce nickel ore into a nickel ingot
+smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metallurgy,4,Refine platinum-group ore into a platinum ingot
 # Wood ash (2026-09-27). coal_0 is charcoal, and "Good quality lump charcoal typically has ash content of
 # about 3%" (FAO Forestry Paper 41, "Simple technologies for charcoal making", 1987, section 10.1.4,
 # https://www.fao.org/4/x5328e/x5328e0b.htm, read 2026-09-27): a 1.3 kg lump burnt leaves 39 g, one
@@ -37,21 +37,21 @@ smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_
 # agent and its ash melts into the slag: blast-furnace slag "corresponds to the sterile gangue of the iron
 # ore combined with the ashes of the coke" (Wikipedia, "Slag", read 2026-09-27). tests/byproduct_use_lint.rs
 # holds both rules. The garden uses the ash to raise soil pH (data/garden/soil_ph.ron).
-smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1|wood_ash_0:1,18,smelter_0,metalworking,3,Alloy iron with nickel into corrosion-resistant stainless steel
-smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1|wood_ash_0:2,15,smelter_0,metalworking,2,Alloy iron with carbon to form steel
-smelt_aluminum,Smelt Aluminum,smelting,bauxite_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,metalworking,3,Electrolytic reduction of alumina ore
-smelt_titanium,Smelt Titanium,smelting,rutile_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,metalworking,5,High-temperature titanium extraction
-smelt_gold,Smelt Gold,smelting,gold_ore_0:5,gold_ingot_0:1,25,smelter_0,metalworking,4,Refine gold from raw ore
-smelt_silver,Smelt Silver,smelting,silver_ore_0:4,silver_ingot_0:1,20,smelter_0,metalworking,3,Refine silver from raw ore
-smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2|wood_ash_0:1,12,smelter_0,metalworking,2,Melt silica sand into clear glass
-draw_glass_fiber,Draw Glass Fiber,smelting,glass_pane_0:1|coal_0:1,glass_fiber_0:1|wood_ash_0:1,15,smelter_0,metalworking,3,Remelt glass and draw it through a bushing into continuous fiber
+smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1|wood_ash_0:1,18,smelter_0,metallurgy,3,Alloy iron with nickel into corrosion-resistant stainless steel
+smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1|wood_ash_0:2,15,smelter_0,metallurgy,2,Alloy iron with carbon to form steel
+smelt_aluminum,Smelt Aluminum,smelting,bauxite_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,metallurgy,3,Electrolytic reduction of alumina ore
+smelt_titanium,Smelt Titanium,smelting,rutile_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,metallurgy,5,High-temperature titanium extraction
+smelt_gold,Smelt Gold,smelting,gold_ore_0:5,gold_ingot_0:1,25,smelter_0,metallurgy,4,Refine gold from raw ore
+smelt_silver,Smelt Silver,smelting,silver_ore_0:4,silver_ingot_0:1,20,smelter_0,metallurgy,3,Refine silver from raw ore
+smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2|wood_ash_0:1,12,smelter_0,glassmaking,2,Melt silica sand into clear glass
+draw_glass_fiber,Draw Glass Fiber,smelting,glass_pane_0:1|coal_0:1,glass_fiber_0:1|wood_ash_0:1,15,smelter_0,glassmaking,3,Remelt glass and draw it through a bushing into continuous fiber
 # Bricks (2026-09-27): fire_brick made four 3 kg bricks (12 kg) out of four 1.8 kg lumps of wet clay (7.2 kg),
 # which the byproduct lint refuses once the recipe leaves its ash. It now takes eight (14.4 kg): the brick is
 # 83% of the wet clay, and the rest leaves as water, since brick clay is worked wet ("the clay is mixed with
 # 10–15% water (stiff extrusion) or 20–25% water (soft extrusion)", Wikipedia, "Brick", read 2026-09-27) and
 # the fire drives off the water held in the clay itself as well.
-fire_brick,Fire Brick,smelting,clay_raw_0:8|coal_0:1,stone_brick_0:4|wood_ash_0:1,15,kiln_0,metalworking,1,Fire clay into durable bricks
-fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1|wood_ash_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
+fire_brick,Fire Brick,smelting,clay_raw_0:8|coal_0:1,stone_brick_0:4|wood_ash_0:1,15,kiln_0,ceramics,1,Fire clay into durable bricks
+fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1|wood_ash_0:1,20,kiln_0,ceramics,3,Fire fine porcelain ceramic
 #
 # === REFINING (raw to processed) ===
 # Byproducts (2026-09-26). Real processing leaves material behind. Each ratio below is a published
@@ -65,9 +65,9 @@ fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane
 # of FAO's split, slabs to bark about 3 to 1). 62.5% lumber is generous against FAO's 48%, the same
 # yield as sawing by hand. By hand the bark is kept (it tans leather) and the thin off-cuts, about
 # 1 kg, are burnt where they fall. Slabs burn to charcoal at the log's own ratio (make_charcoal).
-saw_planks,Saw Planks,refining,wood_log_0:2,wood_plank_0:4|sawdust_0:2|wood_slab_0:2|bark_0:1,5,sawmill_0,,0,Cut logs into flat lumber boards and keep the sawdust slabs and bark
+saw_planks,Saw Planks,refining,wood_log_0:2,wood_plank_0:4|sawdust_0:2|wood_slab_0:2|bark_0:1,5,sawmill_0,woodworking,0,Cut logs into flat lumber boards and keep the sawdust slabs and bark
 saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2|sawdust_0:1|bark_0:1,15,,woodworking,1,Hand-saw a log into planks and keep the sawdust and bark
-cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
+cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,masonry,1,Shape raw stone into building blocks
 # Crude oil into gasoline and diesel (2026-10-20; it made "Refined Fuel", which stood in for both). A
 # refinery makes both from the same crude at once: from one 42-gallon barrel of crude oil, US refineries
 # made 19.57 gallons of finished motor gasoline and 12.47 of distillate fuel oil, mostly diesel, in 2023
@@ -79,12 +79,12 @@ cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodwo
 # diesel: 6 and 4, the nearest whole litres (the recipe first gave 5 and 3, taking a unit as about a
 # litre from its old 0.9 kg). The rest of the barrel (jet fuel, heavy oils, gases, asphalt) is not
 # modelled. 150 s keeps the 15 s a unit of crude the refinery took before.
-refine_crude,Refine Crude Oil,refining,oil_crude_0:10,gasoline_0:6|diesel_0:4,150,fuel_refinery_0,engineering,2,Distill crude oil into gasoline and diesel
+refine_crude,Refine Crude Oil,refining,oil_crude_0:10,gasoline_0:6|diesel_0:4,150,fuel_refinery_0,chemistry,2,Distill crude oil into gasoline and diesel
 # Milling: efficient mills extract 72-76% of the wheat as white flour (BAKERpedia, "Extraction
 # rate"; Kansas Wheat: a 60 lb bushel gives about 42 lb of white flour). The rest is bran, germ and
 # shorts. 4 wheat (2.0 kg) -> 3 flour (1.5 kg, 75%) + 1 bran (0.5 kg). flour_0 is wheat flour; this
 # recipe used to mill paddy rice into it, and nothing used the wheat the fields grow.
-grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill_0,,0,Mill wheat and sift the white flour from the bran
+grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill_0,baking,0,Mill wheat and sift the white flour from the bran
 # Rice milling (2026-09-27). The garden harvests paddy (grain_rice_0, still in its hull), and nothing turned
 # it into the white rice people cook. IRRI Rice Knowledge Bank, "Milling"
 # (http://www.knowledgebank.irri.org/step-by-step-production/postharvest/milling, read 2026-09-27): "Most
@@ -96,7 +96,7 @@ grind_flour,Grind Flour,refining,grain_wheat_0:4,flour_0:3|bran_0:1,8,grain_mill
 # one pass"). The split is IRRI's ideal, so it is generous: IRRI warns that steel one-pass hullers "lead to
 # low milling recovery and high grain breakage". The hulls and bran compost together (compost_rice_hulls);
 # IRRI's by-product pages name them as fuel, feed and bran oil too, which the game does not model yet.
-mill_rice,Mill Rice,refining,grain_rice_0:10,rice_0:7|rice_hulls_0:1|rice_bran_0:1,20,grain_mill_0,,0,Hull paddy rice and polish it white and keep the hulls and the bran
+mill_rice,Mill Rice,refining,grain_rice_0:10,rice_0:7|rice_hulls_0:1|rice_bran_0:1,20,grain_mill_0,baking,0,Hull paddy rice and polish it white and keep the hulls and the bran
 # Dehulling covered barley, oats and spelt (2026-09-27). The garden harvests all three in the hull, as a
 # thresher leaves them, and nothing took the hull off: covered barley was eaten hull and all from the pack,
 # spelt's harvest skipped the step, and the oat harvest was called groats. The grain mill rubs the hulls off
@@ -120,15 +120,15 @@ mill_rice,Mill Rice,refining,grain_rice_0:10,rice_0:7|rice_hulls_0:1|rice_bran_0
 #   1990, https://hort.purdue.edu/newcrop/afcm/spelt.html, read 2026-09-27).
 # The three hulls are one item, cereal_hulls_0, composted with seed press cake (compost_cereal_hulls).
 # tests/byproduct_use_lint.rs holds each split to its source's range.
-dehull_barley,Dehull Barley,refining,grain_barley_0:8,barley_dehulled_0:7|cereal_hulls_0:1,16,grain_mill_0,,0,Rub the husk off covered barley and keep the hulls
-dehull_oats,Dehull Oats,refining,grain_oat_0:4,oat_groats_0:3|cereal_hulls_0:1,8,grain_mill_0,,0,Rub the hulls off whole oats for groats and keep the hulls
-dehull_spelt,Dehull Spelt,refining,grain_spelt_0:4,spelt_dehulled_0:3|cereal_hulls_0:1,8,grain_mill_0,,0,Rub the hulls off spelt kernels and keep the hulls
-purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
-make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
-make_charcoal_slabs,Make Charcoal from Slabs,refining,wood_slab_0:8,coal_0:2,20,kiln_0,,0,Carbonize sawmill slabs into charcoal at the same yield as logs
-extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,woodworking,1,Strip plant matter into raw fibers
-make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,woodworking,1,Braid plant fibers into strong rope
-make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworking,2,Draw copper into insulated wire
+dehull_barley,Dehull Barley,refining,grain_barley_0:8,barley_dehulled_0:7|cereal_hulls_0:1,16,grain_mill_0,baking,0,Rub the husk off covered barley and keep the hulls
+dehull_oats,Dehull Oats,refining,grain_oat_0:4,oat_groats_0:3|cereal_hulls_0:1,8,grain_mill_0,baking,0,Rub the hulls off whole oats for groats and keep the hulls
+dehull_spelt,Dehull Spelt,refining,grain_spelt_0:4,spelt_dehulled_0:3|cereal_hulls_0:1,8,grain_mill_0,baking,0,Rub the hulls off spelt kernels and keep the hulls
+purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,water_purification,0,Filter and sterilize drinking water
+make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,fire_making,0,Carbonize wood into charcoal
+make_charcoal_slabs,Make Charcoal from Slabs,refining,wood_slab_0:8,coal_0:2,20,kiln_0,fire_making,0,Carbonize sawmill slabs into charcoal at the same yield as logs
+extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,textiles,1,Strip plant matter into raw fibers
+make_rope,Make Rope,refining,fiber_bundle_0:3,rope_0:1,10,,textiles,1,Braid plant fibers into strong rope
+make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,smithing,2,Draw copper into insulated wire
 # Rubber (2026-09-26). A rubber tree is tapped for latex (plants.csv harvests latex_0; it used to
 # harvest a "fiber bundle"). Fresh field latex is about a third rubber: "dry rubber content (DRC) of
 # 28.2 +/- 0.5%" for RRIM 600 latex (Wattana et al., "Thin-Layer Drying Model and Antifungal
@@ -143,8 +143,8 @@ make_wire,Draw Wire,refining,copper_ingot_0:1,wire_0:5,8,workbench_0,metalworkin
 # of rubber, here 100 g for 4 kg (2.5 parts); the hard rubber called ebonite takes far more ("Ebonite
 # may contain from 25% to 80% sulfur and linseed oil", Wikipedia "Hard rubber", read 2026-09-26).
 # vulcanize_rubber used to turn 2 sheets into 3.
-coagulate_latex,Set Latex into Raw Rubber,refining,latex_0:3,raw_rubber_0:1,60,,,0,Let fresh latex stand in a pan until it sets and press it into a sheet
-vulcanize_rubber,Vulcanize Rubber,refining,raw_rubber_0:4|sulfur_powder_0:1|coal_0:1,rubber_sheet_0:4|wood_ash_0:1,15,forge_0,metalworking,2,Cure raw rubber with sulfur and heat into tough elastic sheets
+coagulate_latex,Set Latex into Raw Rubber,refining,latex_0:3,raw_rubber_0:1,60,,chemistry,0,Let fresh latex stand in a pan until it sets and press it into a sheet
+vulcanize_rubber,Vulcanize Rubber,refining,raw_rubber_0:4|sulfur_powder_0:1|coal_0:1,rubber_sheet_0:4|wood_ash_0:1,15,forge_0,chemistry,2,Cure raw rubber with sulfur and heat into tough elastic sheets
 # Tanning: UNIDO "Mass balance in leather processing" (Buljan, Reich and Ludvik, 2000): 1000 kg of
 # wet-salted hide (1100 kg green) gives 255 kg of finished leather once the unusable split (107 kg)
 # and shavings (99 kg) are thrown away, about 460 kg if the whole thickness is kept. One 2 kg raw
@@ -156,20 +156,20 @@ vulcanize_rubber,Vulcanize Rubber,refining,raw_rubber_0:4|sulfur_powder_0:1|coal
 # Tanners, "Bark Tanning: the basics", https://braintan.com/barktan/1basics.htm, read 2026-09-26;
 # its table gives oak, hemlock and willow bark about 10% tannin, fir 11, birch 12). A 2 kg hide takes
 # 4 kg of bark, spent in the tan.
-tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1|bark_0:4,leather_0:1,20,workbench_0,woodworking,2,Salt-cure a raw hide and tan it in bark liquor into leather
-make_cement,Mix Cement,refining,stone_raw_0:2|clay_raw_0:1|sand_0:1,cement_0:2,10,,shelter_building,1,Blend mineral powder for concrete
-make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,concrete_block_0:2,15,,shelter_building,2,Mix and cure concrete blocks
+tan_leather,Tan Leather,refining,leather_hide_0:1|salt_food_0:1|bark_0:4,leather_0:1,20,workbench_0,leatherworking,2,Salt-cure a raw hide and tan it in bark liquor into leather
+make_cement,Mix Cement,refining,stone_raw_0:2|clay_raw_0:1|sand_0:1,cement_0:2,10,,masonry,1,Blend mineral powder for concrete
+make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,concrete_block_0:2,15,,masonry,2,Mix and cure concrete blocks
 # Slag concrete: slag replaces part of the natural aggregate. For copper slag the review by Ahmad
 # et al. (Materials, 2022, "Concrete Made with Partially Substitutions of Copper Slag (CPS): A State
 # Art of Review") puts the best share at 50-60% by weight of the aggregate it replaces. 2 kg of
 # slag + 1.8 kg of gravel: slag is 53% of the aggregate.
-make_concrete_slag,Pour Slag Concrete,refining,cement_0:2|gravel_0:1|slag_0:2|water_purified_0:1,concrete_block_0:2,15,,shelter_building,2,Mix concrete with smelter slag standing in for half the gravel
-make_plastic,Mold Plastic Sheet,refining,oil_crude_0:1,plastic_sheet_0:3,12,fuel_refinery_0,engineering,2,Polymerize crude oil into HDPE sheet
-weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,tailoring,1,Weave raw fiber into cotton fabric
-spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,tailoring,1,Hand-spin fiber into thread and fabric
-make_glue,Make Glue,refining,bone_0:3|water_purified_0:1,glue_0:2,10,stove_0,,0,Boil bones into adhesive glue
+make_concrete_slag,Pour Slag Concrete,refining,cement_0:2|gravel_0:1|slag_0:2|water_purified_0:1,concrete_block_0:2,15,,masonry,2,Mix concrete with smelter slag standing in for half the gravel
+make_plastic,Mold Plastic Sheet,refining,oil_crude_0:1,plastic_sheet_0:3,12,fuel_refinery_0,chemistry,2,Polymerize crude oil into HDPE sheet
+weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,textiles,1,Weave raw fiber into cotton fabric
+spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,textiles,1,Hand-spin fiber into thread and fabric
+make_glue,Make Glue,refining,bone_0:3|water_purified_0:1,glue_0:2,10,stove_0,chemistry,0,Boil bones into adhesive glue
 render_tallow,Render Tallow,refining,raw_mutton_0:3,animal_fat_0:1,40,stove_0,cooking,1,Slowly melt the fat out of mutton trimmings and strain it to set as tallow
-mold_salt_block,Mold Salt Block,refining,salt_food_0:4|water_purified_0:1,salt_block_0:1,30,stove_0,,0,Pack damp salt into a mold and dry it hard over low heat into a solid block
+mold_salt_block,Mold Salt Block,refining,salt_food_0:4|water_purified_0:1,salt_block_0:1,30,stove_0,preserving,0,Pack damp salt into a mold and dry it hard over low heat into a solid block
 # Oil pressing replaces cook_oil, which pressed five corn SEED packets (0.5 kg) into 1.0 kg of oil.
 # A screw press leaves the oil it cannot reach in the cake. Feedipedia: rapeseed holds 40-45% oil and
 # its expeller cake usually 5-20%; camelina 36-47%, cake 5-26% of dry matter. Safflower: 37-42% oil
@@ -191,98 +191,98 @@ press_oil_rapeseed,Press Rapeseed Oil,refining,grain_rapeseed_0:6,cooking_oil_0:
 press_oil_camelina,Press Camelina Oil,refining,grain_camelina_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press camelina seed into cooking oil and seed cake
 press_oil_safflower,Press Safflower Oil,refining,grain_safflower_0:6,cooking_oil_0:2|press_cake_0:4,15,,cooking,2,Screw-press safflower seed into cooking oil and seed cake
 press_oil_olive,Press Olive Oil,refining,fruit_olive_0:10,cooking_oil_0:1|olive_pomace_0:2,20,,cooking,2,Crush and press olives and skim the oil off the fruit water
-make_paint,Make Paint,refining,oil_crude_0:1|clay_raw_0:1,paint_0:2,8,chemistry_set_0,,0,Mix pigment with binder for paint
+make_paint,Make Paint,refining,oil_crude_0:1|clay_raw_0:1,paint_0:2,8,chemistry_set_0,chemistry,0,Mix pigment with binder for paint
 #
 # === TOOL CRAFTING ===
-craft_hammer,Craft Hammer,crafting,iron_ingot_0:1|wood_plank_0:1,hammer_0:1,10,workbench_0,metalworking,1,Forge a claw hammer
-craft_screwdriver_flat,Craft Flat Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_flat_0:1,8,workbench_0,metalworking,1,Forge a slotted screwdriver
-craft_screwdriver_phillips,Craft Phillips Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_phillips_0:1,8,workbench_0,metalworking,1,Forge a cross-head screwdriver
-craft_wrench,Craft Wrench,crafting,steel_ingot_0:1,wrench_adjustable_0:1,12,forge_0,metalworking,2,Forge an adjustable wrench
-craft_pliers,Craft Pliers,crafting,steel_ingot_0:1,pliers_0:1,10,forge_0,metalworking,2,Forge a pair of pliers
-craft_saw_hand,Craft Hand Saw,crafting,steel_ingot_0:1|wood_plank_0:1,saw_hand_0:1,12,forge_0,metalworking,2,Forge and set a hand saw blade
-craft_axe,Craft Axe,crafting,iron_ingot_0:2|wood_plank_0:1,axe_0:1,15,forge_0,metalworking,2,Forge an axe head and haft it
-craft_hatchet,Craft Hatchet,crafting,iron_ingot_0:1|wood_plank_0:1,hatchet_0:1,10,forge_0,metalworking,1,Forge a compact chopping hatchet
-craft_pickaxe,Craft Pickaxe,crafting,iron_ingot_0:2|wood_plank_0:1,pickaxe_0:1,15,forge_0,metalworking,2,Forge a pointed mining pick
-craft_shovel,Craft Shovel,crafting,iron_ingot_0:1|wood_plank_0:2,shovel_0:1,12,forge_0,metalworking,1,Forge a flat digging blade
-craft_hoe,Craft Hoe,crafting,iron_ingot_0:1|wood_plank_0:2,hoe_0:1,10,forge_0,metalworking,1,Forge a soil cultivation hoe
-craft_chisel,Craft Chisel,crafting,steel_ingot_0:1,chisel_0:1,8,forge_0,metalworking,2,Forge a flat-edge chisel
-craft_crowbar,Craft Crowbar,crafting,steel_ingot_0:2,crowbar_0:1,10,forge_0,metalworking,2,Forge a heavy prying bar
-craft_knife_utility,Craft Utility Knife,crafting,steel_ingot_0:1|wood_plank_0:1,knife_utility_0:1,10,forge_0,metalworking,1,Forge a folding knife
-craft_trowel,Craft Trowel,crafting,iron_ingot_0:1|wood_plank_0:1,trowel_0:1,8,forge_0,metalworking,1,Forge a flat masonry trowel
-craft_rake,Craft Rake,crafting,iron_ingot_0:1|wood_plank_0:2,rake_0:1,10,forge_0,metalworking,1,Forge tines and mount on handle
-craft_scythe,Craft Scythe,crafting,steel_ingot_0:2|wood_plank_0:2,scythe_0:1,15,forge_0,metalworking,3,Forge a curved harvesting blade
-craft_anvil,Craft Anvil,crafting,steel_ingot_0:10,anvil_0:1,60,forge_0,metalworking,4,Forge a heavy work anvil
-craft_vise,Craft Vise,crafting,steel_ingot_0:3|bolt_box_0:1,vise_0:1,20,forge_0,metalworking,3,Assemble a bench clamping vise
-craft_clamp,Craft Clamp,crafting,steel_ingot_0:1|bolt_box_0:1,clamp_0:2,10,workbench_0,metalworking,1,Forge adjustable workpiece clamps
-craft_file,Craft Metal File,crafting,steel_ingot_0:1,file_metal_0:1,10,forge_0,metalworking,2,Cut abrasive grooves into a steel bar
-craft_bolt_cutter,Craft Bolt Cutter,crafting,steel_ingot_0:2|bolt_box_0:1,bolt_cutter_0:1,15,forge_0,metalworking,3,Forge heavy shearing jaws
-craft_pipe_wrench,Craft Pipe Wrench,crafting,steel_ingot_0:2,pipe_wrench_0:1,12,forge_0,metalworking,2,Forge a serrated-jaw wrench
-craft_pruning_shears,Craft Pruning Shears,crafting,steel_ingot_0:1,pruning_shears_0:1,10,forge_0,metalworking,2,Forge spring-loaded branch cutters
+craft_hammer,Craft Hammer,crafting,iron_ingot_0:1|wood_plank_0:1,hammer_0:1,10,workbench_0,smithing,1,Forge a claw hammer
+craft_screwdriver_flat,Craft Flat Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_flat_0:1,8,workbench_0,smithing,1,Forge a slotted screwdriver
+craft_screwdriver_phillips,Craft Phillips Screwdriver,crafting,iron_ingot_0:1|wood_plank_0:1,screwdriver_phillips_0:1,8,workbench_0,smithing,1,Forge a cross-head screwdriver
+craft_wrench,Craft Wrench,crafting,steel_ingot_0:1,wrench_adjustable_0:1,12,forge_0,smithing,2,Forge an adjustable wrench
+craft_pliers,Craft Pliers,crafting,steel_ingot_0:1,pliers_0:1,10,forge_0,smithing,2,Forge a pair of pliers
+craft_saw_hand,Craft Hand Saw,crafting,steel_ingot_0:1|wood_plank_0:1,saw_hand_0:1,12,forge_0,smithing,2,Forge and set a hand saw blade
+craft_axe,Craft Axe,crafting,iron_ingot_0:2|wood_plank_0:1,axe_0:1,15,forge_0,smithing,2,Forge an axe head and haft it
+craft_hatchet,Craft Hatchet,crafting,iron_ingot_0:1|wood_plank_0:1,hatchet_0:1,10,forge_0,smithing,1,Forge a compact chopping hatchet
+craft_pickaxe,Craft Pickaxe,crafting,iron_ingot_0:2|wood_plank_0:1,pickaxe_0:1,15,forge_0,smithing,2,Forge a pointed mining pick
+craft_shovel,Craft Shovel,crafting,iron_ingot_0:1|wood_plank_0:2,shovel_0:1,12,forge_0,smithing,1,Forge a flat digging blade
+craft_hoe,Craft Hoe,crafting,iron_ingot_0:1|wood_plank_0:2,hoe_0:1,10,forge_0,smithing,1,Forge a soil cultivation hoe
+craft_chisel,Craft Chisel,crafting,steel_ingot_0:1,chisel_0:1,8,forge_0,smithing,2,Forge a flat-edge chisel
+craft_crowbar,Craft Crowbar,crafting,steel_ingot_0:2,crowbar_0:1,10,forge_0,smithing,2,Forge a heavy prying bar
+craft_knife_utility,Craft Utility Knife,crafting,steel_ingot_0:1|wood_plank_0:1,knife_utility_0:1,10,forge_0,smithing,1,Forge a folding knife
+craft_trowel,Craft Trowel,crafting,iron_ingot_0:1|wood_plank_0:1,trowel_0:1,8,forge_0,smithing,1,Forge a flat masonry trowel
+craft_rake,Craft Rake,crafting,iron_ingot_0:1|wood_plank_0:2,rake_0:1,10,forge_0,smithing,1,Forge tines and mount on handle
+craft_scythe,Craft Scythe,crafting,steel_ingot_0:2|wood_plank_0:2,scythe_0:1,15,forge_0,smithing,3,Forge a curved harvesting blade
+craft_anvil,Craft Anvil,crafting,steel_ingot_0:10,anvil_0:1,60,forge_0,smithing,4,Forge a heavy work anvil
+craft_vise,Craft Vise,crafting,steel_ingot_0:3|bolt_box_0:1,vise_0:1,20,forge_0,smithing,3,Assemble a bench clamping vise
+craft_clamp,Craft Clamp,crafting,steel_ingot_0:1|bolt_box_0:1,clamp_0:2,10,workbench_0,smithing,1,Forge adjustable workpiece clamps
+craft_file,Craft Metal File,crafting,steel_ingot_0:1,file_metal_0:1,10,forge_0,smithing,2,Cut abrasive grooves into a steel bar
+craft_bolt_cutter,Craft Bolt Cutter,crafting,steel_ingot_0:2|bolt_box_0:1,bolt_cutter_0:1,15,forge_0,smithing,3,Forge heavy shearing jaws
+craft_pipe_wrench,Craft Pipe Wrench,crafting,steel_ingot_0:2,pipe_wrench_0:1,12,forge_0,smithing,2,Forge a serrated-jaw wrench
+craft_pruning_shears,Craft Pruning Shears,crafting,steel_ingot_0:1,pruning_shears_0:1,10,forge_0,smithing,2,Forge spring-loaded branch cutters
 #
 # === WEAPON CRAFTING ===
-craft_knife_combat,Craft Combat Knife,crafting,steel_ingot_0:1|leather_0:1,knife_combat_0:1,15,forge_0,metalworking,2,Forge a fixed-blade fighting knife
-craft_sword,Craft Sword,crafting,steel_ingot_0:3|leather_0:1,sword_0:1,30,forge_0,metalworking,4,Forge and temper a steel sword
-craft_spear,Craft Spear,crafting,steel_ingot_0:1|wood_plank_0:2,spear_0:1,12,forge_0,metalworking,2,Forge a spearhead and mount on shaft
-craft_mace,Craft Mace,crafting,steel_ingot_0:2|wood_plank_0:1,mace_0:1,20,forge_0,metalworking,3,Forge a flanged striking head
+craft_knife_combat,Craft Combat Knife,crafting,steel_ingot_0:1|leather_0:1,knife_combat_0:1,15,forge_0,smithing,2,Forge a fixed-blade fighting knife
+craft_sword,Craft Sword,crafting,steel_ingot_0:3|leather_0:1,sword_0:1,30,forge_0,smithing,4,Forge and temper a steel sword
+craft_spear,Craft Spear,crafting,steel_ingot_0:1|wood_plank_0:2,spear_0:1,12,forge_0,smithing,2,Forge a spearhead and mount on shaft
+craft_mace,Craft Mace,crafting,steel_ingot_0:2|wood_plank_0:1,mace_0:1,20,forge_0,smithing,3,Forge a flanged striking head
 craft_bow_recurve,Craft Recurve Bow,crafting,wood_plank_0:3|rope_0:1,bow_recurve_0:1,20,workbench_0,woodworking,2,Laminate and string a curved bow
 craft_bow_compound,Craft Compound Bow,crafting,aluminum_ingot_0:2|rope_0:1|bolt_box_0:1,bow_compound_0:1,30,workbench_0,woodworking,4,Assemble a cam-levered bow
 craft_crossbow,Craft Crossbow,crafting,steel_ingot_0:2|wood_plank_0:2|rope_0:1,crossbow_0:1,30,workbench_0,woodworking,3,Assemble a trigger-release crossbow
-craft_sling,Craft Sling,crafting,leather_0:1|rope_0:1,sling_0:1,5,,woodworking,1,Cut and tie a leather sling pouch
+craft_sling,Craft Sling,crafting,leather_0:1|rope_0:1,sling_0:1,5,,tailoring,1,Cut and tie a leather sling pouch
 craft_staff,Craft Staff,crafting,wood_plank_0:3,staff_0:1,8,,woodworking,1,Carve and smooth a hardwood staff
-craft_shield_round,Craft Round Shield,crafting,steel_ingot_0:2|leather_0:1,shield_round_0:1,25,forge_0,metalworking,3,Hammer and rivet a circular shield
-craft_shield_tower,Craft Tower Shield,crafting,steel_ingot_0:4|leather_0:2,shield_tower_0:1,40,forge_0,metalworking,4,Construct a full-body standing shield
+craft_shield_round,Craft Round Shield,crafting,steel_ingot_0:2|leather_0:1,shield_round_0:1,25,forge_0,smithing,3,Hammer and rivet a circular shield
+craft_shield_tower,Craft Tower Shield,crafting,steel_ingot_0:4|leather_0:2,shield_tower_0:1,40,forge_0,smithing,4,Construct a full-body standing shield
 craft_arrow,Craft Arrows,crafting,wood_plank_0:1|iron_ingot_0:1,arrow_0:20,10,workbench_0,woodworking,1,Whittle shafts and forge broadheads
 craft_bolt_crossbow,Craft Crossbow Bolts,crafting,wood_plank_0:1|steel_ingot_0:1,bolt_crossbow_0:15,10,workbench_0,woodworking,2,Forge short heavy bolts
-craft_quiver,Craft Quiver,crafting,leather_0:2,quiver_0:1,10,workbench_0,woodworking,1,Stitch a back-mounted arrow holder
-craft_holster,Craft Gun Holster,crafting,leather_0:2,gun_holster_0:1,10,workbench_0,woodworking,2,Stitch a belt-mounted holster
-craft_ammo_pouch,Craft Ammo Pouch,crafting,cloth_bolt_0:1|leather_0:1,ammo_pouch_0:1,8,workbench_0,woodworking,1,Sew a belt cartridge carrier
+craft_quiver,Craft Quiver,crafting,leather_0:2,quiver_0:1,10,workbench_0,tailoring,1,Stitch a back-mounted arrow holder
+craft_holster,Craft Gun Holster,crafting,leather_0:2,gun_holster_0:1,10,workbench_0,tailoring,2,Stitch a belt-mounted holster
+craft_ammo_pouch,Craft Ammo Pouch,crafting,cloth_bolt_0:1|leather_0:1,ammo_pouch_0:1,8,workbench_0,tailoring,1,Sew a belt cartridge carrier
 #
 # === FURNITURE CONSTRUCTION ===
-build_chair,Build Chair,construction,wood_plank_0:4|nail_box_0:1,chair_0:1,15,workbench_0,shelter_building,1,Assemble a four-leg wooden chair
-build_table_dining,Build Dining Table,construction,wood_plank_0:8|nail_box_0:2,table_dining_0:1,30,workbench_0,shelter_building,2,Assemble a six-seat table
-build_table_work,Build Work Table,construction,wood_plank_0:6|nail_box_0:2|bolt_box_0:1,table_work_0:1,25,workbench_0,shelter_building,2,Assemble a reinforced work table
-build_desk,Build Desk,construction,wood_plank_0:6|nail_box_0:2,desk_0:1,25,workbench_0,shelter_building,2,Assemble a writing desk
-build_bed_single,Build Single Bed,construction,wood_plank_0:8|nail_box_0:2|cloth_bolt_0:2,bed_single_0:1,30,workbench_0,shelter_building,2,Assemble a single sleeping frame
-build_bed_double,Build Double Bed,construction,wood_plank_0:12|nail_box_0:3|cloth_bolt_0:4,bed_double_0:1,45,workbench_0,shelter_building,3,Assemble a double sleeping frame
-build_bunk_bed,Build Bunk Bed,construction,wood_plank_0:10|nail_box_0:3|bolt_box_0:2,bunk_bed_0:1,40,workbench_0,shelter_building,3,Assemble a stacked two-tier bed
-build_shelf,Build Shelf,construction,wood_plank_0:2|nail_box_0:1,shelf_0:1,8,workbench_0,shelter_building,1,Mount a wall shelf with brackets
-build_bookcase,Build Bookcase,construction,wood_plank_0:6|nail_box_0:2,bookcase_0:1,20,workbench_0,shelter_building,2,Assemble a multi-shelf bookcase
-build_cabinet,Build Cabinet,construction,wood_plank_0:8|nail_box_0:2,cabinet_0:1,25,workbench_0,shelter_building,2,Assemble an enclosed shelf cabinet
-build_wardrobe,Build Wardrobe,construction,wood_plank_0:10|nail_box_0:3,wardrobe_0:1,35,workbench_0,shelter_building,3,Assemble a full-height wardrobe
-build_dresser,Build Dresser,construction,wood_plank_0:8|nail_box_0:2,dresser_0:1,30,workbench_0,shelter_building,2,Assemble a multi-drawer dresser
-build_nightstand,Build Nightstand,construction,wood_plank_0:3|nail_box_0:1,nightstand_0:1,12,workbench_0,shelter_building,1,Assemble a bedside table
-build_couch,Build Couch,construction,wood_plank_0:8|cloth_bolt_0:4|nail_box_0:2,couch_0:1,40,workbench_0,shelter_building,3,Upholster a three-seat sofa frame
-build_bench,Build Bench,construction,wood_plank_0:4|nail_box_0:1,bench_0:1,12,workbench_0,shelter_building,1,Assemble a backless long seat
-build_stool,Build Stool,construction,wood_plank_0:2|nail_box_0:1,stool_0:1,8,workbench_0,shelter_building,1,Assemble a simple round stool
-build_door,Build Door,construction,wood_plank_0:4|nail_box_0:1,door_wood_0:1,15,workbench_0,shelter_building,1,Assemble a hinged wood door
-build_window,Build Window Frame,construction,wood_plank_0:3|glass_pane_0:1,window_frame_0:1,15,workbench_0,shelter_building,2,Frame glass into a window
-build_hammock,Craft Hammock,construction,cloth_bolt_0:3|rope_0:2,hammock_0:1,10,,shelter_building,1,Sew and tie a fabric hammock
-build_rug,Weave Rug,textile,cloth_bolt_0:4,rug_0:1,20,loom_0,tailoring,2,Weave a decorative floor covering
+build_chair,Build Chair,construction,wood_plank_0:4|nail_box_0:1,chair_0:1,15,workbench_0,woodworking,1,Assemble a four-leg wooden chair
+build_table_dining,Build Dining Table,construction,wood_plank_0:8|nail_box_0:2,table_dining_0:1,30,workbench_0,woodworking,2,Assemble a six-seat table
+build_table_work,Build Work Table,construction,wood_plank_0:6|nail_box_0:2|bolt_box_0:1,table_work_0:1,25,workbench_0,woodworking,2,Assemble a reinforced work table
+build_desk,Build Desk,construction,wood_plank_0:6|nail_box_0:2,desk_0:1,25,workbench_0,woodworking,2,Assemble a writing desk
+build_bed_single,Build Single Bed,construction,wood_plank_0:8|nail_box_0:2|cloth_bolt_0:2,bed_single_0:1,30,workbench_0,woodworking,2,Assemble a single sleeping frame
+build_bed_double,Build Double Bed,construction,wood_plank_0:12|nail_box_0:3|cloth_bolt_0:4,bed_double_0:1,45,workbench_0,woodworking,3,Assemble a double sleeping frame
+build_bunk_bed,Build Bunk Bed,construction,wood_plank_0:10|nail_box_0:3|bolt_box_0:2,bunk_bed_0:1,40,workbench_0,woodworking,3,Assemble a stacked two-tier bed
+build_shelf,Build Shelf,construction,wood_plank_0:2|nail_box_0:1,shelf_0:1,8,workbench_0,woodworking,1,Mount a wall shelf with brackets
+build_bookcase,Build Bookcase,construction,wood_plank_0:6|nail_box_0:2,bookcase_0:1,20,workbench_0,woodworking,2,Assemble a multi-shelf bookcase
+build_cabinet,Build Cabinet,construction,wood_plank_0:8|nail_box_0:2,cabinet_0:1,25,workbench_0,woodworking,2,Assemble an enclosed shelf cabinet
+build_wardrobe,Build Wardrobe,construction,wood_plank_0:10|nail_box_0:3,wardrobe_0:1,35,workbench_0,woodworking,3,Assemble a full-height wardrobe
+build_dresser,Build Dresser,construction,wood_plank_0:8|nail_box_0:2,dresser_0:1,30,workbench_0,woodworking,2,Assemble a multi-drawer dresser
+build_nightstand,Build Nightstand,construction,wood_plank_0:3|nail_box_0:1,nightstand_0:1,12,workbench_0,woodworking,1,Assemble a bedside table
+build_couch,Build Couch,construction,wood_plank_0:8|cloth_bolt_0:4|nail_box_0:2,couch_0:1,40,workbench_0,woodworking,3,Upholster a three-seat sofa frame
+build_bench,Build Bench,construction,wood_plank_0:4|nail_box_0:1,bench_0:1,12,workbench_0,woodworking,1,Assemble a backless long seat
+build_stool,Build Stool,construction,wood_plank_0:2|nail_box_0:1,stool_0:1,8,workbench_0,woodworking,1,Assemble a simple round stool
+build_door,Build Door,construction,wood_plank_0:4|nail_box_0:1,door_wood_0:1,15,workbench_0,woodworking,1,Assemble a hinged wood door
+build_window,Build Window Frame,construction,wood_plank_0:3|glass_pane_0:1,window_frame_0:1,15,workbench_0,woodworking,2,Frame glass into a window
+build_hammock,Craft Hammock,construction,cloth_bolt_0:3|rope_0:2,hammock_0:1,10,,tailoring,1,Sew and tie a fabric hammock
+build_rug,Weave Rug,textile,cloth_bolt_0:4,rug_0:1,20,loom_0,textiles,2,Weave a decorative floor covering
 build_curtain,Sew Curtain,textile,cloth_bolt_0:2,curtain_0:2,10,sewing_machine_0,tailoring,1,Stitch window covering drapes
-build_chest,Build Chest,construction,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,20,workbench_0,shelter_building,2,Assemble a lidded storage chest
-build_crate,Build Crate,construction,wood_plank_0:4|nail_box_0:1,crate_0:2,10,workbench_0,shelter_building,1,Nail together a shipping crate
-build_barrel,Build Barrel,construction,wood_plank_0:6|steel_ingot_0:1,barrel_0:1,20,workbench_0,shelter_building,2,Cooperage of a staved barrel
-build_picture_frame,Craft Picture Frame,construction,wood_plank_0:1|glass_pane_0:1,picture_frame_0:2,8,workbench_0,shelter_building,1,Assemble a simple picture frame
+build_chest,Build Chest,construction,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,20,workbench_0,woodworking,2,Assemble a lidded storage chest
+build_crate,Build Crate,construction,wood_plank_0:4|nail_box_0:1,crate_0:2,10,workbench_0,woodworking,1,Nail together a shipping crate
+build_barrel,Build Barrel,construction,wood_plank_0:6|steel_ingot_0:1,barrel_0:1,20,workbench_0,woodworking,2,Cooperage of a staved barrel
+build_picture_frame,Craft Picture Frame,construction,wood_plank_0:1|glass_pane_0:1,picture_frame_0:2,8,workbench_0,woodworking,1,Assemble a simple picture frame
 #
 # === COOKING ===
-cook_bread,Bake Bread,cooking,flour_0:2|water_purified_0:1|salt_food_0:1,bread_0:3,10,oven_0,cooking,1,Knead and bake wheat bread loaves
+cook_bread,Bake Bread,cooking,flour_0:2|water_purified_0:1|salt_food_0:1,bread_0:3,10,oven_0,baking,1,Knead and bake wheat bread loaves
 # Whey stands in for the water in bread, a long-standing farm-kitchen use of the cheese-making leftover.
-cook_bread_whey,Bake Whey Bread,cooking,flour_0:2|whey_0:1|salt_food_0:1,bread_0:3,10,oven_0,cooking,1,Knead bread with the whey left from cheese making instead of water
-cook_jerky,Make Jerky,cooking,raw_mutton_0:2|salt_food_0:1|spice_mix_0:1,jerky_0:4,15,stove_0,cooking,1,Slice lean meat thin and season it; heat to 160 F then dry (USDA FSIS)
-cook_canned_food,Can Food,cooking,vegetable_potato_0:2|vegetable_carrot_0:2|salt_food_0:1,canned_food_0:3,15,stove_0,cooking,2,Canned vegetables. Low-acid food like potatoes and carrots is only safe canned in a pressure canner (USDA): a pot on a stove cannot get hot enough to kill botulism spores
-cook_mre,Pack MRE,cooking,bread_0:1|jerky_0:2|protein_bar_0:1,mre_0:2,10,,cooking,2,Vacuum-pack field rations
-cook_protein_bar,Make Protein Bar,cooking,flour_0:1|egg_0:2|honey_0:1,protein_bar_0:4,8,oven_0,cooking,1,Bake high-protein nutrition bars
+cook_bread_whey,Bake Whey Bread,cooking,flour_0:2|whey_0:1|salt_food_0:1,bread_0:3,10,oven_0,baking,1,Knead bread with the whey left from cheese making instead of water
+cook_jerky,Make Jerky,cooking,raw_mutton_0:2|salt_food_0:1|spice_mix_0:1,jerky_0:4,15,stove_0,preserving,1,Slice lean meat thin and season it; heat to 160 F then dry (USDA FSIS)
+cook_canned_food,Can Food,cooking,vegetable_potato_0:2|vegetable_carrot_0:2|salt_food_0:1,canned_food_0:3,15,stove_0,preserving,2,Canned vegetables. Low-acid food like potatoes and carrots is only safe canned in a pressure canner (USDA): a pot on a stove cannot get hot enough to kill botulism spores
+cook_mre,Pack MRE,cooking,bread_0:1|jerky_0:2|protein_bar_0:1,mre_0:2,10,,preserving,2,Vacuum-pack field rations
+cook_protein_bar,Make Protein Bar,cooking,flour_0:1|egg_0:2|honey_0:1,protein_bar_0:4,8,oven_0,baking,1,Bake high-protein nutrition bars
 cook_soup,Cook Soup,cooking,vegetable_potato_0:2|vegetable_carrot_0:1|water_purified_0:1|salt_food_0:1,soup_vegetable_0:2,10,stove_0,cooking,1,Simmer a hearty vegetable soup
 cook_stew,Cook Stew,cooking,vegetable_potato_0:2|vegetable_onion_0:1|jerky_0:1|water_purified_0:1,stew_meat_0:3,15,stove_0,cooking,2,Slow-cook a thick meat stew
-cook_fried_egg,Fry Egg,cooking,egg_0:2|cooking_oil_0:1,bread_0:1,3,stove_0,,0,Fry eggs for a quick meal
+cook_fried_egg,Fry Egg,cooking,egg_0:2|cooking_oil_0:1,bread_0:1,3,stove_0,cooking,0,Fry eggs for a quick meal
 cook_pancake,Make Pancakes,cooking,flour_0:1|egg_0:2|milk_0:1,bread_0:3,8,stove_0,cooking,1,Mix batter and griddle pancakes
 # Whey: cheese keeps a small share of the milk (the Tetra Pak Dairy Processing Handbook gives about 10 kg of
 # hard cheese per 100 kg of milk; soft cheeses keep more). Here 4 kg of milk makes 0.6 kg of cheese and
 # about 3.4 kg leaves as whey, three 1 kg units (2026-09-26).
-cook_cheese,Make Cheese,cooking,milk_0:4|salt_food_0:1,cheese_0:2|whey_0:3,30,stove_0,cooking,3,Culture and press milk into cheese
+cook_cheese,Make Cheese,cooking,milk_0:4|salt_food_0:1,cheese_0:2|whey_0:3,30,stove_0,fermenting,3,Culture and press milk into cheese
 cook_butter,Churn Butter,cooking,milk_0:3,butter_0:2,15,,cooking,1,Agitate cream into solid butter
-cook_dried_fruit,Dry Fruit,cooking,fruit_apple_0:3|fruit_banana_0:2,dried_fruit_0:4,20,oven_0,,0,Dehydrate fruit for preservation
-cook_dried_meat,Dry Meat,cooking,raw_mutton_0:2|salt_food_0:1,dried_meat_0:4,20,stove_0,cooking,1,Heat thin meat strips to 160 F (poultry to 165 F) then salt and dry them (USDA FSIS; CDC)
+cook_dried_fruit,Dry Fruit,cooking,fruit_apple_0:3|fruit_banana_0:2,dried_fruit_0:4,20,oven_0,preserving,0,Dehydrate fruit for preservation
+cook_dried_meat,Dry Meat,cooking,raw_mutton_0:2|salt_food_0:1,dried_meat_0:4,20,stove_0,preserving,1,Heat thin meat strips to 160 F (poultry to 165 F) then salt and dry them (USDA FSIS; CDC)
 # Apple pomace: the skins, cores and pulp left after pressing are about a quarter to a third of the fruit
 # (Shalini and Gupta 2010, J Food Sci Technol 47:365-371). It used to press 0.8 kg of apples into 1.0 kg of
 # juice; now 7 apples (1.4 kg) give 2 juice (1.0 kg) and one 0.4 kg unit of pomace (2026-09-26).
@@ -291,7 +291,7 @@ cook_juice,Press Juice,cooking,fruit_apple_0:7,juice_0:2|apple_pomace_0:1,8,,coo
 # cherries yield roughly a fifth of their weight as green beans and roasting drives off about a sixth more
 # (commonly cited processing figures), so six 0.3 kg cherries roast into one 250 g bag of beans; a cup is
 # brewed when the beans are drunk (coffee_0's brewed_coffee profile).
-cook_coffee,Roast Coffee Beans,cooking,fruit_coffee_0:6,coffee_0:1,20,stove_0,,0,Pulp dry and roast coffee cherries into beans
+cook_coffee,Roast Coffee Beans,cooking,fruit_coffee_0:6,coffee_0:1,20,stove_0,cooking,0,Pulp dry and roast coffee cherries into beans
 cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,2,Extract and crystallize plant sugar
 # Honey (2026-10-05, the review of BUG-146). This was "Harvest Honey": one litre of tap water into a jar
 # of honey. Honey is not made from water, and since a craft draws tap water free from the home's tanks the
@@ -307,7 +307,7 @@ cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,
 # 1 July 2025, read 2026-10-05), one 0.3 kg block of beeswax once the crushed comb is melted down. The
 # knife is the recipe's tool (data/crafting/tools.ron); the game has no buckets, masher or strainer to name.
 # No hive in the game fills frames yet, so the trading post sells the comb (data/trade_goods.ron).
-cook_honey,Crush and Strain Honey,cooking,honeycomb_0:1,honey_0:5|beeswax_0:1,60,,farming,2,Cut the comb out of a hive frame then crush it and strain out the honey and keep the wax
+cook_honey,Crush and Strain Honey,cooking,honeycomb_0:1,honey_0:5|beeswax_0:1,60,,beekeeping,2,Cut the comb out of a hive frame then crush it and strain out the honey and keep the wax
 cook_spice,Blend Spices,cooking,seed_wheat_0:2|salt_food_0:1,spice_mix_0:3,5,,cooking,1,Grind and mix seasoning blend
 #
 # === CLOTHING / TEXTILE ===
@@ -339,56 +339,56 @@ craft_shoes,Craft Casual Shoes,textile,leather_0:1|rubber_sheet_0:1,shoes_casual
 craft_sandals,Craft Sandals,textile,rubber_sheet_0:1|rope_0:1,sandals_0:1,8,,tailoring,1,Shape rubber sole open-toe footwear
 sew_raincoat,Sew Raincoat,textile,cloth_bolt_0:2|rubber_sheet_0:2,raincoat_0:1,15,sewing_machine_0,tailoring,2,Laminate waterproof full-length coat
 sew_wetsuit,Sew Wetsuit,textile,rubber_sheet_0:4|cloth_bolt_0:1,wetsuit_0:1,25,sewing_machine_0,tailoring,3,Construct a neoprene thermal suit
-craft_helmet_hard,Mold Hard Hat,crafting,plastic_sheet_0:2,helmet_hard_0:1,10,workbench_0,woodworking,2,Thermoform an impact safety helmet
-craft_goggles,Craft Safety Goggles,crafting,plastic_sheet_0:1|rubber_sheet_0:1,goggles_safety_0:1,8,workbench_0,woodworking,1,Mold splash-proof eye guards
+craft_helmet_hard,Mold Hard Hat,crafting,plastic_sheet_0:2,helmet_hard_0:1,10,workbench_0,smithing,2,Thermoform an impact safety helmet
+craft_goggles,Craft Safety Goggles,crafting,plastic_sheet_0:1|rubber_sheet_0:1,goggles_safety_0:1,8,workbench_0,glassmaking,1,Mold splash-proof eye guards
 craft_hat_baseball,Sew Baseball Cap,textile,cloth_bolt_0:1,hat_baseball_0:2,5,sewing_machine_0,tailoring,1,Stitch a brimmed casual cap
 #
 # === BUILDING COMPONENTS ===
-craft_nails,Forge Nails,crafting,iron_ingot_0:1,nail_box_0:4,8,forge_0,metalworking,1,Cut and point a box of wire nails
-craft_screws,Forge Screws,crafting,steel_ingot_0:1,screw_box_0:3,10,forge_0,metalworking,2,Thread and slot steel screws
-craft_bolts,Forge Bolts,crafting,steel_ingot_0:1,bolt_box_0:2,10,forge_0,metalworking,2,Thread and hex-head steel bolts
-craft_tape_duct,Make Duct Tape,crafting,cloth_bolt_0:1|rubber_sheet_0:1|glue_0:1,tape_duct_0:3,8,workbench_0,woodworking,1,Laminate adhesive reinforced tape
-craft_sandpaper,Make Sandpaper,crafting,sand_0:1|glue_0:1,sandpaper_0:10,5,workbench_0,,0,Bond grit to paper backing
+craft_nails,Forge Nails,crafting,iron_ingot_0:1,nail_box_0:4,8,forge_0,smithing,1,Cut and point a box of wire nails
+craft_screws,Forge Screws,crafting,steel_ingot_0:1,screw_box_0:3,10,forge_0,smithing,2,Thread and slot steel screws
+craft_bolts,Forge Bolts,crafting,steel_ingot_0:1,bolt_box_0:2,10,forge_0,smithing,2,Thread and hex-head steel bolts
+craft_tape_duct,Make Duct Tape,crafting,cloth_bolt_0:1|rubber_sheet_0:1|glue_0:1,tape_duct_0:3,8,workbench_0,textiles,1,Laminate adhesive reinforced tape
+craft_sandpaper,Make Sandpaper,crafting,sand_0:1|glue_0:1,sandpaper_0:10,5,workbench_0,woodworking,0,Bond grit to paper backing
 #
 # === ELECTRONICS ASSEMBLY ===
-assemble_circuit_board,Assemble Circuit Board,electronics,wire_0:3|copper_ingot_0:1|plastic_sheet_0:1,wire_0:1,20,electronics_bench_0,engineering,2,Etch and populate a printed circuit board
-assemble_battery_pack,Assemble Battery Pack,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,battery_pack_0:2,15,electronics_bench_0,engineering,2,Wire cells into a rechargeable pack
-assemble_solar_charger,Build Solar Charger,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1,solar_charger_0:1,20,electronics_bench_0,engineering,3,Wire a portable PV charging panel
-assemble_flashlight,Build Flashlight,electronics,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,flashlight_0:1,10,workbench_0,engineering,1,Assemble an LED handheld torch
-assemble_lantern,Build Lantern,electronics,steel_ingot_0:1|wire_0:1|glass_pane_0:1,lantern_0:1,12,workbench_0,engineering,1,Assemble a portable area light
-assemble_radio,Build Radio,electronics,wire_0:3|copper_ingot_0:1|plastic_sheet_0:2,radio_0:1,30,electronics_bench_0,engineering,3,Assemble a two-way transceiver
-assemble_walkie_talkie,Build Walkie Talkie,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,walkie_talkie_0:1,20,electronics_bench_0,engineering,2,Assemble a short-range voice radio
-assemble_multimeter,Build Multimeter,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,multimeter_0:1,15,electronics_bench_0,engineering,2,Assemble an electrical test meter
-assemble_smoke_detector,Build Smoke Detector,electronics,wire_0:1|plastic_sheet_0:1|battery_pack_0:1,smoke_detector_0:1,10,electronics_bench_0,engineering,1,Wire a particle fire alarm
-assemble_motion_light,Build Motion Light,electronics,wire_0:2|plastic_sheet_0:1|glass_pane_0:1,motion_light_0:1,15,electronics_bench_0,engineering,2,Wire a PIR-activated light
-assemble_gps,Build GPS Device,electronics,wire_0:2|plastic_sheet_0:2|copper_ingot_0:1,gps_device_0:1,25,electronics_bench_0,engineering,3,Assemble a satellite positioning unit
-assemble_camera,Build Camera,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1|aluminum_ingot_0:1,camera_0:1,25,electronics_bench_0,engineering,3,Assemble a digital photography device
-assemble_computer,Build Computer Terminal,electronics,wire_0:5|glass_pane_0:1|plastic_sheet_0:3|copper_ingot_0:2,computer_terminal_0:1,60,electronics_bench_0,engineering,4,Assemble a networked computing terminal
-assemble_geiger,Build Geiger Counter,electronics,wire_0:2|aluminum_ingot_0:1|plastic_sheet_0:1,geiger_counter_0:1,20,electronics_bench_0,engineering,3,Assemble an ionizing radiation detector
-assemble_water_tester,Build Water Tester,electronics,wire_0:1|plastic_sheet_0:1,water_tester_0:1,10,electronics_bench_0,engineering,1,Assemble a water quality probe
+assemble_circuit_board,Assemble Circuit Board,electronics,wire_0:3|copper_ingot_0:1|plastic_sheet_0:1,wire_0:1,20,electronics_bench_0,electronics,2,Etch and populate a printed circuit board
+assemble_battery_pack,Assemble Battery Pack,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,battery_pack_0:2,15,electronics_bench_0,electronics,2,Wire cells into a rechargeable pack
+assemble_solar_charger,Build Solar Charger,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1,solar_charger_0:1,20,electronics_bench_0,electronics,3,Wire a portable PV charging panel
+assemble_flashlight,Build Flashlight,electronics,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,flashlight_0:1,10,workbench_0,electronics,1,Assemble an LED handheld torch
+assemble_lantern,Build Lantern,electronics,steel_ingot_0:1|wire_0:1|glass_pane_0:1,lantern_0:1,12,workbench_0,electronics,1,Assemble a portable area light
+assemble_radio,Build Radio,electronics,wire_0:3|copper_ingot_0:1|plastic_sheet_0:2,radio_0:1,30,electronics_bench_0,electronics,3,Assemble a two-way transceiver
+assemble_walkie_talkie,Build Walkie Talkie,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,walkie_talkie_0:1,20,electronics_bench_0,electronics,2,Assemble a short-range voice radio
+assemble_multimeter,Build Multimeter,electronics,wire_0:2|copper_ingot_0:1|plastic_sheet_0:1,multimeter_0:1,15,electronics_bench_0,electronics,2,Assemble an electrical test meter
+assemble_smoke_detector,Build Smoke Detector,electronics,wire_0:1|plastic_sheet_0:1|battery_pack_0:1,smoke_detector_0:1,10,electronics_bench_0,electronics,1,Wire a particle fire alarm
+assemble_motion_light,Build Motion Light,electronics,wire_0:2|plastic_sheet_0:1|glass_pane_0:1,motion_light_0:1,15,electronics_bench_0,electronics,2,Wire a PIR-activated light
+assemble_gps,Build GPS Device,electronics,wire_0:2|plastic_sheet_0:2|copper_ingot_0:1,gps_device_0:1,25,electronics_bench_0,electronics,3,Assemble a satellite positioning unit
+assemble_camera,Build Camera,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1|aluminum_ingot_0:1,camera_0:1,25,electronics_bench_0,electronics,3,Assemble a digital photography device
+assemble_computer,Build Computer Terminal,electronics,wire_0:5|glass_pane_0:1|plastic_sheet_0:3|copper_ingot_0:2,computer_terminal_0:1,60,electronics_bench_0,electronics,4,Assemble a networked computing terminal
+assemble_geiger,Build Geiger Counter,electronics,wire_0:2|aluminum_ingot_0:1|plastic_sheet_0:1,geiger_counter_0:1,20,electronics_bench_0,electronics,3,Assemble an ionizing radiation detector
+assemble_water_tester,Build Water Tester,electronics,wire_0:1|plastic_sheet_0:1,water_tester_0:1,10,electronics_bench_0,electronics,1,Assemble a water quality probe
 #
 # === MACHINE ASSEMBLY ===
-build_workbench,Build Workbench,assembly,wood_plank_0:8|bolt_box_0:2|steel_ingot_0:2,workbench_0:1,30,,shelter_building,2,Assemble a general crafting station
-build_forge,Build Forge,assembly,stone_brick_0:10|iron_ingot_0:4|coal_0:5,forge_0:1,60,,shelter_building,3,Construct a metal-heating furnace
-build_smelter,Build Smelter,assembly,stone_brick_0:8|iron_ingot_0:3|coal_0:3,smelter_0:1,50,,shelter_building,3,Construct an ore-melting furnace
-build_kiln,Build Kiln,assembly,stone_brick_0:12|clay_raw_0:4,kiln_0:1,60,,shelter_building,3,Construct a high-temperature kiln
-build_anvil_station,Build Anvil Station,assembly,anvil_0:1|wood_plank_0:4|bolt_box_0:1,anvil_station_0:1,20,workbench_0,shelter_building,2,Mount anvil on a stable platform
-build_electronics_bench,Build Electronics Bench,assembly,wood_plank_0:6|wire_0:5|nail_box_0:2,electronics_bench_0:1,25,workbench_0,shelter_building,2,Set up a circuit assembly station
-build_sewing_machine,Build Sewing Machine,assembly,steel_ingot_0:3|wire_0:2|wood_plank_0:2,sewing_machine_0:1,30,workbench_0,engineering,2,Assemble an electric sewing machine
-build_loom,Build Loom,assembly,wood_plank_0:10|rope_0:3|nail_box_0:2,loom_0:1,40,workbench_0,shelter_building,2,Assemble a frame-based loom
-build_stove,Build Stove,assembly,steel_ingot_0:4|wire_0:2|copper_ingot_0:1,stove_0:1,30,workbench_0,shelter_building,2,Assemble a four-burner range
-build_oven,Build Oven,assembly,steel_ingot_0:5|stone_brick_0:4|wire_0:2,oven_0:1,40,workbench_0,shelter_building,3,Construct an enclosed baking oven
-build_fridge,Build Fridge,assembly,steel_ingot_0:4|wire_0:3|copper_ingot_0:2|rubber_sheet_0:1,fridge_0:1,50,workbench_0,engineering,3,Assemble a refrigerated storage unit
-build_generator,Build Portable Generator,assembly,steel_ingot_0:5|copper_ingot_0:3|wire_0:4|rubber_sheet_0:1,generator_portable_0:1,60,workbench_0,engineering,4,Assemble a 2kW gasoline generator
+build_workbench,Build Workbench,assembly,wood_plank_0:8|bolt_box_0:2|steel_ingot_0:2,workbench_0:1,30,,woodworking,2,Assemble a general crafting station
+build_forge,Build Forge,assembly,stone_brick_0:10|iron_ingot_0:4|coal_0:5,forge_0:1,60,,masonry,3,Construct a metal-heating furnace
+build_smelter,Build Smelter,assembly,stone_brick_0:8|iron_ingot_0:3|coal_0:3,smelter_0:1,50,,masonry,3,Construct an ore-melting furnace
+build_kiln,Build Kiln,assembly,stone_brick_0:12|clay_raw_0:4,kiln_0:1,60,,masonry,3,Construct a high-temperature kiln
+build_anvil_station,Build Anvil Station,assembly,anvil_0:1|wood_plank_0:4|bolt_box_0:1,anvil_station_0:1,20,workbench_0,smithing,2,Mount anvil on a stable platform
+build_electronics_bench,Build Electronics Bench,assembly,wood_plank_0:6|wire_0:5|nail_box_0:2,electronics_bench_0:1,25,workbench_0,woodworking,2,Set up a circuit assembly station
+build_sewing_machine,Build Sewing Machine,assembly,steel_ingot_0:3|wire_0:2|wood_plank_0:2,sewing_machine_0:1,30,workbench_0,mechanics,2,Assemble an electric sewing machine
+build_loom,Build Loom,assembly,wood_plank_0:10|rope_0:3|nail_box_0:2,loom_0:1,40,workbench_0,woodworking,2,Assemble a frame-based loom
+build_stove,Build Stove,assembly,steel_ingot_0:4|wire_0:2|copper_ingot_0:1,stove_0:1,30,workbench_0,smithing,2,Assemble a four-burner range
+build_oven,Build Oven,assembly,steel_ingot_0:5|stone_brick_0:4|wire_0:2,oven_0:1,40,workbench_0,masonry,3,Construct an enclosed baking oven
+build_fridge,Build Fridge,assembly,steel_ingot_0:4|wire_0:3|copper_ingot_0:2|rubber_sheet_0:1,fridge_0:1,50,workbench_0,hvac,3,Assemble a refrigerated storage unit
+build_generator,Build Portable Generator,assembly,steel_ingot_0:5|copper_ingot_0:3|wire_0:4|rubber_sheet_0:1,generator_portable_0:1,60,workbench_0,electrical,4,Assemble a 2kW gasoline generator
 # The diesel generator (2026-10-20): a game estimate of its metals, weighing 237.9 kg against the set's
 # 235 (57 steel ingots at 3.5 kg, 8 copper at 2.8, 10 aluminium at 1.0 for the engine's head and
 # radiator, 10 wire at 0.3, 3 rubber sheet at 1.0); no source gives a genset's bill of materials.
-build_generator_diesel,Build Diesel Generator,assembly,steel_ingot_0:57|copper_ingot_0:8|aluminum_ingot_0:10|wire_0:10|rubber_sheet_0:3,generator_diesel_0:1,180,workbench_0,engineering,5,Assemble a 6.5kW diesel generator
-build_solar_panel,Build Solar Panel,assembly,glass_pane_0:4|wire_0:3|aluminum_ingot_0:2,solar_panel_0:1,40,electronics_bench_0,engineering,3,Assemble a photovoltaic panel
-build_wind_turbine,Build Wind Turbine,assembly,aluminum_ingot_0:4|wire_0:4|steel_ingot_0:3|fiberglass_sheet_0:2,wind_turbine_small_0:1,60,workbench_0,engineering,4,Construct a rooftop wind generator
-build_water_pump,Build Water Pump,assembly,steel_ingot_0:3|rubber_sheet_0:1|wire_0:2|copper_ingot_0:1,water_pump_0:1,30,workbench_0,engineering,2,Assemble an electric water pump
-build_water_purifier,Build Water Purifier,assembly,steel_ingot_0:2|carbon_fiber_sheet_0:1|plastic_sheet_0:2,water_purifier_0:1,25,workbench_0,engineering,2,Construct a filtration treatment unit
-build_heater,Build Heater,assembly,steel_ingot_0:2|wire_0:3|copper_ingot_0:1,heater_0:1,20,workbench_0,engineering,2,Assemble an electric space heater
+build_generator_diesel,Build Diesel Generator,assembly,steel_ingot_0:57|copper_ingot_0:8|aluminum_ingot_0:10|wire_0:10|rubber_sheet_0:3,generator_diesel_0:1,180,workbench_0,mechanics,5,Assemble a 6.5kW diesel generator
+build_solar_panel,Build Solar Panel,assembly,glass_pane_0:4|wire_0:3|aluminum_ingot_0:2,solar_panel_0:1,40,electronics_bench_0,electrical,3,Assemble a photovoltaic panel
+build_wind_turbine,Build Wind Turbine,assembly,aluminum_ingot_0:4|wire_0:4|steel_ingot_0:3|fiberglass_sheet_0:2,wind_turbine_small_0:1,60,workbench_0,electrical,4,Construct a rooftop wind generator
+build_water_pump,Build Water Pump,assembly,steel_ingot_0:3|rubber_sheet_0:1|wire_0:2|copper_ingot_0:1,water_pump_0:1,30,workbench_0,plumbing,2,Assemble an electric water pump
+build_water_purifier,Build Water Purifier,assembly,steel_ingot_0:2|carbon_fiber_sheet_0:1|plastic_sheet_0:2,water_purifier_0:1,25,workbench_0,plumbing,2,Construct a filtration treatment unit
+build_heater,Build Heater,assembly,steel_ingot_0:2|wire_0:3|copper_ingot_0:1,heater_0:1,20,workbench_0,hvac,2,Assemble an electric space heater
 # The heat pump and the wood stove (2026-10-20), placed as heat_pump and wood_stove (data/machines/home.ron).
 # Game estimates of their materials, since no source gives either one's bill of materials. The heat pump's
 # 50.5 kg (its two units): 7 steel ingots at 3.5 kg for the outdoor cabinet and the compressor's shell, 5
@@ -398,30 +398,30 @@ build_heater,Build Heater,assembly,steel_ingot_0:2|wire_0:3|copper_ingot_0:1,hea
 # stove's 167 kg: 40 steel ingots at 3.5 for its steel plate body, 5 stone bricks at 3.0 for its firebrick
 # lining (the kiln's Fire Brick recipe makes them), 3 iron ingots at 3.0 for its cast-iron door frame, a
 # glass pane at 2.5 for its door glass and a box of bolts at 0.8: 167.3 kg.
-build_heat_pump,Build Heat Pump,assembly,steel_ingot_0:7|copper_ingot_0:5|aluminum_ingot_0:6|wire_0:6|circuit_board_0:2|plastic_sheet_0:6|rubber_sheet_0:1,heat_pump_0:1,120,workbench_0,engineering,4,Assemble a ductless air-source heat pump
-build_wood_stove,Build Wood Stove,assembly,steel_ingot_0:40|stone_brick_0:5|iron_ingot_0:3|glass_pane_0:1|bolt_box_0:1,wood_stove_0:1,90,workbench_0,shelter_building,3,Build a steel wood stove with a firebrick lining
-build_cooler,Build Cooler,assembly,aluminum_ingot_0:2|wire_0:2|copper_ingot_0:1,cooler_0:1,20,workbench_0,engineering,2,Assemble an evaporative cooler
-build_washing_machine,Build Washing Machine,assembly,steel_ingot_0:4|wire_0:3|rubber_sheet_0:2,washing_machine_0:1,50,workbench_0,engineering,3,Assemble an automatic laundry washer
-build_sawmill,Build Sawmill,assembly,steel_ingot_0:5|wood_plank_0:6|bolt_box_0:3|wire_0:2,sawmill_0:1,60,workbench_0,engineering,3,Construct a powered lumber cutting station
-build_grain_mill,Build Grain Mill,assembly,stone_raw_0:4|wood_plank_0:4|bolt_box_0:2,grain_mill_0:1,40,workbench_0,shelter_building,2,Construct a seed-to-flour grinding mill
-build_fuel_refinery,Build Fuel Refinery,assembly,steel_ingot_0:10|copper_ingot_0:3|wire_0:5|rubber_sheet_0:2,fuel_refinery_0:1,90,workbench_0,engineering,5,Construct a crude oil distillation unit
-build_battery_bank,Build Battery Bank,assembly,steel_ingot_0:4|wire_0:6|copper_ingot_0:3|battery_pack_0:5,battery_bank_0:1,60,electronics_bench_0,engineering,4,Wire a large-scale energy storage array
-build_3d_printer,Build 3D Printer,assembly,steel_ingot_0:3|wire_0:4|plastic_sheet_0:3|aluminum_ingot_0:1,printer_3d_0:1,50,electronics_bench_0,engineering,4,Assemble an additive manufacturing device
-build_microscope,Build Microscope,assembly,glass_pane_0:2|steel_ingot_0:1|aluminum_ingot_0:1,microscope_0:1,25,electronics_bench_0,engineering,3,Assemble an optical magnification instrument
-build_telescope,Build Telescope,assembly,glass_pane_0:3|aluminum_ingot_0:2|steel_ingot_0:1,telescope_0:1,30,workbench_0,engineering,3,Assemble a celestial observation instrument
-build_chemistry_set,Build Chemistry Set,assembly,glass_pane_0:4|rubber_sheet_0:1|steel_ingot_0:1,chemistry_set_0:1,20,workbench_0,engineering,2,Assemble laboratory reaction apparatus
-build_composter,Build Composter,assembly,wood_plank_0:6|nail_box_0:2,composter_0:1,15,workbench_0,shelter_building,1,Construct an organic waste bin
-build_greenhouse,Build Greenhouse,assembly,glass_pane_0:8|wood_plank_0:8|nail_box_0:3,greenhouse_0:1,60,workbench_0,shelter_building,3,Construct a climate-controlled enclosure
-build_irrigation,Build Irrigation System,assembly,plastic_sheet_0:5|rubber_sheet_0:2|wire_0:2,irrigation_system_0:1,30,workbench_0,engineering,2,Assemble an automated watering network
-build_air_filter,Build Air Filter Unit,assembly,steel_ingot_0:2|cloth_bolt_0:2|wire_0:2,air_filter_unit_0:1,20,workbench_0,engineering,2,Construct a powered air purifier
+build_heat_pump,Build Heat Pump,assembly,steel_ingot_0:7|copper_ingot_0:5|aluminum_ingot_0:6|wire_0:6|circuit_board_0:2|plastic_sheet_0:6|rubber_sheet_0:1,heat_pump_0:1,120,workbench_0,hvac,4,Assemble a ductless air-source heat pump
+build_wood_stove,Build Wood Stove,assembly,steel_ingot_0:40|stone_brick_0:5|iron_ingot_0:3|glass_pane_0:1|bolt_box_0:1,wood_stove_0:1,90,workbench_0,smithing,3,Build a steel wood stove with a firebrick lining
+build_cooler,Build Cooler,assembly,aluminum_ingot_0:2|wire_0:2|copper_ingot_0:1,cooler_0:1,20,workbench_0,hvac,2,Assemble an evaporative cooler
+build_washing_machine,Build Washing Machine,assembly,steel_ingot_0:4|wire_0:3|rubber_sheet_0:2,washing_machine_0:1,50,workbench_0,mechanics,3,Assemble an automatic laundry washer
+build_sawmill,Build Sawmill,assembly,steel_ingot_0:5|wood_plank_0:6|bolt_box_0:3|wire_0:2,sawmill_0:1,60,workbench_0,mechanics,3,Construct a powered lumber cutting station
+build_grain_mill,Build Grain Mill,assembly,stone_raw_0:4|wood_plank_0:4|bolt_box_0:2,grain_mill_0:1,40,workbench_0,construction,2,Construct a seed-to-flour grinding mill
+build_fuel_refinery,Build Fuel Refinery,assembly,steel_ingot_0:10|copper_ingot_0:3|wire_0:5|rubber_sheet_0:2,fuel_refinery_0:1,90,workbench_0,mechanics,5,Construct a crude oil distillation unit
+build_battery_bank,Build Battery Bank,assembly,steel_ingot_0:4|wire_0:6|copper_ingot_0:3|battery_pack_0:5,battery_bank_0:1,60,electronics_bench_0,electrical,4,Wire a large-scale energy storage array
+build_3d_printer,Build 3D Printer,assembly,steel_ingot_0:3|wire_0:4|plastic_sheet_0:3|aluminum_ingot_0:1,printer_3d_0:1,50,electronics_bench_0,electronics,4,Assemble an additive manufacturing device
+build_microscope,Build Microscope,assembly,glass_pane_0:2|steel_ingot_0:1|aluminum_ingot_0:1,microscope_0:1,25,electronics_bench_0,machining,3,Assemble an optical magnification instrument
+build_telescope,Build Telescope,assembly,glass_pane_0:3|aluminum_ingot_0:2|steel_ingot_0:1,telescope_0:1,30,workbench_0,machining,3,Assemble a celestial observation instrument
+build_chemistry_set,Build Chemistry Set,assembly,glass_pane_0:4|rubber_sheet_0:1|steel_ingot_0:1,chemistry_set_0:1,20,workbench_0,chemistry,2,Assemble laboratory reaction apparatus
+build_composter,Build Composter,assembly,wood_plank_0:6|nail_box_0:2,composter_0:1,15,workbench_0,woodworking,1,Construct an organic waste bin
+build_greenhouse,Build Greenhouse,assembly,glass_pane_0:8|wood_plank_0:8|nail_box_0:3,greenhouse_0:1,60,workbench_0,construction,3,Construct a climate-controlled enclosure
+build_irrigation,Build Irrigation System,assembly,plastic_sheet_0:5|rubber_sheet_0:2|wire_0:2,irrigation_system_0:1,30,workbench_0,plumbing,2,Assemble an automated watering network
+build_air_filter,Build Air Filter Unit,assembly,steel_ingot_0:2|cloth_bolt_0:2|wire_0:2,air_filter_unit_0:1,20,workbench_0,life_support,2,Construct a powered air purifier
 #
 # === CONTAINER CRAFTING ===
-craft_toolbox,Build Toolbox,crafting,steel_ingot_0:2,toolbox_0:1,10,workbench_0,metalworking,1,Weld a portable compartmented case
-craft_locker,Build Locker,crafting,steel_ingot_0:3|bolt_box_0:1,locker_0:1,20,workbench_0,shelter_building,2,Assemble a vertical locking cabinet
-craft_safe,Build Safe,crafting,steel_ingot_0:6|bolt_box_0:2,safe_0:1,40,forge_0,metalworking,4,Forge an armored valuables vault
-craft_fuel_drum,Make Fuel Drum,crafting,steel_ingot_0:3,fuel_drum_0:1,15,forge_0,metalworking,2,Roll and weld a 200L drum
-craft_water_tank,Make Water Tank,crafting,plastic_sheet_0:4|bolt_box_0:1,water_tank_0:1,15,workbench_0,shelter_building,2,Mold a potable water cistern
-craft_ammo_crate,Build Ammo Crate,crafting,wood_plank_0:4|nail_box_0:1,ammo_crate_0:2,10,workbench_0,shelter_building,1,Nail together sealed ammo shipping boxes
+craft_toolbox,Build Toolbox,crafting,steel_ingot_0:2,toolbox_0:1,10,workbench_0,smithing,1,Weld a portable compartmented case
+craft_locker,Build Locker,crafting,steel_ingot_0:3|bolt_box_0:1,locker_0:1,20,workbench_0,smithing,2,Assemble a vertical locking cabinet
+craft_safe,Build Safe,crafting,steel_ingot_0:6|bolt_box_0:2,safe_0:1,40,forge_0,smithing,4,Forge an armored valuables vault
+craft_fuel_drum,Make Fuel Drum,crafting,steel_ingot_0:3,fuel_drum_0:1,15,forge_0,smithing,2,Roll and weld a 200L drum
+craft_water_tank,Make Water Tank,crafting,plastic_sheet_0:4|bolt_box_0:1,water_tank_0:1,15,workbench_0,plumbing,2,Mold a potable water cistern
+craft_ammo_crate,Build Ammo Crate,crafting,wood_plank_0:4|nail_box_0:1,ammo_crate_0:2,10,workbench_0,woodworking,1,Nail together sealed ammo shipping boxes
 #
 # === VEHICLE ASSEMBLY ===
 # Vehicle bills of materials (2026-10-04, after BUG-145). A vehicle recipe puts about the vehicle's own
@@ -439,28 +439,28 @@ craft_ammo_crate,Build Ammo Crate,crafting,wood_plank_0:4|nail_box_0:1,ammo_crat
 # vehicle's data/trade_goods.ron price sits between what its parts cost and twice that). build_raft is
 # the one exception: items.csv lists the raft as 20 kg of bamboo, no bamboo-pole item exists, and its six
 # 8 kg pine logs are already a light raft for one person.
-build_bicycle,Build Bicycle,assembly,steel_ingot_0:3|rubber_sheet_0:2|wire_0:1,bicycle_0:1,30,workbench_0,engineering,2,Assemble a two-wheel pedal vehicle
-build_hand_cart,Build Hand Cart,assembly,steel_ingot_0:2|wood_plank_0:4|rubber_sheet_0:1,cart_hand_0:1,20,workbench_0,shelter_building,1,Assemble a two-wheel push cart
-build_horse_cart,Build Horse Cart,assembly,wood_plank_0:26|steel_ingot_0:5|bolt_box_0:2|nail_box_0:2|rope_0:3|paint_0:1,cart_horse_0:1,60,workbench_0,shelter_building,3,Construct a four-wheel wagon
-build_sled,Build Sled,assembly,wood_plank_0:2|nail_box_0:1|rope_0:1,sled_0:1,10,workbench_0,shelter_building,1,Assemble a snow-surface sled
-build_raft,Build Raft,assembly,wood_log_0:6|rope_0:4,raft_0:1,20,,shelter_building,1,Lash together a simple floating platform
-build_canoe,Build Canoe,assembly,wood_plank_0:10|glue_0:3|rope_0:2|paint_0:1,canoe_0:1,40,workbench_0,shelter_building,3,Hollow and seal a narrow paddle boat
-build_rowboat,Build Rowboat,assembly,wood_plank_0:16|nail_box_0:2|glue_0:2|bolt_box_0:1|rope_0:1|paint_0:2,boat_rowboat_0:1,50,workbench_0,shelter_building,3,Plank and seal a small rowboat hull
-build_sailboat,Build Sailboat,assembly,wood_plank_0:72|cloth_bolt_0:8|rope_0:12|steel_ingot_0:2|bolt_box_0:3|nail_box_0:4|glue_0:3|paint_0:4,boat_sailboat_0:1,120,workbench_0,shelter_building,4,Construct a wind-powered sailing vessel
-build_wheelbarrow,Build Wheelbarrow,assembly,steel_ingot_0:2|wood_plank_0:3|rubber_sheet_0:1,wheelbarrow_0:1,15,workbench_0,shelter_building,1,Assemble a single-wheel hand cart
-build_ladder,Build Ladder,assembly,aluminum_ingot_0:2|bolt_box_0:1,ladder_0:1,15,workbench_0,shelter_building,1,Assemble a folding step ladder
+build_bicycle,Build Bicycle,assembly,steel_ingot_0:3|rubber_sheet_0:2|wire_0:1,bicycle_0:1,30,workbench_0,mechanics,2,Assemble a two-wheel pedal vehicle
+build_hand_cart,Build Hand Cart,assembly,steel_ingot_0:2|wood_plank_0:4|rubber_sheet_0:1,cart_hand_0:1,20,workbench_0,woodworking,1,Assemble a two-wheel push cart
+build_horse_cart,Build Horse Cart,assembly,wood_plank_0:26|steel_ingot_0:5|bolt_box_0:2|nail_box_0:2|rope_0:3|paint_0:1,cart_horse_0:1,60,workbench_0,woodworking,3,Construct a four-wheel wagon
+build_sled,Build Sled,assembly,wood_plank_0:2|nail_box_0:1|rope_0:1,sled_0:1,10,workbench_0,woodworking,1,Assemble a snow-surface sled
+build_raft,Build Raft,assembly,wood_log_0:6|rope_0:4,raft_0:1,20,,woodworking,1,Lash together a simple floating platform
+build_canoe,Build Canoe,assembly,wood_plank_0:10|glue_0:3|rope_0:2|paint_0:1,canoe_0:1,40,workbench_0,woodworking,3,Hollow and seal a narrow paddle boat
+build_rowboat,Build Rowboat,assembly,wood_plank_0:16|nail_box_0:2|glue_0:2|bolt_box_0:1|rope_0:1|paint_0:2,boat_rowboat_0:1,50,workbench_0,woodworking,3,Plank and seal a small rowboat hull
+build_sailboat,Build Sailboat,assembly,wood_plank_0:72|cloth_bolt_0:8|rope_0:12|steel_ingot_0:2|bolt_box_0:3|nail_box_0:4|glue_0:3|paint_0:4,boat_sailboat_0:1,120,workbench_0,woodworking,4,Construct a wind-powered sailing vessel
+build_wheelbarrow,Build Wheelbarrow,assembly,steel_ingot_0:2|wood_plank_0:3|rubber_sheet_0:1,wheelbarrow_0:1,15,workbench_0,woodworking,1,Assemble a single-wheel hand cart
+build_ladder,Build Ladder,assembly,aluminum_ingot_0:2|bolt_box_0:1,ladder_0:1,15,workbench_0,woodworking,1,Assemble a folding step ladder
 #
 # === MEDICAL / CHEMISTRY ===
-craft_bandage,Craft Bandage,chemistry,cloth_bolt_0:1,bandage_0:5,5,,medicine,0,Cut and roll sterile wound dressings
-craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkillers_0:3,medkit_0:1,15,workbench_0,medicine,2,Pack a complete first-aid kit
-craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3,8,workbench_0,medicine,1,Bend and pad fracture immobilizers
+craft_bandage,Craft Bandage,chemistry,cloth_bolt_0:1,bandage_0:5,5,,first_aid,0,Cut and roll sterile wound dressings
+craft_medkit,Assemble Medkit,chemistry,bandage_0:5|antiseptic_0:2|splint_0:1|painkillers_0:3,medkit_0:1,15,workbench_0,first_aid,2,Pack a complete first-aid kit
+craft_splint,Craft Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:1,splint_0:3,8,workbench_0,first_aid,1,Bend and pad fracture immobilizers
 craft_antiseptic,Brew Antiseptic,chemistry,water_purified_0:2|salt_food_0:1,antiseptic_0:3,10,chemistry_set_0,medicine,1,Distill wound disinfectant solution
 # Oral rehydration solution (BUG-162, 2026-10-05): the packet's own instruction, "Dissolve entire content of
 # packet in one litre of drinking water" (WHO/FCH/CAH/06.1, 2006). By hand, no skill: a litre of drinking
 # water from the backpack or the home's tap (data/containers/fluids.ron). There is no recipe for the salts
 # themselves: the Library's guide gives no home recipe because "serious errors can occur" (CDC MMWR 2003).
-mix_ors,Mix Oral Rehydration Solution,chemistry,ors_sachet_0:1|water_purified_0:1,ors_solution_0:1,30,,,0,Dissolve one sachet of oral rehydration salts in one litre of clean drinking water
-craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,engineering,2,Pressurize a fire suppression unit
+mix_ors,Mix Oral Rehydration Solution,chemistry,ors_sachet_0:1|water_purified_0:1,ors_solution_0:1,30,,first_aid,0,Dissolve one sachet of oral rehydration salts in one litre of clean drinking water
+craft_fire_extinguisher,Build Fire Extinguisher,chemistry,steel_ingot_0:2|water_purified_0:2,fire_extinguisher_0:1,15,workbench_0,chemistry,2,Pressurize a fire suppression unit
 craft_flare,Make Flare,chemistry,iron_ingot_0:1|coal_0:1|plastic_sheet_0:1,flare_0:5,10,chemistry_set_0,chemistry,1,Mix and pack emergency signal flares
 # Composting (2026-09-26). NRAES-54 On-Farm Composting Handbook (Rynk et al., 1992): a pile composts
 # well at C:N 20-40 (ideal 25-30) and 40-65% moisture. Its Table A.1: sawdust C:N 442 at 39% water,
@@ -500,41 +500,41 @@ compost_rice_hulls,Compost Rice Hulls and Bran,chemistry,rice_hulls_0:3|rice_bra
 compost_cereal_hulls,Compost Cereal Hulls,chemistry,cereal_hulls_0:4|press_cake_0:1|water_purified_0:2,fertilizer_0:1,20,composter_0,farming,1,Compost barley or oat or spelt hulls with seed press cake into plant food
 #
 # === MISCELLANEOUS ===
-craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,woodworking,1,Magnetize a needle in a glass housing
-craft_lamp_floor,Build Floor Lamp,crafting,steel_ingot_0:2|wire_0:1|glass_pane_0:1,lamp_floor_0:1,15,workbench_0,woodworking,2,Assemble a standing room light
-craft_lamp_desk,Build Desk Lamp,crafting,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,lamp_desk_0:1,10,workbench_0,woodworking,1,Assemble an adjustable task light
-craft_chandelier,Build Chandelier,crafting,steel_ingot_0:2|wire_0:3|glass_pane_0:3,chandelier_0:1,25,workbench_0,woodworking,3,Assemble a suspended multi-light fixture
-craft_clock,Build Wall Clock,crafting,wood_plank_0:1|copper_ingot_0:1|glass_pane_0:1,clock_wall_0:1,12,workbench_0,woodworking,2,Assemble a mechanical wall clock
-craft_mirror,Craft Mirror,crafting,glass_pane_0:1|silver_ingot_0:1|wood_plank_0:1,mirror_0:1,10,workbench_0,woodworking,2,Coat glass with reflective silver
-craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete_block_0:4,grain_silo_0:1,90,workbench_0,shelter_building,4,Erect a bulk crop storage cylinder
+craft_compass,Craft Compass,crafting,iron_ingot_0:1|glass_pane_0:1,compass_0:1,10,workbench_0,machining,1,Magnetize a needle in a glass housing
+craft_lamp_floor,Build Floor Lamp,crafting,steel_ingot_0:2|wire_0:1|glass_pane_0:1,lamp_floor_0:1,15,workbench_0,electrical,2,Assemble a standing room light
+craft_lamp_desk,Build Desk Lamp,crafting,aluminum_ingot_0:1|wire_0:1|glass_pane_0:1,lamp_desk_0:1,10,workbench_0,electrical,1,Assemble an adjustable task light
+craft_chandelier,Build Chandelier,crafting,steel_ingot_0:2|wire_0:3|glass_pane_0:3,chandelier_0:1,25,workbench_0,electrical,3,Assemble a suspended multi-light fixture
+craft_clock,Build Wall Clock,crafting,wood_plank_0:1|copper_ingot_0:1|glass_pane_0:1,clock_wall_0:1,12,workbench_0,machining,2,Assemble a mechanical wall clock
+craft_mirror,Craft Mirror,crafting,glass_pane_0:1|silver_ingot_0:1|wood_plank_0:1,mirror_0:1,10,workbench_0,glassmaking,2,Coat glass with reflective silver
+craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete_block_0:4,grain_silo_0:1,90,workbench_0,construction,4,Erect a bulk crop storage cylinder
 #
 # === ADVANCED MATERIALS ===
-craft_carbon_fiber,Synthesize Carbon Fiber,chemistry,coal_0:4|plastic_sheet_0:2|oil_crude_0:1,carbon_fiber_sheet_0:2,60,chemistry_set_0,engineering,4,Pyrolyze polymer precursor into carbon composite
-craft_fiberglass,Lay Up Fiberglass,chemistry,glass_fiber_0:1|oil_crude_0:2,fiberglass_sheet_0:2,45,chemistry_set_0,engineering,3,Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet
-craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,metalworking,4,Sinter ceramic matrix with carbon reinforcement
-craft_optical_fiber,Draw Optical Fiber,electronics,glass_pane_0:3|plastic_sheet_0:1,wire_0:6,35,electronics_bench_0,engineering,4,Draw silica glass into light-transmitting strands
-craft_superconductor,Synthesize Superconductor,chemistry,copper_ingot_0:3|titanium_ingot_0:1|gold_ingot_0:1,wire_0:8,90,chemistry_set_0,engineering,5,Cool rare-earth compound into zero-resistance wire
-craft_kevlar_sheet,Weave Kevlar Sheet,textile,fiber_bundle_0:6|plastic_sheet_0:2,cloth_bolt_0:3,50,loom_0,tailoring,4,Weave aramid fiber into ballistic fabric
-craft_aerogel,Synthesize Aerogel,chemistry,glass_pane_0:2|oil_crude_0:1|water_purified_0:2,plastic_sheet_0:4,80,chemistry_set_0,engineering,5,Supercritically dry silica gel into ultralight insulator
-craft_graphene,Synthesize Graphene,chemistry,coal_0:5|copper_ingot_0:1,carbon_fiber_sheet_0:3,100,chemistry_set_0,engineering,5,Exfoliate graphite into single-atom carbon sheets
-craft_bioplastic,Mold Bioplastic,refining,seed_corn_0:6|water_purified_0:2|oil_crude_0:1,plastic_sheet_0:6,30,fuel_refinery_0,engineering,3,Polymerize plant starch into biodegradable plastic
+craft_carbon_fiber,Synthesize Carbon Fiber,chemistry,coal_0:4|plastic_sheet_0:2|oil_crude_0:1,carbon_fiber_sheet_0:2,60,chemistry_set_0,chemistry,4,Pyrolyze polymer precursor into carbon composite
+craft_fiberglass,Lay Up Fiberglass,chemistry,glass_fiber_0:1|oil_crude_0:2,fiberglass_sheet_0:2,45,chemistry_set_0,chemistry,3,Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet
+craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,ceramics,4,Sinter ceramic matrix with carbon reinforcement
+craft_optical_fiber,Draw Optical Fiber,electronics,glass_pane_0:3|plastic_sheet_0:1,wire_0:6,35,electronics_bench_0,glassmaking,4,Draw silica glass into light-transmitting strands
+craft_superconductor,Synthesize Superconductor,chemistry,copper_ingot_0:3|titanium_ingot_0:1|gold_ingot_0:1,wire_0:8,90,chemistry_set_0,chemistry,5,Cool rare-earth compound into zero-resistance wire
+craft_kevlar_sheet,Weave Kevlar Sheet,textile,fiber_bundle_0:6|plastic_sheet_0:2,cloth_bolt_0:3,50,loom_0,textiles,4,Weave aramid fiber into ballistic fabric
+craft_aerogel,Synthesize Aerogel,chemistry,glass_pane_0:2|oil_crude_0:1|water_purified_0:2,plastic_sheet_0:4,80,chemistry_set_0,chemistry,5,Supercritically dry silica gel into ultralight insulator
+craft_graphene,Synthesize Graphene,chemistry,coal_0:5|copper_ingot_0:1,carbon_fiber_sheet_0:3,100,chemistry_set_0,chemistry,5,Exfoliate graphite into single-atom carbon sheets
+craft_bioplastic,Mold Bioplastic,refining,seed_corn_0:6|water_purified_0:2|oil_crude_0:1,plastic_sheet_0:6,30,fuel_refinery_0,chemistry,3,Polymerize plant starch into biodegradable plastic
 #
 # === ELECTRONICS MANUFACTURING ===
-manufacture_circuit_board,Manufacture Circuit Board,electronics,copper_ingot_0:2|plastic_sheet_0:1|wire_0:2,circuit_board_0:2,25,electronics_bench_0,engineering,3,Etch copper traces on laminate substrate
-manufacture_battery_small,Manufacture Small Battery,electronics,copper_ingot_0:1|iron_ingot_0:1|plastic_sheet_0:1,battery_small_0:3,20,electronics_bench_0,engineering,2,Assemble lithium-ion cell packs
-manufacture_battery_large,Manufacture Large Battery,electronics,copper_ingot_0:3|iron_ingot_0:2|steel_ingot_0:1|wire_0:3,battery_large_0:1,45,electronics_bench_0,engineering,4,Wire high-capacity energy storage module
-manufacture_solar_cell,Manufacture Solar Cell,electronics,glass_pane_0:2|wire_0:2|aluminum_ingot_0:1,solar_cell_0:2,30,electronics_bench_0,engineering,3,Deposit photovoltaic layer on glass substrate
-manufacture_antenna,Manufacture Antenna,electronics,aluminum_ingot_0:2|copper_ingot_0:1|wire_0:1,antenna_0:3,20,electronics_bench_0,engineering,2,Shape and tune radio signal transducers
-manufacture_sensor_module,Manufacture Sensor Module,electronics,wire_0:2|copper_ingot_0:1|glass_pane_0:1|plastic_sheet_0:1,sensor_module_0:2,25,electronics_bench_0,engineering,3,Calibrate multi-spectrum detector array
-manufacture_cpu,Manufacture CPU,electronics,gold_ingot_0:1|copper_ingot_0:1|glass_pane_0:1,cpu_0:2,60,electronics_bench_0,engineering,5,Etch logic gates into silicon wafer die
-manufacture_servo_motor,Manufacture Servo Motor,electronics,copper_ingot_0:2|steel_ingot_0:1|wire_0:2,servo_motor_0:2,30,electronics_bench_0,engineering,3,Wind precision position actuator coils
-manufacture_led_panel,Manufacture LED Panel,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1,led_panel_0:3,20,electronics_bench_0,engineering,2,Solder diode array onto display substrate
-manufacture_camera,Manufacture Camera,electronics,glass_pane_0:2|wire_0:2|circuit_board_0:1|plastic_sheet_0:1,camera_0:1,35,electronics_bench_0,engineering,4,Assemble digital image sensor and lens optics
+manufacture_circuit_board,Manufacture Circuit Board,electronics,copper_ingot_0:2|plastic_sheet_0:1|wire_0:2,circuit_board_0:2,25,electronics_bench_0,electronics,3,Etch copper traces on laminate substrate
+manufacture_battery_small,Manufacture Small Battery,electronics,copper_ingot_0:1|iron_ingot_0:1|plastic_sheet_0:1,battery_small_0:3,20,electronics_bench_0,electronics,2,Assemble lithium-ion cell packs
+manufacture_battery_large,Manufacture Large Battery,electronics,copper_ingot_0:3|iron_ingot_0:2|steel_ingot_0:1|wire_0:3,battery_large_0:1,45,electronics_bench_0,electronics,4,Wire high-capacity energy storage module
+manufacture_solar_cell,Manufacture Solar Cell,electronics,glass_pane_0:2|wire_0:2|aluminum_ingot_0:1,solar_cell_0:2,30,electronics_bench_0,electronics,3,Deposit photovoltaic layer on glass substrate
+manufacture_antenna,Manufacture Antenna,electronics,aluminum_ingot_0:2|copper_ingot_0:1|wire_0:1,antenna_0:3,20,electronics_bench_0,electronics,2,Shape and tune radio signal transducers
+manufacture_sensor_module,Manufacture Sensor Module,electronics,wire_0:2|copper_ingot_0:1|glass_pane_0:1|plastic_sheet_0:1,sensor_module_0:2,25,electronics_bench_0,electronics,3,Calibrate multi-spectrum detector array
+manufacture_cpu,Manufacture CPU,electronics,gold_ingot_0:1|copper_ingot_0:1|glass_pane_0:1,cpu_0:2,60,electronics_bench_0,electronics,5,Etch logic gates into silicon wafer die
+manufacture_servo_motor,Manufacture Servo Motor,electronics,copper_ingot_0:2|steel_ingot_0:1|wire_0:2,servo_motor_0:2,30,electronics_bench_0,electronics,3,Wind precision position actuator coils
+manufacture_led_panel,Manufacture LED Panel,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1,led_panel_0:3,20,electronics_bench_0,electronics,2,Solder diode array onto display substrate
+manufacture_camera,Manufacture Camera,electronics,glass_pane_0:2|wire_0:2|circuit_board_0:1|plastic_sheet_0:1,camera_0:1,35,electronics_bench_0,electronics,4,Assemble digital image sensor and lens optics
 #
 # === MEDICAL CRAFTING ===
-craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purified_0:1,bandage_0:8,8,,medicine,0,Cut and sterilize wound dressing strips
-craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkillers_0:5|antibiotics_0:3,medkit_0:1,20,workbench_0,medicine,3,Pack a comprehensive field medical kit
-craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,medicine,1,Bend and cushion fracture immobilizers
+craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purified_0:1,bandage_0:8,8,,first_aid,0,Cut and sterilize wound dressing strips
+craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkillers_0:5|antibiotics_0:3,medkit_0:1,20,workbench_0,first_aid,3,Pack a comprehensive field medical kit
+craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,first_aid,1,Bend and cushion fracture immobilizers
 craft_painkillers,Synthesize Painkillers,chemistry,water_purified_0:2|coal_0:1|salt_food_0:1,painkillers_0:10,30,chemistry_set_0,medicine,3,Extract and tablet analgesic compounds
 # No recipe makes antibiotics (2026-10-05, the review of BUG-146). Culture Antibiotics (craft_antibiotics)
 # made five from three litres of purified water, a bag of flour and a bag of sugar at a chemistry set, and
@@ -548,101 +548,101 @@ craft_surgical_kit,Assemble Surgical Kit,chemistry,steel_ingot_0:2|cloth_bolt_0:
 craft_stim_pack,Synthesize Stim Pack,chemistry,water_purified_0:1|sugar_0:2|salt_food_0:1,stim_pack_0:5,25,chemistry_set_0,medicine,3,Mix fast-acting combat stimulant formula
 #
 # === CONTAINER CRAFTING ===
-craft_chest_wood,Build Wood Chest,crafting,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,15,workbench_0,shelter_building,1,Assemble a lidded wooden storage box
-craft_chest_metal,Build Metal Chest,crafting,steel_ingot_0:4|bolt_box_0:2,chest_metal_0:1,25,forge_0,metalworking,3,Weld a reinforced lockable container
-craft_safe_heavy,Build Heavy Safe,crafting,steel_ingot_0:8|bolt_box_0:3|copper_ingot_0:1,safe_0:1,50,forge_0,metalworking,4,Forge a thick-walled armored vault
-craft_barrel_coopered,Cooper Barrel,crafting,wood_plank_0:6|steel_ingot_0:1,barrel_0:2,20,workbench_0,shelter_building,2,Stave and band wooden liquid containers
+craft_chest_wood,Build Wood Chest,crafting,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,15,workbench_0,woodworking,1,Assemble a lidded wooden storage box
+craft_chest_metal,Build Metal Chest,crafting,steel_ingot_0:4|bolt_box_0:2,chest_metal_0:1,25,forge_0,smithing,3,Weld a reinforced lockable container
+craft_safe_heavy,Build Heavy Safe,crafting,steel_ingot_0:8|bolt_box_0:3|copper_ingot_0:1,safe_0:1,50,forge_0,smithing,4,Forge a thick-walled armored vault
+craft_barrel_coopered,Cooper Barrel,crafting,wood_plank_0:6|steel_ingot_0:1,barrel_0:2,20,workbench_0,woodworking,2,Stave and band wooden liquid containers
 craft_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1|bolt_box_0:1,backpack_small_0:1,15,sewing_machine_0,tailoring,2,Construct a 20L carry pack
 craft_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|leather_0:1|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,tailoring,3,Construct a 65L expedition rucksack
 #
 # === AMMUNITION / CONSUMABLES ===
 craft_arrows_batch,Fletch Arrow Batch,crafting,wood_plank_0:2|iron_ingot_0:1|fiber_bundle_0:1,arrow_0:30,15,workbench_0,woodworking,1,Whittle shafts and forge broadhead tips
-craft_bullets_pistol,Load Pistol Rounds,crafting,copper_ingot_0:1|coal_0:1|iron_ingot_0:1,bullet_pistol_0:50,20,workbench_0,metalworking,2,Press brass casings and seat projectiles
-craft_bullets_rifle,Load Rifle Rounds,crafting,copper_ingot_0:2|coal_0:1|steel_ingot_0:1,bullet_rifle_0:30,25,workbench_0,metalworking,3,Press long casings and seat heavy projectiles
-craft_fuel_cell,Manufacture Fuel Cell,electronics,steel_ingot_0:2|copper_ingot_0:1|wire_0:2|water_purified_0:2,battery_large_0:1,40,electronics_bench_0,engineering,4,Assemble hydrogen electrochemical converter
+craft_bullets_pistol,Load Pistol Rounds,crafting,copper_ingot_0:1|coal_0:1|iron_ingot_0:1,bullet_pistol_0:50,20,workbench_0,machining,2,Press brass casings and seat projectiles
+craft_bullets_rifle,Load Rifle Rounds,crafting,copper_ingot_0:2|coal_0:1|steel_ingot_0:1,bullet_rifle_0:30,25,workbench_0,machining,3,Press long casings and seat heavy projectiles
+craft_fuel_cell,Manufacture Fuel Cell,electronics,steel_ingot_0:2|copper_ingot_0:1|wire_0:2|water_purified_0:2,battery_large_0:1,40,electronics_bench_0,chemistry,4,Assemble hydrogen electrochemical converter
 craft_healing_potion,Brew Healing Potion,chemistry,water_purified_0:2|honey_0:1|seed_wheat_0:2,medkit_0:1,20,chemistry_set_0,medicine,2,Distill restorative herbal tincture
-craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0:3,30,workbench_0,metalworking,3,Pack and fuse fragmentation shells
-craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,woodworking,2,Pack slow-burn obscurant canisters
+craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0:3,30,workbench_0,chemistry,3,Pack and fuse fragmentation shells
+craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,chemistry,2,Pack slow-burn obscurant canisters
 #
 # === ENCHANTING ===
-enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1|wood_ash_0:4,60,forge_0,metalworking,4,Imbue an item with searing flame essence
-enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|platinum_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,metalworking,4,Hone an edge to preternatural keenness
-enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,metalworking,4,Reinforce material beyond natural limits
-enchant_efficiency,Enchant Efficiency,crafting,copper_ingot_0:3|gold_ingot_0:1|wire_0:2,copper_ingot_0:1,40,electronics_bench_0,engineering,4,Tune a tool for reduced resource consumption
-enchant_indestructible,Enchant Indestructible,crafting,titanium_ingot_0:3|gold_ingot_0:2|carbon_fiber_sheet_0:1,titanium_ingot_0:1,90,forge_0,metalworking,5,Render material virtually immune to wear
-enchant_speed_boost,Enchant Speed Boost,crafting,aluminum_ingot_0:3|gold_ingot_0:1|wire_0:3,aluminum_ingot_0:1,45,electronics_bench_0,engineering,4,Accelerate action speed beyond normal limits
-enchant_night_vision,Enchant Night Vision,crafting,glass_pane_0:3|gold_ingot_0:1|wire_0:2,glass_pane_0:1,50,electronics_bench_0,engineering,4,Grant low-light visual amplification
-enchant_auto_repair,Enchant Auto Repair,crafting,wire_0:4|gold_ingot_0:2|copper_ingot_0:2,wire_0:1,60,electronics_bench_0,engineering,5,Enable gradual self-restoration of durability
+enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1|wood_ash_0:4,60,forge_0,smithing,4,Imbue an item with searing flame essence
+enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|platinum_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,smithing,4,Hone an edge to preternatural keenness
+enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,smithing,4,Reinforce material beyond natural limits
+enchant_efficiency,Enchant Efficiency,crafting,copper_ingot_0:3|gold_ingot_0:1|wire_0:2,copper_ingot_0:1,40,electronics_bench_0,electronics,4,Tune a tool for reduced resource consumption
+enchant_indestructible,Enchant Indestructible,crafting,titanium_ingot_0:3|gold_ingot_0:2|carbon_fiber_sheet_0:1,titanium_ingot_0:1,90,forge_0,smithing,5,Render material virtually immune to wear
+enchant_speed_boost,Enchant Speed Boost,crafting,aluminum_ingot_0:3|gold_ingot_0:1|wire_0:3,aluminum_ingot_0:1,45,electronics_bench_0,electronics,4,Accelerate action speed beyond normal limits
+enchant_night_vision,Enchant Night Vision,crafting,glass_pane_0:3|gold_ingot_0:1|wire_0:2,glass_pane_0:1,50,electronics_bench_0,electronics,4,Grant low-light visual amplification
+enchant_auto_repair,Enchant Auto Repair,crafting,wire_0:4|gold_ingot_0:2|copper_ingot_0:2,wire_0:1,60,electronics_bench_0,electronics,5,Enable gradual self-restoration of durability
 #
 # === DECORATION CRAFTING ===
-craft_painting,Paint Canvas Art,crafting,cloth_bolt_0:1|wood_plank_0:1|paint_0:2,painting_0:1,20,workbench_0,woodworking,2,Stretch and paint a framed canvas
-craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4,statue_small_0:1,30,workbench_0,woodworking,3,Chisel a decorative stone figure
-craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|steel_ingot_0:2,statue_large_0:1,90,workbench_0,woodworking,5,Sculpt a monumental stone figure
+craft_painting,Paint Canvas Art,crafting,cloth_bolt_0:1|wood_plank_0:1|paint_0:2,painting_0:1,20,workbench_0,drawing_painting,2,Stretch and paint a framed canvas
+craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4,statue_small_0:1,30,workbench_0,masonry,3,Chisel a decorative stone figure
+craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|steel_ingot_0:2,statue_large_0:1,90,workbench_0,masonry,5,Sculpt a monumental stone figure
 craft_flag,Sew Flag,textile,cloth_bolt_0:2|wood_plank_0:1|paint_0:1,flag_0:2,10,sewing_machine_0,tailoring,1,Stitch and mount a cloth standard
-craft_fountain,Build Fountain,construction,stone_raw_0:8|steel_ingot_0:2|rubber_sheet_0:1|wire_0:2,fountain_0:1,60,workbench_0,shelter_building,4,Construct an ornamental water feature
-craft_planter,Shape Planter,crafting,clay_raw_0:4|paint_0:1,planter_0:2,15,kiln_0,woodworking,2,Fire and glaze ornamental plant pots
+craft_fountain,Build Fountain,construction,stone_raw_0:8|steel_ingot_0:2|rubber_sheet_0:1|wire_0:2,fountain_0:1,60,workbench_0,masonry,4,Construct an ornamental water feature
+craft_planter,Shape Planter,crafting,clay_raw_0:4|paint_0:1,planter_0:2,15,kiln_0,ceramics,2,Fire and glaze ornamental plant pots
 #
 # === VEHICLE ASSEMBLY ===
 # Each bill weighs what the vehicle weighs: see the note under the first VEHICLE ASSEMBLY header.
-build_electric_car,Build Electric Car,assembly,aluminum_ingot_0:400|steel_plate_0:100|steel_ingot_0:30|iron_ingot_0:6|copper_ingot_0:15|wire_0:100|battery_large_0:90|plastic_sheet_0:300|rubber_sheet_0:50|glass_pane_0:18|cloth_bolt_0:20|leather_0:10|circuit_board_0:30|computer_terminal_0:1|sensor_module_0:20|camera_0:8|paint_0:6|bolt_box_0:15|glue_0:10,car_electric_0:1,600,workbench_0,engineering,5,Assemble a battery-powered four-seat sedan
-build_electric_truck,Build Electric Truck,assembly,steel_plate_0:310|steel_ingot_0:90|aluminum_ingot_0:300|iron_ingot_0:13|copper_ingot_0:22|wire_0:130|battery_large_0:160|plastic_sheet_0:400|rubber_sheet_0:120|glass_pane_0:20|cloth_bolt_0:20|leather_0:10|circuit_board_0:30|computer_terminal_0:1|sensor_module_0:20|camera_0:8|paint_0:10|bolt_box_0:40|glue_0:10,truck_electric_0:1,600,workbench_0,engineering,5,Assemble a battery-powered cargo hauler
-build_electric_scooter,Build Electric Scooter,assembly,aluminum_ingot_0:5|battery_small_0:10|copper_ingot_0:1|steel_ingot_0:1|rubber_sheet_0:1|wire_0:2|circuit_board_0:1|plastic_sheet_0:2,scooter_electric_0:1,120,workbench_0,engineering,3,Assemble a personal mobility scooter
-build_locomotive,Build Locomotive,assembly,steel_plate_0:9200|steel_ingot_0:3500|iron_ingot_0:5400|pipe_metal_0:300|aluminum_ingot_0:600|copper_ingot_0:650|wire_0:2000|battery_large_0:200|circuit_board_0:300|computer_terminal_0:2|sensor_module_0:50|radio_0:2|antenna_0:2|glass_pane_0:120|rubber_sheet_0:300|fiberglass_sheet_0:220|plastic_sheet_0:400|cloth_bolt_0:30|heater_0:2|cooler_0:2|fire_extinguisher_0:4|paint_0:200|bolt_box_0:1000,locomotive_0:1,1200,workbench_0,engineering,5,Construct a diesel-electric rail engine
-build_bicycle_full,Build Bicycle,assembly,steel_ingot_0:3|aluminum_ingot_0:2|rubber_sheet_0:2|wire_0:1,bicycle_0:1,45,workbench_0,engineering,2,Assemble a lightweight two-wheel pedal vehicle
-build_motorcycle_full,Build Motorcycle,assembly,steel_ingot_0:20|pipe_metal_0:6|steel_plate_0:4|iron_ingot_0:2|aluminum_ingot_0:30|copper_ingot_0:1|wire_0:8|rubber_sheet_0:12|plastic_sheet_0:16|leather_0:2|glass_pane_0:1|battery_large_0:1|circuit_board_0:2|bolt_box_0:3|paint_0:2,motorcycle_0:1,300,workbench_0,engineering,4,Assemble a two-wheel combustion cycle
-build_hovercraft,Build Hovercraft,assembly,fiberglass_sheet_0:150|resin_0:40|aluminum_ingot_0:60|steel_ingot_0:8|copper_ingot_0:7|battery_large_0:24|wire_0:40|circuit_board_0:4|rubber_sheet_0:40|cloth_bolt_0:10|carbon_fiber_sheet_0:30|plastic_sheet_0:60|glass_pane_0:3|bolt_box_0:6|paint_0:3,hovercraft_0:1,480,workbench_0,engineering,5,Construct an air-cushion surface vehicle
-build_rover,Build Rover,assembly,aluminum_ingot_0:200|steel_ingot_0:17|titanium_ingot_0:5|battery_large_0:20|copper_ingot_0:7|wire_0:40|circuit_board_0:6|sensor_module_0:10|computer_terminal_0:1|camera_0:4|radio_0:1|antenna_0:2|solar_panel_0:2|rubber_sheet_0:40|plastic_sheet_0:40|carbon_fiber_sheet_0:20|glass_pane_0:2|bolt_box_0:10|servo_motor_0:8,rover_0:1,480,workbench_0,engineering,5,Assemble an all-terrain exploration vehicle
+build_electric_car,Build Electric Car,assembly,aluminum_ingot_0:400|steel_plate_0:100|steel_ingot_0:30|iron_ingot_0:6|copper_ingot_0:15|wire_0:100|battery_large_0:90|plastic_sheet_0:300|rubber_sheet_0:50|glass_pane_0:18|cloth_bolt_0:20|leather_0:10|circuit_board_0:30|computer_terminal_0:1|sensor_module_0:20|camera_0:8|paint_0:6|bolt_box_0:15|glue_0:10,car_electric_0:1,600,workbench_0,mechanics,5,Assemble a battery-powered four-seat sedan
+build_electric_truck,Build Electric Truck,assembly,steel_plate_0:310|steel_ingot_0:90|aluminum_ingot_0:300|iron_ingot_0:13|copper_ingot_0:22|wire_0:130|battery_large_0:160|plastic_sheet_0:400|rubber_sheet_0:120|glass_pane_0:20|cloth_bolt_0:20|leather_0:10|circuit_board_0:30|computer_terminal_0:1|sensor_module_0:20|camera_0:8|paint_0:10|bolt_box_0:40|glue_0:10,truck_electric_0:1,600,workbench_0,mechanics,5,Assemble a battery-powered cargo hauler
+build_electric_scooter,Build Electric Scooter,assembly,aluminum_ingot_0:5|battery_small_0:10|copper_ingot_0:1|steel_ingot_0:1|rubber_sheet_0:1|wire_0:2|circuit_board_0:1|plastic_sheet_0:2,scooter_electric_0:1,120,workbench_0,mechanics,3,Assemble a personal mobility scooter
+build_locomotive,Build Locomotive,assembly,steel_plate_0:9200|steel_ingot_0:3500|iron_ingot_0:5400|pipe_metal_0:300|aluminum_ingot_0:600|copper_ingot_0:650|wire_0:2000|battery_large_0:200|circuit_board_0:300|computer_terminal_0:2|sensor_module_0:50|radio_0:2|antenna_0:2|glass_pane_0:120|rubber_sheet_0:300|fiberglass_sheet_0:220|plastic_sheet_0:400|cloth_bolt_0:30|heater_0:2|cooler_0:2|fire_extinguisher_0:4|paint_0:200|bolt_box_0:1000,locomotive_0:1,1200,workbench_0,mechanics,5,Construct a diesel-electric rail engine
+build_bicycle_full,Build Bicycle,assembly,steel_ingot_0:3|aluminum_ingot_0:2|rubber_sheet_0:2|wire_0:1,bicycle_0:1,45,workbench_0,mechanics,2,Assemble a lightweight two-wheel pedal vehicle
+build_motorcycle_full,Build Motorcycle,assembly,steel_ingot_0:20|pipe_metal_0:6|steel_plate_0:4|iron_ingot_0:2|aluminum_ingot_0:30|copper_ingot_0:1|wire_0:8|rubber_sheet_0:12|plastic_sheet_0:16|leather_0:2|glass_pane_0:1|battery_large_0:1|circuit_board_0:2|bolt_box_0:3|paint_0:2,motorcycle_0:1,300,workbench_0,mechanics,4,Assemble a two-wheel combustion cycle
+build_hovercraft,Build Hovercraft,assembly,fiberglass_sheet_0:150|resin_0:40|aluminum_ingot_0:60|steel_ingot_0:8|copper_ingot_0:7|battery_large_0:24|wire_0:40|circuit_board_0:4|rubber_sheet_0:40|cloth_bolt_0:10|carbon_fiber_sheet_0:30|plastic_sheet_0:60|glass_pane_0:3|bolt_box_0:6|paint_0:3,hovercraft_0:1,480,workbench_0,mechanics,5,Construct an air-cushion surface vehicle
+build_rover,Build Rover,assembly,aluminum_ingot_0:200|steel_ingot_0:17|titanium_ingot_0:5|battery_large_0:20|copper_ingot_0:7|wire_0:40|circuit_board_0:6|sensor_module_0:10|computer_terminal_0:1|camera_0:4|radio_0:1|antenna_0:2|solar_panel_0:2|rubber_sheet_0:40|plastic_sheet_0:40|carbon_fiber_sheet_0:20|glass_pane_0:2|bolt_box_0:10|servo_motor_0:8,rover_0:1,480,workbench_0,mechanics,5,Assemble an all-terrain exploration vehicle
 #
 # === MECH ASSEMBLY ===
 # Each bill weighs what the vehicle weighs: see the note under the first VEHICLE ASSEMBLY header.
-build_mech_light,Build Light Mech,assembly,titanium_ingot_0:450|aluminum_ingot_0:450|steel_ingot_0:130|servo_motor_0:300|copper_ingot_0:35|battery_large_0:80|wire_0:330|circuit_board_0:100|sensor_module_0:80|computer_terminal_0:2|camera_0:6|radio_0:1|antenna_0:2|carbon_fiber_sheet_0:300|ceramic_plate_0:100|glass_pane_0:6|rubber_sheet_0:60|plastic_sheet_0:100|pipe_metal_0:30|cooler_0:2|fire_extinguisher_0:1|bolt_box_0:60|paint_0:10,mech_light_0:1,900,workbench_0,engineering,5,Assemble a bipedal exosuit for rough terrain
-build_mech_heavy,Build Heavy Mech,assembly,titanium_ingot_0:1200|steel_plate_0:400|aluminum_ingot_0:400|steel_ingot_0:220|servo_motor_0:600|copper_ingot_0:90|battery_large_0:160|wire_0:830|circuit_board_0:200|sensor_module_0:150|computer_terminal_0:3|camera_0:10|radio_0:2|antenna_0:4|ceramic_plate_0:270|carbon_fiber_sheet_0:330|glass_pane_0:12|rubber_sheet_0:150|plastic_sheet_0:200|pipe_metal_0:50|cooler_0:4|fire_extinguisher_0:2|bolt_box_0:190|paint_0:20,mech_heavy_0:1,1200,workbench_0,engineering,5,Construct an armored combat walker
-build_mech_construction,Build Construction Mech,assembly,steel_plate_0:440|steel_ingot_0:400|titanium_ingot_0:100|aluminum_ingot_0:300|pipe_metal_0:100|servo_motor_0:400|copper_ingot_0:43|battery_large_0:160|wire_0:400|circuit_board_0:60|sensor_module_0:60|computer_terminal_0:2|camera_0:8|radio_0:1|antenna_0:2|glass_pane_0:16|rubber_sheet_0:200|plastic_sheet_0:120|cooler_0:2|fire_extinguisher_0:2|bolt_box_0:190|paint_0:30,mech_construction_0:1,1050,workbench_0,engineering,5,Assemble an industrial lifter with crane arms
-build_mech_mining,Build Mining Mech,assembly,steel_plate_0:520|steel_ingot_0:515|titanium_ingot_0:80|ceramic_plate_0:60|aluminum_ingot_0:200|pipe_metal_0:100|servo_motor_0:300|copper_ingot_0:50|battery_large_0:200|wire_0:400|circuit_board_0:60|sensor_module_0:60|computer_terminal_0:2|camera_0:8|radio_0:1|antenna_0:2|glass_pane_0:12|rubber_sheet_0:200|plastic_sheet_0:100|cooler_0:3|fire_extinguisher_0:2|bolt_box_0:200|paint_0:30,mech_mining_0:1,1050,workbench_0,engineering,5,Construct a drill-equipped tunnel borer
-build_mech_scout,Build Scout Mech,assembly,aluminum_ingot_0:750|titanium_ingot_0:80|steel_ingot_0:69|servo_motor_0:200|copper_ingot_0:21|battery_large_0:60|wire_0:230|circuit_board_0:80|sensor_module_0:120|computer_terminal_0:2|camera_0:12|radio_0:2|antenna_0:6|carbon_fiber_sheet_0:200|ceramic_plate_0:40|glass_pane_0:4|rubber_sheet_0:40|plastic_sheet_0:120|pipe_metal_0:15|cooler_0:1|bolt_box_0:40|paint_0:6,mech_scout_0:1,750,workbench_0,engineering,5,Assemble a fast recon walker with sensors
+build_mech_light,Build Light Mech,assembly,titanium_ingot_0:450|aluminum_ingot_0:450|steel_ingot_0:130|servo_motor_0:300|copper_ingot_0:35|battery_large_0:80|wire_0:330|circuit_board_0:100|sensor_module_0:80|computer_terminal_0:2|camera_0:6|radio_0:1|antenna_0:2|carbon_fiber_sheet_0:300|ceramic_plate_0:100|glass_pane_0:6|rubber_sheet_0:60|plastic_sheet_0:100|pipe_metal_0:30|cooler_0:2|fire_extinguisher_0:1|bolt_box_0:60|paint_0:10,mech_light_0:1,900,workbench_0,mechanics,5,Assemble a bipedal exosuit for rough terrain
+build_mech_heavy,Build Heavy Mech,assembly,titanium_ingot_0:1200|steel_plate_0:400|aluminum_ingot_0:400|steel_ingot_0:220|servo_motor_0:600|copper_ingot_0:90|battery_large_0:160|wire_0:830|circuit_board_0:200|sensor_module_0:150|computer_terminal_0:3|camera_0:10|radio_0:2|antenna_0:4|ceramic_plate_0:270|carbon_fiber_sheet_0:330|glass_pane_0:12|rubber_sheet_0:150|plastic_sheet_0:200|pipe_metal_0:50|cooler_0:4|fire_extinguisher_0:2|bolt_box_0:190|paint_0:20,mech_heavy_0:1,1200,workbench_0,mechanics,5,Construct an armored combat walker
+build_mech_construction,Build Construction Mech,assembly,steel_plate_0:440|steel_ingot_0:400|titanium_ingot_0:100|aluminum_ingot_0:300|pipe_metal_0:100|servo_motor_0:400|copper_ingot_0:43|battery_large_0:160|wire_0:400|circuit_board_0:60|sensor_module_0:60|computer_terminal_0:2|camera_0:8|radio_0:1|antenna_0:2|glass_pane_0:16|rubber_sheet_0:200|plastic_sheet_0:120|cooler_0:2|fire_extinguisher_0:2|bolt_box_0:190|paint_0:30,mech_construction_0:1,1050,workbench_0,mechanics,5,Assemble an industrial lifter with crane arms
+build_mech_mining,Build Mining Mech,assembly,steel_plate_0:520|steel_ingot_0:515|titanium_ingot_0:80|ceramic_plate_0:60|aluminum_ingot_0:200|pipe_metal_0:100|servo_motor_0:300|copper_ingot_0:50|battery_large_0:200|wire_0:400|circuit_board_0:60|sensor_module_0:60|computer_terminal_0:2|camera_0:8|radio_0:1|antenna_0:2|glass_pane_0:12|rubber_sheet_0:200|plastic_sheet_0:100|cooler_0:3|fire_extinguisher_0:2|bolt_box_0:200|paint_0:30,mech_mining_0:1,1050,workbench_0,mechanics,5,Construct a drill-equipped tunnel borer
+build_mech_scout,Build Scout Mech,assembly,aluminum_ingot_0:750|titanium_ingot_0:80|steel_ingot_0:69|servo_motor_0:200|copper_ingot_0:21|battery_large_0:60|wire_0:230|circuit_board_0:80|sensor_module_0:120|computer_terminal_0:2|camera_0:12|radio_0:2|antenna_0:6|carbon_fiber_sheet_0:200|ceramic_plate_0:40|glass_pane_0:4|rubber_sheet_0:40|plastic_sheet_0:120|pipe_metal_0:15|cooler_0:1|bolt_box_0:40|paint_0:6,mech_scout_0:1,750,workbench_0,mechanics,5,Assemble a fast recon walker with sensors
 #
 # === SPACECRAFT ASSEMBLY ===
 # Each bill weighs what the vehicle weighs: see the note under the first VEHICLE ASSEMBLY header.
-build_spacecraft_fighter,Build Fighter Ship,assembly,titanium_ingot_0:880|aluminum_ingot_0:1000|carbon_fiber_sheet_0:1600|steel_ingot_0:110|pipe_metal_0:40|ceramic_plate_0:200|battery_large_0:60|computer_terminal_0:3|circuit_board_0:200|sensor_module_0:150|radio_0:3|antenna_0:10|camera_0:8|wire_0:700|air_filter_unit_0:2|water_tank_0:1|heater_0:1|cooler_0:2|fire_extinguisher_0:2|glass_pane_0:16|servo_motor_0:100|rubber_sheet_0:50|fiberglass_sheet_0:80|plastic_sheet_0:200|bolt_box_0:120|glue_0:40,spacecraft_fighter_0:1,1200,workbench_0,engineering,5,Assemble a light combat vessel with dual thrusters
-build_spacecraft_freighter,Build Freighter,assembly,steel_plate_0:6000|steel_ingot_0:1400|pipe_metal_0:400|aluminum_ingot_0:5000|titanium_ingot_0:500|ceramic_plate_0:340|solar_panel_0:80|battery_large_0:400|computer_terminal_0:8|circuit_board_0:400|sensor_module_0:150|radio_0:6|antenna_0:12|wire_0:5000|air_filter_unit_0:8|water_purifier_0:2|water_tank_0:20|heater_0:8|cooler_0:8|fire_extinguisher_0:10|glass_pane_0:30|servo_motor_0:500|rubber_sheet_0:300|fiberglass_sheet_0:1000|plastic_sheet_0:1000|bolt_box_0:1000|paint_0:150|glue_0:100,spacecraft_freighter_0:1,1800,workbench_0,engineering,5,Construct a large modular cargo hauler
-build_spacecraft_shuttle,Build Shuttle,assembly,aluminum_ingot_0:3600|titanium_ingot_0:200|ceramic_plate_0:450|steel_ingot_0:160|pipe_metal_0:80|solar_panel_0:12|battery_large_0:100|computer_terminal_0:4|circuit_board_0:120|sensor_module_0:60|radio_0:4|antenna_0:8|wire_0:1000|air_filter_unit_0:8|water_purifier_0:2|water_tank_0:10|heater_0:4|cooler_0:4|fire_extinguisher_0:4|glass_pane_0:24|fiberglass_sheet_0:250|plastic_sheet_0:700|cloth_bolt_0:120|rope_0:120|carbon_fiber_sheet_0:200|rubber_sheet_0:150|servo_motor_0:60|bolt_box_0:200|glue_0:50,spacecraft_shuttle_0:1,1050,workbench_0,engineering,5,Assemble a personnel transport shuttle
-build_spacecraft_corvette,Build Corvette,assembly,titanium_ingot_0:2625|aluminum_ingot_0:2600|steel_ingot_0:400|pipe_metal_0:150|ceramic_plate_0:667|carbon_fiber_sheet_0:2000|battery_large_0:240|solar_panel_0:30|wire_0:2333|circuit_board_0:600|sensor_module_0:400|computer_terminal_0:6|camera_0:20|radio_0:4|antenna_0:12|air_filter_unit_0:6|water_purifier_0:2|water_tank_0:10|heater_0:4|cooler_0:6|fire_extinguisher_0:8|glass_pane_0:30|servo_motor_0:300|rubber_sheet_0:200|fiberglass_sheet_0:300|plastic_sheet_0:800|cloth_bolt_0:40|bolt_box_0:400|glue_0:60,spacecraft_corvette_0:1,1500,workbench_0,engineering,5,Construct a fast multi-role warship
-build_spacecraft_mining,Build Mining Vessel,assembly,steel_plate_0:2400|steel_ingot_0:1000|titanium_ingot_0:300|aluminum_ingot_0:2000|pipe_metal_0:300|ceramic_plate_0:300|servo_motor_0:600|copper_ingot_0:215|battery_large_0:300|solar_panel_0:50|wire_0:3333|circuit_board_0:300|sensor_module_0:200|computer_terminal_0:6|camera_0:12|radio_0:4|antenna_0:8|air_filter_unit_0:4|water_purifier_0:2|water_tank_0:10|heater_0:4|cooler_0:6|fire_extinguisher_0:8|glass_pane_0:20|rubber_sheet_0:200|fiberglass_sheet_0:500|plastic_sheet_0:600|bolt_box_0:600|paint_0:100,spacecraft_mining_vessel_0:1,1350,workbench_0,engineering,5,Assemble an asteroid ore extraction ship
-build_spacecraft_explorer,Build Explorer,assembly,titanium_ingot_0:1800|aluminum_ingot_0:2400|steel_ingot_0:200|pipe_metal_0:100|ceramic_plate_0:400|carbon_fiber_sheet_0:1500|solar_panel_0:100|battery_large_0:160|wire_0:2000|circuit_board_0:500|sensor_module_0:600|camera_0:40|computer_terminal_0:8|radio_0:6|antenna_0:20|air_filter_unit_0:6|water_purifier_0:4|water_tank_0:20|heater_0:4|cooler_0:6|fire_extinguisher_0:6|glass_pane_0:40|servo_motor_0:200|rubber_sheet_0:150|fiberglass_sheet_0:300|plastic_sheet_0:600|cloth_bolt_0:50|bolt_box_0:300|glue_0:50,spacecraft_explorer_0:1,1200,workbench_0,engineering,5,Construct a long-range survey vessel with sensors
-build_station_module,Build Station Module,assembly,steel_plate_0:1900|steel_ingot_0:300|aluminum_ingot_0:2500|titanium_ingot_0:200|pipe_metal_0:300|cloth_bolt_0:300|plastic_sheet_0:800|fiberglass_sheet_0:400|air_filter_unit_0:20|water_purifier_0:8|water_tank_0:40|heater_0:10|cooler_0:12|fire_extinguisher_0:12|solar_panel_0:100|battery_large_0:200|wire_0:4000|circuit_board_0:400|computer_terminal_0:10|sensor_module_0:200|radio_0:4|antenna_0:8|camera_0:10|glass_pane_0:40|servo_motor_0:100|rubber_sheet_0:300|bolt_box_0:600|glue_0:100,spacecraft_station_module_0:1,1800,workbench_0,engineering,5,Fabricate a habitable orbital station segment
-build_spacecraft_pod,Build Spacecraft Pod,assembly,titanium_ingot_0:290|aluminum_ingot_0:400|ceramic_plate_0:200|steel_ingot_0:45|pipe_metal_0:15|battery_large_0:36|computer_terminal_0:2|circuit_board_0:40|sensor_module_0:24|radio_0:2|antenna_0:4|wire_0:200|air_filter_unit_0:2|water_tank_0:2|heater_0:1|cooler_0:1|fire_extinguisher_0:1|glass_pane_0:6|fiberglass_sheet_0:40|plastic_sheet_0:60|cloth_bolt_0:30|rope_0:40|carbon_fiber_sheet_0:30|rubber_sheet_0:20|servo_motor_0:16|bolt_box_0:30|glue_0:10,spacecraft_pod_0:1,900,workbench_0,engineering,5,Assemble a single-seat orbital vehicle
+build_spacecraft_fighter,Build Fighter Ship,assembly,titanium_ingot_0:880|aluminum_ingot_0:1000|carbon_fiber_sheet_0:1600|steel_ingot_0:110|pipe_metal_0:40|ceramic_plate_0:200|battery_large_0:60|computer_terminal_0:3|circuit_board_0:200|sensor_module_0:150|radio_0:3|antenna_0:10|camera_0:8|wire_0:700|air_filter_unit_0:2|water_tank_0:1|heater_0:1|cooler_0:2|fire_extinguisher_0:2|glass_pane_0:16|servo_motor_0:100|rubber_sheet_0:50|fiberglass_sheet_0:80|plastic_sheet_0:200|bolt_box_0:120|glue_0:40,spacecraft_fighter_0:1,1200,workbench_0,mechanics,5,Assemble a light combat vessel with dual thrusters
+build_spacecraft_freighter,Build Freighter,assembly,steel_plate_0:6000|steel_ingot_0:1400|pipe_metal_0:400|aluminum_ingot_0:5000|titanium_ingot_0:500|ceramic_plate_0:340|solar_panel_0:80|battery_large_0:400|computer_terminal_0:8|circuit_board_0:400|sensor_module_0:150|radio_0:6|antenna_0:12|wire_0:5000|air_filter_unit_0:8|water_purifier_0:2|water_tank_0:20|heater_0:8|cooler_0:8|fire_extinguisher_0:10|glass_pane_0:30|servo_motor_0:500|rubber_sheet_0:300|fiberglass_sheet_0:1000|plastic_sheet_0:1000|bolt_box_0:1000|paint_0:150|glue_0:100,spacecraft_freighter_0:1,1800,workbench_0,mechanics,5,Construct a large modular cargo hauler
+build_spacecraft_shuttle,Build Shuttle,assembly,aluminum_ingot_0:3600|titanium_ingot_0:200|ceramic_plate_0:450|steel_ingot_0:160|pipe_metal_0:80|solar_panel_0:12|battery_large_0:100|computer_terminal_0:4|circuit_board_0:120|sensor_module_0:60|radio_0:4|antenna_0:8|wire_0:1000|air_filter_unit_0:8|water_purifier_0:2|water_tank_0:10|heater_0:4|cooler_0:4|fire_extinguisher_0:4|glass_pane_0:24|fiberglass_sheet_0:250|plastic_sheet_0:700|cloth_bolt_0:120|rope_0:120|carbon_fiber_sheet_0:200|rubber_sheet_0:150|servo_motor_0:60|bolt_box_0:200|glue_0:50,spacecraft_shuttle_0:1,1050,workbench_0,mechanics,5,Assemble a personnel transport shuttle
+build_spacecraft_corvette,Build Corvette,assembly,titanium_ingot_0:2625|aluminum_ingot_0:2600|steel_ingot_0:400|pipe_metal_0:150|ceramic_plate_0:667|carbon_fiber_sheet_0:2000|battery_large_0:240|solar_panel_0:30|wire_0:2333|circuit_board_0:600|sensor_module_0:400|computer_terminal_0:6|camera_0:20|radio_0:4|antenna_0:12|air_filter_unit_0:6|water_purifier_0:2|water_tank_0:10|heater_0:4|cooler_0:6|fire_extinguisher_0:8|glass_pane_0:30|servo_motor_0:300|rubber_sheet_0:200|fiberglass_sheet_0:300|plastic_sheet_0:800|cloth_bolt_0:40|bolt_box_0:400|glue_0:60,spacecraft_corvette_0:1,1500,workbench_0,mechanics,5,Construct a fast multi-role warship
+build_spacecraft_mining,Build Mining Vessel,assembly,steel_plate_0:2400|steel_ingot_0:1000|titanium_ingot_0:300|aluminum_ingot_0:2000|pipe_metal_0:300|ceramic_plate_0:300|servo_motor_0:600|copper_ingot_0:215|battery_large_0:300|solar_panel_0:50|wire_0:3333|circuit_board_0:300|sensor_module_0:200|computer_terminal_0:6|camera_0:12|radio_0:4|antenna_0:8|air_filter_unit_0:4|water_purifier_0:2|water_tank_0:10|heater_0:4|cooler_0:6|fire_extinguisher_0:8|glass_pane_0:20|rubber_sheet_0:200|fiberglass_sheet_0:500|plastic_sheet_0:600|bolt_box_0:600|paint_0:100,spacecraft_mining_vessel_0:1,1350,workbench_0,mechanics,5,Assemble an asteroid ore extraction ship
+build_spacecraft_explorer,Build Explorer,assembly,titanium_ingot_0:1800|aluminum_ingot_0:2400|steel_ingot_0:200|pipe_metal_0:100|ceramic_plate_0:400|carbon_fiber_sheet_0:1500|solar_panel_0:100|battery_large_0:160|wire_0:2000|circuit_board_0:500|sensor_module_0:600|camera_0:40|computer_terminal_0:8|radio_0:6|antenna_0:20|air_filter_unit_0:6|water_purifier_0:4|water_tank_0:20|heater_0:4|cooler_0:6|fire_extinguisher_0:6|glass_pane_0:40|servo_motor_0:200|rubber_sheet_0:150|fiberglass_sheet_0:300|plastic_sheet_0:600|cloth_bolt_0:50|bolt_box_0:300|glue_0:50,spacecraft_explorer_0:1,1200,workbench_0,mechanics,5,Construct a long-range survey vessel with sensors
+build_station_module,Build Station Module,assembly,steel_plate_0:1900|steel_ingot_0:300|aluminum_ingot_0:2500|titanium_ingot_0:200|pipe_metal_0:300|cloth_bolt_0:300|plastic_sheet_0:800|fiberglass_sheet_0:400|air_filter_unit_0:20|water_purifier_0:8|water_tank_0:40|heater_0:10|cooler_0:12|fire_extinguisher_0:12|solar_panel_0:100|battery_large_0:200|wire_0:4000|circuit_board_0:400|computer_terminal_0:10|sensor_module_0:200|radio_0:4|antenna_0:8|camera_0:10|glass_pane_0:40|servo_motor_0:100|rubber_sheet_0:300|bolt_box_0:600|glue_0:100,spacecraft_station_module_0:1,1800,workbench_0,mechanics,5,Fabricate a habitable orbital station segment
+build_spacecraft_pod,Build Spacecraft Pod,assembly,titanium_ingot_0:290|aluminum_ingot_0:400|ceramic_plate_0:200|steel_ingot_0:45|pipe_metal_0:15|battery_large_0:36|computer_terminal_0:2|circuit_board_0:40|sensor_module_0:24|radio_0:2|antenna_0:4|wire_0:200|air_filter_unit_0:2|water_tank_0:2|heater_0:1|cooler_0:1|fire_extinguisher_0:1|glass_pane_0:6|fiberglass_sheet_0:40|plastic_sheet_0:60|cloth_bolt_0:30|rope_0:40|carbon_fiber_sheet_0:30|rubber_sheet_0:20|servo_motor_0:16|bolt_box_0:30|glue_0:10,spacecraft_pod_0:1,900,workbench_0,mechanics,5,Assemble a single-seat orbital vehicle
 #
 # === STRUCTURE CRAFTING ===
-craft_wall_wood,Build Wood Wall Panel,construction,wood_plank_0:6|nail_box_0:2,door_wood_0:1,20,workbench_0,shelter_building,2,Frame and sheath a standard wall section
-craft_wall_reinforced,Build Reinforced Wall,construction,steel_ingot_0:4|concrete_block_0:4|bolt_box_0:2,concrete_block_0:2,40,workbench_0,shelter_building,4,Construct a steel-reinforced concrete wall panel
-craft_floor_tile,Lay Floor Tiles,construction,clay_raw_0:4|cement_0:1,stone_brick_0:6,25,kiln_0,shelter_building,2,Fire and set ceramic floor tiles
-craft_roof_panel,Build Roof Panel,construction,wood_plank_0:4|steel_ingot_0:1|rubber_sheet_0:1,wood_plank_0:1,20,workbench_0,shelter_building,2,Frame and weatherproof a roof section
+craft_wall_wood,Build Wood Wall Panel,construction,wood_plank_0:6|nail_box_0:2,door_wood_0:1,20,workbench_0,construction,2,Frame and sheath a standard wall section
+craft_wall_reinforced,Build Reinforced Wall,construction,steel_ingot_0:4|concrete_block_0:4|bolt_box_0:2,concrete_block_0:2,40,workbench_0,construction,4,Construct a steel-reinforced concrete wall panel
+craft_floor_tile,Lay Floor Tiles,construction,clay_raw_0:4|cement_0:1,stone_brick_0:6,25,kiln_0,ceramics,2,Fire and set ceramic floor tiles
+craft_roof_panel,Build Roof Panel,construction,wood_plank_0:4|steel_ingot_0:1|rubber_sheet_0:1,wood_plank_0:1,20,workbench_0,construction,2,Frame and weatherproof a roof section
 #
 # === JEWELRY CRAFTING ===
-craft_ring_gold,Forge Gold Ring,crafting,gold_ingot_0:1,ring_gold_0:1,30,anvil_station_0,metalworking,3,Hammer a polished gold finger band
-craft_ring_silver,Forge Silver Ring,crafting,silver_ingot_0:1,ring_silver_0:1,25,anvil_station_0,metalworking,2,Hammer a polished silver finger band
-craft_necklace_gold,Forge Gold Necklace,crafting,gold_ingot_0:2,necklace_gold_0:1,60,anvil_station_0,metalworking,4,Link gold rings into a neck chain
-craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_silver_0:1,40,anvil_station_0,metalworking,3,Link silver into a wrist band
-craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,metalworking,3,Engrave a protective silver charm
+craft_ring_gold,Forge Gold Ring,crafting,gold_ingot_0:1,ring_gold_0:1,30,anvil_station_0,smithing,3,Hammer a polished gold finger band
+craft_ring_silver,Forge Silver Ring,crafting,silver_ingot_0:1,ring_silver_0:1,25,anvil_station_0,smithing,2,Hammer a polished silver finger band
+craft_necklace_gold,Forge Gold Necklace,crafting,gold_ingot_0:2,necklace_gold_0:1,60,anvil_station_0,smithing,4,Link gold rings into a neck chain
+craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_silver_0:1,40,anvil_station_0,smithing,3,Link silver into a wrist band
+craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,smithing,3,Engrave a protective silver charm
 #
 # === BOOK / WRITING CRAFTING ===
-craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
+craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_0:1|glue_0:1,book_blank_0:1,60,workbench_0,textiles,2,Sew and bind paper into a blank book
 craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,woodworking,1,Glue graphite core into wooden sticks
 craft_ink,Brew Ink,chemistry,coal_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,chemistry,2,Combine carbon and binder into writing fluid
-craft_notebook,Bind Notebook,crafting,fiber_bundle_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
+craft_notebook,Bind Notebook,crafting,fiber_bundle_0:3|wire_0:1,notebook_0:1,30,workbench_0,textiles,1,Spiral-bind paper into a notebook
 #
 # === LIGHTING CRAFTING ===
-craft_candle,Pour Candle,crafting,beeswax_0:1|cloth_bolt_0:1,candle_0:5,20,workbench_0,woodworking,1,Pour wax around cotton wicks
-craft_lantern_oil,Assemble Oil Lantern,crafting,copper_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,woodworking,2,Build a glass-shielded oil lamp
-craft_flashlight,Assemble Flashlight,electronics,aluminum_ingot_0:1|battery_small_0:2|wire_0:1|led_panel_0:1,flashlight_0:1,30,electronics_bench_0,engineering,2,Assemble a handheld battery torch
-craft_headlamp,Assemble Headlamp,electronics,plastic_sheet_0:1|battery_small_0:1|wire_0:1|led_panel_0:1|cloth_bolt_0:1,headlamp_0:1,35,electronics_bench_0,engineering,2,Build a strap-mounted hands-free light
+craft_candle,Pour Candle,crafting,beeswax_0:1|cloth_bolt_0:1,candle_0:5,20,workbench_0,chemistry,1,Pour wax around cotton wicks
+craft_lantern_oil,Assemble Oil Lantern,crafting,copper_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,smithing,2,Build a glass-shielded oil lamp
+craft_flashlight,Assemble Flashlight,electronics,aluminum_ingot_0:1|battery_small_0:2|wire_0:1|led_panel_0:1,flashlight_0:1,30,electronics_bench_0,electronics,2,Assemble a handheld battery torch
+craft_headlamp,Assemble Headlamp,electronics,plastic_sheet_0:1|battery_small_0:1|wire_0:1|led_panel_0:1|cloth_bolt_0:1,headlamp_0:1,35,electronics_bench_0,electronics,2,Build a strap-mounted hands-free light
 #
 # === COOKED FOOD ===
 cook_soup_vegetable,Cook Vegetable Soup,cooking,vegetable_carrot_0:1|vegetable_potato_0:1|vegetable_onion_0:1|water_purified_0:1,soup_vegetable_0:1,15,stove_0,cooking,1,Simmer vegetables into a hot broth
 cook_stew_meat,Cook Meat Stew,cooking,jerky_0:2|vegetable_carrot_0:1|vegetable_potato_0:1|water_purified_0:1,stew_meat_0:1,30,stove_0,cooking,2,Slow-simmer meat and vegetables
 cook_sandwich,Make Sandwich,cooking,bread_0:1|cheese_0:1|vegetable_lettuce_0:1,sandwich_0:1,5,workbench_0,cooking,1,Layer bread cheese and greens
 cook_pasta,Cook Pasta,cooking,flour_0:1|egg_0:1|salt_food_0:1|water_purified_0:1,pasta_cooked_0:1,15,stove_0,cooking,2,Boil noodles and toss with sauce
-cook_pizza,Bake Pizza,cooking,flour_0:1|cheese_0:1|vegetable_tomato_0:1,pizza_slice_0:4,25,oven_0,cooking,3,Bake topped flatbread into pizza
+cook_pizza,Bake Pizza,cooking,flour_0:1|cheese_0:1|vegetable_tomato_0:1,pizza_slice_0:4,25,oven_0,baking,3,Bake topped flatbread into pizza
 cook_omelette,Cook Omelette,cooking,egg_0:3|cheese_0:1|butter_0:1,omelette_0:1,8,stove_0,cooking,1,Fold eggs and filling in a pan
 cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer milled rice in milk
 # Cooked rice (2026-09-27): the porridge was the only rice dish. White rice soaks up water as it boils, and
@@ -655,9 +655,9 @@ cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,
 # more water than the rice absorbs a real pot needs was not sourced). data/food_system.ron's cooked_rice
 # profile is the cooked row.
 cook_rice,Cook Rice,cooking,rice_0:1|water_purified_0:1,cooked_rice_0:4,15,stove_0,cooking,1,Boil milled white rice until it soaks up its water
-bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,cooking,3,Bake a sweet layered dessert
-bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,cooking,3,Bake a fruit-filled pastry
-bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,cooking,2,Bake sweet dough discs
+bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,baking,3,Bake a sweet layered dessert
+bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,baking,3,Bake a fruit-filled pastry
+bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,baking,2,Bake sweet dough discs
 cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetable_carrot_0:1,salad_0:1,5,workbench_0,cooking,1,Combine raw vegetables in a bowl
 #
 # === HYGIENE / PLUMBING ===
@@ -666,39 +666,39 @@ cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetab
 # 215 g of lye; 200 g leaves a few percent of the fat unsaponified, the usual small excess that keeps a bar
 # mild. The water evaporates as the bars cure: about 1.5 kg of bars.
 craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:3|lye_0:2|water_purified_0:1,soap_bar_0:15,30,chemistry_set_0,chemistry,2,Saponify fat with lye into cleaning bars
-craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,metalworking,2,Form threaded steel pipe segments
-craft_faucet,Forge Faucet,crafting,copper_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,metalworking,3,Assemble a threaded water tap
-craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,woodworking,3,Fire a porcelain waste fixture
-craft_sink,Cast Sink,crafting,clay_raw_0:5,sink_0:1,60,kiln_0,woodworking,2,Fire a porcelain wash basin
+craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,smithing,2,Form threaded steel pipe segments
+craft_faucet,Forge Faucet,crafting,copper_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,plumbing,3,Assemble a threaded water tap
+craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,ceramics,3,Fire a porcelain waste fixture
+craft_sink,Cast Sink,crafting,clay_raw_0:5,sink_0:1,60,kiln_0,ceramics,2,Fire a porcelain wash basin
 #
 # === ART / INSTRUMENTS ===
 craft_paintbrush_set,Make Paintbrush Set,crafting,wood_plank_0:1|cloth_bolt_0:1|fiber_bundle_0:1,paintbrush_set_0:1,20,workbench_0,woodworking,1,Bind bristles to wooden handles
-craft_canvas_blank,Stretch Canvas,textile,cloth_bolt_0:2|wood_plank_0:1,canvas_blank_0:1,25,workbench_0,tailoring,2,Stretch primed cloth on a frame
+craft_canvas_blank,Stretch Canvas,textile,cloth_bolt_0:2|wood_plank_0:1,canvas_blank_0:1,25,workbench_0,textiles,2,Stretch primed cloth on a frame
 craft_easel,Build Easel,crafting,wood_plank_0:4|nail_box_0:1,easel_0:1,30,workbench_0,woodworking,2,Construct a tripod canvas stand
 craft_guitar_acoustic,Build Acoustic Guitar,crafting,wood_plank_0:5|wire_0:2|glue_0:1,guitar_acoustic_0:1,300,workbench_0,woodworking,4,Hand-build a six-string fretted guitar
 craft_violin,Build Violin,crafting,wood_plank_0:3|wire_0:2|glue_0:1,violin_0:1,360,workbench_0,woodworking,5,Hand-build a four-string bowed instrument
 craft_flute_wood,Carve Wooden Flute,crafting,wood_plank_0:1,flute_wood_0:1,90,workbench_0,woodworking,3,Carve a hollow keyed wind instrument
 craft_drum_hand,Build Hand Drum,crafting,wood_plank_0:2|leather_hide_0:1,drum_hand_0:1,60,workbench_0,woodworking,2,Stretch hide over a wooden frame
-craft_harmonica,Forge Harmonica,crafting,copper_ingot_0:1,harmonica_0:1,45,workbench_0,metalworking,3,Cut and tune brass reed plates
+craft_harmonica,Forge Harmonica,crafting,copper_ingot_0:1,harmonica_0:1,45,workbench_0,smithing,3,Cut and tune brass reed plates
 #
 # === OUTDOOR / CAMPING ===
 craft_tent_2person,Sew Two-Person Tent,textile,cloth_bolt_0:4|rope_0:2|aluminum_ingot_0:1,tent_2person_0:1,90,sewing_machine_0,tailoring,3,Sew a backpack camping shelter
 craft_sleeping_bag,Sew Sleeping Bag,textile,cloth_bolt_0:3|fiber_bundle_0:2,sleeping_bag_0:1,60,sewing_machine_0,tailoring,2,Sew an insulated portable bedroll
 craft_fishing_rod,Carve Fishing Rod,crafting,wood_plank_0:1|wire_0:1,fishing_rod_0:1,30,workbench_0,woodworking,1,Carve a reel-and-line fish capture pole
-craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,tailoring,2,Weave a weighted mesh fish trap
-craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,woodworking,3,Build a twin-tube long-range optic
-assemble_truck_kit,Assemble Pickup Truck Kit,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_kit_0:1,90,workbench_0,metalworking,2,Bolt together a flat-packed pickup truck kit
-assemble_rover_kit,Assemble Rover Kit,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_kit_0:1,60,workbench_0,metalworking,2,Bolt together a flat-packed rover kit
-assemble_rover,Assemble Rover,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_0:1,120,vehicle_assembler_0,metalworking,2,Assemble a complete rover on the factory pad
-assemble_truck,Assemble Pickup Truck,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_0:1,180,vehicle_assembler_0,metalworking,2,Assemble a complete pickup truck on the factory pad
-smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iron_ingot_0:1|slag_0:1,10,smelter_0,metalworking,1,Reduce iron ore using asteroid graphite as the carbon source
-smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metalworking,1,Reduce copper ore using asteroid graphite and skim off the slag
-smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore using asteroid graphite
-assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,metalworking,3,Assemble a complete 1975 Chevy Nova on the factory pad
-bundle_cotton,Bundle Cotton Fiber,refining,fiber_cotton_0:3,fiber_bundle_0:2,10,workbench_0,,0,Card and bundle cotton into usable fiber
-bundle_flax,Bundle Flax Fiber,refining,fiber_flax_0:3,fiber_bundle_0:2,10,workbench_0,,0,Rett and bundle flax into usable fiber
-bundle_hemp,Bundle Hemp Fiber,refining,fiber_hemp_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle hemp into usable fiber
-bundle_jute,Bundle Jute Fiber,refining,fiber_jute_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle jute into usable fiber
+craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,textiles,2,Weave a weighted mesh fish trap
+craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,machining,3,Build a twin-tube long-range optic
+assemble_truck_kit,Assemble Pickup Truck Kit,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_kit_0:1,90,workbench_0,mechanics,2,Bolt together a flat-packed pickup truck kit
+assemble_rover_kit,Assemble Rover Kit,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_kit_0:1,60,workbench_0,mechanics,2,Bolt together a flat-packed rover kit
+assemble_rover,Assemble Rover,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_0:1,120,vehicle_assembler_0,mechanics,2,Assemble a complete rover on the factory pad
+assemble_truck,Assemble Pickup Truck,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_0:1,180,vehicle_assembler_0,mechanics,2,Assemble a complete pickup truck on the factory pad
+smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iron_ingot_0:1|slag_0:1,10,smelter_0,metallurgy,1,Reduce iron ore using asteroid graphite as the carbon source
+smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1|slag_0:6,10,smelter_0,metallurgy,1,Reduce copper ore using asteroid graphite and skim off the slag
+smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metallurgy,2,Reduce nickel ore using asteroid graphite
+assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,mechanics,3,Assemble a complete 1975 Chevy Nova on the factory pad
+bundle_cotton,Bundle Cotton Fiber,refining,fiber_cotton_0:3,fiber_bundle_0:2,10,workbench_0,textiles,0,Card and bundle cotton into usable fiber
+bundle_flax,Bundle Flax Fiber,refining,fiber_flax_0:3,fiber_bundle_0:2,10,workbench_0,textiles,0,Rett and bundle flax into usable fiber
+bundle_hemp,Bundle Hemp Fiber,refining,fiber_hemp_0:3,fiber_bundle_0:2,10,workbench_0,textiles,0,Strip and bundle hemp into usable fiber
+bundle_jute,Bundle Jute Fiber,refining,fiber_jute_0:3,fiber_bundle_0:2,10,workbench_0,textiles,0,Strip and bundle jute into usable fiber
 # Insecticidal soap (2026-09-26, garden pests; data/garden/pests.ron): one 100 g bar of soap dissolved in 5 L
 # of tap water is 100 g in 5.1 kg, 1.96%. Clemson HGIC (Ubl and Munnerlyn, revised Williamson, 2021):
 # "Insecticidal soaps are usually used as a 1 to 2% solution"; Nebraska Extension (Browning, 2024): "Some

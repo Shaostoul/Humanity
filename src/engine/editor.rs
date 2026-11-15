@@ -746,6 +746,8 @@ pub(crate) fn try_place_structure(state: &mut EngineState) {
             pair: None,
         });
         state.gui_state.construction_structure_dirty = true;
+        // Skills rung 1: laying out a space is drafting practice (data/skills/practice.json).
+        humanity_systems::skills::practice(&state.data_store, "lay_out", None);
     }
 }
 
@@ -788,6 +790,7 @@ pub(crate) fn try_place_wall_node(state: &mut EngineState) {
                     let wall = if guard { new_guard_on_storey(es, start, p) } else { Some(new_wall_on_storey(hs, es, start, p)) };
                     let Some(wall) = wall else { return };
                     hs.walls.push(wall);
+                    humanity_systems::skills::practice(&state.data_store, "lay_out", None);
                     state.gui_state.construction_storeys.slab_selected = None;
                     state.gui_state.construction_structure_dirty = true;
                     state.gui_state.construction_wall_selected = Some(hs.walls.len() - 1);

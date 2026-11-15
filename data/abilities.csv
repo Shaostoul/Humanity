@@ -132,16 +132,16 @@ mind_control,Mind Control,spell,enchantment,70,0,60,3,10,0,point,0,psychic,0,8,1
 imbue_element,Imbue Element,spell,enchantment,25,0,20,1.5,5,0,point,0,none,0,60,5,enchanting,2,utility,Add elemental damage to a weapon matching your attunement,fantasy
 ward,Ward,spell,enchantment,40,0,25,2,5,3,sphere,0,none,0,30,9,enchanting,4,defensive,Place a protective ward on an area that alerts and shields against intrusion,fantasy
 # === TECH ABILITIES ===
-repair,Repair,tech,none,0,20,8,2,5,0,point,0,none,40,0,1,engineering,1,utility|defensive,Repair a mechanical device or structure restoring its integrity,tech
-overclock,Overclock,tech,none,0,25,30,1,0,0,point,0,none,0,15,6,engineering,3,utility,Push your equipment beyond normal limits increasing performance temporarily,tech
-emp_blast,EMP Blast,tech,lightning,0,30,25,1.5,0,8,sphere,40,lightning,0,3,10,engineering,4,offensive,Discharge an electromagnetic pulse disabling electronics and shields,tech
-deploy_turret,Deploy Turret,tech,none,0,35,45,3,5,0,point,25,physical,0,60,8,engineering,3,offensive|summon,Deploy an automated turret that attacks nearby hostiles,tech
-hack,Hack,tech,none,0,15,12,2,10,0,point,0,none,0,10,5,engineering,2,utility,Override electronic systems to gain access or disable them,tech
-energy_shield,Energy Shield,tech,none,0,20,20,0,0,0,point,0,none,0,10,4,engineering,2,defensive,Activate a personal energy barrier absorbing incoming damage,tech
-jet_boost,Jet Boost,tech,none,0,15,6,0,0,0,point,0,none,0,3,2,engineering,1,movement,Fire directional thrusters for a quick burst of movement,tech
-scan,Scan,tech,none,0,10,8,1,0,20,sphere,0,none,0,5,1,engineering,1,utility,Scan the surrounding area revealing enemies resources and hazards,tech
-deploy_drone,Deploy Drone,tech,none,0,25,30,2,5,0,point,0,none,0,90,7,engineering,3,utility|summon,Launch a reconnaissance drone that scouts ahead,tech
-nano_heal,Nano Heal,tech,none,0,30,15,1,10,0,point,0,none,45,5,9,engineering,4,defensive,Deploy medical nanobots that rapidly repair biological tissue,tech
+repair,Repair,tech,none,0,20,8,2,5,0,point,0,none,40,0,1,repair,1,utility|defensive,Repair a mechanical device or structure restoring its integrity,tech
+overclock,Overclock,tech,none,0,25,30,1,0,0,point,0,none,0,15,6,electronics,3,utility,Push your equipment beyond normal limits increasing performance temporarily,tech
+emp_blast,EMP Blast,tech,lightning,0,30,25,1.5,0,8,sphere,40,lightning,0,3,10,electronics,4,offensive,Discharge an electromagnetic pulse disabling electronics and shields,tech
+deploy_turret,Deploy Turret,tech,none,0,35,45,3,5,0,point,25,physical,0,60,8,gunnery,3,offensive|summon,Deploy an automated turret that attacks nearby hostiles,tech
+hack,Hack,tech,none,0,15,12,2,10,0,point,0,none,0,10,5,networking,2,utility,Override electronic systems to gain access or disable them,tech
+energy_shield,Energy Shield,tech,none,0,20,20,0,0,0,point,0,none,0,10,4,electronics,2,defensive,Activate a personal energy barrier absorbing incoming damage,tech
+jet_boost,Jet Boost,tech,none,0,15,6,0,0,0,point,0,none,0,3,2,eva,1,movement,Fire directional thrusters for a quick burst of movement,tech
+scan,Scan,tech,none,0,10,8,1,0,20,sphere,0,none,0,5,1,electronics,1,utility,Scan the surrounding area revealing enemies resources and hazards,tech
+deploy_drone,Deploy Drone,tech,none,0,25,30,2,5,0,point,0,none,0,90,7,drone_operation,3,utility|summon,Launch a reconnaissance drone that scouts ahead,tech
+nano_heal,Nano Heal,tech,none,0,30,15,1,10,0,point,0,none,45,5,9,medicine,4,defensive,Deploy medical nanobots that rapidly repair biological tissue,tech
 # === PSIONIC POWERS ===
 telekinesis,Telekinesis,psionic,arcane,20,10,6,0,20,0,point,20,physical,0,0,3,psionics,1,offensive|utility,Move objects or creatures with the power of your mind,fantasy
 mind_blast,Mind Blast,psionic,arcane,40,0,8,1,15,4,cone,50,psychic,0,0,8,psionics,3,offensive,Release a devastating wave of psychic force,fantasy
@@ -152,7 +152,7 @@ astral_projection,Astral Projection,psionic,arcane,45,0,60,3,0,0,point,0,none,0,
 dominate,Dominate,psionic,arcane,65,0,45,2.5,10,0,point,0,psychic,0,10,16,psionics,7,offensive,Overwhelm a target's will forcing them to obey your commands,fantasy
 psychic_scream,Psychic Scream,psionic,arcane,55,10,20,1,0,8,sphere,65,psychic,0,2,14,psionics,6,offensive,Unleash a scream of pure psychic anguish stunning and damaging all nearby,fantasy
 # === SURVIVAL ABILITIES ===
-campfire,Campfire,ability,nature,0,15,60,0,0,0,point,0,none,0,0,1,,0,utility,Build a stone-ring campfire on open ground in front of you from 6 Raw Stone and 3 Wood Logs in your pack (outdoors only). While its logs burn its radiant heat warms you the closer you stand unless a wall or roof stands between you. It goes out when they are gone unless you press E at it to add a log.,real,campfire
+campfire,Campfire,ability,nature,0,15,60,0,0,0,point,0,none,0,0,1,fire_making,0,utility,Build a stone-ring campfire on open ground in front of you from 6 Raw Stone and 3 Wood Logs in your pack (outdoors only). While its logs burn its radiant heat warms you the closer you stand unless a wall or roof stands between you. It goes out when they are gone unless you press E at it to add a log.,real,campfire
 purify_water,Purify Water,ability,nature,0,10,30,3,2,0,point,0,none,0,0,1,,0,utility,Make contaminated water safe to drink,real
 forage,Forage,ability,nature,0,10,15,2,0,5,sphere,0,none,0,0,1,,0,utility,Search the immediate area for edible plants and useful materials,real
 track,Track,ability,nature,0,10,10,1,0,15,sphere,0,none,0,30,2,,0,utility,Read tracks and signs to locate nearby creatures,real

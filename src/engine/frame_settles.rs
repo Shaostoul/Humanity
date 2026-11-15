@@ -62,14 +62,17 @@ pub(crate) fn run(state: &mut EngineState) {
                 player,
                 items,
             );
-            if let humanity_systems::livestock::CollectOutcome::Took { fresh, .. } = &outcome {
+            if let humanity_systems::livestock::CollectOutcome::Took { fresh, item, .. } = &outcome {
                 // Collect SFX (v0.983): eggs, milk, berries,
                 // stone - every successful [E] gather clicks.
                 state.pending_sfx.push(("sfx.inventory_pickup", "audio/ui/inventory_pickup.ogg"));
                 // One yield earns its XP and its quest event once,
                 // however many presses it takes to carry it off.
                 if *fresh {
-                    humanity_systems::skills::award_skill_xp(&state.data_store, "farming", 5);
+                    // Skills rung 1: the yield's own skill (eggs and milk keeping animals,
+                    // berries foraging, a log forestry, stone mining: data/skills/practice.json),
+                    // where every yield, stone included, used to train farming.
+                    humanity_systems::skills::practice(&state.data_store, &format!("collect.{item}"), None);
                     if let Some(events) =
                         state.data_store.get::<std::sync::Mutex<Vec<String>>>("quest_events")
                     {
@@ -111,7 +114,7 @@ pub(crate) fn run(state: &mut EngineState) {
                 // The main hand's grip socket (character animation rung 2b: what is held goes in
                 // the two grip sockets; gloves stay worn in "hands").
                 .and_then(|(_, (o, _))| o.equipped.get("grip_r").cloned());
-            let (weapon_name, damage, range) = hands_item
+            let (weapon_name, skill, damage, range) = hands_item
                 .as_deref()
                 .and_then(|id| {
                     let def = state
@@ -129,9 +132,11 @@ pub(crate) fn run(state: &mut EngineState) {
                         .and_then(|r| r.items.get(id))
                         .map(|d| d.name.clone())
                         .unwrap_or_else(|| id.to_string());
-                    Some((name, def.damage, def.range_m.max(1.5)))
+                    // The weapon's own skill (data/equipment.csv), trained by a landed strike.
+                    let skill = if def.skill.is_empty() { "unarmed".to_string() } else { def.skill.clone() };
+                    Some((name, skill, def.damage, def.range_m.max(1.5)))
                 })
-                .unwrap_or(("Bare hands".to_string(), 3.0, 1.5));
+                .unwrap_or(("Bare hands".to_string(), "unarmed".to_string(), 3.0, 1.5));
             let status = match state.targeted_livestock {
                 Some(target) => humanity_systems::combat::player_swing(
                     &mut state.game_world.world,
@@ -139,6 +144,7 @@ pub(crate) fn run(state: &mut EngineState) {
                     target,
                     state.camera.position,
                     &weapon_name,
+                    &skill,
                     damage,
                     range,
                 ),
@@ -356,6 +362,10 @@ pub(crate) fn run(state: &mut EngineState) {
                     Ok(String::new())
                 }
             })();
+            // Skills rung 1: a sale or purchase that went through is trading practice.
+            if matches!(&result, Ok(m) if !m.is_empty()) {
+                humanity_systems::skills::practice(&state.data_store, "vendor_trade", None);
+            }
             state.gui_state.vendor_status = match result {
                 Ok(msg) => msg,
                 Err(e) => e,
