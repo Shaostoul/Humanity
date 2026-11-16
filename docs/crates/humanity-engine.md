@@ -23,10 +23,10 @@ edit re-checks the least.
   - the crate root: `lib.rs`
   - the binary: `main.rs`
   - test builds only: `save_load_body_tests.rs`, `save_load_slot_tests.rs`, `save_load_farm_tests.rs`
-- **Size:** 115,528 lines in 220 files, 17,725 of them in 59 test files.
+- **Size:** 115,516 lines in 220 files, 17,725 of them in 59 test files.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `engine/frame_water.rs` 750 of 750, `engine/frame_shells.rs` 1,291 of 1,300, `engine/map_view.rs` 312 of 315, `engine/frame_near_trees.rs` 691 of 700, `engine/frame_sky_body.rs` 1,806 of 1,850, `lib.rs` 1,874 of 1,930, `engine/map_rig.rs` 242 of 250, `engine/map_rig_ship.rs` 109 of 115, `engine/map_feed.rs` 188 of 200, `engine/frame_ws_poll.rs` 1,645 of 1,800, `engine/map_cut.rs` 68 of 75, `engine/map_tiles.rs` 383 of 450.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 38, `relay` 5, `wasm` 1.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 759, gui 678, systems 634, ship 384, renderer 371, terrain 175, animation 140, net 101, music 15, protocol 13, relay 11.
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, gui, music, animation; through those, also ai-protocol. **Uses today** (references in non-test code): core 759, gui 676, systems 634, ship 384, renderer 371, terrain 175, animation 140, net 101, music 15, protocol 13, relay 11.
 - **May be used by** (the plan): nothing; it is the top of the stack. **Used today by:** nothing.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 829 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):

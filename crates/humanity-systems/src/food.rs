@@ -652,9 +652,10 @@ impl FoodSystem {
         self.profile_for(item_id).map(|p| f64::from(p.spoilage_rate_hours) * 3600.0)
     }
 
-    /// Eat or drink one `item_id` from the first player (Inventory + Vitals +
-    /// StatusEffects) who carries it, applying the food's nutrition. Items that
-    /// are not food, and non-beverages sent to Drink, are ignored. True when
+    /// Eat or drink one `item_id` from the first living player (Inventory + Vitals +
+    /// StatusEffects, no `Dead`) who carries it, applying the food's nutrition. Items that
+    /// are not food, and non-beverages sent to Drink, are ignored; a dead body's
+    /// request is refused and logged (2026-11-15). True when
     /// it was eaten or drunk (2026-10-04: the tick reports an eaten item to
     /// the quests, the opening's "eat something" step). While an illness is
     /// taking water, a drink puts back only the share of its water the body
@@ -691,10 +692,18 @@ impl FoodSystem {
 
         // Spoiled = the stack's own clock past the food's time (§3).
         let keeps = self.freshness_secs(item_id).unwrap_or(f64::INFINITY);
-        for (_e, (inv, vitals, effects)) in
-            world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects)>()
+        let mut dead_carrier = false;
+        for (_e, (inv, vitals, effects, dead)) in
+            world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects, Option<&humanity_core::ecs::components::Dead>)>()
         {
             if !inv.has_item(item_id, 1) {
+                continue;
+            }
+            // A dead body eats and drinks nothing (2026-11-15, headless increment 3's finding):
+            // a request that arrives after death (a stale press, a script, the dev IPC) is
+            // refused, the way `use_item` skips the dead, and said so below.
+            if dead.is_some() {
+                dead_carrier = true;
                 continue;
             }
             // Spoiled food (aged by the spoilage pass in tick, §3) nourishes
@@ -790,6 +799,9 @@ impl FoodSystem {
                 vitals.hydration_max,
             );
             return true; // first player only
+        }
+        if dead_carrier {
+            log::info!("[Food] {how:?} request for {item_id} refused: the body carrying it is dead");
         }
         false
     }
@@ -2159,6 +2171,49 @@ mod nutrition_tests {
         let inv = world.get::<&Inventory>(player).unwrap();
         assert_eq!(inv.count_item("water_bottle_0"), 1);
         assert_eq!(inv.count_item("water_bottle_empty_0"), 1, "the empty came back into a new slot");
+    }
+
+    /// A DEAD BODY EATS AND DRINKS NOTHING (2026-11-15). Headless increment 3's
+    /// builder found that an Eat or Drink request reaching the food system fed a
+    /// body already dead: the soak's routine now stops at death, but the system
+    /// did not refuse, so any request (a stale button press, a script, the dev
+    /// IPC) still emptied the pack into a corpse's meters. Refused, said in the
+    /// log, both requests taken so they are not eaten after a respawn.
+    ///
+    /// RED FIRST, 2026-11-15, run before `consume` checked for `Dead`:
+    /// "the bread is still in the dead body's pack: left: 0, right: 1".
+    #[test]
+    fn a_dead_body_cannot_eat_or_drink_through_a_request() {
+        use humanity_core::ecs::components::Dead;
+        let mut data = make_store();
+        let bytes = std::fs::read(concat!(env!("HUMANITY_REPO_ROOT"), "/data/containers/fluids.ron")).unwrap();
+        data.insert("fluid_table", crate::fluids::FluidTable::from_ron(&bytes).unwrap());
+        let mut sys = FoodSystem::new(data_dir());
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("water_bottle_0", 1, 99);
+        inv.add_item("bread_0", 1, 99);
+        let dead = Dead { cause: "dehydration".to_string(), ..Default::default() };
+        let body = world.spawn((inv, vitals(20.0, 20.0), StatusEffects::default(), Health { current: 0.0, max: 100.0 }, dead));
+        *data.get::<std::sync::Mutex<Option<String>>>("consume_request").unwrap().lock().unwrap() = Some("bread_0".to_string());
+        *data.get::<std::sync::Mutex<Option<String>>>("drink_request").unwrap().lock().unwrap() = Some("water_bottle_0".to_string());
+        sys.tick(&mut world, 1.0, &data);
+        {
+            let inv = world.get::<&Inventory>(body).unwrap();
+            assert_eq!(inv.count_item("bread_0"), 1, "the bread is still in the dead body's pack");
+            assert_eq!(inv.count_item("water_bottle_0"), 1, "the bottle is still in the dead body's pack");
+            assert_eq!(inv.count_item("water_bottle_empty_0"), 0, "no empty bottle handed back: nothing was drunk");
+            let v = world.get::<&Vitals>(body).unwrap();
+            assert!(v.satiation <= 20.0 && v.hydration <= 20.0, "a dead body's meters do not rise: {} / {}", v.satiation, v.hydration);
+        }
+        for slot in ["consume_request", "drink_request"] {
+            assert!(data.get::<std::sync::Mutex<Option<String>>>(slot).unwrap().lock().unwrap().is_none(), "{slot} was taken, not kept for later");
+        }
+        // Alive again (a respawn takes `Dead` away), the same request is eaten.
+        world.remove_one::<Dead>(body).unwrap();
+        *data.get::<std::sync::Mutex<Option<String>>>("consume_request").unwrap().lock().unwrap() = Some("bread_0".to_string());
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(world.get::<&Inventory>(body).unwrap().count_item("bread_0"), 0, "a living body eats it");
     }
 
     /// Drinking a bottle hands the empty bottle back (2026-09-26): the vessel

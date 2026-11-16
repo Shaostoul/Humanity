@@ -315,24 +315,12 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
         // The protected setup's PIN prompt, while a locked action waits for it (step G).
         crate::gui::pages::safety_protected::draw_pin_prompt(ctx, &state.theme, &mut state.gui_state);
 
-        // Planet info tooltip when targeting a hologram pin
+        // The planet card when targeting a hologram pin: painted on the tooltip layer, so it
+        // takes no click (gui/pages/hud_planet_card.rs). Data-driven (infinite-of-X): the body
+        // table lives in data/planets/tooltips.json, not a match arm here.
         if let Some(ref planet_name) = state.targeted_planet {
-            crate::gui::layers::area(ctx, egui::Id::new("planet_info_tooltip"), crate::gui::layers::Layer::Tooltip)
-                .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -60.0))
-                .show(ctx, |ui| {
-                    egui::Frame::popup(ui.style())
-                        .inner_margin(egui::Margin::same(12))
-                        .show(ui, |ui| {
-                            ui.heading(planet_name);
-                            ui.separator();
-                            // Data-driven (infinite-of-X): the body table lives in
-                            // data/planets/tooltips.json, not a match arm here.
-                            let (resources, status) =
-                                planet_tooltip_info(planet_name);
-                            ui.label(format!("Resources: {resources}"));
-                            ui.label(format!("Status: {status}"));
-                        });
-                });
+            let (resources, status) = planet_tooltip_info(planet_name);
+            hud::planet_card::draw(ctx, &state.theme, planet_name, &resources, &status);
         }
 
         // Crosshair (small dot at screen center when in game,

@@ -2135,6 +2135,31 @@ window.HOS_I18N_EN = {
     "storage_not_here_away": "away from your home you craft from what you carry",
     "storage_not_here_guest": "your home is not on this ship, so its storage does not count"
   },
+  "diagnostics": {
+    "background": "bg {{host}}",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "entities": "Entities",
+    "fps": "FPS",
+    "frame": "Frame",
+    "gravity": "Gravity",
+    "lights": "Lights",
+    "link_connecting": "connecting",
+    "link_down": "down",
+    "link_line": "{{link}} / {{n}} in",
+    "link_up": "up",
+    "members": "Members",
+    "msgs_in": "Msgs in",
+    "network": "Network",
+    "no_server": "(none)",
+    "performance": "Performance",
+    "ram": "RAM",
+    "server": "Server",
+    "status": "Status",
+    "system": "System",
+    "uptime": "Uptime",
+    "version": "Version"
+  },
   "donate": {
     "title": "Donate",
     "page_title": "Donate, HumanityOS",
@@ -3877,6 +3902,10 @@ window.HOS_I18N_EN = {
     "licence_banner": "HumanityOS is free and open source. Use it, change it, share it, sell it; a changed copy stays open for everyone.",
     "source_licence": "The code is free and open source under the [[AGPL]] 3.0 or later, the Library and docs under [[CC BY-SA]] 4.0, and the data under [[CC0]]. Clone, build, verify:"
   },
+  "drop_files": {
+    "and_more": "and {{n}} more",
+    "folder": "Folder"
+  },
   "files": {
     "places": {
       "label": "Places",
@@ -3920,6 +3949,8 @@ window.HOS_I18N_EN = {
     }
   },
   "hud": {
+    "planet_resources": "Resources: {{resources}}",
+    "planet_status": "Status: {{status}}",
     "room_here": "Here: {{actions}}"
   },
   "play": {

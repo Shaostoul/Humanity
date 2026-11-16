@@ -690,32 +690,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
                         thorn_rect_for_msg.center().y,
                     );
                     let full_ts = format_full_timestamp(msg.timestamp_ms);
-                    // A tooltip (layer 1): it takes no click.
-                    crate::gui::layers::area(ui.ctx(), egui::Id::new(("pill_ts_expand", msg.timestamp_ms)), crate::gui::layers::Layer::Tooltip)
-                        .fixed_pos(ts_overlay_pos)
-                        .pivot(egui::Align2::RIGHT_CENTER)
-                        .interactable(false)
-                        .show(ui.ctx(), |ui| {
-                            Frame::NONE
-                                .fill(theme.bg_card())
-                                .stroke(Stroke::new(1.0_f32, theme.border()))
-                                .corner_radius(CornerRadius::same(8))
-                                .inner_margin(egui::Margin::symmetric(8, 4))
-                                .shadow(egui::epaint::Shadow {
-                                    offset: [1, 2],
-                                    blur: 6,
-                                    spread: 0,
-                                    color: Color32::from_black_alpha(80),
-                                })
-                                .show(ui, |ui| {
-                                    ui.label(
-                                        RichText::new(full_ts)
-                                            .size(theme.small_size)
-                                            .color(theme.text_secondary())
-                                            .monospace(),
-                                    );
-                                });
-                        });
+                    draw_full_timestamp(ui.ctx(), theme, egui::Id::new(("pill_ts_expand", msg.timestamp_ms)), ts_overlay_pos, &full_ts);
                 }
 
                 let overlay_pos = egui::pos2(
@@ -1096,4 +1071,22 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
             }
         }
     }
+}
+
+/// The full timestamp (YYYY-MM-DD HH:MM:SS UTC) beside a message's pull tab, its right middle at
+/// `right_center`; where it stood. A tooltip (layer 1), so it takes no click: PAINTED
+/// (`widgets::painted_card`, 2026-11-15). As the egui Area it was it took the click of whatever
+/// stood under it, the name or a link in the pill while the reaction popup was open (the BUG-316
+/// class). The website's `.pill-ts-expand` takes no pointer the same way.
+pub(crate) fn draw_full_timestamp(ctx: &egui::Context, theme: &Theme, id: egui::Id, right_center: egui::Pos2, full_ts: &str) -> egui::Rect {
+    use crate::gui::widgets::painted_card::{PaintedCard, Place, Words};
+    let frame = Frame::NONE
+        .fill(theme.bg_card())
+        .stroke(Stroke::new(1.0_f32, theme.border()))
+        .corner_radius(CornerRadius::same(8))
+        .inner_margin(egui::Margin::symmetric(8, 4))
+        .shadow(egui::epaint::Shadow { offset: [1, 2], blur: 6, spread: 0, color: Color32::from_black_alpha(80) });
+    PaintedCard::new(frame)
+        .text(Words::new(full_ts, egui::FontId::monospace(theme.small_size), theme.text_secondary()))
+        .paint(ctx, id, crate::gui::layers::Layer::Tooltip, Place::At(right_center, egui::Align2::RIGHT_CENTER))
 }

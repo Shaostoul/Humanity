@@ -363,24 +363,26 @@ pub(crate) const TIP_ABOVE_LAST: &str = "tip_above_last_rect";
 
 /// A hover tip opened above a bar (`Button::tooltip_above`): shown after egui's own tooltip
 /// delay once the pointer rests on the button, its bottom-left corner just above the bar's top
-/// edge at the button's left, kept on screen, and never taking the pointer.
+/// edge at the button's left, kept on screen, and never taking the pointer: it is PAINTED
+/// (`widgets::painted_card`, 2026-11-15), because an egui Area there took the click of whatever
+/// stood under it for the frame the pointer left the button (the BUG-316 class).
 fn show_tip_above(ui: &Ui, response: &egui::Response, text: &str, bar_top: f32) {
     let rested = ui.input(|i| i.pointer.time_since_last_movement() >= ui.style().interaction.tooltip_delay && !i.pointer.any_down());
     if !response.hovered() || !rested {
         return;
     }
-    let shown = crate::gui::layers::area(ui.ctx(), response.id.with("tip_above"), crate::gui::layers::Layer::Tooltip)
-        .pivot(egui::Align2::LEFT_BOTTOM)
-        .fixed_pos(egui::pos2(response.rect.left(), bar_top - 4.0))
-        .interactable(false)
-        .constrain(true)
-        .show(ui.ctx(), |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_max_width(ui.spacing().tooltip_width);
-                ui.label(text);
-            });
-        });
-    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(TIP_ABOVE_LAST), shown.response.rect));
+    let style = ui.style();
+    let body = egui::TextStyle::Body.resolve(style);
+    let shown = super::painted_card::PaintedCard::new(egui::Frame::popup(style))
+        .max_width(style.spacing.tooltip_width)
+        .text(super::painted_card::Words::new(text, body, style.visuals.text_color()))
+        .paint(
+            ui.ctx(),
+            response.id.with("tip_above"),
+            crate::gui::layers::Layer::Tooltip,
+            super::painted_card::Place::At(egui::pos2(response.rect.left(), bar_top - 4.0), egui::Align2::LEFT_BOTTOM),
+        );
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(TIP_ABOVE_LAST), shown));
 }
 
 // ─── Backward-compatibility free functions ──────────────────────────────

@@ -48,7 +48,10 @@
 //!   drop-downs included. It never takes the popup's typing: an urgent card asks for no keyboard
 //!   focus, and Back and Escape never close it; it is answered by its own buttons. Its band is at
 //!   the top centre, under the menus ([`urgent_top`]).
-//! - **1 is Tooltip**: nothing there takes a click.
+//! - **1 is Tooltip**: nothing there takes a click, so everything there is PAINTED ([`painter`],
+//!   `widgets::painted_card` for a card of words): egui gives every Area a widget rect that takes
+//!   the click of whatever is under it, `interactable(false)` or not (BUG-316 and its follow-up,
+//!   2026-11-15). `tests/layer_lint.rs` refuses an [`area`] or a [`window`] on `Layer::Tooltip`.
 //!
 //! EVERY SURFACE PICKS ITS LAYER HERE: [`area`], [`window`] and [`painter`] build egui's Area,
 //! Window and a painter on the layer named, and [`shade`] with [`seat`] make a full-screen popup.
@@ -75,7 +78,8 @@ use egui::{Color32, Context, Id, LayerId, Order};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Layer {
     /// 1: tooltips, hints and toasts. They never take a click, which holds only for what is PAINTED
-    /// here ([`painter`]): an Area here still takes the click of whatever is under it (BUG-316).
+    /// here ([`painter`], `widgets::painted_card`): an Area here still takes the click of whatever
+    /// is under it (BUG-316), so `tests/layer_lint.rs` refuses one.
     Tooltip,
     /// 2: urgent: an incoming call and the call's own bar, an emergency alert.
     Urgent,
@@ -500,3 +504,7 @@ fn plan(current: &[LayerId], forced: &[LayerId], key: impl Fn(LayerId) -> (u8, u
 #[cfg(test)]
 #[path = "layers_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tooltip_click_tests.rs"]
+mod tooltip_click_tests;

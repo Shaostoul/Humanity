@@ -421,7 +421,11 @@ the plan above:
   included, and its hit test stops at the topmost layer with a widget over the pointer, so an Area
   on layer 1 takes the click of whatever is under it. The toasts were Areas, and a pile of them
   stood on the first-run privacy window's button; they are painted since (`layers::painter`, as
-  the HUD since BUG-076). The planet card and the F2/F3/F4 readouts are still Areas (a follow-up).
+  the HUD since BUG-076). The follow-up the same day painted the rest (`widgets::painted_card`):
+  the planet card, the F2/F3/F4 readouts, the drop overlay's card and the drop note, the pill's full
+  time and the tip above a bar, each keeping what it shows and where; `tests/layer_lint.rs` now
+  refuses an Area or a Window on `Layer::Tooltip`, and `gui/tooltip_click_tests.rs` presses a
+  button through each one.
 - Notices wait while a popup asks for a decision (BUG-316): the world's words (`world_notice`)
   are held while the privacy choice, the passphrase at start or the death screen is open
   (`layers::deciding`, read once a frame into `GuiState::decision_open`), and the same words are

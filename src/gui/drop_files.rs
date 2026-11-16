@@ -31,7 +31,9 @@
 
 use crate::gui::theme::Theme;
 use crate::gui::GuiState;
-use egui::{Align2, Color32, Id, RichText};
+use crate::gui::widgets::painted_card::{PaintedCard, Place, Words};
+use egui::{Align2, Color32, FontId, Id};
+use humanity_core::i18n::{t, tf};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -203,57 +205,71 @@ pub fn note_now(ctx: &egui::Context) -> Option<String> {
 fn draw_overlay(ctx: &egui::Context, theme: &Theme, words: &str, takes: bool, over: &[PathBuf]) {
     let screen = ctx.screen_rect();
     // The note while files are dragged over the window is a tooltip of the whole app (layer 1,
-    // gui/layers.rs): over everything, and it takes no click (the drag goes on).
-    crate::gui::layers::painter(ctx, Id::new("hos_drop_overlay_dim"), crate::gui::layers::Layer::Tooltip).rect_filled(screen, 0.0, Color32::from_black_alpha(160)); // theme-exempt: the dialogs' own dimming (widgets/dialog.rs)
+    // gui/layers.rs): over everything, and it takes no click (the drag goes on). So the card is
+    // PAINTED (2026-11-15, the BUG-316 class: as an egui Area it took the click under it), on the
+    // dim's own layer, after it: painters on separate layer ids have no order inside one egui
+    // order, so a card on a layer of its own could be drawn under the dim.
+    let id = Id::new("hos_drop_overlay_card");
+    let painter = crate::gui::layers::painter(ctx, id, crate::gui::layers::Layer::Tooltip);
+    painter.rect_filled(screen, 0.0, Color32::from_black_alpha(160)); // theme-exempt: the dialogs' own dimming (widgets/dialog.rs)
     let edge = if takes { theme.accent() } else { theme.warning() };
-    crate::gui::layers::area(ctx, Id::new("hos_drop_overlay_card"), crate::gui::layers::Layer::Tooltip)
-        .anchor(Align2::CENTER_CENTER, egui::Vec2::ZERO)
-        .interactable(false)
-        .show(ctx, |ui| {
-            egui::Frame::NONE
-                .fill(theme.bg_card())
-                .stroke(egui::Stroke::new(2.0_f32, edge))
-                .corner_radius(egui::CornerRadius::same(theme.border_radius_lg as u8))
-                .inner_margin(egui::Margin::same((theme.spacing_lg) as i8))
-                .show(ui, |ui| {
-                    ui.set_max_width(560.0);
-                    ui.label(RichText::new(words).size(theme.font_size_heading).color(theme.text_primary()).strong());
-                    ui.add_space(theme.spacing_sm);
-                    for p in over.iter().take(NAMES_SHOWN) {
-                        let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                        ui.horizontal(|ui| {
-                            if p.is_dir() {
-                                ui.label(RichText::new("Folder").size(theme.font_size_small).color(theme.text_muted()));
-                            } else {
-                                crate::gui::widgets::file_badge::show(ui, theme, &crate::net::file_risk::file_type(&name, None));
-                            }
-                            ui.label(RichText::new(name).size(theme.font_size_small).color(theme.text_secondary()));
-                        });
-                    }
-                    if over.len() > NAMES_SHOWN {
-                        ui.label(RichText::new(format!("and {} more", over.len() - NAMES_SHOWN)).size(theme.font_size_small).color(theme.text_muted()));
-                    }
-                });
+    let small = FontId::proportional(theme.font_size_small);
+    let gap = ctx.style().spacing.item_spacing.x;
+    let row_min = ctx.style().spacing.interact_size.y;
+    let frame = egui::Frame::NONE
+        .fill(theme.bg_card())
+        .stroke(egui::Stroke::new(2.0_f32, edge))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius_lg as u8))
+        .inner_margin(egui::Margin::same((theme.spacing_lg) as i8));
+    let mut card = PaintedCard::new(frame)
+        .max_width(560.0)
+        .text(Words::new(words, FontId::proportional(theme.font_size_heading), theme.text_primary()))
+        .space(theme.spacing_sm);
+    for p in over.iter().take(NAMES_SHOWN) {
+        let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        // The kind on the left (a file's badge, widgets/file_badge.rs, or the word "Folder"), the
+        // name beside it, as one row.
+        let badge = (!p.is_dir()).then(|| crate::net::file_risk::file_type(&name, None));
+        let folder = badge.is_none().then(|| painter.layout_no_wrap(t("drop_files.folder").to_string(), small.clone(), theme.text_muted()));
+        let lead = match (&badge, &folder) {
+            (Some(b), _) => crate::gui::widgets::file_badge::measure(&painter, theme, b),
+            (None, Some(f)) => f.size(),
+            (None, None) => egui::Vec2::ZERO,
+        };
+        let name = painter.layout_no_wrap(name, small.clone(), theme.text_secondary());
+        let size = egui::vec2(lead.x + gap + name.size().x, lead.y.max(name.size().y).max(row_min));
+        card = card.block(size, move |p, rect| {
+            let lead_at = egui::pos2(rect.left(), rect.center().y - lead.y / 2.0);
+            match (badge, folder) {
+                (Some(b), _) => {
+                    crate::gui::widgets::file_badge::paint(p, theme, &b, lead_at);
+                }
+                (None, Some(f)) => p.galley(lead_at, f, Color32::PLACEHOLDER),
+                (None, None) => {}
+            }
+            p.galley(egui::pos2(rect.left() + lead.x + gap, rect.center().y - name.size().y / 2.0), name, Color32::PLACEHOLDER);
         });
+    }
+    if over.len() > NAMES_SHOWN {
+        let more = tf("drop_files.and_more", &[("n", &(over.len() - NAMES_SHOWN))]);
+        card = card.text(Words::new(more, small, theme.text_muted()));
+    }
+    card.paint(ctx, id, crate::gui::layers::Layer::Tooltip, Place::Anchor(Align2::CENTER_CENTER, egui::Vec2::ZERO));
 }
 
-/// The note a drop left, at the top of the window, while it lasts.
+/// The note a drop left, at the top of the window, while it lasts. Painted, taking no click
+/// (2026-11-15, the BUG-316 class): for 5 s it stands over the top of the window.
 fn draw_note(ctx: &egui::Context, theme: &Theme) {
     let Some(words) = note_now(ctx) else { return };
-    crate::gui::layers::area(ctx, Id::new("hos_drop_note"), crate::gui::layers::Layer::Tooltip)
-        .anchor(Align2::CENTER_TOP, egui::vec2(0.0, 48.0))
-        .interactable(false)
-        .show(ctx, |ui| {
-            egui::Frame::NONE
-                .fill(theme.bg_card())
-                .stroke(egui::Stroke::new(1.0_f32, theme.warning()))
-                .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
-                .inner_margin(egui::Margin::symmetric(12, 8))
-                .show(ui, |ui| {
-                    ui.set_max_width(560.0);
-                    ui.label(RichText::new(words).size(theme.font_size_body).color(theme.text_primary()));
-                });
-        });
+    let frame = egui::Frame::NONE
+        .fill(theme.bg_card())
+        .stroke(egui::Stroke::new(1.0_f32, theme.warning()))
+        .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
+        .inner_margin(egui::Margin::symmetric(12, 8));
+    PaintedCard::new(frame)
+        .max_width(560.0)
+        .text(Words::new(words, FontId::proportional(theme.font_size_body), theme.text_primary()))
+        .paint(ctx, Id::new("hos_drop_note"), crate::gui::layers::Layer::Tooltip, Place::Anchor(Align2::CENTER_TOP, egui::vec2(0.0, 48.0)));
     ctx.request_repaint_after(std::time::Duration::from_millis(250));
 }
 

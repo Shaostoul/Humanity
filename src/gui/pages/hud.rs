@@ -7,6 +7,10 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::updater::UpdateState;
 
+/// The planet card over a targeted hologram pin (painted, takes no click; 2026-11-15).
+#[path = "hud_planet_card.rs"]
+pub mod planet_card;
+
 /// What the death screen says under the cause (2026-10-04, the Death setting, the operator's
 /// decision; engine/death_pack.rs). Simplified: nothing was lost, the words it always said.
 /// Realistic: what stayed behind in the pack, where it lies (and, when the player fell where

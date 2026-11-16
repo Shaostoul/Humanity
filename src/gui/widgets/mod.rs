@@ -95,6 +95,10 @@ pub mod notice_bell;
 /// The in-world notice banner (rung 2, part 2): a short banner at the top of the screen while
 /// playing, painted inside the HUD. See `widgets/notice_banner.rs`.
 pub mod notice_banner;
+/// A card PAINTED on a layer, taking no click (2026-11-15, BUG-316's follow-up): the F2/F3/F4
+/// readouts, the planet card, the drop notes and the hover tips over a bar. See
+/// `widgets/painted_card.rs`.
+pub mod painted_card;
 
 use egui::{Color32, Rect, RichText, CornerRadius, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
