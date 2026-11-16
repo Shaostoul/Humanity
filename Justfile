@@ -14,13 +14,19 @@
 #   just bump           Bump version (patch/minor/major)
 # ─────────────────────────────────────────────────────────────────────────────
 
-set shell := ["C:/Apps/Git/usr/bin/bash.exe", "-c"]
+# bash everywhere. On Windows, Git for Windows' bash by its full path (a bare "bash" there can be
+# WSL's); edit this line if Git is installed elsewhere. macOS and Linux use their own bash
+# (2026-11-16: the Windows path alone stopped every recipe off this machine, a contributor found).
+set shell := ["bash", "-c"]
+set windows-shell := ["C:/Apps/Git/usr/bin/bash.exe", "-c"]
 
 # Git's own tools first on the search path (2026-11-07). Started from PowerShell, the bash above
 # inherits the Windows PATH, which does not hold Git's usr\bin, so sed, grep, head and the rest
 # were "command not found" (`just mine` failed for the operator). From Git Bash they were already
 # there, which is why it only broke in his terminal.
-export PATH := "C:\\Apps\\Git\\usr\\bin;" + env_var('PATH')
+# Windows only: elsewhere PATH is kept as it is (a ";" there would fuse the first real folder into a
+# junk entry). HOS_GIT_USR_BIN overrides the folder for a Git installed elsewhere.
+export PATH := if os_family() == "windows" { env_var_or_default('HOS_GIT_USR_BIN', "C:\\Apps\\Git\\usr\\bin") + ";" + env_var('PATH') } else { env_var('PATH') }
 
 # List all recipes
 default:
