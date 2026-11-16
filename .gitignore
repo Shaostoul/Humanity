@@ -132,3 +132,9 @@ node.env
 
 # Agents' handoff notes at a usage cap or a restart (2026-10-22): working state, never committed
 .claude/handoff/
+
+# Claude Code's per-person approvals (2026-11-16): "local" settings are one person's, and a tracked copy
+# silently pre-approved commands (gh release, curl, ssh to the project's servers) for anyone who ran Claude
+# Code in a clone, as a contributor pointed out. The shared, reviewable setup stays tracked:
+# .claude/settings.json (the safety hooks), .claude/agents/, .claude/skills/, .claude/workflows/, CLAUDE.md.
+.claude/settings.local.json
