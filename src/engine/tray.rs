@@ -362,7 +362,7 @@ fn poll_dev_request(state: &mut EngineState) {
         "allowed": allowed(),
         "icon_shown": state.tray.shown(),
         "hidden": state.tray.hidden,
-        "visible": state.window.is_visible(),
+        "visible": gpu!(state).window.is_visible(),
         "ms_since_last_frame": state.last_frame.elapsed().as_millis() as u64,
         "world_loaded": state.world_loaded,
         "page": format!("{:?}", state.gui_state.active_page),

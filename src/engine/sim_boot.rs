@@ -510,6 +510,18 @@ pub(crate) fn starter_vehicles(game_world: &mut GameWorld, data_store: &DataStor
     }
 }
 
+/// Home storage at the start: the places the live save's start holds (`save_load::start_places`, a
+/// cabin its own, data/homes/starts.ron) and the Inventory's pool seeded from them (every leaf item
+/// tagged with its container path). A save that keeps its progress replaces the pool afterwards
+/// (`apply_home_save`, `save_load::after_resume`). Moved from lib.rs `resumed` (the headless sim
+/// runner's increment 4, 2026-11-15) so the windowed game and the headless homestead start with
+/// the same stores: before, only the windowed GUI loaded them, and a soak's home storage was empty.
+pub(crate) fn seed_home_storage(gui_state: &mut crate::gui::GuiState, data_dir: &std::path::Path) {
+    gui_state.places = crate::save_load::start_places(data_dir, &humanity_systems::persistence::live_save::active_home().start);
+    // The live backpack stays ECS-driven (restored separately by apply_save_to_world).
+    gui_state.placed_items = crate::gui::flatten_placed_items(&gui_state.places);
+}
+
 /// The save's progress, applied once the settings have landed (lib.rs `resumed`, after the
 /// config is applied to the GUI state): the clock held, the save's world, the character's own
 /// home, and the time-away catch-up. Moved verbatim from lib.rs (2026-11-15).

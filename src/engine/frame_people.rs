@@ -33,12 +33,14 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             // (and the hair, the same mesh stretched) is figure_head_mesh_data:
             // the engine's sphere at the finer 16 x 24 the hair needs.
             use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
-            let body = state.renderer.add_mesh(
-                Mesh::box_xyz(&state.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));
+            let gpu = gpu!(state);
+            let body = gpu.renderer.add_mesh(
+                Mesh::box_xyz(&gpu.renderer.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));
             let (hv, hi) = crate::engine::net_route::figure_head_mesh_data(FIGURE_HEAD_MESH_R_M);
-            let head = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &hv, &hi));
+            let gpu = gpu!(state);
+            let head = gpu.renderer.add_mesh(Mesh::from_vertices(&gpu.renderer.device, &hv, &hi));
             // Teal, slightly emissive so a remote player reads at a glance.
-            let mat = state.renderer.add_material_full(
+            let mat = gpu!(state).renderer.add_material_full(
                 [0.15, 0.75, 0.85, 1.0], 0.0, 0.5, 1.0, 0.25);
             state.remote_avatar = Some((body, head, mat));
         }
@@ -60,9 +62,9 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 let look_mats = r.look.as_ref().map(|l| {
                     let key = crate::engine::net_route::look_material_key(l);
                     *state.remote_look_materials.entry(key).or_insert_with(|| {
-                        let skin = state.renderer.add_material_full(
+                        let skin = gpu!(state).renderer.add_material_full(
                             [l.skin[0], l.skin[1], l.skin[2], 1.0], 0.0, 0.6, 1.0, 0.1);
-                        let hair = state.renderer.add_material_full(
+                        let hair = gpu!(state).renderer.add_material_full(
                             [l.hair[0], l.hair[1], l.hair[2], 1.0], 0.0, 0.8, 1.0, 0.0);
                         (skin, hair)
                     })
@@ -95,7 +97,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             if let Some((body, head, _)) = state.remote_avatar {
                 // Amber, slightly emissive, so crew read distinctly from
                 // the teal remote players at a glance.
-                let mat = state.renderer.add_material_full(
+                let mat = gpu!(state).renderer.add_material_full(
                     [0.92, 0.62, 0.18, 1.0], 0.0, 0.55, 1.0, 0.22);
                 state.remote_npc_avatar = Some((body, head, mat));
             }

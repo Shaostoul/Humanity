@@ -110,10 +110,10 @@ pub(crate) fn machine_body_slots(draw: &mut HomeDraw, need: usize, fresh: impl F
 /// `machine_body_slots` against the renderer: the slots for `need` machine bodies, a fresh one
 /// holding a stand-in until it is filled, and every slot let go parked (its mesh freed).
 pub(crate) fn take_machine_slots(state: &mut EngineState, need: usize) -> Vec<Slot> {
-    let renderer = &mut state.renderer;
+    let renderer = &mut gpu!(state).renderer;
     let (slots, idle) = machine_body_slots(&mut state.home_draw, need, || new_slot(renderer));
     for s in idle {
-        park_slot(&mut state.renderer, s);
+        park_slot(&mut gpu!(state).renderer, s);
     }
     slots
 }
@@ -237,9 +237,9 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
         held(state.homestead_ceiling_opaque),
         held(state.homestead_roof_frame),
     ];
-    let renderer = &mut state.renderer;
+    let renderer = &mut gpu!(state).renderer;
     let (slots, idle) = assign_slots(&mut state.home_draw.spare, prior.into_iter().zip(needs).collect(), || new_slot(renderer));
-    let r = &mut state.renderer;
+    let r = &mut gpu!(state).renderer;
     for s in idle {
         park_slot(r, s);
     }
@@ -304,7 +304,7 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: humanit
     } else {
         opaque_look
     };
-    let r = &mut state.renderer;
+    let r = &mut gpu!(state).renderer;
     state.homestead_ceiling = fill_one(r, &ceiling_s, &homestead.ceilings, ceiling_look);
     // OPAQUE-roof zones' ceilings (v0.754): their own slot with the same opaque material the
     // single opaque roof used, rendered only when show_roof is on (see the render loop).
@@ -344,16 +344,16 @@ pub(crate) fn rebuild_hull(state: &mut EngineState) {
     };
     let prior: Vec<Slot> = state.homestead_hull.into_iter().collect();
     let need = usize::from(!meshes.plating.0.is_empty());
-    let renderer = &mut state.renderer;
+    let renderer = &mut gpu!(state).renderer;
     let (slots, idle) = assign_slots(&mut state.home_draw.spare, vec![(prior, need)], || new_slot(renderer));
     for s in idle {
-        park_slot(&mut state.renderer, s);
+        park_slot(&mut gpu!(state).renderer, s);
     }
     // Hull plating colors from the same wall-material palette as zone shells, so the
     // profile's `material` id means the same thing everywhere.
     let mat_id = state.hull_profile.as_ref().map_or(1, |p| p.material);
     let color = humanity_ship::home_structure::HomeStructure::material_color(mat_id);
-    state.homestead_hull = fill_one(&mut state.renderer, &slots[0], &meshes.plating, (color, 0.35, 0.55, mat_id as f32, 0.0));
+    state.homestead_hull = fill_one(&mut gpu!(state).renderer, &slots[0], &meshes.plating, (color, 0.35, 0.55, mat_id as f32, 0.0));
 }
 
 /// Regenerate the homestead meshes from the live layout (the construction editor's apply).
@@ -1044,7 +1044,7 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
                 });
                 match read {
                     Ok((cpu, tex)) => {
-                        let mesh = crate::renderer::mesh::Mesh::from_vertices(&state.renderer.device, &cpu.vertices, &cpu.indices);
+                        let mesh = crate::renderer::mesh::Mesh::from_vertices(&gpu!(state).renderer.device, &cpu.vertices, &cpu.indices);
                         model_tex = tex.clone();
                         model_path = Some(m.to_string());
                         // Each instance owns its mesh (above), so each one counts.
@@ -1059,7 +1059,7 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
             })
             .unwrap_or_else(|| {
                 let ty = type_by_id.get(&p.id).map_or("", String::as_str);
-                machine_body_mesh(&state.renderer.device, &state.gui_state.grow_media, ty, &p.shape, p.size)
+                machine_body_mesh(&gpu!(state).renderer.device, &state.gui_state.grow_media, ty, &p.shape, p.size)
             });
         // Shared textured material per model path, created once: instances of the same model
         // share it, so the slot-reuse path never repaints it. The one time its picture changes
@@ -1075,12 +1075,12 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
                 Some(match state.machine_model_materials.get(mp).copied() {
                     Some((ma, drawn_at)) if crate::engine::home_reuse::model_material_kept(drawn_at, divisor, reuse) => ma,
                     Some((ma, _)) => {
-                        state.renderer.set_material_albedo_texture(ma, &rgba, w, h);
+                        gpu!(state).renderer.set_material_albedo_texture(ma, &rgba, w, h);
                         state.machine_model_materials.insert(mp.clone(), (ma, divisor));
                         ma
                     }
                     None => {
-                        let ma = state.renderer.add_textured_material(
+                        let ma = gpu!(state).renderer.add_textured_material(
                             [1.0, 1.0, 1.0, 1.0],
                             0.0,
                             0.85,
@@ -1139,11 +1139,11 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
         // material painted unless the model's shared textured material draws it. A slot's own
         // material is never a shared one, so painting it can never repaint a sibling.
         let (mi, own_ma) = slots[i];
-        state.renderer.replace_mesh(mi, mesh);
+        gpu!(state).renderer.replace_mesh(mi, mesh);
         let use_ma = match textured_mat {
             Some(tm) => tm,
             None => {
-                state.renderer.update_material_typed(own_ma, color, 0.1, 0.7, 0.0);
+                gpu!(state).renderer.update_material_typed(own_ma, color, 0.1, 0.7, 0.0);
                 own_ma
             }
         };
@@ -1178,7 +1178,7 @@ pub(crate) fn build_machine_bodies(state: &mut EngineState, placements: &[humani
     if divisor == 0 {
         for (ma, drawn_at) in state.machine_model_materials.values_mut() {
             if *drawn_at != 0 {
-                state.renderer.set_material_albedo_texture(*ma, &[255, 255, 255, 255], 1, 1);
+                gpu!(state).renderer.set_material_albedo_texture(*ma, &[255, 255, 255, 255], 1, 1);
                 *drawn_at = 0;
             }
         }
@@ -1365,7 +1365,7 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
     // The neighbours' gardens are planned with the rest: a ship loaded after the first plan, and
     // the showcase switch that turns them off, plan again (`neighbour_gardens::jobs`).
     crate::engine::neighbour_gardens::neighbour_kinds(state.gui_state.ship_structure.as_ref()).hash(&mut h);
-    state.renderer.room_gi.neighbours_off.hash(&mut h);
+    gpu!(state).renderer.room_gi.neighbours_off.hash(&mut h);
     crate::engine::neighbour_gardens::prepare(state);
     let sig = h.finish().max(1);
     // The reuse switch off (2026-11-13): on its schedule the whole garden is built again, every
@@ -1556,13 +1556,13 @@ fn plan_plant_groups(state: &mut EngineState, pass: &mut PlantPass, forced: bool
         // base_color as a planet centre and switched direct sun off across
         // half of every garden, and (b) have somewhere to grow close-range
         // leaf/fruit detail. See assets/shaders/pbr/90-fragment-main.wgsl.
-        pass.material = Some(state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 20.0));
+        pass.material = Some(gpu!(state).renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 20.0));
     }
     if pass.rigid_material.is_none() {
         // The same type-20 look, flagged RIGID (2026-09-27): a mushroom
         // rack's blocks, beds and fruit stand in the still air of their
         // tent and must not sway with the wind the way leaves do.
-        pass.rigid_material = Some(state.renderer.add_material_full(
+        pass.rigid_material = Some(gpu!(state).renderer.add_material_full(
             [1.0, 1.0, 1.0, 1.0],
             0.0,
             0.9,
@@ -1913,13 +1913,13 @@ fn upload_plant_group(
         verts += mesh_b.vertices.len();
         bytes += (std::mem::size_of_val(mesh_b.vertices.as_slice()) + std::mem::size_of_val(mesh_b.indices.as_slice()))
             as u64;
-        let mesh = Mesh::from_vertices(&state.renderer.device, &mesh_b.vertices, &mesh_b.indices);
+        let mesh = Mesh::from_vertices(&gpu!(state).renderer.device, &mesh_b.vertices, &mesh_b.indices);
         let mi = match old_slots.pop().map(|(mi, _)| mi).or_else(|| pass.spare.pop()) {
             Some(mi) => {
-                state.renderer.replace_mesh(mi, mesh);
+                gpu!(state).renderer.replace_mesh(mi, mesh);
                 mi
             }
-            None => state.renderer.add_mesh(mesh),
+            None => gpu!(state).renderer.add_mesh(mesh),
         };
         slots_now.push((mi, material));
     }
@@ -1966,8 +1966,8 @@ fn finish_plant_batch(state: &EngineState, pass: &mut PlantPass) {
 /// Without the swap a slot let go kept its last vertices until it was reused
 /// (one rice tray plot at its last stage is about 4 MB).
 fn release_plant_slot(state: &mut EngineState, pass: &mut PlantPass, mi: usize) {
-    let stub = stand_in_mesh(&state.renderer.device);
-    state.renderer.replace_mesh(mi, stub);
+    let stub = stand_in_mesh(&gpu!(state).renderer.device);
+    gpu!(state).renderer.replace_mesh(mi, stub);
     pass.spare.push(mi);
 }
 
@@ -2417,8 +2417,8 @@ const CROP_LEAF_LIGHT: f32 = -2.0;
 
 fn stage_model_material(state: &mut EngineState, texture: Option<(Vec<u8>, u32, u32)>) -> usize {
     match texture {
-        Some((rgba, w, h)) => state.renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, CROP_LEAF_LIGHT, &rgba, w, h),
-        None => state.renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
+        Some((rgba, w, h)) => gpu!(state).renderer.add_textured_material([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 19.0, CROP_LEAF_LIGHT, &rgba, w, h),
+        None => gpu!(state).renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
     }
 }
 
@@ -2509,7 +2509,7 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, opaque: &mut Vec<Ren
         }
         let step = tent::roll_step(rolled);
         let specs = [tent::film_material(&t.cover.film), tent::seam_material(&t.cover), tent::fittings_material(&t.cover)];
-        let materials = specs.map(|spec| tent_part_material(&mut state.renderer, &mut state.garden_draw.tent_materials, spec, reuse));
+        let materials = specs.map(|spec| tent_part_material(&mut gpu!(state).renderer, &mut state.garden_draw.tent_materials, spec, reuse));
         let fresh = reuse && state.garden_draw.tent_meshes.get(&t.id).is_some_and(|m| m.step == step && m.built == *t);
         if !fresh {
             let g = tent::cover_geometry(t.size, &t.frame, &t.cover, step as f32 / 64.0);
@@ -2519,10 +2519,10 @@ pub(crate) fn push_grow_enclosures(state: &mut EngineState, opaque: &mut Vec<Ren
                 if !entry.drawn[k] {
                     continue;
                 }
-                let mesh = Mesh::from_vertices(&state.renderer.device, &v, &ix);
+                let mesh = Mesh::from_vertices(&gpu!(state).renderer.device, &v, &ix);
                 match entry.slots[k] {
-                    Some(slot) => state.renderer.replace_mesh(slot, mesh),
-                    None => entry.slots[k] = Some(state.renderer.add_mesh(mesh)),
+                    Some(slot) => gpu!(state).renderer.replace_mesh(slot, mesh),
+                    None => entry.slots[k] = Some(gpu!(state).renderer.add_mesh(mesh)),
                 }
             }
             entry.built = t.clone();
@@ -2980,7 +2980,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         for k in 0..16u32 {
             let h = k as f32 / 16.0;
             let (r, g, b) = hsv_to_rgb(h, 0.85, 1.0);
-            let m = state.renderer.add_material_full([r, g, b, 1.0], 0.0, 0.55, 0.0, 1.4);
+            let m = gpu!(state).renderer.add_material_full([r, g, b, 1.0], 0.0, 0.55, 0.0, 1.4);
             state.flow_rgb_mats.push(m);
         }
     }
@@ -2992,9 +2992,10 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
     let cyl = match state.connection_cyl {
         Some(m) => m,
         None => {
-            let m = state
+            let gpu = gpu!(state);
+            let m = gpu
                 .renderer
-                .add_mesh(Mesh::cylinder(&state.renderer.device, 0.05, 1.0, 8));
+                .add_mesh(Mesh::cylinder(&gpu.renderer.device, 0.05, 1.0, 8));
             state.connection_cyl = Some(m);
             m
         }
@@ -3031,7 +3032,8 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         // their flow markers (v0.623) while every other pipe stays a quiet static line.
         for part in parts.iter().filter(|p| p.len() >= 2) {
             if state.connection_flow_sphere.is_none() {
-                let s = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.10, 10, 10));
+                let gpu = gpu!(state);
+                let s = gpu.renderer.add_mesh(Mesh::sphere(&gpu.renderer.device, 0.10, 10, 10));
                 state.connection_flow_sphere = Some(s);
             }
             state.connection_flow_paths.push((part.clone(), from_id.clone(), to_id.clone()));
@@ -3046,7 +3048,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
         let pipe_mat = match state.connection_mats.get(&body.key) {
             Some(&m) => m,
             None => {
-                let m = state.renderer.add_material_full(body.linear, body.metallic, body.roughness, 0.0, 0.0);
+                let m = gpu!(state).renderer.add_material_full(body.linear, body.metallic, body.roughness, 0.0, 0.0);
                 state.connection_mats.insert(body.key.clone(), m);
                 m
             }
@@ -3088,7 +3090,7 @@ pub(crate) fn rebuild_connection_objects(state: &mut EngineState) {
                         3 => [0.52, 0.37, 0.22, 1.0], // wood
                         _ => [0.50, 0.52, 0.56, 1.0],
                     };
-                    let m = state.renderer.add_material_typed(col, 0.6, 0.4, f.material as f32);
+                    let m = gpu!(state).renderer.add_material_typed(col, 0.6, 0.4, f.material as f32);
                     state.connection_mats.insert(fkey.clone(), m);
                     m
                 }
@@ -3452,7 +3454,8 @@ pub(crate) fn render_door_panels(
     let mesh = match state.door_panel_mesh {
         Some(m) => m,
         None => {
-            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
             state.door_panel_mesh = Some(m);
             m
         }
@@ -3461,7 +3464,7 @@ pub(crate) fn render_door_panels(
         Some(m) => m,
         None => {
             // theme-exempt: world-object material, not a themed UI surface.
-            let m = state.renderer.add_material_typed([0.36, 0.38, 0.43, 1.0], 0.3, 0.5, 1.0);
+            let m = gpu!(state).renderer.add_material_typed([0.36, 0.38, 0.43, 1.0], 0.3, 0.5, 1.0);
             state.door_slab_mat = Some(m);
             m
         }
@@ -3470,7 +3473,7 @@ pub(crate) fn render_door_panels(
         Some(m) => m,
         None => {
             // theme-exempt: tinted glass, transparent pass.
-            let m = state.renderer.add_material_full([0.55, 0.78, 0.92, 0.34], 0.0, 0.08, 1.0, 0.10);
+            let m = gpu!(state).renderer.add_material_full([0.55, 0.78, 0.92, 0.34], 0.0, 0.08, 1.0, 0.10);
             state.door_glass_mat = Some(m);
             m
         }
@@ -3482,7 +3485,7 @@ pub(crate) fn render_door_panels(
         Some(m) => m,
         None => {
             // theme-exempt: glowing green energy field.
-            let m = state.renderer.add_material_full([0.20, 1.0, 0.40, 0.42], 0.0, 0.3, 1.0, 1.4);
+            let m = gpu!(state).renderer.add_material_full([0.20, 1.0, 0.40, 0.42], 0.0, 0.3, 1.0, 1.4);
             state.door_energy_open_mat = Some(m);
             m
         }
@@ -3491,7 +3494,7 @@ pub(crate) fn render_door_panels(
         Some(m) => m,
         None => {
             // theme-exempt: glowing red energy field (locked).
-            let m = state.renderer.add_material_full([1.0, 0.18, 0.20, 0.50], 0.0, 0.3, 1.0, 1.4);
+            let m = gpu!(state).renderer.add_material_full([1.0, 0.18, 0.20, 0.50], 0.0, 0.3, 1.0, 1.4);
             state.door_energy_locked_mat = Some(m);
             m
         }
@@ -3500,7 +3503,7 @@ pub(crate) fn render_door_panels(
         Some(m) => m,
         None => {
             // theme-exempt: metallic gray nanowall, semi-transparent.
-            let m = state.renderer.add_material_full([0.62, 0.64, 0.70, 0.60], 0.85, 0.15, 1.0, 0.15);
+            let m = gpu!(state).renderer.add_material_full([0.62, 0.64, 0.70, 0.60], 0.85, 0.15, 1.0, 0.15);
             state.door_nanowall_mat = Some(m);
             m
         }
@@ -3510,7 +3513,7 @@ pub(crate) fn render_door_panels(
     state.door_anim_time += dt.max(0.0);
     let shimmer = 0.5 + 0.5 * (state.door_anim_time * 1.6).sin();
     let g = 0.58 + 0.10 * shimmer;
-    state.renderer.update_material_full(nanowall_mat, [g * 0.94, g, g * 1.06, 0.60], 0.85, 0.10 + 0.08 * shimmer, 1.0, 0.08 + 0.16 * shimmer);
+    gpu!(state).renderer.update_material_full(nanowall_mat, [g * 0.94, g, g * 1.06, 0.60], 0.85, 0.10 + 0.08 * shimmer, 1.0, 0.08 + 0.16 * shimmer);
     // v0.547: per-door open distance. The interaction ring shows it in build mode / dev overlay.
     // The ring is a constant-width LINE circle now (v0.568), so there is no polygon-ring mesh.
     let show_widgets = state.gui_state.construction_active || state.gui_state.construction_dev_overlay;

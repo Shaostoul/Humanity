@@ -125,7 +125,7 @@ impl WorldRender for EngineWorld<'_, '_> {
     }
 
     fn device(&self) -> &wgpu::Device {
-        &self.state.renderer.device
+        &gpu_ref!(self.state).renderer.device
     }
 
     fn render_view(&mut self, camera: &Camera, target: &wgpu::TextureView, size: (u32, u32)) -> bool {

@@ -118,6 +118,16 @@ pub(crate) struct ConstructionGizmoGrab {
     pub(crate) grab_h: f32,
 }
 
+/// The view's GPU (the headless sim runner, increment 4, 2026-11-15): what only a window and a
+/// graphics device give. The windowed app makes it in `resumed` and hands it to
+/// `EngineState::boot`; a headless run passes None and the simulation runs the same without it.
+pub(crate) struct Gpu {
+    pub(crate) window: Arc<Window>,
+    pub(crate) renderer: Renderer,
+    pub(crate) egui_state: egui_winit::State,
+    pub(crate) egui_renderer: egui_wgpu::Renderer,
+}
+
 pub(crate) struct EngineState {
     /// Game audio (v0.960, first CC0 sounds): None when the machine has no
     /// audio device (headless rig, some VMs) - play sites skip gracefully.
@@ -169,8 +179,16 @@ pub(crate) struct EngineState {
     /// Test-light intensity (lights_intensity IPC field; default 3.0). The
     /// outdoor-attenuation suspect: interiors lit at 3.0, open ground may not.
     pub(crate) debug_test_light_intensity: f32,
-    pub(crate) window: Arc<Window>,
-    pub(crate) renderer: Renderer,
+    /// The window, the renderer and egui's window and painter: the view's GPU. None when the
+    /// engine runs with no GPU (the headless sim runner, increment 4: `EngineState::boot(opts,
+    /// None)`), where nothing GPU is created; the view reaches it through `gpu!(state)` /
+    /// `gpu_ref!(state)` (lib.rs), and the step never does (tests/frame_split_lint.rs).
+    pub(crate) gpu: Option<Gpu>,
+    /// The world load's drawing skipped for want of a GPU (`world_load::drawing`), by name: what a
+    /// headless run did not draw. Always empty in the windowed app.
+    // reuse: not a reuse: a record of the drawing a world load skipped with no GPU, written once per
+    // load and read by the headless report; nothing is served from it.
+    pub(crate) gpu_dirty: Vec<&'static str>,
     pub(crate) camera: Camera,
     pub(crate) controller: CameraController,
     pub(crate) asset_manager: AssetManager,
@@ -1165,8 +1183,6 @@ pub(crate) struct EngineState {
     pub(crate) event_hazard_near: bool,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
-    pub(crate) egui_state: egui_winit::State,
-    pub(crate) egui_renderer: egui_wgpu::Renderer,
     /// In-world screens (rungs 1 and 2, docs/design/in-world-screens.md):
     /// one egui surface per placed machine with a `screen` def, their world
     /// quads, and the hover / focus / click-consumed state the input

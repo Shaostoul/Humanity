@@ -143,8 +143,10 @@ pub(crate) fn practice_since(world: &hecs::World, seen: u64) -> (Vec<PracticeTry
 /// An act in progress (it takes two steps, see the file's header).
 #[derive(Debug, Clone)]
 enum Pending {
-    /// Fetched; eat or drink on the next step. `pack` is the backpack before the fetch.
-    Consume { kind: ActKind, pack: BTreeMap<String, u32> },
+    /// Fetched; eat or drink on the next step. `pack` is the backpack before the fetch; `harvested`
+    /// when the fetch was the garden's harvest (what it put in the pack is the garden's), not a take
+    /// from home storage (increment 4: with storage seeded, a take was counted as produce).
+    Consume { kind: ActKind, pack: BTreeMap<String, u32>, harvested: bool },
     /// Asked to eat or drink `item`, carried `before` of it.
     Check { kind: ActKind, item: String, before: u32, from_garden: bool },
     /// Asked for the tank's Fill: the full vessels carried before.
@@ -193,8 +195,8 @@ impl RoutineRun {
         // What the last step fetched is eaten or drunk now.
         let fetched: Vec<Pending> = std::mem::take(&mut self.pending);
         for p in fetched {
-            if let Pending::Consume { kind, pack } = p {
-                self.consume(world, gui, kind, &pack);
+            if let Pending::Consume { kind, pack, harvested } = p {
+                self.consume(world, gui, kind, &pack, harvested);
             } else {
                 self.pending.push(p);
             }
@@ -272,7 +274,7 @@ impl RoutineRun {
         match kind {
             ActKind::Drink => {
                 if self.routine.drinks.iter().any(|d| pack.get(d).copied().unwrap_or(0) > 0) {
-                    self.consume(world, gui, kind, &pack);
+                    self.consume(world, gui, kind, &pack, false);
                     return;
                 }
                 // Carrying no drink: fill the empty bottles carried at the home's water tank (its card's Fill).
@@ -282,12 +284,13 @@ impl RoutineRun {
                 };
                 gui.machine_card_fluid_pending = Some((tank, key));
                 self.pending.push(Pending::Filled { full_before: full_vessel_litres(world, data) });
-                self.pending.push(Pending::Consume { kind, pack });
+                self.pending.push(Pending::Consume { kind, pack, harvested: false });
             }
             ActKind::Eat => {
                 // The Garden page's "Harvest N ready": every ripe crop.
                 let ripe = ripe_crops(world, data);
-                if !ripe.is_empty() {
+                let harvested = !ripe.is_empty();
+                if harvested {
                     gui.pending_harvest_many = ripe;
                 } else if !self.routine.foods.iter().any(|f| pack.get(f).copied().unwrap_or(0) > 0) {
                     // Nothing ripe and no food carried: "Take to backpack" on one from home storage.
@@ -297,7 +300,7 @@ impl RoutineRun {
                     }
                     self.log.taken_from_storage += 1;
                 }
-                self.pending.push(Pending::Consume { kind, pack });
+                self.pending.push(Pending::Consume { kind, pack, harvested });
             }
             ActKind::Sleep => {
                 // The bed's prompt (engine/built_uses.rs) asks the same: the night in the home's bed.
@@ -312,11 +315,11 @@ impl RoutineRun {
     }
 
     /// Eat or drink the first carried item from the routine's list (the harvest's produce first).
-    fn consume(&mut self, world: &hecs::World, gui: &mut GuiState, kind: ActKind, before_fetch: &BTreeMap<String, u32>) {
+    fn consume(&mut self, world: &hecs::World, gui: &mut GuiState, kind: ActKind, before_fetch: &BTreeMap<String, u32>, harvested: bool) {
         let pack = pack_counts(world);
         let has = |id: &str| pack.get(id).copied().unwrap_or(0) > 0;
-        if kind == ActKind::Eat {
-            // What the harvest just put in the pack is the garden's.
+        if kind == ActKind::Eat && harvested {
+            // What the harvest just put in the pack is the garden's (a take from storage is not).
             for f in &self.routine.foods {
                 let gained = pack.get(f).copied().unwrap_or(0).saturating_sub(before_fetch.get(f).copied().unwrap_or(0));
                 if gained > 0 {

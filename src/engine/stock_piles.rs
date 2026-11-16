@@ -481,21 +481,23 @@ fn home_storage_slots(state: &crate::engine::state::EngineState, count: u32) -> 
 pub(crate) fn push_render_objects(state: &mut crate::engine::state::EngineState, out: &mut Vec<RenderObject>) {
     use crate::renderer::mesh::Mesh;
     if state.stock_pile_mesh.is_none() {
-        let unit_box = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
-        let unit_barrel = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.5, 1.0, 16));
+        let gpu = gpu!(state);
+        let unit_box = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
+        let gpu = gpu!(state);
+        let unit_barrel = gpu.renderer.add_mesh(Mesh::cylinder_capped(&gpu.renderer.device, 0.5, 1.0, 16));
         state.stock_pile_mesh = Some([unit_box, unit_barrel]);
     }
     if state.stock_pile_mats.is_none() {
         // theme-exempt: placeholder crate wood, gauge back, water blue, sack burlap, cask oak; world props, not UI colours.
-        let wood = state.renderer.add_material_typed([0.55, 0.42, 0.26, 1.0], 0.05, 0.8, 0.0);
-        let back = state.renderer.add_material_typed([0.08, 0.08, 0.09, 1.0], 0.0, 0.9, 0.0);
+        let wood = gpu!(state).renderer.add_material_typed([0.55, 0.42, 0.26, 1.0], 0.05, 0.8, 0.0);
+        let back = gpu!(state).renderer.add_material_typed([0.08, 0.08, 0.09, 1.0], 0.0, 0.9, 0.0);
         // The water level glows a little so the gauge reads in a dim plant room.
-        let water = state.renderer.add_material_full([0.20, 0.45, 0.85, 1.0], 0.1, 0.4, 0.0, 0.8);
+        let water = gpu!(state).renderer.add_material_full([0.20, 0.45, 0.85, 1.0], 0.1, 0.4, 0.0, 0.8);
         // theme-exempt: burlap and cask colours for the sacks and barrels.
-        let burlap = state.renderer.add_material_typed([0.72, 0.62, 0.44, 1.0], 0.0, 0.95, 0.0);
-        let cask = state.renderer.add_material_typed([0.40, 0.26, 0.15, 1.0], 0.1, 0.7, 0.0);
+        let burlap = gpu!(state).renderer.add_material_typed([0.72, 0.62, 0.44, 1.0], 0.0, 0.95, 0.0);
+        let cask = gpu!(state).renderer.add_material_typed([0.40, 0.26, 0.15, 1.0], 0.1, 0.7, 0.0);
         // theme-exempt: the lit amber band of a vessel's level gauge.
-        let goods = state.renderer.add_material_full([0.90, 0.62, 0.20, 1.0], 0.1, 0.4, 0.0, 0.8);
+        let goods = gpu!(state).renderer.add_material_full([0.90, 0.62, 0.20, 1.0], 0.1, 0.4, 0.0, 0.8);
         state.stock_pile_mats = Some([wood, back, water, burlap, cask, goods]);
     }
     let [mesh, barrel_mesh] = state.stock_pile_mesh.unwrap();

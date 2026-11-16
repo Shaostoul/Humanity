@@ -266,7 +266,7 @@ pub(crate) fn frame(state: &mut EngineState, plan: bool) {
     let used: Vec<(TileKey, u64)> = tiles.tiles.iter().map(|(k, t)| (*k, t.used)).collect();
     for k in to_evict(&used, tiles.frame, CACHE_BYTES) {
         if let Some(t) = tiles.tiles.remove(&k) {
-            state.egui_renderer.free_texture(&t.id);
+            gpu!(state).egui_renderer.free_texture(&t.id);
         }
     }
     publish(state);
@@ -295,7 +295,7 @@ fn check_edits(state: &mut EngineState, level: &ShipLevel) {
     let dropped = touched(tiles.tiles.keys().copied(), level.ordinal, &dirty);
     for k in &dropped {
         if let Some(t) = tiles.tiles.remove(k) {
-            state.egui_renderer.free_texture(&t.id);
+            gpu!(state).egui_renderer.free_texture(&t.id);
         }
     }
     log::info!("Maps: an edit touched {} footprints on level {}; {} plan tiles dropped", dirty.len(), level.ordinal, dropped.len());
@@ -330,13 +330,14 @@ fn bake_one(state: &mut EngineState, level: &ShipLevel) {
     let Some(me) = state.gui_state.maps.me.clone() else { return };
     let started = std::time::Instant::now();
     let _cost = humanity_core::frame_costs::stage("cpu.map_tiles");
-    let texture = state.renderer.device.create_texture(&wgpu::TextureDescriptor {
+    let gpu = gpu!(state);
+    let texture = gpu.renderer.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Maps Plan Tile"),
         size: wgpu::Extent3d { width: TILE_PX, height: TILE_PX, depth_or_array_layers: 1 },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: state.renderer.surface_format(), // display-format: the present pass writes the tile and egui samples it, as the map view's target
+        format: gpu.renderer.surface_format(), // display-format: the present pass writes the tile and egui samples it, as the map view's target
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     });
@@ -347,11 +348,12 @@ fn bake_one(state: &mut EngineState, level: &ShipLevel) {
     let lines: [crate::renderer::line::LineVertex; 0] = [];
     let lists = SceneDrawLists { celestial: &none, celestial_transparent: &none, orbit_lines: &lines, opaque: &opaque, transparent: &transparent, overlay: &none, ring_lines: &lines };
     crate::engine::ipc::render_view_onto_kept(state, &cam, &view, (TILE_PX, TILE_PX), &lists, crate::engine::ipc::ViewPasses::Plan, true);
-    state.renderer.mark_view_frame();
-    let id = state.egui_renderer.register_native_texture(&state.renderer.device, &view, wgpu::FilterMode::Linear);
+    gpu!(state).renderer.mark_view_frame();
+    let gpu = gpu!(state);
+    let id = gpu.egui_renderer.register_native_texture(&gpu.renderer.device, &view, wgpu::FilterMode::Linear);
     let tiles = &mut state.map_view.tiles;
     if let Some(old) = tiles.tiles.insert(key, GpuTile { _texture: texture, id, used: frame, baked: frame }) {
-        state.egui_renderer.free_texture(&old.id); // baked again (the reuse switch off)
+        gpu!(state).egui_renderer.free_texture(&old.id); // baked again (the reuse switch off)
     }
     tiles.baked += 1;
     state.gui_state.maps.tiles.last_bake_ms = started.elapsed().as_secs_f32() * 1000.0;
@@ -371,7 +373,7 @@ fn publish(state: &mut EngineState) {
 /// Let every tile go (the page closed, another ship).
 pub(crate) fn release(state: &mut EngineState) {
     for (_, t) in state.map_view.tiles.tiles.drain() {
-        state.egui_renderer.free_texture(&t.id);
+        gpu!(state).egui_renderer.free_texture(&t.id);
     }
     state.map_view.tiles.items.clear();
     state.map_view.tiles.baked = 0;

@@ -208,7 +208,7 @@ fn screen_under(quads: &[ScreenQuad], so: Vec3, eye: Vec3, dir: Vec3) -> Option<
 
 /// The cursor's world ray in the build editor.
 fn cursor_ray(state: &EngineState) -> (Vec3, Vec3) {
-    let sz = state.window.inner_size();
+    let sz = gpu_ref!(state).window.inner_size();
     state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32))
 }
 

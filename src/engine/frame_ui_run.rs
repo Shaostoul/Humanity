@@ -24,7 +24,8 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
     }
 
     // Run egui frame
-    let mut raw_input = state.egui_state.take_egui_input(&state.window);
+    let gpu = gpu!(state);
+    let mut raw_input = gpu.egui_state.take_egui_input(&gpu.window);
     // The Font Size is the whole app's zoom, set before the pass measures
     // anything; Ctrl and + / - / 0 change it here (gui/font_size.rs, BUG-225).
     if crate::gui::font_size::before_frame(&state.egui_ctx, &mut raw_input, &mut state.gui_state.settings.font_size) {
@@ -245,7 +246,7 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
             // In-world screens in build mode (2026-11-06): the handles on
             // the screen under the cursor and the selected one, and the
             // settings panel its cog opened.
-            let win = state.window.inner_size();
+            let win = gpu!(state).window.inner_size();
             crate::engine::screens::edit::draw_handles(
                 ctx,
                 &state.theme,
@@ -386,72 +387,72 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
             &state.theme,
             &mut state.gui_state,
         );
-        state.renderer.cloud_dither_off =
+        gpu!(state).renderer.cloud_dither_off =
             state.gui_state.cloud_dev_dither_off;
-        state.renderer.cloud_temporal_off =
+        gpu!(state).renderer.cloud_temporal_off =
             state.gui_state.cloud_dev_temporal_off;
-        state.renderer.cloud_map_diag =
+        gpu!(state).renderer.cloud_map_diag =
             state.gui_state.cloud_dev_map_diag as f32;
-        state.renderer.cloud_clock_pin =
+        gpu!(state).renderer.cloud_clock_pin =
             state.gui_state.cloud_dev_clock_pin;
-        state.renderer.cloud_chord_foot =
+        gpu!(state).renderer.cloud_chord_foot =
             state.gui_state.cloud_dev_chord_foot;
-        state.renderer.cloud_world_shape_lod =
+        gpu!(state).renderer.cloud_world_shape_lod =
             state.gui_state.cloud_dev_world_shape_lod;
-        state.renderer.cloud_ring_cure_off =
+        gpu!(state).renderer.cloud_ring_cure_off =
             state.gui_state.cloud_dev_ring_cure_off;
-        state.renderer.cloud_uniform_step =
+        gpu!(state).renderer.cloud_uniform_step =
             state.gui_state.cloud_dev_uniform_step;
-        state.renderer.cloud_wide_edge =
+        gpu!(state).renderer.cloud_wide_edge =
             state.gui_state.cloud_dev_wide_edge;
-        state.renderer.cloud_edge_mul =
+        gpu!(state).renderer.cloud_edge_mul =
             state.gui_state.cloud_dev_edge_mul;
-        state.renderer.cloud_rind_wide_m =
+        gpu!(state).renderer.cloud_rind_wide_m =
             state.gui_state.cloud_dev_rind_wide_m;
-        state.renderer.cloud_step_m =
+        gpu!(state).renderer.cloud_step_m =
             state.gui_state.cloud_dev_step_m;
-        state.renderer.cloud_shear =
+        gpu!(state).renderer.cloud_shear =
             state.gui_state.cloud_dev_shear;
-        state.renderer.cloud_hv_km =
+        gpu!(state).renderer.cloud_hv_km =
             state.gui_state.cloud_dev_hv_km;
-        state.renderer.cloud_sigma_mul =
+        gpu!(state).renderer.cloud_sigma_mul =
             state.gui_state.cloud_dev_sigma_mul;
-        state.renderer.cloud_est =
+        gpu!(state).renderer.cloud_est =
             state.gui_state.cloud_dev_est;
-        state.renderer.cloud_warp_bl =
+        gpu!(state).renderer.cloud_warp_bl =
             state.gui_state.cloud_dev_warp_bl;
-        state.renderer.cloud_norm_floor =
+        gpu!(state).renderer.cloud_norm_floor =
             state.gui_state.cloud_dev_norm_floor;
-        state.renderer.cloud_iso_step =
+        gpu!(state).renderer.cloud_iso_step =
             state.gui_state.cloud_dev_iso_step;
-        state.renderer.cloud_thin_deck =
+        gpu!(state).renderer.cloud_thin_deck =
             state.gui_state.cloud_dev_thin_deck;
-        state.renderer.cloud_hv_warp =
+        gpu!(state).renderer.cloud_hv_warp =
             state.gui_state.cloud_dev_hv_warp;
-        state.renderer.cloud_no_detail = state.gui_state.cloud_dev_no_detail;
-        state.renderer.cloud_no_puff = state.gui_state.cloud_dev_no_puff;
-        state.renderer.cloud_no_cell = state.gui_state.cloud_dev_no_cell;
-        state.renderer.cloud_no_fray = state.gui_state.cloud_dev_no_fray;
-        state.renderer.cloud_no_bdrop = state.gui_state.cloud_dev_no_bdrop;
-        state.renderer.cloud_sharp_base = state.gui_state.cloud_dev_sharp_base;
-        state.renderer.cloud_relief_fade = state.gui_state.cloud_dev_relief_fade;
-        state.renderer.cloud_deep_rung = state.gui_state.cloud_dev_deep_rung;
-        state.renderer.cloud_checker = state.gui_state.cloud_dev_checker;
-        state.renderer.cloud_ms = state.gui_state.cloud_dev_ms;
-        state.renderer.cloud_field = state.gui_state.cloud_dev_field;
-        state.renderer.cloud_body_cache = state.gui_state.cloud_dev_body_cache;
-        state.renderer.cloud_step_eco = state.gui_state.cloud_dev_step_eco;
-        state.renderer.cloud_light = state.gui_state.cloud_dev_light;
-        state.renderer.cloud_profile_knob = state.gui_state.cloud_dev_profile_knob;
+        gpu!(state).renderer.cloud_no_detail = state.gui_state.cloud_dev_no_detail;
+        gpu!(state).renderer.cloud_no_puff = state.gui_state.cloud_dev_no_puff;
+        gpu!(state).renderer.cloud_no_cell = state.gui_state.cloud_dev_no_cell;
+        gpu!(state).renderer.cloud_no_fray = state.gui_state.cloud_dev_no_fray;
+        gpu!(state).renderer.cloud_no_bdrop = state.gui_state.cloud_dev_no_bdrop;
+        gpu!(state).renderer.cloud_sharp_base = state.gui_state.cloud_dev_sharp_base;
+        gpu!(state).renderer.cloud_relief_fade = state.gui_state.cloud_dev_relief_fade;
+        gpu!(state).renderer.cloud_deep_rung = state.gui_state.cloud_dev_deep_rung;
+        gpu!(state).renderer.cloud_checker = state.gui_state.cloud_dev_checker;
+        gpu!(state).renderer.cloud_ms = state.gui_state.cloud_dev_ms;
+        gpu!(state).renderer.cloud_field = state.gui_state.cloud_dev_field;
+        gpu!(state).renderer.cloud_body_cache = state.gui_state.cloud_dev_body_cache;
+        gpu!(state).renderer.cloud_step_eco = state.gui_state.cloud_dev_step_eco;
+        gpu!(state).renderer.cloud_light = state.gui_state.cloud_dev_light;
+        gpu!(state).renderer.cloud_profile_knob = state.gui_state.cloud_dev_profile_knob;
         // D3 dev bit (the built-body top bound): flags-pad bit 12, A/B'd by the rig.
-        state.renderer.cloud_top_bound = state.gui_state.cloud_dev_top_bound;
-        state.renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
-        state.renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
-        state.renderer.cloud_res_div =
+        gpu!(state).renderer.cloud_top_bound = state.gui_state.cloud_dev_top_bound;
+        gpu!(state).renderer.cloud_int_sat = state.gui_state.cloud_dev_int_sat;
+        gpu!(state).renderer.cloud_ms_gain = state.gui_state.cloud_dev_ms_gain;
+        gpu!(state).renderer.cloud_res_div =
             state.gui_state.cloud_dev_res_div;
-        state.renderer.cloud_shape_off =
+        gpu!(state).renderer.cloud_shape_off =
             state.gui_state.cloud_dev_shape_off;
-        state.renderer.cloud_discard_diag =
+        gpu!(state).renderer.cloud_discard_diag =
             state.gui_state.cloud_dev_discard_diag;
         // Time scrubber (v0.1224). Drained every frame
         // regardless of the weather-changed flag: the two

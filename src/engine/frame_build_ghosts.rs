@@ -24,19 +24,19 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                     .cloned();
                 if let Some(def) = def {
                     let mesh =
-                        machine_mesh(&state.renderer.device, &def.shape, def.size);
+                        machine_mesh(&gpu!(state).renderer.device, &def.shape, def.size);
                     let color = [def.color.0, def.color.1, def.color.2, 0.45];
                     // Reuse the prior ghost slot so switching held type does not
                     // leak a mesh+material each time. (v0.531)
                     let slot =
                         state.construction_ghost.as_ref().map(|(_, m, mt)| (*m, *mt));
                     let (mesh_idx, mat) = if let Some((mi, ma)) = slot {
-                        state.renderer.replace_mesh(mi, mesh);
-                        state.renderer.update_material_typed(ma, color, 0.1, 0.6, 0.4);
+                        gpu!(state).renderer.replace_mesh(mi, mesh);
+                        gpu!(state).renderer.update_material_typed(ma, color, 0.1, 0.6, 0.4);
                         (mi, ma)
                     } else {
-                        let mi = state.renderer.add_mesh(mesh);
-                        let ma = state.renderer.add_material_typed(color, 0.1, 0.6, 0.4);
+                        let mi = gpu!(state).renderer.add_mesh(mesh);
+                        let ma = gpu!(state).renderer.add_material_typed(color, 0.1, 0.6, 0.4);
                         (mi, ma)
                     };
                     state.construction_ghost = Some((mtype.clone(), mesh_idx, mat));
@@ -72,19 +72,19 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 if let Some(ty) = humanity_ship::structure::structure_type(&tid) {
                     let (verts, indices) =
                         humanity_ship::structure::structure_mesh(ty, Vec3::ZERO, yaw.to_radians());
-                    let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
+                    let mesh = Mesh::from_vertices(&gpu!(state).renderer.device, &verts, &indices);
                     let color = [ty.color.0, ty.color.1, ty.color.2, 0.45];
                     let slot = state
                         .construction_structure_ghost
                         .as_ref()
                         .map(|(_, m, mt)| (*m, *mt));
                     let (mesh_idx, mat) = if let Some((mi, ma)) = slot {
-                        state.renderer.replace_mesh(mi, mesh);
-                        state.renderer.update_material_typed(ma, color, 0.1, 0.6, 0.4);
+                        gpu!(state).renderer.replace_mesh(mi, mesh);
+                        gpu!(state).renderer.update_material_typed(ma, color, 0.1, 0.6, 0.4);
                         (mi, ma)
                     } else {
-                        let mi = state.renderer.add_mesh(mesh);
-                        let ma = state.renderer.add_material_typed(color, 0.1, 0.6, 0.4);
+                        let mi = gpu!(state).renderer.add_mesh(mesh);
+                        let ma = gpu!(state).renderer.add_material_typed(color, 0.1, 0.6, 0.4);
                         (mi, ma)
                     };
                     state.construction_structure_ghost = Some((key.clone(), mesh_idx, mat));
@@ -124,12 +124,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // cached unit-box mesh, scaled/rotated per frame (no per-frame allocation).
     if state.gui_state.construction_active && state.gui_state.construction_wall_mode {
         if state.wall_tool_mesh.is_none() {
-            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
             state.wall_tool_mesh = Some(m);
         }
         if state.wall_tool_mat.is_none() {
             // theme-exempt: translucent editor overlay, not a themed surface.
-            let ma = state.renderer.add_material_typed([0.25, 0.8, 1.0, 0.5], 0.1, 0.6, 0.4);
+            let ma = gpu!(state).renderer.add_material_typed([0.25, 0.8, 1.0, 0.5], 0.1, 0.6, 0.4);
             state.wall_tool_mat = Some(ma);
         }
         let mesh = state.wall_tool_mesh.unwrap();
@@ -199,23 +200,24 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // materials, reused -- no per-frame allocation.
     if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
         if state.construction_node_mesh.is_none() {
-            let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 12, 16));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::sphere(&gpu.renderer.device, 1.0, 12, 16));
             state.construction_node_mesh = Some(m);
         }
         if state.construction_node_mat.is_none() {
             // theme-exempt: editor gizmo overlay, emissive so it stands out.
-            let m = state.renderer.add_material_full([1.0, 0.82, 0.2, 1.0], 0.0, 0.4, 0.0, 0.6);
+            let m = gpu!(state).renderer.add_material_full([1.0, 0.82, 0.2, 1.0], 0.0, 0.4, 0.0, 0.6);
             state.construction_node_mat = Some(m);
         }
         if state.construction_node_mat_hot.is_none() {
             // theme-exempt: grabbed-gizmo highlight.
-            let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
+            let m = gpu!(state).renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
             state.construction_node_mat_hot = Some(m);
         }
         if state.construction_node_mat_hover.is_none() {
             // theme-exempt: hover highlight -- brighter/whiter than idle, calmer than the
             // active RGB cycle (idle yellow -> hover cream -> active RGB).
-            let m = state.renderer.add_material_full([1.0, 0.96, 0.62, 1.0], 0.0, 0.35, 0.0, 0.95);
+            let m = gpu!(state).renderer.add_material_full([1.0, 0.96, 0.62, 1.0], 0.0, 0.35, 0.0, 0.95);
             state.construction_node_mat_hover = Some(m);
         }
         let node_mesh = state.construction_node_mesh.unwrap();
@@ -227,7 +229,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // their colour. door_anim_time advances each build-mode frame (with doors).
         let hue = (state.door_anim_time * 0.25).rem_euclid(1.0);
         let (rr, gg, bb) = hsv_rgb(hue, 0.85, 1.0);
-        state.renderer.update_material_full(hot_mat, [rr, gg, bb, 1.0], 0.0, 0.3, 0.0, 1.2);
+        gpu!(state).renderer.update_material_full(hot_mat, [rr, gg, bb, 1.0], 0.0, 0.3, 0.0, 1.2);
         let grabbed = state.construction_node_grab;
         // The ACTIVE zone's origin shifts every gizmo into world space (v0.754).
         let zo = active_zone_origin(state);
@@ -280,7 +282,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // it shifts colour like the header menu buttons.
         if state.construction_wall_mat.is_none() {
             // theme-exempt: wall-select gizmo, red emissive.
-            let m = state.renderer.add_material_full([1.0, 0.2, 0.2, 1.0], 0.0, 0.4, 0.0, 0.8);
+            let m = gpu!(state).renderer.add_material_full([1.0, 0.2, 0.2, 1.0], 0.0, 0.4, 0.0, 0.8);
             state.construction_wall_mat = Some(m);
         }
         let wall_mat = state.construction_wall_mat.unwrap();

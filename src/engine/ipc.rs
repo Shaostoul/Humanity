@@ -474,8 +474,8 @@ pub(crate) fn poll_screenshot_request(
             let Some(s) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
                 return;
             };
-            if matches!(s, ScreenshotSize::Window) && capture_waits_for_taa(state.renderer.taa_on(), humanity_core::reuse::enabled()) {
-                state.renderer.taa_reset();
+            if matches!(s, ScreenshotSize::Window) && capture_waits_for_taa(gpu!(state).renderer.taa_on(), humanity_core::reuse::enabled()) {
+                gpu!(state).renderer.taa_reset();
                 if let Ok(mut h) = HELD.lock() {
                     *h = Some(s);
                 }
@@ -485,8 +485,8 @@ pub(crate) fn poll_screenshot_request(
         }
     };
     if matches!(size, ScreenshotSize::Window)
-        && capture_waits_for_taa(state.renderer.taa_on(), humanity_core::reuse::enabled())
-        && !state.renderer.taa_settled()
+        && capture_waits_for_taa(gpu!(state).renderer.taa_on(), humanity_core::reuse::enabled())
+        && !gpu!(state).renderer.taa_settled()
     {
         if let Ok(mut h) = HELD.lock() {
             *h = Some(size);
@@ -1690,10 +1690,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // what scripts/aurora-gate.js subtracts (in linear light) to prove the
     // cloud deck no longer dims it (PRIORITIES 1b).
     if let Some(t) = grab("aurora") {
-        state.renderer.emission.off = t == "0";
+        gpu!(state).renderer.emission.off = t == "0";
         log::info!(
             "Showcase: aurora -> {}",
-            if state.renderer.emission.off { "OFF (emission pass skipped)" } else { "on" }
+            if gpu!(state).renderer.emission.off { "OFF (emission pass skipped)" } else { "on" }
         );
     }
     // {"tent_door":"up"} rolls every fruiting tent's door up and "down" lets it down; "auto" (or
@@ -1715,11 +1715,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // the indirect light the probes add, and gpu.room_probes plus the sampling
     // share of gpu.scene is what it costs.
     if let Some(t) = grab("room_gi") {
-        state.renderer.room_gi.off = t == "0";
+        gpu!(state).renderer.room_gi.off = t == "0";
         log::info!(
             "Showcase: room_gi -> {} ({} probes)",
-            if state.renderer.room_gi.off { "OFF (the old ambient floor)" } else { "on" },
-            state.renderer.room_gi.probe_count()
+            if gpu!(state).renderer.room_gi.off { "OFF (the old ambient floor)" } else { "on" },
+            gpu!(state).renderer.room_gi.probe_count()
         );
     }
     // {"slab_occlusion":"0"} lets lamp light and sunlight through the floors
@@ -1733,7 +1733,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // at runtime (a shader variant would change the code generation it
     // measures).
     if let Some(t) = grab("slab_occlusion") {
-        let gi = &mut state.renderer.room_gi;
+        let gi = &mut gpu!(state).renderer.room_gi;
         gi.slabs_off = t == "0";
         gi.slabs_sun = t != "lamps";
         gi.slabs_lamps = t != "sun";
@@ -1785,11 +1785,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // what the maps take away (and gpu.shadow plus gpu.shadow_near is what
     // they cost), while the player's own config is never touched.
     if let Some(t) = grab("sun_shadows") {
-        state.renderer.sun_cascades.shadows_pin = match t.as_str() {
+        gpu!(state).renderer.sun_cascades.shadows_pin = match t.as_str() {
             "auto" => None,
             v => Some(v != "0"),
         };
-        log::info!("Showcase: sun_shadows -> {:?} (None = Settings > Planets)", state.renderer.sun_cascades.shadows_pin);
+        log::info!("Showcase: sun_shadows -> {:?} (None = Settings > Planets)", gpu!(state).renderer.sun_cascades.shadows_pin);
     }
     // THE SHADOW ATLAS'S PINS (2026-11-10, renderer/local_shadows.rs, docs/design/local-light-shadows.md):
     // {"local_shadows":"0"} turns the atlas off (no room light shadows and no near sun view), a level
@@ -1798,16 +1798,16 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // never writes to it, so a capture and its shadows-off twin (the red twin) differ only by what the
     // atlas takes away, and the player's config is never touched.
     if let Some(t) = grab("local_shadows") {
-        state.renderer.local_shadows.pin = match t.as_str() {
+        gpu!(state).renderer.local_shadows.pin = match t.as_str() {
             "auto" | "1" => None,
             "0" => Some(String::new()),
             id if crate::renderer::local_shadows::is_level(id) => Some(id.to_string()),
             other => {
                 log::warn!("Showcase: local_shadows wants \"0\", \"1\", \"auto\" or a level id, not {other:?}");
-                state.renderer.local_shadows.pin.clone()
+                gpu!(state).renderer.local_shadows.pin.clone()
             }
         };
-        log::info!("Showcase: local_shadows -> {:?} (None = Settings > Graphics)", state.renderer.local_shadows.pin);
+        log::info!("Showcase: local_shadows -> {:?} (None = Settings > Graphics)", gpu!(state).renderer.local_shadows.pin);
     }
     // TEMPORAL ANTI-ALIASING'S PINS (2026-11-13, renderer/taa.rs): {"taa":"off"} (or "0") draws without
     // it, the red twin (the picture must equal the pre-TAA one), {"taa":"temporal"} pins it on, "auto"
@@ -1815,31 +1815,31 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // history's weight, "3" the responsive mask, "0" the picture (the Dev page's Image card).
     // {"taa_reset":"1"} throws the history away once.
     if let Some(t) = grab("taa") {
-        state.renderer.taa.pin = match t.as_str() {
+        gpu!(state).renderer.taa.pin = match t.as_str() {
             "auto" | "1" => None,
             "0" => Some("off".to_string()),
             id if crate::renderer::taa::is_mode(id) => Some(id.to_string()),
             other => {
                 log::warn!("Showcase: taa wants \"off\", \"temporal\", \"0\", \"1\" or \"auto\", not {other:?}");
-                state.renderer.taa.pin.clone()
+                gpu!(state).renderer.taa.pin.clone()
             }
         };
-        log::info!("Showcase: taa -> {:?} (None = Settings > Graphics)", state.renderer.taa.pin);
+        log::info!("Showcase: taa -> {:?} (None = Settings > Graphics)", gpu!(state).renderer.taa.pin);
     }
     if let Some(t) = grab("taa_view") {
         crate::renderer::taa::set_dev_view(t.parse().unwrap_or(0));
         log::info!("Showcase: taa_view -> {}", crate::renderer::taa::dev_view());
     }
     if grab("taa_reset").is_some() {
-        state.renderer.taa_reset();
+        gpu!(state).renderer.taa_reset();
         log::info!("Showcase: taa_reset");
     }
     // Hashed alpha (rung 1b, 2026-11-13, renderer/hashed_alpha.rs): {"taa_hashed":"0"} keeps the hair's
     // two passes, the far cards' hard cut and the Bayer crossfade under Temporal, the red twin (the
     // picture rung 1a drew); "1" or "auto" puts hashed alpha back.
     if let Some(t) = grab("taa_hashed") {
-        state.renderer.taa.hashed = t != "0";
-        log::info!("Showcase: taa_hashed -> {}", state.renderer.taa.hashed);
+        gpu!(state).renderer.taa.hashed = t != "0";
+        log::info!("Showcase: taa_hashed -> {}", gpu!(state).renderer.taa.hashed);
     }
     // The far tree cards' outlines (performance rung 2, humanity_terrain::card_hull): {"card_hull":"0"}
     // draws every card as the full square of its atlas tile again (the red twin, the rung 1 geometry);
@@ -1871,40 +1871,40 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         log::info!("Showcase: card_cull -> {}", crate::renderer::tree_card_cull::pinned_on());
     }
     if let Some(t) = grab("near_levels") {
-        state.renderer.local_shadows.near_pin = match t.as_str() {
+        gpu!(state).renderer.local_shadows.near_pin = match t.as_str() {
             "auto" | "1" => None,
             _ => Some(false),
         };
-        log::info!("Showcase: near_levels -> {:?} (None = on with the atlas)", state.renderer.local_shadows.near_pin);
+        log::info!("Showcase: near_levels -> {:?} (None = on with the atlas)", gpu!(state).renderer.local_shadows.near_pin);
     }
     // {"fp_shadow_twin":"0"}: the first-person body pushes no unfolded twin into the shadow maps, so
     // your shadow loses its head (the red twin of the twin); "1" or "auto" puts it back.
     if let Some(t) = grab("fp_shadow_twin") {
-        state.renderer.local_shadows.twin_off = t == "0";
-        log::info!("Showcase: fp_shadow_twin -> {}", !state.renderer.local_shadows.twin_off);
+        gpu!(state).renderer.local_shadows.twin_off = t == "0";
+        log::info!("Showcase: fp_shadow_twin -> {}", !gpu!(state).renderer.local_shadows.twin_off);
     }
     // {"shadow_fast":"0"}: every shadow caster draws through the classic path, none instanced (the
     // fast path's red twin, 2026-11-11: the picture must stay the same, only the cost moves); "1" or
     // "auto" puts the fast path back.
     if let Some(t) = grab("shadow_fast") {
-        state.renderer.local_shadows.fast_off = t == "0";
-        log::info!("Showcase: shadow_fast -> {}", !state.renderer.local_shadows.fast_off);
+        gpu!(state).renderer.local_shadows.fast_off = t == "0";
+        log::info!("Showcase: shadow_fast -> {}", !gpu!(state).renderer.local_shadows.fast_off);
     }
     // {"shadow_gpu":"0"}: the plain shadow casters go through the per-draw loop even where the
     // device could cull and draw them itself (the GPU-driven path's red twin, 2026-11-13,
     // renderer/shadow_gpu.rs: the picture must stay the same, only the cost moves); "1" or "auto" puts
     // the GPU-driven path back.
     if let Some(t) = grab("shadow_gpu") {
-        state.renderer.local_shadows.gpu_off = t == "0";
-        log::info!("Showcase: shadow_gpu -> {}", !state.renderer.local_shadows.gpu_off);
+        gpu!(state).renderer.local_shadows.gpu_off = t == "0";
+        log::info!("Showcase: shadow_gpu -> {}", !gpu!(state).renderer.local_shadows.gpu_off);
     }
     // {"shadow_gpu_more":"0"}: only the plain casters copied into the arena are culled and drawn by
     // the device, as merged on 2026-11-13; the skinned bodies, the card hair and the see-through
     // sheets go back to the per-draw loop (the red twin of carrying the GPU-driven path to them,
     // 2026-11-14: the picture must stay the same, only the cost moves); "1" or "auto" puts them back.
     if let Some(t) = grab("shadow_gpu_more") {
-        state.renderer.local_shadows.gpu_more_off = t == "0";
-        log::info!("Showcase: shadow_gpu_more -> {}", !state.renderer.local_shadows.gpu_more_off);
+        gpu!(state).renderer.local_shadows.gpu_more_off = t == "0";
+        log::info!("Showcase: shadow_gpu_more -> {}", !gpu!(state).renderer.local_shadows.gpu_more_off);
     }
     // Rung 4's red twins (2026-11-14, the picture must stay the same, only the cost moves):
     // {"shadow_gpu_sway":"0"} puts the swaying plants (types 19 to 22) back on the per-draw loop;
@@ -1912,12 +1912,12 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // skinned in the vertex stage once per face (renderer/shadow_pool.rs). "1" or "auto" puts each
     // back on the GPU-driven path.
     if let Some(t) = grab("shadow_gpu_sway") {
-        state.renderer.local_shadows.sway_off = t == "0";
-        log::info!("Showcase: shadow_gpu_sway -> {}", !state.renderer.local_shadows.sway_off);
+        gpu!(state).renderer.local_shadows.sway_off = t == "0";
+        log::info!("Showcase: shadow_gpu_sway -> {}", !gpu!(state).renderer.local_shadows.sway_off);
     }
     if let Some(t) = grab("shadow_gpu_crowd") {
-        state.renderer.local_shadows.crowd_off = t == "0";
-        log::info!("Showcase: shadow_gpu_crowd -> {}", !state.renderer.local_shadows.crowd_off);
+        gpu!(state).renderer.local_shadows.crowd_off = t == "0";
+        log::info!("Showcase: shadow_gpu_crowd -> {}", !gpu!(state).renderer.local_shadows.crowd_off);
     }
     // {"partial_shadows":"0"}: glass and frosted film cast nothing, as before 2026-11-13 (the partial
     // casters' red twin, renderer/shadow_transmit.rs: the light through a tent is undimmed again);
@@ -1926,32 +1926,32 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // red twin, renderer/film_blur.rs); "1" blurs what is behind them whatever Settings says; "auto"
     // hands it back to Settings > Graphics > Blur behind frosted plastic.
     if let Some(t) = grab("film_blur") {
-        state.renderer.film_blur.pin = match t.as_str() {
+        gpu!(state).renderer.film_blur.pin = match t.as_str() {
             "0" => Some(false),
             "1" => Some(true),
             _ => None,
         };
-        state.renderer.ensure_film_pyramid();
-        log::info!("Showcase: film_blur -> {t} ({:?})", state.renderer.film_blur.pin);
+        gpu!(state).renderer.ensure_film_pyramid();
+        log::info!("Showcase: film_blur -> {t} ({:?})", gpu!(state).renderer.film_blur.pin);
     }
     // {"film_v1":"1"}: the blur behind the film as merged on 2026-11-13 (its red twin for a same-boot
     // A/B, renderer/film_blur.rs): an encoder and submit of its own, no coverage (the outline borrows
     // what is beside the tent), the whole screen processed; "0" or "auto" puts the one-submit,
     // coverage-weighted blur back.
     if let Some(t) = grab("film_v1") {
-        state.renderer.film_blur.v1 = t == "1";
-        log::info!("Showcase: film_v1 -> {}", state.renderer.film_blur.v1);
+        gpu!(state).renderer.film_blur.v1 = t == "1";
+        log::info!("Showcase: film_v1 -> {}", gpu!(state).renderer.film_blur.v1);
     }
     // {"film_passes":"1"}: the blur's pyramid as six render passes, each with its own bind group and
     // upload, as rung 3 merged it (2026-11-14; the red twin of the one compute pass, for a same-boot
     // A/B of `cpu.film_blur`); "0" or "auto" puts the compute pass back.
     if let Some(t) = grab("film_passes") {
-        state.renderer.film_blur.passes = t == "1";
-        log::info!("Showcase: film_passes -> {}", state.renderer.film_blur.passes);
+        gpu!(state).renderer.film_blur.passes = t == "1";
+        log::info!("Showcase: film_passes -> {}", gpu!(state).renderer.film_blur.passes);
     }
     if let Some(t) = grab("partial_shadows") {
-        state.renderer.local_shadows.partial_off = t == "0";
-        log::info!("Showcase: partial_shadows -> {}", !state.renderer.local_shadows.partial_off);
+        gpu!(state).renderer.local_shadows.partial_off = t == "0";
+        log::info!("Showcase: partial_shadows -> {}", !gpu!(state).renderer.local_shadows.partial_off);
     }
     // Shadows rung 1b (2026-11-12, docs/design/local-light-shadows.md section 10), the two red twins:
     // {"shadow_cull":"0"} draws every caster inside a shadow face, whether or not its shadow can reach
@@ -1959,27 +1959,27 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // moves); {"atlas_code":"1"} keeps the atlas lookups compiled into the shading at Off, as rung 1
     // did (what Off cost before). "1" / "0" or "auto" put each back.
     if let Some(t) = grab("shadow_cull") {
-        state.renderer.local_shadows.cull_off = t == "0";
-        log::info!("Showcase: shadow_cull -> {}", !state.renderer.local_shadows.cull_off);
+        gpu!(state).renderer.local_shadows.cull_off = t == "0";
+        log::info!("Showcase: shadow_cull -> {}", !gpu!(state).renderer.local_shadows.cull_off);
     }
     if let Some(t) = grab("atlas_code") {
-        state.renderer.local_shadows.keep_code = t == "1";
-        log::info!("Showcase: atlas_code -> {}", if state.renderer.local_shadows.keep_code { "kept at Off" } else { "follows the level" });
+        gpu!(state).renderer.local_shadows.keep_code = t == "1";
+        log::info!("Showcase: atlas_code -> {}", if gpu!(state).renderer.local_shadows.keep_code { "kept at Off" } else { "follows the level" });
     }
     // {"room_gi_vis":"1"} makes every room run DDGI's Chebyshev visibility
     // test, which rung 1 skips because inside a room's own box it is an
     // identity; "0" restores the default. For measuring what the test costs,
     // and for seeing that it changes nothing until rung 2 traces contents.
     if let Some(t) = grab("room_gi_vis") {
-        state.renderer.room_gi.force_visibility = t == "1";
-        log::info!("Showcase: room_gi_vis -> {}", state.renderer.room_gi.force_visibility);
+        gpu!(state).renderer.room_gi.force_visibility = t == "1";
+        log::info!("Showcase: room_gi_vis -> {}", gpu!(state).renderer.room_gi.force_visibility);
     }
     // {"neighbour_rooms":"0"} leaves the neighbours' rooms and lamps out of the room GI (their
     // houses and yards dark again, as before 2026-11-14), "1" puts them back: a same-boot A/B of
     // what lighting them costs (engine/neighbour_rooms.rs).
     if let Some(t) = grab("neighbour_rooms") {
-        state.renderer.room_gi.neighbours_off = t == "0";
-        log::info!("Showcase: neighbour_rooms -> {}", !state.renderer.room_gi.neighbours_off);
+        gpu!(state).renderer.room_gi.neighbours_off = t == "0";
+        log::info!("Showcase: neighbour_rooms -> {}", !gpu!(state).renderer.room_gi.neighbours_off);
     }
     // {"neighbour_glass":"0"} bakes the neighbours' homes all opaque again, their glass roofs and
     // glass slabs drawn solid and the hull's plating shut over them, as before 2026-11-14 (every
@@ -2219,13 +2219,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         };
         if let Some(hdr) = hdr {
-            if state.renderer.switch_scene_format(hdr) {
+            if gpu!(state).renderer.switch_scene_format(hdr) {
                 state.star_preload_rx = None;
                 if state.world_loaded {
                     crate::engine::world_load::build_star_sky(state);
                 }
             }
-            log::info!("Showcase: scene_format -> {:?}", state.renderer.scene_format());
+            log::info!("Showcase: scene_format -> {:?}", gpu!(state).renderer.scene_format());
         }
     }
     // {"present_dither":"0"} turns off the one dither in the present pass
@@ -2241,23 +2241,23 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // (the old behaviour, for an A/B), "auto" hands it back to Settings and the air.
     // Sticky, released by the rig between vantages (scripts/lib/showcase-pins.js).
     if let Some(t) = grab("sun_glare") {
-        state.renderer.sun_glare_on = t.trim() != "0";
-        log::info!("Showcase: sun_glare -> {}", state.renderer.sun_glare_on);
+        gpu!(state).renderer.sun_glare_on = t.trim() != "0";
+        log::info!("Showcase: sun_glare -> {}", gpu!(state).renderer.sun_glare_on);
     }
     if let Some(t) = grab("sun_aperture_mm") {
-        state.renderer.sun_aperture_pin = match t.trim().parse::<f32>() {
+        gpu!(state).renderer.sun_aperture_pin = match t.trim().parse::<f32>() {
             Ok(mm) if mm > 0.0 => Some(crate::renderer::sun_disc::aperture_from_setting_mm(mm)),
             _ => None,
         };
-        log::info!("Showcase: sun_aperture_mm -> {:?} m (None: Settings)", state.renderer.sun_aperture_pin);
+        log::info!("Showcase: sun_aperture_mm -> {:?} m (None: Settings)", gpu!(state).renderer.sun_aperture_pin);
     }
     if let Some(t) = grab("godrays") {
-        state.renderer.godrays_pin = match t.trim() {
+        gpu!(state).renderer.godrays_pin = match t.trim() {
             "0" => Some(false),
             "1" => Some(true),
             _ => None,
         };
-        log::info!("Showcase: godrays -> {:?} (None: Settings, and off above the air)", state.renderer.godrays_pin);
+        log::info!("Showcase: godrays -> {:?} (None: Settings, and off above the air)", gpu!(state).renderer.godrays_pin);
     }
     if let Some(t) = grab("present_dither") {
         let t = t.trim();
@@ -2265,8 +2265,8 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         if on && t != "1" {
             log::warn!("[showcase] present_dither: unknown value {t:?} (want 0|1), dither stays on");
         }
-        state.renderer.set_present_dither(on);
-        log::info!("Showcase: present_dither -> {}", state.renderer.present_dither());
+        gpu!(state).renderer.set_present_dither(on);
+        log::info!("Showcase: present_dither -> {}", gpu!(state).renderer.present_dither());
     }
     // {"present_direct":"1"} draws the scene straight into the display (the
     // pre-2026-09-27 path, no scene target, no present pass); "0" restores
@@ -2277,11 +2277,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // {"scene_format":"display"} first; otherwise it is ignored, and the log
     // says so here.
     if let Some(t) = grab("present_direct") {
-        state.renderer.present_direct = t == "1";
-        let live = state.renderer.scene_format() == state.renderer.surface_format(); // display-format: the switch needs the formats equal
+        gpu!(state).renderer.present_direct = t == "1";
+        let live = gpu!(state).renderer.scene_format() == gpu!(state).renderer.surface_format(); // display-format: the switch needs the formats equal
         log::info!(
             "Showcase: present_direct -> {} ({})",
-            state.renderer.present_direct,
+            gpu!(state).renderer.present_direct,
             if live { "in force" } else { "IGNORED: the scene format is not the display format" }
         );
     }
@@ -2511,7 +2511,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             }
         }
         let parse_ms = t_parse.elapsed().as_secs_f32() * 1000.0;
-        let report = state
+        let report = gpu!(state)
             .renderer
             .bake_tree_atlas_from_registry(&models, parse_ms, Some(&out_dir));
         log::info!(
@@ -2581,7 +2581,7 @@ pub(crate) fn pump_live_broadcast(state: &mut EngineState, frame_texture: &wgpu:
                 state.gui_state.studio.is_live = false;
                 return;
             };
-            if !state.renderer.supports_frame_capture() {
+            if !gpu!(state).renderer.supports_frame_capture() {
                 state.gui_state.studio.broadcast_error =
                     "This graphics backend cannot capture the window, so there is nothing to \
                      broadcast."
@@ -2645,7 +2645,7 @@ pub(crate) fn pump_live_broadcast(state: &mut EngineState, frame_texture: &wgpu:
     };
 
     // --- 2. Collect a landed readback and feed the encoder.
-    if let Some(frame) = state.stream_capture.poll(&state.renderer.device) {
+    if let Some(frame) = state.stream_capture.poll(&gpu!(state).renderer.device) {
         pubr.submit_frame(frame);
     }
 
@@ -2653,9 +2653,10 @@ pub(crate) fn pump_live_broadcast(state: &mut EngineState, frame_texture: &wgpu:
     // copy is the expensive part; skipping it on frames we would drop anyway is
     // most of the reason this costs nothing at 60 fps.
     if pubr.wants_frame() {
+        let gpu = gpu!(state);
         state.stream_capture.submit(
-            &state.renderer.device,
-            &state.renderer.queue,
+            &gpu.renderer.device,
+            &gpu.renderer.queue,
             frame_texture,
         );
     }
@@ -2720,7 +2721,7 @@ pub(crate) fn execute_screenshot_capture(
     // Ok(None) = window capture (size implicit); Ok(Some((w,h))) = hi-res
     // capture at the ACTUAL rendered size (post-clamp), reported in done.json.
     let result: Result<Option<(u32, u32)>, String> = match size {
-        ScreenshotSize::Window => state
+        ScreenshotSize::Window => gpu!(state)
             .renderer
             .capture_current_frame(frame_texture, std::path::Path::new(&out_path))
             .map(|()| None),
@@ -2772,9 +2773,10 @@ pub(crate) fn execute_screenshot_capture(
     // sky hue the two-tone ambient reads, and the cloud clock. One file per
     // capture beside the done file; consumers pair it with the PNG.
     if let Some(shell) = state.cloud_ref_frame.as_ref() {
-        let (sun_dir, sun_col, sun_int) = state.renderer.cloud_ref_sun();
+        let (sun_dir, sun_col, sun_int) = gpu!(state).renderer.cloud_ref_sun();
         let cam = &state.camera;
         let cam_p = cam.effective_position();
+        let gpu = gpu!(state);
         let dump = format!(
             concat!(
                 "{{\"shell\":{},\"clock\":{},",
@@ -2790,9 +2792,9 @@ pub(crate) fn execute_screenshot_capture(
             sun_dir[0], sun_dir[1], sun_dir[2],
             sun_col[0], sun_col[1], sun_col[2],
             sun_int,
-            state.renderer.aerial_sky[0],
-            state.renderer.aerial_sky[1],
-            state.renderer.aerial_sky[2],
+            gpu.renderer.aerial_sky[0],
+            gpu.renderer.aerial_sky[1],
+            gpu.renderer.aerial_sky[2],
             cam_p.x, cam_p.y, cam_p.z,
             // BASIS VECTORS, not yaw/pitch: the camera has two bases
             // (world + surface tangent) and the dump must be
@@ -2800,8 +2802,8 @@ pub(crate) fn execute_screenshot_capture(
             cam.forward().x, cam.forward().y, cam.forward().z,
             cam.right().x, cam.right().y, cam.right().z,
             cam.fov_degrees, cam.aspect,
-            state.renderer.viewport_size().0,
-            state.renderer.viewport_size().1,
+            gpu.renderer.viewport_size().0,
+            gpu.renderer.viewport_size().1,
             out_path,
         );
         let _ = std::fs::write("debug/cloud_ref_dump.json", dump);
@@ -2843,7 +2845,7 @@ pub(crate) fn capture_hires_screenshot(
     // the aspect ratio -- and thus the framing -- survives the clamp. A
     // request beyond 4x the limit on either edge is a typo, not a wallpaper:
     // reject it outright, naming the device's number so the caller can retry.
-    let max_dim = state.renderer.max_texture_dimension_2d().max(1);
+    let max_dim = gpu!(state).renderer.max_texture_dimension_2d().max(1);
     if req_w > max_dim.saturating_mul(4) || req_h > max_dim.saturating_mul(4) {
         return Err(format!(
             "requested {req_w}x{req_h} is far beyond this device's max texture dimension ({max_dim})"
@@ -2856,7 +2858,7 @@ pub(crate) fn capture_hires_screenshot(
     let w = ((req_w as f64 * scale) as u32).clamp(1, max_dim);
     let h = ((req_h as f64 * scale) as u32).clamp(1, max_dim);
 
-    let (capture_tex, capture_view) = state.renderer.create_capture_target(w, h);
+    let (capture_tex, capture_view) = gpu!(state).renderer.create_capture_target(w, h);
     // The live camera, with the projection aspect of the capture. A COPY,
     // so the live camera is never touched (before `render_view_onto`
     // existed this path set and restored `state.camera.aspect` around the
@@ -2865,7 +2867,7 @@ pub(crate) fn capture_hires_screenshot(
     camera.aspect = w as f32 / h.max(1) as f32;
     render_view_onto(state, &camera, &capture_view, (w, h), lists, ViewPasses::Everything);
 
-    let result = state.renderer.read_texture_to_png(
+    let result = gpu!(state).renderer.read_texture_to_png(
         &capture_tex,
         w,
         h,
@@ -3126,12 +3128,12 @@ pub(crate) fn render_view_onto_kept(
     };
     // The view's own depth buffer goes in; the window's is parked, not
     // recreated (see `Renderer::begin_view_depth`).
-    state.renderer.begin_view_depth(w, h);
+    gpu!(state).renderer.begin_view_depth(w, h);
     // And its own colour target: every pass below draws into the scratch
     // (`target` from here on), and `end_view_scene` presents it into the
     // caller's display target (`display`).
     let display = target;
-    let scratch = state.renderer.begin_view_scene(w, h, display);
+    let scratch = gpu!(state).renderer.begin_view_scene(w, h, display);
     let target = &scratch;
     // The same daylight the live frame computes for its star pass: a camera
     // draws no sky over its stars, so without this a daytime window would
@@ -3153,15 +3155,15 @@ pub(crate) fn render_view_onto_kept(
         let _cost = humanity_core::frame_costs::stage(sky_cpu);
         let stars = passes != ViewPasses::Plan; // a plan tile clears to black, no sky
         if let Some(ref star_r) = state.star_renderer.as_ref().filter(|_| stars) {
-            star_r.update_camera(&state.renderer.queue, camera, sky_rotation(state), fades);
+            star_r.update_camera(&gpu_ref!(state).renderer.queue, camera, sky_rotation(state), fades);
         }
-        let mut encoder = state.renderer.device.create_command_encoder(
+        let mut encoder = gpu!(state).renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor { label: Some("View Star Encoder") },
         );
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("View Star Pass"),
-                timestamp_writes: state.renderer.pass_timer(sky_gpu),
+                timestamp_writes: gpu!(state).renderer.pass_timer(sky_gpu),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: target,
                     resolve_target: None,
@@ -3178,7 +3180,7 @@ pub(crate) fn render_view_onto_kept(
                 star_r.render_pass(&mut pass, daylight);
             }
         }
-        state.renderer.queue.submit(std::iter::once(encoder.finish()));
+        gpu!(state).renderer.queue.submit(std::iter::once(encoder.finish()));
     }
 
     if passes == ViewPasses::Everything {
@@ -3187,7 +3189,8 @@ pub(crate) fn render_view_onto_kept(
         // sun direction is the live path's, from one function (BUG-210:
         // in the render frame, the hull's axes aboard).
         let sun_dir_f = celestial_sun_dir(state);
-        state.renderer.render_celestial_onto(
+        let (cloud_ground, ground_at, ocean_at) = (cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state));
+        gpu!(state).renderer.render_celestial_onto(
             camera,
             lists.celestial,
             lists.celestial_transparent,
@@ -3202,40 +3205,41 @@ pub(crate) fn render_view_onto_kept(
             state
                 .anim_clock_pin
                 .unwrap_or_else(|| state.start_time.elapsed().as_secs_f32()),
-            cloud_ground_params(state),
-            ground_anchor(state),
-            ocean_anchor256(state),
+            cloud_ground,
+            ground_at,
+            ocean_at,
             target,
         );
         // How much of the Sun this view can see, for its glare (same slot as
         // the live path: after the celestial pass, before the orbit lines).
-        state.renderer.render_sun_vis_onto(camera);
-        state.renderer.draw_celestial_lines_onto(camera, lists.orbit_lines, target);
+        gpu!(state).renderer.render_sun_vis_onto(camera);
+        gpu!(state).renderer.draw_celestial_lines_onto(camera, lists.orbit_lines, target);
         // God rays in captures too (v0.895), same slot as the live path, so
         // screenshots show exactly what the player sees.
-        state.renderer.render_godrays_onto(camera, sun_dir_f, target, godray_scale(state));
-        state.renderer.render_ssao_onto(camera, target);
+        let godray = godray_scale(state);
+        gpu!(state).renderer.render_godrays_onto(camera, sun_dir_f, target, godray);
+        gpu!(state).renderer.render_ssao_onto(camera, target);
     }
     if !sky_only {
-        state.renderer.render_scene_onto(camera, lists.opaque, target, who);
-        state.renderer.render_transparent_onto(camera, lists.transparent, target, who);
+        gpu!(state).renderer.render_scene_onto(camera, lists.opaque, target, who);
+        gpu!(state).renderer.render_transparent_onto(camera, lists.transparent, target, who);
         // Same `who` for the overlay and the ring lines: a camera screen's draws
         // publish under `gpu.screen_overlay` / `gpu.screen_lines`, not the live
         // frame's ids (the 2026-09-18 review found them summed into the Main ones).
-        state.renderer.render_overlay_onto(camera, lists.overlay, target, who);
-        state.renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
+        gpu!(state).renderer.render_overlay_onto(camera, lists.overlay, target, who);
+        gpu!(state).renderer.draw_lines_onto(camera, lists.ring_lines, target, who);
     }
 
     // Present the scratch into the caller's target, timed as this view's
     // present (`gpu.present` for the screenshot, `gpu.screen_present` for a
     // camera screen); the scratch is kept or dropped by the depth rule.
-    state.renderer.end_view_scene(display, who, keep);
+    gpu!(state).renderer.end_view_scene(display, who, keep);
 
     // Put the window's depth buffer back BEFORE returning, or the next live
     // pass would bind a mismatched one. The view-sized buffer is kept for
     // the camera screens (the same size again in 100 ms) and dropped after a
     // one-off screenshot (an 8K depth buffer must not linger all session).
-    state.renderer.end_view_depth(keep);
+    gpu!(state).renderer.end_view_depth(keep);
 }
 
 /// Dev camera request (v0.813): see the call site in the frame loop for the
@@ -3298,7 +3302,7 @@ pub(crate) fn poll_cloudmap_request(state: &mut EngineState) {
     }
     state.screenshot_counter += 1;
     let out = format!("debug/cloudmap_{}.png", state.screenshot_counter);
-    let done = match state
+    let done = match gpu!(state)
         .renderer
         .dump_cloud_map_png(std::path::Path::new(&out))
     {
@@ -3326,9 +3330,9 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
         return;
     }
     let dir = std::path::Path::new("debug");
-    let done = match state.renderer.dump_cloud_profile_pngs(dir) {
+    let done = match gpu!(state).renderer.dump_cloud_profile_pngs(dir) {
         Ok(files) => {
-            let pads = state
+            let pads = gpu!(state)
                 .renderer
                 .cloud_profile_cache
                 .as_ref()
@@ -3338,9 +3342,9 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
                 "ok": true,
                 "dir": "debug",
                 "files": files,
-                "knob": state.renderer.cloud_profile_knob,
+                "knob": gpu!(state).renderer.cloud_profile_knob,
                 // D3 dev bit, so a dump records which arm it came from.
-                "top_bound": state.renderer.cloud_top_bound,
+                "top_bound": gpu!(state).renderer.cloud_top_bound,
                 "ground_i0": pads[0],
                 "ground_j0": pads[1],
                 // D3: the flags the SHADER saw, i.e. the cache's validity
@@ -3350,7 +3354,7 @@ pub(crate) fn poll_cloud_profile_dump_request(state: &mut EngineState) {
                 // carried 4096, and a dump must not disagree with the GPU.
                 "flags": crate::renderer::cloud_temporal::cloud_fr_flags_with_top_bound(
                     pads[3] as u32,
-                    state.renderer.cloud_top_bound,
+                    gpu!(state).renderer.cloud_top_bound,
                 ),
             })
         }
@@ -3729,7 +3733,8 @@ pub(crate) fn complete_screen_request(state: &mut EngineState) {
         state.screens.snapshot_counter += 1;
         let path = format!("debug/screen_{}_{}.png", s.core.id, state.screens.snapshot_counter);
         let (w, h) = s.size();
-        let pixels = s.read_rgba(&state.renderer.device, &state.renderer.queue);
+        let gpu = gpu!(state);
+        let pixels = s.read_rgba(&gpu.renderer.device, &gpu.renderer.queue);
         let _ = std::fs::create_dir_all("debug");
         match image::RgbaImage::from_raw(w, h, pixels) {
             Some(img) => match img.save(&path) {
@@ -3851,11 +3856,11 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
         };
         match (ipc.stage, ipc.pos_points) {
             (UiIpcStage::Press, Some(pos)) => {
-                state.egui_state.egui_input_mut().events.push(button(pos, true));
+                gpu!(state).egui_state.egui_input_mut().events.push(button(pos, true));
                 ipc.stage = UiIpcStage::Release;
             }
             (UiIpcStage::Release, Some(pos)) => {
-                state.egui_state.egui_input_mut().events.push(button(pos, false));
+                gpu!(state).egui_state.egui_input_mut().events.push(button(pos, false));
                 ipc.stage = UiIpcStage::Complete;
             }
             // Complete waits for `complete_ui_request` after the frame. A
@@ -3942,7 +3947,7 @@ pub(crate) fn poll_ui_request(state: &mut EngineState) {
         "state" | "find" => UiIpcStage::Complete,
         "pointer_move" | "click" => {
             let pos = pos_points.expect("checked above");
-            state.egui_state.egui_input_mut().events.push(egui::Event::PointerMoved(pos));
+            gpu!(state).egui_state.egui_input_mut().events.push(egui::Event::PointerMoved(pos));
             // The winit-side pixel cache too, so the in-world screens' free
             // cursor ray (screens::pointing_ray) agrees with egui about
             // where the pointer is.
@@ -5167,7 +5172,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
     // so a rig can check the camera and the other players against the plots
     // (scripts/verify-copresence.js --plots).
     let (home_plot, ship_plots) = crate::engine::home_plot::probe_json(state.gui_state.ship_structure.as_ref());
-    let (screen_w, screen_h) = state.renderer.viewport_size();
+    let (screen_w, screen_h) = gpu!(state).renderer.viewport_size();
     let done = serde_json::json!({
         "ok": true,
         "seconds": rec.seconds,

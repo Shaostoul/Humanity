@@ -663,8 +663,8 @@ pub(crate) fn follow_placements(state: &mut EngineState, placements: &[PlacedMac
             // stretched (no shipped screen has one).
             if p.model.is_none() {
                 if let Some(&(mesh_slot, _, _, _)) = state.machine_objects.get(i) {
-                    let mesh = crate::engine::home_meshes::machine_mesh(&state.renderer.device, &p.shape, p.size);
-                    state.renderer.replace_mesh(mesh_slot, mesh);
+                    let mesh = crate::engine::home_meshes::machine_mesh(&gpu!(state).renderer.device, &p.shape, p.size);
+                    gpu!(state).renderer.replace_mesh(mesh_slot, mesh);
                 }
             }
             reshape = true;
@@ -731,7 +731,7 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
         let (surface, surface_is_new) = match reused {
             Some(mut s) => {
                 if s.provider().is_none() && s.size() != (w, h) {
-                    s.resize(&state.renderer.device, w, h);
+                    s.resize(&gpu!(state).renderer.device, w, h);
                     resized = s.take_view_changed();
                 }
                 (s, false)
@@ -744,9 +744,9 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
                 let provider = provider_for(&ScreenSource::parse(&def.source));
                 let format = provider
                     .as_ref()
-                    .map_or(SURFACE_FORMAT, |pr| pr.surface_format(state.renderer.surface_format())); // display-format: the present pass writes a camera screen
+                    .map_or(SURFACE_FORMAT, |pr| pr.surface_format(gpu!(state).renderer.surface_format())); // display-format: the present pass writes a camera screen
                 let mut s = ScreenSurface::new_with_format(
-                    &state.renderer.device,
+                    &gpu!(state).renderer.device,
                     &p.id,
                     &def.source,
                     w,
@@ -758,7 +758,7 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
                 // The frame-cost timers, so the screen's egui pass is timed
                 // as `gpu.screen_ui` (None on an adapter without timestamp
                 // queries: the pass is then simply untimed).
-                s.set_gpu_timers(state.renderer.gpu_timers());
+                s.set_gpu_timers(gpu!(state).renderer.gpu_timers());
                 (s, true)
             }
         };
@@ -766,14 +766,14 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
         surfaces.push(surface);
         let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
         let local = quad_from_placement(Vec3::ZERO, p.size, 0.0, &def.face, def.bezel_m);
-        let mesh = screen_quad_mesh(&state.renderer.device, &local);
+        let mesh = screen_quad_mesh(&gpu!(state).renderer.device, &local);
         // The material tints the page white (the page as drawn) at the def's
         // brightness; roughness 1 / metallic 0 are ignored by the emitter
         // path but keep the uniform sane if the type is ever bisected.
         let (mesh_slot, material_slot) = match old_quads.iter().find(|q| q.id == p.id) {
             Some(prior) => {
-                state.renderer.replace_mesh(prior.mesh, mesh);
-                state.renderer.update_material_full(
+                gpu!(state).renderer.replace_mesh(prior.mesh, mesh);
+                gpu!(state).renderer.update_material_full(
                     prior.material,
                     [1.0, 1.0, 1.0, 1.0],
                     0.0,
@@ -782,13 +782,13 @@ pub(crate) fn sync_screens(state: &mut EngineState, placements: &[PlacedMachine]
                     def.brightness,
                 );
                 if surface_is_new || resized {
-                    state.renderer.set_material_albedo_view(prior.material, surfaces[si].view());
+                    gpu!(state).renderer.set_material_albedo_view(prior.material, surfaces[si].view());
                 }
                 (prior.mesh, prior.material)
             }
             None => {
-                let mi = state.renderer.add_mesh(mesh);
-                let ma = state.renderer.add_material_with_albedo_view(
+                let mi = gpu!(state).renderer.add_mesh(mesh);
+                let ma = gpu!(state).renderer.add_material_with_albedo_view(
                     [1.0, 1.0, 1.0, 1.0],
                     0.0,
                     1.0,
@@ -859,7 +859,7 @@ fn pointing_ray(state: &EngineState) -> Option<(Vec3, Vec3)> {
         if state.egui_ctx.wants_pointer_input() {
             return None;
         }
-        let sz = state.window.inner_size();
+        let sz = gpu_ref!(state).window.inner_size();
         let (o, d) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
         if d.length_squared() < 0.5 {
             return None;
@@ -1109,7 +1109,8 @@ pub(crate) fn frame_surfaces(state: &mut EngineState, lists: &SceneDrawLists) {
         }
     }
     state.screens.framed_pages = framed;
-    let EngineState { screens, renderer, theme, gui_state, .. } = state;
+    let EngineState { screens, gpu, theme, gui_state, .. } = state;
+    let renderer = &mut gpu.as_mut().expect("the view ran with no GPU").renderer;
     let Screens { surfaces, quads, .. } = screens;
     // A page on a wall screen is not one the player opened (2026-10-04): the
     // views it marks for a quest step are dropped (`quest_hooks::off_the_record`),

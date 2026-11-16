@@ -105,7 +105,7 @@ pub(crate) fn run(state: &mut EngineState) {
         if let Some(bd) =
             state.showroom_backdrops.get(state.gui_state.showroom_backdrop)
         {
-            let gmat = state.renderer.add_material_typed(
+            let gmat = gpu!(state).renderer.add_material_typed(
                 [bd.ground.0, bd.ground.1, bd.ground.2, 1.0],
                 0.1,
                 0.9,

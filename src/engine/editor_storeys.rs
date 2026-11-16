@@ -147,7 +147,7 @@ pub(crate) fn in_storey_band(band: Option<(f32, f32)>, y: f32) -> bool {
 /// Where the cursor's ray meets the floor of the storey being edited (`storey_floor_hit` over the
 /// HUD's rooms, `room_bounds`). Every placing and dragging tool of the editor stands on this.
 pub(crate) fn cursor_storey_hit(state: &EngineState) -> Option<StoreyFloorHit> {
-    let sz = state.window.inner_size();
+    let sz = gpu_ref!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     storey_floor_hit(origin, dir, state.gui_state.room_bounds.iter().map(|r| (r.min, r.max)), storey_plan(state))
 }
@@ -559,7 +559,7 @@ pub(crate) fn try_grab_slab_corner(state: &mut EngineState) -> bool {
     let Some(i) = state.gui_state.construction_storeys.slab_selected.filter(|_| !handles.is_empty()) else {
         return false;
     };
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(u8, Vec3, f32)> = None;
     for (c, p) in handles {
@@ -632,7 +632,7 @@ pub(crate) fn try_pick_slab(state: &mut EngineState) -> bool {
     };
     let es = EditStorey::of(hs, state.gui_state.construction_storeys.chosen);
     let zo = active_zone_origin(state);
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     if dir.y.abs() < 1e-6 {
         return false;

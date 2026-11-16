@@ -84,7 +84,7 @@ pub(crate) fn note_body(state: &mut EngineState, body: &str, render_off: DVec3, 
         // The floating origin for temporal anti-aliasing (renderer/taa.rs): this frame's placement
         // of the world the player stands in, so last frame's matrices can be re-expressed in it.
         #[cfg(feature = "native")]
-        state.renderer.taa_note_body(render_off, rot);
+        gpu!(state).renderer.taa_note_body(render_off, rot);
     }
     // A pack left on this body's ground is drawn and marked in the same frame (2026-10-04).
     crate::engine::death_pack::note_body(state, body, render_off, rot);
@@ -592,19 +592,19 @@ pub(crate) fn push_render_objects(
     celestial_transparent: &mut Vec<RenderObject>,
 ) {
     if state.structure_mesh.is_none() {
-        let mesh = crate::renderer::mesh::Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0);
-        state.structure_mesh = Some(state.renderer.add_mesh(mesh));
+        let mesh = crate::renderer::mesh::Mesh::box_xyz(&gpu!(state).renderer.device, 1.0, 1.0, 1.0);
+        state.structure_mesh = Some(gpu!(state).renderer.add_mesh(mesh));
     }
     if state.structure_mats.is_none() {
         // World-object placeholder palette (scaffold amber, wood, stone, metal).
-        let scaffold = state.renderer.add_material_typed([0.85, 0.62, 0.25, 1.0], 0.0, 0.85, 0.0);
-        let wood = state.renderer.add_material_typed([0.48, 0.33, 0.20, 1.0], 0.0, 0.8, 0.0);
-        let stone = state.renderer.add_material_typed([0.55, 0.55, 0.58, 1.0], 0.05, 0.9, 0.0);
-        let metal = state.renderer.add_material_typed([0.45, 0.30, 0.25, 1.0], 0.6, 0.45, 0.0);
+        let scaffold = gpu!(state).renderer.add_material_typed([0.85, 0.62, 0.25, 1.0], 0.0, 0.85, 0.0);
+        let wood = gpu!(state).renderer.add_material_typed([0.48, 0.33, 0.20, 1.0], 0.0, 0.8, 0.0);
+        let stone = gpu!(state).renderer.add_material_typed([0.55, 0.55, 0.58, 1.0], 0.05, 0.9, 0.0);
+        let metal = gpu!(state).renderer.add_material_typed([0.45, 0.30, 0.25, 1.0], 0.6, 0.45, 0.0);
         // A door leaf is darker wood, so a shut door reads against its wall (2026-09-28).
-        let door = state.renderer.add_material_typed([0.30, 0.19, 0.11, 1.0], 0.0, 0.75, 0.0); // theme-exempt: world material, not UI
+        let door = gpu!(state).renderer.add_material_typed([0.30, 0.19, 0.11, 1.0], 0.0, 0.75, 0.0); // theme-exempt: world material, not UI
         // Window glass: the home's own window glass (door panels), transparent pass.
-        let glass = state.renderer.add_material_full([0.55, 0.78, 0.92, 0.34], 0.0, 0.08, 1.0, 0.10); // theme-exempt: world material, not UI
+        let glass = gpu!(state).renderer.add_material_full([0.55, 0.78, 0.92, 0.34], 0.0, 0.08, 1.0, 0.10); // theme-exempt: world material, not UI
         state.structure_mats = Some([scaffold, wood, stone, metal, door, glass]);
     }
     let (Some(unit_box), Some([scaffold_mat, wood_mat, stone_mat, metal_mat, door_mat, glass_mat])) = (state.structure_mesh, state.structure_mats) else {

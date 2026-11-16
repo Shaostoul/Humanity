@@ -23,7 +23,7 @@ household permits, low impact). The native app is the source of truth; the websi
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `gui/pages/maps/sky_events.rs` 463 of 465, `gui/mod.rs` 4,776 of 4,800, `gui/pages/chat/modals.rs` 1,541 of 1,550, `gui/pages/maps/ship_view.rs` 406 of 410, `gui/pages/chat/left_panel.rs` 1,868 of 1,900, `gui/pages/maps/time_bar.rs` 245 of 250, `gui/pages/maps/system_view.rs` 774 of 790, `gui/loaders.rs` 1,609 of 1,650, `gui/pages/maps/bodies.rs` 346 of 355, `gui/pages/maps/mod.rs` 346 of 355, `gui/pages/maps/overlays.rs` 458 of 470, `gui/pages/maps/camera.rs` 526 of 540, `gui/pages/chat.rs` 2,744 of 2,830, `gui/pages/construction.rs` 4,120 of 4,250, `gui/pages/maps/you_layer.rs` 266 of 275, `gui/pages/maps/body_list.rs` 353 of 365, `gui/pages/maps/scene.rs` 140 of 145, `gui/pages/maps/labels.rs` 154 of 160, `gui/pages/maps/galaxy_view.rs` 380 of 395, `gui/state_types.rs` 1,778 of 1,850, `gui/pages/maps/controls.rs` 120 of 125, `gui/pages/maps/orbits.rs` 278 of 290, `gui/pages/maps/night_sky.rs` 254 of 265, `gui/pages/chat/p2p_groups.rs` 766 of 800, `gui/pages/maps/planet_view.rs` 416 of 435, `gui/pages/maps/diagram.rs` 114 of 120, `gui/pages/chat/rows.rs` 1,092 of 1,150, `gui/pages/chat/composer.rs` 644 of 680, `gui/widgets/level_picker.rs` 151 of 160, `gui/pages/maps/stations.rs` 117 of 125, `gui/pages/maps/world_layer.rs` 135 of 145, `gui/pages/maps/belts.rs` 318 of 385, `gui/pages/chat/right_panel.rs` 476 of 600.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 215.
 - **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, music, ai-protocol. **Uses today** (references in non-test code): core 625, net 362, systems 193, ship 164, relay 109, protocol 94, renderer 65, music 56, terrain 33, ai-protocol 17.
-- **May be used by** (the plan): engine. **Used today by:** engine 681.
+- **May be used by** (the plan): engine. **Used today by:** engine 684.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 1,748 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -35,10 +35,10 @@ just test-lib --crate humanity-engine gui:: config:: notifications:: games:: sof
 
 | Item | References | From |
 |---|---:|---|
-| `gui::GuiState` | 54 | engine 54 |
+| `gui::GuiState` | 55 | engine 55 |
 | `gui::pages::chat::norm_server_url` | 22 | engine 22 |
-| `config::AppConfig` | 19 | engine 19 |
-| `gui::GuiPage` | 18 | engine 18 |
+| `config::AppConfig` | 20 | engine 20 |
+| `gui::GuiPage` | 19 | engine 19 |
 | `gui::ToastKind` | 15 | engine 15 |
 | `gui` | 11 | engine 11 |
 | `gui::garment_textures::GarmentArt` | 10 | engine 10 |

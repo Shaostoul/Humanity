@@ -336,35 +336,38 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         if let Some((cx, cz)) = state.gui_state.build_char_pos {
             if state.construction_char_mesh.is_none() {
                 // Player-sized body (~0.5 wide x 1.55 tall x 0.3 deep). (v0.560)
-                let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.5, 1.55, 0.3));
+                let gpu = gpu!(state);
+                let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 0.5, 1.55, 0.3));
                 state.construction_char_mesh = Some(m);
             }
             if state.construction_char_pyramid_mesh.is_none() {
-                let m = state.renderer.add_mesh(Mesh::pyramid(&state.renderer.device, 1.0, 1.0));
+                let gpu = gpu!(state);
+                let m = gpu.renderer.add_mesh(Mesh::pyramid(&gpu.renderer.device, 1.0, 1.0));
                 state.construction_char_pyramid_mesh = Some(m);
             }
             if state.construction_char_mat.is_none() {
                 // theme-exempt: build-mode avatar marker, friendly teal.
-                let m = state.renderer.add_material_full([0.30, 0.72, 0.80, 1.0], 0.0, 0.5, 0.0, 0.25);
+                let m = gpu!(state).renderer.add_material_full([0.30, 0.72, 0.80, 1.0], 0.0, 0.5, 0.0, 0.25);
                 state.construction_char_mat = Some(m);
             }
             if state.construction_node_mesh.is_none() {
-                let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 12, 16));
+                let gpu = gpu!(state);
+                let m = gpu.renderer.add_mesh(Mesh::sphere(&gpu.renderer.device, 1.0, 12, 16));
                 state.construction_node_mesh = Some(m);
             }
             if state.construction_node_mat.is_none() {
                 // theme-exempt: gizmo handle.
-                let m = state.renderer.add_material_full([1.0, 0.82, 0.2, 1.0], 0.0, 0.4, 0.0, 0.6);
+                let m = gpu!(state).renderer.add_material_full([1.0, 0.82, 0.2, 1.0], 0.0, 0.4, 0.0, 0.6);
                 state.construction_node_mat = Some(m);
             }
             if state.construction_node_mat_hot.is_none() {
                 // theme-exempt: grabbed-gizmo highlight.
-                let m = state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
+                let m = gpu!(state).renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.3, 0.0, 1.0);
                 state.construction_node_mat_hot = Some(m);
             }
             if state.construction_node_mat_hover.is_none() {
                 // theme-exempt: hover highlight.
-                let m = state.renderer.add_material_full([1.0, 0.96, 0.62, 1.0], 0.0, 0.35, 0.0, 0.95);
+                let m = gpu!(state).renderer.add_material_full([1.0, 0.96, 0.62, 1.0], 0.0, 0.35, 0.0, 0.95);
                 state.construction_node_mat_hover = Some(m);
             }
             let body_mesh = state.construction_char_mesh.unwrap();
@@ -417,12 +420,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // draggable along its wall (vs the yellow corner spheres). Cached mesh + material.
     if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
         if state.construction_opening_mesh.is_none() {
-            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
             state.construction_opening_mesh = Some(m);
         }
         if state.construction_opening_mat.is_none() {
             // theme-exempt: editor gizmo, distinct cyan + emissive so it stands out.
-            let m = state.renderer.add_material_full([0.2, 0.9, 1.0, 1.0], 0.0, 0.4, 0.0, 0.7);
+            let m = gpu!(state).renderer.add_material_full([0.2, 0.9, 1.0, 1.0], 0.0, 0.4, 0.0, 0.7);
             state.construction_opening_mat = Some(m);
         }
         let mesh = state.construction_opening_mesh.unwrap();

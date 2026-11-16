@@ -349,7 +349,7 @@ pub(crate) fn act_on(state: &mut EngineState, c: Candidate, out: n::Outcome, now
     // The taskbar button's flash, until the window is in front: a person's launch only (a rig's
     // window never flashes in the operator's taskbar), never while hidden (cues).
     if cues.flash && crate::engine::tray::allowed() {
-        state.window.request_user_attention(Some(winit::window::UserAttentionType::Informational));
+        gpu!(state).window.request_user_attention(Some(winit::window::UserAttentionType::Informational));
     }
 }
 

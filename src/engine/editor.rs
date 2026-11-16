@@ -29,7 +29,7 @@ pub(crate) fn light_ring_under_cursor(state: &EngineState) -> Option<u8> {
     let center = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo;
     let radius = light_ring_radius(state.camera.position, center);
     let tolerance = light_ring_pick_tolerance(radius);
-    let sz = state.window.inner_size();
+    let sz = gpu_ref!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     // Each ring is the circle of `radius` in the plane perpendicular to its axis -- exactly
     // what push_circle_3d draws. Nearest hit by camera distance wins.
@@ -370,7 +370,7 @@ pub(crate) fn selected_room_handles(state: &EngineState)
 /// the selected room's door/window slide handles (so they take precedence over the room
 /// grab); otherwise hit-test each room's floor rectangle, select + grab the nearest. (v0.466)
 pub(crate) fn try_begin_room_grab(state: &mut EngineState) {
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let viewport = (sz.width as f32, sz.height as f32);
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, viewport);
     // 1. Opening gizmo handles of the selected room. Walls are VERTICAL, so intersect the
@@ -822,7 +822,7 @@ pub(crate) fn compute_construction_hover(state: &EngineState) -> HoverGizmo {
     let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) else {
         return HoverGizmo::None;
     };
-    let sz = state.window.inner_size();
+    let sz = gpu_ref!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     // Closest approach of the ray to a point p, returning its forward distance t if within pick_r.
     let test = |p: Vec3, pick_r: f32| -> Option<f32> {
@@ -884,7 +884,7 @@ pub(crate) fn try_grab_node(state: &mut EngineState) -> bool {
         None => return false,
     };
     let zo = active_zone_origin(state); // corners are zone-local; the orb renders at +origin (v0.754)
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     // pick_ray already returns a unit dir (or zero for a degenerate ray); re-normalizing a zero
     // vector would be NaN, so use it as-is. (v0.542)
     let (origin, dir) =
@@ -918,7 +918,7 @@ pub(crate) fn try_pick_machine(state: &mut EngineState) -> bool {
     if state.machine_pick.is_empty() {
         return false;
     }
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     // Outside the Dev mode the ship's machines (the Commons stalls...) are read-only, because
@@ -982,7 +982,7 @@ pub(crate) fn try_pick_port(state: &mut EngineState) -> bool {
     if hidden {
         return false;
     }
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(f32, humanity_core::utilities::Utility, humanity_core::utilities::PortDir, Vec3)> = None;
@@ -1017,7 +1017,7 @@ pub(crate) fn try_pick_connection(state: &mut EngineState) -> bool {
     if state.connection_flow_paths.is_empty() {
         return false;
     }
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) =
         state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(f32, String, String)> = None; // (t, from, to)
@@ -1083,7 +1083,7 @@ pub(crate) fn try_pick_zone(state: &mut EngineState) -> bool {
         return false;
     }
     let zo = active_zone_origin(state); // intra-zone volumes are zone-local (v0.754)
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let inv = Vec3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z); // 0 component -> inf, slab-safe
     let mut best: Option<(String, f32)> = None;
@@ -1155,7 +1155,7 @@ pub(crate) fn try_pick_zone(state: &mut EngineState) -> bool {
 /// hit lies within the wall's length + height. Returns true (so the click doesn't also grab a room).
 pub(crate) fn try_pick_wall(state: &mut EngineState) -> bool {
     let zo = active_zone_origin(state); // wall coords are zone-local; test in world (v0.754)
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) else {
         return false;
@@ -1207,7 +1207,7 @@ pub(crate) fn try_pick_light(state: &mut EngineState) -> bool {
     if lights.is_empty() {
         return false;
     }
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(usize, f32)> = None;
     for (i, p) in &lights {
@@ -1264,7 +1264,7 @@ pub(crate) fn try_pick_corridor_mouth(state: &mut EngineState) -> bool {
     if handles.is_empty() {
         return false;
     }
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(usize, f32)> = None;
     for (ci, p) in &handles {
@@ -1311,7 +1311,7 @@ pub(crate) fn try_pick_strip_point(state: &mut EngineState) -> bool {
         }
         _ => return false,
     };
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(usize, f32)> = None;
     for (pi, p) in pts.iter().enumerate() {
@@ -1381,7 +1381,7 @@ pub(crate) fn try_pick_structure(state: &mut EngineState) -> bool {
     if pieces.is_empty() {
         return false;
     }
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(usize, f32)> = None;
     for (i, min, max) in &pieces {
@@ -1416,7 +1416,7 @@ pub(crate) fn try_pick_node(state: &mut EngineState) -> bool {
         Conduit(String),
     }
     let zo = active_zone_origin(state); // road nodes are zone-local; conduit nodes world (v0.754)
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     let mut best: Option<(f32, Sel)> = None;
     if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
@@ -1479,7 +1479,7 @@ pub(crate) fn try_grab_char(state: &mut EngineState) -> bool {
         return false;
     };
     let zo = active_zone_origin(state); // the avatar stands in the ACTIVE zone (v0.754)
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     // Mid-body, on the chosen storey's floor, where it is drawn and dragged (increment 7).
     let c = Vec3::new(cx + zo.x, build_avatar_floor_y(state) + 0.7, cz + zo.z);
@@ -1950,7 +1950,7 @@ pub(crate) fn opening_resize_handles(hs: &humanity_ship::home_structure::HomeStr
 /// rebuild. Computed from the live cursor (not deltas) so it never drifts. (v0.466)
 pub(crate) fn apply_room_drag(state: &mut EngineState) {
     let Some(grab) = state.construction_grab else { return; };
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     if dir.y.abs() < 1e-6 {
         return;
@@ -1982,7 +1982,7 @@ pub(crate) fn apply_room_drag(state: &mut EngineState) {
 /// placement (the 20m-vs-2m fix). Computed from the live cursor so it never drifts. (v0.469)
 pub(crate) fn apply_gizmo_drag(state: &mut EngineState) {
     let Some(g) = state.construction_gizmo_grab else { return; };
-    let sz = state.window.inner_size();
+    let sz = gpu!(state).window.inner_size();
     let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
     // Ray vs the wall's vertical plane through wall_start with normal n.
     let denom = dir.dot(g.n);

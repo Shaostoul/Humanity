@@ -73,11 +73,11 @@ pub(crate) fn rooms_changed(state: &mut EngineState, room_info: &[RoomInfo]) {
     }
     // The level first, so the rooms are laid out once, at the chosen detail.
     apply_detail(state);
-    state.renderer.set_room_gi_rooms(boxes);
+    gpu!(state).renderer.set_room_gi_rooms(boxes);
     // The floors between storeys: the same build, so a slab added or removed
     // in the editor changes what it blocks on the next frame.
     let slabs = occluder_slabs(state.gui_state.ship_structure.as_ref());
-    state.renderer.set_room_gi_slabs(slabs);
+    gpu!(state).renderer.set_room_gi_slabs(slabs);
 }
 
 /// Every SOLID floor slab of the ship as a box in the home (ship) frame, its
@@ -109,7 +109,7 @@ pub fn occluder_slabs(ship: Option<&ShipStructure>) -> Vec<OccluderSlab> {
 /// unchanged, a relayout of the probes and their atlas the frame it changes.
 fn apply_detail(state: &mut EngineState) {
     let budget = crate::renderer::bounced_light_detail::detail_level(&state.gui_state.settings.bounced_light_detail).budget();
-    state.renderer.set_room_gi_budget(budget);
+    gpu!(state).renderer.set_room_gi_budget(budget);
 }
 
 /// Once a frame, before the scene pass (lib.rs).
@@ -119,13 +119,13 @@ pub(crate) fn before_scene(state: &mut EngineState) {
     crate::engine::neighbour_rooms::before_scene(state);
     // The sky table's up is the celestial pass's (`aerial_up`, world frame);
     // the rooms live in the HULL frame, the same turn the sun direction takes.
-    let sky_up = state.renderer.sky_view_uniform.is_some().then(|| {
-        let up = state.renderer.aerial_up;
+    let sky_up = gpu!(state).renderer.sky_view_uniform.is_some().then(|| {
+        let up = gpu!(state).renderer.aerial_up;
         let up = DVec3::new(up[0] as f64, up[1] as f64, up[2] as f64);
         humanity_ship::station::to_hull(state.station_ride, state.station_world_rot, up).as_vec3()
     });
     let eye = state.camera.effective_position();
-    state.renderer.update_room_gi(state.station_off, eye, sky_up);
+    gpu!(state).renderer.update_room_gi(state.station_off, eye, sky_up);
 }
 
 fn luma(c: [f32; 3]) -> f32 {

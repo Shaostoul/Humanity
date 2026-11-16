@@ -84,7 +84,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         data_file: "gui/humanityos_tools.json",
         reads: &[
             ("src/gui/pages/apps/own_tools.rs", "pub const FILE: [&str; 2] = [\"gui\", \"humanityos_tools.json\"];"),
-            ("src/lib.rs", "crate::gui::pages::apps::own_tools::load(&data_dir)"),
+            ("src/engine/engine_boot.rs", "crate::gui::pages::apps::own_tools::load(&data_dir)"),
             ("web/pages/apps-app.js", "const TOOLS_URL = '/data/gui/humanityos_tools.json';"),
             ("web/pages/apps-app.js", "load(TOOLS_URL)"),
         ],
@@ -141,7 +141,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         data_file: "donate/routes.json",
         reads: &[
             ("src/gui/loaders.rs", "(data_dir, \"donate/routes.json\")"),
-            ("src/lib.rs", "crate::gui::load_donate_routes(&data_dir)"),
+            ("src/engine/engine_boot.rs", "crate::gui::load_donate_routes(&data_dir)"),
             ("web/pages/donate-app.js", "loadList('/data/donate/routes.json', 'routes')"),
         ],
     },
@@ -152,7 +152,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         data_file: "donate/methods.json",
         reads: &[
             ("src/gui/loaders.rs", "(data_dir, \"donate/methods.json\")"),
-            ("src/lib.rs", "crate::gui::load_donate_methods(&data_dir)"),
+            ("src/engine/engine_boot.rs", "crate::gui::load_donate_methods(&data_dir)"),
             ("web/pages/donate-app.js", "loadList('/data/donate/methods.json', 'methods')"),
         ],
     },
@@ -163,7 +163,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         data_file: "donate/charities.json",
         reads: &[
             ("src/gui/loaders.rs", "(data_dir, \"donate/charities.json\")"),
-            ("src/lib.rs", "crate::gui::load_donate_charities(&data_dir)"),
+            ("src/engine/engine_boot.rs", "crate::gui::load_donate_charities(&data_dir)"),
             ("web/pages/donate-app.js", "loadList('/data/donate/charities.json', 'charities')"),
         ],
     },
@@ -192,7 +192,7 @@ const PARITY_PAIRS: &[ParityPair] = &[
         data_file: "donate/faq.json",
         reads: &[
             ("src/gui/loaders.rs", "(data_dir, \"donate/faq.json\")"),
-            ("src/lib.rs", "crate::gui::load_donate_faq(&data_dir)"),
+            ("src/engine/engine_boot.rs", "crate::gui::load_donate_faq(&data_dir)"),
             ("web/pages/donate-app.js", "loadList('/data/donate/faq.json', 'entries')"),
         ],
     },

@@ -35,6 +35,10 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - 2026-11-15: `src/lib.rs` 1_930 -> 1_310, the headless sim runner's increment 4: the engine's
+///   boot (everything the app keeps between frames, built with or without the GPU) moved out of
+///   `resumed` into `EngineState::boot`, `src/engine/engine_boot.rs` (1_269 lines left that day). lib.rs
+///   keeps the window, the GPU, the event loop and the frame's dispatcher.
 /// - 2026-11-15: `src/lib.rs` 2_400 -> 1_930, the headless sim runner's increment 1
 ///   (docs/design/headless-sim-runner.md): the world's simulation at startup (the DataStore's
 ///   slots, every system, the live save, the starter vehicles, the save's progress) moved to
@@ -463,7 +467,7 @@ fn repo() -> &'static Path {
 ///   budgets are the plan's, 1_650 and 2_500, which leave the lanes that must
 ///   touch them (1A, 1G, 2A) their room and no more.
 const BUDGETS: &[(&str, usize)] = &[
-    ("src/lib.rs", 1_930),
+    ("src/lib.rs", 1_310),
     ("src/engine/frame_sky_body.rs", 1_850),
     ("src/engine/frame_ws_poll.rs", 1_800),
     ("src/engine/frame_shells.rs", 1_300),

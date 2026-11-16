@@ -25,11 +25,11 @@ use crate::engine::state::EngineState;
 /// The app left the screen: drop the surface, save, and wait the way a window hidden in the tray
 /// waits (the module docs).
 pub(crate) fn suspended(state: &mut EngineState) {
-    if !state.renderer.has_surface() {
+    if !gpu!(state).renderer.has_surface() {
         return;
     }
     log::info!("lifecycle: suspended: the drawing surface is dropped until the app comes back");
-    state.renderer.drop_surface();
+    gpu!(state).renderer.drop_surface();
     crate::engine::quit::save_game(state);
     state.tray.hidden = true;
     state.tray.next_tick = None;
@@ -38,23 +38,24 @@ pub(crate) fn suspended(state: &mut EngineState) {
 /// The app came back (a second `resumed`): a new surface on the same window, at the window's size
 /// now (the phone may have turned while away), and the next frame at once.
 pub(crate) fn resumed(state: &mut EngineState) {
-    if state.renderer.has_surface() {
+    if gpu!(state).renderer.has_surface() {
         return;
     }
-    let size = state.window.inner_size();
+    let size = gpu!(state).window.inner_size();
     log::info!("lifecycle: resumed: a new drawing surface at {}x{}", size.width, size.height);
-    state.renderer.recreate_surface(state.window.clone());
+    let gpu = gpu!(state);
+    gpu.renderer.recreate_surface(gpu.window.clone());
     state.tray.hidden = false;
     state.tray.next_tick = None;
     // The first frame back steps from now, not from when the app went away.
     state.last_frame = std::time::Instant::now();
-    state.window.request_redraw();
+    gpu!(state).window.request_redraw();
 }
 
 /// True for an event the frame loop must not handle while there is no surface to draw on: a
 /// redraw then would acquire a frame from a surface that is gone.
 pub(crate) fn skip_event(state: &EngineState, event: &WindowEvent) -> bool {
-    matches!(event, WindowEvent::RedrawRequested) && !state.renderer.has_surface()
+    matches!(event, WindowEvent::RedrawRequested) && !gpu_ref!(state).renderer.has_surface()
 }
 
 /// Before the event loop waits: with no surface, stay hidden, whatever asked to show the window
@@ -62,7 +63,7 @@ pub(crate) fn skip_event(state: &EngineState, event: &WindowEvent) -> bool {
 /// its hidden tick and never asks for a redraw that [`skip_event`] would drop over and over, a
 /// busy loop on a phone's battery.
 pub(crate) fn hold_hidden_while_away(state: &mut EngineState) {
-    if !state.renderer.has_surface() {
+    if !gpu!(state).renderer.has_surface() {
         state.tray.hidden = true;
     }
 }

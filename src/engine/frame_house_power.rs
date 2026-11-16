@@ -141,11 +141,7 @@ pub(crate) fn run(state: &mut EngineState) {
                     if let Some(d) = state.planet_defs.get(lock) {
                         // Locked-body centre: same lookup the
                         // frame-lock section performs below.
-                        let sim_t = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map(|t| t.as_secs_f64())
-                            .unwrap_or(0.0)
-                            - 946_728_000.0;
+                        let sim_t = state.clock.sim_epoch_s; // the frame's clock (frame_sim::FrameClock)
                         let earth_helio = humanity_core::cosmos::find_body("earth")
                             .map(|e| {
                                 humanity_core::cosmos::body_world_position_3d_au(e, sim_t)

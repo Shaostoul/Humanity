@@ -5808,6 +5808,26 @@ day". The soak and ladder judge the bridges' quantities too (`env.*`, `pack.item
 routine lives three days, the split-step test over a drink from the tank and a meal),
 `tests/sim_gpu_free_lint.rs` (one bridges' slice for the frame and the soak, on one clock).
 
+### The homestead walked with no window or GPU: the engine's GPU optional and one step for both drivers (2026-11-15)
+The headless sim runner's increment 4 (`docs/design/headless-sim-runner.md`, "Built so far"). The
+engine's GPU is one optional part, `EngineState::gpu: Option<Gpu>` (the window, the renderer and
+egui's window state and painter; the view reaches it through `gpu!(state)`), and the engine boots
+through `EngineState::boot(BootOptions, Option<Gpu>)` (`src/engine/engine_boot.rs`): the windowed
+app passes its GPU, a headless run passes None and nothing GPU is created (the app's outside
+services, audio, live weather, the updater, a host node, start only when `BootOptions::services`
+asks). The world's entry skips its drawing without a GPU and names what it skipped
+(`state.gpu_dirty`). The simulation's step is one function, `src/engine/frame_step.rs`, run by the
+windowed frame after its clock and by the headless walk; the settles, the Respawn button's settle
+and the doors run inside it, before anything draws. `HumanityOS --sim walk --route FILE
+[--without-wall X,Z]` (`just sim-walk`, `src/engine/sim_walk.rs`) enters the homestead that way and
+walks the storeys rig's route (`scripts/sim-walk-route.js` writes it from the rig's plan), reporting
+leg by leg where the body went, every floor stood on, the rooms the HUD would name, the fastest
+step, the holds a wall cut short and whether it crossed the leg's wall line. Home storage at the
+start is seeded by the sim side for both the windowed game and the soak
+(`sim_boot::seed_home_storage`). Tests: `tests/frame_split_lint.rs` (every frame stage named Step,
+Input or View; the step first and once; the step reads no view state, the view writes no sim state;
+the walk steps through `frame_step::run`), `tests/sim_gpu_free_lint.rs`.
+
 ### The play journal and F8, Mark this moment (2026-10-24, rung 1 of docs/design/play-journal.md)
 While the game runs it keeps what happened, by kind, in small capped files in a `journal` folder
 beside its logs (the operator's install: %APPDATA%/HumanityOS/journal): `log` (every warning and

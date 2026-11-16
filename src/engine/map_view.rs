@@ -225,7 +225,7 @@ fn render_if_due(state: &mut EngineState, lists: &SceneDrawLists, sky_only: bool
     };
     let passes = if sky_only { ViewPasses::SkyOnly } else { ViewPasses::Everything };
     render_view_onto_kept(state, &cam_full, &target.0, size, &ship_lists, passes, true);
-    state.renderer.mark_view_frame();
+    gpu!(state).renderer.mark_view_frame();
     let mv = &mut state.map_view;
     mv.buffers_kept = true;
     mv.last_key = Some(key);
@@ -256,13 +256,14 @@ fn ensure_target(state: &mut EngineState, half: bool, size: (u32, u32)) -> (wgpu
         slot.as_ref().is_some_and(|t| t.size == size)
     };
     if !slot_ok {
-        let texture = state.renderer.device.create_texture(&wgpu::TextureDescriptor {
+        let gpu = gpu!(state);
+        let texture = gpu.renderer.device.create_texture(&wgpu::TextureDescriptor {
             label: Some(if half { "Maps World Layer (half)" } else { "Maps World Layer" }),
             size: wgpu::Extent3d { width: size.0, height: size.1, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: state.renderer.surface_format(), // display-format: the present pass writes it and egui samples it, as the swapchain
+            format: gpu.renderer.surface_format(), // display-format: the present pass writes it and egui samples it, as the swapchain
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
@@ -270,15 +271,16 @@ fn ensure_target(state: &mut EngineState, half: bool, size: (u32, u32)) -> (wgpu
         let old = if half { state.map_view.half.take() } else { state.map_view.full.take() };
         let id = match old {
             Some(old) => {
-                state.egui_renderer.update_egui_texture_from_wgpu_texture(
-                    &state.renderer.device,
+                let gpu = gpu!(state);
+                gpu.egui_renderer.update_egui_texture_from_wgpu_texture(
+                    &gpu.renderer.device,
                     &view,
                     wgpu::FilterMode::Linear,
                     old.id,
                 );
                 old.id
             }
-            None => state.egui_renderer.register_native_texture(&state.renderer.device, &view, wgpu::FilterMode::Linear),
+            None => { let gpu = gpu!(state); gpu.egui_renderer.register_native_texture(&gpu.renderer.device, &view, wgpu::FilterMode::Linear) }
         };
         let t = Target { _texture: texture, view, id, size };
         if half {
@@ -296,10 +298,10 @@ fn ensure_target(state: &mut EngineState, half: bool, size: (u32, u32)) -> (wgpu
 fn release(state: &mut EngineState) {
     crate::engine::map_tiles::release(state);
     for t in [state.map_view.full.take(), state.map_view.half.take()].into_iter().flatten() {
-        state.egui_renderer.free_texture(&t.id);
+        gpu!(state).egui_renderer.free_texture(&t.id);
     }
     if state.map_view.buffers_kept {
-        state.renderer.release_view_buffers();
+        gpu!(state).renderer.release_view_buffers();
     }
     state.map_view = MapViewGpu::default();
     let world = &mut state.gui_state.maps.world;

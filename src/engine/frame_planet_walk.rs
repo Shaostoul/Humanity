@@ -49,11 +49,7 @@ pub(crate) fn run(state: &mut EngineState) {
     // with a degenerate anchor and Earth's surface bands
     // yanked the player out of the hull).
     if !state.station_ride && !state.aboard_station {
-        let sim_t = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs_f64())
-            .unwrap_or(0.0)
-            - 946_728_000.0;
+        let sim_t = state.clock.sim_epoch_s; // the frame's clock (frame_sim::FrameClock)
         let earth_helio = humanity_core::cosmos::find_body("earth")
             .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
             .unwrap_or(glam::DVec3::ZERO);
@@ -141,11 +137,7 @@ pub(crate) fn run(state: &mut EngineState) {
         let body_center = if lock_body == "earth" {
             glam::DVec3::ZERO
         } else {
-            let sim_t = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs_f64())
-                .unwrap_or(0.0)
-                - 946_728_000.0;
+            let sim_t = state.clock.sim_epoch_s; // the frame's clock (frame_sim::FrameClock)
             let earth_helio = humanity_core::cosmos::find_body("earth")
                 .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
                 .unwrap_or(glam::DVec3::ZERO);
@@ -283,7 +275,10 @@ pub(crate) fn run(state: &mut EngineState) {
             let w_space = ((alt - co_rotate_max_alt)
                 / (inertial_blend_max_alt - co_rotate_max_alt))
                 .clamp(0.0, 1.0) as f32;
-            state.renderer.fill_scale = near_scale * (1.0 - w_space) + w_space;
+            // The sky pass's fill scale: the view's, set only when there is one (increment 4).
+            if let Some(gpu) = state.gpu.as_mut() {
+                gpu.renderer.fill_scale = near_scale * (1.0 - w_space) + w_space;
+            }
         }
 
         if in_corotate_band {
@@ -624,7 +619,8 @@ pub(crate) fn run(state: &mut EngineState) {
                                 .ride_height_m(pin.frame.project(p))
                                 * humanity_terrain::ocean_waves::shoal_factor_at(
                                     depth_m,
-                                    state.renderer.sea_crest_m,
+                                    // The crest the sea is drawn with (the renderer's default with no view).
+                                    state.gpu.as_ref().map_or(humanity_terrain::ocean_waves::MAX_WAVE_HEIGHT_M, |g| g.renderer.sea_crest_m),
                                 ) as f64
                         } else {
                             wave
@@ -807,10 +803,7 @@ pub(crate) fn run(state: &mut EngineState) {
             {
                 use std::sync::atomic::{AtomicU64, Ordering};
                 static LASTD: AtomicU64 = AtomicU64::new(0);
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs())
-                    .unwrap_or(0);
+                let now = state.clock.sim_epoch_s as u64; // the frame's clock, whole seconds (a log throttle)
                 let below = def.map(|d| r < d.radius).unwrap_or(false);
                 if LASTD.swap(now, Ordering::Relaxed) != now || below {
                     if let Some(d) = def {
@@ -945,7 +938,9 @@ pub(crate) fn run(state: &mut EngineState) {
         // space camera uses world-Y up again.
         state.camera.clear_surface();
         // No body context: full fill (the orbital/ship look).
-        state.renderer.fill_scale = 1.0;
+        if let Some(gpu) = state.gpu.as_mut() {
+            gpu.renderer.fill_scale = 1.0;
+        }
     }
 
 }

@@ -7,7 +7,8 @@ use crate::engine::frame_prelude::*;
 /// Paints the egui pass's output onto `view`.
 pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: &wgpu::TextureView) {
     humanity_core::frame_costs::span("cpu.span.ui_paint");
-    state.egui_state.handle_platform_output(&state.window, full_output.platform_output);
+    let gpu = gpu!(state);
+    gpu.egui_state.handle_platform_output(&gpu.window, full_output.platform_output);
 
     // Main-UI dev IPC "find" (2026-09-18): answer a pending
     // text lookup from THIS frame's shapes, before tessellation
@@ -22,9 +23,10 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
 
     // Handle egui texture updates
     for (id, image_delta) in &full_output.textures_delta.set {
-        state.egui_renderer.update_texture(
-            &state.renderer.device,
-            &state.renderer.queue,
+        let gpu = gpu!(state);
+        gpu.egui_renderer.update_texture(
+            &gpu.renderer.device,
+            &gpu.renderer.queue,
             *id,
             image_delta,
         );
@@ -32,8 +34,8 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
 
     let screen_descriptor = egui_wgpu::ScreenDescriptor {
         size_in_pixels: [
-            state.renderer.surface_size().0,
-            state.renderer.surface_size().1,
+            gpu!(state).renderer.surface_size().0,
+            gpu!(state).renderer.surface_size().1,
         ],
         pixels_per_point: full_output.pixels_per_point,
     };
@@ -42,25 +44,26 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
     // Use two encoders: one for buffer updates, one for rendering.
     // This avoids lifetime issues with wgpu 24's render pass borrows.
     {
-        let mut encoder = state.renderer.device.create_command_encoder(
+        let mut encoder = gpu!(state).renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor {
                 label: Some("egui Buffer Update"),
             },
         );
 
-        state.egui_renderer.update_buffers(
-            &state.renderer.device,
-            &state.renderer.queue,
+        let gpu = gpu!(state);
+        gpu.egui_renderer.update_buffers(
+            &gpu.renderer.device,
+            &gpu.renderer.queue,
             &mut encoder,
             &paint_jobs,
             &screen_descriptor,
         );
 
-        state.renderer.queue.submit(std::iter::once(encoder.finish()));
+        gpu!(state).renderer.queue.submit(std::iter::once(encoder.finish()));
     }
 
     {
-        let mut encoder = state.renderer.device.create_command_encoder(
+        let mut encoder = gpu!(state).renderer.device.create_command_encoder(
             &wgpu::CommandEncoderDescriptor {
                 label: Some("egui Render"),
             },
@@ -78,7 +81,7 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
             >(encoder.begin_render_pass(
                 &wgpu::RenderPassDescriptor {
                     label: Some("egui Render Pass"),
-                    timestamp_writes: state.renderer.pass_timer("gpu.ui"),
+                    timestamp_writes: gpu!(state).renderer.pass_timer("gpu.ui"),
                     color_attachments: &[Some(
                         wgpu::RenderPassColorAttachment {
                             view: &view,
@@ -96,14 +99,14 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
         };
         let mut render_pass = render_pass;
 
-        state.egui_renderer.render(
+        gpu!(state).egui_renderer.render(
             &mut render_pass,
             &paint_jobs,
             &screen_descriptor,
         );
         drop(render_pass);
 
-        state.renderer.queue.submit(std::iter::once(encoder.finish()));
+        gpu!(state).renderer.queue.submit(std::iter::once(encoder.finish()));
     }
     // `cpu.frame_total` does NOT close here: the egui submit
     // is not the frame's last. The screenshot captures, the
@@ -113,7 +116,7 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
 
     // Free egui textures that are no longer needed
     for id in &full_output.textures_delta.free {
-        state.egui_renderer.free_texture(id);
+        gpu!(state).egui_renderer.free_texture(id);
     }
 
     // This frame's draw lists, borrowed for the (rare) hi-res

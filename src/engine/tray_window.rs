@@ -191,7 +191,7 @@ pub(crate) fn close_to_tray(state: &mut EngineState) -> bool {
     if !(s.tray && s.close_to_tray && state.tray.shown()) {
         return false;
     }
-    if !keeps_running(s, crate::engine::tray::icon_can_be_seen(), can_hide(&state.window)) {
+    if !keeps_running(s, crate::engine::tray::icon_can_be_seen(), can_hide(&gpu!(state).window)) {
         log::info!("window: the tray icon cannot be seen or this window cannot be hidden here, so closing quits");
         return false;
     }
@@ -204,10 +204,10 @@ pub(crate) fn close_to_tray(state: &mut EngineState) -> bool {
 pub(crate) fn hide(state: &mut EngineState) {
     leave_world(state);
     let left = quiet_for_tray(&mut state.gui_state);
-    let _ = state.window.set_cursor_grab(winit::window::CursorGrabMode::None);
-    state.window.set_cursor_visible(true);
+    let _ = gpu!(state).window.set_cursor_grab(winit::window::CursorGrabMode::None);
+    gpu!(state).window.set_cursor_visible(true);
     state.cursor_free = true;
-    hide_window(&state.window);
+    hide_window(&gpu!(state).window);
     state.window_focused = false;
     state.tray.hidden = true;
     let now = Instant::now();
@@ -320,19 +320,19 @@ pub(crate) fn show(state: &mut EngineState, focus: bool) {
         state.tray.hidden = false;
         state.tray.next_tick = None;
         if background {
-            crate::engine::launch_focus::show_window_behind(&state.window);
+            crate::engine::launch_focus::show_window_behind(&gpu!(state).window);
         } else {
-            state.window.set_visible(true);
+            gpu!(state).window.set_visible(true);
         }
         // The first frame back steps from now, not from when the window went.
         state.last_frame = Instant::now();
         log::info!("window: shown from the tray");
     }
     if focus && !background {
-        state.window.set_minimized(false);
-        state.window.focus_window();
+        gpu!(state).window.set_minimized(false);
+        gpu!(state).window.focus_window();
     }
-    state.window.request_redraw();
+    gpu!(state).window.request_redraw();
 }
 
 /// The event loop is about to wait. Shown: ask for the next frame at once. Hidden: run the tick when
@@ -340,10 +340,10 @@ pub(crate) fn show(state: &mut EngineState, focus: bool) {
 /// the tray's Quit asked to leave: the caller saves and exits.
 pub(crate) fn about_to_wait(state: &mut EngineState, event_loop: &ActiveEventLoop) -> bool {
     #[cfg(windows)]
-    remember_main_window(&state.window);
+    remember_main_window(&gpu!(state).window);
     // The hidden-boot window's dev request (show it behind / hide it again mid-run, for a one-boot
     // A/B/A measurement): engine/rig_window.rs. Answers only a hidden script boot.
-    crate::engine::rig_window::poll_request(&state.window);
+    crate::engine::rig_window::poll_request(&gpu!(state).window);
     // Another program's close that reached no CloseRequested (posted to winit's own window, as
     // taskkill does while the app's window is hidden): quit, saved.
     if OUTSIDE_CLOSE.swap(false, Ordering::SeqCst) {
@@ -352,7 +352,7 @@ pub(crate) fn about_to_wait(state: &mut EngineState, event_loop: &ActiveEventLoo
     }
     if !state.tray.hidden {
         event_loop.set_control_flow(ControlFlow::Wait);
-        state.window.request_redraw();
+        gpu!(state).window.request_redraw();
         return false;
     }
     let now = Instant::now();
@@ -366,7 +366,7 @@ pub(crate) fn about_to_wait(state: &mut EngineState, event_loop: &ActiveEventLoo
     if !state.tray.hidden {
         // The tick showed the window.
         event_loop.set_control_flow(ControlFlow::Wait);
-        state.window.request_redraw();
+        gpu!(state).window.request_redraw();
         return false;
     }
     event_loop.set_control_flow(ControlFlow::WaitUntil(state.tray.next_tick.unwrap_or(now + TICK)));

@@ -118,14 +118,14 @@ impl BandBatch {
             if indices.is_empty() {
                 continue;
             }
-            let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
+            let mesh = Mesh::from_vertices(&gpu!(state).renderer.device, &verts, &indices);
             let mesh_idx = match state.pipe_markers.band_meshes.get(&key) {
                 Some(&slot) => {
-                    state.renderer.replace_mesh(slot, mesh);
+                    gpu!(state).renderer.replace_mesh(slot, mesh);
                     slot
                 }
                 None => {
-                    let slot = state.renderer.add_mesh(mesh);
+                    let slot = gpu!(state).renderer.add_mesh(mesh);
                     state.pipe_markers.band_meshes.insert(key.clone(), slot);
                     slot
                 }
@@ -133,7 +133,7 @@ impl BandBatch {
             let mat = match state.pipe_markers.band_mats.get(&key) {
                 Some(&m) => m,
                 None => {
-                    let m = state.renderer.add_material_full(colour, metallic, roughness, 0.0, 0.0);
+                    let m = gpu!(state).renderer.add_material_full(colour, metallic, roughness, 0.0, 0.0);
                     state.pipe_markers.band_mats.insert(key, m);
                     m
                 }

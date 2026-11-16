@@ -1,74 +1,12 @@
 //! The GUI's mirrors of the player (the file-size split, step 1, 2026-11-14), moved out of
-//! `window_event` in src/lib.rs as it was: death and recovery, the inventory, skills and quests
-//! bridged from the player entity for the pages.
+//! `window_event` in src/lib.rs as it was: the inventory, skills and quests bridged from the player
+//! entity for the pages. (The Respawn button's settle moved to frame_settles.rs, the end of the
+//! simulation's step, in the headless sim runner's increment 4.)
 
 use crate::engine::frame_prelude::*;
 
 /// Mirrors the player's state into the GUI.
 pub(crate) fn run(state: &mut EngineState) {
-    humanity_core::frame_costs::span("cpu.span.mirror_player");
-    // ── Death & recovery (v0.745, loop-map rung 1) ──
-    // A death the systems record is surfaced right after their tick, with
-    // what it cost in the Death mode chosen (engine/death_pack.rs after_tick).
-    // The Respawn button: back to the spawn room (the fibonacci
-    // design's respawner/medbay), full health, survivable vitals,
-    // effects cleared, Dead removed. What the death cost was settled
-    // when it happened (Realistic leaves the backpack in a pack).
-    if state.gui_state.pending_respawn {
-        state.gui_state.pending_respawn = false;
-        state.gui_state.player_death_cause = None;
-        let mut player: Option<hecs::Entity> = None;
-        for (e, _c) in state.game_world.world.query::<&Controllable>().iter() {
-            player = Some(e);
-            break;
-        }
-        if let Some(e) = player {
-            if let Ok(mut h) = state.game_world.world.get::<&mut Health>(e) {
-                h.current = h.max;
-            }
-            if let Ok(mut v) = state
-                .game_world
-                .world
-                .get::<&mut humanity_core::ecs::components::Vitals>(e)
-            {
-                v.satiation = v.satiation.max(60.0);
-                v.hydration = v.hydration.max(60.0);
-                v.energy = v.energy.max(60.0);
-                v.oxygen = v.oxygen_max;
-                v.body_temp_c = 37.0;
-            }
-            if let Ok(mut fx) = state
-                .game_world
-                .world
-                .get::<&mut humanity_core::ecs::components::StatusEffects>(e)
-            {
-                fx.active.clear();
-            }
-            let _ = state
-                .game_world
-                .world
-                .remove_one::<humanity_core::ecs::components::Dead>(e);
-            if let Ok(mut t) = state.game_world.world.get::<&mut Transform>(e) {
-                t.position = state.fps_spawn;
-            }
-        }
-        state.camera.position = state.fps_spawn;
-        // On the floor under the spawn, whatever storey the player died on (ship
-        // homes increment 7): the door is on the ground floor, under a slab.
-        crate::engine::home_plot::reseat_floor(state);
-        // Out of the truck (its seat freed) and off the follow cam, either
-        // of which would put the camera back on its vehicle next frame.
-        crate::engine::home_plot::step_out_of_vehicles(
-            &mut state.game_world.world,
-            &mut state.driving_vehicle,
-            &mut state.follow_vehicle,
-        );
-        log::info!("[Vitals] player respawned at the spawn room");
-        // In the shared world the relay still holds them where they died, up
-        // to 154 m away: step out and join again, so it stands them at their
-        // door too (ship homes 1b, engine/home_plot.rs).
-        crate::engine::home_plot::respawn_through_relay(state);
-    }
     humanity_core::frame_costs::span("cpu.span.mirror_inventory");
     // Bridge inventory from the player entity
     let item_registry = state.data_store.get::<ItemRegistry>("item_registry");
@@ -249,17 +187,6 @@ pub(crate) fn run(state: &mut EngineState) {
                 state.gui_state.quests_available = avail;
             }
             break;
-        }
-        // Accept clicked: apply to the live tracker.
-        if let Some(qid) = state.gui_state.pending_accept_quest.take() {
-            for (_e, (tracker, _c)) in state
-                .game_world
-                .world
-                .query_mut::<(&mut QuestTracker, &Controllable)>()
-            {
-                tracker.accept_quest(&qid);
-                break;
-            }
         }
     }
 }

@@ -140,7 +140,7 @@ pub fn neighbour_kinds(ship: Option<&ShipStructure>) -> BTreeSet<String> {
 /// data/world/showcase.ron sows in the bed's machine; the plants a plot holds come from the crop's
 /// own spacing (`farming::units::plants_in_plot`, per square metre here).
 pub(crate) fn jobs(state: &EngineState) -> Vec<GroupJob> {
-    if state.renderer.room_gi.neighbours_off {
+    if gpu_ref!(state).renderer.room_gi.neighbours_off {
         return Vec::new();
     }
     let kinds = neighbour_kinds(state.gui_state.ship_structure.as_ref());
@@ -210,7 +210,7 @@ pub fn bed_boxes(beds: &[Bed]) -> (Vec<humanity_core::vertex::Vertex>, Vec<u32>)
 /// Make (or, with the reuse switch off, make again) each neighbour design's bed mesh and its
 /// material, once a frame before the plants are drawn (`home_meshes::rebuild_plant_meshes`).
 pub(crate) fn prepare(state: &mut EngineState) {
-    if state.renderer.room_gi.neighbours_off {
+    if gpu!(state).renderer.room_gi.neighbours_off {
         return;
     }
     let kinds = neighbour_kinds(state.gui_state.ship_structure.as_ref());
@@ -227,17 +227,17 @@ pub(crate) fn prepare(state: &mut EngineState) {
             continue;
         }
         let (v, i) = bed_boxes(&beds);
-        let mesh = crate::renderer::mesh::Mesh::from_vertices(&state.renderer.device, &v, &i);
+        let mesh = crate::renderer::mesh::Mesh::from_vertices(&gpu!(state).renderer.device, &v, &i);
         let slot = match have {
             Some((mi, ma)) => {
-                state.renderer.replace_mesh(mi, mesh);
+                gpu!(state).renderer.replace_mesh(mi, mesh);
                 (mi, ma)
             }
             None => {
                 // The machine's own colour, as a bed you place is drawn (home_meshes, the machines).
                 let c = design_bed_colour(&data_dir, &kind);
-                let ma = state.renderer.add_material_typed([c[0], c[1], c[2], 1.0], 0.1, 0.7, 0.0);
-                (state.renderer.add_mesh(mesh), ma)
+                let ma = gpu!(state).renderer.add_material_typed([c[0], c[1], c[2], 1.0], 0.1, 0.7, 0.0);
+                (gpu!(state).renderer.add_mesh(mesh), ma)
             }
         };
         BEDS.with(|b| b.borrow_mut().insert(kind, slot));
@@ -295,7 +295,7 @@ pub fn draws(ship: &ShipStructure, eye: Vec3, slots: &dyn Fn(&str) -> Option<Vec
 /// plant pass's meshes of `GROUP_PREFIX` keys) at every neighbour plot near the eye.
 pub(crate) fn push_draws(state: &EngineState, out: &mut Vec<RenderObject>) {
     let Some(ship) = state.gui_state.ship_structure.as_ref() else { return };
-    if state.renderer.room_gi.neighbours_off {
+    if gpu_ref!(state).renderer.room_gi.neighbours_off {
         return;
     }
     let eye = state.camera.effective_position() - state.station_off;

@@ -715,8 +715,8 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             let same_models = rt.gpu_bodies.len() == lib.bodies.len()
                 && rt.lib.as_ref().is_some_and(|old| old.bodies.len() == lib.bodies.len() && old.bodies.iter().zip(&lib.bodies).all(|(a, b)| a.model == b.model));
             if !same_models {
-                state.renderer.skin_clear_bodies();
-                rt.gpu_bodies = lib.bodies.iter().map(|b| state.renderer.skin_register_body(&b.model)).collect();
+                gpu!(state).renderer.skin_clear_bodies();
+                rt.gpu_bodies = lib.bodies.iter().map(|b| gpu!(state).renderer.skin_register_body(&b.model)).collect();
                 for (b, &gpu) in lib.bodies.iter().zip(&rt.gpu_bodies) {
                     log::info!(
                         "Characters: body {} as {} ({} joints, {} vertices, {} regions, {} shape targets, {:.2} MB on the GPU), {} clips, graph {}",
@@ -726,7 +726,7 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
                         b.model.vertex_count(),
                         b.model.primitives.len(),
                         b.model.morph_names.len(),
-                        state.renderer.skin_body_bytes(gpu) as f64 / 1_048_576.0,
+                        gpu!(state).renderer.skin_body_bytes(gpu) as f64 / 1_048_576.0,
                         b.clips.clips.len(),
                         lib.graph.id
                     );
@@ -740,7 +740,7 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
             if rt.lib.as_ref().map_or(true, |old| old.graph != lib.graph) {
                 for f in rt.figures.values_mut() {
                     if let (Some(own), true) = (f.own.take(), same_models) {
-                        state.renderer.skin_release_body(own.gpu);
+                        gpu!(state).renderer.skin_release_body(own.gpu);
                     }
                 }
                 rt.figures.clear();
@@ -755,17 +755,17 @@ pub(crate) fn ensure_loaded(state: &mut EngineState) {
                 f.too_big = None;
                 if let Some(own) = f.own.take() {
                     if same_models {
-                        state.renderer.skin_release_body(own.gpu);
+                        gpu!(state).renderer.skin_release_body(own.gpu);
                     }
                 }
             }
             // The own-mesh pool was planned for the old library (its largest dressed person): let
             // go, and planned again from this one on the next frame that draws bodies.
-            state.renderer.skin_drop_own_pool();
+            gpu!(state).renderer.skin_drop_own_pool();
             // Garment indices belong to the library they were read from: every texture lets its slot
             // go, and the pools go with them (sized from the old library); the new library's pools
             // are planned for the Settings page.
-            let_go_of_garment_textures(rt, &mut state.renderer);
+            let_go_of_garment_textures(rt, &mut gpu!(state).renderer);
             rt.garment_tex.clear();
             rt.garment_materials.clear();
             // The plan's view of this library's garments (Settings plans the levels from the same).
@@ -1766,7 +1766,7 @@ fn draw_crowd_boxes(state: &mut EngineState, all_objects: &mut Vec<RenderObject>
     }
     if state.animation.box_meshes.is_none() {
         use crate::engine::net_route::{FIGURE_BODY_MESH_H_M, FIGURE_HEAD_MESH_R_M};
-        let r = &mut state.renderer;
+        let r = &mut gpu!(state).renderer;
         let body = r.add_mesh(crate::renderer::mesh::Mesh::box_xyz(&r.device, 0.42, FIGURE_BODY_MESH_H_M, 0.26));
         let (hv, hi) = crate::engine::net_route::figure_head_mesh_data(FIGURE_HEAD_MESH_R_M);
         let head = r.add_mesh(crate::renderer::mesh::Mesh::from_vertices(&r.device, &hv, &hi));
@@ -2046,7 +2046,7 @@ pub(crate) fn draw_people(
         state.animation.report.people = 0;
         // Nothing of the last bodies frame may be drawn again (the middle list lives on the
         // renderer until the next frame's start).
-        state.renderer.skin_begin_frame();
+        gpu!(state).renderer.skin_begin_frame();
         if !showroom {
             draw_crowd_boxes(state, all_objects);
         }
@@ -2111,7 +2111,7 @@ pub(crate) fn draw_people(
     // wear them (each drawn in its mean colour for the frames that takes). Decided once a frame.
     let near_cap = state.animation.lib.as_ref().map_or(0, |l| l.characters.tiers.near_cap);
     crate::gui::garment_textures::ensure_read(&state.data_dir);
-    let tex_size = frame_tex_size(&state.animation.garment_arts, near_cap, &state.gui_state.settings.garment_textures, state.renderer.block_compression());
+    let tex_size = frame_tex_size(&state.animation.garment_arts, near_cap, &state.gui_state.settings.garment_textures, gpu!(state).renderer.block_compression());
     let had = state.animation.tex_size.is_some();
     if level_changed(&mut state.animation.tex_size, tex_size) && had {
         log::info!(
@@ -2119,25 +2119,25 @@ pub(crate) fn draw_people(
             tex_size.level_px,
             if tex_size.compressed { "BC7" } else { "uncompressed" }
         );
-        let_go_of_garment_textures(&mut state.animation, &mut state.renderer);
+        let_go_of_garment_textures(&mut state.animation, &mut gpu!(state).renderer);
     }
     // The pools, each allocated once, on the first frame that draws bodies (entering the world), and
     // again after the level changes or the library is read again: never when a crowd walks in.
     // Measured 2026-11-10: allocated as the first garment of its shape arrived, the small pool took
     // 9.0 ms on that frame (the large one 0.1 ms), the crowd's one remaining spike.
     if state.animation.textures_on && state.animation.pools.is_empty() && !state.animation.garment_arts.is_empty() {
-        allocate_pools(&mut state.animation.pools, &mut state.renderer, &state.animation.garment_arts, near_cap, tex_size);
+        allocate_pools(&mut state.animation.pools, &mut gpu!(state).renderer, &state.animation.garment_arts, near_cap, tex_size);
     }
     // The own-mesh pool (2026-11-10, renderer::mesh_pool), the same way: allocated once, on the
     // first frame that draws bodies, and again after the library is read again; never when a crowd
     // walks in. Measured before it: one own-mesh upload in about 38 took 9.9 to 11.5 ms, each a new
     // allocation, in three of five crowd runs.
-    if state.renderer.skin_own_pool_stats().is_none() {
+    if gpu!(state).renderer.skin_own_pool_stats().is_none() {
         if let Some(lib) = state.animation.lib.clone() {
             if let Some(plan) = own_pool_plan(&lib) {
-                match state.renderer.skin_create_own_pool(plan.class, plan.people, plan.handles, plan.shared_places, COMPUTE_FALLBACK_CAP as u32) {
+                match gpu!(state).renderer.skin_create_own_pool(plan.class, plan.people, plan.handles, plan.shared_places, COMPUTE_FALLBACK_CAP as u32) {
                     Some(ms) => {
-                        let stats = state.renderer.skin_own_pool_stats();
+                        let stats = gpu!(state).renderer.skin_own_pool_stats();
                         log::info!(
                             "Characters: own-mesh pool for {} people of up to {} vertices and {} indices ({}), {} places, and {} near places for each shared body: {:.1} MB allocated in {:.2} ms",
                             plan.people,
@@ -2156,7 +2156,7 @@ pub(crate) fn draw_people(
         }
     }
     let rt = &mut state.animation;
-    let renderer = &mut state.renderer;
+    let renderer = &mut gpu!(state).renderer;
     let lib = rt.lib.as_ref().expect("draws_bodies checked it");
     let distances: Vec<f32> = people.iter().map(|p| (p.feet + Vec3::Y - cam).length()).collect();
     let tier = tiers::assign(&distances, &lib.characters.tiers);

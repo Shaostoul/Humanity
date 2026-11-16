@@ -31,19 +31,19 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // those indices. Reset here, unconditionally, where the
     // list they index is born; the chunked branch overwrites
     // both when it has something to say.
-    state.renderer.tree_card_hide_m = 0.0;
-    state.renderer.celestial_colour_skip = 0..0;
+    gpu!(state).renderer.tree_card_hide_m = 0.0;
+    gpu!(state).renderer.celestial_colour_skip = 0..0;
     // Batched terrain patches are rebuilt fresh each frame by
     // the chunked-LOD block below; clearing HERE (not there)
     // guarantees no stale draws referencing freed arena
     // ranges survive a frame where chunked mode drops out.
-    state.renderer.patch_draws.clear();
+    gpu!(state).renderer.patch_draws.clear();
     // Same contract for the grass instance set (v0.1091): the
     // planet block below re-publishes it every frame it draws
     // ground, so zeroing here means a frame that never
     // reaches that block (space, menus, a non-chunked body)
     // cannot leave a stale sward hanging in the sky.
-    state.renderer.set_grass_instances(&[]);
+    gpu!(state).renderer.set_grass_instances(&[]);
     // Transparent celestial shells (planet atmospheres, v0.763): alpha-blended
     // after the opaque bodies inside the SAME celestial pass, so they share
     // its far plane and depth-test against the planets.
@@ -99,9 +99,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                     humanity_core::vertex::Vertex { position: [-0.5, 0.0, 0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] },
                 ];
                 let idx = vec![0u32, 2, 1, 0, 3, 2];
-                let m = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &v, &idx));
+                let gpu = gpu!(state);
+                let m = gpu.renderer.add_mesh(Mesh::from_vertices(&gpu.renderer.device, &v, &idx));
                 let a = state.theme.accent();
-                let mat = state.renderer.add_material_full(
+                let mat = gpu!(state).renderer.add_material_full(
                     [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 0.4],
                     0.0, 0.4, 1.0, 0.3,
                 );
@@ -151,9 +152,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                         3, 7, 6, 3, 6, 2, // +Y
                         0, 1, 5, 0, 5, 4, // -Y
                     ];
-                    let m = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &v, &idx));
+                    let gpu = gpu!(state);
+                    let m = gpu.renderer.add_mesh(Mesh::from_vertices(&gpu.renderer.device, &v, &idx));
                     let a = state.theme.accent();
-                    let mat = state.renderer.add_material_full(
+                    let mat = gpu!(state).renderer.add_material_full(
                         [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 0.95],
                         0.0, 0.3, 1.0, 0.9, // emissive so it pops against the wall
                     );
@@ -163,7 +165,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 if state.construction_gizmo_resize_handle.is_none() {
                     if let Some((gm, _)) = state.construction_gizmo_handle {
                         let wcol = state.theme.warning();
-                        let wmat = state.renderer.add_material_full(
+                        let wmat = gpu!(state).renderer.add_material_full(
                             [wcol.r() as f32 / 255.0, wcol.g() as f32 / 255.0, wcol.b() as f32 / 255.0, 0.95],
                             0.0, 0.3, 1.0, 0.9,
                         );
@@ -415,7 +417,8 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 .collect();
             if !ports.is_empty() {
                 if state.port_node_mesh.is_none() {
-                    let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 0.05, 10, 12));
+                    let gpu = gpu!(state);
+                    let m = gpu.renderer.add_mesh(Mesh::sphere(&gpu.renderer.device, 0.05, 10, 12));
                     state.port_node_mesh = Some(m);
                 }
                 let mesh = state.port_node_mesh.unwrap();
@@ -426,7 +429,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                         None => {
                             // The pipes' band colour in linear light (2026-10-04 review).
                             let fill = humanity_ship::machines::MachineHome::gizmo_colours(&kind, [1.0; 4]).fill;
-                            let m = state.renderer.add_material_full(fill, 0.0, 0.4, 0.0, 2.0);
+                            let m = gpu!(state).renderer.add_material_full(fill, 0.0, 0.4, 0.0, 2.0);
                             state.connection_mats.insert(key, m);
                             m
                         }
@@ -467,11 +470,12 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             };
             if !rail_edges.is_empty() {
                 if state.rail_car_mesh.is_none() {
-                    let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.6, 0.7, 0.7));
+                    let gpu = gpu!(state);
+                    let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.6, 0.7, 0.7));
                     state.rail_car_mesh = Some(m);
                 }
                 if state.rail_car_mat.is_none() {
-                    let m = state.renderer.add_material_full([0.95, 0.85, 0.4, 1.0], 0.3, 0.4, 0.0, 1.2);
+                    let m = gpu!(state).renderer.add_material_full([0.95, 0.85, 0.4, 1.0], 0.3, 0.4, 0.0, 1.2);
                     state.rail_car_mat = Some(m);
                 }
                 let mesh = state.rail_car_mesh.unwrap();
@@ -500,12 +504,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // Elevator CARS (v0.590): a moving floor slab per elevator at its animated
         // height, so you see + stand on the lift. Cached unit box, scaled/posed per car.
         if state.elevator_car_mesh.is_none() {
-            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
             state.elevator_car_mesh = Some(m);
         }
         if state.elevator_car_mat.is_none() {
             // theme-exempt: elevator car platform, neutral brushed metal.
-            let m = state.renderer.add_material_typed([0.4, 0.43, 0.48, 1.0], 0.3, 0.5, 0.0);
+            let m = gpu!(state).renderer.add_material_typed([0.4, 0.43, 0.48, 1.0], 0.3, 0.5, 0.0);
             state.elevator_car_mat = Some(m);
         }
         let car_mesh = state.elevator_car_mesh.unwrap();

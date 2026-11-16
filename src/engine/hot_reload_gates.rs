@@ -50,7 +50,12 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
     if crate::engine::save_slot::live_carries(humanity_ship::starts::HomeContent::ShowcaseGarden) {
         crate::engine::ipc::auto_seed_showcase(state);
     }
-    crate::engine::home_meshes::rebuild_plant_meshes(state);
+    // The plants' meshes are drawing: rebuilt only with the view's GPU (the headless sim runner,
+    // increment 4). Without one the signature (`plant_mesh_sig`) stays behind the farm's growth, the
+    // dirty flag a view that has a GPU rebuilds from.
+    if state.gpu.is_some() {
+        crate::engine::home_meshes::rebuild_plant_meshes(state);
+    }
     // Hull-profile hot-reload (v0.770): saving
     // data/blueprints/hull_profile.ron regrows the hull next frame -
     // silhouette tuning is save-file-see-hull, the same loop the planets
@@ -61,7 +66,9 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
         n.ends_with("blueprints/hull_profile.ron")
     }) {
         state.hull_profile = None; // force the re-read
-        crate::engine::home_meshes::rebuild_hull(state);
+        if state.gpu.is_some() {
+            crate::engine::home_meshes::rebuild_hull(state);
+        }
     }
     // The top menu (docs/design/navigation.md, rung 1): saving data/gui/navigation.json reads it
     // again, so the row changes without a restart; a copy this version cannot read is refused,

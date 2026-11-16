@@ -168,7 +168,7 @@ pub(crate) fn before_scene(state: &mut EngineState) {
     let eye = state.camera.effective_position() - state.station_off;
     let held = HELD.with(|h| h.borrow().clone());
     let lit = match state.gui_state.ship_structure.as_ref() {
-        Some(ship) if !state.renderer.room_gi.neighbours_off => {
+        Some(ship) if !gpu!(state).renderer.room_gi.neighbours_off => {
             let view = humanity_ship::neighbours::neighbour_view(ship);
             let ids: Vec<String> = lit_neighbours(&view, eye, &held).into_iter().map(|i| view.neighbours[i].plot.id.clone()).collect();
             if ids == held && humanity_core::reuse::enabled() {
@@ -188,7 +188,7 @@ pub(crate) fn before_scene(state: &mut EngineState) {
         );
     }
     HELD.with(|h| *h.borrow_mut() = lit.plots.clone());
-    state.renderer.set_room_gi_neighbours(lit.boxes, lit.runs, lit.lamps);
+    gpu!(state).renderer.set_room_gi_neighbours(lit.boxes, lit.runs, lit.lamps);
 }
 
 #[cfg(test)]

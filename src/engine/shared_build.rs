@@ -1329,7 +1329,7 @@ pub(crate) fn storage_counts(world: &hecs::World, placed: &[humanity_systems::in
 
 /// This frame's pieces with their screen boxes, for each recorded frame (engine/ipc.rs).
 pub(crate) fn recorder_rows(state: &EngineState) -> Vec<serde_json::Value> {
-    let (w, h) = state.renderer.viewport_size();
+    let (w, h) = gpu_ref!(state).renderer.viewport_size();
     let view = ScreenView { view_proj: state.camera.view_projection_matrix(), size: [w as f32, h as f32], offset: state.station_off };
     piece_rows(&state.game_world.world, state.data_store.get::<BlueprintRegistry>("blueprint_registry"), Some(&view))
 }

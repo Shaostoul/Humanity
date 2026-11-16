@@ -182,8 +182,8 @@ The windowed rigs still run in each release batch.
 | 0 | **Built 2026-10-30.** Measure: stage timers around the walk aboard, the planet walk, the bridges, the settles | numbers in this doc; the untimed part of `frame_total` shrinks | 0.5 d |
 | 1 | **Built 2026-11-15.** Setup split: `engine::sim_boot` and `engine::world_sim::build` (GPU uploads stay in `world_load`) | windowed game unchanged (verify-runtime, verify-storeys); a lib test builds the homestead with no GPU | 3 d |
 | 2 | **Built 2026-11-15** (the ECS stage; the bridges stay for increment 3). Systems slice and the first headless value: lib.rs 5770-6721 into `frame_sim::systems_slice`; `--sim soak`; sim seeds | a 7-day soak in seconds; the dt ladder report; the split-step test over every system; byte-identical repeat runs | 2-3 d |
-| 3 | **Built 2026-11-15, but for the settles** (see "Built so far"). Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
-| 4 | `gpu: Option<Gpu>`, `EngineState::boot(opts, gpu)`; sim-side mesh creation becomes dirty flags | `--sim` enters the homestead and walks with no EventLoop and no wgpu Instance; windowed rigs green | 3-5 d |
+| 3 | **Built 2026-11-15** (the settles moved with increment 4; see "Built so far"). Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
+| 4 | **Built 2026-11-15.** `gpu: Option<Gpu>`, `EngineState::boot(opts, gpu)`; sim-side mesh creation becomes dirty flags; the settles at the end of the step and `frame_split_lint` | `--sim` enters the homestead and walks with no EventLoop and no wgpu Instance; windowed rigs green | 3-5 d |
 | 5 | Transport and headless rigs (the `Verb` table, stdin JSON lines, `--headless` on verify-storeys and verify-falls aboard) | headless and windowed verdicts agree (75/75); the floorless sandbox fails headless too | 3 d |
 | 6 | The planet's ground owned by the sim (CPU LOD selection and tile requests in `step`) | the falls planet legs pass both ways; the near-tree ground check green | 3-4 d |
 | 7 | Rate classes and farming's cost (per-system rate in `SystemRunner`, both paths) | windowed frame ~3 ms cheaper; dt ladder within tolerance; GUI requests answered under 100 ms | 2-3 d |
@@ -338,8 +338,8 @@ the windowed game and the soak step the same sim the same way:
   (moved verbatim out of `home_meshes::render_door_panels`, which draws the doors where the tick
   left them). The poll of the rigs' verbs runs after the present branch, every frame, presented or
   not (lib.rs; it was inside `frame_tail`).
-- **Not done: the settles at the end of the step** (frame_settles.rs still runs after the view's
-  draw-list stages), and so no `frame_split_lint` yet: increment 4's work below.
+- **Not done in increment 3: the settles at the end of the step** (frame_settles.rs still ran after
+  the view's draw-list stages), and so no `frame_split_lint`: both came with increment 4, below.
 - A person's routine for the soak, as data: `data/sim/routines/daily.ron` (acts at hours of the
   home's day: drink, eat, sleep, rest; the foods and drinks reached for) and
   `src/engine/sim_routine.rs`, which turns each act into the requests the pages set (the Drink
@@ -385,13 +385,94 @@ temperature, 0.037 C off at 600 s against 0.024 allowed (a night's sleep changes
 activity once a step); its tolerance is 0.05 C now, with the reason in the file. Nothing else
 had to be held at a finer step.
 
-**Increment 4, its first step**: the settles at the end of the step (frame_settles.rs, the
-ECS-to-GUI mirror's game rules: livestock collect, melee, loot, `build_place::frame`, the vendor,
-abilities, equipping, respawn) moved before the view's draw-list stages, with their audit, and
-`frame_split_lint` (the sim stages run once, before any view stage; no renderer, egui, window or
-wall clock in frame_sim*.rs); then `gpu: Option<Gpu>` and `EngineState::boot(opts, gpu)`, so
-`--sim` enters the homestead through the same `EngineState` with no wgpu Instance and the
-compiler lists every GPU touch left in sim code (the doors' tick and the settles among them).
+**Increment 4, the step whole, the GPU optional, and a walk with no GPU** (2026-11-15). The
+homestead is entered and walked through the same `EngineState` the windowed app runs, with no
+window, no event loop and no wgpu Instance:
+
+- **The step runs first and whole.** `src/engine/frame_step.rs` is the step on the engine: the
+  station, the movement setup, the walk aboard, the probe hold, the house's power, the planet walk,
+  the collisions and the drive, the look and the environment, the bridges, the systems, the settles
+  and the doors, in that order, once. The windowed frame calls it right after frame_clock.rs reads
+  the wall clock into `state.clock`; the headless walk calls it after advancing the clock 1/60 s.
+  The settles (frame_settles.rs) moved there from after the home's and the sky's draw lists, the
+  Respawn button's settle joined them from frame_mirrors.rs, doors::tick moved ahead of copresence
+  and the save editor, the probe hold was split out of frame_particles.rs (the particles, drawing,
+  run after the step), and the quest page's Accept moved from the mirror into
+  frame_sim_requests.rs. The step's five `SystemTime::now() - J2000` reads are
+  `state.clock.sim_epoch_s`, and the planet's spin is set by the step from the advanced clock.
+- **`tests/frame_split_lint.rs`**: every stage the frame calls is named with its kind (Step, Input,
+  View); the step's stages (read from frame_step.rs) are each called once and all before anything
+  else; the step's stage files read no renderer, window, egui, particle system, drawn ground,
+  drawn trees, shader clock or wall clock beyond five counted reads, each with the increment that
+  removes it (the planet walk's fill scale, sea crest, shader clock and drawn ground, and the
+  bridges' and the ECS stage's drawn ground, for increment 6; the probe hold's wall-clock grace
+  for increment 5); the view's stage files write no sim state; the headless walk steps through
+  `frame_step::run` and calls no stage itself. Seen red five ways (its doc comment).
+- **`gpu: Option<Gpu>`**: `Gpu { window, renderer, egui_state, egui_renderer }`, reached through
+  `gpu!(state)` / `gpu_ref!(state)` (lib.rs), which panic with no GPU; 722 sites rewritten, 63
+  statements that reached it twice take it once into a local. The planet walk's three reads check
+  `state.gpu` instead, and so do the two GPU touches a call-graph scan found reachable from the
+  step: the hot-reload poll's plant-mesh rebuild, run every frame from frame_move_setup (with no GPU
+  the plants' signature stays behind the farm's growth: the dirty flag a view rebuilds from), and
+  the hull's hot reload.
+- **`EngineState::boot(BootOptions, Option<Gpu>)`** (`src/engine/engine_boot.rs`): everything lib.rs
+  `resumed` built after the window, moved verbatim but for the GPU's parts (the camera's aspect is
+  16:9 without one; the star sky's prebuild needs the device) and the app's outside services
+  (audio, the live weather feed, the updater, a configured host node, the low-impact rig's
+  confirmation), which `BootOptions::services` gates. lib.rs 1,874 to 1,269 lines.
+- **The world's entry without a GPU**: every piece of drawing in `world_load::load_world` runs
+  under `drawing(state, what)`, which with no GPU skips it and names it in `state.gpu_dirty`
+  (the home's meshes, light probes and hull; the machines' bodies with the chairs and grow anchors
+  their builder records, the screens, the decorations and the pipes; the hologram; the star sky;
+  the materials; the avatar; the showroom's meshes); the planets' per-pixel textures upload only
+  with a GPU. What the world load builds for the simulation (world_sim, the doors, the station's
+  orbit, the planets' definitions, the character, the spawn) is built the same either way. These
+  are dirty flags in the narrow sense: a record of what a view would have to upload; no path
+  attaches a GPU to a headless engine yet.
+- **Home storage at the start** is `sim_boot::seed_home_storage`, called by both drivers.
+- **`HumanityOS --sim walk --route FILE [--without-wall X,Z]`** (`just sim-walk`,
+  `src/engine/sim_walk.rs`): boots with `EngineState::boot(opts, None)`, enters through
+  `load_world`, and walks a route: the storeys rig's, written as data by
+  `scripts/sim-walk-route.js` from the plan scripts/verify-storeys.js walks (14 legs; the three
+  screenshots left out). Each leg is placed as the rig's `cam` and `walk` verbs place it, turned as
+  its `face` verb turns, and walked with its constants (the walk's speed, 0.25 m arrival, up to ten
+  holds a point, 0.8 s after a hold, 1.5 s standing), keys held through
+  `engine::input::apply_game_action` for simulation seconds. The report reads the recorder's own
+  block (`storey_probe::frame_json`) every step: where the body ended, every floor stood on, every
+  room the HUD would name, the fastest step, the holds a wall cut short and whether the eye crossed
+  the leg's wall line. CLI debt in docs/design/in-app-ops.md.
+
+**Measured** (release build, i7-8700K, 2026-11-15):
+
+| Run | What it shows |
+|---|---|
+| `--sim walk`, the storeys route (14 legs) | the engine booted and the homestead entered in 1.3 to 1.5 s with no window and no GPU; 3,844 steps of 1/60 s (64.1 s of the world) in 5.0 to 5.4 s of wall time, about 12x real time (every step runs the whole systems' tick); no panic anywhere in the step |
+| The walk against the windowed rig's run of 2026-11-15 15:14 (`.probe-rig/storeys/runs/20261115-151437`) | **14 of 14 legs agree**: the end point within the rig's 0.25 m arrival of the same point (0.00 to 0.27 m apart), the eye's height to the centimetre, the same floor at the end and the same span of floors stood on (the stair's treads 0 to 3.00 m, the lift's ride 0 to 3.00 m and back), the same room the HUD names at the end, and the same peak eye (the jump under the slab clamped at 2.63 m in both; the open jump 2.93 headless against 2.89 windowed, inside 0.05 m) |
+| The red run, `--without-wall 45,35.4` (U7, the wall between the dressing room and the bathroom, out of the walk's collision) | wall_upstairs walks through into the wet room and ends 5.0 m east (49.65, 35.55), "CROSSED its wall line", the run says FAILED and exits 1; against the windowed run that leg disagrees (end point and room) and the other 13 still agree |
+| 60-day soak, `--routine daily`, home storage seeded | **the person lives the 60 days** (health 100 throughout): 180 meals, 176 of them taken from home storage (100 rice, 76 flour), 3 the kit's rations and 1 the garden's (the tower's first lettuce, ripe and harvested on day 54); 360 drinks, 178 L drawn from the tank, 60 nights in bed; home storage 1,397 items to 1,151; 4.8 to 5.6 s of wall time, every quantity within tolerance at its 10 s check |
+
+The 60-day soak found a reporting bug in increment 3's routine: every food taken from storage was
+counted as the garden's produce (the meal's fetch measured any food the backpack gained, harvest or
+not; with storage empty no take ever happened), so the first run said "177 of them from the
+garden". `sim_routine` counts produce only after a harvest request now: "1 of them from the garden".
+
+What the 60 days show next, rather than numbers to tune: the garden's cycle is the missing loop.
+After the lettuce on day 54 nothing replants the emptied cups (crops 4 to 3), and the three plants
+left are not tended, their health falling from 399 on day 7 to 345 on day 53 and on after the
+harvest, so a longer soak eats only the start's stores. Next to it, the body's waste reaches 100 on
+day 3 and stays there with no toilet in the routine and nothing in the body that minds: a soak cannot
+yet say whether sanitation matters.
+
+**Increment 5, its first step**: the `Verb` table (`engine::verbs`: enter, place/stand, face, hold
+keys for N simulation seconds, console, illness, time speed, weather, save, fast-forward, record,
+each with `apply(&mut EngineState)`), which the windowed `debug/` file drop
+(`ipc::poll_showcase_request`) and a headless transport (JSON lines on stdin, `--sim verbs -`) both
+parse into; rig_walk's `HELD` timed on `state.clock` instead of `Instant` (and the probe hold's
+grace with it, the last wall-clock read in the step); the recorder's frame JSON written by the
+headless driver in the windowed recorder's shape, so `scripts/lib/storeys-judge.js` judges a
+headless run unchanged; then `--headless` on verify-storeys (the walk this increment built,
+driven by verbs instead of a route file) and verify-falls aboard, proved by the two verdicts
+agreeing leg for leg and the floorless sandbox (`--data` with `floors: []`) failing headless too.
 
 ## Risks
 

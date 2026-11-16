@@ -872,9 +872,10 @@ pub(crate) fn install_planet_defs(state: &mut EngineState, bakes: Vec<PlanetDefB
     // values without leaking hundreds of MB.
     for (_, cs) in state.planet_chunk_states.drain() {
         for (_, entry) in cs.cache {
-            state
+            let gpu = gpu!(state);
+            gpu
                 .renderer
-                .replace_mesh(entry.mesh, Mesh::placeholder(&state.renderer.device));
+                .replace_mesh(entry.mesh, Mesh::placeholder(&gpu.renderer.device));
             state.planet_patch_free_slots.push(entry.mesh);
         }
     }
@@ -886,13 +887,14 @@ pub(crate) fn install_planet_defs(state: &mut EngineState, bakes: Vec<PlanetDefB
         if let Some(al) = albedo {
             state.planet_albedos.insert(id.clone(), al);
         }
-        if let (Some((rgba, baked_in)), Some(al)) = (texture, state.planet_albedos.get(&id)) {
+        // The per-pixel texture is the view's: uploaded only with a GPU (increment 4).
+        if let (true, Some((rgba, baked_in)), Some(al)) = (state.gpu.is_some(), texture, state.planet_albedos.get(&id)) {
             let (w, h) = (al.width(), al.height());
             let t0 = Instant::now();
             if let Some(&mi) = state.planet_textured_materials.get(&id) {
-                state.renderer.set_material_albedo_texture(mi, &rgba, w, h);
+                gpu!(state).renderer.set_material_albedo_texture(mi, &rgba, w, h);
             } else {
-                let mi = state.renderer.add_textured_material(
+                let mi = gpu!(state).renderer.add_textured_material(
                     // base_color.xyz is overwritten every frame with the
                     // planet center in render space (see
                     // planet_textured_materials).

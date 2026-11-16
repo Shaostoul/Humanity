@@ -117,11 +117,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
     // pixel floor plus two pixels when it is tiny.
     let visual_scale = if is_sun {
         let px_angle = (fov_deg as f64).to_radians() / (viewport_h as f64).max(1.0);
-        state.renderer.sun_disc_pad = crate::renderer::sun_disc::camera_pads(dist, body_dir);
+        gpu!(state).renderer.sun_disc_pad = crate::renderer::sun_disc::camera_pads(dist, body_dir);
         // Its glare's frame; the air and cloud factors are
         // filled in once they are known this frame (the
         // sun-material block before the celestial pass).
-        state.renderer.sun_frame = Some(crate::renderer::sun_glare::SunFrame {
+        gpu!(state).renderer.sun_frame = Some(crate::renderer::sun_glare::SunFrame {
             dir: body_dir.as_vec3(),
             dist_m: dist,
             air: [1.0; 3],
@@ -158,7 +158,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
         excluded: is_sun || frame_body,
     });
     if frame_body {
-        state.renderer.frame_body_sphere =
+        gpu!(state).renderer.frame_body_sphere =
             [render_off.x as f32, render_off.y as f32, render_off.z as f32, radius_m as f32];
     }
 
@@ -211,10 +211,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
         // bit 2 (v0.961): tree-card sprite atlas
         // resident - sprite cards sample it; until
         // then they shade flat conifer green.
-        if state.renderer.tree_atlas_ready {
+        if gpu!(state).renderer.tree_atlas_ready {
             surf_flags += 4.0;
         }
-        state.renderer.update_material_full(
+        gpu!(state).renderer.update_material_full(
             mi,
             [
                 render_off.x as f32,
@@ -343,7 +343,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                 d,
                 hm,
                 state.planet_chunk_states.get(&b.id).map(|cs| &cs.last_drawn),
-                &mut state.renderer,
+                &mut gpu!(state).renderer,
                 &mut f.celestial_objects,
                 cam_local,
                 render_off,
@@ -381,12 +381,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                     for (_, mesh_idx, aslot) in cs2.purge_all() {
                         purged += 1;
                         if let Some(s) = aslot {
-                            state.renderer.patch_arena_release(s);
+                            gpu!(state).renderer.patch_arena_release(s);
                         } else if mesh_idx != usize::MAX {
-                            state.renderer.replace_mesh(
+                            let gpu = gpu!(state);
+                            gpu.renderer.replace_mesh(
                                 mesh_idx,
                                 Mesh::placeholder(
-                                    &state.renderer.device,
+                                    &gpu.renderer.device,
                                 ),
                             );
                             state
@@ -713,9 +714,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                 // switch off): free what it drew from first.
                 if let Some((old_mesh, old_slot)) = cs.take_for_rebuild(&id) {
                     if let Some(s) = old_slot {
-                        state.renderer.patch_arena_release(s);
+                        gpu!(state).renderer.patch_arena_release(s);
                     } else if old_mesh != usize::MAX {
-                        state.renderer.replace_mesh(old_mesh, Mesh::placeholder(&state.renderer.device));
+                        let gpu = gpu!(state);
+                        gpu.renderer.replace_mesh(old_mesh, Mesh::placeholder(&gpu.renderer.device));
                         state.planet_patch_free_slots.push(old_mesh);
                     }
                 }
@@ -734,7 +736,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                         humanity_core::vertex::Vertex,
                     >()
                     + pm.mesh.indices.len() * 4;
-                if let Some(aslot) = state
+                if let Some(aslot) = gpu!(state)
                     .renderer
                     .patch_arena_upload(&verts, &pm.mesh.indices)
                 {
@@ -754,17 +756,17 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                     // arena; recycles a freed slot
                     // when one exists).
                     let mesh = Mesh::from_vertices(
-                        &state.renderer.device,
+                        &gpu!(state).renderer.device,
                         &verts,
                         &pm.mesh.indices,
                     );
                     let slot = if let Some(idx) =
                         state.planet_patch_free_slots.pop()
                     {
-                        state.renderer.replace_mesh(idx, mesh);
+                        gpu!(state).renderer.replace_mesh(idx, mesh);
                         idx
                     } else {
-                        state.renderer.add_mesh(mesh)
+                        gpu!(state).renderer.add_mesh(mesh)
                     };
                     cs.insert_built(
                         id,
@@ -811,11 +813,12 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
             if let Some(s) = aslot {
                 // Batched patch: return its arena
                 // ranges to the free lists.
-                state.renderer.patch_arena_release(s);
+                gpu!(state).renderer.patch_arena_release(s);
             } else if mesh_idx != usize::MAX {
-                state.renderer.replace_mesh(
+                let gpu = gpu!(state);
+                gpu.renderer.replace_mesh(
                     mesh_idx,
-                    Mesh::placeholder(&state.renderer.device),
+                    Mesh::placeholder(&gpu.renderer.device),
                 );
                 state.planet_patch_free_slots.push(mesh_idx);
             }
@@ -955,9 +958,9 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                 da.partial_cmp(&db)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
-            state.renderer.patch_batch_rot =
+            gpu!(state).renderer.patch_batch_rot =
                 glam::Mat4::from_quat(rotation);
-            state.renderer.patch_batch_material = patch_material;
+            gpu!(state).renderer.patch_batch_material = patch_material;
             // 5 s diag: batched vs classic-fallback
             // split (fallback should be 0 unless the
             // arena overflowed; see [PatchArena]).
@@ -968,7 +971,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                     f.celestial_objects.len() - classic_before,
                 );
             }
-            state.renderer.patch_draws = batched;
+            gpu!(state).renderer.patch_draws = batched;
             chunked_drawn = true;
             sky.body_draws.push(body_draw(patch_material));
         }
@@ -983,7 +986,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
         // `&mut state` is an E0499 here.
         crate::engine::frame_near_trees::draw_near_trees(
             &mut crate::engine::frame_near_trees::NearTreeState {
-                renderer: &mut state.renderer,
+                renderer: &mut gpu!(state).renderer,
                 asset_manager: &state.asset_manager,
                 decoration_mesh_cache: &mut state.decoration_mesh_cache,
                 tree_atlas_attempted: &mut state.tree_atlas_attempted,
@@ -1016,7 +1019,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
         );
         // The card stage's counter (BUG-301): the [TreeCards] line and the done file's reading,
         // taken here because the near trees have just set this frame's hide radius.
-        crate::engine::tree_card_stage::note(cs, d.radius, state.renderer.tree_card_hide_m, state.renderer.tree_card_far_m, state.renderer.tree_atlas_ready);
+        crate::engine::tree_card_stage::note(cs, d.radius, gpu!(state).renderer.tree_card_hide_m, gpu!(state).renderer.tree_card_far_m, gpu!(state).renderer.tree_atlas_ready);
         // ── Near-field GRASS STRANDS (v0.1091) ──
         //
         // TWO CLOCKS, and the split is the whole
@@ -1243,7 +1246,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
             let n = inst.len();
             let insts =
                 std::mem::take(&mut state.grass_instances);
-            state.renderer.set_grass_instances(&insts);
+            gpu!(state).renderer.set_grass_instances(&insts);
             state.grass_instances = insts;
             // 1 Hz diag beside the tree handoff.
             if n > 0 {
@@ -1299,20 +1302,20 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                         );
                         if let Some((md, anchor)) = result {
                             let mesh = Mesh::from_planet_surface(
-                                &state.renderer.device,
+                                &gpu!(state).renderer.device,
                                 &md,
                             );
                             let idx = if let Some(i) = state.far_tree_mesh
                             {
-                                state.renderer.replace_mesh(i, mesh);
+                                gpu!(state).renderer.replace_mesh(i, mesh);
                                 i
                             } else if let Some(i) =
                                 state.planet_patch_free_slots.pop()
                             {
-                                state.renderer.replace_mesh(i, mesh);
+                                gpu!(state).renderer.replace_mesh(i, mesh);
                                 i
                             } else {
-                                state.renderer.add_mesh(mesh)
+                                gpu!(state).renderer.add_mesh(mesh)
                             };
                             state.far_tree_mesh = Some(idx);
                             state.far_tree_anchor = anchor;
@@ -1416,7 +1419,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
             // E0502 here.
             crate::engine::frame_water::push_water_shells(
                 &mut crate::engine::frame_water::WaterShellState {
-                    renderer: &mut state.renderer,
+                    renderer: &mut gpu!(state).renderer,
                     planet_chunk_states: &mut state.planet_chunk_states,
                     planet_water_materials:
                         &mut state.planet_water_materials,
@@ -1497,11 +1500,12 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
             );
             for (_, mesh_idx, aslot) in evicted {
                 if let Some(s) = aslot {
-                    state.renderer.patch_arena_release(s);
+                    gpu!(state).renderer.patch_arena_release(s);
                 } else if mesh_idx != usize::MAX {
-                    state.renderer.replace_mesh(
+                    let gpu = gpu!(state);
+                    gpu.renderer.replace_mesh(
                         mesh_idx,
-                        Mesh::placeholder(&state.renderer.device),
+                        Mesh::placeholder(&gpu.renderer.device),
                     );
                     state.planet_patch_free_slots.push(mesh_idx);
                 }
@@ -1526,10 +1530,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
         if let Some(rx) = state.sky_mesh_pending.get(&key) {
             if let Ok(data) = rx.try_recv() {
                 let mesh = Mesh::from_planet_surface(
-                    &state.renderer.device,
+                    &gpu!(state).renderer.device,
                     &data,
                 );
-                let m = state.renderer.add_mesh(mesh);
+                let m = gpu!(state).renderer.add_mesh(mesh);
                 state.planet_mesh_cache.insert(key.clone(), m);
                 state.sky_mesh_pending.remove(&key);
                 log::info!(
@@ -1614,10 +1618,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                             d, hm, al, lvl,
                         );
                     let mesh = Mesh::from_planet_surface(
-                        &state.renderer.device,
+                        &gpu!(state).renderer.device,
                         &data,
                     );
-                    let m = state.renderer.add_mesh(mesh);
+                    let m = gpu!(state).renderer.add_mesh(mesh);
                     state.planet_mesh_cache.insert(key5, m);
                     log::info!(
                         "Sky-planet mesh built (fallback): {} level {}",
@@ -1637,13 +1641,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
                 let al = state.planet_albedos.get(&b.id).map(|a| a.as_ref());
                 let data =
                     humanity_terrain::planet_surface::build_surface_mesh(d, hm, al, level);
-                Mesh::from_planet_surface(&state.renderer.device, &data)
+                Mesh::from_planet_surface(&gpu!(state).renderer.device, &data)
             } else {
                 let mut ico = humanity_terrain::icosphere::Icosphere::new();
                 ico.subdivide_n(level);
-                Mesh::from_icosphere(&state.renderer.device, &ico, 1.0)
+                Mesh::from_icosphere(&gpu!(state).renderer.device, &ico, 1.0)
             };
-            let m = state.renderer.add_mesh(mesh);
+            let m = gpu!(state).renderer.add_mesh(mesh);
             state.planet_mesh_cache.insert(key, m);
             log::info!(
                 "Sky-planet mesh built: {} level {} (~{:.0} px on screen)",
@@ -1749,7 +1753,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
             // loop, so `&mut state` is an E0502 here.
             crate::engine::frame_shells::push_planet_shells(
                 &mut crate::engine::frame_shells::ShellState {
-                    renderer: &mut state.renderer,
+                    renderer: &mut gpu!(state).renderer,
                     planet_mesh_cache: &mut state.planet_mesh_cache,
                     planet_cloud_materials:
                         &mut state.planet_cloud_materials,

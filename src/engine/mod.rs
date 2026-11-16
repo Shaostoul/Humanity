@@ -260,6 +260,8 @@ pub mod frame_station;
 pub mod frame_move_setup;
 pub mod frame_walk_aboard;
 pub mod frame_particles;
+pub mod frame_probe_hold;
+pub mod frame_step;
 pub mod frame_house_power;
 pub mod frame_planet_walk;
 pub mod frame_collide_drive;
@@ -368,10 +370,15 @@ pub mod garden_levels;
 pub mod state;
 /// Visible storage: crates in the storage zones and tank level bars.
 pub mod stock_piles;
+/// `EngineState::boot(opts, gpu)`: the engine built with the view's GPU (the windowed app) or
+/// without it (a headless run), the headless sim runner's increment 4.
+pub mod engine_boot;
 /// The world's simulation built without the GPU (the headless sim runner's increment 1,
 /// docs/design/headless-sim-runner.md): `sim_boot` at startup, `world_sim` at world entry.
 /// `world_load` uploads and draws what they build.
 pub mod sim_boot;
+/// `--sim walk`: the homestead entered and walked through the engine with no GPU (increment 4).
+pub mod sim_walk;
 pub mod world_sim;
 /// The homestead entered and stepped with no GPU, and what each system holds read by name
 /// (increment 2): the soak and the no-GPU day tests drive it.

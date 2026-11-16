@@ -33,7 +33,7 @@ pub(crate) fn take_mark(state: &mut crate::engine::state::EngineState, frame_tex
     let picture = if !ask.picture {
         serde_json::Value::Null
     } else {
-        match state.renderer.capture_current_frame(frame_texture, &png) {
+        match gpu!(state).renderer.capture_current_frame(frame_texture, &png) {
             Ok(()) => serde_json::json!(png.display().to_string()),
             Err(e) => {
                 log::warn!("play journal: mark {n}'s picture was not saved: {e}");

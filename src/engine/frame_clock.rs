@@ -66,7 +66,5 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         .unwrap_or(0.0)
         - 946_728_000.0;
     state.clock.advance(dt, clock_dt, raw_dt, sim_epoch_s);
-    // ONE spin for the whole frame (see the field docs).
-    state.current_spin = current_planet_spin(state);
     f.now = now;
 }

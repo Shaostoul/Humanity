@@ -59,9 +59,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
             }
         }
         if let Some(grid) = latest {
-            state
+            let gpu = gpu!(state);
+            gpu
                 .renderer
-                .update_weather_map(&state.renderer.queue, &grid);
+                .update_weather_map(&gpu.renderer.queue, &grid);
             state.weather_grid = Some(grid);
             // Fresh satellite data owns placement
             // again (v0.1032): move the accumulated
@@ -488,7 +489,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
         crate::engine::walk_pace::apply(state);
 
         // VSync (v0.909: used to be decorative).
-        state.renderer.set_vsync(state.gui_state.settings.vsync);
+        gpu!(state).renderer.set_vsync(state.gui_state.settings.vsync);
 
         // Window presentation mode (v0.454).
         // Background instances (HUMANITY_NO_FOCUS) must NOT
@@ -505,7 +506,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
         // Nor a rig's low-impact window (engine::low_impact): it
         // stays the small window it was made, whoever clicks in.
         if !state.background_no_cursor && crate::engine::low_impact::window().is_none() {
-            apply_window_mode_once(&state.window, state.gui_state.settings.window_mode);
+            apply_window_mode_once(&gpu!(state).window, state.gui_state.settings.window_mode);
         }
 
         // Render distance → camera far plane

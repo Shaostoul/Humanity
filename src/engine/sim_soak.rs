@@ -586,6 +586,7 @@ fn arg<T: std::str::FromStr>(args: &[String], flag: &str) -> Result<Option<T>, S
 /// The usage words.
 const USAGE: &str = "usage: HumanityOS --sim soak [--days N] [--step SECONDS] [--force] [--check-hours H] [--seed N] [--routine NAME] [--report FILE]\n       \
                      HumanityOS --sim ladder [--hours H] [--routine NAME] [--report FILE]\n       \
+                     HumanityOS --sim walk --route FILE [--without-wall X,Z] [--report FILE]\n       \
                      (--routine NAME follows data/sim/routines/NAME.ron: a person's day of drinks, meals and sleep)";
 
 /// The word after `--routine`, when given.
@@ -644,13 +645,19 @@ fn cli(args: &[String]) -> Result<(), String> {
             });
             (ladder_text(&tol, hours * 3600.0, &reference, &rungs), json)
         }
-        other => return Err(format!("--sim {other:?}: not a simulation run this build knows (soak, ladder)")),
+        // The homestead entered and walked through the engine with no GPU (increment 4, engine/sim_walk.rs).
+        "walk" => crate::engine::sim_walk::cli(args, &data_dir)?,
+        other => return Err(format!("--sim {other:?}: not a simulation run this build knows (soak, ladder, walk)")),
     };
     println!("{text}");
     if let Some(path) = report_path {
         let body = serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?;
         std::fs::write(&path, body).map_err(|e| format!("{}: {e}", path.display()))?;
         println!("Report written to {}", path.display());
+    }
+    // A walk that failed its own checks (a wall line crossed, a leg stopped) exits 1 (increment 4).
+    if what == "walk" && json.get("failed").and_then(|v| v.as_bool()) == Some(true) {
+        std::process::exit(1);
     }
     Ok(())
 }

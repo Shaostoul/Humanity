@@ -18,18 +18,21 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // (emissive, cached per quantized color); OFF fixtures are dark housings.
     if state.gui_state.ship_structure.is_some() && !state.gui_state.showroom_active {
         if state.light_fixture_sphere.is_none() {
-            let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 10, 14));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::sphere(&gpu.renderer.device, 1.0, 10, 14));
             state.light_fixture_sphere = Some(m);
         }
         if state.light_fixture_panel.is_none() {
-            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
             state.light_fixture_panel = Some(m);
         }
         if state.light_fixture_tube.is_none() {
             // Unit tube along +X, length 1, radius 1: scale.x = length,
             // scale.y/z = radius; rotate X onto the strip/aim axis.
-            let m = state.renderer.add_mesh(Mesh::tube(
-                &state.renderer.device,
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::tube(
+                &gpu.renderer.device,
                 Vec3::new(-0.5, 0.0, 0.0),
                 Vec3::new(0.5, 0.0, 0.0),
                 1.0,
@@ -39,7 +42,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         }
         if state.light_fixture_mat_off.is_none() {
             // theme-exempt: dark fixture housing for a switched-off light.
-            let m = state.renderer.add_material_full([0.16, 0.16, 0.18, 1.0], 0.2, 0.6, 0.0, 0.0);
+            let m = gpu!(state).renderer.add_material_full([0.16, 0.16, 0.18, 1.0], 0.2, 0.6, 0.0, 0.0);
             state.light_fixture_mat_off = Some(m);
         }
         let sphere = state.light_fixture_sphere.unwrap();
@@ -114,7 +117,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                     Some(&m) => m,
                     None => {
                         // theme-exempt: fixture glow IS the light's own color.
-                        let m = state.renderer.add_material_full(
+                        let m = gpu!(state).renderer.add_material_full(
                             [fx.color.0, fx.color.1, fx.color.2, 1.0],
                             0.0,
                             0.4,
@@ -151,13 +154,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                             let pts = crate::renderer::light::sample_strip_path(
                                 &fx.path, fx.subdivision,
                             );
-                            let m = Mesh::polytube(&state.renderer.device, &pts, 0.035, 10);
+                            let m = Mesh::polytube(&gpu!(state).renderer.device, &pts, 0.035, 10);
                             let mi = match cached {
                                 Some((mi, _)) => {
-                                    state.renderer.replace_mesh(mi, m);
+                                    gpu!(state).renderer.replace_mesh(mi, m);
                                     mi
                                 }
-                                None => state.renderer.add_mesh(m),
+                                None => gpu!(state).renderer.add_mesh(m),
                             };
                             state.light_strip_meshes.insert(fx.key, (mi, hash));
                             mi
@@ -236,12 +239,13 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // operator (and an AI) can see where each light sits + how far it reaches. Build mode.
     if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
         if state.construction_light_mesh.is_none() {
-            let m = state.renderer.add_mesh(Mesh::octahedron(&state.renderer.device, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::octahedron(&gpu.renderer.device, 1.0));
             state.construction_light_mesh = Some(m);
         }
         if state.construction_light_mat.is_none() {
             // theme-exempt: light gizmo marker, emissive so it reads at a glance.
-            let m = state.renderer.add_material_full([1.0, 0.95, 0.6, 1.0], 0.0, 0.3, 0.0, 1.2);
+            let m = gpu!(state).renderer.add_material_full([1.0, 0.95, 0.6, 1.0], 0.0, 0.3, 0.0, 1.2);
             state.construction_light_mat = Some(m);
         }
         let dmesh = state.construction_light_mesh.unwrap();
@@ -416,14 +420,15 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // panel already shows the honest reason it cannot generate.
     if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
         if state.construction_light_mesh.is_none() {
-            let m = state.renderer.add_mesh(Mesh::octahedron(&state.renderer.device, 1.0));
+            let gpu = gpu!(state);
+            let m = gpu.renderer.add_mesh(Mesh::octahedron(&gpu.renderer.device, 1.0));
             state.construction_light_mesh = Some(m);
         }
         if state.construction_corridor_mouth_mat.is_none() {
             // Accent-toned emissive (the theme's accent, like the opening move cube)
             // so a corridor handle reads "grabbable" apart from the warm light gizmos.
             let a = state.theme.accent();
-            let m = state.renderer.add_material_full(
+            let m = gpu!(state).renderer.add_material_full(
                 [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 1.0],
                 0.0, 0.3, 0.0, 1.2,
             );

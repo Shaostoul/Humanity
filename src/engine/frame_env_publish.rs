@@ -16,7 +16,7 @@ pub(crate) fn run(state: &mut EngineState) {
     if !state.gui_state.settings.water_fft {
         // Trains mode: fixed amplitude sum, so the crest is the
         // old constant and every bound behaves as before.
-        state.renderer.sea_crest_m =
+        gpu!(state).renderer.sea_crest_m =
             humanity_terrain::ocean_waves::MAX_WAVE_HEIGHT_M;
     }
     if state.gui_state.settings.water_fft {
@@ -96,13 +96,13 @@ pub(crate) fn run(state: &mut EngineState) {
             // buoyancy twin (start-relative seconds).
             let tsec = state.start_time.elapsed().as_secs_f32();
             c.update(tsec);
-            state.renderer.upload_water_fft(&c.a.texels, &c.b.texels);
+            gpu!(state).renderer.upload_water_fft(&c.a.texels, &c.b.texels);
             // Publish the LIVE crest (v0.1051): the shader
             // scales its shoal fade by it and the backstop
             // shell drops below it, so both track the actual
             // sea instead of a worst case. A calm day keeps
             // exactly the old tight numbers.
-            state.renderer.sea_crest_m =
+            gpu!(state).renderer.sea_crest_m =
                 humanity_terrain::ocean_fft::crest_estimate_m(c.total_rms());
         }
     }
@@ -153,17 +153,17 @@ pub(crate) fn run(state: &mut EngineState) {
     }
     match state.ocean_event_pin.as_ref() {
         Some(pin) => {
-            state.renderer.ocean_event_rows = pin.to_camera_rows();
+            gpu!(state).renderer.ocean_event_rows = pin.to_camera_rows();
             // Fold the event into the live crest channel so
             // the shoal fade and the backstop drop widen with
             // it (drawn == sampled: the buoyancy twin shoals
             // with the same value).
-            state.renderer.sea_crest_m = state
+            gpu!(state).renderer.sea_crest_m = gpu!(state)
                 .renderer
                 .sea_crest_m
                 .max(pin.max_abs_height_m() as f32);
         }
-        None => state.renderer.ocean_event_rows = [[0.0; 4]; 14],
+        None => gpu!(state).renderer.ocean_event_rows = [[0.0; 4]; 14],
     }
 
 }

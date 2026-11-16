@@ -19,15 +19,17 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // "Machine" declutter toggle.
     if !showroom {
         if state.vehicle_meshes.is_none() {
-            let unit_box = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
-            let wheel = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.5, 1.0, 14));
+            let gpu = gpu!(state);
+            let unit_box = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0));
+            let gpu = gpu!(state);
+            let wheel = gpu.renderer.add_mesh(Mesh::cylinder_capped(&gpu.renderer.device, 0.5, 1.0, 14));
             state.vehicle_meshes = Some([unit_box, wheel]);
         }
         if state.vehicle_mats.is_none() {
             // theme-exempt: placeholder vehicle paint/glass/rubber, not UI colors.
-            let paint = state.renderer.add_material_typed([0.68, 0.24, 0.16, 1.0], 0.35, 0.45, 0.0);
-            let glass = state.renderer.add_material_typed([0.45, 0.62, 0.72, 1.0], 0.85, 0.15, 0.0);
-            let rubber = state.renderer.add_material_typed([0.10, 0.10, 0.11, 1.0], 0.05, 0.85, 0.0);
+            let paint = gpu!(state).renderer.add_material_typed([0.68, 0.24, 0.16, 1.0], 0.35, 0.45, 0.0);
+            let glass = gpu!(state).renderer.add_material_typed([0.45, 0.62, 0.72, 1.0], 0.85, 0.15, 0.0);
+            let rubber = gpu!(state).renderer.add_material_typed([0.10, 0.10, 0.11, 1.0], 0.05, 0.85, 0.0);
             state.vehicle_mats = Some([paint, glass, rubber]);
         }
         let [unit_box, wheel_mesh] = state.vehicle_meshes.unwrap();
@@ -114,10 +116,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // graze amble's facing convention.
     {
         if state.livestock_mesh.is_none() {
+            let gpu = gpu!(state);
             state.livestock_mesh = Some(
-                state
+                gpu
                     .renderer
-                    .add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0)),
+                    .add_mesh(Mesh::box_xyz(&gpu.renderer.device, 1.0, 1.0, 1.0)),
             );
         }
         let unit_box = state.livestock_mesh.unwrap();
@@ -135,7 +138,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             })
             .collect();
         let mats = &mut state.livestock_mats;
-        let renderer = &mut state.renderer;
+        let renderer = &mut gpu!(state).renderer;
         for (pos, rot, s, tint, is_dead) in animals {
             // A dead animal lies on its side until the corpse
             // decays (CombatSystem despawns it). (v0.760)
@@ -280,11 +283,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // zero rule: the shader reads speed <= 0 as "nobody is
         // publishing" and substitutes a 4 m/s breeze.
         {
-            state.renderer.foliage_wind = crate::engine::ipc::published_foliage_wind(
+            gpu!(state).renderer.foliage_wind = crate::engine::ipc::published_foliage_wind(
                 state.foliage_wind_override,
                 w.wind_direction,
                 w.wind_speed,
-                state.renderer.foliage_wind,
+                gpu!(state).renderer.foliage_wind,
             );
         }
         // Sea state from the wind AT THE PLAYER
@@ -299,18 +302,18 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             // plain low pin could never calm a storm cell
             // for dev shots. Values >= 1.5 mean "pinned at
             // (value - 2), ignore MODIS".
-            state.renderer.sea_state = pin.clamp(0.0, 1.0) + 2.0;
+            gpu!(state).renderer.sea_state = pin.clamp(0.0, 1.0) + 2.0;
         } else {
-            if state.renderer.sea_state > 1.5 {
+            if gpu!(state).renderer.sea_state > 1.5 {
                 // Leaving pinned mode: snap back into the
                 // 0..1 wind domain before smoothing.
-                state.renderer.sea_state -= 2.0;
+                gpu!(state).renderer.sea_state -= 2.0;
             }
             // The wind where the player is (2026-09-28).
             let target = w.sea_state_target();
             let k = (dt as f32 / 30.0).min(1.0);
-            state.renderer.sea_state +=
-                (target - state.renderer.sea_state) * k;
+            gpu!(state).renderer.sea_state +=
+                (target - gpu!(state).renderer.sea_state) * k;
         }
         // Cloud wind-advection (v0.1032): integrate the live
         // wind into the deck's drift angle; the shader
@@ -327,7 +330,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         );
         state.cloud_advect = a;
         state.cloud_advect_decaying = dc;
-        state.renderer.cloud_advect = a + dc;
+        gpu!(state).renderer.cloud_advect = a + dc;
         // Weather-event cloud override (v0.1037): ease the
         // deck's extra coverage + tint toward the active
         // event's cloud block (or back to neutral), ~10 s

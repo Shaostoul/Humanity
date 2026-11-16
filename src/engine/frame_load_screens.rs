@@ -115,7 +115,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // texture exists: reconfiguring the surface while a
     // frame's swapchain view was alive is what killed the
     // app with vsync off (BUG-077).
-    state.renderer.apply_pending_surface_config();
+    gpu!(state).renderer.apply_pending_surface_config();
 
     crate::engine::map_view::frame(state, &f.celestial_objects, &f.celestial_transparent, &f.orbit_lines, &f.all_objects, &f.transparent_objects, &f.overlay_objects, &f.ring_lines); // Maps world layer (engine/map_view.rs)
     f.page_before_frame = page_before_frame;

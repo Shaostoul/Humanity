@@ -12,7 +12,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
     humanity_core::frame_costs::span("cpu.span.world_passes");
     let scene_result = if page_active {
         // UI-only frame: skip 3D render, clear to dark background
-        state.renderer.acquire_surface_cleared(wgpu::Color {
+        gpu!(state).renderer.acquire_surface_cleared(wgpu::Color {
             r: 0.07,
             g: 0.07,
             b: 0.086,
@@ -20,11 +20,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
         })
     } else {
         // In-game: render stars first, then scene objects on top
-        match state.renderer.acquire_surface() {
+        match gpu!(state).renderer.acquire_surface() {
             Ok((output, swap_view)) => {
                 // HDR scene target (renderer/scene_target.rs): every pass below draws into the
                 // scene target, and `present_scene` copies it to the swapchain before egui.
-                let view = state.renderer.scene_view_for(&swap_view);
+                let view = gpu!(state).renderer.scene_view_for(&swap_view);
                 // DAYLIGHT GATE (v0.1059): inside an
                 // atmosphere with the sun well up, the
                 // stars are washed out by the sky drawn
@@ -54,7 +54,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                     // when the color actually changed.
                     let cc = state.theme.constellation_line();
                     star_r.set_constellation_style(
-                        &state.renderer.device,
+                        &gpu!(state).renderer.device,
                         state.gui_state.settings.sky_constellations,
                         [
                             cc.r() as f32 / 255.0,
@@ -68,7 +68,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                     // intensity, applied live (the uniform
                     // write is skipped while unchanged).
                     star_r.set_glow_style(
-                        &state.renderer.queue,
+                        &gpu!(state).renderer.queue,
                         state.gui_state.settings.sky_milkyway_glow,
                         state.gui_state.settings.sky_milkyway_intensity,
                     );
@@ -78,14 +78,14 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                     // the halo vertex buffer at world load).
                     star_r.show_star_halos =
                         state.gui_state.settings.sky_star_halos;
-                    star_r.update_camera(&state.renderer.queue, &state.camera, sky_rot, sky_fades);
-                    let mut encoder = state.renderer.device.create_command_encoder(
+                    star_r.update_camera(&gpu!(state).renderer.queue, &state.camera, sky_rot, sky_fades);
+                    let mut encoder = gpu!(state).renderer.device.create_command_encoder(
                         &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },
                     );
                     {
                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                             label: Some("Star Pass"),
-                            timestamp_writes: state.renderer.pass_timer("gpu.stars"),
+                            timestamp_writes: gpu!(state).renderer.pass_timer("gpu.stars"),
                             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                                 view: &view,
                                 resolve_target: None,
@@ -101,7 +101,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                         // same function the off-screen views use.
                         star_r.render_pass(&mut pass, daylight);
                     }
-                    state.renderer.queue.submit(std::iter::once(encoder.finish()));
+                    gpu!(state).renderer.queue.submit(std::iter::once(encoder.finish()));
                 }
 
                 // Update point lights (up to 8 nearest to camera)
@@ -241,10 +241,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                             );
                         }
                     }
-                    state.renderer.set_point_lights(&lights);
+                    gpu!(state).renderer.set_point_lights(&lights);
                     let vp = state.camera.view_projection_matrix();
-                    let screen = state.renderer.surface_size();
-                    state.renderer.update_light_tiles(&lights, &vp, state.camera.effective_position(), screen, tiled);
+                    let screen = gpu!(state).renderer.surface_size();
+                    gpu!(state).renderer.update_light_tiles(&lights, &vp, state.camera.effective_position(), screen, tiled);
                 }
 
                 // Sun disc/halo cloud occlusion (v0.1243, the
@@ -282,17 +282,17 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                     let sca =
                         crate::engine::frame_lock::sun_cloud_alpha(state);
                     let clear = crate::engine::frame_lock::sun_disc_clear(state);
-                    let los = state.renderer.sun_air_los;
+                    let los = gpu!(state).renderer.sun_air_los;
                     // The frame body's air, so a view above it (the Maps
                     // world layer) does not take the player's air and cloud.
-                    let fb = state.renderer.frame_body_sphere;
+                    let fb = gpu!(state).renderer.frame_body_sphere;
                     let air_top = state
                         .frame_lock_body
                         .as_deref()
                         .and_then(|b| state.planet_defs.get(b))
                         .filter(|_| fb[3] > 0.0)
                         .map(|d| (Vec3::new(fb[0], fb[1], fb[2]), (d.radius * (1.0 + d.atmosphere_scale.max(0.005) as f64 * 2.0)) as f32));
-                    if let Some(f) = state.renderer.sun_frame.as_mut() {
+                    if let Some(f) = gpu!(state).renderer.sun_frame.as_mut() {
                         f.air = los;
                         f.cloud = (-4.0 * sca).exp();
                         f.off_screen = clear;
@@ -311,11 +311,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 // The elapsed-seconds arg is the cloud-deck clock
                 // (shader type 15 animation); app-start-relative so
                 // f32 stays precise for days of uptime.
-                state.renderer.detail_distance =
+                gpu!(state).renderer.detail_distance =
                     state.gui_state.settings.terrain_detail_distance.clamp(0.5, 3.0);
                 // Vegetation LOD (v0.923): the tree-card far
                 // cutoff slider applies live.
-                state.renderer.tree_card_far_m =
+                gpu!(state).renderer.tree_card_far_m =
                     humanity_terrain::far_trees::effective_card_far_m(
                         state.gui_state.settings.veg_tree_card_m
                             .clamp(100.0, crate::config::TREE_CARD_MAX_M),
@@ -323,19 +323,19 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                     );
                 // v0.907: the lighting-pass knobs from
                 // Settings > Planets apply every frame.
-                state.renderer.sun_shadows =
+                gpu!(state).renderer.sun_shadows =
                     state.gui_state.settings.sun_shadows;
                 // Room light shadows (2026-11-10, renderer/local_shadows.rs): the level id.
-                if state.renderer.local_shadows.level != state.gui_state.settings.local_shadows {
-                    state.renderer.local_shadows.level = state.gui_state.settings.local_shadows.clone();
+                if gpu!(state).renderer.local_shadows.level != state.gui_state.settings.local_shadows {
+                    gpu!(state).renderer.local_shadows.level = state.gui_state.settings.local_shadows.clone();
                 }
                 // Frosted plastic (2026-11-13, renderer/film_blur.rs): Blurred or Simple; the
                 // colour pyramid is made, remade for a new window size, or dropped to match.
-                state.renderer.film_blur.on = state.gui_state.settings.film_blur;
-                state.renderer.ensure_film_pyramid();
-                state.renderer.shadow_strength =
+                gpu!(state).renderer.film_blur.on = state.gui_state.settings.film_blur;
+                gpu!(state).renderer.ensure_film_pyramid();
+                gpu!(state).renderer.shadow_strength =
                     state.gui_state.settings.shadow_strength.clamp(0.0, 1.0);
-                state.renderer.godray_intensity =
+                gpu!(state).renderer.godray_intensity =
                     state.gui_state.settings.godray_intensity.clamp(0.0, 1.5);
                 // Underwater extinction (v0.1054): only
                 // while submerged, and only as far as the
@@ -343,7 +343,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 // the slider reads as "how far can I see".
                 // Wave shell materials cast shadows (v0.1057).
                 // Only the WAVE shell, never the backstop.
-                state.renderer.water_caster_mats = state
+                gpu!(state).renderer.water_caster_mats = state
                     .planet_water_materials
                     .iter()
                     .filter(|(k, _)| !k.contains("backstop"))
@@ -361,15 +361,15 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 // water below it in the same frame, which is
                 // the over-under look. Always on; the sea
                 // sphere decides per pixel.
-                state.renderer.underwater_ext =
+                gpu!(state).renderer.underwater_ext =
                     1.0 - state.gui_state.settings.water_clarity.clamp(0.0, 1.0);
-                state.renderer.ssao_strength =
+                gpu!(state).renderer.ssao_strength =
                     state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
                 // Anti-aliasing and its sharpening (renderer/taa.rs).
-                if state.renderer.taa.mode != state.gui_state.settings.anti_aliasing {
-                    state.renderer.taa.mode = state.gui_state.settings.anti_aliasing.clone();
+                if gpu!(state).renderer.taa.mode != state.gui_state.settings.anti_aliasing {
+                    gpu!(state).renderer.taa.mode = state.gui_state.settings.anti_aliasing.clone();
                 }
-                state.renderer.taa.sharpen = state.gui_state.settings.sharpening.clamp(0.0, 1.0);
+                gpu!(state).renderer.taa.sharpen = state.gui_state.settings.sharpening.clamp(0.0, 1.0);
                 // (tree_card_hide_m is owned by the near-tree
                 // draw loop since v0.914 - it tracks the
                 // radius models actually cover each frame.)
@@ -425,7 +425,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 // Same gate drives the depth-writing water
                 // pipeline (v0.1060): only correct when water
                 // is last in the list.
-                state.renderer.water_depth_write = near_planet_air;
+                gpu!(state).renderer.water_depth_write = near_planet_air;
                 // The transparent celestial list is drawn
                 // through a pipeline picked per object by
                 // MATERIAL CLASS (increment P2 of the
@@ -461,7 +461,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 let glass_mat = state.structure_mats.map(|m| m[5]);
                 f.celestial_transparent.sort_by_key(|o| {
                     crate::renderer::celestial_order::key_for(
-                        &state.renderer,
+                        &gpu!(state).renderer,
                         o.material,
                         water_mats.contains(&o.material),
                         glass_mat == Some(o.material),
@@ -471,7 +471,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 // frame's jitter, last frame's matrices in this frame's render space, and
                 // whether the history survives. The scene list is the home moved by the station
                 // offset (applied to it just below, Pass 2), so that offset is the scene's origin.
-                state.renderer.taa_begin_frame(&state.camera, state.station_off);
+                gpu!(state).renderer.taa_begin_frame(&state.camera, state.station_off);
                 // Pass 0.9: THE SHADOW ATLAS (2026-11-10, renderer/local_shadows.rs): the room
                 // lights' shadows and the near sun view, drawn from the scene's casters (the home's
                 // list rides the station) and the celestial build pieces, BEFORE the celestial pass,
@@ -483,7 +483,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                     // wall-clock cpu.shadow_* stages.
                     humanity_core::frame_costs::span("cpu.span.shadow_atlas");
                     let so = state.station_off;
-                    state.renderer.render_shadow_atlas(
+                    gpu!(state).renderer.render_shadow_atlas(
                         &state.camera,
                         &[
                             (&f.all_objects, so, CasterList::Scene),
@@ -506,28 +506,30 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 // pixels: the sway's amplitude floor is wind-independent, so the wind pin alone
                 // cannot freeze a canopy. tests/rig_pin_lint.rs requires the pin AT every call
                 // site of this function, which is why it is written out here rather than hoisted.
-                state.renderer.render_celestial_onto(&state.camera, &f.celestial_objects, &f.celestial_transparent, sun_dir_f, state.anim_clock_pin.unwrap_or_else(|| state.start_time.elapsed().as_secs_f32()), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
+                let (cloud_ground, ground_at, ocean_at) = (cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state));
+                gpu!(state).renderer.render_celestial_onto(&state.camera, &f.celestial_objects, &f.celestial_transparent, sun_dir_f, state.anim_clock_pin.unwrap_or_else(|| state.start_time.elapsed().as_secs_f32()), cloud_ground, ground_at, ocean_at, &view);
                 // Pass 1.55: how much of the Sun's disc this view can
                 // see, from the celestial depth, before the orbit lines
                 // write theirs (renderer/sun_glare.rs, step 1).
-                state.renderer.render_sun_vis_onto(&state.camera);
+                gpu!(state).renderer.render_sun_vis_onto(&state.camera);
                 // Pass 1.6: orbit rings at celestial scale — between the
                 // bodies and the interior so a ring behind a planet is
                 // occluded by that body, and walls then draw over the
                 // rings. AU-scale, so the gameplay far would clip them.
                 // (v0.451; empty in the showroom — build is !showroom-gated.)
-                state.renderer.draw_celestial_lines_onto(&state.camera, &f.orbit_lines, &view);
+                gpu!(state).renderer.draw_celestial_lines_onto(&state.camera, &f.orbit_lines, &view);
                 // Pass 1.7: crepuscular god rays (v0.895) —
                 // marches the celestial depth (terrain +
                 // bodies silhouettes) toward the sun BEFORE
                 // the scene pass clears depth. Additive;
                 // self-gates when the sun is off-camera.
-                state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view, godray_scale(state));
+                let godray = godray_scale(state);
+                gpu!(state).renderer.render_godrays_onto(&state.camera, sun_dir_f, &view, godray);
                 // Pass 1.8: SSAO contact shade (v0.901) -
                 // same slot, same depth, multiplies creases
                 // and tree bases darker before the interior
                 // pass draws over its own regions.
-                state.renderer.render_ssao_onto(&state.camera, &view);
+                gpu!(state).renderer.render_ssao_onto(&state.camera, &view);
                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                 // -- Orbital home offset (v0.881) --
                 // The ENTIRE scene pass is the home frame's
@@ -568,36 +570,36 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) -> Result<(wgpu::S
                 let main_view = crate::renderer::gpu_costs::SceneView::Main;
                 crate::engine::room_gi::before_scene(state); // room GI probe update (engine/room_gi.rs)
                 crate::engine::furniture_detail::before_scene(state); // a changed Furniture detail or model pack rebuilds the bodies
-                state.renderer.render_scene_onto(&state.camera, &f.all_objects, &view, main_view);
+                gpu!(state).renderer.render_scene_onto(&state.camera, &f.all_objects, &view, main_view);
                 // Pass 2.5: transparent surfaces (glass windows) blended over
                 // the opaque scene so you can see through them. (v0.456)
-                state.renderer.render_transparent_onto(&state.camera, &f.transparent_objects, &view, main_view);
+                gpu!(state).renderer.render_transparent_onto(&state.camera, &f.transparent_objects, &view, main_view);
                 // Pass 2.55: THE TAA RESOLVE (renderer/taa.rs): blend this frame into the
                 // history and sharpen it back into the scene target. Everything after it (the
                 // overlay, the lines, the particles) writes no motion and draws unjittered.
-                state.renderer.taa_resolve();
+                gpu!(state).renderer.taa_resolve();
                 // Pass 2.6: editor gizmos on top (depth off), visible through walls. (v0.560)
-                state.renderer.render_overlay_onto(&state.camera, &f.overlay_objects, &view, main_view);
+                gpu!(state).renderer.render_overlay_onto(&state.camera, &f.overlay_objects, &view, main_view);
                 // Pass 2.7: door auto-open rings as constant-width lines (v0.565).
-                state.renderer.draw_lines_onto(&state.camera, &f.ring_lines, &view, main_view);
+                gpu!(state).renderer.draw_lines_onto(&state.camera, &f.ring_lines, &view, main_view);
                 // Pass 2.8: particle billboards (v0.966) -
                 // drifting leaves, space dust - blended over
                 // everything, depth-tested, no depth write.
                 {
                     let (pa, pad) = state.particle_system.collect_split();
-                    state.renderer.draw_particles_onto(&state.camera, &pa, &pad, &view);
+                    gpu!(state).renderer.draw_particles_onto(&state.camera, &pa, &pad, &view);
                     // GPU-simulated precipitation draws after
                     // the CPU pool, same pipeline and blend
                     // (v0.1068). Nothing here knows where the
                     // vertex data came from - the compute pass
                     // wrote the identical layout.
                     if state.gui_state.settings.gpu_particles {
-                        state
+                        gpu!(state)
                             .renderer
                             .draw_gpu_particles_onto(&state.camera, &view);
                     }
                 }
-                state.renderer.present_scene(&swap_view);
+                gpu!(state).renderer.present_scene(&swap_view);
                 Ok((output, swap_view))
             }
             Err(e) => Err(e),

@@ -157,11 +157,7 @@ pub(crate) fn run(state: &mut EngineState) {
             }
             // Same live sim time the celestial pass uses, so the
             // vantage matches where the body is drawn this frame.
-            let sim_t = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs_f64())
-                .unwrap_or(0.0)
-                - 946_728_000.0; // Unix secs at J2000.0 epoch
+            let sim_t = state.clock.sim_epoch_s; // the frame's clock (frame_sim::FrameClock)
             let earth_helio_au = humanity_core::cosmos::find_body("earth")
                 .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
                 .unwrap_or(glam::DVec3::ZERO);
@@ -266,11 +262,7 @@ pub(crate) fn run(state: &mut EngineState) {
                 state.gui_state.copresence_solo = true;
                 state.dev_travel_stepped_out = true;
             }
-            let sim_t = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs_f64())
-                .unwrap_or(0.0)
-                - 946_728_000.0;
+            let sim_t = state.clock.sim_epoch_s; // the frame's clock (frame_sim::FrameClock)
             let earth_helio_au = humanity_core::cosmos::find_body("earth")
                 .map(|e| humanity_core::cosmos::body_world_position_3d_au(e, sim_t))
                 .unwrap_or(glam::DVec3::ZERO);

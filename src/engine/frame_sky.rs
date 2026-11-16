@@ -60,7 +60,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             .round()
             .clamp(0.0, humanity_terrain::planet::MAX_SKY_SUBDIVISION as f32)
             as u32;
-        let viewport_h = state.renderer.surface_size().1 as f32;
+        let viewport_h = gpu!(state).renderer.surface_size().1 as f32;
         let fov_deg = state.camera.fov_degrees;
         // Chunked-LOD patch builds are budgeted PER FRAME
         // across all bodies (in practice at most one body
@@ -75,15 +75,15 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // show through (key_lights::sky_disc, the daytime Moon, 2026-10-21),
         // and the frame body's sphere for the shells' sun (layer_sun).
         let disc_cands: Vec<crate::renderer::key_lights::DiscCandidate> = Vec::new();
-        state.renderer.frame_body_sphere = [0.0; 4];
+        gpu!(state).renderer.frame_body_sphere = [0.0; 4];
         // The Sun's disc pads and its frame (renderer/sun_disc.rs): set
         // below when the Sun is drawn, zero (no disc, no glare) when not.
-        state.renderer.sun_disc_pad = [[0.0; 4]; 2];
-        state.renderer.sun_frame = None;
-        state.renderer.sun_air_los = [1.0; 3];
+        gpu!(state).renderer.sun_disc_pad = [[0.0; 4]; 2];
+        gpu!(state).renderer.sun_frame = None;
+        gpu!(state).renderer.sun_air_los = [1.0; 3];
         // The glare's aperture: Settings > Graphics > Light and sky (2026-10-22),
         // unless the showcase pins one (`sun_aperture_mm`).
-        state.renderer.sun_aperture_m = state.renderer.sun_aperture_pin.unwrap_or_else(|| {
+        gpu!(state).renderer.sun_aperture_m = gpu!(state).renderer.sun_aperture_pin.unwrap_or_else(|| {
             crate::renderer::sun_disc::aperture_from_setting_mm(state.gui_state.settings.sun_aperture_mm)
         });
 
@@ -95,11 +95,11 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // 1b) follows the same lifecycle - a stale frame
         // would composite a stale map over a planetless
         // scene - and so does the one-frame resample order.
-        state.renderer.set_cloud_temporal(None);
-        state.renderer.cloud_composite_frame = None;
-        state.renderer.cloud_map_resample.set(None);
-        state.renderer.cloud_mode_near = false;
-        state.renderer.cloud_near_mix = 0.0;
+        gpu!(state).renderer.set_cloud_temporal(None);
+        gpu!(state).renderer.cloud_composite_frame = None;
+        gpu!(state).renderer.cloud_map_resample.set(None);
+        gpu!(state).renderer.cloud_mode_near = false;
+        gpu!(state).renderer.cloud_near_mix = 0.0;
         // Stale-anchor audit #16 (v0.1243): sea_sphere was set
         // only while chunked ocean water actually drew, but
         // poked into the camera pads EVERY frame and consumed
@@ -109,7 +109,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         // space position, tinting any ray that crossed it.
         // Cleared here with the other per-frame resets; the
         // ocean draw below re-sets it while it is live.
-        state.renderer.sea_sphere = [0.0, 0.0, 0.0, 0.0];
+        gpu!(state).renderer.sea_sphere = [0.0, 0.0, 0.0, 0.0];
         // The values every body shares, and the five the bodies change (frame_sky_body.rs).
         let mut sky = SkyBodies {
             sim_t, earth_helio_au, sun_rel_earth_m, moon_rel_earth_m, procedural, px_per_level, max_level,

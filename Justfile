@@ -1303,6 +1303,14 @@ sim-ladder *args:
     @node scripts/check-fresh-exe.js --quiet
     ./target/release/HumanityOS.exe --sim ladder {{args}}
 
+# The homestead entered and walked with no window and no GPU (the headless sim runner, increment 4):
+# the storeys rig's route (scripts/sim-walk-route.js writes it from the rig's plan), reported leg by
+# leg: where the body went, the floors, the rooms, the walls met. --without-wall X,Z is the red run.
+sim-walk *args:
+    @node scripts/check-fresh-exe.js --quiet
+    @node scripts/sim-walk-route.js --out target/sim-walk-route.json
+    ./target/release/HumanityOS.exe --sim walk --route target/sim-walk-route.json {{args}}
+
 # Check game code for errors (fast, no binary)
 check-game:
     cargo check --features native

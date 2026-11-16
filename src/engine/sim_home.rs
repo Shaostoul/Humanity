@@ -46,6 +46,9 @@ pub(crate) fn enter(data_dir: &Path, saves_dir: PathBuf) -> Homestead {
     let mut gui = GuiState::default();
     crate::engine::registries::load_data_registries(&mut sim.data_store, data_dir);
     sim_boot::starter_vehicles(&mut sim.game_world, &sim.data_store);
+    // Home storage at the start, as lib.rs `resumed` seeds it (increment 4): the start's places and
+    // the pool from them, before the save's progress (which replaces the pool when it is kept).
+    sim_boot::seed_home_storage(&mut gui, data_dir);
     let home_save = sim.home_save.take();
     sim_boot::apply_home_save(&mut sim.game_world, &mut sim.data_store, &mut gui, home_save.as_ref(), data_dir);
     let built = world_sim::build(world_sim::Parts {

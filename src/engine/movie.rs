@@ -531,7 +531,7 @@ fn height_above_ground(state: &EngineState) -> Option<f64> {
 pub(crate) fn capture(state: &mut EngineState, texture: &wgpu::Texture) {
     let Some(mut rec) = state.movie.take() else { return };
     if rec.frame >= rec.spec.warmup_frames() {
-        let (px, w, h) = match state.renderer.capture_current_frame_rgba(texture) {
+        let (px, w, h) = match gpu!(state).renderer.capture_current_frame_rgba(texture) {
             Ok(f) => f,
             Err(e) => return finish(state, rec, Err(e)),
         };

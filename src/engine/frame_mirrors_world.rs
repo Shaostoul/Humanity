@@ -156,15 +156,18 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     if crate::drone_dock_visible(showroom, hide_machines, state.drone_dock_anim <= 0.01) {
         if let Some((hangar_pos, hangar_yaw)) = hangar_placement(state) {
             if state.drone_dock_meshes.is_none() {
-                let body = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.9, 0.22, 0.55));
-                let nose = state.renderer.add_mesh(Mesh::pyramid(&state.renderer.device, 0.5, 0.35));
-                let rotor_pod = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.12, 0.08, 10));
+                let gpu = gpu!(state);
+                let body = gpu.renderer.add_mesh(Mesh::box_xyz(&gpu.renderer.device, 0.9, 0.22, 0.55));
+                let gpu = gpu!(state);
+                let nose = gpu.renderer.add_mesh(Mesh::pyramid(&gpu.renderer.device, 0.5, 0.35));
+                let gpu = gpu!(state);
+                let rotor_pod = gpu.renderer.add_mesh(Mesh::cylinder_capped(&gpu.renderer.device, 0.12, 0.08, 10));
                 state.drone_dock_meshes = Some([body, nose, rotor_pod]);
             }
             if state.drone_dock_mats.is_none() {
                 // theme-exempt: placeholder drone hull, neutral gunmetal + dark rotor pods.
-                let hull = state.renderer.add_material_typed([0.62, 0.65, 0.68, 1.0], 0.55, 0.35, 0.0);
-                let rotor = state.renderer.add_material_typed([0.12, 0.12, 0.14, 1.0], 0.2, 0.6, 0.0);
+                let hull = gpu!(state).renderer.add_material_typed([0.62, 0.65, 0.68, 1.0], 0.55, 0.35, 0.0);
+                let rotor = gpu!(state).renderer.add_material_typed([0.12, 0.12, 0.14, 1.0], 0.2, 0.6, 0.0);
                 state.drone_dock_mats = Some([hull, rotor]);
             }
             let [body_mesh, nose_mesh, pod_mesh] = state.drone_dock_meshes.unwrap();

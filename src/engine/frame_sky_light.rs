@@ -61,7 +61,7 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
     {
         let (rp, h) =
             crate::renderer::atmosphere::shell_packing(scale, sh, radius);
-        state.renderer.update_atmo_luts(
+        gpu!(state).renderer.update_atmo_luts(
             crate::renderer::atmo_luts::TransLutParams {
                 tint: [ac[0], ac[1], ac[2]],
                 density_mul: ac[3],
@@ -85,7 +85,7 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
         let up_world = crate::engine::planet_build::frame_body_rot(state)
             * state.frame_lock_anchor.normalize_or_zero();
         let mu_s = up_world.dot(sun_dir) as f32;
-        state.renderer.sky_view_uniform =
+        gpu!(state).renderer.sky_view_uniform =
             Some(crate::renderer::sky_view::SkyViewUniform {
                 tint_density: ac,
                 geom: [cam_r, mu_s, rp, h],
@@ -109,11 +109,11 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
             cam_ratio,
         );
         let w_alt = ss(rp, 1.0, cam_r);
-        state.renderer.water_lut_gate =
+        gpu!(state).renderer.water_lut_gate =
             (1.0 - w_far.max(w_alt)).clamp(0.0, 1.0);
     } else {
-        state.renderer.sky_view_uniform = None;
-        state.renderer.water_lut_gate = 0.0;
+        gpu!(state).renderer.sky_view_uniform = None;
+        gpu!(state).renderer.water_lut_gate = 0.0;
     }
 
     // Sun transmittance tint (v0.915, research roadmap
@@ -188,7 +188,7 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
         let (tint, sun_los) = tint;
         let tint = crate::renderer::key_lights::released_camera_sun(tint, 1.0, sun_release).0;
         // The Sun's glare takes the air on the whole line of sight.
-        state.renderer.sun_air_los = sun_los;
+        gpu!(state).renderer.sun_air_los = sun_los;
         [
             light_color[0] * tint[0],
             light_color[1] * tint[1],
@@ -219,14 +219,14 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
                 crate::renderer::key_lights::CameraAir { cam_r, rp, h, color: ac, up }
             });
         for (m, p2) in crate::renderer::key_lights::sky_body_params(&body_draws, air.as_ref()) {
-            state.renderer.update_material_params2(m, p2);
+            gpu!(state).renderer.update_material_params2(m, p2);
         }
         // The body the camera's air lets show through by day (the Moon):
         // the dome takes its disc from here (30-atmosphere.wgsl).
-        state.renderer.sky_disc = crate::renderer::key_lights::sky_disc(&disc_cands);
+        gpu!(state).renderer.sky_disc = crate::renderer::key_lights::sky_disc(&disc_cands);
     }
     if light_dir != Vec3::ZERO {
-        state.renderer.set_sun_light(
+        gpu!(state).renderer.set_sun_light(
             light_dir,
             light_color,
             if gi { 2.5 } else { 0.0 },
@@ -249,14 +249,14 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
         // local day factor, same formula as the sky below;
         // off-planet stays 1.0 (the sun never sets in
         // space).
-        state.renderer.celestial_sun_day = 1.0;
+        gpu!(state).renderer.celestial_sun_day = 1.0;
         if state.frame_lock_body.is_some() {
             let up_w = crate::engine::planet_build::frame_body_rot(state)
                 * state.frame_lock_anchor.normalize_or_zero();
             let mu = up_w.dot(sun_dir) as f32;
             // The ground's gate; a body in the sky ignores it
             // (its own sun, the block before set_sun_light).
-            state.renderer.celestial_sun_day = crate::renderer::key_lights::released_camera_sun(
+            gpu!(state).renderer.celestial_sun_day = crate::renderer::key_lights::released_camera_sun(
                 [1.0; 3],
                 crate::renderer::key_lights::camera_day_factor(mu),
                 sun_release,
@@ -448,11 +448,11 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
                 sky = sky_w;
             }
         }
-        state.renderer.aerial_sigma = sigma;
-        state.renderer.aerial_fog_share = fog_share;
-        state.renderer.aerial_slant_cap = cap;
-        state.renderer.aerial_sky = sky;
-        state.renderer.aerial_up = up;
+        gpu!(state).renderer.aerial_sigma = sigma;
+        gpu!(state).renderer.aerial_fog_share = fog_share;
+        gpu!(state).renderer.aerial_slant_cap = cap;
+        gpu!(state).renderer.aerial_sky = sky;
+        gpu!(state).renderer.aerial_up = up;
     }
     // The fill is otherwise set once at init; re-assert it each frame so the GI
     // toggle is authoritative (restores the default when GI is back on).
@@ -500,7 +500,7 @@ pub(crate) fn run(state: &mut EngineState, sun_rel_earth_m: glam::DVec3, moon_re
         (moon_rel_earth_m - state.ship_world_pos).normalize_or_zero(),
         glam::DVec3::new(sun_dir.x as f64, sun_dir.y as f64, sun_dir.z as f64),
     );
-    state.renderer.set_fill_light(
+    gpu!(state).renderer.set_fill_light(
         fill.dir,
         fill.rgb,
         if gi { fill.intensity } else { 0.0 },

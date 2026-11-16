@@ -411,14 +411,14 @@ pub(crate) fn push_render_objects(state: &mut EngineState, home: &mut Vec<Render
     }
     let look = state.gui_state.death_pack.rules.look.clone();
     if state.death_packs.mesh.is_none() {
-        let mesh = crate::renderer::mesh::Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0);
-        state.death_packs.mesh = Some(state.renderer.add_mesh(mesh));
+        let mesh = crate::renderer::mesh::Mesh::box_xyz(&gpu!(state).renderer.device, 1.0, 1.0, 1.0);
+        state.death_packs.mesh = Some(gpu!(state).renderer.add_mesh(mesh));
     }
     if state.death_packs.mats.is_none() {
         let (c, s) = (look.canvas, look.straps);
         // World materials, not UI: the pack's canvas and its straps (data/world/death.ron).
-        let canvas = state.renderer.add_material_typed([c.0, c.1, c.2, 1.0], 0.0, 0.85, 0.0);
-        let straps = state.renderer.add_material_typed([s.0, s.1, s.2, 1.0], 0.0, 0.7, 0.0);
+        let canvas = gpu!(state).renderer.add_material_typed([c.0, c.1, c.2, 1.0], 0.0, 0.85, 0.0);
+        let straps = gpu!(state).renderer.add_material_typed([s.0, s.1, s.2, 1.0], 0.0, 0.7, 0.0);
         state.death_packs.mats = Some([canvas, straps]);
     }
     let (Some(mesh), Some([canvas, straps])) = (state.death_packs.mesh, state.death_packs.mats) else { return };

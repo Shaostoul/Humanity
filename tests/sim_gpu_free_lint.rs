@@ -20,7 +20,9 @@
 //! sim_boot.rs's `boot`, "src/engine/sim_boot.rs line 65 names `headless`". Increment 2's checks,
 //! the same day: an `EngineState` field planted in frame_sim.rs's `SimParts` failed "frame_sim.rs
 //! line 24 names `EngineState`", and a second `world_hold::tick(` planted in frame_ecs.rs failed
-//! "frame_ecs.rs calls `world_hold::tick(` itself".
+//! "frame_ecs.rs calls `world_hold::tick(` itself". Increment 4's (2026-11-15): with sim_home.rs's
+//! `sim_boot::seed_home_storage(` call taken out, "sim_home.rs `enter` no longer calls
+//! `sim_boot::seed_home_storage(`: the headless homestead would start unlike the windowed game".
 
 use std::fs;
 use std::path::PathBuf;
@@ -101,12 +103,20 @@ fn the_sim_side_names_no_gpu_type() {
 
 #[test]
 fn the_windowed_game_builds_its_world_through_the_sim_side() {
-    let lib = read("src/lib.rs");
-    for call in ["sim_boot::boot(", "sim_boot::starter_vehicles(", "sim_boot::apply_home_save("] {
-        assert!(lib.contains(call), "lib.rs `resumed` no longer calls `{call}`: the windowed game's setup and the sim's would drift apart");
+    // The windowed app boots the engine through `EngineState::boot` (increment 4, 2026-11-15:
+    // engine/engine_boot.rs, moved out of lib.rs `resumed`), the boot a headless run takes too.
+    let app = read("src/lib.rs");
+    assert!(app.contains("EngineState::boot("), "lib.rs `resumed` no longer boots the engine through `EngineState::boot`: the windowed game and a headless run would boot differently");
+    let lib = read("src/engine/engine_boot.rs");
+    // Home storage at the start too (increment 4): both drivers seed it through the sim side.
+    let home = read("src/engine/sim_home.rs");
+    for call in ["sim_boot::boot(", "sim_boot::starter_vehicles(", "sim_boot::apply_home_save(", "sim_boot::seed_home_storage("] {
+        assert!(lib.contains(call), "engine_boot.rs `EngineState::boot` no longer calls `{call}`: the windowed game's setup and the sim's would drift apart");
+        let short = call.trim_start_matches("sim_boot::");
+        assert!(home.contains(short), "sim_home.rs `enter` no longer calls `{call}`: the headless homestead would start unlike the windowed game");
     }
-    let registers = lib.lines().filter(|l| code_of(l).contains(".register(")).count();
-    assert_eq!(registers, 0, "lib.rs registers {registers} systems of its own: every system is registered in src/engine/sim_boot.rs");
+    let registers = lib.lines().chain(app.lines()).filter(|l| code_of(l).contains(".register(")).count();
+    assert_eq!(registers, 0, "lib.rs or engine_boot.rs registers {registers} systems of its own: every system is registered in src/engine/sim_boot.rs");
     let world_load = read("src/engine/world_load.rs");
     assert!(
         world_load.contains("world_sim::build("),

@@ -281,7 +281,8 @@ fn frame_src() -> String {
     names.sort();
     let mut src = src_file("lib.rs");
     // The startup's simulation, built without the GPU (2026-11-15): the DataStore's slots are made there.
-    for sim in ["engine/sim_boot.rs", "engine/world_sim.rs"] {
+    // And the engine's boot, moved out of lib.rs `resumed` (increment 4, 2026-11-15).
+    for sim in ["engine/sim_boot.rs", "engine/world_sim.rs", "engine/engine_boot.rs"] {
         src.push('\n');
         src.push_str(&src_file(sim));
     }

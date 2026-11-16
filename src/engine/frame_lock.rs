@@ -173,7 +173,7 @@ pub(crate) fn ground_anchor(state: &EngineState) -> [f32; 4] {
 /// plates. Poked into light4_cone_inner.xyzw.
 pub(crate) fn ocean_anchor256(state: &EngineState) -> [f32; 4] {
     let split_px = state.gui_state.settings.terrain_split_px.clamp(2.0, 24.0);
-    let viewport_h = state.renderer.surface_size().1 as f32;
+    let viewport_h = gpu_ref!(state).renderer.surface_size().1 as f32;
     let px_per_rad = viewport_h / state.camera.fov_degrees.max(1.0).to_radians();
     let k = px_per_rad / split_px.max(0.1);
     if state.frame_lock_body.is_none() {
@@ -248,7 +248,7 @@ pub(crate) fn godray_scale(state: &EngineState) -> f32 {
         .and_then(|b| state.planet_defs.get(b))
         .and_then(|d| d.atmosphere_color)
         .is_some_and(|c| c[3] > 0.0);
-    let in_air = if state.renderer.godrays_pin == Some(true) {
+    let in_air = if gpu_ref!(state).renderer.godrays_pin == Some(true) {
         1.0
     } else if has_air {
         1.0 - above_air(state)
@@ -409,7 +409,7 @@ pub(crate) fn sun_cloud_alpha(state: &EngineState) -> f32 {
     // carries the exact band-top ratio the march itself uses; when it
     // is not armed (low quality / far away), the drawn shell stays as
     // the conservative fallback.
-    let r_deck = if let Some(f) = state.renderer.cloud_composite_frame.as_ref() {
+    let r_deck = if let Some(f) = gpu_ref!(state).renderer.cloud_composite_frame.as_ref() {
         f.planet_r as f64 * f.rt as f64
     } else {
         state
