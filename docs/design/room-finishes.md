@@ -298,5 +298,5 @@ geometry, so they cost per-pixel time, measured per rung, and no vertices.
 4. **The trim stays in the lamps' shadow maps** while its cost is under the 5% bar (section 8).
 5. **A picture rail by default in the living rooms and the study** (operator, 2026-11-15: "Yes."
    to the rung 2 builder's recommendation): it sits about 0.3 m under the ceiling, above the
-   furniture, the classic match for the torus and ogee style. The chair rail stays a choice. Not
-   built yet: rung 2 shipped with every rail off until chosen.
+   furniture, the classic match for the torus and ogee style. The chair rail stays a choice. Built
+   the same day: data/blueprints/room_finishes.ron gives livingroom and study picture_rail_45.

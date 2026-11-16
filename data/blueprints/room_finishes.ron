@@ -78,13 +78,17 @@ RoomFinishCatalog(
         (id: "brushed_steel", look: Metal, color: (0.62, 0.63, 0.66), roughness: 0.35, metallic: 0.9),
     ],
     by_room_type: [
-        // The rails (chair_rail, picture_rail) are "none" in every room until someone chooses one:
-        // a rail would stand into the furniture placed flush against the skirting.
-        // The living rooms: a torus skirting and a plaster cove, in white enamel, the doors and
-        // windows cased in the matching ogee, a bullnosed stool under each window.
-        (room_types: ["livingroom", "dining", "hall", "entry", "commons", "guest_bedroom", "bedroom", "dressing", "nursery", "quarters"], skirting: "torus_145", crown: "cove_70", material: "white_enamel", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "none"),
-        // A study: the deeper ogee skirting and a sprung crown, in oak, cased to match.
-        (room_types: ["study"], skirting: "ogee_170", crown: "ogee_crown_115", material: "oak", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "none"),
+        // The chair rail is "none" in every room until someone chooses one: at 0.9 m it would stand
+        // into the furniture placed flush against the skirting. The picture rail sits 0.3 m under the
+        // ceiling, above the furniture, so the living room and the study have one by default (the
+        // operator, 2026-11-16: "Yes." to the rung 2 builder's recommendation; room-finishes.md 10.5).
+        // The living room: a torus skirting and a plaster cove, in white enamel, the doors and
+        // windows cased in the matching ogee, a bullnosed stool under each window, a picture rail.
+        (room_types: ["livingroom"], skirting: "torus_145", crown: "cove_70", material: "white_enamel", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "picture_rail_45"),
+        // The other lived-in rooms: the same, without the picture rail.
+        (room_types: ["dining", "hall", "entry", "commons", "guest_bedroom", "bedroom", "dressing", "nursery", "quarters"], skirting: "torus_145", crown: "cove_70", material: "white_enamel", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "none"),
+        // A study: the deeper ogee skirting and a sprung crown, in oak, cased to match, a picture rail.
+        (room_types: ["study"], skirting: "ogee_170", crown: "ogee_crown_115", material: "oak", casing: "ogee_casing_70", sill: "bullnose_stool_25", chair_rail: "none", picture_rail: "picture_rail_45"),
         // Kitchen and bathroom: a plain board that wipes clean, no crown (the tile and splashback
         // finishes are rung 3), a plain casing and a square stool.
         (room_types: ["kitchen", "bathroom"], skirting: "square_edge_95", crown: "none", material: "white_enamel", casing: "pencil_round_casing_58", sill: "square_stool_22", chair_rail: "none", picture_rail: "none"),
