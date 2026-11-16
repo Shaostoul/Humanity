@@ -5,8 +5,8 @@
 use crate::engine::frame_prelude::*;
 
 /// Holds a probe's camera pose and runs this frame's ambient particles.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.particles");
     // PROBE HOLD (environment program increment 2): a
     // scripted camera park re-asserts its pose every frame

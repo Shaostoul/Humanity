@@ -19,7 +19,7 @@ use crate::engine::frame_sim::SimParts;
 use crate::engine::planet_build::GroundSources;
 
 /// Runs the game world's systems for this frame.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+pub(crate) fn run(state: &mut EngineState) {
     humanity_core::frame_costs::span("cpu.span.ecs");
     state.death_packs.new_frame();
     let site = FallSite {
@@ -46,5 +46,5 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         gui: &mut state.gui_state,
         world_loaded: state.world_loaded,
     };
-    crate::engine::frame_sim::systems_slice(parts, f.dt, &site);
+    crate::engine::frame_sim::systems_slice(parts, &state.clock, &site);
 }

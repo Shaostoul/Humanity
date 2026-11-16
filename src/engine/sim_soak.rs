@@ -24,6 +24,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::engine::sim_home::{self, OBSERVABLES};
+use crate::engine::sim_routine::{Routine, RoutineLog};
 
 /// The tolerances file, under the data folder.
 pub(crate) const TOLERANCES_FILE: &str = "sim/step_tolerances.ron";
@@ -102,27 +103,33 @@ pub(crate) struct Span {
     pub notices: Vec<String>,
     /// When the player died, game seconds into the run, and of what (the death screen's cause).
     pub death: Option<(f64, String)>,
+    /// What the person's routine did, measured (None: a run with no routine, the untouched home).
+    pub routine: Option<RoutineLog>,
 }
 
 /// Step a fresh homestead `span_s` game seconds at `step_s`, reading every quantity every
 /// `mark_s` (a step is shortened to land on a mark, so the marks are exact), on a thread of its
-/// own with its own scratch saves.
-pub(crate) fn run_span(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mark_s: Option<f64>) -> Span {
+/// own with its own scratch saves; the person following `routine` when there is one.
+pub(crate) fn run_span(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mark_s: Option<f64>, routine: Option<&Routine>) -> Span {
     let data_dir = data_dir.to_path_buf();
+    let routine = routine.cloned();
     std::thread::Builder::new()
         .name("sim-span".into())
         .stack_size(16 << 20)
-        .spawn(move || span_on_this_thread(&data_dir, seed, step_s, span_s, mark_s))
+        .spawn(move || span_on_this_thread(&data_dir, seed, step_s, span_s, mark_s, routine))
         .expect("a thread for the run")
         .join()
         .unwrap_or_else(|p| std::panic::resume_unwind(p))
 }
 
-fn span_on_this_thread(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mark_s: Option<f64>) -> Span {
+fn span_on_this_thread(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mark_s: Option<f64>, routine: Option<Routine>) -> Span {
     let saves = scratch_saves();
     let t_enter = std::time::Instant::now();
     let mut home = sim_home::enter(data_dir, saves.clone());
     home.sim.data_store.insert(humanity_systems::sim_seed::SLOT, seed);
+    if let Some(r) = routine {
+        home.follow(r);
+    }
     // The garden planted, as the first hour asks (the opening quest's Plant step), so a run
     // grows crops. Planted by a step of no time, so it is in the ground at the start of every
     // run whatever the step: planted by the first real step, a crop grew from the end of that
@@ -144,8 +151,11 @@ fn span_on_this_thread(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mar
         // Step to the next mark (or the end) at `step_s`, the last step shortened to land on it.
         let until = next_mark.min(span_s);
         while t < until - 1e-9 {
-            let dt = step_s.min(until - t);
-            home.step(dt as f32);
+            // A step of game time: the real step at the clock's speed (1, or a night's sleep's),
+            // shortened to land on the routine's next act, so the act happens at its hour.
+            let to_act = home.routine.as_ref().and_then(|r| r.seconds_to_next_act(&home.sim.data_store)).unwrap_or(f64::INFINITY);
+            let dt = step_s.min(until - t).min(to_act);
+            home.step_game(dt);
             t += dt;
             steps += 1;
             if first.is_none() {
@@ -163,10 +173,11 @@ fn span_on_this_thread(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mar
     }
     let end = home.observe();
     let notices = std::mem::take(&mut home.notices);
+    let routine = home.routine.take().map(|r| r.log);
     drop(home);
     let _ = std::fs::remove_dir_all(&saves);
     let first = first.unwrap_or_else(|| start.clone());
-    Span { start, first, marks, end, steps, wall_s: wall, enter_s, notices, death }
+    Span { start, first, marks, end, steps, wall_s: wall, enter_s, notices, death, routine }
 }
 
 /// A saves folder of the run's own in the system's temporary folder, empty: no player's save is
@@ -234,13 +245,15 @@ impl Rung {
     }
 }
 
-/// The ladder: `span_s` at the reference step, then at each of `steps`, every quantity judged.
-pub(crate) fn ladder(data_dir: &Path, tol: &StepTolerances, span_s: f64, steps: &[f64]) -> (Span, Vec<Rung>) {
-    let reference = run_span(data_dir, tol.seed, tol.reference_step_s, span_s, None);
+/// The ladder: `span_s` at the reference step, then at each of `steps`, every quantity judged; the
+/// person following `routine` in every run when there is one (its meals, drinks and fills judged
+/// with the rest).
+pub(crate) fn ladder(data_dir: &Path, tol: &StepTolerances, span_s: f64, steps: &[f64], routine: Option<&Routine>) -> (Span, Vec<Rung>) {
+    let reference = run_span(data_dir, tol.seed, tol.reference_step_s, span_s, None, routine);
     let rungs = steps
         .iter()
         .map(|&step_s| {
-            let run = run_span(data_dir, tol.seed, step_s, span_s, None);
+            let run = run_span(data_dir, tol.seed, step_s, span_s, None, routine);
             let verdicts = judge(tol, &reference.first, &reference.end, &run.end);
             Rung { step_s, verdicts, wall_s: run.wall_s, steps: run.steps }
         })
@@ -311,6 +324,8 @@ pub(crate) struct SoakAsk {
     /// None: the tolerances file's.
     pub check_hours: Option<f64>,
     pub seed: Option<u64>,
+    /// The person's daily routine (data/sim/routines/<id>.ron); None: the untouched home.
+    pub routine: Option<String>,
 }
 
 /// A finished soak.
@@ -328,6 +343,8 @@ pub(crate) struct SoakReport {
     /// step for a soak as fine as that).
     pub reference_step_s: f64,
     pub check_wall_s: f64,
+    /// The routine the person followed (its name), None for the untouched home.
+    pub routine: Option<String>,
 }
 
 /// Run a soak. Refuses (Err) a step past the safe one unless forced.
@@ -348,12 +365,13 @@ pub(crate) fn soak(data_dir: &Path, ask: &SoakAsk) -> Result<SoakReport, String>
     let check_hours = ask.check_hours.unwrap_or(tol.check_hours);
     let check_s = (check_hours * 3600.0).min(ask.days * DAY_S);
     let seed = ask.seed.unwrap_or(tol.seed);
+    let routine = ask.routine.as_deref().map(|id| crate::engine::sim_routine::Routine::load(data_dir, id)).transpose()?;
     // The soak itself, read at the end of every day and at the end of the error check's span.
-    let run = run_span(data_dir, seed, step_s, ask.days * DAY_S, Some(DAY_S.min(check_s)));
+    let run = run_span(data_dir, seed, step_s, ask.days * DAY_S, Some(DAY_S.min(check_s)), routine.as_ref());
     // The error check: the same start stepped at the check's step (the reference step for a soak
-    // as fine as the check's) over the check's span.
+    // as fine as the check's) over the check's span, the person following the same routine.
     let check_step_s = if step_s > tol.check_step_s { tol.check_step_s } else { tol.reference_step_s };
-    let reference = run_span(data_dir, seed, check_step_s, check_s, None);
+    let reference = run_span(data_dir, seed, check_step_s, check_s, None, routine.as_ref());
     let at_check = run
         .marks
         .iter()
@@ -371,6 +389,7 @@ pub(crate) fn soak(data_dir: &Path, ask: &SoakAsk) -> Result<SoakReport, String>
         check,
         reference_step_s: check_step_s,
         check_wall_s: reference.wall_s,
+        routine: routine.map(|r| format!("{} ({})", r.name, r.id)),
     })
 }
 
@@ -442,6 +461,11 @@ impl SoakReport {
             Some((t, cause)) => out += &format!("The player died {:.1} game days in, of {cause}.\n", t / DAY_S),
             None => out += "The player lived through the run.\n",
         }
+        // The untouched home's report stays as it was (nobody eats, drinks or sleeps there), so a
+        // routine's run and the untouched one compare line for line.
+        if let (Some(name), Some(log)) = (&self.routine, &r.routine) {
+            out += &routine_text(name, log);
+        }
         out += &format!("The systems said {} things", r.notices.len());
         if let Some(last) = r.notices.last() {
             out += &format!("; the last: \"{last}\"");
@@ -476,10 +500,41 @@ impl SoakReport {
             "days_end": self.run.marks.iter().filter(|(t, _)| (t / DAY_S).fract().abs() < 1e-9).map(|(t, o)| serde_json::json!({ "day": (t / DAY_S).round(), "state": obs(o) })).collect::<Vec<_>>(),
             "end": obs(&self.run.end),
             "death": self.run.death.as_ref().map(|(t, cause)| serde_json::json!({ "day": t / DAY_S, "cause": cause })),
+            "routine": self.routine.as_ref().zip(self.run.routine.as_ref()).map(|(name, log)| serde_json::json!({
+                "name": name, "drinks": log.drinks, "meals": log.meals, "crops_eaten": log.crops_eaten,
+                "produce_harvested": log.produce_harvested, "taken_from_storage": log.taken_from_storage,
+                "water_drawn_l": log.water_drawn_l, "sleeps": log.sleeps, "rests": log.rests,
+                "eaten": log.eaten, "drunk": log.drunk, "missed": log.missed,
+            })),
             "notices": self.run.notices.len(),
             "last_notice": self.run.notices.last(),
         })
     }
+}
+
+/// What the routine did, in words (measured from the backpack and the bottles, sim_routine.rs).
+fn routine_text(name: &str, log: &RoutineLog) -> String {
+    let list = |m: &std::collections::BTreeMap<String, u32>| {
+        if m.is_empty() { "nothing".to_string() } else { m.iter().map(|(k, n)| format!("{n} x {k}")).collect::<Vec<_>>().join(", ") }
+    };
+    let mut out = format!(
+        "The routine \"{name}\": {} drinks ({}), {} meals ({}), {} of them from the garden ({} produce harvested), \
+         {} taken from home storage, {:.1} L of water drawn from the tank into bottles, {} nights in bed, {} naps.\n",
+        log.drinks,
+        list(&log.drunk),
+        log.meals,
+        list(&log.eaten),
+        log.crops_eaten,
+        log.produce_harvested,
+        log.taken_from_storage,
+        log.water_drawn_l,
+        log.sleeps,
+        log.rests
+    );
+    if !log.missed.is_empty() {
+        out += &format!("  Acts that did nothing: {}.\n", log.missed.iter().map(|(why, n)| format!("{n} x {why}")).collect::<Vec<_>>().join("; "));
+    }
+    out
 }
 
 /// A number short enough for a table column.
@@ -508,8 +563,17 @@ fn arg<T: std::str::FromStr>(args: &[String], flag: &str) -> Result<Option<T>, S
 }
 
 /// The usage words.
-const USAGE: &str = "usage: HumanityOS --sim soak [--days N] [--step SECONDS] [--force] [--check-hours H] [--seed N] [--report FILE]\n       \
-                     HumanityOS --sim ladder [--hours H] [--report FILE]";
+const USAGE: &str = "usage: HumanityOS --sim soak [--days N] [--step SECONDS] [--force] [--check-hours H] [--seed N] [--routine NAME] [--report FILE]\n       \
+                     HumanityOS --sim ladder [--hours H] [--routine NAME] [--report FILE]\n       \
+                     (--routine NAME follows data/sim/routines/NAME.ron: a person's day of drinks, meals and sleep)";
+
+/// The word after `--routine`, when given.
+fn routine_arg(args: &[String]) -> Result<Option<String>, String> {
+    match args.iter().position(|a| a == "--routine") {
+        None => Ok(None),
+        Some(i) => args.get(i + 1).filter(|v| !v.starts_with("--")).cloned().map(Some).ok_or_else(|| "--routine needs a routine's name after it (data/sim/routines/NAME.ron)".to_string()),
+    }
+}
 
 /// `HumanityOS --sim ...` (src/main.rs dispatches here before any window, relay or update check):
 /// the report on standard output and, with `--report`, as JSON in a file. Returns the exit code:
@@ -538,6 +602,7 @@ fn cli(args: &[String]) -> Result<(), String> {
                 force: args.iter().any(|a| a == "--force"),
                 check_hours: arg(args, "--check-hours")?,
                 seed: arg(args, "--seed")?,
+                routine: routine_arg(args)?,
             };
             let report = soak(&data_dir, &ask)?;
             (report.text(), report.json())
@@ -545,7 +610,8 @@ fn cli(args: &[String]) -> Result<(), String> {
         "ladder" => {
             let tol = StepTolerances::load(&data_dir)?;
             let hours: f64 = arg(args, "--hours")?.unwrap_or(tol.check_hours);
-            let (reference, rungs) = ladder(&data_dir, &tol, hours * 3600.0, &tol.ladder_s);
+            let routine = routine_arg(args)?.map(|id| crate::engine::sim_routine::Routine::load(&data_dir, &id)).transpose()?;
+            let (reference, rungs) = ladder(&data_dir, &tol, hours * 3600.0, &tol.ladder_s, routine.as_ref());
             let json = serde_json::json!({
                 "hours": hours,
                 "reference_step_s": tol.reference_step_s,

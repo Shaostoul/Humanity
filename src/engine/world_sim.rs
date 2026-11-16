@@ -354,6 +354,9 @@ pub(crate) fn build(parts: Parts<'_>) -> WorldSim {
     if start_row.own_air {
         let home_m3 = crate::engine::home_spawn::own_home_air_m3(data_dir, gui.ship_structure.as_ref());
         spawn_home_air_space(world, home_kcal, home_m3);
+        // Its air is the Air readout's, and the survival context's, from now (BUG-317: until the
+        // first atmosphere step the readout said vacuum, and the first step breathed it).
+        humanity_systems::atmosphere::publish_air_status(world, data_store);
     }
 
     WorldSim {

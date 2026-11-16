@@ -467,21 +467,32 @@ impl System for AtmosphereSystem {
             }
         }
 
-        // Publish the HOME space's air to the GUI (v0.617), mirroring PowerStatus / WaterStatus. Clone
-        // the atmosphere first so the immutable query borrow releases before we lock + write.
-        if let Some(status) = data.get::<std::sync::Mutex<AirStatus>>("air_status") {
-            let home_atmo = world
-                .query::<(&HomeAir, &EnclosedSpace)>()
-                .iter()
-                .next()
-                .map(|(_, (_, sp))| sp.atmosphere.clone());
-            if let (Ok(mut s), Some(atmo)) = (status.lock(), home_atmo) {
-                s.o2_pct = atmo.gas_percent("O2");
-                s.co2_pct = atmo.gas_percent("CO2");
-                s.pressure_atm = atmo.pressure_atm;
-                s.temp_c = atmo.temperature_k - 273.15;
-                s.breathable = atmo.breathable;
-            }
+        // Publish the HOME space's air to the GUI (v0.617), mirroring PowerStatus / WaterStatus.
+        publish_air_status(world, data);
+    }
+}
+
+/// The HOME space's air into the "air_status" slot (the GUI's Air readout, and whether the
+/// survival context inside the home is breathable): by every atmosphere step, and by the world
+/// entry the moment the home's air space exists (engine/world_sim.rs). BUG-317 (2026-11-15): the
+/// slot started as `AirStatus::default()`, all zeros and unbreathable, until the first atmosphere
+/// step, so the first step after world entry breathed vacuum. A frame of it in the windowed game
+/// (0.04 of blood oxygen); one 600 s soak step of it, the person suffocated. Nothing published
+/// with no home air space.
+pub fn publish_air_status(world: &hecs::World, data: &DataStore) {
+    // Clone the atmosphere first so the immutable query borrow releases before we lock + write.
+    if let Some(status) = data.get::<std::sync::Mutex<AirStatus>>("air_status") {
+        let home_atmo = world
+            .query::<(&HomeAir, &EnclosedSpace)>()
+            .iter()
+            .next()
+            .map(|(_, (_, sp))| sp.atmosphere.clone());
+        if let (Ok(mut s), Some(atmo)) = (status.lock(), home_atmo) {
+            s.o2_pct = atmo.gas_percent("O2");
+            s.co2_pct = atmo.gas_percent("CO2");
+            s.pressure_atm = atmo.pressure_atm;
+            s.temp_c = atmo.temperature_k - 273.15;
+            s.breathable = atmo.breathable;
         }
     }
 }

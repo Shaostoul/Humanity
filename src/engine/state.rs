@@ -284,10 +284,12 @@ pub(crate) struct EngineState {
     /// EARTH's turn: every other body turns by its own catalog rotation
     /// (`planet_build::body_world_rot`, 2026-10-21).
     pub(crate) current_spin: f64,
-    /// THIS frame's sim time, seconds since J2000 on the real clock (what
-    /// places and turns every body but Earth), read once beside `current_spin`
-    /// so a frame-lock capture and its ride agree to the bit.
-    pub(crate) current_sim_t: f64,
+    /// THIS frame's clock (the headless sim runner's increment 3, 2026-11-15): the step the sim
+    /// runs on (`dt`), the uncapped real step, the counters' true step, and the real clock every
+    /// body but Earth is placed and turned by (`sim_epoch_s`, seconds since J2000, read once beside
+    /// `current_spin` so a frame-lock capture and its ride agree to the bit). Advanced once a frame
+    /// by engine/frame_clock.rs; the soak advances its own (engine/sim_home.rs).
+    pub(crate) clock: crate::engine::frame_sim::FrameClock,
     /// True while the player is in the surface WALK band (< 10 km): edge-
     /// detects touchdown for the gear reset (v0.872 band split).
     pub(crate) surface_walk_band: bool,

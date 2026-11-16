@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 
 /// Mirrors the garden, mining and the drone into the GUI and the draw lists.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     let showroom = f.showroom;
     let hide_machines = f.hide_machines;
     humanity_core::frame_costs::span("cpu.span.mirror_towers");

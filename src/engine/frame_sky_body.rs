@@ -17,7 +17,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, b: &'static humani
     let viewport_h = sky.viewport_h;
     let fov_deg = sky.fov_deg;
     let spin_f64 = sky.spin_f64;
-    let dt = f.dt;
+    let dt = state.clock.dt;
     let showroom = f.showroom;
     // The Sun + everything that directly orbits it
     // (planets, dwarfs, named belt bodies) + Earth +

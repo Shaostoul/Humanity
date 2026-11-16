@@ -182,7 +182,7 @@ The windowed rigs still run in each release batch.
 | 0 | **Built 2026-10-30.** Measure: stage timers around the walk aboard, the planet walk, the bridges, the settles | numbers in this doc; the untimed part of `frame_total` shrinks | 0.5 d |
 | 1 | **Built 2026-11-15.** Setup split: `engine::sim_boot` and `engine::world_sim::build` (GPU uploads stay in `world_load`) | windowed game unchanged (verify-runtime, verify-storeys); a lib test builds the homestead with no GPU | 3 d |
 | 2 | **Built 2026-11-15** (the ECS stage; the bridges stay for increment 3). Systems slice and the first headless value: lib.rs 5770-6721 into `frame_sim::systems_slice`; `--sim soak`; sim seeds | a 7-day soak in seconds; the dt ladder report; the split-step test over every system; byte-identical repeat runs | 2-3 d |
-| 3 | Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
+| 3 | **Built 2026-11-15, but for the settles** (see "Built so far"). Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
 | 4 | `gpu: Option<Gpu>`, `EngineState::boot(opts, gpu)`; sim-side mesh creation becomes dirty flags | `--sim` enters the homestead and walks with no EventLoop and no wgpu Instance; windowed rigs green | 3-5 d |
 | 5 | Transport and headless rigs (the `Verb` table, stdin JSON lines, `--headless` on verify-storeys and verify-falls aboard) | headless and windowed verdicts agree (75/75); the floorless sandbox fails headless too | 3 d |
 | 6 | The planet's ground owned by the sim (CPU LOD selection and tile requests in `step`) | the falls planet legs pass both ways; the near-tree ground check green | 3-4 d |
@@ -302,19 +302,92 @@ untouched homestead: the batteries fill on day 1 and hold, the tanks fill by day
 grow every second, the body goes without a drink and dies of dehydration 2.6 game days in
 (nobody drinks in an untouched run; the report says so), and the herd says it has nothing to eat.
 
-**Not yet in the soak** (the bridges, `frame_bridges.rs` and `frame_bridges_npc.rs`, still take
-`EngineState`): the body's per-frame environment (`survival_env::publish`: the sealed home's air
+**Not yet in increment 2's soak** (increment 3 put them in, below; the bridges took
+`EngineState` then): the body's per-frame environment (`survival_env::publish`: the sealed home's air
 around the body, the felt gravity; the soak's body keeps what the boot gave it) and the GUI's
 requests (eat, drink, plant, craft) except the planting the soak makes itself. The Settings levels
 (body heat, illness, animal care, death) are published once at the soak's entry
 (`survival_env::publish_levels`), the garden levels by `sim_boot::apply_home_save`.
 
-**Increment 3, the first step**: the bridges' world-feeding half on the sim's parts as
-`frame_sim::bridges_slice` (`survival_env::publish`'s environment with the body's position and
-gait as plain values, `frame_lock::publish_body_environment`, the eat, drink, use, plant and craft
-request bridges), run by the windowed frame and by `Homestead::step` before `systems_slice`, so
-the soak's body breathes the home's air the frame publishes and a soak script can eat and drink;
-then `FrameClock` and the frame split proper.
+**Increment 3, the bridges, the clock and three of the four inversions** (2026-11-15). The soak's
+person eats, drinks, draws water and sleeps through the same requests a player's clicks make, and
+the windowed game and the soak step the same sim the same way:
+
+- `frame_sim::bridges_slice(SimParts, &BodyPlace)`: the bridges' world-feeding half on the sim's
+  parts. `BodyPlace` is where the person is as plain values the driver reads before the step (the
+  `PlayerView`: aboard, the eye and the look, or the locked body and the eye in its frame; the
+  gait, driving, fly mode, the felt gravity, whose air each place breathes, the planets' ground
+  borrowed field by field). It publishes the body's environment (`frame_lock::publish_body_environment`
+  and `survival_env::publish`, both on plain values now; `planet_build::frame_of_place` is the
+  shelter test's frame), the drone's panel, and the GUI's requests
+  (`src/engine/frame_sim_requests.rs`, moved verbatim from frame_bridges.rs and the tail of
+  frame_bridges_npc.rs: craft, eat, drink, use, plant, deploy, summon, the tower and bed
+  plantings, harvests, the per-frame settings mirrors, the backpack's transfers, rest, compost,
+  the drone's orders, and the water tank card's Fill and Pour, moved in from frame_cards.rs). The
+  windowed frame runs it where the bridges ran (frame_bridges.rs builds the `BodyPlace` from the
+  camera, the controller, the frame lock and the drive); `Homestead::step` runs it before
+  `systems_slice`, its person standing where they arrived in the parked ship.
+- `FrameClock { dt, clock_dt, raw_dt, sim_epoch_s, frame, elapsed_s }` (frame_sim.rs), the one clock:
+  `EngineState::clock`, advanced once a frame by frame_clock.rs, replaces `FrameVars`' three steps
+  and `current_sim_t`; every stage reads `state.clock`, and `systems_slice` takes it. The soak
+  advances its own; `Homestead::step_game` turns its game step into the frame's real `dt` at the
+  time speed the next tick runs at (`humanity_systems::time::next_tick_scale`), so a night's sleep
+  (the clock at 7,200 times) is stepped as the windowed game steps it, ten game minutes a twelfth of
+  a real second, where a plain 600 s step would have slept 50 game days in one step.
+- Door easing is `engine::doors::tick`, a stage of its own right before the home's draw list
+  (moved verbatim out of `home_meshes::render_door_panels`, which draws the doors where the tick
+  left them). The poll of the rigs' verbs runs after the present branch, every frame, presented or
+  not (lib.rs; it was inside `frame_tail`).
+- **Not done: the settles at the end of the step** (frame_settles.rs still runs after the view's
+  draw-list stages), and so no `frame_split_lint` yet: increment 4's work below.
+- A person's routine for the soak, as data: `data/sim/routines/daily.ron` (acts at hours of the
+  home's day: drink, eat, sleep, rest; the foods and drinks reached for) and
+  `src/engine/sim_routine.rs`, which turns each act into the requests the pages set (the Drink
+  and Eat buttons, the tank card's Fill, "Harvest N ready", "Take to backpack", the Rest button,
+  the bed prompt's sleep request) and measures what each did from the backpack and the bottles,
+  never from what it asked. `--sim soak --routine daily` (and `--sim ladder --routine daily`); the
+  Dev page's Simulation card has "Run a week of a person's day". The default soak has no routine.
+- The bridges' quantities are observables with tolerance rows: the environment around the body
+  (`env.air_c`, `env.humidity`, `env.oxygenated`, `env.g_load`) and the backpack (`pack.items`,
+  `pack.water_l`).
+
+The order audit (each move's read-after-write check is written where it moved: frame_bridges.rs,
+frame_sim_requests.rs, doors.rs, frame_tail.rs):
+
+| Moved | From, to | What changes |
+|---|---|---|
+| The Planet Tuner's readout | between the body's environment and the survival context, to after the slice | nothing: it reads the body's environment published first in both |
+| frame_bridges_npc.rs's requests | after the dev teleport, spawn, creature editor and NPC card, to before them | nothing: neither side reads what the other writes |
+| The tank card's Fill and Pour | frame_cards.rs after the tick, to the bridges before it, the same frame | this frame's tick sees the filled bottles and the lower tank instead of the next frame's |
+| Door easing | inside the home's draw list (only while the home was drawn), to its own stage just before it, every frame | doors keep easing while the showroom is open (they paused there) |
+| The rigs' verb poll | inside the present branch before the live broadcast and the present, to after the branch, every frame | verbs also run on a frame that acquired no image; a verb that changes a setting is applied by the next frame's tail |
+| The frame's clock | `current_spin` before `current_sim_t`, to after the clock | nothing: the spin reads the game clock and the sun, not `current_sim_t` |
+
+Found on the way: **BUG-317**, the first step after world entry breathed vacuum (the home's air
+status started all zeros until the first atmosphere step; a frame in the windowed game, a 600 s
+step in the soak, where the routine's person suffocated in it). The world entry publishes the
+home's air now (`atmosphere::publish_air_status`).
+
+**Measured** (release build, i7-8700K, 2026-11-15; machine shared with other agents' builds):
+
+| Run | Steps | Wall time | What it shows |
+|---|---|---|---|
+| 7-day soak, no routine | 1,008 | 0.49 s (14.4 game days a second, 1.24 million x) | as increment 2's: dead of dehydration 2.6 game days in; the numbers move only by the body now breathing the home's real air (core 36.822 C against 36.826, hydration at day 1 29.50 against 29.43), plus the six new rows; every quantity within tolerance |
+| 7-day soak, `--routine daily` | 1,016 (steps landed on the acts' hours) | 0.49 s (14.2 game days a second) | **alive at day 7**: 42 drinks (4 of the kit's jugs, then 38 bottles filled at the tank), 19.0 L drawn from the tank, 3 meals (the kit's 3 rations), 7 nights in bed; hydration held at 94.8; fullness 0 by day 7 and health 98.6 (the food ran out); every quantity within tolerance at its 10 s check |
+| 60-day soak, `--routine daily` | about 8,700 | about 4.2 s | starves 20.8 game days in: the kit's 3 rations are the only food, the soak's home storage is empty (the start's storage seed is the windowed GUI's, not loaded headless), and the garden's first lettuce comes ripe after that |
+
+The one system that did not hold its tolerance at 600 s with the routine: the body's core
+temperature, 0.037 C off at 600 s against 0.024 allowed (a night's sleep changes the body's
+activity once a step); its tolerance is 0.05 C now, with the reason in the file. Nothing else
+had to be held at a finer step.
+
+**Increment 4, its first step**: the settles at the end of the step (frame_settles.rs, the
+ECS-to-GUI mirror's game rules: livestock collect, melee, loot, `build_place::frame`, the vendor,
+abilities, equipping, respawn) moved before the view's draw-list stages, with their audit, and
+`frame_split_lint` (the sim stages run once, before any view stage; no renderer, egui, window or
+wall clock in frame_sim*.rs); then `gpu: Option<Gpu>` and `EngineState::boot(opts, gpu)`, so
+`--sim` enters the homestead through the same `EngineState` with no wgpu Instance and the
+compiler lists every GPU touch left in sim code (the doors' tick and the settles among them).
 
 ## Risks
 

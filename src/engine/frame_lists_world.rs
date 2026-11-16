@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 
 /// Adds the world's vehicles and storage to the draw lists and bridges time and weather.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     let showroom = f.showroom;
     humanity_core::frame_costs::span("cpu.span.lists_world");
     // ── Deployed vehicles (economy Phase 2 Stage 1, v0.677) ──

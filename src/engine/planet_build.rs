@@ -137,7 +137,7 @@ pub(crate) fn body_world_rot(body_id: &str, earth_spin: f64, sim_t: f64) -> DQua
 /// Earth's when none is held): what every frame-lock capture, ride and up
 /// vector reads, so the camera rides the same turn its ground is drawn with.
 pub(crate) fn frame_body_rot(state: &EngineState) -> DQuat {
-    body_world_rot(state.frame_lock_body.as_deref().unwrap_or("earth"), state.current_spin, state.current_sim_t)
+    body_world_rot(state.frame_lock_body.as_deref().unwrap_or("earth"), state.current_spin, state.clock.sim_epoch_s)
 }
 
 /// The angle of a rotation, radians in 0..pi, robust near zero (one frame of
@@ -453,12 +453,18 @@ pub(crate) struct PlayerFrame {
 /// (`site::SITE_JOIN_M`); None anywhere else (open space, or a planet with
 /// nothing built near).
 pub(crate) fn player_frame(state: &EngineState) -> Option<PlayerFrame> {
-    let v = PlayerView::of(state);
+    frame_of_place(&state.game_world.world, &PlayerView::of(state), Some(GroundSources::of(state)))
+}
+
+/// [`player_frame`] from the plain values a driver reads before the step (the headless sim
+/// runner's increment 3, 2026-11-15): the player's view and the planets' ground, None in a run
+/// with no planet loaded. The survival context's shelter test (`survival_env::publish`).
+pub(crate) fn frame_of_place(world: &hecs::World, v: &PlayerView, ground: Option<GroundSources<'_>>) -> Option<PlayerFrame> {
     let ground_r = || {
-        let g = Ground::for_body(state, v.body.as_deref()?)?;
+        let g = ground?.ground(v.body.as_deref()?)?;
         Some(g.radius(v.anchor.normalize_or_zero()))
     };
-    frame_of(&state.game_world.world, &v, ground_r)
+    frame_of(world, v, ground_r)
 }
 
 /// [`player_frame`] over a [`PlayerView`]: aboard, the camera in the home

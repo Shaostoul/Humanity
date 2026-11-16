@@ -41,7 +41,10 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
     // this frame (engine/play_journal_frame.rs `note_frame`).
     crate::engine::play_journal_frame::note_frame(state);
     crate::engine::movie::capture(state, &surface_texture.texture);
-    poll_showcase_request(state);
+    // The rigs' verbs (`ipc::poll_showcase_request`) are polled by lib.rs after this stage on
+    // every frame, presented or not (the headless sim runner's increment 3, 2026-11-15): inside
+    // this branch a frame that acquired no swapchain image (a minimised window, a lost surface)
+    // held the rigs' input and their timed key holds still.
 
     // Live weather (v0.874): upload any freshly
     // fetched NASA cloud grid. Rare event (cache at

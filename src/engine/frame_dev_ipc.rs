@@ -5,8 +5,8 @@
 use crate::engine::frame_prelude::*;
 
 /// Runs the dev autopilot and the dev control link for this frame.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let clock_dt = f.clock_dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let clock_dt = state.clock.clock_dt;
     humanity_core::frame_costs::span("cpu.span.dev_ipc");
     // Dev autopilot (v0.793): zero-click world entry for scripted
     // co-presence tests. Runs immediately BEFORE the auto-connect

@@ -5762,6 +5762,29 @@ command as a separate low-priority process, its report on the card. Tests:
 `src/engine/frame_sim_tests.rs` (a game day with no GPU, the split-step test at the frame's dt,
 the ladder holding the recorded safe step, repeat runs), `tests/sim_gpu_free_lint.rs`.
 
+### A soak's person who eats, drinks and sleeps: the frame's bridges on the sim's parts (2026-11-15)
+The headless sim runner's increment 3 (`docs/design/headless-sim-runner.md`, "Built so far"). The
+frame's bridges' world-feeding half is `frame_sim::bridges_slice` (`src/engine/frame_sim.rs`): the
+body's environment published from where the person is (`BodyPlace`, plain values: the sealed
+home's air around the body, the weather outside, the locked planet, the felt gravity) and the GUI's
+requests carried into the systems (`src/engine/frame_sim_requests.rs`: eat, drink, use, plant,
+harvest, craft, the water tank card's Fill, the backpack's transfers, rest and the rest), run by
+the windowed frame (`frame_bridges.rs`) and by the soak before the systems' slice. One clock both
+drive: `FrameClock` (`EngineState::clock`, advanced by `frame_clock.rs`; the soak's game step is
+turned into the frame's dt at the clock's speed, so a night's sleep steps as in the game). Door
+easing is a sim stage of its own (`src/engine/doors.rs`), and the rigs' verbs are polled every
+frame, presented or not. A person's routine is data: `data/sim/routines/daily.ron` (drink, eat,
+sleep at hours of the home's day), turned into the requests a player's clicks make by
+`src/engine/sim_routine.rs`, which measures what each did from the backpack and the bottles.
+`HumanityOS --sim soak --routine daily` (`just sim-soak --routine daily`) reports the drinks, the
+meals, what came from the garden, the water drawn from the tank and whether the person lived; the
+default soak (no routine) keeps its report. In the app: Dev > Simulation, "Run a week of a person's
+day". The soak and ladder judge the bridges' quantities too (`env.*`, `pack.items`,
+`pack.water_l`, rows in `data/sim/step_tolerances.ron`). Tests: `src/engine/frame_sim_tests.rs`
+(the soak's body breathes the home's air, the routine's acts fall due, a person following the
+routine lives three days, the split-step test over a drink from the tank and a meal),
+`tests/sim_gpu_free_lint.rs` (one bridges' slice for the frame and the soak, on one clock).
+
 ### The play journal and F8, Mark this moment (2026-10-24, rung 1 of docs/design/play-journal.md)
 While the game runs it keeps what happened, by kind, in small capped files in a `journal` folder
 beside its logs (the operator's install: %APPDATA%/HumanityOS/journal): `log` (every warning and

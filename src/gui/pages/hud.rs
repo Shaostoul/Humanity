@@ -2034,9 +2034,14 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                 }
                 // Fill and pour at a water tank (2026-09-26): the vessels the
                 // player carries, filled from this tank or emptied into it.
+                // The tank is named with the action (the frame's bridges carry it out,
+                // engine/frame_sim_requests.rs, the way a soak routine's Fill goes).
+                let tank = state.machine_labels.get(i).map(|l| l.machine_id.clone());
                 for (key, label, tip) in state.machine_card_fluid_actions.clone() {
                     if crate::gui::widgets::Button::secondary(&label).tooltip(&tip).show(ui, theme) {
-                        state.machine_card_fluid_pending = Some(key);
+                        if let Some(tank) = &tank {
+                            state.machine_card_fluid_pending = Some((tank.clone(), key));
+                        }
                     }
                 }
                 // Store (v0.733): per-item deposit buttons for compatible pack

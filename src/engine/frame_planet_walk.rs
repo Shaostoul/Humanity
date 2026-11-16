@@ -5,8 +5,8 @@
 use crate::engine::frame_prelude::*;
 
 /// Moves the player on or above a planet while the frame lock holds.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.planet_walk");
     // Planet frame-lock (v0.819): while locked onto a body (dev
     // travel / camera_request), ride its rotating + orbiting
@@ -109,7 +109,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 if *ratio < 0.9 && cur.as_deref() != Some(cand.as_str()) =>
             {
                 // The new body's own turn, never Earth's (2026-10-21).
-                let rot = crate::engine::planet_build::body_world_rot(cand, state.current_spin, state.current_sim_t);
+                let rot = crate::engine::planet_build::body_world_rot(cand, state.current_spin, state.clock.sim_epoch_s);
                 state.frame_lock_anchor = humanity_core::dev_travel::frame_lock_capture(
                     *center, rot, cam_world,
                 );

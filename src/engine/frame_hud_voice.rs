@@ -5,9 +5,9 @@
 use crate::engine::frame_prelude::*;
 
 /// Updates the frame counters, the voice keys and the updater's results.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let raw_dt = f.raw_dt;
-    let dt = f.dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let raw_dt = state.clock.raw_dt;
+    let dt = state.clock.dt;
     // Update FPS counter -- from raw_dt, NOT the sim-clamped dt,
     // or everything slower than 10 fps reads exactly 10 fps (P2).
     humanity_core::frame_costs::span("cpu.span.hud_voice");

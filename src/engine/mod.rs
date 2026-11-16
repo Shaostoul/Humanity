@@ -267,10 +267,15 @@ pub mod frame_look_env;
 pub mod frame_bridges;
 pub mod frame_bridges_npc;
 pub mod frame_ecs;
-/// One step of the world's systems from the simulation's parts, no GPU (the headless sim
-/// runner's increment 2, docs/design/headless-sim-runner.md): the windowed frame's ECS stage, the
-/// soak and the no-GPU day tests all step it.
+/// One step of the world from the simulation's parts, no GPU (the headless sim runner's
+/// increments 2 and 3, docs/design/headless-sim-runner.md): the bridges' slice and the systems'
+/// slice, and the `FrameClock` both drivers advance; the windowed frame, the soak and the no-GPU
+/// day tests all step them.
 pub mod frame_sim;
+/// The GUI's requests carried into the systems' channels (increment 3), run by the bridges' slice.
+pub mod frame_sim_requests;
+/// The doors' easing, a step of the sim every frame (increment 3; it ran inside the home's draw list).
+pub mod doors;
 pub mod frame_copresence;
 pub mod frame_save_editor;
 pub mod frame_lists_home;
@@ -372,6 +377,9 @@ pub mod sim_home;
 /// `HumanityOS --sim soak` and `--sim ladder`: game days of the homestead stepped in seconds, a
 /// report of every system's state and the step's measured error (increment 2).
 pub mod sim_soak;
+/// A person's daily routine for the soak, as data (data/sim/routines/), turned into the requests
+/// a player's clicks make (increment 3).
+pub mod sim_routine;
 pub mod world_load;
 
 // Tests of the crates below that reach the engine to do it, moved up from beside their code (the crate

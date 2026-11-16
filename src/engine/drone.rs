@@ -6,12 +6,8 @@
 use crate::gui::GuiState;
 use humanity_core::hot_reload::data_store::DataStore;
 
-/// Once a frame, before the systems tick (lib.rs).
-pub(crate) fn bridge(state: &mut crate::engine::state::EngineState) {
-    bridge_gui(&mut state.gui_state, &state.data_store);
-}
-
-/// The bridge on its two halves, so it is tested without an engine.
+/// Once a step, before the systems tick: the bridge on the GUI's state and the DataStore, run by the frame's bridges slice
+/// (`frame_sim::bridges_slice`, the step the soak runs too) and tested without an engine.
 pub(crate) fn bridge_gui(gui: &mut GuiState, data: &DataStore) {
     humanity_systems::mining::publish_mode(data, humanity_systems::mining::Mode::from_level(gui.settings.level("mining_drone")).unwrap_or_default());
     if let Some(req) = gui.pending_drone_request.take() {

@@ -34,7 +34,12 @@
         (id: "vitals.hydration", abs: 0.01, rel: 0.01, why: "Hydration falls at a steady rate between drinks."),
         (id: "vitals.energy", abs: 0.05, rel: 0.01, why: "Rest drains while awake at a steady rate."),
         (id: "vitals.oxygen", abs: 0.05, rel: 0.01, why: "Blood oxygen holds in breathable air."),
-        (id: "vitals.body_temp_c", abs: 0.02, rel: 0.02, why: "Core temperature settles toward the room's; a coarse step may overshoot the settling."),
+        // abs 0.02 -> 0.05 (2026-11-15, increment 3): with the daily routine, a night's sleep and its
+        // waking change the body's activity (0.7 met asleep, 1.2 awake) once a step, and the core
+        // settles to the new heat output inside the step; the routine's first day at 600 s against
+        // 10 s measured 0.037 C (the untouched home's: 0.000). A tenth of a degree is far inside a
+        // body's own daily swing (about 0.5 C).
+        (id: "vitals.body_temp_c", abs: 0.05, rel: 0.02, why: "Core temperature settles toward the room's and the body's activity; a coarse step may overshoot the settling, most where sleep changes the activity."),
         (id: "vitals.waste", abs: 0.05, rel: 0.01, why: "Waste rises at a steady rate."),
         (id: "body.health", abs: 0.1, rel: 0.01, why: "Health holds while the body's needs are met."),
         (id: "crops.count", abs: 0.0, rel: 0.0, why: "No crop is planted, harvested or lost in an untouched day."),
@@ -47,5 +52,13 @@
         (id: "air.vapour_g_m3", abs: 0.05, rel: 0.02, why: "The air's vapour follows breathing, the plants and the air handlers."),
         (id: "storage.items", abs: 0.0, rel: 0.0, why: "Nothing enters or leaves home storage in an untouched day unless a machine makes it."),
         (id: "herd.animals", abs: 0.0, rel: 0.0, why: "No animal is born or lost in an untouched day."),
+        // The frame's bridges' quantities (increment 3, 2026-11-15): the environment published
+        // around the body every step, and the backpack the routine's requests change.
+        (id: "env.air_c", abs: 0.05, rel: 0.02, why: "The home's air temperature as the bridges publish it each step; it follows the air step, sampled once a step."),
+        (id: "env.humidity", abs: 0.005, rel: 0.02, why: "The home's humidity as the bridges publish it; it follows the vapour the air step keeps."),
+        (id: "env.oxygenated", abs: 0.0, rel: 0.0, why: "The sealed home's air stays breathable whatever the step."),
+        (id: "env.g_load", abs: 0.001, rel: 0.0, why: "The parked ship's felt gravity does not change with the step."),
+        (id: "pack.items", abs: 0.0, rel: 0.0, why: "Every act of a routine eats or fills the same items whatever the step, once its two steps are done inside the span."),
+        (id: "pack.water_l", abs: 0.001, rel: 0.0, why: "The tank's Fill puts the same litres in the bottles and a drink takes the same out, whatever the step."),
     ],
 )

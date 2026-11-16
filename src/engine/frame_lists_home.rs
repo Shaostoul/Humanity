@@ -7,7 +7,7 @@ use crate::engine::frame_prelude::*;
 
 /// Takes this frame's draw lists and fills them with the home.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.lists_home");
     f.all_objects = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.opaque); // last frame's memory (DrawBufs, S3)
     // Transparent surfaces (glass windows): rendered in a SEPARATE alpha-blend
@@ -492,7 +492,8 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 }
             }
         }
-        // Door + window panels: doors ease open as the player nears (by style);
+        // Door + window panels, drawn where the doors' easing left them this frame
+        // (engine/doors.rs `tick`, the stage before this one, every frame since 2026-11-15);
         // windows are fixed glass (transparent pass). (v0.537)
         render_door_panels(state, &mut f.all_objects, &mut f.transparent_objects, &mut f.ring_lines, dt);
 

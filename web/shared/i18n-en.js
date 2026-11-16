@@ -2564,6 +2564,8 @@ window.HOS_I18N_EN = {
       "failed": "The soak did not finish. What it said:",
       "run": "Run a week",
       "run_hint": "Starts a soak: 7 game days of a fresh homestead at the safe step, as a separate program at low priority. The report appears here when it finishes, with how far off the step was against a fine one.",
+      "run_routine": "Run a week of a person's day",
+      "run_routine_hint": "Starts the same soak with a person following the daily routine (data/sim/routines/daily.ron): drinks through the day, filling bottles at the home's water tank, meals from the garden and the kit, and a night in bed. The report says what they ate and drank, the water they drew, and whether they lived the week.",
       "running": "Running a week of the homestead:",
       "title": "Simulation"
     },

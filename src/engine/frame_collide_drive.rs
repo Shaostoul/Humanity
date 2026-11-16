@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 
 /// Resolves wall collision, then drives the vehicle or follows it.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     let prev_cam_pos = f.prev_cam_pos;
     humanity_core::frame_costs::span("cpu.span.collide_drive");
     // Wall collision (v0.556): the player IS the camera, so push it out of the home's

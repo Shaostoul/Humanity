@@ -555,6 +555,8 @@ About 50 files over 2,000 lines become about 300 to 350.
 | 38 | frame_ui_paint | platform output, tessellation, textures, the GUI drawn (`ui_paint`) | 15795-15906 | 121 |
 | 39 | frame_tail | captures, the present, the draw lists handed back, settings applied (`tail`) | 15907-16406 | 514 |
 
+Since the headless sim runner's increment 3 (2026-11-15, docs/design/headless-sim-runner.md): the frame's clock is `EngineState::clock` (`frame_sim::FrameClock`, advanced in stage 2's `frame_clock`), not `FrameVars`; the bridges' world-feeding half is `frame_sim::bridges_slice`, run inside `frame_bridges`, and the GUI's requests of `frame_bridges_npc` moved into it; the doors' easing is a stage between 16 and 17, `engine::doors::tick`; and the rigs' verb poll runs after 39's present branch, every frame.
+
 What stays in src/lib.rs (2,327 lines): startup (`resumed`, about 1,250 lines), the window helpers beside it, and `window_event` as a dispatcher (the small arms and one call per stage, about 90 lines). Left for later: `frame_sky_body` (1,803 lines) holds the chunked planet (one 1,181-line `if chunked_on` block: patch selection, builds, draws, grass and trees), to be cut into its own stages with a per-body struct like `SkyBodies`; `frame_planet_walk` (947) is mostly one 802-line frame-lock block; `frame_keys` (806) could split the in-game keys from the menus' keys.
 
 ## More crates beyond the ten (proposed 2026-11-14)

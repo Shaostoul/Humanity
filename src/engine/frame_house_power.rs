@@ -5,8 +5,8 @@
 use crate::engine::frame_prelude::*;
 
 /// Updates the lights' power draw and the world-scale flight offset for this frame.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.house_power");
     // ── House lighting on the power meter (v0.967, homestead
     // increment 5): every switched-on placed light draws its

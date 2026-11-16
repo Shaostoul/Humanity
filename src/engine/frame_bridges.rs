@@ -1,8 +1,34 @@
 //! The GUI's requests into the world, first half (the file-size split, step 1, 2026-11-14), moved
 //! out of `window_event` in src/lib.rs as it was: built beds and chests, the dev teleport, the dev
 //! surface landing, the dev spawn tool and the Dev page's creature count.
+//!
+//! Since the headless sim runner's increment 3 (2026-11-15) the world-feeding half runs as
+//! `frame_sim::bridges_slice` on the sim's parts, the one the soak runs too: the body's environment
+//! (where the person is read here as plain values, `BodyPlace`), the drone's panel and the GUI's
+//! requests (this file's craft to deploy and frame_bridges_npc.rs's summon to the dev seed set,
+//! now engine/frame_sim_requests.rs). What stays here reads the camera or the window.
+//!
+//! Order against the bodies it replaced (the read-after-write audit):
+//! - The Planet Tuner's readout ran between the body's environment and the survival context; it
+//!   runs after the slice now. It reads the frame lock, the planets, the weather and the body's
+//!   environment (published first in the slice, as it was published just before it then; nothing
+//!   later in the slice writes it again) and writes only the tuner page's readout, which the slice
+//!   does not read.
+//! - frame_bridges_npc.rs's requests (summon to the dev seed set) ran after the dev teleport, the
+//!   dev surface landing, the dev spawn, the creature count, the creature editor and the NPC card;
+//!   they run before them now. Those read the camera, the frame lock, the planets, the creature
+//!   registry, the world's creatures and NPCs and their own `pending_dev_*`, edit and talk fields;
+//!   the requests read only their own `pending_*` fields and the settings and write the systems'
+//!   DataStore slots, `inflight_take_origins`, the garden's pests and its weed request. Neither side
+//!   reads what the other writes, so every value each reads is the one it read before.
+//! - The water tank card's Fill and Pour moved from frame_cards.rs (after the tick) into the
+//!   requests (before it); see engine/frame_sim_requests.rs. The click lands on the frame it did,
+//!   earlier in it: this frame's tick sees the tank and the bottles after the fill instead of the
+//!   next frame's, and the card's list (still built in frame_cards.rs) reads them after it as before.
 
 use crate::engine::frame_prelude::*;
+use crate::engine::frame_sim::{BodyPlace, SimParts};
+use crate::engine::planet_build::{GroundSources, PlayerView};
 
 /// Carries this frame's GUI requests (beds, chests, dev tools) into the world.
 pub(crate) fn run(state: &mut EngineState) {
@@ -18,91 +44,35 @@ pub(crate) fn run(state: &mut EngineState) {
         humanity_systems::falls::player_landed(&mut state.game_world.world, impact);
     }
 
-    // Per-body environment snapshot (artificial-planet
-    // increment 4): publish which world the player is on so
-    // the ECS systems simulate THAT body instead of an
-    // Earth-global one. Full contract + the latitude/altitude
-    // derivations: frame_lock::publish_body_environment.
-    crate::engine::frame_lock::publish_body_environment(state);
+    // The world-feeding half on the sim's parts (frame_sim::bridges_slice, the step the soak runs
+    // too): the body's environment from where the person is, the drone's panel and the GUI's
+    // requests. Where the person is, read here once as plain values.
+    let (moving, sprinting) = state.controller.gait();
+    let place = BodyPlace {
+        view: PlayerView::of(state),
+        moving,
+        sprinting,
+        driving: state.driving_vehicle.is_some(),
+        fly_mode: state.controller.fly_mode,
+        felt: humanity_systems::flight::felt_gravity(&state.flight, &state.flight_data.dampener),
+        air: crate::engine::survival_env::air_spaces(state.gui_state.ship_structure.is_some(), &state.ship_air, state.homestead_bounds),
+        ground: Some(GroundSources {
+            defs: &state.planet_defs,
+            heightmaps: &state.planet_heightmaps,
+            tiles: &state.terrain_tiles,
+            ocean: state.ocean_mask.as_ref(),
+            chunk_states: &state.planet_chunk_states,
+        }),
+    };
+    let parts = SimParts {
+        runner: &mut state.system_runner,
+        world: &mut state.game_world.world,
+        data: &mut state.data_store,
+        gui: &mut state.gui_state,
+        world_loaded: state.world_loaded,
+    };
+    crate::engine::frame_sim::bridges_slice(parts, &place);
     crate::engine::frame_lock::publish_planet_tuner_readout(state);
-
-    // Survival environment context (sealed home or the weather) and the
-    // body heat mode: engine::survival_env (moved out of lib.rs 2026-09-27).
-    crate::engine::survival_env::publish(state);
-    crate::engine::drone::bridge(state); // the mining drone: its Settings mode, the Mining panel's Repair/Cancel, its battery and wear on the panel (first-hour audit S5)
-
-    // Bridge GUI craft/dev commands into the DataStore so the ECS
-    // CraftingSystem (which only gets &DataStore in tick) acts on them
-    // this frame. Take/clear the GuiState flags.
-    if let Some(recipe_id) = state.gui_state.pending_craft_recipe.take() {
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<String>>>("craft_request")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = Some(recipe_id);
-            }
-        }
-    }
-    if state.gui_state.dev_stock_materials {
-        state.gui_state.dev_stock_materials = false;
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<bool>>("dev_stock_materials")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = true;
-            }
-        }
-    }
-    // Eat: bridge the clicked food item to FoodSystem's consume channel.
-    if let Some(item_id) = state.gui_state.pending_consume_item.take() {
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<String>>>("consume_request")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = Some(item_id);
-            }
-        }
-    }
-    // Drink: bridge the clicked beverage to FoodSystem's drink channel.
-    if let Some(item_id) = state.gui_state.pending_drink_item.take() {
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<String>>>("drink_request")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = Some(item_id);
-            }
-        }
-    }
-    // Use: the clicked medical item to FoodSystem's use channel (BUG-162).
-    if let Some(item_id) = state.gui_state.pending_use_item.take() {
-        humanity_systems::treatment::request_use(&mut state.data_store, item_id);
-    }
-    // Gardening: bridge plant/water/harvest/dev-grow to FarmingSystem.
-    if let Some(seed_id) = state.gui_state.pending_plant_seed.take() {
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<String>>>("plant_request")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = Some(seed_id);
-            }
-        }
-    }
-    // Vehicles: bridge the item card's Deploy action to VehicleSystem.
-    if let Some(kit_id) = state.gui_state.pending_deploy_kit.take() {
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<String>>>("deploy_kit_request")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = Some(kit_id);
-            }
-        }
-    }
 
     // Dev travel teleport (v0.791.x, Platform > Dev > Travel):
     // jump the viewpoint to any rendered solar body, or back
@@ -253,7 +223,7 @@ pub(crate) fn run(state: &mut EngineState) {
             // Frame-lock onto the target so its surface holds
             // still (see the field docs + dev_travel::frame_lock_*).
             {
-                let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.current_sim_t);
+                let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.clock.sim_epoch_s);
                 let cam_local = glam::DVec3::new(
                     state.camera.position.x as f64,
                     state.camera.position.y as f64,
@@ -317,7 +287,7 @@ pub(crate) fn run(state: &mut EngineState) {
             };
             let altitude_km = 1.5_f64;
             // The target body's own turn (its lat/lon are on ITS ground).
-            let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.current_sim_t);
+            let rot = crate::engine::planet_build::body_world_rot(&target, state.current_spin, state.clock.sim_epoch_s);
             let unit = humanity_terrain::planet_heightmap::latlon_to_dir(lat, lon);
             let world_dir = rot
                 * glam::DVec3::new(unit.x as f64, unit.y as f64, unit.z as f64);

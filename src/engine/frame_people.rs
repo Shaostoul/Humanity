@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 
 /// Draws the players around you, the showroom ground and the hologram.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     let showroom = f.showroom;
     // ── Remote players (multiplayer co-presence, v0.472) ──
     // Draw a simple humanoid marker (body + head, a distinct teal) at each remote

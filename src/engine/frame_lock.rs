@@ -516,20 +516,30 @@ pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
 /// vacuum in space), while a locked body WITHOUT a data/planets def
 /// publishes as an AIRLESS rock instead of silently inheriting Earth's
 /// default (it used to rain on Venus).
-pub(crate) fn publish_body_environment(state: &mut EngineState) {
-    let body_id = state.frame_lock_body.as_deref();
-    let def = body_id.and_then(|id| state.planet_defs.get(id));
+///
+/// On plain values since the headless sim runner's increment 3 (2026-11-15): the body the frame
+/// lock holds and the eye in its frame (`view`, read by the driver before the step) and the
+/// planets' definitions and Earth's sea mask (`ground`, None in a run with no planet loaded), so
+/// the frame's bridges (`frame_sim::bridges_slice`) publish it for the windowed game and the soak
+/// alike.
+pub(crate) fn publish_body_environment(
+    data: &mut humanity_core::hot_reload::data_store::DataStore,
+    view: &crate::engine::planet_build::PlayerView,
+    ground: Option<crate::engine::planet_build::GroundSources<'_>>,
+) {
+    let body_id = view.body.as_deref();
+    let def = body_id.and_then(|id| ground.and_then(|g| g.defs.get(id)));
     // The player's direction from the body centre, straight from the
     // frame-lock anchor: the anchor is the camera position in the body's
     // rotating frame and bodies spin about +Y, so its y is spin-invariant
     // sin(latitude). Kept f64 (environment Layer 1 samples at it); the pure
     // function derives the latitude from it.
-    let up = state.frame_lock_anchor.normalize_or_zero();
+    let up = view.anchor.normalize_or_zero();
     // Share of land around the player, for Layer 1's land versus sea seasons.
     // Earth is the only body with a sea mask; elsewhere it is all land. The
     // mask is 0.05 degree cells, so an f32 lat/lon is far finer than the data
     // (the coarse-data boundary the f32 rule allows).
-    let land_fraction = match (body_id, state.ocean_mask.as_ref()) {
+    let land_fraction = match (body_id, ground.and_then(|g| g.ocean)) {
         (Some("earth"), Some(om)) => {
             let (lat, lon) = humanity_terrain::planet_heightmap::dir_to_latlon_deg_f64(up);
             humanity_systems::env_layer1::land_fraction_around(lat, lon, |la, lo| {
@@ -551,7 +561,7 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
     // Def-less bodies have no radius to measure against; 0 is inert there
     // (airless bodies have no lapse and are never breathable).
     let altitude_m = def
-        .map(|d| (state.frame_lock_anchor.length() - d.radius) as f32)
+        .map(|d| (view.anchor.length() - d.radius) as f32)
         .unwrap_or(0.0);
     // Catalog mean temperature; the <= 0.0 absent-field sentinel is
     // normalized inside the pure function.
@@ -566,7 +576,7 @@ pub(crate) fn publish_body_environment(state: &mut EngineState) {
         altitude_m,
         land_fraction,
     );
-    state.data_store.insert("body_environment", env);
+    data.insert("body_environment", env);
 }
 
 /// Mirror the Planet Tuner page's live readout + editing copy (v0.1120).

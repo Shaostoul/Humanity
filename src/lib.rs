@@ -1377,7 +1377,7 @@ mod native_app {
                     None
                 },
                 current_spin: 0.0,
-                current_sim_t: 0.0,
+                clock: crate::engine::frame_sim::FrameClock::default(),
                 station_world_pos: glam::DVec3::ZERO,
                 station_world_rot: glam::DQuat::IDENTITY,
                 station_def: humanity_ship::station::default_home(),
@@ -1754,30 +1754,31 @@ mod native_app {
                     crate::engine::frame_station::run(state);
                     crate::engine::frame_move_setup::run(state);
                     crate::engine::frame_walk_aboard::run(state, &mut f);
-                    crate::engine::frame_particles::run(state, &mut f);
-                    crate::engine::frame_house_power::run(state, &mut f);
-                    crate::engine::frame_planet_walk::run(state, &mut f);
+                    crate::engine::frame_particles::run(state);
+                    crate::engine::frame_house_power::run(state);
+                    crate::engine::frame_planet_walk::run(state);
                     crate::engine::frame_collide_drive::run(state, &mut f);
                     crate::engine::frame_look_env::run(state);
                     crate::engine::frame_bridges::run(state);
                     crate::engine::frame_bridges_npc::run(state);
-                    crate::engine::frame_ecs::run(state, &mut f);
-                    crate::engine::frame_copresence::run(state, &mut f);
+                    crate::engine::frame_ecs::run(state);
+                    crate::engine::frame_copresence::run(state);
                     crate::engine::frame_save_editor::run(state);
+                    crate::engine::doors::tick(state);
                     crate::engine::frame_lists_home::run(state, &mut f);
                     crate::engine::frame_build_ghosts::run(state, &mut f);
                     crate::engine::frame_build_gizmos::run(state, &mut f);
                     crate::engine::frame_build_helpers::run(state, &mut f);
                     crate::engine::frame_people::run(state, &mut f);
                     crate::engine::frame_sky::run(state, &mut f);
-                    crate::engine::frame_hud_voice::run(state, &mut f);
+                    crate::engine::frame_hud_voice::run(state);
                     crate::engine::frame_settles::run(state);
                     crate::engine::frame_mirrors::run(state);
                     crate::engine::frame_mirrors_world::run(state, &mut f);
                     crate::engine::frame_lists_world::run(state, &mut f);
-                    crate::engine::frame_env_publish::run(state, &mut f);
+                    crate::engine::frame_env_publish::run(state);
                     crate::engine::frame_cards::run(state);
-                    crate::engine::frame_dev_ipc::run(state, &mut f);
+                    crate::engine::frame_dev_ipc::run(state);
                     crate::engine::frame_load_screens::run(state, &mut f);
                     let page_active = f.page_active;
                     let scene_result = crate::engine::frame_world_passes::run(state, &mut f);
@@ -1805,6 +1806,8 @@ mod native_app {
                             log::warn!("Render error: {:?}", e);
                         }
                     }
+                    // The rigs' verbs, every frame, presented or not (increment 3; frame_tail.rs).
+                    crate::engine::ipc::poll_showcase_request(state);
                 }
                 _ => {}
             }

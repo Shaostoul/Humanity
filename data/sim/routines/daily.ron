@@ -1,0 +1,55 @@
+// A person's day at home, for the soak (`HumanityOS --sim soak --routine daily`; the headless sim
+// runner's increment 3, 2026-11-15, docs/design/headless-sim-runner.md). Read by
+// src/engine/sim_routine.rs. Each act is what a player's clicks ask the world for at that hour of
+// the home's day (the hour the HUD shows), sent through the same requests the pages send and
+// carried into the systems by the same bridges (engine/frame_sim_requests.rs), so a soak's person
+// lives the way a player does or dies of what a player would.
+//
+// The acts:
+//   Drink  the Drink button on the first carried drink in `drinks`; carrying none, the water
+//          tank's Fill first (its walk-up card), which fills the empty bottles carried from the
+//          home's tank: the water drawn.
+//   Eat    the Garden page's "Harvest N ready" on whatever is ripe, then the Eat button on the
+//          first carried food in `foods` (the harvest's produce first); carrying none, "Take to
+//          backpack" on one from home storage, then eat it.
+//   Sleep  lying down in the home's bed for the night (the bed's prompt).
+//   Rest   the Inventory page's Rest button: a ten-minute nap.
+//
+// A day of water: the body loses about 50 hydration points a day (food.rs, about 2.5 L), and a
+// bottle carries 0.5 L, so six drinks a day keep it topped up. Food: satiation falls 100 points in
+// about a week, so two meals a day are plenty while there is food.
+(
+    id: "daily",
+    name: "A plain day at home",
+    // The foods reached for, first first: the garden's produce (plants.csv harvest_item of the
+    // crops the opening's tower grows), then the homestead kit's field rations, then what home
+    // storage holds that can be eaten as it is.
+    foods: [
+        "vegetable_lettuce_0",
+        "vegetable_spinach_0",
+        "vegetable_kale_0",
+        "vegetable_radish_0",
+        "vegetable_tomato_0",
+        "vegetable_carrot_0",
+        "legume_bean_0",
+        "vegetable_potato_0",
+        "ration_basic_0",
+        "rice_0",
+        "flour_0",
+        "grain_corn_0",
+    ],
+    // The drinks reached for, first first: a filled bottle, then the kit's water jugs.
+    drinks: ["water_bottle_0", "water_purified_0"],
+    acts: [
+        (hour: 7.0, act: Drink),
+        (hour: 7.5, act: Eat),
+        (hour: 10.0, act: Drink),
+        (hour: 12.5, act: Drink),
+        (hour: 13.0, act: Eat),
+        (hour: 15.5, act: Drink),
+        (hour: 18.5, act: Drink),
+        (hour: 19.0, act: Eat),
+        (hour: 21.5, act: Drink),
+        (hour: 22.5, act: Sleep),
+    ],
+)

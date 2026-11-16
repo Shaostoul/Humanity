@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::engine::death_pack::FallSite;
-use crate::engine::frame_sim::{systems_slice, SimParts};
+use crate::engine::frame_sim::{bridges_slice, real_step_for, systems_slice, BodyPlace, FrameClock, SimParts};
 use crate::engine::sim_boot::{self, SimBoot, SimBootOptions};
+use crate::engine::sim_routine::{Routine, RoutineRun};
 use crate::engine::world_sim::{self, WorldSim};
 use crate::gui::GuiState;
 
@@ -30,6 +31,11 @@ pub(crate) struct Homestead {
     /// What the systems said over the run (shown by the windowed GUI and emptied each frame;
     /// counted and emptied by `step`, so a long run holds no queue that only grows).
     pub notices: Vec<String>,
+    /// The run's clock, advanced once a step as the windowed frame advances its own (increment 3).
+    pub clock: FrameClock,
+    /// The person's daily routine, when the run has one (`--routine`, engine/sim_routine.rs): its
+    /// acts become the requests a player's clicks make, before each step.
+    pub routine: Option<RoutineRun>,
 }
 
 /// Enter the homestead the way the windowed game does, with no GPU: the game's data from
@@ -55,11 +61,9 @@ pub(crate) fn enter(data_dir: &Path, saves_dir: PathBuf) -> Homestead {
     // exists on any device, so not `enter_world`'s phone answer.
     gui.enter_world_if(true);
     gui.showroom_active = false;
-    // Settings > Gameplay's levels (body heat, illness, animal care, death) into their systems, as
-    // the windowed frame publishes them every frame (survival_env::publish); a soak's levels do
-    // not change, so once. The garden's levels came with apply_home_save.
-    crate::engine::survival_env::publish_levels(&gui, &mut sim.data_store);
-    Homestead { sim, gui, built, notices: Vec::new() }
+    // Settings > Gameplay's levels (body heat, illness, animal care, death, the garden's) reach
+    // their systems every step through the bridges' slice, as in the windowed frame.
+    Homestead { sim, gui, built, notices: Vec::new(), clock: FrameClock::default(), routine: None }
 }
 
 impl Homestead {
@@ -80,23 +84,90 @@ impl Homestead {
         Some(tower.id.clone())
     }
 
-    /// One step of the world's systems by `dt` seconds (the clock's time speed applies; the soak
-    /// keeps it at 1, so a second of `dt` is a game second), the person in the world and standing
-    /// where they arrived. Returns the time the world moved on by.
+    /// One step of the world by `dt` real seconds, as the windowed frame steps it (the clock's time
+    /// speed applies; it is 1 unless a night's sleep speeds it, so a second of `dt` is a game
+    /// second): the clock advanced, the routine's requests made, the frame's bridges (the body's
+    /// environment where the person stands, the requests carried into the systems), then the
+    /// systems, the person in the world and standing where they arrived. Returns the time the
+    /// world moved on by.
     pub(crate) fn step(&mut self, dt: f32) -> f32 {
-        let eye = self.built.spawn.map_or(glam::Vec3::new(0.0, ARRIVAL_EYE_M, 0.0), |s| s.position);
+        self.clock.advance_by(dt);
+        if let Some(r) = self.routine.as_mut() {
+            r.before_step(&self.sim.game_world.world, &self.sim.data_store, &mut self.gui);
+        }
+        let eye = self.eye();
+        let place = self.place(eye);
+        bridges_slice(self.parts(), &place);
         let site = FallSite::aboard(eye, ARRIVAL_EYE_M);
-        let parts = SimParts {
+        let clock = self.clock;
+        let moved = systems_slice(self.parts(), &clock, &site);
+        if let Some(r) = self.routine.as_mut() {
+            r.after_step(&self.sim.game_world.world, &self.sim.data_store);
+        }
+        self.notices.append(&mut self.gui.pending_notices);
+        self.notices.extend(self.gui.pending_toasts.drain(..).map(|(msg, _)| msg));
+        moved
+    }
+
+    /// One step that moves the game clock `game_s` seconds: the real step at the time speed the
+    /// next tick runs at (`time::next_tick_scale`; 7,200 through a night's sleep, as the bed's
+    /// sleep runs the windowed game's clock), so a soak steps game time evenly whatever the
+    /// person does. Returns the time the world moved on by, real seconds.
+    pub(crate) fn step_game(&mut self, game_s: f64) -> f32 {
+        let scale = humanity_systems::time::next_tick_scale(&self.sim.data_store);
+        self.step(real_step_for(game_s, scale))
+    }
+
+    /// Run `routine` before every step from now on.
+    pub(crate) fn follow(&mut self, routine: Routine) {
+        self.routine = Some(RoutineRun::new(routine));
+    }
+
+    /// Where the person's eye is: where they arrived.
+    fn eye(&self) -> glam::Vec3 {
+        self.built.spawn.map_or(glam::Vec3::new(0.0, ARRIVAL_EYE_M, 0.0), |s| s.position)
+    }
+
+    /// The person standing still at `eye` aboard, facing the way they arrived, in the parked ship:
+    /// what the windowed frame reads from its camera, controller and drive (frame_bridges.rs).
+    fn place(&self, eye: glam::Vec3) -> BodyPlace<'static> {
+        let (yaw, pitch) = self.built.spawn.map_or((0.0, 0.0), |s| (s.yaw, s.pitch));
+        let forward = glam::Vec3::new(yaw.cos() * pitch.cos(), pitch.sin(), yaw.sin() * pitch.cos());
+        let dampener = self
+            .sim
+            .data_store
+            .get::<humanity_systems::flight::FlightData>("flight_data")
+            .map(|f| f.dampener.clone())
+            .unwrap_or_default();
+        BodyPlace {
+            view: crate::engine::planet_build::PlayerView {
+                aboard: true,
+                camera_pos: eye,
+                forward,
+                eye_height: ARRIVAL_EYE_M,
+                body: None,
+                anchor: glam::DVec3::ZERO,
+                rot: glam::DQuat::IDENTITY,
+            },
+            moving: false,
+            sprinting: false,
+            driving: false,
+            fly_mode: false,
+            felt: humanity_systems::flight::felt_gravity(&humanity_systems::flight::FlightState::default(), &dampener),
+            air: crate::engine::survival_env::air_spaces(self.gui.ship_structure.is_some(), &self.built.ship_air, self.built.homestead_bounds),
+            ground: None,
+        }
+    }
+
+    /// The simulation's parts, for one slice of the step.
+    fn parts(&mut self) -> SimParts<'_> {
+        SimParts {
             runner: &mut self.sim.system_runner,
             world: &mut self.sim.game_world.world,
             data: &mut self.sim.data_store,
             gui: &mut self.gui,
             world_loaded: true,
-        };
-        let moved = systems_slice(parts, dt, &site);
-        self.notices.append(&mut self.gui.pending_notices);
-        self.notices.extend(self.gui.pending_toasts.drain(..).map(|(msg, _)| msg));
-        moved
+        }
     }
 
     /// What each system holds now, by name (`OBSERVABLES`; the units are in the names'
@@ -274,4 +345,48 @@ pub(crate) const OBSERVABLES: &[Observable] = &[
         what: "farm animals in the herd",
         read: |r| Some(r.gui.herd.len() as f64),
     },
+    // The frame's bridges' quantities (increment 3): the environment they publish around the body,
+    // and the backpack the requests they carry change (what is eaten leaves it, the tank's Fill
+    // puts water in its bottles).
+    Observable {
+        id: "env.air_c",
+        system: "the bridges (survival_env)",
+        what: "the air around the body, Celsius, as the frame's bridges publish it",
+        read: |r| env(r, |e| f64::from(e.ambient_temp_c)),
+    },
+    Observable {
+        id: "env.humidity",
+        system: "the bridges (survival_env)",
+        what: "the air's relative humidity around the body, 0 to 1",
+        read: |r| env(r, |e| f64::from(e.relative_humidity)),
+    },
+    Observable {
+        id: "env.oxygenated",
+        system: "the bridges (survival_env)",
+        what: "whether the air around the body is breathable, 1 or 0",
+        read: |r| env(r, |e| if e.oxygenated { 1.0 } else { 0.0 }),
+    },
+    Observable {
+        id: "env.g_load",
+        system: "the bridges (survival_env)",
+        what: "the gravity the body feels, g",
+        read: |r| env(r, |e| f64::from(e.g_load)),
+    },
+    Observable {
+        id: "pack.items",
+        system: "InventorySystem",
+        what: "items in the backpack, every stack's count summed (a meal leaves it)",
+        read: |r| Some(crate::engine::sim_routine::pack_counts(r.world).values().map(|n| f64::from(*n)).sum()),
+    },
+    Observable {
+        id: "pack.water_l",
+        system: "the bridges (the tank's Fill)",
+        what: "litres of drinking water carried in bottles and jugs",
+        read: |r| Some(crate::engine::sim_routine::full_vessel_litres(r.world, r.data)),
+    },
 ];
+
+/// The survival context the frame's bridges published, read through `f` (None before the first step).
+fn env(r: &Reading<'_>, f: impl Fn(&humanity_core::ecs::components::EnvironmentContext) -> f64) -> Option<f64> {
+    r.data.get::<humanity_core::ecs::components::EnvironmentContext>("environment_context").map(f)
+}

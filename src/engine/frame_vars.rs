@@ -27,12 +27,6 @@ pub(crate) struct FrameVars {
     pub frame_t0: Instant,
     /// The frame's timestamp, taken after the frame-rate cap's sleep.
     pub now: Instant,
-    /// The true frame step in seconds, for the performance counters only.
-    pub raw_dt: f32,
-    /// The simulation's step in seconds (clamped, or the movie's fixed step while recording).
-    pub dt: f32,
-    /// Real time, uncapped (the movie's step while recording): the shared-world clocks run on it.
-    pub clock_dt: f32,
     /// The camera's position before this frame's movement.
     pub prev_cam_pos: Vec3,
     /// The opaque draw list (the scene pass), taken from `EngineState::draw_bufs`.
@@ -73,9 +67,6 @@ impl FrameVars {
         Self {
             frame_t0,
             now: frame_t0,
-            raw_dt: 0.0,
-            dt: 0.0,
-            clock_dt: 0.0,
             prev_cam_pos: Vec3::ZERO,
             all_objects: Vec::new(),
             transparent_objects: Vec::new(),

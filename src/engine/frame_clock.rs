@@ -58,16 +58,15 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // shared-world clocks run on it (net::sync, 2026-10-03).
     let clock_dt = movie_dt.unwrap_or(raw_dt);
     state.last_frame = now;
-    // ONE spin for the whole frame (see the field docs).
-    state.current_spin = current_planet_spin(state);
-    // And the real clock every other body is placed and turned by.
-    state.current_sim_t = std::time::SystemTime::now()
+    // The real clock every body but Earth is placed and turned by, and the frame's clock advanced
+    // (the one clock the sim reads, `frame_sim::FrameClock`; the soak advances its own).
+    let sim_epoch_s = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0)
         - 946_728_000.0;
+    state.clock.advance(dt, clock_dt, raw_dt, sim_epoch_s);
+    // ONE spin for the whole frame (see the field docs).
+    state.current_spin = current_planet_spin(state);
     f.now = now;
-    f.raw_dt = raw_dt;
-    f.dt = dt;
-    f.clock_dt = clock_dt;
 }

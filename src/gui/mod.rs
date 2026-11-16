@@ -931,8 +931,9 @@ pub struct GuiState {
     pub machine_card_clean_pending: bool,
     /// Fill and pour at a water tank (2026-09-26): (key, label, tooltip).
     pub machine_card_fluid_actions: Vec<(String, String, String)>,
-    /// Set by a fill or pour button; lib.rs carries it out next frame.
-    pub machine_card_fluid_pending: Option<String>,
+    /// Set by a fill or pour button: (the tank's machine id, the action's key). The frame's bridges
+    /// carry it out next frame (engine/frame_sim_requests.rs), as they do a soak routine's Fill.
+    pub machine_card_fluid_pending: Option<(String, String)>,
     /// True when the pinned machine is a trading post (v0.747, ladder rung 3):
     /// the card shows a Trade button that opens the vendor modal.
     pub machine_card_vendor: bool,

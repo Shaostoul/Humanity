@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 
 /// Runs the elevators and moves the player aboard; records the camera's position before the move.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.walk_aboard");
     // ELEVATOR tick (v0.590; ship homes increment 7, engine/footing.rs
     // `elevator_tick`): each car runs toward the stop it is heading for; its stops

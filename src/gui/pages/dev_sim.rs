@@ -22,6 +22,9 @@ use crate::gui::GuiState;
 
 /// The command line the card runs (after the exe): a week of the homestead at the safe step.
 pub(crate) const SOAK_ARGS: &[&str] = &["--sim", "soak", "--days", "7"];
+/// The same week with a person following the daily routine (data/sim/routines/daily.ron; the
+/// headless sim runner's increment 3): `just sim-soak --routine daily`.
+pub(crate) const ROUTINE_SOAK_ARGS: &[&str] = &["--sim", "soak", "--days", "7", "--routine", "daily"];
 
 /// A soak the card started, and what came of it.
 enum Run {
@@ -36,8 +39,9 @@ fn run_slot() -> std::sync::MutexGuard<'static, Option<Run>> {
     RUN.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Start the soak: this exe with `SOAK_ARGS`, its output read on a thread of its own.
-fn start() {
+/// Start a soak: this exe with `args` (`SOAK_ARGS` or `ROUTINE_SOAK_ARGS`), its output read on a
+/// thread of its own.
+fn start(args: &'static [&'static str]) {
     let exe = match std::env::current_exe() {
         Ok(exe) => exe,
         Err(e) => {
@@ -49,7 +53,7 @@ fn start() {
     std::thread::spawn(move || {
         let t0 = Instant::now();
         let mut cmd = std::process::Command::new(exe);
-        cmd.args(SOAK_ARGS).stdin(std::process::Stdio::null());
+        cmd.args(args).stdin(std::process::Stdio::null());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -82,10 +86,16 @@ pub fn draw_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let Some(secs) = running {
             ui.label(RichText::new(format!("{} {secs:.0} s", t("dev.sim.running"))).size(theme.font_size_small).color(theme.text_secondary()));
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
-        } else if with_hint(ui, "dev.sim.run_hint", |ui| widgets::Button::secondary(t("dev.sim.run")).show(ui, theme)) {
-            start();
+        } else {
+            if with_hint(ui, "dev.sim.run_hint", |ui| widgets::Button::secondary(t("dev.sim.run")).show(ui, theme)) {
+                start(SOAK_ARGS);
+            }
+            widgets::setting_hint(ui, theme, hint, t("dev.sim.run_hint"));
+            if with_hint(ui, "dev.sim.run_routine_hint", |ui| widgets::Button::secondary(t("dev.sim.run_routine")).show(ui, theme)) {
+                start(ROUTINE_SOAK_ARGS);
+            }
+            widgets::setting_hint(ui, theme, hint, t("dev.sim.run_routine_hint"));
         }
-        widgets::setting_hint(ui, theme, hint, t("dev.sim.run_hint"));
         if let Some(Run::Done { report, ok, secs }) = &*run_slot() {
             let head = if *ok { t("dev.sim.done") } else { t("dev.sim.failed") };
             let color = if *ok { theme.text_secondary() } else { theme.warning() };

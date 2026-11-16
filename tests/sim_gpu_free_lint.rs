@@ -28,15 +28,19 @@ use std::path::PathBuf;
 /// The simulation side's files: built with no GPU.
 /// Increment 2 (2026-11-15) added the systems slice, `frame_sim.rs`, one step of the systems on
 /// the sim's parts, and `sim_home.rs` and `sim_soak.rs`, the homestead entered and stepped and
-/// the `--sim soak` run.
+/// the `--sim soak` run. Increment 3 (the same day) added the bridges' slice and the `FrameClock`
+/// to `frame_sim.rs`, the GUI's requests it carries, `frame_sim_requests.rs`, and a person's
+/// routine for the soak, `sim_routine.rs`.
 const SIM_FILES: &[&str] = &[
     "src/engine/sim_boot.rs",
     "src/engine/world_sim.rs",
     "src/engine/world_sim_tests.rs",
     "src/engine/frame_sim.rs",
     "src/engine/frame_sim_tests.rs",
+    "src/engine/frame_sim_requests.rs",
     "src/engine/sim_home.rs",
     "src/engine/sim_soak.rs",
+    "src/engine/sim_routine.rs",
 ];
 
 /// Words that mean the GPU, the window, the GUI's painter, or the state that holds them. Matched
@@ -121,4 +125,55 @@ fn the_windowed_game_builds_its_world_through_the_sim_side() {
             "frame_ecs.rs calls `{word}` itself: the systems are ticked inside `frame_sim::systems_slice` only"
         );
     }
+}
+
+/// The step's files that take their time from the `FrameClock` (increment 3): no wall clock in
+/// their code. (sim_soak.rs times its own run with `Instant`, the wall time it reports; that is the
+/// driver's measurement, not the sim's time.)
+const CLOCKED_FILES: &[&str] = &["src/engine/frame_sim.rs", "src/engine/frame_sim_requests.rs", "src/engine/sim_home.rs", "src/engine/sim_routine.rs"];
+
+/// Increment 3: the windowed frame's bridges and the soak run one bridges' slice, before the
+/// systems' slice, on one clock.
+///
+/// Seen red 2026-11-15: with `survival_env::publish(` called from frame_bridges.rs beside the slice,
+/// "frame_bridges.rs publishes `survival_env::publish(` itself"; with `std::time::Instant::now()`
+/// planted in sim_home.rs's `step`, "src/engine/sim_home.rs line 95 reads the wall clock
+/// (`Instant`)"; with sim_home.rs's `bridges_slice(` call moved after `systems_slice(`, "sim_home.rs
+/// steps the systems before the bridges".
+#[test]
+fn the_frame_and_the_soak_run_one_bridges_slice_on_one_clock() {
+    let bridges = read("src/engine/frame_bridges.rs");
+    assert!(
+        bridges.lines().any(|l| code_of(l).contains("frame_sim::bridges_slice(")),
+        "frame_bridges.rs no longer feeds the world through `frame_sim::bridges_slice`: the windowed game and the soak would drift apart"
+    );
+    // The world-feeding half is the slice's alone: none of it is done beside it in the frame.
+    let npc = read("src/engine/frame_bridges_npc.rs");
+    for word in ["survival_env::publish(", "publish_body_environment(", "drone::bridge_gui(", "\"consume_request\"", "\"drink_request\"", "\"plant_request\"", "\"craft_request\"", "\"inventory_transfer_ops\""] {
+        for (name, text) in [("frame_bridges.rs", &bridges), ("frame_bridges_npc.rs", &npc)] {
+            assert!(!text.lines().any(|l| code_of(l).contains(word)), "{name} publishes `{word}` itself: the bridges' world-feeding half runs in `frame_sim::bridges_slice` only");
+        }
+    }
+    // The soak steps the bridges, then the systems, as the frame's stages run them.
+    let home = read("src/engine/sim_home.rs");
+    let at = |word: &str| home.lines().position(|l| code_of(l).contains(word));
+    match (at("bridges_slice("), at("systems_slice(")) {
+        (Some(b), Some(s)) => assert!(b < s, "sim_home.rs steps the systems before the bridges"),
+        other => panic!("sim_home.rs does not run both slices: {other:?}"),
+    }
+    // One clock: the windowed frame advances it, the stages read it, and the step's files read no
+    // wall clock of their own.
+    let clock = read("src/engine/frame_clock.rs");
+    assert!(clock.lines().any(|l| code_of(l).contains("state.clock.advance(")), "frame_clock.rs no longer advances the frame's `FrameClock`");
+    let mut found = Vec::new();
+    for rel in CLOCKED_FILES {
+        for (n, line) in read(rel).lines().enumerate() {
+            for word in idents(code_of(line)) {
+                if word == "Instant" || word == "SystemTime" {
+                    found.push(format!("{rel} line {} reads the wall clock (`{word}`): {}", n + 1, line.trim()));
+                }
+            }
+        }
+    }
+    assert!(found.is_empty(), "The step takes its time from the `FrameClock` (frame_sim.rs):\n  {}", found.join("\n  "));
 }

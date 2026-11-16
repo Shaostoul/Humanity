@@ -486,16 +486,12 @@ pub(crate) fn run(state: &mut EngineState) {
                 }
                 if parts.is_empty() { None } else { Some(parts.join(" ")) }
             });
-            // Fill and pour at a water tank (2026-09-26): crates/humanity-systems/src/fluids.rs.
+            // Fill and pour at a water tank (2026-09-26): crates/humanity-systems/src/fluids.rs. The
+            // card's button is carried out by the frame's bridges, before the tick
+            // (engine/frame_sim_requests.rs, the headless sim runner's increment 3); here the card
+            // only lists what can be done now.
             if let Some(ft) = state.data_store.get::<humanity_systems::fluids::FluidTable>("fluid_table") {
-                use humanity_systems::fluids::{apply_action, card_actions};
-                if let Some(key) = state.gui_state.machine_card_fluid_pending.take() {
-                    let toast = match apply_action(ft, &mut state.game_world.world, item_reg, &mid, &key) {
-                        Ok(m) => (m, crate::gui::ToastKind::Success),
-                        Err(m) => (m, crate::gui::ToastKind::Info),
-                    };
-                    state.gui_state.pending_toasts.push(toast);
-                }
+                use humanity_systems::fluids::card_actions;
                 state.gui_state.machine_card_fluid_actions = card_actions(ft, &state.game_world.world, item_reg, &mid)
                     .into_iter()
                     .map(|a| (a.key, a.label, a.tip))

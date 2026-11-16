@@ -13,7 +13,9 @@
 //! as does the Illness mode (`illness::MODE_KEY`, BUG-162).
 
 use humanity_core::ecs::components::EnvironmentContext;
+use crate::engine::frame_sim::BodyPlace;
 use crate::engine::state::EngineState;
+use humanity_core::hot_reload::data_store::DataStore;
 use humanity_systems::body_heat;
 use humanity_systems::construction::uses;
 use humanity_systems::weather::Weather;
@@ -149,17 +151,17 @@ pub(crate) fn warmed_by_fires(mut ctx: EnvironmentContext, absorbed_w_m2: f64) -
 /// the frame lock's anchor), in the body's frame in f64, which is where every
 /// fire's place is taken too (`fires::warmth_at`). A fire with a built piece
 /// standing between it and the player gives nothing.
-fn fire_warmth(state: &EngineState) -> f64 {
+fn fire_warmth(world: &hecs::World, data: &DataStore, place: &BodyPlace<'_>) -> f64 {
     use humanity_systems::construction::fires;
-    if state.aboard_station {
+    if place.view.aboard {
         return 0.0;
     }
-    let Some(body) = state.frame_lock_body.as_deref() else { return 0.0 };
-    let eye = state.frame_lock_anchor;
+    let Some(body) = place.view.body.as_deref() else { return 0.0 };
+    let eye = place.view.anchor;
     let up = eye.normalize_or_zero();
     let middle = eye - up * (humanity_core::ecs::components::EYE_HEIGHT_M - fires::BODY_MIDDLE_M);
-    let registry = state.data_store.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry");
-    fires::warmth_at(&state.game_world.world, registry, body, middle, up)
+    let registry = data.get::<humanity_systems::construction::BlueprintRegistry>("blueprint_registry");
+    fires::warmth_at(world, registry, body, middle, up)
 }
 
 /// Each level of Settings > Gameplay (data/gameplay/levels.json, 2026-11-11) into its system's
@@ -180,16 +182,19 @@ pub(crate) fn publish_levels(gui: &crate::gui::GuiState, data: &mut humanity_cor
     data.insert(humanity_systems::death_pack::MODE_KEY, death);
 }
 
-/// Once per frame: publish the survival context, the body heat mode and the
-/// illness mode (BUG-162, `systems::illness`).
-pub(crate) fn publish(state: &mut EngineState) {
-    publish_levels(&state.gui_state, &mut state.data_store);
+/// Once a step: publish the survival context, the body heat mode and the
+/// illness mode (BUG-162, `systems::illness`). On the sim's parts and where the
+/// body is (`place`, plain values the driver reads before the step), so the
+/// windowed frame and the soak publish the one environment (the frame's bridges,
+/// `frame_sim::bridges_slice`, the headless sim runner's increment 3; it took
+/// `EngineState` until then).
+pub(crate) fn publish(world: &hecs::World, data: &mut DataStore, gui: &mut crate::gui::GuiState, place: &BodyPlace<'_>) {
+    publish_levels(gui, data);
 
     // The air where the player stands: temperature, humidity, wind, what is
     // falling and the pressure, all from the weather's at-player export
     // (environment Layer 1 plus the weather's deviation).
-    let exposed = state
-        .data_store
+    let exposed = data
         .get::<std::sync::Mutex<Weather>>("weather")
         .and_then(|m| m.lock().ok())
         .map(|w| ExposedAir::from_weather(&w))
@@ -198,27 +203,26 @@ pub(crate) fn publish(state: &mut EngineState) {
     // whose air is breathable at this altitude (increment 4). Open space and
     // airless or unbreathable worlds keep the vacuum drain (the existing suit
     // rules).
-    let outside_breathable = state
-        .data_store
+    let outside_breathable = data
         .get::<humanity_systems::body_environment::BodyEnvironment>("body_environment")
         .map(|e| e.breathable_outside())
         .unwrap_or(false);
     // What the body is doing (ASHRAE met values, ecs::components::MET_*).
-    let activity = if state.driving_vehicle.is_some() {
+    let activity = if place.driving {
         humanity_core::ecs::components::MET_DRIVING
     } else {
-        let (moving, sprinting) = state.controller.gait();
-        body_heat::activity_met(moving, sprinting)
+        body_heat::activity_met(place.moving, place.sprinting)
     };
-    let pos = state.camera.position;
+    let pos = place.view.camera_pos;
     // What the drive + any spin are doing to a body right now, after the
-    // dampeners take their cut. Computed ONCE here so every branch below
-    // reports the same number: a burn is felt on both sides of the hull.
-    let felt = humanity_systems::flight::felt_gravity(&state.flight, &state.flight_data.dampener);
+    // dampeners take their cut (`flight::felt_gravity`, read by the driver). ONCE
+    // here so every branch below reports the same number: a burn is felt on both
+    // sides of the hull.
+    let felt = place.felt;
     let felt_g_now = felt.felt_g;
     // Published for consumers outside this block (farming reads its own
     // DataStore slots, not EnvironmentContext).
-    state.data_store.insert("felt_gravity", felt);
+    data.insert("felt_gravity", felt);
     // Dev fly/travel (v0.791.x) is a cheat: while fly mode is on, the
     // vacuum-outside-the-hull rule is suspended so sightseeing at Neptune
     // doesn't suffocate/freeze the operator or close-range verifies. Turning
@@ -227,13 +231,12 @@ pub(crate) fn publish(state: &mut EngineState) {
     let mut shelter = uses::ShelterCheck::default();
     // The air the shelter note is worded for (its upwind as the outside branch set it).
     let mut sheltered_air = exposed;
-    let env = if state.controller.fly_mode {
+    let env = if place.fly_mode {
         // Fly mode already suspends vacuum and cold; suspend the burn too, so
         // sightseeing during a 5 g evasion does not quietly kill the operator.
         EnvironmentContext::default()
     } else {
-        let air = air_spaces_of(state);
-        match whereabouts(air.as_ref(), state.aboard_station, pos) {
+        match whereabouts(place.air.as_ref(), place.view.aboard, pos) {
             Whereabouts::InsideHome => {
                 // Inside the homestead: sealed, still air at the home's own
                 // temperature and humidity, and OXYGENATED only while the
@@ -241,21 +244,20 @@ pub(crate) fn publish(state: &mut EngineState) {
                 // air is ship life support's real balance (systems::life_support):
                 // the household uses about 2 kg of oxygen a day out of tonnes,
                 // so losing the air machines costs months, not minutes.
-                let breathable = state
-                    .data_store
+                let breathable = data
                     .get::<std::sync::Mutex<humanity_systems::atmosphere::AirStatus>>("air_status")
                     .and_then(|m| m.lock().ok())
                     .map(|a| a.breathable)
                     .unwrap_or(true);
-                let home = home_air(&state.game_world.world);
+                let home = home_air(world);
                 // The air where they stand (2026-10-05, BUG-155): a grow room's
                 // own when they stand in one (its heaters' warmth and its damp
                 // with it), else the home's own air, warmed by any heater in it.
                 // And the warmth of any fire they can see (BUG-153), which is
                 // none aboard today (`fire_warmth`), on top of that air
                 // (`inside_home_context`).
-                let grow_room = humanity_systems::farming::humidity::grow_room_air_at(&state.game_world.world, &state.data_store, pos.to_array());
-                inside_home_context(home, grow_room, breathable, activity, felt_g_now, fire_warmth(state))
+                let grow_room = humanity_systems::farming::humidity::grow_room_air_at(world, data, pos.to_array());
+                inside_home_context(home, grow_room, breathable, activity, felt_g_now, fire_warmth(world, data, place))
             }
             // The ship's shared spaces (the Commons, First Street, the corridors, a neighbour's
             // plot): the ship's own air, kept by its life support at the standard a home starts at
@@ -272,8 +274,8 @@ pub(crate) fn publish(state: &mut EngineState) {
                 // testing the raw camera position said "Sheltered" wherever
                 // one walked, because on a planet the camera does not move).
                 let mut air = exposed;
-                if let Some(f) = crate::engine::planet_build::player_frame(state) {
-                    shelter = uses::shelter_at(&state.game_world.world, f.feet, f.site.as_ref());
+                if let Some(f) = crate::engine::planet_build::frame_of_place(world, &place.view, place.ground) {
+                    shelter = uses::shelter_at(world, f.feet, f.site.as_ref());
                     // The wind's east and north are a PLANET site's axes. The
                     // home frame has no compass (and outside it is vacuum), so
                     // there the wind has no side to come from (review of
@@ -287,31 +289,29 @@ pub(crate) fn publish(state: &mut EngineState) {
                 // the clock the weather's day warmth reads
                 // (`weather::local_solar_hour`), on the gameplay sun's arc
                 // (`solar::sun_factor`), the one the crops and panels use.
-                air.sun_sin = state
-                    .data_store
+                air.sun_sin = data
                     .get::<std::sync::Mutex<humanity_systems::time::GameTime>>("game_time")
                     .and_then(|m| m.lock().ok().map(|gt| gt.clone()))
                     .map(|gt| {
-                        let env = state
-                            .data_store
+                        let env = data
                             .get::<humanity_systems::body_environment::BodyEnvironment>("body_environment")
                             .cloned()
                             .unwrap_or_default();
-                        let home_lon = humanity_systems::time::home_longitude_deg(&state.data_store);
+                        let home_lon = humanity_systems::time::home_longitude_deg(data);
                         humanity_systems::solar::sun_factor(humanity_systems::weather::local_solar_hour(&gt, &env, home_lon))
                     });
                 sheltered_air = air;
                 // A campfire's warmth (BUG-153): the fires burning near
                 // the player, on top of the open sky's.
-                warmed_by_fires(outside_context(air, outside_breathable, shelter, activity, felt_g_now), fire_warmth(state))
+                warmed_by_fires(outside_context(air, outside_breathable, shelter, activity, felt_g_now), fire_warmth(world, data, place))
             }
             Whereabouts::NoHome => EnvironmentContext::default(),
         }
     };
-    state.data_store.insert("environment_context", env);
+    data.insert("environment_context", env);
     // The HUD's Shelter line and the Inventory page's readout.
-    state.gui_state.vitals.sheltered = shelter.out_of_the_wind(sheltered_air.upwind);
-    state.gui_state.vitals.shelter_note = shelter.note(sheltered_air.upwind);
+    gui.vitals.sheltered = shelter.out_of_the_wind(sheltered_air.upwind);
+    gui.vitals.shelter_note = shelter.note(sheltered_air.upwind);
 }
 
 /// Where the player is for the survival context.
@@ -345,14 +345,19 @@ pub(crate) fn whereabouts(air: Option<&humanity_ship::ship_space::AirSpaces>, ab
     }
 }
 
-/// The air spaces the survival context reads: the ship's (`EngineState::ship_air`) once a ship
-/// has assembled; on the legacy layout (no ship) the box around every room is the home, as it
-/// was before increment 4; None before anything has generated.
-fn air_spaces_of(state: &EngineState) -> Option<humanity_ship::ship_space::AirSpaces> {
-    match (&state.gui_state.ship_structure, state.homestead_bounds) {
-        (Some(_), _) => Some(state.ship_air.clone()),
-        (None, Some(b)) => Some(humanity_ship::ship_space::AirSpaces { home: Some(b), shared: Vec::new() }),
-        (None, None) => None,
+/// The air spaces the survival context reads: the ship's (`ship_air`, `EngineState::ship_air` or
+/// the world entry's `WorldSim::ship_air`) once a ship has assembled (`has_ship`); on the legacy
+/// layout (no ship) the box around every room is the home, as it was before increment 4; None
+/// before anything has generated. A driver reads it into `BodyPlace::air` before the step.
+pub(crate) fn air_spaces(
+    has_ship: bool,
+    ship_air: &humanity_ship::ship_space::AirSpaces,
+    homestead_bounds: Option<(Vec3, Vec3)>,
+) -> Option<humanity_ship::ship_space::AirSpaces> {
+    match (has_ship, homestead_bounds) {
+        (true, _) => Some(ship_air.clone()),
+        (false, Some(b)) => Some(humanity_ship::ship_space::AirSpaces { home: Some(b), shared: Vec::new() }),
+        (false, None) => None,
     }
 }
 

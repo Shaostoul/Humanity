@@ -274,6 +274,28 @@ pub fn request_speed_hold(data: &DataStore, hold: Option<f32>) {
     }
 }
 
+/// The game seconds a real second the NEXT tick will run at, outside a shared world: a hold asked
+/// for and not yet taken (`request_speed_hold`: a night's sleep starting or ending, the F11
+/// freeze), else the hold in force, else the time-speed setting, as `TimeSystem::tick` decides it.
+/// A driver that steps game time evenly (the headless soak, engine/sim_home.rs `step_game`) turns
+/// its game step into the frame's real `dt` with it: a sleep's 7,200 makes ten game minutes a
+/// twelfth of a real second, where the plain step would have slept 50 game days in one step. The
+/// host's clock is not read: the soak never joins a shared world.
+pub fn next_tick_scale(data: &DataStore) -> f32 {
+    let setting = data
+        .get::<std::sync::Mutex<f32>>(SPEED_SLOT)
+        .and_then(|m| m.lock().ok().map(|s| clamp_time_speed(*s)))
+        .unwrap_or(DEFAULT_TIME_SPEED);
+    let asked = data.get::<std::sync::Mutex<Option<Option<f32>>>>(HOLD_SLOT).and_then(|m| m.lock().ok().and_then(|r| *r));
+    let held = match asked {
+        Some(hold) => hold.map(|v| v.max(0.0)),
+        None => data
+            .get::<std::sync::Mutex<GameTime>>("game_time")
+            .and_then(|m| m.lock().ok().and_then(|g| g.speed_hold)),
+    };
+    held.unwrap_or(setting)
+}
+
 /// DataStore key: the longitude (degrees east) the player's home hangs over,
 /// an `f64`. The engine publishes it at world load from the home station's
 /// orbit (`station::orbit::hang_longitude_deg`). Absent (the relay, unit

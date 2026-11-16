@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 
 /// Pumps the network, advances loading and decides whether the world is drawn this frame.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.network");
     // Dialling, reading every message, reconnecting, WebRTC, chat history and the saved
     // servers' background links (engine/frame_net.rs, shared with the hidden window's tick).

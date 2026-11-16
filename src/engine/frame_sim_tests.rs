@@ -5,6 +5,7 @@
 //! window and no `EngineState`.
 use crate::engine::sim_home;
 use crate::engine::sim_soak::{self, StepTolerances, DAY_S};
+use crate::engine::sim_routine;
 
 /// The game's data folder, as the windowed game finds it.
 fn data_dir() -> std::path::PathBuf {
@@ -90,10 +91,10 @@ fn a_span_stepped_at_the_frames_dt_and_coarsely_agrees() {
     let tol = tolerances();
     let span_s = 120.0;
     let frame_dt = 1.0 / 60.0;
-    let reference = sim_soak::run_span(&data_dir(), tol.seed, frame_dt, span_s, None);
+    let reference = sim_soak::run_span(&data_dir(), tol.seed, frame_dt, span_s, None, None);
     let mut off = Vec::new();
     for step_s in [1.0, 10.0, 60.0] {
-        let run = sim_soak::run_span(&data_dir(), tol.seed, step_s, span_s, None);
+        let run = sim_soak::run_span(&data_dir(), tol.seed, step_s, span_s, None, None);
         for v in sim_soak::judge(&tol, &reference.first, &reference.end, &run.end) {
             if !v.holds() {
                 off.push(format!("{} ({}) at {step_s} s off by {} (allowed {}): {} against {}", v.id, v.system, v.error, v.allowed, v.coarse, v.reference));
@@ -117,7 +118,7 @@ fn a_span_stepped_at_the_frames_dt_and_coarsely_agrees() {
 fn the_recorded_safe_step_holds_on_the_ladder() {
     let tol = tolerances();
     let span_s = 2.0 * 3600.0;
-    let (reference, rungs) = sim_soak::ladder(&data_dir(), &tol, span_s, &tol.ladder_s);
+    let (reference, rungs) = sim_soak::ladder(&data_dir(), &tol, span_s, &tol.ladder_s, None);
     let text = sim_soak::ladder_text(&tol, span_s, &reference, &rungs);
     eprintln!("{text}");
     let failing: Vec<String> = rungs
@@ -146,8 +147,8 @@ fn the_recorded_safe_step_holds_on_the_ladder() {
 #[test]
 fn the_same_run_repeats_exactly() {
     let tol = tolerances();
-    let a = sim_soak::run_span(&data_dir(), tol.seed, 60.0, DAY_S, None);
-    let b = sim_soak::run_span(&data_dir(), tol.seed, 60.0, DAY_S, None);
+    let a = sim_soak::run_span(&data_dir(), tol.seed, 60.0, DAY_S, None, None);
+    let b = sim_soak::run_span(&data_dir(), tol.seed, 60.0, DAY_S, None, None);
     let differ: Vec<String> = a
         .end
         .iter()
@@ -177,8 +178,141 @@ fn tolerances_cover_every_observable() {
 #[test]
 fn a_step_past_the_safe_one_is_refused_unless_forced() {
     let tol = tolerances();
-    let ask = sim_soak::SoakAsk { days: 1.0, step_s: Some(tol.safe_step_s * 10.0), force: false, check_hours: None, seed: None };
+    let ask = sim_soak::SoakAsk { days: 1.0, step_s: Some(tol.safe_step_s * 10.0), force: false, check_hours: None, seed: None, routine: None };
     let err = sim_soak::soak(&data_dir(), &ask).expect_err("a step past the safe one ran");
     assert!(err.contains("safe step") && err.contains("--force"), "the refusal does not say why or how: {err}");
+}
+
+// -- Increment 3: the frame's bridges on the sim's parts, and a person's routine -------------------
+
+/// The daily routine (data/sim/routines/daily.ron).
+fn daily() -> sim_routine::Routine {
+    sim_routine::Routine::load(&data_dir(), "daily").expect("data/sim/routines/daily.ron")
+}
+
+/// The soak's body breathes the home's air the bridges publish, from the first step: the survival
+/// context is the sealed home's (oxygenated, the home's own temperature and humidity), not the
+/// boot's default and not vacuum.
+///
+/// Seen red 2026-11-15 on its first run, on a real defect, BUG-317: "the sealed home's air reads
+/// unbreathable: EnvironmentContext { sealed: true, oxygenated: false, ambient_temp_c: 19.850006,
+/// ... }". The home's air status started all zeros until the first atmosphere step, so the first
+/// step breathed vacuum: a frame in the windowed game, a whole 600 s step in the soak, where the
+/// routine's person suffocated in it ("the person died following the routine: Some((600.0,
+/// \"suffocation\"))") and the day, split-step and ladder tests all moved by the death. The world
+/// entry publishes the home's air now (atmosphere::publish_air_status). With
+/// `survival_env::publish` taken out of `bridges_slice` it fails "the bridges published no
+/// environment around the body" (no `environment_context` slot, which increment 2's soak ran on).
+#[test]
+fn the_soaks_body_breathes_the_homes_air() {
+    let mut home = sim_home::enter(&data_dir(), scratch_saves("env"));
+    // The home's own air (its enclosed space) as the first step begins: the bridges publish the
+    // air around the body from it before that step's tick.
+    let (home_c, home_rh) = {
+        use humanity_systems::atmosphere::{EnclosedSpace, HomeAir};
+        let mut q = home.sim.game_world.world.query::<(&HomeAir, &EnclosedSpace)>();
+        let (_, (_, s)) = q.iter().next().expect("the homestead has its own air space");
+        (s.atmosphere.temperature_k - 273.15, s.atmosphere.humidity.clamp(0.0, 1.0))
+    };
+    home.step(600.0);
+    let env = home
+        .sim
+        .data_store
+        .get::<humanity_core::ecs::components::EnvironmentContext>("environment_context")
+        .cloned()
+        .expect("the bridges published no environment around the body");
+    assert!(env.oxygenated, "the sealed home's air reads unbreathable: {env:?}");
+    // The air around the body is the home's own, where the person stands outside a grow room.
+    let obs = home.read();
+    let (air_c, rh) = (get(&obs, "env.air_c"), get(&obs, "env.humidity"));
+    assert!(
+        (air_c - f64::from(home_c)).abs() < 1e-3 && (rh - f64::from(home_rh)).abs() < 1e-4,
+        "the air around the body ({air_c} C at {rh}) is not the home's ({home_c} C at {home_rh})"
+    );
+    // And the body breathed it: ten minutes in, its blood oxygen is full.
+    assert!(get(&obs, "vitals.oxygen") > 99.0, "blood oxygen fell to {} in the first ten minutes at home", get(&obs, "vitals.oxygen"));
+}
+
+/// The routine's acts fall due at their hours of the home's day, once each, across midnight.
+#[test]
+fn a_routines_acts_fall_due_once_at_their_hours() {
+    use sim_routine::{due_between, Act, ActKind};
+    let acts = vec![Act { hour: 7.0, act: ActKind::Drink }, Act { hour: 22.5, act: ActKind::Sleep }];
+    let due = |a: f64, b: f64| due_between(&acts, 24.0, a, b).into_iter().map(|(_, k)| k).collect::<Vec<_>>();
+    assert_eq!(due(6.0, 7.0), vec![ActKind::Drink], "an act at the end of the span is due");
+    assert!(due(7.0, 8.0).is_empty(), "an act at the start of the span was due last time");
+    assert_eq!(due(22.0, 31.0), vec![ActKind::Sleep, ActKind::Drink], "across midnight, in order");
+    assert_eq!(due(0.0, 72.0).len(), 6, "three days, two acts a day");
+}
+
+/// A person following the daily routine through three game days at the safe step: the routine's
+/// requests reach the systems through the frame's bridges, the person drinks from the kit's jugs
+/// and then from bottles filled at the home's tank, eats the kit's rations, sleeps at night and is
+/// alive at the end, where the untouched home's person is dead of thirst 2.6 days in.
+///
+/// Seen red 2026-11-15 with the requests not carried (`frame_sim_requests::carry` taken out of
+/// `bridges_slice`): "the person died following the routine: Some((223800.0, \"dehydration\"))",
+/// drinks 0 and meals 0, every act a miss ("drink request did nothing (water_purified_0)": 18,
+/// "eat request did nothing (ration_basic_0)": 9). Before BUG-317's fix it died of suffocation at
+/// 600 s, the first step.
+#[test]
+fn a_person_following_the_routine_drinks_eats_and_lives() {
+    let tol = tolerances();
+    let span = sim_soak::run_span(&data_dir(), tol.seed, tol.safe_step_s, 3.0 * DAY_S, None, Some(&daily()));
+    let log = span.routine.clone().expect("the run kept no routine log");
+    assert!(span.death.is_none(), "the person died following the routine: {:?}; {log:?}", span.death);
+    assert!(log.drinks >= 12, "{} drinks in three days: {log:?}", log.drinks);
+    assert!(log.water_drawn_l > 0.9, "no water drawn from the tank once the jugs ran out ({} L): {log:?}", log.water_drawn_l);
+    assert!(log.meals >= 3, "{} meals in three days: {log:?}", log.meals);
+    assert!(log.sleeps >= 2, "{} nights in bed in three days: {log:?}", log.sleeps);
+    assert!(get(&span.end, "vitals.hydration") > 30.0, "hydration fell to {} following the routine", get(&span.end, "vitals.hydration"));
+    assert!(get(&span.end, "vitals.energy") > 10.0, "rest fell to {} with a night in bed each day", get(&span.end, "vitals.energy"));
+}
+
+/// The split-step test over the bridges' quantities: a span in which the person drinks from a
+/// bottle filled at the tank and eats a ration, stepped at the windowed frame's dt and coarsely,
+/// lands the backpack (`pack.items`, `pack.water_l`), the body's environment and every other
+/// quantity within its tolerance.
+///
+/// Seen red 2026-11-15 with the requests not carried (`frame_sim_requests::carry` taken out of
+/// `bridges_slice`): "the span's drink and meal at the frame's dt: RoutineLog { drinks: 0, meals:
+/// 0, ... missed: {\"eat request did nothing (ration_basic_0)\": 1, \"nothing to drink after
+/// fetching\": 1, \"the tank's Fill did nothing\": 1} }". Before BUG-317's fix its coarse steps
+/// were off by the first step's vacuum: "vitals.hydration (FoodSystem) at 60 s off by 0.3228
+/// (allowed 0.1419)" and "vitals.energy at 60 s off by 0.3125 (allowed 0.0539)".
+#[test]
+fn a_routines_span_stepped_at_the_frames_dt_and_coarsely_agrees() {
+    let tol = tolerances();
+    let (start_h, _) = {
+        let home = sim_home::enter(&data_dir(), scratch_saves("routine-start"));
+        sim_routine::local_hours(&home.sim.data_store)
+    };
+    let day_h = 24.0;
+    let hour = |s: f64| (start_h + s / 3600.0).rem_euclid(day_h);
+    let routine = sim_routine::Routine {
+        id: "split".into(),
+        name: "a drink from the tank and a ration".into(),
+        foods: vec!["ration_basic_0".into()],
+        // Bottles only, so the drink is filled at the tank first (the kit's jugs are left).
+        drinks: vec!["water_bottle_0".into()],
+        acts: vec![sim_routine::Act { hour: hour(5.0), act: sim_routine::ActKind::Drink }, sim_routine::Act { hour: hour(10.0), act: sim_routine::ActKind::Eat }],
+    };
+    // Long enough for both acts at the coarsest step: each takes two steps, one act starts a step.
+    let span_s = 300.0;
+    let frame_dt = 1.0 / 60.0;
+    let reference = sim_soak::run_span(&data_dir(), tol.seed, frame_dt, span_s, None, Some(&routine));
+    let log = reference.routine.clone().expect("a routine log");
+    assert_eq!((log.drinks, log.meals), (1, 1), "the span's drink and meal at the frame's dt: {log:?}");
+    assert!(log.water_drawn_l > 0.4, "the Fill drew no water at the frame's dt: {log:?}");
+    let mut off = Vec::new();
+    for step_s in [1.0, 10.0, 60.0] {
+        let run = sim_soak::run_span(&data_dir(), tol.seed, step_s, span_s, None, Some(&routine));
+        for v in sim_soak::judge(&tol, &reference.first, &reference.end, &run.end) {
+            if !v.holds() {
+                off.push(format!("{} ({}) at {step_s} s off by {} (allowed {}): {} against {}", v.id, v.system, v.error, v.allowed, v.coarse, v.reference));
+            }
+        }
+    }
+    assert!(off.is_empty(), "{span_s} game seconds with a drink and a meal at the frame's {frame_dt:.4} s step against coarse steps:\n  {}", off.join("\n  "));
 }
 

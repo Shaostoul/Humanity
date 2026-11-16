@@ -4,8 +4,8 @@
 use crate::engine::frame_prelude::*;
 
 /// Publishes the ocean's state for this frame.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.env_publish");
     // FFT-ocean upkeep (v0.1029, water-fft.md increment 1):
     // build the spectrum on first use, realize this frame's

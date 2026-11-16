@@ -5,9 +5,9 @@
 use crate::engine::frame_prelude::*;
 
 /// Syncs the shared world and the players around you for this frame.
-pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
-    let dt = f.dt;
-    let clock_dt = f.clock_dt;
+pub(crate) fn run(state: &mut EngineState) {
+    let dt = state.clock.dt;
+    let clock_dt = state.clock.clock_dt;
     humanity_core::frame_costs::span("cpu.span.copresence");
     // ── Multiplayer co-presence (v0.472) ──────────────────────────────────────
     // While actually in the 3D world AND connected to a relay, join the shared game
