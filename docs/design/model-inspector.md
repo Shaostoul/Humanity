@@ -163,6 +163,32 @@ background with a short export script to a temporary `.glb`, which is inspected 
 Blender: the `.blend` says so plainly and how to export a `.glb` by hand. The same route opens
 `.obj` and `.fbx`.
 
+**Rung 4b: the HumanityOS add-on for Blender (operator, 2026-11-16, not built).** Verbatim: "Speaking
+of blender we'll want to create an addon specifically for using blender to create stuff for HumanityOS.
+Like a script for exporting everything properly with all the proper names and properties and whatever
+else. The less chance to misspell something the better. Kind of like the empties being misnamed for
+turrets in Space Engineers." The add-on is the other half of this inspector: the inspector finds what
+is wrong after export, the add-on makes it hard to get wrong before. Its shape, to plan in full:
+
+- **No typing names.** A HumanityOS panel adds empties by choosing their kind from a list read from
+  `data/models/inspect_conventions.json` (mount, muzzle, seat, door, light and the rest), named and
+  oriented by the convention, with each kind's needs (a forward axis, a size) set or asked for. A new
+  kind of empty is a new row in that file, never an add-on update (Infinite-of-X).
+- **The catalog box and collision shapes as objects** the add-on draws (a wire box of the catalog row,
+  primitives for physics.ron), so the fit is seen in Blender as the game does it (section 4, including
+  `model_yaw`).
+- **Export done right in one click:** glTF binary, metres, +Y up and front +Z (Blender's exporter
+  converts from its Z-up), transforms applied, the file named and placed where the game reads it, the
+  physics.ron and catalog row written beside it.
+- **The same report before export:** the inspector's checks (section 3) run in Blender from the same
+  conventions file, so an empty pointing the wrong way, a missing texture or a wrong scale is caught
+  before the file leaves Blender; where HumanityOS is installed, its own `inspect-model` command can
+  run instead, so there is one set of rules.
+- **To settle first:** the licence. Blender add-ons that use its Python API are expected to be under a
+  licence compatible with Blender's GPL, and the project's code is AGPL-3.0-or-later since 2026-11-14;
+  a dated finding (CLAUDE.md) must say whether the add-on can ship under the project's licence or
+  needs its own, and what Blender's extensions platform requires.
+
 **Rung 5: levels of detail, animation and textures.** Switch between LODs; play each clip (skins and
 morph targets); show each texture map on its own (base colour, normal, roughness, metallic,
 occlusion) and a UV checker.

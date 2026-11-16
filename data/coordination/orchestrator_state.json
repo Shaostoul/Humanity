@@ -12,6 +12,11 @@
   "recent_decisions": [
     {
       "date": "2026-11-16",
+      "decision": "Axes: the engine stays Y-up, right-handed, camera forward -Z, a model's front +Z (glTF's and Godot's convention; every position in code and data uses Y for height); the operator asked which is better and the recommendation was to keep it and fix modder comfort with tooling and words; the axes table is now in docs/dev/adding-3d-models.md. New direction (operator: \"we'll want to create an addon specifically for using blender to create stuff for HumanityOS ... The less chance to misspell something the better\"): a HumanityOS Blender add-on, recorded as model-inspector.md rung 4b (empties chosen from inspect_conventions.json, never typed; the catalog box and collision shapes as objects; one-click export at metres, +Y up, front +Z; the inspector's report run before export; a dated licence finding first, since the code is AGPL and Blender add-ons must be GPL-compatible). Research running: MEI and Humdrum in depth (wk-meihum; the operator: \"The fact you say it is overkill is why I want to know more about this option. We have plenty of usage for research.\").",
+      "why": "Directions recorded where each lives."
+    },
+    {
+      "date": "2026-11-16",
       "decision": "v0.1564.0 released and delivered (ee5ddc72c, tagged just after midnight to keep two releases a day). Posts: the week update (docs/outreach/posts/2026-11-16-update.md, v0.1558.0 to v0.1564.0) and the music generator post (2026-11-16-music-generator.md), Discord posts now end without the free-and-open-source sign-off (operator). A Library guide: docs/user/creating/music-genre.md. GOAL FOR THE NEXT USAGE RESET (operator: \"Okay, then that's our goal next usage reset\"): an open, editable score format (compare MusicXML, MIDI, LilyPond, ABC, MEI with licences), a dated finding on public-domain editions (Grieg's In the Hall of the Mountain King, Beethoven), a score player, and the Humanity Accord as instrumental music with the five-vowel choir singing its syllables and the line shown as it is sung (\"I love that sing along idea!\"). Recorded in PRIORITIES TIER 0 (above the sim runner, which continues after), music.md and memory project_music_scores_goal.",
       "why": "His goal for the next reset; usage at the ceiling now."
     },

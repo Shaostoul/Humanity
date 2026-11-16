@@ -41,6 +41,21 @@ Hard limits every model must respect:
    aspect preserved) to keep per-model VRAM sane. jpg and png sources work
    (whatever the `image` crate decodes); jpg decodes with alpha = 255.
 6. **Units are meters, Y up.** No scaling applied on load.
+   The axes, checked against the camera code on 2026-11-16 (right-handed, as glTF is):
+
+   | Direction | Axis |
+   |---|---|
+   | Right / left | +X / -X |
+   | Up / down | +Y / -Y |
+   | Where the camera looks at rest (forward) | -Z |
+   | Backward | +Z |
+
+   A model's own front faces **+Z** (the glTF rule), and a placed machine faces its own +Z, turned by
+   its rotation. Blender is Z-up: its glTF exporter converts when "+Y Up" is ticked (the default), so
+   export with it on. The model inspector draws each empty's axes (X red, Y green, Z blue) and names
+   up and front, so a wrongly turned model or empty shows at once. Y-up was kept on purpose
+   (2026-11-16): it is glTF's convention and Godot's, and every position in the game's code and data
+   uses Y for height.
 7. **Path resolution** (`resolve_model_path`): the game DATA dir first
    (`data/models/...`, the distributed + moddable tree), then the data dir's
    PARENT (so `assets/models/...` works in a dev checkout).
