@@ -34,7 +34,10 @@
 
     '.eli5-block:not([data-show-simple="1"]) .eli5-simple{display:none;}' +
     '.eli5-block:not([data-show-expert="1"]) .eli5-expert{display:none;}' +
-    '.eli5-block:not([data-show-simple="1"]):not([data-show-expert="1"]){display:none;}';
+    '.eli5-block:not([data-show-simple="1"]):not([data-show-expert="1"]){display:none;}' +
+    // On a phone the help button (44 px, fixed at the top right) sat over the tip's words
+    // (an iPhone 13 mini, 375 px wide, 2026-11-16): leave its width clear on narrow screens.
+    '@media (max-width:700px){.eli5-block{padding-right:3.6rem;}}';
   document.head.appendChild(style);
 
   function initBlocks() {
