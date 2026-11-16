@@ -213,8 +213,11 @@ pub fn encapsulate_to(public_key: &[u8]) -> Result<(Vec<u8>, [u8; KYBER_SS_LEN])
 /// Derive a 32-byte Dilithium3 seed from any high-entropy source via BLAKE3 keyed-derivation
 /// with the `hum/dilithium3/v1` domain separator.
 ///
-/// Typical use: pass the 64-byte BIP39 PBKDF2 seed; output is independent of any other
-/// seed derived from the same source under a different domain.
+/// Every caller passes the recovery phrase's 32 bytes of ENTROPY (`identity::seed_from_phrase`),
+/// not BIP39's 64-byte PBKDF2 seed: with 256 bits of entropy skipping PBKDF2 is sound, but it means a
+/// BIP39 passphrase (a "25th word") is not supported (corrected 2026-11-16 after a contributor's
+/// review; docs/reference/research/2026-11-16-pqc-review/). The output is independent of any other seed
+/// derived from the same source under a different domain.
 pub fn derive_dilithium_seed(master_seed: &[u8]) -> [u8; DILITHIUM_SEED_LEN] {
     let mut hasher = blake3::Hasher::new_derive_key(DOMAIN_DILITHIUM);
     hasher.update(master_seed);
