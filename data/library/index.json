@@ -2049,6 +2049,15 @@
           ]
         },
         {
+          "title": "The Music Generator, and Making a Genre",
+          "file": "music-genre.md",
+          "tags": [
+            "guide",
+            "contributor",
+            "sim"
+          ]
+        },
+        {
           "title": "Add a Sound",
           "file": "audio-file.md",
           "tags": [

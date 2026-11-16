@@ -100,7 +100,3 @@ A genre is one text file. Drop it into `data/music/genres/` next to the app and 
 - **Focus and sleep.** A piece that slowly calms and fades over a set time.
 - **Feel the beat.** A visual beat and controller rumble for players who are deaf or hard of hearing.
 - **The world in the music.** Weather, the seasons and the homestead's health shaping the score.
-
-Everything is free and open source.
-https://united-humanity.us
-https://github.com/Shaostoul/Humanity

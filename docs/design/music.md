@@ -1560,3 +1560,27 @@ sleeps in 15.6 ms steps) and streams into a fixed ring per note rather than a gr
 - **Pieces by seed, accepted.** A new piece every 4 minutes by default, returning sections for the ship's own score too, and the 2 s overlap of two keys at a change: "Sounds good." Full-length instruments: "I'm interested in having all the instruments." (optional packs of every layer and round robin of the approved libraries).
 - **A Music page.** "We need to add a way in the settings menu or like a dedicated music page to try infinite seeds and variations and genres and what not. That way we or a random person can find the exact seeds we want using the genre we want and all that and set some as permanent. Like maybe seed X has a particular sound I love and want to combat or just to listen to in my real-life car. We'll want to add all the features we can for like visualizing and tuning the music. Like it'd be cool if we could see the song in some sort of music sheet kind of thing and have a visualizer that moves around to the beat." Designed in a music page document (in progress).
 - **Not a DAW, for now.** On editing what the engine made (lock, regenerate, edit notes, hum a motif): "I love the idea of eventually making it a full holistic tool but, I'm okay with keeping it simple while we develop more important things. We mostly just need the music for the game right now but, we might find tracks we like. I'm okay with exporting and editing in another app until we're much further along in development and are looking for things to expand beyond their first stage of development." So the Music page stops at explore, tune, keep, export (WAV, then MIDI and stems) and see; editing waits.
+
+## The operator's wishes of 2026-11-16 (not built; each needs its plan)
+
+Verbatim: "For the music, could we somehow play music like Beethoven? I'd love to hear In The Hall of the
+Mountain King by Edward Grieg in-game." And: "Also, there's this AEIOU cat for music... Could we say, use
+the Humanity Accord as a template to generate that kind of music for Humanity OS? That way we could get
+more in-depth music with something that sounds like lyrics but, could just be a technical doc turned into
+vowels only."
+
+- **Playing written classical pieces (a score player).** Today the engine only composes. Playing a fixed
+  piece means notes as data (a public-domain edition imported from MusicXML, MIDI or LilyPond into a
+  score file), played on our own instruments at our tuning, possibly arranged into a genre's palette. The
+  compositions of Grieg (died 1907) and Beethoven (died 1827) are generally public domain, but recordings
+  and modern editions can carry their own rights, so per CLAUDE.md a dated finding in
+  docs/reference/findings/ comes first (the compositions, which editions and files are free to use, and
+  from where), then the plan. Separately, a genre in a composer's STYLE (Romantic harmony, an orchestral
+  palette, sonata-like form) needs no score at all and fits the genre system as it is.
+- **Vowel singing from the Humanity Accord.** The choir is already formant synthesis gliding between
+  "ah" and "oh" (choir_ah.ron); extend it to the five vowels, take the Accord's text, keep each
+  syllable's vowel, and sing one per melody note, so it sounds like lyrics in an unknown language while
+  being the Accord turned into vowels; the line being sung could scroll on screen like a karaoke line.
+  No AI (it is synthesis), and nothing is taken from the meme but the idea of singing vowels. The meme
+  he meant (he linked its Know Your Meme page the same day) is the "Oo Ee A E A" (OIIAOIIA) spinning-cat
+  sound, a chant of pure vowels.
