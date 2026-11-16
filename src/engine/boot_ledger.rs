@@ -163,8 +163,10 @@ mod tests {
 
     #[test]
     fn names_and_times() {
-        assert_eq!(worktree_name(Path::new(r"C:\Humanity\.claude\worktrees\agent-abc")), "agent-abc");
-        assert_eq!(worktree_name(Path::new(r"C:\Humanity")), "Humanity");
+        // Forward slashes: a backslash is a separator only on Windows, so the old r"C:\Humanity\..."
+        // inputs failed on macOS and Linux (a contributor's review, 2026-11-16).
+        assert_eq!(worktree_name(Path::new("C:/Humanity/.claude/worktrees/agent-abc")), "agent-abc");
+        assert_eq!(worktree_name(Path::new("C:/Humanity")), "Humanity");
         assert_eq!(iso_utc(0), "1970-01-01T00:00:00Z");
         // 2026-11-14T09:30:05Z, from `date -u -d @1794648605`.
         assert_eq!(iso_utc(1_794_648_605), "2026-11-14T09:30:05Z");

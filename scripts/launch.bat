@@ -1,11 +1,11 @@
 @echo off
 REM HumanityOS Launcher — pin this to your taskbar
-REM Finds and runs the latest versioned exe in C:\Humanity\
+REM Finds and runs the latest versioned exe in the repository folder (this script's parent)
 REM No need to update this file when new versions are built.
 
 setlocal enabledelayedexpansion
 
-set "BINDIR=C:\Humanity"
+for %%I in ("%~dp0..") do set "BINDIR=%%~fI"
 set "LATEST="
 
 if not exist "%BINDIR%" (

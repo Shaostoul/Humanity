@@ -4,7 +4,7 @@
 // scene motion lands somewhere new each capture.
 // usage: node abdiff.js <dir> <vantage> [...]
 const path = require('path');
-const sharp = require(require.resolve('sharp', { paths: ['C:/Humanity'] }));
+const sharp = require(require.resolve('sharp', { paths: [path.join(__dirname, '..', '..')] }));
 const dir = process.argv[2];
 const ids = process.argv.slice(3);
 async function load(arm, id) {

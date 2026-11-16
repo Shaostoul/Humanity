@@ -4724,7 +4724,7 @@ fn snapshot_relay_control_host_node() {
     // the running-node snapshot below.
     crate::gui::pages::host_node::seed_setup_for_snapshot(
         "Shaostoul's node",
-        r"C:\Users\Shaos\AppData\Roaming\HumanityOS\relay\relay.db",
+        r"C:\Users\you\AppData\Roaming\HumanityOS\relay\relay.db",
     );
     render_page_png("relay_control_host_node", 1100, 900, |ctx, theme, state| {
         // No saved servers and no connected relay: the empty-selection path.
@@ -4745,7 +4745,7 @@ fn snapshot_relay_control_host_node_running() {
     crate::gui::pages::host_node::force_running_for_snapshot(
         3210,
         "Shaostoul's node",
-        r"C:\Users\Shaos\AppData\Roaming\HumanityOS\relay\relay.db",
+        r"C:\Users\you\AppData\Roaming\HumanityOS\relay\relay.db",
         Some("192.168.1.24"),
     );
     render_page_png("relay_control_host_node_running", 1100, 900, |ctx, theme, state| {
