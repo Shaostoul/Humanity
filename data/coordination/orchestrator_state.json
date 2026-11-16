@@ -12,6 +12,11 @@
   "recent_decisions": [
     {
       "date": "2026-11-16",
+      "decision": "Light fixes at the end of the week (the operator: \"What else can we work on that's not too heavy?\"): the Justfile runs on macOS and Linux (1dcd0e70b: bash by name, Git Bash only as windows-shell, PATH prefixed only on Windows), small-phone fixes on every page (f7d902df0 maps controls and the tip under the help button; 30dfe78ab Calendar, Inventory, Tasks, Settings; 068720fc6 the Calculator tabs, all 45 pages measured at 375 x 812, none cuts a control off now), the picture rail default in the living room and study (068720fc6), no Mining XP from the drone (40e61aad1, red then green), the family home beds against the head wall (33b9b6ea9). Also: OLTARIS approved for the operator; the run plan with a units warning (6ffee18a0: the registration said 5 to 20 g/cm2, the design needs about 1,000); a reply drafted for the PQC reviewer naming our real gaps (no forward secrecy, pure ML-KEM, seed-derived keys, young crates, no external audit). Remaining from the queue: the rig and build-slot tooling for macOS and Linux, the Rust 1.100.0 update, the organisation pass box, the guide map review.",
+      "why": "Usage nearly spent; small, verified steps."
+    },
+    {
+      "date": "2026-11-16",
       "decision": "Hardcoded paths, first pass (0ea86a5ad; its commit message lost two backslash-U paths to printf, cosmetic): launch.bat and make-shortcut.ps1 find the repo from their own folder, hdr-ab/abdiff.js resolves sharp from the repo root, boot_ledger worktree_name test uses forward slashes (it failed on macOS and Linux), the host-node snapshot fixture shows C:/Users/you. The rest of the 47 references are comments about the operator machine or fixed test strings that pass anywhere. Next pass at the reset: tests and scripts that assume Windows itself (tasklist, .exe names, the DX12 test device), then the small-phone pass at 375 px (maps first). The operator ranked the cleanup first at the reset with about 3% weekly usage left.",
       "why": "A contributor could not run the project off this machine."
     },
