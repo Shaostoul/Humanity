@@ -12,6 +12,11 @@
   "recent_decisions": [
     {
       "date": "2026-11-15",
+      "decision": "Operator answered five questions \"Yes.\": (1) a daily Android build: done now (build-android.yml schedule, the classifier had refused it unasked); (2) download and update the Rust 1.100.0 toolchain in a quiet window (rust-toolchain.toml pins PC, CI and both servers); (3) the family home's beds against the head wall; (4) joining an organisation gives its members a pass past a friends-only setting, a box on the accept card ticked by default, carrying only that organisation's change notes (recorded in organisations.md); (5) a picture rail by default in living rooms and the study (room-finishes.md section 10). He will look at the cabin's new layout later. He prefers to merge finished things before new work. Queued for after the wrap-up, in order: the Rust update (quiet window after v0.1564.0), the beds, the organisation pass, the picture rail default.",
+      "why": "Decisions recorded where each lives; no new agents in wrap-up mode."
+    },
+    {
+      "date": "2026-11-15",
       "decision": "Operator at 22:10: \"We're at 95% so let's wrap up and submit what we've got and do a bit of planning before more dev\". So: no new agents; finish skills rung 2 (gates re-running) and headless increment 4 (its agent running its gates), release v0.1564.0 just after midnight (both 2026-11-15 releases used), then a planning pass with the operator before more development.",
       "why": "Weekly usage at 95%: finish, release, plan; no new fan-out until the week resets or he says otherwise."
     },

@@ -322,6 +322,12 @@ guilds retire into organisations once rung 2 lands (recommended: yes, guilds kee
 the clear on one server), the operator answered: "Agreed." Sponsor-a-Can is the first real group,
 and guilds retire into organisations.
 
+Asked on 2026-11-15 whether joining an organisation lets its members reach you past a "friends
+only" message setting (the rung 2 builder's recommendation: a box on the accept card, ticked by
+default, giving each member a pass that carries only that organisation's change notes, never
+ordinary messages, and that can be turned off later), the operator answered: "Yes." Not built
+yet: today delivery respects the setting and such a member needs the copied text.
+
 ## 9. Questions for the operator (each with a recommendation)
 
 1. **Which real group goes first?** Recommendation: Sponsor-a-Can, the volunteer group you already

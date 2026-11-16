@@ -296,3 +296,7 @@ geometry, so they cost per-pixel time, measured per rung, and no vertices.
 3. **The wood grain takes the material's colour in rung 3**, measured (today the shader's grain is
    one oak-like tone whatever the colour, so an oak and a walnut would look alike).
 4. **The trim stays in the lamps' shadow maps** while its cost is under the 5% bar (section 8).
+5. **A picture rail by default in the living rooms and the study** (operator, 2026-11-15: "Yes."
+   to the rung 2 builder's recommendation): it sits about 0.3 m under the ceiling, above the
+   furniture, the classic match for the torus and ogee style. The chair rail stays a choice. Not
+   built yet: rung 2 shipped with every rail off until chosen.
