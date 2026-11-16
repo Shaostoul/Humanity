@@ -4026,6 +4026,32 @@ pub(crate) fn complete_ui_request(state: &mut EngineState) {
     if let (Some(px), Some(pt)) = (ipc.pos_px, ipc.pos_points) {
         done["pos_px"] = serde_json::json!([px.0, px.1]);
         done["pos_points"] = serde_json::json!([pt.x, pt.y]);
+        // What is under the pointer, by egui's own answers on the frame that just ran (2026-11-15:
+        // the first-run privacy window a click could not close, where "STILL drawn" named no
+        // cause): the layer egui counts as on top there, and the widget its hit test gave a press
+        // there, each named by gui/layers.rs (a popup's shade or window, a claimed kind, or an
+        // unclaimed order) with its rect in window pixels. A click that did nothing says what took it.
+        let ctx = &state.egui_ctx;
+        let ppp = ctx.pixels_per_point();
+        let rect_px = |r: egui::Rect| serde_json::json!([r.min.x * ppp, r.min.y * ppp, r.max.x * ppp, r.max.y * ppp]);
+        done["layer_at_pointer"] = match ctx.layer_id_at(pt) {
+            Some(l) => serde_json::json!(crate::gui::layers::layer_name(ctx, l)),
+            None => serde_json::Value::Null,
+        };
+        // Where egui itself last saw the pointer: a real mouse over the window moves it too, so
+        // a synthetic click whose pointer was moved away by a real one shows here.
+        done["egui_pointer_px"] = match ctx.input(|i| i.pointer.latest_pos()) {
+            Some(p) => serde_json::json!([p.x * ppp, p.y * ppp]),
+            None => serde_json::Value::Null,
+        };
+        done["press_lands_on"] = match ctx.viewport(|v| v.hits.click) {
+            Some(w) => serde_json::json!({
+                "layer": crate::gui::layers::layer_name(ctx, w.layer_id),
+                "rect_px": rect_px(w.rect),
+                "id": format!("{:?}", w.id),
+            }),
+            None => serde_json::Value::Null,
+        };
     }
     if let Some(closed) = ipc.closed {
         done["closed"] = serde_json::json!(closed);

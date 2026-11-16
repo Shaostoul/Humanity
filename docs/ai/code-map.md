@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1567 Rust files (802,261 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,929 lines) under `web/`.
+1568 Rust files (802,621 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,929 lines) under `web/`.
 
 ## Folders
 
@@ -58,7 +58,7 @@
 - `src/gui/crossing_tests/` (15 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE GUI OR WITH EACH OTHER (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counte...
 - `src/gui/garment_textures/` (2 files): GARMENT TEXTURES (2026-11-10): Settings > Graphics > Garment textures, its levels, its plan of the garment texture pools, its optional pa...
 - `src/gui/model_view/` (8 files): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker,...
-- `src/gui/pages/` (92 files): GUI pages composing widgets into full screens.
+- `src/gui/pages/` (93 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/apps/` (12 files): Apps (2026-10-19): the Games library and the Tools page made one page (the operator: "What do you think about changing the name of ...
 - `src/gui/pages/calculator/` (1 files): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input.
 - `src/gui/pages/chat/` (53 files): 3-panel chat page matching the website layout.
@@ -687,7 +687,7 @@
 - `frame_station.rs` (240): The orbital home station's frame stage (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the station card's attitude edits, the station's orbit propaga... Main items: run.
 - `frame_tail.rs` (515): The frame's tail (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: screenshots, the play journal's marks, the movie and the live broadcast copied from... Main items: run.
 - `frame_ui_paint.rs` (122): Painting the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the platform output handled, the shapes tessellated, the textures updated and the GU... Main items: run.
-- `frame_ui_run.rs` (561): Running the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the debug log drained into the GUI, the Garden data built for the Inventory page, the... Main items: run.
+- `frame_ui_run.rs` (553): Running the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the debug log drained into the GUI, the Garden data built for the Inventory page, the... Main items: run.
 - `frame_vars.rs` (97): The values one frame's stages hand to each other (the file-size split, step 1, 2026-11-14, docs/design/crate-split.md "The file-size split"). Main items: FrameVars.
 - `frame_walk_aboard.rs` (156): Walking aboard (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the elevators' tick, then the player's first-person movement aboard the ship and the h... Main items: run.
 - `frame_water.rs` (751): The planet's WATER SHELLS: the two quadtree layers that make a sea, built and pushed once per frame for whatever body the camera is standing on (extracted verbatim from lib.rs, v0.1320). Main items: WaterShellState, WaterView, push_water_shells, backstop_build_lift_m, backstop_shader_drop_m, patch_rebuild_due, BACKSTOP_CLEARANCE_M, WATER_REUSE_OFF_PERIOD.
@@ -713,7 +713,7 @@
 - `input.rs` (387): Key rules for the F10 Cloud dev sidebar, extracted from lib.rs's raw winit keyboard arm (2026-09-18) so that the key, the headless tests and the dev IPC (`debug/ui_request.json`, see `engine::ipc`)... Main items: toggle_cloud_dev_panel, escape_closes_cloud_dev, cursor_want_free, cursor_free_for, mouse_look_allowed, apply_game_action, cloud_dev_flag.
 - `interact.rs` (833): INTERACTIONS IN THE WORLD (character animation rung 2b, 2026-11-10; docs/design/character-animation.md sections 3.3 and 17; the anchors and their poses are `humanity_animation::interact`). Main items: Placed, ObjectRef, SeatPlan, Engaged, InteractRuntime, ChairSlide, Handle, plan_seat (+17 more).
 - `ipc_parse.rs` (389): Parsers and formatters lifted out of the dev IPC and the socket pump so they can be tested alone: screenshot request and done file, screen status, notification prefs, planet tooltip. Main items: ScreenshotSize, NotifPrefsPayload, parse_screenshot_request, screenshot_output_path, screenshot_done_json, merge_provider_status, planet_tooltip_info, parse_notification_prefs (+1 more).
-- `ipc.rs` (6693): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, RequestWatch, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value (+62 more).
+- `ipc.rs` (6719): The dev IPC: file-drop requests under `debug/` (screenshot, showcase, camera, autopilot, screens, UI, cloud dumps, remote players, door points), each answered with a done file. Main items: ShowcasePin, PlaceSpec, RequestWatch, ViewPasses, UiIpcStage, UiIpc, StationPark, showcase_value (+62 more).
 - `key_cards.rs` (352): Key cards in the desktop app (2026-10-22, docs/design/key-cards.md): signing our own card, asking servers for other people's, checking every one, pinning, and the change notice. Main items: KeyCardsState, sign_own_card, on_identity, ensure_pins, want, want_people, note_listed, on_signed_in (+8 more).
 - `keybind_capture.rs` (166): Keybind CAPTURE step (Settings > Controls, 2026-08-12), extracted from lib.rs's raw winit keyboard arm per the monolith ratchet. Main items: handle_keybind_capture.
 - `launch_focus.rs` (411): Launch-focus policy: does this boot deserve the foreground? Main items: launch_audio, open_audio_on_click, launch_in_background, quiet_asked, show_window_behind, show_window_behind_as, show_window_behind.
@@ -864,11 +864,11 @@
 - `glossary.rs` (198): In-app glossary / dictionary (v0.195.0). Main items: GlossaryEntry, Glossary, install, glossary.
 - `history.rs` (509): HISTORY: Back and Forward on the desktop, the way a web browser has them (navigation rung 4, 2026-11-04; docs/design/navigation.md section 10). Main items: How, At, Place, History, close_popup, ask_back, frame, MAX_STEPS.
 - `laws.rs` (321): Location-aware rules ("Laws") loader (v0.496). Main items: Jurisdiction, Rule, Verified, Laws, install.
-- `layers.rs` (475): THE LAYERS: what is drawn over what, one order for the whole app (navigation rung 3, 2026-11-04; docs/design/navigation.md section 6). Main items: Layer, Close, Shade, area, window, painter, urgent_top, shade (+6 more).
+- `layers.rs` (503): THE LAYERS: what is drawn over what, one order for the whole app (navigation rung 3, 2026-11-04; docs/design/navigation.md section 6). Main items: Layer, Close, Shade, area, window, painter, urgent_top, shade (+8 more).
 - `loaders.rs` (1610): Every `data/` file the GUI reads, and the shapes it reads them into. Main items: StudioScenePreset, StudioSourcePreset, Place, HomesteadDesign, DesignRoom, Size3, RoomRequirements, DesignTier (+54 more).
 - `map_credit.rs` (104): THE MAP CREDIT, drawn by its own layer (whole-Earth maps rung 1, 2026-11-09; docs/design/whole-earth-maps.md section 11 and the finding docs/reference/findings/2026-11-08-whole-earth-map-data.md, i... Main items: visible, draw.
 - `mine_tasks.rs` (640): Tasks of my own ("Mine", docs/design/tasks.md rung 1, 2026-11-02; fixes BUG-217): the records, the merge, the notes to myself that carry them between my devices, and the encrypted file that keeps t... Main items: Record, OpenProblem, MineTasks, is_id, new_id, wins, is_note, note_texts (+6 more).
-- `mod.rs` (4761): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+5 more).
+- `mod.rs` (4773): egui GUI system for the native desktop client. Main items: DonateAddress, PassphraseMode, ServerInfo, LauncherWhere, LauncherHome, GuiPage, GuiState, SettingsCategory (+5 more).
 - `navigation.rs` (541): The top menu as data (docs/design/navigation.md, section 13; rung 1, 2026-11-03; rung 2, the desktop's two rows, the same day). Main items: Category, Item, Outside, Timings, WebGroup, TodayRow, File, Kind (+11 more).
 - `notice_panel.rs` (267): The header's notices (rung 2, 2026-10-31, docs/design/notifications.md section 3): the bell with the count of notices not opened yet, and the panel of the last 100 it opens, each entry opening its... Main items: draw, open_entry, keep_to_header, BELL_SIZE, BELL_GAP.
 - `ops_registry.rs` (156): Server-owner action registry loader: `data/admin/ops_registry.json`, the data-driven map of EVERY admin/owner/moderator action and where it lives (this app, a /chat-command, a config file, or the V... Main items: OpsAction, OpsPlanned, OpsVpsOnly, OpsRegistry, surface_label, ops_registry, SURFACE_ORDER.
@@ -883,7 +883,7 @@
 - `theme.rs` (1279): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
 - `ui_snapshots.rs` (6453): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
-- `world_entry.rs` (86): Whether the person is in a world, and the world held still and quiet until they are (BUG-253, 2026-11-06).
+- `world_entry.rs` (94): Whether the person is in a world, and the world held still and quiet until they are (BUG-253, 2026-11-06).
 - tests: `a11y_tests.rs`, `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`, `history_tests.rs`, `layers_tests.rs`, `mine_tasks_tests.rs`, `navigation_tests.rs`, `org_mail_tests.rs`
 
 ## src/gui/bottom_strip/
@@ -976,7 +976,7 @@
 - `placeholder.rs` (37): Placeholder page for features not yet built in egui. Main items: draw.
 - `planet_tuner.rs` (680): Planet Tuner: live per-planet physics editing (artificial-planet ladder item 3, docs/design/artificial-planet.md). Main items: PlanetTunerReadout, PlanetTunerState, fmt_curve, draw.
 - `play.rs` (199): Play: THE GAME'S HUB (2026-11-11). Main items: draw, cards, summary, open_card, last_played, enter_world, WORLD_TINT, CARD_TINTS.
-- `privacy.rs` (538): Privacy tiers (operator direction, 2026-08-23): every user chooses exactly how private to be, ONCE, up front, and the default is maximum privacy. Main items: PrivacyTier, load_tiers, apply_tier, draw_privacy_tier_modal, draw_privacy_content, send_presence_flag.
+- `privacy.rs` (557): Privacy tiers (operator direction, 2026-08-23): every user chooses exactly how private to be, ONCE, up front, and the default is maximum privacy. Main items: PrivacyTier, load_tiers, apply_tier, first_connect_prompt, draw_privacy_tier_modal, draw_privacy_content, send_presence_flag.
 - `profile_skills.rs` (147): The skill sheet on the Profile page's Skills section (skills rung 1, 2026-11-14, docs/design/skills.md sections 3 and 4). Main items: draw.
 - `profile.rs` (592): Profile section content: the editors for your character / identity. Main items: ProfileSection, draw, draw_section_content, section_id, section_from_id, bio_refusal.
 - `quests.rs` (419): Quests: the SIM quest surface, gameplay only. Main items: hub_summary, draw.
@@ -1004,7 +1004,7 @@
 - `weather_panel.rs` (626): Live weather panel (v0.1050, F11). Main items: WeatherPreset, test_stop_rect, sea_description, fmt_day_length, draw, PRESETS.
 - `where_you_live.rs` (621): "Choose where you live" (ship homes increment 6, lane 1E, 2026-10-12; docs/design/ship-homes-increment-6-plan.md section 3.9): the one widget that says where you live and lets you choose, drawn in... Main items: Choice, Place, starts, a_or_an, row_name, first_sentence, shared_line, engagement_line (+19 more).
 - `world_clock_admin.rs` (386): Server Settings > ADMIN > Shared world clock (2026-10-04). Main items: draw, explainer, real_duration, crop_growth_days.
-- tests: `dev_journal_tests.rs`, `dev_tab_tests.rs`, `escape_menu_tests.rs`, `fleet_ledger_tests.rs`, `household_tests.rs`, `hud_corner_tests.rs`, `inventory_garden_tests.rs`, `orgs_tests.rs`, `own_profile_tests.rs`, `performance_layout_tests.rs`, `screen_settings_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `tasks_click_tests.rs`, `where_you_live_tests.rs`
+- tests: `dev_journal_tests.rs`, `dev_tab_tests.rs`, `escape_menu_tests.rs`, `fleet_ledger_tests.rs`, `household_tests.rs`, `hud_corner_tests.rs`, `inventory_garden_tests.rs`, `orgs_tests.rs`, `own_profile_tests.rs`, `performance_layout_tests.rs`, `privacy_click_tests.rs`, `screen_settings_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `tasks_click_tests.rs`, `where_you_live_tests.rs`
 
 ## src/gui/pages/apps/
 
@@ -1220,7 +1220,7 @@
 - `label_placer.rs` (237): Map label placement: the greedy collision pass cartography uses for point and line features, so the Maps views never print one name on top of another (2026-09-27 snapshot review: star names stacked... Main items: LabelPlacer, point_candidates, along_polyline, polyline_length, LABEL_GAP.
 - `level_picker.rs` (152): THE LEVEL PICKER (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): a column of buttons, one per level of a place with more than one, listed TOP TO BOTTOM as a building's directory and a... Main items: PickerLevel, PickerRow, PickerClick, picker_rows, rect_for, show, PICKER_WIDTH.
 - `markdown.rs` (904): Minimal markdown reader shared by the in-app doc surfaces: the Humanity Accord viewer modal (`pages/humanity.rs`) and the Library doc pane (`pages/library.rs`). Main items: Heading, heading_slug, headings, render_markdown, render_markdown_linked, render_markdown_linked_scrolled, render_markdown_defining, strip_html_comments (+3 more).
-- `mod.rs` (2174): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, card, card_clickable, card_suggested (+52 more).
+- `mod.rs` (2197): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, toast_rects, card, card_clickable (+53 more).
 - `msg_format.rs` (325): Inline chat-message formatting: minimal markdown + URL detection (v0.702). Main items: SpanKind, FormatSpan, parse.
 - `notice_banner.rs` (53): The in-world notice banner (rung 2, part 2, 2026-10-31, docs/design/notifications.md section 3 item 4): a short banner at the top of the screen while the person plays, because a toast may sit behin... Main items: paint.
 - `notice_bell.rs` (90): The notice bell (rung 2, 2026-10-31, docs/design/notifications.md section 3): a square button with a bell and, when some notices are not opened yet, their count in a small pill at its top-right cor... Main items: count_text, notice_bell, label_for.

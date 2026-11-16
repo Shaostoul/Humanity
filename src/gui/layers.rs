@@ -74,7 +74,8 @@ use egui::{Color32, Context, Id, LayerId, Order};
 /// The kinds of surface, nearest the viewer first (the module's table).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Layer {
-    /// 1: tooltips, hints and toasts. They never take a click.
+    /// 1: tooltips, hints and toasts. They never take a click, which holds only for what is PAINTED
+    /// here ([`painter`]): an Area here still takes the click of whatever is under it (BUG-316).
     Tooltip,
     /// 2: urgent: an incoming call and the call's own bar, an emergency alert.
     Urgent,
@@ -342,6 +343,33 @@ pub fn seat(ctx: &Context, shade: &Shade, window: LayerId) {
     if let Some(p) = list.iter_mut().find(|p| p.shade == shade.layer) {
         p.window = Some(window);
         store_popups(ctx, list);
+    }
+}
+
+/// Whether a popup asking for a decision ([`Close::Decide`]: the privacy choice, the passphrase at
+/// start, the death screen) is open, drawn this pass or the last. Notices wait while one asks
+/// (widgets::draw_toasts, BUG-316): the question is read first, then what the world has to say.
+pub fn deciding(ctx: &Context) -> bool {
+    let now = ctx.cumulative_pass_nr();
+    popups(ctx).iter().any(|p| p.close == Close::Decide && p.pass + 1 >= now)
+}
+
+/// A layer in words, for a dev answer that must say what took a click (engine/ipc.rs
+/// `complete_ui_request`, 2026-11-15): a popup's shade or window, else the kind it was claimed
+/// as this frame or the last ([`area`], [`window`]), else egui's order for a layer nobody claimed.
+pub fn layer_name(ctx: &Context, layer: LayerId) -> String {
+    for p in popups(ctx) {
+        if p.shade == layer {
+            return format!("the shade of popup {:?}", p.id);
+        }
+        if p.window == Some(layer) {
+            return format!("the window of popup {:?}", p.id);
+        }
+    }
+    let claimed = ctx.data(|d| d.get_temp::<(u64, Vec<(Layer, LayerId)>)>(Id::new(CLAIMS))).map(|a| a.1).unwrap_or_default();
+    match claimed.iter().find(|(_, l)| *l == layer) {
+        Some((kind, _)) => format!("{kind:?} {:?}", layer.id),
+        None => format!("unclaimed {:?} {:?}", layer.order, layer.id),
     }
 }
 

@@ -218,21 +218,10 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
             crate::gui::pages::chat::draw_call_bar(ctx, &state.theme, &mut state.gui_state);
         }
 
-        // Privacy-tier first-connect chooser (2026-08-23):
-        // asked ONCE per identity, over any page, the first
-        // time a connection is identified with no tier ever
-        // chosen. Default selection = maximum privacy; the
-        // relay keeps the account presence-hidden until a
-        // choice lands (fail-private).
-        if state.gui_state.ws_identified
-            && state.gui_state.settings.privacy_tier.is_empty()
-            && !state.gui_state.privacy_tier_prompt_open
-        {
-            state.gui_state.privacy_tier_prompt_open = true;
-        }
-        if state.gui_state.privacy_tier_prompt_open {
-            crate::gui::pages::privacy::draw_privacy_tier_modal(ctx, &state.theme, &mut state.gui_state);
-        }
+        // Privacy-tier first-connect chooser (2026-08-23): asked ONCE per
+        // identity, over any page (privacy.rs `first_connect_prompt`, which
+        // the click test draws the same way).
+        crate::gui::pages::privacy::first_connect_prompt(ctx, &state.theme, &mut state.gui_state);
 
         // Vendor modal (v0.747, ladder rung 3): opened from
         // the trading post's card; draws over any page.
@@ -545,6 +534,9 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
         // everything is drawn: the urgent band over every popup, the popups
         // over the menus' drop-downs, those over the page's windows.
         crate::gui::layers::arrange(ctx);
+        // Whether a popup asking for a decision is up, for the world's notices to wait on
+        // (gui/world_entry.rs `world_notice`, BUG-316).
+        state.gui_state.decision_open = crate::gui::layers::deciding(ctx);
     });
     // Quit from the main menu hub or the updater's Restart to Apply
     // (first-hour audit 2026-10-04, Blocker 5): the save the close

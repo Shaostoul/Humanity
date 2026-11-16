@@ -188,6 +188,7 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     }
     state.toasts.retain(|t| now - t.created < t.life);
     if state.toasts.is_empty() {
+        keep_toast_rects(ctx, Vec::new());
         return;
     }
     ctx.request_repaint(); // keep the fade animating even with no input
@@ -200,6 +201,7 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     let font = egui::FontId::proportional(theme.font_size_body);
     // From the top of the unfinished-software warning, which egui's anchor does not know about.
     let mut from_bottom = 48.0_f32 + crate::gui::bottom_strip::height(ctx);
+    let mut rects = Vec::with_capacity(state.toasts.len());
     for (i, t) in state.toasts.iter().enumerate() {
         let age = now - t.created;
         let alpha = if age > t.life - FADE {
@@ -220,28 +222,49 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
         let y_off = -from_bottom;
         // The text (never shorter than the dot), the frame's 9 point top and bottom margins,
         // its stroke, and a small gap before the next toast up.
-        from_bottom += text.size().y.max(9.0) + 2.0 * 9.0 + 3.0 + 4.0;
-        // A toast is a tooltip of the whole app (layer 1, gui/layers.rs): over everything, no click.
-        crate::gui::layers::area(ctx, egui::Id::new(("hos_toast", i)), crate::gui::layers::Layer::Tooltip)
-            .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, y_off))
-            .interactable(false)
-            .show(ctx, |ui| {
-                egui::Frame::NONE
-                    .fill(a(theme.bg_card()))
-                    .stroke(Stroke::new(1.5_f32, a(accent)))
-                    .corner_radius(CornerRadius::same(theme.border_radius as u8))
-                    .inner_margin(egui::Margin::symmetric(14, 9))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            // Painted status dot -- font-independent, so it never tofus.
-                            let (rect, _) = ui.allocate_exact_size(Vec2::splat(9.0), Sense::hover());
-                            ui.painter().circle_filled(rect.center(), 4.0, a(accent));
-                            ui.add_space(2.0);
-                            ui.label(text);
-                        });
-                    });
-            });
+        let row_h = text.size().y.max(9.0);
+        from_bottom += row_h + 2.0 * 9.0 + 3.0 + 4.0;
+        // A toast is a tooltip of the whole app (layer 1, gui/layers.rs): over everything, NO CLICK.
+        // So it is PAINTED, never an Area (BUG-316, 2026-11-15): egui gives every Area a widget
+        // rect the size of what it holds, `interactable(false)` included, and its label one more,
+        // and egui's hit test stops at the topmost layer with a widget over the pointer, so a toast
+        // took the click of whatever stood under it. A brand-new identity entering the world gets
+        // a pile of notices stacked up from the bottom, and the top one sat on the first-run
+        // privacy window's "Use this privacy level": the window could not be closed until they
+        // faded. A painter draws in the layer and registers nothing, like the HUD (BUG-076).
+        let size = egui::vec2(TOAST_CHROME_W + text.size().x, row_h + 2.0 * 9.0 + 3.0);
+        let screen = ctx.screen_rect();
+        let frame = Rect::from_min_size(egui::pos2(screen.center().x - size.x / 2.0, screen.bottom() + y_off - size.y), size);
+        let painter = crate::gui::layers::painter(ctx, egui::Id::new(("hos_toast", i)), crate::gui::layers::Layer::Tooltip);
+        painter.rect(
+            frame,
+            CornerRadius::same(theme.border_radius as u8),
+            a(theme.bg_card()),
+            Stroke::new(1.5_f32, a(accent)),
+            egui::epaint::StrokeKind::Inside,
+        );
+        // Inside the stroke and the 14 x 9 point margins: the status dot (painted, so it never
+        // tofus), a 10 point gap, then the text, both centred on the row.
+        let content = frame.shrink2(egui::vec2(14.0 + 1.5, 9.0 + 1.5));
+        painter.circle_filled(egui::pos2(content.left() + 4.5, content.center().y), 4.0, a(accent));
+        let text_pos = egui::pos2(content.left() + 9.0 + 10.0, content.center().y - text.size().y / 2.0);
+        painter.galley(text_pos, text, a(theme.text_primary()));
+        rects.push(frame);
     }
+    keep_toast_rects(ctx, rects);
+}
+
+const TOAST_RECTS: &str = "hos_toast_rects";
+
+/// Where this frame's toasts were painted, oldest (lowest) first: a painted toast has no Area
+/// whose rect egui keeps (BUG-316), so a test or a check that places things round them reads
+/// these. Written by every `draw_toasts`, so never older than the last frame.
+pub fn toast_rects(ctx: &egui::Context) -> Vec<Rect> {
+    ctx.data(|d| d.get_temp::<Vec<Rect>>(egui::Id::new(TOAST_RECTS))).unwrap_or_default()
+}
+
+fn keep_toast_rects(ctx: &egui::Context, rects: Vec<Rect>) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(TOAST_RECTS), rects));
 }
 
 /// Styled card container with background.

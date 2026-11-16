@@ -52,7 +52,8 @@ impl GuiState {
             self.world_entered = true;
         }
         self.world_running = self.world_entered && !self.picker_open();
-        if self.world_running && !self.held_world_notices.is_empty() {
+        // Not while a popup asks for a decision (BUG-316): the question first.
+        if self.world_running && !self.decision_open && !self.held_world_notices.is_empty() {
             let held = std::mem::take(&mut self.held_world_notices);
             self.pending_notices.extend(held);
         }
@@ -69,8 +70,15 @@ impl GuiState {
 
     /// A notice from the world: shown now while the world runs, held for the person's entry while
     /// it does not (the same line twice is held once).
+    ///
+    /// AND HELD WHILE A POPUP ASKS FOR A DECISION (BUG-316, 2026-11-15): a brand-new identity is
+    /// asked its privacy level as it connects, and entering the world let out the garden's held
+    /// notices on the same frame, eight four-line toasts stacked up the middle of the screen over
+    /// the question and its "Use this privacy level" button. The world's words wait for the answer
+    /// (`decision_open`, set from gui/layers.rs `deciding`) and are shown on the frame after it.
+    /// Replies and the app's own notices (`reply_notice`, the guest's arrival) are not held.
     pub fn world_notice(&mut self, msg: String) {
-        if self.world_running {
+        if self.world_running && !self.decision_open {
             self.pending_notices.push(msg);
         } else if !self.held_world_notices.contains(&msg) {
             self.held_world_notices.push(msg);

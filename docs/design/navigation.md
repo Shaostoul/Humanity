@@ -416,7 +416,16 @@ the plan above:
   incoming call was a window in the middle of the screen, among the dialogs). It asks for no
   keyboard focus and the close path never reaches it, so a popup under it keeps its typing.
 - 1 is Tooltip: the hints, the toasts (moved from Foreground), the drop note, the pill's full time,
-  the planet card, the F2/F3/F4 readouts.
+  the planet card, the F2/F3/F4 readouts. "No click" holds only for what is PAINTED there (BUG-316,
+  2026-11-15): egui gives every Area a widget rect the size of what it holds, `interactable(false)`
+  included, and its hit test stops at the topmost layer with a widget over the pointer, so an Area
+  on layer 1 takes the click of whatever is under it. The toasts were Areas, and a pile of them
+  stood on the first-run privacy window's button; they are painted since (`layers::painter`, as
+  the HUD since BUG-076). The planet card and the F2/F3/F4 readouts are still Areas (a follow-up).
+- Notices wait while a popup asks for a decision (BUG-316): the world's words (`world_notice`)
+  are held while the privacy choice, the passphrase at start or the death screen is open
+  (`layers::deciding`, read once a frame into `GuiState::decision_open`), and the same words are
+  never stacked twice.
 - The F12 debug console (`crates/humanity-core/src/debug.rs`) stays in egui's Foreground over
   everything, on purpose; the lint reads `src/` only.
 

@@ -455,6 +455,15 @@ function judgeStarts(run, evidence = {}) {
   const offS = sessionOf(off);
   const mark = off && isBag(off.mark) ? off.mark : null;
 
+  // ── 1b. THE FIRST-RUN PRIVACY WINDOW (BUG-316, 2026-11-15). The rig's game is a brand-new
+  // identity every run (verify-copresence.js forgetSandboxIdentity), so once connected in its own
+  // home it is asked its privacy level: the window must have been there, and gone after a click
+  // on "Use this privacy level" (the rig's clearFirstRunWindows, its `view` step).
+  {
+    const v = m.steps_ok && m.steps_ok.view ? m.steps_ok.view : null;
+    add("view_clear", !!v && v.ok === true, v ? String(v.detail || "") : "not recorded: the first-run privacy window was never answered");
+  }
+
   // ── 2. MARKED OFFLINE.
   {
     const stocked = mark && off ? Object.keys(beyond(mark, off.before)) : [];

@@ -338,6 +338,8 @@ const { runFreshGate, otherBuildNotice, requireBootCopy, bootRecord } = require(
 // Starting the game (the copy checked again right before the spawn, no hand-off,
 // an early exit watched), and what a run.log must not say (BUG-133).
 const GL = require("./lib/game-launch.js");
+// A brand-new identity every run (BUG-316).
+const RID = require("./lib/rig-identity.js");
 const WR = require("./lib/write-request.js");
 
 const REPO = path.resolve(__dirname, "..");
@@ -660,6 +662,19 @@ function killRigProcesses() {
     );
   } catch {}
 }
+/** A BRAND-NEW IDENTITY EVERY RUN (2026-11-15, BUG-316; scripts/lib/rig-identity.js says why).
+ *  Each run, every mode, at setupRig: the sandbox's config.json and the autopilot's seed are
+ *  forgotten, so the game boots as a first launch and is asked the first-run privacy question
+ *  every run. HISTORY KEPT ONLY WHERE A LEG NEEDS IT: the --plots reboot leg boots the game a
+ *  second time inside one run without setupRig, on purpose with the same identity and config,
+ *  because it proves the server remembers the plot THAT identity was given. */
+function forgetSandboxIdentity() {
+  const { gone, error } = RID.forgetIdentity(RIG);
+  if (error) refuse([`ERROR: could not forget the sandbox's identity: ${error}`, "  a run must start as a brand-new identity (BUG-316)"]);
+  log(`     a brand-new identity: ${gone.length ? `forgot ${gone.join(" and ")}` : "the sandbox had none yet"}`);
+  return gone;
+}
+
 function setupRig() {
   fs.mkdirSync(DEBUG, { recursive: true });
   fs.mkdirSync(path.join(RIG, "logs"), { recursive: true });
@@ -676,6 +691,8 @@ function setupRig() {
   copyExeIntoRig(EXE, RIG_EXE, { stop: killRigProcesses, log });
   // What boots is the copy, so the copy must be what the gate judged (BUG-133).
   requireBootCopy(RIG_EXE, fresh, "verify-copresence");
+  // After the copy, which stopped any game left running from it (it could write config.json again).
+  forgetSandboxIdentity();
   // The DXC shader compiler dlls, from beside the exe or else the repo root
   // (target/release has none; the repo root does). Without them the game
   // falls back to FXC, and on 2026-10-03 this rig's first run sat in FXC's
@@ -977,9 +994,10 @@ async function main() {
     // screenshots showed that window and no figure, while the HUD said
     // "1 here: TestBotCrosser". Answer it the way a person would: find the
     // button by its text, click it (the default, Private, is already
-    // selected), then make sure the window is gone. A rig sandbox that
-    // already answered it in an earlier run simply finds nothing to click.
-    manifest.steps_ok.view = await clearFirstRunWindows();
+    // selected), then make sure the window is gone. Since BUG-316 every run is a
+    // brand-new identity (forgetSandboxIdentity), so the window must be there:
+    // the first-run path every new person takes is tested on every run.
+    manifest.steps_ok.view = await clearFirstRunWindows({ mustAsk: true, out: OUT });
     step("view", manifest.steps_ok.view.ok, manifest.steps_ok.view.detail);
 
     // ── 6 + 7. Start recording, then start the walker. Every build on this computer is held
@@ -1266,9 +1284,14 @@ const MEET_ROUTE_SPEED = 3;
  *  an earlier run finds nothing to click. Returns { ok, detail }. (Shared by the
  *  default rig's step 5b and the meeting in the Commons: on the first --plots run
  *  of increment 2 the autopilot's walker-first game had never been asked, and both
- *  pictures of the meeting showed the privacy window and 0 teal pixels.) */
-async function clearFirstRunWindows() {
+ *  pictures of the meeting showed the privacy window and 0 teal pixels.)
+ *  `mustAsk`: the game is a brand-new identity that has just connected (forgetSandboxIdentity),
+ *  so the window MUST be there: not finding it fails, as a first run that skipped the question
+ *  would (BUG-316: the rig had not met this window since its first run). */
+async function clearFirstRunWindows({ mustAsk = false, out = null } = {}) {
   const cleared = [];
+  // The game's own answers to each find and click, kept in the manifest as the evidence.
+  const answers = [];
   let ok = true;
   for (const label of FIRST_RUN_BUTTONS) {
     const f = await ui({ action: "find", text: label });
@@ -1278,17 +1301,35 @@ async function clearFirstRunWindows() {
       continue;
     }
     if (!f.found || f.text !== label) {
-      cleared.push(`"${label}" not on screen`);
+      if (mustAsk) ok = false;
+      cleared.push(mustAsk ? `"${label}" not on screen, though a brand-new identity must be asked` : `"${label}" not on screen`);
       continue;
     }
-    await ui({ action: "click", pos: f.pos_px });
+    const click = await ui({ action: "click", pos: f.pos_px });
     await sleep(800);
     const again = await ui({ action: "find", text: label });
     const gone = !!(again && again.ok === true && !(again.found && again.text === label));
     ok = ok && gone;
-    cleared.push(gone ? `clicked "${label}" at ${fmt(f.pos_px)} px; its window is gone` : `clicked "${label}" but it is STILL drawn`);
+    // The picture of what stood over the button, taken at once (a toast lives seconds): copied
+    // into the run's folder as view_fail.png when the caller names it.
+    let picture = null;
+    if (!gone) {
+      const shot = await screenshot("view_fail");
+      if (shot.ok && out) {
+        fs.copyFileSync(shot.src, path.join(out, "view_fail.png"));
+        picture = "view_fail.png";
+      } else picture = shot.ok ? shot.src : shot.error;
+    }
+    answers.push({ label, find: f, click, again, picture });
+    // When it stays, what took the press, in the game's own words (engine/ipc.rs
+    // complete_ui_request: the layer on top at the pointer and the widget the press landed on).
+    const took =
+      click && click.ok === true
+        ? `; the press landed on ${JSON.stringify(click.press_lands_on ?? null)}, the layer on top there ${JSON.stringify(click.layer_at_pointer ?? null)}, egui's pointer at ${JSON.stringify(click.egui_pointer_px ?? null)} px`
+        : `; the click answered ${JSON.stringify(click)}`;
+    cleared.push(gone ? `clicked "${label}" at ${fmt(f.pos_px)} px; its window is gone` : `clicked "${label}" at ${fmt(f.pos_px)} px but it is STILL drawn${took}`);
   }
-  return { ok, detail: cleared.join("; ") };
+  return { ok, detail: cleared.join("; "), answers };
 }
 
 /** The game's door points (debug/door_points_request.json, crates/humanity-ship/src/door_points.rs). */
@@ -1584,6 +1625,11 @@ function plotsVerdict(m, dir) {
   // How the game came into the world (a menu entry must have run the race). Not recorded fails
   // (judgeEntry's entry_known).
   for (const c of judgeEntry(m.entry).checks) checks.push(c);
+  // A menu entry answers the first-run privacy window on the menu, a brand-new identity every run
+  // since BUG-316 (forgetSandboxIdentity): asked, clicked, gone.
+  if (m.entry && m.entry.kind === "menu") {
+    add("menu_view_clear", s.menu_view && s.menu_view.ok, s.menu_view ? s.menu_view.detail : "not recorded: the menu entry never answered the first-run window");
+  }
   add("game_in_world", s.joined && s.joined.ok, s.joined ? s.joined.detail : "never joined");
   add("walker_in_world", s.walker && s.walker.ok, s.walker ? s.walker.detail : "never ran");
   const samplesPath = m.samples ? path.join(dir, m.samples) : null;
@@ -2091,17 +2137,15 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         await sleep(500);
       }
       // The first-run privacy window opens over the middle of the menu once this
-      // identity connects; give it a moment, then answer it as a person would.
+      // identity connects (a brand-new one every run since BUG-316); give it a
+      // moment, then answer it as a person would, and check it went.
       await sleep(1500);
-      const cleared = [];
-      for (const lbl of FIRST_RUN_BUTTONS) {
-        const f = await ui({ action: "find", text: lbl });
-        if (f && f.ok === true && f.found && f.text === lbl) {
-          await ui({ action: "click", pos: f.pos_px });
-          await sleep(800);
-          cleared.push(`clicked "${lbl}"`);
-        }
-      }
+      // The first boot must be asked; the reboot leg ("reboot_") is the same identity, which
+      // chose already, so there it may find nothing to click.
+      const menuView = await clearFirstRunWindows({ mustAsk: label === "" });
+      manifest.steps_ok[`${label}menu_view`] = menuView;
+      step(`${label}menu_view`, menuView.ok, menuView.detail);
+      const cleared = [menuView.detail];
       const before = await probe();
       entry.identified = !!(before && before.ws_identified);
       entry.world_loaded = !!(before && before.world_loaded);
@@ -5277,6 +5321,11 @@ async function runStartsOnce(runStamp, cleanups) {
     };
     step("home", homeUp, manifest.steps_ok.home.detail);
     if (!homeUp) throw new Error("the game never stood in its own home, connected");
+    // A brand-new identity every run (BUG-316, forgetSandboxIdentity), connected: it is asked its
+    // privacy level here, in its own home. Answered as a person would, and checked gone.
+    await sleep(1500);
+    manifest.steps_ok.view = await clearFirstRunWindows({ mustAsk: true });
+    step("view", manifest.steps_ok.view.ok, manifest.steps_ok.view.detail);
 
     // ── 2. MARKED OFFLINE: the Dev stock fills the backpack; what it holds then is OFFLINE_MARK.
     await sleep(1500);

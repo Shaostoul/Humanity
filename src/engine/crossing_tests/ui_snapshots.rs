@@ -38,9 +38,9 @@ fn a_long_notice_wraps_inside_the_window() {
         // The frame's shapes are not what this test reads (its state and egui's memory are).
         let _ = ctx.run(input, |ctx| crate::gui::widgets::draw_toasts(ctx, &theme, &mut state));
     }
-    let rects: Vec<egui::Rect> = (0..2)
-        .map(|i| ctx.memory(|m| m.area_rect(egui::Id::new(("hos_toast", i)))).expect("the toast was laid out"))
-        .collect();
+    // Painted since BUG-316 (no Area): where draw_toasts painted them.
+    let rects = crate::gui::widgets::toast_rects(&ctx);
+    assert_eq!(rects.len(), 2, "both toasts were laid out: {rects:?}");
     for (i, r) in rects.iter().enumerate() {
         assert!(screen.contains_rect(*r), "toast {i} runs off the window: {r:?} on {screen:?}");
     }

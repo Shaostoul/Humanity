@@ -1289,6 +1289,10 @@ pub struct GuiState {
     /// Whether the world ran this frame (gui/world_entry.rs `note_world_frame`): it runs once the
     /// person has entered it, except while the character picker is open.
     pub world_running: bool,
+    /// Whether a popup asking for a decision (the privacy choice, the passphrase at start, the
+    /// death screen) was open on the last frame: set after each UI pass by engine/frame_ui_run.rs
+    /// from gui/layers.rs `deciding`. The world's notices wait while one asks (BUG-316).
+    pub decision_open: bool,
     /// Station types WHERE THE PLAYER IS (engine/built_uses.rs
     /// publish_stations): aboard the home's machines and its built stations,
     /// at a planet site that site's; the same set CraftingSystem gates on.
@@ -3062,20 +3066,27 @@ impl GuiState {
     /// (`ui.ctx().input(|i| i.time)`). Use this after any save/apply so the action
     /// is never silent -- e.g. `state.toast("Theme saved", ToastKind::Success, now)`.
     pub fn toast(&mut self, text: impl Into<String>, kind: ToastKind, now: f64) {
-        // Cap the stack so a rapid-fire loop can't grow it unbounded.
-        if self.toasts.len() > 6 {
-            self.toasts.remove(0);
-        }
-        self.toasts.push(Toast { text: text.into(), created: now, kind, life: TOAST_LIFE });
+        self.push_toast(Toast { text: text.into(), created: now, kind, life: TOAST_LIFE });
     }
 
     /// A toast the player has to READ, not just notice: an Info toast that
     /// stays up for `NOTICE_LIFE` seconds instead of the 2.6 s confirmation.
     pub fn notice(&mut self, text: impl Into<String>, now: f64) {
+        self.push_toast(Toast { text: text.into(), created: now, kind: ToastKind::Info, life: NOTICE_LIFE });
+    }
+
+    /// One toast onto the stack. THE SAME WORDS ARE NEVER STACKED TWICE (BUG-316, 2026-11-15): a
+    /// brand-new identity entering the world was told each flowering bed twice within a second
+    /// (the home's world, then the server's), eight four-line notices piled up the middle of the
+    /// screen over the first-run privacy window. A toast already showing with these words is
+    /// brought to the top of the stack with a fresh life instead. The stack is capped so a
+    /// rapid-fire loop can't grow it unbounded.
+    fn push_toast(&mut self, toast: Toast) {
+        self.toasts.retain(|t| t.text != toast.text);
         if self.toasts.len() > 6 {
             self.toasts.remove(0);
         }
-        self.toasts.push(Toast { text: text.into(), created: now, kind: ToastKind::Info, life: NOTICE_LIFE });
+        self.toasts.push(toast);
     }
 
     /// True while an in-world MODAL PANEL is open (the interactive chat panel,
@@ -3495,6 +3506,7 @@ impl Default for GuiState {
             held_world_notices: Vec::new(),
             world_entered: false,
             world_running: false,
+            decision_open: false,
             stations_here: std::collections::HashSet::new(),
             stations_where: Default::default(),
             home_stock: std::collections::HashMap::new(),

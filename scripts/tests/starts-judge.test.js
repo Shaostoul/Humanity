@@ -138,6 +138,8 @@ function goodRun() {
     kind: "verify-copresence-starts",
     stamp: "20261012-230000",
     data: JSON.parse(JSON.stringify(DATA)),
+    // The first-run privacy window, answered (BUG-316: a brand-new identity every run).
+    steps_ok: { view: { ok: true, detail: 'clicked "Use this privacy level" at (1131.6, 900.2) px; its window is gone' } },
     // `look`: the look right before the swap, what must cross into the server's world.
     offline: { session: session(), joined: false, ws_identified: true, before: { ...DEF.kit }, mark: { ...MARK }, look: JSON.parse(JSON.stringify(LOOK)) },
     walker: {
@@ -214,6 +216,7 @@ function goodRun() {
 }
 
 const ALL_IDS = [
+  "view_clear",
   "offline_marked",
   "walker_cabin",
   "walker_home_answer",
@@ -322,6 +325,11 @@ function doctored(fn) {
 // failing on its doctored copy (this test asserts exactly that, case by case); where a case's
 // check was also broken in the judge on purpose, the red run is quoted beside it.
 const CASES = [
+  // 1b: the first-run privacy window (BUG-316). Red 2026-11-15 with the judge's view_clear made
+  // to pass always: "the privacy window stayed after the click should fail view_clear (only);
+  // failed: nothing" and "with nothing recorded nothing may pass; passed: view_clear".
+  ["the privacy window stayed after the click", (r) => (r.steps_ok.view = { ok: false, detail: 'clicked "Use this privacy level" but it is STILL drawn' }), "view_clear"],
+  ["a brand-new identity was never asked", (r) => delete r.steps_ok.view, "view_clear"],
   // 2: marked offline.
   ["the game booted into the server's world", (r) => (r.offline.joined = true), "offline_marked"],
   ["its own home's save is a cabin", (r) => (r.offline.session.start = CAB.id), "offline_marked"],
@@ -462,7 +470,7 @@ test("nothing recorded fails every check", () => {
 test("a run whose data block is missing fails every check that judges against it", () => {
   const r = doctored((run) => delete run.data);
   const passed = r.checks.filter((c) => c.ok).map((c) => c.id);
-  assert.deepEqual(passed, ["look_crossed", "no_correction", "panics", "no_builtin_data"], "only the checks that need none of the tree's data may pass");
+  assert.deepEqual(passed, ["view_clear", "look_crossed", "no_correction", "panics", "no_builtin_data"], "only the checks that need none of the tree's data may pass");
 });
 
 // ── The contract: the game's words, the probe's field names, the relay's line ──────────────────

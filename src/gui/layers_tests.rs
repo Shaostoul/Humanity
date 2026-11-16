@@ -36,6 +36,8 @@ struct App {
     t: f64,
     /// The warning's height on the last frame (read inside it: egui keeps it for its own pass).
     warning_h: f32,
+    /// What the last frame painted, back to front (a painted layer, the toasts', has no Area).
+    shapes: Vec<egui::epaint::ClippedShape>,
 }
 
 /// What the test draws over the page this frame.
@@ -55,7 +57,7 @@ impl App {
         ctx.all_styles_mut(|s| s.animation_time = 0.0);
         let mut state = GuiState::default();
         state.go(GuiPage::Files, crate::gui::How::Beside);
-        App { ctx, theme, state, t: 1.0, warning_h: 0.0 }
+        App { ctx, theme, state, t: 1.0, warning_h: 0.0, shapes: Vec::new() }
     }
 
     /// One frame, in lib.rs's order.
@@ -75,7 +77,7 @@ impl App {
         }
         let mut popup_open = open.popup;
         let mut warning_h = 0.0;
-        let _ = self.ctx.run(input, |ctx| {
+        let out = self.ctx.run(input, |ctx| {
             crate::gui::history::frame(ctx, state);
             crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
             crate::gui::bottom_strip::draw(ctx, theme, state);
@@ -94,6 +96,7 @@ impl App {
             crate::gui::widgets::draw_toasts(ctx, theme, state);
             arrange(ctx);
         });
+        self.shapes = out.shapes;
         self.warning_h = warning_h;
     }
 
@@ -141,22 +144,29 @@ fn the_order_with_a_popup_the_notices_panel_and_an_urgent_card_open() {
     for _ in 0..4 {
         app.frame(all, Vec::new());
     }
-    let (n, s, w, c, t) = (
+    let (n, s, w, c) = (
         app.at(notices(), "the notices panel"),
         app.at(popup_shade(), "the popup's shade"),
         app.at(popup_window(), "the popup's window"),
         app.at(call(), "the incoming call"),
-        app.at(Id::new(("hos_toast", 0usize)), "the toast"),
     );
     assert!(n < s, "the notices panel is under the popup's shade: notice_panel at {n}, the shade at {s}");
     assert!(s < w, "the popup's window is on its shade: the shade at {s}, the window at {w}");
     assert!(w < c, "the incoming call is over the popup's window: Incoming call at {c}, the window at {w}");
-    assert!(c < t, "a toast is over the incoming call: the toast at {t}, the call at {c}");
-    // And what each order is, by the table: the urgent band in Foreground, the toast a tooltip.
+    // The toast is PAINTED on layer 1, never an Area (BUG-316, 2026-11-15: an Area there took the
+    // click of whatever stood under it), so its place is read from what egui painted, back to
+    // front: over the incoming call's card.
+    assert!(!app.order().iter().any(|l| l.id == Id::new(("hos_toast", 0usize))), "the toast is no Area, which would take the clicks under it");
+    let painted = |what: &dyn Fn(&str) -> bool| {
+        app.shapes.iter().rposition(|c| matches!(&c.shape, egui::epaint::Shape::Text(t) if what(t.galley.text())))
+    };
+    let t = painted(&|s: &str| s == "Saved").expect("the toast is painted");
+    let card = painted(&|s: &str| s.contains("Ada")).expect("the incoming call's card is painted");
+    assert!(card < t, "a toast is over the incoming call: the toast painted at {t}, the call's card at {card}");
+    // And what each order is, by the table: the urgent band in Foreground.
     let order = app.order();
     let layer = |id: Id| order.iter().find(|l| l.id == id).copied().unwrap();
     assert_eq!(layer(call()).order, Layer::Urgent.order());
-    assert_eq!(layer(Id::new(("hos_toast", 0usize))).order, Layer::Tooltip.order());
     assert_eq!(layer(notices()).order, Layer::PrimaryDrop.order());
     // A press on the call's card is the call's, over the popup; on the popup's middle, the window's.
     let card = app.rect(call(), "the incoming call");

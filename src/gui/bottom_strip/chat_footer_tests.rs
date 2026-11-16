@@ -315,7 +315,7 @@ fn windows_stand_on_the_footer() {
             crate::gui::widgets::draw_toasts(ctx, &theme, &mut s);
         });
     }
-    let toast = ctx.memory(|m| m.area_rect(egui::Id::new(("hos_toast", 0usize)))).expect("the toast drew");
+    let toast = *crate::gui::widgets::toast_rects(&ctx).first().expect("the toast drew");
     assert!(room.bottom() < SCREEN.y - DEFAULT_HEIGHT, "the room above the strip leaves out the footer: {room:?}");
     assert!(toast.bottom() <= room.bottom() - 47.5, "a toast stands on the footer: {toast:?}, the strip's top at {}", room.bottom());
 }

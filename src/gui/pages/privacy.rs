@@ -138,8 +138,10 @@ fn current_tier_name(state: &GuiState) -> Option<&'static str> {
 pub fn apply_tier(state: &mut GuiState, tier_id: &str) {
     ensure_tiers_loaded(state);
     let Some(tier) = state.privacy_tiers_cache.iter().find(|t| t.id == tier_id).cloned() else {
+        log::warn!("privacy: no level {tier_id:?} among {} loaded; nothing applied", state.privacy_tiers_cache.len());
         return;
     };
+    log::info!("privacy: level {:?} applied", tier.id);
     // 1) Presence (server-enforced).
     if let Some(ref client) = state.ws_client {
         if client.is_connected() {
@@ -234,7 +236,20 @@ fn draw_tier_chooser(
     applied
 }
 
-/// First-connect modal: shown (from lib.rs, over any page) the first time
+/// The first-connect chooser (2026-08-23), drawn every frame from engine/frame_ui_run.rs over any
+/// page: asked ONCE per identity, the first time a connection is identified with no level ever
+/// chosen. Default selection = maximum privacy; the relay keeps the account presence-hidden until
+/// a choice lands (fail-private).
+pub fn first_connect_prompt(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if state.ws_identified && state.settings.privacy_tier.is_empty() && !state.privacy_tier_prompt_open {
+        state.privacy_tier_prompt_open = true;
+    }
+    if state.privacy_tier_prompt_open {
+        draw_privacy_tier_modal(ctx, theme, state);
+    }
+}
+
+/// First-connect modal: shown (through `first_connect_prompt`, over any page) the first time
 /// this identity is connected and no tier has ever been chosen.
 pub fn draw_privacy_tier_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if !state.privacy_tier_prompt_open {
@@ -522,6 +537,10 @@ mod tests {
         assert!(humanity_core::i18n::has(&tiers[0].name) && humanity_core::i18n::has(&tiers[0].description));
     }
 }
+
+#[cfg(test)]
+#[path = "privacy_click_tests.rs"]
+mod click_tests;
 
 #[cfg(test)]
 mod reuse_switch_tests {

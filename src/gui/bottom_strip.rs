@@ -380,7 +380,7 @@ mod tests {
                 });
             }
             let dialog = ctx.memory(|m| m.area_rect(egui::Id::new("tall_dialog"))).expect("the dialog drew");
-            let toast = ctx.memory(|m| m.area_rect(egui::Id::new(("hos_toast", 0usize)))).expect("the toast drew");
+            let toast = *crate::gui::widgets::toast_rects(&ctx).first().expect("the toast drew");
             (strip_top, h, dialog, toast)
         };
         let (strip_top, h, dialog, toast) = run(GuiPage::Humanity);
