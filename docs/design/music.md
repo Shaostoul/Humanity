@@ -1584,3 +1584,11 @@ vowels only."
   No AI (it is synthesis), and nothing is taken from the meme but the idea of singing vowels. The meme
   he meant (he linked its Know Your Meme page the same day) is the "Oo Ee A E A" (OIIAOIIA) spinning-cat
   sound, a chant of pure vowels.
+- **Made the goal for the next usage reset** (the same day): "Okay, then that's our goal next usage
+  reset. To some how save orchestral music in a file format everyone can easily modify. I guess they
+  could technically be .md files but, there are probably purpose built file formats for this kind of
+  thing. If we use a special file format then we should also convert the humanity accord to that format
+  so we can play the humanity accord as instrumental music." On the sing-along: "I love that sing along
+  idea! That'll make reading and hearing the accord instrumentally a unique experience." The order and
+  the steps are in docs/PRIORITIES.md TIER 0. A note for the comparison: a score format that carries
+  lyrics per note would let the Accord's own words sit under the notes the choir sings their vowels on.

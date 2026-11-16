@@ -48,6 +48,26 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### GOAL FOR THE NEXT USAGE RESET (operator, 2026-11-16): written music in an open, editable format
+
+Verbatim: "Okay, then that's our goal next usage reset. To some how save orchestral music in a file
+format everyone can easily modify. I guess they could technically be .md files but, there are
+probably purpose built file formats for this kind of thing. If we use a special file format then we
+should also convert the humanity accord to that format so we can play the humanity accord as
+instrumental music." And on singing the Accord in vowels with its line shown as it is sung: "I love
+that sing along idea! That'll make reading and hearing the accord instrumentally a unique
+experience."
+
+In order: (1) compare the open score formats (MusicXML, MIDI, LilyPond, ABC, MEI and any others
+found), licences quoted, for "everyone can easily modify" and for orchestral detail, and recommend
+one (docs/reference/research/, CLAUDE.md's compare-before-adopting rule); (2) a dated finding on
+which public-domain editions and score files of Grieg's In the Hall of the Mountain King and
+Beethoven are free to use, and from where; (3) the score player in crates/humanity-music: written
+pieces as data in that format, played on our own instruments at the tuning, optionally in a
+genre's palette; (4) the Humanity Accord as instrumental music in that format, with the five-vowel
+choir singing its syllables and the line scrolling like a sing-along. Design notes:
+docs/design/music.md, "The operator's wishes of 2026-11-16". The sim runner below continues after.
+
 ### NEXT: a headless, GPU-free, faster-than-real-time sim runner (designed 2026-10-22)
 
 `docs/design/headless-sim-runner.md` (the operator: "Could you do 1-billion-x?"): movement 20x
