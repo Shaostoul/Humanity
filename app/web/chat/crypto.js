@@ -963,6 +963,12 @@ const CTL_PERMIT = '[[hum:permit:v1]]';
 // a message. Pinned to native CTL_TASK and to /shared/mine-tasks.js by
 // scripts/tests/tasks-mine-web.test.js.
 const CTL_TASK = '[[hum:task:v1]]';
+// Organisations, rung 2 (docs/design/organisations.md, 2026-11-15): a change an organisation's
+// log took, sent to each member, [[hum:org:v1]]{"hum_org":1,...}. The Organisations page reads
+// these notes from my mailbox itself (/shared/org-mail.js); the chat swallows them
+// (chat-social.js ingestDmControl), so one is never stored, listed or shown as a message.
+// Pinned to native CTL_ORG and to /shared/org-mail.js by scripts/tests/org-mail-web.test.js.
+const CTL_ORG = '[[hum:org:v1]]';
 // Block's notes to myself, [[hum:block:v1]]<key> and [[hum:unblock:v1]]<key>
 // (step C, 2026-10-09), are CTL_BLOCK and CTL_UNBLOCK in /shared/block.js,
 // pinned to native by scripts/tests/block-web.test.js; pqBuildSelfNote below

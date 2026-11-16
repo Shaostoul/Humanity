@@ -387,6 +387,12 @@
     #tab-skills .skill-tags { font-size: 0.65rem; color: var(--text-muted, #666); margin-top: var(--space-xs); }
     #tab-skills .skill-level-badge { font-size: 1.4rem; font-weight: 800; color: var(--skill-active-color, #ed8c24); line-height: 1; min-width: 32px; text-align: right; }
     #tab-skills .skill-level-label { font-size: 0.6rem; color: var(--text-muted, #555); text-align: right; text-transform: uppercase; }
+    #tab-skills .skill-how { margin-bottom: var(--space-xl); font-size: 0.75rem; color: var(--text-secondary, #aaa); }
+    #tab-skills .skill-how summary { cursor: pointer; font-weight: 600; color: var(--text, #fff); }
+    #tab-skills .skill-how p { margin: var(--space-xs) 0; line-height: 1.4; }
+    #tab-skills .skill-why { font-size: 0.7rem; color: var(--text-muted, #888); margin: var(--space-md) 0; line-height: 1.4; }
+    #tab-skills .skill-why div:first-child { color: var(--text-secondary, #aaa); }
+    #tab-skills .skill-guide { font-size: 0.7rem; color: var(--text-secondary, #aaa); margin: var(--space-md) 0; }
     #tab-skills .skill-can-head { font-size: 0.7rem; font-weight: 600; color: var(--text-muted, #888); margin: var(--space-md) 0 var(--space-xs); }
     #tab-skills .skill-can { margin: 0 0 var(--space-md) var(--space-xl); padding: 0; font-size: 0.75rem; line-height: 1.4; }
     #tab-skills .skill-can.next { color: var(--text-muted, #888); }
@@ -890,6 +896,10 @@
                   <div class="big-label" data-i18n="skills_page.practised">Practised</div>
                 </div>
               </div>
+              <details class="skill-how" id="skill-how" hidden>
+                <summary data-i18n="skills_page.how_title" data-i18n-tip="skills_page.how_hint" data-tip-desc="The rules that weigh each practice. Settings &gt; Gameplay &gt; Skill learning chooses how strong they are.">How practice counts</summary>
+                <div id="skill-how-rules"></div>
+              </details>
               <div class="skill-grid" id="skill-grid"></div>
             </div>
           </main>
@@ -1461,6 +1471,60 @@
     var skillEndorsements = {};
     var skill_activeFamily = null;
 
+    // ── Practice quality (skills rung 2, 2026-11-15, docs/design/skills.md section 3) ──
+    // The game weighs each practice by data/skills/practice_quality.json (crates/humanity-systems/
+    // src/skills/quality.rs). Here each "Practised" press is one try at that skill, weighed by the
+    // file's Simplified level (the game's default; the game's Settings > Gameplay > Skill learning
+    // chooses another there), and the card says why it gave what it gave in the game's words. The
+    // Library guide for the stage reached is linked from data/skills/guides.json. Held to the file by
+    // scripts/tests/skills-practice-web.test.js.
+    var SKILL_QUALITY = null;      // practice_quality.json's Simplified level { variety, guide, mentor }
+    var SKILL_GUIDES = {};         // skill id -> stage id -> Library slug
+    var SKILL_GUIDE_TITLES = {};   // Library slug -> title
+    var skillWhy = {};             // skill id -> the lines saying why its last press gave what it gave
+
+    /** What try number `attempt` (1 = the first today) is worth at the variety rules `v`. */
+    function skill_varietyFactor(v, attempt) {
+      var past = Math.max(0, attempt - Math.max(1, v.full_attempts));
+      return Math.max(v.floor, Math.pow(v.per_repeat, past));
+    }
+
+    /** Weigh one try at the variety rules `v` for the skill's saved record `s` at `now` (ms), and
+     *  remember it: its number today, what repeating made it worth, and the first-time bonus. */
+    function skill_weighTry(v, s, now) {
+      var rest = v.rest_days * 86400000;
+      s.log = (s.log || []).filter(function (t) { return now - t < rest && t <= now; });
+      var attempt = s.log.length + 1;
+      var full = Math.max(1, v.full_attempts);
+      var past = Math.max(0, attempt - full);
+      var variety = Math.max(v.floor, Math.pow(v.per_repeat, past));
+      var first = s.tried ? 1 : Math.max(1, v.first_time);
+      s.log.push(now);
+      if (s.log.length > 200) s.log.splice(0, s.log.length - 200);
+      s.tried = true;
+      return { attempt: attempt, full: full, variety: variety, first: first };
+    }
+
+    /** A multiplier in words: 1.5 is "1.5", 2 is "2". */
+    function skill_times(x) { return String(Math.round(x * 100) / 100); }
+    /** A share as a whole percent: 0.85 is "85". */
+    function skill_percent(x) { return String(Math.round(x * 100)); }
+
+    /** "How practice counts" at the website's level, from the file's numbers. */
+    function skill_renderHow() {
+      var box = document.getElementById('skill-how');
+      var rules = document.getElementById('skill-how-rules');
+      if (!box || !rules || !SKILL_QUALITY) return;
+      var lines = [];
+      var v = SKILL_QUALITY.variety, g = SKILL_QUALITY.guide, m = SKILL_QUALITY.mentor;
+      if (v) lines.push(skill_t('skills_page.how_variety', { full: v.full_attempts, percent: skill_percent(v.per_repeat), floor: skill_percent(v.floor), first: skill_times(v.first_time) }));
+      if (g) lines.push(skill_t('skills_page.how_guide', { times: skill_times(g.multiplier), hours: skill_times(g.hours) }));
+      if (m) lines.push(skill_t('skills_page.how_mentor', { reach: skill_times(m.reach_m), above: m.stages_above, times: skill_times(m.multiplier) }));
+      if (!lines.length) lines.push(skill_t('skills_page.how_off'));
+      rules.innerHTML = lines.map(function (l) { return '<p>' + l + '</p>'; }).join('');
+      box.hidden = false;
+    }
+
     function skill_t(key, vars) { return (window.i18n && i18n.t) ? i18n.t(key, vars) : key; }
 
     function skill_loadData() {
@@ -1517,6 +1581,18 @@
       if (!sk) return;
       var s = skill_get(skillId);
       var before = skill_stageIndex(sk, s.level);
+      // Weighed the way the game weighs practice (rung 2): repeats today count for less.
+      if (SKILL_QUALITY && SKILL_QUALITY.variety) {
+        var w = skill_weighTry(SKILL_QUALITY.variety, s, Date.now());
+        var gained = Math.max(1, Math.round(amount * w.variety * w.first));
+        var lines = [skill_t('skills_page.web_logged', { gained: gained, base: amount })];
+        if (w.first > 1) lines.push(skill_t('skills_page.why_first_time', { times: skill_times(w.first) }));
+        lines.push(w.variety < 0.999
+          ? skill_t('skills_page.why_repeat', { attempt: w.attempt, percent: skill_percent(w.variety) })
+          : skill_t('skills_page.why_full', { attempt: w.attempt, full: w.full }));
+        skillWhy[skillId] = lines;
+        amount = gained;
+      }
       s.xp += amount;
       var leveled = false;
       while (s.xp >= skill_xpForLevel(s.level, sk.base)) {
@@ -1616,6 +1692,7 @@
       var endorseBadge = endorsement && endorsement.count > 0
         ? '<span style="font-size:0.7rem;color:var(--pg-gold-ink);margin-top:var(--space-xs);display:block;">🏅 ' + endorsement.count + '</span>'
         : '';
+      var guideSlug = (SKILL_GUIDES[sk.id] || {})[stage];
       var stageOptions = SKILL_STAGES.map(function (st, idx) {
         return '<option value="' + idx + '"' + (idx === reached ? ' selected' : '') + '>' + skill_stageName(st) + '</option>';
       }).join('');
@@ -1636,6 +1713,15 @@
           '<div class="xp-bar-fill" style="width:' + pct + '%"></div>' +
           '<div class="xp-bar-text">' + (next ? skill_t('skills_page.next_stage', { stage: skill_stageName(next.stage), level: next.from_level }) : skill_t('skills_page.at_master')) + '</div>' +
         '</div>' +
+        (skillWhy[sk.id]
+          ? '<div class="skill-why" data-i18n-tip="skills_page.last_practice_hint" data-tip-desc="' + skill_t('skills_page.last_practice_hint') + '">' +
+            skillWhy[sk.id].map(function (l) { return '<div>' + l + '</div>'; }).join('') + '</div>'
+          : '') +
+        (guideSlug
+          ? '<div class="skill-guide">' + skill_t('skills_page.guide_for_stage', { title: SKILL_GUIDE_TITLES[guideSlug] || guideSlug }) +
+            ' <a class="xp-btn" href="/library#' + guideSlug + '" data-i18n-tip="skills_page.guide_open_web_hint" data-tip-desc="' + skill_t('skills_page.guide_open_web_hint') + '">' +
+            skill_t('skills_page.guide_open') + '</a></div>'
+          : '') +
         (done.length
           ? '<div class="skill-can-head">' + skill_t('skills_page.can_now') + '</div>' + skill_list(done, 'done')
           : '<div class="skill-can-head">' + skill_t('skills_page.untrained_web') + '</div>') +
@@ -1674,6 +1760,23 @@
             return { id: c[col('id')], family: c[col('family')], base: Number(c[col('xp_per_level')]) || SKILL_XP_BASE,
                      ladder: (stages.ladders || {})[c[col('id')]] || [] };
           }).sort(function (a, b) { return skill_t('skills.' + a.id + '.name').localeCompare(skill_t('skills.' + b.id + '.name')); });
+          // Practice quality and each stage's guide (rung 2); the Library's titles for the guides.
+          return Promise.all([text('/data/skills/practice_quality.json'), text('/data/skills/guides.json'), text('/data/library/index.json')]);
+        })
+        .then(function (more) {
+          if (!more) return;
+          try { SKILL_QUALITY = (JSON.parse(more[0] || '{}').levels || {}).simplified || null; } catch (e) { SKILL_QUALITY = null; }
+          try { SKILL_GUIDES = JSON.parse(more[1] || '{}').guides || {}; } catch (e) { SKILL_GUIDES = {}; }
+          try {
+            var walk = function (o) {
+              if (Array.isArray(o)) { o.forEach(walk); return; }
+              if (!o || typeof o !== 'object') return;
+              if (o.file && o.title) SKILL_GUIDE_TITLES[o.file.replace(/\.md$/i, '').replace(/_/g, '-').toLowerCase()] = o.title;
+              Object.keys(o).forEach(function (k) { if (typeof o[k] === 'object') walk(o[k]); });
+            };
+            walk(JSON.parse(more[2] || '{}'));
+          } catch (e) { /* no titles: the slug stands in */ }
+          skill_renderHow();
         })
         .catch(function () { /* offline: the tab stays on its empty state */ });
     }

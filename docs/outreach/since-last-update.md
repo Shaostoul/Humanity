@@ -13,6 +13,15 @@ Each line is written the way a player would hear it; the release notes and
 
 ### Next release
 
+### v0.1564.0 (16 November 2026)
+
+- Organisations deliver themselves: changes reach every member as sealed messages, owners can hand an organisation on, and Guilds are folded into Organisations.
+- Rooms look more finished: casings round every door and window, sills, and chair and picture rails you can add per room or per wall.
+- Skills feel like practice: repeating one task gives less until you rest, a first try counts extra, and a guide or a more skilled teacher helps; the Skills page says why.
+- No furniture blocks a doorway, and every room can be walked into round its furniture.
+- The simulation runs without a screen: a week of the homestead in about half a second, a person kept alive by a daily routine, and a walk through the homestead's floors with no window.
+- Fixed: a new player's privacy question buried under garden notices that blocked its button, overlays that blocked clicks under them, and a dead body that could still eat.
+
 ### v0.1563.0 (15 November 2026)
 
 - The chat follows you around the app: a footer on every page but Chat, one line folded, or the latest messages and a box to type in unfolded, with the same conversation and draft as the Chat page (Alt+C, or turn it off in Settings).
