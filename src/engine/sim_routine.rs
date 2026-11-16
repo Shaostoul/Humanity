@@ -99,6 +99,45 @@ pub(crate) struct RoutineLog {
     /// What was eaten and drunk, by item.
     pub eaten: BTreeMap<String, u32>,
     pub drunk: BTreeMap<String, u32>,
+    /// Every attempt at a skill the person's acts made (a harvest trains farming), with what
+    /// practice quality made it worth (skills rung 2), oldest first.
+    pub practice: Vec<PracticeTry>,
+}
+
+/// One attempt at a skill during a soak, as the SkillSystem weighed it
+/// (`humanity_systems::skills::quality::PracticeWhy`).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PracticeTry {
+    pub skill: String,
+    /// The task: one verb on one thing ("harvest.lettuce").
+    pub task: String,
+    /// Its number at this task in the rest window (1 = the first; 0 with variety off).
+    pub attempt: u32,
+    /// What variety and help made it worth, as a multiplier (1 = the verb's own XP).
+    pub value: f32,
+    /// The verb's XP before weighing, and what it gave.
+    pub base: u32,
+    pub gained: u32,
+}
+
+/// The attempts at skills the player made since the first `seen` of the run, and the count to pass
+/// next time (read from what the SkillSystem kept, never from what was asked).
+pub(crate) fn practice_since(world: &hecs::World, seen: u64) -> (Vec<PracticeTry>, u64) {
+    let mut q = world.query::<(&humanity_systems::skills::PlayerSkills, &humanity_core::ecs::components::Controllable)>();
+    let Some((_e, (skills, _c))) = q.iter().next() else { return (Vec::new(), seen) };
+    let (tries, count) = skills.memory.tries_since(seen);
+    let out = tries
+        .into_iter()
+        .map(|(skill, w)| PracticeTry {
+            skill: skill.clone(),
+            task: w.task.clone(),
+            attempt: w.attempt,
+            value: w.variety * w.first_time * w.guide.as_ref().map_or(1.0, |g| g.2) * w.mentor.as_ref().map_or(1.0, |m| m.2),
+            base: w.base,
+            gained: w.gained,
+        })
+        .collect();
+    (out, count)
 }
 
 /// An act in progress (it takes two steps, see the file's header).
@@ -124,11 +163,13 @@ pub(crate) struct RoutineRun {
     /// Produce the garden's harvest put in the backpack and not yet eaten, by item.
     garden: BTreeMap<String, u32>,
     pub log: RoutineLog,
+    /// Attempts at skills already copied into the log (`practice_since`).
+    tries_seen: u64,
 }
 
 impl RoutineRun {
     pub(crate) fn new(routine: Routine) -> Self {
-        RoutineRun { routine, last_h: None, queue: Vec::new(), pending: Vec::new(), garden: BTreeMap::new(), log: RoutineLog::default() }
+        RoutineRun { routine, last_h: None, queue: Vec::new(), pending: Vec::new(), garden: BTreeMap::new(), log: RoutineLog::default(), tries_seen: 0 }
     }
 
     /// Before a step: the acts that came due since the last step queue up, and the next act's
@@ -182,6 +223,10 @@ impl RoutineRun {
 
     /// After a step: what the requests did, from the backpack.
     pub(crate) fn after_step(&mut self, world: &hecs::World, data: &DataStore) {
+        // What the step's acts practised (skills rung 2), as the skills weighed it.
+        let (tries, seen) = practice_since(world, self.tries_seen);
+        self.log.practice.extend(tries);
+        self.tries_seen = seen;
         let still: Vec<Pending> = std::mem::take(&mut self.pending);
         for p in still {
             match p {

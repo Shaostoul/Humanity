@@ -2416,7 +2416,8 @@ impl FarmingSystem {
                             // than a stressed one (the crop's season health is the result's quality).
                             let fungus = plant_registry.and_then(|r| r.get(&plant_id)).map_or(false, |p| !p.needs_light);
                             let verb = if fungus { "harvest_fungus" } else { "harvest" };
-                            crate::skills::practice_scaled(data, verb, base + qty * 2, Some(crop_season_health));
+                            // The crop is the thing: harvesting another crop is another task.
+                            crate::skills::practice_scaled(data, verb, &plant_id, base + qty * 2, Some(crop_season_health));
                             // Quest progress: a harvest of this crop (Harvest
                             // objectives count plants, so a picked one counts once).
                             if taken.first {

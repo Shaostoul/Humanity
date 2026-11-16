@@ -402,7 +402,15 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // The skill sheet (skills rung 1, 2026-11-14): every skill of the base set by family, its
     // named stage in words, its "I can" list and the bar to the next stage (pages/profile_skills.rs).
-    widgets::card(ui, theme, |ui| super::profile_skills::draw(ui, theme, state));
+    let mut open_guide = None;
+    widgets::card(ui, theme, |ui| open_guide = super::profile_skills::draw(ui, theme, state));
+    // A skill's "Open the guide" (skills rung 2): the Library, on the guide for that stage.
+    if let Some(slug) = open_guide {
+        if !super::library::show_doc(state, &slug) {
+            log::warn!("Skills: the Library has no {slug:?} document; opening the Library as it is");
+        }
+        state.go(crate::gui::GuiPage::Library, crate::gui::How::From);
+    }
 
     // ── Abilities (v0.753, ladder rung 8) ── the activation layer: castable
     // actions with an energy cost and a cooldown, gated by skills you level

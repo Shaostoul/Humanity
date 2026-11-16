@@ -2,8 +2,9 @@
 
 **Status: approved by the operator, 2026-11-14 (see "Decided" below). Rung 1 is built (2026-11-14,
 section 10):** the 90 skills, 11 families and six named stages are data, the twenty old rows are
-migrated, every live verb trains its skill, and the Skills page shows each stage in words. The
-later rungs are listed in section 10. The evidence is [docs/reference/research/2026-11-14-skill-systems/](../reference/research/2026-11-14-skill-systems/README.md)
+migrated, every live verb trains its skill, and the Skills page shows each stage in words. **Rung 2
+is built (2026-11-15):** variety and help weigh each practice (section 10). The later rungs are
+listed in section 10. The evidence is [docs/reference/research/2026-11-14-skill-systems/](../reference/research/2026-11-14-skill-systems/README.md)
 (eight real-world frameworks and ten games, each quoted and dated).
 
 Why this exists, in his words (2026-11-14, [activities.md](activities.md) section 6):
@@ -638,11 +639,54 @@ placed), reading the weather, tracking and wildlife, conflict resolution (nothin
 photography (no camera mode), and the testing lab, recycling and salvage. Each gets its XP in the
 increment that builds its procedure (section 1, rule 4).
 
+**Rung 2, practice quality, built 2026-11-15** (section 3, points 3 and 4).
+
+- **Variety.** Each attempt at a named task (one verb on one thing: collecting one item, building one
+  blueprint, crafting one recipe, harvesting one crop, so another material or recipe is new) is
+  weighed by how often it was done in the rest window: the first tries count in full, each after is
+  worth less, down to a floor, and each try stops counting an in-game day after it was made, so the
+  value comes back by itself. The very first try at a task ever counts extra ("the first time you make
+  a thing is worth most"). A continuous verb (a swim of 25 m is one attempt) sets how many tries a
+  day count in full in `data/skills/practice.json` (`full_attempts`).
+- **The guide for your stage.** `data/skills/guides.json` names the Library guide written for each
+  stage of a skill (56 stages of 30 skills to start, more as the Library grows). Reading it to its
+  end (the end on screen after a reading time for its length, so scrolling to the bottom is not
+  reading it) makes that skill's practice count more for some in-game hours while you stay at that
+  stage, once per guide per stage.
+- **A teacher beside you.** Practising within reach of a crew member two stages above you in the skill
+  (`data/npc/crew.ron`'s `skills`) counts more, and the HUD says so while it applies. Other players
+  join when the presence sync carries their stages: what a player shares of their skills is their
+  choice, and the sync does not carry it yet.
+- **The two modes.** The `skill_learning` setting this section proposed is in
+  `data/gameplay/levels.json` (Settings > Gameplay > Skill learning): Off counts every practice the
+  same, Simplified (a new player's) is the gentle curve, Realistic the full one. Rung 4 adds what each
+  level does to stages and their assessment. The numbers are `data/skills/practice_quality.json`:
+
+  | | Simplified | Realistic |
+  |---|---|---|
+  | Tries a day in full | 3 | 2 |
+  | Each try after | x0.85 of the one before | x0.75 |
+  | Never below | 50% | 15% |
+  | First try ever | x1.25 | x1.5 |
+  | Rest | 1 in-game day | 1 in-game day |
+  | Guide for your stage | x1.5 for 8 hours, once per stage | the same |
+  | Teacher two stages up | x1.5 within 5 m | the same |
+
+  Section 3 gives the shape and no figures, so these are the first tuning, expected to change as
+  people play.
+- **The Skills page** says why the last practice gave what it gave ("You did this same task 6 times
+  today: it is worth 61% now, and full again after a day's rest"; "You read the Beginner guide:
+  practice at this stage counts 1.5 times"), names each stage's guide with a button to open it, a
+  teacher near, and "How practice counts" with the numbers in force. The website's Skills tab weighs
+  each "Practised" press the same way (one try at that skill, at the Simplified level) and links each
+  stage's guide.
+- A grant that is not practice (a quest reward, an ability cast, a mining batch) is never weighed.
+- **The headless soak** (`HumanityOS --sim soak --routine daily`) lists every try its person's acts
+  made at a skill (the daily routine's harvests train farming) with its number in the rest window and
+  what practice quality made it worth, so the curve shows in a run (`sim_soak.rs` `practice_text`).
+
 **Later rungs.**
 
-- **Rung 2, practice quality:** variety (the same task repeated loses value over an in-game day and
-  recovers) and help (a Library guide read for your stage, practising beside someone two stages
-  above), section 3.
 - **Rung 3, stage-ups in words:** the notice at each stage that says what changed ("Shaping is quicker,
   about 2 minutes, was 4"), with the effects of section 4 (speed, quality, fewer mistakes, safety,
   less hand-holding) wired to the stage rather than the raw level.

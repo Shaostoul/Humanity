@@ -830,6 +830,27 @@ pub struct GuiSkill {
     /// The i18n keys of the "I can" statements of every stage reached, and of the next stage.
     pub can_done: Vec<String>,
     pub can_next: Vec<String>,
+    /// Practice quality in words (skills rung 2, src/engine/practice_view.rs): why the last practice
+    /// gave what it gave (the total first), the guide for the stage reached (its slug, title and
+    /// what reading it does now), and a teacher near now.
+    pub why: Vec<String>,
+    pub guide: Option<(String, String, String)>,
+    pub beside: Option<String>,
+}
+
+/// Practice quality in words for the Skills page and the HUD (skills rung 2), filled each frame by
+/// src/engine/practice_view.rs.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct PracticeGui {
+    /// "How practice counts": one line per rule at the chosen level of skill learning.
+    pub rules: Vec<String>,
+    /// The HUD's lines while a teacher's help applies ("Learning beside Dr. Kel: ...").
+    pub beside: Vec<String>,
+    /// A Library guide read to its end this frame (its slug), for the engine to hand the skills.
+    pub guide_read: Option<String>,
+    /// What counts as reading a guide (data/skills/practice_quality.json), for the Library.
+    pub reading: Option<humanity_systems::skills::quality::Reading>,
 }
 
 // GuiQuest and GuiAvailableQuest moved to gui/quest_types.rs (2026-10-30).

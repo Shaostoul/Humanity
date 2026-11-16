@@ -81,6 +81,10 @@ struct LibState {
     /// branch folded by hand unfolds that branch once, then leaves it to the
     /// reader (web: the openDoc() hunk that deletes a `false` entry).
     path_shown: Option<Sel>,
+    /// The document open in the reader and when it was opened (`ui.input` time), and whether
+    /// reading it to its end has been noted this opening (`note_read`, skills rung 2).
+    opened: Option<(String, f64)>,
+    read_noted: bool,
 }
 
 /// Open the document with this slug, if the Library has one.
@@ -180,6 +184,8 @@ fn lib_state<R>(f: impl FnOnce(&mut LibState) -> R) -> R {
             fold_secs: std::collections::HashMap::new(),
             fold_cats: std::collections::HashMap::new(),
             path_shown: None,
+            opened: None,
+            read_noted: false,
         });
     }
     S.with(|s| f(&mut s.borrow_mut()))
@@ -193,6 +199,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         places.iter().rev().take_while(|p| p.page == crate::gui::GuiPage::Library).count()
     };
     let mut want_back = false;
+    let mut guide_read: Option<String> = None;
     egui::CentralPanel::default()
         .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
@@ -745,6 +752,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             nav_request = Some(target);
                                         }
                                     }
+                                    // Read to its end (skills rung 2): the Skills page's guide bonus.
+                                    let end = ui.allocate_response(Vec2::new(1.0, 1.0), Sense::hover()).rect;
+                                    if let Some(e) = entry {
+                                        if note_read(ui, s, &e.slug, body, state.practice.reading.as_ref(), end) {
+                                            guide_read = Some(e.slug.clone());
+                                        }
+                                    }
 
                                     // ── Where to go next ──
                                     // A document used to end at its last full
@@ -1139,6 +1153,31 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if want_back {
         state.back();
     }
+    if guide_read.is_some() {
+        state.practice.guide_read = guide_read;
+    }
+}
+
+/// Whether the open document `slug` has just been read to its end (skills rung 2, 2026-11-15,
+/// docs/design/skills.md section 3, "Help"): its end (`end`, a mark under the last line) is on
+/// screen and it has been open at least as long as `reading` asks for its words, so scrolling
+/// straight to the bottom is not reading it. True once per opening; the engine hands the slug to
+/// the skills, which start a guide's bonus where it is the guide for the reader's stage.
+fn note_read(ui: &egui::Ui, s: &mut LibState, slug: &str, body: &str, reading: Option<&humanity_systems::skills::quality::Reading>, end: egui::Rect) -> bool {
+    let now = ui.input(|i| i.time);
+    if s.opened.as_ref().is_none_or(|(open, _)| open != slug) {
+        s.opened = Some((slug.to_string(), now));
+        s.read_noted = false;
+    }
+    let (Some(reading), Some((_, since))) = (reading, &s.opened) else { return false };
+    if s.read_noted || !ui.is_rect_visible(end) {
+        return false;
+    }
+    if ((now - since) as f32) < reading.seconds_for(body.split_whitespace().count()) {
+        return false;
+    }
+    s.read_noted = true;
+    true
 }
 
 /// A clickable tag-filter chip. Returns true when clicked this frame.

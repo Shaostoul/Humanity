@@ -347,6 +347,10 @@ the windowed game and the soak step the same sim the same way:
   the bed prompt's sleep request) and measures what each did from the backpack and the bottles,
   never from what it asked. `--sim soak --routine daily` (and `--sim ladder --routine daily`); the
   Dev page's Simulation card has "Run a week of a person's day". The default soak has no routine.
+  Since skills rung 2 (2026-11-15) the routine's report also lists each try its acts made at a skill
+  (a harvest trains farming) with its number in the rest window and what practice quality made it
+  worth (`sim_routine::practice_since`, `sim_soak::practice_text`, docs/design/skills.md section 10).
+  Today's daily routine harvests nothing before its first lettuce ripens, about 20 game days in.
 - The bridges' quantities are observables with tolerance rows: the environment around the body
   (`env.air_c`, `env.humidity`, `env.oxygenated`, `env.g_load`) and the backpack (`pack.items`,
   `pack.water_l`).

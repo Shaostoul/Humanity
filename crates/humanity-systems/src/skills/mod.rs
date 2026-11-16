@@ -13,7 +13,12 @@
 //! past Master, and a stage is the band of levels between one stage's `from_level` and the next.
 //! XP for one attempt is weighed by difficulty against the person's level and by the quality of
 //! the result (`practice_weight`, skills.md section 3); a declared transfer from a skill the person
-//! is better at speeds learning (section 1, rule 5).
+//! is better at speeds learning (section 1, rule 5). Since rung 2 (2026-11-15, `quality`) each
+//! attempt at a named task is weighed by variety too (the same task repeated loses value over an
+//! in-game day and recovers) and by help (the Library guide for your stage, a teacher two stages
+//! above you within reach), by `data/skills/practice_quality.json`.
+
+pub mod quality;
 
 use humanity_core::ecs::systems::System;
 use humanity_core::hot_reload::data_store::DataStore;
@@ -136,9 +141,14 @@ pub fn xp_for_level_at(base: u32, level: u32) -> u32 {
 /// - **the quality of the result** (`quality`, 0..1 as the simulation grades it): x0.5 for the
 ///   worst to x1.5 for the best, so a careful good result teaches three times a careless one.
 /// None for either leaves it out (x1.0). Variety and help (a guide read, a teacher beside you) are
-/// later rungs (skills.md section 10).
+/// rung 2's, weighed on top by `quality::PracticeMemory::weigh`.
 pub fn practice_weight(level: u32, difficulty: Option<u32>, quality: Option<f32>) -> f32 {
-    let by_difficulty = match difficulty {
+    difficulty_weight(level, difficulty) * quality_weight(quality)
+}
+
+/// The difficulty half of `practice_weight`.
+pub fn difficulty_weight(level: u32, difficulty: Option<u32>) -> f32 {
+    match difficulty {
         None => 1.0,
         Some(d) => {
             let gap = d as i64 - level as i64;
@@ -150,9 +160,12 @@ pub fn practice_weight(level: u32, difficulty: Option<u32>, quality: Option<f32>
                 (0.75f32.powi((-gap - 1) as i32)).max(0.1)
             }
         }
-    };
-    let by_quality = quality.map_or(1.0, |q| 0.5 + q.clamp(0.0, 1.0));
-    by_difficulty * by_quality
+    }
+}
+
+/// The quality half of `practice_weight`.
+pub fn quality_weight(quality: Option<f32>) -> f32 {
+    quality.map_or(1.0, |q| 0.5 + q.clamp(0.0, 1.0))
 }
 
 /// One verb's teaching, from `data/skills/practice.json`.
@@ -168,6 +181,10 @@ pub struct Practice {
     /// metres done.
     #[serde(default)]
     pub per_metres: Option<f32>,
+    /// Attempts in one rest window that count in full (variety, `quality::Variety`), replacing the
+    /// level's own number: a continuous verb, where one attempt is a few metres, sets more.
+    #[serde(default)]
+    pub full_attempts: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -206,12 +223,16 @@ pub struct SkillProgress {
 /// Component tracking all skills for an entity.
 pub struct PlayerSkills {
     pub skills: HashMap<String, SkillProgress>,
+    /// What was practised when, the guides read per stage, and why the last attempt gave what it
+    /// gave (rung 2, `quality`). Saved with the skills.
+    pub memory: quality::PracticeMemory,
 }
 
 impl PlayerSkills {
     pub fn new() -> Self {
         Self {
             skills: HashMap::new(),
+            memory: quality::PracticeMemory::default(),
         }
     }
 
@@ -335,12 +356,16 @@ pub struct SkillXPEvent {
     pub difficulty: Option<u32>,
     /// The result's quality 0..1, when the simulation grades it.
     pub quality: Option<f32>,
+    /// The task practised, one verb on one thing ("collect.wood_log_0", "craft.bread",
+    /// "harvest.tomato"), so variety can tell a repeat from something new (rung 2). None for a
+    /// grant that is not practice (a quest reward, an ability cast): no variety, no help.
+    pub task: Option<String>,
 }
 
 impl SkillXPEvent {
-    /// A plain grant: no difficulty, no quality.
+    /// A plain grant: no difficulty, no quality, not practice of a task.
     pub fn plain(skill_id: impl Into<String>, amount: u32) -> Self {
-        Self { skill_id: skill_id.into(), amount, difficulty: None, quality: None }
+        Self { skill_id: skill_id.into(), amount, difficulty: None, quality: None, task: None }
     }
 }
 
@@ -349,18 +374,19 @@ impl SkillXPEvent {
 /// decoupled path any action system uses to award XP: they hold only `&DataStore` (not
 /// `&mut SkillSystem`). No-ops cleanly if the channel is absent or the amount is zero.
 pub fn award_skill_xp(data: &DataStore, skill_id: &str, amount: u32) {
-    award_practice(data, skill_id, amount, None, None);
+    award_practice(data, skill_id, None, amount, None, None);
 }
 
 /// Push one attempt at a skill, weighed in the SkillSystem by its `difficulty` against the
-/// player's level and the `quality` of the result (`practice_weight`).
-pub fn award_practice(data: &DataStore, skill_id: &str, amount: u32, difficulty: Option<u32>, quality: Option<f32>) {
+/// player's level and the `quality` of the result (`practice_weight`), and, when it names its
+/// `task` (one verb on one thing: "craft.bread"), by variety and help (`quality`, rung 2).
+pub fn award_practice(data: &DataStore, skill_id: &str, task: Option<&str>, amount: u32, difficulty: Option<u32>, quality: Option<f32>) {
     if amount == 0 {
         return;
     }
     if let Some(lock) = data.get::<std::sync::Mutex<Vec<SkillXPEvent>>>("xp_grants") {
         if let Ok(mut grants) = lock.lock() {
-            grants.push(SkillXPEvent { skill_id: skill_id.to_string(), amount, difficulty, quality });
+            grants.push(SkillXPEvent { skill_id: skill_id.to_string(), amount, difficulty, quality, task: task.map(str::to_string) });
         }
     }
 }
@@ -375,17 +401,19 @@ pub fn practice(data: &DataStore, id: &str, quality: Option<f32>) {
         return;
     };
     for skill in &p.skills {
-        award_practice(data, skill, p.xp, None, quality);
+        award_practice(data, skill, Some(id), p.xp, None, quality);
     }
 }
 
 /// `practice` with the caller's own XP amount (a harvest scales with what was picked): the
-/// entry names the skills, `amount` replaces its `xp`.
-pub fn practice_scaled(data: &DataStore, id: &str, amount: u32, quality: Option<f32>) {
+/// entry names the skills, `amount` replaces its `xp`. `thing` is what it was done to (the crop
+/// harvested), so the same verb on another thing is another task for variety.
+pub fn practice_scaled(data: &DataStore, id: &str, thing: &str, amount: u32, quality: Option<f32>) {
     let Some(reg) = data.get::<SkillRegistry>("skill_registry") else { return };
     if let Some(p) = reg.practices.get(id) {
+        let task = format!("{id}.{thing}");
         for skill in &p.skills {
-            award_practice(data, skill, amount, None, quality);
+            award_practice(data, skill, Some(&task), amount, None, quality);
         }
     }
 }
@@ -395,16 +423,20 @@ pub fn practice_scaled(data: &DataStore, id: &str, amount: u32, quality: Option<
 pub fn practice_with(data: &DataStore, id: &str, skill: &str, quality: Option<f32>) {
     let Some(reg) = data.get::<SkillRegistry>("skill_registry") else { return };
     if let Some(p) = reg.practices.get(id) {
-        award_practice(data, skill, p.xp, None, quality);
+        award_practice(data, skill, Some(id), p.xp, None, quality);
     }
 }
 
 /// The first of `ids` the practice table has (a specific entry, then its general one:
-/// "build.stone_wall" before "build"), practised once.
+/// "build.stone_wall" before "build"), practised once. The task is always the first, most specific
+/// id, so building two different blueprints is two tasks even when both teach by the general entry.
 pub fn practice_first(data: &DataStore, ids: &[&str], quality: Option<f32>) {
     let Some(reg) = data.get::<SkillRegistry>("skill_registry") else { return };
-    if let Some(id) = ids.iter().find(|id| reg.practices.contains_key(**id)) {
-        practice(data, id, quality);
+    let Some(task) = ids.first() else { return };
+    if let Some(p) = ids.iter().find_map(|id| reg.practices.get(*id)) {
+        for skill in &p.skills {
+            award_practice(data, skill, Some(task), p.xp, None, quality);
+        }
     }
 }
 
@@ -427,7 +459,7 @@ pub fn practice_distance(data: &DataStore, id: &str, metres: f32, quality: Optio
     };
     for _ in 0..attempts.min(20) {
         for skill in &p.skills {
-            award_practice(data, skill, p.xp, None, quality);
+            award_practice(data, skill, Some(id), p.xp, None, quality);
         }
     }
 }
@@ -524,19 +556,77 @@ impl System for SkillSystem {
                 events.append(&mut grants);
             }
         }
-        if events.is_empty() {
+        // Library guides read to their end since the last tick (rung 2).
+        let guides_read: Vec<String> = data
+            .get::<std::sync::Mutex<Vec<String>>>(quality::GUIDE_READS_KEY)
+            .and_then(|m| m.lock().ok().map(|mut q| std::mem::take(&mut *q)))
+            .unwrap_or_default();
+        if events.is_empty() && guides_read.is_empty() {
             return;
         }
         let Some(reg) = registry else { return };
+        // Variety and help: the table, the level in force, the people near, the clock.
+        let ctx = quality::Context::of(data);
 
         // Find the entity with PlayerSkills (usually the local player)
         for (_entity, skills) in world.query_mut::<&mut PlayerSkills>() {
+            if let Some(q) = ctx.quality {
+                for slug in &guides_read {
+                    let levels = &skills.skills;
+                    let stage_of = |id: &str| reg.get(id).map(|d| d.stage_at(levels.get(id).map_or(0, |p| p.level)).map_or("untrained", |s| s.stage.as_str()).to_string());
+                    let notices = skills.memory.read_guide(q, &ctx.rules, slug, stage_of, ctx.now);
+                    if let Some(Ok(mut n)) = data.get::<std::sync::Mutex<Vec<quality::GuideNotice>>>(quality::NOTICES_KEY).map(|m| m.lock()) {
+                        n.extend(notices);
+                    }
+                }
+            }
             for event in &events {
                 let Some(def) = reg.get(&event.skill_id) else { continue };
                 let level = skills.level(&event.skill_id);
-                let weight = practice_weight(level, event.difficulty, event.quality)
-                    * (1.0 + reg.transfer_bonus(skills, &event.skill_id));
-                let gained = ((event.amount as f32 * weight).round() as u32).max(1);
+                let transfer = 1.0 + reg.transfer_bonus(skills, &event.skill_id);
+                let weight = practice_weight(level, event.difficulty, event.quality) * transfer;
+                // Variety and help weigh only practice of a named task, and only with the table loaded.
+                let weighed = match (&event.task, ctx.quality) {
+                    (Some(task), Some(_)) => {
+                        let stage_index = def.stage_index(level);
+                        let stage = def.stage_at(level).map_or("untrained", |s| s.stage.as_str());
+                        let attempt = quality::Attempt {
+                            skill: &event.skill_id,
+                            task,
+                            stage,
+                            stage_index,
+                            now: ctx.now,
+                            day_s: ctx.day_s,
+                            full_override: reg.practices.get(task.as_str()).and_then(|p| p.full_attempts),
+                        };
+                        Some(skills.memory.weigh(&ctx.rules, &attempt, &ctx.helpers, &reg.stage_ids))
+                    }
+                    _ => None,
+                };
+                let help = weighed.as_ref().map_or(1.0, |w| w.factor());
+                let gained = ((event.amount as f32 * weight * help).round() as u32).max(1);
+                if let (Some(task), Some(w)) = (&event.task, weighed) {
+                    skills.memory.note_try(
+                        &event.skill_id,
+                        quality::PracticeWhy {
+                            task: task.clone(),
+                            base: event.amount,
+                            gained,
+                            at: ctx.now,
+                            mode: ctx.mode,
+                            attempt: w.attempt,
+                            full_attempts: w.full_attempts,
+                            first_time: w.first_time,
+                            variety: w.variety,
+                            guide: w.guide,
+                            mentor: w.mentor,
+                            difficulty: difficulty_weight(level, event.difficulty),
+                            difficulty_gap: event.difficulty.map(|d| d as i64 - level as i64),
+                            quality: quality_weight(event.quality),
+                            transfer,
+                        },
+                    );
+                }
 
                 let progress = skills
                     .skills
@@ -585,3 +675,6 @@ mod skill_tests;
 
 #[cfg(test)]
 mod statement_review_tests;
+
+#[cfg(test)]
+mod quality_tests;

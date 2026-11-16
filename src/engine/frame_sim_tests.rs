@@ -316,3 +316,36 @@ fn a_routines_span_stepped_at_the_frames_dt_and_coarsely_agrees() {
     assert!(off.is_empty(), "{span_s} game seconds with a drink and a meal at the frame's {frame_dt:.4} s step against coarse steps:\n  {}", off.join("\n  "));
 }
 
+/// THE SOAK SHOWS WHAT A ROUTINE PRACTISED, TRY BY TRY (skills rung 2, 2026-11-15): the attempts the
+/// SkillSystem weighed (`PracticeMemory::tries`) reach the routine's log once each, in order, and the
+/// report's practice lines show each task's tries with what practice quality made them worth, so a
+/// soak whose person harvests shows the repeat curve. Measured from what the skills kept, never from
+/// what was asked.
+///
+/// Seen red 2026-11-15 with `practice_since` returning nothing: "the soak read 0 of the 4 tries the
+/// skills weighed".
+#[test]
+fn the_soak_shows_each_practice_try_and_its_value() {
+    use humanity_systems::skills::quality::{LearningMode, PracticeWhy};
+    use humanity_systems::skills::PlayerSkills;
+    let why = |attempt: u32, variety: f32, first_time: f32, gained: u32| PracticeWhy {
+        task: "harvest.vegetable_lettuce_0".into(), base: 10, gained, at: 0.0, mode: LearningMode::Realistic, attempt,
+        full_attempts: 2, first_time, variety, guide: None, mentor: None, difficulty: 1.0, difficulty_gap: None, quality: 1.0, transfer: 1.0,
+    };
+    let mut world = hecs::World::new();
+    let mut skills = PlayerSkills::new();
+    skills.memory.note_try("farming", why(1, 1.0, 1.5, 15));
+    skills.memory.note_try("farming", why(2, 1.0, 1.0, 10));
+    let player = world.spawn((skills, humanity_core::ecs::components::Controllable));
+    let (first, seen) = sim_routine::practice_since(&world, 0);
+    world.get::<&mut PlayerSkills>(player).unwrap().memory.note_try("farming", why(3, 0.75, 1.0, 8));
+    world.get::<&mut PlayerSkills>(player).unwrap().memory.note_try("farming", why(4, 0.5625, 1.0, 6));
+    let (second, seen2) = sim_routine::practice_since(&world, seen);
+    let all: Vec<_> = first.iter().chain(second.iter()).cloned().collect();
+    assert_eq!(all.len(), 4, "the soak read {} of the 4 tries the skills weighed", all.len());
+    assert_eq!((seen, seen2), (2, 4), "each try is read once");
+    assert_eq!(all.iter().map(|t| t.attempt).collect::<Vec<_>>(), vec![1, 2, 3, 4], "in order");
+    assert!((all[0].value - 1.5).abs() < 1e-6 && (all[3].value - 0.5625).abs() < 1e-6, "with their values: {all:?}");
+    let text = sim_soak::practice_text(&all);
+    assert!(text.contains("farming harvest.vegetable_lettuce_0: #1 x1.50 (15/10), #2 x1.00 (10/10), #3 x0.75 (8/10), #4 x0.56 (6/10)"), "the report shows the curve:\n{text}");
+}

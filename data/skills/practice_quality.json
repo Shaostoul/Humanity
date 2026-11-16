@@ -1,0 +1,25 @@
+{
+  "_doc": [
+    "PRACTICE QUALITY (docs/design/skills.md section 3, \"What counts as practice\", points 3 and 4; skills rung 2, 2026-11-15). Read by crates/humanity-systems/src/skills/quality.rs; the website's Skills tab reads the same file for its \"How practice counts\" panel.",
+    "One block per level of the `skill_learning` setting in data/gameplay/levels.json (Settings > Gameplay: off, simplified, realistic). A part left out (null) is off at that level: with skill learning Off every attempt counts the same.",
+    "variety: the same task repeated loses value over an in-game day and recovers after. A task is one verb on one thing (collecting one item, building one blueprint, crafting one recipe, harvesting one crop), so the same verb on another material or another recipe is a different task. The first `full_attempts` attempts at a task inside one rest window count in full; each attempt after that is worth `per_repeat` times the one before, never less than `floor`. An attempt stops counting `rest_days` in-game days after it was made, so the value comes back by itself. `first_time`: the very first attempt at a task you have never done is worth that many times more. A verb in data/skills/practice.json may set its own `full_attempts` (a continuous verb, where one attempt is a few metres).",
+    "guide: reading, to its end, the Library guide written for the stage you are at in a skill (data/skills/guides.json) makes that skill's practice count `multiplier` times for `hours` in-game hours, while you stay at that stage. Once per guide per stage: reading it again gives nothing more.",
+    "mentor: practising within `reach_m` metres of someone at least `stages_above` stages above you in that skill (a crew member with the skill in data/npc/crew.ron) makes the attempt count `multiplier` times, said on screen while it applies (for `shown_s` in-game seconds after a practice it helped).",
+    "reading: what counts as reading a guide: its end reached, after at least `seconds_per_100_words` seconds for every hundred of its words and never less than `min_seconds`, so scrolling straight to the bottom is not reading it.",
+    "Why these numbers: section 3 gives the shape (the first time is worth most, repeats lose value over a day and recover, a guide and a teacher each multiply practice) and no figures; these are the first tuning, expected to change as people play (the operator, 2026-11-14: \"as people play we will probably end up tweaking things\"). The simplified level is gentle (three attempts in full, never below half); the realistic level is the full curve (two in full, down to 15%)."
+  ],
+  "levels": {
+    "off": { "variety": null, "guide": null, "mentor": null },
+    "simplified": {
+      "variety": { "full_attempts": 3, "per_repeat": 0.85, "floor": 0.5, "rest_days": 1.0, "first_time": 1.25 },
+      "guide": { "multiplier": 1.5, "hours": 8.0 },
+      "mentor": { "multiplier": 1.5, "stages_above": 2, "reach_m": 5.0, "shown_s": 120.0 }
+    },
+    "realistic": {
+      "variety": { "full_attempts": 2, "per_repeat": 0.75, "floor": 0.15, "rest_days": 1.0, "first_time": 1.5 },
+      "guide": { "multiplier": 1.5, "hours": 8.0 },
+      "mentor": { "multiplier": 1.5, "stages_above": 2, "reach_m": 5.0, "shown_s": 120.0 }
+    }
+  },
+  "reading": { "seconds_per_100_words": 10.0, "min_seconds": 20.0 }
+}

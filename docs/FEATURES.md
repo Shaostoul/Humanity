@@ -4605,9 +4605,29 @@ in data is a row, no retired id in code, every practice id in the table),
 `tests/activities_catalog_lint.rs` (every skill trained by an activity or says why),
 `scripts/tests/xp-curve-web.test.js` (no cap on the website). The later rungs: skills.md section 10.
 
+**Practice quality, skills rung 2 (2026-11-15, skills.md section 3, points 3 and 4).** Each attempt at
+a named task (`SkillXPEvent::task`, one verb on one thing: `collect.<item>`, `build.<blueprint>`,
+`craft.<recipe>`, `harvest.<crop>`) is weighed by **variety** (the first tries at a task in a rest
+window count in full, each after is worth less down to a floor, each try stops counting a day later,
+the very first try ever counts extra) and by **help**: reading, to its end, the Library guide written
+for the stage you are at (`data/skills/guides.json`, 56 guides for 30 skills; the Library notes the
+end reached after a reading time, `pages/library.rs` `note_read`) multiplies that skill's practice for
+some in-game hours, once per guide per stage; practising within reach of a crew member two stages
+above you (`data/npc/crew.ron` `skills`) multiplies it and the HUD says so while it applies. Numbers
+in `data/skills/practice_quality.json`, per level of the new **Settings > Gameplay > Skill learning**
+(`data/gameplay/levels.json` `skill_learning`: Off, Simplified default, Realistic). The memory of what
+was practised when is saved with the player (`WorldSave::practice`). The Skills page says why the
+last practice gave what it gave, the guide for each stage with Open the guide, a teacher near, and
+"How practice counts" (native `profile_skills.rs` + `src/engine/practice_view.rs`; the website's tab
+weighs each "Practised" press the same way and links each stage's guide). Plain grants (quest rewards,
+ability casts, mining's batch) are not weighed. Players as teachers wait for the presence sync to
+carry their stages. The headless soak's routine report lists each try at a skill with its value
+(`src/engine/sim_soak.rs` `practice_text`, `sim_routine::practice_since`). Tests: `crates/humanity-systems/src/skills/quality_tests.rs` (seen red),
+`scripts/tests/skills-practice-web.test.js`.
+
 Before rung 1: 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `crates/humanity-systems/src/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
-- Native: `crates/humanity-systems/src/skills/mod.rs`
-- Data: `data/skills/skills.csv`, `data/skills/families.json`, `data/skills/stages.json`, `data/skills/practice.json`, `data/skills/xp_curve.json`
+- Native: `crates/humanity-systems/src/skills/mod.rs`, `crates/humanity-systems/src/skills/quality.rs`, `src/engine/practice_view.rs`
+- Data: `data/skills/skills.csv`, `data/skills/families.json`, `data/skills/stages.json`, `data/skills/practice.json`, `data/skills/xp_curve.json`, `data/skills/practice_quality.json`, `data/skills/guides.json`
 
 ### AI Behaviors
 5 behavior types (passive, aggressive, herd, predator, guard) with state machines. **⚠️ Native `AISystem` NOT registered, never ticks (the relay drives ambient NPCs separately, server-side). See the lint.**

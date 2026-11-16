@@ -5,7 +5,8 @@
     "Each setting lists its levels in the order Settings shows them, from the gentlest (Off, where a system can be off) to the hardest, with the level a new player gets (`default`: the softened one, CLAUDE.md's dual-modes rule). Each level carries its name (`words`) and a sentence saying what it changes (`says`), both keys in data/i18n/en.json, so a person reads what a choice does before choosing it (docs/design/graphics-settings.md's rule: say what it changes).",
     "A level's `id` is what config.json saves (`gameplay`: setting id -> level id) and what the system reads: body heat, illness and injury, farm animals, carrying weight, death and the mining drone each turn the id into their own mode (gameplay_levels.rs `understood` holds every one of them to this file, so a level added here that its system does not know fails a test). The walking pace's id names data/game.csv's rows (`walk_speed_<id>_mps`), so a pace is added in data alone. A `value` is a number the setting uses as it is: the share of each wild pack that spawns, or the vitals drain.",
     "A saved level this file no longer lists reads as the default, and so does a config.json from before the levels (no backwards compatibility before v1.0).",
-    "2026-11-12: the garden's and the ship's settings joined (garden pests, pollination, soil pH, picking, ship life support), each with `group` \"garden\", drawn under their own heading further down the page (a setting without `group` is in \"survival\", at the top). Garden pests', pollination's and soil pH's `value` is the share of a loss a crop really takes (0 Off, 0.5 Gentle, 1 Realistic); picking and life support turn the id into their modes. Why each has the levels it has: docs/design/graphics-settings.md, \"The garden's and the ship's levels\"."
+    "2026-11-12: the garden's and the ship's settings joined (garden pests, pollination, soil pH, picking, ship life support), each with `group` \"garden\", drawn under their own heading further down the page (a setting without `group` is in \"survival\", at the top). Garden pests', pollination's and soil pH's `value` is the share of a loss a crop really takes (0 Off, 0.5 Gentle, 1 Realistic); picking and life support turn the id into their modes. Why each has the levels it has: docs/design/graphics-settings.md, \"The garden's and the ship's levels\".",
+    "2026-11-15: skill learning joined (docs/design/skills.md section 3, \"The two modes\", which places it here; skills rung 2). Its id is humanity_systems::skills::quality::LearningMode, and data/skills/practice_quality.json gives each level's numbers: Off counts every practice the same, Simplified (a new player's) is the gentle curve, Realistic the full one. Rung 4 adds what each level does to stages and their assessment."
   ],
   "settings": [
     {
@@ -125,6 +126,14 @@
       "levels": [
         { "id": "station_supplied", "words": "gameplay.level.station_supplied", "says": "gameplay.life_support_station_supplied" },
         { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.life_support_realistic" }
+      ]
+    },
+    {
+      "id": "skill_learning", "words": "gameplay.skill_learning", "note": "gameplay.skill_learning_note", "default": "simplified",
+      "levels": [
+        { "id": "off", "words": "gameplay.level.off", "says": "gameplay.skill_learning_off" },
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.skill_learning_simplified" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.skill_learning_realistic" }
       ]
     }
   ]

@@ -18,6 +18,10 @@ pub const SKILLS_CSV: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/
 pub const SKILL_STAGES_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/stages.json"));
 pub const SKILL_FAMILIES_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/families.json"));
 pub const SKILL_PRACTICE_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/practice.json"));
+/// Practice quality (skills rung 2, 2026-11-15): variety and help per level of skill learning, and the
+/// Library guide written for each stage of a skill.
+pub const SKILL_PRACTICE_QUALITY_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/practice_quality.json"));
+pub const SKILL_GUIDES_JSON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/skills/guides.json"));
 
 // ── Chemistry ───────────────────────────────────────────────────────
 pub const ELEMENTS_CSV: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/chemistry/elements.csv"));
@@ -376,6 +380,8 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "skills/stages.json" => Some(SKILL_STAGES_JSON),
         "skills/families.json" => Some(SKILL_FAMILIES_JSON),
         "skills/practice.json" => Some(SKILL_PRACTICE_JSON),
+        "skills/practice_quality.json" => Some(SKILL_PRACTICE_QUALITY_JSON),
+        "skills/guides.json" => Some(SKILL_GUIDES_JSON),
         "chemistry/elements.csv" => Some(ELEMENTS_CSV),
         "chemistry/alloys.csv" => Some(ALLOYS_CSV),
         "chemistry/compounds.csv" => Some(COMPOUNDS_CSV),
@@ -726,6 +732,8 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "skills/stages.json",
     "skills/families.json",
     "skills/practice.json",
+    "skills/practice_quality.json",
+    "skills/guides.json",
     "chemistry/elements.csv",
     "chemistry/alloys.csv",
     "chemistry/compounds.csv",

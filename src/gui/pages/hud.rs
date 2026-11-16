@@ -203,6 +203,11 @@ pub fn draw(
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &line, 11.0, theme.warning());
                 y += 15.0;
             }
+            // Learning beside a teacher (skills rung 2): said while their help applies.
+            for line in &state.practice.beside {
+                text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, line, 11.0, theme.success());
+                y += 15.0;
+            }
             if let Some(q) = state.quests.iter().find(|q| !q.completed) {
                 y += 4.0;
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&q.name, 48), 12.0, theme.accent());

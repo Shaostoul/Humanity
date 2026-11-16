@@ -106,6 +106,17 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
         let reg = if families.is_empty() { reg } else { reg.with_families(&families)? };
         if practices.is_empty() { Ok(reg) } else { reg.with_practices(&practices) }
     });
+    // Practice quality (skills rung 2, 2026-11-15): variety and help per level of skill learning,
+    // with the Library guide written for each stage (no guides: the bonus has nothing to start).
+    {
+        use humanity_systems::skills::quality::{PracticeQuality, DATA_KEY, FILE, GUIDES_FILE};
+        let guides = humanity_core::embedded_data::load_data_or_embedded(data_dir, GUIDES_FILE, |b: &[u8]| PracticeQuality::guides_from_json(b).map(|_| b.to_vec()))
+        .unwrap_or_else(|e| {
+            log::warn!("{e}; no skill has a guide this run");
+            Vec::new()
+        });
+        put(store, data_dir, FILE, DATA_KEY, |b: &[u8]| PracticeQuality::from_json(b, &guides));
+    }
     put(store, data_dir, "equipment.csv", "equipment_registry", humanity_systems::economy::EquipmentRegistry::from_csv);
     // CreatureRegistry (v0.751, ladder rung 7): creatures.csv finally gets
     // its loader. Read by the livestock spawn + walk-up collect bridges.

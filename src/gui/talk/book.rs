@@ -112,6 +112,10 @@ pub struct CrewRow {
     pub dialog: Vec<String>,
     #[serde(default)]
     pub greetings: Vec<String>,
+    /// What they can teach: skill id to the stage they are at (skills rung 2: practising beside
+    /// someone two stages above you counts for more, src/engine/practice_view.rs).
+    #[serde(default)]
+    pub skills: std::collections::BTreeMap<String, String>,
 }
 
 /// data/npc/crew.ron, the data folder's copy else the built-in one.

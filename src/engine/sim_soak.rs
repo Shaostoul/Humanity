@@ -505,6 +505,9 @@ impl SoakReport {
                 "produce_harvested": log.produce_harvested, "taken_from_storage": log.taken_from_storage,
                 "water_drawn_l": log.water_drawn_l, "sleeps": log.sleeps, "rests": log.rests,
                 "eaten": log.eaten, "drunk": log.drunk, "missed": log.missed,
+                "practice": log.practice.iter().map(|t| serde_json::json!({
+                    "skill": t.skill, "task": t.task, "attempt": t.attempt, "value": t.value, "base": t.base, "gained": t.gained,
+                })).collect::<Vec<_>>(),
             })),
             "notices": self.run.notices.len(),
             "last_notice": self.run.notices.last(),
@@ -533,6 +536,24 @@ fn routine_text(name: &str, log: &RoutineLog) -> String {
     );
     if !log.missed.is_empty() {
         out += &format!("  Acts that did nothing: {}.\n", log.missed.iter().map(|(why, n)| format!("{n} x {why}")).collect::<Vec<_>>().join("; "));
+    }
+    out += &practice_text(&log.practice);
+    out
+}
+
+/// What the routine's acts practised (skills rung 2): for each skill and task, each try's number in
+/// its rest window and what practice quality made it worth, in order, so the repeat curve shows.
+pub(crate) fn practice_text(tries: &[crate::engine::sim_routine::PracticeTry]) -> String {
+    if tries.is_empty() {
+        return "  Practice: none (no act trained a skill).\n".into();
+    }
+    let mut by_task: std::collections::BTreeMap<(&str, &str), Vec<String>> = std::collections::BTreeMap::new();
+    for t in tries {
+        by_task.entry((t.skill.as_str(), t.task.as_str())).or_default().push(format!("#{} x{:.2} ({}/{})", t.attempt, t.value, t.gained, t.base));
+    }
+    let mut out = format!("  Practice: {} tries at {} tasks (try number in its rest window, value, XP gained of the verb's own):\n", tries.len(), by_task.len());
+    for ((skill, task), list) in by_task {
+        out += &format!("    {skill} {task}: {}\n", list.join(", "));
     }
     out
 }

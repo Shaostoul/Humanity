@@ -19,7 +19,7 @@ the relay rather than on top of it.
 - **Size:** 31,708 lines in 60 files, 4,038 of them in 14 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 48.
 - **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 54, protocol 32.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 362, engine 101.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 362, engine 102.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 269 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
@@ -38,7 +38,7 @@ just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gu
 | `net::protected::ProtectedAction` | 12 | gui 12 |
 | `net::warnings::GUARD_LINE` | 12 | gui 11, engine 1 |
 | `net::ws_client::WsClient` | 11 | gui 6, engine 5 |
-| `net::sync::RemoteNpc` | 8 | engine 6, gui 2 |
+| `net::sync::RemoteNpc` | 9 | engine 7, gui 2 |
 | `net::sync::RemotePlayer` | 8 | engine 7, gui 1 |
 | `net::webrtc::WebrtcEvent` | 8 | engine 8 |
 | `net::protocol::NetMessage` | 7 | engine 7 |

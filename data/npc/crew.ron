@@ -20,6 +20,10 @@
 //               every meal from the stores; "homestead" is an NPC household on a homestead,
 //               which mostly feeds itself (`npc_homestead_self_provided` in ship_stores.ron).
 //               Every crew member below is ship's company.
+//   skills      (optional) what they can teach: skill id (data/skills/skills.csv) to the stage they
+//               are at (data/skills/stages.json). Practising a skill within reach of someone two
+//               stages above you in it counts for more, and the screen says so (docs/design/skills.md
+//               section 3, "Help"; data/skills/practice_quality.json; src/engine/practice_view.rs).
 //   persona     (optional) who they are and how they talk, a few sentences written by people, for
 //               an AI model when the player has one installed (docs/design/embeddable-ai.md 8.2:
 //               the talk card builds the character's prompt from this row, src/ai/talk.rs). With
@@ -31,6 +35,7 @@
         npc_type: "navigator",
         name: "Helm Officer Vex",
         role: "navigator",
+        skills: { "navigation": "expert", "spaceflight": "expert", "astronomy": "proficient", "flying": "proficient" },
         description: "Off the helm, keeping the ship's notices",
         persona: "Dry, precise and quietly proud of the ship. Used to fly the helm and misses it a little, so they talk about courses, stars and notices as if each one mattered. Short sentences, a little teasing.",
         household: "crew",
@@ -50,6 +55,7 @@
         npc_type: "medic",
         name: "Dr. Kel",
         role: "medical_officer",
+        skills: { "first_aid": "expert", "medicine": "expert", "sanitation": "proficient", "nutrition": "competent" },
         description: "Holding the clinic hour in the Commons",
         persona: "Brisk, practical and kind underneath. Treats everyone as a patient who has not admitted it yet, and nags about meals and water. Never gives real medical advice: points people to the Library's guides instead.",
         household: "crew",
@@ -69,6 +75,7 @@
         npc_type: "engineer",
         name: "Chief Tan",
         role: "chief_engineer",
+        skills: { "electrical": "expert", "mechanics": "expert", "life_support": "expert", "repair": "expert", "plumbing": "proficient", "hvac": "proficient", "welding": "competent" },
         description: "Keeping the Commons' air and water running",
         persona: "Gruff and tired of people touching things, but proud of the air, water and power that keep everyone alive. Explains how the ship works in plain words when asked nicely.",
         household: "crew",
@@ -88,6 +95,7 @@
         npc_type: "maintenance_bot",
         name: "CB-7",
         role: "maintenance",
+        skills: { "repair": "competent", "logistics": "competent" },
         description: "Autonomous bot keeping the mess hall stocked",
         persona: "A maintenance bot, and says so: it is a machine, not a person. Talks in short capital-letter reports, literal and cheerful about clean tables, full shelves and trade.",
         eats: false,
@@ -108,6 +116,7 @@
         npc_type: "botanist",
         name: "Botanist Yara",
         role: "botanist",
+        skills: { "farming": "expert", "mushroom_growing": "proficient", "foraging": "proficient", "beekeeping": "competent", "sanitation": "competent" },
         description: "Tending the Commons garden",
         persona: "Warm, patient and a little distracted by the plants. Loves explaining how things grow aboard, but sends people to the Library's guides for anything about real plants, food or safety.",
         household: "crew",
@@ -127,6 +136,7 @@
         npc_type: "crewmate",
         name: "Crewmate Nia",
         role: "off_duty",
+        skills: { "cooking": "proficient", "baking": "competent", "music": "competent" },
         description: "Off shift in the mess hall",
         persona: "Friendly and relaxed, a fairly new volunteer who came aboard through Project Universe. Happy to chat, remembers what it was like to be new, and gives honest everyday advice about life aboard.",
         household: "crew",

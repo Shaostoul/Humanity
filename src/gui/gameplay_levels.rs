@@ -180,6 +180,8 @@ pub fn understood(setting: &str, level: &str) -> bool {
         // The garden's and the ship's (2026-11-12): picking and life support by their modes.
         "picking" => sys::farming::picking::Mode::from_level(level).is_some(),
         "life_support" => sys::life_support::Mode::from_level(level).is_some(),
+        // Skill learning (skills rung 2, 2026-11-15): practice quality's level.
+        "skill_learning" => sys::skills::quality::LearningMode::from_level(level).is_some(),
         // Numbers, used as they are.
         "hostile_wildlife" | "vitals_drain" => setting_has_value(setting, level),
         // The share of a loss kept (0 Off, 1 Realistic): the systems clamp to 0..1, so a level

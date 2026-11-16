@@ -290,6 +290,8 @@ pub mod frame_sky_light;
 pub mod frame_hud_voice;
 pub mod frame_settles;
 pub mod frame_mirrors;
+/// Practice quality between the skills and the screen (skills rung 2).
+pub(crate) mod practice_view;
 pub mod frame_mirrors_world;
 pub mod frame_lists_world;
 pub mod frame_env_publish;

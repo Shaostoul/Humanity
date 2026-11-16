@@ -335,6 +335,9 @@ pub(crate) fn boot(opts: SimBootOptions) -> SimBoot {
         "xp_grants",
         std::sync::Mutex::new(Vec::<SkillXPEvent>::new()),
     );
+    // Practice quality's channels (skills rung 2): the level of skill learning, the people near
+    // who could teach, the guides read and what they did.
+    humanity_systems::skills::quality::register(&mut data_store);
     // Dev: max all skills (testing affordance — keeps every recipe craftable
     // under the #8b skill-gate, like "Dev: stock materials" for inventory).
     data_store.insert("dev_max_skills", std::sync::Mutex::new(false));

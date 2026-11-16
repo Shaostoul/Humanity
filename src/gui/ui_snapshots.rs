@@ -230,6 +230,7 @@ fn demo_state() -> GuiState {
 
     // ── Skills + quests ──
     s.skills = snapshot_skills();
+    s.practice.rules = snapshot_practice_rules();
     // The opening as the operator was playing it on 2026-10-30: First Steps, on its second step
     // of eight, made the way the quest mirror makes it, from the shipped quests.
     s.quests = vec![snapshot_quest(&shipped_quests(), "gs_first_steps", 1)];
@@ -4051,7 +4052,40 @@ fn snapshot_skills() -> Vec<GuiSkill> {
         })
         .collect();
     out.sort_by(|a, b| a.family_order.cmp(&b.family_order).then(a.name.cmp(&b.name)));
+    // Practice quality (skills rung 2): farming's last harvest was the 6th of one crop today with
+    // the Novice guide read and Botanist Yara beside the player; mining's last collect was a first.
+    use humanity_systems::skills::quality::{GuideRead, Helper, LearningMode, PracticeMemory, PracticeQuality, PracticeWhy};
+    let quality = PracticeQuality::from_json(&read("practice_quality.json"), &read("guides.json")).expect("the shipped practice quality loads");
+    let mut memory = PracticeMemory::default();
+    memory.guides_read.insert("farming|beginner".into(), GuideRead { slug: "starting-seeds".into(), at: 0.0, until: 5.0 * 3600.0 });
+    let why = |task: &str, base, gained, attempt, first_time, variety, guide: Option<(String, String, f32)>, mentor: Option<(String, String, f32)>| PracticeWhy {
+        task: task.into(), base, gained, at: 0.0, mode: LearningMode::Simplified, attempt, full_attempts: 3, first_time, variety,
+        guide, mentor, difficulty: 1.0, difficulty_gap: None, quality: 1.3, transfer: 1.0,
+    };
+    memory.last.insert("farming".into(), why("harvest.tomato", 12, 18, 6, 1.0, 0.61, Some(("beginner".into(), "starting-seeds".into(), 1.5)), Some(("Botanist Yara".into(), "expert".into(), 1.5))));
+    memory.last.insert("mining".into(), why("collect.clay_raw_0", 5, 6, 1, 1.25, 1.0, None, None));
+    let helpers = vec![Helper { name: "Botanist Yara".into(), distance_m: 2.0, stages: [("farming".to_string(), "expert".to_string())].into_iter().collect() }];
+    let title_of = |slug: &str| Some(if slug == "starting-seeds" { "Starting Seeds".to_string() } else { slug.replace('-', " ") });
+    let facts = crate::gui::pages::profile_skills::PracticeFacts {
+        quality: &quality,
+        mode: LearningMode::Simplified,
+        memory: &memory,
+        helpers: &helpers,
+        stage_ids: &reg.stage_ids,
+        now: 3600.0,
+        title_of: &title_of,
+    };
+    for sk in out.iter_mut() {
+        sk.fill_practice(&facts);
+    }
     out
+}
+
+/// "How practice counts" as the engine words it, at the default level (skills rung 2).
+fn snapshot_practice_rules() -> Vec<String> {
+    let read = |rel: &str| std::fs::read(format!("{}/data/skills/{rel}", env!("HUMANITY_REPO_ROOT"))).unwrap_or_default();
+    let quality = humanity_systems::skills::quality::PracticeQuality::from_json(&read("practice_quality.json"), &read("guides.json")).expect("the shipped practice quality loads");
+    crate::gui::pages::profile_skills::rule_lines(&quality.rules(humanity_systems::skills::quality::LearningMode::Simplified))
 }
 
 macro_rules! page_snapshot {

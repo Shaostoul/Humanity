@@ -271,6 +271,8 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             .iter()
             .map(|(id, p)| (id.clone(), (p.level, p.xp)))
             .collect();
+        // What was practised when and the guides read (skills rung 2).
+        save.practice = skills.memory.clone();
         // Avatar appearance + equipped outfit (v0.440).
         save.appearance = appearance.clone();
         save.outfit = outfit.clone();
@@ -597,6 +599,7 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
                 .skills
                 .insert(id.clone(), SkillProgress { level: *level, xp: *xp });
         }
+        skills.memory = save.practice.clone();
         // Restore avatar appearance + outfit (v0.440).
         *appearance = save.appearance.clone();
         *outfit = save.outfit.clone();

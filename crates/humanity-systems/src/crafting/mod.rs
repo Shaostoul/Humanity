@@ -795,7 +795,8 @@ impl CraftingSystem {
         // Skills rung 1: weighed by the recipe's difficulty against the crafter's level and by
         // the grade the hand craft came out at (skills::practice_weight, skills.md section 3).
         if let Some(skill) = &recipe.skill_required {
-            crate::skills::award_practice(data, skill, 10 + recipe.skill_level * 5, Some(recipe.skill_level), graded);
+            // The recipe is the task (rung 2's variety): another recipe is something new.
+            crate::skills::award_practice(data, skill, Some(&format!("craft.{}", recipe.id)), 10 + recipe.skill_level * 5, Some(recipe.skill_level), graded);
         }
         crate::quests::push_quest_event(data, format!("craft_{}", recipe.id));
         // One event per unit made, for Make objectives (2026-10-02): a quest

@@ -183,6 +183,20 @@ not full-screen popups (in the world, the HUD and its panels); 41 and up the pag
   `layers::close_nearest`). `tests/layer_lint.rs` (in `just lints`) refuses `egui::Area::new`,
   `egui::Window::new` or an `egui::Order` outside layers.rs. lib.rs calls `layers::arrange` last in
   the frame.
+- **Nothing on layer 1 takes a click (2026-11-15, BUG-316 and its follow-up).** egui gives every
+  Area a widget rect the size of what it holds, `interactable(false)` included, and its hit test
+  stops at the topmost layer with a widget over the pointer, so an Area on the tooltip layer takes
+  the click of whatever is under it. Everything there is PAINTED: `layers::painter(ctx, id,
+  Layer::Tooltip)`, or a framed card of words, `widgets::painted_card::PaintedCard` (lines, pairs,
+  a separator, painted blocks; egui's own `Frame` for its look; `painted_card::rect` says where it
+  stood). Something that must be clicked is not a tooltip and goes on the layer the order gives
+  clickable things. `tests/layer_lint.rs` `nothing_on_the_tooltip_layer_takes_a_click` refuses a
+  `layers::area` or `layers::window` on `Layer::Tooltip` (an allow-list, each entry with its
+  reason, empty) and a layer passed in a variable; `gui/tooltip_click_tests.rs` presses a button
+  through each such surface. Painters on separate layer ids have no order between them inside one
+  egui order, so a card drawn over a painted shade of its own (the drop overlay) is painted on the
+  shade's layer. The website's twins take no pointer the same way (`pointer-events: none` on
+  `.pill-ts-expand`, `.hos-drop-overlay`).
 - **Web:** every `z-index` is a step of the theme's `--z-*` scale (`data/gui/theme.ron`'s `z_*`
   tokens, written into theme.css by `node scripts/gen-theme-css.js`): `var(--z-shade)` for a popup's
   shade, `var(--z-page-float)` for a page's drop-down, `calc(var(--z-page) + N)` for a part raised

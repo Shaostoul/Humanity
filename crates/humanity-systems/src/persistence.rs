@@ -38,6 +38,10 @@ pub struct WorldSave {
     #[serde(default)]
     pub inventory_age: Vec<f64>,
     pub skills: HashMap<String, (u32, u32)>,
+    /// What was practised when and the guides read per stage (skills rung 2, 2026-11-15), so
+    /// quitting does not reset a day's repeats or let a guide's bonus be taken twice.
+    #[serde(default)]
+    pub practice: crate::skills::quality::PracticeMemory,
     pub constructions: Vec<ConstructionSave>,
     /// Craft batches in flight (2026-09-25); see CraftSave.
     #[serde(default)]
@@ -413,6 +417,7 @@ impl WorldSave {
             player_rotation: [0.0, 0.0, 0.0, 1.0],
             inventory: Vec::new(),
             skills: HashMap::new(),
+            practice: Default::default(),
             constructions: Vec::new(),
             crafts: Vec::new(),
             progress_saved: true,
@@ -1081,6 +1086,7 @@ mod tests {
                 m.insert("farming".to_string(), (3, 450));
                 m
             },
+            practice: Default::default(),
             constructions: vec![
                 ConstructionSave {
                     blueprint_id: "wooden_wall".to_string(),

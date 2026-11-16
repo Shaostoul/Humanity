@@ -183,6 +183,8 @@ pub(crate) fn run(state: &mut EngineState) {
             }
         }
     }
+    // Practice quality (skills rung 2): the level, the teachers near, a guide read, the words.
+    crate::engine::practice_view::run(state);
     humanity_core::frame_costs::span("cpu.span.mirror_quests");
     // Bridge player quests (active steps + completed) from ECS for
     // the profile Quests panel.

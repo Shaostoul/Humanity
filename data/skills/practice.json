@@ -1,5 +1,5 @@
 {
-  "_doc": "What each live verb teaches (docs/design/skills.md section 3; skills rung 1, 2026-11-14). The code names a verb by id when the player completes it (crates/humanity-systems/src/skills/mod.rs: practice, practice_first, practice_scaled, practice_with, practice_distance) and this table says which skills it trains and how much. skills: the skill ids it trains (empty when the caller names the skill from data: a landed strike trains the weapon's skill column in data/equipment.csv, bare hands unarmed). xp: the base XP per attempt, before the SkillSystem weighs it by difficulty and quality. per_metres: a continuous verb is one attempt per this many metres. A specific id goes before its general one where the code asks for both (build.stone_wall, then build). Recipes teach through their own skill_required column in data/recipes.csv, not this table. Checked by tests/skills_data_lint.rs (every id the code names is here, every skill is a row of skills.csv) and the lib tests in skills/skill_tests.rs (each entry awards what it says).",
+  "_doc": "What each live verb teaches (docs/design/skills.md section 3; skills rung 1, 2026-11-14). The code names a verb by id when the player completes it (crates/humanity-systems/src/skills/mod.rs: practice, practice_first, practice_scaled, practice_with, practice_distance) and this table says which skills it trains and how much. skills: the skill ids it trains (empty when the caller names the skill from data: a landed strike trains the weapon's skill column in data/equipment.csv, bare hands unarmed). xp: the base XP per attempt, before the SkillSystem weighs it by difficulty and quality. per_metres: a continuous verb is one attempt per this many metres. A specific id goes before its general one where the code asks for both (build.stone_wall, then build). Recipes teach through their own skill_required column in data/recipes.csv, not this table. Checked by tests/skills_data_lint.rs (every id the code names is here, every skill is a row of skills.csv) and the lib tests in skills/skill_tests.rs (each entry awards what it says). full_attempts (skills rung 2, 2026-11-15): how many attempts at the verb in one rest window count in full before repeats weigh less (data/skills/practice_quality.json, variety), replacing the level's own number; the continuous verbs set it so a day's ordinary swim, climb, drive or carry counts in full: 40 swims of 25 m is 1 km, 20 climbs of 5 m is 100 m, 40 drives of 250 m is 10 km, 40 carries of 50 m is 2 km. Variety tells tasks apart by the verb's id and what it was done to: collecting each item, building each blueprint, crafting each recipe and harvesting each crop are separate tasks.",
   "practices": {
     "collect.egg_0": { "skills": ["animal_husbandry"], "xp": 5 },
     "collect.milk_0": { "skills": ["animal_husbandry"], "xp": 5 },
@@ -34,10 +34,10 @@
     "lay_out": { "skills": ["drafting"], "xp": 4 },
     "deploy_vehicle": { "skills": ["mechanics"], "xp": 20 },
 
-    "swim": { "skills": ["swimming"], "xp": 5, "per_metres": 25 },
-    "climb": { "skills": ["climbing"], "xp": 5, "per_metres": 5 },
-    "drive": { "skills": ["driving"], "xp": 5, "per_metres": 250 },
-    "carry_load": { "skills": ["logistics"], "xp": 5, "per_metres": 50 },
+    "swim": { "skills": ["swimming"], "xp": 5, "per_metres": 25, "full_attempts": 40 },
+    "climb": { "skills": ["climbing"], "xp": 5, "per_metres": 5, "full_attempts": 20 },
+    "drive": { "skills": ["driving"], "xp": 5, "per_metres": 250, "full_attempts": 40 },
+    "carry_load": { "skills": ["logistics"], "xp": 5, "per_metres": 50, "full_attempts": 40 },
     "reach_destination": { "skills": ["navigation"], "xp": 15 },
 
     "landed_strike": { "skills": [], "xp": 4 },

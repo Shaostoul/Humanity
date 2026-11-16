@@ -1439,6 +1439,8 @@ pub struct GuiState {
     /// Player skills (live level + XP), synced from the ECS PlayerSkills each
     /// frame for the profile Skills panel. Empty until the first XP is earned.
     pub skills: Vec<GuiSkill>,
+    /// Practice quality in words (skills rung 2): the rules, the HUD's teacher lines, a guide read.
+    pub practice: crate::gui::state_types::PracticeGui,
     /// Dev: max all skills next frame (testing affordance under #8b skill-gating).
     pub pending_dev_max_skills: bool,
     /// Player quests (active + completed), synced from the ECS QuestTracker each
@@ -3574,6 +3576,7 @@ impl Default for GuiState {
             pending_follow_vehicle: None,
             factory_status: Vec::new(),
             skills: Vec::new(),
+            practice: Default::default(),
             pending_dev_max_skills: false,
             quests: Vec::new(),
             quests_available: Vec::new(),
