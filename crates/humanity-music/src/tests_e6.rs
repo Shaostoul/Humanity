@@ -788,41 +788,55 @@ fn the_new_genres_fit_the_audio_budget() {
 /// of a 128-frame block, the best of three runs, at most 0.02 ms scaled by the calm score's cost this
 /// run. RED first (2026-11-14) with the gate at a tenth: "reese_bass: 0.0038 ms a block for one voice (budget 0.0022; the
 /// calm score 0.0398 ms this run)".
+///
+/// MEASURED SO A LOADED MACHINE DOES NOT FAIL IT (2026-11-15, before it reached the flaky-test
+/// ledger): the calm score was read once, first, and the instruments after it, the baseline shape
+/// that failed the genre budgets under load (`tests_cost`). Now the calm score's seeds and each
+/// instrument's seeds are rendered from scratch in turns, three times, each block keeping its
+/// fastest time. Measured 2026-11-15 beside other agents' builds: reverse_cymbal 0.0049 ms, the
+/// costliest (budget 0.0233; the calm score 0.0432 ms beside it). Still RED for its defect the same
+/// day, with each of the drum machine's metal squares worked thirty times over (`drum_machine.rs`),
+/// in the run and again alone: "reverse_cymbal: 0.0472 ms a block for one voice (budget 0.0211; the
+/// calm score 0.0391 ms beside it)".
 #[test]
 fn the_new_instruments_fit_the_per_voice_budget() {
+    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, voice_blocks, BlockCost};
     let _g = crate::tests_audio::heavy();
     let lib = shipped();
-    let calm = crate::tests_e5::calm_ms(&lib);
-    let budget = 0.02 * (calm / 0.037).max(1.0);
-    let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
-    for id in ["reese_bass", "synth_lead", "downlifter", "reverse_cymbal"] {
-        let i = lib.instrument_index(id).unwrap_or_else(|| panic!("the instrument {id}"));
-        let insts = vec![lib.instruments[i].clone()];
-        let banks = vec![None];
-        let mut best = f64::MAX;
-        for run in 0..3 {
-            let mut pool = VoicePool::new(run);
-            let mut times = Vec::new();
-            for k in 0..1500usize {
-                if k % 750 == 0 {
-                    pool.clear();
-                    pool.note_on(NoteOn { inst: 0, role: 1, midi: 45.0, a4: 432.0, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 2.0, tag: k as u32 + 1, level: 1.0 }, &insts, &banks, RATE);
-                }
-                let beats = k as f64 * 128.0 / RATE as f64 * 2.0;
-                let mut p = BlockParams::plain(RATE, 2.0, &vowel);
-                p.bar = (beats / 4.0) as u64;
-                p.beats = beats;
-                let (mut l, mut r, mut sl, mut sr) = ([0f32; 128], [0f32; 128], [0f32; 128], [0f32; 128]);
-                let t0 = std::time::Instant::now();
-                pool.render(&insts, &banks, &p, &mut l, &mut r, &mut sl, &mut sr, 128);
-                times.push(t0.elapsed().as_secs_f64() * 1000.0);
-            }
-            times.sort_by(|a, b| a.total_cmp(b));
-            let kept = &times[..(times.len() as f64 * 0.98) as usize];
-            best = best.min(kept.iter().sum::<f64>() / kept.len() as f64);
-        }
-        println!("{id}: {best:.4} ms a block for one voice (budget {budget:.4})");
-        assert!(best <= budget, "{id}: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms this run)");
+    let ids = ["reese_bass", "synth_lead", "downlifter", "reverse_cymbal"];
+    let pools: Vec<Vec<Instrument>> = ids
+        .iter()
+        .map(|id| vec![lib.instruments[lib.instrument_index(id).unwrap_or_else(|| panic!("the instrument {id}"))].clone()])
+        .collect();
+    let banks: Vec<Option<std::sync::Arc<dyn crate::SampleBank>>> = vec![None];
+    let (libr, banks) = (&lib, &banks);
+    let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
+    for seed in [1u64, 2, 3] {
+        subjects.push(Box::new(move || calm_blocks(libr, seed)));
     }
+    for insts in &pools {
+        for run in 0..3u64 {
+            subjects.push(Box::new(move || {
+                voice_blocks(insts, banks, run, 1500, 2.0, |k, pool| {
+                    if k % 750 == 0 {
+                        pool.clear();
+                        pool.note_on(NoteOn { inst: 0, role: 1, midi: 45.0, a4: 432.0, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 2.0, tag: k as u32 + 1, level: 1.0 }, insts, banks, RATE);
+                    }
+                })
+            }));
+        }
+    }
+    let blocks = fastest_blocks(3, subjects);
+    let (calm, scale) = scale_of(&blocks[..3]);
+    let budget = 0.02 * scale;
+    let mut over = Vec::new();
+    for (n, id) in ids.iter().enumerate() {
+        let best = blocks[3 + n * 3..3 + n * 3 + 3].iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
+        println!("{id}: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)");
+        if best > budget {
+            over.push(format!("{id}: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)"));
+        }
+    }
+    assert!(over.is_empty(), "{}", over.join("; "));
 }
 

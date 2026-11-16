@@ -101,6 +101,13 @@ process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:
     runs on a quiet machine (`just music-quiet-budgets`, `#[ignore]`d `quiet_*` tests).
   - A count read the moment a reply arrives races the thread that adds to it: wait for the count
     (`net_live.rs`). A clock the code owns is frozen for the test (`DmRateLimits::freeze`).
+  - A watcher that POLLS misses whatever lives shorter than its interval: the build slot's tree
+    watch listed the job's processes every 200 ms and a tiny bin's link fell between two listings
+    (its ledger line read rustc's own working set). It now waits on the job's notices and opens each
+    process as it joins (`TreeWatch` in `scripts/build-slot/hos-build-slot.rs`), and its test
+    stretches the listing to 10 minutes so only the event can pass it.
+  - A fixed budget with no baseline is a load test: the per-voice and bass toolkit budgets measure
+    beside the calm score the same way (`tests_cost::voice_blocks`).
   - A hang guard is sized for a machine whose every core is busy: Windows lets a starved
     below-normal thread wait about four seconds before it boosts it.
   - A test that only fails under load can be a real defect only load shows: "pictures from ffmpeg:

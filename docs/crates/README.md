@@ -25,7 +25,7 @@ happens to the code.
 | [humanity-ship](humanity-ship.md) | 40,292 | core | The home and the ship as places a person stands in. | 0 |
 | [humanity-terrain](humanity-terrain.md) | 32,208 | core | Planets as shapes and numbers. | 0 |
 | [humanity-systems](humanity-systems.md) | 83,418 | core, ship, terrain | The simulation: what happens in the world, and why. | 0 |
-| [humanity-music](humanity-music.md) | 16,913 | core | The game's own music, composed live, and the ship's hum (docs/design/music.md). | 0 |
+| [humanity-music](humanity-music.md) | 16,959 | core | The game's own music, composed live, and the ship's hum (docs/design/music.md). | 0 |
 | [humanity-animation](humanity-animation.md) | 6,444 | core | Character animation, as plain Rust (docs/design/character-animation.md; rungs 0 and 1 built 2026-11-08, the real bodies and clips 2026-11-09). | 0 |
 | [humanity-ai-protocol](humanity-ai-protocol.md) | 453 | nothing | The messages HumanityOS and its AI engine speak to each other. | 0 |
 | [humanity-ai-engine](humanity-ai-engine.md) | 1,849 | ai-protocol | The AI engine, `humanity-ai.exe`: the one separate program that will run every AI model a person chooses, never part of the app. | 0 |

@@ -1082,8 +1082,11 @@ read that calm score once, at another moment than the piece it judged, and a blo
 whatever the OS takes from it mid-block. Now the piece and the calm score are rendered from scratch
 several times, TAKING TURNS, and each block's time is its fastest across those renders: the engine
 is deterministic, so an expensive block stays expensive in every render, while an interruption has
-to strike the same block every time to survive. The calm score's own gate and the hum do the same.
-Measured that way beside other builds: synthwave 0.0443 ms against the calm score's 0.0420, deep
+to strike the same block every time to survive. The calm score's own gate and the hum do the same,
+and so, from the second pass that day, do the per-voice gates (rungs E5 and E6) and the bass
+toolkit's whole chain, whose 0.02 ms had been a fixed figure: it now scales by the calm score as the
+others do, never below 1, so a quiet machine still holds it to 0.02 ms. Measured that way beside
+other builds: synthwave 0.0443 ms against the calm score's 0.0420, deep
 dubstep's drop 0.0330 against 0.0414, 32 streamed notes 9% over 32 held whole. One judgement still
 moved beside release builds: the streamed notes' quarter over notes held whole (one round of five
 read 26% over, the streamed side more sensitive to builds crowding the processor's shared cache), so

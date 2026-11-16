@@ -214,6 +214,18 @@ test("an out-of-memory death is retried; an ordinary error is not, and is shown"
 // RED with the tree watch switched off (TreeWatch::finish returning 0, so the ledger fell back to
 // rustc's own working set), 2026-11-14: "the tree's working set (73 MB) counts the linker beside
 // rustc's own (73 MB)" failed; with the watch on, 133 MB against 70 MB.
+//
+// IT FAILED UNDER LOAD, AND THE WATCH WAS WRONG (2026-11-15): twice in loaded runs, passing alone.
+// The watch only LISTED the job's processes every 200 ms, and this tiny bin's whole link takes less
+// than that, so whenever the link fell between two listings it was never seen: reproduced the same
+// day, "working set 77 MB (rustc alone 77 MB)" in 1 of 5 builds beside another compile, and 1 of 10
+// on a quiet machine. The watch now opens each process the moment the job's notice says it joined
+// (TreeWatch in hos-build-slot.rs), and this test stretches the listing to 10 minutes
+// (HOS_BUILD_SLOT_TREE_LIST_MS), so only the notices can count the linker: the event itself, not a
+// race between a link and a poll. 10 of 10 builds counted it (134 MB against 74 MB). RED with the
+// notices switched off (no port, the listing alone), 3 of 3 builds: "working set 76 MB (rustc alone
+// 76 MB)"; and RED again with TreeWatch::finish returning 0 (the evidence above), 2026-11-15: "the
+// tree's working set (75 MB) counts the linker beside rustc's own (75 MB)".
 test("real cargo, real rustc: a linked crate's ledger line counts the linker's working set too", { skip: !windows && "job objects are Windows" }, () => {
   const exe = wrapper();
   const d = tmp("cargo_ws");
@@ -222,7 +234,8 @@ test("real cargo, real rustc: a linked crate's ledger line counts the linker's w
     fs.mkdirSync(path.join(crate, "src"), { recursive: true });
     fs.writeFileSync(path.join(crate, "Cargo.toml"), '[package]\nname = "tinybin"\nversion = "0.1.0"\nedition = "2021"\n\n[workspace]\n');
     fs.writeFileSync(path.join(crate, "src", "main.rs"), 'fn main() {\n    let v: Vec<String> = (0..1000).map(|i| format!("{i}")).collect();\n    println!("{}", v.len());\n}\n');
-    const r = spawnSync("cargo", ["build"], { cwd: crate, encoding: "utf8", env: slotEnv(d, { CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER: exe, CARGO_TARGET_DIR: path.join(d, "t") }) });
+    const env = slotEnv(d, { CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER: exe, CARGO_TARGET_DIR: path.join(d, "t"), HOS_BUILD_SLOT_TREE_LIST_MS: "600000" });
+    const r = spawnSync("cargo", ["build"], { cwd: crate, encoding: "utf8", env });
     assert.strictEqual(r.status, 0, r.stdout + r.stderr);
     const log = fs.readFileSync(path.join(d, "slot", "build-slot.log"), "utf8");
     const m = /done tinybin \(other-build-none\) .* working set (\d+) MB \(rustc alone (\d+) MB\)/.exec(log);

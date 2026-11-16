@@ -81,8 +81,40 @@ pub(crate) fn time_blocks(blocks: usize, mut render: impl FnMut(&mut [[f32; 2]; 
     times
 }
 
-/// The calm score's blocks for one seed, from scratch: 10 s after 2 s, the way `tests_e5::calm_ms`
-/// measures it.
+/// One voice's blocks from scratch, for the per-voice budgets (2026-11-15): a fresh pool seeded
+/// `seed` playing `insts`, `blocks` 128-frame blocks at `beat_hz` beats a second. `strike(k, pool)`
+/// runs before block k, untimed (the note-ons a test schedules); only the pool's render is timed,
+/// as the per-voice tests always measured it.
+pub(crate) fn voice_blocks(
+    insts: &[crate::instrument::Instrument],
+    banks: &[Option<std::sync::Arc<dyn crate::SampleBank>>],
+    seed: u64,
+    blocks: usize,
+    beat_hz: f32,
+    mut strike: impl FnMut(usize, &mut crate::voice::VoicePool),
+) -> Vec<f64> {
+    let vowel = [(crate::dsp::SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
+    let mut pool = crate::voice::VoicePool::new(seed);
+    let (mut l, mut r, mut sl, mut sr) = ([0f32; 128], [0f32; 128], [0f32; 128], [0f32; 128]);
+    let mut times = Vec::with_capacity(blocks);
+    for k in 0..blocks {
+        strike(k, &mut pool);
+        let beats = k as f64 * 128.0 / RATE as f64 * beat_hz as f64;
+        let mut p = crate::voice::BlockParams::plain(RATE, beat_hz, &vowel);
+        p.bar = (beats / 4.0) as u64;
+        p.beats = beats;
+        for b in [&mut l, &mut r, &mut sl, &mut sr] {
+            b.fill(0.0);
+        }
+        let t0 = std::time::Instant::now();
+        pool.render(insts, banks, &p, &mut l, &mut r, &mut sl, &mut sr, 128);
+        times.push(t0.elapsed().as_secs_f64() * 1000.0);
+    }
+    times
+}
+
+/// The calm score's blocks for one seed, from scratch: 10 s after 2 s (docs/design/music.md section
+/// 14's gate measures it so).
 pub(crate) fn calm_blocks(lib: &crate::MusicLibrary, seed: u64) -> Vec<f64> {
     let ctx = crate::MusicContext { gain: 1.0, a4_hz: 432.0, duck_db: 0.0, ..Default::default() };
     let mut s = crate::ScoreEngine::new(Resolved::new(lib, &SampleLibrary::new()).unwrap(), RATE, seed, ctx);

@@ -658,6 +658,17 @@ mod sys {
     pub const JOB_OBJECT_LIMIT_JOB_MEMORY: u32 = 0x0000_0200;
     pub const ERROR_ACCESS_DENIED: i32 = 5;
 
+    /// JOBOBJECT_ASSOCIATE_COMPLETION_PORT: the job posts its notices (a process joined, one
+    /// ended) to this port; a notice's "bytes" is the message, its "overlapped" the process id.
+    #[repr(C)]
+    pub struct JobAssociateCompletionPort {
+        pub key: *mut c_void,
+        pub port: Handle,
+    }
+    pub const JOB_OBJECT_ASSOCIATE_COMPLETION_PORT_INFORMATION: i32 = 7;
+    pub const JOB_OBJECT_MSG_NEW_PROCESS: u32 = 6;
+    pub const INVALID_HANDLE_VALUE: Handle = usize::MAX as Handle;
+
     #[link(name = "kernel32")]
     extern "system" {
         pub fn GlobalMemoryStatusEx(buffer: *mut MemoryStatusEx) -> i32;
@@ -670,6 +681,10 @@ mod sys {
         pub fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
         pub fn QueryInformationJobObject(job: Handle, class: i32, info: *mut c_void, len: u32, ret: *mut u32) -> i32;
         pub fn SetInformationJobObject(job: Handle, class: i32, info: *mut c_void, len: u32) -> i32;
+        pub fn IsProcessInJob(process: Handle, job: Handle, result: *mut i32) -> i32;
+        pub fn CreateIoCompletionPort(file: Handle, existing: Handle, key: usize, threads: u32) -> Handle;
+        pub fn GetQueuedCompletionStatus(port: Handle, bytes: *mut u32, key: *mut usize, overlapped: *mut *mut c_void, ms: u32) -> i32;
+        pub fn PostQueuedCompletionStatus(port: Handle, bytes: u32, key: usize, overlapped: *mut c_void) -> i32;
         pub fn GetLocalTime(t: *mut SystemTime);
     }
 }
@@ -923,14 +938,50 @@ unsafe impl Send for SendHandle {}
 /// The peak PHYSICAL memory of a compile's whole process tree (2026-11-14). A job object reports
 /// the tree's peak commit, not its working set, and rustc's own working set leaves out the
 /// linker it starts at the end (for bin-release-native the linker is most of it: 2.0 GB of
-/// commit against rustc's own 0.6 GB working set). So a thread lists the job's processes every
-/// 200 ms while the compile runs, opens each new one, and at the end each one's own peak working
-/// set is read and the peaks are summed. The sum of the peaks is never below the peak of the
-/// sum: it can over-count a tree whose processes peaked at different moments, never under-count.
+/// commit against rustc's own 0.6 GB working set). So a thread opens every process of the job
+/// while the compile runs, and at the end each one's own peak working set is read and the peaks
+/// are summed. The sum of the peaks is never below the peak of the sum: it can over-count a tree
+/// whose processes peaked at different moments, never under-count one it saw.
+///
+/// HOW IT SEES EVERY PROCESS (2026-11-15): the job posts a notice to a completion port the moment
+/// a process joins it, and the thread, waiting on that port, opens the process then; it also
+/// lists the job's processes every 200 ms (HOS_BUILD_SLOT_TREE_LIST_MS), because Windows does not
+/// promise to deliver every notice. Until then it only listed, so a process that started and ended
+/// between two listings was never seen: a tiny bin's whole link takes less than 200 ms, and its
+/// ledger line read 77 MB, rustc's own 77 MB, in 1 of 5 builds beside another compile (the flake
+/// of scripts/tests/build-slot.test.js's linker test under load). A process is opened by its id,
+/// so each is checked to be in the job before it counts (an id can be reused once its process is
+/// gone).
 #[cfg(windows)]
 struct TreeWatch {
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// the completion port the job posts its notices to (null when Windows refused one: the
+    /// listing alone, as before 2026-11-15); closed by finish(), after the thread has ended
+    port: sys::Handle,
     thread: Option<std::thread::JoinHandle<Vec<SendHandle>>>,
+}
+
+/// A completion port that `job` posts its notices to, or null.
+#[cfg(windows)]
+fn job_notice_port(job: sys::Handle) -> sys::Handle {
+    unsafe {
+        let port = sys::CreateIoCompletionPort(sys::INVALID_HANDLE_VALUE, std::ptr::null_mut(), 0, 1);
+        if port.is_null() {
+            return port;
+        }
+        let mut assoc = sys::JobAssociateCompletionPort { key: std::ptr::null_mut(), port };
+        let ok = sys::SetInformationJobObject(
+            job,
+            sys::JOB_OBJECT_ASSOCIATE_COMPLETION_PORT_INFORMATION,
+            &mut assoc as *mut _ as *mut _,
+            std::mem::size_of::<sys::JobAssociateCompletionPort>() as u32,
+        );
+        if ok == 0 {
+            sys::CloseHandle(port);
+            return std::ptr::null_mut();
+        }
+        port
+    }
 }
 
 #[cfg(windows)]
@@ -941,11 +992,30 @@ impl TreeWatch {
         use std::sync::atomic::Ordering;
         let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let flag = stop.clone();
-        let job_h = SendHandle(job.0);
+        let port = job_notice_port(job.0);
+        let (job_h, port_h) = (SendHandle(job.0), SendHandle(port));
+        let list_ms = env_u64("HOS_BUILD_SLOT_TREE_LIST_MS", 200).clamp(10, u32::MAX as u64 - 1) as u32;
         let thread = std::thread::spawn(move || {
-            let job_h = job_h;
+            let (job_h, port_h) = (job_h, port_h);
             let mut seen: Vec<u32> = Vec::new();
             let mut handles: Vec<SendHandle> = Vec::new();
+            // Open `pid` if it is new and really in the job (its id may name another process by now).
+            let mut open = |pid: u32| unsafe {
+                if pid == 0 || seen.contains(&pid) {
+                    return;
+                }
+                let h = sys::OpenProcess(sys::PROCESS_QUERY_LIMITED_INFORMATION | sys::PROCESS_VM_READ, 0, pid);
+                if h.is_null() {
+                    return;
+                }
+                let mut inside = 0i32;
+                if sys::IsProcessInJob(h, job_h.0, &mut inside) == 0 || inside == 0 {
+                    sys::CloseHandle(h);
+                    return;
+                }
+                seen.push(pid);
+                handles.push(SendHandle(h));
+            };
             loop {
                 // Read the flag BEFORE listing, so the last pass still lists once after it is set.
                 let last = flag.load(Ordering::Acquire);
@@ -960,30 +1030,53 @@ impl TreeWatch {
                     );
                     if ok != 0 {
                         for &id in list.ids.iter().take((list.in_list as usize).min(list.ids.len())) {
-                            let pid = id as u32;
-                            if pid != 0 && !seen.contains(&pid) {
-                                seen.push(pid);
-                                let h = sys::OpenProcess(sys::PROCESS_QUERY_LIMITED_INFORMATION | sys::PROCESS_VM_READ, 0, pid);
-                                if !h.is_null() {
-                                    handles.push(SendHandle(h));
-                                }
-                            }
+                            open(id as u32);
                         }
                     }
+                }
+                if port_h.0.is_null() {
+                    if last {
+                        return handles;
+                    }
+                    // Until the next listing, or until finish() asks for the last pass.
+                    let until = Instant::now() + Duration::from_millis(list_ms as u64);
+                    while !flag.load(Ordering::Acquire) && Instant::now() < until {
+                        std::thread::sleep(Duration::from_millis(20));
+                    }
+                    continue;
+                }
+                // The notices: wait up to the listing's interval for the first (none on the last
+                // pass), then take every one already queued. finish() posts an empty one to wake us.
+                let mut wait = if last { 0 } else { list_ms };
+                loop {
+                    let (mut msg, mut key, mut pid) = (0u32, 0usize, std::ptr::null_mut());
+                    if unsafe { sys::GetQueuedCompletionStatus(port_h.0, &mut msg, &mut key, &mut pid, wait) } == 0 {
+                        break;
+                    }
+                    if msg == sys::JOB_OBJECT_MSG_NEW_PROCESS {
+                        open(pid as usize as u32);
+                    }
+                    wait = 0;
                 }
                 if last {
                     return handles;
                 }
-                std::thread::sleep(Duration::from_millis(200));
             }
         });
-        TreeWatch { stop, thread: Some(thread) }
+        TreeWatch { stop, port, thread: Some(thread) }
     }
 
     /// Stop watching and return the summed peak working sets of every process seen, MB.
     fn finish(&mut self) -> u64 {
         self.stop.store(true, std::sync::atomic::Ordering::Release);
+        if !self.port.is_null() {
+            unsafe { sys::PostQueuedCompletionStatus(self.port, 0, 0, std::ptr::null_mut()) };
+        }
         let handles = self.thread.take().and_then(|t| t.join().ok()).unwrap_or_default();
+        if !self.port.is_null() {
+            unsafe { sys::CloseHandle(self.port) };
+            self.port = std::ptr::null_mut();
+        }
         let mut bytes = 0u64;
         for h in handles {
             unsafe {

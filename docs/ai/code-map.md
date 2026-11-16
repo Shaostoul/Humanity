@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1571 Rust files (803,644 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,931 lines) under `web/`.
+1571 Rust files (803,690 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,931 lines) under `web/`.
 
 ## Folders
 
@@ -258,10 +258,10 @@
 - `sheet.rs` (294): THE SHEET: a piece written down (docs/design/music-page.md section 9). Main items: SheetNote, SheetChord, SheetSection, Sheet, RollNote, transcribe, key_uses_flats, pc_name (+1 more).
 - `stream.rs` (476): Streaming long recordings from disk while a note plays (docs/design/music.md section 23, "Memory", built 2026-11-14). Main items: StreamSettings, FrameSource, SourceOpener, StreamPool, ZoneStream, StreamLease, RingView, Service (+2 more).
 - `tests_audio.rs` (916): The music crate's tests that render sound and measure it: tuning in the rendered audio, the steel pan's and the deep drum's partials and decay, the hum (off the ship, near the drive, in a small roo... Main items: heavy.
-- `tests_cost.rs` (99): Measuring the audio thread's cost per 128-frame block so that a loaded machine does not fail a budget the engine meets (2026-11-15). Main items: BlockCost, fastest_blocks, time_blocks, calm_blocks, scale_of, CALM_QUIET_MS.
-- `tests_e5.rs` (671): Rungs E5 and E4 (docs/design/music.md section 7f, 2026-11-14): the WAVETABLE oscillator that plays the core set's AKWF single cycles, band-limited by octave and morphing; UNISON (the supersaw) and... Main items: calm_ms.
-- `tests_e6.rs` (829): Rungs E3 and E6 (docs/design/music.md section 7g, 2026-11-14): the mix's effects for the electronic genres (the tempo delay, the gated reverb, the reverb's low cut, the downlifter, the reversed cym...
-- `tests_electronic.rs` (576): The electronic rungs (docs/design/music.md section 7d; the research's rungs E1 and E2, 2026-11-13): a genre's structure (sections, builds, snare rolls, the drop) and the bass toolkit (a two-stage f... Main items: power, band_onsets.
+- `tests_cost.rs` (131): Measuring the audio thread's cost per 128-frame block so that a loaded machine does not fail a budget the engine meets (2026-11-15). Main items: BlockCost, fastest_blocks, time_blocks, voice_blocks, calm_blocks, scale_of, CALM_QUIET_MS.
+- `tests_e5.rs` (661): Rungs E5 and E4 (docs/design/music.md section 7f, 2026-11-14): the WAVETABLE oscillator that plays the core set's AKWF single cycles, band-limited by octave and morphing; UNISON (the supersaw) and...
+- `tests_e6.rs` (843): Rungs E3 and E6 (docs/design/music.md section 7g, 2026-11-14): the mix's effects for the electronic genres (the tempo delay, the gated reverb, the reverb's low cut, the downlifter, the reversed cym...
+- `tests_electronic.rs` (586): The electronic rungs (docs/design/music.md section 7d; the research's rungs E1 and E2, 2026-11-13): a genre's structure (sections, builds, snare rolls, the drop) and the bass toolkit (a two-stage f... Main items: power, band_onsets.
 - `tests_page.rs` (327): The Music page's crate half (docs/design/music-page.md): favourites saved and loaded, share codes, the export, the piano roll and the chord symbols, each against an independent reading.
 - `tests_piece.rs` (286): Pieces: variety by seed (docs/design/music.md section 7c; the operator, 2026-11-13: "we don't want the same electro swing song for hours on end, we definitely want variety to the music.
 - `tests_stream.rs` (350): Streaming long recordings (crate::stream; docs/design/music.md section 23, "Memory"): the packet reader against kira's decode, a streamed note against the whole-file note, a stream that falls behin...

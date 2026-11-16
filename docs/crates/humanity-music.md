@@ -23,7 +23,7 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
   - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
   - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_cost.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`, `crates/humanity-music/src/tests_e6.rs`
   - `all(test, feature = "kira")`: `crates/humanity-music/src/tests_stream.rs`
-- **Size:** 16,913 lines in 37 files, 4,582 of them in 9 test files.
+- **Size:** 16,959 lines in 37 files, 4,628 of them in 9 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 7.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
 - **May be used by** (the plan): gui, engine. **Used today by:** gui 56, engine 15.

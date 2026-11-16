@@ -295,8 +295,21 @@ fn the_bass_toolkit_pieces_do_what_they_say() {
 /// own test. RED first (2026-11-13) as first written, with the gate at 0.006 ms: "the bass toolkit's
 /// whole chain: 0.0184 ms a block for one voice (budget 0.006)"; the fold and the bit steps then lost
 /// their library floor and round calls and the comb its modulo (0.0133 ms, 0.0117 on a quieter run).
+///
+/// MEASURED SO A LOADED MACHINE DOES NOT FAIL IT (2026-11-15, before it reached the flaky-test
+/// ledger): the 0.02 ms was a fixed figure, so a machine busy with other builds failed a chain the
+/// engine runs within it, the flaw the other budgets fixed by scaling with the calm score
+/// (`tests_cost`). Now the budget scales the same way, by how much slower than its quiet 0.037 ms
+/// the calm score ran (never below 1, so a quiet machine holds the chain to 0.02 ms exactly), the
+/// calm score's seeds and the chain's five seeds rendered from scratch in turns, three times, each
+/// block keeping its fastest time. Measured 2026-11-15 beside other agents' builds: 0.0092 ms
+/// (budget 0.0235; the calm score 0.0434 ms beside it). Still RED for its defect the same day, with
+/// the chain ticked four times a sample (`voice::fx_tick`, only the last kept), in the run and again
+/// alone: "the bass toolkit's whole chain: 0.0258 ms a block for one voice (budget 0.0243; the calm
+/// score 0.0449 ms beside it)".
 #[test]
 fn the_bass_toolkit_fits_the_audio_budget() {
+    use crate::tests_cost::{calm_blocks, fastest_blocks, scale_of, voice_blocks, BlockCost};
     let _g = crate::tests_audio::heavy();
     let def = r#"Instrument(id: "t", kind: Synth((
         oscillators: [(wave: Saw, detune_cents: -6.0), (wave: Saw, detune_cents: 6.0)],
@@ -311,31 +324,28 @@ fn the_bass_toolkit_fits_the_audio_budget() {
     )), level_db: 0.0)"#;
     let inst: Instrument = ron::from_str(def).unwrap();
     let insts = vec![inst];
-    let banks = vec![None];
-    let vowel = [(SvfCoefs::new(800.0, 10.0, RATE), 1.0); 5];
-    let mut best = f64::MAX;
-    for run in 0..5 {
-        let mut pool = VoicePool::new(run);
-        pool.note_on(NoteOn { inst: 0, role: 1, midi: 38.0, a4: 432.0, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, &insts, &banks, RATE);
-        let (mut l, mut r, mut sl, mut sr) = ([0f32; 128], [0f32; 128], [0f32; 128], [0f32; 128]);
-        let mut times = Vec::new();
-        for k in 0..1500 {
-            let beats = k as f64 * 128.0 / RATE as f64 * 140.0 / 60.0;
-            let mut p = BlockParams::plain(RATE, 140.0 / 60.0, &vowel);
-            p.bar = (beats / 4.0) as u64;
-            p.beats = beats;
-            l.fill(0.0);
-            r.fill(0.0);
-            let t0 = std::time::Instant::now();
-            pool.render(&insts, &banks, &p, &mut l, &mut r, &mut sl, &mut sr, 128);
-            times.push(t0.elapsed().as_secs_f64() * 1000.0);
-        }
-        times.sort_by(|a, b| a.total_cmp(b));
-        let kept = &times[..(times.len() as f64 * 0.98) as usize];
-        best = best.min(kept.iter().sum::<f64>() / kept.len() as f64);
+    let banks: Vec<Option<std::sync::Arc<dyn crate::SampleBank>>> = vec![None];
+    let lib = shipped();
+    let (libr, insts, banks) = (&lib, &insts, &banks);
+    let mut subjects: Vec<Box<dyn FnMut() -> Vec<f64> + '_>> = Vec::new();
+    for seed in [1u64, 2, 3] {
+        subjects.push(Box::new(move || calm_blocks(libr, seed)));
     }
-    println!("the bass toolkit's whole chain: {best:.4} ms a block for one voice");
-    assert!(best <= 0.02, "the bass toolkit's whole chain: {best:.4} ms a block for one voice (budget 0.02)");
+    for run in 0..5u64 {
+        subjects.push(Box::new(move || {
+            voice_blocks(insts, banks, run, 1500, 140.0 / 60.0, |k, pool| {
+                if k == 0 {
+                    pool.note_on(NoteOn { inst: 0, role: 1, midi: 38.0, a4: 432.0, vel: 1.0, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: 1, level: 1.0 }, insts, banks, RATE);
+                }
+            })
+        }));
+    }
+    let blocks = fastest_blocks(3, subjects);
+    let (calm, scale) = scale_of(&blocks[..3]);
+    let budget = 0.02 * scale;
+    let best = blocks[3..].iter().map(|t| BlockCost::of(t).mean).fold(f64::MAX, f64::min);
+    println!("the bass toolkit's whole chain: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)");
+    assert!(best <= budget, "the bass toolkit's whole chain: {best:.4} ms a block for one voice (budget {budget:.4}; the calm score {calm:.4} ms beside it)");
 }
 
 // ----- Deep dubstep (docs/design/music.md section 7e) ------------------------------------------------
