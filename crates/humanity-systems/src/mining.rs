@@ -1065,8 +1065,7 @@ fn deliver_haul(
         }
         if total > 0 {
             log::info!("[Mining] drone delivered {total} units to home storage");
-            // A delivered haul trains Mining (1 XP per ore unit).
-            crate::skills::award_skill_xp(data, "mining", total);
+            // No Mining XP: a machine left to run alone trains nobody (docs/design/skills.md).
         }
         return total;
     }
@@ -1098,8 +1097,7 @@ fn deliver_haul(
     }
     if total > 0 {
         log::info!("[Mining] drone delivered {total} units home");
-        // A delivered haul trains Mining (1 XP per ore unit).
-        crate::skills::award_skill_xp(data, "mining", total);
+        // No Mining XP: a machine left to run alone trains nobody (docs/design/skills.md).
     }
     total
 }
@@ -1438,7 +1436,7 @@ mod drone_tests {
     /// from, and the only one they draw on now, so a haul left in the
     /// backpack would never reach the smelter. The haul goes on the channel
     /// the main loop files into the Barn, as an automated machine's batch
-    /// does; the backpack is untouched. Mining is still trained for it.
+    /// does; the backpack is untouched. Nobody's Mining is trained by it (2026-11-16).
     ///
     /// Seen red before the fix: "the haul is filed for home storage" (left:
     /// 0, right: 8): it landed in the backpack.
@@ -1475,7 +1473,11 @@ mod drone_tests {
             .filter(|e| e.skill_id == "mining")
             .map(|e| e.amount)
             .sum();
-        assert_eq!(xp, 8, "a haul home still trains Mining, 1 XP per unit");
+        // A drone left to run alone trains nobody (docs/design/skills.md: "a machine left to run
+        // alone makes standard goods and trains nobody, which is why hand work stays worth doing";
+        // the skills rung 2 builder flagged the grant, 2026-11-16). Seen red with the old grant:
+        // "left: 8, right: 0".
+        assert_eq!(xp, 0, "a drone's haul trains nobody's Mining");
     }
 
     /// Standing order (economy automation Phase 1, v0.663): with an auto_mine_order
