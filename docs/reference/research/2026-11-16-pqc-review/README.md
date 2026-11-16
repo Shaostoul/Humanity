@@ -86,6 +86,22 @@ His three additions, now in the plan:
 Not yet checked (his note too): whether the upstream crates already run ACVP vectors in their own
 suites, and whether either pinned version has a published advisory.
 
+**His sources for the official vectors** (a third message the same day; read each under the house
+rules, robots.txt first, before relying on it):
+
+- NIST: the ACVP-Server release notes (v1.1.0.38, at newreleases.io), the NIST PQC archive FAQ
+  (csrc.nist.gov/Projects/Post-Quantum-Cryptography/PQC-Archive), and the pqc-forum thread on ML-KEM
+  negative, intermediate and edge-case vectors.
+- Vector sets and their users: C2SP CCTV (github.com/C2SP/CCTV), C2SP Wycheproof, Go's
+  `crypto/mlkem` Wycheproof test, the `fips203` crate's CCTV README, py-acvp-pqc, and wolfSSL's post on
+  ML-KEM and ML-DSA at the CAVP.
+- The crates' own test READMEs: `ml-dsa` 0.1.1 and `ml-kem` (0.2.1's README; check 0.3.3's), which
+  answer whether upstream already runs ACVP vectors.
+- Versions to weigh: `@noble/post-quantum` 0.7.1 is out (the project vendors 0.6.1); the X-Wing
+  draft is at -11 (draft-connolly-cfrg-xwing-kem, IETF Datatracker), while RustCrypto's `x-wing`
+  0.1.0-rc.0 follows draft 06: whether noble's XWing and `x-wing` follow the same draft is part of the
+  known-answer check, and a draft gap would decide which to wait for.
+
 ## Decisions that are the operator's
 
 1. **Forward secrecy versus restoring all history from the phrase.** With forward secrecy, a new device
