@@ -47,7 +47,7 @@ Your memory between sessions is the **disk, not the conversation**. Anything onl
 | What you learned | Where it persists | When to write it |
 |---|---|---|
 | Operator correction / working preference | `CLAUDE.md` (a norm section) + memory `User Preferences` | the moment it's given |
-| Decision + the WHY behind it | `data/coordination/orchestrator_state.json` → `recent_decisions` | at each significant decision/checkpoint |
+| Decision + the WHY behind it | `data/coordination/orchestrator_state.json` → `recent_decisions`, **oldest first: append each new entry at the END, never at the front** (`just brief` shows the last one; 100 entries put at the front made it show a week-old decision, repaired 2026-11-16) | at each significant decision/checkpoint |
 | What to work on next | `docs/PRIORITIES.md` | whenever scope/priority shifts |
 | Lesson / gotcha / incident | the right `docs/` file (`INCIDENT-PLAYBOOK.md`, the design doc, `BUGS.md`) | when learned |
 | Session narrative | `docs/history/<date>.md` | at session end |
