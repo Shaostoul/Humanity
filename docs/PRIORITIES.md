@@ -66,7 +66,12 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    fits the offline relay mailbox (prekeys plus a hash chain, OpenMLS with X-Wing, SPQR; Threema's
    Ibex and its history-transfer specs as references), then the plan.
 6. An outside review once 1 to 5 are built.
-7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent.
+7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent. Beside it, a
+   toolsmith: **`just clean-worktrees` that recognises squash merges.** It removed 2 of 211 on
+   2026-11-16 and kept the rest as "real work", because a squash-merged branch's commits never appear
+   in main's history. Fix: the merge step appends each landed branch to a ledger (branch, squash
+   commit, date), backfilled from the squash commits' messages, and the cleanup removes a worktree
+   whose branch is in it (the journal, 2026-11-16).
 8. **The music goal** below.
 
 ### GOAL FOR THE NEXT USAGE RESET (operator, 2026-11-16): written music in an open, editable format
