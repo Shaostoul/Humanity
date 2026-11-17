@@ -104,6 +104,12 @@ rules, robots.txt first, before relying on it):
 
 ## Decisions that are the operator's
 
+**Decided (operator, 2026-11-16):** "Agree with your recommendations. Best point to do this now is before anyone is using the app. I don't use the wallet so we should be safe to move forward with these when we have usage." So: (1) forward secrecy, with an
+encrypted-backup path for history (the recovery phrase restores the identity; old DMs come back by
+transfer from another device or from the encrypted backup); (2) the wallet's Ed25519 key derived under
+its own label now, before anyone uses the app (no funds to move: the operator does not use the wallet).
+Both start at the weekly reset, after the conformance tests.
+
 1. **Forward secrecy versus restoring all history from the phrase.** With forward secrecy, a new device
    restored from the recovery phrase gets your identity but not your old DMs, unless they are moved from
    another device or an encrypted backup. This changes what the recovery phrase promises, so it is his.

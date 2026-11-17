@@ -48,6 +48,27 @@ fixed v0.1384.0), 2a, 2a-ii and 2a-i (the grain measurements, condensed into
 page snapshots, done). A code comment or fixture that cites one of those
 numbers finds it there.
 
+### THE RESET'S ORDER (2026-11-16): security first, then the tooling, then the music goal
+
+A contributor working in post-quantum cryptography reviewed the identity and DMs
+(docs/reference/research/2026-11-16-pqc-review/, every claim checked in the code). Security is work now
+(CLAUDE.md), so at the reset, in order:
+
+1. **Conformance tests first**: NIST ACVP vectors for FIPS 203 and 204 against the pinned crates, web
+   and native; cross-implementation tests both ways with a full sealed-sender v2 envelope fixture;
+   cargo audit or vet and npm audit in CI; every crypto upgrade reruns them.
+2. **The wallet key under its own label** (decided by the operator: "Best point to do this now is
+   before anyone is using the app"): today the Solana Ed25519 key is the recovery phrase's raw entropy,
+   the root of every key.
+3. **X-Wing (X25519 + ML-KEM-768) for DMs**, after the draft-version and known-answer checks.
+4. **KEM keys by index, signed into the key card**: rotation, and the first step to signed prekeys.
+5. **Forward secrecy** (decided: yes, with an encrypted-backup path for history): research which design
+   fits the offline relay mailbox (prekeys plus a hash chain, OpenMLS with X-Wing, SPQR; Threema's
+   Ibex and its history-transfer specs as references), then the plan.
+6. An outside review once 1 to 5 are built.
+7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent.
+8. **The music goal** below.
+
 ### GOAL FOR THE NEXT USAGE RESET (operator, 2026-11-16): written music in an open, editable format
 
 Verbatim: "Okay, then that's our goal next usage reset. To some how save orchestral music in a file
