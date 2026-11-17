@@ -1447,6 +1447,11 @@
       "date": "2026-11-16",
       "decision": "Journal repaired: 100 entries had been added at the FRONT of recent_decisions (newest first, 2026-10-09 to 2026-11-16) while 198 behind them were oldest first, so just brief showed a 2026-11-07 entry as the last decision. Merged into one oldest-first timeline by date (each day's order kept); the rule is now written in docs/ai/orchestrator.md: append at the end, never unshift. System check the same evening: version in sync at 0.1564.0, deploys green, both servers' installed files match, relay up, disk 57%; the taskbar exe is behind main (the drone, beds and picture-rail changes since v0.1564.0).",
       "why": "just brief must show the newest decision; a journal the next session misreads loses the why."
+    },
+    {
+      "date": "2026-11-16",
+      "decision": "just clean-worktrees removed 2 of 211 worktrees and refused the rest: every agent branch is SQUASH-merged, so its commits never appear in main's history and the script (scripts/clean-worktrees.sh) reads each as unmerged work; old worktrees also show the once-tracked .claude/settings.local.json as modified. --force-unmerged would destroy real work too, so it was not used. Fix at the reset (tooling): the merge step (the merge-agent skill, the orchestrator's squash merges) appends each landed branch to a ledger (for example data/coordination/merged-branches.jsonl: branch, squash commit, date), and clean-worktrees removes a worktree whose branch is in the ledger and whose only changes are the ignored settings file; backfill the ledger from the squash commits' messages.",
+      "why": "Hundreds of stale worktrees are context rot and disk; the cleanup must recognise how we actually merge."
     }
   ],
   "active_scopes_to_avoid": [
