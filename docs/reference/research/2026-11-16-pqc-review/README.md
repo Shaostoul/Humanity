@@ -100,6 +100,14 @@ His three additions, now in the plan:
   which is used during ML-DSA signing"; "Patched >=0.1.0-rc.3"; "Integer division was replaced with a
   constant-time Barrett reduction." **The pinned 0.1.1 is past the patch, so not affected.** An
   advisory scan in CI would have said so on its own; it is still the plan.
+- **noble (the web side), its 0.6.1 README read 2026-11-16 at cdn.jsdelivr.net:** its XWing matches
+  "connolly-cfrg-xwing-kem-09" (with irtf-cfrg-hybrid-kems-07 and irtf-cfrg-concrete-hybrid-kems-02);
+  "The library has not been independently audited yet." and "at version 0.6.1, in Apr 2026, it was
+  audited by ourselves (self-audited)". The reviewer reports RustCrypto's `x-wing` 0.1.0-rc.0 follows
+  draft 06, and the current draft is -11: **a draft mismatch between the two sides is likely** (to
+  confirm from `x-wing`'s own documentation), so the X-Wing step starts by choosing a native and a web
+  version that follow the same draft, proven by the draft's own test vectors on both sides, before
+  any DM uses it.
 
 **His sources for the official vectors** (a third message the same day; read each under the house
 rules, robots.txt first, before relying on it):
