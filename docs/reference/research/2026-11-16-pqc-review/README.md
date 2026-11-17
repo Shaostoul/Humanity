@@ -83,8 +83,23 @@ His three additions, now in the plan:
 3. **Advisory checks and deliberate upgrades**: `cargo audit` or `cargo vet` and `npm audit`; keep the
    exact-version pins and treat every upgrade as a change that reruns all of the above.
 
-Not yet checked (his note too): whether the upstream crates already run ACVP vectors in their own
-suites, and whether either pinned version has a published advisory.
+**Both questions answered (read 2026-11-16):**
+
+- **Upstream does run the official vectors.** `ml-dsa` 0.1.1's tests README (docs.rs, the crate's
+  source): "The JSON test vector files are taken from the [NIST ACVP repository]. Specifically,
+  `key-gen.json`, `sig-gen.json` and `sig-ver.json` are the \"internal projection\" files", taken "from
+  commit [65370b8] of that repo". `ml-kem` 0.3.3's: "`key-gen.json` and `encap-decap.json` are the
+  \"internal projection\" files from the [ML-KEM key generation test directory][keyGen] and [encap/decap
+  test directory][encapDecap]", the same commit. Both also carry `wycheproof.rs`. The published crates
+  ship the README and `wycheproof.rs` but not the JSON vector files, so the vectors run in the
+  upstream repository, not from the download: our CI still has to run them against our pinned
+  versions, as recommended, and noble's side is unchecked.
+- **Advisories (RustSec, rustsec.org, read 2026-11-16):** `ml-kem` has no advisory page (the address
+  scheme checked against a crate that has one). `ml-dsa` has RUSTSEC-2025-0144 (CVE-2026-22705, CVSS
+  6.4 medium, issued 27 January 2026): "A timing side-channel was discovered in the Decompose algorithm
+  which is used during ML-DSA signing"; "Patched >=0.1.0-rc.3"; "Integer division was replaced with a
+  constant-time Barrett reduction." **The pinned 0.1.1 is past the patch, so not affected.** An
+  advisory scan in CI would have said so on its own; it is still the plan.
 
 **His sources for the official vectors** (a third message the same day; read each under the house
 rules, robots.txt first, before relying on it):
