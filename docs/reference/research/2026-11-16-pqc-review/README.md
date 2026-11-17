@@ -104,8 +104,10 @@ His three additions, now in the plan:
   "connolly-cfrg-xwing-kem-09" (with irtf-cfrg-hybrid-kems-07 and irtf-cfrg-concrete-hybrid-kems-02);
   "The library has not been independently audited yet." and "at version 0.6.1, in Apr 2026, it was
   audited by ourselves (self-audited)". The reviewer reports RustCrypto's `x-wing` 0.1.0-rc.0 follows
-  draft 06, and the current draft is -11: **a draft mismatch between the two sides is likely** (to
-  confirm from `x-wing`'s own documentation), so the X-Wing step starts by choosing a native and a web
+  draft 06, and the current draft is -11. **Confirmed the same day from `x-wing`'s documentation (docs.rs,
+  latest 0.1.1): "Current implementation matches the draft RFC version 06." and "The implementation
+  contained in this crate has never been independently audited!"** So the native (draft 06) and web
+  (draft 09) sides follow different drafts today, so the X-Wing step starts by choosing a native and a web
   version that follow the same draft, proven by the draft's own test vectors on both sides, before
   any DM uses it.
 
