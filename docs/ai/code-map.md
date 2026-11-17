@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1581 Rust files (806,436 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (91,997 lines) under `web/`.
+1581 Rust files (806,443 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (92,000 lines) under `web/`.
 
 ## Folders
 
@@ -288,7 +288,7 @@
 - `moderation.rs` (472): Signed moderation objects: `mod_action_v1` and `space_policy_v1`. Main items: ModError, ModAction, SpacePolicy, mod_action_payload, build_mod_action_v1, space_policy_payload, build_space_policy_v1, payload_bytes (+2 more).
 - `object.rs` (453): The Humanity Network object model (post-quantum). Main items: Object, ObjectBuilder, PROTOCOL_VERSION, PAYLOAD_ENCODING_PLAINTEXT, PAYLOAD_ENCODING_ENCRYPTED.
 - `org.rs` (1406): Organisations (rung 1, 2026-11-14, docs/design/organisations.md): a group with members, roles and permissions, invitations the invitee accepts, a directory with privacy levels and an audit log ever... Main items: Role, Directory, Listing, Founding, Act, RoleBook, Refusal, Member (+41 more).
-- `pq_crypto.rs` (1716): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
+- `pq_crypto.rs` (1719): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
 - `profile_copy_fixtures.rs` (123): Child of profile_copy.rs (#[path], so `use super::*` reaches everything it has): the shared fixture both apps read (BUG-191), moved out of profile_copy_tests.rs for the relay's tests that read it (... Main items: FxCase, fx_cases, fx_key, copy_of_frame, FIXTURE, FX_SIGNER, FX_NOW_MS, FX_TIMES.
 - `profile_copy.rs` (345): The copy of a person's profile that other servers keep (BUG-191, 2026-10-12, docs/design/bug-191-profile-copies-plan.md sections 3.1 to 3.4): what it may hold, the words its owner's app signs, the... Main items: PublicCopy, listed, unlisted, kept_for_friends, withdrawal, is_withdrawal, public_copy, copy_text (+23 more).
 - `recovery.rs` (673): Recovery through trusted people: the protocol the relay and both apps share (2026-10-21). Main items: SharePayload, TrustedPerson, NoteToSelf, ServedPiece, OpenedPiece, OneTimeAsk, piece_aad, note_aad (+49 more).
@@ -396,7 +396,7 @@
 - `livestock.rs` (1165): Livestock system (v0.751, closure ladder rung 7 - creatures, passive first). Main items: CreatureDef, RenewableProduct, CreatureRegistry, LivestockPlacement, LivestockSpawnList, WildSpawn, WildSpawnList, LeftBehind (+18 more).
 - `machine_levels.rs` (431): What the home's machines HOLD, kept across a restart and across world entry (2026-09-27): each battery bank's charge, each water tank's litres, and the contents of each machine's vessel (a genset's... Main items: MachineLevels, HeldMachineLevels, levels, apply, restore, land_held, reset_all, take_all (+1 more).
 - `manufacturing.rs` (97): Manufacturing system, drives `ProductionFacility` entities through their recipes. Main items: ManufacturingData, ManufacturingSystem.
-- `mining.rs` (1867): Mining system, autonomous drones that fly to asteroids, extract ore over time, return home, and drop the raw material into the player's inventory. Main items: Mode, DroneSpec, DroneUnit, DroneRequest, ServicePart, DroneReadout, DroneCharger, DroneSystem (+20 more).
+- `mining.rs` (1869): Mining system, autonomous drones that fly to asteroids, extract ore over time, return home, and drop the raw material into the player's inventory. Main items: Mode, DroneSpec, DroneUnit, DroneRequest, ServicePart, DroneReadout, DroneCharger, DroneSystem (+20 more).
 - `notices.rs` (70): The two channels a system speaks to the person on (BUG-258, 2026-11-06). Main items: register, world, reply, take, said, take_said, WORLD, REPLIES.
 - `oceanography.rs` (86): Oceanography system, regenerates marine resource populations toward their carrying capacity. Main items: OceanographyData, OceanographySystem.
 - `offline.rs` (78): Offline behaviors system, fires `AutonomousTask` actions on a periodic schedule. Main items: OfflineData, OfflineSystem.
@@ -628,7 +628,7 @@
 - `bg_connections.rs` (955): Background relay connections pump (multi-connection stage 3). Main items: pump_background_connections, link_frame, redial_due, erased_link, bg_begin_fetch, bg_dm_new, bg_dm_batch.
 - `block.rs` (740): Block (step C of docs/design/blocking-and-safe-mode.md, section 10d, 2026-10-09): the native client's half that touches the app state and the socket. Main items: ensure_block_list, is_blocked, hides_player, screens_dm, screens_dm_parked, own_echo_for_blocked, screens_out, hides_message (+13 more).
 - `body_probe.rs` (250): What the dev IPC reports of the player's body (2026-10-20): health, the wounds on it, and the landings the walk handed to it. Main items: health, wounds, vitals_json, falls_core, planet_climb_m_s, planet_walk, falls_json, parse_illness_mode.
-- `boot_ledger.rs` (175): The machine-wide boot ledger, the game's own half (2026-11-14). Main items: EngineBoot, ledger_path, worktree_name, checkout_of, iso_utc, append, engine_writes, LEDGER_OWNER_ENV (+3 more).
+- `boot_ledger.rs` (177): The machine-wide boot ledger, the game's own half (2026-11-14). Main items: EngineBoot, ledger_path, worktree_name, checkout_of, iso_utc, append, engine_writes, LEDGER_OWNER_ENV (+3 more).
 - `build_place.rs` (1499): Placing a built piece in the world (2026-09-27): the ghost, the keys, the hint. Main items: PlaceKey, Press, key_action, key, press_build, press_build_on, place_at, cast_spot (+18 more).
 - `built_uses.rs` (475): Built beds and chests in use (2026-09-27): the crosshair prompt, the E press, and the built chests kept in the Inventory page's places tree. Main items: frame, publish_stations, station_types_here, reach_blockers, shut_door_segments, refresh_shut_doors, machine_use, use_machine (+2 more).
 - `call_relay.rs` (294): Calls through the server (step E of docs/design/blocking-and-safe-mode.md, section 10f, 2026-10-09): the desktop app's glue between its state, the chat socket and the WebRTC manager. Main items: wanted_scope, pump, effective_call_connection, on_frame, on_event, missed_call_line, on_ring.
@@ -1763,7 +1763,7 @@
 - `chat-links.js` (121): Links to chat channels on the website (2026-11-03). The operator: "Can we make it so I can link Main items: wordOf, find, hashOf, link, isPublicHost, parse.
 - `defaults.js` (98): shared/defaults.js, Single source of truth for all settings defaults.
 - `drop-overlay.js` (234): ── drop-overlay.js ─────────────────────────────────────────────────────── Main items: sendIn, uploadAndPostIn, addTo, carriesFiles, filesOf, attach.
-- `eli5.js` (68): ELI5 + Expert dual-depth explanation system Main items: initBlocks.
+- `eli5.js` (71): ELI5 + Expert dual-depth explanation system Main items: initBlocks.
 - `events.js` (55): HOS Event Bus, replaces monkey-patching pattern
 - `file-risk.js` (217): ── file-risk.js ──────────────────────────────────────────────────────────── Main items: load, use, startsWithHex, plainName, ending, shownEnding, assess, fileType (+3 more).
 - `file-transfer.js` (1005): ── file-transfer.js ────────────────────────────────────────────────────── Main items: idOk, hex64Ok, newId, toHex, piecesFor, pieceLength, filePassFieldOk, filePassPreimage (+26 more).
