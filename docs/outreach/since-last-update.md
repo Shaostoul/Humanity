@@ -12,3 +12,8 @@ Each line is written the way a player would hear it; the release notes and
 ## Shipped
 
 ### Next release
+
+### Outreach
+
+- HumanityOS is listed on AlternativeTo (approved 18 November 2026), next to Discord, Element, Signal, Telegram and other chat apps: https://alternativeto.net/software/humanityos/about/
+- The project now says who holds the copyright: Shaostoul and the HumanityOS contributors, each keeping what they wrote, so nobody can take it private.
