@@ -88,3 +88,13 @@ offline).
 **The GitHub description** (it fed the form's import) was changed the same day, with the operator's
 yes, from the old "open, public-domain project exploring..." text to the one-app description, and
 the `public-domain` topic was removed (the code has been AGPL-3.0 since 14 November 2026).
+
+## Submitted (2026-11-18)
+
+The operator submitted the listing on 2026-11-18 into the free queue, with the chat-first short
+description (the first version above), 24 alternatives (Discord, Element, Stoat Chat, SimpleX Chat,
+Session, Jami, Signal, Telegram, Fluxer and other community and private chat apps) and the tags and
+features chosen above. The page is visible only to him until a reviewer approves it, so its link is
+not shared before then. After approval: ask for developer access, add real screenshots taken while
+connected, and tick each feature as it ships (syntax highlighting, recurring tasks, disappearing
+messages, encrypted backup, text to speech, game tags once the game clears the site's bar).
