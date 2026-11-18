@@ -79,6 +79,13 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    commit, date), backfilled from the squash commits' messages, and the cleanup removes a worktree
    whose branch is in it (the journal, 2026-11-16).
 8. **The music goal** below.
+9. **Digital public good recognition** (operator, 2026-11-18: "Let's pursue this."; the standard
+   checked in docs/reference/findings/2026-11-18-digital-public-goods.md): close the two gaps first,
+   a plain copyright line beside the licences (the wording is the operator's) and a written content
+   policy with its report-and-remove process (illegal content, child sexual abuse material first;
+   what sealed DMs mean for it), linked from Settings > Safety and the website. Then the evidence
+   document and the eligibility tool; the operator submits (the DPGA takes the authorised person's
+   name and contact).
 
 ### GOAL FOR THE NEXT USAGE RESET (operator, 2026-11-16): written music in an open, editable format
 
