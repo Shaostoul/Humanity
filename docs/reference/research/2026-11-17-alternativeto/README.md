@@ -36,3 +36,35 @@ proposed as a fix.
 - Present it as released software (it is: public downloads and a live web app), license
   open source, free, platforms Windows, macOS, Linux, Web, Self-Hosted.
 - No links in the description; screenshots of the chat and the app, not the unfinished game.
+
+## The listing as filled in (2026-11-17; reusable for other directories)
+
+**Short description:** Free, open-source community chat with no sign-up and end-to-end encrypted
+messages, plus everyday tools, offline guides and a game that teaches self-sufficiency.
+
+**Full description:**
+
+HumanityOS is a free, open-source app for private community chat and everyday planning, with no
+sign-up. Your account is a key on your own device, backed up by a 24-word recovery phrase: no email,
+no phone number, and no password stored on any server.
+
+The chat works like a community server: channels, voice and video calls, screen sharing, files sent
+straight between devices, and private messages sealed end to end with post-quantum encryption.
+Anyone can run their own server, on a rented machine or on a home computer for the devices on its
+own network, and servers connect to each other, so no single company holds your community.
+
+Alongside the chat are everyday tools: a task board, maps that zoom from the galaxy down to your own
+street, a marketplace for trading directly with others, a music generator, and a library of
+practical guides on growing food, safe water, shelter and power that opens with no connection. The
+same app holds a space game, in active development, that teaches those self-sufficiency skills
+through simulation.
+
+No ads, nothing sold about you, and no company owns it. Desktop downloads for Windows, macOS and
+Linux, and a web version that runs in any browser.
+
+**Other fields:** platforms Windows, Mac, Linux, Online, Self-Hosted (no Android: the build exists
+only on GitHub's build machines); licence AGPL-3.0; release date 2026-01-16 (the repository's first
+public commit; HumanityOS has carried that name since 1 January 2026); icon
+`web/shared/icons/icon-512.png` (served at https://united-humanity.us/shared/icons/icon-512.png);
+no package managers yet (a winget manifest, a pull request to microsoft/winget-pkgs, is a cheap
+later add).
