@@ -39,14 +39,19 @@ proposed as a fix.
 
 ## The listing as filled in (2026-11-17; reusable for other directories)
 
-**Short description:** Free, open-source community chat with no sign-up and end-to-end encrypted
-messages, plus everyday tools, offline guides and a game that teaches self-sufficiency.
+**Short description:** One free, open-source app for everything you do online, starting with
+private community chat with no sign-up, everyday tools, offline guides and a game that teaches
+self-sufficiency.
 
-**Full description:**
+**Full description** (opening revised 2026-11-18 after the operator: "HumanityOS is inevitably meant
+to be a singular app 100% of people can use and make full use of everything computer and internet...
+we want cities/nations to be able to trust the app to provide the much needed software
+infrastructure everyone desperately needs"):
 
-HumanityOS is a free, open-source app for private community chat and everyday planning, with no
-sign-up. Your account is a key on your own device, backed up by a 24-word recovery phrase: no email,
-no phone number, and no password stored on any server.
+HumanityOS aims to be one free app for everything people do on a computer and online, owned by no
+one and trustworthy enough for a town or a country to run on. Today it starts with private community
+chat with no sign-up: your account is a key on your own device, backed up by a 24-word recovery
+phrase, with no email, no phone number and no password stored on any server.
 
 The chat works like a community server: channels, voice and video calls, screen sharing, files sent
 straight between devices, and private messages sealed end to end with post-quantum encryption.
@@ -68,3 +73,18 @@ public commit; HumanityOS has carried that name since 1 January 2026); icon
 `web/shared/icons/icon-512.png` (served at https://united-humanity.us/shared/icons/icon-512.png);
 no package managers yet (a winget manifest, a pull request to microsoft/winget-pkgs, is a cheap
 later add).
+
+**Tags kept** (2026-11-18): chat, group-chat, voice-chat, video-chat, voice-call, encrypted-chat,
+end-to-end-encryption, privacy-focused, self-hosted, no-registration-required, ad-free,
+offline-access, video-streaming, plus decentralized, federated, screen-sharing, file-sharing and
+task-management where the site has them. **Dropped:** AI tags (ai-enabled-chatbots, chat-bot,
+ai-voice: AI is optional, and an AI-looking listing falls in a declined class), adventure-game (the
+game bar), live-chat (customer-support widgets), self-destructing-messages (not a feature),
+file-encryption and no-coding (other kinds of software), trading (reads as stock or crypto trading),
+video-player and share-video (a video app's categories), self-improvement and integrated-chat (too
+vague), and duplicates (selfhosted, self-hosted-apps, encryption, encrypted, no-registration,
+offline).
+
+**The GitHub description** (it fed the form's import) was changed the same day, with the operator's
+yes, from the old "open, public-domain project exploring..." text to the one-app description, and
+the `public-domain` topic was removed (the code has been AGPL-3.0 since 14 November 2026).
