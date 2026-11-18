@@ -211,6 +211,26 @@ GPL-2.0-only code still may not. Each route keeps its reasons until it is weighe
 | Microsoft Store | Finding and installing apps | **Partial.** The Apps page tracks installs and launches and recommends open programs | (our own) | native | Today |
 | Azure, Windows 365 | Renting computers and storage; a PC run in a data centre | **Partial.** The desktop app is itself a server, hosted from inside the app (`in-app-ops.md`, "Hosting a node from inside the app") | Proxmox-style hosting (not researched) | native: community-run servers | Today for small servers; Funding: compute for hosted capacity |
 
+### 2.15a Task depth and everyday comforts (operator, 2026-11-18)
+
+Raised while listing the app on AlternativeTo, whose feature boxes named what is missing. The
+operator: "Like gardening is a bunch of recurring tasks, time tracking, goal tracking. We're aiming
+for holistic, right?" and, of code blocks without colour, "I feel like we should add this." Each is
+listed on AlternativeTo only once it ships (docs/reference/research/2026-11-17-alternativeto/).
+
+| Missing | Why it matters here | Route | Open references to compare before choosing |
+|---|---|---|---|
+| Subtasks | A project is steps; a garden bed is prepare, sow, mulch | Tasks: a task holds tasks, both apps | Vikunja, Kanboard |
+| Recurring tasks | Gardening, maintenance and chores repeat | Tasks: a repeat rule as data (daily, weekly, every N days, seasonal); the garden and homestead systems create them (watering, feeding, filter changes), so the game's schedules and real life's share one shape | iCalendar's RRULE (RFC 5545), the `icalendar` crate |
+| Reminders | A due task nobody sees is not done | the notifications that exist (FEATURES "Desktop and browser notifications"), per task and per calendar event | |
+| Time tracking | How long a job really takes; feeds the skills' practice records | Tasks: start and stop on a task, totals per project | Kimai, ActivityWatch |
+| Goal tracking | Progress over weeks (a harvest target, a fitness goal) | a goal holds tasks and a measure; the Skills page's stages are the game's twin | |
+| Focus timer (Pomodoro) | A focus method: 25 minutes of work, a 5-minute break, repeat; it helps people who struggle to start or keep at a task | a small timer on a task, lengths as data | |
+| Syntax highlighting | Code in chat, notes and the Library reads far better in colour | native first, the web to match; colours as theme tokens in `data/gui/theme.ron`; languages as data files | syntect (MIT) and tree-sitter-highlight (MIT) natively; highlight.js (BSD-3) and Prism (MIT) on the web |
+| Spell checking | Fewer mistakes in posts, notes and documents | the text boxes, dictionaries as downloadable data | Hunspell-format dictionaries (licences vary by language) |
+| Calendar files and sync | A school's calendar opens; your calendar on your other devices | section 2.5's route (`.ics` import and export, sealed notes to yourself) | |
+| Encrypted backup, disappearing messages | History you can restore; messages that need not last | with forward secrecy (PRIORITIES, the reset's item 5) | |
+
 ### 2.16 Not proposed
 
 Microsoft Rewards (points for using products), Surface and other hardware, Purview and the

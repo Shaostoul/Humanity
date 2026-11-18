@@ -292,7 +292,7 @@ Anything less is a path toward pain, suffering, despair, and eventually extincti
 
 ## 📜 License
 
-**Code:** [GNU AGPL 3.0 or later](LICENSE). **Library and docs:** [CC BY-SA 4.0](docs/LICENSE). **Data and the Humanity Accord:** [CC0 1.0](data/LICENSE), public domain. The folder-by-folder map is [LICENSING.md](LICENSING.md); the name "HumanityOS" has its own short policy, [docs/legal/trademark-policy.md](docs/legal/trademark-policy.md): fork freely, under your own name.
+Copyright 2026 Shaostoul and the HumanityOS contributors. **Code:** [GNU AGPL 3.0 or later](LICENSE). **Library and docs:** [CC BY-SA 4.0](docs/LICENSE). **Data and the Humanity Accord:** [CC0 1.0](data/LICENSE), public domain. The folder-by-folder map is [LICENSING.md](LICENSING.md); the name "HumanityOS" has its own short policy, [docs/legal/trademark-policy.md](docs/legal/trademark-policy.md): fork freely, under your own name.
 
 ---
 

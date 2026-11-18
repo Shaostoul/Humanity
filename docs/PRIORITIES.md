@@ -85,7 +85,13 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    policy with its report-and-remove process (illegal content, child sexual abuse material first;
    what sealed DMs mean for it), linked from Settings > Safety and the website. Then the evidence
    document and the eligibility tool; the operator submits (the DPGA takes the authorised person's
-   name and contact).
+   name and contact). The copyright line went in on 2026-11-18 (LICENSING.md, README: "Copyright
+   2026 Shaostoul and the HumanityOS contributors", after the operator's "That sounds fair"); the
+   content policy starts with a dated legal finding from primary sources (what US law asks of a
+   server operator who learns of child sexual abuse material, 18 U.S.C. 2258A and its amendments).
+10. **Task depth and everyday comforts** (operator, 2026-11-18): subtasks, recurring tasks (the
+   garden's schedules make them), reminders, time tracking, goals, a focus timer, syntax
+   highlighting, spell checking: docs/design/everyday-suite.md, section 2.15a.
 
 ### GOAL FOR THE NEXT USAGE RESET (operator, 2026-11-16): written music in an open, editable format
 

@@ -7,6 +7,14 @@ here: [`docs/reference/findings/2026-11-14-licence-change.md`](docs/reference/fi
 This is a plain summary, not legal advice. Where it and a licence text differ, the licence text is
 what counts.
 
+## Who holds the copyright
+
+Copyright 2026 Shaostoul and the HumanityOS contributors. Each contributor keeps the copyright in
+what they wrote: there is no copyright assignment and no contributor licence agreement, and a
+contribution is licensed under its folder's licence when it is accepted (Contributing, below). So no
+one, the maintainer included, can relicense the whole project alone. Versions released before
+14 November 2026 were dedicated to the public domain under CC0 and stay there.
+
 ## The map
 
 | What | Where | Licence | Full text |
