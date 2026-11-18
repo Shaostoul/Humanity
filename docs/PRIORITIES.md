@@ -64,7 +64,13 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
 4. **KEM keys by index, signed into the key card**: rotation, and the first step to signed prekeys.
 5. **Forward secrecy** (decided: yes, with an encrypted-backup path for history): research which design
    fits the offline relay mailbox (prekeys plus a hash chain, OpenMLS with X-Wing, SPQR; Threema's
-   Ibex and its history-transfer specs as references), then the plan.
+   Ibex and its history-transfer specs as references), then the plan. **Design disappearing messages
+   in the same pass** (the operator's own design, docs/design/outbox-and-inbox.md section 15.3:
+   permanent by default, a timer per conversation or per message, the timer sealed inside the signed
+   message): both change the sealed message and the DM store, so the format changes once, and the
+   encrypted backup must leave expired messages out. Raised again by the operator on 2026-11-18
+   ("I feel like some people may want it") while listing the app on AlternativeTo, whose tag waits
+   until it is built.
 6. An outside review once 1 to 5 are built.
 7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent. Beside it, a
    toolsmith: **`just clean-worktrees` that recognises squash merges.** It removed 2 of 211 on
