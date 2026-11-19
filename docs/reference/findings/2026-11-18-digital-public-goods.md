@@ -23,7 +23,7 @@ licensed under CC-BY-SA 4.0"), so the requirement text below is quoted with that
 | Indicator (quoted from standard.md) | HumanityOS today | Verdict |
 |---|---|---|
 | 1. "Digital public goods must demonstrate relevance to advancing the Sustainable Development Goals" | Goal 1 (no poverty) is the mission; also 2 (food), 4 (education), 6 (water), 7 (energy), 16 (accountable institutions: signed voting) | meets |
-| 2. "For open-source software, only OSI approved licenses are accepted." | Code AGPL-3.0-or-later (OSI approved); Library and docs CC BY-SA 4.0; data CC0; shipped outside data ODbL 1.0, CC BY-SA IGO 3.0, CC BY 4.0 (LICENSES.md). 1.1.7 added "requiring only fully open-licensed content collections and data sets": check the licences of the optional instrument packs before applying | meets, one check |
+| 2. "For open-source software, only OSI approved licenses are accepted." | Code AGPL-3.0-or-later (OSI approved); Library and docs CC BY-SA 4.0; data CC0; shipped outside data ODbL 1.0, CC BY-SA IGO 3.0, CC BY 4.0 (LICENSES.md). 1.1.7 added "requiring only fully open-licensed content collections and data sets": the optional instrument packs are all open too (CC0, the Unlicense, CC BY 4.0 and 3.0; checked 2026-11-18) | meets |
 | 3. "Ownership of assets that the digital public good produces must be clearly defined and documented." | LICENSING.md names the licences and the trademark policy, but no file states who holds the copyright (it discusses AI-assisted authorship instead) | **gap: a plain copyright line** ("Copyright 2026 Shaostoul and contributors", or as the operator chooses) |
 | 4. Mandatory dependencies more restrictive than the licence need open alternatives | wgpu, the RustCrypto and noble libraries, DXC (open source) on Windows, Metal/Vulkan elsewhere; optional AI models are separate downloads | meets |
 | 5. "technical documentation that would allow a technical person unfamiliar with the project to launch and run the software" | README, docs/contributor/, CLAUDE.md; the macOS contributor's failure was fixed 2026-11-16 (docs/design/cross-platform-dev.md) | meets; a "your first hour" guide would make it plain |
@@ -57,4 +57,9 @@ the operator submits.
 ## Not checked yet
 
 - The review policy and the submission form's questions (the page links them).
-- Whether the optional instrument packs (Settings > Music) are all under open licences.
+- (Answered 2026-11-18: the instrument packs are all open. The core set and most packs are CC0 or the Unlicense; the two credited packs, Choir and Electric pianos, are CC BY 4.0, with CC BY 3.0 on one SFZ mapping: LICENSES.md, "The instrument packs".)
+
+## Progress
+
+- 2026-11-18: the copyright line is in (LICENSING.md, README). The instrument-pack licences are checked (all open).
+- Next, at the weekly reset: the dated legal finding on what US law asks of a server operator about child sexual abuse material, then the content policy and its report-and-remove process (both apps, linked from Settings > Safety and the website), then the evidence document for the nine indicators, then the eligibility tool. The operator submits.
