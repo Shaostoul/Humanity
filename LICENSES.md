@@ -300,6 +300,15 @@ credit (`src/instrument_packs/data_tests.rs`). Redistributing these packs means 
 the licence link and the note that they were changed. The research, quoted and dated:
 `docs/reference/findings/2026-11-13-free-instrument-libraries.md`.
 
+## The AlternativeTo badge (the website's download page)
+
+`web/shared/badges/alternativeto.svg` is AlternativeTo's own badge (`badge-compact-color.svg`,
+downloaded 2026-11-18), not under the project's licences. It is used as their badges page allows
+(https://alternativeto.net/badges/, read 2026-11-18): "You can host the image yourself if you would
+rather not hotlink ours. Save the SVG and point the img tag at your own copy, just keep the link
+pointing at your listing." It links to the HumanityOS listing; the website serves its own copy, so a
+visitor's browser makes no request to their site.
+
 ## The project's own code
 
 HumanityOS source is licensed as stated in the repository root. These

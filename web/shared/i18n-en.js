@@ -3899,6 +3899,8 @@ window.HOS_I18N_EN = {
     "ffmpeg_starting": "starting"
   },
   "download": {
+    "alternativeto_badge": "HumanityOS on AlternativeTo",
+    "alternativeto_badge_tip": "Opens the HumanityOS page on AlternativeTo, a site where people look for apps to use instead of the ones they have. You can like it or leave a review there.",
     "licence_banner": "HumanityOS is free and open source. Use it, change it, share it, sell it; a changed copy stays open for everyone.",
     "source_licence": "The code is free and open source under the [[AGPL]] 3.0 or later, the Library and docs under [[CC BY-SA]] 4.0, and the data under [[CC0]]. Clone, build, verify:"
   },

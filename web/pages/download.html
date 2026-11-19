@@ -166,6 +166,9 @@
     }
     .oss-banner p { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px; }
     .oss-banner a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    /* AlternativeTo's badge: our own copy of their image (LICENSES.md), linking to the listing. */
+    .oss-banner .listing-badge { display: block; width: 244px; max-width: 100%; margin: 20px auto 0; }
+    .oss-banner .listing-badge img { display: block; width: 100%; height: auto; }
 
     @media (max-width: 600px) {
       .dl-hero { padding: 32px 0 20px; }
@@ -487,6 +490,7 @@ cargo build --release --features native</code></pre>
       <p data-i18n="download.licence_banner">HumanityOS is free and open source. Use it, change it, share it, sell it; a changed copy stays open for everyone.</p>
       <a href="https://github.com/Shaostoul/Humanity" target="_blank">View on GitHub →</a>
       <a href="https://git.united-humanity.us/shaostoul/Humanity" target="_blank" title="Our own copy of the code, on our own server; it copies every change from GitHub by itself">Our own mirror →</a>
+      <a class="listing-badge" href="https://alternativeto.net/software/humanityos/about/" target="_blank" rel="noopener" data-i18n-tip="download.alternativeto_badge_tip" data-tip-desc="Opens the HumanityOS page on AlternativeTo, a site where people look for apps to use instead of the ones they have. You can like it or leave a review there."><img src="/shared/badges/alternativeto.svg" alt="HumanityOS on AlternativeTo" data-i18n-alt="download.alternativeto_badge" width="244" height="79" loading="lazy"></a>
     </div>
   </div>
 

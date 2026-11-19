@@ -104,11 +104,11 @@ messages, encrypted backup, text to speech, game tags once the game clears the s
 Approved the same day: https://alternativeto.net/software/humanityos/about/ (read 2026-11-18).
 
 - **Developer access** (https://alternativeto.net/developers/): the request form needs a work e-mail
-  "at the app's own domain", so an address at united-humanity.us. The project has no mailbox there
-  (2026-11-18); a forwarding address set up at the domain's registrar would do, and that account is
-  the operator's.
+  "at the app's own domain", so an address at united-humanity.us. The operator has an address at the domain (2026-11-18), so the request is his to send.
 - **Badge** (https://alternativeto.net/badges/): an image and a link, no script. Self-hosting is
   allowed in the page's own words: "You can host the image yourself if you would rather not hotlink
   ours." So the website serves its own copy and makes no request to their site; the link points at
   the listing (their code adds utm tags, which are optional).
 - **Likes** (the FAQ): sharing the listing is welcome; incentives or fake accounts drop it in rank.
+
+**Badge added 2026-11-18:** our own copy at web/shared/badges/alternativeto.svg on the download page, linking to the listing without tracking tags (LICENSES.md credits it).
