@@ -18,6 +18,8 @@
 //!   - requests for help with recovery that ended (seven days after they opened), with the pieces
 //!     they hold, and recovery setups never finished a day after they began (storage/recovery.rs,
 //!     2026-10-21). Reads already leave an ended request out; this takes it off the disk;
+//!   - held items (hide and keep, storage/held.rs, 2026-11-20) a year after they were held, unless
+//!     a legal hold runs; and a held file a crash left in a served folder;
 //!   - last, a video's poster picture whose video is no longer beside it (storage/files.rs
 //!     `sweep_lone_posters`, 2026-11-06): every road that deletes a video deletes its picture
 //!     too, so this only finds one a relay stopped between the two left behind.
@@ -95,6 +97,28 @@ impl Storage {
             Ok(0) => {}
             Ok(n) => tracing::info!("Private files: removed {n} older than the {}-day DM lifetime", s.dm_mailbox_ttl_days),
             Err(e) => tracing::error!("Private file sweep failed: {e}"),
+        }
+        // Held items whose year is up and that no legal hold keeps (storage/held.rs, 2026-11-20).
+        match self.held_expire_in(super::now_millis() as i64, folders) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("Held items: deleted {n} whose year was up"),
+            Err(e) => tracing::error!("Held items expiry failed: {e}"),
+        }
+        // A seal's staging folder a stop left behind (removed after an hour), and a sealed package
+        // with no row, kept and said (storage/held.rs, 2026-11-20).
+        let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3_600);
+        match self.held_sweep_strays_in(folders, hour_ago) {
+            Ok((0, 0)) => {}
+            Ok((staging, orphans)) => tracing::warn!(
+                "Held items: removed {staging} unfinished seal(s); {orphans} sealed package(s) in the held folder have no row (a restore from an older backup, or a stop mid-hide) and are kept, not deleted"
+            ),
+            Err(e) => tracing::error!("Held items folder sweep failed: {e}"),
+        }
+        // A file of a held item that a crash left in a served folder (storage/held.rs, 2026-11-20).
+        match self.held_sweep_left_behind_in(folders) {
+            Ok(0) => {}
+            Ok(n) => tracing::warn!("Held items: took {n} held file(s) a crash had left in a served folder out of it"),
+            Err(e) => tracing::error!("Held items sweep failed: {e}"),
         }
         // Last, after every sweep above that deletes files: a video's poster picture whose video is
         // no longer beside it (a relay stopped between the two deletes), 2026-11-06.

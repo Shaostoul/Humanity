@@ -712,7 +712,10 @@ pub async fn delete_message_by_id_in(state: &Arc<RelayState>, id: i64, requester
     Ok(deleted)
 }
 
-async fn after_delete(state: &Arc<RelayState>, author: &str, stamp: u64, channel: Option<String>) {
+/// A message was deleted here (by its author, a moderator, a report's decision, or hide and keep):
+/// scrub its words from the outbox, and when it was in a shared room, send the delete to the linked
+/// servers.
+pub(crate) async fn after_delete(state: &Arc<RelayState>, author: &str, stamp: u64, channel: Option<String>) {
     let _ = state.db.fed_outbox_scrub(author, Some(stamp));
     if let Some(ch) = channel.filter(|ch| shared(state, ch)) {
         let event = json!({ "type": "fed_delete", "author": author, "channel": ch, "stamp": stamp });

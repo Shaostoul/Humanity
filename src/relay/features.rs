@@ -468,6 +468,9 @@ pub const WS_ALWAYS_ON: &[&str] = &[
     // can come through any part of a server (a game, a trade, a voice room), so it must not go
     // away with chat; reviewing reports is the owner administering their own server.
     "report_v2", "report_received", "reports_list", "reports", "report_decide",
+    // Hide and keep (2026-11-20, handlers/held.rs): the owner keeping what was reported for the
+    // hotline is administering their own server, like reviewing reports.
+    "held_list", "held_items", "held_act",
     // A user's data sovereignty (2026-08-23): exporting and erasing your
     // own data must work regardless of which features the owner offers.
     // (account_export/account_export_data moved to POST /api/account/export on

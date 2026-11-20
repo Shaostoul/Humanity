@@ -1,6 +1,7 @@
 # Hide and keep: a reported post out of view at once, a sealed copy for the hotline
 
-**Written 20 November 2026. Status: designed, not built.** The operator asked for it the same day
+**Written 20 November 2026. Status: rungs 1 to 4 built on the relay 20 November 2026 (see "Built"
+below); rung 5, the screens in both apps with the owner's Export and Restore, is next.** The operator asked for it the same day
 ("build the hide and keep moderator action") and set its limits: "Makes sense to build the system
 in. We just want to make sure the system itself can't be abused." This document plans the whole
 feature so each rung built is a rung of the real thing. The law it answers to is in
@@ -79,6 +80,11 @@ item, and `web/pages/rules.html` gains a row in its table of moderation powers.
 
 ## Open questions for the operator
 
+- **How the owner role is set.** Today only by hand in the database. Recommendation: a one-time
+  "Claim ownership" code the relay prints to its log when no key holds the role (the first-admin
+  `/claim` pattern), typed in the app; never an admin button, since the owner receives every held
+  copy.
+
 - **Telling the person.** No official source read settles it (finding 12): nothing in 2258A forbids
   or requires it; a court can order silence about legal process (2705(b)); NCMEC's reporting API
   records whether the user was told. Recommendation: say nothing beyond what a ban already says, and
@@ -91,11 +97,24 @@ item, and `web/pages/rules.html` gains a row in its table of moderation powers.
 - **No owner key card.** Recommendation: refuse keeping and offer only the existing "Delete the
   post", saying that nothing was kept, so a server without a card never holds a readable copy.
 
+## Built (20 November 2026)
+
+- **Who the owner is**: the one key holding the role `owner` (`Storage::owner_card`, src/relay/storage/held.rs). No path in the app grants it (a signed `grant_role` refuses it); with none, with two or more, or with no key card that checks out, keeping is refused with words and nothing is kept. Setting it is CLI debt (docs/design/in-app-ops.md) until the operator picks the mechanism (below).
+- **Rung 1**: `hide_and_keep` in a report's decisions (src/relay/handlers/held.rs, reports.rs); the post, its pinned copy, its files from every served folder and their upload rows go; the Delete broadcast; the federated delete and the outbox scrubbed. "Delete the post" now federates its delete too. BUG-330 (the owner role was not an admin in `mod_action_refusal`) fixed with it.
+- **Rung 2**: the package (`data/held/<random id>/`, part 0 the words and the file list, a part per file and poster picture), sealed by `crates/humanity-protocol/src/held_seal.rs` (ML-KEM-768, BLAKE3 `derive_key("hum/held/v1")`, AES-256-GCM in 1 MiB pieces; the "Held copies" row of cryptography.md) from the original a piece at a time into a staging folder, synced, put in place, then the rows in one transaction, then the originals deleted. A failed seal changes nothing. `held_items` keeps no readable content; the expiry pass also takes out a held file a crash left in a served folder (keyed name hashes). The folder name is the package id, not the report id.
+- **Rung 3**: expiry a year after holding; a legal hold (after today, at most 366 days ahead, renewable, 0 lifts) defers it; destroy now; the report kept while its items are.
+- **Rung 4**: each action a `mod_action_v1` (`hide_and_keep` on a `report`, `held_legal_hold`, `held_export`, `held_destroy`, `held_restore` on a `held` item; `expires_at` the hold's end) built and signed by the actor's app (core `moderation::HELD_ACTIONS`, its web twin in `web/shared/pq-object.js`), checked by src/relay/storage/moderation_held.rs (signature, signed by the signed-in key, this server's DID, five minutes fresh, never used before, admins and moderators for the hide, the owner alone for the rest) and recorded in `held_actions` with the signed object once carried out. Kept out of the public signed-object store (refused there, never gossiped): admins see the log through `held_list`; anyone sees counts at `GET /api/held-count`. An export grants the owner's device ten minutes to fetch the sealed parts (`GET /api/held/{id}/{part}?grant=<the export's object id>`), ciphertext only; `held_restore` is refused until rung 5 builds Restore.
+- **Not yet (rung 5)**: the buttons and the Held items list in both apps; the owner's device opening a package (Export to a file the owner chooses; Restore re-uploading the files and putting the post back, then lifting the ban by the ordinary unban); the website's twin of `held_seal` with a shared fixture; the policy's list and the rules page. Rung 6 waits for the operator.
+
 ## Known limits, said plainly
 
 - A file that sat in the public uploads folder was readable on the server's disk until it was held;
   deleting it does not scrub every trace from an SSD.
 - Copies already fetched by other people's devices, and by linked servers this server does not
   control, are beyond reach.
-- The existing "Delete the post" decision still does not federate its delete (it broadcasts to this
-  server's clients only); rung 1 should fix it alongside.
+- A held post's words stay in its report's evidence (links taken out), as before hide and keep: the
+  report is what the admins decided on.
+- A Media item whose file a held post linked keeps its row (its file is gone); the Media page's own
+  report path handles items.
+- Restoring a post restores it on this server only; linked servers that dropped their copy do not
+  get it back.

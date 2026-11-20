@@ -77,6 +77,7 @@ use serde_json::Value;
 use humanity_protocol::pq_crypto::{report_evidence_hash, verify_dm_inner, verify_report_sig};
 use crate::relay::handlers::msg_handlers::{handle_mod_action, mod_action_refusal};
 use crate::relay::relay::{RelayMessage, RelayState};
+use crate::relay::storage::files::Folders;
 use crate::relay::storage::reports::{NewReport, ReportRow};
 
 /// The longest note a report or a decision may carry, characters.
@@ -92,7 +93,9 @@ pub const SAME_TARGET_COOLDOWN_MS: i64 = 24 * 3_600_000;
 /// Where a report was made. `media` (2026-10-11): an item on the Media page (A5).
 pub const CONTEXTS: [&str; 5] = ["dm", "post", "group", "profile", "media"];
 /// What an admin or moderator may decide.
-pub const DECISIONS: [&str; 6] = ["dismiss", "warn", "mute", "kick", "ban", "delete_post"];
+/// `hide_and_keep` (2026-11-20, handlers/held.rs, docs/design/hide-and-keep.md) takes the post out
+/// of every view and keeps it sealed to the server owner's key card.
+pub const DECISIONS: [&str; 7] = ["dismiss", "warn", "mute", "kick", "ban", "delete_post", "hide_and_keep"];
 /// The longest `target` read, characters (a Dilithium3 key is 3,904 hex characters).
 const TARGET_MAX_LEN: usize = 4_096;
 /// The most reports one `reports_list` answer carries.
@@ -686,6 +689,12 @@ fn posts_of(r: &ReportRow) -> Vec<(String, u64)> {
 /// the one deciding (an admin too; answered as if there were no such report), and when
 /// `delete_post` finds no post of theirs in the report.
 pub async fn handle_decide(state: &Arc<RelayState>, me: &str, raw: &Value) {
+    handle_decide_in(state, me, raw, Folders::live()).await
+}
+
+/// [`handle_decide`] with the upload folders named (a test's own): `hide_and_keep` takes the
+/// files a post links out of them.
+pub async fn handle_decide_in(state: &Arc<RelayState>, me: &str, raw: &Value, folders: Folders<'_>) {
     let role = role_of(state, me);
     if !is_staff(&role) {
         return tell(state, me, "Only admins and moderators can decide reports.".to_string());
@@ -718,6 +727,7 @@ pub async fn handle_decide(state: &Arc<RelayState>, me: &str, raw: &Value) {
         return tell(state, me, format!("Report #{id} was already decided ({}).", report.decision.as_deref().unwrap_or("")));
     }
     let target = report.target_key.clone();
+    let mut done: Option<String> = None;
     match decision {
         "warn" | "mute" | "kick" | "ban" => {
             let name = name_of(state, &target);
@@ -735,19 +745,29 @@ pub async fn handle_decide(state: &Arc<RelayState>, me: &str, raw: &Value) {
                 return tell(state, me, format!("Report #{id} was not decided: it has no post of theirs to delete."));
             }
             for (from, timestamp) in posts {
+                // Read before the delete: the linked servers' delete names the room (2026-11-20:
+                // until then this decision deleted the post here only, and its copies on linked
+                // servers and its words in the federation outbox stayed).
+                let channel = state.db.post_for_report(&from, timestamp).ok().flatten().map(|(_, ch)| ch);
                 match state.db.delete_message(&from, timestamp) {
                     Ok(true) => {
-                        let _ = state.broadcast_tx.send(RelayMessage::Delete { from, timestamp });
+                        let _ = state.broadcast_tx.send(RelayMessage::Delete { from: from.clone(), timestamp });
+                        let room = channel.filter(|c| !c.is_empty()).unwrap_or_else(|| humanity_protocol::chat_access::MAIN_CHANNEL.to_string());
+                        crate::relay::handlers::federation_log::after_delete(state, &from, timestamp, Some(room)).await;
                     }
                     Ok(false) => {} // already gone (its author deleted it, or it expired)
                     Err(e) => tracing::error!("Reports: could not delete a reported post: {e}"),
                 }
             }
         }
+        "hide_and_keep" => match crate::relay::handlers::held::hide_and_keep_in(state, me, &report, posts_of(&report), raw, folders).await {
+            Ok(words) => done = Some(words),
+            Err(why) => return tell(state, me, format!("Report #{id} was not decided: {why}")),
+        },
         _ => {} // dismiss: nothing to carry out
     }
     match state.db.report_record_decision(id, me, decision, note, now_ms()) {
-        Ok(true) => tell(state, me, format!("Report #{id} decided: {decision}.")),
+        Ok(true) => tell(state, me, format!("Report #{id} decided: {decision}.{}", done.map(|w| format!(" {w}")).unwrap_or_default())),
         Ok(false) => tell(state, me, format!("Report #{id} was already decided.")),
         Err(e) => {
             tracing::error!("Reports: could not record the decision on report #{id}: {e}");

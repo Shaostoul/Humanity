@@ -33,6 +33,9 @@ pub mod kdf;
 /// any app can check the key it seals to really is theirs whatever server delivered it. Shared by
 /// the relay and the desktop app; web/shared/key-card.js is its twin.
 pub mod key_card;
+/// The seal on a held copy (2026-11-20, docs/design/hide-and-keep.md): a reported post's words
+/// and files sealed to the server owner's key card, the DM seal's construction in pieces.
+pub mod held_seal;
 /// Market signed-object payload validators (provider_v1, offering_v1).
 pub mod market_payloads;
 /// Signed moderation objects (mod_action_v1, space_policy_v1). Rung 1 of

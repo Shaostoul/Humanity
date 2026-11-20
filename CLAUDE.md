@@ -385,7 +385,7 @@ own Dilithium3 identity and checked and pinned by the sealing app, never from a 
 rounds; Ed25519's only roles are the Solana wallet (its key derived from the seed under
 `hum/ed25519-wallet/v1` since 2026-11-19, never the seed itself) and one half of the hybrid release
 signature (with Dilithium3; both must verify). Moving a server: carry
-`data/backup.key` and `data/erased-accounts.key` with `relay.db`.
+`data/backup.key`, `data/erased-accounts.key` and `data/held/` (hide-and-keep's sealed copies) with `relay.db`.
 
 ## Quick orientation
 

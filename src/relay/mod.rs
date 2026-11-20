@@ -1404,6 +1404,10 @@ pub fn build_router(state: Arc<RelayState>) -> Router {
         .route("/api/profile/{key}", get(api::get_signed_profile))
         // A person's key card, exactly as they signed it (2026-10-22, handlers/key_cards.rs).
         .route("/api/key-card/{key}", get(crate::relay::handlers::key_cards::api_get_key_card))
+        // Hide and keep (2026-11-20, handlers/held.rs): a sealed part to the owner's export grant,
+        // and the public counts with no details.
+        .route("/api/held/{id}/{part}", get(crate::relay::handlers::held::api_export_part))
+        .route("/api/held-count", get(crate::relay::handlers::held::api_count))
         .route("/api/assets", get(api::get_assets).post(api::create_asset))
         .route("/api/assets/{id}", delete(api::delete_asset))
         .route("/api/projects", get(api::get_projects).post(api::create_project))

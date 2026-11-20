@@ -1203,7 +1203,9 @@ pub async fn handle_mod_action(
 /// holds for both (split out of `handle_mod_action` unchanged, 2026-10-09).
 pub fn mod_action_refusal(state: &RelayState, my_key: &str, action: &str, target: &str, target_name: &str) -> Option<String> {
     let my_role = state.db.get_role(my_key).unwrap_or_default();
-    let is_admin = my_role == "admin";
+    // The owner is an admin here as everywhere else (BUG-330, 2026-11-20: this read "admin" alone,
+    // so the server's own owner could not decide a report it was shown).
+    let is_admin = my_role == "admin" || my_role == "owner";
     let is_mod = is_admin || my_role == "moderator" || my_role == "mod";
     if !is_mod {
         return Some("You don't have permission to perform moderation actions.".to_string());

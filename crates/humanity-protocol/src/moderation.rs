@@ -36,10 +36,28 @@ use ciborium::Value;
 /// rather than becoming an object nobody can interpret later.
 pub const MOD_ACTIONS: &[&str] = &[
     "ban", "unban", "mute", "unmute", "hide", "unhide", "grant_role", "revoke_role", "revoke",
+    "hide_and_keep", "held_restore", "held_export", "held_legal_hold", "held_destroy",
 ];
 
-/// What a `target` names.
-pub const TARGET_KINDS: &[&str] = &["identity", "object"];
+/// What a `target` names: a person (`identity`), a signed object (`object`), a report on this
+/// server by its number (`report`, for `hide_and_keep`) or a held item by its number (`held`).
+pub const TARGET_KINDS: &[&str] = &["identity", "object", "report", "held"];
+
+/// The actions of hide and keep (2026-11-20, docs/design/hide-and-keep.md, guarantee 5): each
+/// one signed by the key that took it. `hide_and_keep` names a report (`target_kind` `report`), the
+/// rest a held item (`held`); `held_legal_hold` carries the hold's end in `expires_at` (0 lifts
+/// it). The relay carries them only through its held items path (src/relay/handlers/held.rs), never
+/// from the public signed-object store or from a linked server.
+pub const HELD_ACTIONS: &[&str] = &["hide_and_keep", "held_restore", "held_export", "held_legal_hold", "held_destroy"];
+
+/// The `target_kind` a held action names, or None for any other action.
+pub fn held_target_kind(action: &str) -> Option<&'static str> {
+    match action {
+        "hide_and_keep" => Some("report"),
+        a if HELD_ACTIONS.contains(&a) => Some("held"),
+        _ => None,
+    }
+}
 
 /// Why a payload was refused. Plain enough to show a moderator directly.
 #[derive(Debug, PartialEq, Eq)]
@@ -50,6 +68,11 @@ pub enum ModError {
     EmptyReason,
     RoleMissing,
     RoleUnexpected,
+    /// A held action naming the wrong kind of target, or another action naming a report or a held
+    /// item.
+    TargetKindMismatch,
+    /// `expires_at` on a held action other than `held_legal_hold`.
+    ExpiryUnexpected,
     Encode(String),
 }
 
@@ -70,6 +93,8 @@ impl std::fmt::Display for ModError {
             ModError::RoleUnexpected => {
                 write!(f, "role is only meaningful for grant_role and revoke_role")
             }
+            ModError::TargetKindMismatch => write!(f, "hide_and_keep names a report, the other held actions a held item, and nothing else names either"),
+            ModError::ExpiryUnexpected => write!(f, "of the held actions only held_legal_hold carries an end date"),
             ModError::Encode(e) => write!(f, "encode failed: {e}"),
         }
     }
@@ -116,6 +141,12 @@ pub fn mod_action_payload(a: &ModAction<'_>) -> Result<Value, ModError> {
     }
     if !role_action && !a.role.trim().is_empty() {
         return Err(ModError::RoleUnexpected);
+    }
+    match held_target_kind(a.action) {
+        Some(kind) if kind != a.target_kind => return Err(ModError::TargetKindMismatch),
+        None if matches!(a.target_kind, "report" | "held") => return Err(ModError::TargetKindMismatch),
+        Some(_) if a.action != "held_legal_hold" && a.expires_at != 0 => return Err(ModError::ExpiryUnexpected),
+        _ => {}
     }
     Ok(cbor_map(vec![
         ("action", cbor_text(a.action)),

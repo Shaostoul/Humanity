@@ -150,7 +150,7 @@ pub struct SignedObjectSubmission {
 }
 
 impl SignedObjectSubmission {
-    fn to_object(&self) -> Result<Object, String> {
+    pub(crate) fn to_object(&self) -> Result<Object, String> {
         let author_public_key = B64
             .decode(&self.author_public_key_b64)
             .map_err(|e| format!("author_public_key_b64 not base64: {e}"))?;

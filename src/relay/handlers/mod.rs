@@ -21,6 +21,7 @@ pub mod fleet_ledger;
 pub mod friend_passes;
 pub mod game_interest;
 pub mod game_state;
+pub mod held;
 pub mod home_plots;
 /// Key cards (2026-10-22): kept at sign-in, served on request, passed on to linked servers.
 pub mod key_cards;

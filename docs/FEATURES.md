@@ -1507,7 +1507,15 @@ straight to the CyberTipline; what an operator does on a report; what sealed DMs
 dated finding `docs/reference/findings/2026-11-20-csam-reporting.md`; linked last in Settings >
 Safety on both clients (native `src/gui/pages/safety_content_policy.rs`, web
 `web/chat/chat-privacy.js` `contentPolicySafetyHtml`), the site footer (`web/shared/shell.js`) and
-the rules page. **Calls through the
+the rules page. **Hide and keep, the relay side** (2026-11-20, `docs/design/hide-and-keep.md` rungs
+1 to 4; no button in either app yet, rung 5): a report's `hide_and_keep` decision takes the post,
+its pinned copy and its files out of every view (and off linked servers), and keeps its words and
+files sealed to the server owner's key card (`crates/humanity-protocol/src/held_seal.rs`, the
+"Held copies" row of `docs/reference/cryptography.md`) in `data/held/`, refused without an owner's
+checked card; deleted after a year unless the owner places a legal hold, or at once on destroy now;
+every action a signed `mod_action_v1` recorded for all admins (`src/relay/storage/held.rs`,
+`src/relay/storage/moderation_held.rs`, `src/relay/handlers/held.rs`); the owner's export fetches
+only ciphertext (`GET /api/held/{id}/{part}`); public counts at `GET /api/held-count`. **Calls through the
 server** (v0.1470): our own STUN and a room-scoped forwarder on UDP 3478, so nobody in a call sees
 another's address. **How my calls connect** (10p, 2026-10-22): a per-person choice in Settings >
 Privacy (desktop) and Settings > Safety (web), words from `data/net/call_connection.json`: Private

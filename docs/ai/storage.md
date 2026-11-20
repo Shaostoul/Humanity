@@ -48,7 +48,18 @@ reports_v2     (id, reporter_key, target_key, context, reason, note, evidence, e
                -- reports the admins can check (step D, 2026-10-09, storage/reports.rs + handlers/reports.rs): keys, never names;
                -- evidence items carry `checked`; open ones kept, decided ones culled 90 days after decided_at (storage/expiry.rs);
                -- in the reporter's export; their erase blanks the reporter (and the DM evidence's `to` and signatures), the report stays.
+               -- a report with a held item (below) is kept while the item is.
                -- REPLACED the old name-and-reason `reports` table, which is dropped at start.
+held_items     (id, package, report_id, author_key, stamp, channel, file_count, parts, sealed_bytes, sealed_to, card_at,
+                name_hashes, held_by, held_at, delete_after, legal_hold_until, exported_count)
+               -- hide and keep (2026-11-20, storage/held.rs): one row per hidden post, its sealed package in data/held/<package>/;
+               -- nothing readable about the content (names only as keyed hashes); deleted a year on unless a legal hold runs;
+               -- NOT in any export and NOT touched by an erase (kept for its year, 18 U.S.C. 2258A(h)).
+held_actions   (id, object_id, action, target, signer_key, reason, until_ms, signed_at, received_at, object)
+               -- hide and keep's signed actions (storage/moderation_held.rs), the signed object as it arrived; never deleted;
+               -- admins only (the public sees counts); never in signed_objects.
+               -- data/held/ is NOT in relay.db's backups: moving a server carries data/held/ with relay.db, or the
+               -- held copies are lost (a package with no row is reported by the expiry pass, never deleted).
 ```
 
 ## Removed tables (privacy hardening, do NOT re-add)

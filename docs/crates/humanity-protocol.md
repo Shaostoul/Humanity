@@ -18,13 +18,13 @@ side (net) and the server (relay) compile side by side.
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-protocol/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-protocol/src/describe_metadata.rs`, `crates/humanity-protocol/src/chat_access.rs`, `crates/humanity-protocol/src/did.rs`, `crates/humanity-protocol/src/encoding.rs`, `crates/humanity-protocol/src/error.rs`, `crates/humanity-protocol/src/hash.rs`, `crates/humanity-protocol/src/identity.rs`, `crates/humanity-protocol/src/kdf.rs`, `crates/humanity-protocol/src/key_card.rs`, `crates/humanity-protocol/src/market_payloads.rs`, `crates/humanity-protocol/src/moderation.rs`, `crates/humanity-protocol/src/merkle_disclosure.rs`, `crates/humanity-protocol/src/object.rs`, `crates/humanity-protocol/src/org.rs`, `crates/humanity-protocol/src/pq_crypto.rs`, `crates/humanity-protocol/src/profile_copy.rs`, `crates/humanity-protocol/src/recovery.rs`, `crates/humanity-protocol/src/release_signature.rs`, `crates/humanity-protocol/src/signing.rs`, `crates/humanity-protocol/src/solana_rpc.rs`, `crates/humanity-protocol/src/strip_heif_metadata.rs`, `crates/humanity-protocol/src/strip_metadata.rs`, `crates/humanity-protocol/src/strip_video_metadata.rs`
-- **Size:** 16,255 lines in 33 files, 2,209 of them in 8 test files.
+  - no gate (every build): `crates/humanity-protocol/src/describe_metadata.rs`, `crates/humanity-protocol/src/chat_access.rs`, `crates/humanity-protocol/src/did.rs`, `crates/humanity-protocol/src/encoding.rs`, `crates/humanity-protocol/src/error.rs`, `crates/humanity-protocol/src/hash.rs`, `crates/humanity-protocol/src/identity.rs`, `crates/humanity-protocol/src/kdf.rs`, `crates/humanity-protocol/src/key_card.rs`, `crates/humanity-protocol/src/held_seal.rs`, `crates/humanity-protocol/src/market_payloads.rs`, `crates/humanity-protocol/src/moderation.rs`, `crates/humanity-protocol/src/merkle_disclosure.rs`, `crates/humanity-protocol/src/object.rs`, `crates/humanity-protocol/src/org.rs`, `crates/humanity-protocol/src/pq_crypto.rs`, `crates/humanity-protocol/src/profile_copy.rs`, `crates/humanity-protocol/src/recovery.rs`, `crates/humanity-protocol/src/release_signature.rs`, `crates/humanity-protocol/src/signing.rs`, `crates/humanity-protocol/src/solana_rpc.rs`, `crates/humanity-protocol/src/strip_heif_metadata.rs`, `crates/humanity-protocol/src/strip_metadata.rs`, `crates/humanity-protocol/src/strip_video_metadata.rs`
+- **Size:** 16,559 lines in 34 files, 2,209 of them in 8 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `test-support` 3, `native` 1.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 143, gui 94, net 32, engine 13.
+- **May be used by** (the plan): relay, net, gui, engine. **Used today by:** relay 150, gui 94, net 32, engine 13.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 204 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 205 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-protocol
@@ -34,23 +34,23 @@ just test-lib --crate humanity-protocol
 
 | Item | References | From |
 |---|---:|---|
-| `chat_access::MAIN_CHANNEL` | 56 | relay 31, gui 17, engine 8 |
+| `chat_access::MAIN_CHANNEL` | 58 | relay 33, gui 17, engine 8 |
+| `object::Object` | 22 | relay 13, gui 8, net 1 |
 | `did::did_for_pubkey` | 20 | relay 13, gui 7 |
-| `object::Object` | 20 | relay 11, gui 8, net 1 |
 | `pq_crypto` | 16 | relay 9, net 4, gui 3 |
 | `encoding::from_canonical_bytes` | 13 | relay 12, gui 1 |
 | `pq_crypto::DilithiumKeypair` | 11 | gui 6, net 5 |
 | `chat_access::PostLevel` | 9 | relay 5, engine 2, gui 2 |
 | `chat_access` | 7 | relay 5, gui 2 |
 | `chat_access::ReadLevel` | 7 | relay 3, engine 2, gui 2 |
+| `key_card` | 7 | relay 3, gui 2, net 2 |
 | `pq_crypto::derive_dilithium_seed` | 7 | net 4, gui 3 |
 | `encoding` | 6 | gui 2, net 2, relay 2 |
-| `key_card` | 6 | gui 2, net 2, relay 2 |
 | `object::ObjectBuilder` | 5 | gui 3, net 2 |
 | `profile_copy` | 5 | relay 4, gui 1 |
 | `did` | 4 | relay 4 |
 
-And 50 more items, 90 references (`node scripts/crate-cards.js --interface humanity-protocol` lists them all).
+And 52 more items, 92 references (`node scripts/crate-cards.js --interface humanity-protocol` lists them all).
 <!-- end generated -->
 
 ## Rules

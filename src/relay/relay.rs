@@ -1459,6 +1459,11 @@ pub enum RelayMessage {
     #[serde(rename = "reports")]
     Reports { #[serde(skip)] to: String, state: String, items: Vec<serde_json::Value> },
 
+    /// Server -> an admin: the held items (hide and keep, handlers/held.rs `handle_list`), never
+    /// what one holds; `to` routes it to that person's sockets alone, unsent.
+    #[serde(rename = "held_items")]
+    HeldItems { #[serde(skip)] to: String, can_keep: bool, cannot_keep_why: String, i_am_owner: bool, items: Vec<serde_json::Value>, actions: Vec<serde_json::Value>, counts: serde_json::Value },
+
     /// Server -> the asker: credentials for the call forwarder, for one voice room or call
     /// (call_credentials.rs). `to` routes it to that person's sockets alone, unsent.
     #[serde(rename = "call_credentials")]
@@ -3436,7 +3441,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
             // Reports (handlers/reports.rs): the receipt to its reporter, the list to whoever asked for it;
             // call forwarder credentials (call_credentials.rs) to whoever asked for them; an admin's
             // erase receipt (handlers/account_erase.rs) to that admin.
-            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } | RelayMessage::KeyCards { to: ref who, .. } = msg {
+            if let RelayMessage::ReportReceived { to: ref who, .. } | RelayMessage::Reports { to: ref who, .. } | RelayMessage::HeldItems { to: ref who, .. } | RelayMessage::CallCredentials { to: ref who, .. } | RelayMessage::AdminEraseDone { to: ref who, .. } | RelayMessage::KeyCards { to: ref who, .. } = msg {
                 if who != &my_key_for_broadcast { continue; }
             }
 
@@ -3762,6 +3767,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             Some("reach_set") => { crate::relay::handlers::reach::handle_reach_set(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some("call_credentials") => { crate::relay::call_credentials::handle(&state_clone, &my_key_for_recv, &raw).await; continue; }
                             Some(kind @ ("report_v2" | "reports_list" | "report_decide")) => { crate::relay::handlers::reports::handle(&state_clone, &my_key_for_recv, kind, &raw, &text).await; continue; }
+                            Some(kind @ ("held_list" | "held_act")) => { crate::relay::handlers::held::handle(&state_clone, &my_key_for_recv, kind, &raw).await; continue; }
                             // ── Trade messages ──
                             Some("trade_request") => {
                                 handle_trade_request(&state_clone, &my_key_for_recv, &raw).await;

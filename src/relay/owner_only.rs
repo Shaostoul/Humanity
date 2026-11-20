@@ -48,7 +48,7 @@ fn private_by_name(name: &str) -> bool {
 /// The folders beside the database that hold only private copies: the relay's 6-hourly sealed
 /// backups, continuous backup's work, the copies it keeps for other servers, and the uploads that
 /// are not public (members-only Files items, uploads in progress, items waiting to publish).
-pub const PRIVATE_FOLDERS: &[&str] = &["backups", "backup-stream", "backup-host", "media-members", "uploads-resume", "media-waiting"];
+pub const PRIVATE_FOLDERS: &[&str] = &["backups", "backup-stream", "backup-host", "media-members", "uploads-resume", "media-waiting", "held"];
 
 /// Everything [`tighten`] would make private for the database at `db_path`, with the mode each
 /// gets, among what exists now: the database and its companions, the private files beside it,

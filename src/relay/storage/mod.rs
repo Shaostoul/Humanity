@@ -1661,6 +1661,56 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_reports_v2_decided ON reports_v2(decided_at);"
         )?;
 
+        // Hide and keep (2026-11-20, storage/held.rs, docs/design/hide-and-keep.md): one row per
+        // hidden post, its sealed package under data/held/<package>/. Nothing readable about the
+        // content (the post's words are sealed with its files; the files' names only as keyed
+        // hashes). Kept for its year whatever an erase asks (2258A(h)). A new table in a batch of
+        // its own, every index over its own CREATE TABLE columns, so a live database from before it
+        // simply gains it (BUG-046 concerns ALTER-added columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS held_items (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                package          TEXT    NOT NULL UNIQUE,
+                report_id        INTEGER NOT NULL,
+                author_key       TEXT    NOT NULL,
+                stamp            INTEGER NOT NULL,
+                channel          TEXT    NOT NULL DEFAULT '',
+                file_count       INTEGER NOT NULL DEFAULT 0,
+                parts            INTEGER NOT NULL,
+                sealed_bytes     INTEGER NOT NULL DEFAULT 0,
+                sealed_to        TEXT    NOT NULL,
+                card_at          INTEGER NOT NULL,
+                name_hashes      TEXT    NOT NULL DEFAULT '[]',
+                held_by          TEXT    NOT NULL,
+                held_at          INTEGER NOT NULL,
+                delete_after     INTEGER NOT NULL,
+                legal_hold_until INTEGER NOT NULL DEFAULT 0,
+                exported_count   INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_held_items_report ON held_items(report_id);
+            CREATE INDEX IF NOT EXISTS idx_held_items_due ON held_items(delete_after);"
+        )?;
+
+        // Hide and keep's signed actions (2026-11-20, storage/moderation_held.rs): one row per
+        // hide, export, legal hold, destroy and restore carried out, with the signed object as it
+        // arrived. Never deleted (the accountability record and the source of the public counts);
+        // shown to admins only. A new table in a batch of its own (BUG-046 concerns ALTER-added
+        // columns only).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS held_actions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                object_id   TEXT    NOT NULL UNIQUE,
+                action      TEXT    NOT NULL,
+                target      INTEGER NOT NULL,
+                signer_key  TEXT    NOT NULL,
+                reason      TEXT    NOT NULL,
+                until_ms    INTEGER NOT NULL DEFAULT 0,
+                signed_at   INTEGER NOT NULL,
+                received_at INTEGER NOT NULL,
+                object      TEXT    NOT NULL
+            );"
+        )?;
+
         // The Media page (2026-10-11, storage/files.rs and relay/files.rs; docs/design/
         // files-showcase.md "Increment 1, exact"): the items people published from their own
         // uploads, the server's categories (row 1 is General, never removed, because a removed
@@ -3244,6 +3294,8 @@ pub use friend_passes::{FriendCertWithdrawal, FRIEND_CERT_WITHDRAWALS_MAX};
 // "Who can reach me": the audience each person chose per kind of contact (2026-10-09, 10c).
 mod reach;
 pub mod reports;
+// Hide and keep (2026-11-20, docs/design/hide-and-keep.md): a reported post out of view, kept sealed.
+pub mod held;
 // Copyright reports about Media items and the public takedown log (2026-10-13).
 pub mod takedowns;
 // The Media page (2026-10-11, docs/design/files-showcase.md): items, categories, suggestions, picks.

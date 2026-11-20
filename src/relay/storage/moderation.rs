@@ -28,6 +28,9 @@
 //!
 //! ## What is deliberately NOT applied
 //!
+//! (Hide and keep's own signed actions, 2026-11-20, are checked and recorded by the child module
+//! `held`, moderation_held.rs, and refused by the public store.)
+//!
 //! `hide` and `unhide` are refused, because this relay has no content-hiding
 //! mechanism to call: there is no hidden or quarantined column anywhere in
 //! storage. Accepting and storing an action whose effect never happens is
@@ -408,6 +411,10 @@ impl Storage {
         })
     }
 }
+
+// The signed actions of hide and keep (2026-11-20, docs/design/hide-and-keep.md guarantee 5).
+#[path = "moderation_held.rs"]
+pub mod held;
 
 #[cfg(test)]
 mod tests {

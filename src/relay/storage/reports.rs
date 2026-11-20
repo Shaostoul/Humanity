@@ -8,7 +8,8 @@
 //! and signature, and once decided: the decision, the reviewer's note, the reviewer and the
 //! time.
 //!
-//! How long it is kept: an OPEN report until someone decides it; a decided one for
+//! How long it is kept: an OPEN report until someone decides it; one whose post is held (hide and
+//! keep, storage/held.rs) as long as the held item is; any other decided one for
 //! [`REPORT_KEEP_DAYS_AFTER_DECISION`] days after its decision (the operator's answer to
 //! question 7, 2026-10-09), culled by the expiry pass (storage/expiry.rs). The evidence is
 //! readable direct-message text a reporter handed over by choice, so it is not kept longer than
@@ -187,16 +188,23 @@ impl Storage {
         let cutoff = now_ms - REPORT_KEEP_DAYS_AFTER_DECISION * 86_400_000;
         self.with_conn(|conn| {
             conn.execute(
-                "DELETE FROM reports_v2 WHERE state = 'decided' AND decided_at IS NOT NULL AND decided_at < ?1",
+                "DELETE FROM reports_v2 WHERE state = 'decided' AND decided_at IS NOT NULL AND decided_at < ?1
+                   AND NOT EXISTS (SELECT 1 FROM held_items h WHERE h.report_id = reports_v2.id)",
                 params![cutoff],
             )
         })
     }
 
     /// `/reports-clear`: delete every decided report now. Open reports stay until someone decides
-    /// them. Returns how many went.
+    /// them, and a report whose post is held stays as long as it is (hide and keep, 2026-11-20).
+    /// Returns how many went.
     pub fn reports_clear_decided(&self) -> Result<usize, rusqlite::Error> {
-        self.with_conn(|conn| conn.execute("DELETE FROM reports_v2 WHERE state = 'decided'", []))
+        self.with_conn(|conn| {
+            conn.execute(
+                "DELETE FROM reports_v2 WHERE state = 'decided' AND NOT EXISTS (SELECT 1 FROM held_items h WHERE h.report_id = reports_v2.id)",
+                [],
+            )
+        })
     }
 
     /// The public post `from` sent at `timestamp`, as this server has it: (text, channel).
