@@ -65,6 +65,7 @@
     /* ── Mode tabs ── */
     .calc-tabs {
       display: flex;
+      flex-wrap: wrap; /* at 375 px the row overflowed and "Basic" hung off the left edge (2026-11-16) */
       gap: var(--space-sm);
       flex-shrink: 0;
     }

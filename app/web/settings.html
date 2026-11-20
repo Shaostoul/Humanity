@@ -203,6 +203,7 @@
 
     .setting-row {
       display: flex;
+      flex-wrap: wrap; /* its controls were cut off at 375 px (2026-11-16) */
       align-items: center;
       gap: var(--space-lg);
       padding: var(--space-lg) var(--space-xl);
@@ -684,6 +685,13 @@
     #sec-vault .type-chip .chip-icon { font-size: 1rem; }
     #sec-vault .no-entries { padding: var(--space-2xl) .85rem; font-size: .78rem; color: var(--text-muted); text-align: center; }
 
+    /* A phone (375 px, 2026-11-16): the 200 px category sidebar beside the settings left about 120 px
+       for 140 to 160 px controls, cut off at the right. On narrow screens the categories stack above,
+       in a band of their own that scrolls, and the settings take the full width. */
+    @media (max-width: 700px) {
+      #settings-app { flex-direction: column; }
+      #settings-sidebar { width: auto; min-width: 0; max-height: 32vh; border-right: none; border-bottom: 1px solid var(--bg-input); }
+    }
     @media (max-width: 600px) {
       #vault-sec-sidebar { width: 200px; min-width: 160px; }
       #vault-sec-main { padding: var(--space-xl); }

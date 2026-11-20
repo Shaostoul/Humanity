@@ -307,6 +307,10 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Responsive */
 @media (max-width: 700px) {
+  /* On a phone the map runs taller than the screen and its zoom buttons sat at the bottom, off
+     screen and unreachable (an iPhone 13 mini, 375 px wide, 2026-11-16): the map's top-right
+     corner is always on screen. */
+  #map-controls { top: 12px; bottom: auto; }
   #info-panel { width: 240px; }
   #info-panel.open { position: absolute; right: 0; top: 0; bottom: 0; z-index: calc(var(--z-page) + 15); }
 }
