@@ -1477,6 +1477,11 @@
       "date": "2026-11-20",
       "decision": "Operator agreed all six forward-secrecy recommendations (dm-forward-secrecy.md, \"Decided\"): backup locked by phrase + password (six suggested words), backup asked once preselected, the website runs the Rust implementation as WebAssembly, block list restored from the phrase, contacts' new devices listed not announced (own always announced), timers start on read. Then: \"Pause so I can game.\" All seven in-flight agents asked to stop at a step boundary, commit, write a handoff and end their turn; resume each by SendMessage when he says resume. Merged and pushed before the pause: v0.1565.0 (delivered), OpenMoji emoji, forward-secrecy design, score finding, squash-aware clean-worktrees.",
       "why": "His decisions on his design questions; his PC is his while he games."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "Operator resumed after gaming and answered five questions: (1) sharp 0.34.5 to 0.35.5 \"Yes.\" (done, 9de7ba691; byte-identical outputs on every call the scripts make; npm audit 0). (2) Content policy \"Yes.\" to committing both servers to the six-step process, building hide-and-keep, and the rules-page truth pass; the NCMEC espteam email is his to send (the content agent drafts it). He added: \"Makes sense to build the system in. We just want to make sure the system itself can't be abused.\" So hide-and-keep is specified as: hide reversible; kept copy sealed to the owner's key card (refused, said on screen, if none); no view button for anyone; export only, logged; deleted at one year, legal hold with its own end date; every action a signed moderation-log entry; never reaches sealed DMs; whether to tell the poster researched, not guessed. (3) Wallet old-address notice: \"No point in worrying about the old address stuff since no one is using the app.\" Removed (no-backcompat rule). (4) ALLOWED_ORIGINS stops defaulting to another server: \"Yes.\" (b322 agent). (5) OpenMoji credit line in the web reaction picker: \"Yes.\" (emoji agent). BUG-322 code fix merged 5a788f29a after verify-relay on main (first run's exit code was tail's, rerun with the real one: 0 failures, both new tests ran).",
+      "why": "Operator decisions recorded at once; the abuse requirements are his words turned into testable guarantees."
     }
   ],
   "active_scopes_to_avoid": [

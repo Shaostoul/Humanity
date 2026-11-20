@@ -20,6 +20,8 @@ Each line is written the way a player would hear it; the release notes and
 
 ### Next release
 
+- A server that was never told its own name no longer sends callers to another server's call forwarder; it says plainly which setting to add.
+
 ### Outreach
 
 - HumanityOS is listed on AlternativeTo (approved 18 November 2026), next to Discord, Element, Signal, Telegram and other chat apps: https://alternativeto.net/software/humanityos/about/
