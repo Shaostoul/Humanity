@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1581 Rust files (806,443 lines) under `src/` and `crates/*/src/`; 149 JavaScript files (92,216 lines) under `web/`.
+1581 Rust files (806,529 lines) under `src/` and `crates/*/src/`; 149 JavaScript files (92,260 lines) under `web/`.
 
 ## Folders
 
@@ -1385,7 +1385,7 @@
 - `api.rs` (3502): HTTP API for bot integration. Main items: SendRequest, MessagesQuery, MessagesResponse, StatsResponse, UploadQuery, SharedUploadsQuery, DeleteUploadBody, GitHubPushEvent (+105 more).
 - `bug_taxonomy.rs` (73): The bug reporter's severities and categories, read from `data/bugs/taxonomy.json` (built in), the one list the desktop Bugs page, the website's Bugs page and this relay share (2026-10-24). Main items: severity, category.
 - `call_credentials.rs` (496): Credentials for the call forwarder (call_forwarder.rs), given out over the signed-in socket only (docs/design/blocking-and-safe-mode.md 10f; files: docs/design/files-showcase.md, "Device-to-device... Main items: CallKeys, Meter, CallService, CallCredentials, parse_username, username_meter, refused_reply, handle (+7 more).
-- `call_forwarder.rs` (873): Our own STUN responder and the room-scoped call forwarder, on one UDP port (docs/design/blocking-and-safe-mode.md 7.3, 7.4 and 10f). Main items: Out, Forwarder, Settings, relayed_ip_for, start, serve, REALM, DEFAULT_PORT (+18 more).
+- `call_forwarder.rs` (896): Our own STUN responder and the room-scoped call forwarder, on one UDP port (docs/design/blocking-and-safe-mode.md 7.3, 7.4 and 10f). Main items: Out, Forwarder, Settings, relayed_ip_for, start, start_from, serve, REALM (+20 more).
 - `chat_access.rs` (406): Chat access levels on the server (2026-11-02, docs/design/chat-access.md): who a key is here, whether its socket may be sent a channel's lines, the check every channel line meets, and the routes a... Main items: SignedRead, rank_of, levels, set_levels, may_see, line_channel, travels, post_refused (+9 more).
 - `client_addr.rs` (283): Who a request comes from: the one place the relay decides a client's address (2026-10-22). Main items: TrustedProxies, plain, client_ip, bucket, rewrite, TRUSTED_PROXIES_ENV, REAL_IP, FORWARDED_FOR (+1 more).
 - `default_channels.rs` (159): The channels every server makes for itself (2026-11-02, docs/design/chat-channels.md section 4): Main items: Made, DefaultChannel, all, get, make_missing.
@@ -1702,7 +1702,7 @@
 
 - `messageMenu.js` (197): view/messageMenu.js, a message's right-click menu (Track W step 3, 2026-10-22). Main items: messageMenuItems, leaveToBrowser, menuEl, entries, close, run, showMessageMenu, wireMessageMenu.
 - `messageRow.js` (42): view/messageRow.js, clean view module for one chat message row. Main items: messageRowHTML.
-- `pillPopup.js` (393): view/pillPopup.js, the expanded timestamp pill (Track W step 3, 2026-10-22). Main items: pad, fullTimestamp, pillPopupItems, pillPopupPlace, pillTimestampPlace, make, button, rowButtons (+13 more).
+- `pillPopup.js` (425): view/pillPopup.js, the expanded timestamp pill (Track W step 3, 2026-10-22). Main items: pad, fullTimestamp, pillPopupItems, pillPopupPlace, pillTimestampPlace, make, button, emojiCredit (+14 more).
 - `timestampPill.js` (105): view/timestampPill.js, clean view module for the message timestamp pill. Main items: timestampPillHTML, timestampSettings, stampParts, stampPad, formatStamp, formatFullStamp, reactionBadgesHTML.
 
 ## web/pages/
@@ -1764,7 +1764,7 @@
 - `defaults.js` (98): shared/defaults.js, Single source of truth for all settings defaults.
 - `drop-overlay.js` (234): ── drop-overlay.js ─────────────────────────────────────────────────────── Main items: sendIn, uploadAndPostIn, addTo, carriesFiles, filesOf, attach.
 - `eli5.js` (71): ELI5 + Expert dual-depth explanation system Main items: initBlocks.
-- `emoji.js` (212): Emoji pictures from our own copies (2026-11-20). Every emoji in a piece of text becomes an <img> Main items: hexOf, keyOf, filesFrom, pieces, tokens.
+- `emoji.js` (217): Emoji pictures from our own copies (2026-11-20). Every emoji in a piece of text becomes an <img> Main items: hexOf, keyOf, filesFrom, pieces, tokens.
 - `events.js` (55): HOS Event Bus, replaces monkey-patching pattern
 - `file-risk.js` (217): ── file-risk.js ──────────────────────────────────────────────────────────── Main items: load, use, startsWithHex, plainName, ending, shownEnding, assess, fileType (+3 more).
 - `file-transfer.js` (1005): ── file-transfer.js ────────────────────────────────────────────────────── Main items: idOk, hex64Ok, newId, toHex, piecesFor, pieceLength, filePassFieldOk, filePassPreimage (+26 more).
@@ -1776,7 +1776,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8160): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8167): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

@@ -363,7 +363,9 @@ of text) are planned in `docs/design/emoji.md`.
 - Data: `assets/emoji/openmoji/` (+ `LICENSE.md`, `SOURCE.md`), `assets/emoji/sets.json`,
   `assets/emoji/index.json` (generated: `scripts/gen-emoji-index.js`); a new OpenMoji release:
   `scripts/vendor-openmoji.js` (checks every picture, `scripts/lib/emoji-pack.js`)
-- Credit: `data/credits.ron` (`openmoji`), `LICENSES.md`, `LICENSING.md`, `CREDITS.md`; finding
+- Credit: OpenMoji's requested attribution at the foot of the chat's ∞ reaction panel
+  (`web/chat/view/pillPopup.js`, words `emoji.credit`, 2026-11-20); `data/credits.ron` (`openmoji`),
+  `LICENSES.md`, `LICENSING.md`, `CREDITS.md`; finding
   `docs/reference/findings/2026-11-20-openmoji.md`
 - Tests: `scripts/tests/emoji-web.test.js` (cases shared with the desktop in
   `scripts/tests/fixtures/emoji-v1.json`)

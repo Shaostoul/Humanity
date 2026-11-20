@@ -180,6 +180,12 @@
 /* ∞: every reaction, under the quick row, wrapping (native: a popup 280 wide). */
 .pill-popup-all { display: flex; flex-wrap: wrap; gap: 2px; max-width: 280px; }
 .pill-popup-all[hidden] { display: none; }
+/* OpenMoji's credit at the foot of the ∞ panel (its pictures draw every emoji): a line of its own,
+   small and muted, its two links plain underlined text in the same colour. */
+.pill-popup-credit { flex-basis: 100%; margin: var(--space-xs) 0 0; font-size: var(--text-xs); line-height: 1.35; color: var(--text-muted); }
+.pill-popup-credit a { color: inherit; text-decoration: underline; }
+.pill-popup-credit a:hover,
+.pill-popup-credit a:focus-visible { color: var(--accent); }
 /* The full date and time, left of the Þ (native pill_ts_expand). */
 .pill-ts-expand {
   position: fixed;

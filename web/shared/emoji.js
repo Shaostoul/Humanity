@@ -11,9 +11,10 @@
  *   - What counts as an emoji: an emoji drawn as an emoji by default (😀), or any pictograph with
  *     U+FE0F after it (❤️, ©️); a skin tone after a person or hand (👍🏽); sequences joined by U+200D
  *     (👨‍👩‍👧, ❤️‍🔥, 🏳️‍🌈); a pair of regional letters (a flag, 🇺🇸); a keycap (#️⃣); a black flag
- *     with tag letters (a subdivision flag, England's). A pictograph that is text by default (❤, ©)
- *     stays text without U+FE0F, and anything with U+FE0E (draw as text) after it stays text: the
- *     same rule Twemoji followed, so nothing that was text becomes a picture.
+ *     with tag letters (a subdivision flag, England's). A pictograph that is text by default (©, ☺)
+ *     stays text without U+FE0F, except the red heart ❤, which Twemoji also drew bare; anything with
+ *     U+FE0E (draw as text) after it stays text. The same rule Twemoji followed, so nothing that was
+ *     text becomes a picture and nothing that was a picture becomes text.
  *   - Which picture: pictures are named by code points in upper-case hex joined by "-" (OpenMoji's
  *     naming). Each is looked up with every U+FE0F taken out of both sides, because OpenMoji names a
  *     single emoji without it (2764.svg) and keeps it inside sequences (2764-FE0F-200D-1F525.svg),
@@ -46,8 +47,12 @@
   // as one by default, unless U+FE0E asks for text; any pictograph followed by U+FE0F; and a
   // text-by-default pictograph that starts a joined sequence typed without U+FE0F (❤ U+200D 🔥,
   // which Unicode calls minimally qualified and still shows as the heart on fire).
+  // One text-by-default exception, the red heart U+2764: Twemoji drew it bare (its only one, checked
+  // 2026-11-20 against every text-by-default pictograph), and the chat stores the heart reaction bare
+  // (data/reactions.json, the relay's canonical form), so without it the first reaction is a glyph.
   const FIRST = '(?:\\p{Emoji_Modifier_Base}\\uFE0F?\\p{Emoji_Modifier}' +
     '|\\p{Emoji_Presentation}(?!\\uFE0E)\\uFE0F?' +
+    '|\\u2764(?!\\uFE0E)\\uFE0F?' +
     '|\\p{Extended_Pictographic}\\uFE0F' +
     '|\\p{Extended_Pictographic}(?=\\u200D[\\p{Extended_Pictographic}\\p{Emoji_Presentation}]))';
   // After a joiner, a text-by-default pictograph needs no U+FE0F (the joiner already says emoji).

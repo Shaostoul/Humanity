@@ -42,6 +42,9 @@
 //  - Test 1 with one name (1F600) taken out of index.json: 'index.json is stale: run node
 //    scripts/gen-emoji-index.js'. And before the credit row: 'the set openmoji names the credit
 //    "openmoji", which is not a row of data/credits.ron'.
+//  - Test 2, 2026-11-20 (later): the bare red heart, as the reactions store it, got [text "❤"]: the
+//    old Twemoji (a9efb263f) drew U+2764 bare, its one text-by-default exception (every other one,
+//    206, needs U+FE0F), so the heart reaction had turned into a glyph. FIRST gained the exception.
 
 "use strict";
 

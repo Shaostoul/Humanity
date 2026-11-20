@@ -127,6 +127,8 @@ function standIn(view = { w: 1280, h: 900 }) {
   const doc = {
     activeElement: null,
     createElement: (tag) => new El(doc, tag),
+    // A text node: an element whose only content is its text (the ∞ panel's credit is built of them).
+    createTextNode: (text) => { const n = new El(doc, "#text"); n._text = String(text); return n; },
     addEventListener: (t, f) => { (docListeners[t] = docListeners[t] || []).push(f); },
     removeEventListener: (t, f) => { docListeners[t] = (docListeners[t] || []).filter((x) => x !== f); },
     getElementById: (id) => doc.body.querySelector("#" + id),
@@ -348,6 +350,34 @@ test("its buttons do what they say; ∞ shows every reaction; a press elsewhere 
   other.thorn.click();
   assert.equal(p.doc.body.querySelectorAll(".pill-popup").length, 1, "opening another closes the first");
   assert.equal(thorn.getAttribute("aria-expanded"), "false");
+});
+
+// OpenMoji's credit (the operator, 2026-11-20): the ∞ panel draws every reaction as an OpenMoji
+// picture, so its foot carries the attribution OpenMoji's README asks for, verbatim, with its two
+// links (docs/reference/findings/2026-11-20-openmoji.md). Seen red 2026-11-20 against pillPopup.js
+// as it was (HOS_WEB_DIR): "the panel has the credit line".
+test("∞'s panel ends with OpenMoji's credit: its requested words, verbatim, and its two links, each with a hint", () => {
+  // The words come from en.json through i18n.t and i18n.hint; this stand-in reads the real file.
+  const en = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "i18n", "en.json"), "utf8"));
+  const p = popupPage();
+  const t = (key) => key.split(".").reduce((o, k) => (o ? o[k] : undefined), en) ?? key;
+  p.win.i18n = { t, hint: (el, key) => { el.setAttribute("data-i18n-tip", key); el.setAttribute("data-tip-desc", t(key)); } };
+  const { row, thorn } = rowIn(p.doc);
+  wire(p, row);
+  thorn.click();
+  const all = bar(p).querySelector(".pill-popup-all");
+  const credit = all.querySelector(".pill-popup-credit");
+  assert.ok(credit, "the panel has the credit line");
+  assert.equal(all.childNodes[all.childNodes.length - 1], credit, "at its foot, after every reaction");
+  assert.equal(credit.textContent, "All emojis designed by OpenMoji – the open-source emoji and icon project. License: CC BY-SA 4.0");
+  const notice = /id: "openmoji"[\s\S]*?notice: "([^"]+)"/.exec(fs.readFileSync(path.join(ROOT, "data", "credits.ron"), "utf8"))[1];
+  assert.equal(credit.textContent, notice, "the same words as the Credits page's notice (data/credits.ron)");
+  const links = credit.querySelectorAll("a");
+  assert.deepEqual(links.map((a) => [a.textContent, a.href, a.target, a.rel]), [
+    ["OpenMoji", "https://openmoji.org/", "_blank", "noopener noreferrer"],
+    ["CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/#", "_blank", "noopener noreferrer"],
+  ]);
+  for (const a of links) assert.ok(a.getAttribute("data-tip-desc"), `the ${a.textContent} link has its hint`);
 });
 
 test("a private row's bar offers Reply alone (BUG-178), and Pin and Edit only where the row may", () => {

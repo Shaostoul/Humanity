@@ -107,6 +107,36 @@
     return b;
   }
 
+  // OpenMoji's credit at the foot of the ∞ panel, the picker that shows every reaction as one of
+  // its pictures (the operator said yes, 2026-11-20). The words are the attribution OpenMoji's
+  // README asks for, verbatim, with its two links (docs/reference/findings/2026-11-20-openmoji.md);
+  // they come from en.json (emoji.credit, its {{openmoji}} and {{licence}} filled with links). The
+  // desktop shows the same line when its picker draws these pictures (docs/design/emoji.md, rung 4).
+  var EMOJI_CREDIT_LINKS = {
+    openmoji: { href: 'https://openmoji.org/', key: 'emoji.credit_openmoji' },
+    licence: { href: 'https://creativecommons.org/licenses/by-sa/4.0/#', key: 'emoji.credit_licence' },
+  };
+  function emojiCredit() {
+    var i18n = window.i18n;
+    if (!i18n) return null;
+    var p = make('p', 'pill-popup-credit');
+    i18n.t('emoji.credit').split(/(\{\{\w+\}\})/).forEach(function (part) {
+      var m = part.match(/^\{\{(\w+)\}\}$/);
+      var link = m && EMOJI_CREDIT_LINKS[m[1]];
+      if (link) {
+        var a = make('a', null, i18n.t(link.key));
+        a.href = link.href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        if (i18n.hint) i18n.hint(a, link.key + '_hint');
+        p.appendChild(a);
+      } else if (part) {
+        p.appendChild(document.createTextNode(part));
+      }
+    });
+    return p;
+  }
+
   // The bar's buttons that take part in arrow-key moves: the row of them, not the ∞ panel's.
   function rowButtons(bar) {
     var row = bar.firstChild;
@@ -174,6 +204,8 @@
         });
         panel.appendChild(b);
       });
+      var credit = emojiCredit();
+      if (credit) panel.appendChild(credit);
       more.addEventListener('click', function (e) {
         if (e && e.stopPropagation) e.stopPropagation();
         panel.hidden = !panel.hidden;

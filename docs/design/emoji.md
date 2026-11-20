@@ -33,6 +33,15 @@ in a text node becomes `<img class="emoji">` of its picture on this server, lazi
 exact text. No request leaves the server for an emoji, so the CSP's `img-src` no longer needs
 `https://cdn.jsdelivr.net`. Tests: `scripts/tests/emoji-web.test.js`.
 
+**The credit where emoji are picked** (the operator said yes, 2026-11-20): the foot of the
+reaction bar's ∞ panel (`web/chat/view/pillPopup.js`, styled `.pill-popup-credit` in
+`web/chat/messages.css`) shows OpenMoji's requested attribution, verbatim, small and muted:
+"All emojis designed by OpenMoji – the open-source emoji and icon project. License: CC BY-SA 4.0",
+with "OpenMoji" linking https://openmoji.org/ and "CC BY-SA 4.0" linking the licence. The words are
+`emoji.credit` in `data/i18n/en.json`, its `{{openmoji}}` and `{{licence}}` filled with the links
+(`emoji.credit_openmoji`, `emoji.credit_licence`, each with its `_hint`). Held by
+`scripts/tests/chat-rows-web.test.js`, which also holds the line to the Credits page's notice.
+
 ## The desktop app (planned, in rungs)
 
 egui draws every font glyph in one colour, so today the native chat shows emoji from the system's
@@ -58,8 +67,12 @@ a line of text, and the matcher.
    text is unchanged. Start with chat message bodies and reaction pills; names and other surfaces
    follow.
 4. **Ship it.** Add `assets/emoji` to `scripts/lib/release-files.js` `ROOTS` (about 24 MB; the phone
-   app too, it has a chat), add the native chat to the `openmoji` row's `shown_in` in
-   `data/credits.ron`, and keep the system-font path as the fallback when a picture fails.
+   app too, it has a chat), and keep the system-font path as the fallback when a picture fails.
+   **The desktop picker shows the same credit** the moment it draws these pictures: the foot of its
+   ∞ reaction panel (native `pill_expand`, the web panel's twin) carries the same line from the same
+   keys (`emoji.credit` with its two links and hints), small and muted, and the native chat joins the
+   `openmoji` row's `shown_in` in `data/credits.ron`. Until then the desktop draws system-font emoji,
+   which are not OpenMoji's, so it owes no credit.
 
 Until rung 4 lands, the release download does not carry `assets/emoji/`: nothing in the desktop app
 reads it yet.

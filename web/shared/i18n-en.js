@@ -3908,6 +3908,13 @@ window.HOS_I18N_EN = {
     "and_more": "and {{n}} more",
     "folder": "Folder"
   },
+  "emoji": {
+    "credit": "All emojis designed by {{openmoji}} – the open-source emoji and icon project. License: {{licence}}",
+    "credit_licence": "CC BY-SA 4.0",
+    "credit_licence_hint": "Opens the licence the emoji pictures are shared under, on the Creative Commons website.",
+    "credit_openmoji": "OpenMoji",
+    "credit_openmoji_hint": "Opens the website of OpenMoji, the open project that designed these emoji."
+  },
   "files": {
     "places": {
       "label": "Places",

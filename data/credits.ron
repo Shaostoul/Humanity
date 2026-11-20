@@ -351,7 +351,9 @@
             notice: "All emojis designed by OpenMoji – the open-source emoji and icon project. License: CC BY-SA 4.0",
             url: "https://openmoji.org/",
             attribution_required: true,
-            shown_in: ["Credits", "The website's footer (its licence link opens LICENSING.md, which names OpenMoji and links LICENSES.md)", "assets/emoji/openmoji/LICENSE.md, beside the pictures"],
+            // The ∞ panel's foot is where the pictures are picked (the operator said yes,
+            // 2026-11-20): web/chat/view/pillPopup.js, words emoji.credit in en.json.
+            shown_in: ["Credits", "The website chat's reaction picker (the foot of its ∞ panel)", "The website's footer (its licence link opens LICENSING.md, which names OpenMoji and links LICENSES.md)", "assets/emoji/openmoji/LICENSE.md, beside the pictures"],
         ),
     ],
 )
