@@ -468,3 +468,8 @@ None of these was downloaded. The IMSLP scans must be downloaded by a person in 
 
 **This is not legal advice.** It records what the sources said on 20 November 2026 and how an AI read
 them; anything that turns on the open questions above is a question for a lawyer.
+
+## Decided by the operator (2026-11-20)
+
+- **Credit-required scores may sit in the main set**: "Yes. I don't mind credit required materials being in the main pack." So a CC BY 4.0 encoding (TROMPA) may ship in the core set, credited in data/credits.ron and LICENSES.md with its licence beside the file, never relabelled CC0. His words name "materials" generally, which loosens the 2026-11-13 rule that kept credited instrument libraries in optional packs only.
+- **Files 1, 5 and 8 downloaded** with his yes (Mutopia, sizes as listed, sha256 recorded in the session's scratchpad): the piano Mountain King, Für Elise and Symphony No. 5 i, for faithful conversion to MEI. The IMSLP scans he downloads himself in a browser.

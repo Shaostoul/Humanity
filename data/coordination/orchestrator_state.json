@@ -1462,6 +1462,16 @@
       "date": "2026-11-20",
       "decision": "Operator: open the call port (\"Let's get that open\") and install public.guide's security updates (\"Yes.\"). UDP 3478 opened on BOTH servers the documented way (HUMANITY_OPEN_CALL_PORT=1 in node.env, the provision script's exact rule in /etc/nftables.conf, nft -c then nft -f; backups in /root), STUN answered from outside. public.guide's redundant ufw retired (BUG-320's deeper cause: two firewalls). BUG-321: public.guide's unattended-upgrades matched no Debian archive; drop-in fixed it, 55 security updates installed, rebooted for the kernel, everything back. BUG-322: no TURN_PUBLIC_HOST made public.guide send callers to united-humanity.us; .env fixed on both, code fix queued (never fall back to another server).",
       "why": "Calls need the forwarder reachable on each server, and each server must name itself; security updates had silently stopped on public.guide."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "Weekly reset (usage 0%). Wave 1 dispatched in worktrees: PQC cross-implementation tests + advisory scans (ACVP vectors wait for the operator's download yes: five internalProjection.json, ~16 MB, usnistgov/ACVP-Server 975de31), the wallet key under its own label, BUG-322 code fix + brief server warnings, squash-aware clean-worktrees, macOS/Linux tooling, the content policy + CSAM legal finding, forward secrecy + disappearing messages design, the website script policy (inline scripts out). Rust 1.100.0 installed on both servers and the PC, pin switched after this wave merges (SOP: never mid-batch). Emoji: the operator chose OpenMoji (CC BY-SA 4.0; 17.0.0 svg-color zip 5.4 MB awaiting his download yes). v0.1565.0 cut from main meanwhile.",
+      "why": "THE RESET'S ORDER in PRIORITIES; disjoint files so the agents run in parallel."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "Operator: \"Yes. I don't mind credit required materials being in the main pack.\" (CC BY scores may ship in the core set, credited; loosens the 2026-11-13 optional-packs-only rule for credited material). Mutopia files 1, 5, 8 downloaded (piano Mountain King, Fur Elise, Symphony 5 i; .ly sources) for MEI conversion after the score player merges. He downloads the 1888 Peters orchestral scan (IMSLP #912194) himself.",
+      "why": "The score finding (2026-11-20-public-domain-scores.md) asked; IMSLP bars automated downloads."
     }
   ],
   "active_scopes_to_avoid": [
