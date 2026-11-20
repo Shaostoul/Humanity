@@ -103,6 +103,10 @@ pub mod choice;
 /// the signed report and its evidence, the evidence picker's choice, and the admins' list.
 #[cfg(feature = "native")]
 pub mod report;
+/// Hide and keep (2026-11-20, docs/design/hide-and-keep.md rung 5): the held copies list, the
+/// signed actions, and the owner's Export and Restore opened on this device.
+#[cfg(feature = "native")]
+pub mod held;
 
 /// A report about a group reaches the group's creator (10j of docs/design/blocking-and-safe-mode.md,
 /// 2026-10-10): the marker and its limits, the dialog's choices, and the creator's checks.

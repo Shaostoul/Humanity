@@ -74,7 +74,7 @@ fn heard(all: &[RelayMessage], who: &str) -> Vec<String> {
         .filter_map(|m| match m {
             RelayMessage::Private { to, message } if to == who => Some(message.clone()),
             RelayMessage::ReportReceived { to, id } if to == who => Some(format!("report_received {id}")),
-            RelayMessage::Reports { to, state, items } if to == who => Some(format!("reports {state} {}", items.len())),
+            RelayMessage::Reports { to, state, items, .. } if to == who =>Some(format!("reports {state} {}", items.len())),
             _ => None,
         })
         .collect()

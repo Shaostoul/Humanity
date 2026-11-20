@@ -667,7 +667,11 @@ pub fn handle_list(state: &Arc<RelayState>, me: &str, raw: &Value) {
         Vec::new()
     });
     let items = rows.iter().map(|r| item_json(state, r, is_admin(&role))).collect();
-    let _ = state.broadcast_tx.send(RelayMessage::Reports { to: me.to_string(), state: want.to_string(), items });
+    // Whether "Hide and keep" can seal a copy here (rung 5): the apps offer it only then, and
+    // otherwise show the relay's own sentence and what works instead.
+    let card = state.db.owner_card();
+    let (can_keep, cannot_keep_why) = (card.refusal().is_none(), card.refusal().unwrap_or("").to_string());
+    let _ = state.broadcast_tx.send(RelayMessage::Reports { to: me.to_string(), state: want.to_string(), items, can_keep, cannot_keep_why });
 }
 
 /// The public posts of `target` a report's evidence names: (author, timestamp).

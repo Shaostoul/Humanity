@@ -245,8 +245,11 @@ pub(crate) fn on_frame(gs: &mut GuiState, frame: &serde_json::Value) -> bool {
                 Some(state) => state == "decided",
                 None => gs.reports.asked_decided,
             };
+            crate::engine::held::note_reports_frame(gs, frame); // whether Hide and keep can seal here
             true
         }
+        // Held copies (hide and keep, rung 5): engine/held.rs.
+        Some("held_items") => crate::engine::held::on_frame(gs, frame),
         _ => false,
     }
 }

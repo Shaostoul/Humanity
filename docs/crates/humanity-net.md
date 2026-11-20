@@ -16,12 +16,12 @@ the relay rather than on top of it.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `net/`
-- **Size:** 31,924 lines in 61 files, 4,182 of them in 15 test files.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 48.
-- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 54, protocol 32.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 363, engine 102.
+- **Size:** 32,627 lines in 63 files, 4,352 of them in 16 test files.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 49.
+- **May use** (the plan): core, protocol. **Uses today** (references in non-test code): core 55, protocol 35.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 365, engine 102.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 274 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 276 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gui::pages::settings::recovery_net::
@@ -47,7 +47,7 @@ just test-lib --crate humanity-engine net:: --skip engine::frame_net:: --skip gu
 | `net::dm_pq::seal_v2` | 5 | gui 5 |
 | `net::household::PermitKey` | 5 | engine 5 |
 
-And 194 more items, 320 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
+And 195 more items, 322 references (`node scripts/crate-cards.js --interface humanity-net` lists them all).
 <!-- end generated -->
 
 ## Rules

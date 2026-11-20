@@ -179,3 +179,93 @@ fn a_member_verified_mid_session_is_told_their_new_line_limit() {
     assert!(verified > before, "the test needs a verified limit above a member's ({verified} vs {before})");
     assert_eq!(told, vec![("new_key".to_string(), verified)], "only the verified member, with the verified limit");
 }
+
+/// THE OWNER IS AN ADMIN EVERYWHERE THE RELAY CHECKS FOR ONE (hide and keep rung 5, 2026-11-20;
+/// BUG-330 fixed `mod_action_refusal` alone). The owner edits and deletes another person's
+/// marketplace listing, deletes another person's review, and edits and deletes another person's
+/// project, as an admin does; a member who is not the author is still refused each one; the board
+/// and the knock budget's checks take the owner as well.
+///
+/// Seen red 2026-11-20 against the checks as they were (`user_role == "admin" || user_role ==
+/// "mod"` and `== "admin"`): "the owner edits another seller's listing" failed first (the title
+/// stayed "Lamp").
+#[test]
+fn the_owner_counts_as_an_admin_for_listings_reviews_and_projects() {
+    let st = fresh_state();
+    st.db.set_role("owner_key", "owner").unwrap();
+    let listing = |id: &str| {
+        st.db.create_listing(id, "seller_key", "Sam", "Lamp", "a lamp", "home", "used", "5", "cash", "here").unwrap();
+    };
+    let edit = |who: &str, id: &str| {
+        block(handle_listing_update(&st, who, id.into(), "Taken down".into(), "".into(), "home".into(), "used".into(), "5".into(), "cash".into(), "here".into(), None));
+    };
+    let title = |id: &str| st.db.get_listing_by_id(id).unwrap().map(|l| l.title);
+
+    listing("l1");
+    edit("rando_key", "l1");
+    assert_eq!(title("l1").as_deref(), Some("Lamp"), "a member who is not the seller cannot edit it");
+    edit("owner_key", "l1");
+    assert_eq!(title("l1").as_deref(), Some("Taken down"), "the owner edits another seller's listing");
+    block(handle_listing_delete(&st, "rando_key", "l1".into()));
+    assert!(title("l1").is_some(), "a member who is not the seller cannot delete it");
+    block(handle_listing_delete(&st, "owner_key", "l1".into()));
+    assert!(title("l1").is_none(), "the owner deletes another seller's listing");
+
+    listing("l2");
+    let review = st.db.create_review("l2", "buyer_key", "Bea", 1, "bad").unwrap();
+    block(handle_review_delete(&st, "rando_key", "l2".into(), review));
+    assert!(st.db.get_review_by_id(review).unwrap().is_some(), "a member who did not write it cannot delete a review");
+    block(handle_review_delete(&st, "owner_key", "l2".into(), review));
+    assert!(st.db.get_review_by_id(review).unwrap().is_none(), "the owner deletes another person's review");
+
+    st.db.create_project("p1", "Garden", "", "maker_key", "public", "#000000", "").unwrap();
+    let project = || st.db.get_projects_visible_to("maker_key").unwrap().into_iter().find(|(p, _)| p.id == "p1").map(|(p, _)| p.name);
+    block(handle_project_update(&st, "rando_key", "p1".into(), "Mine now".into(), "".into(), "public".into(), "#000000".into(), "".into()));
+    assert_eq!(project().as_deref(), Some("Garden"), "a member who did not make it cannot edit a project");
+    block(handle_project_update(&st, "owner_key", "p1".into(), "Renamed".into(), "".into(), "public".into(), "#000000".into(), "".into()));
+    assert_eq!(project().as_deref(), Some("Renamed"), "the owner edits another person's project");
+    block(handle_project_delete(&st, "rando_key", "p1".into()));
+    assert!(project().is_some(), "a member who did not make it cannot delete a project");
+    block(handle_project_delete(&st, "owner_key", "p1".into()));
+    assert!(project().is_none(), "the owner deletes another person's project");
+
+    assert!(may_edit_tasks("owner") && may_comment_on_tasks("owner"), "the board takes the owner as an admin");
+    assert!(is_admin_role("owner") && is_staff_role("owner") && !is_admin_role("mod") && is_staff_role("moderator"));
+}
+
+/// THE OWNER ALSO LISTS THINGS FOR SALE AND RUNS THE VOICE CHANNELS, AS AN ADMIN DOES (BUG-332,
+/// found merging it: the listing gate and the voice channels' create, rename and delete still read
+/// "admin" or "mod" alone). A member with no role is still refused each one.
+///
+/// Seen red 2026-11-20 against the checks as they were (`user_role != "verified" && ... != "admin"`
+/// and `user_role != "admin" && user_role != "mod"`): "the owner lists something for sale" failed.
+#[test]
+fn the_owner_lists_for_sale_and_runs_voice_channels_as_an_admin_does() {
+    let st = fresh_state();
+    st.db.set_role("owner_key", "owner").unwrap();
+    let create = |who: &str, id: &str| {
+        block(handle_listing_create(&st, who, id.into(), "Lamp".into(), "a lamp".into(), "home".into(), "used".into(), "5".into(), "cash".into(), "here".into()));
+    };
+    let listed = |id: &str| st.db.get_listing_by_id(id).unwrap().is_some();
+    create("rando_key", "l1");
+    assert!(!listed("l1"), "a member who is not verified cannot list");
+    create("owner_key", "l2");
+    assert!(listed("l2"), "the owner lists something for sale");
+
+    let room = |name: &str| st.db.list_voice_channels().unwrap().into_iter().find(|c| c.name == name).map(|c| c.id);
+    let voice = |who: &str, action: &str, id: Option<i64>, name: Option<&str>| {
+        block(handle_voice_room(&st, who, 1, action.into(), id.map(|i| i.to_string()), name.map(str::to_string)));
+    };
+    voice("rando_key", "create", None, Some("Members"));
+    assert!(room("Members").is_none(), "a member cannot make a voice channel");
+    voice("owner_key", "create", None, Some("Lobby"));
+    let id = room("Lobby").expect("the owner makes a voice channel");
+    voice("rando_key", "rename", Some(id), Some("Mine"));
+    assert_eq!(room("Lobby"), Some(id), "a member cannot rename it");
+    voice("owner_key", "rename", Some(id), Some("Hall"));
+    assert_eq!(room("Hall"), Some(id), "the owner renames it");
+    voice("rando_key", "delete", Some(id), None);
+    assert_eq!(room("Hall"), Some(id), "a member cannot delete it");
+    voice("owner_key", "delete", Some(id), None);
+    assert!(room("Hall").is_none(), "the owner deletes it");
+}

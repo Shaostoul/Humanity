@@ -1455,9 +1455,9 @@ pub enum RelayMessage {
 
     /// Server -> an admin or moderator: the `state` ("open" or "decided") reports they asked for
     /// (handlers/reports.rs `item_json`). Evidence is readable text: `to` routes it to that person's
-    /// sockets alone, unsent.
+    /// sockets alone, unsent. `can_keep`, `cannot_keep_why`: can "Hide and keep" seal a copy here, and if not why (handlers/held.rs).
     #[serde(rename = "reports")]
-    Reports { #[serde(skip)] to: String, state: String, items: Vec<serde_json::Value> },
+    Reports { #[serde(skip)] to: String, state: String, items: Vec<serde_json::Value>, can_keep: bool, cannot_keep_why: String },
 
     /// Server -> an admin: the held items (hide and keep, handlers/held.rs `handle_list`), never
     /// what one holds; `to` routes it to that person's sockets alone, unsent.

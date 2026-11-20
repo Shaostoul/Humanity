@@ -19,6 +19,7 @@ use egui::RichText;
 use crate::gui::theme::Theme;
 use crate::gui::{widgets, GuiState};
 use crate::net::report::{self, Decision, ListedEvidence, ListedReport};
+use humanity_core::i18n::t;
 
 /// Where a report came from, in words.
 fn context_words(context: &str) -> &str {
@@ -194,6 +195,12 @@ fn draw_report(
     );
     let note = note.clone();
     let mut chosen = None;
+    // Hide and keep (rung 5, docs/design/hide-and-keep.md) on a report about a post: offered only
+    // when the server can seal a copy to its owner (the Reports list says, `keep`); otherwise the
+    // relay's own sentence why, then what works instead.
+    let keep = state.reports.held.keep.clone();
+    let can_keep = keep.as_ref().is_none_or(|(can, _)| *can);
+    let mut hide = false;
     ui.horizontal_wrapped(|ui| {
         for decision in Decision::ALL {
             if (decision == Decision::Ban && !is_admin) || (decision == Decision::DeletePost && !r.has_post()) {
@@ -207,7 +214,18 @@ fn draw_report(
                 chosen = Some((r.id.clone(), decision, note.clone()));
             }
         }
+        if r.has_post() && can_keep && widgets::Button::danger(t("held.decide_label")).hint("held.decide_hint").show(ui, theme) {
+            hide = true;
+        }
     });
+    if let Some((false, why)) = keep.filter(|_| r.has_post()) {
+        ui.add_space(theme.spacing_xs);
+        super::held::draw_refusal(ui, theme, &why);
+    }
+    if hide {
+        state.reports.decide_notes.remove(&id_key);
+        crate::engine::held::hide_and_keep(state, &r.id, &note, &reason);
+    }
     chosen
 }
 

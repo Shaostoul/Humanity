@@ -32,6 +32,8 @@ use humanity_core::i18n::t;
 
 /// Reports the admins can check (step D, 2026-10-09): the Moderator section's Reports lists.
 pub(crate) mod reports;
+/// Held copies (hide and keep, 2026-11-20): what was hidden and kept, for admins; the owner's actions.
+pub(crate) mod held;
 
 /// An admin erases another person's data (10i, 2026-10-10): the Members tab's "Erase their data",
 /// its confirm and the server's receipt.
@@ -525,6 +527,14 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.server_settings_confirm_action = Some("/reports-clear".to_string());
             }
         });
+
+        // ── Held copies (hide and keep, 2026-11-20): admins only, in server_settings/held.rs. ──
+        if is_admin {
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            held::draw(ui, theme, state);
+        }
     });
 }
 

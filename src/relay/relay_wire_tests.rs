@@ -238,11 +238,11 @@ fn report_messages_have_the_exact_shapes_the_clients_read() {
         serde_json::json!({ "type": "report_received", "id": 7 }),
         "the receipt carries exactly type and id"
     );
-    let list = RelayMessage::Reports { to: "me".into(), state: "open".into(), items: vec![serde_json::json!({ "id": 7 })] };
+    let list = RelayMessage::Reports { to: "me".into(), state: "open".into(), items: vec![serde_json::json!({ "id": 7 })], can_keep: false, cannot_keep_why: "no owner".into() };
     assert_eq!(
         serde_json::to_value(&list).unwrap(),
-        serde_json::json!({ "type": "reports", "state": "open", "items": [{ "id": 7 }] }),
-        "the list carries exactly type, state and items"
+        serde_json::json!({ "type": "reports", "state": "open", "items": [{ "id": 7 }], "can_keep": false, "cannot_keep_why": "no owner" }),
+        "the list carries exactly type, state, items and whether hide and keep can seal a copy here"
     );
 }
 

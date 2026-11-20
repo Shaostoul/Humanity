@@ -126,7 +126,8 @@ When a report says a child may be involved, the operator:
 2. **Never opens, downloads, copies, screenshots or forwards** a reported picture or file, and does
    not show it to other admins. (The app never shows admins a file or a link from a report, for this
    reason.)
-3. **Takes it out of public view at once**, without destroying it, and bans the person's key.
+3. **Takes it out of public view at once**, without destroying it, and bans the person's key. In
+   both apps, **Hide and keep** on the report does this and step 5 together (below).
 4. **Reports it to the CyberTipline** (or, outside the United States, to their country's official
    line). An operator can register with the National Center for Missing & Exploited Children as a
    provider (espteam@ncmec.org) and report as one; anyone can use the public form.
@@ -143,23 +144,38 @@ For every other report, the admins decide in proportion: dismiss it, warn, mute,
 person, or delete the reported post. The rules page of united-humanity.us says who moderates it
 and what each of those does.
 
+**Hide and keep** (both apps, on a report about a post, for admins and moderators) takes the post
+and every picture or file it linked out of every view at once, and keeps one copy sealed so that
+only the server's owner can open it. Nobody can view the copy in the app, the owner included. Under
+Server Settings, **Held copies** shows the admins how many copies are kept and when each one is
+deleted (a year after it was held), never what they hold. Only the owner can place a **legal hold**
+(when a preservation request arrives), **destroy** a copy now (when law enforcement asks),
+**export** it (the owner's own device opens it straight into one file, for the CyberTipline or the
+police, never on screen) or **restore** it if a report proves false. Every one of those steps is
+signed by the person who took it and logged for every admin to see.
+
 ### What the app does not do for an operator yet
 
 We would rather say it than have an operator find out at the wrong moment:
 
-- **There is no "hide and keep" button yet.** "Delete the post" on a report removes the post for
-  everyone and decides the report. The report keeps the post's words, without its links, but no
-  copy of a picture or file, and a picture or file uploaded with the post stays on the server at
-  its address.
-- **Reports are deleted 90 days after a decision.** A report left open is kept.
-- So, until the app does it: first move any uploaded file, without opening it, out of the server's
-  uploads folder (`data/uploads/`) into a folder only the operator can reach. Then use "Delete the
-  post" on the report, not the ordinary Delete on the message, which also deletes the files only
-  that post linked. If you reported it to the CyberTipline, copy the post's words from the report
-  beside the file and keep both for the year. When in doubt, ask a lawyer or the CyberTipline's
-  provider team.
-- The "hide and keep" action that will do all of this, sealed so that only the server's owner can
-  open the copy and nobody can view it in the app, is planned: `docs/design/hide-and-keep.md`.
+- **Choosing the server's owner is not in the app yet.** Hide and keep seals its copy to the owner's
+  key card, so it is refused, with nothing kept, until the server has exactly one owner whose key
+  card it holds. Today whoever runs the server sets the owner on the server itself
+  (`docs/design/in-app-ops.md`, "Setting the server's owner"), and the owner then signs in with the
+  app once so their key card arrives. Until then the app says so where the button would be.
+- **Reports are deleted 90 days after a decision**, unless they hold a kept copy. A report left
+  open is kept.
+- So, on a server with no owner set yet: first move any uploaded file, without opening it, out of
+  the server's uploads folder (`data/uploads/`) into a folder only the operator can reach. Then use
+  "Delete the post" on the report, not the ordinary Delete on the message, which also deletes the
+  files only that post linked. If you reported it to the CyberTipline, copy the post's words from
+  the report beside the file and keep both for the year. When in doubt, ask a lawyer or the
+  CyberTipline's provider team.
+- **The app does not tell the person whose post was hidden** that it was kept, nor that anything was
+  reported; a ban says only what a ban says. Whether to tell them is still an open question
+  (`docs/design/hide-and-keep.md`).
+- **Restore puts a post back on this server only.** Linked servers that dropped their copy do not
+  get it back.
 
 ## What sealed private messages mean for this
 

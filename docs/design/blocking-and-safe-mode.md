@@ -1328,9 +1328,12 @@ it down and date it").
   identity is included only for admins (mods see "a member"), and the target is never told who
   reported them.
 - `{"type":"report_decide","id","decision","note"}`, `decision` one of `dismiss`, `warn`, `mute`,
-  `kick`, `ban`, `delete_post` (the reported post), carried out through the existing moderation
-  path (`handle_mod_action` and its storage) so its rules (a mod cannot act on an admin, and so
-  on) still apply; the report records reviewer, decision and time. Admins and mods only.
+  `kick`, `ban`, `delete_post` or `hide_and_keep` (`delete_post` deletes the reported post;
+  `hide_and_keep`, added 2026-11-20, takes it out of view and keeps a copy sealed to the server's
+  owner, and carries the decider's own signed `action`: docs/design/hide-and-keep.md), carried out
+  through the existing moderation path (`handle_mod_action` and its storage) so its rules (a mod
+  cannot act on an admin, and so on) still apply; the report records reviewer, decision and time.
+  Admins and mods only.
 - Storage: a new table `reports_v2` (plain `CREATE TABLE IF NOT EXISTS`; any index over its own
   columns may sit in the same new-table batch), culled 90 days after `decided_at` by
   `src/relay/storage/expiry.rs`. Open reports are not culled. In the reporter's account export;

@@ -1447,6 +1447,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                         // Private server-to-user message (rate limit, errors, command responses)
                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                             humanity_core::debug::push_debug(format!("Private: {}", msg));
+                            crate::engine::held::on_private(&mut state.gui_state, msg); // held items' answers, also on Held copies
                             // Multiplayer (v0.472): the game_welcome (our player id +
                             // world snapshot) arrives as a private __game__ message.
                             if let Some(payload) = msg.strip_prefix("__game__:") {

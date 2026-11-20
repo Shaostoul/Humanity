@@ -163,18 +163,60 @@ struct Sealed {
     bytes: u64,
 }
 
+/// A reader that counts and hashes (BLAKE3) what passes through it: a file's hash and size for the
+/// restore plan, taken in the same single read that seals it.
+pub(crate) struct Hashing<R> {
+    pub inner: R,
+    pub hasher: blake3::Hasher,
+    pub bytes: u64,
+}
+
+impl<R: std::io::Read> Hashing<R> {
+    pub fn new(inner: R) -> Self {
+        Self { inner, hasher: blake3::Hasher::new(), bytes: 0 }
+    }
+}
+
+impl<R: std::io::Read> std::io::Read for Hashing<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.hasher.update(&buf[..n]);
+        self.bytes += n as u64;
+        Ok(n)
+    }
+}
+
+/// What sealing one file wrote: the sealed bytes, and the original's size and BLAKE3 hash (hex).
+struct SealedFile {
+    sealed: u64,
+    plain: u64,
+    hash: String,
+}
+
 /// Seal the file at `src` into `dst` as part `context`, reading it a piece at a time, and sync it
-/// to the disk; the bytes written.
-fn seal_file(src: &Path, dst: &Path, kyber: &[u8], context: &str) -> Result<u64, String> {
+/// to the disk.
+fn seal_file(src: &Path, dst: &Path, kyber: &[u8], context: &str) -> Result<SealedFile, String> {
     use std::io::Write;
     let input = std::fs::File::open(src).map_err(|e| format!("a file could not be read ({e})"))?;
+    let mut input = Hashing::new(input);
     let out = std::fs::File::create(dst).map_err(|e| format!("a sealed part could not be written ({e})"))?;
     let mut w = std::io::BufWriter::new(out);
-    let n = held_seal::seal_stream(kyber, context, input, &mut w)?;
+    let n = held_seal::seal_stream(kyber, context, &mut input, &mut w)?;
     w.flush().map_err(|e| format!("a sealed part could not be written ({e})"))?;
     let out = w.into_inner().map_err(|e| format!("a sealed part could not be written ({e})"))?;
     out.sync_all().map_err(|e| format!("a sealed part could not be written ({e})"))?;
-    Ok(n)
+    Ok(SealedFile { sealed: n, plain: input.bytes, hash: input.hasher.finalize().to_hex().to_string() })
+}
+
+/// Write `bytes` to a new file at `path` and sync it through the one handle (a handle opened only
+/// to read cannot be synced on Windows: "Access is denied").
+fn write_synced(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    std::fs::File::create(path)
+        .and_then(|mut f| {
+            std::io::Write::write_all(&mut f, bytes)?;
+            f.sync_all()
+        })
+        .map_err(|e| format!("a sealed part could not be written ({e})"))
 }
 
 /// The held folder beside `folders`' uploads folder.
@@ -277,27 +319,43 @@ impl Storage {
         for name in names {
             let spot = folders.spot_of(name).ok_or_else(|| format!("{name} left its folder while it was being sealed"))?;
             let src = folders.dir(spot).join(name);
-            let size = std::fs::metadata(&src).map(|m| m.len()).unwrap_or(0);
             let (uploader, shelf, original_name) = self.upload_row_of(name).unwrap_or_default();
-            bytes += seal_file(&src, &dir.join(part_file(part)), keeper.kyber, &held_seal::part_context(package, part))?;
+            let sealed_file = seal_file(&src, &dir.join(part_file(part)), keeper.kyber, &held_seal::part_context(package, part))?;
+            bytes += sealed_file.sealed;
             let file_part = part;
             part += 1;
             let poster = folders.dir(spot).join(super::files::poster_name(name));
-            let poster_part = if poster.is_file() {
-                bytes += seal_file(&poster, &dir.join(part_file(part)), keeper.kyber, &held_seal::part_context(package, part))?;
+            let (poster_part, poster_bytes, poster_hash) = if poster.is_file() {
+                let p = seal_file(&poster, &dir.join(part_file(part)), keeper.kyber, &held_seal::part_context(package, part))?;
+                bytes += p.sealed;
                 part += 1;
-                Some(part - 1)
+                (Some(part - 1), p.plain, p.hash)
             } else {
-                None
+                (None, 0, String::new())
             };
             let folder = match spot {
                 super::files::Spot::Public => "public",
                 super::files::Spot::Members => "members",
                 super::files::Spot::Waiting => "waiting",
             };
-            files.push(HeldFile { part: file_part, name: name.clone(), folder: folder.into(), uploader, shelf, original_name, bytes: size, poster_part });
+            files.push(HeldFile {
+                part: file_part,
+                name: name.clone(),
+                folder: folder.into(),
+                uploader,
+                shelf,
+                original_name,
+                bytes: sealed_file.plain,
+                hash: sealed_file.hash,
+                poster_part,
+                poster_bytes,
+                poster_hash,
+            });
         }
-        let manifest = Manifest {
+        // The restore plan's key (held_seal's header): made here, written into part 0 (sealed to
+        // the owner) and nowhere else, then dropped.
+        let restore_key: [u8; 32] = rand::random();
+        let mut manifest = Manifest {
             v: MANIFEST_VERSION,
             package: package.to_string(),
             report_id,
@@ -308,18 +366,16 @@ impl Storage {
             files,
             held_by: keeper.held_by.to_string(),
             held_at: keeper.now_ms,
+            restore_key: String::new(),
         };
-        let json = serde_json::to_vec(&manifest).map_err(|e| format!("the list of files could not be written ({e})"))?;
+        let unwritten = |e: serde_json::Error| format!("the list of files could not be written ({e})");
+        // The plan is the manifest without its own key, sealed under that key alone.
+        let plan = held_seal::seal_restore_plan(&restore_key, package, &serde_json::to_vec(&manifest).map_err(unwritten)?)?;
+        write_synced(&dir.join(held_seal::RESTORE_PLAN_FILE), &plan)?;
+        manifest.restore_key = hex::encode(restore_key);
+        let json = serde_json::to_vec(&manifest).map_err(unwritten)?;
         let sealed = held_seal::seal_bytes(keeper.kyber, &held_seal::part_context(package, 0), &json)?;
-        let path = dir.join(part_file(0));
-        // Written and synced through one handle: a handle opened only to read cannot be synced on
-        // Windows ("Access is denied").
-        std::fs::File::create(&path)
-            .and_then(|mut f| {
-                std::io::Write::write_all(&mut f, &sealed)?;
-                f.sync_all()
-            })
-            .map_err(|e| format!("a sealed part could not be written ({e})"))?;
+        write_synced(&dir.join(part_file(0)), &sealed)?;
         Ok(Sealed { parts: part, bytes: bytes + sealed.len() as u64 })
     }
 
@@ -565,6 +621,10 @@ impl Storage {
         Ok(Some(HiddenPost { id, channel, files: names.len(), left_in_view, unpinned }))
     }
 }
+
+// Restore (rung 5): the owner's device sends each file back, checked against the restore plan.
+#[path = "held_restore.rs"]
+pub mod restore;
 
 #[cfg(test)]
 #[path = "held_tests.rs"]

@@ -170,14 +170,16 @@ impl Storage {
         })
     }
 
-    /// The recorded export `object_id` of held item `id` by `signer`, and when it was received.
-    pub fn held_export_grant(&self, object_id: &str, id: i64) -> Result<Option<(String, i64)>, rusqlite::Error> {
+    /// The recorded export or restore `object_id` of held item `id`: who signed it, when it was
+    /// received, and which of the two it is (an export's grant fetches the sealed parts; a
+    /// restore's fetches them and sends the files back).
+    pub fn held_grant(&self, object_id: &str, id: i64) -> Result<Option<(String, i64, String)>, rusqlite::Error> {
         use rusqlite::OptionalExtension;
         self.with_read_conn(|c| {
             c.query_row(
-                "SELECT signer_key, received_at FROM held_actions WHERE object_id = ?1 AND action = 'held_export' AND target = ?2",
+                "SELECT signer_key, received_at, action FROM held_actions WHERE object_id = ?1 AND action IN ('held_export', 'held_restore') AND target = ?2",
                 params![object_id, id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .optional()
         })

@@ -6484,3 +6484,31 @@ fn snapshot_orgs_log() {
         crate::gui::pages::orgs::draw(ctx, theme, state);
     });
 }
+
+/// Server Settings > Held copies (hide and keep, rung 5, 2026-11-20), as the server's owner sees
+/// it: one held item's dates, size and actions (Legal hold, Export, Restore, Destroy now), the
+/// signed log and the counts; never what it holds, no view button. Above it, the refusal a server
+/// with no checked owner card shows instead of keeping (drawn here too, to see both at once).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_held_copies() {
+    render_page_png("held_copies", 1100, 1300, |ctx, theme, state| {
+        if state.reports.held.list.is_none() {
+            state.reports.held.requested = true;
+            state.reports.held.list = crate::net::held::parse_list(&serde_json::json!({
+                "type": "held_items", "can_keep": false, "i_am_owner": true,
+                "cannot_keep_why": "The key card held for this server's owner does not check out, so a copy could not be kept sealed. Nothing was kept.",
+                "items": [{ "id": 3, "report_id": 12, "file_count": 2, "parts": 4, "sealed_bytes": 2_480_000, "held_at": 1_763_600_000_000i64, "held_by_name": "Ada",
+                            "delete_after": 1_795_136_000_000i64, "legal_hold_until": 0, "deleted_at": 1_795_136_000_000i64, "exported_count": 1, "sealed_to_owner": true, "package": "x" }],
+                "actions": [
+                    { "action": "held_export", "target": 3, "signer_name": "Sam", "reason": "CyberTipline report", "until": 0, "signed_at": 1_763_700_000_000i64 },
+                    { "action": "hide_and_keep", "target": 12, "signer_name": "Ada", "reason": "Report 12: A child may be in danger", "until": 0, "signed_at": 1_763_600_000_000i64 }
+                ],
+                "counts": { "held": 1, "exported": 1, "legal_holds": 0, "destroyed": 0, "restored": 0 },
+            }));
+        }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| crate::gui::pages::server_settings::held::draw(ui, theme, state));
+        });
+    });
+}

@@ -1552,6 +1552,12 @@ sendMessage = async function() {
     openReportsView();
     return;
   }
+  // Held copies (hide and keep, chat-held.js): admins only; it says so to anyone else.
+  if (val === '/held' && typeof window.openHeldView === 'function') {
+    input.value = '';
+    window.openHeldView();
+    return;
+  }
   if (val === '/dms') {
     input.value = '';
     // Request updated DM list from server.

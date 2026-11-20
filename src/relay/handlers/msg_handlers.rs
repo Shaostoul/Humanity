@@ -207,9 +207,23 @@ pub async fn handle_skill_endorsements_request(
 // in could create a task or edit any task. Each now asks for exactly what its enum twin asks,
 // through the same two answers.
 
-/// May someone with `role` create, edit, move or delete a board task? A moderator or an admin.
+/// Whether `role` is an admin's: `admin`, or the server's `owner`, who counts as an admin
+/// everywhere the relay checks for one (BUG-330, 2026-11-20: `mod_action_refusal` left the owner
+/// out; the marketplace, review, project and voice channel checks below did too until hide and
+/// keep's rung 5, BUG-332).
+pub(crate) fn is_admin_role(role: &str) -> bool {
+    matches!(role, "admin" | "owner")
+}
+
+/// Whether `role` is an admin's or a moderator's (both spellings, as the relay accepts both).
+pub(crate) fn is_staff_role(role: &str) -> bool {
+    is_admin_role(role) || matches!(role, "mod" | "moderator")
+}
+
+/// May someone with `role` create, edit, move or delete a board task? A moderator or an admin
+/// (the owner included).
 pub(crate) fn may_edit_tasks(role: &str) -> bool {
-    role == "admin" || role == "mod"
+    is_staff_role(role)
 }
 
 /// May someone with `role` comment on a board task? Verified, a donor, a moderator or an admin.
@@ -759,7 +773,7 @@ pub async fn handle_voice_room(
     let user_role = state.db.get_role(my_key).unwrap_or_default();
     match action.as_str() {
         "create" => {
-            if user_role != "admin" && user_role != "mod" {
+            if !is_staff_role(&user_role) {
                 let private = RelayMessage::Private { to: my_key.to_string(), message: "Only admins and mods can create voice channels.".to_string() };
                 let _ = state.broadcast_tx.send(private);
             } else {
@@ -840,7 +854,7 @@ pub async fn handle_voice_room(
             leave_voice_room(state, my_key).await;
         }
         "rename" => {
-            if user_role != "admin" && user_role != "mod" {
+            if !is_staff_role(&user_role) {
                 let private = RelayMessage::Private { to: my_key.to_string(), message: "Only admins and mods can rename voice channels.".to_string() };
                 let _ = state.broadcast_tx.send(private);
             } else if let Some(rid) = room_id {
@@ -870,7 +884,7 @@ pub async fn handle_voice_room(
             }
         }
         "delete" => {
-            if user_role != "admin" && user_role != "mod" {
+            if !is_staff_role(&user_role) {
                 let private = RelayMessage::Private { to: my_key.to_string(), message: "Only admins and mods can delete voice channels.".to_string() };
                 let _ = state.broadcast_tx.send(private);
             } else if let Some(rid) = room_id {
@@ -1754,7 +1768,7 @@ pub async fn handle_listing_create(
     location: String,
 ) {
     let user_role = state.db.get_role(my_key).unwrap_or_default();
-    if user_role != "verified" && user_role != "donor" && user_role != "mod" && user_role != "admin" {
+    if !(matches!(user_role.as_str(), "verified" | "donor") || is_staff_role(&user_role)) {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: "You must be verified to create listings.".to_string(),
@@ -1796,7 +1810,7 @@ pub async fn handle_listing_update(
     status: Option<String>,
 ) {
     let user_role = state.db.get_role(my_key).unwrap_or_default();
-    let is_admin = user_role == "admin" || user_role == "mod";
+    let is_admin = is_staff_role(&user_role);
     if let Ok(true) = state.db.update_listing(&id, my_key, title.trim(), &description, &category, &condition, &price, &payment_methods, &location, status.as_deref(), is_admin) {
         if let Ok(Some(listing)) = state.db.get_listing_by_id(&id) {
             let _ = state.broadcast_tx.send(RelayMessage::ListingUpdated {
@@ -1812,7 +1826,7 @@ pub async fn handle_listing_delete(
     id: String,
 ) {
     let user_role = state.db.get_role(my_key).unwrap_or_default();
-    let is_admin = user_role == "admin" || user_role == "mod";
+    let is_admin = is_staff_role(&user_role);
     if let Ok(true) = state.db.delete_listing(&id, my_key, is_admin) {
         let _ = state.broadcast_tx.send(RelayMessage::ListingDeleted { id });
     }
@@ -1871,7 +1885,7 @@ pub async fn handle_review_delete(
     review_id: i64,
 ) {
     let user_role = state.db.get_role(my_key).unwrap_or_default();
-    let is_admin = user_role == "admin" || user_role == "mod";
+    let is_admin = is_staff_role(&user_role);
 
     match state.db.delete_review(review_id, my_key, is_admin) {
         Ok(true) => {
@@ -2408,7 +2422,7 @@ pub async fn handle_project_update(
 
     let valid_vis = ["public", "private", "members-only"];
     let vis = if valid_vis.contains(&visibility.as_str()) { &visibility } else { "public" };
-    let is_admin = state.db.get_role(my_key).unwrap_or_default() == "admin";
+    let is_admin = is_admin_role(&state.db.get_role(my_key).unwrap_or_default());
 
     match state.db.update_project(&id, my_key, &name, &description, vis, &color, &icon, is_admin) {
         Ok(true) => {
@@ -2443,7 +2457,7 @@ pub async fn handle_project_delete(
         let _ = state.broadcast_tx.send(private);
         return;
     }
-    let is_admin = state.db.get_role(my_key).unwrap_or_default() == "admin";
+    let is_admin = is_admin_role(&state.db.get_role(my_key).unwrap_or_default());
     match state.db.delete_project(&id, my_key, is_admin) {
         Ok(true) => {
             let _ = state.broadcast_tx.send(RelayMessage::ProjectDeleted { id });
@@ -2586,7 +2600,7 @@ pub async fn handle_trade_request(
     let is_friend = admitted.pass.is_some();
     if !is_friend {
         let user_role = state.db.get_role(my_key).unwrap_or_default();
-        let budget_exempt = user_role == "admin" || user_role == "mod";
+        let budget_exempt = is_staff_role(&user_role);
         if !budget_exempt && !reach::spend_knock(state, my_key).await {
             let _ = state.broadcast_tx.send(RelayMessage::Private {
                 to: my_key.to_string(),

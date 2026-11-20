@@ -158,7 +158,7 @@ pub(super) fn public_status(d: &Dirs, name: &str) -> u16 {
     block(async { tower_http::services::ServeDir::new(&d.uploads).try_call(req).await.unwrap().status().as_u16() })
 }
 
-fn upload_rows(st: &RelayState) -> i64 {
+pub(super) fn upload_rows(st: &RelayState) -> i64 {
     st.db.with_conn(|c| c.query_row("SELECT COUNT(*) FROM user_uploads", [], |r| r.get(0))).unwrap()
 }
 
@@ -359,7 +359,7 @@ fn a_failed_seal_changes_nothing_and_a_file_left_behind_is_swept() {
 
 /// A server with one held item (Tom's post): the state, the report's id, Ada, the owner and the
 /// item's row.
-fn one_held(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Person, Person, crate::relay::storage::held::HeldRow) {
+pub(super) fn one_held(tag: &str, d: &Dirs) -> (Arc<RelayState>, i64, Person, Person, crate::relay::storage::held::HeldRow) {
     let (st, id, _rae, _tom, ada) = reported_post(tag, d);
     let own = person(9);
     make_owner(&st, &own, true);
@@ -443,7 +443,7 @@ pub(super) fn signed(st: &RelayState, who: &Person, action: &str, kind: &str, ta
 }
 
 /// `who` sends `held_act` carrying `action`: everything the bus carried.
-fn act(st: &Arc<RelayState>, d: &Dirs, who: &Person, action: serde_json::Value) -> Vec<RelayMessage> {
+pub(super) fn act(st: &Arc<RelayState>, d: &Dirs, who: &Person, action: serde_json::Value) -> Vec<RelayMessage> {
     let mut rx = st.broadcast_tx.subscribe();
     block(handle_act_in(st, &who.key, &json!({ "type": "held_act", "action": action }), d.folders()));
     drain(&mut rx)

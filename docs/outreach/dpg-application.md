@@ -22,7 +22,7 @@ outside the repository.
 
 | Indicator | What a reviewer could fail | What closes it |
 |---|---|---|
-| 9b, illegal content | The content policy is merged ([docs/legal/content-policy.md](../legal/content-policy.md), 2026-11-20, in the Library and linked from Settings > Safety in both apps, the website's footer and its rules page), and it says plainly what the app does not do yet. There is no "hide and keep" action: "Delete the post" on a report removes the post but leaves an uploaded picture or file at its address, so until the action exists an operator follows the policy's manual steps (move the file, unopened, out of the uploads folder; keep it and the post's words for the year a CyberTipline report must be preserved). Hide and keep is designed, and its rungs are being built ([docs/design/hide-and-keep.md](../design/hide-and-keep.md): status "designed, not built"). Reports are deleted 90 days after a decision. No response time has been measured, and the policy sets no target. | Hide and keep built to its rung 5 (the button on the Reports page in both apps); then the policy drops its "not yet" list's first item, and the 9b answer's removal sentence changes to match. A report's retention for the child-danger reason is still an open decision (`docs/PRIORITIES.md`, "Report duties"). |
+| 9b, illegal content | The content policy is merged ([docs/legal/content-policy.md](../legal/content-policy.md), 2026-11-20, in the Library and linked from Settings > Safety in both apps, the website's footer and its rules page), and it says plainly what the app does not do yet. "Hide and keep" is on the Reports page in both apps (2026-11-20, [docs/design/hide-and-keep.md](../design/hide-and-keep.md) rungs 1 to 5): the post and its files out of view at once, one copy sealed to the server's owner for the year a CyberTipline report must be preserved, nobody able to view it, the owner alone able to export, hold, destroy or restore it, every step signed. It needs the server's owner to be set, which is still done on the server itself; until then an operator follows the policy's manual steps. Reports are deleted 90 days after a decision unless they hold a kept copy. No response time has been measured, and the policy sets no target. | Setting the server's owner in the app (the operator's choice of mechanism, `docs/design/in-app-ops.md`). A report's retention for the child-danger reason is still an open decision (`docs/PRIORITIES.md`, "Report duties"). |
 | 9c, harassment | The content policy does not name harassment: it covers threats, blackmail and calls to harm a group of people, and leaves "every other report" to the admins' proportionate choice. Harassment is named in the rules of the project's own server, [united-humanity.us/rules](https://united-humanity.us/rules) ("No harassment, hate speech, doxxing or targeted attacks"), with the moderators' real powers and the order of responses. Those rules are one server's, though, and there is no code of conduct for contributors (the GitHub repository, the Discord). The Humanity Accord states principles, not rules with consequences. | A project-wide code of conduct that names harassment and what happens to it, covering contributors as well as servers, or a harassment section in the content policy. |
 | 3 and 4, ownership and dependencies | The Windows download ships two Microsoft files, `dxcompiler.dll` and `dxil.dll`, copied from the Windows SDK (`.github/workflows/build-desktop.yml`), with no licence notice anywhere in the project. The compiler's source is open (its repository's LICENSE.TXT is the "University of Illinois/NCSA Open Source License", read 2026-11-20), and that licence asks that a binary copy carry its copyright notice; the code comments call it MIT. Whether `dxil.dll`, as shipped in the SDK, carries the same terms is not settled (`docs/reference/attribution-audit-2026-09-06.md`, item 7). | The dated finding is written, [2026-11-21-dxc-redistribution.md](../reference/findings/2026-11-21-dxc-redistribution.md), and it is negative for the copies shipped so far: they fall under the Windows SDK licence and are not on its redistribution list. What closes it is the operator's choice of a compliant source: DXC's own GitHub release (NCSA) with its LICENSE.TXT beside the DLLs (recommended), or stop shipping them: the app runs without them (indicator 4). Until then the answer below should not imply the shipped files are under an open licence. |
 | 8, standards | Closed 2026-11-20: the post-quantum code now passes NIST's published ACVP vectors for FIPS 203 and 204 (240 vectors, in the Rust build and on the website, run in CI), as well as the tests across our own implementations. | Nothing; keep the vectors running in CI. |
@@ -48,9 +48,9 @@ that are both the maintainer's, and no other organisation uses it yet. The answe
    Sustainable Development Goals" below). Goal 1, the mission, can be added, but its evidence is
    indirect; the short description can carry it instead.
 5. **When to submit.** The content policy is merged (2026-11-20), so every indicator now has an
-   answer. Recommended: submit now, with the limits said; the policy's manual steps cover what hide
-   and keep will automate. If hide and keep reaches both apps first, change the 9b removal sentence
-   before submitting, because an application under review cannot be edited.
+   answer. Recommended: submit now, with the limits said. Hide and keep reached both apps on 2026-11-20 and
+   the 9b removal sentence says so; re-read it before submitting, because an application under
+   review cannot be edited.
 6. **A response time for reports.** The form asks for "the average response time for assessment
    and/or action". The content policy sets no target. Recommended: say that none has been measured
    because the platform has not launched, and that reports wait for each server's volunteer admins;
@@ -507,9 +507,9 @@ warnings, protected setup"; `docs/design/blocking-and-safe-mode.md`, sections 6 
   locked away for a year, tell nobody else); and, in its own list, what the app does not do for an
   operator yet. The law behind it:
   [the 2026-11-20 finding](../reference/findings/2026-11-20-csam-reporting.md).
-- **Hide and keep** is designed, not built: [docs/design/hide-and-keep.md](../design/hide-and-keep.md),
-  in six rungs, the relay first and the button in both apps at rung 5. Until then, the policy's
-  manual steps.
+- **Hide and keep** is built in both apps (rungs 1 to 5, 2026-11-20):
+  [docs/design/hide-and-keep.md](../design/hide-and-keep.md). It needs the server's owner to be set,
+  still done on the server itself; until then, the policy's manual steps.
 - A report dialog on both apps with eleven reasons, among them "A child may be in danger", "Someone
   is in danger", "Unwanted sexual messages", "Harassment or bullying" and "Threats of violence"
   (`data/safety/report_reasons.json`).
@@ -559,17 +559,20 @@ warnings, protected setup"; `docs/design/blocking-and-safe-mode.md`, sections 6 
 > on a Reports page: delete the post; mute, kick or ban the member (signed admin actions, recorded in
 > an admin log); or erase the account's data. Moderators are never shown reported files or links,
 > and a report carrying a file is refused, so no volunteer is exposed to abuse imagery. A one-click
-> "hide and keep" action, which will take a reported post and its files out of view and keep a
-> sealed copy for the year, is designed and being built; until it ships, the policy gives operators
-> the manual steps that do the same, and says so publicly. Detection: private messages are
+> "hide and keep" action takes a reported post and its files out of view at once and keeps a copy
+> for the year, sealed so that only the server's owner can open it and nobody can view it in the
+> app; the owner alone can export it into a file for the hotline or the police, place a legal hold,
+> destroy it early or restore it, and every step is signed and logged. It needs the server's owner
+> to be set, which is still done on the server itself; until it is, the policy gives operators the
+> manual steps that do the same, and says so publicly. Detection: private messages are
 > end-to-end encrypted, so no one, admins included, can scan them; action rests on reports from the
 > people in a conversation, and warnings for scams and requests for the recovery phrase run on each
 > person's own device. Response time: HumanityOS has not launched, so none has been measured yet;
 > reports wait for each server's volunteer admins and moderators.
 
-**Verdict: ready, with a limit said.** The limit is hide and keep (thin spots table): until its
-rung 5 ships, the take-out-of-view-and-keep step is the operator's manual work, and the answer says
-so. When it ships, change the sentence that begins "A one-click". The retention of a child-danger
+**Verdict: ready, with a limit said.** Hide and keep reached both apps (rung 5, 2026-11-20) and the
+sentence that begins "A one-click" says so; the limit left is that a server's owner is still set on
+the server itself, not in the app, and the answer says so. The retention of a child-danger
 report (90 days after a decision today) is still an open decision.
 
 ### 9c: Protection from Harassment
@@ -824,9 +827,8 @@ would not publish; the answers in this file are written to be published.
 
 **One sitting, in order:**
 
-1. Check whether hide and keep has reached both apps since 2026-11-20
-   ([docs/design/hide-and-keep.md](../design/hide-and-keep.md), its rungs table); if it has, change
-   the 9b sentence that begins "A one-click" to say it exists.
+1. Hide and keep reached both apps on 2026-11-20 and the 9b sentence that begins "A one-click"
+   says so ([docs/design/hide-and-keep.md](../design/hide-and-keep.md)); re-read it once.
 2. Optional, about five minutes: the eligibility tool, https://digitalpublicgoods.net/eligibility.
    It asks whether you are the developer or owner, then one question per indicator, and either says
    the solution is eligible or gives pointers.

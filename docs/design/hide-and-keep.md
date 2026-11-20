@@ -1,7 +1,8 @@
 # Hide and keep: a reported post out of view at once, a sealed copy for the hotline
 
-**Written 20 November 2026. Status: rungs 1 to 4 built on the relay 20 November 2026 (see "Built"
-below); rung 5, the screens in both apps with the owner's Export and Restore, is next.** The operator asked for it the same day
+**Written 20 November 2026. Status: rungs 1 to 5 built 20 November 2026 (see "Built" below): the
+relay, and the screens in both apps with the owner's Export and Restore. Rung 6 waits for the
+operator, and so does how the owner role is set.** The operator asked for it the same day
 ("build the hide and keep moderator action") and set its limits: "Makes sense to build the system
 in. We just want to make sure the system itself can't be abused." This document plans the whole
 feature so each rung built is a rung of the real thing. The law it answers to is in
@@ -75,8 +76,9 @@ so no list shows them and no limit or sweep deletes them early.
 | 5 | Both apps: "Hide and keep" on the Reports page (words and hint by key); a Held items list (count, each delete time and legal hold, no contents, no view button); owner-only Export, Legal hold, Destroy now and Restore, each done on the owner's device | a headless click on each control (desktop), the drawn panel and the frame sent (website) |
 | 6 | Whatever the operator decides about telling the person | as decided |
 
-When rung 5 ships, the policy's "What the app does not do for an operator yet" list loses its first
-item, and `web/pages/rules.html` gains a row in its table of moderation powers.
+With rung 5 (2026-11-20) the policy's "What the app does not do for an operator yet" list lost its
+"no button" item (it now says that setting the owner is not in the app yet), and
+`web/pages/rules.html` gained a Hide and keep row in its table of moderation powers.
 
 ## Open questions for the operator
 
@@ -104,7 +106,10 @@ item, and `web/pages/rules.html` gains a row in its table of moderation powers.
 - **Rung 2**: the package (`data/held/<random id>/`, part 0 the words and the file list, a part per file and poster picture), sealed by `crates/humanity-protocol/src/held_seal.rs` (ML-KEM-768, BLAKE3 `derive_key("hum/held/v1")`, AES-256-GCM in 1 MiB pieces; the "Held copies" row of cryptography.md) from the original a piece at a time into a staging folder, synced, put in place, then the rows in one transaction, then the originals deleted. A failed seal changes nothing. `held_items` keeps no readable content; the expiry pass also takes out a held file a crash left in a served folder (keyed name hashes). The folder name is the package id, not the report id.
 - **Rung 3**: expiry a year after holding; a legal hold (after today, at most 366 days ahead, renewable, 0 lifts) defers it; destroy now; the report kept while its items are.
 - **Rung 4**: each action a `mod_action_v1` (`hide_and_keep` on a `report`, `held_legal_hold`, `held_export`, `held_destroy`, `held_restore` on a `held` item; `expires_at` the hold's end) built and signed by the actor's app (core `moderation::HELD_ACTIONS`, its web twin in `web/shared/pq-object.js`), checked by src/relay/storage/moderation_held.rs (signature, signed by the signed-in key, this server's DID, five minutes fresh, never used before, admins and moderators for the hide, the owner alone for the rest) and recorded in `held_actions` with the signed object once carried out. Kept out of the public signed-object store (refused there, never gossiped): admins see the log through `held_list`; anyone sees counts at `GET /api/held-count`. An export grants the owner's device ten minutes to fetch the sealed parts (`GET /api/held/{id}/{part}?grant=<the export's object id>`), ciphertext only; `held_restore` is refused until rung 5 builds Restore.
-- **Not yet (rung 5)**: the buttons and the Held items list in both apps; the owner's device opening a package (Export to a file the owner chooses; Restore re-uploading the files and putting the post back, then lifting the ban by the ordinary unban); the website's twin of `held_seal` with a shared fixture; the policy's list and the rules page. Rung 6 waits for the operator.
+- **Rung 5, the screens** (both apps; native `src/gui/pages/server_settings/reports.rs` and `held.rs` with `src/net/held.rs` and `src/engine/held.rs`, the website `web/chat/chat-held.js` with `web/shared/held-seal.js`, built as DOM with no innerHTML): on an open report about a post, **Hide and keep** beside the other decisions, sending the decider's own signed action; offered only when the Reports list says the server can seal a copy (`can_keep`), otherwise the relay's own sentence, then what works instead ("Delete the post") and what to do today while setting an owner is CLI debt. **Held copies** (Server Settings, Moderator, for admins; `/held` or the Reports view's button on the website): how many are held, each one's report, who held it and when, when it is deleted, any legal hold, its size and exports, the signed log and the counts; never contents, never the package id (sent only to the owner whose key it is sealed to, never drawn), no view button for anyone. For the **owner** alone, each with a reason that is signed into the log: Legal hold (days from today, at most 366, 0 lifts), Destroy now (asks first, says it cannot be undone), Export (a chooser that says what the file is for; the owner's device fetches the sealed parts under the export's ten-minute grant and opens them straight into one stored .zip, `held-item.json` without the restore key, `post.txt`, `files/<part>-<name>`, never drawn), Restore (asks first).
+- **Restore, both halves**: the relay records a signed `held_restore` as a ten-minute grant; the owner's device opens each part and streams it back in pieces under nginx's 1 MB `/api/` limit (`PUT /api/held/{id}/{part}?grant=&offset=`, `x-held-restore-key`), then `POST /api/held/{id}/restore`. The relay never trusts the device for anything but bytes: at holding it sealed a restore plan (the manifest with each file's BLAKE3 hash) under a random key kept only inside the owner's part 0 (cryptography.md, "Held copies"), so the key opens the plan, every file must match it, and the words, names and folders come from the plan. Then the files go back to their own folders, their upload rows and the post's row in one transaction, every client is sent the post again (the broadcast filters by room), the held copy is deleted. A ban is lifted by the ordinary Unban.
+- **The owner counts as an admin** everywhere the relay checks for one (msg_handlers.rs `is_admin_role`, 2026-11-20): marketplace listing edit and delete, review delete, project edit and delete, the board and the knock budget. BUG-330 had fixed `mod_action_refusal` alone.
+- **Not yet**: rung 6 (telling the person) and setting the owner role in the app both wait for the operator; the screens say what to do today (docs/design/in-app-ops.md, "Setting the server's owner").
 
 ## Known limits, said plainly
 

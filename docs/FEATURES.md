@@ -1507,8 +1507,17 @@ straight to the CyberTipline; what an operator does on a report; what sealed DMs
 dated finding `docs/reference/findings/2026-11-20-csam-reporting.md`; linked last in Settings >
 Safety on both clients (native `src/gui/pages/safety_content_policy.rs`, web
 `web/chat/chat-privacy.js` `contentPolicySafetyHtml`), the site footer (`web/shared/shell.js`) and
-the rules page. **Hide and keep, the relay side** (2026-11-20, `docs/design/hide-and-keep.md` rungs
-1 to 4; no button in either app yet, rung 5): a report's `hide_and_keep` decision takes the post,
+the rules page. **Hide and keep, both apps** (2026-11-20, rung 5): on an open report about a post,
+"Hide and keep" beside the other decisions with the decider's signed action, or the relay's reason
+it cannot keep a copy and what to do today (native `src/gui/pages/server_settings/reports.rs`,
+web `web/chat/chat-held.js`); **Held copies** for admins (native Server Settings > Moderator,
+`src/gui/pages/server_settings/held.rs`; web `/held` and the Reports view's button): count, dates,
+sizes and the signed log, no contents and no view button; the owner's Legal hold, Destroy now
+(asks first), Export (opened on the owner's device straight into one .zip, `src/net/held.rs`,
+`web/shared/held-seal.js`) and Restore (opened on the device, sent back in pieces, checked by the
+relay against its sealed restore plan, `src/relay/storage/held_restore.rs`,
+`src/relay/handlers/held_restore.rs`). **Hide and keep, the relay side** (2026-11-20,
+`docs/design/hide-and-keep.md` rungs 1 to 4): a report's `hide_and_keep` decision takes the post,
 its pinned copy and its files out of every view (and off linked servers), and keeps its words and
 files sealed to the server owner's key card (`crates/humanity-protocol/src/held_seal.rs`, the
 "Held copies" row of `docs/reference/cryptography.md`) in `data/held/`, refused without an owner's

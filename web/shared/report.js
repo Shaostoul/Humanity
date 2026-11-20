@@ -38,8 +38,10 @@
   const REPORT_DOMAIN = 'hum/report/v1';
   // Where the report was made. Must match the relay's list.
   const REPORT_CONTEXTS = ['dm', 'post', 'group', 'profile', 'media'];
-  // What an admin or mod can decide. Must match the relay's list.
-  const REPORT_DECISIONS = ['dismiss', 'warn', 'mute', 'kick', 'ban', 'delete_post'];
+  // What an admin or mod can decide. Must match the relay's list. `hide_and_keep` (2026-11-20,
+  // docs/design/hide-and-keep.md) carries the decider's signed action, so web/chat/chat-held.js
+  // draws and sends it, never the plain decision buttons.
+  const REPORT_DECISIONS = ['dismiss', 'warn', 'mute', 'kick', 'ban', 'delete_post', 'hide_and_keep'];
   const REPORT_DECISION_LABELS = Object.freeze({
     dismiss: 'Dismiss',
     warn: 'Warn',
@@ -47,6 +49,7 @@
     kick: 'Kick',
     ban: 'Ban',
     delete_post: 'Delete the post',
+    hide_and_keep: 'Hide and keep',
   });
   const REPORT_CONTEXT_LABELS = Object.freeze({
     dm: 'Direct messages',

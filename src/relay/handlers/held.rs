@@ -15,10 +15,13 @@
 //! SIGNED (rung 4). Every action here carries the actor's own signed `mod_action_v1` under
 //! `action` (the JSON `POST /api/v2/objects` takes), checked by storage/moderation_held.rs and
 //! recorded once carried out; a frame without one is refused ([`UNSIGNED`]). The owner's `held_act`
-//! frame carries a legal hold, destroy now or export; an export grants the owner's device
-//! [`EXPORT_GRANT_MS`] to fetch the sealed parts from `GET /api/held/{id}/{part}?grant=<object id>`
-//! (ciphertext only that device opens). `held_list` shows admins the held items (no contents, no
-//! view), the log and the counts; `GET /api/held-count` shows anyone the counts alone.
+//! frame carries a legal hold, destroy now, export or restore; an export or a restore grants the
+//! owner's device [`EXPORT_GRANT_MS`] to fetch the sealed parts from `GET /api/held/{id}/{part}?
+//! grant=<object id>` (ciphertext only that device opens), and a restore to send each file back
+//! (`PUT` of that address, then `POST /api/held/{id}/restore`, held_restore.rs: every byte checked
+//! against the restore plan sealed when the post was held). `held_list` shows admins the held
+//! items (no contents, no view), the log and the counts; `GET /api/held-count` shows anyone the
+//! counts alone.
 
 use std::sync::Arc;
 
@@ -185,12 +188,18 @@ pub fn handle_list(state: &RelayState, me: &str) {
         .unwrap_or_default()
         .into_iter()
         .map(|r| {
-            serde_json::json!({
+            let mut item = serde_json::json!({
                 "id": r.id, "report_id": r.report_id, "file_count": r.file_count, "parts": r.parts,
                 "sealed_bytes": r.sealed_bytes, "held_at": r.held_at, "held_by_name": name_or_key(state, &r.held_by),
                 "delete_after": r.delete_after, "legal_hold_until": r.legal_hold_until, "deleted_at": r.deleted_at(),
                 "exported_count": r.exported_count, "sealed_to_owner": !owner.is_empty() && r.sealed_to == owner,
-            })
+            });
+            // The package id goes to the owner whose key it is sealed to, and to nobody else: their
+            // device needs it to open the parts (each part is bound to it). Never drawn.
+            if !owner.is_empty() && owner == me && r.sealed_to == me {
+                item["package"] = serde_json::Value::String(r.package.clone());
+            }
+            item
         })
         .collect();
     let actions = state
@@ -217,9 +226,8 @@ pub fn handle_list(state: &RelayState, me: &str) {
     });
 }
 
-/// `held_act {action}` from `me`: the owner's legal hold, destroy now and export, each a signed
-/// action (the module's header). Restore arrives with the owner's screens (rung 5) and is refused
-/// until then; `hide_and_keep` is decided on its report.
+/// `held_act {action}` from `me`: the owner's legal hold, destroy now, export and restore, each a
+/// signed action (the module's header); `hide_and_keep` is decided on its report.
 pub async fn handle_act_in(state: &Arc<RelayState>, me: &str, raw: &Value, folders: Folders<'_>) {
     let (object, json) = match action_of(raw) {
         Ok(x) => x,
@@ -257,7 +265,14 @@ pub async fn handle_act_in(state: &Arc<RelayState>, me: &str, raw: &Value, folde
             }
             format!("Export of held item #{} granted for {} minutes.", item.id, EXPORT_GRANT_MS / 60_000)
         }
-        "held_restore" => return tell(state, me, "Restore is not built yet (docs/design/hide-and-keep.md, rung 5). Nothing was done.".to_string()),
+        // Restore (rung 5): the owner's device fetches the parts, opens them and sends each file
+        // back within the grant (held_restore.rs); the relay checks every byte against the plan.
+        "held_restore" => {
+            if item.sealed_to != me {
+                return tell(state, me, format!("Held item #{} is sealed to an earlier owner's key card, so only that key can open it. Nothing was done.", item.id));
+            }
+            format!("Restore of held item #{} granted for {} minutes: your device is putting it back.", item.id, EXPORT_GRANT_MS / 60_000)
+        }
         _ => return tell(state, me, "A post is hidden and kept from its report. Nothing was done.".to_string()),
     };
     record(state, me, &a, &json);
@@ -274,15 +289,22 @@ pub async fn handle(state: &Arc<RelayState>, me: &str, kind: &str, raw: &Value) 
     }
 }
 
-/// Where part `part` of held item `id` is, for the export `grant` (the object id of the owner's
-/// recorded `held_export`, at most [`EXPORT_GRANT_MS`] old, by the key the item is sealed to, who
-/// is the owner now). Every refusal is the same 404, so a guess learns nothing.
-pub fn export_part_path(state: &RelayState, id: i64, part: i64, grant: &str, folders: Folders, now: i64) -> Option<std::path::PathBuf> {
-    let (signer, at) = state.db.held_export_grant(grant, id).ok().flatten()?;
+/// Held item `id` under `grant` (the object id of the owner's recorded export or restore, at most
+/// [`EXPORT_GRANT_MS`] old, by the key the item is sealed to, who is the owner now), with which of
+/// the two the grant is; None for anything else.
+pub(crate) fn granted_item(state: &RelayState, id: i64, grant: &str, now: i64) -> Option<(crate::relay::storage::held::HeldRow, String)> {
+    let (signer, at, action) = state.db.held_grant(grant, id).ok().flatten()?;
     let item = state.db.held_item(id).ok().flatten()?;
     let fresh = now - at <= EXPORT_GRANT_MS;
     let owner_now = state.db.owner_keys().unwrap_or_default() == [signer.clone()];
-    if !fresh || !owner_now || item.sealed_to != signer || part < 0 || part >= item.parts {
+    (fresh && owner_now && item.sealed_to == signer).then_some((item, action))
+}
+
+/// Where part `part` of held item `id` is, for the export or restore `grant`
+/// ([`granted_item`]). Every refusal is the same 404, so a guess learns nothing.
+pub fn export_part_path(state: &RelayState, id: i64, part: i64, grant: &str, folders: Folders, now: i64) -> Option<std::path::PathBuf> {
+    let (item, _) = granted_item(state, id, grant, now)?;
+    if part < 0 || part >= item.parts {
         return None;
     }
     Some(crate::relay::storage::held::held_dir_beside(folders).join(&item.package).join(crate::relay::storage::held::part_file(part as usize)))
@@ -317,6 +339,11 @@ pub async fn api_export_part(
 pub async fn api_count(axum::extract::State(state): axum::extract::State<Arc<RelayState>>) -> axum::Json<serde_json::Value> {
     axum::Json(serde_json::to_value(state.db.held_counts().unwrap_or_default()).unwrap_or_default())
 }
+
+// Restore (rung 5): the files sent back and the post put back.
+#[path = "held_restore.rs"]
+mod restore;
+pub use restore::{api_restore_finish, api_restore_piece};
 
 #[cfg(test)]
 #[path = "held_tests.rs"]

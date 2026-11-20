@@ -390,6 +390,10 @@ impl Decision {
 
     /// What a decided report says it was, from the wire word (unknown words shown as they are).
     pub fn label_of(wire: &str) -> String {
+        if wire == "hide_and_keep" {
+            // Decided on its own path, with the decider's signed action (net/held.rs).
+            return humanity_core::i18n::t("held.decide_label").to_string();
+        }
         Decision::ALL.iter().find(|d| d.wire() == wire).map(|d| d.label().to_string()).unwrap_or_else(|| wire.to_string())
     }
 }
@@ -629,6 +633,9 @@ pub struct ReportUi {
     /// Reports about a group to its creator (10j): the creator lookups, the reports being checked
     /// on arrival, removals under way (net/group_report.rs, engine/group_report.rs).
     pub group: super::group_report::GroupReportUi,
+    /// Hide and keep (rung 5): whether this server can keep a sealed copy, Held copies, and the
+    /// owner's actions (net/held.rs, engine/held.rs).
+    pub held: super::held::HeldUi,
 }
 
 impl ReportUi {
@@ -638,6 +645,7 @@ impl ReportUi {
         self.requested = false;
         self.decide_notes.clear();
         self.status.clear();
+        self.held.forget_server();
     }
 }
 
