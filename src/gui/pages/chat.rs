@@ -156,6 +156,8 @@ mod composer_tests; // the composer grows upward and stays on screen (2026-10-10
 mod channel_row_tests; // a room row is the same under every server (BUG-242)
 #[cfg(test)]
 mod self_mail_tests; // my copy of a DM leaves apart from the recipient's (BUG-259)
+#[cfg(test)]
+mod emoji_tests; // emoji pictures in reaction pills; Copy text gives the real emoji (2026-11-20)
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -2084,13 +2086,10 @@ fn compute_pill_width(
             // the badge width estimate matches the rendered width.
             let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
             let label = format!("{}{}", display_emoji, keys.len());
-            let label_w = ctx.fonts(|f| {
-                f.layout_no_wrap(
-                    label,
-                    egui::FontId::proportional(theme.small_size),
-                    theme.text_primary(),
-                )
-            }).size().x;
+            // Laid out as paint_timestamp_pill lays it out: the emoji's picture, when there is one,
+            // takes its placeholder's width (widgets/emoji/inline.rs).
+            let font = egui::FontId::proportional(theme.small_size);
+            let label_w = crate::gui::widgets::emoji::layout_singleline(ctx, label, font, theme.text_primary()).0.size().x;
             total += if first { 4.0 } else { 3.0 };
             first = false;
             total += label_w + 4.0; // badge body = label_w + 2px each side
@@ -2215,13 +2214,10 @@ fn paint_timestamp_pill(
             let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
             let i_reacted = keys.contains(&my_key.to_string());
             let label = format!("{}{}", display_emoji, count);
-            let label_galley = ui.fonts(|f| {
-                f.layout_no_wrap(
-                    label.clone(),
-                    egui::FontId::proportional(theme.small_size),
-                    if i_reacted { theme.accent() } else { theme.text_primary() },
-                )
-            });
+            // The emoji as its picture when there is one (widgets/emoji/inline.rs, rung 3).
+            let label_color = if i_reacted { theme.accent() } else { theme.text_primary() };
+            let font = egui::FontId::proportional(theme.small_size);
+            let (label_galley, label_pictures) = crate::gui::widgets::emoji::layout_singleline(ui.ctx(), label.clone(), font, label_color);
             let label_w = label_galley.size().x;
             let badge_w = label_w + 4.0; // 2px internal pad each side
             // Pre-badge gap: 4 for first, 3 for subsequent — must match compute.
@@ -2240,11 +2236,9 @@ fn paint_timestamp_pill(
                 Color32::TRANSPARENT
             };
             painter.rect_filled(badge_rect, CornerRadius::same(7), badge_bg);
-            painter.galley(
-                egui::pos2(badge_rect.left() + 2.0, cy - label_galley.size().y / 2.0),
-                label_galley,
-                if i_reacted { theme.accent() } else { theme.text_primary() },
-            );
+            let label_pos = egui::pos2(badge_rect.left() + 2.0, cy - label_galley.size().y / 2.0);
+            painter.galley(label_pos, label_galley.clone(), label_color);
+            crate::gui::widgets::emoji::paint(painter, label_pos, &label_galley, &label_pictures);
             // Click badge to toggle this reaction. Send the SAME key that was
             // stored (with or without FE0F) so the relay matches and toggles
             // the correct entry — don't substitute the cleaned display string.

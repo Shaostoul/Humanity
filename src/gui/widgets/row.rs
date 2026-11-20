@@ -183,7 +183,9 @@ pub fn message_row(
     // two surfaces draw the same message the same way.
     append_formatted(&mut job, theme, content, mention_ranges, format_spans, body_font, text_color);
 
-    let galley = painter.layout_job(job);
+    // Laid out with a placeholder in each emoji that has a picture (widgets/emoji/inline.rs,
+    // docs/design/emoji.md rung 3); exactly `painter.layout_job(job)` while none does.
+    let (galley, emoji_pictures) = crate::gui::widgets::emoji::layout(ui.ctx(), job);
     let text_h = galley.size().y;
 
     // For pill placement: re-lay just the "Name  " prefix to find where
@@ -323,7 +325,8 @@ pub fn message_row(
         }
     }
 
-    painter.galley(egui::pos2(content_x, content_y), galley, text_color);
+    painter.galley(egui::pos2(content_x, content_y), galley.clone(), text_color);
+    crate::gui::widgets::emoji::paint(painter, egui::pos2(content_x, content_y), &galley, &emoji_pictures);
 
     // Pill rect: anchored at content_x + name_width, height = first line of
     // content. Caller paints the actual pill contents (timestamp + Þ +

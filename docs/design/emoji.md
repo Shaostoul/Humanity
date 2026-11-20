@@ -42,33 +42,62 @@ with "OpenMoji" linking https://openmoji.org/ and "CC BY-SA 4.0" linking the lic
 (`emoji.credit_openmoji`, `emoji.credit_licence`, each with its `_hint`). Held by
 `scripts/tests/chat-rows-web.test.js`, which also holds the line to the Credits page's notice.
 
-## The desktop app (planned, in rungs)
+## The desktop app (rungs 1 and 3 built 2026-11-20; rung 2 awaits a download)
 
 egui draws every font glyph in one colour, so today the native chat shows emoji from the system's
 emoji font (`src/gui/fonts.rs`), as monochrome shapes, and a machine without one shows boxes. The
 same pictures as the website need three things egui does not have: an SVG rasteriser, pictures inside
 a line of text, and the matcher.
 
-1. **The matcher in Rust**, beside the chat (or in `humanity-core` if a second surface needs it):
-   the same rules as `emoji.js`, held to `scripts/tests/fixtures/emoji-v1.json` by a Rust test (the
-   `channel_link.rs` / `chat-links-v1.json` pattern). Unicode's emoji properties come from a crate
-   or from a table generated from Unicode's own data files: compare the open options first (the
-   house rule for every new tool) and record the choice.
-2. **Rasterising the SVGs.** The standard route is an SVG renderer drawing each picture at the text's
-   pixel size times the screen's scale into an egui texture (`egui_extras` does this with `resvg`).
-   Before adopting any renderer, scan the alternatives and write a dated finding on its licence
-   (never from memory). Rasterise on first sight of an emoji at a size; keep the textures in memory
-   only, rebuilt when the pack's files change, and obey the Dev page's "turn off all reuse" switch
+1. **The matcher in Rust (built).** `src/gui/widgets/emoji/mod.rs`: `find` (each emoji's byte range),
+   `pieces` (text and pictures, each picture with its byte range, set folder and file name, the same
+   fallbacks as `emoji.js`), `key_of`, and `EmojiIndex` (reads `assets/emoji/index.json`; the first
+   set holding a key wins). It follows `emoji.js` rule for rule, the bare red heart exception
+   included, and is held to `scripts/tests/fixtures/emoji-v1.json` by
+   `the_desktop_matcher_gives_every_answer_of_the_shared_fixture` (`widgets/emoji/tests.rs`).
+   **Unicode's properties: a generated table, compared and chosen 2026-11-20.** The open options:
+   the regex crate's tables (regex-syntax 0.8.11, already in `Cargo.lock`), which carry Unicode 16.0
+   and have no look-ahead, so the rules would be hand-written anyway; a Unicode-properties crate
+   (none is in `Cargo.lock`, so a download); or a table generated from the Unicode data the website's
+   engine has. The pack is OpenMoji 17.0.0, which draws Unicode 17.0's new emoji (U+1F6D8 landslide,
+   U+1FAEA distorted face), and with the regex crate's Unicode 16 tables the desktop showed them as
+   text (`unicode_17_emoji_in_the_pack_are_pictures`, seen red that way). So `props.rs` is written by
+   `scripts/gen-emoji-props.js` from Node's own `\p{...}` (Unicode 17.0, the same data `emoji.js`
+   asks), and `scripts/tests/emoji-props.test.js` holds it there: exact with a Node of the same
+   Unicode version, a superset with an older one (CI's Node 20), and a failure saying to regenerate
+   with a newer one. No crate added. The matcher is pure Rust; it lives under `src/gui/` (native
+   only) because only the GUI draws emoji, and moves to `humanity-core` if a second surface needs it.
+2. **Rasterising the SVGs (prepared, not built).** The standard route is an SVG renderer drawing each
+   picture at the text's pixel size times the screen's scale into an egui texture. The comparison and
+   licences: `docs/reference/findings/2026-11-20-svg-rasteriser.md` (resvg with usvg and tiny-skia
+   recommended, without default features: 12 crates, about 909 KiB, to download once the operator
+   says yes). Rung 2 is one implementation of the trait rung 3 already asks for,
+   `widgets::emoji::EmojiPictures` ("the texture of this picture at this pixel size, if any"),
+   handed to the app with `widgets::emoji::install` together with the pack's `EmojiIndex`.
+   Rasterise on first sight of an emoji at a size; keep the textures in memory only, rebuilt when the
+   pack's files change (the index too), and obey the Dev page's "turn off all reuse" switch
    (`HUMANITY_NO_REUSE=1`): CLAUDE.md's no-caches rule. No baked PNG atlas on disk.
-3. **Pictures in a line of text.** egui's text layout has no inline images. The technique that keeps
-   wrapping, selection and copy working: lay the text out with a transparent placeholder of the
-   picture's width in each emoji's place, then paint each picture over its placeholder's glyph
-   rectangle from the laid-out galley. Copying the text gives the real emoji, because the source
-   text is unchanged. Start with chat message bodies and reaction pills; names and other surfaces
-   follow.
+3. **Pictures in a line of text (built).** `src/gui/widgets/emoji/inline.rs`. egui's text layout has
+   no inline images, so `with_pictures` gives each emoji that has a picture its own section of the
+   layout job: the same characters, drawn transparent, at the font size that makes their run the
+   picture's room wide (1.35 em: the website's 1.2 em picture with its 0.1 em and 0.05 em margins,
+   `web/chat/base.css`), with the line height of the text around it so no row grows. After layout,
+   `picture_rects` reads each placeholder's run back from the galley's glyphs (in whichever row
+   wrapping put it) and `paint` draws the picture there, centred on the row. The galley's text is
+   unchanged, so wrapping, click hit-testing (mentions, links) and copying all see the real emoji.
+   `layout` / `layout_singleline` are the drop-in for `painter.layout_job` / `layout_no_wrap`: with
+   nothing installed, or no picture for an emoji, the job is laid out exactly as before (the system
+   font's glyph). Wired into **chat message bodies** (`widgets::row::message_row`, so the Settings
+   page's message-row preview too) and **reaction pills** (`pages::chat` `compute_pill_width` and
+   `paint_timestamp_pill`, measured and painted the same way). Tests: `widgets/emoji/tests.rs` (a
+   picture on its placeholder, wrapping, nothing changes without a picture) and
+   `pages/chat/emoji_tests.rs` (the pill on the real chat page; the drawn text and Copy text keep the
+   real emoji), each with a stand-in texture made in code. Still to follow: the ∞ panel's reaction
+   buttons (`pill_expand`, egui buttons that lay out their own text), names and other surfaces.
 4. **Ship it.** Add `assets/emoji` to `scripts/lib/release-files.js` `ROOTS` (about 24 MB; the phone
    app too, it has a chat), and keep the system-font path as the fallback when a picture fails.
-   **The desktop picker shows the same credit** the moment it draws these pictures: the foot of its
+   **The desktop picker shows the same credit** the moment the desktop draws these pictures (rung 2
+   makes the message bodies and pills draw them as soon as it installs its pictures): the foot of its
    ∞ reaction panel (native `pill_expand`, the web panel's twin) carries the same line from the same
    keys (`emoji.credit` with its two links and hints), small and muted, and the native chat joins the
    `openmoji` row's `shown_in` in `data/credits.ron`. Until then the desktop draws system-font emoji,

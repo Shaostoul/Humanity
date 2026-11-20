@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1593 Rust files (810,161 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,435 lines) under `web/`.
+1598 Rust files (811,149 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,435 lines) under `web/`.
 
 ## Folders
 
@@ -61,7 +61,7 @@
 - `src/gui/pages/` (96 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/apps/` (12 files): Apps (2026-10-19): the Games library and the Tools page made one page (the operator: "What do you think about changing the name of ...
 - `src/gui/pages/calculator/` (1 files): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input.
-- `src/gui/pages/chat/` (53 files): 3-panel chat page matching the website layout.
+- `src/gui/pages/chat/` (54 files): 3-panel chat page matching the website layout.
 - `src/gui/pages/construction/` (3 files): Construction editor (v0.455+).
 - `src/gui/pages/dev_agents/` (4 files): Dev > Claude: what Claude is doing (operator, 2026-10-22, the integrations between HumanityOS and Claude Code).
 - `src/gui/pages/files/` (52 files): The Files page (called the Media page until 2026-10-19; increment 2 of docs/design/files-showcase.md, 2026-10-11): the pictures, videos,...
@@ -74,6 +74,7 @@
 - `src/gui/state_types/` (3 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
 - `src/gui/talk/` (5 files): THE TALK CARD (rung 3 of docs/design/embeddable-ai.md, 2026-11-12; the card the operator approved on 2026-11-11).
 - `src/gui/widgets/` (47 files): Reusable egui widgets styled by the HumanityOS theme.
+- `src/gui/widgets/emoji/` (4 files): Emoji in a piece of text, for the desktop app (2026-11-20, docs/design/emoji.md rungs 1 and 3).
 - `src/how_to/` (9 files): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
 - `src/instrument_packs/` (15 files): The free instrument library (2026-11-06; docs/design/music.md rung 6, the operator's "let's build up our free library" and "in the settin...
 - `src/media/` (13 files): Purpose-built media player core (in-world screens ladder, rung 5).
@@ -946,7 +947,7 @@
 - `calculator.rs` (412): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input. Main items: CalcMode, draw.
 - `calendar.rs` (398): Calendar page, month view with 7-column grid, event dots, day selection, event list in right panel, and add-event form with time/color/description. Main items: draw.
 - `chat_text.rs` (464): A chat message's text, parsed (moved out of chat.rs on 2026-09-27 to keep that file inside its line budget, tests/file_size_ratchet.rs): the one fence scanner, the code blocks the Chat page draws a... Main items: CodeBlock, extract_code_blocks, one_line_formatted, draw_code_blocks, bulletize_list_lines.
-- `chat.rs` (2745): 3-panel chat page matching the website layout. Main items: follow_volume_settings_link, draw, hold_to_confirm_button, channel_display_label, dm_recency_order, draw_ingame_chat, mime_for_filename, norm_server_url (+13 more).
+- `chat.rs` (2739): 3-panel chat page matching the website layout. Main items: follow_volume_settings_link, draw, hold_to_confirm_button, channel_display_label, dm_recency_order, draw_ingame_chat, mime_for_filename, norm_server_url (+13 more).
 - `civilization.rs` (245): Civilization dashboard - the community's REAL numbers from the connected relay (GET /api/civilization, v0.757 closure ladder rung 10). Main items: poll_stats, draw_live_body, draw_stat_card.
 - `cloud_dev.rs` (1026): F10 cloud dev panel (v0.1254.4, operator request). Main items: DevTest, dev_tests, test_mark, draw.
 - `construction.rs` (4121): Construction editor (v0.455+). Main items: draw, sync_ship_machine_lock, exec_construction_command.
@@ -1073,7 +1074,7 @@
 - `video_poster.rs` (132): A posted video's poster picture, the desktop half (2026-11-06; docs/design/media-player.md, "Rung 2: the poster picture"). Main items: is_video_name, make_poster, fit, encode_poster, poster_url, fetch_poster, decode_poster, POSTER_AIM_BYTES (+3 more).
 - `voice_room.rs` (115): Joining and leaving a channel's voice room, the one place both happen: the voice icon on a channel row (chat/left_panel.rs), and the protected setup (step G of docs/design/blocking-and-safe-mode.md... Main items: LeftVoice, set_voice_room, voice_wanted, leave_all_voice.
 - `warnings.rs` (197): What step F draws under a received message (docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): each matching warning with its title, its explanation, what to do and a "Got it...
-- tests: `access_tests.rs`, `attach_keep_tests.rs`, `attach_send_clean_tests.rs`, `attach_send_tests.rs`, `attach_step_tests.rs`, `attach_view_kept_tests.rs`, `attach_view_tests.rs`, `channel_link_tests.rs`, `channel_row_tests.rs`, `composer_tests.rs`, `dm_rows_tests.rs`, `inline_video_tests.rs`, `person_controls_tests.rs`, `protected_tests.rs`, `public_files_tests.rs`, `reply_tests.rs`, `self_mail_tests.rs`, `video_dock_tests.rs`, `video_poster_tests.rs`
+- tests: `access_tests.rs`, `attach_keep_tests.rs`, `attach_send_clean_tests.rs`, `attach_send_tests.rs`, `attach_step_tests.rs`, `attach_view_kept_tests.rs`, `attach_view_tests.rs`, `channel_link_tests.rs`, `channel_row_tests.rs`, `composer_tests.rs`, `dm_rows_tests.rs`, `emoji_tests.rs`, `inline_video_tests.rs`, `person_controls_tests.rs`, `protected_tests.rs`, `public_files_tests.rs`, `reply_tests.rs`, `self_mail_tests.rs`, `video_dock_tests.rs`, `video_poster_tests.rs`
 
 ## src/gui/pages/construction/
 
@@ -1236,7 +1237,7 @@
 - `label_placer.rs` (237): Map label placement: the greedy collision pass cartography uses for point and line features, so the Maps views never print one name on top of another (2026-09-27 snapshot review: star names stacked... Main items: LabelPlacer, point_candidates, along_polyline, polyline_length, LABEL_GAP.
 - `level_picker.rs` (152): THE LEVEL PICKER (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): a column of buttons, one per level of a place with more than one, listed TOP TO BOTTOM as a building's directory and a... Main items: PickerLevel, PickerRow, PickerClick, picker_rows, rect_for, show, PICKER_WIDTH.
 - `markdown.rs` (904): Minimal markdown reader shared by the in-app doc surfaces: the Humanity Accord viewer modal (`pages/humanity.rs`) and the Library doc pane (`pages/library.rs`). Main items: Heading, heading_slug, headings, render_markdown, render_markdown_linked, render_markdown_linked_scrolled, render_markdown_defining, strip_html_comments (+3 more).
-- `mod.rs` (2201): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, toast_rects, card, card_clickable (+53 more).
+- `mod.rs` (2204): Reusable egui widgets styled by the HumanityOS theme. Main items: TreeNode, LockState, SectionNavItem, draw_underwater_tint, draw_toasts, toast_rects, card, card_clickable (+53 more).
 - `msg_format.rs` (325): Inline chat-message formatting: minimal markdown + URL detection (v0.702). Main items: SpanKind, FormatSpan, parse.
 - `notice_banner.rs` (53): The in-world notice banner (rung 2, part 2, 2026-10-31, docs/design/notifications.md section 3 item 4): a short banner at the top of the screen while the person plays, because a toast may sit behin... Main items: paint.
 - `notice_bell.rs` (90): The notice bell (rung 2, 2026-10-31, docs/design/notifications.md section 3): a square button with a bell and, when some notices are not opened yet, their count in a small pill at its top-right cor... Main items: count_text, notice_bell, label_for.
@@ -1247,7 +1248,7 @@
 - `passphrase_modal.rs` (747): Passphrase entry modal overlay. Main items: draw, apply_unlock_outcome.
 - `phrase_cover.rs` (134): The recovery phrase, and the device-link code that carries the same key, covered until the person shows them (operator, 2026-10-16: "livestreamers may accidentally reveal their seed phrase while sh... Main items: words, code, WARNING, SHOW, HOLDING, HOLD_SECONDS, HOLD_TIP, HIDE (+6 more).
 - `pie.rs` (579): Pie chart - a universal widget (resource budgets increment 1). Main items: PieSlice, PieSpec, fractions, pie, pie_grid, slice_at, fmt_bytes, fmt_ms.
-- `row.rs` (570): Universal message/item row widget. Main items: MessageRowResponse, DeferredAvatar, message_row, append_formatted, paint_avatar, rgb_from_time, INTERPUNCT.
+- `row.rs` (573): Universal message/item row widget. Main items: MessageRowResponse, DeferredAvatar, message_row, append_formatted, paint_avatar, rgb_from_time, INTERPUNCT.
 - `search_bar.rs` (96): Universal search bar with optional filter chips. Main items: FilterChip, search_bar.
 - `shelf.rs` (310): A library shelf (2026-10-19): the parts the Apps page (pages/apps.rs) draws for each of its parts, so they look and behave alike and a fix to one reaches all. Main items: Layout, Picked, Heading, toolbar, grid, tile_frame, list_headings, list_row (+6 more).
 - `sound_view.rs` (638): A sound or a song played in the app (2026-10-19, the Media page's middle pane), the way a video is (video_view.rs): fetched first to a temporary copy on a worker, then, on that same worker, Main items: SoundView, cannot_play_words, analyse, PLAY_HERE, PLAY_HERE_TIP, FETCHING, READING, WAITING_FOR_SOUND (+2 more).
@@ -1259,6 +1260,13 @@
 - `waveform.rs` (359): A sound's picture (2026-10-19, the Media page's middle pane for a sound or a song): the whole track's waveform, the part already played in the accent colour and the rest muted, the play position as... Main items: Analysis, Builder, band_edges_hz, seek_fraction, show, BUCKETS, BANDS, FFT (+3 more).
 - `web_view.rs` (857): The web view: draws a readable [`Page`] in egui with clickable links, back/forward history, an editable URL row, and an "open in system browser" escape hatch for pages the readable web cannot show. Main items: ViewStatus, WebViewResponse, WebViewState.
 - tests: `file_views_tests.rs`, `phrase_cover_tests.rs`
+
+## src/gui/widgets/emoji/
+
+- `inline.rs` (191): Pictures in a line of text (2026-11-20, docs/design/emoji.md rung 3). Main items: EmojiPictures, EmojiSource, Placed, install, source, with_pictures, picture_rects, paint (+2 more).
+- `mod.rs` (355): Emoji in a piece of text, for the desktop app (2026-11-20, docs/design/emoji.md rungs 1 and 3). Main items: EmojiIndex, Piece, unicode_version, find, key_of, pieces.
+- `props.rs` (77): GENERATED by scripts/gen-emoji-props.js from Unicode 17.0 (the JavaScript engine's own Unicode data, the same the website's matcher asks).
+- tests: `tests.rs`
 
 ## src/how_to/
 

@@ -756,3 +756,9 @@ what we will say about it.
   the CyberTipline, a year's preservation, no duty to monitor or scan (2258A(f)), the limited
   liability in 2258B; the STOP CSAM Act still not law; whether a volunteer's server is a
   "provider" still a lawyer's question. The ground for docs/legal/content-policy.md. Not legal advice.
+- [`2026-11-20-svg-rasteriser.md`](2026-11-20-svg-rasteriser.md),
+  which SVG renderer the desktop should draw the emoji pack with (emoji.md rung 2): resvg with usvg
+  and tiny-skia (Apache-2.0 OR MIT, and BSD-3-Clause, quoted), what egui_extras uses, the 12 crates
+  (about 909 KiB) resvg 0.50 would download against 0.45.1's 10, the alternatives declined (lyon,
+  vello, NanoSVG, librsvg, zeno, a renderer of our own) and the recommended Cargo.toml line. Not
+  legal advice.

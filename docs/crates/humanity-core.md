@@ -22,7 +22,7 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
 - **Size:** 19,488 lines in 65 files, 922 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 39, `test-support` 9, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 770, gui 627, systems 477, renderer 101, ship 58, net 54, relay 37, animation 21, terrain 5.
+- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 770, gui 628, systems 477, renderer 101, ship 58, net 54, relay 37, animation 21, terrain 5.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 221 tests, and this runs exactly them, checked against every test's name:
 
@@ -50,7 +50,7 @@ just test-lib --crate humanity-core
 | `vertex::Vertex` | 43 | engine 18, renderer 14, ship 8, terrain 3 |
 | `embedded_data::load_data_or_embedded` | 34 | systems 13, gui 8, net 6, engine 5, relay 1, ship 1 |
 
-And 275 more items, 1,077 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
+And 275 more items, 1,078 references (`node scripts/crate-cards.js --interface humanity-core` lists them all).
 <!-- end generated -->
 
 ## Rules

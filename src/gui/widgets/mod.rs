@@ -99,6 +99,9 @@ pub mod notice_banner;
 /// readouts, the planet card, the drop notes and the hover tips over a bar. See
 /// `widgets/painted_card.rs`.
 pub mod painted_card;
+/// Emoji in text (2026-11-20, docs/design/emoji.md): the matcher the website's emoji.js also follows
+/// (rung 1) and pictures in a line of text (rung 3). See `widgets/emoji/`.
+pub mod emoji;
 
 use egui::{Color32, Rect, RichText, CornerRadius, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
