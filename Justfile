@@ -1102,6 +1102,7 @@ preflight:
     node scripts/check-locale-phenology.js
     node scripts/check-library-dashes.js
     node scripts/check-library-fresh.js
+    node scripts/gen-third-party-notices.js --check
     node scripts/check-library-render.js
     node scripts/check-library-counts.js
     node scripts/check-schema-paths.js
@@ -1126,6 +1127,13 @@ locale-docs:
 # silently for months once; this is the check it says did not exist.
 check-library-fresh:
     node scripts/check-library-fresh.js
+
+# Rewrite THIRD-PARTY-NOTICES.txt (2026-11-20): the copyright and licence notices of every package
+# the programs link, from Cargo.lock and the local cargo registry (no download), shipped beside the
+# program and shown in Settings > Credits. Run it after any Cargo.lock change; the freshness test
+# (scripts/tests/third-party-notices-fresh.test.js) fails until you do. `--report` lists licences.
+notices *ARGS:
+    node scripts/gen-third-party-notices.js {{ARGS}}
 # Run the REAL web Library reader over the REAL shipped documents and look at
 # what comes out. Every other Library gate reads the source; none of them had
 # ever looked at the rendered page, which is this repo s dominant defect class.

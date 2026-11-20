@@ -79,6 +79,21 @@ try {
   }
   console.log('[pq-vendor] KAT OK — noble matches RustCrypto ml-dsa byte-for-byte');
 
+  // The packages' own licence (MIT) asks that its notice go with every copy (2026-11-20): esbuild's
+  // --legal-comments=none drops it from the bundle, so the two LICENSE files are written beside it
+  // and their copyright lines into the header. web/shared/vendor/licences.json names them, and
+  // scripts/gen-third-party-notices.js copies them into THIRD-PARTY-NOTICES.txt.
+  const licences = [
+    ['@noble/post-quantum', 'noble-post-quantum-LICENSE.txt'],
+    ['@noble/hashes', 'noble-hashes-LICENSE.txt'],
+  ].map(([pkg, file]) => {
+    const text = readFileSync(join(work, 'node_modules', ...pkg.split('/'), 'LICENSE'));
+    writeFileSync(join(REPO, 'web', 'shared', 'vendor', file), text);
+    const copyright = text.toString('utf8').split(/\r?\n/).find((l) => l.startsWith('Copyright'));
+    if (!copyright) throw new Error(`${pkg}'s LICENSE has no Copyright line`);
+    return { pkg, file, copyright };
+  });
+
   const sha = createHash('sha256').update(code).digest('hex');
   const header =
     `/* HumanityOS vendored post-quantum bundle — DO NOT EDIT BY HAND.\n` +
@@ -92,6 +107,9 @@ try {
     ` *      ml_dsa65.keygen(seed).publicKey blake3 = ${KAT_PK_BLAKE3}\n` +
     ` *      (matches crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat)\n` +
     ` * sha256(body) = ${sha}\n` +
+    ` * Licence: MIT, both packages.\n` +
+    licences.map((l) => ` *   ${l.pkg}: ${l.copyright}\n`).join('') +
+    ` *   The full licence texts are beside this file: ${licences.map((l) => l.file).join(', ')}.\n` +
     ` */\n`;
   writeFileSync(OUT, header + code);
   console.log(`[pq-vendor] wrote ${OUT}`);

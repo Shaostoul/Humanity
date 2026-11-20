@@ -180,6 +180,21 @@ test('a line marked encoding-exempt passes', () => {
   });
 });
 
+// THIRD-PARTY-NOTICES.txt copies other people's licence files verbatim, and one of them carries a
+// "§" garbled upstream (2026-11-20): that file alone is not judged for garbling (its own body checksum
+// guards it, scripts/tests/third-party-notices-fresh.test.js), and still is for a byte-order mark.
+// Seen red 2026-11-20 with the exemption switched off: "the verbatim copy keeps it", actual
+// [ { line: 1, col: 19, original: U+00A7 } ].
+test('the generated verbatim notices may keep upstream garbling, nothing else may, and no file may gain a mark', () => {
+  const { checkFile } = require(SCRIPT);
+  const garbled = Buffer.from(`17 U.S.C. section ${asWindows1252(cp(0xa7))} 101\n`);
+  assert.deepStrictEqual(checkFile('THIRD-PARTY-NOTICES.txt', garbled, null, null), [], 'the verbatim copy keeps it');
+  assert.strictEqual(checkFile('notes.txt', garbled, null, null).length, 1, 'any other file is refused');
+  assert.strictEqual(checkFile('docs/THIRD-PARTY-NOTICES.txt', garbled, null, null).length, 1, 'only the file at the root');
+  const marked = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('hello\n')]);
+  assert.strictEqual(checkFile('THIRD-PARTY-NOTICES.txt', marked, null, null).length, 1, 'a byte-order mark is still refused');
+});
+
 test('a NEW file with a byte-order mark is refused, unless its first line is exempt', () => {
   withCommittedNotes((r) => {
     r.write('new.txt', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('hello\n')]));

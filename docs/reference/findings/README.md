@@ -762,6 +762,12 @@ what we will say about it.
   (about 909 KiB) resvg 0.50 would download against 0.45.1's 10, the alternatives declined (lyon,
   vello, NanoSVG, librsvg, zeno, a renderer of our own) and the recommended Cargo.toml line. Not
   legal advice.
+- [`2026-11-20-dependency-licences-and-agpl.md`](2026-11-20-dependency-licences-and-agpl.md),
+  whether the 746 packages linked into the six programs may be distributed in an AGPL-3.0 program:
+  none GPL-family, unknown or proprietary; 712 notice-only permissive, and the 34 others quoted from
+  their own texts (MPL-2.0 symphonia naming the AGPL 3.0 a Secondary License, Unicode-3.0 ICU4X,
+  CDLA-Permissive-2.0 webpki-roots, the OFL and Ubuntu font licences of egui's fonts), the ASF on
+  Apache-2.0 into GPLv3; the FSF licence list refused (HTTP 429). Not legal advice.
 - [`2026-11-21-dxc-redistribution.md`](2026-11-21-dxc-redistribution.md),
   the Windows download's `dxcompiler.dll` and `dxil.dll`: a NEGATIVE finding for the copies shipped so
   far (the Windows SDK's tools-folder copies, not on the SDK's REDIST.TXT list; even listed copies

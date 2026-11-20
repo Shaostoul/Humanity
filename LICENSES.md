@@ -336,6 +336,27 @@ rather not hotlink ours. Save the SVG and point the img tag at your own copy, ju
 pointing at your listing." It links to the HumanityOS listing; the website serves its own copy, so a
 visitor's browser makes no request to their site.
 
+## Other people's code: THIRD-PARTY-NOTICES.txt
+
+The programs are built from about 600 open-source Rust packages each (746 across the six programs a
+release ships: the four desktop builds, the phone app and the headless server), and the website
+serves three outside JavaScript libraries. Their MIT, BSD and Apache-2.0 licences ask that their
+copyright and licence notices travel with the program, so
+[`THIRD-PARTY-NOTICES.txt`](THIRD-PARTY-NOTICES.txt) carries, for each package, its version, licence,
+repository and the full text of every licence and notice file it ships (NOTICE files included). It
+travels beside the program in every download (`scripts/lib/release-files.js`), beside the headless
+server as its own release asset, and the app shows it under **Settings > Credits**. The website's
+vendored code keeps its licence files beside it (`web/shared/vendor/licences.json`).
+
+It is generated, never edited by hand: `just notices` (`node scripts/gen-third-party-notices.js`)
+rewrites it from `Cargo.lock` and the local copies of each package, with no download, and
+`scripts/tests/third-party-notices-fresh.test.js` fails when it falls behind `Cargo.lock` or a
+linked package arrives under a licence nobody has reviewed. Which licences those are, and what each
+asks of an AGPL-3.0 program:
+[`docs/reference/findings/2026-11-20-dependency-licences-and-agpl.md`](docs/reference/findings/2026-11-20-dependency-licences-and-agpl.md).
+The two Microsoft shader compiler files beside the Windows program are a separate matter
+(the DPG application's thin spots table, `docs/outreach/dpg-application.md`).
+
 ## The project's own code
 
 HumanityOS source is licensed as stated in the repository root. These

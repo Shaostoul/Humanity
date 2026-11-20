@@ -50,8 +50,12 @@ const ROOTS = ["data", "assets/icons", "assets/shaders", "assets/models", "asset
 
 /** Single files the download carries: the licence files travel with every download (the ODbL offer
  * for the OpenStreetMap region files and the CC BY-SA offer for the star catalogues are in
- * LICENSES.md, 2026-11-08), and LICENSING.md says which licence covers which folder (2026-11-14). */
-const FILES = ["LICENSE", "LICENSING.md", "LICENSES.md", "CREDITS.md"];
+ * LICENSES.md, 2026-11-08), and LICENSING.md says which licence covers which folder (2026-11-14).
+ * THIRD-PARTY-NOTICES.txt (2026-11-20, scripts/gen-third-party-notices.js) is the copyright and
+ * licence notices of every Rust package the programs link and of the website's vendored code, which
+ * their MIT, BSD and Apache-2.0 licences ask to travel with the program; the app reads it from here
+ * (beside data/) for Settings > Credits. */
+const FILES = ["LICENSE", "LICENSING.md", "LICENSES.md", "CREDITS.md", "THIRD-PARTY-NOTICES.txt"];
 
 /** What is left out of ROOTS: each rule a test on a POSIX path relative to the repo root, and why. */
 const EXCLUDED = [

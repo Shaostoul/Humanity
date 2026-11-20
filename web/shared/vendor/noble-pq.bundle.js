@@ -9,6 +9,10 @@
  *      ml_dsa65.keygen(seed).publicKey blake3 = 3f4ff5c7e6505ca7b0dd6cb32c53839f8cff19772e291d4f18b082d1f7dc0126
  *      (matches crates/humanity-protocol/src/pq_crypto.rs::dilithium_cross_language_kat)
  * sha256(body) = 81861d591fd8d5ff7cb3332dfd576ad6b7200c6e60e5cb96658ed34837c8e7c3
+ * Licence: MIT, both packages.
+ *   @noble/post-quantum: Copyright (c) 2024 Paul Miller (https://paulmillr.com)
+ *   @noble/hashes: Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+ *   The full licence texts are beside this file: noble-post-quantum-LICENSE.txt, noble-hashes-LICENSE.txt.
  */
 // node_modules/@noble/hashes/utils.js
 function isBytes(a) {

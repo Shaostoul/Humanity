@@ -124,7 +124,8 @@ jobs:
           # audio (the game's sounds, BUG-268: every effect, click and chime is a file there), and
           # LICENSE, LICENSES.md and CREDITS.md (2026-11-08: LICENSES.md holds the ODbL offer for
           # the OpenStreetMap region files and the CC BY-SA offer for the star catalogues, and a
-          # download that carries those files must carry the offer too). It leaves out what the
+          # download that carries those files must carry the offer too), and THIRD-PARTY-NOTICES.txt
+          # (2026-11-20: the notices of every package the program links). It leaves out what the
           # app never reads, each rule with its reason in that file: the audio placeholders, and
           # the garments' full-resolution source PNGs (about 154 MiB: the app reads each garment's
           # .dds the converter made from them, and its .thumb.png).
@@ -232,7 +233,11 @@ jobs:
       # Published on tags so a self-hoster can fetch a specific version rather
       # than whatever main happens to be. The .sha256 travels with it because a
       # binary downloaded over the network and run as a service should be
-      # checkable, and provision-vps.sh verifies it.
+      # checkable, and provision-vps.sh verifies it. THIRD-PARTY-NOTICES.txt (2026-11-20,
+      # scripts/gen-third-party-notices.js) travels beside it as its own asset: the relay is a bare
+      # binary with no archive around it, and the licences of the packages it links ask that their
+      # notices go wherever it goes. Every platform bundle carries the same file inside it
+      # (scripts/lib/release-files.js); the release mirror skips it by name, as it skips the relay.
       - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -242,6 +247,7 @@ jobs:
           files: |
             dist/HumanityOS-relay-linux-x64
             dist/HumanityOS-relay-linux-x64.sha256
+            THIRD-PARTY-NOTICES.txt
 
   # Copy the release onto the VPS's release mirror (united-humanity.us/releases/<tag>/) and
   # rebuild its manifest. THE SERVER PULLS the files from this GitHub release (BUG-288,

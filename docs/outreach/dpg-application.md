@@ -141,7 +141,13 @@ reference."
 - The Rust dependencies: `cargo metadata`, read 2026-11-20, lists 843 third-party crates, and every
   one declares an open licence (most MIT or Apache-2.0; also BSD, ISC, Zlib, MPL-2.0, Unicode-3.0,
   CC0, BSL-1.0, CDLA-Permissive-2.0 for a certificate list, and OFL-1.1 with the Ubuntu Font Licence
-  for the bundled fonts). No crate is proprietary. Nothing in CI keeps it that way yet.
+  for the bundled fonts). No crate is proprietary. Since 2026-11-20 the 746 of them linked into the
+  six programs a release ships carry their copyright and licence notices with every download, in
+  [THIRD-PARTY-NOTICES.txt](../../THIRD-PARTY-NOTICES.txt) (generated from `Cargo.lock` by
+  `scripts/gen-third-party-notices.js`, shown in the app under Settings > Credits), and
+  `scripts/tests/third-party-notices-fresh.test.js` fails in CI when that file falls behind
+  `Cargo.lock` or a linked package arrives under a licence nobody has reviewed. The review:
+  [the dependency licences finding](../reference/findings/2026-11-20-dependency-licences-and-agpl.md).
 
 **Answer, ready to paste:**
 

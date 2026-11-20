@@ -36,6 +36,9 @@ mod calls;
 /// Settings > Credits, its first section (2026-11-14, LICENSING.md): HumanityOS's own licences, and
 /// buttons to the licence map, the source code and the policy for the name.
 mod own_licence;
+/// Settings > Credits, its second section (2026-11-20): the notices of every package the program
+/// links, read from THIRD-PARTY-NOTICES.txt beside it (scripts/gen-third-party-notices.js).
+mod third_party;
 /// Settings > Notifications (2026-10-30, docs/design/notifications.md): this device's choices, the
 /// person's synced switches and quiet hours, and the muted list. `send_synced` and the mute menu
 /// items are shared with the chat's DM cog and its Mute server / Mute room menus.
@@ -4113,6 +4116,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 /// audit of whether we are honouring them.
 pub(crate) fn draw_credits_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     own_licence::draw_own_licence(ui, theme);
+    third_party::draw_third_party(ui, theme);
     ui.label(
         RichText::new(humanity_core::i18n::t("credits.others_heading"))
             .size(theme.font_size_heading)

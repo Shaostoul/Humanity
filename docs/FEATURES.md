@@ -1889,6 +1889,22 @@ footer links the map on every page. Share-alike sources may be copied, credited,
 - Native: `src/gui/pages/settings/own_licence.rs` (words `credits.*`); Web: `web/shared/shell.js` (`footer.licence`),
   `web/pages/download.html` (`download.*`); Finding: `docs/reference/findings/2026-11-14-licence-change.md`
 
+### Third-party notices: every linked package's licence, with the program (2026-11-20)
+`THIRD-PARTY-NOTICES.txt` carries the copyright and licence notices of the 746 Rust packages linked into the six
+programs a release ships (the desktop targets read from build-desktop.yml's matrix, the phone app, the headless
+server; normal edges only, a proc-macro counted, its own dependencies not) and of the website's three vendored
+libraries: each entry's version, licence, repository and programs, and the full text of every licence and NOTICE
+file it ships, each distinct text printed once. Generated from `Cargo.lock` and the local registry, no download
+(`just notices`, `--report` for the licence counts); ships beside the program in every download and beside the
+relay as a release asset. Settings > Credits shows it (a searchable list; a package's texts below). The freshness
+test fails when Cargo.lock moves without a regeneration, the body was edited by hand, or a linked package arrives
+under a licence the dependency finding has not reviewed.
+- Generator: `scripts/gen-third-party-notices.js`, standard texts `scripts/lib/licence-texts/`, web libraries
+  `web/shared/vendor/licences.json`; Native: `src/gui/pages/settings/third_party.rs` (words `credits.software_*`);
+  Web: no Credits page to mirror (the website runs none of the Rust packages); its vendored code is served with
+  its licence files beside it, and the noble bundle's header names its copyright and those files; Test: `scripts/tests/third-party-notices-fresh.test.js`; Finding:
+  `docs/reference/findings/2026-11-20-dependency-licences-and-agpl.md`
+
 ### WebSocket Relay
 Message routing with authentication, rate limiting, federation.
 - Server: `src/relay/relay.rs` (~5800 LOC)

@@ -128,8 +128,11 @@ just sync    # fetches, git reset --hard, builds ON the VPS, lays out the web ro
 The platform bundles (`HumanityOS-<platform>.zip`/`.tar.gz`), the data archive
 (`HumanityOS-data-<tag>.tar.gz`) and the per-file data manifest (`data-manifest-<tag>.json`) are all
 made from ONE list, `scripts/lib/release-files.js`: `data/`, `assets/icons`, `shaders`, `models`,
-`textures` and `audio`, and `LICENSE`, `LICENSES.md`, `CREDITS.md`, less its left-out rules, each
-with its reason in that file. Today it leaves out the audio placeholder folders and the garments'
+`textures` and `audio`, and `LICENSE`, `LICENSING.md`, `LICENSES.md`, `CREDITS.md` and
+`THIRD-PARTY-NOTICES.txt` (2026-11-20: every linked package's licence and notice texts, generated
+by `just notices` and held to `Cargo.lock` by `scripts/tests/third-party-notices-fresh.test.js`; a
+release's own version bump does not make it stale, a dependency change does), less its left-out
+rules, each with its reason in that file. Today it leaves out the audio placeholder folders and the garments'
 full-resolution source PNGs (72 files, 154 MiB: the app reads each garment's `.dds`, and the
 thumbnails ship), so a download is that much smaller. To ship or drop a file, change that list,
 never the workflow's steps: `node scripts/lib/release-files.js --summary` prints what ships and what

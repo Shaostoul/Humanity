@@ -1,0 +1,33 @@
+{
+  "_comment": "Other people's code the website serves as files of its own (2026-11-20). Each library: the file it is in, its name, version, licence (SPDX), where it comes from, and its licence files, kept beside it so the notice travels with the code it covers. scripts/gen-third-party-notices.js copies each into THIRD-PARTY-NOTICES.txt (Part 2); the noble versions must equal the pins in scripts/build-noble-bundle.mjs, which also writes their licence files when it rebuilds the bundle. notice_lines: lines of the file itself that carry its notice, copied verbatim; with no licence file, the standard text of its licence follows them.",
+  "libraries": [
+    {
+      "name": "@noble/post-quantum",
+      "version": "0.6.1",
+      "license": "MIT",
+      "repository": "https://github.com/paulmillr/noble-post-quantum",
+      "files": ["web/shared/vendor/noble-pq.bundle.js"],
+      "used_for": "the website's post-quantum signatures and key exchange (ML-DSA-65, ML-KEM-768)",
+      "license_files": ["web/shared/vendor/noble-post-quantum-LICENSE.txt"]
+    },
+    {
+      "name": "@noble/hashes",
+      "version": "2.2.0",
+      "license": "MIT",
+      "repository": "https://github.com/paulmillr/noble-hashes",
+      "files": ["web/shared/vendor/noble-pq.bundle.js"],
+      "used_for": "the website's BLAKE3 hashing, in the same bundle",
+      "license_files": ["web/shared/vendor/noble-hashes-LICENSE.txt"]
+    },
+    {
+      "name": "QR Code Generator for JavaScript",
+      "version": "(version not recorded in the file)",
+      "license": "MIT",
+      "repository": "https://github.com/kazuhikoarase/qrcode-generator",
+      "files": ["web/shared/qrcode.js"],
+      "used_for": "drawing QR codes on the website",
+      "notice_lines": [1, 16],
+      "license_files": []
+    }
+  ]
+}
