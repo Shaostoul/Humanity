@@ -1144,7 +1144,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Solana Address</strong>
-            <span>The Ed25519 keypair derived straight from your recovery phrase, the same one the chat client uses (separate from your post-quantum identity)</span>
+            <span data-i18n="wallet.settings_address_desc">The wallet's own Ed25519 key, made from your recovery phrase in a one-way step and kept apart from your identity key</span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
             <span id="wallet-sol-address" style="font-family:monospace;font-size:0.82rem;color:var(--text);">-</span>
@@ -2428,6 +2428,8 @@
 <!-- `pq-relay-auth.js` installs window.getPqSignedAuth used by vault sync. -->
 <script src="/chat/pq.js?v=1"></script>
 <script src="/shared/pq-relay-auth.js?v=2"></script>
+<!-- The wallet key, derived from the identity seed under its own label (Wallet section) -->
+<script src="/shared/wallet.js"></script>
 <!-- Settings > Privacy (BUG-237, 2026-11-03): the levels and how a choice is kept
      (privacy-tiers.js, shared with the chat), the directory choice recorded in the profile the
      chat sends (profile-changes.js), and this page's own signed-in connection, which tells this

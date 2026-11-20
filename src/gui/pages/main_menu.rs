@@ -720,11 +720,11 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(4.0);
                 if widgets::primary_button(ui, theme, "Recover") {
                     let phrase = state.settings.seed_phrase_input.trim().to_string();
-                    match crate::net::identity::derive_keypair_from_mnemonic(&phrase) {
-                        Ok((_ed25519_hex, privkey_bytes)) => {
-                            // Full-PQ: the chat identity is Dilithium3 (derived
-                            // from the SAME seed, byte-identical to web). The
-                            // Ed25519 hex is kept only as the Solana wallet.
+                    match crate::net::identity::seed_from_phrase(&phrase).map(|s| s.to_vec()) {
+                        Ok(privkey_bytes) => {
+                            // Full-PQ: the chat identity is Dilithium3, derived
+                            // from the 32 bytes byte-identically to web (the
+                            // wallet's key is derived under its own label).
                             match crate::net::identity::derive_pq_identity(&privkey_bytes) {
                                 Ok(pq) => {
                                     // Restoring from the words means they are on paper already.

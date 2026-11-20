@@ -50,7 +50,7 @@ Your identity is a Dilithium3 (ML-DSA-65, post-quantum) cryptographic keypair, d
 
 ### Steps
 
-1. **Generate a Dilithium3 (ML-DSA-65, post-quantum) keypair.** This becomes your permanent identity, addressable as `did:hum:<base58>`. If you opt into Solana, a separate Ed25519 keypair is derived straight from the same BIP39 seed scalar (the same derivation the chat client uses; there is no distinct `hum/solana/v1` KDF path, despite what older docs said), but Solana is fully optional and decoupled from identity.
+1. **Generate a Dilithium3 (ML-DSA-65, post-quantum) keypair.** This becomes your permanent identity, addressable as `did:hum:<base58>`. If you opt into Solana, a separate Ed25519 keypair is derived from the same BIP39 seed under its own label (BLAKE3 `derive_key("hum/ed25519-wallet/v1", seed)` since 2026-11-19, the same derivation the chat client uses; before then the seed itself was the wallet key), and Solana is fully optional and decoupled from identity.
 
 2. **Back up your recovery phrase.** Your keypair can be represented as a BIP39 24-word recovery phrase. Store this securely. If you lose access to your private key, the recovery phrase is your only recovery path.
 

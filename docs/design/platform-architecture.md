@@ -246,7 +246,7 @@ Authentication for vault operations uses Dilithium3 / ML-DSA-65 signatures over 
 | Key exchange | Kyber768 / ML-KEM-768 (FIPS 203) | Establishing shared secrets for E2E DMs |
 | Symmetric encryption | AES-256-GCM | Encrypting vault, notes, backups, DM content |
 | Key derivation | PBKDF2-SHA256 (600k rounds) | Deriving encryption key from passphrase |
-| Seed source / wallet | Ed25519 | BIP39 seed scalar (derives Dilithium + Kyber) and Solana wallet address |
+| Solana wallet | Ed25519 | The wallet's key, derived from the 32-byte identity seed under its own label (`hum/ed25519-wallet/v1`, since 2026-11-19), and its address; the seed itself derives Dilithium + Kyber and is no key |
 | Seed recovery | BIP39 (24-word mnemonic) | Human-readable backup of the seed |
 
 ### Privacy by Design
@@ -633,8 +633,9 @@ Every user's identity and data can be recovered from a 24-word BIP39 recovery ph
 
 ```
 Recovery phrase (24 words, memorizable)
-  → seed scalar (Ed25519 seed source + Solana wallet)
+  → 32-byte identity seed (the phrase's entropy; no key is the seed itself)
   → Dilithium3 / ML-DSA-65 keypair (chat identity restored) + Kyber768 / ML-KEM-768 keypair (DM keys)
+    + the Solana wallet's Ed25519 key, each derived under its own label
   → AES-256-GCM key (vault decrypted)
   → Full data recovery from any relay that has the encrypted vault
 ```
@@ -786,7 +787,7 @@ WEB CLIENT
   Markup:       Plain HTML5
   Styling:      Plain CSS3 (custom properties for theming)
   Build step:   None - files served directly
-  Crypto:       Dilithium3 / ML-DSA-65 + Kyber768 / ML-KEM-768 (post-quantum); Web Crypto API (AES-256-GCM, PBKDF2; Ed25519 for seed scalar + Solana wallet)
+  Crypto:       Dilithium3 / ML-DSA-65 + Kyber768 / ML-KEM-768 (post-quantum); Web Crypto API (AES-256-GCM, PBKDF2; Ed25519 for the Solana wallet's derived key)
   Real-time:    WebSocket (native browser API)
   P2P:          WebRTC (DataChannel for data, MediaStream for voice/video)
   Storage:      IndexedDB (client-side persistence)
@@ -812,7 +813,7 @@ IDENTITY AND CRYPTO
   DM key exchange: Kyber768 / ML-KEM-768 (FIPS 203) → BLAKE3-KDF → AES-256-GCM, dual-seal envelope
   Key derivation: PBKDF2-SHA256 (600,000 iterations)
   Recovery:     BIP39 (24-word mnemonic); seed re-derives Dilithium + Kyber keys
-  Seed scalar / wallet: Ed25519 (BIP39 seed source + Solana wallet address only)
+  Wallet:       Ed25519 (the Solana wallet only, its key derived from the identity seed under its own label)
   Rotation:     Dual-signature certificates (old+new key cross-sign)
 
 DATA FORMATS

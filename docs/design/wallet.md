@@ -1,14 +1,17 @@
 # Solana Wallet Integration
 
-HumanityOS identity keys are Ed25519, the same curve Solana uses. The user's existing identity key IS already a valid Solana wallet. No separate wallet app needed, zero extra setup.
+Solana keys are Ed25519. The wallet's key is made from the same 32 bytes the recovery phrase writes down (the identity's seed), under its own label, so the wallet needs no separate app and no extra setup, and the wallet key is never the identity's root.
+
+> **Changed 2026-11-19** (the PQC review's item 2, docs/reference/research/2026-11-16-pqc-review/; decided by the operator on 2026-11-16). Until then the identity key WAS the wallet: the seed itself was the Ed25519 private key, so exporting the wallet key to any wallet tool handed over the whole identity and every past private message. Every wallet address changed with the fix, with no migration and no notice in the apps, since nobody uses the app yet (operator, 2026-11-20). The canonical row: docs/reference/cryptography.md, "Solana wallet".
 
 ## Key Derivation
 
 ```
-Ed25519 Private Key (32 bytes, stored in Web Crypto API as PKCS8)
-  -> Extract raw bytes via crypto.subtle.exportKey('pkcs8', key)
-  -> Strip PKCS8 wrapper (last 32 bytes = raw private key)
+Identity seed (the recovery phrase's 32 bytes of entropy)
+  -> BLAKE3 derive_key("hum/ed25519-wallet/v1", seed) = the wallet's 32-byte Ed25519 private key
+     (native src/net/identity.rs wallet_secret_from_seed, web web/shared/wallet.js walletSecretFromSeed)
   -> Concatenate: [32-byte private key + 32-byte public key] = Solana Keypair (64 bytes)
+     (web exportSolanaKeypair)
 
 Ed25519 Public Key (32 bytes)
   -> Base58 encode -> Solana Address (e.g., "7xK9m...")
@@ -17,7 +20,7 @@ Ed25519 Public Key (32 bytes)
 - Public key -> base58-encode -> Solana address
 - Private key -> sign Solana transactions
 - BIP39 24-word recovery phrase backs up both identity AND wallet
-- Same PBKDF2-600k encryption protects wallet keys (they ARE the identity keys)
+- The wallet key is re-derived from the seed when needed and never stored; the seed itself is protected by the same PBKDF2-600k vault
 
 ## Features (Phased)
 
@@ -25,7 +28,7 @@ Ed25519 Public Key (32 bytes)
 
 Zero libraries required. Ships fast.
 
-- **Derive Solana address** from existing Ed25519 public key (base58 encode, ~30 lines of vanilla JS)
+- **Derive Solana address** from the wallet's own derived Ed25519 public key (base58 encode, ~30 lines of vanilla JS)
 - **Display address** in profile + settings with QR code and copy button
 - **Show SOL balance**, query Solana mainnet RPC via fetch()
 - **Show USDC balance**, query SPL token accounts via fetch()
@@ -37,7 +40,7 @@ Zero libraries required. Ships fast.
 - **Receive**, show address + QR (already done in Phase 1)
 - **Send SOL**, amount input, recipient address, confirm dialog, sign transaction
 - **Send USDC**, SPL token transfer
-- **Transaction signing**, extract raw private key bytes, build transaction, sign with Ed25519
+- **Transaction signing**, derive the wallet key from the seed, build transaction, sign with Ed25519
 - **Confirmation modal**, show amount, recipient, estimated fee (~$0.00025), require explicit confirm
 - **Transaction status**, pending -> confirmed -> finalized
 
@@ -77,13 +80,13 @@ Unique on-chain items (game items, land deeds, certificates, art).
 +-- HumanityOS App -----------------------------------------+
 |                                                            |
 |  Identity (crypto.js)                                      |
-|  +-- Ed25519 keypair (Web Crypto API)                      |
+|  +-- 32-byte seed (in an Ed25519 CryptoKey, storage only)  |
 |  +-- BIP39 recovery phrase (24 words)                          |
 |  +-- PKCS8/JWK storage (IndexedDB)                        |
 |           |                                                |
 |           v                                                |
 |  Wallet Module (wallet.js) <-- NEW                         |
-|  +-- deriveSOLAddress(publicKey) -> base58                  |
+|  +-- walletKeyFromSeed(seed) -> key + base58 address       |
 |  +-- getBalance(address) -> SOL amount                      |
 |  +-- getTokenBalance(address, mint) -> amount               |
 |  +-- getTransactions(address) -> history                    |
@@ -146,7 +149,7 @@ function base58Decode(str) {
 - Private key never leaves the device
 - Transaction signing happens client-side only
 - No private key sent over network (ever)
-- Same PBKDF2-600k encryption protects wallet keys (they ARE the identity keys)
+- The wallet key is derived from the seed under its own label, one way: exporting it exposes the wallet and nothing else (since 2026-11-19; before, it WAS the identity's seed)
 - The recovery phrase restores wallet access (same 24 words)
 
 ### Transaction Safety
@@ -201,9 +204,9 @@ Use at your own risk.
 | File | Change |
 |------|--------|
 | `web/shared/wallet.js` | NEW, Solana wallet module (base58, RPC queries, tx building) |
-| `web/chat/crypto.js` | Add `extractRawKeypair()` to get 64-byte Solana keypair from PKCS8 |
+| `web/shared/wallet.js` | `walletKeyFromSeed()` and `exportSolanaKeypair()`: the wallet key derived from the seed (2026-11-19; crypto.js's old `extractSolanaKeypair`, which exported the seed itself, is gone) |
 | `web/pages/settings-app.js` | Add wallet section (address display, network config) |
-| `web/chat/chat-profile.js` | Add wallet balance to profile card |
+| `web/chat/chat-profile.js` | No wallet on another person's profile card: an address cannot be worked out from a public identity key (removed 2026-11-19) |
 | `web/pages/donate-app.js` | Use derived address instead of hardcoded placeholder |
 
 ## Dependencies

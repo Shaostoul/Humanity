@@ -395,9 +395,9 @@ pub(crate) fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Optio
 /// are checked (`seed_from_phrase`), the account is put on this device, the connection starts
 /// again as it, and a passphrase to lock it here is asked for.
 pub(crate) fn restore_from_phrase(state: &mut GuiState, phrase: &str) -> Result<(), String> {
-    let (_ed25519_hex, privkey_bytes) = crate::net::identity::derive_keypair_from_mnemonic(phrase)?;
-    // Full-PQ: the chat identity is Dilithium3 (NOT the Ed25519 hex). apply_pq_identity()
-    // derives it + Kyber from the 32 bytes and forces the reconnect.
+    let privkey_bytes = crate::net::identity::seed_from_phrase(phrase)?.to_vec();
+    // The 32 bytes are the identity's root: apply_pq_identity() derives the Dilithium3 chat
+    // identity, the Kyber768 key and the wallet's address from them and forces the reconnect.
     state.private_key_bytes = Some(privkey_bytes);
     if let Some(ref mut ws) = state.ws_client {
         ws.disconnect();

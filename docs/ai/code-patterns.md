@@ -36,7 +36,7 @@ The `<script>` order in `web/chat/index.html` is load-bearing for an IIFE shell.
 ```js
 myIdentity = { publicKeyHex, privateKey, publicKey, canSign }
 ```
-> Ed25519's only remaining roles are the BIP39 seed source and the Solana wallet. Federation objects and chat share the Dilithium3 identity; see `docs/reference/cryptography.md`.
+> Ed25519's only remaining roles are the Solana wallet (its key derived from the identity seed under its own label, `hum/ed25519-wallet/v1`, since 2026-11-19) and one half of the hybrid release signature (a separate key). The web keeps the seed in an Ed25519 CryptoKey purely as storage; that key's public half has no role. Federation objects and chat share the Dilithium3 identity; see `docs/reference/cryptography.md`.
 
 **Relay unicast**: `target: Option<String>` on message variant; broadcast loop `continue`s if target≠my_key
 

@@ -5,6 +5,16 @@
 
 Non-custodial payment layer enabling donations (crypto + USD) and peer-to-peer value transfer, built on top of HumanityOS's existing Ed25519 identity system.
 
+> **Superseded on keys (2026-11-19).** This March 2026 design predates two changes, and its key
+> derivation must not be built as written. The identity is Dilithium3 / ML-DSA-65 (since the
+> 2026-05-20 post-quantum cutover), and no key is the identity seed itself: the Solana wallet's
+> Ed25519 key is derived from the seed under its own label (`hum/ed25519-wallet/v1`,
+> `src/net/identity.rs`, `web/shared/wallet.js`), because reusing the seed as a wallet key handed
+> the whole identity to any wallet tool (docs/reference/research/2026-11-16-pqc-review/). Any
+> other chain's key follows the same rule, a label of its own from the seed, never the Solana
+> key or the seed. Where this page says "Ed25519 seed" or "identity keypair", read "identity
+> seed" and "the wallet's derived key". The canonical table: docs/reference/cryptography.md.
+
 ---
 
 ## 1. Goals & Constraints

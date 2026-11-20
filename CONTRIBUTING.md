@@ -134,7 +134,7 @@ The chat client lives in `web/chat/`. It's split into modules loaded in order:
 
 | File | Responsibility |
 |------|---------------|
-| `crypto.js` | BIP39 seed, Ed25519 (seed source + Solana wallet), AES-GCM vault, post-quantum identity glue (Dilithium3 chat identity, Kyber768 DMs - see CLAUDE.md "Cryptography" for the canonical table) |
+| `crypto.js` | BIP39 seed (kept in an Ed25519 CryptoKey as storage only; the wallet key is derived in `web/shared/wallet.js`), AES-GCM vault, post-quantum identity glue (Dilithium3 chat identity, Kyber768 DMs - see CLAUDE.md "Cryptography" for the canonical table) |
 | `app.js` | Core state, WebSocket connection, `handleMessage()`, `sendMessage()`, `switchChannel()`, peer/channel list management |
 | `chat-messages.js` | Reactions, editing, pins, typing indicator, image upload, threads |
 | `chat-dms.js` | DM state, `openDmConversation()`, `addDmMessage()`, conversation list |

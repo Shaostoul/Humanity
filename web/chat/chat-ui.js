@@ -512,7 +512,7 @@ function updateCharCounter(len) {
 
 // ── Signing status on the entry screen ──
 // Chat messages are signed with Dilithium3 (ML-DSA-65, pq.js, pure JavaScript), whether or not
-// the browser has WebCrypto Ed25519, which is only the recovery phrase's wallet key (BUG-106).
+// the browser has WebCrypto Ed25519, which only holds the seed and makes the wallet's key (BUG-106).
 // This line used to say "Ed25519 signatures enabled", or that messages would NOT be signed
 // without Ed25519: both untrue since v0.262 (2026-10-12). What signing does need is a secure
 // page (https or localhost), where the browser's crypto.subtle exists.
@@ -1359,7 +1359,7 @@ function openLoginRestoreModal(opts) {
 
     try {
       // Unchanged crypto path: crypto.js checks the BIP39 checksum, rebuilds the
-      // Ed25519 seed key, and persists it (IndexedDB + localStorage backup).
+      // 32-byte identity seed, and persists it (IndexedDB + localStorage backup).
       await restoreIdentityFromMnemonic(shape.mnemonic);
 
       // Name goes back into the login input so connect() picks it up.

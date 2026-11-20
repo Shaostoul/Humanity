@@ -146,9 +146,9 @@ Works without any server:
 
 ## Related Files
 
-- `web/chat/crypto.js`, BIP39 recovery phrase, Ed25519 seed scalar, Solana wallet derivation
+- `web/chat/crypto.js`, BIP39 recovery phrase, the 32-byte identity seed (stored in an Ed25519 CryptoKey purely as its container)
 - `web/shared/pq-identity.js`, Dilithium3 + Kyber768 client API (chat identity + DM keys)
-- `web/shared/wallet.js`, Solana address derivation from the Ed25519 seed scalar
+- `web/shared/wallet.js`, the Solana wallet's Ed25519 key, derived from the seed under its own label (`hum/ed25519-wallet/v1`, since 2026-11-19), and its address
 - `src/relay/relay.rs`, Profile handling, key rotation
 - `src/relay/handlers/federation.rs`, Server-to-server communication
 - `docs/network/server_federation.md`, Federation protocol

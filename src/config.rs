@@ -1380,20 +1380,6 @@ pub fn decrypt_private_key(encrypted: &str, salt: &str, passphrase: &str, iterat
     Ok(plaintext)
 }
 
-/// Convert an Ed25519 public key (hex) to a Solana base58 address.
-#[cfg(feature = "native")]
-pub fn pubkey_hex_to_solana_address(hex_str: &str) -> Result<String, String> {
-    let bytes = (0..hex_str.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&hex_str[i..i+2], 16))
-        .collect::<Result<Vec<u8>, _>>()
-        .map_err(|e| format!("Hex decode: {}", e))?;
-    if bytes.len() != 32 {
-        return Err(format!("Expected 32 bytes, got {}", bytes.len()));
-    }
-    Ok(bs58::encode(&bytes).into_string())
-}
-
 impl AppConfig {
     pub fn config_path() -> std::path::PathBuf {
         // Explicit override: HUMANITY_DATA_DIR=<dir> puts config.json (which

@@ -148,8 +148,15 @@ Both start at the weekly reset, after the conformance tests.
 1b. First, before any change to the cryptography: the official ACVP vectors, the cross-implementation
    tests both ways with a full envelope fixture, and the advisory checks in CI (his second message), so
    every change after them is held to the standard, not only to ourselves.
-2. The wallet key derived under its own label (after decision 2), with the app saying plainly that the
-   address changed and how to move funds from the old one.
+2. **Built 2026-11-19:** the wallet's Ed25519 key is BLAKE3 `derive_key("hum/ed25519-wallet/v1",
+   entropy)` on both apps (`src/net/identity.rs` `wallet_secret_from_seed`, `web/shared/wallet.js`
+   `walletSecretFromSeed`), pinned for the frozen seed by a known-answer test on each side and held
+   apart from the entropy by a second test; the ML-DSA-65 and ML-KEM-768 seeds and their KATs are
+   unchanged. Every wallet address changed, with no notice and no way to move old funds: a notice
+   was built and then removed (operator, 2026-11-20: "No point in worrying about the old address
+   stuff since no one is using the app."). The plan as written: the wallet key derived under its
+   own label (after decision 2), with the app saying plainly that the address changed and how to
+   move funds from the old one.
 3. X-Wing for DMs, after the three checks above; a dated finding on `x-wing`'s pre-release risk and
    licence, and the native/web known-answer test seen red first.
 4. KEM keys by index, signed into the key card: rotation.

@@ -590,7 +590,9 @@ async function connect(how) {
   document.getElementById('crypto-status').textContent = 'Connecting…';
   document.getElementById('crypto-status').style.color = 'var(--text-muted)';
 
-  // Ed25519 keypair = the BIP39 seed source + Solana wallet ONLY.
+  // The identity's 32-byte seed (held in an Ed25519 CryptoKey purely as its
+  // storage container). Every key is derived from it under its own label:
+  // Dilithium3 and Kyber768 below, the Solana wallet in web/shared/wallet.js.
   myIdentity = await getOrCreateIdentity();
 
   // FULL-PQ cutover: derive Dilithium3 (THE chat identity) + Kyber768

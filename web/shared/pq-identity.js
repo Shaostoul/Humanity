@@ -231,8 +231,10 @@
   const DOMAIN_KYBER = 'hum/kyber768/v1';
 
   /**
-   * Derive a 32-byte Dilithium3 seed from any high-entropy source
-   * (typically the 64-byte BIP39 PBKDF2 seed).
+   * Derive a 32-byte Dilithium3 seed from any high-entropy source. Every
+   * caller passes the recovery phrase's 32 bytes of ENTROPY, not BIP39's
+   * 64-byte PBKDF2 seed (corrected 2026-11-19, as pq_crypto.rs was on
+   * 2026-11-16: docs/reference/research/2026-11-16-pqc-review/).
    *
    * Uses BLAKE3 keyed-derivation with `hum/dilithium3/v1` so the same input
    * yields the same key as the server's pq_crypto::derive_dilithium_seed.

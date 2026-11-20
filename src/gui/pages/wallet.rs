@@ -332,3 +332,31 @@ fn pane_history_tokens(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
         );
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::gui::GuiState;
+
+    /// THE ADDRESS THE PAGE SHOWS IS THE DERIVED WALLET'S (2026-11-19): unlocking an identity puts
+    /// the address of the wallet's own key (BLAKE3 derive_key under hum/ed25519-wallet/v1) into
+    /// `wallet_address`, the field this page and Settings > Wallet draw, and a different identity
+    /// replaces it. The value is the one pinned on both apps for the frozen seed [7;32]
+    /// (src/net/identity.rs, scripts/tests/wallet-key-web.test.js); the old wallet, the Ed25519
+    /// key of the 32 bytes themselves, had GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB.
+    ///
+    /// Seen red 2026-11-19 with the line in `GuiState::apply_pq_identity` taken out (as before:
+    /// nothing ever set the address, so the page said there was none): left "", right
+    /// "CDK69dGcrdKp2LFhmeKGnCg3mFv6ZhpPLHvqqgQB5vGd", and again alone.
+    #[test]
+    fn unlocking_an_identity_shows_its_derived_wallet_address() {
+        let mut gs = GuiState::default();
+        gs.private_key_bytes = Some(vec![7u8; 32]);
+        gs.apply_pq_identity();
+        assert_eq!(gs.wallet_address, "CDK69dGcrdKp2LFhmeKGnCg3mFv6ZhpPLHvqqgQB5vGd");
+        assert_ne!(gs.wallet_address, "GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB", "the old wallet, the key of the 32 bytes themselves");
+        gs.private_key_bytes = Some(vec![8u8; 32]);
+        gs.apply_pq_identity();
+        assert_eq!(Some(gs.wallet_address.clone()), crate::net::identity::wallet_address(&[8u8; 32]), "another identity, its own wallet");
+        assert_ne!(gs.wallet_address, "CDK69dGcrdKp2LFhmeKGnCg3mFv6ZhpPLHvqqgQB5vGd");
+    }
+}

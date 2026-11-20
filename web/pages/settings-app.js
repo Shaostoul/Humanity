@@ -1501,42 +1501,40 @@ loadPushPrefs();
   walletDisplayAddress();
 })();
 
-/** Derive Solana address from identity public key and display it */
-function walletDisplayAddress() {
+/**
+ * Show the wallet's Solana address: the wallet's OWN key, derived from the identity seed under
+ * its own label (HosWallet.walletKeyFromSeed, 2026-11-19). Before, this showed an address made
+ * from myIdentity.publicKeyHex, which is the Dilithium3 identity key once the chat identity is
+ * attached (never an address) and, before that, the Ed25519 key of the seed itself, the old wallet.
+ */
+async function walletDisplayAddress() {
   var addrEl = document.getElementById('wallet-sol-address');
   var copyBtn = document.getElementById('wallet-copy-btn');
   if (!addrEl) return;
 
-  if (window.HosWallet && window.myIdentity && myIdentity.publicKeyHex) {
-    var fullAddr = HosWallet.publicKeyToSolanaAddress(myIdentity.publicKeyHex);
-    var shortAddr = fullAddr.length > 8 ? fullAddr.substring(0, 4) + '...' + fullAddr.substring(fullAddr.length - 4) : fullAddr;
-    addrEl.textContent = shortAddr;
-    addrEl.title = fullAddr;
-    if (copyBtn) {
-      copyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(fullAddr).then(function() {
-          copyBtn.textContent = 'Copied!';
-          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
-        });
-      });
-    }
-  } else if (window.myIdentity && myIdentity.publicKeyHex && typeof hexToBuf === 'function') {
-    // Fallback: show hex public key if wallet.js not loaded
-    var pk = myIdentity.publicKeyHex;
-    var shortPk = pk.length > 8 ? pk.substring(0, 4) + '...' + pk.substring(pk.length - 4) : pk;
-    addrEl.textContent = shortPk;
-    addrEl.title = pk + ' (wallet.js not loaded, install to see Solana address)';
-    if (copyBtn) {
-      copyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(pk).then(function() {
-          copyBtn.textContent = 'Copied!';
-          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
-        });
-      });
-    }
-  } else {
+  var wallet = null;
+  try {
+    var seed = (typeof window.getPqRecoverySeed === 'function') ? await window.getPqRecoverySeed() : null;
+    if (seed && window.HosWallet) wallet = await HosWallet.walletKeyFromSeed(seed);
+  } catch (e) {
+    console.warn('The wallet key could not be made here:', e);
+  }
+  if (!wallet) {
     addrEl.textContent = 'No identity loaded';
     addrEl.title = '';
+    return;
+  }
+  var fullAddr = wallet.address;
+  var shortAddr = fullAddr.length > 8 ? fullAddr.substring(0, 4) + '...' + fullAddr.substring(fullAddr.length - 4) : fullAddr;
+  addrEl.textContent = shortAddr;
+  addrEl.title = fullAddr;
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      navigator.clipboard.writeText(fullAddr).then(function() {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    });
   }
 }
 

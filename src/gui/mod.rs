@@ -3030,6 +3030,8 @@ impl GuiState {
             Some(s) => s.clone(),
             None => return,
         };
+        // The wallet's address, from its own key under its own label (src/net/identity.rs).
+        self.wallet_address = crate::net::identity::wallet_address(&seed).unwrap_or_default();
         match crate::net::identity::derive_pq_identity(&seed) {
             Ok(pq) => {
                 self.profile_public_key = pq.dilithium_hex;

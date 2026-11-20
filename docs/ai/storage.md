@@ -111,7 +111,7 @@ The rows for both keys, and what is lost without each, are in `docs/reference/cr
 
 **Local-first storage** (native binary):
 OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
-- `config.json`: preferences AND the identity vault: `encrypted_private_key` + `key_salt` (AES-256-GCM over the Ed25519 seed key, PBKDF2 600k, `src/config.rs`); the Dilithium3 chat identity and Kyber keys are re-derived from it, never stored. There is no `identity/` or `settings/` folder (checked 2026-10-19)
+- `config.json`: preferences AND the identity vault: `encrypted_private_key` + `key_salt` (AES-256-GCM over the 32-byte identity seed, PBKDF2 600k, `src/config.rs`); the Dilithium3 chat identity, the Kyber keys and the wallet's Ed25519 key are re-derived from it, never stored. There is no `identity/` or `settings/` folder (checked 2026-10-19)
 - `dms/`: the encrypted direct-message history (`src/net/dm_store.rs`, one `.dmstore` per conversation)
 - `saves/`: game saves. Your own home is `saves/offline_home.json` (the picker lists the top level only)
 - `saves/servers/<server hash>-<identity>.json`: one save per server and identity (ship homes increment 6, `src/engine/save_slot.rs`, `persistence::slot_path`): the first 16 hex of BLAKE3 of the server's address, then the first 16 hex of the public key, so no file name holds an address. Made fresh from the start chosen there; an erased account's is renamed `<name>.erased-<yyyy-mm-dd>.json`, never deleted

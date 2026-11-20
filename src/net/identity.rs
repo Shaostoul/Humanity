@@ -1,9 +1,16 @@
-//! BIP39 recovery phrase identity recovery.
+//! The recovery phrase, and the keys made from the 32 bytes it writes down.
 //!
-//! Matches the web client's key derivation: the 24-word BIP39 mnemonic
-//! directly encodes the 32-byte Ed25519 seed as its entropy (not using
-//! PBKDF2-based `to_seed()`). This ensures the same mnemonic produces
-//! the same public key on both web and native.
+//! The 24-word BIP39 phrase encodes 32 bytes of entropy directly (not BIP39's PBKDF2 `to_seed()`),
+//! exactly as the website reads it (web/chat/crypto.js `seedFromMnemonic`). Those 32 bytes, the
+//! "seed" in the code, are the identity's root secret. Every key is DERIVED from them through
+//! BLAKE3 `derive_key`, each under its own label, and no key IS them:
+//! - the Dilithium3 / ML-DSA-65 chat identity (`hum/dilithium3/v1`) and the Kyber768 / ML-KEM-768
+//!   private-message key (`hum/kyber768/v1`): crates/humanity-protocol/src/pq_crypto.rs;
+//! - the Ed25519 Solana wallet key (`hum/ed25519-wallet/v1`, [`WALLET_KEY_DOMAIN`]): here.
+//!
+//! Until 2026-11-19 the 32 bytes themselves were the Ed25519 wallet key, so exporting the wallet
+//! key to any wallet tool handed over the root of the chat identity and of every past private
+//! message (docs/reference/research/2026-11-16-pqc-review/, "Checked in the code" item 1).
 
 /// How many words a HumanityOS recovery phrase has (256 bits and an 8-bit check).
 pub const PHRASE_WORDS: usize = 24;
@@ -43,24 +50,51 @@ pub fn seed_from_phrase(text: &str) -> Result<[u8; 32], String> {
     mnemonic.to_entropy().try_into().map_err(|_| "This recovery phrase does not hold a 32-byte key.".to_string())
 }
 
-/// Derive an Ed25519 keypair from a 24-word recovery phrase (`seed_from_phrase`).
+// ── The wallet key (Ed25519, the Solana wallet) ─────────────────────────────
+
+/// The BLAKE3 `derive_key` label the wallet's Ed25519 key is made under (2026-11-19).
 ///
-/// Returns `(public_key_hex, private_key_bytes)` on success.
-/// The private_key_bytes are the raw 32-byte Ed25519 seed.
-pub fn derive_keypair_from_mnemonic(mnemonic_str: &str) -> Result<(String, Vec<u8>), String> {
-    let secret_key_bytes = seed_from_phrase(mnemonic_str)?;
-    // Derive the Ed25519 public key from the seed
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_key_bytes);
-    let public_key = signing_key.verifying_key();
-    let public_key_hex = hex::encode(public_key.as_bytes());
-    Ok((public_key_hex, secret_key_bytes.to_vec()))
+/// Why this label: it follows the `hum/<algorithm>/v1` pattern of the other two
+/// (`hum/dilithium3/v1`, `hum/kyber768/v1`) and also names the ROLE, because Ed25519 is the one
+/// algorithm here with a job that is not the identity: should a second Ed25519 use ever appear,
+/// it gets its own label instead of silently sharing the wallet's key. `v1` moves only with a
+/// deliberate change of the derivation, which changes every wallet address again.
+///
+/// The website uses the same string (web/shared/wallet.js `WALLET_KEY_DOMAIN`); the known-answer
+/// tests on both sides (`wallet_key_known_answer_for_the_frozen_phrase` below and
+/// scripts/tests/wallet-key-web.test.js) pin the same key for the frozen test phrase.
+pub const WALLET_KEY_DOMAIN: &str = "hum/ed25519-wallet/v1";
+
+/// The wallet's 32-byte Ed25519 private key (RFC 8032's secret seed) for an identity's 32 bytes:
+/// BLAKE3 `derive_key(WALLET_KEY_DOMAIN, seed)`. One way: the wallet key gives nothing back about
+/// the seed, so a wallet key handed to another wallet tool exposes the wallet and nothing else.
+/// None unless `seed` is 32 bytes.
+pub fn wallet_secret_from_seed(seed: &[u8]) -> Option<[u8; 32]> {
+    let seed: &[u8; 32] = seed.try_into().ok()?;
+    Some(blake3::derive_key(WALLET_KEY_DOMAIN, seed))
+}
+
+/// The wallet's Ed25519 signing key (`wallet_secret_from_seed`).
+pub fn wallet_signing_key(seed: &[u8]) -> Option<ed25519_dalek::SigningKey> {
+    wallet_secret_from_seed(seed).map(|secret| ed25519_dalek::SigningKey::from_bytes(&secret))
+}
+
+/// The wallet's Ed25519 public key, 64 lowercase hex characters.
+pub fn wallet_pubkey_hex(seed: &[u8]) -> Option<String> {
+    wallet_signing_key(seed).map(|k| hex::encode(k.verifying_key().as_bytes()))
+}
+
+/// The wallet's Solana address: its Ed25519 public key in base58, the form Solana writes
+/// addresses in (web/shared/wallet.js `publicKeyToSolanaAddress`).
+pub fn wallet_address(seed: &[u8]) -> Option<String> {
+    wallet_signing_key(seed).map(|k| bs58::encode(k.verifying_key().as_bytes()).into_string())
 }
 
 // ── Full-PQ identity (Dilithium3 id+signing, Kyber768 DM) ───────────────────
-// Both keys derive from the SAME 32-byte BIP39 seed the Ed25519 key uses,
+// Both keys derive from the 32-byte seed (each under its own label, as the wallet key does),
 // byte-identical to the web client (crypto.js attachPqIdentity) and the
 // relay — locked by pq_crypto::{dilithium,kyber}_cross_language_kat +
-// scripts/pq-kat.mjs. Ed25519 is kept ONLY as the seed/Solana wallet.
+// scripts/pq-kat.mjs.
 
 /// The post-quantum identity presented to the relay.
 pub struct PqIdentity {
@@ -110,9 +144,9 @@ pub fn pq_sign_raw(seed32: &[u8], message: &[u8]) -> Vec<u8> {
 }
 
 /// Generate a fresh 32-byte BIP39 seed (256-bit entropy) from the OS
-/// CSPRNG. This 32-byte value IS the identity — it deterministically
-/// re-derives Ed25519 (Solana wallet), Dilithium3 (the chat identity),
-/// and Kyber768 (DM). Persist it (encrypted) and back it up as the
+/// CSPRNG. This 32-byte value IS the identity: Dilithium3 (the chat identity),
+/// Kyber768 (DM) and the Ed25519 wallet key are each derived from it under their
+/// own label, and none of them is it. Persist it (encrypted) and back it up as the
 /// 24-word phrase via `mnemonic_from_seed`.
 pub fn generate_new_seed() -> Vec<u8> {
     let mut entropy = [0u8; 32];
@@ -121,8 +155,8 @@ pub fn generate_new_seed() -> Vec<u8> {
 }
 
 /// Render a 32-byte seed as its 24-word BIP39 mnemonic, for backup and
-/// in-app display. Exact inverse of `derive_keypair_from_mnemonic`'s
-/// entropy path: re-entering this phrase restores the same identity.
+/// in-app display. Exact inverse of `seed_from_phrase`: re-entering this
+/// phrase restores the same identity.
 pub fn mnemonic_from_seed(seed: &[u8]) -> Option<String> {
     if seed.len() != 32 {
         return None;
@@ -130,33 +164,24 @@ pub fn mnemonic_from_seed(seed: &[u8]) -> Option<String> {
     bip39::Mnemonic::from_entropy(seed).ok().map(|m| m.to_string())
 }
 
-/// The Ed25519 public key hex (64 chars) for a 32-byte seed. This is the SAME
-/// `publicKey` field the web backup uses (web `myIdentity.publicKeyHex`), not
-/// the long Dilithium identity key. Used to build a device-link payload the web
-/// importer accepts (it validates `publicKey.length === 64`).
-pub fn ed25519_pubkey_hex_from_seed(seed: &[u8]) -> Option<String> {
+/// Build the JSON backup payload the web client's `importIdentityBackup` consumes
+/// (crypto.js `importIdentityFromJSON`): `{name, privateKey, note}`, where `privateKey`
+/// is the 32-byte seed in 64 hex characters. Encoding THIS as a QR lets a phone scan a
+/// native identity and become the same account. Returns None if the seed is not 32 bytes.
+///
+/// No `publicKey` field (2026-11-19): it carried the Ed25519 public key of the seed itself,
+/// back when the seed was also the wallet key. The importer requires only `name` and
+/// `privateKey`; without `publicKey` it works out its own storage key from the seed
+/// (`ed25519FromSeed`), so the desktop app no longer makes any Ed25519 key from the seed
+/// except the wallet's, under its own label.
+pub fn device_link_payload_json(seed: &[u8], name: &str) -> Option<String> {
     if seed.len() != 32 {
         return None;
     }
-    let mut arr = [0u8; 32];
-    arr.copy_from_slice(seed);
-    let signing_key = ed25519_dalek::SigningKey::from_bytes(&arr);
-    Some(hex::encode(signing_key.verifying_key().as_bytes()))
-}
-
-/// Build the exact JSON backup payload the web client's `importIdentityBackup`
-/// consumes (crypto.js `importIdentityFromJSON`): `{name, publicKey, privateKey}`
-/// where both keys are 64-char hex (Ed25519 pubkey + 32-byte seed). Encoding
-/// THIS as a QR lets a phone scan a native identity and become the same account.
-/// Returns None if the seed is not a 32-byte BIP39 seed.
-pub fn device_link_payload_json(seed: &[u8], name: &str) -> Option<String> {
-    let pubkey = ed25519_pubkey_hex_from_seed(seed)?;
     let display = if name.trim().is_empty() { "user" } else { name.trim() };
-    // Match the web export field-for-field so the importer's validation passes.
     Some(format!(
-        "{{\"name\":{},\"publicKey\":\"{}\",\"privateKey\":\"{}\",\"note\":\"Keep this safe. Anyone with it can impersonate you.\"}}",
+        "{{\"name\":{},\"privateKey\":\"{}\",\"note\":\"Keep this safe. Anyone with it can impersonate you.\"}}",
         serde_json::to_string(display).ok()?,
-        pubkey,
         hex::encode(seed)
     ))
 }
@@ -195,8 +220,7 @@ mod tests {
         assert_eq!(seed.len(), 32);
         let phrase = mnemonic_from_seed(&seed).expect("mnemonic");
         assert_eq!(phrase.split_whitespace().count(), 24);
-        let (_pk, recovered) =
-            derive_keypair_from_mnemonic(&phrase).expect("recover");
+        let recovered = seed_from_phrase(&phrase).expect("recover").to_vec();
         assert_eq!(recovered, seed, "phrase must restore the exact seed");
         let a = derive_pq_identity(&seed).unwrap();
         let b = derive_pq_identity(&recovered).unwrap();
@@ -209,25 +233,21 @@ mod tests {
     #[test]
     fn device_link_payload_matches_web_importer_contract() {
         // The native "Link a device" QR must produce EXACTLY the JSON the web
-        // client's importIdentityFromJSON accepts: name + 64-char publicKey +
-        // 64-char privateKey, where publicKey is the Ed25519 pubkey (NOT the
-        // long Dilithium key) and privateKey is the 32-byte seed hex. If this
+        // client's importIdentityFromJSON accepts: a name and the 64-char
+        // privateKey (the 32-byte seed hex), the two fields it requires. If this
         // drifts, a scanned native identity silently fails to import on web.
         let seed = [9u8; 32];
         let json = device_link_payload_json(&seed, "Alice").expect("payload");
         let v: serde_json::Value = serde_json::from_str(&json).expect("valid json");
         assert_eq!(v["name"], "Alice");
-        let pubkey = v["publicKey"].as_str().unwrap();
         let privkey = v["privateKey"].as_str().unwrap();
-        assert_eq!(pubkey.len(), 64, "web importer requires publicKey.length === 64");
         assert_eq!(privkey.len(), 64, "web importer requires privateKey.length === 64");
-        // privateKey is the seed; publicKey is the Ed25519 pubkey for that seed,
-        // identical to the recovery path derive_keypair_from_mnemonic uses.
         assert_eq!(privkey, hex::encode(seed));
         let phrase = mnemonic_from_seed(&seed).unwrap();
-        let (derived_pub, _) = derive_keypair_from_mnemonic(&phrase).unwrap();
-        assert_eq!(pubkey, derived_pub, "QR pubkey must match the recovery-derived pubkey");
-        assert_eq!(pubkey, ed25519_pubkey_hex_from_seed(&seed).unwrap());
+        assert_eq!(seed_from_phrase(&phrase).map(hex::encode), Ok(privkey.to_string()), "the QR carries what the phrase restores");
+        // No Ed25519 key of the seed itself rides along any more (2026-11-19): that key was the
+        // wallet's until the wallet got its own label, and the importer works out its own.
+        assert!(v.get("publicKey").is_none(), "no publicKey field: {json}");
         // Empty name falls back to "user" like the web export (importer rejects
         // an empty name).
         let j2 = device_link_payload_json(&seed, "   ").unwrap();
@@ -265,8 +285,62 @@ mod tests {
             "native BIP39 phrase for [7;32] diverged from the web KAT -- the wordlists are out of sync"
         );
         // And it reads back to the same seed.
-        let (_pk, recovered) = derive_keypair_from_mnemonic(&phrase).expect("recover");
-        assert_eq!(recovered, seed);
+        assert_eq!(seed_from_phrase(&phrase), Ok(seed));
+    }
+
+    /// THE WALLET KEY, PINNED FOR THE FROZEN TEST PHRASE (2026-11-19, the PQC review's item 2).
+    /// Seed [7;32] is the phrase "alpha deal scrub asthma ... bright truly" above, the same frozen
+    /// seed every cross-language test uses (pq_crypto.rs `dilithium_cross_language_kat`). The SAME
+    /// three values are asserted on the website's side (scripts/tests/wallet-key-web.test.js),
+    /// computed there by an independent stack (the vendored noble BLAKE3 and WebCrypto's Ed25519),
+    /// so a phrase restored on either app shows the same wallet address.
+    ///
+    /// Seen red 2026-11-19 against the old relationship (`wallet_secret_from_seed` returning the 32
+    /// bytes themselves): left Some("0707...07"), right Some("d883ea7c...6e73"), and failed again
+    /// alone. (The old wallet address for this seed was GmaDrppBC7P5ARKV8g3djiwP89vz1jLK23V2GBjuAEGB.)
+    #[test]
+    fn wallet_key_known_answer_for_the_frozen_phrase() {
+        let seed = [7u8; 32];
+        assert_eq!(
+            wallet_secret_from_seed(&seed).map(hex::encode).as_deref(),
+            Some("d883ea7c52a0db010de32a89fef61181bda081710736b236c1184ff224496e73"),
+            "BLAKE3 derive_key({WALLET_KEY_DOMAIN}) drift: the website will show another address"
+        );
+        assert_eq!(
+            wallet_pubkey_hex(&seed).as_deref(),
+            Some("a697fa9ba1a4794c49a86dd87a3798b61775c9e436848e3331df855b84f56e5e")
+        );
+        assert_eq!(wallet_address(&seed).as_deref(), Some("CDK69dGcrdKp2LFhmeKGnCg3mFv6ZhpPLHvqqgQB5vGd"));
+        // The address is the public key in base58, nothing else.
+        let pk = hex::decode(wallet_pubkey_hex(&seed).unwrap()).unwrap();
+        assert_eq!(wallet_address(&seed), Some(bs58::encode(pk).into_string()));
+        // Not 32 bytes: no wallet, rather than a key from a wrong-sized input.
+        assert!(wallet_address(&[7u8; 16]).is_none());
+        assert!(wallet_secret_from_seed(&[7u8; 64]).is_none());
+    }
+
+    /// THE WALLET SECRET IS NOT THE ROOT (2026-11-19): for any seed, the wallet's private key is
+    /// neither the 32 bytes the recovery phrase writes down nor the seed of the chat identity or
+    /// the private-message key, and its public key is not the Ed25519 key of the seed itself (the
+    /// wallet address before 2026-11-19). So a wallet key exported to another wallet tool cannot
+    /// unlock the identity.
+    ///
+    /// Seen red 2026-11-19 against the old relationship: "the wallet secret is the recovery
+    /// phrase's own 32 bytes" failed for the first seed ([7;32] on both sides), and again alone.
+    #[test]
+    fn the_wallet_secret_is_not_the_recovery_phrase_entropy() {
+        for seed in [[7u8; 32], [0u8; 32], [0xffu8; 32], {
+            let mut s = [0u8; 32];
+            for (i, b) in s.iter_mut().enumerate() { *b = i as u8; }
+            s
+        }] {
+            let secret = wallet_secret_from_seed(&seed).unwrap();
+            assert_ne!(secret, seed, "the wallet secret is the recovery phrase's own 32 bytes");
+            assert_ne!(secret, humanity_protocol::pq_crypto::derive_dilithium_seed(&seed), "the wallet secret is the chat identity's seed");
+            assert_ne!(&secret[..], &humanity_protocol::pq_crypto::derive_kyber_seed(&seed)[..32], "the wallet secret is the message key's seed");
+            let old_wallet = ed25519_dalek::SigningKey::from_bytes(&seed).verifying_key();
+            assert_ne!(wallet_signing_key(&seed).unwrap().verifying_key(), old_wallet, "the wallet address is still the one made from the 32 bytes themselves");
+        }
     }
 
     /// THE STANDARD CHECK, BOTH WAYS: official BIP39 test vectors (the trezor python-mnemonic set)
@@ -301,7 +375,6 @@ mod tests {
             let mut words: Vec<&str> = phrase.split(' ').collect();
             words[at] = swap;
             assert_eq!(seed_from_phrase(&words.join(" ")), Err(PHRASE_DOES_NOT_ADD_UP.to_string()), "one swapped word is refused (word {})", at + 1);
-            assert!(derive_keypair_from_mnemonic(&words.join(" ")).is_err(), "and nothing is restored from it");
         }
         // Two words in the wrong order: the same.
         let mut words: Vec<&str> = phrase.split(' ').collect();
@@ -333,7 +406,7 @@ mod tests {
 
     #[test]
     fn test_mnemonic_roundtrip() {
-        // Generate a random mnemonic and verify we can derive a keypair.
+        // A random phrase restores its own 32 bytes, and the same wallet each time.
         // bip39 0.7+ requires explicit entropy: 32 bytes = 256 bits = 24 words.
         let mut entropy = [0u8; 32];
         getrandom::getrandom(&mut entropy).expect("OS RNG failed");
@@ -341,21 +414,15 @@ mod tests {
             .expect("Failed to generate mnemonic");
         let phrase = mnemonic.to_string();
 
-        let (pubkey_hex, privkey) = derive_keypair_from_mnemonic(&phrase)
-            .expect("Failed to derive keypair");
-
-        assert_eq!(pubkey_hex.len(), 64, "Public key hex should be 64 chars");
-        assert_eq!(privkey.len(), 32, "Private key should be 32 bytes");
-
-        // Derive again — should produce the same key
-        let (pubkey_hex2, _) = derive_keypair_from_mnemonic(&phrase)
-            .expect("Failed to derive keypair second time");
-        assert_eq!(pubkey_hex, pubkey_hex2, "Same mnemonic should produce same key");
+        let seed = seed_from_phrase(&phrase).expect("Failed to read the phrase");
+        assert_eq!(seed, entropy);
+        let wallet = wallet_pubkey_hex(&seed).expect("a wallet key");
+        assert_eq!(wallet.len(), 64, "Public key hex should be 64 chars");
+        assert_eq!(wallet_pubkey_hex(&seed_from_phrase(&phrase).unwrap()), Some(wallet), "Same phrase, same wallet");
     }
 
     #[test]
     fn test_invalid_mnemonic() {
-        let result = derive_keypair_from_mnemonic("not a valid mnemonic phrase");
-        assert!(result.is_err());
+        assert!(seed_from_phrase("not a valid mnemonic phrase").is_err());
     }
 }

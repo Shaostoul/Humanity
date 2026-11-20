@@ -2,8 +2,9 @@
  * pq.js, post-quantum (Dilithium3 / ML-DSA-65) identity for the chat
  * client. PQ migration Increment 1 (v0.251).
  *
- * The chat identity's master secret is the 32-byte BIP39 seed (today
- * also the Ed25519 scalar, see crypto.js). From that SAME seed we
+ * The chat identity's master secret is the 32-byte BIP39 seed (held in
+ * an Ed25519 CryptoKey purely as storage, see crypto.js; the wallet's
+ * Ed25519 key is derived from it under its own label). From that SAME seed we
  * deterministically derive a Dilithium3 keypair, using the exact
  * derivation the relay expects:
  *
@@ -58,7 +59,7 @@ async function _pqLoad() {
 
 /**
  * Derive the Dilithium3 identity from a 32-byte master seed.
- * @param {Uint8Array} seed32 - the BIP39 / Ed25519 seed (32 bytes).
+ * @param {Uint8Array} seed32 - the identity seed, the recovery phrase's 32 bytes.
  * @returns {Promise<{dilithiumPublicHex:string, dilithiumSecret:Uint8Array}|null>}
  *          null on ANY failure (caller must degrade to Ed25519-only).
  */

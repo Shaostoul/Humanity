@@ -713,21 +713,11 @@ function showViewProfileCard(name, publicKey, profile) {
     html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
   }
 
-  // Wallet section, show Solana address and balances if HosWallet is available
-  if (window.HosWallet && publicKey) {
-    var solAddress = HosWallet.publicKeyToSolanaAddress(publicKey);
-    var shortAddr = solAddress.length > 8 ? solAddress.substring(0, 4) + '...' + solAddress.substring(solAddress.length - 4) : solAddress;
-    html += '<div style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid var(--border);">';
-    html += '<div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-sm);">Wallet</div>';
-    html += '<div style="display:flex;align-items:center;gap:var(--space-md);font-size:0.8rem;">';
-    html += '<span style="color:var(--text-muted);">SOL</span> ';
-    html += '<span id="profile-wallet-addr" title="' + esc(solAddress) + '" style="font-family:monospace;color:var(--text);">' + esc(shortAddr) + '</span>';
-    html += '<button id="profile-wallet-copy" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 6px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;" title="Copy Solana address">Copy</button>';
-    html += '</div>';
-    html += '<div id="profile-wallet-balances" style="font-size:0.78rem;color:var(--text-muted);margin-top:var(--space-sm);">Loading balances...</div>';
-    html += '<a href="/wallet" style="font-size:0.72rem;color:var(--accent);text-decoration:none;margin-top:var(--space-sm);display:inline-block;">View Wallet</a>';
-    html += '</div>';
-  }
+  // No wallet section here (removed 2026-11-19): it made a "Solana address" out of this
+  // person's identity key, but a wallet address cannot be worked out from anyone's public
+  // identity. The wallet key is derived from their private seed under its own label
+  // (web/shared/wallet.js walletKeyFromSeed), and the identity key has been Dilithium3, never an
+  // Ed25519 address, since the PQ cutover. Someone who wants to be paid shares their address.
 
   // Follow/friend status + button
   if (publicKey && publicKey !== myKey) {
@@ -760,37 +750,6 @@ function showViewProfileCard(name, publicKey, profile) {
       pkEl.addEventListener('click', () => {
         navigator.clipboard.writeText(publicKey).then(() => addSystemMessage('Public key copied.'));
       });
-    }
-  }
-  // Wallet copy button + async balance loading
-  if (window.HosWallet && publicKey) {
-    var walletCopyBtn = document.getElementById('profile-wallet-copy');
-    if (walletCopyBtn) {
-      var _solAddr = HosWallet.publicKeyToSolanaAddress(publicKey);
-      walletCopyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(_solAddr).then(function() {
-          walletCopyBtn.textContent = 'Copied!';
-          setTimeout(function() { walletCopyBtn.textContent = 'Copy'; }, 2000);
-        });
-      });
-    }
-    // Async load balances
-    var balEl = document.getElementById('profile-wallet-balances');
-    if (balEl && typeof HosWallet.getBalance === 'function') {
-      var _addr = HosWallet.publicKeyToSolanaAddress(publicKey);
-      HosWallet.getBalance(_addr).then(function(sol) {
-        var text = sol !== null ? (sol + ' SOL') : 'Balance unavailable';
-        if (typeof HosWallet.getTokenBalance === 'function') {
-          HosWallet.getTokenBalance(_addr, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').then(function(usdc) {
-            if (usdc !== null) text += ' | $' + usdc + ' USDC';
-            balEl.textContent = text;
-          }).catch(function() { balEl.textContent = text; });
-        } else {
-          balEl.textContent = text;
-        }
-      }).catch(function() { balEl.textContent = 'Balance unavailable'; });
-    } else if (balEl) {
-      balEl.textContent = '';
     }
   }
   // Follow button handler
@@ -1005,7 +964,7 @@ function closeViewProfileOverlay() {
 
 /**
  * Open a modal showing the identity as a 24-word BIP39 mnemonic.
- * Words are derived deterministically from the 32-byte Ed25519 seed via
+ * Words are derived deterministically from the 32-byte identity seed via
  * SHA-256 checksum → 264 bits → 24×11-bit word indices.
  * The user can copy the phrase or write it on paper for offline recovery.
  */

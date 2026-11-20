@@ -1111,7 +1111,7 @@ Reply threads on messages.
 ## Identity and Security
 
 ### Dilithium3 / ML-DSA-65 Identity
-Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No sign-up, no passwords stored on any server. (Ed25519 survives only as the seed scalar and Solana wallet address, see the canonical crypto table in `CLAUDE.md`.)
+Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No sign-up, no passwords stored on any server. (Ed25519 survives only as the Solana wallet, its key derived from the seed under its own label since 2026-11-19, and in the hybrid release signature; see the canonical crypto table in `docs/reference/cryptography.md`.)
 - Web: `web/chat/crypto.js` (key derivation), `web/shared/pq-identity.js` (Dilithium signing)
 - Server: `src/relay/relay.rs` (signature verification), `crates/humanity-protocol/src/pq_crypto.rs`
 
@@ -1515,8 +1515,9 @@ own recovery phrase's words in a row is stopped. **An admin erases another perso
 ## Wallet and Funding
 
 ### Solana Wallet
-Ed25519 identity IS a Solana wallet address. Send, receive, balance queries.
-- Web: `web/shared/wallet.js`, `web/pages/wallet.html`, `web/pages/wallet-app.js`
+The wallet's Ed25519 key is derived from the identity seed under its own label (`hum/ed25519-wallet/v1`, since 2026-11-19; before, the seed itself was the wallet key). Send, receive, balance queries.
+- Web: `web/shared/wallet.js` (`walletKeyFromSeed`), `web/pages/wallet.html`, `web/pages/wallet-app.js`
+- Native: `src/net/identity.rs` (`wallet_address`), `src/gui/pages/wallet.rs`, Settings > Wallet
 
 ### Token Swaps (Jupiter)
 Swap tokens via Jupiter aggregator API.

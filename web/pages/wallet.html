@@ -196,7 +196,7 @@
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple" data-i18n="wallet.eli5_simple">Your digital <span data-term="wallet">wallet</span> for sending, receiving, and managing crypto on <span data-term="Solana">Solana</span>.</div>
-  <div class="eli5-expert" data-i18n="wallet.eli5_expert">Self-custody Solana wallet derived from the same 24-word recovery phrase as your identity (Solana keys are Ed25519; your identity signature scheme is Dilithium3). Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
+  <div class="eli5-expert" data-i18n="wallet.eli5_expert">Self-custody Solana wallet. Its Ed25519 key is derived from your recovery phrase under its own label (BLAKE3 derive_key, hum/ed25519-wallet/v1), separate from your Dilithium3 identity key, so exporting the wallet key exposes nothing else. Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
 </div>
 <p class="page-hint" data-i18n="wallet.page_hint">Manage your Solana wallet. Send and receive SOL and tokens, swap between assets, stake for rewards, and view your NFTs.</p>
 
@@ -205,7 +205,7 @@
   <div id="wallet-no-identity" class="wallet-no-identity" style="display:none;">
     <h2 data-i18n="wallet.no_identity_title">Connect to the network first</h2>
     <p><span data-i18n="wallet.visit_before">Visit the</span> <a href="/chat" data-i18n="nav.chat" data-i18n-tip="wallet.chat_link_hint" data-tip-desc="Opens Chat, where you can make your identity or bring in one you already have.">Chat</a> <span data-i18n="wallet.visit_after">page to create or import your identity.</span><br>
-    <span data-i18n="wallet.key_is_wallet">Your identity key doubles as your Solana wallet, no extra setup needed.</span></p>
+    <span data-i18n="wallet.key_from_phrase">Your wallet has a key of its own, made from your recovery phrase, so there is nothing extra to set up.</span></p>
   </div>
 
   <!-- Main wallet UI (hidden until identity confirmed) -->
@@ -493,6 +493,8 @@
   })();
 </script>
 <script src="/shared/hold-confirm.js?v=1"></script>
+<!-- The identity seed the wallet key is derived from (getPqRecoverySeed) -->
+<script src="/shared/pq-relay-auth.js?v=2"></script>
 <script src="/pages/wallet-app.js"></script>
 </body>
 </html>

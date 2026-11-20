@@ -322,7 +322,9 @@
 
   /**
    * The 32 bytes the recovery phrase writes down, for the Recovery page (/recovery, 2026-10-21),
-   * which splits them into pieces for trusted people and opens the pieces it keeps for others.
+   * which splits them into pieces for trusted people and opens the pieces it keeps for others,
+   * and for the Wallet and Settings pages, which derive the wallet's own key from them
+   * (web/shared/wallet.js walletKeyFromSeed, 2026-11-19).
    * Null without a readable key (the same cases as getPqIdentity). Kept only as long as the page
    * needs it; never sent anywhere.
    * @returns {Promise<Uint8Array|null>}

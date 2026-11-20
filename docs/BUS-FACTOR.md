@@ -80,7 +80,7 @@ If GitHub vanishes: deploy continues from Forgejo (`git push forge main` already
 The full reasoning lives in `data/coordination/orchestrator_state.json` `recent_decisions`. The high-leverage ones a successor should know:
 
 1. **Single Rust crate, feature flags.** No workspace. `native`, `relay`, `wasm` features control what's built. Pre-v0.90 had `server/`, `native/`, `crates/`, gone, do not recreate.
-2. **Identity = Dilithium3 (ML-DSA-65) post-quantum.** Ed25519 is now ONLY the BIP39 seed source + Solana wallet derivation. DMs = pure Kyber768. See CLAUDE.md "Cryptography" section.
+2. **Identity = Dilithium3 (ML-DSA-65) post-quantum.** Ed25519 is now ONLY the Solana wallet, its key derived from the identity seed under its own label (2026-11-19), and one half of the hybrid release signature (a separate key). DMs = pure Kyber768. See CLAUDE.md "Cryptography" section.
 3. **No home server.** Profiles are signed objects gossiped between federated servers. Any server can cache; latest timestamp wins.
 4. **Data-driven everything.** Anything that can exist more than once is a data file (CSV/TOML/RON/JSON in `data/`), not Rust code. See `docs/design/infinite-of-x.md`.
 5. **One theme source.** `data/gui/theme.ron` is canonical. Native reads directly; web's `theme.css` is regenerated. Don't hand-edit `theme.css`.
