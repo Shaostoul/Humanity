@@ -374,8 +374,13 @@ rewrites it from `Cargo.lock` and the local copies of each package, with no down
 linked package arrives under a licence nobody has reviewed. Which licences those are, and what each
 asks of an AGPL-3.0 program:
 [`docs/reference/findings/2026-11-20-dependency-licences-and-agpl.md`](docs/reference/findings/2026-11-20-dependency-licences-and-agpl.md).
-The two Microsoft shader compiler files beside the Windows program are a separate matter
-(the DPG application's thin spots table, `docs/outreach/dpg-application.md`).
+The two shader compiler files beside the Windows program, `dxcompiler.dll` and `dxil.dll` (the
+DirectX Shader Compiler, by Microsoft), are built by this project from DXC's open source
+(`.github/workflows/build-dxc.yml`), under the University of Illinois/NCSA Open Source License.
+That licence travels beside each file in the download as `dxcompiler.LICENSE.txt` and
+`dxil.LICENSE.txt`, with DXC's `dxc.ThirdPartyNotices.txt` and the build record
+`dxc.BUILD-INFO.txt`. Why we build them ourselves:
+[`docs/reference/findings/2026-11-21-dxc-redistribution.md`](docs/reference/findings/2026-11-21-dxc-redistribution.md).
 
 ## The project's own code
 

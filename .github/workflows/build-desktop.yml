@@ -72,6 +72,8 @@ jobs:
 
       - name: Bundle binary with data
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p dist/HumanityOS/assets
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/HumanityOS/${{ matrix.asset_name }}
@@ -79,25 +81,34 @@ jobs:
           # without needing tar.gz extraction (BUG-034 fix, v0.124.0).
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
           # DXC shader compiler DLLs (v0.865, Windows only): the exe prefers DXC
-          # when dxcompiler.dll + dxil.dll sit beside it (boot ~25 s -> ~5 s;
-          # graceful FXC fallback without them). The hosted runner's Windows SDK
-          # ships both; bundle the newest.
-          # LICENCE (2026-11-21): NOT MIT, and NOT redistributable as copied here.
-          # DXC's own licence is University of Illinois/NCSA; this copy, from the
-          # SDK's bin folder, falls under the Windows SDK licence and is not on its
-          # REDIST.TXT list, and nothing travels with it. Which compliant source to
-          # switch to is the operator's decision:
-          # docs/reference/findings/2026-11-21-dxc-redistribution.md.
-          # scripts/tests/shipped-library-licences.test.js pins this pair as its one
-          # exception and fails on any other library shipped without a licence.
+          # when dxcompiler.dll + dxil.dll sit beside it (boot ~25 s -> ~5 s, and
+          # the clouds need it; FXC fallback without them).
+          # SOURCE AND LICENCE (2026-11-20): our own build of DXC from Microsoft's
+          # open source (NCSA licence), made by .github/workflows/build-dxc.yml and
+          # published as the asset release assets-dxc-<tag>. Not the Windows SDK's
+          # copies (its licence does not let us hand them out) and not DXC's own
+          # release zip (it also carries a Microsoft licence without saying which
+          # file it covers): docs/reference/findings/2026-11-21-dxc-redistribution.md.
+          # The zip is pinned by SHA-256; a new DXC version means a new build-dxc
+          # run and both values below changed together. DXC's LICENSE.TXT ships
+          # beside each DLL (scripts/tests/shipped-library-licences.test.js fails on
+          # a library shipped without a licence named for it), with its third-party
+          # notices and the build record. A missing or mismatched zip fails the build
+          # rather than shipping a download without the fast compiler.
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            SDKBIN=$(ls -d "/c/Program Files (x86)/Windows Kits/10/bin/"10.*/x64 2>/dev/null | sort -V | tail -1)
-            if [[ -n "$SDKBIN" && -f "$SDKBIN/dxcompiler.dll" && -f "$SDKBIN/dxil.dll" ]]; then
-              cp "$SDKBIN/dxcompiler.dll" "$SDKBIN/dxil.dll" dist/HumanityOS/
-              echo "Bundled DXC from $SDKBIN"
-            else
-              echo "WARNING: Windows SDK DXC DLLs not found; bundle will fall back to FXC (slow boot)"
-            fi
+            DXC_TAG="v1.9.2609"
+            DXC_ZIP_SHA256="060f6a99aec5faaec9cb6c6ae12857abe6270a3dff9e5ec3894912b51d3fdcc2"
+            DXC_ZIP="dxc-$DXC_TAG-windows-x64.zip"
+            gh release download "assets-dxc-$DXC_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$DXC_ZIP" --dir dxc-dl
+            echo "$DXC_ZIP_SHA256  dxc-dl/$DXC_ZIP" | sha256sum -c -
+            7z x -y -odxc-dl "dxc-dl/$DXC_ZIP" > /dev/null
+            DXC="dxc-dl/dxc-$DXC_TAG-windows-x64"
+            cp "$DXC/dxcompiler.dll" "$DXC/dxil.dll" dist/HumanityOS/
+            cp "$DXC/LICENSE.TXT" dist/HumanityOS/dxcompiler.LICENSE.txt
+            cp "$DXC/LICENSE.TXT" dist/HumanityOS/dxil.LICENSE.txt
+            cp "$DXC/ThirdPartyNotices.txt" dist/HumanityOS/dxc.ThirdPartyNotices.txt
+            cp "$DXC/BUILD-INFO.txt" dist/HumanityOS/dxc.BUILD-INFO.txt
+            echo "Bundled DXC $DXC_TAG, built from source (assets-dxc-$DXC_TAG)"
           fi
           # Copy game data and assets.
           #

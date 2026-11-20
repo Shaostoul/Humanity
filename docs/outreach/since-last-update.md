@@ -35,8 +35,10 @@ Each line is written the way a player would hear it; the release notes and
 - The Music page plays Für Elise, Grieg's In the Hall of the Mountain King (his piano arrangement) and the first movement of Beethoven's Fifth, with repeats, grace notes and dynamics.
 - Every open-source library inside the app now has its licence and copyright notice in the download and on the Credits page.
 - The simulation gives the same result every time for the same starting point, so the game's checks can trust it.
+- The Windows download's shader compiler (the part that makes startup fast and draws the clouds) is now built by the project from Microsoft's open-source code, with its licence beside it, instead of copied from a Microsoft kit whose licence did not allow passing it on.
 
 ### Outreach
 
 - HumanityOS is listed on AlternativeTo (approved 18 November 2026), next to Discord, Element, Signal, Telegram and other chat apps: https://alternativeto.net/software/humanityos/about/
 - The project now says who holds the copyright: Shaostoul and the HumanityOS contributors, each keeping what they wrote, so nobody can take it private.
+- A code of conduct covers the project's GitHub and Discord with the same rules as united-humanity.us, and says how to report harassment and appeal a decision.

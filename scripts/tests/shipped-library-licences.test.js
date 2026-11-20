@@ -22,10 +22,13 @@
 // mention of a library in the workflow (a `7z a` of one, a recursive `cp -r` into the download, whose
 // contents this check cannot see) fails as unknown, so a new way in has to teach this check first.
 //
-// THE ONE EXCEPTION, `PENDING`: the DXC pair, shipped today without a licence while the operator
-// chooses a compliant source (the finding's options). It names the finding, and the fourth check
-// fails as soon as an exception is no longer needed (the pair gone, or shipped with its licence), so
-// the exception cannot outlive the fix: whoever lands it deletes the entry.
+// EXCEPTIONS, `PENDING`: a library shipped without a licence while a decision is pending, each naming
+// its finding; the fourth check fails as soon as an exception is no longer needed (the library gone,
+// or shipped with its licence), so an exception cannot outlive its fix. Empty since 2026-11-20: the
+// DXC pair, its one entry, now comes from our own build of DXC's open source (build-dxc.yml) with
+// DXC's LICENSE.TXT beside each file. Seen at the switch: with the entry still present, "every
+// exception is still needed" failed with "dxcompiler.dll is no longer shipped without a licence:
+// delete its PENDING entry"; emptied, all seven checks pass.
 //
 // SEEN RED (2026-11-21), each check with its part of the fix removed (a mutated copy run by hand):
 //   - `PENDING` emptied: "the desktop download's libraries each carry a licence" failed with
@@ -53,11 +56,10 @@ const WORKFLOW = ".github/workflows/build-desktop.yml";
 const DOWNLOAD = "dist/HumanityOS";
 const FINDING = "docs/reference/findings/2026-11-21-dxc-redistribution.md";
 
-/** Shipped today without a licence, each waiting on the decision its finding names. Download paths. */
-const PENDING = new Map([
-  ["dxcompiler.dll", FINDING],
-  ["dxil.dll", FINDING],
-]);
+/** Shipped today without a licence, each waiting on the decision its finding names. Download paths.
+ * Empty since 2026-11-20 (the DXC pair, its last entry, ships with its licence); an entry looks like
+ * `["dxcompiler.dll", FINDING]`. */
+const PENDING = new Map([]);
 
 /** A library file by its name: Windows DLLs, Linux shared objects (versioned too), macOS dylibs. */
 const isLibrary = (name) => /\.(dll|dylib)$/i.test(name) || /\.so(\.\d+)*$/i.test(name);
