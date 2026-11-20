@@ -19,6 +19,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const PLAT = require("../lib/platform.js");
 const { spawnSync } = require("node:child_process");
 
 const REPO = path.resolve(__dirname, "..", "..");
@@ -144,7 +145,7 @@ function rigScript(file, dir, { keepOpen }) {
     w.child.unref();
     require("fs").writeFileSync(${JSON.stringify(path.join(dir, "game.pid"))}, String(w.pid));
     // Registered straight after the spawn, as probe-sweep does: the rig stops its game on the way out.
-    process.on("exit", () => { if (!${keepOpen}) { w.expectExit(); try { execSync("taskkill /PID " + w.pid + " /T /F", { stdio: "ignore" }); } catch {} } });
+    process.on("exit", () => { if (!${keepOpen}) { w.expectExit(); require(${JSON.stringify(path.join(REPO, "scripts", "lib", "platform.js"))}).killTree(w.pid, { force: true }); } });
     setTimeout(() => process.exit(0), 1500);
   `;
 }
@@ -178,7 +179,7 @@ test("a boot kept open waits as pending, and whoever closes it finishes the line
     assert.ok(!fs.existsSync(pending));
   } finally {
     try {
-      require("node:child_process").execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(pid, { force: true });
     } catch {}
   }
 });

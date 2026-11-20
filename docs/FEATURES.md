@@ -5945,6 +5945,19 @@ passes it did not cover.
 - Tests: `scripts/tests/rig-needs.test.js`, `machine-guard.test.js`, `game-launch.test.js`,
   `perf-report.test.js` (`just rig-tests`); `src/engine/low_impact.rs` tests (`just test-lib low_impact`)
 
+### The dev tooling on Linux and macOS (2026-11-20)
+The rigs, the machine guard, game launch and the build slot ask one module for the OS instead of
+speaking Windows: the binary's name (`HumanityOS.exe` or `HumanityOS`), the process list (the CIM
+query on Windows, /proc on Linux, `ps` on macOS), ending a process tree, a process's start time and
+lowering a priority. Windows runs the same commands as before. The build slot measures memory and a
+compile's tree from /proc on Linux; macOS keeps a stub that says it does not wait. CI runs every node
+rig test on Linux and the headless `--sim soak` and `--sim walk` on a Linux build.
+- Code: `scripts/lib/platform.js`, `scripts/lib/machine-guard.js`, `scripts/lib/game-launch.js` (point 9),
+  `scripts/build-slot/hos-build-slot.rs` (`procfs`), `.github/workflows/verify.yml` (`tooling-linux`, `native-linux`)
+- Design: `docs/design/cross-platform-dev.md`
+- Tests: `scripts/tests/platform.test.js`, `scripts/tests/platform-sweep.test.js` (no script speaks Windows
+  by itself), `machine-guard.test.js`, `build-slot.test.js` (`just rig-tests`)
+
 ### Hidden Rig Windows and the Boot Ledger (2026-11-14)
 A developer's script boot no longer shows on the operator's screen, and every boot is counted. A
 background boot asked to be quiet (`HUMANITY_NO_FOCUS` or the `no_focus.txt` marker: every rig,

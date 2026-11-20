@@ -100,6 +100,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, execSync } = require("child_process");
 const G = require("./rig-graphics.js");
 // ONE MACHINE, for the whole sweep. See scripts/lib/machine-guard.js: the
@@ -175,7 +176,7 @@ const DEFAULT_RIG = SHIPPED_ASSETS
   ? path.join(process.env.LOCALAPPDATA || require("os").tmpdir(), "HumanityOS-probe-rig-shipped")
   : path.join(REPO, ".probe-rig");
 const RIG = path.resolve(opt("--rig", DEFAULT_RIG));
-const EXE_SRC = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE_SRC = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const ONLY = opt("--only", "").split(",").map((s) => s.trim()).filter(Boolean);
 // --vantages FILE: read the vantage list from another file of the same shape
 // ({"vantages": [...]}) instead of tests/visual/vantages.json. For one-off
@@ -392,7 +393,7 @@ function setupRig() {
     // leftover of ours, never the operator's game: clear it, then copy.
     // The file lock can outlive the kill by several seconds; the shared copy
     // (scripts/lib/rig-exe-copy.js) waits it out for up to a minute.
-    copyExeIntoRig(EXE_SRC, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
+    copyExeIntoRig(EXE_SRC, path.join(RIG, PLAT.EXE_NAME), { stop: killRigProcesses, log });
     // The DXC shader compiler dlls drop boot from ~25 s (FXC) to ~5 s. They
     // come from beside the exe or else the repo root (target/release, the
     // default exe's folder, holds none), through the one shared lookup,
@@ -407,22 +408,15 @@ function setupRig() {
   // The copy is what boots, so the copy is what must match (BUG-133): the gate
   // judged EXE_SRC moments ago, and a build finishing since would have put
   // different bytes here.
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "probe-sweep");
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, "probe-sweep");
 }
 
 // Kill every process whose executable IS the rig's exe copy. Safe by
 // construction: only sweeps launch from .probe-rig, so the operator's own
 // game (repo root / installed path) can never match.
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" },
-    );
-  } catch {
-    /* none running, or PowerShell hiccup: the copy retry still covers us */
-  }
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 
 // ── IPC helpers: write a request json, poll for its done json. ──
@@ -694,7 +688,7 @@ async function main() {
   // later) can never deadlock this. Recorded in the manifest either way: a
   // sweep that sat waiting 150 s ran NEXT TO somebody, which is worth knowing
   // when its numbers are compared with one that did not.
-  const rigExePath = path.join(RIG, "HumanityOS.exe");
+  const rigExePath = path.join(RIG, PLAT.EXE_NAME);
   // How this sweep boots (lib/rig-needs.js): a picture sweep waits for the operator's program and
   // refuses low impact; a --boot-check runs light beside it.
   BOOT_PLAN = BOOT_CHECK ? RN.planOrRefuse("verify-runtime", { log }) : RN.planOrRefuse("probe-sweep", { log });
@@ -760,7 +754,7 @@ async function main() {
   // The Dev mode and the default home every launch first (lib/rig-gameplay.js; fresh installs
   // are Normal with progress kept since 2026-10-04), so the record below holds what the game
   // runs with. spawnGame pins them again right before the boot, whatever happens in between.
-  RG.pinSandboxGameplay(path.join(RIG, "HumanityOS.exe"), process.env, {}, log, "probe-sweep");
+  RG.pinSandboxGameplay(path.join(RIG, PLAT.EXE_NAME), process.env, {}, log, "probe-sweep");
   const gfx = prepareGraphics();
 
   log(`launching ${path.basename(EXE_SRC)} in ${RIG}`);
@@ -769,7 +763,7 @@ async function main() {
   // once more, immediately before the spawn; always sets HUMANITY_NO_HANDOFF;
   // and watches for an exit we did not ask for (and the hand-off an older
   // build makes on the way out).
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh: FRESH,
     rigName: "probe-sweep",
     lowImpact: BOOT_PLAN.lowImpact,
@@ -833,7 +827,7 @@ async function main() {
       // itself, and killing only the recorded pid left that copy running,
       // holding the rig exe locked so the NEXT sweep died at copyfile with
       // EBUSY (three zombies in one session, 2026-08-17).
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(pid, { force: true });
     } catch {
       /* already gone */
     }
@@ -1635,7 +1629,7 @@ async function main() {
     // WHICH BINARY (BUG-133): what the freshness gate judged, the copy that
     // booted (byte-identical, checked), and, for a deliberate other-build run,
     // the --allow-other-build record. verify-runtime reads other_build from here.
-    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     shipped_assets: SHIPPED_ASSETS,
     shipped_ok,
@@ -1689,8 +1683,8 @@ async function main() {
     log(`!! build shared this machine during their capture windows. Their fps / frame_ms / cpu.* / gpu.*`);
     log(`!! figures are NOT readings of this build; perf-report.js will refuse to grade them. Re-run when`);
     log(`!! the machine is free (the guard now waits for you before booting):`);
-    log(`!!   tasklist //FI "IMAGENAME eq HumanityOS.exe"`);
-    log(`!!   tasklist //FI "IMAGENAME eq cargo.exe"   &&  tasklist //FI "IMAGENAME eq rustc.exe"`);
+    log(`!!   ${PLAT.listCommand("humanityos")}`);
+    log(`!!   ${PLAT.listCommand("cargo")}   &&  ${PLAT.listCommand("rustc")}`);
   } else if (preBoot.waited_s > 0) {
     log(`machine guard: waited ${preBoot.waited_s} s before boot, clean capture windows after that.`);
   }

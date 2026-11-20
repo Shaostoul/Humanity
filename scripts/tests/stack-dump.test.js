@@ -56,7 +56,9 @@ test("a hung test program's dump names the stuck test's thread and where it is s
   } finally {
     if (child) child.kill();
     await new Promise((r) => setTimeout(r, 300));
-    fs.rmSync(dir, { recursive: true, force: true });
+    // Retried (2026-11-20): under load Windows can hold the killed program's exe a moment longer than
+    // 300 ms, and the removal failed EPERM inside a just verify run while the test itself passed.
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 });
 

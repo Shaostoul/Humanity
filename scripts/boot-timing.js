@@ -61,6 +61,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // What this rig needs from the machine (2026-10-22, lib/rig-needs.js): it judges times (how long a boot takes), so while
@@ -83,7 +84,7 @@ const opt = (name, def) => {
 };
 
 const RUNS = Math.max(1, Number(opt("--runs", "3")));
-const EXE_SRC = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE_SRC = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 // Its own rig, nested inside .probe-rig so the existing gitignore covers it and
 // so a concurrent probe-sweep never fights this run over the same exe copy.
 const RIG = path.resolve(opt("--rig", path.join(REPO, ".probe-rig", "boot")));
@@ -126,16 +127,8 @@ function ensureJunction(link, target) {
 }
 
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | ` +
-        `Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" }
-    );
-  } catch {
-    /* nothing of ours was running */
-  }
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 
 function setupRig() {
@@ -160,9 +153,9 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
-  fs.copyFileSync(EXE_SRC, path.join(RIG, "HumanityOS.exe"));
+  fs.copyFileSync(EXE_SRC, path.join(RIG, PLAT.EXE_NAME));
   // Every run boots this copy, so it must be what the gate judged.
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "boot-timing");
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, "boot-timing");
   // DXC beside the exe: without it the DX12 backend falls back to FXC and
   // every shader compile takes four times as long, which looks exactly like a
   // regression. Copying it is not optional for a boot measurement.
@@ -223,7 +216,7 @@ async function oneRun(n) {
   // spawnGame: the copy is checked against the judged bytes right before the
   // spawn, and HUMANITY_NO_HANDOFF=1 times this copy, never a newer
   // v*_HumanityOS.exe; an exit we did not ask for is watched for.
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh: FRESH,
     rigName: "boot-timing",
     log,
@@ -499,7 +492,7 @@ function report(runs) {
         exe: EXE_SRC,
         // Which binary was timed (BUG-133), and the record of a deliberate
         // other-build arm.
-        binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+        binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
         ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
         runs,
       },

@@ -51,6 +51,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const PLAT = require("../lib/platform.js");
 const crypto = require("node:crypto");
 const { spawn, spawnSync, execSync } = require("node:child_process");
 
@@ -90,7 +91,7 @@ async function until(fn, ms = 15000) {
 }
 const kill = (pid) => {
   try {
-    execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+    PLAT.killTree(pid, { force: true });
   } catch {}
 };
 /** A probe rig leaves junctions to the tree's data/ and assets/: remove those as links before
@@ -153,7 +154,7 @@ test("the lock is taken when free, names this process and its start time, is re-
   const rec = JSON.parse(fs.readFileSync(f, "utf8"));
   assert.strictEqual(rec.pid, process.pid);
   assert.strictEqual(rec.rig, "this-test");
-  if (process.platform === "win32") assert.ok(Number.isFinite(rec.start_ms), "the start time is recorded, so a reused pid can be told apart");
+  if (process.platform === "win32" || process.platform === "linux") assert.ok(Number.isFinite(rec.start_ms), "the start time is recorded, so a reused pid can be told apart");
   // A second boot in the same rig (verify-copresence, make-clips, boot-timing boot several times).
   const again = BL.tryAcquire(f, { rig: "this-test" });
   assert.strictEqual(again.ok, true);
@@ -181,7 +182,7 @@ test("RED: a lock held by another live rig is not quiet: the guard waits, names 
     // The one refusal every rig gives, with the reader's way out.
     const refusal = MG.refusalLines(w, { rig: "this-test" });
     assert.strictEqual(refusal[0], "this-test: REFUSED: the machine never went quiet in 1 s; nothing was booted.");
-    assert.ok(refusal.some((l) => l.includes(`taskkill //PID ${other.pid}`)), refusal.join("\n"));
+    assert.ok(refusal.some((l) => l.includes(PLAT.killCommand(other.pid))), refusal.join("\n"));
     assert.ok(refusal.some((l) => /says nothing about the build/.test(l)));
     assert.strictEqual(JSON.parse(fs.readFileSync(f, "utf8")).pid, other.pid, "the holder's lock is untouched");
   } finally {

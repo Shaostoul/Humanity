@@ -49,6 +49,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // What this rig needs from the machine (2026-10-22, lib/rig-needs.js): it judges the picture (clips for social media), so while
@@ -70,7 +71,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const ONLY = opt("--only", null);
 const SHOTS = path.resolve(opt("--shots", path.join(__dirname, "clips.json")));
 const RIG_DEFAULTS = args.includes("--rig-defaults");
@@ -124,13 +125,13 @@ function preflight() {
   const running = MG.listInstances();
   if (running.length) {
     refuse([
-      `REFUSED: HumanityOS.exe is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
+      `REFUSED: ${PLAT.EXE_NAME} is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
       "One GPU, one instance (CLAUDE.md). Close it, then run again.",
     ]);
   }
   // Refuses low impact; waits for the operator's program (lib/rig-needs.js).
   const plan = RN.planOrRefuse("make-clips");
-  RN.waitForOperator(plan, { exe: path.join(RIG, "HumanityOS.exe") });
+  RN.waitForOperator(plan, { exe: path.join(RIG, PLAT.EXE_NAME) });
   if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
   // This tree's build, or another on purpose (--allow-other-build "<why>").
   // Before the rig is touched, so a refusal changes nothing.
@@ -162,13 +163,8 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" }
-    );
-  } catch {}
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 function setupRig() {
   fs.mkdirSync(DEBUG, { recursive: true });
@@ -178,9 +174,9 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
-  fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
+  fs.copyFileSync(EXE, path.join(RIG, PLAT.EXE_NAME));
   // What boots is the copy, so the copy must be what the gate judged.
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "make-clips");
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, "make-clips");
   // The DXC shader compiler: without it the fallback compiler is so slow that
   // world entry outlasts every timeout (first run, 2026-09-30: four minutes of
   // silence after boot). It sits beside the exe or, for target/release, in the
@@ -472,7 +468,7 @@ function launchGame(exe, argv, { cwd, env }) {
     // already belong to something else.
     if (!g.exit && g.pid) {
       try {
-        execSync(`taskkill /PID ${g.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(g.pid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -499,7 +495,7 @@ async function main() {
     exe: EXE,
     // Which binary these clips are of (BUG-133), and the record of a
     // deliberate other-build run.
-    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     clips: [],
     panics: 0,
@@ -507,7 +503,7 @@ async function main() {
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in the background rig`);
-  game = launchGame(path.join(RIG, "HumanityOS.exe"), [], {
+  game = launchGame(path.join(RIG, PLAT.EXE_NAME), [], {
     cwd: RIG,
     // (spawnGame adds HUMANITY_NO_HANDOFF: run this copy, never a newer v*_HumanityOS.exe.)
     env: { ...process.env, HUMANITY_NO_FOCUS: "1" },

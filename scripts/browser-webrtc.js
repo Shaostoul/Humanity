@@ -43,6 +43,7 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const PLAT = require('./lib/platform.js');
 const { spawn, execFileSync } = require('node:child_process');
 
 /** Where Chrome and Edge install on Windows, in the order tried. */
@@ -117,16 +118,13 @@ function consoleLine(args) {
   return (args || []).map((a) => (a.value !== undefined ? (typeof a.value === 'string' ? a.value : JSON.stringify(a.value)) : a.description || a.type)).join(' ');
 }
 
-/** The PIDs of the processes whose command line holds `needle` (Windows; [] elsewhere or on error). */
+/** The PIDs of the processes whose command line holds `needle` ([] on error). Through lib/platform.js
+ *  (2026-11-20): the CIM query on Windows, /proc or ps elsewhere, where it used to answer [] always. */
 function pidsWith(needle) {
-  if (process.platform !== 'win32') return [];
-  try {
-    const ps = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${needle.replace(/'/g, "''")}') } | ForEach-Object { $_.ProcessId }`;
-    const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
-    return out.split(/\r?\n/).map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0 && n !== process.pid);
-  } catch {
-    return [];
-  }
+  return PLAT.listProcesses()
+    .filter((p) => p.cmd && p.cmd.includes(needle))
+    .map((p) => p.pid)
+    .filter((n) => Number.isInteger(n) && n > 0 && n !== process.pid);
 }
 
 /** The UDP sockets `pids` hold, from netstat (Windows), e.g. ["127.0.0.1:53121", ...]. */
@@ -221,10 +219,7 @@ async function main() {
     for (let i = 0; i < 50 && !exited; i++) await sleep(100);
     if (!exited) {
       console.log(`[browser] did not close in 5 s: killing PID ${child.pid} and its tree`);
-      try {
-        if (process.platform === 'win32') execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
-        else child.kill('SIGKILL');
-      } catch { /* gone meanwhile */ }
+      PLAT.killTree(child.pid, { force: true }); // gone meanwhile is fine
     }
     // Anything still running on this run's profile is this run's (a helper process that outlived
     // the browser): killed by PID. The operator's own browser never has this folder in its command line.
@@ -233,7 +228,7 @@ async function main() {
       if (!left.length) break;
       console.log(`[browser] killing leftover process(es) of this run: ${left.join(', ')}`);
       for (const pid of left) {
-        try { execFileSync('taskkill', ['/PID', String(pid), '/F'], { stdio: 'ignore', windowsHide: true }); } catch { /* gone */ }
+        PLAT.killTree(pid, { tree: false });
       }
       await sleep(500);
     }

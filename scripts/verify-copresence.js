@@ -253,6 +253,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, spawnSync, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // What this rig needs from the machine (2026-10-22): its checks are about behaviour, so while one
@@ -350,7 +351,7 @@ const opt = (name, def) => {
 };
 const flag = (name) => args.includes(name);
 const KEEP_OPEN = flag("--keep-open");
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 // A --plots run boots the game twice (the second boot proves the remembered plot) and walks
 // the meeting and the 1b legs between: 20 minutes per join order by default. A --build run boots
 // it once and builds for a few minutes: 15. A --household run boots it once and walks, clicks and
@@ -434,7 +435,7 @@ const FIRST_RUN_BUTTONS = ["Use this privacy level"];
 const RIG = path.join(REPO, ".probe-rig", "copresence");
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
-const RIG_EXE = path.join(RIG, "HumanityOS.exe");
+const RIG_EXE = path.join(RIG, PLAT.EXE_NAME);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad = (s, n) => String(s).padEnd(n);
@@ -623,10 +624,10 @@ const BOOT_PLAN = RN.planOrRefuse("verify-copresence", { log });
 const instances = MG.blockingInstances(BOOT_PLAN.own);
 if (instances.length) {
   refuse([
-    `REFUSED: HumanityOS.exe is already running (${instances.map((p) => `pid ${p.pid} ${p.exe}`).join("; ")}).`,
+    `REFUSED: ${PLAT.EXE_NAME} is already running (${instances.map((p) => `pid ${p.pid} ${p.exe}`).join("; ")}).`,
     "One GPU, one instance (CLAUDE.md). This rig also starts a headless relay from the same",
     "binary, so a leftover of either would be counted twice. Wait for it to exit, then run again.",
-    "If it is a leftover rig of ours: taskkill //PID <pid> //F",
+    `If it is a leftover rig of ours: ${PLAT.killCommand("<pid>", { force: true })}`,
   ]);
 }
 RN.waitForOperator(BOOT_PLAN, { exe: RIG_EXE, log });
@@ -654,13 +655,7 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = RIG_EXE.replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" },
-    );
-  } catch {}
+  PLAT.killByExe(RIG_EXE); // lib/platform.js: PowerShell's Get-Process on Windows, the process list elsewhere
 }
 /** A BRAND-NEW IDENTITY EVERY RUN (2026-11-15, BUG-316; scripts/lib/rig-identity.js says why).
  *  Each run, every mode, at setupRig: the sandbox's config.json and the autopilot's seed are
@@ -844,13 +839,13 @@ async function main() {
     killed = true;
     if (walker && walker.exitCode === null) {
       try {
-        execSync(`taskkill /PID ${walker.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(walker.pid, { force: true });
       } catch {}
     }
     if (gamePid) {
       if (game) game.expectExit(); // our own stop: not a hand-off to look for
       try {
-        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(gamePid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -1144,7 +1139,7 @@ async function main() {
   else
     log(
       `--keep-open: the game (pid ${gamePid}) is still running; the relay stopped with this script (its helper cleans it up on exit), ` +
-        `so the game shows no other player now. taskkill //PID ${gamePid} //T //F`,
+        `so the game shows no other player now. ${PLAT.killCommand(gamePid, { tree: true, force: true })}`,
     );
   const outcome = printVerdict("RESULT: ", manifest, OUT);
   if (outcome === "contaminated") contaminatedHelp(OUT);
@@ -1905,7 +1900,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     if (gamePid) {
       if (plotsGame) plotsGame.expectExit(); // our own stop: not a hand-off to look for
       try {
-        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(gamePid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -1916,7 +1911,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     for (const w of walkers) {
       if (w.exitCode !== null) continue;
       try {
-        execSync(`taskkill /PID ${w.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(w.pid, { force: true });
       } catch {}
     }
     killGame();
@@ -1993,7 +1988,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const code = await Promise.race([walkerExit, sleep(10000).then(() => "still running")]);
     if (code === "still running") {
       try {
-        execSync(`taskkill /PID ${walker.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(walker.pid, { force: true });
       } catch {}
       return false;
     }
@@ -2223,7 +2218,7 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     const code = await Promise.race([new Promise((r) => child.on("exit", r)), sleep(60000).then(() => "still running")]);
     if (code === "still running") {
       try {
-        execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(child.pid, { force: true });
       } catch {}
     }
     const plotLine = lines.map((l) => l.match(/home_plot (null|missing|\{.*\})/)).find(Boolean);
@@ -3419,7 +3414,7 @@ function makeWalkerPool(serverUrl) {
       const code = await Promise.race([b.exit, sleep(10000).then(() => "still running")]);
       if (code === "still running") {
         try {
-          execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+          PLAT.killTree(b.child.pid, { force: true });
         } catch {}
       }
     }
@@ -3429,7 +3424,7 @@ function makeWalkerPool(serverUrl) {
     for (const b of builders) {
       if (b.child.exitCode !== null) continue;
       try {
-        execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(b.child.pid, { force: true });
       } catch {}
     }
   };
@@ -3488,7 +3483,7 @@ async function runBuildOnce(runStamp, cleanups) {
     if (gamePid) {
       if (game) game.expectExit(); // our own stop: not a hand-off to look for
       try {
-        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(gamePid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -3499,7 +3494,7 @@ async function runBuildOnce(runStamp, cleanups) {
     for (const b of builders) {
       if (b.child.exitCode !== null) continue;
       try {
-        execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(b.child.pid, { force: true });
       } catch {}
     }
     killGame();
@@ -4255,7 +4250,7 @@ async function runHouseholdOnce(runStamp, cleanups) {
     if (gamePid) {
       if (game) game.expectExit(); // our own stop: not a hand-off to look for
       try {
-        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(gamePid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -5160,7 +5155,7 @@ async function runStartsOnce(runStamp, cleanups) {
     if (gamePid) {
       if (game) game.expectExit(); // our own stop: not a hand-off to look for
       try {
-        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(gamePid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -5255,7 +5250,7 @@ async function runStartsOnce(runStamp, cleanups) {
     const code = await Promise.race([b.exit, sleep(10000).then(() => "still running")]);
     if (code === "still running") {
       try {
-        execSync(`taskkill /PID ${b.child.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(b.child.pid, { force: true });
       } catch {}
       return false;
     }

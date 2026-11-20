@@ -28,6 +28,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { execSync, execFileSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const RN = require("./lib/rig-needs.js");
@@ -44,7 +45,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const NO_WAIT = args.includes("--no-wait");
 const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
 const TIMEOUT_MS = Number(opt("--timeout-min", "25")) * 60 * 1000;
@@ -156,8 +157,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   for (const d of ["saves", "backups"]) fs.rmSync(path.join(RIG, d), { recursive: true, force: true });
-  fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, RIG_NAME);
+  fs.copyFileSync(EXE, path.join(RIG, PLAT.EXE_NAME));
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, RIG_NAME);
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   setupAi();
   for (const f of fs.readdirSync(DEBUG)) {
@@ -300,14 +301,14 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const OUT = path.join(RUNS, stamp);
   fs.mkdirSync(OUT, { recursive: true });
-  const run = { kind: RIG_NAME, stamp, exe: EXE, binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")), ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}), crew: CREW, battery: BATTERY, brains: [], error: null };
+  const run = { kind: RIG_NAME, stamp, exe: EXE, binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)), ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}), crew: CREW, battery: BATTERY, brains: [], error: null };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(run, null, 2));
   let game = null;
   const kill = () => {
     if (!game) return;
     game.expectExit();
     try {
-      execSync(`taskkill /PID ${game.child.pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(game.child.pid, { force: true });
     } catch {}
   };
   const watchdog = setTimeout(() => {
@@ -318,7 +319,7 @@ async function main() {
     process.exit(2);
   }, TIMEOUT_MS);
   try {
-    game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], { fresh: FRESH, rigName: "ai-talk", log, cwd: RIG, detached: true, stdio: "ignore", env: { ...process.env, HUMANITY_NO_FOCUS: "1" }, lowImpact: BOOT_PLAN.lowImpact });
+    game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], { fresh: FRESH, rigName: "ai-talk", log, cwd: RIG, detached: true, stdio: "ignore", env: { ...process.env, HUMANITY_NO_FOCUS: "1" }, lowImpact: BOOT_PLAN.lowImpact });
     game.child.unref();
     await waitBoot(game, 240000);
     WR.writeRequest(path.join(DEBUG, "autopilot_request.json"), {});
@@ -343,7 +344,7 @@ async function main() {
     if (game && !game.exited()) {
       game.expectExit();
       try {
-        execSync(`taskkill /PID ${game.child.pid} /T`, { stdio: "ignore" });
+        PLAT.killTree(game.child.pid, { force: false });
       } catch {}
       const t0 = Date.now();
       while (!game.exited() && Date.now() - t0 < 15000) await sleep(250);

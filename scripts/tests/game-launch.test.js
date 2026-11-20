@@ -20,6 +20,7 @@ const { spawnSync, execSync } = require("node:child_process");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const GL = require("../lib/game-launch.js");
+const P = require("../lib/platform.js");
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hos-game-launch-test-"));
 process.on("exit", () => fs.rmSync(tmpRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
@@ -84,7 +85,12 @@ test("spawnGame always runs the game with HUMANITY_NO_HANDOFF=1", async () => {
   assert.strictEqual(w.code, 0);
 });
 
-test("a game that hands itself off and exits is reported, and the hand-off is stopped", async () => {
+// Windows only: the hand-off is found by the parent id the handed-off process keeps after the game
+// exits, which only Windows keeps (off Windows an orphan goes to init at once), and the hand-off
+// itself (src/main.rs find_newer_exe, a v*_HumanityOS.exe in the main checkout) is the Windows
+// delivery's.
+const HANDOFF_SKIP = process.platform !== "win32" && "Windows only: an orphan keeps its parent id there alone, and the hand-off is the Windows delivery's";
+test("a game that hands itself off and exits is reported, and the hand-off is stopped", { skip: HANDOFF_SKIP }, async () => {
   // The stand-in for a newer archive in C:\Humanity: node under the name a
   // hand-off target has. Not "HumanityOS.exe", so no other rig's one-GPU guard
   // ever sees it.
@@ -113,16 +119,14 @@ test("a game that hands itself off and exits is reported, and the hand-off is st
     assert.ok(logs.some((l) => /HAND-OFF stopped/.test(l)), logs.join("\n"));
     assert.ok(await until(() => !alive(handoffPid), 5000), "the handed-off process is gone");
   } finally {
-    try {
-      execSync(`taskkill /PID ${handoffPid} /F`, { stdio: "ignore" });
-    } catch {}
+    P.killTree(handoffPid, { force: true });
   }
 });
 
 test("an exit the rig asked for is not treated as a hand-off", async () => {
   const w = GL.spawnGame(NODE, ["-e", "setTimeout(() => {}, 60000)"], { fresh: judged(NODE), rigName: "test", log: () => {} });
   w.expectExit();
-  execSync(`taskkill /PID ${w.pid} /F`, { stdio: "ignore" });
+  P.killTree(w.pid, { force: true });
   await until(() => w.exited());
   assert.deepStrictEqual(w.handoff, []);
 });

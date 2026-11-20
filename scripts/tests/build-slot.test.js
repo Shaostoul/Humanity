@@ -31,6 +31,10 @@ const SRC = path.join(REPO, "scripts", "build-slot", "hos-build-slot.rs");
 const FAKE = path.join(__dirname, "fixtures", "build-slot", "fake-rustc.js");
 const CACHE = path.join(REPO, "target", "test-cache");
 const windows = process.platform === "win32";
+// Linux measures memory and process start times from /proc since 2026-11-20 (the slot's header):
+// the queue, the line and the retry run there too. The job-object tests stay Windows'.
+const measured = windows || process.platform === "linux";
+const UNMEASURED = "the slot measures memory on Windows and Linux only (macOS keeps the no-wait stub)";
 
 /** The wrapper, built once per content of its source (cached like the lints). */
 function wrapper() {
@@ -94,7 +98,7 @@ test("the wrapper's own unit tests pass (rustc --test on its source)", () => {
   assert.match(r.stdout, /test result: ok/);
 });
 
-test("compiles started together take turns through the slot; with it off they die", { skip: !windows && "job objects and process checks are Windows" }, async () => {
+test("compiles started together take turns through the slot; with it off they die", { skip: !measured && UNMEASURED }, async () => {
   const exe = wrapper();
   // ON: 9 GB free, each needs 4 GB + 2 GB margin, so only one fits at a time.
   const on = tmp("queue_on");
@@ -138,7 +142,7 @@ test("compiles started together take turns through the slot; with it off they di
 // RED on the rule before the fix (its wrapper built from the parent commit's source, 2026-11-14):
 // nothing started; after 30 s the head was still "WAITING for memory: needs 14.1 GB + 2.0 GB
 // margin" with "Running: none of ours", and the two behind it waited with it.
-test("with none of ours running, a head the full margin does not fit starts, and the line follows", { skip: !windows && "process checks are Windows" }, async () => {
+test("with none of ours running, a head the full margin does not fit starts, and the line follows", { skip: !measured && UNMEASURED }, async () => {
   const exe = wrapper();
   const d = tmp("idle_head");
   const kids = [];
@@ -182,7 +186,7 @@ test("with none of ours running, a head the full margin does not fit starts, and
   }
 });
 
-test("an out-of-memory death is retried; an ordinary error is not, and is shown", { skip: !windows && "Windows" }, async () => {
+test("an out-of-memory death is retried; an ordinary error is not, and is shown", { skip: !measured && UNMEASURED }, async () => {
   const exe = wrapper();
   const d = tmp("retry");
   try {
@@ -226,7 +230,7 @@ test("an out-of-memory death is retried; an ordinary error is not, and is shown"
 // notices switched off (no port, the listing alone), 3 of 3 builds: "working set 76 MB (rustc alone
 // 76 MB)"; and RED again with TreeWatch::finish returning 0 (the evidence above), 2026-11-15: "the
 // tree's working set (75 MB) counts the linker beside rustc's own (75 MB)".
-test("real cargo, real rustc: a linked crate's ledger line counts the linker's working set too", { skip: !windows && "job objects are Windows" }, () => {
+test("real cargo, real rustc: a linked crate's ledger line counts the linker's working set too", { skip: !windows && "Windows job objects: /proc is looked at every 200 ms and a tiny link can end between two looks" }, () => {
   const exe = wrapper();
   const d = tmp("cargo_ws");
   try {

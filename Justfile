@@ -26,6 +26,10 @@ set windows-shell := ["C:/Apps/Git/usr/bin/bash.exe", "-c"]
 # there, which is why it only broke in his terminal.
 # Windows only: elsewhere PATH is kept as it is (a ";" there would fuse the first real folder into a
 # junk entry). HOS_GIT_USR_BIN overrides the folder for a Git installed elsewhere.
+# The game binary's file name (2026-11-20, docs/design/cross-platform-dev.md): HumanityOS.exe on Windows,
+# HumanityOS on Linux and macOS (scripts/lib/platform.js EXE_NAME is the scripts' copy of this).
+game_exe := if os_family() == "windows" { "HumanityOS.exe" } else { "HumanityOS" }
+
 export PATH := if os_family() == "windows" { env_var_or_default('HOS_GIT_USR_BIN', "C:\\Apps\\Git\\usr\\bin") + ";" + env_var('PATH') } else { env_var('PATH') }
 
 # List all recipes
@@ -1299,7 +1303,7 @@ launch:
 launch-bg:
     @node scripts/check-fresh-exe.js --quiet
     @node scripts/dxc-beside-exe.js
-    HUMANITY_NO_FOCUS=1 HUMANITY_NO_HANDOFF=1 ./target/release/HumanityOS.exe
+    HUMANITY_NO_FOCUS=1 HUMANITY_NO_HANDOFF=1 ./target/release/{{game_exe}}
 
 # Game days of the homestead's systems stepped in seconds, with no window, no GPU and no
 # listener (the headless sim runner, docs/design/headless-sim-runner.md): `just sim-soak` (7
@@ -1309,11 +1313,11 @@ launch-bg:
 # Simulation section runs the same soak from inside the app.
 sim-soak *args:
     @node scripts/check-fresh-exe.js --quiet
-    ./target/release/HumanityOS.exe --sim soak {{args}}
+    ./target/release/{{game_exe}} --sim soak {{args}}
 
 sim-ladder *args:
     @node scripts/check-fresh-exe.js --quiet
-    ./target/release/HumanityOS.exe --sim ladder {{args}}
+    ./target/release/{{game_exe}} --sim ladder {{args}}
 
 # The homestead entered and walked with no window and no GPU (the headless sim runner, increment 4):
 # the storeys rig's route (scripts/sim-walk-route.js writes it from the rig's plan), reported leg by
@@ -1321,7 +1325,7 @@ sim-ladder *args:
 sim-walk *args:
     @node scripts/check-fresh-exe.js --quiet
     @node scripts/sim-walk-route.js --out target/sim-walk-route.json
-    ./target/release/HumanityOS.exe --sim walk --route target/sim-walk-route.json {{args}}
+    ./target/release/{{game_exe}} --sim walk --route target/sim-walk-route.json {{args}}
 
 # Check game code for errors (fast, no binary)
 check-game:

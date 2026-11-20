@@ -42,6 +42,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const PLAT = require("./platform.js");
 const { execFileSync } = require("child_process");
 
 const ENV_PATH = "HUMANITY_RIG_LOCK";
@@ -75,22 +76,11 @@ function pidAlive(pid) {
   }
 }
 
-/** When Windows says this pid started, in ms since 1970, or null when it cannot say. */
+/** When the OS says this pid started, in ms since 1970, or null when it cannot say. Through
+ *  lib/platform.js startMs (2026-11-20): the same Get-Process StartTime on Windows, /proc on Linux
+ *  (where it used to answer null, so a reused pid read as the lock's holder), ps on macOS. */
 function osStartMs(pid) {
-  if (process.platform !== "win32") return null;
-  const n = Number(pid);
-  if (!Number.isInteger(n) || n <= 0) return null;
-  try {
-    const out = execFileSync(
-      "powershell",
-      ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${n} -ErrorAction Stop).StartTime.ToFileTimeUtc()`],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true, timeout: 30000 }
-    ).trim();
-    if (!/^\d+$/.test(out)) return null;
-    return Number(BigInt(out) / 10000n) - FILETIME_EPOCH_MS;
-  } catch {
-    return null;
-  }
+  return PLAT.startMs(pid);
 }
 
 /** The checks a holder is judged by; a test may hand in its own. */

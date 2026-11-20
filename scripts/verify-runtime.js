@@ -59,6 +59,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, spawnSync, execSync } = require("child_process");
 // ONE MACHINE, in one place: scripts/lib/machine-guard.js. This gate used to
 // carry its own copy of the process query, verify-screens.js carried a second
@@ -127,7 +128,7 @@ function unknownArgs(argv) {
 }
 const KEEP_OPEN = args.includes("--keep-open");
 const WAIT_BUILDS = args.includes("--wait-builds");
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const TIMEOUT_MIN = Number(opt("--timeout-min", "12"));
 const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
 for (const [flag, v] of [["--timeout-min", TIMEOUT_MIN], ["--wait-min", WAIT_MIN]]) {
@@ -243,7 +244,7 @@ if (DRY) {
 // Environment precondition, checked BEFORE the binary one: if another probe
 // owns the rig you cannot run at all, whatever binary you were going to test.
 const runningInstances = MG.listInstances;
-const rigExe = path.join(RIG, "HumanityOS.exe");
+const rigExe = path.join(RIG, PLAT.EXE_NAME);
 const instances = runningInstances();
 const mine = instances.filter((p) => p.exe.toLowerCase() === rigExe.toLowerCase());
 if (mine.length) {
@@ -251,13 +252,13 @@ if (mine.length) {
     `RIG BUSY: a verify-runtime probe is already running (pid ${mine.map((p) => p.pid).join(", ")}).`,
     "Two runs would fight over the same exe copy and the same debug/*.json IPC files,",
     "so the result would mean nothing. Wait for it, or if it is a leftover:",
-    `  taskkill //PID ${mine[0].pid} //F`,
+    `  ${PLAT.killCommand(mine[0].pid, { force: true })}`,
   ]);
 }
 const others = instances.filter((p) => p.exe.toLowerCase() !== rigExe.toLowerCase());
 if (others.length) {
   console.log(
-    `[note] ${others.length} other HumanityOS.exe instance(s) running (${others.map((p) => p.pid).join(", ")}).`
+    `[note] ${others.length} other ${PLAT.EXE_NAME} instance(s) running (${others.map((p) => p.pid).join(", ")}).`
   );
   console.log("[note] this gate reads panics and captures, not fps, so the verdict still holds.");
 }
@@ -328,12 +329,12 @@ const child = spawn(process.execPath, sweepArgs, { cwd: REPO, stdio: "inherit", 
 
 function killProbe() {
   try {
-    execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
+    PLAT.killTree(child.pid, { force: true });
   } catch {}
   // probe-sweep spawns the game detached, so killing node is not enough.
   try {
     const pid = fs.readFileSync(PID_FILE, "utf8").trim();
-    if (pid) execSync(`taskkill /PID ${pid} /F`, { stdio: "ignore" });
+    if (pid) PLAT.killTree(pid, { tree: false });
   } catch {}
 }
 
@@ -425,7 +426,7 @@ function report(sweepExit) {
   } catch {}
   const compiler = manifestCompiler || (BOOTED && BOOTED.shader_compiler) || null;
   if (compiler === "FXC") {
-    for (const l of DXC.fxcBanner({ exe: path.join(RIG, "HumanityOS.exe"), pid: BOOTED && BOOTED.game_pid, rig: "the probe", where: DXC.pairHome(REPO) })) console.log(l);
+    for (const l of DXC.fxcBanner({ exe: path.join(RIG, PLAT.EXE_NAME), pid: BOOTED && BOOTED.game_pid, rig: "the probe", where: DXC.pairHome(REPO) })) console.log(l);
   } else if (compiler) {
     console.log(`shader compiler  ${compiler}`);
   }

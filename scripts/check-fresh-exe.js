@@ -53,6 +53,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const FP = require("./lib/src-fingerprint.js");
 
 const REPO = path.resolve(__dirname, "..");
@@ -62,7 +63,7 @@ const opt = (name, def) => {
   return i >= 0 && args[i + 1] !== undefined && !args[i + 1].startsWith("--") ? args[i + 1] : def;
 };
 const QUIET = args.includes("--quiet");
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const TREE = path.resolve(opt("--tree", REPO));
 const JSON_OUT = opt("--json-out", null);
 const PRINT = opt("--print-manifest", null);

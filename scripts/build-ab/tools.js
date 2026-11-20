@@ -16,6 +16,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("../lib/platform.js");
 const { spawnSync, execSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -35,9 +36,8 @@ function ensureWrapper() {
 /** Cargo and rustc processes on the machine, and free physical memory (MB): the load to report. */
 function load() {
   let procs = -1;
-  try {
-    procs = execSync("tasklist", { encoding: "utf8" }).split("\n").filter((l) => /^(cargo|rustc)\.exe/i.test(l)).length;
-  } catch {}
+  const names = PLAT.listProcesses().map((p) => p.name); // lib/platform.js (2026-11-20)
+  if (names.length) procs = names.filter((n) => /^(cargo|rustc)(\.exe)?$/i.test(n)).length;
   let free = "?";
   try {
     free = (execSync(`"${WRAPPER}" --mem`, { encoding: "utf8" }).match(/avail_phys_mb=(\d+)/) || [])[1];

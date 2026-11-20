@@ -43,6 +43,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const PLAT = require('./lib/platform.js');
 const { execSync } = require('child_process');
 
 const args = process.argv.slice(2);
@@ -75,12 +76,12 @@ function busy() {
   // Anything that may be writing or holding build output right now
   // (PC_DISK_GUARD_BUSY overrides the list, for the test).
   const names = (process.env.PC_DISK_GUARD_BUSY || 'cargo.exe,rustc.exe,HumanityOS.exe').split(',');
-  try {
-    const out = execSync('tasklist /FO CSV /NH', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
-    return names.filter((n) => out.toLowerCase().includes('"' + n.toLowerCase() + '"'));
-  } catch {
-    return []; // tasklist unavailable (not Windows): nothing known to be running
-  }
+  // Through lib/platform.js (2026-11-20). A name matches with or without .exe, so the one list
+  // serves Linux and macOS, where the guard used to see nothing running and could delete a target
+  // folder a build was writing.
+  const base = (n) => String(n).toLowerCase().replace(/\.exe$/, '');
+  const running = new Set(PLAT.listProcesses().map((p) => base(p.name)));
+  return names.filter((n) => running.has(base(n)));
 }
 
 function lastBuiltMs(target) {

@@ -21,7 +21,9 @@ name: Verify
 # host only ever compiles the native app for Windows, so code that names a Windows-only module
 # without a cfg compiled there and failed only at release time, when the macOS and Linux builds
 # of v0.1554.0 stopped on `crate::ai::job` (E0433, src/gui/pages/dev_ai.rs). It needs the two C
-# dev packages the desktop build installs (libasound2-dev, libudev-dev) and nothing more.
+# dev packages the desktop build installs (libasound2-dev, libudev-dev) and nothing more. Since
+# 2026-11-20 it builds rather than checks and runs the headless simulation runs on Linux, and a
+# third job, `tooling-linux`, runs every node rig test there (docs/design/cross-platform-dev.md).
 on:
   push:
     branches: [ main ]
@@ -97,10 +99,22 @@ jobs:
   # same features the release builds (`--features native`), without linking or optimising.
   # Seen red on a branch at 89e73aafd (v0.1554.0) with this job dispatched: E0433 at
   # src/gui/pages/dev_ai.rs; green on abe528e5d.
+  #
+  # Since 2026-11-20 (docs/design/cross-platform-dev.md step 5) it BUILDS (debug: the same compile
+  # errors as the check, plus a binary) and runs that binary's headless simulation runs, which need
+  # no window and no GPU: `--sim soak` (a game day of the homestead's systems) and `--sim walk`
+  # (the storeys rig's route, which exits 1 when a leg fails its own checks). So the headless
+  # runner breaking on Linux is caught on the push. One dependency compile serves the check and the
+  # runs, which is why they share this job.
+  # The cache: Swatinem/rust-cache keeps the third-party dependency builds between runs, keyed by
+  # Cargo.lock and the toolchain, and deletes the workspace's own crates before it saves, so nothing
+  # of ours is ever served stale (the failure the project's no-caches rule exists for); without it
+  # every push recompiles some 500 crates. Its key changed with the switch to building: under the
+  # old key an exact hit would restore check-only metadata and never save the built dependencies.
   native-linux:
-    name: native build check (Linux)
+    name: native build + headless sim runs (Linux)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
@@ -116,7 +130,48 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: native-linux
+          key: native-linux-build
 
-      - name: cargo check --features native (library and binary)
-        run: cargo check --features native --lib --bins
+      - name: cargo build --features native (library and binary, debug)
+        run: cargo build --features native --lib --bins
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Headless soak, one game day (HumanityOS --sim soak; no window, no GPU)
+        timeout-minutes: 10
+        run: ./target/debug/HumanityOS --sim soak --days 1
+
+      - name: Headless walk, the storeys rig's route (HumanityOS --sim walk; exit 1 when a leg fails)
+        timeout-minutes: 15
+        run: |
+          node scripts/sim-walk-route.js --out target/sim-walk-route.json
+          ./target/debug/HumanityOS --sim walk --route target/sim-walk-route.json
+
+  # The dev tooling on Linux (2026-11-20, docs/design/cross-platform-dev.md step 5): every node rig
+  # test, exactly as `just rig-tests` finds them (scripts/test-discovery.json's excludes included),
+  # on a clean Linux checkout. A script that works only on Windows (a taskkill, a tasklist, a
+  # HumanityOS.exe path, a backslash) fails here on the push instead of on a contributor's Linux or
+  # Mac machine. Tests that are Windows by nature skip themselves and say why (only Windows keeps an
+  # orphan's parent id; job objects; DirectX 12). Node 24, the version the tests are written on.
+  # No cargo cache: the rig tests compile only standalone rustc programs (the build slot, lints),
+  # cold from this checkout every run.
+  tooling-linux:
+    name: dev tooling (node rig tests, Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (the version rust-toolchain.toml pins)
+        run: |
+          rustup toolchain install
+          rustc -V
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Every node rig test (just rig-tests)
+        run: node scripts/rig-tests.js

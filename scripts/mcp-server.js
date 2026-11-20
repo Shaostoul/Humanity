@@ -36,6 +36,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const readline = require("readline");
 const { spawn, execFileSync } = require("child_process");
 const P = require("./lib/mcp-protocol.js");
@@ -203,9 +204,7 @@ function run(cmd, args, { env, timeoutMs, signal, notify, label } = {}) {
       notify(`${label || cmd}: ${Math.round((Date.now() - started) / 1000)} s. ${last.slice(0, 200)}`);
     }, 15000);
     const kill = () => {
-      try {
-        execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-      } catch {
+      if (!PLAT.killTree(child.pid, { force: true })) {
         try {
           child.kill();
         } catch {}
@@ -332,14 +331,10 @@ async function closePid(pid, why = "closed") {
     require("./lib/boot-ledger.js").finishPending(path.join(RIG, "debug"), `closed by the dev MCP (${why}): ${how}`, { pid });
     return how;
   };
-  try {
-    execFileSync("taskkill", ["/PID", String(pid)], { stdio: "ignore" });
-  } catch {}
+  PLAT.killTree(pid, { force: false, tree: false }); // a graceful close: the game saves
   for (let i = 0; i < 30 && pidAlive(pid); i++) await new Promise((r) => setTimeout(r, 500));
   if (pidAlive(pid)) {
-    try {
-      execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore" });
-    } catch {}
+    PLAT.killTree(pid, { force: true });
     return finish("forced after 15 s");
   }
   return finish("closed");

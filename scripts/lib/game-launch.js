@@ -79,21 +79,29 @@
 //      behind), and it writes the boot's one line to the machine-wide ledger (lib/boot-ledger.js,
 //      %LOCALAPPDATA%\HumanityOS\dev\boots.jsonl: when, which checkout, which script and rig, what
 //      for, how long, how it ended). `node scripts/boot-ledger.js` prints the last day.
+//
+//   9. Off Windows (2026-11-20, docs/design/cross-platform-dev.md): the hand-off search and every
+//      stop go through lib/platform.js (the process list from /proc or ps, a tree kill by SIGKILL
+//      down the parent links), and since the window cannot be hidden there (rig_window.rs cloaks it
+//      on Windows only) spawnGame says so before the boot, once per rig process.
 
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-const { spawn, execSync } = require("child_process");
+const { spawn } = require("child_process");
 const { requireBootCopy } = require("./src-fingerprint.js");
 const MG = require("./machine-guard.js");
 const RG = require("./rig-gameplay.js");
 const DXC = require("./dxc-dlls.js");
 const BL = require("./boot-ledger.js");
+const P = require("./platform.js");
 
 /** The checkout these scripts belong to (where a missing DXC pair is to go, or its main checkout). */
 const REPO = path.resolve(__dirname, "..", "..");
 /** The FXC banner is printed once per rig process, however many games it starts. */
 let fxcBannerArmed = false;
+/** The off-Windows window note (point 9), likewise once. */
+let windowNoteSaid = false;
 
 /** The marker crates/humanity-core/src/embedded_data.rs BUILTIN_COPY_MARKER writes (a test pins the two). */
 const BUILTIN_COPY_MARKER = "[built-in data copy]";
@@ -118,19 +126,14 @@ function builtinDataRefusal(lines) {
   ].join("\n");
 }
 
-/** The processes whose parent is `pid`: [{ pid, name, exe }]. Windows keeps a
- *  process's ParentProcessId after the parent exits, which is what lets a
- *  hand-off be found after the game that made it is gone. */
+/** The processes whose parent is `pid`: [{ pid, name, exe }], or null when the list could not
+ *  be read (say so rather than "none found"). Windows keeps a process's ParentProcessId after the
+ *  parent exits, which is what lets a hand-off be found after the game that made it is gone; off
+ *  Windows an orphan goes to init at once, and the hand-off itself (src/main.rs find_newer_exe,
+ *  a v*_HumanityOS.exe beside it) is a Windows delivery's. Through lib/platform.js. */
 function childProcesses(pid) {
-  const cmd =
-    'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"ParentProcessId=' +
-    Number(pid) +
-    "\\\" | ForEach-Object { $_.ProcessId.ToString() + '|' + $_.Name + '|' + $_.ExecutablePath }\"";
-  try {
-    return MG.parseProcs(execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }));
-  } catch {
-    return null; // the query itself failed: say so rather than "none found"
-  }
+  const kids = P.childProcesses(pid);
+  return kids === null ? null : kids.map(({ pid: p, name, exe }) => ({ pid: p, name, exe }));
 }
 
 /** Stop every process `pid` started whose name matches `pattern` (a hand-off is a
@@ -141,11 +144,7 @@ function reapHandoff(pid, pattern = /HumanityOS/i) {
   const stopped = [];
   for (const k of kids) {
     if (!pattern.test(k.name || "") && !pattern.test(k.exe || "")) continue;
-    try {
-      execSync(`taskkill /PID ${k.pid} /T /F`, { stdio: "ignore" });
-    } catch {
-      /* already gone */
-    }
+    P.killTree(k.pid, { force: true }); // already gone is fine
     stopped.push(k);
   }
   return { stopped, query_failed: false };
@@ -225,6 +224,11 @@ function spawnGame(exe, args, opts = {}) {
   const ledgerDir = path.join(opts.cwd || path.dirname(exe), "debug");
   BL.flushStalePending(ledgerDir, env);
   env[BL.OWNER_ENV] = "spawnGame";
+  // NO HIDDEN WINDOW OFF WINDOWS (point 9), said before the boot, not discovered on the screen.
+  if (!P.IS_WINDOWS && MG.isGameName(path.basename(exe)) && !windowNoteSaid && !(args || []).includes("--headless")) {
+    windowNoteSaid = true;
+    log(`[${rigName}] off Windows the game's window cannot be hidden: src/engine/rig_window.rs cloaks it on Windows only, so it opens as a normal window on this screen (docs/design/cross-platform-dev.md step 4). The headless runs (HumanityOS --sim soak, --sim walk) need no window.`);
+  }
   let child;
   try {
     child = spawn(exe, args || [], {
@@ -363,11 +367,7 @@ function spawnGame(exe, args, opts = {}) {
       if (Date.now() - t0 < limit) return;
       clearInterval(timer);
       w.expectExit();
-      try {
-        execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: "ignore" });
-      } catch {
-        /* already gone */
-      }
+      P.killTree(child.pid, { force: true });
       console.error("");
       console.error(`${rigName}: REFUSED - the game was asked to run in low impact (HUMANITY_LOW_IMPACT=${opts.lowImpact}) and had not`);
       console.error(`said it does (${lowImpactFile}) ${Math.round(limit / 1000)} s after it started, so it was stopped: it would have run at`);

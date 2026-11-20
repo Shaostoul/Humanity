@@ -248,6 +248,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // What this rig needs from the machine (2026-10-22): its checks are about behaviour, so while one
@@ -266,7 +267,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const KEEP_OPEN = args.includes("--keep-open");
 const DRY = opt("--dry-verdict", null);
 const TIMEOUT_MS = Number(opt("--timeout-min", "10")) * 60 * 1000;
@@ -399,12 +400,12 @@ const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
 if (!(WAIT_MIN > 0)) refuse([`verify-falls: REFUSED - --wait-min must be a number of minutes above 0, got "${opt("--wait-min", "")}". Nothing was booted.`]);
 // How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
 const BOOT_PLAN = RN.planOrRefuse("verify-falls", { log });
-const wait = MG.waitForFree({ own: { exe: path.join(RIG, "HumanityOS.exe"), gameOnly: true, ...BOOT_PLAN.own }, label: "verify-falls", rig: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
+const wait = MG.waitForFree({ own: { exe: path.join(RIG, PLAT.EXE_NAME), gameOnly: true, ...BOOT_PLAN.own }, label: "verify-falls", rig: "verify-falls", timeoutMs: WAIT_MIN * 60 * 1000 });
 if (!wait.free) {
   MG.refuseBusy(wait, {
     rig: "verify-falls",
     hint: [
-      "What to do: close it (taskkill //PID <pid>, then //F if it is still there 15 s later), or wait for the",
+      `What to do: close it (${PLAT.killCommand("<pid>")}, then ${PLAT.killCommand("<pid>", { force: true })} if it is still there 15 s later), or wait for the`,
       "rig that started it, then run again (--wait-min N waits longer).",
     ],
   });
@@ -461,13 +462,8 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" }
-    );
-  } catch {}
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 function setupRig() {
   fs.mkdirSync(DEBUG, { recursive: true });
@@ -479,8 +475,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
-  fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "verify-falls");
+  fs.copyFileSync(EXE, path.join(RIG, PLAT.EXE_NAME));
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, "verify-falls");
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
     if (/\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f)) fs.unlinkSync(path.join(DEBUG, f));
@@ -607,7 +603,7 @@ async function main() {
     kind: "verify-falls",
     stamp,
     exe: EXE,
-    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     data: DATA_KEPT,
     // Where the planet legs run: written before the boot, so a run that stopped before them is
@@ -628,7 +624,7 @@ async function main() {
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in ${path.relative(REPO, RIG)}`);
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh: FRESH,
     rigName: "verify-falls",
     log,
@@ -647,7 +643,7 @@ async function main() {
     killed = true;
     game.expectExit();
     try {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(pid, { force: true });
     } catch {}
     killRigProcesses();
   };
@@ -924,7 +920,7 @@ async function main() {
   try {
     fs.copyFileSync(LOG, path.join(OUT, "run.log"));
   } catch {}
-  if (KEEP_OPEN) log(`left running (--keep-open): taskkill //PID ${pid} to close it`);
+  if (KEEP_OPEN) log(`left running (--keep-open): ${PLAT.killCommand(pid)} to close it`);
   else kill();
 
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));

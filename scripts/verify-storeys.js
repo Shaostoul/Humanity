@@ -90,6 +90,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // What this rig needs from the machine (2026-10-22): its checks are about behaviour, so while one
@@ -108,7 +109,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const KEEP_OPEN = args.includes("--keep-open");
 const NO_WAIT = args.includes("--no-wait");
 // --wait-min N: how long to wait for another HumanityOS before refusing (lib/machine-guard.js
@@ -221,7 +222,7 @@ const BOOT_PLAN = RN.planOrRefuse("verify-storeys", { log });
   if (running.length && NO_WAIT) {
     refuse([
       `REFUSED: HumanityOS is already running (pid ${running.map((p) => p.pid).join(", ")}), and --no-wait.`,
-      "One GPU, one instance (CLAUDE.md). Close it (taskkill //PID <pid>, then //F if it is still there 15 s later), or wait for the rig that started it.",
+      `One GPU, one instance (CLAUDE.md). Close it (${PLAT.killCommand("<pid>")}, then ${PLAT.killCommand("<pid>", { force: true })} if it is still there 15 s later), or wait for the rig that started it.`,
     ]);
   }
   // Ends by taking the machine-wide boot lock (lib/boot-lock.js); a wait that gives up is the one
@@ -230,7 +231,7 @@ const BOOT_PLAN = RN.planOrRefuse("verify-storeys", { log });
   if (!w.free) {
     MG.refuseBusy(w, {
       rig: "verify-storeys",
-      hint: ["What to do: wait for it (or close it: taskkill //PID <pid>, then //F if it is still there 15 s later), then run again; --wait-min N waits longer."],
+      hint: [`What to do: wait for it (or close it: ${PLAT.killCommand("<pid>")}, then ${PLAT.killCommand("<pid>", { force: true })} if it is still there 15 s later), then run again; --wait-min N waits longer.`],
     });
   }
 }
@@ -249,13 +250,8 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" }
-    );
-  } catch {}
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 function setupRig() {
   fs.mkdirSync(DEBUG, { recursive: true });
@@ -271,8 +267,8 @@ function setupRig() {
   // own home is kept in its save, engine/own_home.rs) would otherwise be the home walked, so a
   // red run on sandbox data could leave its floorless homestead for the next green run.
   for (const d of ["saves", "backups"]) fs.rmSync(path.join(RIG, d), { recursive: true, force: true });
-  fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "verify-storeys");
+  fs.copyFileSync(EXE, path.join(RIG, PLAT.EXE_NAME));
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, "verify-storeys");
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
   for (const f of fs.readdirSync(DEBUG)) {
     if (/\.png$/.test(f) || /_done\.json$/.test(f) || WR.isRequestLeftover(f)) fs.unlinkSync(path.join(DEBUG, f));
@@ -403,7 +399,7 @@ async function main() {
     kind: "verify-storeys",
     stamp,
     exe: EXE,
-    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     ...(SANDBOX ? { sandbox_data: SANDBOX } : {}),
     plan: PLAN,
@@ -420,7 +416,7 @@ async function main() {
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
   log(`launching ${path.basename(EXE)} in ${path.relative(REPO, RIG)}${SANDBOX ? ` on SANDBOX DATA ${SANDBOX}` : ""}`);
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh: FRESH,
     rigName: "verify-storeys",
     log,
@@ -439,7 +435,7 @@ async function main() {
     killed = true;
     game.expectExit();
     try {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(pid, { force: true });
     } catch {}
     killRigProcesses();
   };
@@ -665,7 +661,7 @@ async function main() {
   try {
     fs.copyFileSync(LOG, path.join(OUT, "run.log"));
   } catch {}
-  if (KEEP_OPEN) log(`left running (--keep-open): taskkill //PID ${pid} to close it`);
+  if (KEEP_OPEN) log(`left running (--keep-open): ${PLAT.killCommand(pid)} to close it`);
   else kill();
 
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));

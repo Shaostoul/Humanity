@@ -72,6 +72,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, spawnSync, execSync } = require("child_process");
 const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
@@ -103,7 +104,7 @@ const opt = (name, def) => {
 };
 const flag = (name) => args.includes(name);
 const KEEP_OPEN = flag("--keep-open");
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const TIMEOUT_MS = Number(opt("--timeout-min", "8")) * 60 * 1000;
 const DRY = opt("--dry-verdict", null);
 const SELF_TEST = flag("--self-test");
@@ -431,13 +432,13 @@ const BOOT_PLAN = RN.planOrRefuse("verify-screens", { log });
 const instances = MG.blockingInstances(BOOT_PLAN.own);
 if (instances.length) {
   refuse([
-    `REFUSED: HumanityOS.exe is already running (pid ${instances.map((p) => `${p.pid} ${p.exe}`).join("; ")}).`,
+    `REFUSED: ${PLAT.EXE_NAME} is already running (pid ${instances.map((p) => `${p.pid} ${p.exe}`).join("; ")}).`,
     "One GPU, one instance (CLAUDE.md): a second renderer bogs the whole machine down and",
     "would steal the operator's game. Wait for it to exit, then run again. If it is a",
-    `leftover rig of ours (exe under ${rel(RIG)}): taskkill //PID <pid> //F`,
+    `leftover rig of ours (exe under ${rel(RIG)}): ${PLAT.killCommand("<pid>", { force: true })}`,
   ]);
 }
-RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, "HumanityOS.exe"), log });
+RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, PLAT.EXE_NAME), log });
 
 // 2. The binary must be this tree's build (or another, on purpose, with
 //    --allow-other-build "<reason>", recorded in the manifest as other_build).
@@ -463,13 +464,8 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" }
-    );
-  } catch {}
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 function setupRig() {
   fs.mkdirSync(RIG, { recursive: true });
@@ -485,9 +481,9 @@ function setupRig() {
   if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
   // Stop anything left running from the rig copy, then wait out the lock it
   // leaves on the file (scripts/lib/rig-exe-copy.js).
-  copyExeIntoRig(EXE, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
+  copyExeIntoRig(EXE, path.join(RIG, PLAT.EXE_NAME), { stop: killRigProcesses, log });
   // What boots is the copy, so the copy must be what the gate judged (BUG-133).
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), fresh, "verify-screens");
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), fresh, "verify-screens");
   // The DXC shader compiler dlls, from beside the exe or else the repo root
   // (target/release has none; the repo root does). One shared lookup,
   // scripts/lib/dxc-dlls.js, which logs which folder it used or that it
@@ -591,7 +587,7 @@ async function main() {
     kind: "verify-screens",
     stamp,
     exe: EXE,
-    binary: bootRecord(fresh, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(fresh, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     config: cfgPath,
@@ -626,7 +622,7 @@ async function main() {
   // spawnGame: the copy is checked against the judged bytes right before the
   // spawn, HUMANITY_NO_HANDOFF=1 (run this copy, never a newer
   // v*_HumanityOS.exe, BUG-133), and an exit we did not ask for is watched for.
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh,
     rigName: "verify-screens", lowImpact: BOOT_PLAN.lowImpact,
     log,
@@ -648,7 +644,7 @@ async function main() {
     killed = true;
     game.expectExit(); // our own stop: not a hand-off to look for
     try {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(pid, { force: true });
     } catch {}
     killRigProcesses();
   };
@@ -850,7 +846,7 @@ async function main() {
   } catch {}
   save();
   if (!KEEP_OPEN) kill();
-  else log(`--keep-open: the rig is still running (pid ${pid}); kill it with taskkill //PID ${pid} //T //F`);
+  else log(`--keep-open: the rig is still running (pid ${pid}); kill it with ${PLAT.killCommand(pid, { tree: true, force: true })}`);
   const pass = printVerdict("RESULT: ", manifest, OUT);
   if (!pass) {
     console.log("What to do:");

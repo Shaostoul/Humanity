@@ -70,6 +70,13 @@ so every checkout would rebuild the crate whole. If cargo ever says it "could no
 process ...hos-build-slot.exe", the wrapper is missing: `just build-slot` in `C:\Humanity`.
 `scripts/lib-tests.js` and `just verify` rebuild a missing or stale wrapper on their own.
 
+**Off Windows (2026-11-20).** On Linux the same rule runs from /proc: free physical memory is
+`MemAvailable`; free commit is `CommitLimit - Committed_AS` only when the kernel enforces commit
+(`vm.overcommit_memory` = 2), otherwise `MemAvailable` plus free swap, because under the default
+heuristic `Committed_AS` routinely passes the limit and would hold every compile; start times come
+from `/proc/<pid>/stat` and a compile's tree is walked every 200 ms. macOS has no gate yet and every
+compile there says so. The wrapper's header has the detail; docs/design/cross-platform-dev.md the plan.
+
 ## Tests: never rerun a pass, and a flake costs one test, not the suite
 
 `just test-lib` (scripts/lib-tests.js) and `just verify` apply the policy CLAUDE.md asks for:

@@ -86,8 +86,9 @@ const os = require("node:os");
 const net = require("node:net");
 const http = require("node:http");
 const path = require("node:path");
+const PLAT = require("./platform.js");
 
-const EXE_NAME = process.platform === "win32" ? "HumanityOS.exe" : "HumanityOS";
+const EXE_NAME = PLAT.EXE_NAME;
 
 /** The address every throwaway relay listens on (its BIND_ADDRESS). */
 const LOOPBACK_BIND = "127.0.0.1";
@@ -508,10 +509,7 @@ async function startRelay({
      *  already known to have exited, so a reused PID is never hit. */
     kill() {
       if (!proc || exited) return;
-      try {
-        if (process.platform === "win32") execSync(`taskkill /PID ${proc.pid} /T /F`, { stdio: "ignore" });
-        else process.kill(proc.pid, "SIGKILL");
-      } catch {}
+      PLAT.killTree(proc.pid, { force: true }); // taskkill /T /F on Windows, SIGKILL down the tree elsewhere
       exited = true;
     },
     /** Remove the temp folder (best effort: a just-killed exe can hold its

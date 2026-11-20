@@ -73,6 +73,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 // What this rig needs from the machine (2026-10-22, lib/rig-needs.js): it judges the picture, so while
@@ -93,7 +94,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const ONLY = opt("--only", null);
 const WIDTH = Number(opt("--width", "1600"));
 const HEIGHT = Number(opt("--height", "900"));
@@ -127,13 +128,13 @@ function refuse(lines) {
 const running = MG.listInstances();
 if (running.length) {
   refuse([
-    `REFUSED: HumanityOS.exe is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
+    `REFUSED: ${PLAT.EXE_NAME} is already running (pid ${running.map((p) => p.pid).join(", ")}).`,
     "One GPU, one instance (CLAUDE.md). Wait for it to exit, then run again.",
   ]);
 }
 // Refuses low impact; waits for the operator's program (lib/rig-needs.js).
 const BOOT_PLAN = RN.planOrRefuse("photograph-home");
-RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, "HumanityOS.exe") });
+RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, PLAT.EXE_NAME) });
 if (!fs.existsSync(EXE)) {
   refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
 }
@@ -167,13 +168,8 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" }
-    );
-  } catch {}
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 function setupRig() {
   fs.mkdirSync(DEBUG, { recursive: true });
@@ -186,9 +182,9 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   killRigProcesses();
-  fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
+  fs.copyFileSync(EXE, path.join(RIG, PLAT.EXE_NAME));
   // What boots is the copy, so the copy must be what the gate judged.
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, "photograph-home");
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, "photograph-home");
   // The DXC dlls take boot from ~25 s to ~5 s. Without them the fallback
   // shader compiler is so slow that a rig looks broken while it is merely
   // slow, which has been misread as a regression before. They come from
@@ -297,7 +293,7 @@ async function main() {
     exe: EXE,
     // Which binary these pictures are of (BUG-133), and the record of a
     // deliberate other-build run.
-    binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     size: [WIDTH, HEIGHT],
     shots: [],
@@ -309,7 +305,7 @@ async function main() {
   // spawnGame: the copy is checked against the judged bytes right before the
   // spawn, HUMANITY_NO_HANDOFF=1 (run this copy, never a newer
   // v*_HumanityOS.exe), and an exit we did not ask for is watched for.
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh: FRESH,
     rigName: "photograph-home",
     log,
@@ -327,7 +323,7 @@ async function main() {
     killed = true;
     game.expectExit(); // our own stop: not a hand-off to look for
     try {
-      execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(pid, { force: true });
     } catch {}
     killRigProcesses();
   };
@@ -475,7 +471,7 @@ async function main() {
   save();
   // --keep-open leaves the game running for a look around (2026-09-26: this
   // kill() used to run regardless, so the flag did nothing).
-  if (KEEP_OPEN) log(`left running (--keep-open): taskkill /PID ${pid} /T /F to close it`);
+  if (KEEP_OPEN) log(`left running (--keep-open): ${PLAT.killCommand(pid, { tree: true, force: true })} to close it`);
   else kill();
   log(`${manifest.shots.filter((s) => s.ok).length}/${vantages.length} captured, ${manifest.panics} panic(s)`);
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));

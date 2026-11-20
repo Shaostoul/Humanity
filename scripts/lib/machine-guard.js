@@ -66,6 +66,7 @@ const os = require("os");
 const path = require("path");
 const { execSync, execFileSync } = require("child_process");
 const BL = require("./boot-lock.js");
+const P = require("./platform.js");
 
 /// How long a rig waits for the machine before it refuses, minutes. One number
 /// for every rig (2026-10-21; they had 20, 40 and a 12 that was really the
@@ -87,20 +88,27 @@ const WAIT_MIN_DEFAULT = 60;
 /// add it because it takes the machine away from a measurement, not because it
 /// is untidy - a guard that blocks constantly gets bypassed, and a bypassed
 /// guard protects nothing.
-const WATCHED = ["HumanityOS.exe", "cargo.exe", "rustc.exe", "link.exe", "cl.exe"];
+///
+/// Off Windows (2026-11-20, docs/design/cross-platform-dev.md): the same roles under their own
+/// names. HumanityOS is the game; cargo and rustc the build; cc and ld the link step rustc runs
+/// there (the MSVC back end's counterpart).
+const WATCHED_WINDOWS = ["HumanityOS.exe", "cargo.exe", "rustc.exe", "link.exe", "cl.exe"];
+const WATCHED_ELSEWHERE = ["HumanityOS", "cargo", "rustc", "cc", "ld"];
+const WATCHED = P.IS_WINDOWS ? WATCHED_WINDOWS : WATCHED_ELSEWHERE;
 
 /// The game binary's name, split out because two gates (verify-runtime,
 /// verify-screens) refuse to boot on ANY instance of it while tolerating a
 /// build, and their refusal messages say exactly that.
-const GAME = "HumanityOS.exe";
+const GAME = P.EXE_NAME;
 
 /// Is this process name the game? The exe is not always called HumanityOS.exe:
 /// `just launch` and `just play` boot the newest ARCHIVE, named
 /// v<version>_HumanityOS.exe, and that is how the operator usually starts his
 /// own game. An exact-name match missed it (found 2026-10-04), so the one-GPU
 /// wait could boot a rig beside his game. Any name ending in HumanityOS.exe,
-/// case-insensitive, counts.
-const isGameName = (name) => /humanityos\.exe$/i.test(String(name || ""));
+/// case-insensitive, counts. Off Windows the binary has no .exe (platform.js EXE_NAME); a name
+/// without it never occurs on Windows, so this changes nothing there.
+const isGameName = (name) => /humanityos(\.exe)?$/i.test(String(name || ""));
 
 /// The operator's own GPU-heavy programs (scripts/lib/operator-apps.json, 2026-10-22). A GeForce
 /// cannot be split between him and the rigs. What a rig does while one runs depends on what its
@@ -203,11 +211,23 @@ function defaultLister() {
     console.log("[machine-guard] FAKE process list in use (HUMANITY_MACHINE_GUARD_FAKE) - not a real run");
     return text;
   }
+  if (!P.IS_WINDOWS) return elsewhereText();
   try {
     return execSync(psQuery(), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
   } catch {
-    return ""; // not Windows, or no powershell: degrade to "nothing running"
+    return ""; // no powershell: degrade to "nothing running"
   }
+}
+
+/// Off Windows (2026-11-20): the same `pid|name|exe|cmd` lines, from platform.js's process list
+/// (/proc on Linux, ps on macOS), narrowed to what the Windows query asks for: the watched names
+/// (the game by any name ending in HumanityOS) and the operator's programs. Before this the
+/// guard read "nothing running" off Windows and booted a rig beside anything. PURE given a list.
+function elsewhereText(list = P.listProcesses()) {
+  return list
+    .filter((p) => isGameName(p.name) || isBuildName(p.name) || isOperatorApp(p.name))
+    .map((p) => `${p.pid}|${p.name}|${p.exe}|${String(p.cmd || "").replace(/[\r\n]+/g, " ")}`)
+    .join("\n");
 }
 
 /// Everything the OS can see right now from the watched set, less the simulation runs (isSimRun:
@@ -336,7 +356,7 @@ const describe = (p) =>
     ? `free physical memory ${gbOf(p.memory.free_mb)}: a rig needs ${gbOf(p.memory.need_mb)} free to boot without paging (HUMANITY_RIG_MIN_FREE_MB; just build-slot-status shows the compiles holding it)`
     : p && p.lock
       ? `the rig boot lock, held by ${BL.describeHolder(p.lock)}`
-      : `${p.name || "HumanityOS.exe"} pid ${p.pid}${p.exe ? ` (${p.exe})` : ""}`;
+      : `${p.name || GAME} pid ${p.pid}${p.exe ? ` (${p.exe})` : ""}`;
 
 /// Is the process list faked (a test, or the manual red proof)?
 const fakeInUse = () => !!lister || !!process.env.HUMANITY_MACHINE_GUARD_FAKE;
@@ -468,7 +488,7 @@ function refusalLines(w, opt = {}) {
   lines.push("This says nothing about the build: it never ran. One machine, one boot at a time (CLAUDE.md).");
   if (blockers.some((b) => b.lock && b.lock.pid)) {
     const b = blockers.find((x) => x.lock && x.lock.pid);
-    lines.push(`If that rig is a leftover nobody is waiting on: taskkill //PID ${b.lock.pid} (its lock then goes stale and is taken over).`);
+    lines.push(`If that rig is a leftover nobody is waiting on: ${P.killCommand(b.lock.pid)} (its lock then goes stale and is taken over).`);
   }
   for (const h of opt.hint || []) lines.push(h);
   return lines;
@@ -725,7 +745,12 @@ function parseRestoreRows(text) {
     .filter((r) => Number.isInteger(r.pid) && r.pid > 0);
 }
 
-const isBuildName = (name) => BUILDS.some((b) => b.toLowerCase() === String(name || "").toLowerCase());
+/// A build tool's name, on any platform's list, with or without .exe. On Windows only the Windows
+/// names are ever listed (psQuery asks for them alone), so the others change nothing there; off
+/// Windows a test's fake list of Windows names (link.exe under rustc.exe) still reads right.
+const baseName = (n) => String(n || "").toLowerCase().replace(/\.exe$/, "");
+const ANY_BUILD = new Set(WATCHED_WINDOWS.concat(WATCHED_ELSEWHERE).filter((n) => !isGameName(n)).map(baseName));
+const isBuildName = (name) => ANY_BUILD.has(baseName(name));
 
 /// One line for a hold's record (the manifest's builds_held), for a verdict.
 function describeHold(h) {
@@ -766,7 +791,12 @@ function holdBuilds(opt = {}) {
   const log = opt.log || ((m) => console.log(m));
   const resweepMs = opt.resweepMs != null ? opt.resweepMs : 10 * 1000;
   const fakeList = !!lister || !!process.env.HUMANITY_MACHINE_GUARD_FAKE;
-  const run = opt.run || (fakeList ? null : runPowerShell);
+  // Off Windows (2026-11-20) there is no runner of its own: a user may lower a build's priority
+  // (nice) but only root may raise it back, so a hold could never be released and the builds would
+  // finish slower long after the capture. It says so and holds nothing; a handed-in runner (tests)
+  // still runs everywhere.
+  const elsewhere = !P.IS_WINDOWS && !opt.run && !fakeList;
+  const run = opt.run || (fakeList || elsewhere ? null : runPowerShell);
   const held = new Map(); // pid -> { pid, name, start, from, how, parent }
   const seen = new Set(); // pids already looked at, so each is inspected once
   const leftLow = [];
@@ -883,7 +913,9 @@ function holdBuilds(opt = {}) {
     return record;
   }
 
-  if (!run) {
+  if (elsewhere) {
+    log(`[machine-guard] ${label}: build priorities left alone: off Windows a lowered priority cannot be put back without root, so the builds run beside the capture (a timing taken beside one is still marked contaminated)`);
+  } else if (!run) {
     log(`[machine-guard] ${label}: FAKE process list in use: build priorities left alone (no runner handed in)`);
   } else {
     process.on("exit", onExit);
@@ -900,6 +932,10 @@ function holdBuilds(opt = {}) {
 
 module.exports = {
   WATCHED,
+  WATCHED_WINDOWS,
+  WATCHED_ELSEWHERE,
+  elsewhereText,
+  isBuildName,
   GAME,
   isGameName,
   // 2026-11-15: `HumanityOS --sim ...` runs, which no guard counts (headless sim runner risk 4).

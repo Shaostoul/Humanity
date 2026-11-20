@@ -73,6 +73,20 @@
 //!                                    object), so a real rustc really runs out of memory:
 //!                                    the retry proof
 //!
+//! LINUX (2026-11-20, docs/design/cross-platform-dev.md step 3): the same slot from /proc. Free
+//! physical memory is MemAvailable (/proc/meminfo); free commit is CommitLimit - Committed_AS only
+//! when the kernel enforces commit (vm.overcommit_memory = 2), else MemAvailable + SwapFree, what
+//! an allocation can get before the OOM killer, because with the default heuristic Committed_AS
+//! routinely passes CommitLimit and would hold every compile forever. A process's start time is
+//! field 22 of /proc/<pid>/stat (pids are reused there too), and a compile's tree is measured by a
+//! thread that walks /proc for rustc's descendants every 200 ms, keeping each one's peak resident
+//! set (VmHWM) and the largest sum of their anonymous memory seen at one look, with getrusage's
+//! RUSAGE_CHILDREN for the tree's CPU seconds and as a floor under the peak. What it cannot see:
+//! a process that starts and ends between two looks (a tiny crate's link), which Windows' job
+//! object reports and /proc does not. The /proc readers take the folder as an argument and the
+//! parsers are pure, so their tests run on the Windows PC too, on captured text and a fake tree.
+//! macOS keeps the no-wait stub: every gated compile says so and runs at once.
+//!
 //! Built standalone with plain rustc, std only, like the lints (scripts/build-slot.js).
 //! Its unit tests: rustc --test scripts/build-slot/hos-build-slot.rs (scripts/tests/build-slot.test.js).
 
@@ -689,6 +703,258 @@ mod sys {
     }
 }
 
+// ── Linux: /proc (2026-11-20) ────────────────────────────────────────────────────────
+
+/// The /proc readers. Every function takes the folder (`/proc`, or a test's fake tree) and the
+/// parsers are pure, so all of it compiles and is tested on every platform; only the five
+/// dispatchers below (real_memory, start_time, alive, usage_mb, and the tree watch in run_once)
+/// are Linux's alone.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+mod procfs {
+    use super::{Mem, Need};
+    use std::fs;
+    use std::path::Path;
+
+    /// The kB figure of a `Key:   12345 kB` line (meminfo, status), or None.
+    pub fn kb(text: &str, key: &str) -> Option<u64> {
+        text.lines().find_map(|l| {
+            let rest = l.strip_prefix(key)?.strip_prefix(':')?;
+            rest.split_whitespace().next()?.parse().ok()
+        })
+    }
+
+    /// The machine's memory from /proc/meminfo and vm.overcommit_memory (see the header).
+    pub fn mem_from_meminfo(meminfo: &str, overcommit: &str) -> Option<Mem> {
+        let total = kb(meminfo, "MemTotal")?;
+        let avail = kb(meminfo, "MemAvailable")?;
+        let swap_free = kb(meminfo, "SwapFree").unwrap_or(0);
+        let swap_total = kb(meminfo, "SwapTotal").unwrap_or(0);
+        let (free_commit, limit) = if overcommit.trim() == "2" {
+            let limit = kb(meminfo, "CommitLimit")?;
+            (limit.saturating_sub(kb(meminfo, "Committed_AS")?), limit)
+        } else {
+            (avail + swap_free, total + swap_total)
+        };
+        Some(Mem { avail_commit_mb: free_commit / 1024, avail_phys_mb: avail / 1024, commit_limit_mb: limit / 1024, total_phys_mb: total / 1024 })
+    }
+
+    /// The fields of a /proc/<pid>/stat line the slot uses.
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub struct Stat {
+        pub state: char,
+        pub ppid: u32,
+        /// field 22: clock ticks after boot, which tells a reused pid from the process before it
+        pub start: u64,
+    }
+
+    /// One stat line. The command name sits in parentheses and may hold spaces and parentheses of
+    /// its own, so the fields are counted from the LAST ")".
+    pub fn parse_stat(text: &str) -> Option<Stat> {
+        let close = text.rfind(')')?;
+        let mut f = text[close + 1..].split_whitespace();
+        let state = f.next()?.chars().next()?;
+        let ppid = f.next()?.parse().ok()?;
+        // Fields 5 to 21 lie between the parent (field 4) and the start (field 22).
+        let start = f.nth(17)?.parse().ok()?;
+        Some(Stat { state, ppid, start })
+    }
+
+    /// (resident now, peak resident, anonymous + swapped) of a /proc/<pid>/status, kB. The last is
+    /// the private memory the process has really used: the nearest thing Linux has to Windows'
+    /// commit for one process (VmData counts reservations never touched).
+    pub fn parse_status(text: &str) -> (u64, u64, u64) {
+        let rss = kb(text, "VmRSS").unwrap_or(0);
+        let hwm = kb(text, "VmHWM").unwrap_or(rss);
+        let anon = kb(text, "RssAnon").unwrap_or(rss);
+        (rss, hwm, anon + kb(text, "VmSwap").unwrap_or(0))
+    }
+
+    fn read(root: &Path, pid: u32, file: &str) -> Option<String> {
+        fs::read_to_string(root.join(pid.to_string()).join(file)).ok()
+    }
+
+    pub fn memory(root: &Path) -> Option<Mem> {
+        let meminfo = fs::read_to_string(root.join("meminfo")).ok()?;
+        let overcommit = fs::read_to_string(root.join("sys").join("vm").join("overcommit_memory")).unwrap_or_default();
+        mem_from_meminfo(&meminfo, &overcommit)
+    }
+
+    pub fn start_time(root: &Path, pid: u32) -> Option<u64> {
+        parse_stat(&read(root, pid, "stat")?).map(|s| s.start)
+    }
+
+    /// Is the process a record names still the one that wrote it? A zombie has finished.
+    pub fn alive(root: &Path, pid: u32, start: u64) -> bool {
+        match read(root, pid, "stat").and_then(|t| parse_stat(&t)) {
+            Some(s) if s.state != 'Z' && s.state != 'X' => start == 0 || s.start == start,
+            _ => false,
+        }
+    }
+
+    /// What a process holds now, MB (zeros when it cannot be read).
+    pub fn usage(root: &Path, pid: u32) -> Need {
+        match read(root, pid, "status") {
+            Some(t) => {
+                let (rss, _, private) = parse_status(&t);
+                Need { commit_mb: private / 1024, phys_mb: rss / 1024 }
+            }
+            None => Need::default(),
+        }
+    }
+
+    /// Every process now: (pid, parent, start). Zombies left out: they hold no memory.
+    pub fn table(root: &Path) -> Vec<(u32, u32, u64)> {
+        let mut out = Vec::new();
+        let Ok(entries) = fs::read_dir(root) else { return out };
+        for e in entries.flatten() {
+            let Some(pid) = e.file_name().to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+            if let Some(s) = read(root, pid, "stat").and_then(|t| parse_stat(&t)) {
+                if s.state != 'Z' && s.state != 'X' {
+                    out.push((pid, s.ppid, s.start));
+                }
+            }
+        }
+        out
+    }
+
+    /// `top` and every process below it in `table`, as (pid, start).
+    pub fn tree(table: &[(u32, u32, u64)], top: u32) -> Vec<(u32, u64)> {
+        let mut out: Vec<(u32, u64)> = table.iter().filter(|r| r.0 == top).map(|r| (r.0, r.2)).collect();
+        let mut i = 0;
+        while i < out.len() {
+            let parent = out[i].0;
+            for r in table {
+                if r.1 == parent && r.0 != parent && !out.iter().any(|o| o.0 == r.0) {
+                    out.push((r.0, r.2));
+                }
+            }
+            i += 1;
+        }
+        out
+    }
+
+    /// What a compile's tree held, look by look: each process's peak resident set (kept per pid
+    /// AND start time, so a reused pid counts as the new process it is), and the largest sum of
+    /// the tree's private memory seen at one look.
+    #[derive(Debug, Default)]
+    pub struct Tally {
+        peaks: Vec<((u32, u64), u64)>,
+        pub private_peak_kb: u64,
+    }
+
+    impl Tally {
+        pub fn look(&mut self, root: &Path, top: u32) {
+            let mut private = 0;
+            for (pid, start) in tree(&table(root), top) {
+                let Some(text) = read(root, pid, "status") else { continue };
+                let (_, hwm, p) = parse_status(&text);
+                private += p;
+                match self.peaks.iter_mut().find(|e| e.0 == (pid, start)) {
+                    Some(e) => e.1 = e.1.max(hwm),
+                    None => self.peaks.push(((pid, start), hwm)),
+                }
+            }
+            self.private_peak_kb = self.private_peak_kb.max(private);
+        }
+        /// The sum of every process's peak resident set, kB: never below the tree's real peak.
+        pub fn resident_peak_kb(&self) -> u64 {
+            self.peaks.iter().map(|e| e.1).sum()
+        }
+        /// One process's peak resident set, kB (0 when never seen).
+        pub fn peak_of(&self, pid: u32) -> u64 {
+            self.peaks.iter().filter(|e| e.0 .0 == pid).map(|e| e.1).max().unwrap_or(0)
+        }
+        /// How many processes were seen.
+        pub fn seen(&self) -> usize {
+            self.peaks.len()
+        }
+    }
+}
+
+/// getrusage(RUSAGE_CHILDREN): the CPU seconds and the largest peak resident set (kB) of every
+/// child this process has waited for, their own waited-for children included. Cumulative, so a
+/// compile's CPU is the difference across its wait. The struct is Linux's `struct rusage` (two
+/// timevals, then fourteen longs; c_long matches it on the 64-bit and the classic 32-bit ABIs).
+#[cfg(target_os = "linux")]
+fn children_usage() -> (f64, u64) {
+    use std::os::raw::{c_int, c_long};
+    #[repr(C)]
+    struct Timeval {
+        sec: c_long,
+        usec: c_long,
+    }
+    #[repr(C)]
+    struct Rusage {
+        utime: Timeval,
+        stime: Timeval,
+        maxrss: c_long,
+        rest: [c_long; 13],
+    }
+    extern "C" {
+        fn getrusage(who: c_int, usage: *mut Rusage) -> c_int;
+    }
+    const RUSAGE_CHILDREN: c_int = -1;
+    let mut u: Rusage = unsafe { std::mem::zeroed() };
+    if unsafe { getrusage(RUSAGE_CHILDREN, &mut u) } != 0 {
+        return (0.0, 0);
+    }
+    let secs = |t: &Timeval| t.sec as f64 + t.usec as f64 / 1e6;
+    (secs(&u.utime) + secs(&u.stime), u.maxrss.max(0) as u64)
+}
+
+/// A thread that looks at a compile's tree in /proc until finish() (the Windows TreeWatch's
+/// counterpart, by polling: Linux has no job object to post a notice when a process joins).
+#[cfg(target_os = "linux")]
+struct ProcWatch {
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    thread: Option<std::thread::JoinHandle<procfs::Tally>>,
+}
+
+#[cfg(target_os = "linux")]
+impl ProcWatch {
+    fn start(top: u32) -> ProcWatch {
+        use std::sync::atomic::Ordering;
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = stop.clone();
+        let list_ms = env_u64("HOS_BUILD_SLOT_TREE_LIST_MS", 200).clamp(10, 60_000);
+        let thread = std::thread::spawn(move || {
+            let root = std::path::Path::new("/proc");
+            let mut tally = procfs::Tally::default();
+            loop {
+                let last = flag.load(Ordering::Acquire);
+                tally.look(root, top);
+                if last {
+                    return tally;
+                }
+                let until = Instant::now() + Duration::from_millis(list_ms);
+                while !flag.load(Ordering::Acquire) && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
+        });
+        ProcWatch { stop, thread: Some(thread) }
+    }
+
+    /// Stop looking (one last look first) and hand back what was seen.
+    fn finish(&mut self) -> procfs::Tally {
+        self.stop.store(true, std::sync::atomic::Ordering::Release);
+        self.thread.take().and_then(|t| t.join().ok()).unwrap_or_default()
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for ProcWatch {
+    fn drop(&mut self) {
+        if self.thread.is_some() {
+            let _ = self.finish();
+        }
+    }
+}
+
+/// Is memory gated on this OS? Windows and Linux measure it; elsewhere (macOS) every compile runs
+/// at once, and says so (gated).
+const MEMORY_MEASURED: bool = cfg!(any(windows, target_os = "linux"));
+
 /// The machine's memory now (or the test's fake figures).
 fn memory() -> Mem {
     if let Ok(f) = env::var("HOS_BUILD_SLOT_FAKE_MEM_FILE") {
@@ -723,10 +989,19 @@ fn real_memory() -> Mem {
     }
 }
 
+/// No reading: no gate (room is "plenty"), the way it was before the slot knew the OS.
 #[cfg(not(windows))]
+const PLENTY: Mem = Mem { avail_commit_mb: u64::MAX / 4, avail_phys_mb: u64::MAX / 4, commit_limit_mb: 0, total_phys_mb: 0 };
+
+#[cfg(target_os = "linux")]
 fn real_memory() -> Mem {
-    // Not the machine this was built for: no gate (room is "plenty").
-    Mem { avail_commit_mb: u64::MAX / 4, avail_phys_mb: u64::MAX / 4, commit_limit_mb: 0, total_phys_mb: 0 }
+    procfs::memory(std::path::Path::new("/proc")).unwrap_or(PLENTY)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn real_memory() -> Mem {
+    // macOS: not measured yet (vm_stat and sysctl are the way; docs/design/cross-platform-dev.md).
+    PLENTY
 }
 
 /// A process's start time (Windows FILETIME), or None when it cannot be read.
@@ -747,7 +1022,11 @@ fn start_time(pid: u32) -> Option<u64> {
         }
     }
 }
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn start_time(pid: u32) -> Option<u64> {
+    procfs::start_time(std::path::Path::new("/proc"), pid)
+}
+#[cfg(not(any(windows, target_os = "linux")))]
 fn start_time(_pid: u32) -> Option<u64> {
     None
 }
@@ -774,7 +1053,11 @@ fn alive(pid: u32, start: u64) -> bool {
         live
     }
 }
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn alive(pid: u32, start: u64) -> bool {
+    procfs::alive(std::path::Path::new("/proc"), pid, start)
+}
+#[cfg(not(any(windows, target_os = "linux")))]
 fn alive(pid: u32, _start: u64) -> bool {
     std::path::Path::new(&format!("/proc/{pid}")).exists()
 }
@@ -802,7 +1085,14 @@ fn usage_mb(pid: u32) -> Need {
         }
     }
 }
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn usage_mb(pid: u32) -> Need {
+    if pid == 0 {
+        return Need::default();
+    }
+    procfs::usage(std::path::Path::new("/proc"), pid)
+}
+#[cfg(not(any(windows, target_os = "linux")))]
 fn usage_mb(_pid: u32) -> Need {
     Need::default()
 }
@@ -1462,7 +1752,9 @@ fn run_once(rustc: &OsStr, args: &[OsString], held: &mut Held, cap_mb: Option<u6
     #[cfg(windows)]
     let mut watch = job.as_ref().map(TreeWatch::start);
     #[cfg(not(windows))]
-    let _ = cap_mb;
+    let _ = cap_mb; // the retry proof's cap is a job object: Windows only
+    #[cfg(target_os = "linux")]
+    let (cpu_before, mut watch) = (children_usage().0, ProcWatch::start(child.id()));
     let mut held_lines = Vec::new();
     let mut oom = None;
     {
@@ -1501,7 +1793,20 @@ fn run_once(rustc: &OsStr, args: &[OsString], held: &mut Held, cap_mb: Option<u6
         let tree_ws = watch.as_mut().map(|w| w.finish()).unwrap_or(0);
         (job.as_ref().map(|j| j.peak_mb()).unwrap_or(0).max(own), tree_ws.max(own_ws), own_ws, job.as_ref().map(|j| j.cpu_s()).unwrap_or(0.0))
     };
-    #[cfg(not(windows))]
+    // Linux: the tree as /proc showed it, with getrusage's largest single peak as a floor (it
+    // also covers a process too quick for the looks) and its CPU seconds across this wait.
+    #[cfg(target_os = "linux")]
+    let (peak_mb, ws_mb, own_ws_mb, cpu_s) = {
+        let tally = watch.finish();
+        let (cpu_after, max_rss_kb) = children_usage();
+        // rustc alone, as the looks saw it; never seen (too quick): the largest single peak, an upper bound.
+        let own = match tally.peak_of(child.id()) {
+            0 => max_rss_kb,
+            kb => kb,
+        };
+        (tally.private_peak_kb.max(max_rss_kb) / 1024, tally.resident_peak_kb().max(max_rss_kb) / 1024, own / 1024, (cpu_after - cpu_before).max(0.0))
+    };
+    #[cfg(not(any(windows, target_os = "linux")))]
     let (peak_mb, ws_mb, own_ws_mb, cpu_s) = (0, 0, 0, 0.0);
     Ok(Outcome { code, oom: if status.success() { None } else { oom }, held_lines, peak_mb, ws_mb, own_ws_mb, cpu_s, secs: t0.elapsed().as_secs() })
 }
@@ -1518,6 +1823,13 @@ fn passthrough(rustc: &OsStr, args: &[OsString]) -> i32 {
 }
 
 fn gated(rustc: &OsStr, args: &[OsString], unit: Unit) -> i32 {
+    if !MEMORY_MEASURED {
+        say(&format!(
+            "{} ({}): memory is not measured on this OS yet (Windows and Linux are; docs/design/cross-platform-dev.md step 3), so this compile starts without waiting for room",
+            unit.crate_name, unit.kind
+        ));
+        return passthrough(rustc, args);
+    }
     let slot = match Slot::open() {
         Ok(s) => s,
         Err(e) => {
@@ -1634,6 +1946,9 @@ fn print_status() -> i32 {
     let policy = policy();
     let m = memory();
     println!("build slot      {}", slot.dir.display());
+    if !MEMORY_MEASURED {
+        println!("NOT GATED       memory is not measured on this OS yet (Windows and Linux are): every compile starts at once");
+    }
     println!("source sha256   {}", SRC_SHA256);
     println!(
         "memory          commit free {} of {}; physical free {} of {}; room {} (the smaller of commit free and physical free + {} paging)",
@@ -1700,10 +2015,18 @@ fn measure(cmd: &[OsString]) -> i32 {
         use std::os::windows::io::AsRawHandle;
         Job::holding(child.as_raw_handle() as sys::Handle, None)
     };
+    #[cfg(target_os = "linux")]
+    let (cpu_before, mut watch) = (children_usage().0, ProcWatch::start(child.id()));
     let code = child.wait().map(|s| s.code().unwrap_or(1)).unwrap_or(1);
     #[cfg(windows)]
     let (cpu, peak) = job.as_ref().map(|j| (j.cpu_s(), j.peak_mb())).unwrap_or((0.0, 0));
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    let (cpu, peak) = {
+        let tally = watch.finish();
+        let (cpu_after, max_rss_kb) = children_usage();
+        ((cpu_after - cpu_before).max(0.0), tally.private_peak_kb.max(max_rss_kb) / 1024)
+    };
+    #[cfg(not(any(windows, target_os = "linux")))]
     let (cpu, peak) = (0.0, 0);
     let m = memory();
     eprintln!(
@@ -2079,6 +2402,137 @@ mod tests {
             assert!(jumped.is_empty(), "compiles {jumped:?} started after the room appeared and before the head (tick {h})");
             assert!(s.iter().all(|x| x.is_some()), "every compile ran in the end: {s:?}");
         }
+    }
+
+    // ── Linux's /proc, on captured text and a fake tree (2026-11-20). These run on every platform:
+    // the readers take the folder as an argument. Seen red 2026-11-20, each broken once and put
+    // back: parse_stat counting from the FIRST ")" ("a stat line whose name holds a parenthesis",
+    // left: None), nth(18) for the start field (start: 1093713920 against 2318843, and the tally
+    // then saw 2 processes, not 3), mem_from_meminfo using Committed_AS under the default overcommit
+    // (left: 0 against right: 17815), and the tree walk without its grandchildren (left: [200, 300]
+    // against right: [200, 300, 400]).
+
+    /// /proc/meminfo as a Debian 12 machine with 32 GB printed it (trimmed), Committed_AS ABOVE
+    /// CommitLimit, as it routinely is under the default heuristic overcommit.
+    const MEMINFO: &str = "MemTotal:       32768000 kB\nMemFree:         1200000 kB\nMemAvailable:   16242688 kB\nBuffers:          300000 kB\nCached:         14000000 kB\nSwapTotal:       2097148 kB\nSwapFree:        2000000 kB\nCommitLimit:    18481148 kB\nCommitted_AS:   41000000 kB\nVmallocTotal:   34359738367 kB\n";
+
+    #[test]
+    fn linux_memory_is_memavailable_and_commit_counts_only_when_enforced() {
+        let m = procfs::mem_from_meminfo(MEMINFO, "0\n").expect("parses");
+        assert_eq!(m.avail_phys_mb, 16242688 / 1024);
+        assert_eq!(m.total_phys_mb, 32768000 / 1024);
+        // Default overcommit: Committed_AS is no limit; what an allocation can get is the
+        // available memory plus free swap, not CommitLimit - Committed_AS (which would be 0 here
+        // and hold every compile until the ceiling).
+        assert_eq!(m.avail_commit_mb, (16242688 + 2000000) / 1024);
+        let strict = procfs::mem_from_meminfo(MEMINFO, "2").expect("parses");
+        assert_eq!(strict.avail_commit_mb, 0, "enforced, and already past the limit");
+        assert_eq!(strict.commit_limit_mb, 18481148 / 1024);
+        let fine = procfs::mem_from_meminfo(&MEMINFO.replace("41000000", "1000000"), "2").unwrap();
+        assert_eq!(fine.avail_commit_mb, (18481148 - 1000000) / 1024);
+        assert!(procfs::mem_from_meminfo("MemTotal: 5 kB\n", "0").is_none(), "no MemAvailable: no reading");
+        assert_eq!(procfs::kb("VmRSS:\t  4242 kB\n", "VmRSS"), Some(4242));
+        assert_eq!(procfs::kb("VmRSSX: 1 kB\n", "VmRSS"), None, "a longer key is another key");
+    }
+
+    #[test]
+    fn linux_stat_fields_are_counted_from_the_last_parenthesis() {
+        let cargo = "48213 (cargo) S 48190 48213 48190 34816 48213 4194304 51823 120044 0 0 236 41 380 77 20 0 9 0 2318843 1093713920 30113 18446744073709551615 1 1 0 0";
+        assert_eq!(procfs::parse_stat(cargo), Some(procfs::Stat { state: 'S', ppid: 48190, start: 2318843 }));
+        let odd = "777 (a (b) c) R 1 777 777 0 -1 4194560 0 0 0 0 0 0 0 0 20 0 1 0 99 0 0";
+        assert_eq!(procfs::parse_stat(odd), Some(procfs::Stat { state: 'R', ppid: 1, start: 99 }), "a stat line whose name holds a parenthesis");
+        assert_eq!(procfs::parse_stat("12 (short) S 1 2 3"), None, "cut short: no start field");
+        assert_eq!(procfs::parse_stat("no parens"), None);
+    }
+
+    #[test]
+    fn linux_status_gives_resident_peak_and_private() {
+        let status = "Name:\trustc\nVmPeak:\t 9000000 kB\nVmHWM:\t 2400000 kB\nVmRSS:\t 1800000 kB\nRssAnon:\t 1700000 kB\nRssFile:\t  100000 kB\nVmSwap:\t   50000 kB\n";
+        assert_eq!(procfs::parse_status(status), (1800000, 2400000, 1750000));
+        assert_eq!(procfs::parse_status("Name:\tkthreadd\n"), (0, 0, 0), "a kernel thread has no memory lines");
+    }
+
+    /// A fake /proc in a temp folder: a shell (100) running a compile wrapper (200) whose rustc
+    /// (300) runs a linker (400); an unrelated editor (500); a zombie child of rustc (600).
+    fn fake_proc(name: &str) -> PathBuf {
+        let root = env::temp_dir().join(format!("hos_build_slot_proc_{}_{}", name, std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let p = |pid: u32, comm: &str, state: char, ppid: u32, start: u64, hwm: u64, anon: u64| {
+            let d = root.join(pid.to_string());
+            fs::create_dir_all(&d).unwrap();
+            fs::write(d.join("stat"), format!("{pid} ({comm}) {state} {ppid} 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 {start} 0 0")).unwrap();
+            fs::write(d.join("status"), format!("Name:\t{comm}\nVmHWM:\t{hwm} kB\nVmRSS:\t{hwm} kB\nRssAnon:\t{anon} kB\nVmSwap:\t0 kB\n")).unwrap();
+        };
+        p(100, "bash", 'S', 1, 10, 5_000, 3_000);
+        p(200, "hos-build-slot.", 'S', 100, 20, 4_000, 2_000);
+        p(300, "rustc", 'R', 200, 30, 2_000_000, 1_900_000);
+        p(400, "ld", 'R', 300, 40, 600_000, 550_000);
+        p(500, "code (editor)", 'S', 1, 50, 900_000, 800_000);
+        p(600, "cc", 'Z', 300, 60, 0, 0);
+        fs::create_dir_all(root.join("self")).unwrap(); // not a pid
+        fs::create_dir_all(root.join("sys").join("vm")).unwrap();
+        fs::write(root.join("sys").join("vm").join("overcommit_memory"), "0\n").unwrap();
+        fs::write(root.join("meminfo"), MEMINFO).unwrap();
+        root
+    }
+
+    #[test]
+    fn linux_tree_tally_sums_each_process_peak_and_skips_strangers() {
+        let root = fake_proc("tally");
+        let table = procfs::table(&root);
+        assert!(!table.iter().any(|r| r.0 == 600), "a zombie holds no memory");
+        let mut ids: Vec<u32> = procfs::tree(&table, 200).iter().map(|t| t.0).collect();
+        ids.sort();
+        assert_eq!(ids, vec![200, 300, 400], "the wrapper, its rustc and the linker; never the editor or the shell above");
+        let mut t = procfs::Tally::default();
+        t.look(&root, 300);
+        assert_eq!(t.seen(), 2, "rustc and its linker");
+        assert_eq!(t.resident_peak_kb(), 2_600_000);
+        assert_eq!(t.private_peak_kb, 2_450_000);
+        assert_eq!(t.peak_of(300), 2_000_000);
+        // The linker grows, then ends; a new process reuses its pid with another start time: the
+        // tally keeps the old peak and counts the newcomer as its own process.
+        fs::write(root.join("400").join("status"), "VmHWM:\t700000 kB\nVmRSS:\t100000 kB\nRssAnon:\t90000 kB\n").unwrap();
+        t.look(&root, 300);
+        assert_eq!(t.resident_peak_kb(), 2_700_000, "the linker's peak rose to 700 MB");
+        assert_eq!(t.private_peak_kb, 2_450_000, "the largest sum at one look stays");
+        fs::write(root.join("400").join("stat"), "400 (ld) R 300 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 41 0 0").unwrap();
+        fs::write(root.join("400").join("status"), "VmHWM:\t1000 kB\nVmRSS:\t1000 kB\nRssAnon:\t1000 kB\n").unwrap();
+        t.look(&root, 300);
+        assert_eq!(t.seen(), 3, "a reused pid with a new start time is a new process");
+        assert_eq!(t.resident_peak_kb(), 2_701_000);
+        // The readers the slot uses on Linux, on the same tree.
+        assert_eq!(procfs::start_time(&root, 300), Some(30));
+        assert!(procfs::alive(&root, 300, 30));
+        assert!(!procfs::alive(&root, 300, 31), "another start time: the pid was reused");
+        assert!(!procfs::alive(&root, 600, 60), "a zombie has finished");
+        assert!(!procfs::alive(&root, 999, 0), "gone");
+        assert_eq!(procfs::usage(&root, 300), Need { commit_mb: 1_900_000 / 1024, phys_mb: 2_000_000 / 1024 });
+        let m = procfs::memory(&root).expect("the fake meminfo");
+        assert_eq!(m.avail_phys_mb, 16242688 / 1024);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    // Linux only: the real /proc and the real getrusage, on this very process (CI's tooling job).
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_live_proc_reads_this_process() {
+        let me = std::process::id();
+        let start = start_time(me).expect("this process's start time");
+        assert!(alive(me, start));
+        assert!(!alive(me, start + 1), "another start time is another process");
+        assert!(usage_mb(me).phys_mb > 0, "this process holds some memory: {:?}", usage_mb(me));
+        let m = real_memory();
+        assert!(m.total_phys_mb > 0 && m.avail_phys_mb > 0 && m.avail_phys_mb <= m.total_phys_mb, "{m:?}");
+        // A child this process waits for shows in the tree, then in getrusage's CPU.
+        let mut child = Command::new("sh").args(["-c", "sleep 1"]).spawn().expect("sh");
+        std::thread::sleep(Duration::from_millis(300));
+        let mut t = procfs::Tally::default();
+        t.look(std::path::Path::new("/proc"), me);
+        assert!(t.seen() >= 2, "this process and its sh child: saw {}", t.seen());
+        let _ = child.wait();
+        let (cpu, max_rss) = children_usage();
+        assert!(cpu >= 0.0 && max_rss > 0, "getrusage(RUSAGE_CHILDREN): {cpu} s, {max_rss} kB");
     }
 
     #[test]

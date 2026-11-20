@@ -79,11 +79,16 @@ test("a --sim run is no game instance, by its command line", () => {
 test("the watch list covers the game and the build tools, and nothing idle", () => {
   // Pinned deliberately: a guard that blocks on an IDE's rust-analyzer gets
   // bypassed, and a bypassed guard protects nothing.
-  assert.ok(MG.WATCHED.includes("HumanityOS.exe"));
-  assert.ok(MG.WATCHED.includes("cargo.exe"));
-  assert.ok(MG.WATCHED.includes("rustc.exe"));
+  // Each platform's own names (2026-11-20): .exe on Windows only.
+  const x = process.platform === "win32" ? ".exe" : "";
+  assert.ok(MG.WATCHED.includes(`HumanityOS${x}`));
+  assert.ok(MG.WATCHED.includes(`cargo${x}`));
+  assert.ok(MG.WATCHED.includes(`rustc${x}`));
   assert.ok(!MG.WATCHED.some((n) => /rust-analyzer|mspdbsrv/i.test(n)));
-  // The query the guard runs must actually ask for every watched name.
+  assert.strictEqual(MG.GAME, `HumanityOS${x}`);
+  // The Windows query the guard runs must actually ask for every watched name (it is only run on
+  // Windows; off Windows the list comes from platform.js, the test below).
+  if (process.platform !== "win32") return;
   const q = MG.psQuery();
   // The game by suffix (LIKE), so the operator's v<version>_HumanityOS.exe
   // archive is listed too (2026-10-04); the build tools by exact name.
@@ -91,6 +96,34 @@ test("the watch list covers the game and the build tools, and nothing idle", () 
     const want = n === MG.GAME ? `Name LIKE '%${n}'` : `Name='${n}'`;
     assert.ok(q.includes(want), `query omits ${want}`);
   }
+});
+
+// OFF WINDOWS (2026-11-20, docs/design/cross-platform-dev.md): the guard's list comes from
+// platform.js (/proc on Linux, ps on macOS) narrowed to the game, the builds and the operator's
+// programs, in the same lines the Windows query prints. Before it the guard read "nothing running"
+// off Windows. Pure, so it runs on every platform. Seen red 2026-11-20 with elsewhereText's filter
+// dropped to games only: "the game (every copy), cargo and rustc; never bash or an IDE", [10, 11, 16]
+// against [10, 11, 12, 13, 16].
+test("off Windows the guard lists the game and the builds from platform.js, and nothing else", () => {
+  const list = [
+    { pid: 10, ppid: 1, name: "HumanityOS", exe: "/home/u/repo/.probe-rig/HumanityOS", cmd: "/home/u/repo/.probe-rig/HumanityOS" },
+    { pid: 11, ppid: 1, name: "HumanityOS", exe: "/home/u/Games/HumanityOS", cmd: "HumanityOS\n--multi-line" },
+    { pid: 12, ppid: 1, name: "cargo", exe: "/home/u/.cargo/bin/cargo", cmd: "cargo build --release" },
+    { pid: 13, ppid: 12, name: "rustc", exe: "/home/u/.rustup/toolchains/x/bin/rustc", cmd: "rustc --crate-name a|b" },
+    { pid: 14, ppid: 1, name: "bash", exe: "/usr/bin/bash", cmd: "bash" },
+    { pid: 15, ppid: 1, name: "rust-analyzer", exe: "/x/rust-analyzer", cmd: "rust-analyzer" },
+    { pid: 16, ppid: 1, name: "HumanityOS", exe: "/home/u/Games/HumanityOS", cmd: "HumanityOS --sim soak --days 1" },
+  ];
+  const procs = MG.parseProcs(MG.elsewhereText(list));
+  assert.deepStrictEqual(procs.map((p) => p.pid), [10, 11, 12, 13, 16], "the game (every copy), cargo and rustc; never bash or an IDE");
+  const by = new Map(procs.map((p) => [p.pid, p]));
+  assert.strictEqual(by.get(13).cmd, "rustc --crate-name a|b", "a bar inside the command line survives");
+  assert.ok(!by.get(11).cmd.includes("\n"), "one line per process");
+  assert.ok(MG.isBuildName("cargo"), "cargo is a build off Windows too");
+  assert.ok(MG.isGameName("HumanityOS") && MG.isGameName("HumanityOS.exe"));
+  assert.strictEqual(MG.isOperatorGame(by.get(10)), false, "a .probe-rig copy is a development copy");
+  assert.strictEqual(MG.isOperatorGame(by.get(11)), true, "a copy elsewhere is a person's own game");
+  assert.strictEqual(MG.isSimRun(by.get(16)), true, "a --sim run is no game");
 });
 
 test("our own rig instance is NOT a contender (by pid and by exe path)", () => {
@@ -456,7 +489,8 @@ const holdIn = (win, extra = {}) => {
 
 test("BUILDS: the build tools the guard watches, and never the game", () => {
   assert.ok(Array.isArray(MG.BUILDS) && MG.BUILDS.length >= 3);
-  for (const n of ["cargo.exe", "rustc.exe", "link.exe"]) assert.ok(MG.BUILDS.includes(n), `${n} is a build`);
+  const names = process.platform === "win32" ? ["cargo.exe", "rustc.exe", "link.exe"] : ["cargo", "rustc", "ld"];
+  for (const n of names) assert.ok(MG.BUILDS.includes(n), `${n} is a build`);
   for (const n of MG.BUILDS) {
     assert.ok(MG.WATCHED.includes(n), `${n} is watched: one list of what a build is`);
     assert.ok(!MG.isGameName(n), `${n} is not the game`);

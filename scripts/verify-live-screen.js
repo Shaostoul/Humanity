@@ -43,6 +43,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { spawn, spawnSync, execSync } = require("child_process");
 const png = require("./lib/png.js");
 const G = require("./rig-graphics.js");
@@ -73,7 +74,7 @@ const opt = (name, def) => {
 };
 const flag = (name) => args.includes(name);
 const KEEP_OPEN = flag("--keep-open");
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const TIMEOUT_MS = Number(opt("--timeout-min", "12")) * 60 * 1000;
 const PORT = Number(opt("--port", "3399"));
 const DRY = opt("--dry-verdict", null);
@@ -290,13 +291,13 @@ const BOOT_PLAN = RN.planOrRefuse("verify-live-screen", { log });
 const instances = MG.blockingInstances(BOOT_PLAN.own);
 if (instances.length) {
   refuse([
-    `REFUSED: HumanityOS.exe is already running (pid ${instances.map((p) => `${p.pid} ${p.exe}`).join("; ")}).`,
+    `REFUSED: ${PLAT.EXE_NAME} is already running (pid ${instances.map((p) => `${p.pid} ${p.exe}`).join("; ")}).`,
     "One GPU, one instance (CLAUDE.md). This rig also starts a headless relay from the same",
     "binary, so a leftover of either would be counted twice. Wait for it to exit, then run again.",
-    "If it is a leftover rig of ours: taskkill //PID <pid> //F",
+    `If it is a leftover rig of ours: ${PLAT.killCommand("<pid>", { force: true })}`,
   ]);
 }
-RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, "HumanityOS.exe"), log });
+RN.waitForOperator(BOOT_PLAN, { exe: path.join(RIG, PLAT.EXE_NAME), log });
 
 // This tree's build (or another, on purpose, with --allow-other-build
 // "<reason>", recorded in the manifest as other_build; BUG-133).
@@ -321,13 +322,8 @@ function ensureJunction(link, target) {
   fs.symlinkSync(target, link, "junction");
 }
 function killRigProcesses() {
-  const rigExe = path.join(RIG, "HumanityOS.exe").replace(/'/g, "''");
-  try {
-    execSync(
-      `powershell -NoProfile -Command "Get-Process HumanityOS -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${rigExe}' } | Stop-Process -Force"`,
-      { stdio: "ignore" },
-    );
-  } catch {}
+  // Through lib/platform.js (2026-11-20): PowerShell's Get-Process on Windows, the process list elsewhere.
+  PLAT.killByExe(path.join(RIG, PLAT.EXE_NAME));
 }
 function setupRig() {
   fs.mkdirSync(RIG, { recursive: true });
@@ -346,9 +342,9 @@ function setupRig() {
   }
   // Stop anything left running from the rig copy, then wait out the lock it
   // leaves on the file (scripts/lib/rig-exe-copy.js).
-  copyExeIntoRig(EXE, path.join(RIG, "HumanityOS.exe"), { stop: killRigProcesses, log });
+  copyExeIntoRig(EXE, path.join(RIG, PLAT.EXE_NAME), { stop: killRigProcesses, log });
   // What boots is the copy, so the copy must be what the gate judged (BUG-133).
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), fresh, "verify-live-screen");
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), fresh, "verify-live-screen");
   // The DXC shader compiler dlls, from beside the exe or else the repo root
   // (target/release has none; the repo root does). One shared lookup,
   // scripts/lib/dxc-dlls.js, which logs which folder it used or that it
@@ -478,7 +474,7 @@ async function main() {
     kind: "verify-live-screen",
     stamp,
     exe: EXE,
-    binary: bootRecord(fresh, path.join(RIG, "HumanityOS.exe")),
+    binary: bootRecord(fresh, path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     rig: RIG,
     server: SERVER_URL,
@@ -520,13 +516,13 @@ async function main() {
     for (const p of [publisher, relayProc]) {
       if (!p || p.killed) continue;
       try {
-        execSync(`taskkill /PID ${p.pid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(p.pid, { force: true });
       } catch {}
     }
     if (gamePid) {
       if (game) game.expectExit(); // our own stop: not a hand-off to look for
       try {
-        execSync(`taskkill /PID ${gamePid} /T /F`, { stdio: "ignore" });
+        PLAT.killTree(gamePid, { force: true });
       } catch {}
     }
     killRigProcesses();
@@ -559,7 +555,7 @@ async function main() {
     // only ever write inside its own scratch folder, and it reads no server
     // config, so every feature is at its default (on), which is what a
     // fresh self-hosted node gets.
-    relayProc = spawn(path.join(RIG, "HumanityOS.exe"), ["--headless"], {
+    relayProc = spawn(path.join(RIG, PLAT.EXE_NAME), ["--headless"], {
       cwd: RELAY_DIR,
       stdio: ["ignore", relayOut, relayOut],
       env: {
@@ -633,7 +629,7 @@ async function main() {
     // spawnGame: the copy is checked against the judged bytes right before the
     // spawn, HUMANITY_NO_HANDOFF=1 (run this copy, never a newer
     // v*_HumanityOS.exe), and an exit we did not ask for is watched for.
-    game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+    game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
       fresh,
       rigName: "verify-live-screen", lowImpact: BOOT_PLAN.lowImpact,
       log,
@@ -709,7 +705,7 @@ async function main() {
     // live", so this is patient.
     log("stopping the publisher...");
     try {
-      execSync(`taskkill /PID ${publisher.pid} /T /F`, { stdio: "ignore" });
+      PLAT.killTree(publisher.pid, { force: true });
     } catch {}
     publisher = null;
     let off = null;
@@ -799,7 +795,7 @@ async function main() {
   } catch {}
   save();
   if (!KEEP_OPEN) killAll();
-  else log(`--keep-open: the rig is still running (game pid ${gamePid}); taskkill //PID ${gamePid} //T //F`);
+  else log(`--keep-open: the rig is still running (game pid ${gamePid}); ${PLAT.killCommand(gamePid, { tree: true, force: true })}`);
   const pass = printVerdict("RESULT: ", manifest, OUT);
   if (!pass) {
     console.log("What to do:");

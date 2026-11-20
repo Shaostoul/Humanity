@@ -23,6 +23,7 @@
 const { spawn, execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("../lib/platform.js");
 const T = require("./tools.js");
 
 const [label, lowFile, engineFile, which = "check,test"] = process.argv.slice(2);
@@ -39,16 +40,13 @@ const out = path.join(T.OUT, `split-measure-${label}.log`);
 /** Cargo, rustc and link processes, HumanityOS instances and free physical memory: the load. */
 function load() {
   let procs = "?", games = "?", free = "?";
-  try {
-    const names = execSync("tasklist /FO CSV /NH", { encoding: "utf8" }).split(/\r?\n/).filter(Boolean)
-      .map((l) => l.split('","')[0].replace(/^"/, "").toLowerCase());
-    procs = names.filter((n) => n === "cargo.exe" || n === "rustc.exe" || n === "link.exe").length;
+  // Through lib/platform.js (2026-11-20); os.freemem() is the available physical memory everywhere.
+  const names = PLAT.listProcesses().map((p) => p.name.toLowerCase().replace(/\.exe$/, ""));
+  if (names.length) {
+    procs = names.filter((n) => ["cargo", "rustc", "link", "cc", "ld"].includes(n)).length;
     games = names.filter((n) => n.includes("humanityos")).length;
-  } catch {}
-  try {
-    const kb = execSync('powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory"', { encoding: "utf8" });
-    free = `${(Number(kb.trim()) / 1024 / 1024).toFixed(1)} GB`;
-  } catch {}
+  }
+  free = `${(require("os").freemem() / 1024 ** 3).toFixed(1)} GB`;
   return { cargo_rustc_link: procs, humanityos: games, free };
 }
 

@@ -56,6 +56,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const PLAT = require("../lib/platform.js");
 const crypto = require("node:crypto");
 const { spawn, execSync } = require("node:child_process");
 
@@ -73,7 +74,7 @@ let n = 0;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const kill = (pid) => {
   try {
-    execSync(`taskkill /PID ${pid} /T /F`, { stdio: "ignore" });
+    PLAT.killTree(pid, { force: true });
   } catch {}
 };
 /** The rig holds junctions to the tree's data/ and assets/: remove them as links before anything

@@ -30,6 +30,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const PLAT = require('./lib/platform.js');
 const { execSync } = require('child_process');
 
 const PREFIX = 'hum_';
@@ -48,17 +49,10 @@ function isBuildOrTest(name) {
 /** The builds and test runs going on now, by image name. */
 function busy() {
   let names = [];
-  try {
-    if (process.platform === 'win32') {
-      const out = execSync('tasklist /FO CSV /NH', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
-      names = out.split(/\r?\n/).map((line) => (line.match(/^"([^"]+)"/) || [])[1]).filter(Boolean);
-    } else {
-      const out = execSync('ps -eo args=', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-      names = out.split('\n').map((line) => path.basename(line.trim().split(/\s+/)[0] || '')).filter(Boolean);
-    }
-  } catch {
-    return ['(could not list the running processes)'];
-  }
+  // Through lib/platform.js (2026-11-20): the CIM query on Windows, /proc or ps elsewhere.
+  const list = PLAT.listProcesses();
+  if (!list.length) return ['(could not list the running processes)'];
+  names = list.map((p) => p.name).filter(Boolean);
   return [...new Set(names.filter(isBuildOrTest))];
 }
 

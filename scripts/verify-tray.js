@@ -35,6 +35,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const PLAT = require("./lib/platform.js");
 const { execSync } = require("child_process");
 const MG = require("./lib/machine-guard.js");
 const RN = require("./lib/rig-needs.js");
@@ -51,7 +52,7 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 && args[i + 1] ? args[i + 1] : def;
 };
-const EXE = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
+const EXE = path.resolve(opt("--exe", PLAT.builtExe(REPO)));
 const NO_WAIT = args.includes("--no-wait");
 const WAIT_MIN = Number(opt("--wait-min", String(MG.WAIT_MIN_DEFAULT)));
 const DRY = opt("--dry-verdict", null);
@@ -126,8 +127,8 @@ function setupRig() {
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   for (const d of ["saves", "backups"]) fs.rmSync(path.join(RIG, d), { recursive: true, force: true });
-  fs.copyFileSync(EXE, path.join(RIG, "HumanityOS.exe"));
-  requireBootCopy(path.join(RIG, "HumanityOS.exe"), FRESH, RIG_NAME);
+  fs.copyFileSync(EXE, path.join(RIG, PLAT.EXE_NAME));
+  requireBootCopy(path.join(RIG, PLAT.EXE_NAME), FRESH, RIG_NAME);
   DXC.copyDxcDlls({ exe: EXE, repo: REPO, dest: RIG, log });
 }
 function clearDebug() {
@@ -182,7 +183,7 @@ async function waitExit(game, timeoutMs) {
 }
 function start() {
   clearDebug();
-  const game = GL.spawnGame(path.join(RIG, "HumanityOS.exe"), [], {
+  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
     fresh: FRESH,
     rigName: "verify-tray",
     log,
@@ -199,7 +200,7 @@ function start() {
 function forceKill(game) {
   game.expectExit();
   try {
-    execSync(`taskkill /PID ${game.child.pid} /T /F`, { stdio: "ignore" });
+    PLAT.killTree(game.child.pid, { force: true });
   } catch {}
 }
 
@@ -208,7 +209,7 @@ async function main() {
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
   const OUT = path.join(RUNS, stamp);
   fs.mkdirSync(OUT, { recursive: true });
-  const run = { kind: RIG_NAME, stamp, exe: EXE, binary: bootRecord(FRESH, path.join(RIG, "HumanityOS.exe")), ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}), panics: 0, builtin_data: [], error: null };
+  const run = { kind: RIG_NAME, stamp, exe: EXE, binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)), ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}), panics: 0, builtin_data: [], error: null };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(run, null, 2));
   let game = null;
   const watchdog = setTimeout(() => {
@@ -264,7 +265,7 @@ async function main() {
     const closed = await tray({ action: "close" });
     const tkFrom = logText().length;
     try {
-      execSync(`taskkill /PID ${game.child.pid}`, { stdio: "ignore" });
+      PLAT.killTree(game.child.pid, { force: false, tree: false });
     } catch {}
     const graceful = await waitExit(game, 15000);
     run.taskkill = { hidden_first: closed.hidden === true && closed.visible === false, exited_gracefully: graceful, log: logText().slice(tkFrom) };
