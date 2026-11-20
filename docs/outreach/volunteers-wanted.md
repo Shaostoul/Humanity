@@ -19,6 +19,7 @@ are kept privately by the maintainer, never in this public repository.
 | **Voices for people aboard (NPCs)** | The same as above, for characters: shorter sets of lines, many different voices welcome, in any language | As above | Crew and neighbours who sound like different real people, in many languages |
 | **Movement (motion capture)** | Recording everyday movements (walking, sitting, climbing, carrying, cooking) with whatever capture setup you have, shared under CC0 and checked the way music contributions are | A motion capture suit or a camera-based capture tool | Real movement for every body in the game (docs/design/character-animation.md) |
 | **Translators** | Translating the app's words and the Library into your language, one key at a time | Fluency in a language and English | The app is for everyone, including people who do not read English |
+| **Emoji designers** | Drawing emoji for HumanityOS's own set, one at a time; each design is proposed, the community votes, and a chosen design replaces the open set's version | Any vector drawing tool (Inkscape is free); designs shared under CC0 | Our own emoji, drawn by the people who use them. Until the set grows, an open emoji set is served from our own server, so no outside company sees who is chatting |
 | **Testers** | Using the app and the game and telling us what confused you, broke, or felt wrong | Any computer or phone | People new to tech are who the app is for; your first impressions are the test |
 
 ## How to offer

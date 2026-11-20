@@ -78,7 +78,14 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    pinned to `@latest`); `img-src` allows `https://*`. Drop the CDN from script-src, vendor the
    emoji images (no third-party request per chat visitor), move inline scripts into files so
    `'unsafe-inline'` can go, narrow img-src; check each page for CSP violations in the browser
-   before and after (live nginx is hand-applied: targeted edits, `nginx -t`, reload).
+   before and after (live nginx is hand-applied: targeted edits, `nginx -t`, reload). Add a web
+   check that user text never reaches `innerHTML` unescaped (there is none today). **Emoji**
+   (operator, 2026-11-20: "make our own emojis... a task for human volunteers... adopted by user
+   provided/voted options", "Or that instead"): first host an open set ourselves, chosen after the
+   house comparison (Twemoji CC BY 4.0, today's look; OpenMoji CC BY-SA 4.0, community-made;
+   Noto Emoji; Fluent Emoji), one set for both apps, as a data pack; then a HumanityOS set grown by
+   volunteers, each design proposed and voted on, replacing the open set's emoji one by one
+   (docs/outreach/volunteers-wanted.md, "Emoji designers").
 7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent. Beside it, a
    toolsmith: **`just clean-worktrees` that recognises squash merges.** It removed 2 of 211 on
    2026-11-16 and kept the rest as "real work", because a squash-merged branch's commits never appear
