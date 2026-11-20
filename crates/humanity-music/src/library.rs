@@ -38,6 +38,9 @@ pub struct MusicLibrary {
     pub intensity: crate::intensity::IntensityMap,
     /// Settings > Music's "A new piece" choices, minutes (0: never; data/music/pieces.ron).
     pub piece_minutes: Vec<f32>,
+    /// The written pieces the Music page offers (data/music/scores/index.ron; crate::scores): the
+    /// index only, each piece's file is read when it is chosen.
+    pub scores: Vec<crate::scores::ScoreEntry>,
 }
 
 /// data/music/tones.ron.
@@ -132,7 +135,8 @@ impl MusicLibrary {
         if pieces.minutes.is_empty() || pieces.minutes.iter().any(|m| !(0.0..=600.0).contains(m)) {
             return Err(format!("{}: the choices must be 0 (never) to 600 minutes, and at least one", pieces_path.display()));
         }
-        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes };
+        let scores = crate::scores::load_index(data_dir)?;
+        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes, scores };
         lib.order();
         lib.check()?;
         Ok(lib)
@@ -176,6 +180,15 @@ impl MusicLibrary {
         if self.mood_index(&self.places.default_mood).is_none() {
             return Err(format!("places.ron: default_mood {:?} is not a mood", self.places.default_mood));
         }
+        // A written piece's staves play synthesised instruments of this library (score-player.md
+        // section 9; recorded parts are its rung 2).
+        for p in &self.scores {
+            for s in &p.staves {
+                if !self.instruments.iter().any(|i| i.id == s.instrument) {
+                    return Err(format!("scores/index.ron: piece {:?}, staff {}: instrument {:?} is not in data/music/instruments", p.id, s.staff, s.instrument));
+                }
+            }
+        }
         for s in &self.places.genre_suggestions {
             if self.genre_index(&s.genre).is_none() {
                 return Err(format!("places.ron: genre {:?} is not a genre", s.genre));
@@ -203,6 +216,11 @@ impl MusicLibrary {
     /// A genre's index by id.
     pub fn genre_index(&self, id: &str) -> Option<usize> {
         self.genres.iter().position(|s| s.id == id)
+    }
+
+    /// A written piece of the index by its id.
+    pub fn score(&self, id: &str) -> Option<&crate::scores::ScoreEntry> {
+        self.scores.iter().find(|s| s.id == id)
     }
 
     /// An instrument's index by id.

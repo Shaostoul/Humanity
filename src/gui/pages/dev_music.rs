@@ -51,13 +51,16 @@ pub struct MusicChoice {
     pub intensity: Option<f32>,
     pub seed: u64,
     pub tune: humanity_music::tune::Tune,
+    /// A written piece to play instead of composing (its id in data/music/scores/index.ron;
+    /// docs/design/score-player.md section 10), heard in `mood`'s hall.
+    pub written: Option<String>,
 }
 
 impl MusicChoice {
     /// Whether `other` composes the same piece (a level or a mute is heard at once; anything else
     /// starts the piece again with the change, at the next bar).
     pub fn composes_like(&self, other: &MusicChoice) -> bool {
-        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune)
+        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune) && self.written == other.written
     }
 }
 
@@ -117,6 +120,10 @@ pub struct MusicReadout {
     /// (long ones only their attacks) and the stream rings, bytes; and how many notes stream now of
     /// how many rings. None before a score with recordings has played.
     pub memory: Option<MusicMemory>,
+    /// The written piece the playing score plays (its id; None: the composer composes), and why the
+    /// last written piece asked for could not be read (the Music page says so beside its list).
+    pub written: Option<String>,
+    pub written_error: Option<(String, String)>,
 }
 
 /// The score's music memory, for the Dev page's line.

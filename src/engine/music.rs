@@ -384,7 +384,25 @@ impl<B: kira::backend::Backend> Mixer for humanity_core::audio::AudioManager<B> 
 }
 
 /// A build in flight on the worker thread: what it was asked for, and the bank lent to it.
-type BuildResult = (Result<Built, String>, SampleBank);
+type BuildResult = (Result<Built, String>, SampleBank, Option<WrittenLoad>);
+
+/// A written piece read on the build's thread: its id, and the piece or why it could not be read.
+type WrittenLoad = (String, Result<Arc<humanity_music::scores::WrittenPiece>, String>);
+
+/// Read and time the written piece `id` (docs/design/score-player.md section 10): the index, then its
+/// MEI file. On the build's thread, never the game thread (a large orchestral file takes a while).
+pub(crate) fn load_written(data_dir: &Path, id: &str) -> Result<Arc<humanity_music::scores::WrittenPiece>, String> {
+    let index = humanity_music::scores::load_index(data_dir)?;
+    let entry = index.iter().find(|e| e.id == id).ok_or_else(|| format!("no written piece {id:?} in data/music/scores/index.ron"))?;
+    let piece = humanity_music::scores::load_piece(data_dir, entry)?;
+    for p in &piece.score.problems {
+        log::warn!("[Music] {}: {p}", entry.file);
+    }
+    if !piece.score.skipped.is_empty() {
+        log::info!("[Music] {}: skipped elements the reader does not know: {:?}", entry.file, piece.score.skipped);
+    }
+    Ok(Arc::new(piece))
+}
 
 /// Why a score is being built, which says when it takes over and with which seed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -422,6 +440,8 @@ struct Ready {
     lib: Arc<MusicLibrary>,
     generation: u64,
     genres: Vec<String>,
+    /// The written piece it plays (its id and the piece read and timed; None: the composer composes).
+    written: Option<(String, Arc<humanity_music::scores::WrittenPiece>)>,
     /// The playing score's phrase and bar count when it arrived: it takes over after that phrase
     /// (or that bar, for a genre change).
     at_phrase: u64,
@@ -501,6 +521,11 @@ pub(crate) struct MusicRuntime {
     /// The bank's stream rings as last seen (bytes, notes streaming, rings): the bank is lent to
     /// the build's thread while it runs.
     streams_seen: (usize, usize, usize),
+    /// A written piece that could not be read (its id and why): not asked for again until the person
+    /// chooses another, so a broken file never rebuilds every frame; the Music page says why.
+    written_failed: Option<(String, String)>,
+    /// The written piece the playing score plays (None: the composer composes).
+    score_written: Option<String>,
 }
 
 /// Whether two "in place of new pieces" choices compose the same piece (both none, or the same seed,
@@ -527,8 +552,12 @@ pub(crate) fn mood_now(lib: &MusicLibrary, inp: &Inputs) -> String {
 /// What plays in place of new pieces now: the person's choice from the Music page (kept in their
 /// settings, so it plays whether the page is open or not: docs/design/music-page.md section 4), else,
 /// while the game chooses, the favourite that is the music for the mood the game is in.
-pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs) -> Option<MusicChoice> {
-    if let Some(c) = crate::gui::pages::music::chosen(&inp.settings, lib) {
+/// A written piece the person chose comes first (docs/design/score-player.md section 10), unless it is
+/// `failed` (a piece that could not be read: what would have played without it plays instead).
+pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs, failed: Option<&str>) -> Option<MusicChoice> {
+    let s = &inp.settings;
+    let chosen = if !s.written.is_empty() && failed == Some(s.written.as_str()) { crate::gui::pages::music::chosen_composed(s, lib) } else { crate::gui::pages::music::chosen(s, lib) };
+    if let Some(c) = chosen {
         return Some(c);
     }
     let lib = lib?;
@@ -538,7 +567,7 @@ pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs) -> Option<Mus
 
 impl MusicRuntime {
     /// Start a build on the worker thread (the bank goes with it and comes back with the result).
-    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>, take: Take) {
+    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>, take: Take, written: Option<String>) {
         if self.building.is_some() {
             return;
         }
@@ -551,9 +580,14 @@ impl MusicRuntime {
         }
         let dir = data_dir.to_path_buf();
         let asked = genres.clone();
+        let written = written.filter(|_| with_score);
         let handle = std::thread::Builder::new().name("music-build".into()).spawn(move || {
             let r = build(&dir, a4, with_score, &mut bank, &asked);
-            (r, bank)
+            let w = written.map(|id| {
+                let piece = load_written(&dir, &id);
+                (id, piece)
+            });
+            (r, bank, w)
         });
         match handle {
             Ok(handle) => self.building = Some(Building { handle, generation, genres, take }),
@@ -571,8 +605,18 @@ impl MusicRuntime {
         }
         let Some(Building { handle, generation, genres, take }) = self.building.take() else { return };
         match handle.join() {
-            Ok((result, bank)) => {
+            Ok((result, bank, written)) => {
                 self.bank = Some(bank);
+                // The written piece asked for: read, or why not (then not asked for again).
+                let written = match written {
+                    Some((id, Ok(piece))) => Some((id, piece)),
+                    Some((id, Err(e))) => {
+                        log::warn!("[Music] the written piece {id:?} could not be read, so it does not play: {e}");
+                        self.written_failed = Some((id, e));
+                        None
+                    }
+                    None => None,
+                };
                 match result {
                     Ok(built) => {
                         for (part, plays) in &built.plays {
@@ -587,7 +631,7 @@ impl MusicRuntime {
                         self.lib = Some(built.lib);
                         self.stand_ins = built.stand_ins;
                         if let Some(res) = built.score {
-                            self.ready = Some(Ready { res, lib, generation, genres, at_phrase: current_phrase, at_bar: current_bar, take });
+                            self.ready = Some(Ready { res, lib, generation, genres, written, at_phrase: current_phrase, at_bar: current_bar, take });
                         }
                     }
                     Err(e) => {
@@ -630,15 +674,21 @@ impl MusicRuntime {
             self.piece_s += inp.dt;
         }
         // In place of new pieces: the person's choice, or the mood's "my music" (music-page.md).
-        let choice = choice_now(self.lib.as_deref(), inp);
+        // A written piece that could not be read is forgotten once the person chooses another (or none).
+        if self.written_failed.as_ref().is_some_and(|(id, _)| *id != inp.settings.written) {
+            self.written_failed = None;
+        }
+        let choice = choice_now(self.lib.as_deref(), inp, self.written_failed.as_ref().map(|(id, _)| id.as_str()));
+        let written = choice.as_ref().and_then(|c| c.written.clone());
         let genres = match &choice {
             Some(c) => vec![c.genre.clone()],
             None => genres_in_use(self.lib.as_deref(), inp),
         };
         // A score built for genres no longer in use (another was chosen while it was building, or
         // while it waited for its bar line) is not played: the build for the genres now starts at
-        // once below (BUG-297: it played the stale score a phrase, then built again).
-        if self.ready.as_ref().is_some_and(|r| r.genres != genres) {
+        // once below (BUG-297: it played the stale score a phrase, then built again). The same for a
+        // written piece no longer asked for (or one asked for since, or one that could not be read).
+        if self.ready.as_ref().is_some_and(|r| r.genres != genres || r.written.as_ref().map(|(id, _)| id) != written.as_ref()) {
             self.ready = None;
         }
         if self.building.is_none() && self.ready.is_none() {
@@ -667,10 +717,10 @@ impl MusicRuntime {
             if mixer.is_some() && ((g.music && self.score.is_none()) || genre_changed || choice_changed || piece_due || installed || next_phrase) {
                 self.asked_at_phrase = phrase;
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone(), take);
+                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone(), take, written.clone());
             } else if unread || (!inp.reuse && self.score.is_none() && self.since_read_s >= REREAD_S) {
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone(), Take::Start);
+                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone(), Take::Start, None);
             }
         }
         let Some(mixer) = mixer else {
@@ -692,7 +742,7 @@ impl MusicRuntime {
             _ => false,
         };
         if take_over {
-            if let Some(Ready { res, lib, generation, genres, take, .. }) = self.ready.take() {
+            if let Some(Ready { res, lib, generation, genres, take, written: ready_written, .. }) = self.ready.take() {
                 let ctx = Self::context_of(&lib, inp, &g, a4, &genres, choice.as_ref());
                 // A rebuild of the same piece keeps its seed and carries on from the phrase the old
                 // score just began; a chosen piece (the Music page's, a mood's "my music") plays its
@@ -704,9 +754,19 @@ impl MusicRuntime {
                     (None, None) => self.seed.wrapping_add(self.piece_n.wrapping_mul(0x9e37_79b9)),
                 };
                 let res_copy = Arc::new(res.clone());
-                let engine = match resume {
-                    Some(at) => ScoreEngine::resume(res, START_RATE, seed, ctx, at),
-                    None => ScoreEngine::new(res, START_RATE, seed, ctx),
+                // A written piece plays in place of the composer (score-player.md section 10); a
+                // rebuild of it carries on from the bar it was at (`form_pos` is its bar).
+                let written_id = ready_written.as_ref().map(|(id, _)| id.clone());
+                let engine = match (ready_written, resume) {
+                    (Some((_, piece)), at) => {
+                        let mut player = piece.player(&res, START_RATE, a4);
+                        if let Some(bar) = at {
+                            player.seek_bar(bar as usize);
+                        }
+                        ScoreEngine::written(res, START_RATE, seed, ctx, player)
+                    }
+                    (None, Some(at)) => ScoreEngine::resume(res, START_RATE, seed, ctx, at),
+                    (None, None) => ScoreEngine::new(res, START_RATE, seed, ctx),
                 };
                 match mixer.play_score(engine) {
                     Ok(h) => {
@@ -733,6 +793,7 @@ impl MusicRuntime {
                         self.score_choice = choice.clone();
                         self.score_seed = seed;
                         self.score_res = Some(res_copy);
+                        self.score_written = written_id;
                     }
                     Err(e) => log::warn!("[Music] the score did not start: {e}"),
                 }
@@ -801,6 +862,8 @@ impl MusicRuntime {
             readout.mood = readout.place_mood.clone();
         }
         readout.zone = inp.place.zone.clone();
+        readout.written = self.score.as_ref().and(self.score_written.clone());
+        readout.written_error = self.written_failed.clone();
         readout.seed = self.seed;
         readout.pieces = self.pieces;
         let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;

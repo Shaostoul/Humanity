@@ -527,7 +527,7 @@ fn the_audio_thread_cost_per_block_is_within_the_budget() {
 
 // ----- `render` allocates nothing ----------------------------------------------------------------
 
-mod counting {
+pub(crate) mod counting {
     use std::alloc::{GlobalAlloc, Layout, System};
     use std::cell::Cell;
 

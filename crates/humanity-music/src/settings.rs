@@ -41,6 +41,10 @@ pub struct MusicSettings {
     pub mood: String,
     pub seed: u64,
     pub tune: crate::favourite::SavedTune,
+    /// A WRITTEN piece playing in place of everything above (docs/design/score-player.md section 10):
+    /// its id in data/music/scores/index.ron, chosen on the Music page's list; "" = none. Stop clears
+    /// it, and what played before plays again (the game's choice or the person's own is untouched).
+    pub written: String,
     /// A second genre to blend toward ("" = none) and how far (0..1).
     pub blend_with: String,
     pub blend: f32,
@@ -72,6 +76,7 @@ impl Default for MusicSettings {
             mood: crate::library::DEFAULT_MOOD.to_string(),
             seed: 1,
             tune: crate::favourite::SavedTune::default(),
+            written: String::new(),
             blend_with: String::new(),
             blend: 0.0,
             places_pick_genre: false,

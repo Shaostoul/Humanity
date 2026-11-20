@@ -29,6 +29,7 @@ mod controls;
 #[cfg(test)]
 pub(crate) mod tests;
 mod view;
+mod written;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -205,13 +206,49 @@ fn mood_or_default(id: &str) -> String {
 /// frame, page open or not (engine/music.rs `choice_now`). Without the music's data yet (the first
 /// moment of a run, before any score can play) the tuning is the piece's own.
 pub fn chosen(s: &MusicSettings, lib: Option<&MusicLibrary>) -> Option<MusicChoice> {
+    if !s.written.is_empty() {
+        return Some(written_choice(s, lib));
+    }
+    chosen_composed(s, lib)
+}
+
+/// [`chosen`] leaving a written piece out (the engine, when the piece could not be read).
+pub fn chosen_composed(s: &MusicSettings, lib: Option<&MusicLibrary>) -> Option<MusicChoice> {
     if s.game_chooses {
         return None;
     }
     let mood = mood_or_default(&s.mood);
     let intensity = lib.map(|l| explore_intensity(l, &mood)).unwrap_or(0.3);
     let tune = lib.and_then(|l| l.genre_index(&s.genre).map(|g| s.tune.to_tune(l, g))).unwrap_or_default();
-    Some(MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune })
+    Some(MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune, written: None })
+}
+
+/// The written piece the person chose (`MusicSettings::written`, docs/design/score-player.md section
+/// 10), heard in the calm mood's hall (the person's mood when they chose one) whoever chooses the rest:
+/// it plays everywhere until Stop clears it.
+pub fn written_choice(s: &MusicSettings, lib: Option<&MusicLibrary>) -> MusicChoice {
+    let mood = if s.game_chooses { humanity_music::library::DEFAULT_MOOD.to_string() } else { mood_or_default(&s.mood) };
+    let intensity = lib.map(|l| explore_intensity(l, &mood)).unwrap_or(0.3);
+    MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune: Tune::default(), written: Some(s.written.clone()) }
+}
+
+/// A written piece's title and composer for a person: their words by key, else the plain words a
+/// community index gives, else the id.
+pub fn score_words(e: &humanity_music::scores::ScoreEntry) -> (String, String) {
+    let pick = |key: &str, plain: &str, fallback: &str| -> String {
+        if !key.is_empty() {
+            let w = t_dyn(key);
+            if w != key {
+                return w.to_string();
+            }
+        }
+        if plain.is_empty() {
+            fallback.to_string()
+        } else {
+            plain.to_string()
+        }
+    };
+    (pick(&e.words, &e.name, &e.id.replace('_', " ")), pick(&e.composer_words, &e.composer, ""))
 }
 
 /// What the page shows and its Explore and Tune controls change: the person's choice, or while the
@@ -273,7 +310,7 @@ pub fn open_favourite(s: &mut MusicSettings, f: &Favourite) {
 /// A favourite as "my music" plays it: its genre, seed and tuning in the game's own mood.
 pub fn my_music_choice(f: &Favourite, lib: &MusicLibrary) -> Option<MusicChoice> {
     let g = lib.genre_index(&f.genre)?;
-    Some(MusicChoice { genre: f.genre.clone(), mood: None, intensity: None, seed: f.seed, tune: f.tune.to_tune(lib, g) })
+    Some(MusicChoice { genre: f.genre.clone(), mood: None, intensity: None, seed: f.seed, tune: f.tune.to_tune(lib, g), written: None })
 }
 
 /// A genre's name for a person: its words by key, else the plain name a community file gives, else
@@ -308,6 +345,19 @@ fn reported_genre_words(r: &MusicReadout, id: &str) -> String {
 /// Settings > Music, so the two pages can never say different things
 /// (`settings_music_says_what_the_music_page_says`).
 pub fn now_playing_words(s: &MusicSettings, r: &MusicReadout) -> String {
+    // A written piece the person chose comes first (unless it could not be read: then what would
+    // have played without it plays, and is said below).
+    let unreadable = r.written_error.as_ref().is_some_and(|(id, _)| *id == s.written);
+    if !s.written.is_empty() && !unreadable {
+        let title = r.lib.as_deref().and_then(|l| l.score(&s.written)).map(|e| score_words(e).0).unwrap_or_else(|| s.written.replace('_', " "));
+        return if !s.music_on {
+            t("music_page.now_off").replace("{{what}}", &t("music_page.what_written").replace("{{title}}", &title))
+        } else if r.playing.is_some() {
+            t("music_page.now_written").replace("{{title}}", &title)
+        } else {
+            t("music_page.now_quiet_written").replace("{{title}}", &title)
+        };
+    }
     let what = if s.game_chooses {
         t("music_page.what_game").replace("{{genre}}", &reported_genre_words(r, &s.genre))
     } else {
@@ -396,6 +446,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let mut sh = before.clone();
             view::now_playing(ui, theme, state, accent);
             controls::what_plays(ui, theme, state, &before, accent);
+            written::written(ui, theme, state, accent);
             controls::explore(ui, theme, state, &mut sh, accent);
             controls::tune(ui, theme, state, &mut sh, accent);
             controls::keep(ui, theme, state, &sh, accent);

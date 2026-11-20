@@ -19,16 +19,16 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-music/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/drum_machine.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/fx.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/osc.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/stream.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`, `crates/humanity-music/src/wavetable.rs`
+  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/drum_machine.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/fx.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mei.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/osc.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/scores.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/stream.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`, `crates/humanity-music/src/wavetable.rs`, `crates/humanity-music/src/written.rs`
   - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
-  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_cost.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`, `crates/humanity-music/src/tests_e6.rs`
+  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_cost.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`, `crates/humanity-music/src/tests_e6.rs`, `crates/humanity-music/src/tests_written.rs`
   - `all(test, feature = "kira")`: `crates/humanity-music/src/tests_stream.rs`
-- **Size:** 16,959 lines in 37 files, 4,628 of them in 9 test files.
+- **Size:** 19,217 lines in 41 files, 5,160 of them in 10 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 7.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 56, engine 15.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 58, engine 20.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 79 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 102 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -43,6 +43,7 @@ just test-lib --crate humanity-music
 | `tuning::parse_note` | 4 | gui 4 |
 | `MusicStatus` | 3 | gui 2, engine 1 |
 | `Resolved` | 3 | gui 2, engine 1 |
+| `scores::WrittenPiece` | 3 | engine 3 |
 | `tune::Tune` | 3 | gui 3 |
 | `BedStatus` | 2 | engine 1, gui 1 |
 | `MusicContext` | 2 | engine 1, gui 1 |
@@ -50,11 +51,10 @@ just test-lib --crate humanity-music
 | `decode::each` | 2 | gui 2 |
 | `favourite` | 2 | gui 2 |
 | `instrument::SAMPLE_SCALE` | 2 | gui 2 |
+| `library::DEFAULT_MOOD` | 2 | gui 2 |
 | `tune::ROLES` | 2 | gui 2 |
-| `BedContext` | 1 | engine 1 |
-| `BedEngine` | 1 | engine 1 |
 
-And 30 more items, 30 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
+And 34 more items, 34 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -96,6 +96,13 @@ And 30 more items, 30 references (`node scripts/crate-cards.js --interface human
   entry; written through a temporary file and a rename; an unreadable file moved aside, never written
   over. A change to `SavedTune` or the share code's layout keeps `a_favourite_saved_and_loaded_plays_the_same_piece`
   and `a_share_code_round_trips_and_a_mistyped_one_is_refused` green. Source: [music-page.md](../design/music-page.md) section 7.
+- **Written music plays through the score, never a second audio path** (`mei.rs`, `written.rs`,
+  `scores.rs`, 2026-11-20): an MEI file is read and timed on the build thread, and
+  `ScoreEngine::written` plays the timeline in place of the composer through the same voices, reverb,
+  level and limiter, at the person's tuning. The reader skips and counts what it does not know, never
+  crashes; the shipped pieces read with nothing skipped and sound at the music target
+  (`the_shipped_score_parses_with_nothing_skipped`, `the_shipped_pieces_sound_at_the_music_target`).
+  Pieces are data (`data/music/scores/index.ron`). Source: [score-player.md](../design/score-player.md).
 - **The sheet is the score's own loop** (`sheet.rs`): `transcribe` cuts time where `ScoreEngine::render`
   does (128-frame blocks, chunks of at most 64 samples), so its notes are the score's to the sample;
   a change to the score's chunking changes both. Source: music-page.md section 9.
@@ -119,7 +126,10 @@ And 30 more items, 30 references (`node scripts/crate-cards.js --interface human
   loudness and its cost); `src/tests_stream.rs` streaming (music.md section 23:
   the packet reader decodes what kira decodes, a streamed note equals the whole-file note to the bit,
   a stalled stream or a note with no ring fades without a click, and the audio thread's cost with
-  every voice streaming). The crate is optimised in dev and test builds (the
+  every voice streaming); `src/tests_written.rs` the score player (score-player.md: the MEI reader on
+  small snippets one element at a time, the timeline's seconds, a note landing on its sample in the
+  rendered sound, the tuning counted in the sound, the loudness, no allocation, the shipped piece read
+  with nothing skipped). The crate is optimised in dev and test builds (the
   root Cargo.toml), so its timing tests measure the game's speed.
 - **What starting the score costs, optimised:** the ignored `kira_sound::device_tests::
   decode_cost_of_starting_the_score` (`cargo test --release -p humanity-music --lib decode_cost --
@@ -141,6 +151,10 @@ And 30 more items, 30 references (`node scripts/crate-cards.js --interface human
 
 ## Open work
 
+- **The score player's rungs 2 to 8** (recorded parts, grace notes, repeats and endings, `octave`
+  lines, hairpins, the written piece in the piano roll; the Accord sing-along on `Timeline::syllables`;
+  the simple and full readings; a genre's palette; the score view; the website; imports). Rung 1 was
+  built 2026-11-20. Source: [score-player.md](../design/score-player.md), section 16.
 - **The electronic rung E7** (resampling, granular textures and a frozen reverb for ambient, the
   heavier dubstep kinds brostep and riddim, trance as the supersaw's other home). E1 and E2 (structure,
   the bass toolkit) were built 2026-11-13; E4 and E5 (the drum machine, the wavetable, unison and pulse

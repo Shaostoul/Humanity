@@ -201,6 +201,9 @@ pub struct ScoreEngine {
     rev_hp: [Svf; 2],
     tape: TapeRead,
     tape_active: bool,
+    /// A WRITTEN piece playing in place of the composer (crate::written, docs/design/score-player.md
+    /// section 10): None while the composer composes.
+    written: Option<crate::written::WrittenPlayer>,
 }
 
 /// The analyser's band-pass filters at `rate` (octave bands: Q about 1.4).
@@ -241,6 +244,7 @@ impl ScoreEngine {
             rev_hp: [Svf::default(); 2],
             tape: TapeRead::default(),
             tape_active: false,
+            written: None,
             res,
             rate,
             composer,
@@ -279,10 +283,30 @@ impl ScoreEngine {
         s
     }
 
+    /// A score that plays a WRITTEN piece (docs/design/score-player.md section 10): `player` stands
+    /// in for the composer, sending the piece's notes to the same voices, reverb (the context's
+    /// mood's hall), level (the piece's own) and limiter. One audio path for composed and written music.
+    pub fn written(res: Resolved, rate: f32, seed: u64, ctx: MusicContext, player: crate::written::WrittenPlayer) -> Self {
+        let mut s = Self::new(res, rate, seed, ctx);
+        let mut player = player;
+        player.set_rate(rate);
+        player.set_a4(ctx.a4_hz);
+        s.written = Some(player);
+        s
+    }
+
+    /// The written piece playing (None while the composer composes).
+    pub fn written_player(&self) -> Option<&crate::written::WrittenPlayer> {
+        self.written.as_ref()
+    }
+
     /// A new context from the game (read at the start of the next block).
     pub fn set_context(&mut self, ctx: MusicContext) {
         self.ctx = ctx;
         self.composer.steer = steer_of(&ctx);
+        if let Some(w) = self.written.as_mut() {
+            w.set_a4(ctx.a4_hz);
+        }
     }
 
     /// The context the score is following.
@@ -297,6 +321,9 @@ impl ScoreEngine {
         }
         self.rate = rate;
         self.composer.set_rate(rate);
+        if let Some(w) = self.written.as_mut() {
+            w.set_rate(rate);
+        }
         self.reverb.set_rate(rate);
         if let Some(g) = self.gated.as_mut() {
             let t60 = g.t60();
@@ -380,7 +407,10 @@ impl ScoreEngine {
                 let mut hit = None;
                 let mut gate_hit = false;
                 let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter, duck: &mut hit, gate_hit: &mut gate_hit };
-                self.composer.process(&self.res, &mut sink);
+                match self.written.as_mut() {
+                    Some(w) => w.process(&mut sink),
+                    None => self.composer.process(&self.res, &mut sink),
+                }
                 if let Some(s) = hit {
                     self.side = s;
                     self.side_t = 0.0;
@@ -389,8 +419,16 @@ impl ScoreEngine {
                     g.trigger();
                 }
             }
-            let n = (out.len() - done).min(self.composer.until_next()).min(CHUNK);
-            let (recipe, level_db) = self.composer.mix(&self.res);
+            let next = match &self.written {
+                Some(w) => w.until_next(),
+                None => self.composer.until_next(),
+            };
+            let n = (out.len() - done).min(next).min(CHUNK);
+            // A written piece: no genre's recipe on it, and its own level instead of the mood's.
+            let (recipe, level_db) = match &self.written {
+                Some(w) => (Recipe { reverb_scale: 1.0, ..Default::default() }, w.level_db),
+                None => self.composer.mix(&self.res),
+            };
             let start = self.composer.pos();
             if self.composer.tape_speed_at(start) < 1.0 || self.composer.tape_speed_at(start + n as u64 - 1) < 1.0 {
                 // A tape stop: the score renders on into the read-back buffer, which is read at the
@@ -441,6 +479,9 @@ impl ScoreEngine {
                 self.status.peak = self.status.peak.max(l.abs()).max(r.abs());
             }
             self.composer.advance(n);
+            if let Some(w) = self.written.as_mut() {
+                w.advance(n);
+            }
             done += n;
         }
         let s = &mut self.status;
@@ -460,6 +501,19 @@ impl ScoreEngine {
         s.limited = self.limiter.engaged;
         s.beat = self.composer.beat_pos();
         s.beats_per_bar = self.composer.beats_per_bar().min(255) as u8;
+        if let Some(w) = &self.written {
+            // A written piece's own clock: its bars (a "phrase" every four, so the runtime's takeovers
+            // at a phrase still come), the bar playing in the piece (where a rebuild carries on from),
+            // its tempo and its beat.
+            let (beat, beats, qpm) = w.beat();
+            s.bars = w.bars_begun();
+            s.bar = w.bar() as u32;
+            s.phrase = s.bars.saturating_sub(1) / 4;
+            s.form_pos = w.bar() as u64;
+            s.tempo_bpm = qpm as f32;
+            s.beat = beat;
+            s.beats_per_bar = beats;
+        }
         self.analyse(out);
     }
 

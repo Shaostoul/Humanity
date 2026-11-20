@@ -1,0 +1,31 @@
+// The written pieces the Music page offers (docs/design/score-player.md section 14; the crate's
+// scores.rs reads this). Each is an MEI file beside this one: open it in MuseScore 4.2 or later (or
+// any text editor), change a note, and the game plays the change the next time the piece starts.
+// A new piece is a file here and an entry below, never code.
+//
+// Per piece: `id` (what the person's settings keep), `file`, the title and the composer by words key
+// (`words`, `composer_words`; a community file may give plain `name` and `composer` instead), `qpm`
+// (quarter notes a minute before the file's first tempo mark), `level_db` (measured, so the piece
+// sounds at the music's loudness target: the crate's tests hold it there), `rest_s` (the rest before
+// it plays again), and each staff's instrument (a synthesised one from data/music/instruments; recorded
+// parts are the score player's rung 2), its role on the Music page (pad, bass, drone, choir, bells,
+// melody, percussion, texture), its level and its pan.
+//
+// A file is added only from a source the dated finding allows (docs/reference/findings/); the one
+// below was written by the project by hand (CC0, like the rest of this folder).
+Scores(
+    pieces: [
+        (
+            id: "ode_to_joy",
+            file: "ode_to_joy.mei",
+            words: "music.score.ode_to_joy",
+            composer_words: "music.score.composer_beethoven",
+            qpm: 120.0,
+            level_db: 13.2,
+            rest_s: 4.0,
+            staves: [
+                (staff: 1, instrument: "clarinet", role: "melody", level_db: 0.0, pan: 0.0),
+            ],
+        ),
+    ],
+)

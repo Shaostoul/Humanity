@@ -6355,7 +6355,7 @@ fn snapshot_music() {
             r.device = true;
             r.lib = Some(lib.clone());
             r.genres = lib.genres.iter().map(|x| crate::gui::pages::dev_music::GenreChoice { id: x.id.clone(), words: x.words.clone(), name: x.name.clone(), about_words: x.about_words.clone(), about: x.about.clone(), stand_ins: Vec::new() }).collect();
-            let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune };
+            let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None };
             r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res: res.clone(), lib: lib.clone() });
             let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
             status.roles = [0.6, 0.9, 0.0, 0.0, 0.4, 0.8, 0.0, 0.0];

@@ -37,7 +37,8 @@ fn tag_of(playing: &Playing, seconds: f64) -> SheetTag {
 /// Keep the sheet of the playing piece current: made again when the piece changes, when the playhead
 /// nears its end, and every frame with "turn off all reuse" off (CLAUDE.md, the no-caches rule).
 pub(super) fn ensure_sheet(state: &mut GuiState) {
-    let Some(playing) = state.music_dev.readout.playing.clone() else {
+    // A written piece is not the composer's: no transcription of a seed's piece stands in for it.
+    let Some(playing) = state.music_dev.readout.playing.clone().filter(|_| state.music_dev.readout.written.is_none()) else {
         state.music_page.sheet = None;
         return;
     };
@@ -177,6 +178,11 @@ pub(super) fn see(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent
         let mute = super::shown(&state.settings.music, &state.music_dev.readout).tune.mute;
         match state.music_page.sheet.as_ref() {
             Some(c) if !c.sheet.bars.is_empty() => piano_roll(ui, theme, &c.sheet, now, mute),
+            // A written piece's notes are drawn here in the score player's rung 2 (score-player.md
+            // section 16); said plainly rather than left blank.
+            _ if state.music_dev.readout.written.is_some() => {
+                ui.label(RichText::new(t("music_page.roll_written_later")).color(theme.text_muted()));
+            }
             _ => {
                 ui.label(RichText::new(t("music_page.roll_empty")).color(theme.text_muted()));
             }

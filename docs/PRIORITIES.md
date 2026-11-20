@@ -136,6 +136,11 @@ pieces as data in that format, played on our own instruments at the tuning, opti
 genre's palette; (4) the Humanity Accord as instrumental music in that format, with the five-vowel
 choir singing its syllables and the line scrolling like a sing-along. Design notes:
 docs/design/music.md, "The operator's wishes of 2026-11-16". The sim runner below continues after.
+Step 3, rung 1, BUILT 2026-11-20 (docs/design/score-player.md, the whole player planned there): our
+own MEI reader in crates/humanity-music, written pieces as data (data/music/scores/), played through
+the score at the tuning, the Ode to Joy theme encoded by hand, the Music page's Written music list.
+Next on it: rung 2 (recorded parts, repeats, grace notes, the piano roll), then step 4 on
+`Timeline::syllables`.
 
 ### NEXT: a headless, GPU-free, faster-than-real-time sim runner (designed 2026-10-22)
 

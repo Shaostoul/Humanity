@@ -176,3 +176,64 @@ fn settings_music_says_what_the_music_page_says() {
     let game = super::now_playing_words(&s, &r);
     assert_ne!(yours, game, "your choice and the game's are told apart");
 }
+
+/// Every text a frame drew, with where.
+fn text_rects(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
+    fn walk(s: &egui::Shape, found: &mut Vec<(String, egui::Rect)>) {
+        match s {
+            egui::Shape::Text(t) => found.push((t.galley.text().to_string(), t.galley.rect.translate(t.pos.to_vec2()))),
+            egui::Shape::Vec(v) => v.iter().for_each(|x| walk(x, found)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    out.shapes.iter().for_each(|c| walk(&c.shape, &mut found));
+    found
+}
+
+/// THE WRITTEN PIECES LIST PLAYS AND STOPS A PIECE (docs/design/score-player.md section 10): the Music
+/// page lists the shipped Ode to Joy by its words with its composer; clicking its Play button (found
+/// on its row in what the page drew) keeps the piece in the person's settings, which the score reads
+/// as its choice, and says it starts at the next bar; with the engine reporting it playing the row
+/// says so and Settings > Music says the same sentence as the page; Stop clears it and leaves who
+/// chooses the rest as it was.
+///
+/// Seen RED 2026-11-20 with the list not drawn (`draw` skipping `written::written`): "its composer"
+/// (the page drew no word of the piece).
+#[test]
+fn the_written_pieces_list_plays_and_stops_a_piece() {
+    let (mut state, lib) = music_state();
+    let theme = crate::gui::theme::load_theme();
+    let title = humanity_core::i18n::t("music.score.ode_to_joy");
+    let size = egui::vec2(1600.0, 6000.0);
+    let button_on_row = |out: &egui::FullOutput, label: &str| -> egui::Pos2 {
+        let drawn = text_rects(out);
+        let row = drawn.iter().find(|(x, _)| x == title).unwrap_or_else(|| panic!("the Music page lists the written piece {title:?}")).1;
+        drawn.iter().filter(|(x, r)| x == label && (r.center().y - row.center().y).abs() < 12.0).map(|(_, r)| r.center()).next().unwrap_or_else(|| panic!("a {label:?} button on the piece's row"))
+    };
+    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
+    assert!(texts(&out).iter().any(|x| x.contains(humanity_core::i18n::t("music.score.composer_beethoven"))), "its composer");
+    let play = button_on_row(&out, humanity_core::i18n::t("music_page.written_play"));
+    let out = frame(size, click(play), |ctx| super::draw(ctx, &theme, &mut state));
+    assert_eq!(state.settings.music.written, "ode_to_joy", "Play keeps the piece in the person's settings");
+    assert!(state.settings_dirty, "and the settings are saved");
+    assert!(state.settings.music.game_chooses, "who chooses the rest is untouched");
+    let choice = super::chosen(&state.settings.music, Some(&lib)).expect("a written piece is a choice");
+    assert_eq!(choice.written.as_deref(), Some("ode_to_joy"), "the score reads it as its choice");
+    let _ = out;
+    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
+    assert!(texts(&out).iter().any(|x| x == humanity_core::i18n::t("music_page.written_starting")), "it starts at the next bar");
+    // The engine reports it playing.
+    let res = Arc::new(humanity_music::Resolved::new(&lib, &humanity_music::SampleLibrary::new()).expect("resolve"));
+    state.music_dev.readout.written = Some("ode_to_joy".into());
+    state.music_dev.readout.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 1, ctx: humanity_music::MusicContext::default(), res, lib: lib.clone() });
+    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
+    let page = texts(&out);
+    assert!(page.iter().any(|x| x == humanity_core::i18n::t("music_page.written_playing")), "it says it plays");
+    let says = page.iter().find(|x| x.contains(title) && x.contains(humanity_core::i18n::t("music_page.now_playing"))).expect("the page says what plays").clone();
+    assert!(settings_music_texts(&mut state).contains(&says), "Settings > Music says what the Music page says: {says:?}");
+    let stop = button_on_row(&out, humanity_core::i18n::t("music_page.written_stop"));
+    frame(size, click(stop), |ctx| super::draw(ctx, &theme, &mut state));
+    assert!(state.settings.music.written.is_empty(), "Stop clears it");
+    assert!(super::chosen(&state.settings.music, Some(&lib)).is_none(), "and the game chooses again, as before");
+}

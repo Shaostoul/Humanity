@@ -3068,6 +3068,7 @@ dependencies = [
  "humanity-core",
  "kira",
  "log",
+ "quick-xml",
  "ron",
  "serde",
  "serde_json",

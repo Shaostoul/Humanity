@@ -29,6 +29,7 @@ pub mod fx;
 pub mod instrument;
 pub mod intensity;
 pub mod library;
+pub mod mei;
 pub mod mood;
 pub mod osc;
 pub mod piece;
@@ -37,6 +38,7 @@ pub mod render;
 pub mod resolved;
 pub mod rng;
 pub mod score;
+pub mod scores;
 pub mod settings;
 pub mod sheet;
 pub mod stream;
@@ -45,6 +47,7 @@ pub mod tune;
 pub mod tuning;
 pub mod voice;
 pub mod wavetable;
+pub mod written;
 
 #[cfg(feature = "kira")]
 pub mod decode;
@@ -85,5 +88,7 @@ mod tests_electronic;
 mod tests_e5;
 #[cfg(test)]
 mod tests_e6;
+#[cfg(test)]
+mod tests_written;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;

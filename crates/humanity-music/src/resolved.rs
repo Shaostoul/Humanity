@@ -654,6 +654,26 @@ impl Resolved {
     }
 
     /// The mood band `b` plays (None: the place's own).
+    /// The instrument that plays `id` (its index): `id` itself, or what it falls back to when its
+    /// recordings or its waves are not installed, followed as [`Resolved::new`] follows a role's (a
+    /// written piece's staves name instruments this way: crate::scores).
+    pub fn instrument_index(&self, id: &str) -> Option<u16> {
+        let find = |id: &str| self.instruments.iter().position(|x| x.id == id);
+        let mut cur = find(id)?;
+        for _ in 0..4 {
+            let next = match &self.instruments[cur].kind {
+                InstrumentKind::Sampler(s) if self.banks.get(cur).is_none_or(|b| b.is_none()) => find(&s.fallback),
+                InstrumentKind::Synth(s) if s.wavetable.as_ref().is_some_and(|w| w.table.is_none() && !w.fallback.is_empty()) => s.wavetable.as_ref().and_then(|w| find(&w.fallback)),
+                _ => None,
+            };
+            match next {
+                Some(n) => cur = n,
+                None => break,
+            }
+        }
+        Some(cur as u16)
+    }
+
     pub fn band_mood(&self, b: usize) -> Option<usize> {
         self.intensity.moods.get(b).copied().flatten()
     }

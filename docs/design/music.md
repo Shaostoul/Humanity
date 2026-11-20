@@ -1569,7 +1569,10 @@ the Humanity Accord as a template to generate that kind of music for Humanity OS
 more in-depth music with something that sounds like lyrics but, could just be a technical doc turned into
 vowels only."
 
-- **Playing written classical pieces (a score player).** Today the engine only composes. Playing a fixed
+- **Playing written classical pieces (a score player).** PLANNED AND RUNG 1 BUILT 2026-11-20 in
+  [score-player.md](score-player.md): pieces stored as MEI (approved that day: "MEI sounds right unless
+  there's better"), read by our own reader, played through this score on our instruments at the
+  tuning. What follows is the wish as first written. Today the engine only composes. Playing a fixed
   piece means notes as data (a public-domain edition imported from MusicXML, MIDI or LilyPond into a
   score file), played on our own instruments at our tuning, possibly arranged into a genre's palette. The
   compositions of Grieg (died 1907) and Beethoven (died 1827) are generally public domain, but recordings

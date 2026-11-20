@@ -37,6 +37,10 @@ kira = { workspace = true, optional = true }
 # to keep, and the rest streamed from disk while a note plays (stream.rs, music.md section 23). The
 # version kira 0.12 decodes with, so it is in the tree once; the same codecs kira reads.
 symphonia = { version = "0.6", optional = true, default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
+# Reading written music stored as MEI (mei.rs, docs/design/score-player.md section 6, 2026-11-20): a pull
+# reader over the file's text, MIT, already in Cargo.lock (wayland-scanner's), no default features. Read
+# on the music's build thread only, never the audio thread.
+quick-xml = { version = "0.41", default-features = false }
 
 [dev-dependencies]
 # The BS.1770 loudness meter the tests and the offline renderer measure with (humanity_core::audio::loudness,

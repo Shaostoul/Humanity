@@ -3249,6 +3249,30 @@ reason it cannot play them (the engine runs in the app; a WebAssembly build is r
   the page exports it
 - Data: the part colours `music_role_*` in `data/gui/theme.ron`; words `music_page.*`, `music.mode.*`
 
+### The score player: written music stored as MEI (rung 1, 2026-11-20)
+The goal of 2026-11-16 ("save orchestral music in a file format everyone can easily modify"), with MEI
+approved 2026-11-20 ("MEI sounds right unless there's better"; docs/design/score-player.md). Our own
+reader of MEI (the MEI Basic 5.1 core MuseScore reads and writes, and the full-MEI spellings of the
+same things): notes, rests, whole-bar rests, chords, durations with dots, tuplets (nested, exact
+fractions), ties (`@tie` and the `tie` element, joined into one sounding note), the key signature and
+the bar's accidentals worked out as a musician reads them (MEI Basic has no `accid.ges`), quarter
+tones, transposing staves, several staves and layers, tempo marks at their beat, dynamics and `vel`,
+and lyrics (`verse`/`syl` with their word positions, kept with their note's id and time: the
+sing-along's hook); an unknown element is skipped and counted, never a crash. A timeline in seconds
+plays through the same score as the composer (`ScoreEngine::written`: the same voices, reverb,
+level and limiter), sample accurate, at the person's tuning, resting then playing again. Pieces are
+data (`data/music/scores/index.ron` and one `.mei` each); the first is the Ode to Joy theme with
+Schiller's words, written by the project by hand (CC0). The Music page's Written music list plays and
+stops a piece (`MusicSettings::written`), and Settings > Music says what plays in the page's words.
+- Native: `crates/humanity-music/src/mei.rs` (the reader), `written.rs` (the timeline and the
+  player), `scores.rs` (the index), `score.rs` (`ScoreEngine::written`), `src/engine/music.rs`
+  (`load_written`, the build and the takeover), `src/gui/pages/music/written.rs` (the list)
+- Data: `data/music/scores/index.ron`, `data/music/scores/ode_to_joy.mei`
+- Tests: `crates/humanity-music/src/tests_written.rs` (each element, a dotted quarter at 90 landing at
+  sample 48,000 in the rendered sound, the tuning counted in the sound, the music loudness target,
+  no allocation, the shipped score read with nothing skipped), `src/gui/pages/music/tests.rs`
+  (`the_written_pieces_list_plays_and_stops_a_piece`)
+
 ### Sound levels: each shipped sound's own level (2026-11-06)
 Settings > Audio > "Sound levels": every sound the game ships (each `data/sounds.toml` entry whose
 file exists), grouped by kind, each with its name by key (`sound_names.<id>`), a level slider from
