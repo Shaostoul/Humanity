@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1583 Rust files (806,775 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,409 lines) under `web/`.
+1585 Rust files (806,995 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,409 lines) under `web/`.
 
 ## Folders
 
@@ -80,7 +80,7 @@
 - `src/model_packs/` (4 files): Downloadable 3D model packs (2026-11-09; docs/design/simready-props.md, section 7).
 - `src/net/` (60 files): Multiplayer networking: WebSocket client and ECS state synchronization.
 - `src/notifications/` (13 files): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan;...
-- `src/relay/` (83 files): Humanity Network relay server.
+- `src/relay/` (85 files): Humanity Network relay server.
 - `src/relay/admin/` (6 files): The admin action registry, and the two endpoints an app or an AI uses it through (2026-10-22; docs/design/in-app-ops.md, "North star: the...
 - `src/relay/backup_stream/` (12 files): Continuous backup of the relay's database (2026-10-22, PRIORITIES Tier 2 item 12).
 - `src/relay/crossing_tests/` (3 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE SERVER (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counted, and needed be...
@@ -1403,7 +1403,8 @@
 - `governance_revotes.rs` (961): Scheduled re-votes: the part that OPENS a re-vote when its review date arrives. Main items: RevoteSweep, question_entries, question_bytes, question_digest, is_auto_opened, auto_opened_note, build_scheduled_revote, open_due_revotes (+9 more).
 - `ip_limit.rs` (357): Per-address limits on every HTTP route (2026-10-22, Tier 1 security residual 1). Main items: Class, Allowance, Verdict, IpLimits, edge, too_many, OVERFLOW, DEFAULT_CAP.
 - `live.rs` (819): Live video fanout (v0.853.0). Main items: LiveStream, LiveRegistry, pub_handler, sub_handler, list_handler.
-- `mod.rs` (1721): Humanity Network relay server. Main items: allowed_origins, keep_out_of_search, hidden_upload_path, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay (+5 more).
+- `mod.rs` (1741): Humanity Network relay server. Main items: allowed_origins, keep_out_of_search, hidden_upload_path, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay (+5 more).
+- `origins.rs` (84): Which websites' pages a browser may call this relay from, when its owner never said (BUG-329, 2026-11-20). Main items: configured, own_site, same_origin, accepts, not_configured_line, unconfigured.
 - `outbound.rs` (454): Requests the server sends to an address someone else handed it: only to the public internet (2026-11-06, BUG-255). Main items: Schemes, Refusal, FetchError, OutboundGuard, url_shape, is_public, refusal_in, MAX_URL_LEN.
 - `owner_only.rs` (285): The relay's private files, readable by the relay's own account alone (BUG-285, 2026-11-07). Main items: plan, apply, apply, tighten, write, FILE_MODE, DIR_MODE, PRIVATE_FOLDERS.
 - `poster.rs` (108): A video's poster picture, the relay half (2026-11-06; docs/design/media-player.md, "Rung 2: the poster picture"). Main items: too_large, allowed_with, read_part, check_poster, POSTER_FIELD, POSTER_MAX_BYTES, POSTER_MAX_SIDE, PRIVATE_REFUSED (+4 more).
@@ -1418,7 +1419,7 @@
 - `upload_rooms.rs` (208): A file posted in a members-only room is served only to people who may read that room (BUG-282, 2026-11-07). Main items: RoomTicketBody, linked_names, note_posted, members_only_room, mint_ticket, ticket_holder, admitted, gate (+3 more).
 - `upload_rules.rs` (862): The rules every upload is held to, in one place (2026-10-11). Main items: FileKind, KeepChoice, FileLimit, OverAllowance, token_key, uploader_role, check_type, sharing_check (+41 more).
 - `web_push.rs` (305): Web Push, our own (2026-11-06): the payload encryption of RFC 8291 (one aes128gcm record, RFC 8188) and the VAPID token of RFC 8292 (an ES256 JSON Web Token), built on the p256 crate. Main items: VapidKey, PushRequest, build_request, encrypt, encrypt_with, record_keys, load_or_create_key, VALID_SECS (+3 more).
-- tests: `api_upload_tests.rs`, `api_v2_recovery_tests.rs`, `bug_reports_tests.rs`, `call_credentials_tests.rs`, `call_forwarder_net_tests.rs`, `call_forwarder_tests.rs`, `chat_access_tests.rs`, `default_channels_tests.rs`, `files_counts_tests.rs`, `files_edit_tests.rs`, `files_follow_ups_tests.rs`, `files_page_tests.rs`, `files_round3_tests.rs`, `files_round4_tests.rs`, `files_round5_tests.rs`, `files_takedown_tests.rs`, `files_tests.rs`, `front_door_tests.rs`, `group_reads_tests.rs`, `ip_limit_tests.rs`, `outbound_tests.rs`, `poster_tests.rs`, `push_routes_tests.rs`, `relay_wire_tests.rs`, `resumable_follow_ups_tests.rs`, `resumable_round3_tests.rs`, `resumable_round4_tests.rs`, `resumable_round5_tests.rs`, `resumable_tests.rs`, `stun_wire_tests.rs`, `upload_keep_tests.rs`, `upload_rooms_tests.rs`, `upload_round3_tests.rs`, `upload_rules_tests.rs`, `web_push_tests.rs`
+- tests: `api_upload_tests.rs`, `api_v2_recovery_tests.rs`, `bug_reports_tests.rs`, `call_credentials_tests.rs`, `call_forwarder_net_tests.rs`, `call_forwarder_tests.rs`, `chat_access_tests.rs`, `default_channels_tests.rs`, `files_counts_tests.rs`, `files_edit_tests.rs`, `files_follow_ups_tests.rs`, `files_page_tests.rs`, `files_round3_tests.rs`, `files_round4_tests.rs`, `files_round5_tests.rs`, `files_takedown_tests.rs`, `files_tests.rs`, `front_door_tests.rs`, `group_reads_tests.rs`, `ip_limit_tests.rs`, `origins_tests.rs`, `outbound_tests.rs`, `poster_tests.rs`, `push_routes_tests.rs`, `relay_wire_tests.rs`, `resumable_follow_ups_tests.rs`, `resumable_round3_tests.rs`, `resumable_round4_tests.rs`, `resumable_round5_tests.rs`, `resumable_tests.rs`, `stun_wire_tests.rs`, `upload_keep_tests.rs`, `upload_rooms_tests.rs`, `upload_round3_tests.rs`, `upload_rules_tests.rs`, `web_push_tests.rs`
 
 ## src/relay/admin/
 

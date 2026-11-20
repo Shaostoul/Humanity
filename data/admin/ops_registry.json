@@ -509,6 +509,13 @@
       "how": "SOLANA_RPC_URL=https://api.devnet.solana.com in /opt/Humanity/.env, restart (src/relay/api_v2_solana.rs:20-26)."
     },
     {
+      "name": "Choose which websites may call this server (ALLOWED_ORIGINS)",
+      "what": "The websites whose pages may open chat on this server and call its API from a browser. Unset, the server names only itself: its TURN_PUBLIC_HOST and any page it served itself over https, never another server's address (BUG-329; until 2026-11-20 an unset list meant united-humanity.us's). Set it when pages on other addresses must reach it. The desktop app is always allowed.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "ALLOWED_ORIGINS=https://your-domain.com,https://chat.your-domain.com in /opt/Humanity/.env (scripts/provision-vps.sh writes it from HUMANITY_DOMAIN), restart the relay; the log says at start when it is unset (src/relay/origins.rs not_configured_line; docs/admin/SELF-HOSTING.md, Configuration)."
+    },
+    {
       "name": "Set up the call forwarder (TURN_PUBLIC_HOST, TURN_PORT, TURN_BIND)",
       "what": "Tells callers where to reach this server's own call forwarder and STUN (one UDP port, 3478 by default), so calls work behind strict home routers without showing anyone's address. A server listening on every interface must be given its own domain in TURN_PUBLIC_HOST, or it offers no forwarder and calls say it is not set up for them (BUG-322). Nothing to rotate: credentials come from a secret made at each start (coturn and TURN_STATIC_SECRET were retired on 2026-10-09).",
       "where": "config-file",

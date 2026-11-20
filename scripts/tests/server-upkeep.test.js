@@ -16,7 +16,10 @@
 // "the firewall unreadable, the node.env switch decides" failed ("... call port UDP 3478 open,
 // undefined set" judged ok); with the name grep printing its match, "the script the server runs
 // never prints a setting's value" failed ("the answer carried calls.secret-name"); and with the
-// lists' age check taken out, "package lists not refreshed for days are a warning" failed.
+// lists' age check taken out, "package lists not refreshed for days are a warning" failed. The
+// ALLOWED_ORIGINS fact (BUG-329), the same way: with it always "set", "a healthy answer is one quiet
+// line" failed on united-humanity.us's captured answer; with its grep printing its match, "the
+// answer carried origins.secret-name".
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -53,13 +56,14 @@ const FOLLOW_STABLE = [
   "Inst libc-dev-bin [2.41-12+deb13u3] (2.41-12+deb13u4 Debian:13.7/stable [amd64]) []",
   "Inst libc6 [2.41-12+deb13u3] (2.41-12+deb13u4 Debian:13.7/stable [amd64])",
 ];
-function followAnswer({ security = 0, named = true, nft = true, open = true, port = null, listsAgo = 43583 } = {}) {
+function followAnswer({ security = 0, named = true, origins = true, nft = true, open = true, port = null, listsAgo = 43583 } = {}) {
   const now = 1795145754;
   const lines = ["UPKEEP 1", ...FOLLOW_STABLE];
   // Security updates in the shape Debian 13's security archive gives them.
   for (let i = 0; i < security; i++) lines.push(`Inst libpkg${i} [1.0-1] (1.0-1+deb13u1 Debian-Security:13/stable-security [amd64])`);
   lines.push(listsAgo === null ? "LISTS " : `LISTS ${now - listsAgo}`, `NOW ${now}`, "ENV present");
   if (named) lines.push("NAMED TURN_PUBLIC_HOST");
+  if (origins) lines.push("ORIGINS set");
   if (port) lines.push(`TURN_PORT=${port}`);
   lines.push(`HUMANITY_OPEN_CALL_PORT=${open ? 1 : 0}`);
   if (nft) {
@@ -75,10 +79,14 @@ const judge = (server, text) => judgeServer(server, parseRemote(text));
 test("a healthy answer is one quiet line", () => {
   const r = judge(MAIN, MAIN_ANSWER);
   assert.strictEqual(r.ok, true, r.line);
-  assert.strictEqual(r.line, "united-humanity.us: 2 security updates waiting; call port UDP 3478 open, TURN_PUBLIC_HOST set");
+  assert.strictEqual(r.line, "united-humanity.us: 2 security updates waiting; call port UDP 3478 open, TURN_PUBLIC_HOST set; no ALLOWED_ORIGINS (browsers: its own pages only)");
   const f = judge(FOLLOW, followAnswer());
   assert.strictEqual(f.ok, true, f.line);
-  assert.match(f.line, /^public\.guide: 0 security updates waiting \(3 others\); call port UDP 3478 open, TURN_PUBLIC_HOST set$/);
+  assert.match(f.line, /^public\.guide: 0 security updates waiting \(3 others\); call port UDP 3478 open, TURN_PUBLIC_HOST set; ALLOWED_ORIGINS set$/);
+  // Relying on the relay's own-pages fallback (BUG-329) is shown, never a problem.
+  const bare = judge(FOLLOW, followAnswer({ origins: false }));
+  assert.strictEqual(bare.ok, true, bare.line);
+  assert.match(bare.line, /; no ALLOWED_ORIGINS \(browsers: its own pages only\)$/);
 });
 
 test("more than five waiting security updates is a warning (BUG-321)", () => {
@@ -114,11 +122,11 @@ test("an open call port with no public name is a warning (BUG-322)", () => {
 test("a closed call port needs no name", () => {
   const r = judge(FOLLOW, followAnswer({ named: false, open: false }));
   assert.strictEqual(r.ok, true, r.line);
-  assert.match(r.line, /call port UDP 3478 closed$/);
+  assert.match(r.line, /call port UDP 3478 closed; ALLOWED_ORIGINS set$/);
   // The firewall opens 3478, but this relay listens on 3479: its port is closed.
   const moved = judge(FOLLOW, followAnswer({ named: false, port: 3479 }));
   assert.strictEqual(moved.ok, true, moved.line);
-  assert.match(moved.line, /call port UDP 3479 closed$/);
+  assert.match(moved.line, /call port UDP 3479 closed; ALLOWED_ORIGINS set$/);
 });
 
 test("the firewall unreadable, the node.env switch decides", () => {
@@ -156,7 +164,7 @@ test("the script the server runs never prints a setting's value, and its answer 
     fs.mkdirSync(stubs);
     fs.writeFileSync(
       path.join(repo, ".env"),
-      ["TURN_PUBLIC_HOST=calls.secret-name.example", "TURN_SERVER_HOST=", "TURN_PORT=3478", "ADMIN_TOKEN=do-not-print-this-7f3a", 'BACKUP_KEY="also-secret"', ""].join("\n"),
+      ["TURN_PUBLIC_HOST=calls.secret-name.example", "TURN_SERVER_HOST=", "TURN_PORT=3478", "ALLOWED_ORIGINS=https://origins.secret-name.example", "ADMIN_TOKEN=do-not-print-this-7f3a", 'BACKUP_KEY="also-secret"', ""].join("\n"),
     );
     fs.writeFileSync(path.join(repo, "node.env"), "HUMANITY_OPEN_CALL_PORT=1\nNODE_SECRET=nope\n");
     const stub = (name, body) => fs.writeFileSync(path.join(stubs, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
@@ -166,13 +174,13 @@ test("the script the server runs never prints a setting's value, and its answer 
     const stubsPath = process.platform === "win32" ? stubs.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`) : stubs;
     const r = spawnSync(bashPath(), ["-c", `PATH="${stubsPath}:$PATH"; ${script}`], { encoding: "utf8", timeout: 30000 });
     assert.strictEqual(r.error, undefined, String(r.error));
-    for (const secret of ["calls.secret-name", "do-not-print-this", "also-secret", "nope", "ADMIN_TOKEN", "NODE_SECRET"]) {
+    for (const secret of ["calls.secret-name", "origins.secret-name", "do-not-print-this", "also-secret", "nope", "ADMIN_TOKEN", "NODE_SECRET"]) {
       assert.ok(!r.stdout.includes(secret), `the answer carried ${secret}:\n${r.stdout}`);
     }
     const p = parseRemote(r.stdout);
     assert.deepStrictEqual(
-      { read: p.read, upgradable: p.upgradable, security: p.security, env: p.env, named: p.named, turnPort: p.turnPort, openFlag: p.openFlag, nft: p.nft, udpOpen: p.udpOpen },
-      { read: true, upgradable: 1, security: ["nginx"], env: true, named: ["TURN_PUBLIC_HOST"], turnPort: 3478, openFlag: true, nft: true, udpOpen: [3478] },
+      { read: p.read, upgradable: p.upgradable, security: p.security, env: p.env, named: p.named, origins: p.origins, turnPort: p.turnPort, openFlag: p.openFlag, nft: p.nft, udpOpen: p.udpOpen },
+      { read: true, upgradable: 1, security: ["nginx"], env: true, named: ["TURN_PUBLIC_HOST"], origins: true, turnPort: 3478, openFlag: true, nft: true, udpOpen: [3478] },
       `an empty TURN_SERVER_HOST names nothing; the answer was:\n${r.stdout}`,
     );
   } finally {

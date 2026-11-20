@@ -369,10 +369,14 @@ All configuration is via environment variables. Create a `.env` file or set them
 ADMIN_KEYS=your_dilithium3_public_key_hex # Comma-separated admin public keys (Dilithium3 / ML-DSA-65 hex)
 API_SECRET=generate_a_random_64_char_hex  # For bot API authentication
 
-# Required for BROWSER chat on your own domain (v0.1139+). The relay's
-# WebSocket Origin check, CORS, and CSP all build from this one list; without
-# it, browsers on your domain get 403 and only the desktop app can connect.
+# The websites whose pages may call this relay (v0.1139+). The relay's
+# WebSocket Origin check, CORS, and CSP all build from this one list. Without
+# it the relay names only itself: https://<TURN_PUBLIC_HOST> (below), and for
+# chat, any page it served itself over https; never another server's address
+# (until 2026-11-20 an unset list meant united-humanity.us's, BUG-329). Its
+# log says so at start. Set it when pages on other addresses must reach it.
 # The desktop app and the node's own localhost web client are always allowed.
+# scripts/provision-vps.sh writes it for you from HUMANITY_DOMAIN.
 ALLOWED_ORIGINS=https://your-domain.example,https://chat.your-domain.example
 
 # Where it listens (both optional; "Run your own node" above explains them)

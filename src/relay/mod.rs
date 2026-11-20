@@ -84,6 +84,9 @@ pub mod turn;
 pub mod call_forwarder;
 pub mod call_credentials;
 pub mod stun_wire;
+/// Which websites may call this relay when `ALLOWED_ORIGINS` is not set: only this server's own,
+/// never another's (BUG-329).
+pub mod origins;
 /// Web Push, our own: RFC 8291 payload encryption and the RFC 8292 VAPID token on p256
 /// (2026-11-06; `relay.rs`'s `push_send` sends what it builds, through `outbound`'s client).
 pub mod web_push;
@@ -167,21 +170,21 @@ async fn feature_gate(
 ///
 /// Configuration: set `ALLOWED_ORIGINS` (comma-separated https origins,
 /// e.g. "https://example.org,https://chat.example.org") to run this relay
-/// on any domain; unset, the united-humanity defaults apply. The Tauri
+/// on any domain. Unset, it names only this server: `own_site` (its
+/// TURN_PUBLIC_HOST, origins.rs), plus, for the WebSocket, pages it served
+/// itself over https; never another server's (BUG-329: until 2026-11-20 an
+/// unset list meant united-humanity.us's addresses). The Tauri
 /// desktop origins and this relay's own loopback origins (PORT env) are
 /// ALWAYS included: the desktop app and the node's own web client must
 /// work everywhere without configuration.
-fn parse_allowed_origins(env_val: Option<&str>, port: u16) -> Vec<String> {
+fn parse_allowed_origins(env_val: Option<&str>, port: u16, own_site: Option<&str>) -> Vec<String> {
     let mut v: Vec<String> = match env_val {
         Some(s) if !s.trim().is_empty() => s
             .split(',')
             .map(|x| x.trim().trim_end_matches('/').to_string())
             .filter(|x| !x.is_empty())
             .collect(),
-        _ => vec![
-            "https://chat.united-humanity.us".to_string(),
-            "https://united-humanity.us".to_string(),
-        ],
+        _ => own_site.map(str::to_string).into_iter().collect(),
     };
     v.push("http://tauri.localhost".to_string());
     v.push("https://tauri.localhost".to_string());
@@ -200,7 +203,11 @@ pub(crate) fn allowed_origins() -> &'static Vec<String> {
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(3210);
-        let v = parse_allowed_origins(env_val.as_deref(), port);
+        let own = origins::own_site(|k| std::env::var(k).ok());
+        if !origins::configured(env_val.as_deref()) {
+            tracing::warn!("{}", origins::not_configured_line(own.as_deref()));
+        }
+        let v = parse_allowed_origins(env_val.as_deref(), port, own.as_deref());
         tracing::info!("Browser origin allowlist: {}", v.join(", "));
         v
     })
@@ -245,30 +252,41 @@ fn csp_value() -> &'static str {
 mod allowed_origins_tests {
     use super::parse_allowed_origins;
 
+    /// Unset, the list names only this server (BUG-329): its own site when it has a name, never
+    /// united-humanity.us's addresses; a custom list replaces it.
+    ///
+    /// Seen red 2026-11-20 with the old default put back (united-humanity.us's two addresses for
+    /// an unset list): "an unset list names no other server: [\"https://chat.united-humanity.us\",
+    /// \"https://united-humanity.us\", ...]".
     #[test]
-    fn defaults_when_unset_and_custom_domain_replaces_them() {
-        let d = parse_allowed_origins(None, 3210);
-        assert!(d.contains(&"https://united-humanity.us".to_string()));
-        assert!(d.contains(&"tauri://localhost".to_string()), "desktop app always allowed");
-        assert!(d.contains(&"http://127.0.0.1:3210".to_string()), "own web client always allowed");
+    fn unset_names_only_this_server_and_custom_domain_replaces_it() {
+        for own in [None, Some("https://public.guide")] {
+            let d = parse_allowed_origins(None, 3210, own);
+            assert!(!d.iter().any(|o| o.contains("united-humanity")), "an unset list names no other server: {d:?}");
+            assert!(d.contains(&"tauri://localhost".to_string()), "desktop app always allowed");
+            assert!(d.contains(&"http://127.0.0.1:3210".to_string()), "own web client always allowed");
+            let public: Vec<&String> = d.iter().filter(|o| o.starts_with("https://") && !o.contains("localhost")).collect();
+            assert_eq!(public, own.map(|o| o.to_string()).iter().collect::<Vec<_>>(), "only its own site, when it has a name");
+        }
 
-        let c = parse_allowed_origins(Some("https://example.org, https://chat.example.org/"), 4000);
+        let c = parse_allowed_origins(Some("https://example.org, https://chat.example.org/"), 4000, Some("https://public.guide"));
         assert!(c.contains(&"https://example.org".to_string()));
         assert!(
             c.contains(&"https://chat.example.org".to_string()),
             "trailing slash trimmed"
         );
         assert!(
-            !c.iter().any(|o| o.contains("united-humanity")),
-            "custom list REPLACES the defaults (a white-label host is not us)"
+            !c.iter().any(|o| o.contains("united-humanity") || o.contains("public.guide")),
+            "custom list REPLACES the fallback, its own name included"
         );
         assert!(c.contains(&"http://localhost:4000".to_string()), "port follows PORT");
     }
 
     #[test]
-    fn empty_env_falls_back_to_defaults() {
-        let v = parse_allowed_origins(Some("  "), 3210);
-        assert!(v.contains(&"https://united-humanity.us".to_string()));
+    fn empty_env_falls_back_to_this_server_alone() {
+        let v = parse_allowed_origins(Some("  "), 3210, Some("https://public.guide"));
+        assert!(v.contains(&"https://public.guide".to_string()));
+        assert!(!v.iter().any(|o| o.contains("united-humanity")), "{v:?}");
     }
 }
 
@@ -1687,8 +1705,10 @@ async fn ws_handler(
     // Non-browser clients (native apps, bots) typically don't send Origin,
     // so we only reject when Origin is present but not in the allow-list.
     if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
-        // Same single-source allowlist as CORS + CSP (white-label seam).
-        if !allowed_origins().iter().any(|a| a == origin) {
+        // Same single-source allowlist as CORS + CSP (white-label seam); with no list given, also
+        // this server's own https pages (origins.rs, BUG-329).
+        let host = headers.get(http::header::HOST).and_then(|v| v.to_str().ok());
+        if !origins::accepts(allowed_origins(), origins::unconfigured(), origin, host) {
             tracing::warn!("WS refused: Origin {origin} not in the allowlist (set ALLOWED_ORIGINS to serve this domain)");
             return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
         }

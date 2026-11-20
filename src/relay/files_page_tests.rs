@@ -243,7 +243,7 @@ async fn a_labelled_item_has_no_picture() {
 /// href="https://evil.example/files/1">`.
 #[tokio::test]
 async fn a_forged_host_never_reaches_the_tags() {
-    let configured = crate::relay::parse_allowed_origins(Some("https://united-humanity.us, https://chat.united-humanity.us"), 3210);
+    let configured = crate::relay::parse_allowed_origins(Some("https://united-humanity.us, https://chat.united-humanity.us"), 3210, None);
     for (host, site) in [
         (Some("united-humanity.us"), "https://united-humanity.us"),
         (Some("chat.united-humanity.us"), "https://chat.united-humanity.us"),
@@ -259,11 +259,11 @@ async fn a_forged_host_never_reaches_the_tags() {
     ] {
         assert_eq!(site_origin(host, &configured), site, "Host {host:?}");
     }
-    let home = crate::relay::parse_allowed_origins(Some("http://192.168.1.5:3210"), 3210);
+    let home = crate::relay::parse_allowed_origins(Some("http://192.168.1.5:3210"), 3210, None);
     assert_eq!(site_origin(Some("evil.example"), &home), "http://192.168.1.5:3210", "http alone: that one");
     assert_eq!(site_origin(Some("192.168.1.5:3210"), &home), "http://192.168.1.5:3210");
 
-    // Through the route: its own configured addresses (none set in a test: the defaults), its own
+    // Through the route: its own configured addresses (none set in a test: only this machine's own, BUG-329), its own
     // files.html (web/pages under the test's working folder), and a Host nobody configured.
     let state = relay("mp_host");
     let d = dirs("mp_host");

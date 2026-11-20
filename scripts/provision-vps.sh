@@ -169,7 +169,8 @@ if [ ! -f "$REPO/.env" ]; then
   # set once by the operator (docs/admin/SELF-HOSTING.md "first admin").
   # ALLOWED_ORIGINS is THE white-label seam (v0.1139): the relay's WS-Origin
   # check, CORS, and CSP all build from it, so browser chat works on THIS
-  # node's domain instead of only united-humanity.us.
+  # node's domain and its chat subdomain. Unset, the relay names only itself
+  # (its TURN_PUBLIC_HOST and its own https pages, BUG-329), never another server.
   printf 'ADMIN_KEYS=\nAPI_SECRET=%s\nRUST_LOG=info\nALLOWED_ORIGINS=https://%s,https://%s\n' \
     "$(openssl rand -hex 32)" "$DOMAIN" "$CHAT_DOMAIN" > "$REPO/.env"
   chmod 600 "$REPO/.env"

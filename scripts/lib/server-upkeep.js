@@ -42,6 +42,7 @@ function remoteScript() {
     `echo "NOW $(date +%s)"`,
     `if [ -f ${env} ]; then echo "ENV present"; else echo "ENV missing"; fi`,
     ...named,
+    `if grep -qE '^ALLOWED_ORIGINS=["'"'"']?[^"'"'"'[:space:]]' ${env} 2>/dev/null; then echo "ORIGINS set"; fi`,
     `grep -oE '^TURN_PORT=[0-9]+' ${env} 2>/dev/null`,
     `grep -oE '^HUMANITY_OPEN_CALL_PORT=[01]' ${nodeEnv} 2>/dev/null`,
     `if r=$(nft list ruleset 2>/dev/null); then echo "NFT read"; printf '%s\\n' "$r" | grep -oE 'udp dport [0-9]+ accept'; else echo "NFT unreadable"; fi`,
@@ -59,6 +60,7 @@ function parseRemote(text) {
     now: null,
     env: null,
     named: [],
+    origins: false,
     turnPort: null,
     openFlag: null,
     nft: null,
@@ -77,6 +79,7 @@ function parseRemote(text) {
     else if ((m = line.match(/^NOW\s*(\d*)$/))) out.now = m[1] ? Number(m[1]) : null;
     else if ((m = line.match(/^ENV (present|missing)$/))) out.env = m[1] === "present";
     else if ((m = line.match(/^NAMED ([A-Z_]+)$/))) out.named.push(m[1]);
+    else if (line === "ORIGINS set") out.origins = true;
     else if ((m = line.match(/^TURN_PORT=(\d+)$/))) out.turnPort = Number(m[1]);
     else if ((m = line.match(/^HUMANITY_OPEN_CALL_PORT=([01])$/))) out.openFlag = m[1] === "1";
     else if ((m = line.match(/^NFT (read|unreadable)$/))) out.nft = m[1] === "read";
@@ -127,6 +130,11 @@ function judgeServer(server, r) {
     facts.push(`call port UDP ${port} open${how}, ${name} set`);
   } else {
     facts.push(`call port UDP ${port} closed${how}`);
+  }
+  // Not a problem either way (BUG-329: unset, the relay lets in only its own name and its own
+  // https pages), but worth seeing: a server that relies on that fallback says so.
+  if (r.env !== false) {
+    facts.push(r.origins ? "ALLOWED_ORIGINS set" : "no ALLOWED_ORIGINS (browsers: its own pages only)");
   }
 
   if (problems.length) {
