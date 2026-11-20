@@ -300,6 +300,33 @@ credit (`src/instrument_packs/data_tests.rs`). Redistributing these packs means 
 the licence link and the note that they were changed. The research, quoted and dated:
 `docs/reference/findings/2026-11-13-free-instrument-libraries.md`.
 
+## OpenMoji - the emoji pictures (CC BY-SA 4.0, the third share-alike source)
+
+All emojis designed by [OpenMoji](https://openmoji.org/) – the open-source emoji and icon project.
+License: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/#)
+
+That is OpenMoji's own requested attribution, word for word. `assets/emoji/openmoji/` holds all
+4,495 of OpenMoji's colour pictures from release 17.0.0 (2026-11-20), and the website's chat draws
+every emoji from them (`web/shared/emoji.js`), so no visitor's browser asks another site for one. The
+desktop app's plan for the same pictures is `docs/design/emoji.md`. They stay OpenMoji's, under
+**CC BY-SA 4.0** (<https://creativecommons.org/licenses/by-sa/4.0/legalcode>): not public domain,
+unlike the project's own media.
+
+- **Unchanged drawings.** Two files had a garbled word inside an `id` attribute repaired (nothing
+  drawn changed); `assets/emoji/openmoji/SOURCE.md` names them, with the release and the zip's
+  checksum, and `LICENSE.md` beside the pictures carries the credit and the licence.
+- **Passing them on** (a fork, a copy of the website, a download) means keeping that credit, the
+  licence link and the note of what was changed.
+- **Changing a picture** makes an adaptation, which must be shared under CC BY-SA 4.0 too. The
+  HumanityOS emoji that volunteers draw to replace OpenMoji's one at a time
+  (`docs/outreach/volunteers-wanted.md`) are drawn from scratch, not traced or edited from these
+  files, so they can be public domain as offered there.
+
+The research, quoted and dated: `docs/reference/findings/2026-11-20-openmoji.md`. (Before this, the
+chat drew Twemoji's pictures, CC BY 4.0, straight from a CDN and credited them nowhere: the
+attribution audit's gap 8, `docs/reference/attribution-audit-2026-09-06.md`. Nothing of Twemoji is
+used or shipped any more.)
+
 ## The AlternativeTo badge (the website's download page)
 
 `web/shared/badges/alternativeto.svg` is AlternativeTo's own badge (`badge-compact-color.svg`,

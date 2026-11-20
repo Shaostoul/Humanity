@@ -70,7 +70,7 @@ Native refs are `src/gui/pages/chat.rs` unless noted.
 | `draw_unencrypted_dm_modal` (4840) | `view/modals/unencryptedDm.js` | |
 
 Web MAY render richer visuals where the DOM beats egui (real identicons,
-twemoji, inline video, link previews), but must NOT diverge in **structure,
+emoji pictures, inline video, link previews), but must NOT diverge in **structure,
 order, or behavior**. egui's constraints define the shape.
 
 ## Sync rules

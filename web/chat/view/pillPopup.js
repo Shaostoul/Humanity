@@ -280,10 +280,10 @@
     document.body.appendChild(built.bar);
     thorn.setAttribute('aria-expanded', 'true');
     thorn.classList.add('ts-thorn-live');
-    // The reactions in the same emoji pictures as the pill's; never the ↩ (twemoji would turn
+    // The reactions in the same emoji pictures as the pill's; never the ↩ (an emoji picture would turn
     // it into a blue keycap tile, where native draws the plain arrow).
-    if (window.twemoji) {
-      Array.prototype.forEach.call(built.bar.querySelectorAll('.pill-popup-react'), function (b) { window.twemoji.parse(b); });
+    if (window.hosEmoji) {
+      Array.prototype.forEach.call(built.bar.querySelectorAll('.pill-popup-react'), function (b) { window.hosEmoji.parse(b); });
     }
 
     var enter = function (e) { if (open === mine && isHoverPointer(e)) { mine.hovering = true; cancelClose(); } };

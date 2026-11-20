@@ -1,0 +1,12 @@
+{
+  "_comment": "The emoji sets HumanityOS draws emoji with, in the order they are looked in: the first set holding an emoji draws it. The volunteer-drawn HumanityOS set (docs/outreach/volunteers-wanted.md, Emoji designers) goes AHEAD of OpenMoji here, so each adopted design replaces that one emoji only. After changing this file or a set's folder, run node scripts/gen-emoji-index.js. Layout and rules: scripts/lib/emoji-pack.js; design: docs/design/emoji.md.",
+  "sets": [
+    {
+      "id": "openmoji",
+      "dir": "openmoji",
+      "name": "OpenMoji 17.0.0",
+      "licence": "CC-BY-SA-4.0",
+      "credit": "openmoji"
+    }
+  ]
+}

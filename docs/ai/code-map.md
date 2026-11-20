@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1581 Rust files (806,443 lines) under `src/` and `crates/*/src/`; 148 JavaScript files (92,000 lines) under `web/`.
+1581 Rust files (806,443 lines) under `src/` and `crates/*/src/`; 149 JavaScript files (92,216 lines) under `web/`.
 
 ## Folders
 
@@ -94,7 +94,7 @@
 - `web/chat/` (31 files)
 - `web/chat/view/` (4 files)
 - `web/pages/` (42 files)
-- `web/shared/` (71 files)
+- `web/shared/` (72 files)
 
 ## Files
 
@@ -1666,7 +1666,7 @@
 
 ## web/chat/
 
-- `app.js` (3775): Parse static emoji on page load, skip hub-nav so emoji match other pages Main items: getStripeClass, resetMsgStripe, showErasedNote, signUpAgainChoice, endCallBeforeLeaving, isScratchPad, scratchPadOpen, scratchPadReady (+120 more).
+- `app.js` (3777): Parse static emoji on page load, skip hub-nav so emoji match other pages Main items: getStripeClass, resetMsgStripe, showErasedNote, signUpAgainChoice, endCallBeforeLeaving, isScratchPad, scratchPadOpen, scratchPadReady (+120 more).
 - `bip39-english.js` (189): BIP39 English wordlist -- the canonical 2048-word list, byte-identical to the
 - `chat-dm-store.js` (1156): ── chat-dm-store.js ──────────────────────────────────────────────────────
 - `chat-dms.js` (865): ── chat-dms.js ─────────────────────────────────────────────────────────── Main items: upsertDmConversation, openDmFromLink, openDmConversation, renderDmHeader, toggleBlockActiveDm, renderDmConversationFromStore, loadDmListFromStore, purgeServerMailbox (+26 more).
@@ -1764,6 +1764,7 @@
 - `defaults.js` (98): shared/defaults.js, Single source of truth for all settings defaults.
 - `drop-overlay.js` (234): ── drop-overlay.js ─────────────────────────────────────────────────────── Main items: sendIn, uploadAndPostIn, addTo, carriesFiles, filesOf, attach.
 - `eli5.js` (71): ELI5 + Expert dual-depth explanation system Main items: initBlocks.
+- `emoji.js` (212): Emoji pictures from our own copies (2026-11-20). Every emoji in a piece of text becomes an <img> Main items: hexOf, keyOf, filesFrom, pieces, tokens.
 - `events.js` (55): HOS Event Bus, replaces monkey-patching pattern
 - `file-risk.js` (217): ── file-risk.js ──────────────────────────────────────────────────────────── Main items: load, use, startsWithHex, plainName, ending, shownEnding, assess, fileType (+3 more).
 - `file-transfer.js` (1005): ── file-transfer.js ────────────────────────────────────────────────────── Main items: idOk, hex64Ok, newId, toHex, piecesFor, pieceLength, filePassFieldOk, filePassPreimage (+26 more).
@@ -1775,7 +1776,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8158): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8160): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

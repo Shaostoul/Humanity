@@ -334,5 +334,24 @@
             attribution_required: true,
             shown_in: ["Credits", "Settings > Audio > Instruments (the Electric pianos pack's licence line)", "The pack's sample folders (LICENSE.txt)"],
         ),
+        // OpenMoji (2026-11-20), the emoji pictures: the operator chose it ("of that list the
+        // OpenMoji sounds better") to replace Twemoji, whose pictures came from a CDN per visitor
+        // and were never credited (attribution audit 2026-09-06, gap 8). assets/emoji/openmoji/,
+        // drawn by web/shared/emoji.js on the website's chat; the desktop's rung is
+        // docs/design/emoji.md. The notice is the attribution OpenMoji's README asks for, word for
+        // word (its en dash included). The website has no Credits page of its own: its footer's
+        // licence link opens LICENSING.md, whose "Other people's work" row names OpenMoji and
+        // links LICENSES.md (CC BY-SA 4.0 section 3(a)(2) allows "a URI or hyperlink to a resource
+        // that includes" the notice). Finding: docs/reference/findings/2026-11-20-openmoji.md.
+        (
+            id: "openmoji",
+            name: "OpenMoji",
+            used_for: "The emoji pictures in the website's chat: every emoji in a message, a reaction or a name is drawn from our own copy of OpenMoji's 4,495 colour pictures (release 17.0.0), never fetched from another site.",
+            licence: "CC BY-SA 4.0",
+            notice: "All emojis designed by OpenMoji – the open-source emoji and icon project. License: CC BY-SA 4.0",
+            url: "https://openmoji.org/",
+            attribution_required: true,
+            shown_in: ["Credits", "The website's footer (its licence link opens LICENSING.md, which names OpenMoji and links LICENSES.md)", "assets/emoji/openmoji/LICENSE.md, beside the pictures"],
+        ),
     ],
 )

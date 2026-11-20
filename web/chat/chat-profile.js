@@ -864,7 +864,7 @@ function showViewProfileCard(name, publicKey, profile) {
     }).catch(function() { /* server-info unavailable, skip funding section */ });
   }
 
-  if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
+  if (window.hosEmoji) hosEmoji.parse(document.getElementById('view-profile-content'));
   document.getElementById('view-profile-overlay').classList.add('open');
 }
 

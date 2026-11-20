@@ -302,7 +302,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   // A file's address in the words: its card's size and what kind of file it is (app.js).
   else if (typeof fillFileCards === 'function') fillFileCards(el);
   if (media && !holdLinks) filesCardsPut(el, media.ids, fromKey, timestamp);
-  if (window.twemoji) twemoji.parse(el);
+  if (window.hosEmoji) hosEmoji.parse(el);
   return el;
 }
 
@@ -849,7 +849,7 @@ function renderDmList() {
       <span class="dm-time">${timeStr}</span>${dmBell}
     </div>`;
   }).join('') + purgeRow;
-  if (window.twemoji) twemoji.parse(list);
+  if (window.hosEmoji) hosEmoji.parse(list);
   if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);
   wirePurgeMailboxHold();
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();

@@ -45,13 +45,11 @@
   <link rel="stylesheet" href="/chat/voice.css?v=4">
   <link rel="stylesheet" href="/chat/inputs.css?v=9">
   <link rel="stylesheet" href="/shared/over-limit.css?v=1">
-  <!-- Vendored same-origin (twemoji 17.0.3, MIT). Was cdn.jsdelivr.net/@latest
-       with no SRI: a CDN/account compromise could have injected arbitrary JS
-       into the chat with full access to the localStorage seed. Serving it
-       from our own origin removes that supply-chain vector (audit 2026-06-12).
-       The library still fetches emoji IMAGE assets from a CDN at runtime, but
-       those are img-src only (no script execution). -->
-  <script src="/chat/twemoji.min.js"></script>
+  <!-- Emoji pictures from this server's own copies (2026-11-20): OpenMoji's SVGs in
+       /assets/emoji/, CC BY-SA 4.0. Until then the chat ran Twemoji, whose pictures every
+       visitor's browser fetched from cdn.jsdelivr.net (one pinned to @latest); now no emoji
+       asks another site for anything. -->
+  <script src="/shared/emoji.js?v=1"></script>
   <!--
     v0.196.0: pre-flight check for first-time visitors. If the browser
     has no stored HumanityOS identity (neither IndexedDB nor localStorage

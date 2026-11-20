@@ -671,7 +671,7 @@ function showUserContextMenu(e, name, publicKey, message) {
   }
 
   ctxMenu.innerHTML = html;
-  if (window.twemoji) twemoji.parse(ctxMenu);
+  if (window.hosEmoji) hosEmoji.parse(ctxMenu);
 
   const menuH = amAdmin ? 380 : amMod ? 300 : 220;
   const x = Math.min(e.clientX, window.innerWidth - 180);
@@ -2218,7 +2218,7 @@ var federatedRetryMs = 30000;
     }
 
     container.innerHTML = html;
-    if (window.twemoji) twemoji.parse(container);
+    if (window.hosEmoji) hosEmoji.parse(container);
     if (typeof renderUnreadDots === 'function') renderUnreadDots();
     if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
   }

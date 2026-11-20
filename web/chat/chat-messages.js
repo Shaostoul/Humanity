@@ -82,7 +82,7 @@ function renderReactions(targetFrom, targetTs) {
   // Inside the timestamp pill, as native paints them (view/timestampPill.js), counted without
   // anyone I blocked (a reaction from before the block too).
   msgEl.innerHTML = reactionBadgesHTML(reactions, { myKey, from: targetFrom, ts: targetTs, esc, hidden: fromBlockedKey });
-  if (window.twemoji) twemoji.parse(msgEl);
+  if (window.hosEmoji) hosEmoji.parse(msgEl);
   // An open expanded pill sits at the pill's right edge, which just moved.
   if (typeof repositionPillPopup === 'function') repositionPillPopup();
 }
@@ -172,7 +172,7 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
       marker.textContent = '(edited)';
       bodyEl.appendChild(marker);
     }
-    if (window.twemoji) twemoji.parse(bodyEl);
+    if (window.hosEmoji) hosEmoji.parse(bodyEl);
   };
 
   const cancelBtn = document.createElement('button');
@@ -181,7 +181,7 @@ function startEditMode(msgEl, originalBody, fromKey, timestamp) {
   cancelBtn.onclick = (e) => {
     e.stopPropagation();
     bodyEl.innerHTML = savedHtml;
-    if (window.twemoji) twemoji.parse(bodyEl);
+    if (window.hosEmoji) hosEmoji.parse(bodyEl);
   };
 
   // Escape to cancel, Ctrl+Enter to save.
@@ -217,7 +217,7 @@ function applyEditToDOM(fromKey, timestamp, newContent) {
     marker.textContent = '(edited)';
     bodyEl.appendChild(marker);
   }
-  if (window.twemoji) twemoji.parse(bodyEl);
+  if (window.hosEmoji) hosEmoji.parse(bodyEl);
 }
 
 // ── Pin System ──
@@ -321,7 +321,7 @@ function renderPinBar() {
     myContainer.innerHTML = '';
   }
 
-  if (window.twemoji) { twemoji.parse(bar); twemoji.parse(serverContainer); twemoji.parse(myContainer); }
+  if (window.hosEmoji) { hosEmoji.parse(bar); hosEmoji.parse(serverContainer); hosEmoji.parse(myContainer); }
 }
 
 function unpinServer(index) {
@@ -433,7 +433,7 @@ function loadImage(placeholder, url) {
     newPlaceholder.innerHTML = hosIcon('image', 14) + ' Image (click to load)';
     newPlaceholder.onclick = () => loadImage(newPlaceholder, url);
     img.replaceWith(newPlaceholder);
-    if (window.twemoji) twemoji.parse(newPlaceholder);
+    if (window.hosEmoji) hosEmoji.parse(newPlaceholder);
   };
   // Middle-click or Ctrl+click opens in new tab.
   img.onauxclick = (e) => { if (e.button === 1) window.open(url, '_blank'); };
@@ -1305,7 +1305,7 @@ function renderThreadMessages(messages) {
     }
   }
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  if (window.twemoji) twemoji.parse(messagesDiv);
+  if (window.hosEmoji) hosEmoji.parse(messagesDiv);
 }
 
 async function sendThreadReply() {
@@ -1353,7 +1353,7 @@ async function sendThreadReply() {
   if (none && typeof none.remove === 'function') none.remove();
   const row = putThreadMessage(messagesDiv, { from: myKey, author: myName, timestamp, body: content });
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  if (window.twemoji) twemoji.parse(row);
+  if (window.hosEmoji) hosEmoji.parse(row);
 
   // Also add to main chat.
   const key = myKey + ':' + timestamp;

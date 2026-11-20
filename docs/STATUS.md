@@ -178,7 +178,7 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Threaded replies | ✅ | Thread view panel, reply indicators, reply count tracking |
 | Message editing | ✅ | Server-side edit history, client UI |
 | Pins | ✅ | Server-side + client UI, per-channel |
-| Emoji reactions | ✅ | Persistent storage, Twemoji rendering |
+| Emoji reactions | ✅ | Persistent storage; web draws OpenMoji pictures from our own server (2026-11-20, docs/design/emoji.md) |
 | Markdown rendering | ✅ | Collapsible quotes, code blocks |
 | Message search | ✅ | FTS5 full-text search with LIKE fallback |
 | WebRTC voice calls (web) | ✅ | 1-on-1 audio, group voice rooms, TURN server |

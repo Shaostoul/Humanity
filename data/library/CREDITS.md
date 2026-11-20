@@ -162,6 +162,10 @@ The letters you are reading right now, in the app and on this site.
 - **Ubuntu** - Canonical, Ubuntu Font Licence 1.0. Kept in the fallback chain
   for the handful of symbols Noto Sans does not carry.
 - **Noto Emoji** and **emoji-icon-font** - SIL OFL 1.1 and MIT respectively.
+- **OpenMoji** (https://openmoji.org) - the emoji pictures in the website's chat. All emojis
+  designed by OpenMoji – the open-source emoji and icon project. License: CC BY-SA 4.0
+  (https://creativecommons.org/licenses/by-sa/4.0/). Release 17.0.0, kept in `assets/emoji/openmoji/`
+  and served from our own server; not public domain: see `LICENSES.md`.
 - The emoji and CJK characters you see come from fonts already installed on
   your own machine. We read them; we do not redistribute them, so Microsoft
   and Apple faces stay where they are.

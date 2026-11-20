@@ -351,6 +351,23 @@ Emoji reactions on messages.
 - Web: `web/chat/chat-ui.js` (reaction picker)
 - Server: `src/relay/storage/reactions.rs`
 
+### Emoji pictures, hosted ourselves (2026-11-20)
+Every emoji in the website's chat (messages, reactions, names) is drawn as a picture from our own
+copy of OpenMoji's 4,495 colour SVGs (CC BY-SA 4.0, the operator's choice), so no visitor's browser
+asks another site for one; Twemoji and its CDN pictures are gone. Joined sequences, skin tones,
+flags, keycaps and tag flags match whether typed with or without U+FE0F; a sequence with no picture
+shows its parts. The sets are data: a volunteer-drawn HumanityOS set will go ahead of OpenMoji,
+replacing one emoji at a time. The desktop app's rungs (matcher, SVG rasteriser, pictures in a line
+of text) are planned in `docs/design/emoji.md`.
+- Web: `web/shared/emoji.js` (`window.hosEmoji.parse`), loaded by `web/chat/index.html`
+- Data: `assets/emoji/openmoji/` (+ `LICENSE.md`, `SOURCE.md`), `assets/emoji/sets.json`,
+  `assets/emoji/index.json` (generated: `scripts/gen-emoji-index.js`); a new OpenMoji release:
+  `scripts/vendor-openmoji.js` (checks every picture, `scripts/lib/emoji-pack.js`)
+- Credit: `data/credits.ron` (`openmoji`), `LICENSES.md`, `LICENSING.md`, `CREDITS.md`; finding
+  `docs/reference/findings/2026-11-20-openmoji.md`
+- Tests: `scripts/tests/emoji-web.test.js` (cases shared with the desktop in
+  `scripts/tests/fixtures/emoji-v1.json`)
+
 ### Pins
 Pin important messages to a channel.
 - Server: `src/relay/storage/pins.rs`

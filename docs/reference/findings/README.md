@@ -738,3 +738,9 @@ what we will say about it.
   Elise and Symphony No. 5, OpenScore (CC0), TROMPA (CC BY 4.0, five files from a 1976 Henle edition
   to avoid), IMSLP's 1888 Peters scans (its robots bar automated downloads); the orchestral Mountain
   King is ours to encode. Not legal advice.
+- [`2026-11-20-openmoji.md`](2026-11-20-openmoji.md),
+  hosting OpenMoji's emoji pictures ourselves (the operator's choice): CC BY-SA 4.0 for the
+  graphics and LGPL-3.0 for its code (unused), the exact credit its README asks for and where,
+  the release zip carrying no licence of its own, why showing unchanged pictures leaves our own
+  licences alone (a collection, not an adaptation), and why volunteers' emoji must be drawn from
+  scratch to be CC0. openmoji.org bars ClaudeBot and was not read. Not legal advice.

@@ -1,7 +1,7 @@
 // Parse static emoji on page load, skip hub-nav so emoji match other pages
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.twemoji) {
-    document.querySelectorAll('#login-screen, #chat-screen').forEach(el => twemoji.parse(el));
+  if (window.hosEmoji) {
+    document.querySelectorAll('#login-screen, #chat-screen').forEach(el => hosEmoji.parse(el));
   }
 });
 
@@ -396,7 +396,7 @@ function setReplyTarget(author, body, fromKey, timestamp, element) {
   document.getElementById('reply-preview').innerHTML =
     `&#x21A9;&#xFE0E; Replying to <span class="reply-author">${esc(author)}</span>: ${esc(shortBody)}`;
   bar.style.display = 'flex';
-  if (window.twemoji) twemoji.parse(bar);
+  if (window.hosEmoji) hosEmoji.parse(bar);
 }
 
 function clearReplyTarget() {
@@ -2555,7 +2555,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   else fillFileCards(el);
   // A Media item's card under the words (chat-files-card.js).
   if (media && media.ids.length) filesCardsPut(el, media.ids, fromKey, timestamp);
-  if (window.twemoji) twemoji.parse(el);
+  if (window.hosEmoji) hosEmoji.parse(el);
   // The row, so a P2P group can put its warnings under it (chat-groups-p2p.js, step F).
   return el;
 }
@@ -2778,7 +2778,9 @@ function updateUserList(users) {
     const isMe = u.name === myName;
     const isBot = u.public_key && u.public_key.startsWith('bot_');
     const icon = isBot ? '<span style="font-size:14px;vertical-align:middle;">🤖</span>' : (u.public_key ? `<img src="${generateIdenticon(u.public_key, 16)}" class="identicon" style="width:14px;height:14px;">` : '');
-    const badge = isBot ? ' <img src="https://cdn.jsdelivr.net/npm/@twemoji/svg@latest/1fab6.svg" alt="🪶" style="width:12px;height:12px;vertical-align:middle;"> ' : roleBadge(u.role);
+    // The feather, drawn by hosEmoji.parse(list) below from our own copy (it was the one Twemoji
+    // picture fetched from cdn.jsdelivr.net @latest; 10px text makes the 1.2em picture 12px).
+    const badge = isBot ? ' <span style="font-size:10px;vertical-align:middle;">🪶</span> ' : roleBadge(u.role);
     const escapedName = esc(u.name);
     const escapedKey = esc(u.public_key);
     const deviceCount = (!isBot && u.key_count > 1) ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
@@ -2801,7 +2803,7 @@ function updateUserList(users) {
   }
 
   list.innerHTML = html;
-  if (window.twemoji) twemoji.parse(list);
+  if (window.hosEmoji) hosEmoji.parse(list);
 }
 
 function updateChannelList(channels) {
@@ -2837,7 +2839,7 @@ function renderChannelList() {
     const fedIcon = ch.federated ? '<span class="fed-icon" title="Federated">🌐</span>' : '';
     return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}${fedIcon}</div>`;
   }).join('');
-  if (window.twemoji) twemoji.parse(list);
+  if (window.hosEmoji) hosEmoji.parse(list);
   // Re-apply unread dots after re-rendering.
   if (typeof renderUnreadDots === 'function') renderUnreadDots();
   // Also update the server list in the Servers tab
@@ -2937,7 +2939,7 @@ function updateChannelHeader() {
     const copyBtn = header.querySelector('.ch-copy-link');
     if (copyBtn) copyBtn.onclick = () => copyChannelLink(ch.id);
     header.style.display = 'block';
-    if (window.twemoji) twemoji.parse(header);
+    if (window.hosEmoji) hosEmoji.parse(header);
   } else {
     header.style.display = 'none';
   }

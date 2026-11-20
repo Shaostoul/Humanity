@@ -272,7 +272,7 @@ function drawStrangerLinkLine(el, o) {
       body.innerHTML = o.liveBodyHtml;
       // A file's card in it: its size and what kind of file it is, again (app.js).
       if (typeof fillFileCards === 'function') fillFileCards(body);
-      if (window.twemoji) twemoji.parse(body);
+      if (window.hosEmoji) hosEmoji.parse(body);
     }
     line.style.display = 'none';
     if (typeof line.remove === 'function') line.remove();

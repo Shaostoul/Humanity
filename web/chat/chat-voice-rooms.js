@@ -1333,7 +1333,7 @@ function addCallButtonsToPeerList() {
       startCall(pk, name);
     };
     el.appendChild(btn);
-    if (window.twemoji) twemoji.parse(btn);
+    if (window.hosEmoji) hosEmoji.parse(btn);
   });
 }
 
