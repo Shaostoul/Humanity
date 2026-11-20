@@ -531,6 +531,13 @@ fn the_tools_name_the_requests_the_game_polls() {
         assert!(ipc.contains(&format!("\"debug/{n}\"")), "engine/ipc.rs no longer names debug/{n}");
     }
     assert!(map_rig.contains("\"debug/map_done.json\""), "engine/map_rig.rs no longer names debug/map_done.json");
-    assert!(ipc.contains("Showcase: console {line} -> "), "game_console reads this log line; engine/ipc.rs no longer writes it");
+    // The console verb's line, "Showcase: console <line> -> <answer>", written by the verb table
+    // (engine/verbs.rs, since the headless sim runner's increment 5): `take` logs "Showcase: " and
+    // what the verb said.
+    let verbs = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/engine/verbs.rs"));
+    assert!(
+        verbs.contains("log::info!(\"Showcase: {said}\");") && verbs.contains("format!(\"console {line} -> {}\""),
+        "game_console reads the line \"Showcase: console <line> -> <answer>\"; engine/verbs.rs no longer writes it"
+    );
     assert!(ipc.contains("\"home_systems\": crate::engine::home_probe::json"), "the recorder carries home_systems");
 }

@@ -7,6 +7,7 @@ use glam::Vec3;
 use crate::engine::frame_lock::*;
 use crate::engine::ipc_parse::*;
 use crate::engine::state::*;
+use crate::engine::verbs::set_gameplay_level;
 use crate::gui::screen_surface::LoadState;
 use crate::gui::{GuiPage, GuiState};
 
@@ -765,15 +766,13 @@ pub(crate) fn take_request_text_at(path: &std::path::Path, now: std::time::Insta
 /// tower with the species at staggered growth stages (the procedural-plant
 /// demo ladder). Consumed on read. An in-Garden GUI button is tracked as
 /// in-app-ops debt (docs/design/in-app-ops.md).
-/// Choose `level` for the gameplay setting `id` the way its radio does (the setting and the save
-/// mark), for the showcase verbs `illness`, `walk_pace`, `animation_mode` and `gameplay`.
-fn set_gameplay_level(state: &mut EngineState, id: &str, level: &str) {
-    if state.gui_state.settings.level(id) != level {
-        state.gui_state.settings.set_level(id, level);
-        state.gui_state.settings_dirty = true;
-    }
-}
-
+///
+/// THE VERB TABLE (the headless sim runner, increment 5, 2026-11-20): the verbs that change the
+/// simulation (walk, illness, gameplay, face, hold, console, time, time_scale, weather, enter, cam)
+/// are read and run by engine/verbs.rs, the table the headless transport (`--sim verbs`,
+/// engine/sim_verbs.rs) runs too. This poll takes each of them through `verbs::take` at the place
+/// its block stood, so a request naming several still runs them in the order it always did, among
+/// the picture's pins around them (the order `verbs::KEYS` lists, held by a test there).
 pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // The `hold` verb's keys come up when their time is up: every frame, so
     // before the no-request early return (engine/rig_walk.rs).
@@ -835,66 +834,30 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // fly-mode line ("Indoors 21C, still air") and never the outdoor
     // weather line, the shelter note or what the air feels like. Send it in
     // a vantage's final_showcase with a stand (probe-sweep.js), so the eye is
-    // already on the ground when gravity comes back.
-    if grab("walk").as_deref() == Some("1") {
-        state.gui_state.dev_fly_mode = false;
-        state.gui_state.dev_hover = false;
-        state.controller.fly_mode = false;
-        log::info!("Showcase: walk -> fly mode off, on foot");
-    }
+    // already on the ground when gravity comes back. (engine/verbs.rs `Verb::OnFoot`.)
+    crate::engine::verbs::take(state, &grab, "walk");
     // {"illness":"realistic"} / {"illness":"forgiving"} / {"illness":"off"} (2026-10-20, falls;
     // Off 2026-11-11): Settings > Gameplay > Illness and injury, set the way its radio sets it (the
     // setting and the save mark), so a rig can judge a fall in every level in one boot
     // (scripts/verify-falls.js). Permanent dev tooling.
-    if let Some(raw) = grab("illness") {
-        match crate::engine::body_probe::parse_illness_mode(&raw) {
-            Some(level) => {
-                set_gameplay_level(state, "illness", &level);
-                log::info!("Showcase: illness -> {level}");
-            }
-            None => log::warn!("Showcase: illness wants off, forgiving or realistic, not {raw:?}"),
-        }
-    }
+    crate::engine::verbs::take(state, &grab, "illness");
     // {"gameplay":"body_heat=off"} (2026-11-11): any gameplay setting to any of its levels
     // (data/gameplay/levels.json), set the way its radio sets it, so a rig reaches every level of
     // every setting. Permanent dev tooling.
-    if let Some(raw) = grab("gameplay") {
-        let (id, level) = raw.split_once('=').map_or((raw.trim(), ""), |(a, b)| (a.trim(), b.trim()));
-        if crate::gui::gameplay_levels::setting(id).and_then(|s| s.level(level)).is_some() {
-            set_gameplay_level(state, id, level);
-            log::info!("Showcase: gameplay {id} -> {level}");
-        } else {
-            log::warn!("Showcase: gameplay wants setting=level from data/gameplay/levels.json, not {raw:?}");
-        }
-    }
+    crate::engine::verbs::take(state, &grab, "gameplay");
     // {"face":"yaw,pitch"} (ship homes increment 7, 2026-10-21): turn the camera to that yaw and
     // pitch (radians: yaw 0 north, +PI/2 east; pitch up positive) without moving the body, as a
     // mouse turn does, so a rig walks a route of straight legs on the held keys below with no
     // placement between them (scripts/verify-storeys.js, engine/storey_probe.rs). Before `hold`,
     // so a turn and a hold sent together walk the new way. Permanent dev tooling.
-    if let Some(raw) = grab("face") {
-        match crate::engine::storey_probe::parse_face(&raw) {
-            Some((yaw, pitch)) => {
-                state.camera.yaw = yaw;
-                state.camera.pitch = pitch;
-                log::info!("Showcase: face -> yaw {yaw:.3}, pitch {pitch:.3}");
-            }
-            None => log::warn!("Showcase: face wants \"yaw,pitch\" in radians, not {raw:?}"),
-        }
-    }
+    crate::engine::verbs::take(state, &grab, "face");
     // {"hold":"forward,sprint","hold_s":"40"} (BUG-156, 2026-10-05): press
-    // those movement keys for that long, through the controller's own action
-    // path, so a capture can ARRIVE somewhere on foot the way a player does
-    // rather than by teleport (engine/rig_walk.rs). Send it after a stand and
-    // a walk, in the same request or a later one.
-    if let Some(spec) = grab("hold") {
-        let secs = grab("hold_s").and_then(|s| s.parse::<f32>().ok()).unwrap_or(5.0);
-        let note = match crate::engine::rig_walk::parse_keys(&spec) {
-            Some(keys) => crate::engine::rig_walk::hold(state, keys, secs),
-            None => format!("hold wants movement keys (forward, back, left, right, jump, sprint), not {spec:?}"),
-        };
-        log::info!("Showcase: hold -> {note}");
-    }
+    // those movement keys for that long (seconds of the step's clock since
+    // increment 5), through the controller's own action path, so a capture can
+    // ARRIVE somewhere on foot the way a player does rather than by teleport
+    // (engine/rig_walk.rs). Send it after a stand and a walk, in the same
+    // request or a later one.
+    crate::engine::verbs::take(state, &grab, "hold");
     // {"tree_ground":"1"} (BUG-156, 2026-10-05): write where every near tree's
     // base and the eye stand against the ground drawn under them, the finest
     // ground and the surface the harvest sampled, to debug/tree_ground.json
@@ -1466,14 +1429,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // build editor's console on the live home, for this session only (`console_this_session`:
     // never written to the data files or a save). verify-falls places the deck its walks aboard
     // step off this way (docs/design/ship-homes-increment-7-plan.md, decision 10), and takes it
-    // away after. The console's answer is this log line. Permanent dev tooling.
-    if let Some(line) = grab("console") {
-        let (said, rebuild) = console_this_session(&mut state.gui_state, &line);
-        if rebuild {
-            crate::engine::home_meshes::rebuild_homestead(state);
-        }
-        log::info!("Showcase: console {line} -> {}", said.trim_end().replace('\n', " | "));
-    }
+    // away after. The console's answer is this log line ("Showcase: console <line> -> <answer>",
+    // which verify-falls reads). Permanent dev tooling.
+    crate::engine::verbs::take(state, &grab, "console");
     // {"page":"homes"} (ship homes 5b, 2026-10-12): open that page, as its nav item does (the
     // history keeps it as a step beside the page before). verify-copresence --household opens the
     // Home page, whose Household card it then clicks through. Permanent dev tooling.
@@ -1557,16 +1515,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // out the night). Routed through the TimeSystem's request channel -
     // its own accumulator is authoritative and re-exports every tick, so
     // writing the DataStore GameTime copy directly is a lost update.
-    if let Some(hours) = grab("time").and_then(|t| t.parse::<f32>().ok()) {
-        if let Some(req) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<f32>>>("time_set_hour_request")
-        {
-            if let Ok(mut r) = req.lock() {
-                *r = Some(hours);
-            }
-        }
-    }
+    crate::engine::verbs::take(state, &grab, "time");
     // Optional "time_scale":"0" holds the game clock at that SPEED (v0.1287,
     // the rig clock freeze): 0 holds the clock still so the planet does not
     // spin and the sun does not move between a park and its capture. Two
@@ -1574,9 +1523,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // (2026-09-05) because a fast day turned the planet 0.3 degrees per
     // second under a world-fixed camera. A hold over the time-speed setting
     // (time::request_speed_hold); the TimeSystem's accumulator is authoritative.
-    if let Some(sc) = grab("time_scale").and_then(|t| t.parse::<f32>().ok()) {
-        humanity_systems::time::request_speed_hold(&state.data_store, Some(sc.max(0.0)));
-    }
+    crate::engine::verbs::take(state, &grab, "time_scale");
     // Optional "hud":"0" hides the HUD, the crosshair dot with it
     // (hud::crosshair_visible); "hud":"1" shows it again, and the rigs send
     // that between vantages (scripts/lib/showcase-pins.js). A sky vantage aims
@@ -2327,43 +2274,9 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // capture can show fog, a sandstorm or a storm. Without this the rig could
     // never photograph a weather condition at all - every vantage got whatever
     // the sim happened to roll - which is precisely why "fog and sandstorm
-    // change nothing in the air" went unnoticed for so long.
-    if let Some(w) = grab("weather") {
-        let (cond, intensity) = match w.to_ascii_lowercase().as_str() {
-            "clear" => (humanity_systems::weather::WeatherCondition::Clear, 0.0),
-            "cloudy" => (humanity_systems::weather::WeatherCondition::Cloudy, 0.4),
-            "rain" => (humanity_systems::weather::WeatherCondition::Rain, 0.9),
-            "storm" => (humanity_systems::weather::WeatherCondition::Storm, 1.0),
-            "snow" => (humanity_systems::weather::WeatherCondition::Snow, 0.7),
-            "fog" => (humanity_systems::weather::WeatherCondition::Fog, 1.0),
-            "sandstorm" => (humanity_systems::weather::WeatherCondition::Sandstorm, 1.0),
-            _ => (humanity_systems::weather::WeatherCondition::Clear, 0.0),
-        };
-        if let Some(m) = state
-            .data_store
-            .get::<std::sync::Mutex<humanity_systems::weather::WeatherControl>>("weather_control")
-        {
-            if let Ok(mut c) = m.lock() {
-                // {"weather_wind":"0"} beside it pins the weather's own wind,
-                // m/s (2026-09-29): a calm clear night is the case the body's
-                // "feels" figure is most different from the air.
-                let wind = grab("weather_wind").and_then(|x| x.parse::<f32>().ok()).map(|v| v.clamp(0.0, 60.0));
-                c.manual = Some(humanity_systems::weather::ManualWeather {
-                    condition: cond,
-                    intensity,
-                    wind_speed: wind.unwrap_or(if intensity > 0.8 { 18.0 } else { 4.0 }),
-                });
-                c.retrigger = true;
-            }
-        }
-        state.gui_state.weather_manual = true;
-        state.gui_state.weather_pick_condition = cond;
-        state.gui_state.weather_pick_intensity = intensity;
-        // Pinning a condition places it HERE. Without this the pin would adopt
-        // whatever anchor the previous condition left behind.
-        state.weather_anchor = None;
-        log::info!("Showcase: weather -> {w}");
-    }
+    // change nothing in the air" went unnoticed for so long. {"weather_wind":"0"}
+    // beside it pins the weather's own wind, m/s (2026-09-29).
+    crate::engine::verbs::take(state, &grab, "weather");
     // Optional "lights":"500": N camera-pinned test point lights (clustering
     // dev-aid; the grid regenerates around the camera every frame, so it
     // survives floating-origin rebases). "lights":"0" clears. Optional
@@ -2523,38 +2436,11 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // Optional "enter":"default" mimics the Play button: replay the last
     // WHO/WHERE pairing into the world (machines + garden come alive),
     // falling back to the character picker when none is recorded yet.
-    if grab("enter").is_some() {
-        if !state.gui_state.apply_last_pairing() {
-            state.gui_state.launcher_open_select = true;
-        }
-        state.gui_state.enter_world();
-    }
+    crate::engine::verbs::take(state, &grab, "enter");
     // Optional camera framing in the same request: "cam":"x,y,z,yaw,pitch"
     // parks the free camera there and drops into the world view (page None)
     // so a follow-up screenshot_request captures the framed 3D scene.
-    if let Some(cam) = grab("cam") {
-        let v: Vec<f32> = cam.split(',').filter_map(|p| p.trim().parse().ok()).collect();
-        if v.len() == 5 {
-            // In first person the camera derives from the PLAYER each
-            // frame, so teleport the player body; yaw/pitch live on the
-            // camera itself (mouse deltas accumulate onto them) so those
-            // stick when set directly.
-            for (_e, (t, _c)) in state
-                .game_world
-                .world
-                .query_mut::<(
-                    &mut humanity_core::ecs::components::Transform,
-                    &humanity_core::ecs::components::Controllable,
-                )>()
-            {
-                t.position = Vec3::new(v[0], v[1], v[2]);
-            }
-            state.camera.position = Vec3::new(v[0], v[1], v[2]);
-            state.camera.yaw = v[3];
-            state.camera.pitch = v[4];
-            state.gui_state.enter_world();
-        }
-    }
+    crate::engine::verbs::take(state, &grab, "cam");
 }
 
 /// Drive the live broadcast for one frame (v0.853). Called right before
@@ -4441,7 +4327,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         state.gui_state.dev_hover = true;
         state.surface_vr = 0.0;
         state.gui_state.dev_travel_away = false;
-        state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
+        state.probe_hold = Some((state.camera.position, state.clock.elapsed_s));
         // camera_done is NOT written here. `position`, `yaw_pitch`,
         // `requested`, `station_ride` and `error_m` are filled in by
         // `advance_station_park` from a reading of the camera taken after
@@ -4730,7 +4616,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         // tracked - see the field doc) so gravity or buoyancy cannot drag
         // the probe off its altitude during the capture settle. Cleared
         // by real movement input.
-        state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
+        state.probe_hold = Some((state.camera.position, state.clock.elapsed_s));
         apply_far_frame(state, &v);
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(
@@ -4798,7 +4684,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
     // Probe hold (increment 2): pin the parked pose - see the field doc
     // in engine::state. The frame-lock ride still carries the FRAME; this
     // pins the local offset inside it, which is where gravity integrates.
-    state.probe_hold = Some((state.camera.position, std::time::Instant::now()));
+    state.probe_hold = Some((state.camera.position, state.clock.elapsed_s));
     apply_far_frame(state, &v);
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(
@@ -4985,11 +4871,12 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
 // The request is consumed either way (the house rule for every debug poll);
 // a new request while one runs restarts the recording.
 
-/// Longest recording the request accepts, seconds of the frame clock.
-const REMOTE_RECORD_MAX_S: f64 = 120.0;
+/// Longest recording the request accepts, seconds of the frame clock (a headless
+/// run's too, engine/sim_verbs.rs).
+pub(crate) const REMOTE_RECORD_MAX_S: f64 = 120.0;
 /// Most frames one recording keeps (a bound for a pathological frame rate,
 /// not a limit anyone should meet: 120 s at 30 fps is 3,600).
-const REMOTE_RECORD_MAX_FRAMES: usize = 20_000;
+pub(crate) const REMOTE_RECORD_MAX_FRAMES: usize = 20_000;
 /// Most player rows one recording keeps across all its frames, so a busy
 /// world cannot grow it without bound (each frame holds every remote
 /// player): 3,600 frames of 50 players.
@@ -5076,12 +4963,40 @@ pub(crate) fn remote_crew_json(world: &hecs::World) -> Vec<serde_json::Value> {
     out
 }
 
-fn camera_json(state: &EngineState) -> serde_json::Value {
+/// The recorder's camera: the eye and its look (`camera_start`, `camera_end`).
+pub(crate) fn recorder_camera(state: &EngineState) -> serde_json::Value {
     let c = &state.camera;
     serde_json::json!({
         "pos": [c.position.x, c.position.y, c.position.z],
         "yaw": c.yaw,
         "pitch": c.pitch,
+    })
+}
+
+/// One recorder frame's simulation fields: the frame clock since the recording began `t` and this
+/// frame's step `dt`, seconds; whether the shared world is joined; the eye `cam` [x, y, z, yaw,
+/// pitch]; the player's health; on a planet's ground the eye's distance from the body's centre;
+/// and the storeys block. The windowed recorder adds what needs the window or the wall clock (the
+/// players and pieces as drawn, their screen rects, the wall times); a headless run
+/// (engine/sim_verbs.rs) records these alone, so a judge reads both the same (the headless sim
+/// runner, increment 5).
+pub(crate) fn recorder_frame(state: &EngineState, t: f64, dt: f32) -> serde_json::Value {
+    let c = &state.camera;
+    serde_json::json!({
+        "t": t,
+        "dt": dt,
+        "joined": state.game_joined,
+        "cam": [c.position.x, c.position.y, c.position.z, c.yaw, c.pitch],
+        // The player's health this frame, null with no living player (2026-10-20,
+        // engine/body_probe.rs): verify-falls sees it fall on the frame the camera lands.
+        "health": crate::engine::body_probe::health(&state.game_world.world).map(|h| h.0),
+        // On a planet's ground, the eye's distance from the body's centre, metres (null
+        // aboard): the height verify-falls' planet legs read a drop in.
+        "planet_r": crate::engine::body_probe::planet_walk(state).map(|p| p.1),
+        // Between storeys (ship homes increment 7, engine/storey_probe.rs): the floor stood
+        // on, the ceiling, the room the HUD names, the ladder, the elevator cars, the
+        // landings so far. What verify-storeys judges.
+        "storey": crate::engine::storey_probe::frame_json(state),
     })
 }
 
@@ -5108,7 +5023,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
                     started: std::time::Instant::now(),
                     frames: Vec::new(),
                     rows: 0,
-                    camera_start: camera_json(state),
+                    camera_start: recorder_camera(state),
                     truncated: false,
                 });
             }
@@ -5125,7 +5040,6 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
     }
     let Some(rec) = slot.as_mut() else { return };
     if rec.frames.len() < REMOTE_RECORD_MAX_FRAMES && rec.rows < REMOTE_RECORD_MAX_ROWS {
-        let c = &state.camera;
         let players = remote_players_json(&state.game_world.world);
         let crew = remote_crew_json(&state.game_world.world);
         // The pieces the server keeps, with their boxes on the screen (ship homes increment 5).
@@ -5137,30 +5051,20 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs_f64() * 1000.0)
             .unwrap_or(0.0);
-        rec.frames.push(serde_json::json!({
-            "t": rec.clock,
-            "dt": clock_dt,
-            "wall": rec.started.elapsed().as_secs_f64(),
-            "epoch_ms": epoch_ms,
-            "joined": state.game_joined,
-            "cam": [c.position.x, c.position.y, c.position.z, c.yaw, c.pitch],
-            "players": players,
+        // The simulation's fields, as a headless run records them (`recorder_frame`), and what
+        // needs the window, the network's drawn players or the wall clock beside them.
+        let mut frame = recorder_frame(state, rec.clock, clock_dt);
+        if let Some(o) = frame.as_object_mut() {
+            o.insert("wall".into(), serde_json::json!(rec.started.elapsed().as_secs_f64()));
+            o.insert("epoch_ms".into(), serde_json::json!(epoch_ms));
+            o.insert("players".into(), serde_json::json!(players));
             // The crew as drawn this frame (increment 3).
-            "crew": crew,
+            o.insert("crew".into(), serde_json::json!(crew));
             // Every piece the server keeps in this world this frame, its screen rect in the
             // window's pixels or null behind the camera (scripts/lib/shared-build-judge.js).
-            "shared": shared,
-            // The player's health this frame, null with no living player (2026-10-20,
-            // engine/body_probe.rs): verify-falls sees it fall on the frame the camera lands.
-            "health": crate::engine::body_probe::health(&state.game_world.world).map(|h| h.0),
-            // On a planet's ground, the eye's distance from the body's centre, metres (null
-            // aboard): the height verify-falls' planet legs read a drop in.
-            "planet_r": crate::engine::body_probe::planet_walk(state).map(|p| p.1),
-            // Between storeys (ship homes increment 7, engine/storey_probe.rs): the floor stood
-            // on, the ceiling, the room the HUD names, the ladder, the elevator cars, the
-            // landings so far. What verify-storeys judges.
-            "storey": crate::engine::storey_probe::frame_json(state),
-        }));
+            o.insert("shared".into(), serde_json::json!(shared));
+        }
+        rec.frames.push(frame);
     } else {
         rec.truncated = true;
     }
@@ -5168,18 +5072,36 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         return;
     }
     let Some(rec) = slot.take() else { return };
+    let (screen_w, screen_h) = gpu!(state).renderer.viewport_size();
+    // The simulation's fields, as a headless run writes them (`recorder_done`), and the
+    // recording's own beside them.
+    let mut done = recorder_done(state);
+    done.insert("ok".into(), serde_json::json!(true));
+    done.insert("seconds".into(), serde_json::json!(rec.seconds));
+    done.insert("recorded_s".into(), serde_json::json!(rec.clock));
+    done.insert("wall_s".into(), serde_json::json!(rec.started.elapsed().as_secs_f64()));
+    done.insert("frame_count".into(), serde_json::json!(rec.frames.len()));
+    done.insert("truncated".into(), serde_json::json!(rec.truncated));
+    // The window's size in pixels, the space of every frame's `shared` rects and of a screenshot.
+    done.insert("screen_px".into(), serde_json::json!([screen_w, screen_h]));
+    done.insert("camera_start".into(), rec.camera_start);
+    done.insert("frames".into(), serde_json::Value::Array(rec.frames));
+    let frame_count = done.get("frame_count").cloned().unwrap_or_default();
+    write_done_atomically(DONE_PATH, &serde_json::Value::Object(done));
+    log::info!("Remote-player recorder: wrote {frame_count} frames ({:.2} s) to {DONE_PATH}", rec.clock);
+}
+
+/// The recorder's done JSON, its simulation's fields: what the world, the home, the body, the
+/// storeys and the shared world hold when the recording ends, and where the eye ended. The windowed
+/// recorder adds the recording's own (its seconds, frames, wall time) and the window's size; a
+/// headless run (engine/sim_verbs.rs) adds the recording's own, so a judge reads both the same (the
+/// headless sim runner, increment 5).
+pub(crate) fn recorder_done(state: &EngineState) -> serde_json::Map<String, serde_json::Value> {
     // Increment 1b: the plot the home stands on (null for none) and every plot of the ship,
     // so a rig can check the camera and the other players against the plots
     // (scripts/verify-copresence.js --plots).
     let (home_plot, ship_plots) = crate::engine::home_plot::probe_json(state.gui_state.ship_structure.as_ref());
-    let (screen_w, screen_h) = gpu!(state).renderer.viewport_size();
     let done = serde_json::json!({
-        "ok": true,
-        "seconds": rec.seconds,
-        "recorded_s": rec.clock,
-        "wall_s": rec.started.elapsed().as_secs_f64(),
-        "frame_count": rec.frames.len(),
-        "truncated": rec.truncated,
         "world_loaded": state.world_loaded,
         "ws_identified": state.gui_state.ws_identified,
         "game_joined": state.game_joined,
@@ -5216,8 +5138,7 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         "transit": crate::engine::move_check::transit_probe_json(state),
         "aboard_ship": state.aboard_bounds.is_some_and(|b| humanity_ship::ship_space::in_box(&b, state.camera.position)),
         // Increment 5: the pieces the server keeps as this game has them, what this player may
-        // build, what waits for the relay (engine/shared_build.rs `probe_json`), and the window's
-        // size in pixels, the space of every frame's `shared` rects and of a screenshot.
+        // build, what waits for the relay (engine/shared_build.rs `probe_json`).
         "shared_build": crate::engine::shared_build::probe_json(state),
         // Ship homes 5b: the household permits given and held on this server, what the relay
         // said of each this session, the plots open to walk into and the one lit, and each
@@ -5238,17 +5159,12 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
         // The home's power, water and air as the HUD shows them (2026-10-22, engine/home_probe.rs):
         // what the dev MCP's game_home_state reads, here for every rig too.
         "home_systems": crate::engine::home_probe::json(&state.gui_state),
-        "screen_px": [screen_w, screen_h],
-        "camera_start": rec.camera_start,
-        "camera_end": camera_json(state),
-        "frames": rec.frames,
+        "camera_end": recorder_camera(state),
     });
-    write_done_atomically(DONE_PATH, &done);
-    log::info!(
-        "Remote-player recorder: wrote {} frames ({:.2} s) to {DONE_PATH}",
-        rec.frames.len(),
-        rec.clock
-    );
+    match done {
+        serde_json::Value::Object(map) => map,
+        _ => serde_json::Map::new(),
+    }
 }
 
 // ── The home session (ship homes increment 6) ─────────────────────────────────
@@ -5278,7 +5194,9 @@ pub(crate) fn poll_remote_players_request(state: &mut EngineState, clock_dt: f32
 
 /// The recorder's `home_session` for the running game (see above).
 pub(crate) fn home_session_json(state: &EngineState) -> serde_json::Value {
-    home_session_core(&state.gui_state, &state.game_world.world, &state.data_store, &humanity_systems::persistence::saves_dir())
+    // The saves folder the engine booted with: the game's in the windowed app, a scratch one in a
+    // headless run (never the person's own saves).
+    home_session_core(&state.gui_state, &state.game_world.world, &state.data_store, &state.saves_dir)
 }
 
 /// Every item of `inventory` and how many, summed by id.
@@ -6230,14 +6148,16 @@ mod console_verb_tests {
         assert!(!gui.construction_structure_dirty, "the console verb armed the autosave");
     }
 
-    /// The showcase poll reads the verb by its key and rebuilds the home when told to.
+    /// The showcase poll takes the verb by its key and rebuilds the home when told to: through the
+    /// verb table since the headless sim runner's increment 5 (engine/verbs.rs `Verb::Console`).
     #[test]
     fn the_showcase_poll_reads_the_console_verb() {
         let src = include_str!("ipc.rs").replace("\r\n", "\n");
         let start = src.find("pub(crate) fn poll_showcase_request(").expect("the showcase poll");
         let body = &src[start..start + src[start..].find("\n}\n").expect("its end")];
-        assert!(body.contains("grab(\"console\")"), "the showcase poll never reads grab(\"console\")");
-        assert!(body.contains("console_this_session(") && body.contains("rebuild_homestead(state)"));
+        assert!(body.contains("crate::engine::verbs::take(state, &grab, \"console\");"), "the showcase poll never takes the console verb");
+        let verbs = include_str!("verbs.rs").replace("\r\n", "\n");
+        assert!(verbs.contains("console_this_session(") && verbs.contains("rebuild_homestead(state)"), "the console verb no longer runs the line and rebuilds the home");
     }
 
     /// A SKY CAPTURE CAN HIDE THE HUD (2026-10-21). The crosshair dot sits in
@@ -6368,8 +6288,14 @@ mod shared_build_ipc_tests {
         let probe = piece_rows(&world, Some(&reg), None);
         assert!(probe[0].get("rect").is_none(), "the probe's rows carry no rect");
 
-        let rec = body_of("poll_remote_players_request");
-        for wired in ["\"shared\": shared", "\"shared_build\": crate::engine::shared_build::probe_json(state)", "\"screen_px\": [screen_w, screen_h]"] {
+        // The recorder's done JSON is `recorder_done` plus the recording's own fields (the headless
+        // sim runner, increment 5): read both.
+        let rec = body_of("poll_remote_players_request") + &body_of("recorder_done");
+        for wired in [
+            "o.insert(\"shared\".into(), serde_json::json!(shared));",
+            "\"shared_build\": crate::engine::shared_build::probe_json(state)",
+            "done.insert(\"screen_px\".into(), serde_json::json!([screen_w, screen_h]));",
+        ] {
             assert!(rec.contains(wired), "the recorder never writes {wired}");
         }
     }
@@ -6516,7 +6442,7 @@ mod household_ipc_tests {
         }
         gs.dm_store.as_ref().unwrap().remove_file_for_test();
 
-        let rec = body_of("poll_remote_players_request");
+        let rec = body_of("poll_remote_players_request") + &body_of("recorder_done");
         let wired = "\"household\": crate::engine::household_world::probe_json(state)";
         assert!(rec.contains(wired), "the recorder never writes {wired}");
     }
@@ -6702,7 +6628,7 @@ mod home_session_ipc_tests {
         assert_eq!(v["server_save"]["backpack"], serde_json::json!({ "water_purified_0": 2 }));
         assert_eq!(v["last_verb"], serde_json::json!({ "verb": "meal", "value": "1", "ok": true, "said": "You ate a crew meal from the ship's stores." }));
 
-        let rec = body_of("poll_remote_players_request");
+        let rec = body_of("poll_remote_players_request") + &body_of("recorder_done");
         let wired = "\"home_session\": home_session_json(state)";
         assert!(rec.contains(wired), "the recorder never writes {wired}");
     }

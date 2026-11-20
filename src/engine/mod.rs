@@ -379,6 +379,12 @@ pub mod engine_boot;
 pub mod sim_boot;
 /// `--sim walk`: the homestead entered and walked through the engine with no GPU (increment 4).
 pub mod sim_walk;
+/// The rigs' verbs as one table, which the windowed file drop and the headless transport both
+/// run (increment 5).
+pub mod verbs;
+/// `--sim verbs`: the verbs on JSON lines with no window and no GPU, the recorder answering in the
+/// windowed recorder's shape (increment 5).
+pub mod sim_verbs;
 pub mod world_sim;
 /// The homestead entered and stepped with no GPU, and what each system holds read by name
 /// (increment 2): the soak and the no-GPU day tests drive it.

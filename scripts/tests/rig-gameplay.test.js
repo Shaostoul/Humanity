@@ -283,7 +283,10 @@ test("every rig starts the game from a sandbox spawnGame pins, a rig with a rela
     const rel = path.relative(REPO, file).replace(/\\/g, "/");
     if (!src.includes("portable.txt")) problems.push(`${rel}: writes no portable.txt, so its game reads the player's own config`);
     if (/gameplay\s*:\s*\{[^}]*play_mode/.test(src)) problems.push(`${rel}: asks spawnGame for a play mode`);
-    const runsRelay = /\bstartRelay\s*\(/.test(src) || /["']--headless["']/.test(src);
+    // A relay is the exe started with "--headless" as an argument (an element of an args array:
+    // `["--headless"]`); a rig's own `--headless` option (verify-storeys --headless, the headless
+    // sim runner's increment 5, read as `args.includes("--headless")`) runs no relay.
+    const runsRelay = /\bstartRelay\s*\(/.test(src) || /["']--headless["']\s*[\],]/.test(src);
     const calls = [...src.matchAll(/\bspawnGame\s*\(/g)].map((m) => src.slice(m.index, m.index + 900));
     if (runsRelay) {
       calls.forEach((c, i) => {

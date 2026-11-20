@@ -417,6 +417,43 @@ test("a run that went right passes every check", () => {
   assert.match(SJ.verdictLines(result).slice(-1)[0], /^PASS /);
 });
 
+/** greenRun as a headless run makes it (the headless sim runner, increment 5): no picture, so each
+ *  shot is reached and skipped. */
+function headless(run) {
+  return { ...run, headless: true, shots: SJ.ALL_SHOTS.map((id) => ({ id, ok: false, skipped: "needs the picture" })) };
+}
+
+// Seen red 2026-11-20 before the judge knew a headless run: the headless green run failed
+// "shot.upper_hall: not taken: no file" (all three shots), and compareRuns did not exist.
+test("A HEADLESS RUN SKIPS ONLY THE SCREENSHOTS: it passes with them marked SKIP, and a windowed run that skips one fails", () => {
+  const result = SJ.judgeStoreys(headless(greenRun()));
+  const bad = result.checks.filter((c) => !c.ok);
+  assert.deepStrictEqual(bad, [], bad.map((c) => `${c.id}: ${c.detail}`).join("\n"));
+  const skipped = result.checks.filter((c) => c.skipped).map((c) => c.id);
+  assert.deepStrictEqual(skipped, SJ.ALL_SHOTS.map((id) => `shot.${id}`), "exactly the screenshots are skipped");
+  const verdict = SJ.verdictLines(result);
+  assert.match(verdict.slice(-1)[0], /^PASS .*3 skipped: they need the picture/);
+  assert.ok(verdict.some((l) => l.startsWith("SKIP  shot.upper_hall")), "the skipped shot prints SKIP");
+  // Only a headless run may skip: a windowed run whose shots say "skipped" lost them.
+  const windowed = { ...headless(greenRun()), headless: false };
+  for (const id of SJ.ALL_SHOTS) assert.ok(failed(windowed).includes(`shot.${id}`), `a windowed run skipped shot.${id} and passed`);
+  // And a headless run on the floorless homestead still fails the legs that need the floor.
+  const red = failed(headless(noUpperFloor(greenRun())));
+  for (const want of ["stairs_up.upper_floor", "stairs_up.hud_room", "stairs_up.no_fall"]) assert.ok(red.includes(want), `${want} in ${red.join(", ")}`);
+});
+
+test("compareRuns lists the checks two runs judge differently, leaving the skipped out, and each leg's ends apart", () => {
+  const same = SJ.compareRuns(greenRun(), headless(greenRun()));
+  assert.deepStrictEqual(same.differ, [], JSON.stringify(same.differ));
+  assert.strictEqual(same.b.skipped, 3);
+  assert.strictEqual(same.both, same.a.judged - 3, "every check but the three shots is judged by both");
+  assert.ok(same.legs.length === SJ.ALL_LEGS.length && same.legs.every((l) => l.apart === 0), JSON.stringify(same.legs));
+  const apart = SJ.compareRuns(greenRun(), headless(noUpperFloor(greenRun())));
+  for (const want of ["stairs_up.upper_floor", "stairs_up.hud_room"]) {
+    assert.ok(apart.differ.some((d) => d.id === want && d.a === true && d.b === false), `${want} differs: ${JSON.stringify(apart.differ)}`);
+  }
+});
+
 test("THE RED SHAPE: slabs that never reach the walk fail the stair leg on its floor, its room and its fall", () => {
   const f = failed(noUpperFloor(greenRun()));
   for (const want of ["stairs_up.upper_floor", "stairs_up.hud_room", "stairs_up.no_fall"]) assert.ok(f.includes(want), `${want} in ${f.join(", ")}`);

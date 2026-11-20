@@ -213,11 +213,14 @@ mod tests {
             "\"health\": crate::engine::body_probe::health(&state.game_world.world)",
             "\"planet_r\": crate::engine::body_probe::planet_walk(state).map(|p| p.1)",
             "\"falls\": crate::engine::body_probe::falls_json(state)",
-            "grab(\"illness\")",
-            "crate::engine::body_probe::parse_illness_mode(&raw)",
+            // The `illness` verb is the verb table's since the headless sim runner's increment 5
+            // (engine/verbs.rs), which the showcase poll takes it through.
+            "crate::engine::verbs::take(state, &grab, \"illness\");",
         ] {
             assert!(src.contains(wired), "src/engine/ipc.rs never has {wired}");
         }
+        let verbs = include_str!("verbs.rs").replace("\r\n", "\n");
+        assert!(verbs.contains("crate::engine::body_probe::parse_illness_mode(&raw)"), "the verb table no longer reads `illness` with parse_illness_mode");
     }
 
     /// The `falls` block and the `illness` verb's words.

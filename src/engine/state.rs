@@ -977,7 +977,8 @@ pub(crate) struct EngineState {
     /// this drift). The frame-lock ride still moves the FRAME - the pin
     /// is the local offset inside it, so the ground does not slide.
     /// Cleared by any real movement input or the next camera_request.
-    /// (pinned position, park instant). POSITION ONLY, with a grace
+    /// (pinned position, when it was parked: `clock.elapsed_s`, the step's clock, since the
+    /// headless sim runner's increment 5, 2026-11-20). POSITION ONLY, with a grace
     /// period: for the first PROBE_HOLD_GRACE seconds after a park the
     /// pin TRACKS the camera instead of restoring it, because the park
     /// triggers surface-mode/basis transitions that legitimately rebase
@@ -986,7 +987,12 @@ pub(crate) struct EngineState {
     /// at the sky (2026-08-21). Aim is never pinned. After the grace
     /// the position freezes; gravity drift during the grace is
     /// centimetres, the drift the pin stops is metres per settle.
-    pub(crate) probe_hold: Option<(glam::Vec3, std::time::Instant)>,
+    pub(crate) probe_hold: Option<(glam::Vec3, f64)>,
+    /// The movement keys a rig holds and when, on the step's clock, they are let go
+    /// (engine/rig_walk.rs, the `hold` verb). A field, not a process-wide static, since the
+    /// headless sim runner's increment 5 (2026-11-20): several engines run in one process (the lib
+    /// tests, a soak's threads), and one engine's frame must never let go of another's keys.
+    pub(crate) rig_hold: Option<crate::engine::rig_walk::RigHold>,
     /// A `{"station":"home"}` camera park waiting to write its camera_done
     /// (BUG-132, 2026-10-03). The verb places the camera at once; this holds
     /// the report until the station block has ridden the camera through the
@@ -1204,6 +1210,12 @@ pub(crate) struct EngineState {
     pub(crate) boot_timer: humanity_core::boot_timing::BootTimer,
     /// Data directory path (resolved once at startup, used for deferred loading).
     pub(crate) data_dir: PathBuf,
+    /// The saves folder this engine booted with (`BootOptions::saves_dir`): the game's
+    /// (`persistence::saves_dir()`) in the windowed app, a scratch folder in a headless run. The
+    /// recorder's home session reads the save files here, so a headless run never reads the
+    /// person's own saves (the headless sim runner, increment 5, 2026-11-20: it read
+    /// %APPDATA%'s offline_home.json at every recording until this).
+    pub(crate) saves_dir: PathBuf,
     /// Whether a Ctrl/Cmd modifier key is currently held. Tracked from
     /// raw winit KeyboardInput because egui-winit swallows Ctrl+V at
     /// the winit layer (translates it to Event::Paste(text) and returns

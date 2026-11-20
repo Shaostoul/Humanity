@@ -5974,6 +5974,27 @@ start is seeded by the sim side for both the windowed game and the soak
 Input or View; the step first and once; the step reads no view state, the view writes no sim state;
 the walk steps through `frame_step::run`), `tests/sim_gpu_free_lint.rs`.
 
+### The rigs' verbs as one table, and the storeys rig with no window or GPU (2026-11-20)
+The headless sim runner's increment 5 (`docs/design/headless-sim-runner.md`, "Built so far"). The
+rig verbs that change the simulation (walk, illness, gameplay, face, hold, console, time,
+time_scale, weather, enter, cam) are one table, `src/engine/verbs.rs` (`Verb::parse`,
+`Verb::apply`), which the windowed `debug/showcase_request.json` drop takes each verb through in its
+old order and the headless transport runs too. `HumanityOS --sim verbs [-|FILE] [--data DIR]`
+(`src/engine/sim_verbs.rs`) boots with no GPU, enters the homestead and answers JSON lines (verbs,
+step, record_begin/record_end/record, quit), its recorder writing the windowed recorder's shape
+(`ipc::recorder_frame`, `ipc::recorder_done`, shared by both). A rig's held keys and the camera
+park's grace are timed on the step's clock (`state.clock`), not the wall clock, and the held keys
+live in the engine's state. The recorder's home session reads the saves folder the engine booted
+with (`EngineState::saves_dir`), so a headless run never reads the person's own saves. Measured: the
+headless storeys run passes 73/73 (3 skipped) in under 8 s and agrees with the windowed run's 76/76
+on every check both judge. `node scripts/verify-storeys.js --headless` walks the storeys route
+through it (`scripts/lib/sim-transport.js`) and is judged by the same `storeys-judge.js` (the three
+screenshots SKIP: they need the picture); `--compare A B` lists the checks a windowed and a headless
+run judge differently. Tests: `verbs.rs`, `sim_verbs.rs` (the engine with no GPU driven by verbs),
+`rig_walk.rs`, `tests/frame_split_lint.rs`, `tests/sim_gpu_free_lint.rs`,
+`scripts/tests/storeys-judge.test.js`. Not yet headless: the console verb (the home's rebuild draws
+and builds walls together) and so verify-falls aboard.
+
 ### The play journal and F8, Mark this moment (2026-10-24, rung 1 of docs/design/play-journal.md)
 While the game runs it keeps what happened, by kind, in small capped files in a `journal` folder
 beside its logs (the operator's install: %APPDATA%/HumanityOS/journal): `log` (every warning and

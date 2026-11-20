@@ -139,8 +139,41 @@ fn the_windowed_game_builds_its_world_through_the_sim_side() {
 
 /// The step's files that take their time from the `FrameClock` (increment 3): no wall clock in
 /// their code. (sim_soak.rs times its own run with `Instant`, the wall time it reports; that is the
-/// driver's measurement, not the sim's time.)
-const CLOCKED_FILES: &[&str] = &["src/engine/frame_sim.rs", "src/engine/frame_sim_requests.rs", "src/engine/sim_home.rs", "src/engine/sim_routine.rs"];
+/// driver's measurement, not the sim's time.) Increment 5 (2026-11-20) added the verb table, the
+/// rigs' held keys and the camera park's grace: a rig's timing is the step's clock.
+const CLOCKED_FILES: &[&str] = &[
+    "src/engine/frame_sim.rs",
+    "src/engine/frame_sim_requests.rs",
+    "src/engine/sim_home.rs",
+    "src/engine/sim_routine.rs",
+    "src/engine/verbs.rs",
+    "src/engine/rig_walk.rs",
+    "src/engine/frame_probe_hold.rs",
+];
+
+/// The verb table (increment 5, 2026-11-20): the verbs both transports run, the windowed file drop
+/// and the headless `--sim verbs`. It takes the engine (`EngineState`, whose GPU is optional since
+/// increment 4), but never the GPU, the window or the GUI's painter: a verb that needed them could
+/// not run headless, and the two transports would drift.
+const VERB_FILES: &[&str] = &["src/engine/verbs.rs"];
+
+/// Seen red 2026-11-20: with `let _ = egui::Context::default();` planted in verbs.rs's `take`,
+/// "src/engine/verbs.rs line 253 names `egui`"; and with `use std::time::Instant;` put back in
+/// rig_walk.rs, the clocked check "src/engine/rig_walk.rs line 39 reads the wall clock (`Instant`)".
+#[test]
+fn the_verb_table_names_no_gpu_type() {
+    let mut found = Vec::new();
+    for rel in VERB_FILES {
+        for (n, line) in read(rel).lines().enumerate() {
+            for word in idents(code_of(line)) {
+                if word != "EngineState" && FORBIDDEN.contains(&word) {
+                    found.push(format!("{rel} line {} names `{word}`: {}", n + 1, line.trim()));
+                }
+            }
+        }
+    }
+    assert!(found.is_empty(), "The verb table runs with no GPU, window or egui (docs/design/headless-sim-runner.md, increment 5):\n  {}", found.join("\n  "));
+}
 
 /// Increment 3: the windowed frame's bridges and the soak run one bridges' slice, before the
 /// systems' slice, on one clock.

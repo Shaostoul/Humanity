@@ -412,7 +412,8 @@ fn console(link: &dyn GameLink, args: &Value) -> Value {
     verbs.insert("console".into(), json!(line));
     match showcase(link, &verbs) {
         Ok(lines) => {
-            // engine/ipc.rs logs "Showcase: console <line> -> <what it said>".
+            // The verb table (engine/verbs.rs, run by engine/ipc.rs's showcase poll) logs
+            // "Showcase: console <line> -> <what it said>".
             let marker = format!("Showcase: console {line} -> ");
             match lines.iter().find_map(|l| l.find(&marker).map(|i| l[i + marker.len()..].to_string())) {
                 Some(said) => text_result(said.replace(" | ", "\n"), Some(json!({ "said": said }))),

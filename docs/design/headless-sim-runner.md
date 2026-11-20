@@ -2,9 +2,9 @@
 
 The operator, 2026-10-22: "The simpler we make it for you to sim gameplay at rates beyond human
 comprehension. I can handle maybe 3x speed comfortably. Could you do 1-billion-x?" This is the
-design (a planning agent's, read-only, from the code at v0.1543.x). Increments 0, 1 and 2 are built;
-what is built, and what the frame's file-size split (2026-11-14) already did for increments 2 and
-3, is in "Built so far" after the increments. The line numbers in sections 1 and 2 are the v0.1543
+design (a planning agent's, read-only, from the code at v0.1543.x). Increments 0 to 4 are built, and
+increment 5 but for verify-falls aboard; what is built, and what the frame's file-size split
+(2026-11-14) already did for increments 2 and 3, is in "Built so far" after the increments. The line numbers in sections 1 and 2 are the v0.1543
 lib.rs's, kept as the record of what was tangled; that file is now a dispatcher and the frame is
 39 stage files (`src/engine/frame_*.rs`, the table in docs/design/crate-split.md).
 
@@ -184,7 +184,7 @@ The windowed rigs still run in each release batch.
 | 2 | **Built 2026-11-15** (the ECS stage; the bridges stay for increment 3). Systems slice and the first headless value: lib.rs 5770-6721 into `frame_sim::systems_slice`; `--sim soak`; sim seeds | a 7-day soak in seconds; the dt ladder report; the split-step test over every system; byte-identical repeat runs | 2-3 d |
 | 3 | **Built 2026-11-15** (the settles moved with increment 4; see "Built so far"). Frame split, verbatim, and the inversions fixed (door easing to `doors::tick`, the showcase poll out of the present branch, `FrameClock`, settles at the end of step) | aboard rigs green; `frame_split_lint` (step once before view code; no renderer/egui/window/wall clock in frame_sim*.rs); a written read-after-write audit | 4-5 d |
 | 4 | **Built 2026-11-15.** `gpu: Option<Gpu>`, `EngineState::boot(opts, gpu)`; sim-side mesh creation becomes dirty flags; the settles at the end of the step and `frame_split_lint` | `--sim` enters the homestead and walks with no EventLoop and no wgpu Instance; windowed rigs green | 3-5 d |
-| 5 | Transport and headless rigs (the `Verb` table, stdin JSON lines, `--headless` on verify-storeys and verify-falls aboard) | headless and windowed verdicts agree (75/75); the floorless sandbox fails headless too | 3 d |
+| 5 | **Built 2026-11-20 but for verify-falls aboard** (see "Built so far"). Transport and headless rigs (the `Verb` table, stdin JSON lines, `--headless` on verify-storeys and verify-falls aboard) | headless and windowed verdicts agree (75/75); the floorless sandbox fails headless too | 3 d |
 | 6 | The planet's ground owned by the sim (CPU LOD selection and tile requests in `step`) | the falls planet legs pass both ways; the near-tree ground check green | 3-4 d |
 | 7 | Rate classes and farming's cost (per-system rate in `SystemRunner`, both paths) | windowed frame ~3 ms cheaper; dt ladder within tolerance; GUI requests answered under 100 ms | 2-3 d |
 | 8 | Parity and replay (a windowed run's dt and inputs replayed headless, compared frame by frame), a frame-rate sweep, the fuzzer | positions within 1e-4 m, same landings and floors; no panic in N sim-hours | 3 d |
@@ -463,16 +463,79 @@ harvest, so a longer soak eats only the start's stores. Next to it, the body's w
 day 3 and stays there with no toilet in the routine and nothing in the body that minds: a soak cannot
 yet say whether sanitation matters.
 
-**Increment 5, its first step**: the `Verb` table (`engine::verbs`: enter, place/stand, face, hold
-keys for N simulation seconds, console, illness, time speed, weather, save, fast-forward, record,
-each with `apply(&mut EngineState)`), which the windowed `debug/` file drop
-(`ipc::poll_showcase_request`) and a headless transport (JSON lines on stdin, `--sim verbs -`) both
-parse into; rig_walk's `HELD` timed on `state.clock` instead of `Instant` (and the probe hold's
-grace with it, the last wall-clock read in the step); the recorder's frame JSON written by the
-headless driver in the windowed recorder's shape, so `scripts/lib/storeys-judge.js` judges a
-headless run unchanged; then `--headless` on verify-storeys (the walk this increment built,
-driven by verbs instead of a route file) and verify-falls aboard, proved by the two verdicts
-agreeing leg for leg and the floorless sandbox (`--data` with `floors: []`) failing headless too.
+**Increment 5, the verb table, the transport and the headless storeys rig** (2026-11-20). A rig's
+verbs reach the simulation through one table on either transport, and the storeys rig walks the
+homestead with no window and no GPU, judged by its own judge:
+
+- **The verb table**, `src/engine/verbs.rs`: the verbs that change the simulation, `walk` (on
+  foot), `illness`, `gameplay`, `face`, `hold` (keys for N simulation seconds), `console`, `time`,
+  `time_scale`, `weather`, `enter` and `cam` (place), as a `Verb` enum read by `Verb::parse` with the
+  scanner the file drop has always used (`ipc::showcase_value`) and run by `Verb::apply(&mut
+  EngineState)`. The windowed file drop (`ipc::poll_showcase_request`) takes each through
+  `verbs::take` at the place its block stood, so a request naming several runs them in the old order
+  among the picture's pins around them; `verbs::KEYS` is that order, and a test holds the poll to it
+  and forbids the poll reading those keys itself. The log lines are the old ones. The picture's pins
+  stay in the file drop, and so do the planet's `stand` and `build` (they read the drawn ground,
+  increment 6). Save and fast-forward are not verbs yet (the soak's `ff` is increment 7's ground).
+- **Rig timing on the step's clock** (risk 3): a held key lasts its seconds of `state.clock.elapsed_s`
+  and the camera park's 1.5 s grace is timed the same way (the step's last wall-clock read: its row
+  left `frame_split_lint`'s `STEP_READS`). The held keys moved from a process-wide static into
+  `EngineState::rig_hold`, since several engines run in one process (the lib test, the soak's
+  threads). At a steady frame rate nothing changes; on a hitch past the 0.1 s step cap the wall
+  clock ran on while the body did not, so a hold planned as 1.6 s of walking walked less.
+- **The transport**, `HumanityOS --sim verbs [-|FILE] [--data DIR]` (`src/engine/sim_verbs.rs`):
+  boots with `EngineState::boot(opts, None)`, enters through `load_world`, says `hello`, and answers
+  one JSON line per line: `verbs` (a showcase request's object, run through the table; a key the
+  table does not hold refuses the whole line by name, nothing of it run), `step` (seconds of the
+  world at 1/60 s, `frame_step::run` then `rig_walk::tick`, the windowed frame's order),
+  `record_begin`/`record_end`/`record` (the recorder on the step's clock) and `quit`. The windowed
+  recorder's simulation fields became `ipc::recorder_frame` and `ipc::recorder_done`, which both
+  recorders write, so a headless answer has the windowed shape for every field the simulation has
+  (the windowed one adds the drawn players, the pieces' screen rects, the wall times and the window's
+  size). The log goes to stderr with the windowed log's lines (its PANIC lines, its "Data directory"
+  line). `console` is refused with no GPU for now: `home_meshes::rebuild_homestead` builds the
+  meshes and the walls together, and with no GPU the walls would not follow the edit.
+- **`verify-storeys --headless`** (`scripts/lib/sim-transport.js` the client): the same route, the
+  same judge; each showcase request a `verbs` line, each recording a `record_begin`/`record_end`
+  pair, each wait the rig makes for the game (a placement's settle, a turn's, the 6 s after entry)
+  that many seconds of the world stepped. The three screenshots need the picture: the rig turns to
+  each shot's pose as the windowed run does (the next leg starts from it) and the judge marks them
+  SKIP (only a headless run may skip one). `--data DIR` passes the folder by name, so no rig folder
+  outside the tree is needed. `--compare A B` judges two runs and lists the checks they judge
+  differently and each leg's end points apart.
+- Tests: `verbs.rs` (the rigs' requests parse as the file drop read them; the poll takes every verb
+  in order), `rig_walk.rs` (a hold ends on its engine's clock; two engines' holds stay apart),
+  `sim_verbs.rs` (the engine with no GPU driven by verbs: a first look in the recorder's shape, a
+  jump sent 0.1 s into a recording lifts and lands with its key let go on the step's clock, refused
+  lines run nothing), `frame_split_lint` (both headless drivers take `frame_step::run`; the two
+  transports run one table, one release and one recorder; no wall clock in rig_walk.rs or
+  frame_probe_hold.rs), `sim_gpu_free_lint` (the verb table names no GPU type; it and the rig timing
+  read no wall clock), `storeys-judge.test.js` (a headless run skips only the screenshots;
+  `compareRuns`).
+
+**Measured** (release build, i7-8700K, 2026-11-20, the machine shared with other agents' builds):
+
+| Run | What it shows |
+|---|---|
+| `verify-storeys --headless` | **PASS 73/73, 3 skipped** (the screenshots); the engine booted and the homestead entered in 1.34 s with no window and no GPU, and the whole route walked and judged in 7.7 s of the game's log (49 recordings), against 1 min 55 s for the windowed run (boot, autopilot entry and the same route) |
+| `--compare` with the windowed run of the same build (`verify-storeys`, **PASS 76/76**) | **all 73 checks both judged agree**; each leg's end 0.00 to 0.18 m apart (inside the route's 0.25 m arrival), the eye's height the same on every leg |
+| The red run, `--headless --data` a copy of data/ with the homestead's 23 floor slabs taken out | **FAIL, 33 of 73**: every leg that needs the upper floor fails and the three ground-floor legs pass, and `--compare` with the windowed red run of 2026-10-21 (tests/fixtures/storeys/red-no-floor-slabs.json) agrees on all 73 checks |
+| `--sim walk` and `--sim soak` before and after | the walk's report and the 7-day soak's are identical (wall times aside). The routine soak (`--routine daily`) is not: three runs of the SAME exe give different hydration at some day ends (81.9 to 94.8) and 32 to 36 notices, with the same drinks, meals and sleeps; nothing in its path changed in this increment (sim_home, sim_routine and the slices take no `EngineState`), so it is older than this work and is not yet traced |
+| The proof the windowed game is unchanged | verify-storeys 76/76, verify-falls 88/88 (the console's deck placed through the table, its "Showcase: console" line read as before; the planet legs' camera parks held on the step's clock), verify-runtime 3/3, no panic |
+
+The first headless run found the transport reading the person's own save: the recorder's home
+session read `own_save` through the global `persistence::saves_dir()`, which in a run with no
+portable root is %APPDATA%'s, at every recording (49 times; read only, nothing written). The engine
+keeps the saves folder it booted with now (`EngineState::saves_dir`, the game's in the windowed app,
+so nothing changes there) and the home session reads that; the lib test holds it. That run's boot
+also took 104 s, 78 s of it the planets' surface bake at below-normal priority while other agents
+compiled; the next took 1.34 s. A headless run aboard does not need the planets' surfaces, which is
+increment 6's to settle (the planet's ground owned by the sim).
+
+**Next in increment 5**: verify-falls aboard headless, which needs the console's deck: split
+`rebuild_homestead` into the walls and rooms it builds for the simulation and the meshes it draws
+(the `drawing()` gate world_load.rs uses), then `--headless` on verify-falls for its legs aboard,
+judged by `falls-judge.js` as the storeys rig is.
 
 ## Risks
 

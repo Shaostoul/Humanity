@@ -19,21 +19,34 @@
 //!
 //! The rig's window is never focused, so it receives no key events, and nothing
 //! else releases these keys; the release at the end of the hold is this
-//! module's [`tick`], run every frame from `poll_showcase_request`.
+//! module's [`tick`], run every frame from `poll_showcase_request` (and after
+//! every step of a headless run, engine/sim_verbs.rs).
+//!
+//! THE STEP'S CLOCK (the headless sim runner, increment 5, 2026-11-20): a hold
+//! lasts its seconds of SIMULATION time (`state.clock.elapsed_s`, the sum of the
+//! frames' steps), not of the wall clock. In the windowed game at a steady frame
+//! rate the two are the same; on a hitch past the step's 0.1 s cap the wall
+//! clock ran on while the body did not, so a hold planned as 1.6 s of walking
+//! walked less (risk 3 of the design: the judges read the recorded frame times).
+//! And a headless run, which steps faster than real time, holds its keys for the
+//! seconds of the world it asked for. The held keys live in the engine's state
+//! (`EngineState::rig_hold`), so two engines in one process (the lib tests, a
+//! soak's threads) never let go of each other's keys.
 
 use crate::engine::state::EngineState;
 use humanity_core::input::bindings::GameAction;
 use crate::renderer::camera::CameraController;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
 /// The longest hold one request may ask for, seconds.
 pub(crate) const MAX_HOLD_S: f32 = 600.0;
 
-/// The keys held and when they are let go. A static rather than a state field
-/// because only the rig ever sets it, and a field would sit in every save of
-/// the engine state's shape for a dev verb.
-static HELD: Mutex<Option<(Instant, Vec<GameAction>)>> = Mutex::new(None);
+/// The keys a rig holds and the step's time they are let go at.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RigHold {
+    /// `state.clock.elapsed_s` at which the keys come up.
+    pub until_s: f64,
+    pub keys: Vec<GameAction>,
+}
 
 /// The movement keys a hold may name: "forward,sprint" and the like.
 pub(crate) fn parse_keys(spec: &str) -> Option<Vec<GameAction>> {
@@ -54,45 +67,42 @@ pub(crate) fn parse_keys(spec: &str) -> Option<Vec<GameAction>> {
     (!keys.is_empty()).then_some(keys)
 }
 
-/// Press `keys` for `secs` seconds. A new hold lets go of the previous one
-/// first. Returns the line for the log.
+/// Press `keys` for `secs` seconds of the step's clock. A new hold lets go of
+/// the previous one first. Returns the line for the log.
 pub(crate) fn hold(state: &mut EngineState, keys: Vec<GameAction>, secs: f32) -> String {
-    hold_keys(&mut state.controller, &mut state.probe_hold, keys, secs)
+    let now_s = state.clock.elapsed_s;
+    hold_keys(&mut state.controller, &mut state.probe_hold, &mut state.rig_hold, now_s, keys, secs)
 }
 
-/// [`hold`] on the two things a key press touches: the controller and the
-/// camera park's pin. Each key goes down through the same function a
-/// person's key does (`engine::input::apply_game_action`), so a held key
-/// lets go of a camera park exactly as a key press does (2026-10-20: it
-/// used to press the controller directly and leave the pin in place, so a
-/// rig parked on a planet never moved and every fall it made was exempt).
+/// [`hold`] on the things a key press touches: the controller and the camera
+/// park's pin, and the hold itself. Each key goes down through the same
+/// function a person's key does (`engine::input::apply_game_action`), so a held
+/// key lets go of a camera park exactly as a key press does (2026-10-20: it
+/// used to press the controller directly and leave the pin in place, so a rig
+/// parked on a planet never moved and every fall it made was exempt).
 fn hold_keys(
     controller: &mut CameraController,
-    probe_hold: &mut Option<(glam::Vec3, Instant)>,
+    probe_hold: &mut Option<(glam::Vec3, f64)>,
+    held: &mut Option<RigHold>,
+    now_s: f64,
     keys: Vec<GameAction>,
     secs: f32,
 ) -> String {
-    release(controller);
+    release(controller, held);
     let secs = if secs.is_finite() { secs.clamp(0.0, MAX_HOLD_S) } else { 0.0 };
     for k in &keys {
         crate::engine::input::apply_game_action(controller, probe_hold, *k, true);
     }
     let note = format!("holding {keys:?} for {secs} s");
-    if let Ok(mut h) = HELD.lock() {
-        *h = Some((Instant::now() + Duration::from_secs_f32(secs), keys));
-    }
+    *held = Some(RigHold { until_s: now_s + f64::from(secs), keys });
     note
 }
 
-/// Let go of the held keys once their time is up. Every frame.
+/// Let go of the held keys once their time is up on the step's clock. Every
+/// frame, after the step.
 pub(crate) fn tick(state: &mut EngineState) {
-    let due = HELD
-        .lock()
-        .ok()
-        .and_then(|h| h.as_ref().map(|(until, _)| Instant::now() >= *until))
-        .unwrap_or(false);
-    if due {
-        release(&mut state.controller);
+    if state.rig_hold.as_ref().is_some_and(|h| state.clock.elapsed_s >= h.until_s) {
+        release(&mut state.controller, &mut state.rig_hold);
         // Where the walk left the body, so a rig reads where a held walk stopped (a wall, a table)
         // from the log (2026-11-13, the player stopping at furniture).
         let p = state.camera.position;
@@ -101,8 +111,8 @@ pub(crate) fn tick(state: &mut EngineState) {
 }
 
 /// Let go of whatever is held now.
-fn release(controller: &mut CameraController) {
-    let keys = HELD.lock().ok().and_then(|mut h| h.take()).map(|(_, k)| k).unwrap_or_default();
+fn release(controller: &mut CameraController, held: &mut Option<RigHold>) {
+    let keys = held.take().map(|h| h.keys).unwrap_or_default();
     // A key coming up touches no pin, so there is none to hand over.
     let mut no_pin = None;
     for k in keys {
@@ -135,22 +145,48 @@ mod tests {
     #[test]
     fn a_held_key_releases_the_camera_park_as_a_key_press_does() {
         let mut controller = CameraController::new(5.0, 1.0);
-        let mut probe_hold = Some((glam::Vec3::new(1.0, 2.0, 3.0), Instant::now()));
-        let note = hold_keys(&mut controller, &mut probe_hold, vec![GameAction::Jump], 0.4);
+        let mut probe_hold = Some((glam::Vec3::new(1.0, 2.0, 3.0), 0.0));
+        let mut held = None;
+        let note = hold_keys(&mut controller, &mut probe_hold, &mut held, 12.0, vec![GameAction::Jump], 0.4);
         assert!(note.contains("Jump"), "{note}");
         assert!(
             probe_hold.is_none(),
             "a rig holding Space after a camera park must let go of the park, as a person's key press does: {probe_hold:?}"
         );
+        // Held until 0.4 s of the step's clock after it was pressed (increment 5).
+        let until = held.as_ref().map_or(0.0, |h| h.until_s);
+        assert!((until - 12.4).abs() < 1e-6, "held until {until}");
         // And the key is down: the walk's wish has the climb in it; let go, and it has none.
         let camera = crate::renderer::camera::Camera::new();
         assert!(controller.surface_wish_dir(&camera).dot(camera.up) > 0.5, "Space is held");
-        release(&mut controller);
+        release(&mut controller, &mut held);
         assert_eq!(controller.surface_wish_dir(&camera), glam::Vec3::ZERO, "and let go");
+        assert!(held.is_none(), "nothing is held after the release");
         // A key coming up leaves a park alone, as a person's does.
-        let mut park = Some((glam::Vec3::ONE, Instant::now()));
+        let mut park = Some((glam::Vec3::ONE, 0.0));
         crate::engine::input::apply_game_action(&mut controller, &mut park, GameAction::Jump, false);
         assert!(park.is_some(), "a key coming up does not release a park");
+    }
+
+    /// A HOLD LASTS ITS SECONDS OF THE STEP'S CLOCK (increment 5, 2026-11-20), however long the
+    /// steps took on the wall clock: a body held at a slow frame rate walks as far as at a fast one,
+    /// and a headless run (faster than real time) holds as long as it asked. Two holds in two
+    /// engines' states do not touch each other (the hold is a state field, not a static).
+    #[test]
+    fn a_hold_ends_on_the_step_clock_and_belongs_to_its_engine() {
+        let camera = crate::renderer::camera::Camera::new();
+        let (mut ca, mut cb) = (CameraController::new(5.0, 1.0), CameraController::new(5.0, 1.0));
+        let (mut ha, mut hb) = (None, None);
+        let mut no_park = None;
+        hold_keys(&mut ca, &mut no_park, &mut ha, 0.0, vec![GameAction::MoveForward], 1.0);
+        hold_keys(&mut cb, &mut no_park, &mut hb, 0.0, vec![GameAction::MoveForward], 0.5);
+        // Engine b's clock passes its hold; a's is not touched by b's release.
+        let due = |h: &Option<RigHold>, t: f64| h.as_ref().is_some_and(|h| t >= h.until_s);
+        assert!(due(&hb, 0.5) && !due(&ha, 0.5));
+        release(&mut cb, &mut hb);
+        assert_eq!(cb.surface_wish_dir(&camera), glam::Vec3::ZERO, "b let go");
+        assert!(ca.surface_wish_dir(&camera).length() > 0.5, "a still holds forward after b let go");
+        assert!(!due(&ha, 0.999) && due(&ha, 1.0), "a lets go at 1.0 s of its own clock");
     }
 
     /// "EXACTLY AS A KEY PRESS DOES" stays true only while both paths are one function: lib.rs's
@@ -166,7 +202,6 @@ mod tests {
         assert!(!lib.contains("state.controller.apply_action("), "lib.rs presses the controller directly again, past the probe-hold rule");
         let this = include_str!("rig_walk.rs").replace("\r\n", "\n");
         let body = &this[this.find("fn hold_keys(").unwrap()..this.find("/// Let go of the held keys once").unwrap()];
-        assert!(body.contains("crate::engine::input::apply_game_action(controller, probe_hold, *k, true);"), "hold_keys must press through apply_game_action");
-        assert!(!body.contains(".apply_action("), "hold_keys presses the controller directly again");
+        assert!(body.contains("crate::engine::input::apply_game_action(controller, probe_hold, *k, true);"), "hold_keys must press through apply_game_action");        assert!(!body.contains(".apply_action("), "hold_keys presses the controller directly again");
     }
 }

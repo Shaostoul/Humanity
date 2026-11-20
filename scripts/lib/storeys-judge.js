@@ -1088,10 +1088,17 @@ function judgeStoreys(run) {
     }
   }
 
-  // The screenshots: taken and saved with the run (what they show is for a person to look at).
+  // The screenshots: taken and saved with the run (what they show is for a person to look at). A
+  // headless run (the headless sim runner, increment 5) has no picture: each shot it reached the
+  // pose of is SKIPPED, judged neither way, and the windowed run takes it. Only a headless run may
+  // skip one, so a windowed run that lost its screenshots still fails.
   const shots = Array.isArray(run.shots) ? run.shots : [];
   for (const want of ALL_SHOTS) {
     const s = shots.find((x) => x && x.id === want);
+    if (run.headless && s && s.skipped) {
+      checks.push({ id: `shot.${want}`, ok: true, skipped: true, detail: `skipped: ${s.skipped}` });
+      continue;
+    }
     check(`shot.${want}`, s && s.ok && num(s.bytes) > 1000, s ? (s.ok ? `saved as ${s.file} (${s.bytes} bytes)` : `not taken: ${s.error || "no file"}`) : "never taken");
   }
   // THE DATA THE GAME READ. A rig's `data` junction is not what the game reads when the rig sits
@@ -1120,18 +1127,57 @@ function sameDir(a, b) {
   return !!a && !!b && norm(a) === norm(b);
 }
 
-/** The verdict lines a rig prints. */
+/** The verdict lines a rig prints. A skipped check (a headless run's screenshots) prints SKIP and
+ *  is counted apart. */
 function verdictLines(result) {
   const lines = [];
-  for (const c of result.checks) lines.push(`${c.ok ? "PASS" : "FAIL"}  ${c.id.padEnd(34)} ${c.detail}`);
-  const failed = result.checks.filter((c) => !c.ok).map((c) => c.id);
+  for (const c of result.checks) lines.push(`${c.skipped ? "SKIP" : c.ok ? "PASS" : "FAIL"}  ${c.id.padEnd(34)} ${c.detail}`);
+  const judged = result.checks.filter((c) => !c.skipped);
+  const skipped = result.checks.length - judged.length;
+  const failed = judged.filter((c) => !c.ok).map((c) => c.id);
+  const skipNote = skipped ? ` (${skipped} skipped: they need the picture, which the windowed run takes)` : "";
   lines.push("");
   lines.push(
     failed.length
-      ? `FAIL  ${result.checks.length - failed.length}/${result.checks.length} passed; failed: ${failed.join(", ")}`
-      : `PASS  ${result.checks.length}/${result.checks.length}: in the running game the homestead's upper floor holds you, its HUD names its rooms, its walls, guard, gates and head clamp stop you on their storey, and its elevator and ladder take you between the storeys`
+      ? `FAIL  ${judged.length - failed.length}/${judged.length} passed; failed: ${failed.join(", ")}${skipNote}`
+      : `PASS  ${judged.length}/${judged.length}${skipNote}: in the running game the homestead's upper floor holds you, its HUD names its rooms, its walls, guard, gates and head clamp stop you on their storey, and its elevator and ladder take you between the storeys`
   );
   return lines;
+}
+
+/**
+ * Two runs judged side by side (a windowed run and a headless one, the headless sim runner's
+ * increment 5): every check both judged whose verdict differs (skipped checks left out: a check
+ * only one side skipped is not compared), and each leg's end point in both and how far apart.
+ * Returns { a: { judged, passed, skipped }, b: {...}, both, differ: [{ id, a, b }], legs: [{ id, a,
+ * b, apart }] }, `a`/`b` in a differ row true, false or null (absent on that side).
+ */
+function compareRuns(runA, runB) {
+  const ra = judgeStoreys(runA);
+  const rb = judgeStoreys(runB);
+  const tally = (r) => ({ judged: r.checks.filter((c) => !c.skipped).length, passed: r.checks.filter((c) => !c.skipped && c.ok).length, skipped: r.checks.filter((c) => c.skipped).length });
+  const byId = (r) => new Map(r.checks.map((c) => [c.id, c]));
+  const ma = byId(ra);
+  const mb = byId(rb);
+  const differ = [];
+  let both = 0;
+  for (const id of new Set([...ma.keys(), ...mb.keys()])) {
+    const x = ma.get(id);
+    const y = mb.get(id);
+    if ((x && x.skipped) || (y && y.skipped)) continue;
+    if (x && y) both++;
+    if (!x || !y || x.ok !== y.ok) differ.push({ id, a: x ? x.ok : null, b: y ? y.ok : null });
+  }
+  const ends = (r) => new Map(Object.entries(r.observed).map(([id, o]) => [id, o.end || null]));
+  const ea = ends(ra);
+  const eb = ends(rb);
+  const legs = [...new Set([...ea.keys(), ...eb.keys()])].map((id) => {
+    const a = ea.get(id) || null;
+    const b = eb.get(id) || null;
+    const apart = a && b ? Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) : null;
+    return { id, a, b, apart };
+  });
+  return { a: tally(ra), b: tally(rb), both, differ, legs };
 }
 
 module.exports = {
@@ -1158,4 +1204,5 @@ module.exports = {
   judgeStoreys,
   sameDir,
   verdictLines,
+  compareRuns,
 };

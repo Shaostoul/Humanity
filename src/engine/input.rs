@@ -111,7 +111,7 @@ pub fn mouse_look_allowed(gui: &GuiState, alt_held: bool) -> bool {
 /// exemptions, `CameraController::surface_step`; found by scripts/verify-falls.js's planet legs).
 pub(crate) fn apply_game_action(
     controller: &mut crate::renderer::camera::CameraController,
-    probe_hold: &mut Option<(glam::Vec3, std::time::Instant)>,
+    probe_hold: &mut Option<(glam::Vec3, f64)>,
     act: humanity_core::input::bindings::GameAction,
     pressed: bool,
 ) {

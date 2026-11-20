@@ -19,7 +19,7 @@ core, ship and terrain, draws nothing, and the server compiles it too.
 - **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `crates/humanity-systems/src/surface_walk.rs` 462 of 474.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 9, `test-support` 8.
 - **May use** (the plan): core, ship, terrain. **Uses today** (references in non-test code): core 477, ship 29, terrain 7.
-- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 641, gui 193, relay 10.
+- **May be used by** (the plan): relay, gui, engine. **Used today by:** engine 633, gui 193, relay 10.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 898 tests, and this runs exactly them, checked against every test's name:
 
@@ -33,17 +33,17 @@ just test-lib --crate humanity-systems
 |---|---:|---|
 | `inventory::ItemRegistry` | 26 | engine 26 |
 | `inventory::placed::PlacedItem` | 22 | engine 14, gui 8 |
-| `weather::WeatherCondition` | 15 | engine 12, gui 3 |
 | `persistence::live_save::active_home` | 13 | engine 9, gui 4 |
 | `construction` | 11 | engine 11 |
 | `construction::BlueprintRegistry` | 11 | engine 10, relay 1 |
 | `inventory::Inventory` | 11 | engine 11 |
-| `persistence::saves_dir` | 11 | engine 6, gui 4, relay 1 |
+| `persistence::saves_dir` | 10 | engine 5, gui 4, relay 1 |
 | `inventory::containers::Container` | 9 | engine 9 |
 | `persistence::slot_path` | 9 | engine 8, gui 1 |
 | `time::GameTime` | 9 | engine 9 |
 | `fluids::FluidTable` | 8 | engine 8 |
 | `inventory::TransferOp` | 8 | gui 5, engine 3 |
+| `weather::WeatherCondition` | 8 | engine 5, gui 3 |
 | `grow_machines::load_home` | 7 | engine 5, gui 2 |
 | `inventory` | 7 | engine 6, gui 1 |
 

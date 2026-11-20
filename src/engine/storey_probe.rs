@@ -208,11 +208,13 @@ mod tests {
         for wired in [
             "\"storey\": crate::engine::storey_probe::frame_json(state)",
             "\"storeys\": crate::engine::storey_probe::done_json(state)",
-            "grab(\"face\")",
-            "crate::engine::storey_probe::parse_face(&raw)",
+            // The `face` verb is the verb table's since the headless sim runner's increment 5.
+            "crate::engine::verbs::take(state, &grab, \"face\");",
         ] {
             assert!(ipc.contains(wired), "src/engine/ipc.rs never has {wired}");
         }
+        let verbs = include_str!("verbs.rs").replace("\r\n", "\n");
+        assert!(verbs.contains("crate::engine::storey_probe::parse_face(&raw)"), "the verb table no longer reads `face` with parse_face");
         let hud = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/src/gui/pages/hud.rs")).replace("\r\n", "\n");
         assert!(
             hud.contains("let current_room_info = room_card_at(&state.room_bounds, state.ship_structure.as_ref(), &state.keybinds, cam_pos);"),

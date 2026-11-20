@@ -94,8 +94,9 @@ const STAGES: &[(&str, Kind, &str)] = &[
 
 /// The step's known reads of view state and the wall clock: (stage file, word, count, why and
 /// which increment removes it). A count must match exactly: lower it when a read goes.
+/// (Increment 5, 2026-11-20, took the probe hold's wall-clock grace out: it is timed on
+/// `state.clock` now, and so are a rig's held keys, engine/rig_walk.rs.)
 const STEP_READS: &[(&str, &str, usize, &str)] = &[
-    ("frame_probe_hold", ".elapsed()", 1, "the rig's hold times its grace on the wall clock; increment 5 moves rig timing to the sim clock (risk 3)"),
     ("frame_planet_walk", "state.gpu", 3, "the sky pass's fill scale (set when there is a view) and the sea's crest height (the renderer's default without one); increment 6 (the planet's ground owned by the sim)"),
     ("frame_planet_walk", "state.start_time", 1, "the sea's waves as the shader draws them; increment 6"),
     ("frame_planet_walk", ".elapsed()", 1, "the same read: the shader's clock since the app started; increment 6"),
@@ -320,26 +321,70 @@ fn the_step_reads_no_view_state_and_the_view_writes_no_sim_state() {
     assert!(problems.is_empty(), "The frame's split (docs/design/headless-sim-runner.md, increment 4):\n  {}", problems.join("\n  "));
 }
 
-/// The headless walk (engine/sim_walk.rs) boots the engine as the windowed app does, with no GPU,
-/// and steps the world through `frame_step::run`, the windowed frame's step, calling none of the
-/// step's stages itself: one step, two drivers (increment 4).
+/// The headless drivers (engine/sim_walk.rs, the route walk of increment 4, and engine/sim_verbs.rs,
+/// the verbs' transport of increment 5) boot the engine as the windowed app does, with no GPU, and
+/// step the world through `frame_step::run`, the windowed frame's step, calling none of the step's
+/// stages themselves: one step, two drivers.
 ///
 /// Seen red 2026-11-15: with `crate::engine::frame_ecs::run(&mut self.state);` added after the
 /// walk's `frame_step::run` call, "sim_walk.rs calls the step's stage `frame_ecs` itself".
 #[test]
 fn the_headless_walk_takes_the_windowed_frames_step() {
-    let walk = read("src/engine/sim_walk.rs");
-    let code: Vec<&str> = walk.lines().map(code_of).collect();
-    assert!(
-        code.iter().any(|l| l.contains("crate::engine::frame_step::run(")),
-        "sim_walk.rs no longer steps the world through `frame_step::run`: the headless walk and the windowed frame would drift apart"
-    );
-    assert!(code.iter().any(|l| l.contains("EngineState::boot(")), "sim_walk.rs no longer boots the engine through `EngineState::boot`");
     let mut own = Vec::new();
-    for (m, kind, _) in STAGES {
-        if *kind == Step && code.iter().any(|l| l.contains(&format!("crate::engine::{m}::"))) {
-            own.push(format!("sim_walk.rs calls the step's stage `{m}` itself: step through `frame_step::run` only"));
+    for rel in ["src/engine/sim_walk.rs", "src/engine/sim_verbs.rs"] {
+        let name = rel.trim_start_matches("src/engine/");
+        let text = read(rel);
+        let code: Vec<&str> = text.lines().map(code_of).collect();
+        assert!(
+            code.iter().any(|l| l.contains("crate::engine::frame_step::run(")),
+            "{name} no longer steps the world through `frame_step::run`: the headless run and the windowed frame would drift apart"
+        );
+        assert!(code.iter().any(|l| l.contains("EngineState::boot(")), "{name} no longer boots the engine through `EngineState::boot`");
+        for (m, kind, _) in STAGES {
+            if *kind == Step && code.iter().any(|l| l.contains(&format!("crate::engine::{m}::"))) {
+                own.push(format!("{name} calls the step's stage `{m}` itself: step through `frame_step::run` only"));
+            }
         }
     }
     assert!(own.is_empty(), "{}", own.join("\n"));
+}
+
+/// The verbs' two transports are one (increment 5): the windowed file drop and the headless
+/// transport both run the verb table (engine/verbs.rs), both let a rig's held keys go through
+/// `rig_walk::tick` after the step, and both write the recorder's frame and done JSON through the
+/// same two functions (engine/ipc.rs `recorder_frame`, `recorder_done`), so a judge reads a headless
+/// run as it reads a windowed one. And the held keys and the camera park's grace are timed on the
+/// step's clock, not the wall clock: rig_walk.rs and frame_probe_hold.rs name no `Instant`.
+///
+/// Seen red 2026-11-20: with sim_verbs.rs's frames built by a `serde_json::json!` of its own in
+/// place of `ipc::recorder_frame(`, "sim_verbs.rs does not write `crate::engine::ipc::recorder_frame(`";
+/// and with `use std::time::Instant;` put back in rig_walk.rs, "src/engine/rig_walk.rs names the
+/// wall clock (line 39)". Before the verbs moved, the first run failed "the showcase poll no longer
+/// runs its verbs through the verb table".
+#[test]
+fn the_verbs_two_transports_run_one_table_one_release_and_one_recorder() {
+    let code_lines = |rel: &str| read(rel).lines().map(|l| code_of(l).to_string()).collect::<Vec<_>>();
+    let has = |lines: &[String], w: &str| lines.iter().any(|l| l.contains(w));
+    let headless = code_lines("src/engine/sim_verbs.rs");
+    for w in ["crate::engine::verbs::apply_request(", "crate::engine::rig_walk::tick(", "crate::engine::ipc::recorder_frame(", "crate::engine::ipc::recorder_done("] {
+        assert!(has(&headless, w), "sim_verbs.rs does not write `{w}`: the headless transport would drift from the windowed file drop");
+    }
+    let ipc = read("src/engine/ipc.rs").replace("\r\n", "\n");
+    let body = |name: &str| -> String {
+        let start = ipc.find(&format!("pub(crate) fn {name}(")).unwrap_or_else(|| panic!("ipc.rs has no `{name}`"));
+        ipc[start..start + ipc[start..].find("\n}\n").expect("its end")].to_string()
+    };
+    let poll = body("poll_showcase_request");
+    assert!(poll.contains("crate::engine::rig_walk::tick(state);"), "the showcase poll no longer lets the held keys go through `rig_walk::tick`");
+    assert!(poll.contains("crate::engine::verbs::take(state, &grab,"), "the showcase poll no longer runs its verbs through the verb table");
+    let rec = body("poll_remote_players_request");
+    for w in ["recorder_frame(state,", "recorder_done(state)"] {
+        assert!(rec.contains(w), "the windowed recorder no longer builds its JSON through `{w}`: the two recorders would write different shapes");
+    }
+    for rel in ["src/engine/rig_walk.rs", "src/engine/frame_probe_hold.rs"] {
+        for (n, l) in read(rel).lines().enumerate() {
+            let c = code_of(l);
+            assert!(!c.contains("Instant") && !c.contains(".elapsed()"), "{rel} names the wall clock (line {}): {}; a rig's timing is the step's clock (state.clock)", n + 1, l.trim());
+        }
+    }
 }

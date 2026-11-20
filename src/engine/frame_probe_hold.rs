@@ -23,8 +23,12 @@ pub(crate) fn run(state: &mut EngineState) {
     // clears the hold (see the keyboard handler).
     // The locked body's turn, read before the hold is borrowed.
     let probe_body_rot = crate::engine::planet_build::frame_body_rot(state);
+    // The grace is timed on the step's clock (the headless sim runner, increment 5, 2026-11-20:
+    // the last wall-clock read in the step): the same 1.5 s at a steady frame rate, and a headless
+    // run's park settles over the seconds of the world it steps, not of the wall clock.
+    let now_s = state.clock.elapsed_s;
     if let Some((pos, at)) = state.probe_hold.as_mut() {
-        if at.elapsed().as_secs_f32() < 1.5 {
+        if now_s - *at < 1.5 {
             // Grace: track through the park's basis and
             // surface-mode transitions (see the field doc
             // in engine::state - restoring pre-transition

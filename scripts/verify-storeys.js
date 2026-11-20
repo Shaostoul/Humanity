@@ -74,10 +74,25 @@
 // HumanityOS runs, another rig's or the operator's own game, or another rig holds the machine-wide
 // boot lock, and never sets the take-focus env var.
 //
+// HEADLESS (--headless, the headless sim runner's increment 5, 2026-11-20; docs/design/
+// headless-sim-runner.md): the same route, the same verbs and the same judge, with no window and no
+// GPU. The game runs as `HumanityOS --sim verbs -` (src/engine/sim_verbs.rs) through
+// scripts/lib/sim-transport.js: each showcase request becomes a `verbs` line run through the same
+// verb table (src/engine/verbs.rs), each recording a `record_begin`/`record_end` pair answered in
+// the windowed recorder's shape, and each wait the rig makes for the game (a placement's settle, a
+// turn's, the 6 s after entry) that many seconds of the world stepped at 1/60 s. The three
+// screenshots need the picture: a headless run turns to each shot's pose as the windowed run does
+// (so every leg starts where it would) and the judge marks the three SKIP. No GPU, so it neither
+// waits for nor blocks a game (machine-guard.js isSimRun), and it runs below normal priority. The
+// game's log is the run's run.log. --data DIR works as above (the folder is passed with --data, so
+// no rig folder outside the tree is needed). --compare <windowed manifest> <headless manifest>
+// judges both and lists every check whose verdict differs, and each leg's end point apart.
+//
 // Usage:
 //   node scripts/verify-storeys.js [--exe PATH] [--keep-open] [--timeout-min N] [--no-wait] [--wait-min N]
-//                                  [--data DIR] [--allow-other-build "<reason>"]
+//                                  [--data DIR] [--allow-other-build "<reason>"] [--headless]
 //   node scripts/verify-storeys.js --dry-verdict <manifest.json>   re-judge, nothing booted
+//   node scripts/verify-storeys.js --compare <a.json> <b.json>     two runs' verdicts side by side
 // Exit 0 = every check passed. 1 = refused (nothing booted). 2 = a check failed, a panic, or a
 // data file served from the copy built into the exe (BUILT-IN DATA).
 //
@@ -102,6 +117,7 @@ const { runFreshGate, requireBootCopy, bootRecord, otherBuildNotice } = require(
 const GL = require("./lib/game-launch.js");
 const SJ = require("./lib/storeys-judge.js");
 const WR = require("./lib/write-request.js");
+const ST = require("./lib/sim-transport.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -122,6 +138,7 @@ if (!(WAIT_MIN > 0)) {
 const DRY = opt("--dry-verdict", null);
 const TIMEOUT_MS = Number(opt("--timeout-min", "12")) * 60 * 1000;
 const SANDBOX = opt("--data", null) ? path.resolve(opt("--data", null)) : null;
+const HEADLESS = args.includes("--headless");
 
 // WHERE THE RIG BOOTS. The game takes the first data folder whose parent holds a Cargo.toml (a
 // source tree's live data) over the one beside the exe (lib.rs `find_data_dir`), walking up from
@@ -130,7 +147,13 @@ const SANDBOX = opt("--data", null) ? path.resolve(opt("--data", null)) : null;
 // first red run (2026-10-21) junctioned a floorless homestead, the game read the repo's, and the
 // run PASSED 75/75. So a sandbox run boots from a folder outside any source tree, and every run
 // records the data folder the game says it used (`data_dir`), which the judge checks.
-const RIG = SANDBOX ? path.join(require("os").tmpdir(), "hos-verify-storeys-sandbox") : path.join(REPO, ".probe-rig", "storeys");
+// A headless run passes its data folder by name (--data), so it never needs a folder outside the
+// tree; it gets a rig folder of its own to run in (its working folder, its run.log).
+const RIG = HEADLESS
+  ? path.join(REPO, ".probe-rig", "storeys-headless")
+  : SANDBOX
+    ? path.join(require("os").tmpdir(), "hos-verify-storeys-sandbox")
+    : path.join(REPO, ".probe-rig", "storeys");
 const RUNS = path.join(REPO, ".probe-rig", "storeys", "runs");
 const DEBUG = path.join(RIG, "debug");
 const LOG = path.join(RIG, "logs", "run.log");
@@ -191,6 +214,24 @@ if (DRY) {
   process.exit(result.ok ? 0 : 2);
 }
 
+// ── --compare: two runs judged side by side (a windowed run and a headless one) ──────────────────
+{
+  const i = args.indexOf("--compare");
+  if (i >= 0) {
+    const [a, b] = [args[i + 1], args[i + 2]].map((p) => (p ? path.resolve(p) : null));
+    if (!a || !b || !fs.existsSync(a) || !fs.existsSync(b)) refuse(["--compare wants two manifests that exist: --compare <a.json> <b.json>"]);
+    const runs = [a, b].map((p) => JSON.parse(fs.readFileSync(p, "utf8")));
+    const c = SJ.compareRuns(runs[0], runs[1]);
+    const name = (r, p) => `${r.headless ? "headless" : "windowed"} ${path.basename(path.dirname(p))}`;
+    console.log(`A: ${name(runs[0], a)}: ${c.a.passed}/${c.a.judged} passed${c.a.skipped ? `, ${c.a.skipped} skipped` : ""}`);
+    console.log(`B: ${name(runs[1], b)}: ${c.b.passed}/${c.b.judged} passed${c.b.skipped ? `, ${c.b.skipped} skipped` : ""}`);
+    for (const l of c.legs) console.log(`  ${l.id.padEnd(20)} ends ${l.apart === null ? "(one side has no end)" : `${l.apart.toFixed(2)} m apart`}  A ${l.a ? `(${l.a.map(fmt).join(", ")})` : "-"}  B ${l.b ? `(${l.b.map(fmt).join(", ")})` : "-"}`);
+    for (const d of c.differ) console.log(`  DIFFER  ${d.id.padEnd(34)} A ${d.a === null ? "absent" : d.a ? "PASS" : "FAIL"}  B ${d.b === null ? "absent" : d.b ? "PASS" : "FAIL"}`);
+    console.log(c.differ.length ? `${c.differ.length} check(s) differ (skipped checks left out)` : `AGREE: all ${c.both} checks both runs judged give the same verdict (skipped checks left out)`);
+    process.exit(c.differ.length ? 2 : 0);
+  }
+}
+
 // ── refusals, before anything is touched ─────────────────────────────────────────────────────────
 if (!fs.existsSync(EXE)) refuse([`ERROR: exe not found: ${EXE}`, "  build one first: cargo build --features native --release"]);
 if (SANDBOX && !fs.existsSync(path.join(SANDBOX, "homes", "homestead.ron"))) refuse([`--data ${SANDBOX}: no homes/homestead.ron there; point it at a copy of the whole data/ folder`]);
@@ -215,9 +256,10 @@ if (FRESH.status !== 0) refuse(["verify-storeys: REFUSED - see the freshness fai
 const OTHER_BUILD = FRESH.other_build;
 
 // How this run boots: full graphics, or low impact beside the operator's program (lib/rig-needs.js).
-const BOOT_PLAN = RN.planOrRefuse("verify-storeys", { log });
+// A headless run has no picture and no GPU: nothing to plan and nothing to wait for.
+const BOOT_PLAN = HEADLESS ? null : RN.planOrRefuse("verify-storeys", { log });
 // One GPU: wait for another rig (or the operator's game) to finish, never boot beside it.
-{
+if (!HEADLESS) {
   const running = MG.blockingInstances(BOOT_PLAN.own);
   if (running.length && NO_WAIT) {
     refuse([
@@ -256,6 +298,8 @@ function killRigProcesses() {
 function setupRig() {
   fs.mkdirSync(DEBUG, { recursive: true });
   fs.mkdirSync(path.join(RIG, "logs"), { recursive: true });
+  // A headless run starts the tree's exe itself, on the data folder it names: no copy, no junction.
+  if (HEADLESS) return;
   // portable.txt keeps identity, config and saves inside the rig and lets the dev autopilot run;
   // no_focus.txt is the belt to the launch-focus inversion's braces.
   fs.writeFileSync(path.join(RIG, "portable.txt"), "verify-storeys rig\n");
@@ -311,9 +355,15 @@ async function waitBoot(timeoutMs, game) {
   }
   throw new Error("the exe did not finish booting in time");
 }
+/** The headless transport (scripts/lib/sim-transport.js), when this run is headless. */
+let SIM = null;
+/** A wait for the game: real time beside a windowed game, that many seconds of the world stepped
+ *  in a headless one (its world moves only when stepped). */
+const wait = (ms) => (SIM ? SIM.step(ms / 1000) : sleep(ms));
 /** A showcase request, waited on until the game has taken it (one file: a second request written
- *  before the first is read would replace it). */
+ *  before the first is read would replace it). Headless, the same verbs as one `verbs` line. */
 async function showcase(body) {
+  if (SIM) return SIM.verbs(body);
   const p = path.join(DEBUG, "showcase_request.json");
   const t0 = Date.now();
   while (fs.existsSync(p) && Date.now() - t0 < 10000) await sleep(40);
@@ -342,6 +392,15 @@ function trim(done) {
  *  a hold before the recording and ended the recording before the hold, and the body walked on
  *  unrecorded between two recordings (the third red run, 2026-10-21). */
 async function record(seconds, during, what) {
+  if (SIM) {
+    // The windowed order: the recording taken, 0.1 s on, the action, then on to its end.
+    await SIM.recordBegin(seconds);
+    await wait(100);
+    if (during) await during();
+    const done = await SIM.recordEnd();
+    if (!done || done.ok !== true) throw new Error(`${what}: the recorder never answered (${JSON.stringify(done)})`);
+    return trim(done);
+  }
   clearDone("remote_players_done.json");
   const p = path.join(DEBUG, "remote_players_request.json");
   req("remote_players_request.json", { seconds });
@@ -361,7 +420,7 @@ const panicCount = () => (fs.existsSync(LOG) ? (fs.readFileSync(LOG, "utf8").mat
 
 // ── the run ──────────────────────────────────────────────────────────────────────────────────────
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..+/, "").replace("T", "-");
-const OUT = path.join(RUNS, SANDBOX ? `${stamp}-sandbox` : stamp);
+const OUT = path.join(RUNS, `${stamp}${HEADLESS ? "-headless" : ""}${SANDBOX ? "-sandbox" : ""}`);
 
 /** The data folder the game says it reads (lib.rs `find_data_dir`'s log line), and that folder
  *  resolved through any junction, next to the one this run meant: the tree's data/, or --data's.
@@ -399,9 +458,10 @@ async function main() {
     kind: "verify-storeys",
     stamp,
     exe: EXE,
-    binary: bootRecord(FRESH, path.join(RIG, PLAT.EXE_NAME)),
+    binary: bootRecord(FRESH, HEADLESS ? EXE : path.join(RIG, PLAT.EXE_NAME)),
     ...(OTHER_BUILD ? { other_build: OTHER_BUILD } : {}),
     ...(SANDBOX ? { sandbox_data: SANDBOX } : {}),
+    ...(HEADLESS ? { headless: true } : {}),
     plan: PLAN,
     problems: [],
     data_dir: null,
@@ -415,24 +475,37 @@ async function main() {
   };
   const save = () => fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
 
-  log(`launching ${path.basename(EXE)} in ${path.relative(REPO, RIG)}${SANDBOX ? ` on SANDBOX DATA ${SANDBOX}` : ""}`);
-  const game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
-    fresh: FRESH,
-    rigName: "verify-storeys",
-    log,
-    cwd: RIG,
-    detached: true,
-    stdio: "ignore",
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
-    lowImpact: BOOT_PLAN.lowImpact,
-  });
-  manifest.low_impact = RN.manifestRecord(BOOT_PLAN, null);
-  const pid = game.child.pid;
-  game.child.unref();
+  log(`launching ${path.basename(EXE)}${HEADLESS ? " HEADLESS (--sim verbs: no window, no GPU)" : ""} in ${path.relative(REPO, RIG)}${SANDBOX ? ` on SANDBOX DATA ${SANDBOX}` : ""}`);
+  let game = null;
+  let pid = null;
+  let simStart = null;
+  if (HEADLESS) {
+    // In the world when it resolves (the boot and the entry take about 1.5 s).
+    simStart = ST.start({ exe: EXE, dataDir: SANDBOX || path.join(REPO, "data"), cwd: RIG, logFile: LOG });
+    manifest.low_impact = null;
+  } else {
+    game = GL.spawnGame(path.join(RIG, PLAT.EXE_NAME), [], {
+      fresh: FRESH,
+      rigName: "verify-storeys",
+      log,
+      cwd: RIG,
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
+      lowImpact: BOOT_PLAN.lowImpact,
+    });
+    manifest.low_impact = RN.manifestRecord(BOOT_PLAN, null);
+    pid = game.child.pid;
+    game.child.unref();
+  }
   let killed = false;
   const kill = () => {
     if (killed) return;
     killed = true;
+    if (HEADLESS) {
+      if (SIM) SIM.kill();
+      return;
+    }
     game.expectExit();
     try {
       PLAT.killTree(pid, { force: true });
@@ -452,7 +525,12 @@ async function main() {
 
   try {
     log("waiting for boot...");
-    await waitBoot(240000, game);
+    if (HEADLESS) {
+      SIM = await simStart;
+      log(`in the homestead with no GPU after ${SIM.hello.entry_s.toFixed(2)} s (not drawn: ${(SIM.hello.not_drawn || []).length} kinds of drawing)`);
+    } else {
+      await waitBoot(240000, game);
+    }
     manifest.data_dir = await dataDirUsed();
     save();
     if (!SJ.sameDir(manifest.data_dir.real, manifest.data_dir.expected)) {
@@ -460,13 +538,17 @@ async function main() {
     } else {
       log(`the game reads ${manifest.data_dir.real} (${manifest.data_dir.how})`);
     }
-    log("entering world (autopilot)...");
-    clearDone("autopilot_done.json");
-    req("autopilot_request.json", {}); // no server_url: the pinned one (a dead loopback port) stands (BUG-160)
-    const ap = await waitFile("autopilot_done.json", 240000);
-    if (!ap || ap.ok !== true) throw new Error(`autopilot failed: ${JSON.stringify(ap)}`);
+    if (!HEADLESS) {
+      // A headless run is in the world when its transport answers (sim_verbs.rs enters as the
+      // autopilot's world entry does: the same load_world, the person stepped in).
+      log("entering world (autopilot)...");
+      clearDone("autopilot_done.json");
+      req("autopilot_request.json", {}); // no server_url: the pinned one (a dead loopback port) stands (BUG-160)
+      const ap = await waitFile("autopilot_done.json", 240000);
+      if (!ap || ap.ok !== true) throw new Error(`autopilot failed: ${JSON.stringify(ap)}`);
+    }
     // The home's walls, rooms and floors are built a few frames after world entry.
-    await sleep(6000);
+    await wait(6000);
 
     const s0 = await snapshot("the first look");
     manifest.entry = { home_box: s0.home_box, storeys: s0.storeys, frames: s0.frames };
@@ -494,11 +576,11 @@ async function main() {
     const place = async (p, floor, yaw, pitch = 0) => {
       const w = world(p, floor);
       await showcase({ walk: "1", cam: `${w.map((v) => v.toFixed(3)).join(",")},${yaw.toFixed(4)},${pitch.toFixed(4)}` });
-      await sleep(SETTLE_MS);
+      await wait(SETTLE_MS);
     };
     const face = async (yaw, pitch = 0) => {
       await showcase({ face: `${yaw.toFixed(4)},${pitch.toFixed(4)}` });
-      await sleep(120);
+      await wait(120);
     };
     const holdKeys = (keys, s) => showcase({ hold: keys, hold_s: s.toFixed(3) });
     /** Walk a route of straight legs from where the body is, each recorded: turned toward the
@@ -562,8 +644,20 @@ async function main() {
       const near = here && Math.hypot(here[0] - spec.at[0], here[2] - spec.at[1]) <= 0.6 && Math.abs(here[1] - floor - EYE) < 0.1;
       if (near) await face(spec.yaw, spec.pitch);
       else await place(spec.at, floor, spec.yaw, spec.pitch);
-      await sleep(1200);
+      await wait(1200);
       const shot = { id: spec.id, note: spec.note, placed: !near, ok: false };
+      if (HEADLESS) {
+        // No picture to take: the pose is taken as the windowed run takes it (the next leg starts
+        // from it), and the judge marks the shot SKIP. The first shot's second capture waits on.
+        if (firstShot) await wait(1200);
+        firstShot = false;
+        shot.skipped = "needs the picture: a headless run takes no screenshot (the windowed run does)";
+        shot.where = here;
+        manifest.shots.push(shot);
+        save();
+        log(`shot ${spec.id}: SKIPPED (headless: needs the picture)`);
+        return;
+      }
       // The first capture after a boot is a different state from every later one (the rigs have
       // been bitten by it): taken twice, the first thrown away.
       for (let i = 0; i < (firstShot ? 2 : 1); i++) {
@@ -654,19 +748,21 @@ async function main() {
   }
   clearTimeout(watchdog);
 
+  // A headless game is asked to leave first, so its log is whole before it is read.
+  if (SIM) await SIM.quit();
   manifest.panics = panicCount();
   manifest.builtin_data = GL.builtinDataLines(fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "");
-  manifest.low_impact = RN.manifestRecord(BOOT_PLAN, game.low_impact && game.low_impact.confirmed);
+  manifest.low_impact = HEADLESS ? null : RN.manifestRecord(BOOT_PLAN, game.low_impact && game.low_impact.confirmed);
   save();
   try {
     fs.copyFileSync(LOG, path.join(OUT, "run.log"));
   } catch {}
-  if (KEEP_OPEN) log(`left running (--keep-open): ${PLAT.killCommand(pid)} to close it`);
+  if (KEEP_OPEN && !HEADLESS) log(`left running (--keep-open): ${PLAT.killCommand(pid)} to close it`);
   else kill();
 
   if (OTHER_BUILD) log(otherBuildNotice(OTHER_BUILD));
   if (manifest.builtin_data.length) log(GL.builtinDataRefusal(manifest.builtin_data));
-  for (const l of RN.verdictLines(manifest.low_impact)) log(l);
+  if (!HEADLESS) for (const l of RN.verdictLines(manifest.low_impact)) log(l);
   const result = printVerdict(manifest, manifest.error ? `(the run stopped early: ${manifest.error}) ` : "RESULT: ");
   log(`evidence: ${path.relative(REPO, OUT)} (manifest.json, the screenshots, run.log)`);
   process.exit(result.ok && !manifest.error ? 0 : 2);

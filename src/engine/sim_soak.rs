@@ -587,6 +587,7 @@ fn arg<T: std::str::FromStr>(args: &[String], flag: &str) -> Result<Option<T>, S
 const USAGE: &str = "usage: HumanityOS --sim soak [--days N] [--step SECONDS] [--force] [--check-hours H] [--seed N] [--routine NAME] [--report FILE]\n       \
                      HumanityOS --sim ladder [--hours H] [--routine NAME] [--report FILE]\n       \
                      HumanityOS --sim walk --route FILE [--without-wall X,Z] [--report FILE]\n       \
+                     HumanityOS --sim verbs [-|FILE] [--data DIR]   (the rigs' verbs as JSON lines: engine/sim_verbs.rs)\n       \
                      (--routine NAME follows data/sim/routines/NAME.ron: a person's day of drinks, meals and sleep)";
 
 /// The word after `--routine`, when given.
@@ -647,7 +648,10 @@ fn cli(args: &[String]) -> Result<(), String> {
         }
         // The homestead entered and walked through the engine with no GPU (increment 4, engine/sim_walk.rs).
         "walk" => crate::engine::sim_walk::cli(args, &data_dir)?,
-        other => return Err(format!("--sim {other:?}: not a simulation run this build knows (soak, ladder, walk)")),
+        // The rigs' verbs on JSON lines (increment 5, engine/sim_verbs.rs): it speaks its own
+        // protocol on stdout, so it prints no report.
+        "verbs" => return crate::engine::sim_verbs::cli(args, &data_dir),
+        other => return Err(format!("--sim {other:?}: not a simulation run this build knows (soak, ladder, walk, verbs)")),
     };
     println!("{text}");
     if let Some(path) = report_path {
