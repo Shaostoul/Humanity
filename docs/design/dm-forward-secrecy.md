@@ -970,3 +970,14 @@ the glossary's `forward_secrecy`, `docs/FEATURES.md` (a line per rung, when buil
 
 Still open from the operator's own design: **outbox-and-inbox question 13, when a timer starts**
 (recommendation unchanged: when read, by default, with "when sent" as a choice per timer).
+
+## Decided by the operator (2026-11-20)
+
+"Agreed with your recommendations." on all six questions:
+
+1. The backup is locked by the recovery phrase AND a backup password, the app suggesting six random words.
+2. Backup: asked once, with "Keep a backup" preselected.
+3. The website runs the app's own Rust implementation compiled to WebAssembly (one implementation to review); the CSP allowance this needs ('wasm-unsafe-eval') is weighed in with item 6b.
+4. The block list comes back from the recovery phrase alone (the settings sync), so a restore never re-exposes anyone to a person they blocked.
+5. A contact's new device is listed in the privacy panel, not announced in the chat; your own new devices are always announced.
+6. A disappearing message's timer starts when it is read (outbox-and-inbox question 13 settled).

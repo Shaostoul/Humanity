@@ -1472,6 +1472,11 @@
       "date": "2026-11-20",
       "decision": "Operator: \"Yes. I don't mind credit required materials being in the main pack.\" (CC BY scores may ship in the core set, credited; loosens the 2026-11-13 optional-packs-only rule for credited material). Mutopia files 1, 5, 8 downloaded (piano Mountain King, Fur Elise, Symphony 5 i; .ly sources) for MEI conversion after the score player merges. He downloads the 1888 Peters orchestral scan (IMSLP #912194) himself.",
       "why": "The score finding (2026-11-20-public-domain-scores.md) asked; IMSLP bars automated downloads."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "Operator agreed all six forward-secrecy recommendations (dm-forward-secrecy.md, \"Decided\"): backup locked by phrase + password (six suggested words), backup asked once preselected, the website runs the Rust implementation as WebAssembly, block list restored from the phrase, contacts' new devices listed not announced (own always announced), timers start on read. Then: \"Pause so I can game.\" All seven in-flight agents asked to stop at a step boundary, commit, write a handoff and end their turn; resume each by SendMessage when he says resume. Merged and pushed before the pause: v0.1565.0 (delivered), OpenMoji emoji, forward-secrecy design, score finding, squash-aware clean-worktrees.",
+      "why": "His decisions on his design questions; his PC is his while he games."
     }
   ],
   "active_scopes_to_avoid": [
