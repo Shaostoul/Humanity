@@ -55,6 +55,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
+use rand::Rng;
 use serde::Deserialize;
 
 use humanity_core::ecs::components::{CropInstance, CropPicking, STAGE_DEAD};
@@ -438,11 +439,20 @@ fn ripe(crop: &CropInstance, plants: Option<&super::PlantRegistry>) -> bool {
 
 /// FarmingSystem's picking state: the data (read on the first tick; a
 /// "garden_harvest_windows" entry in the DataStore wins over it) and the
-/// grow areas told that produce passed over.
-#[derive(Debug, Default)]
+/// grow areas told that produce passed over, and the harvests' draws.
+#[derive(Debug)]
 pub struct Picking {
     data: Option<HarvestWindows>,
     told_over: HashSet<String>,
+    /// How much a harvest gives and its seeds, drawn from the run's seed when it set one (BUG-333,
+    /// `sim_seed::Stream`): a 30-day routine soak harvests.
+    draws: crate::sim_seed::Stream,
+}
+
+impl Default for Picking {
+    fn default() -> Self {
+        Picking { data: None, told_over: HashSet::new(), draws: crate::sim_seed::Stream::new(crate::sim_seed::HARVEST) }
+    }
 }
 
 impl Picking {
@@ -559,10 +569,11 @@ impl Picking {
             Mode::Off if part_picked => windows.plan(plant_id),
             _ => windows.plan_at(plant_id, mode),
         };
+        let rng = self.draws.rng(data);
         let Some(plan) = plan else {
-            let roll = rand::random::<f32>();
-            let items = super::harvest_quantity(ymin, ymax, scale, roll, rand::random::<f32>());
-            let seeds = seed_count(season_items(ymin, ymax, roll, scale), full, rand::random::<f64>());
+            let roll = rng.random::<f32>();
+            let items = super::harvest_quantity(ymin, ymax, scale, roll, rng.random::<f32>());
+            let seeds = seed_count(season_items(ymin, ymax, roll, scale), full, rng.random::<f64>());
             return Some(Taken { items, seeds, ends_plant: true, first: true, picked: false });
         };
         let mut rec = world.get::<&CropPicking>(entity).map(|r| (*r).clone()).unwrap_or_default();
@@ -578,12 +589,12 @@ impl Picking {
         if shares == 0 {
             return None;
         }
-        let roll = *rec.roll.get_or_insert_with(rand::random::<f32>);
+        let roll = *rec.roll.get_or_insert_with(|| rng.random::<f32>());
         let season = season_items(ymin, ymax, roll, scale);
         let ends = spent(&rec, &plan, realistic);
-        let items = pick_items(&mut rec.carry, season, shares, plan.picks, ends, rand::random::<f64>());
+        let items = pick_items(&mut rec.carry, season, shares, plan.picks, ends, rng.random::<f64>());
         let harvested = season * f64::from(shares) / f64::from(plan.picks);
-        let seeds = seed_count(harvested, full, rand::random::<f64>());
+        let seeds = seed_count(harvested, full, rng.random::<f64>());
         let had = match world.get::<&mut CropPicking>(entity) {
             Ok(mut r) => {
                 *r = rec.clone();

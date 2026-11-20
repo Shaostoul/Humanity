@@ -55,6 +55,9 @@ pub struct AISystem {
     wander_targets: std::collections::HashMap<u64, Vec3>,
     /// Per-entity seconds until the next bite lands. (v0.761)
     bite_timers: std::collections::HashMap<u64, f32>,
+    /// Where a creature wanders next and for how long, drawn from the run's seed when it set one
+    /// (BUG-333, `sim_seed::Stream`; primed at the top of each tick, drawn in `wander`).
+    draws: crate::sim_seed::Stream,
 }
 
 impl AISystem {
@@ -63,6 +66,7 @@ impl AISystem {
             timers: std::collections::HashMap::new(),
             wander_targets: std::collections::HashMap::new(),
             bite_timers: std::collections::HashMap::new(),
+            draws: crate::sim_seed::Stream::new(crate::sim_seed::CREATURES),
         }
     }
 }
@@ -73,6 +77,7 @@ impl System for AISystem {
     }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
+        self.draws.prime(data);
         // ── 1. Snapshot all positions, factions, health, and AI state ────
         // We need to read other entities' data while deciding what to do,
         // so collect everything up front to avoid borrow conflicts.
@@ -373,8 +378,8 @@ impl AISystem {
         *timer -= dt;
 
         if *timer <= 0.0 {
-            // Pick a new wander target
-            let mut rng = rand::rng();
+            // Pick a new wander target (from the run's seed when it set one, BUG-333)
+            let rng = self.draws.primed();
             let angle: f32 = rng.random_range(0.0..std::f32::consts::TAU);
             let dist: f32 = rng.random_range(2.0..WANDER_RADIUS);
             let target_pos = me.position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);

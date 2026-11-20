@@ -5931,14 +5931,18 @@ safe step and prints days per second, each system's state at the end of every da
 measured error against a fine step; a step past the safe one is refused without `--force`.
 `--sim ladder` (`just sim-ladder`) steps one span at 10, 60, 600 and 3,600 s against 1 s and says
 which systems hold at which step; the tolerances and the safe step are data,
-`data/sim/step_tolerances.ron`. Two runs give identical reports; the run's seed
-(`crates/humanity-systems/src/sim_seed.rs`) starts the weather's and the disasters' random
-streams, for the planet runs to come (the homestead aboard sees no weather).
+`data/sim/step_tolerances.ron`. Two runs give identical reports, the routine soak's too; the
+run's seed (`crates/humanity-systems/src/sim_seed.rs`) starts every system's random stream (the
+weather's and the disasters', and since BUG-333 a `sim_seed::Stream` each for the illness a meal
+can bring and a wound going bad, a harvest's count, a craft's grade, the creatures' wandering,
+combat's loot and fire's spread); the windowed game sets none and keeps the entropy.
 The machine guard does not count a `--sim` run as a game (`scripts/lib/machine-guard.js`
 `isSimRun`). In the app: Dev > Simulation, Run a week (`src/gui/pages/dev_sim.rs`), the same
 command as a separate low-priority process, its report on the card. Tests:
 `src/engine/frame_sim_tests.rs` (a game day with no GPU, the split-step test at the frame's dt,
-the ladder holding the recorded safe step, repeat runs), `tests/sim_gpu_free_lint.rs`.
+the ladder holding the recorded safe step, repeat runs, the routine soak repeated in one process
+and in a second), `tests/sim_gpu_free_lint.rs`, `tests/sim_random_lint.rs` (no draw from the
+thread's shared generator in the systems).
 
 ### A soak's person who eats, drinks and sleeps: the frame's bridges on the sim's parts (2026-11-15)
 The headless sim runner's increment 3 (`docs/design/headless-sim-runner.md`, "Built so far"). The

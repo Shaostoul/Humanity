@@ -93,6 +93,8 @@ pub struct CombatSystem {
     pub pending_damage: Vec<(hecs::Entity, DamageEvent)>,
     /// Active status effects per entity.
     pub active_effects: std::collections::HashMap<u64, Vec<StatusEffect>>,
+    /// The loot a death drops, drawn from the run's seed when it set one (BUG-333, `sim_seed::Stream`).
+    draws: crate::sim_seed::Stream,
 }
 
 impl CombatSystem {
@@ -100,6 +102,7 @@ impl CombatSystem {
         Self {
             pending_damage: Vec::new(),
             active_effects: std::collections::HashMap::new(),
+            draws: crate::sim_seed::Stream::new(crate::sim_seed::COMBAT),
         }
     }
 
@@ -185,7 +188,7 @@ impl System for CombatSystem {
         }
 
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
-        let mut rng = rand::rng();
+        let rng = self.draws.rng(data);
         for (entity, source_name, source_is_player, _killing_type) in deaths_to_handle {
             let is_player = world.get::<&humanity_core::ecs::components::Controllable>(entity).is_ok();
             let cause = match &source_name {

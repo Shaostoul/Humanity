@@ -267,8 +267,10 @@ it, and the fall site is read before the tick instead of after; nothing between 
 - `src/engine/sim_soak.rs`: `HumanityOS --sim soak [--days N] [--step S] [--force]` and `--sim
   ladder` (`just sim-soak`, `just sim-ladder`; main.rs dispatches before any window, relay or
   hand-off). Each run is a fresh homestead on its own thread, scratch saves, the run's seed
-  (`humanity_systems::sim_seed`: the weather's and the disasters' streams; the thread-shared draws
-  are listed there as not yet seeded). The tolerances, the ladder, the check step and the safe step
+  (`humanity_systems::sim_seed`: the weather's and the disasters' streams, and since 2026-11-20,
+  BUG-333, a `sim_seed::Stream` for every other system that draws: food, harvest, crafting,
+  creatures, combat, fire; tests/sim_random_lint.rs keeps the thread's shared generator out of the
+  systems). The tolerances, the ladder, the check step and the safe step
   are `data/sim/step_tolerances.ron`: a quantity holds within `abs` plus `rel` times how far it
   moved at the reference step. The Dev page's Simulation card runs the soak as a separate process
   (`src/gui/pages/dev_sim.rs`); the ladder is CLI debt (`docs/design/in-app-ops.md`). The machine
@@ -520,7 +522,7 @@ homestead with no window and no GPU, judged by its own judge:
 | `verify-storeys --headless` | **PASS 73/73, 3 skipped** (the screenshots); the engine booted and the homestead entered in 1.34 s with no window and no GPU, and the whole route walked and judged in 7.7 s of the game's log (49 recordings), against 1 min 55 s for the windowed run (boot, autopilot entry and the same route) |
 | `--compare` with the windowed run of the same build (`verify-storeys`, **PASS 76/76**) | **all 73 checks both judged agree**; each leg's end 0.00 to 0.18 m apart (inside the route's 0.25 m arrival), the eye's height the same on every leg |
 | The red run, `--headless --data` a copy of data/ with the homestead's 23 floor slabs taken out | **FAIL, 33 of 73**: every leg that needs the upper floor fails and the three ground-floor legs pass, and `--compare` with the windowed red run of 2026-10-21 (tests/fixtures/storeys/red-no-floor-slabs.json) agrees on all 73 checks |
-| `--sim walk` and `--sim soak` before and after | the walk's report and the 7-day soak's are identical (wall times aside). The routine soak (`--routine daily`) is not: three runs of the SAME exe give different hydration at some day ends (81.9 to 94.8) and 32 to 36 notices, with the same drinks, meals and sleeps; nothing in its path changed in this increment (sim_home, sim_routine and the slices take no `EngineState`), so it is older than this work and is not yet traced |
+| `--sim walk` and `--sim soak` before and after | the walk's report and the 7-day soak's are identical (wall times aside). The routine soak (`--routine daily`) is not: three runs of the SAME exe give different hydration at some day ends (81.9 to 94.8) and 32 to 36 notices, with the same drinks, meals and sleeps; nothing in its path changed in this increment (sim_home, sim_routine and the slices take no `EngineState`), so it is older than this work. **Traced and fixed the same day, BUG-333**: the illness a raw meal can bring was rolled on the thread's shared generator, which no run's seed reaches, and the person eats the home storage's raw rice (5% risk a meal) once the kit's rations are gone, so food poisoning struck some runs and not others (the runs part where one says "Something you ate has made you ill"). Every system's draws now go through a `sim_seed::Stream` of its own; `the_routine_soak_repeats_in_one_process_and_across_two` holds it and tests/sim_random_lint.rs keeps the thread's generator out of the systems |
 | The proof the windowed game is unchanged | verify-storeys 76/76, verify-falls 88/88 (the console's deck placed through the table, its "Showcase: console" line read as before; the planet legs' camera parks held on the step's clock), verify-runtime 3/3, no panic |
 
 The first headless run found the transport reading the person's own save: the recorder's home

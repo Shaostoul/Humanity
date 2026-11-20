@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1618 Rust files (818,446 lines) under `src/` and `crates/*/src/`; 177 JavaScript files (100,667 lines) under `web/`.
+1618 Rust files (818,713 lines) under `src/` and `crates/*/src/`; 177 JavaScript files (100,667 lines) under `web/`.
 
 ## Folders
 
@@ -387,11 +387,11 @@
 - `encumbrance.rs` (461): CARRYING WEIGHT (BUG-136, 2026-10-04): how much the player can carry where they stand, and what carrying more than that does to them. Main items: CarryMode, CarryInput, CarryState, limit_here_kg, overload_ratio, walk_speed_factor, mass_jump_scale, evaluate (+6 more).
 - `env_layer1.rs` (457): Environment LAYER 1: each world's analytic climate, the continuous base field under all weather (docs/design/environment-fields.md, "The layering" and "Layer 1 as built"). Main items: ClimateRow, ClimateTable, AirAt, sine_series_basis, land_fraction_around, east_north, wind_body, DATA_FILE (+6 more).
 - `falls.rs` (196): Falls: how hard a body lands, and what that does to it (2026-10-20). Main items: ForgivingFalls, HarmPoint, FallStep, Falls, player_landed.
-- `fire.rs` (284): Fire system, fire ignition, intensity, spread, suppression. Main items: FireData, Burn, FireSystem, burn_step.
+- `fire.rs` (293): Fire system, fire ignition, intensity, spread, suppression. Main items: FireData, Burn, FireSystem, burn_step.
 - `flight.rs` (505): Fleet flight state and felt gravity. Main items: DriveDef, DampenerDef, GToleranceDef, FlightData, FlightState, FeltGravity, felt_gravity, harm_per_sec (+1 more).
 - `fluids.rs` (372): Fluids are litres (2026-09-26; the containers arc, increment 3d, docs/design/containers.md). Main items: Fillable, FluidTable, FluidAction, tank_litres, draw_from_tanks, tap_units, card_actions, apply_action.
 - `food_fixtures.rs` (220): The helpers other crates' tests share with the food system's wounds and spoilage tests (the engine's and the GUI's crossing tests): apart from the tests so that the crate split can put them behind...
-- `food.rs` (2940): Food system -- nutrition, spoilage, cooking, and meal quality. Main items: NutritionProfile, ItemProfiles, TemperatureZone, FoodData, UrineTank, FoodSystem, consume_kinds, urine_tank_level (+7 more).
+- `food.rs` (2990): Food system -- nutrition, spoilage, cooking, and meal quality. Main items: NutritionProfile, ItemProfiles, TemperatureZone, FoodData, UrineTank, FoodSystem, consume_kinds, urine_tank_level (+7 more).
 - `genetics.rs` (170): Genetics system, diploid trait inheritance with mutation chance. Main items: GeneticsData, GeneticsSystem.
 - `geology.rs` (111): Geology system, ore vein depletion tracking, soil fertility evolution, and tectonic event triggering. Main items: GeologyData, GeologySystem.
 - `governance.rs` (83): Governance system, resolves active votes when their deadlines expire. Main items: GovernanceData, GovernanceSystem.
@@ -415,7 +415,7 @@
 - `self_sufficiency.rs` (387): Self-sufficiency data layer (v0.663) -- the per-crop nutrition bridge + the editable component-output / location tables that turn the homestead design from prose into a computable score. Main items: CropNutritionEntry, CropNutrition, ComponentOutput, ComponentOutputs, Location, food_supply_kcal_per_day, crop_is_tabulated, household_energy_balance.
 - `ship_meals.rs` (235): THE MESS HALL'S COUNTER ON THIS COMPUTER (ship homes increment 6, lane 1D, docs/design/ship-homes-increment-6-plan.md 3.8): a free crew meal, one a meal time, and drinking water, when no server is... Main items: MealRules, Served, Filled, serve, not_yet_sentence, litres_text, fill_vessels, STORES_FILE (+1 more).
 - `ship_power.rs` (230): The ship's reactor as the homes' baseline supply, and the ledger of what each home draws from the ship (2026-09-27, the operator's decision in docs/PRIORITIES.md Blocked 3b: "base power budget on n... Main items: ShipPowerData, ShipFeed, SupplyTally, ShipSupplyLedger, register, feed_watts, record, tally (+11 more).
-- `sim_seed.rs` (56): The simulation's seed (the headless sim runner's increment 2, 2026-11-15; docs/design/headless-sim-runner.md section 2, "Safety"): a run that must repeat (the soak, the step ladder, the tests that... Main items: for_system, SLOT, WEATHER, DISASTERS.
+- `sim_seed.rs` (135): The simulation's seed (the headless sim runner's increment 2, 2026-11-15; docs/design/headless-sim-runner.md section 2, "Safety"): a run that must repeat (the soak, the step ladder, the tests that... Main items: Stream, for_system, SLOT, WEATHER, DISASTERS, FOOD, HARVEST, CRAFTING (+3 more).
 - `sleep.rs` (388): Sleeping in a bed (2026-09-27): the night passes and the body wakes rested. Main items: Asleep, request, short_rest, nap_holds_off_fatigue, notice, tick, SLEEP_HOURS, SLEEP_TIME_SCALE (+5 more).
 - `solar.rs` (175): Solar system, drives solar `PowerGenerator` output from the time of day. Main items: SolarSystem, sun_factor, site_longitude_deg, cloud_light_share.
 - `status_effects.rs` (252): Status-effect registry, buffs, debuffs, conditions, diseases, and environmental effects loaded from `data/status_effects.csv`. Main items: StatusEffectDef, StatusEffectRegistry, with_old_dispel_type_column.
@@ -434,13 +434,13 @@
 
 - `behavior.rs` (27): Data-driven behavior trees for NPC decision-making. Main items: BehaviorStatus, BehaviorNode.
 - `flow_field.rs` (27): Flow field pathfinding, supports million-agent navigation. Main items: FlowField.
-- `mod.rs` (582): AI system, behavior state machine for NPCs and creatures. Main items: AISystem.
+- `mod.rs` (587): AI system, behavior state machine for NPCs and creatures. Main items: AISystem.
 
 ## crates/humanity-systems/src/combat/
 
 - `damage.rs` (30): Damage types and resistance calculations. Main items: DamageType, DamageEvent.
 - `effects.rs` (32): Status effects with duration, buffs, debuffs, damage-over-time. Main items: StatusEffect.
-- `mod.rs` (580): Combat system, damage processing, hit detection, death, status effects. Main items: CombatSystem, player_swing.
+- `mod.rs` (583): Combat system, damage processing, hit detection, death, status effects. Main items: CombatSystem, player_swing.
 
 ## crates/humanity-systems/src/construction/
 
@@ -459,7 +459,7 @@
 
 - `away.rs` (597): Automated machines through the time the player was away (offline progression, 2026-09-27; docs/design/offline-progression.md). Main items: AwayWork, AwayReport, day_power_balance, meter_away_reactor, hand_over, take, machines_present, join_list (+2 more).
 - `home_store.rs` (195): A hand craft draws on the home's storage too (BUG-147, 2026-10-04). Main items: Draw, HomeStore, register, not_here_reason, words, send_to_storage, HOME_STORAGE_HERE, HAND_MADE_TO_STORAGE.
-- `mod.rs` (3343): Crafting system, recipe validation, crafting queue, and output production. Main items: Recipe, RecipeRegistry, CraftSave, ActiveCraft, CraftRequest, CraftingSystem, register.
+- `mod.rs` (3354): Crafting system, recipe validation, crafting queue, and output production. Main items: Recipe, RecipeRegistry, CraftSave, ActiveCraft, CraftRequest, CraftingSystem, register.
 - `quality.rs` (218): Quality grades for crafted goods (2026-09-26; crafting depth, the last item of the gameplay arc's step 5, docs/design/gameplay-gaps-2026-09-25.md). Main items: QualityLevel, QualityLevels, skill_factor, score, load, BEGINNER_FACTOR.
 - `tools.rs` (198): Hand tools a craft needs (2026-09-26; crafting depth, rung 1 of the gameplay arc, docs/design/gameplay-gaps-2026-09-25.md). Main items: ToolRule, ToolRules, load.
 - `workstations.rs` (14): Crafting stations, each station type unlocks specific recipe categories. Main items: WorkstationDef.
@@ -494,7 +494,7 @@
 - `mod.rs` (4797): Farming system -- crop growth simulation driven by time, water, and plant data. Main items: PlantDef, PlantRegistry, FarmingSystem, Shared, SharedFarm, is_field_area, light_growth_rate, stage_from_progress (+15 more).
 - `outlook.rs` (338): A crop's wait and its water, in plain words (2026-10-12, first-hour audit F11). Main items: WaterSupply, CropOutlook, OutlookView, ripe_in_game_s, duration_words, wait_words, outlook, words_hold_until (+1 more).
 - `pests.rs` (1706): Garden pests and integrated pest management (2026-09-26, gardening depth). Main items: ControlKind, Condition, PestDef, ControlDef, PestData, CropConditions, ControlOutcome, CoverRow (+21 more).
-- `picking.rs` (809): Crops picked over a season, not harvested once (2026-09-26, gardening depth). Main items: Mode, Harvest, CropHarvest, HarvestWindows, Plan, Taken, Leaving, Picking (+25 more).
+- `picking.rs` (820): Crops picked over a season, not harvested once (2026-09-26, gardening depth). Main items: Mode, Harvest, CropHarvest, HarvestWindows, Plan, Taken, Leaving, Picking (+25 more).
 - `pollination.rs` (2063): Pollination decides how much fruit and seed a crop sets (2026-09-26, gardening depth). Main items: Request, PollinatedBy, CropPollinationDef, DeviceDef, PollinationData, Colony, Help, Pollination (+25 more).
 - `soil_ph.rs` (897): Soil pH (2026-09-26, gardening depth: the next rung of the soil model). Main items: PhUnits, SoilPhData, PhMedium, SoilDef, FertilizerAcidity, Amendment, YieldRow, PhRuntime (+29 more).
 - `soil.rs` (1181): Plant nutrients as N, P2O5 and K2O (2026-09-26, gardening depth rung 3). Main items: Nutrient, NutrientData, OrganicRelease, DemandAnchor, FertilizerDef, FertilizerDose, expected_harvest_kg, season_need (+29 more).

@@ -522,6 +522,10 @@ pub struct FoodSystem {
     /// What a bite or a burn leaves and how a body heals by itself (first-hour audit S8,
     /// `systems::wounds`, data/medical/wounds.ron).
     wounds: crate::wounds::Wounds,
+    /// The illness a raw or spoiled meal can bring and a wound going bad, drawn from the run's
+    /// seed when it set one (BUG-333, `sim_seed::Stream`): rolled on the thread's own generator,
+    /// the routine soak's person fell ill in some runs and not others.
+    draws: crate::sim_seed::Stream,
 }
 
 impl FoodSystem {
@@ -599,6 +603,7 @@ impl FoodSystem {
             illnesses,
             treatments,
             wounds,
+            draws: crate::sim_seed::Stream::new(crate::sim_seed::FOOD),
         }
     }
 
@@ -662,7 +667,7 @@ impl FoodSystem {
     /// keeps (BUG-162, `Illnesses::drink_kept`), and falling ill tells the
     /// player what is happening and what helps (on `data`'s notice channel).
     fn consume(
-        &self,
+        &mut self,
         world: &mut hecs::World,
         item_id: &str,
         how: Consume,
@@ -684,6 +689,8 @@ impl FoodSystem {
         }
         let calories = profile.calories_per_100g as f32;
         let risk = profile.raw_consumption_risk;
+        // Its own copy, so the illness roll below can draw on the system's stream (BUG-333).
+        let profile_id = profile.id.clone();
         // What one of it carries (2026-10-20): its grams' food energy and
         // water (`portion_g`). A cup is not a jug, a cucumber waters you more
         // than a loaf, and a loaf feeds you more than a cucumber.
@@ -748,7 +755,8 @@ impl FoodSystem {
             // Spoiled food always poisons; otherwise raw food risks illness while
             // cooked/preserved food (risk 0) is safe.
             // Illness and injury Off (2026-11-11): spoiled or raw food never makes anyone ill.
-            if fx.illness_mode != crate::illness::Mode::Off && (is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk)) {
+            // The roll is the system's own stream, from the run's seed when it set one (BUG-333).
+            if fx.illness_mode != crate::illness::Mode::Off && (is_spoiled || (risk > 0.0 && rand::Rng::random::<f32>(self.draws.rng(data)) < risk)) {
                 let already = effects.has("food_poisoning");
                 log::info!(
                     "[Food] {item_id} consumed {} -> food poisoning{}",
@@ -792,7 +800,7 @@ impl FoodSystem {
             log::info!(
                 "[Food] {} {item_id} ({}): satiation {:.0}/{:.0}, hydration {:.0}/{:.0}",
                 if how == Consume::Drink { "drank" } else { "ate" },
-                profile.id,
+                profile_id,
                 vitals.satiation,
                 vitals.satiation_max,
                 vitals.hydration,
@@ -1364,7 +1372,8 @@ impl System for FoodSystem {
             // Wounds that go bad as this step passes, the wounds that heal, and
             // the care kept as long as the wounds it covers (systems::wounds).
             let step_s = |id: &str| f64::from(step(id));
-            self.wounds.going_bad(effects, registry, illness_mode, step_s, rand::random::<f32>, &mut wound_tick);
+            let draws = &mut self.draws;
+            self.wounds.going_bad(effects, registry, illness_mode, step_s, || rand::Rng::random::<f32>(draws.rng(data)), &mut wound_tick);
             if ctrl.is_some() {
                 passed.append(&mut wound_tick.notices);
                 passed.extend(self.wounds.healed(effects, step_s));
@@ -1791,6 +1800,47 @@ mod nutrition_tests {
             !effects.has("food_poisoning"),
             "cooked/preserved food (risk 0) never poisons"
         );
+    }
+
+    /// Which of 48 bites of raw meat (raw_consumption_risk 0.4) made the eater ill, the run's seed
+    /// set to `seed` (`sim_seed::SLOT`, as the soak sets it) or left out (the windowed game).
+    fn raw_bites(seed: Option<u64>) -> Vec<bool> {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        if let Some(s) = seed {
+            data.insert(crate::sim_seed::SLOT, s);
+        }
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("raw_meat_0", 48, 99);
+        let player = world.spawn((inv, vitals(40.0, 80.0), StatusEffects::default(), Health::default()));
+        (0..48)
+            .map(|_| {
+                *data.get::<std::sync::Mutex<Option<String>>>("consume_request").unwrap().lock().unwrap() = Some("raw_meat_0".to_string());
+                sys.tick(&mut world, 1.0, &data);
+                let mut fx = world.get::<&mut StatusEffects>(player).unwrap();
+                let ill = fx.has("food_poisoning");
+                fx.remove("food_poisoning");
+                ill
+            })
+            .collect()
+    }
+
+    /// THE ILLNESS A RAW MEAL CAN BRING IS DRAWN FROM THE RUN'S SEED (BUG-333, 2026-11-20): a run
+    /// that sets its seed (the soak, the step ladder) makes the same bites ill every time, so the
+    /// headless routine soak repeats; another seed draws other bites; and the windowed game, which
+    /// sets none, keeps drawing from the operating system's entropy, as before.
+    ///
+    /// Seen red 2026-11-20 before the fix, the roll on the thread's shared generator
+    /// (`rand::random`), which no seed reaches: "two runs of one seed made different bites ill",
+    /// left `[false, true, false, false, true, true, false, true, ...]`, on both runs it was given.
+    #[test]
+    fn a_seeded_runs_raw_meals_make_the_same_bites_ill() {
+        let a = raw_bites(Some(7));
+        assert!(a.iter().any(|&ill| ill) && a.iter().any(|&ill| !ill), "48 bites at a 0.4 risk were all alike: {a:?}");
+        assert_eq!(a, raw_bites(Some(7)), "two runs of one seed made different bites ill");
+        assert_ne!(a, raw_bites(Some(8)), "two seeds made the same bites ill: the seed does not reach the roll");
+        assert_ne!(raw_bites(None), raw_bites(None), "two runs with no seed made the same bites ill: the windowed game lost its entropy");
     }
 
     /// Eating a SPOILED item (its stack's clock past its time, §3 of tick())

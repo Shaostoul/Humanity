@@ -502,6 +502,9 @@ pub struct CraftingSystem {
     pending_requests: Vec<CraftRequest>,
     /// Active crafts being timed.
     active_crafts: Vec<ActiveCraft>,
+    /// The random spread in a hand-made item's grade, drawn from the run's seed when it set one
+    /// (BUG-333, `sim_seed::Stream`).
+    draws: crate::sim_seed::Stream,
 }
 
 impl CraftingSystem {
@@ -509,6 +512,7 @@ impl CraftingSystem {
         Self {
             pending_requests: Vec::new(),
             active_crafts: Vec::new(),
+            draws: crate::sim_seed::Stream::new(crate::sim_seed::CRAFTING),
         }
     }
 
@@ -559,8 +563,10 @@ impl CraftingSystem {
 
     /// The grade a hand craft of `recipe` by `crafter` comes out at (0 when no
     /// grades are loaded): the crafter's level in the recipe's skill against
-    /// that skill's max level, plus manufacturing.ron's random spread.
-    fn craft_quality(world: &hecs::World, data: &DataStore, recipe: &Recipe, crafter: hecs::Entity) -> u8 {
+    /// that skill's max level, plus manufacturing.ron's random spread, drawn from `rng` (the
+    /// system's stream, from the run's seed when it set one: BUG-333).
+    fn craft_quality(world: &hecs::World, data: &DataStore, recipe: &Recipe, crafter: hecs::Entity, rng: &mut rand::rngs::StdRng) -> u8 {
+        use rand::Rng;
         let Some(levels) = data.get::<quality::QualityLevels>("quality_levels") else { return 0 };
         if levels.levels.is_empty() {
             return 0;
@@ -578,7 +584,7 @@ impl CraftingSystem {
             ),
             None => (1, 1),
         };
-        levels.grade_for(quality::score(quality::skill_factor(level, max), rand::random::<f32>()))
+        levels.grade_for(quality::score(quality::skill_factor(level, max), rng.random::<f32>()))
     }
 
     /// Why the station type `machine_type` cannot work right now, or None when
@@ -1421,6 +1427,7 @@ impl System for CraftingSystem {
                         false,
                         to_home,
                         crate::notices::reply,
+                        self.draws.rng(data),
                     );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
@@ -1577,6 +1584,7 @@ impl System for CraftingSystem {
                             craft.auto && to_storage,
                             hand_to_home,
                             crate::notices::world,
+                            self.draws.rng(data),
                         );
                         log::debug!("Craft complete: {}", recipe.id);
                     }
@@ -1696,8 +1704,10 @@ impl CraftingSystem {
         // Where what it says goes (BUG-258, crate::notices): a reply for an instant craft the
         // person just pressed, the world's own line for a craft that finished in time.
         say: fn(&DataStore, String),
+        // The system's stream, for a hand craft's grade (BUG-333).
+        rng: &mut rand::rngs::StdRng,
     ) {
-        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say);
+        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say, rng);
         Self::on_craft_complete(data, recipe, graded);
     }
 
@@ -1714,6 +1724,7 @@ impl CraftingSystem {
         to_storage: bool,
         overflow_home: bool,
         say: fn(&DataStore, String),
+        rng: &mut rand::rngs::StdRng,
     ) -> Option<f32> {
         // The hand craft's grade as a 0..1 quality, for the skill XP it teaches (skills.md
         // section 3: a good result teaches more than a careless one). None: not graded.
@@ -1796,7 +1807,7 @@ impl CraftingSystem {
             } else if !inv_recipe.outputs.is_empty() {
                 // A hand craft's durable goods are graded by the crafter's
                 // skill (2026-09-26, crafting::quality).
-                let grade = Self::craft_quality(world, data, recipe, target);
+                let grade = Self::craft_quality(world, data, recipe, target, rng);
                 graded = data.get::<quality::QualityLevels>("quality_levels").and_then(|l| l.fraction(grade));
                 let left = match world.get::<&mut Inventory>(target) {
                     Ok(mut inv) => Self::produce_outputs(&mut inv, &inv_recipe, item_registry, grade),

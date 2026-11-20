@@ -349,3 +349,102 @@ fn the_soak_shows_each_practice_try_and_its_value() {
     let text = sim_soak::practice_text(&all);
     assert!(text.contains("farming harvest.vegetable_lettuce_0: #1 x1.50 (15/10), #2 x1.00 (10/10), #3 x0.75 (8/10), #4 x0.56 (6/10)"), "the report shows the curve:\n{text}");
 }
+
+// -- BUG-333: the routine soak repeats, in one process and across two ------------------------------
+
+/// Everything a run decides, one line per thing, exactly (an f64's Debug form round-trips), the
+/// wall times left out: what two runs of one seed must share, line for line.
+fn decided(span: &sim_soak::Span) -> Vec<String> {
+    let mut out = vec![format!("start {:?}", span.start), format!("first {:?}", span.first)];
+    out.extend(span.marks.iter().map(|(t, o)| format!("mark {t:?} {o:?}")));
+    out.push(format!("end {:?}", span.end));
+    out.push(format!("steps {}", span.steps));
+    out.push(format!("death {:?}", span.death));
+    out.extend(span.notices.iter().map(|n| format!("notice {n:?}")));
+    out.push(format!("routine {:?}", span.routine));
+    out
+}
+
+/// The daily routine's seven-day soak (`--sim soak --routine daily`): the safe step, the
+/// tolerances file's seed, read at the end of each day.
+fn routine_soak() -> Vec<String> {
+    let tol = tolerances();
+    decided(&sim_soak::run_span(&data_dir(), tol.seed, tol.safe_step_s, 7.0 * DAY_S, Some(DAY_S), Some(&daily())))
+}
+
+/// Where two runs' lines first part, in words (None when they match): the first differing line
+/// from just before the point it parts, and the notices only one of the runs had.
+fn first_parting(a: &[String], b: &[String]) -> Option<String> {
+    let at = (0..a.len().max(b.len())).find(|&i| a.get(i) != b.get(i))?;
+    let differ = (0..a.len().max(b.len())).filter(|&i| a.get(i) != b.get(i)).count();
+    let (x, y) = (a.get(at).map_or("(no line)", String::as_str), b.get(at).map_or("(no line)", String::as_str));
+    let same = x.chars().zip(y.chars()).take_while(|(p, q)| p == q).count();
+    let from = same.saturating_sub(40);
+    let clip = |s: &str| format!("{}{}", if from > 0 { "..." } else { "" }, s.chars().skip(from).take(160).collect::<String>());
+    let only = |p: &[String], q: &[String]| p.iter().filter(|l| l.starts_with("notice ") && !q.contains(l)).take(4).cloned().collect::<Vec<_>>();
+    Some(format!(
+        "{differ} of {} lines differ ({} then {} lines); the first, line {}:\n  {}\nthen\n  {}\nnotices only the first run had: {:?}\nnotices only the second run had: {:?}",
+        a.len().max(b.len()),
+        a.len(),
+        b.len(),
+        at + 1,
+        clip(x),
+        clip(y),
+        only(a, b),
+        only(b, a)
+    ))
+}
+
+/// The environment variable that turns `the_routine_soak_in_a_process_of_its_own` on: the file it
+/// writes its run's lines to.
+const REPEAT_CHILD: &str = "HUMANITY_SOAK_REPEAT_CHILD";
+
+/// THE ROUTINE SOAK REPEATS (BUG-333, 2026-11-20): the daily routine's seven days, run twice in
+/// this process and once in a process of its own, decide the same thing to the last bit: every
+/// day's state, every notice, every act. The headless runner's promise is "same inputs, same
+/// result"; a rig that judges a run that does not repeat judges luck. A second process starts its
+/// thread generators and its hash maps' keys afresh, so a draw or an order that is fixed within a
+/// process and not across processes is caught too.
+///
+/// Seen red 2026-11-20 before the fix (the illness a raw meal can bring was rolled on the thread's
+/// unseeded generator, food.rs, so the home storage's rice poisoned some runs and not others), on
+/// every run it was given: "two runs of the routine soak in one process part: 27 of 46 lines
+/// differ (46 then 44 lines); the first, line 4: ... \"vitals.hydration\": 85.29580688476563 ...
+/// then ... \"vitals.hydration\": 94.79166412353516 ...; notices only the first run had: [\"Something
+/// you ate has made you ill: Food Poisoning. ...\", \"The Food Poisoning has passed. ...\"]" (line 4
+/// is the end of day 2).
+#[test]
+fn the_routine_soak_repeats_in_one_process_and_across_two() {
+    let a = routine_soak();
+    let b = routine_soak();
+    if let Some(why) = first_parting(&a, &b) {
+        panic!("two runs of the routine soak in one process part: {why}");
+    }
+    // The same run in a process of its own: this test program, asked for the child test alone.
+    let out = std::env::temp_dir().join(format!("hos-soak-repeat-{}.txt", std::process::id()));
+    let _ = std::fs::remove_file(&out);
+    let name = format!("{}::the_routine_soak_in_a_process_of_its_own", module_path!().split_once("::").map_or(module_path!(), |(_, rest)| rest));
+    let status = std::process::Command::new(std::env::current_exe().expect("this test program's path"))
+        .args([name.as_str(), "--exact", "--ignored", "--test-threads=1", "-q"])
+        .env(REPEAT_CHILD, &out)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .expect("run this test program again");
+    assert!(status.success(), "the routine soak in a process of its own ({name}) failed: {status}");
+    let text = std::fs::read_to_string(&out).unwrap_or_else(|e| panic!("the child process wrote no run to {}: {e}", out.display()));
+    let _ = std::fs::remove_file(&out);
+    let c: Vec<String> = text.lines().map(str::to_string).collect();
+    if let Some(why) = first_parting(&a, &c) {
+        panic!("the routine soak in this process and in a process of its own part: {why}");
+    }
+}
+
+/// The child half of `the_routine_soak_repeats_in_one_process_and_across_two`: one run of the
+/// routine soak, its lines written to the file `REPEAT_CHILD` names. Ignored, and doing nothing
+/// without that variable, so only the parent test runs it.
+#[test]
+#[ignore = "the child half of the_routine_soak_repeats_in_one_process_and_across_two, which runs it in a process of its own"]
+fn the_routine_soak_in_a_process_of_its_own() {
+    let Some(out) = std::env::var_os(REPEAT_CHILD) else { return };
+    std::fs::write(&out, routine_soak().join("\n")).expect("write the child run's lines");
+}

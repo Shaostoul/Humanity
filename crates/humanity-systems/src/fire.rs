@@ -113,6 +113,9 @@ pub struct FireSystem {
     carry: HashMap<hecs::Entity, f64>,
     /// What it has held back from each fire's intensity and fuel.
     fire_carry: HashMap<hecs::Entity, FireCarry>,
+    /// Whether a fire spreads to its neighbour, drawn from the run's seed when it set one
+    /// (BUG-333, `sim_seed::Stream`).
+    draws: crate::sim_seed::Stream,
 }
 
 impl FireSystem {
@@ -135,17 +138,23 @@ impl FireSystem {
             "Loaded fire data: {} ignition sources, {} behaviors",
             data.ignition_sources.len(), data.fire_behaviors.len()
         );
-        Self { data, pending_ignitions: Vec::new(), carry: HashMap::new(), fire_carry: HashMap::new() }
+        Self {
+            data,
+            pending_ignitions: Vec::new(),
+            carry: HashMap::new(),
+            fire_carry: HashMap::new(),
+            draws: crate::sim_seed::Stream::new(crate::sim_seed::FIRE),
+        }
     }
 }
 
 impl System for FireSystem {
     fn name(&self) -> &str { "FireSystem" }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         if dt <= 0.0 { return; }
         let dt = f64::from(dt);
-        let mut rng = rand::rng();
+        let rng = self.draws.rng(data);
 
         // Apply pending ignitions from previous tick (deferred to avoid alias).
         for (entity, fuel) in self.pending_ignitions.drain(..) {
