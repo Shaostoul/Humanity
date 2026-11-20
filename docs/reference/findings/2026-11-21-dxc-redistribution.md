@@ -8,6 +8,15 @@ primary sources, not by a lawyer. Where a step needs a lawyer it says so.
 copies it ships today, what notice must travel with them, and if not, where can a copy the project may
 redistribute come from?
 
+**Update, 2026-11-20 (Pacific), after the release zip was read** (section 7): DXC's own release zip
+carries a Microsoft licence titled for the whole compiler, beside the open-source one, and does not say
+which file each covers. So option A below no longer gives an unambiguous answer. The project now builds
+the pair itself from DXC's open source (option C, once per DXC version rather than on every release:
+`.github/workflows/build-dxc.yml`, published as the asset release `assets-dxc-<tag>`), and ships
+DXC's LICENSE.TXT beside each file. The operator approved downloading the zip and option A on
+2026-11-20; the move from A to C was the orchestrator's call the same day, on what the zip showed, and
+he was told.
+
 ## The short answer
 
 - **The copies we ship today may not be redistributed as we ship them.** The workflow copies them from
@@ -193,18 +202,49 @@ in two pieces, rejoined here); the SDK licence was also read in its installed co
   `dxcompiler.dll` to be shipped with the application." and "Minimum supported version: v1.8.2502". It
   names no `dxil.dll`.
 
+### 7. The release zip itself (read 2026-11-20, about 12:30 Pacific)
+
+- **The file:** `dxc_2026_09_29.zip` from <https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2609>
+  (published 2026-09-29T16:56:40Z), 32,287,592 bytes, downloaded with the operator's yes. Its SHA-256,
+  `ad31b1fc8443175d204f77a611fdb3ef2ec42759bdc2f1167368de24a4a7e7f1`, matches the digest GitHub lists
+  for the asset.
+- **What it holds:** `bin/{x64,x86,arm64}/` with `dxc.exe`, `dxcompiler.dll`, `dxil.dll` and `dxv.exe`;
+  `inc/` (headers, `d3d12shader.h` among them); `lib/`; and three licence files at the top:
+  `LICENSE-LLVM.txt` (1,979 bytes), `LICENCE-MIT.txt` (1,093 bytes, "Copyright (c) Microsoft
+  Corporation." and the MIT terms) and `LICENSE-MS.txt` (13,163 bytes). **Nothing in the zip says
+  which licence covers which file**: no README, no table, no distributables list.
+- **LICENSE-MS.txt** is headed "MICROSOFT SOFTWARE LICENSE TERMS" and "MICROSOFT DIRECTX SHADER
+  COMPILER", and says the terms "apply to the software named above". On distribution it allows only
+  "the object code form of the software listed in the distributables file list in the software" (the
+  zip has no such list), and for any code distributed requires you to "require distributors and
+  external end users to agree to terms that protect it and Microsoft at least as much as this
+  agreement" and to "indemnify, defend, and hold harmless Microsoft from any claims, including
+  attorneys’ fees, related to the distribution or use of your applications". Outside distributable
+  code you may not "share, publish, distribute, or lease the software".
+- **The x64 DLLs' own properties** (Windows file version information): both are version 1.9.2609.5,
+  product "Microsoft(r) DirectX for Windows(r) - Out Of Band", copyright "(c) Microsoft Corporation.
+  All rights reserved.". Neither names a licence.
+- **Against that**, Microsoft's NuGet package of the same version (1.9.2609.5, section 5) gives a table
+  that assigns every file but `d3d12shader.h` to the LLVM licence, and Microsoft's vcpkg port installs
+  this same zip's `dxil.dll` with only the repository's LICENSE.TXT. So Microsoft's own statements
+  disagree with what travels in the zip, and the zip is the copy a downloader would receive.
+- **What this settles:** shipping the zip's pair would rest on reading the NuGet table over the
+  licence in the zip itself. We do not ship on that reading. Building the pair from DXC's source (NCSA
+  alone, sections 4 and 5) needs no reading at all: done from 2026-11-20 by
+  `.github/workflows/build-dxc.yml`.
+
 ## What is still unknown, and what would settle it
 
 - **The licence files inside DXC's release zip** (`dxc_2026_09_29.zip` from the v1.9.2609 release).
   Everything readable points to NCSA for every file in it (the NuGet table since 1.8.2502, the open
   `dxildll` source, vcpkg installing only LICENSE.TXT), but whether the zip still carries a
-  LICENSE-MS.txt for its `dxil.dll` was not read. Settled by downloading that one archive (from
-  <https://github.com/microsoft/DirectXShaderCompiler/releases/tag/v1.9.2609>, its size shown there)
-  and reading its licence files: free, and needs the operator's yes for the download.
+  LICENSE-MS.txt for its `dxil.dll` was not read. **Read on 2026-11-20 (section 7): it does carry
+  LICENSE-MS.txt, titled for the whole compiler, with no statement of which files it covers.** Not
+  settled by the zip, and moot for us once we build the pair ourselves.
 - **Whether the release's `dxil.dll` is the open build** of `tools/clang/tools/dxildll` or a separately
-  built, signed Microsoft binary. The same download settles most of it (its licence files and its
-  file properties); a question on the DXC issue tracker would settle it for certain. Free. It matters
-  only if we keep shipping `dxil.dll` (option B below removes it).
+  built, signed Microsoft binary. The zip's file properties do not say (section 7); a question on the
+  DXC issue tracker would settle it for certain. Moot for us once we build the pair ourselves, and
+  option B below removes `dxil.dll` altogether.
 - **Whether a byte-different copy of a listed file is "the file listed"** (our tools-folder copy is the
   same version as the listed Redist copy). A lawyer's question, and moot once we take the files from a
   source that is plainly redistributable.
