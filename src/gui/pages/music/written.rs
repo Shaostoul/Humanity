@@ -51,6 +51,11 @@ pub(super) fn written(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, ac
                     ui.label(RichText::new(now).color(accent));
                 }
             });
+            // Where the piece came from, beside it (the finding's courtesy credit: the edition, and the
+            // typesetter who placed the file in the public domain).
+            if let Some(credit) = super::credit_words(e) {
+                ui.label(RichText::new(credit).color(theme.text_muted()).size(theme.font_size_small));
+            }
             if let Some((id, why)) = &failed {
                 if *id == e.id {
                     ui.label(RichText::new(t("music_page.written_error").replace("{{why}}", why)).color(theme.warning()));

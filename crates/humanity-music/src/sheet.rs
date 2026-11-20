@@ -193,6 +193,24 @@ pub fn transcribe(res: &Resolved, seed: u64, ctx: &MusicContext, rate: f32, seco
 }
 
 impl Sheet {
+    /// A WRITTEN piece as the piano roll draws it (docs/design/score-player.md section 12, rung 2):
+    /// every note at its time and length in its staff's role (`roles`: staff and role, from the
+    /// piece's index; a staff it does not name is in no role, 255), a bar line at each bar's start,
+    /// the first bar's beats, and the piece's length. No chords or sections: a written piece names
+    /// none. Not on the audio thread (it allocates).
+    pub fn from_timeline(timeline: &crate::written::Timeline, roles: &[(u16, u8)]) -> Sheet {
+        let role_of = |staff: u16| roles.iter().find(|r| r.0 == staff).map(|r| r.1).unwrap_or(255);
+        let notes = timeline.notes.iter().map(|n| SheetNote { at_s: n.at_s, dur_s: n.dur_s as f32, midi: n.midi, role: role_of(n.staff), inst: 0, vel: n.vel }).collect();
+        Sheet {
+            notes,
+            bars: timeline.bars.iter().map(|b| b.at_s).collect(),
+            beats_per_bar: timeline.bars.first().map(|b| b.beats as u32).unwrap_or(4),
+            leads: [crate::tune::PIECE; 8],
+            seconds: timeline.length_s,
+            ..Sheet::default()
+        }
+    }
+
     /// The bar playing at `t` seconds (its index in `bars`), if any has begun.
     pub fn bar_at(&self, t: f64) -> Option<usize> {
         self.bars.iter().rposition(|&b| b <= t + 1e-9)

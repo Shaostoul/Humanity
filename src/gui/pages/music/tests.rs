@@ -237,3 +237,67 @@ fn the_written_pieces_list_plays_and_stops_a_piece() {
     assert!(state.settings.music.written.is_empty(), "Stop clears it");
     assert!(super::chosen(&state.settings.music, Some(&lib)).is_none(), "and the game chooses again, as before");
 }
+
+/// Filled rectangles a frame drew (the piano roll's notes are such).
+fn filled_rects(out: &egui::FullOutput) -> usize {
+    fn walk(s: &egui::Shape) -> usize {
+        match s {
+            egui::Shape::Rect(r) if r.fill != egui::Color32::TRANSPARENT => 1,
+            egui::Shape::Vec(v) => v.iter().map(walk).sum(),
+            _ => 0,
+        }
+    }
+    out.shapes.iter().map(|c| walk(&c.shape)).sum()
+}
+
+/// THE MUSIC PAGE CREDITS EACH WRITTEN PIECE AND DRAWS THE ONE PLAYING IN ITS PIANO ROLL
+/// (docs/design/score-player.md section 16, rung 2): each shipped piece whose index line names a credit
+/// shows those words just under its title (the edition and the typesetter, the dated finding's
+/// courtesy credit), and with Für Elise playing the roll paints its notes: at least one filled
+/// rectangle more for each note of its first four bars than the page paints with nothing written
+/// playing.
+///
+/// Seen RED 2026-11-20 with the credit line and the written piece's sheet both taken out of the page
+/// (`.filter(|_| false)` on each): "\"Für Elise\": no credit beside it", the same for the Mountain King and
+/// the symphony, and "the roll painted 0 rectangles more with Für Elise playing, its first four bars
+/// have 22 notes".
+#[test]
+fn the_music_page_credits_each_written_piece_and_draws_the_one_playing() {
+    let (mut state, lib) = music_state();
+    let theme = crate::gui::theme::load_theme();
+    let size = egui::vec2(1600.0, 6000.0);
+    let mut missing: Vec<String> = Vec::new();
+    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
+    let drawn = text_rects(&out);
+    let credited: Vec<_> = lib.scores.iter().filter(|e| !e.credit_words.is_empty()).collect();
+    assert!(credited.len() >= 3, "the three converted pieces name their credit");
+    for e in &credited {
+        let (title, _) = super::score_words(e);
+        let Some(credit) = super::credit_words(e) else {
+            missing.push(format!("{}: its credit key has no words", e.id));
+            continue;
+        };
+        let Some(t) = drawn.iter().find(|(x, _)| *x == title).map(|x| x.1) else {
+            missing.push(format!("{title:?} is not listed"));
+            continue;
+        };
+        match drawn.iter().find(|(x, _)| *x == credit).map(|x| x.1) {
+            Some(c) if c.top() >= t.bottom() - 1.0 && c.top() - t.bottom() < 40.0 => {}
+            Some(c) => missing.push(format!("{title:?}: its credit is drawn at {c:?}, not under the title at {t:?}")),
+            None => missing.push(format!("{title:?}: no credit beside it")),
+        }
+    }
+    let plain = filled_rects(&out);
+    let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let piece = Arc::new(humanity_music::scores::load_piece(&data, lib.score("fur_elise").expect("listed")).expect("it reads"));
+    let first_four = piece.timeline.bars.get(4).map(|b| b.at_s).unwrap_or(f64::MAX);
+    let notes = piece.timeline.notes.iter().filter(|n| n.at_s < first_four - 1e-9).count();
+    state.music_dev.readout.written = Some("fur_elise".into());
+    state.music_dev.readout.written_piece = Some(piece);
+    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
+    let with_piece = filled_rects(&out);
+    if with_piece < plain + notes {
+        missing.push(format!("the roll painted {} rectangles more with Für Elise playing, its first four bars have {notes} notes", with_piece.saturating_sub(plain)));
+    }
+    assert!(missing.is_empty(), "{missing:#?}");
+}

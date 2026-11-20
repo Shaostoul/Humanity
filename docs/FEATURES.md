@@ -3308,6 +3308,32 @@ stops a piece (`MusicSettings::written`), and Settings > Music says what plays i
   no allocation, the shipped score read with nothing skipped), `src/gui/pages/music/tests.rs`
   (`the_written_pieces_list_plays_and_stops_a_piece`)
 
+### The score player, rung 2: three public-domain pieces and how they are played (2026-11-20)
+Repeats and endings played in the order written (`|:`, `:|`, first and second endings, a run of
+endings ending the repeat), grace notes taking their time from the note after them (an appoggiatura
+half of it, a slashed one at most a 32nd, `grace.time` when given), octave lines moving the notes under
+them, fermatas holding their moment twice its length (the tempo map slows there), hairpins and "cresc."
+words moving the loudness to the next dynamic (or one step on), `sf`/`fp` accents, articulations
+(staccato held half, tenuto all, accents struck harder), measured tremolos playing their strokes, a
+staff's part (`data/music/parts.ron`) played on the best installed recording of it, and the written
+piece drawn in the Music page's piano roll. Three pieces converted from public-domain Mutopia
+Project LilyPond files with our own converter (`scripts/ly-to-mei.js`): Für Elise (Breitkopf 1888),
+Grieg's piano In the Hall of the Mountain King (University Society 1918) and the first movement of
+Beethoven's Symphony No. 5 (Breitkopf 1862-1865, twelve staves, 502 bars), each credited beside it on
+the Music page and in data/credits.ron.
+- Native: `crates/humanity-music/src/mei.rs` (repeats, graces, spans, fermatas, dynamics, tremolos),
+  `written.rs` (`TempoMap::with_holds`, held lengths), `sheet.rs` (`Sheet::from_timeline`),
+  `scores.rs` (parts, provenance, `written_parts`, `point_staves`), `src/instrument_packs/score.rs`
+  (`attach_with`), `src/engine/music.rs` (`build_with`), `src/gui/pages/music/view.rs` (the roll),
+  `src/gui/pages/music/written.rs` (the credit)
+- Data: `data/music/scores/fur_elise.mei`, `mountain_king.mei`, `beethoven_symphony5_1.mei`, their
+  lines in `index.ron`; `data/credits.ron` (Mutopia)
+- Tools: `scripts/ly-to-mei.js` and `scripts/ly-to-mei.pieces.json` (each source file's SHA-256)
+- Tests: `crates/humanity-music/src/tests_written2.rs` (each rung-2 element), `tests_scores.rs` (the
+  three pieces' bars, lengths and openings), `scripts/tests/ly-to-mei.test.js` (the converter),
+  `src/instrument_packs/library_tests.rs` (`a_written_staff_plays_the_recording_of_its_part`),
+  `src/gui/pages/music/tests.rs` (`the_music_page_credits_each_written_piece_and_draws_the_one_playing`)
+
 ### Sound levels: each shipped sound's own level (2026-11-06)
 Settings > Audio > "Sound levels": every sound the game ships (each `data/sounds.toml` entry whose
 file exists), grouped by kind, each with its name by key (`sound_names.<id>`), a level slider from

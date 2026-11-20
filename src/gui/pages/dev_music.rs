@@ -124,6 +124,9 @@ pub struct MusicReadout {
     /// last written piece asked for could not be read (the Music page says so beside its list).
     pub written: Option<String>,
     pub written_error: Option<(String, String)>,
+    /// The written piece itself, read and timed (the Music page's piano roll draws it; score-player.md
+    /// section 16, rung 2).
+    pub written_piece: Option<std::sync::Arc<humanity_music::scores::WrittenPiece>>,
 }
 
 /// The score's music memory, for the Dev page's line.

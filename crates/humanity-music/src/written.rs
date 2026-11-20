@@ -20,6 +20,12 @@ use crate::voice::NoteOn;
 /// The tempo before a file's first tempo mark, when its index line gives none: quarter notes a minute.
 pub const DEFAULT_QPM: f64 = 120.0;
 
+/// How many times its written length a fermata's moment lasts (score-player.md section 16, rung 2).
+pub const FERMATA_HOLD: f64 = 2.0;
+
+/// What a tenuto (held its full length) leaves between it and the next note, seconds.
+const TENUTO_GAP_S: f64 = 0.005;
+
 /// Seconds that `whole` whole notes last at `qpm` quarter notes a minute.
 fn secs(whole: Frac, qpm: f64) -> f64 {
     whole.to_f64() * 4.0 * 60.0 / qpm
@@ -34,15 +40,33 @@ pub struct TempoMap {
 impl TempoMap {
     /// From a score's tempo marks; `default_qpm` before the first (a mark at the very start replaces it).
     pub fn new(tempos: &[MeiTempo], default_qpm: f64) -> TempoMap {
+        TempoMap::with_holds(tempos, default_qpm, &[])
+    }
+
+    /// The same, with each fermata's moment (`holds`: start and written length, not overlapping)
+    /// played [`FERMATA_HOLD`] times as long: time slows there, so every note sounding is held and
+    /// everything after it comes later.
+    pub fn with_holds(tempos: &[MeiTempo], default_qpm: f64, holds: &[(Frac, Frac)]) -> TempoMap {
         let mut marks = tempos.to_vec();
         marks.sort_by(|a, b| a.at.cmp(&b.at));
-        let mut pts: Vec<(Frac, f64)> = vec![(Frac::ZERO, default_qpm.clamp(5.0, 1000.0))];
+        let mut base: Vec<(Frac, f64)> = vec![(Frac::ZERO, default_qpm.clamp(5.0, 1000.0))];
         for t in marks {
-            match pts.last_mut() {
+            match base.last_mut() {
                 Some(last) if last.0 == t.at => last.1 = t.qpm,
-                _ => pts.push((t.at, t.qpm)),
+                _ => base.push((t.at, t.qpm)),
             }
         }
+        let mut cuts: Vec<Frac> = base.iter().map(|p| p.0).chain(holds.iter().flat_map(|&(at, len)| [at, at.add(len)])).collect();
+        cuts.sort();
+        cuts.dedup();
+        let pts: Vec<(Frac, f64)> = cuts
+            .into_iter()
+            .map(|at| {
+                let q = base[base.partition_point(|p| p.0 <= at).max(1) - 1].1;
+                let held = holds.iter().any(|&(h, len)| at >= h && at < h.add(len));
+                (at, if held { q / FERMATA_HOLD } else { q })
+            })
+            .collect();
         let mut points = Vec::with_capacity(pts.len());
         let mut s = 0.0;
         for (i, &(at, qpm)) in pts.iter().enumerate() {
@@ -77,6 +101,8 @@ impl TempoMap {
 pub struct TimedNote {
     pub at_s: f64,
     pub dur_s: f64,
+    /// How long the player holds it before it lets go (its articulation, else [`hold_s`]'s rule).
+    pub hold_s: f32,
     pub midi: f32,
     pub vel: f32,
     pub staff: u16,
@@ -118,13 +144,19 @@ pub struct Timeline {
 impl Timeline {
     /// Time a read score at its tempo marks (`default_qpm` before the first).
     pub fn from_mei(score: &MeiScore, default_qpm: f64) -> Timeline {
-        let map = TempoMap::new(&score.tempos, default_qpm);
+        let map = TempoMap::with_holds(&score.tempos, default_qpm, &score.fermatas);
         let notes: Vec<TimedNote> = score
             .notes
             .iter()
             .map(|n| {
                 let at_s = map.seconds(n.at);
-                TimedNote { at_s, dur_s: map.seconds(n.at.add(n.dur)) - at_s, midi: n.midi, vel: n.vel, staff: n.staff }
+                let dur_s = map.seconds(n.at.add(n.dur)) - at_s;
+                let held = match n.hold {
+                    Some(f) if f >= 0.999 => (dur_s - TENUTO_GAP_S).max(0.01) as f32,
+                    Some(f) => (dur_s * f as f64).max(0.01) as f32,
+                    None => hold_s(dur_s),
+                };
+                TimedNote { at_s, dur_s, hold_s: held, midi: n.midi, vel: n.vel, staff: n.staff }
             })
             .collect();
         let syllables = score
@@ -250,7 +282,7 @@ impl WrittenPlayer {
             self.next += 1;
             let Some(v) = self.voices.iter().find(|v| v.staff == n.staff).copied() else { continue };
             self.tag = self.tag.wrapping_add(1).max(1);
-            sink.note_on(NoteOn { inst: v.inst, role: v.role, midi: n.midi, a4: self.a4, vel: n.vel, pan: v.pan, gate: 0.0, hold_s: hold_s(n.dur_s), tag: self.tag, level: v.level });
+            sink.note_on(NoteOn { inst: v.inst, role: v.role, midi: n.midi, a4: self.a4, vel: n.vel, pan: v.pan, gate: 0.0, hold_s: n.hold_s, tag: self.tag, level: v.level });
         }
     }
 

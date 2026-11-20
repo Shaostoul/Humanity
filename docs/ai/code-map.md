@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1606 Rust files (813,891 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,857 lines) under `web/`.
+1608 Rust files (815,109 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,863 lines) under `web/`.
 
 ## Folders
 
@@ -23,7 +23,7 @@
 - `crates/humanity-core/src/physics/` (2 files): Physics, Rapier3d world setup and stepping.
 - `crates/humanity-core/src/platform/` (2 files): Platform abstraction for native vs WASM.
 - `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
-- `crates/humanity-music/src/` (41 files)
+- `crates/humanity-music/src/` (43 files)
 - `crates/humanity-protocol/src/` (34 files)
 - `crates/humanity-ship/src/` (47 files)
 - `crates/humanity-ship/src/crowd_nav/` (7 files): CROWD NAVIGATION (rung 1, 2026-11-13; the whole plan is docs/design/crowd-navigation.md): people who walk somewhere, through doors, round...
@@ -245,9 +245,9 @@
 - `instrument.rs` (876): Instruments as data (docs/design/music.md, section 6): `data/music/instruments/<id>.ron`, one file per instrument. Main items: Instrument, InstrumentKind, DrumMachineSpec, DrumTone, DrumNoise, DrumMetal, EnvSpec, Wave (+32 more).
 - `intensity.rs` (97): Danger and action: the score rising with the game's intensity (docs/design/music.md, section 7b). Main items: Band, Gesture, IntensityMap, band_for.
 - `kira_sound.rs` (339): The score and the bed on the sound card: kira 0.12 `Sound`s over the pure engines (docs/design/music.md, section 4.2). Main items: ScoreSoundData, ScoreHandle, BedSoundData, BedHandle.
-- `lib.rs` (95): HumanityOS's live music and the ship's hum (docs/design/music.md; the crate card is docs/crates/humanity-music.md). Main items: session_seed.
+- `lib.rs` (99): HumanityOS's live music and the ship's hum (docs/design/music.md; the crate card is docs/crates/humanity-music.md). Main items: session_seed.
 - `library.rs` (231): The music's data, read from the data folder (on the game thread, never the audio thread): Main items: MusicLibrary, is_recorded_definition, load_wavetables, DEFAULT_GENRE, DEFAULT_MOOD.
-- `mei.rs` (1162): THE MEI READER (docs/design/score-player.md, sections 4 to 8; the operator, 2026-11-20: "MEI sounds right unless there's better"): written music stored as MEI, read into notes with exact times, sou... Main items: Frac, MeiStaff, MeiNote, WordPos, MeiSyllable, MeiTempo, MeiBar, MeiScore (+2 more).
+- `mei.rs` (1741): THE MEI READER (docs/design/score-player.md, sections 4 to 8; the operator, 2026-11-20: "MEI sounds right unless there's better"): written music stored as MEI, read into notes with exact times, sou... Main items: Frac, MeiStaff, MeiNote, WordPos, MeiSyllable, MeiTempo, MeiBar, MeiScore (+4 more).
 - `mood.rs` (224): Moods as data (docs/design/music.md, section 7): `data/music/moods/<id>.ron`. Main items: RoleKind, KeyCentre, ChordDef, RoleSpec, Pulse, Motif, Mood.
 - `osc.rs` (339): A synth's oscillators (docs/design/music.md sections 6 and 7f): the classic waves, and since rung E5 the PULSE with its width modulated, UNISON (seven saws detuned is the supersaw) and the WAVETABLE. Main items: OscBank, Plan, szabo_detune, szabo_mix, plan, fill, MAX_UNISON, SZABO_OFFSETS.
 - `piece.rs` (475): A PIECE: what one seed makes of a genre (docs/design/music.md section 7c; the operator, 2026-11-13: "Are we able to have like procedural seeds for music? Main items: GenMotif, Contour, RMotifRules, RGrammar, Section, Piece, mix, unit (+15 more).
@@ -255,10 +255,10 @@
 - `render.rs` (358): Offline rendering: the real engines, faster than real time, into memory and to a WAV file (`just music-render`, the tests). Main items: Rendered, WavWriter, render_score, fade_out, default_fade_s, export_favourite, render_bed, note_rms (+7 more).
 - `resolved.rs` (686): The library as the audio thread reads it: every name turned into an index, every note name into a MIDI number, every dB into an amplitude, and every drum pattern into velocities, once, on the game... Main items: RRole, RChord, RHarmony, RMood, RIntensity, RDrum, RStructure, RSection (+4 more).
 - `rng.rs` (90): The composer's and the voices' randomness: a seeded generator, so the same seed composes the same music note for note (tests, rigs and `HUMANITY_MUSIC_SEED`), and nothing allocates. Main items: Rng.
-- `score.rs` (638): The score: the composer, the voice pool, the reverb, the genre's recipe, the level and the limiter, rendering into a plain stereo buffer (docs/design/music.md, section 4.2). Main items: MusicContext, MusicStatus, ScoreEngine, band_hz, steer_of, BANDS, DUCK_DOWN_S, DUCK_UP_S.
-- `scores.rs` (161): THE WRITTEN PIECES as data (docs/design/score-player.md section 14): `data/music/scores/index.ron` lists them, each an MEI file beside it (crate::mei reads it, crate::written times and plays it). Main items: StaffSpec, ScoreEntry, WrittenPiece, index_path, load_index, load_piece.
+- `score.rs` (640): The score: the composer, the voice pool, the reverb, the genre's recipe, the level and the limiter, rendering into a plain stereo buffer (docs/design/music.md, section 4.2). Main items: MusicContext, MusicStatus, ScoreEngine, band_hz, steer_of, BANDS, DUCK_DOWN_S, DUCK_UP_S.
+- `scores.rs` (212): THE WRITTEN PIECES as data (docs/design/score-player.md section 14): `data/music/scores/index.ron` lists them, each an MEI file beside it (crate::mei reads it, crate::written times and plays it). Main items: StaffSpec, ScoreEntry, WrittenPiece, index_path, load_index, load_piece, written_parts, point_staves.
 - `settings.rs` (93): The person's music settings (Settings > Music, docs/design/music.md section 15), saved in the app's config.json as one `music` object. Main items: MusicSettings.
-- `sheet.rs` (294): THE SHEET: a piece written down (docs/design/music-page.md section 9). Main items: SheetNote, SheetChord, SheetSection, Sheet, RollNote, transcribe, key_uses_flats, pc_name (+1 more).
+- `sheet.rs` (312): THE SHEET: a piece written down (docs/design/music-page.md section 9). Main items: SheetNote, SheetChord, SheetSection, Sheet, RollNote, transcribe, key_uses_flats, pc_name (+1 more).
 - `stream.rs` (476): Streaming long recordings from disk while a note plays (docs/design/music.md section 23, "Memory", built 2026-11-14). Main items: StreamSettings, FrameSource, SourceOpener, StreamPool, ZoneStream, StreamLease, RingView, Service (+2 more).
 - `tests_audio.rs` (916): The music crate's tests that render sound and measure it: tuning in the rendered audio, the steel pan's and the deep drum's partials and decay, the hum (off the ship, near the drive, in a small roo... Main items: heavy.
 - `tests_cost.rs` (131): Measuring the audio thread's cost per 128-frame block so that a loaded machine does not fail a budget the engine meets (2026-11-15). Main items: BlockCost, fastest_blocks, time_blocks, voice_blocks, calm_blocks, scale_of, CALM_QUIET_MS.
@@ -267,13 +267,15 @@
 - `tests_electronic.rs` (586): The electronic rungs (docs/design/music.md section 7d; the research's rungs E1 and E2, 2026-11-13): a genre's structure (sections, builds, snare rolls, the drop) and the bass toolkit (a two-stage f... Main items: power, band_onsets.
 - `tests_page.rs` (327): The Music page's crate half (docs/design/music-page.md): favourites saved and loaded, share codes, the export, the piano roll and the chord symbols, each against an independent reading.
 - `tests_piece.rs` (286): Pieces: variety by seed (docs/design/music.md section 7c; the operator, 2026-11-13: "we don't want the same electro swing song for hours on end, we definitely want variety to the music.
+- `tests_scores.rs` (111): The three public-domain pieces the score player ships (docs/design/score-player.md section 16, rung 2; converted by scripts/ly-to-mei.js from the Mutopia Project files the dated finding allows: doc...
 - `tests_stream.rs` (350): Streaming long recordings (crate::stream; docs/design/music.md section 23, "Memory"): the packet reader against kira's decode, a streamed note against the whole-file note, a stream that falls behin...
-- `tests_written.rs` (532): The score player's tests (docs/design/score-player.md; crate::mei, crate::written, crate::scores): the MEI reader on small MEI snippets, one element at a time, against values worked out by hand (a...
+- `tests_written.rs` (552): The score player's tests (docs/design/score-player.md; crate::mei, crate::written, crate::scores): the MEI reader on small MEI snippets, one element at a time, against values worked out by hand (a... Main items: mei_in, mei, bar, q.
+- `tests_written2.rs` (216): The score player's RUNG 2 (docs/design/score-player.md section 16): repeats and endings, grace notes, octave lines, fermatas, hairpins and accents, articulations, and the written piece in the piano...
 - `tune.rs` (104): TUNING A PIECE (docs/design/music-page.md section 6): what a person may change about a piece on the Music page without changing which piece it is. Main items: Tune, PIECE, ROLES, ROLE_IDS, NARROW_TEMPO_SPAN.
 - `tuning.rs` (215): Pitch: the ONE place a frequency is made (docs/design/music.md, section 9). Main items: Tuning, Mode, note_hz, note_hz_f64, pitch_class, parse_note, note_name, scale_step (+2 more).
 - `voice.rs` (1378): The voice pool: 64 voices made once, each a note being played by one instrument kind. Main items: BlockParams, FxBuses, NoteOn, Voice, VoicePool, MAX_VOICES.
 - `wavetable.rs` (282): The wavetable (docs/design/music.md section 7f, rung E5): single-cycle waves (the core set's AKWF waves, `data/music/waves/`, or an installed pack's) read band-limited, so a high note never aliases... Main items: WaveTable, read_wav_cycle, find_wave, load.
-- `written.rs` (301): A WRITTEN PIECE, timed and played (docs/design/score-player.md sections 7, 10 and 11). Main items: TempoMap, TimedNote, TimedBar, TimedSyllable, Timeline, StaffVoice, WrittenPlayer, hold_s (+1 more).
+- `written.rs` (333): A WRITTEN PIECE, timed and played (docs/design/score-player.md sections 7, 10 and 11). Main items: TempoMap, TimedNote, TimedBar, TimedSyllable, Timeline, StaffVoice, WrittenPlayer, hold_s (+2 more).
 - tests: `tests.rs`
 
 ## crates/humanity-protocol/src/
@@ -744,7 +746,7 @@
 - `mod.rs` (398): Satellites of the native app's main module, extracted from lib.rs (v0.932, tiers A+B of docs/dev/code-structure-plan.md).
 - `move_check.rs` (725): The game's half of the relay's speed check (increment 4 of docs/design/ship-homes-and-logistics.md, "getting around at ship scale"; the relay's half is src/relay/handlers/move_check.rs). Main items: Correction, ScriptedWalk, WalkPose, ClientMoves, declare, teleport_rearm, teleporter_tick, teleport_landing (+13 more).
 - `movie.rs` (863): MOVIE MODE: record the live view to a video file, frame-exact (2026-09-30, the clip maker, `scripts/make-clips.js`). Main items: Key, RecordSpec, Recorder, Incoming, ease, pose_at, descend_mps, ffmpeg_args (+12 more).
-- `music.rs` (1071): The game's live music and the ship's hum, wired into the frame (docs/design/music.md, rungs 1 to 4 and section 7b; the engine is crates/humanity-music). Main items: Hearing, Inputs, Gains, Here, Built, ScorePlay, BedPlay, Mixer (+17 more).
+- `music.rs` (1097): The game's live music and the ship's hum, wired into the frame (docs/design/music.md, rungs 1 to 4 and section 7b; the engine is crates/humanity-music). Main items: Hearing, Inputs, Gains, Here, Built, ScorePlay, BedPlay, Mixer (+18 more).
 - `near_tree_models.rs` (504): Near-tree MODEL CACHE: the one-time build/parse of every tree mesh the near field can draw, plus the sprite-atlas bake that gives the far cards the same trees (extracted from lib.rs, v0.1108). Main items: ensure_near_tree_models, failed_model_retry_due, FAILED_MODEL_RETRY_S.
 - `neighbour_gardens.rs` (381): NEIGHBOURS' GARDENS DRAWN (2026-11-14, the Row Street follow-up, docs/design/home-room-program.md section 10). Main items: Bed, key, design_beds, garden_job, neighbour_kinds, jobs, bed_key, bed_boxes (+8 more).
 - `neighbour_rooms.rs` (316): NEIGHBOURS' ROOMS LIT IN YOUR GAME (2026-11-14, the Row Street follow-up, docs/design/home-room-program.md section 10). Main items: NeighbourLight, neighbour_light, before_scene, LIT_RANGE_M, LIT_SLACK_M, MAX_NEIGHBOUR_ROOMS.
@@ -955,7 +957,7 @@
 - `crafting.rs` (983): Crafting page, full crafting interface with sidebar categories, recipe list, detail panel, and craft queue with progress bars. Main items: pretty_id, draw, hub_summary.
 - `dev_ai.rs` (369): Dev > AI (2026-11-09; docs/design/embeddable-ai.md, 12.1; rung 1): the AI engine as a developer sees it. Main items: draw, ask_test_question, pretend_for_snapshot.
 - `dev_journal.rs` (306): Dev > Journal (2026-10-24, rung 2 of docs/design/play-journal.md): the play journal in the app, so reading what the game recorded never needs a terminal or the dev MCP (the GUI-first rule). Main items: KindRow, MarkRow, Snapshot, Act, listed_kinds, read_snapshot, clear, draw (+1 more).
-- `dev_music.rs` (206): The Dev page's Music card (docs/design/music.md, section 16; permanent dev tooling): the danger knob (an intensity slider, 0 calm to 1 the height of a meteor storm, and the hull-breach alarm) and w... Main items: GenreChoice, StandIn, MusicChoice, Playing, MusicReadout, MusicMemory, MusicDev, draw_card.
+- `dev_music.rs` (209): The Dev page's Music card (docs/design/music.md, section 16; permanent dev tooling): the danger knob (an intensity slider, 0 calm to 1 the height of a meteor storm, and the hull-breach alarm) and w... Main items: GenreChoice, StandIn, MusicChoice, Playing, MusicReadout, MusicMemory, MusicDev, draw_card.
 - `dev_sim.rs` (109): The Dev page's Simulation card (the headless sim runner's increment 2, 2026-11-15; docs/design/headless-sim-runner.md): the in-app twin of `HumanityOS --sim soak` (CLAUDE.md's GUI-first rule: nobod... Main items: draw_card, SOAK_ARGS, ROUTINE_SOAK_ARGS.
 - `dev_tab.rs` (72): Dev, the developer tools page (2026-10-20): the developer's tools, Performance, Planet Tuner, Claude and Journal, each part drawn by its own page. Main items: draw, SECTIONS, FIRST_SECTION.
 - `dev.rs` (625): Dev page (v0.777) - operator-facing developer tools, the Dev tab's Dev section. Main items: draw, draw_creature_editor.
@@ -1163,9 +1165,9 @@
 ## src/gui/pages/music/
 
 - `controls.rs` (510): The Music page's controls: What plays (let the game choose, with its options, or the person's choice), Explore (genre, mood, seed), Tune (key, tempo, lead voices, each part's level and mute) and Ke...
-- `mod.rs` (461): THE MUSIC PAGE (docs/design/music-page.md; the operator, 2026-11-13: "a dedicated music page to try infinite seeds and variations and genres and what not ... Main items: ExportJob, ExportStatus, SheetCache, SheetTag, MusicPage, Shown, favourites_path, export_dir (+18 more).
-- `view.rs` (276): The Music page's pictures: Now playing (the piece in words, the beat pulse, each part moving, the spectrum) and See (the piano roll with chord symbols and section letters). Main items: piano_roll.
-- `written.rs` (66): The Music page's WRITTEN PIECES (docs/design/score-player.md section 10): music written down as MEI (data/music/scores/index.ron lists it), played on the game's own instruments at the person's tuning.
+- `mod.rs` (471): THE MUSIC PAGE (docs/design/music-page.md; the operator, 2026-11-13: "a dedicated music page to try infinite seeds and variations and genres and what not ... Main items: ExportJob, ExportStatus, SheetCache, SheetTag, MusicPage, Shown, favourites_path, export_dir (+19 more).
+- `view.rs` (290): The Music page's pictures: Now playing (the piece in words, the beat pulse, each part moving, the spectrum) and See (the piano roll with chord symbols and section letters). Main items: piano_roll.
+- `written.rs` (71): The Music page's WRITTEN PIECES (docs/design/score-player.md section 10): music written down as MEI (data/music/scores/index.ron lists it), played on the game's own instruments at the person's tuning.
 - tests: `tests.rs`
 
 ## src/gui/pages/quests/
@@ -1291,7 +1293,7 @@
 - `memory.rs` (96): The memory each installed set of instruments takes while its parts play, for Settings > Audio > Instruments (2026-11-14, docs/design/music.md section 23, "Memory"): the same honesty CLAUDE.md asks... Main items: SetMemory, by_set, count, held_frames.
 - `mod.rs` (67): The free instrument library (2026-11-06; docs/design/music.md rung 6, the operator's "let's build up our free library" and "in the settings we can have a section for filling out the instrument list...
 - `samples.rs` (318): Decoded sample audio, and a voice that plays one sample at a rate. Main items: DecodedSample, SampleBank, SampleVoice, decode_file, decode_attack, stream_settings.
-- `score.rs` (442): The bridge from the instrument library into the live score (crates/humanity-music; docs/design/ music.md, rung 6 and section 23): for every PART the moods' roles and the genres' roles and palettes... Main items: PartPlays, Attached, recorded_id, named_parts, sounding_parts, soft_loop, streamable, attach (+1 more).
+- `score.rs` (469): The bridge from the instrument library into the live score (crates/humanity-music; docs/design/ music.md, rung 6 and section 23): for every PART the moods' roles and the genres' roles and palettes... Main items: PartPlays, Attached, recorded_id, named_parts, sounding_parts, soft_loop, streamable, attach (+2 more).
 - `tar.rs` (113): Reading a pack archive: plain ustar, as `scripts/lib/instrument-build.js` writes it. Main items: safe_path, extract.
 - `ui.rs` (179): The state behind Settings > Audio > Instruments, and the frame step that acts on its buttons: the star catalog's request-and-thread pattern (the section sets a request, [`tick`], called once a fram... Main items: PacksUi, installed_generation, installed_changed, shared, base_url, tick, URL_OVERRIDE_ENV.
 - `waves.rs` (55): Wave sets (2026-11-13, the operator's approval of AKWF): single-cycle waves for the synthesiser's wavetable oscillator, kept as plain PCM WAV (a lossy codec smears a cycle of 600 samples), each set... Main items: WaveSet, Wave.
@@ -1821,7 +1823,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8225): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8231): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

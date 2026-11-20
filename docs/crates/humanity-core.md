@@ -22,7 +22,7 @@ edit here re-checks all of the code: keep it small, stable and free of anything 
 - **Size:** 19,488 lines in 65 files, 922 of them in 4 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 39, `test-support` 9, `wasm` 4.
 - **May use** (the plan): nothing; it is the bottom of the stack. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 770, gui 631, systems 477, renderer 101, ship 58, net 54, relay 37, animation 21, terrain 5.
+- **May be used by** (the plan): protocol, ship, terrain, systems, music, animation, relay, net, renderer, gui, engine. **Used today by:** engine 770, gui 632, systems 477, renderer 101, ship 58, net 54, relay 37, animation 21, terrain 5.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
 - **Its lib tests:** 221 tests, and this runs exactly them, checked against every test's name:
 
@@ -37,7 +37,7 @@ just test-lib --crate humanity-core
 | `hot_reload::data_store::DataStore` | 144 | systems 84, engine 56, gui 2, net 1, ship 1 |
 | `i18n::t` | 112 | gui 103, engine 8, systems 1 |
 | `storage::data_dir` | 92 | gui 50, systems 24, engine 10, ship 5, relay 2, net 1 |
-| `reuse::enabled` | 85 | engine 34, gui 25, renderer 21, systems 3, relay 2 |
+| `reuse::enabled` | 86 | engine 34, gui 26, renderer 21, systems 3, relay 2 |
 | `debug::push_debug` | 82 | gui 42, net 23, engine 17 |
 | `ecs::components` | 78 | systems 58, engine 19, ship 1 |
 | `i18n` | 77 | gui 76, engine 1 |

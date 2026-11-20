@@ -168,13 +168,16 @@ fn the_core_wave_sets_are_whole_plain_pcm_and_public_domain() {
 }
 
 /// EVERY PART THE INSTRUMENTS LIST IS PLAYED BY THE MUSIC OR SAYS IT IS NOT YET (BUG-266): each part
-/// `parts.ron` and `packs.ron` list is named by a mood's role or a genre's added role or palette
-/// (`score::named_parts`, what the score attaches recordings to), unless `parts.ron` marks it
+/// `parts.ron` and `packs.ron` list is named by a mood's role or a genre's added role or palette, or
+/// (score player rung 2) a written piece's staff (`score::named_parts`, what the score attaches
+/// recordings to), unless `parts.ron` marks it
 /// `not_used_yet` (Settings > Audio > Instruments then says the music does not use it yet); a
 /// marked part the music does name fails too, so the mark cannot go stale; and a `fallback_part` is a
 /// part. RED first (2026-11-07) against the data before the fix (only harp, steel_pan and deep_drum
 /// named, no marks): "packs.ron and parts.ron list parts no mood or genre plays, unmarked: [\"bass_strings\",
-/// \"bowed_vibraphone\", ...]".
+/// \"bowed_vibraphone\", ...]". RED again 2026-11-20 once the written pieces' staves counted, before
+/// their parts' marks came off: "parts marked not_used_yet that the music does play: [\"bassoon\",
+/// \"flute\", \"french_horn\", \"oboe\", \"strings_mid\", \"timpani\"]".
 #[test]
 fn every_part_listed_is_played_or_marked_not_used_yet() {
     let data = data();

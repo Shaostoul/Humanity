@@ -1,0 +1,920 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="https://music-encoding.org/schema/5.1/mei-basic.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<!--
+  Für Elise, WoO 59, by Ludwig van Beethoven: written music for HumanityOS's score player (docs/design/score-player.md).
+  Source: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931 (file fur_Elise_WoO59.ly, SHA-256 828a7bd1b42e441fe1b0eb0389ba46f1502dab28bbe488389e635fb446ba7a67).
+  Edition: Breitkopf & Härtel, 1888. Licence: public domain (docs/reference/findings/2026-11-20-public-domain-scores.md, finding 20).
+  Converted by scripts/ly-to-mei.js. The pedal line is left out; the hidden metronome mark of the LilyPond file (a quarter note at 72) is kept as the tempo.
+  Open it in MuseScore 4.2 or later, or any text editor; change a note and the game plays the change the next time the piece starts.
+-->
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.1+basic">
+  <meiHead>
+    <fileDesc>
+      <titleStmt>
+        <title>Für Elise (Clavierstück in A minor, WoO 59)</title>
+        <composer>Ludwig van Beethoven</composer>
+      </titleStmt>
+      <pubStmt>
+        <availability>Public domain. Beethoven's Für Elise, WoO 59, as Breitkopf &amp; Härtel printed it in 1888 (Ludwig van Beethovens Werke, Serie 25, No. 298). Converted to MEI by HumanityOS (scripts/ly-to-mei.js, 2026-11-20) from Mutopia Project piece 931, typeset in LilyPond by Stelios Samelis and placed in the public domain by the typesetter (Mutopia-2015/08/18-931). The conversion is dedicated to the public domain (CC0).</availability>
+      </pubStmt>
+    </fileDesc>
+  </meiHead>
+  <music>
+    <body>
+      <mdiv>
+        <score>
+          <scoreDef keysig="0" meter.count="3" meter.unit="8">
+            <staffGrp>
+              <staffDef n="1" lines="5" clef.shape="G" clef.line="2" keysig="0" label="Right hand"/>
+              <staffDef n="2" lines="5" clef.shape="F" clef.line="4" keysig="0" label="Left hand"/>
+            </staffGrp>
+          </scoreDef>
+          <section>
+            <measure n="0">
+              <staff n="1">
+                <layer n="1"><note xml:id="n1" pname="e" oct="5" dur="16"/><note xml:id="n2" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><rest xml:id="r614" dur="8"/></layer>
+              </staff>
+              <tempo staff="1" tstamp="1" mm="72" mm.unit="4" midi.bpm="72"></tempo>
+              <dynam staff="1" tstamp="1" startid="#n1">pp</dynam>
+              <dynam staff="2" tstamp="1" startid="#r614">pp</dynam>
+            </measure>
+            <measure n="1">
+              <staff n="1">
+                <layer n="1"><note xml:id="n3" pname="e" oct="5" dur="16"/><note xml:id="n4" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n5" pname="e" oct="5" dur="16"/><note xml:id="n6" pname="b" oct="4" dur="16"/><note xml:id="n7" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n8" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r615"/></layer>
+              </staff>
+            </measure>
+            <measure n="2">
+              <staff n="1">
+                <layer n="1"><note xml:id="n9" pname="a" oct="4" dur="8"/><rest xml:id="r10" dur="16"/><note xml:id="n11" pname="c" oct="4" dur="16"/><note xml:id="n12" pname="e" oct="4" dur="16"/><note xml:id="n13" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n616" pname="a" oct="2" dur="16"/><note xml:id="n617" pname="e" oct="3" dur="16"/><note xml:id="n618" pname="a" oct="3" dur="16"/><rest xml:id="r619" dur="16"/><rest xml:id="r620" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="3">
+              <staff n="1">
+                <layer n="1"><note xml:id="n14" pname="b" oct="4" dur="8"/><rest xml:id="r15" dur="16"/><note xml:id="n16" pname="e" oct="4" dur="16"/><note xml:id="n17" pname="g" oct="4" dur="16" accid="s"/><note xml:id="n18" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n621" pname="e" oct="2" dur="16"/><note xml:id="n622" pname="e" oct="3" dur="16"/><note xml:id="n623" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r624" dur="16"/><rest xml:id="r625" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="4">
+              <staff n="1">
+                <layer n="1"><note xml:id="n19" pname="c" oct="5" dur="8"/><rest xml:id="r20" dur="16"/><note xml:id="n21" pname="e" oct="4" dur="16"/><note xml:id="n22" pname="e" oct="5" dur="16"/><note xml:id="n23" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n626" pname="a" oct="2" dur="16"/><note xml:id="n627" pname="e" oct="3" dur="16"/><note xml:id="n628" pname="a" oct="3" dur="16"/><rest xml:id="r629" dur="16"/><rest xml:id="r630" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="5">
+              <staff n="1">
+                <layer n="1"><note xml:id="n24" pname="e" oct="5" dur="16"/><note xml:id="n25" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n26" pname="e" oct="5" dur="16"/><note xml:id="n27" pname="b" oct="4" dur="16"/><note xml:id="n28" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n29" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r631"/></layer>
+              </staff>
+            </measure>
+            <measure n="6">
+              <staff n="1">
+                <layer n="1"><note xml:id="n30" pname="a" oct="4" dur="8"/><rest xml:id="r31" dur="16"/><note xml:id="n32" pname="c" oct="4" dur="16"/><note xml:id="n33" pname="e" oct="4" dur="16"/><note xml:id="n34" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n632" pname="a" oct="2" dur="16"/><note xml:id="n633" pname="e" oct="3" dur="16"/><note xml:id="n634" pname="a" oct="3" dur="16"/><rest xml:id="r635" dur="16"/><rest xml:id="r636" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="7">
+              <staff n="1">
+                <layer n="1"><note xml:id="n35" pname="b" oct="4" dur="8"/><rest xml:id="r36" dur="16"/><note xml:id="n37" pname="e" oct="4" dur="16"/><note xml:id="n38" pname="c" oct="5" dur="16"/><note xml:id="n39" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n637" pname="e" oct="2" dur="16"/><note xml:id="n638" pname="e" oct="3" dur="16"/><note xml:id="n639" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r640" dur="16"/><rest xml:id="r641" dur="8"/></layer>
+              </staff>
+            </measure>
+            <ending n="1">
+            <measure n="8" right="rptend">
+              <staff n="1">
+                <layer n="1"><note xml:id="n40" pname="a" oct="4" dur="4"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n642" pname="a" oct="2" dur="16"/><note xml:id="n643" pname="e" oct="3" dur="16"/><note xml:id="n644" pname="a" oct="3" dur="16"/><rest xml:id="r645" dur="16"/></layer>
+              </staff>
+            </measure>
+            </ending>
+            <ending n="2">
+            <measure n="9">
+              <staff n="1">
+                <layer n="1"><note xml:id="n41" pname="a" oct="4" dur="8"/><rest xml:id="r42" dur="16"/><note xml:id="n43" pname="b" oct="4" dur="16"/><note xml:id="n44" pname="c" oct="5" dur="16"/><note xml:id="n45" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n646" pname="a" oct="2" dur="16"/><note xml:id="n647" pname="e" oct="3" dur="16"/><note xml:id="n648" pname="a" oct="3" dur="16"/><rest xml:id="r649" dur="16"/><rest xml:id="r650" dur="8"/></layer>
+              </staff>
+            </measure>
+            </ending>
+            <measure n="10" left="rptstart">
+              <staff n="1">
+                <layer n="1"><note xml:id="n46" pname="e" oct="5" dur="8" dots="1"/><note xml:id="n47" pname="g" oct="4" dur="16"/><note xml:id="n48" pname="f" oct="5" dur="16"/><note xml:id="n49" pname="e" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n651" pname="c" oct="3" dur="16"/><note xml:id="n652" pname="g" oct="3" dur="16"/><note xml:id="n653" pname="c" oct="4" dur="16"/><rest xml:id="r654" dur="16"/><rest xml:id="r655" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="11">
+              <staff n="1">
+                <layer n="1"><note xml:id="n50" pname="d" oct="5" dur="8" dots="1"/><note xml:id="n51" pname="f" oct="4" dur="16"/><note xml:id="n52" pname="e" oct="5" dur="16"/><note xml:id="n53" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n656" pname="g" oct="2" dur="16"/><note xml:id="n657" pname="g" oct="3" dur="16"/><note xml:id="n658" pname="b" oct="3" dur="16"/><rest xml:id="r659" dur="16"/><rest xml:id="r660" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="12">
+              <staff n="1">
+                <layer n="1"><note xml:id="n54" pname="c" oct="5" dur="8" dots="1"/><note xml:id="n55" pname="e" oct="4" dur="16"/><note xml:id="n56" pname="d" oct="5" dur="16"/><note xml:id="n57" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n661" pname="a" oct="2" dur="16"/><note xml:id="n662" pname="e" oct="3" dur="16"/><note xml:id="n663" pname="a" oct="3" dur="16"/><rest xml:id="r664" dur="16"/><rest xml:id="r665" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="13">
+              <staff n="1">
+                <layer n="1"><note xml:id="n58" pname="b" oct="4" dur="8"/><rest xml:id="r59" dur="16"/><note xml:id="n60" pname="e" oct="4" dur="16"/><note xml:id="n61" pname="e" oct="5" dur="16"/><rest xml:id="r62" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n666" pname="e" oct="2" dur="16"/><note xml:id="n667" pname="e" oct="3" dur="16"/><note xml:id="n668" pname="e" oct="4" dur="16"/><rest xml:id="r669" dur="16"/><rest xml:id="r670" dur="16"/><clef shape="G" line="2"/><note xml:id="n671" pname="e" oct="4" dur="16"/></layer>
+              </staff>
+              <slur staff="2" startid="#n671" endid="#n672"/>
+            </measure>
+            <measure n="14">
+              <staff n="1">
+                <layer n="1"><rest xml:id="r63" dur="16"/><note xml:id="n64" pname="e" oct="5" dur="16"/><note xml:id="n65" pname="e" oct="6" dur="16"/><rest xml:id="r66" dur="16"/><rest xml:id="r67" dur="16"/><note xml:id="n68" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n672" pname="e" oct="5" dur="16"/><rest xml:id="r673" dur="16"/><rest xml:id="r674" dur="16"/><note xml:id="n675" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n676" pname="e" oct="5" dur="16"/><rest xml:id="r677" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="15">
+              <staff n="1">
+                <layer n="1"><note xml:id="n69" pname="e" oct="5" dur="8"/><rest xml:id="r70" dur="16"/><note xml:id="n71" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n72" pname="e" oct="5" dur="16"/><note xml:id="n73" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><rest xml:id="r678" dur="16"/><note xml:id="n679" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n680" pname="e" oct="5" dur="16"/><rest xml:id="r681" dur="16"/><rest xml:id="r682" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="16">
+              <staff n="1">
+                <layer n="1"><note xml:id="n74" pname="e" oct="5" dur="16"/><note xml:id="n75" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n76" pname="e" oct="5" dur="16"/><note xml:id="n77" pname="b" oct="4" dur="16"/><note xml:id="n78" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n79" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r683"/></layer>
+              </staff>
+            </measure>
+            <measure n="17">
+              <staff n="1">
+                <layer n="1"><note xml:id="n80" pname="a" oct="4" dur="8"/><rest xml:id="r81" dur="16"/><note xml:id="n82" pname="c" oct="4" dur="16"/><note xml:id="n83" pname="e" oct="4" dur="16"/><note xml:id="n84" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><clef shape="F" line="4"/><note xml:id="n684" pname="a" oct="2" dur="16"/><note xml:id="n685" pname="e" oct="3" dur="16"/><note xml:id="n686" pname="a" oct="3" dur="16"/><rest xml:id="r687" dur="16"/><rest xml:id="r688" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="18">
+              <staff n="1">
+                <layer n="1"><note xml:id="n85" pname="b" oct="4" dur="8"/><rest xml:id="r86" dur="16"/><note xml:id="n87" pname="e" oct="4" dur="16"/><note xml:id="n88" pname="g" oct="4" dur="16" accid="s"/><note xml:id="n89" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n689" pname="e" oct="2" dur="16"/><note xml:id="n690" pname="e" oct="3" dur="16"/><note xml:id="n691" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r692" dur="16"/><rest xml:id="r693" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="19">
+              <staff n="1">
+                <layer n="1"><note xml:id="n90" pname="c" oct="5" dur="8"/><rest xml:id="r91" dur="16"/><note xml:id="n92" pname="e" oct="4" dur="16"/><note xml:id="n93" pname="e" oct="5" dur="16"/><note xml:id="n94" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n694" pname="a" oct="2" dur="16"/><note xml:id="n695" pname="e" oct="3" dur="16"/><note xml:id="n696" pname="a" oct="3" dur="16"/><rest xml:id="r697" dur="16"/><rest xml:id="r698" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="20">
+              <staff n="1">
+                <layer n="1"><note xml:id="n95" pname="e" oct="5" dur="16"/><note xml:id="n96" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n97" pname="e" oct="5" dur="16"/><note xml:id="n98" pname="b" oct="4" dur="16"/><note xml:id="n99" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n100" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r699"/></layer>
+              </staff>
+            </measure>
+            <measure n="21">
+              <staff n="1">
+                <layer n="1"><note xml:id="n101" pname="a" oct="4" dur="8"/><rest xml:id="r102" dur="16"/><note xml:id="n103" pname="c" oct="4" dur="16"/><note xml:id="n104" pname="e" oct="4" dur="16"/><note xml:id="n105" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n700" pname="a" oct="2" dur="16"/><note xml:id="n701" pname="e" oct="3" dur="16"/><note xml:id="n702" pname="a" oct="3" dur="16"/><rest xml:id="r703" dur="16"/><rest xml:id="r704" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="22">
+              <staff n="1">
+                <layer n="1"><note xml:id="n106" pname="b" oct="4" dur="8"/><rest xml:id="r107" dur="16"/><note xml:id="n108" pname="e" oct="4" dur="16"/><note xml:id="n109" pname="c" oct="5" dur="16"/><note xml:id="n110" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n705" pname="e" oct="2" dur="16"/><note xml:id="n706" pname="e" oct="3" dur="16"/><note xml:id="n707" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r708" dur="16"/><rest xml:id="r709" dur="8"/></layer>
+              </staff>
+            </measure>
+            <ending n="1">
+            <measure n="23" right="rptend">
+              <staff n="1">
+                <layer n="1"><note xml:id="n111" pname="a" oct="4" dur="8"/><rest xml:id="r112" dur="16"/><note xml:id="n113" pname="b" oct="4" dur="16"/><note xml:id="n114" pname="c" oct="5" dur="16"/><note xml:id="n115" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n710" pname="a" oct="2" dur="16"/><note xml:id="n711" pname="e" oct="3" dur="16"/><note xml:id="n712" pname="a" oct="3" dur="16"/><rest xml:id="r713" dur="16"/><rest xml:id="r714" dur="8"/></layer>
+              </staff>
+            </measure>
+            </ending>
+            <ending n="2">
+            <measure n="24">
+              <staff n="1">
+                <layer n="1"><note xml:id="n116" pname="a" oct="4" dur="8"/><rest xml:id="r117" dur="16"/><chord xml:id="c118" dur="16"><note xml:id="n119" pname="e" oct="4"/><note xml:id="n120" pname="c" oct="5"/></chord><chord xml:id="c121" dur="16"><note xml:id="n122" pname="f" oct="4"/><note xml:id="n123" pname="c" oct="5"/></chord><chord xml:id="c124" dur="16"><note xml:id="n125" pname="e" oct="4"/><note xml:id="n126" pname="g" oct="4"/><note xml:id="n127" pname="c" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n715" pname="a" oct="2" dur="16"/><note xml:id="n716" pname="e" oct="3" dur="16"/><note xml:id="n717" pname="a" oct="3" dur="16"/><chord xml:id="c718" dur="16"><note xml:id="n719" pname="b" oct="3" accid="f"/><note xml:id="n720" pname="c" oct="4"/></chord><chord xml:id="c721" dur="16"><note xml:id="n722" pname="a" oct="3"/><note xml:id="n723" pname="c" oct="4"/></chord><chord xml:id="c724" dur="16"><note xml:id="n725" pname="g" oct="3"/><note xml:id="n726" pname="b" oct="3"/><note xml:id="n727" pname="c" oct="4"/></chord></layer>
+              </staff>
+            </measure>
+            </ending>
+            <measure n="25">
+              <staff n="1">
+                <layer n="1"><note xml:id="n128" pname="f" oct="4" dur="16" grace="unacc"/><note xml:id="n129" pname="a" oct="4" dur="16" grace="unacc"/><note xml:id="n130" pname="c" oct="5" dur="4"/><note xml:id="n131" pname="f" oct="5" dur="16" dots="1"/><note xml:id="n132" pname="e" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n728" pname="f" oct="3" dur="16"/><note xml:id="n729" pname="a" oct="3" dur="16"/><note xml:id="n730" pname="c" oct="4" dur="16"/><note xml:id="n731" pname="a" oct="3" dur="16"/><note xml:id="n732" pname="c" oct="4" dur="16"/><note xml:id="n733" pname="a" oct="3" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="26">
+              <staff n="1">
+                <layer n="1"><note xml:id="n133" pname="e" oct="5" dur="8"/><note xml:id="n134" pname="d" oct="5" dur="8"/><note xml:id="n135" pname="b" oct="5" dur="16" dots="1" accid="f"/><note xml:id="n136" pname="a" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n734" pname="f" oct="3" dur="16"/><note xml:id="n735" pname="b" oct="3" dur="16" accid="f"/><note xml:id="n736" pname="d" oct="4" dur="16"/><note xml:id="n737" pname="b" oct="3" dur="16"/><note xml:id="n738" pname="d" oct="4" dur="16"/><note xml:id="n739" pname="b" oct="3" dur="16"/></layer>
+              </staff>
+              <slur staff="1" startid="#n133" endid="#n134"/>
+            </measure>
+            <measure n="27">
+              <staff n="1">
+                <layer n="1"><note xml:id="n137" pname="a" oct="5" dur="16"/><note xml:id="n138" pname="g" oct="5" dur="16"/><note xml:id="n139" pname="f" oct="5" dur="16"/><note xml:id="n140" pname="e" oct="5" dur="16"/><note xml:id="n141" pname="d" oct="5" dur="16"/><note xml:id="n142" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n740" pname="f" oct="3" dur="16"/><note xml:id="n741" pname="e" oct="4" dur="16"/><chord xml:id="c742" dur="16"><note xml:id="n743" pname="f" oct="3"/><note xml:id="n744" pname="g" oct="3"/><note xml:id="n745" pname="b" oct="3" accid="f"/></chord><note xml:id="n746" pname="e" oct="4" dur="16"/><chord xml:id="c747" dur="16"><note xml:id="n748" pname="f" oct="3"/><note xml:id="n749" pname="g" oct="3"/><note xml:id="n750" pname="b" oct="3"/></chord><note xml:id="n751" pname="e" oct="4" dur="16"/></layer>
+              </staff>
+              <slur staff="1" startid="#n137" endid="#n142"/>
+            </measure>
+            <measure n="28">
+              <staff n="1">
+                <layer n="1"><note xml:id="n143" pname="b" oct="4" dur="8" accid="f"/><note xml:id="n144" pname="a" oct="4" dur="8"/><note xml:id="n145" pname="b" oct="4" dur="32" grace="acc"/><note xml:id="n146" pname="a" oct="4" dur="32"/><note xml:id="n147" pname="g" oct="4" dur="32"/><note xml:id="n148" pname="a" oct="4" dur="32"/><note xml:id="n149" pname="b" oct="4" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n752" pname="f" oct="3" dur="16"/><note xml:id="n753" pname="a" oct="3" dur="16"/><note xml:id="n754" pname="c" oct="4" dur="16"/><note xml:id="n755" pname="a" oct="3" dur="16"/><note xml:id="n756" pname="c" oct="4" dur="16"/><note xml:id="n757" pname="a" oct="3" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="29">
+              <staff n="1">
+                <layer n="1"><note xml:id="n150" pname="c" oct="5" dur="4"/><note xml:id="n151" pname="d" oct="5" dur="16"/><note xml:id="n152" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n758" pname="f" oct="3" dur="16"/><note xml:id="n759" pname="a" oct="3" dur="16"/><note xml:id="n760" pname="c" oct="4" dur="16"/><note xml:id="n761" pname="a" oct="3" dur="16"/><note xml:id="n762" pname="c" oct="4" dur="16"/><note xml:id="n763" pname="a" oct="3" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="30">
+              <staff n="1">
+                <layer n="1"><note xml:id="n153" pname="e" oct="5" dur="8" dots="1"/><note xml:id="n154" pname="e" oct="5" dur="16"/><note xml:id="n155" pname="f" oct="5" dur="16"/><note xml:id="n156" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n764" pname="e" oct="3" dur="16"/><note xml:id="n765" pname="a" oct="3" dur="16"/><note xml:id="n766" pname="c" oct="4" dur="16"/><note xml:id="n767" pname="a" oct="3" dur="16"/><chord xml:id="c768" dur="16"><note xml:id="n769" pname="d" oct="3"/><note xml:id="n770" pname="d" oct="4"/></chord><note xml:id="n771" pname="f" oct="3" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="31">
+              <staff n="1">
+                <layer n="1"><note xml:id="n157" pname="c" oct="5" dur="4"/><note xml:id="n158" pname="d" oct="5" dur="16" dots="1"/><note xml:id="n159" pname="b" oct="4" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n772" pname="g" oct="3" dur="16"/><note xml:id="n773" pname="e" oct="4" dur="16"/><note xml:id="n774" pname="g" oct="3" dur="16"/><note xml:id="n775" pname="e" oct="4" dur="16"/><note xml:id="n776" pname="g" oct="3" dur="16"/><note xml:id="n777" pname="f" oct="4" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="32">
+              <staff n="1">
+                <layer n="1"><note xml:id="n160" pname="c" oct="5" dur="32"/><note xml:id="n161" pname="g" oct="5" dur="32"/><note xml:id="n162" pname="g" oct="4" dur="32"/><note xml:id="n163" pname="g" oct="5" dur="32"/><note xml:id="n164" pname="a" oct="4" dur="32"/><note xml:id="n165" pname="g" oct="5" dur="32"/><note xml:id="n166" pname="b" oct="4" dur="32"/><note xml:id="n167" pname="g" oct="5" dur="32"/><note xml:id="n168" pname="c" oct="5" dur="32"/><note xml:id="n169" pname="g" oct="5" dur="32"/><note xml:id="n170" pname="d" oct="5" dur="32"/><note xml:id="n171" pname="g" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><clef shape="G" line="2"/><chord xml:id="c778" dur="8"><note xml:id="n779" pname="c" oct="4"/><note xml:id="n780" pname="e" oct="4"/></chord><rest xml:id="r781" dur="16"/><chord xml:id="c782" dur="16"><note xml:id="n783" pname="f" oct="4"/><note xml:id="n784" pname="g" oct="4"/></chord><chord xml:id="c785" dur="16"><note xml:id="n786" pname="e" oct="4"/><note xml:id="n787" pname="g" oct="4"/></chord><chord xml:id="c788" dur="16"><note xml:id="n789" pname="d" oct="4"/><note xml:id="n790" pname="f" oct="4"/><note xml:id="n791" pname="g" oct="4"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="33">
+              <staff n="1">
+                <layer n="1"><note xml:id="n172" pname="e" oct="5" dur="32"/><note xml:id="n173" pname="g" oct="5" dur="32"/><note xml:id="n174" pname="c" oct="6" dur="32"/><note xml:id="n175" pname="b" oct="5" dur="32"/><note xml:id="n176" pname="a" oct="5" dur="32"/><note xml:id="n177" pname="g" oct="5" dur="32"/><note xml:id="n178" pname="f" oct="5" dur="32"/><note xml:id="n179" pname="e" oct="5" dur="32"/><note xml:id="n180" pname="d" oct="5" dur="32"/><note xml:id="n181" pname="g" oct="5" dur="32"/><note xml:id="n182" pname="f" oct="5" dur="32"/><note xml:id="n183" pname="d" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c792" dur="8"><note xml:id="n793" pname="c" oct="4"/><note xml:id="n794" pname="e" oct="4"/><note xml:id="n795" pname="g" oct="4"/></chord><clef shape="F" line="4"/><chord xml:id="c796" dur="8"><note xml:id="n797" pname="f" oct="3"/><note xml:id="n798" pname="a" oct="3"/></chord><chord xml:id="c799" dur="8"><note xml:id="n800" pname="g" oct="3"/><note xml:id="n801" pname="b" oct="3"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="34">
+              <staff n="1">
+                <layer n="1"><note xml:id="n184" pname="c" oct="5" dur="32"/><note xml:id="n185" pname="g" oct="5" dur="32"/><note xml:id="n186" pname="g" oct="4" dur="32"/><note xml:id="n187" pname="g" oct="5" dur="32"/><note xml:id="n188" pname="a" oct="4" dur="32"/><note xml:id="n189" pname="g" oct="5" dur="32"/><note xml:id="n190" pname="b" oct="4" dur="32"/><note xml:id="n191" pname="g" oct="5" dur="32"/><note xml:id="n192" pname="c" oct="5" dur="32"/><note xml:id="n193" pname="g" oct="5" dur="32"/><note xml:id="n194" pname="d" oct="5" dur="32"/><note xml:id="n195" pname="g" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><clef shape="G" line="2"/><note xml:id="n802" pname="c" oct="4" dur="8"/><rest xml:id="r803" dur="16"/><chord xml:id="c804" dur="16"><note xml:id="n805" pname="f" oct="4"/><note xml:id="n806" pname="g" oct="4"/></chord><chord xml:id="c807" dur="16"><note xml:id="n808" pname="e" oct="4"/><note xml:id="n809" pname="g" oct="4"/></chord><chord xml:id="c810" dur="16"><note xml:id="n811" pname="d" oct="4"/><note xml:id="n812" pname="f" oct="4"/><note xml:id="n813" pname="g" oct="4"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="35">
+              <staff n="1">
+                <layer n="1"><note xml:id="n196" pname="e" oct="5" dur="32"/><note xml:id="n197" pname="g" oct="5" dur="32"/><note xml:id="n198" pname="c" oct="6" dur="32"/><note xml:id="n199" pname="b" oct="5" dur="32"/><note xml:id="n200" pname="a" oct="5" dur="32"/><note xml:id="n201" pname="g" oct="5" dur="32"/><note xml:id="n202" pname="f" oct="5" dur="32"/><note xml:id="n203" pname="e" oct="5" dur="32"/><note xml:id="n204" pname="d" oct="5" dur="32"/><note xml:id="n205" pname="g" oct="5" dur="32"/><note xml:id="n206" pname="f" oct="5" dur="32"/><note xml:id="n207" pname="d" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c814" dur="8"><note xml:id="n815" pname="c" oct="4"/><note xml:id="n816" pname="e" oct="4"/><note xml:id="n817" pname="g" oct="4"/></chord><clef shape="F" line="4"/><chord xml:id="c818" dur="8"><note xml:id="n819" pname="f" oct="3"/><note xml:id="n820" pname="a" oct="3"/></chord><chord xml:id="c821" dur="8"><note xml:id="n822" pname="g" oct="3"/><note xml:id="n823" pname="b" oct="3"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="36">
+              <staff n="1">
+                <layer n="1"><note xml:id="n208" pname="e" oct="5" dur="32"/><note xml:id="n209" pname="f" oct="5" dur="32"/><note xml:id="n210" pname="e" oct="5" dur="32"/><note xml:id="n211" pname="d" oct="5" dur="32" accid="s"/><note xml:id="n212" pname="e" oct="5" dur="32"/><note xml:id="n213" pname="b" oct="4" dur="32"/><note xml:id="n214" pname="e" oct="5" dur="32"/><note xml:id="n215" pname="d" oct="5" dur="32"/><note xml:id="n216" pname="e" oct="5" dur="32"/><note xml:id="n217" pname="b" oct="4" dur="32"/><note xml:id="n218" pname="e" oct="5" dur="32"/><note xml:id="n219" pname="d" oct="5" dur="32"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c824" dur="8"><note xml:id="n825" pname="g" oct="3" accid="s"/><note xml:id="n826" pname="b" oct="3"/></chord><rest xml:id="r827" dur="8"/><rest xml:id="r828" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="37">
+              <staff n="1">
+                <layer n="1"><note xml:id="n220" pname="e" oct="5" dur="8" dots="1"/><note xml:id="n221" pname="b" oct="4" dur="16"/><note xml:id="n222" pname="e" oct="5" dur="16"/><note xml:id="n223" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r829"/></layer>
+              </staff>
+            </measure>
+            <measure n="38">
+              <staff n="1">
+                <layer n="1"><note xml:id="n224" pname="e" oct="5" dur="8" dots="1"/><note xml:id="n225" pname="b" oct="4" dur="16"/><note xml:id="n226" pname="e" oct="5" dur="16"/><note xml:id="n227" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r830"/></layer>
+              </staff>
+              <slur staff="1" startid="#n225" endid="#n226"/>
+              <slur staff="1" startid="#n227" endid="#n228"/>
+            </measure>
+            <measure n="39">
+              <staff n="1">
+                <layer n="1"><note xml:id="n228" pname="e" oct="5" dur="16"/><note xml:id="n229" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n230" pname="e" oct="5" dur="16"/><note xml:id="n231" pname="d" oct="5" dur="16"/><note xml:id="n232" pname="e" oct="5" dur="16"/><note xml:id="n233" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r831"/></layer>
+              </staff>
+              <slur staff="1" startid="#n229" endid="#n230"/>
+              <slur staff="1" startid="#n231" endid="#n232"/>
+              <slur staff="1" startid="#n233" endid="#n234"/>
+            </measure>
+            <measure n="40">
+              <staff n="1">
+                <layer n="1"><note xml:id="n234" pname="e" oct="5" dur="16"/><note xml:id="n235" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n236" pname="e" oct="5" dur="16"/><note xml:id="n237" pname="b" oct="4" dur="16"/><note xml:id="n238" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n239" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r832"/></layer>
+              </staff>
+            </measure>
+            <measure n="41">
+              <staff n="1">
+                <layer n="1"><note xml:id="n240" pname="a" oct="4" dur="8"/><rest xml:id="r241" dur="16"/><note xml:id="n242" pname="c" oct="4" dur="16"/><note xml:id="n243" pname="e" oct="4" dur="16"/><note xml:id="n244" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n833" pname="a" oct="2" dur="16"/><note xml:id="n834" pname="e" oct="3" dur="16"/><note xml:id="n835" pname="a" oct="3" dur="16"/><rest xml:id="r836" dur="16"/><rest xml:id="r837" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="42">
+              <staff n="1">
+                <layer n="1"><note xml:id="n245" pname="b" oct="4" dur="8"/><rest xml:id="r246" dur="16"/><note xml:id="n247" pname="e" oct="4" dur="16"/><note xml:id="n248" pname="g" oct="4" dur="16" accid="s"/><note xml:id="n249" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n838" pname="e" oct="2" dur="16"/><note xml:id="n839" pname="e" oct="3" dur="16"/><note xml:id="n840" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r841" dur="16"/><rest xml:id="r842" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="43">
+              <staff n="1">
+                <layer n="1"><note xml:id="n250" pname="c" oct="5" dur="8"/><rest xml:id="r251" dur="16"/><note xml:id="n252" pname="e" oct="4" dur="16"/><note xml:id="n253" pname="e" oct="5" dur="16"/><note xml:id="n254" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n843" pname="a" oct="2" dur="16"/><note xml:id="n844" pname="e" oct="3" dur="16"/><note xml:id="n845" pname="a" oct="3" dur="16"/><rest xml:id="r846" dur="16"/><rest xml:id="r847" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="44">
+              <staff n="1">
+                <layer n="1"><note xml:id="n255" pname="e" oct="5" dur="16"/><note xml:id="n256" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n257" pname="e" oct="5" dur="16"/><note xml:id="n258" pname="b" oct="4" dur="16"/><note xml:id="n259" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n260" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r848"/></layer>
+              </staff>
+            </measure>
+            <measure n="45">
+              <staff n="1">
+                <layer n="1"><note xml:id="n261" pname="a" oct="4" dur="8"/><rest xml:id="r262" dur="16"/><note xml:id="n263" pname="c" oct="4" dur="16"/><note xml:id="n264" pname="e" oct="4" dur="16"/><note xml:id="n265" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n849" pname="a" oct="2" dur="16"/><note xml:id="n850" pname="e" oct="3" dur="16"/><note xml:id="n851" pname="a" oct="3" dur="16"/><rest xml:id="r852" dur="16"/><rest xml:id="r853" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="46">
+              <staff n="1">
+                <layer n="1"><note xml:id="n266" pname="b" oct="4" dur="8"/><rest xml:id="r267" dur="16"/><note xml:id="n268" pname="e" oct="4" dur="16"/><note xml:id="n269" pname="c" oct="5" dur="16"/><note xml:id="n270" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n854" pname="e" oct="2" dur="16"/><note xml:id="n855" pname="e" oct="3" dur="16"/><note xml:id="n856" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r857" dur="16"/><rest xml:id="r858" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="47">
+              <staff n="1">
+                <layer n="1"><note xml:id="n271" pname="a" oct="4" dur="8"/><rest xml:id="r272" dur="16"/><note xml:id="n273" pname="b" oct="4" dur="16"/><note xml:id="n274" pname="c" oct="5" dur="16"/><note xml:id="n275" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n859" pname="a" oct="2" dur="16"/><note xml:id="n860" pname="e" oct="3" dur="16"/><note xml:id="n861" pname="a" oct="3" dur="16"/><rest xml:id="r862" dur="16"/><rest xml:id="r863" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="48">
+              <staff n="1">
+                <layer n="1"><note xml:id="n276" pname="e" oct="5" dur="8" dots="1"/><note xml:id="n277" pname="g" oct="4" dur="16"/><note xml:id="n278" pname="f" oct="5" dur="16"/><note xml:id="n279" pname="e" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n864" pname="c" oct="3" dur="16"/><note xml:id="n865" pname="g" oct="3" dur="16"/><note xml:id="n866" pname="c" oct="4" dur="16"/><rest xml:id="r867" dur="16"/><rest xml:id="r868" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="49">
+              <staff n="1">
+                <layer n="1"><note xml:id="n280" pname="d" oct="5" dur="8" dots="1"/><note xml:id="n281" pname="f" oct="4" dur="16"/><note xml:id="n282" pname="e" oct="5" dur="16"/><note xml:id="n283" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n869" pname="g" oct="2" dur="16"/><note xml:id="n870" pname="g" oct="3" dur="16"/><note xml:id="n871" pname="b" oct="3" dur="16"/><rest xml:id="r872" dur="16"/><rest xml:id="r873" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="50">
+              <staff n="1">
+                <layer n="1"><note xml:id="n284" pname="c" oct="5" dur="8" dots="1"/><note xml:id="n285" pname="e" oct="4" dur="16"/><note xml:id="n286" pname="d" oct="5" dur="16"/><note xml:id="n287" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n874" pname="a" oct="2" dur="16"/><note xml:id="n875" pname="e" oct="3" dur="16"/><note xml:id="n876" pname="a" oct="3" dur="16"/><rest xml:id="r877" dur="16"/><rest xml:id="r878" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="51">
+              <staff n="1">
+                <layer n="1"><note xml:id="n288" pname="b" oct="4" dur="8"/><rest xml:id="r289" dur="16"/><note xml:id="n290" pname="e" oct="4" dur="16"/><note xml:id="n291" pname="e" oct="5" dur="16"/><rest xml:id="r292" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n879" pname="e" oct="2" dur="16"/><note xml:id="n880" pname="e" oct="3" dur="16"/><note xml:id="n881" pname="e" oct="4" dur="16"/><rest xml:id="r882" dur="16"/><rest xml:id="r883" dur="16"/><clef shape="G" line="2"/><note xml:id="n884" pname="e" oct="4" dur="16"/></layer>
+              </staff>
+              <slur staff="1" startid="#n290" endid="#n291"/>
+              <slur staff="2" startid="#n884" endid="#n885"/>
+            </measure>
+            <measure n="52">
+              <staff n="1">
+                <layer n="1"><rest xml:id="r293" dur="16"/><note xml:id="n294" pname="e" oct="5" dur="16"/><note xml:id="n295" pname="e" oct="6" dur="16"/><rest xml:id="r296" dur="16"/><rest xml:id="r297" dur="16"/><note xml:id="n298" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n885" pname="e" oct="5" dur="16"/><rest xml:id="r886" dur="16"/><rest xml:id="r887" dur="16"/><note xml:id="n888" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n889" pname="e" oct="5" dur="16"/><rest xml:id="r890" dur="16"/></layer>
+              </staff>
+              <slur staff="1" startid="#n294" endid="#n295"/>
+              <slur staff="1" startid="#n298" endid="#n299"/>
+              <slur staff="2" startid="#n888" endid="#n889"/>
+            </measure>
+            <measure n="53">
+              <staff n="1">
+                <layer n="1"><note xml:id="n299" pname="e" oct="5" dur="16"/><rest xml:id="r300" dur="16"/><rest xml:id="r301" dur="16"/><note xml:id="n302" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n303" pname="e" oct="5" dur="16"/><note xml:id="n304" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><rest xml:id="r891" dur="16"/><note xml:id="n892" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n893" pname="e" oct="5" dur="16"/><rest xml:id="r894" dur="16"/><rest xml:id="r895" dur="8"/></layer>
+              </staff>
+              <slur staff="2" startid="#n892" endid="#n893"/>
+            </measure>
+            <measure n="54">
+              <staff n="1">
+                <layer n="1"><note xml:id="n305" pname="e" oct="5" dur="16"/><note xml:id="n306" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n307" pname="e" oct="5" dur="16"/><note xml:id="n308" pname="b" oct="4" dur="16"/><note xml:id="n309" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n310" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r896"/></layer>
+              </staff>
+            </measure>
+            <measure n="55">
+              <staff n="1">
+                <layer n="1"><note xml:id="n311" pname="a" oct="4" dur="8"/><rest xml:id="r312" dur="16"/><note xml:id="n313" pname="c" oct="4" dur="16"/><note xml:id="n314" pname="e" oct="4" dur="16"/><note xml:id="n315" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><clef shape="F" line="4"/><note xml:id="n897" pname="a" oct="2" dur="16"/><note xml:id="n898" pname="e" oct="3" dur="16"/><note xml:id="n899" pname="a" oct="3" dur="16"/><rest xml:id="r900" dur="16"/><rest xml:id="r901" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="56">
+              <staff n="1">
+                <layer n="1"><note xml:id="n316" pname="b" oct="4" dur="8"/><rest xml:id="r317" dur="16"/><note xml:id="n318" pname="e" oct="4" dur="16"/><note xml:id="n319" pname="g" oct="4" dur="16" accid="s"/><note xml:id="n320" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n902" pname="e" oct="2" dur="16"/><note xml:id="n903" pname="e" oct="3" dur="16"/><note xml:id="n904" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r905" dur="16"/><rest xml:id="r906" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="57">
+              <staff n="1">
+                <layer n="1"><note xml:id="n321" pname="c" oct="5" dur="8"/><rest xml:id="r322" dur="16"/><note xml:id="n323" pname="e" oct="4" dur="16"/><note xml:id="n324" pname="e" oct="5" dur="16"/><note xml:id="n325" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n907" pname="a" oct="2" dur="16"/><note xml:id="n908" pname="e" oct="3" dur="16"/><note xml:id="n909" pname="a" oct="3" dur="16"/><rest xml:id="r910" dur="16"/><rest xml:id="r911" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="58">
+              <staff n="1">
+                <layer n="1"><note xml:id="n326" pname="e" oct="5" dur="16"/><note xml:id="n327" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n328" pname="e" oct="5" dur="16"/><note xml:id="n329" pname="b" oct="4" dur="16"/><note xml:id="n330" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n331" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r912"/></layer>
+              </staff>
+            </measure>
+            <measure n="59">
+              <staff n="1">
+                <layer n="1"><note xml:id="n332" pname="a" oct="4" dur="8"/><rest xml:id="r333" dur="16"/><note xml:id="n334" pname="c" oct="4" dur="16"/><note xml:id="n335" pname="e" oct="4" dur="16"/><note xml:id="n336" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n913" pname="a" oct="2" dur="16"/><note xml:id="n914" pname="e" oct="3" dur="16"/><note xml:id="n915" pname="a" oct="3" dur="16"/><rest xml:id="r916" dur="16"/><rest xml:id="r917" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="60">
+              <staff n="1">
+                <layer n="1"><note xml:id="n337" pname="b" oct="4" dur="8"/><rest xml:id="r338" dur="16"/><note xml:id="n339" pname="e" oct="4" dur="16"/><note xml:id="n340" pname="c" oct="5" dur="16"/><note xml:id="n341" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n918" pname="e" oct="2" dur="16"/><note xml:id="n919" pname="e" oct="3" dur="16"/><note xml:id="n920" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r921" dur="16"/><rest xml:id="r922" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="61">
+              <staff n="1">
+                <layer n="1"><note xml:id="n342" pname="a" oct="4" dur="8"/><rest xml:id="r343" dur="8"/><rest xml:id="r344" dur="8"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n923" pname="a" oct="2" dur="16"/><note xml:id="n924" pname="a" oct="2" dur="16"/><note xml:id="n925" pname="a" oct="2" dur="16"/><note xml:id="n926" pname="a" oct="2" dur="16"/><note xml:id="n927" pname="a" oct="2" dur="16"/><note xml:id="n928" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="62">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c345" dur="4" dots="1"><note xml:id="n346" pname="e" oct="4"/><note xml:id="n347" pname="g" oct="4"/><note xml:id="n348" pname="b" oct="4" accid="f"/><note xml:id="n349" pname="c" oct="5" accid="s"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n929" pname="a" oct="2" dur="16"/><note xml:id="n930" pname="a" oct="2" dur="16"/><note xml:id="n931" pname="a" oct="2" dur="16"/><note xml:id="n932" pname="a" oct="2" dur="16"/><note xml:id="n933" pname="a" oct="2" dur="16"/><note xml:id="n934" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="63">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c350" dur="4"><note xml:id="n351" pname="f" oct="4"/><note xml:id="n352" pname="a" oct="4"/><note xml:id="n353" pname="d" oct="5"/></chord><chord xml:id="c354" dur="16"><note xml:id="n355" pname="c" oct="5" accid="s"/><note xml:id="n356" pname="e" oct="5"/></chord><chord xml:id="c357" dur="16"><note xml:id="n358" pname="d" oct="5"/><note xml:id="n359" pname="f" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n935" pname="a" oct="2" dur="16"/><note xml:id="n936" pname="a" oct="2" dur="16"/><note xml:id="n937" pname="a" oct="2" dur="16"/><note xml:id="n938" pname="a" oct="2" dur="16"/><note xml:id="n939" pname="a" oct="2" dur="16"/><note xml:id="n940" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="64">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c360" dur="4"><note xml:id="n361" pname="g" oct="4" accid="s"/><note xml:id="n362" pname="d" oct="5"/><note xml:id="n363" pname="f" oct="5"/></chord><chord xml:id="c364" dur="8"><note xml:id="n365" pname="g" oct="4"/><note xml:id="n366" pname="d" oct="5"/><note xml:id="n367" pname="f" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n941" pname="a" oct="2" dur="16"/><note xml:id="n942" pname="a" oct="2" dur="16"/><note xml:id="n943" pname="a" oct="2" dur="16"/><note xml:id="n944" pname="a" oct="2" dur="16"/><note xml:id="n945" pname="a" oct="2" dur="16"/><note xml:id="n946" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="65">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c368" dur="4" dots="1"><note xml:id="n369" pname="a" oct="4"/><note xml:id="n370" pname="c" oct="5" accid="n"/><note xml:id="n371" pname="e" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n947" pname="a" oct="2" dur="16"/><note xml:id="n948" pname="a" oct="2" dur="16"/><note xml:id="n949" pname="a" oct="2" dur="16"/><note xml:id="n950" pname="a" oct="2" dur="16"/><note xml:id="n951" pname="a" oct="2" dur="16"/><note xml:id="n952" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="66">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c372" dur="4"><note xml:id="n373" pname="f" oct="4"/><note xml:id="n374" pname="d" oct="5"/></chord><chord xml:id="c375" dur="16"><note xml:id="n376" pname="e" oct="4"/><note xml:id="n377" pname="c" oct="5"/></chord><chord xml:id="c378" dur="16"><note xml:id="n379" pname="d" oct="4"/><note xml:id="n380" pname="b" oct="4"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c953" dur="16"><note xml:id="n954" pname="d" oct="2"/><note xml:id="n955" pname="a" oct="2"/></chord><chord xml:id="c956" dur="16"><note xml:id="n957" pname="d" oct="2"/><note xml:id="n958" pname="a" oct="2"/></chord><chord xml:id="c959" dur="16"><note xml:id="n960" pname="d" oct="2"/><note xml:id="n961" pname="a" oct="2"/></chord><chord xml:id="c962" dur="16"><note xml:id="n963" pname="d" oct="2"/><note xml:id="n964" pname="a" oct="2"/></chord><chord xml:id="c965" dur="16"><note xml:id="n966" pname="d" oct="2"/><note xml:id="n967" pname="a" oct="2"/></chord><chord xml:id="c968" dur="16"><note xml:id="n969" pname="d" oct="2"/><note xml:id="n970" pname="a" oct="2"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="67">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c381" dur="4"><note xml:id="n382" pname="c" oct="4"/><note xml:id="n383" pname="f" oct="4" accid="s"/><note xml:id="n384" pname="a" oct="4"/></chord><chord xml:id="c385" dur="8"><note xml:id="n386" pname="c" oct="4"/><note xml:id="n387" pname="a" oct="4"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c971" dur="16"><note xml:id="n972" pname="d" oct="2" accid="s"/><note xml:id="n973" pname="a" oct="2"/></chord><chord xml:id="c974" dur="16"><note xml:id="n975" pname="d" oct="2"/><note xml:id="n976" pname="a" oct="2"/></chord><chord xml:id="c977" dur="16"><note xml:id="n978" pname="d" oct="2"/><note xml:id="n979" pname="a" oct="2"/></chord><chord xml:id="c980" dur="16"><note xml:id="n981" pname="d" oct="2"/><note xml:id="n982" pname="a" oct="2"/></chord><chord xml:id="c983" dur="16"><note xml:id="n984" pname="d" oct="2"/><note xml:id="n985" pname="a" oct="2"/></chord><chord xml:id="c986" dur="16"><note xml:id="n987" pname="d" oct="2"/><note xml:id="n988" pname="a" oct="2"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="68">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c388" dur="8"><note xml:id="n389" pname="c" oct="4"/><note xml:id="n390" pname="a" oct="4"/></chord><chord xml:id="c391" dur="8"><note xml:id="n392" pname="e" oct="4"/><note xml:id="n393" pname="c" oct="5"/></chord><chord xml:id="c394" dur="8"><note xml:id="n395" pname="d" oct="4"/><note xml:id="n396" pname="b" oct="4"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c989" dur="16"><note xml:id="n990" pname="e" oct="2"/><note xml:id="n991" pname="a" oct="2"/></chord><chord xml:id="c992" dur="16"><note xml:id="n993" pname="e" oct="2"/><note xml:id="n994" pname="a" oct="2"/></chord><chord xml:id="c995" dur="16"><note xml:id="n996" pname="e" oct="2"/><note xml:id="n997" pname="a" oct="2"/></chord><chord xml:id="c998" dur="16"><note xml:id="n999" pname="e" oct="2"/><note xml:id="n1000" pname="a" oct="2"/></chord><chord xml:id="c1001" dur="16"><note xml:id="n1002" pname="e" oct="2"/><note xml:id="n1003" pname="g" oct="2" accid="s"/></chord><chord xml:id="c1004" dur="16"><note xml:id="n1005" pname="e" oct="2"/><note xml:id="n1006" pname="g" oct="2"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="69">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c397" dur="4" dots="1"><note xml:id="n398" pname="c" oct="4"/><note xml:id="n399" pname="a" oct="4"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c1007" dur="16"><note xml:id="n1008" pname="a" oct="1"/><note xml:id="n1009" pname="a" oct="2"/></chord><note xml:id="n1010" pname="a" oct="2" dur="16"/><note xml:id="n1011" pname="a" oct="2" dur="16"/><note xml:id="n1012" pname="a" oct="2" dur="16"/><note xml:id="n1013" pname="a" oct="2" dur="16"/><note xml:id="n1014" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="70">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c400" dur="4" dots="1"><note xml:id="n401" pname="e" oct="4"/><note xml:id="n402" pname="g" oct="4"/><note xml:id="n403" pname="b" oct="4" accid="f"/><note xml:id="n404" pname="c" oct="5" accid="s"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1015" pname="a" oct="2" dur="16"/><note xml:id="n1016" pname="a" oct="2" dur="16"/><note xml:id="n1017" pname="a" oct="2" dur="16"/><note xml:id="n1018" pname="a" oct="2" dur="16"/><note xml:id="n1019" pname="a" oct="2" dur="16"/><note xml:id="n1020" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="71">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c405" dur="4"><note xml:id="n406" pname="f" oct="4"/><note xml:id="n407" pname="a" oct="4"/><note xml:id="n408" pname="d" oct="5"/></chord><chord xml:id="c409" dur="16"><note xml:id="n410" pname="c" oct="5" accid="s"/><note xml:id="n411" pname="e" oct="5"/></chord><chord xml:id="c412" dur="16"><note xml:id="n413" pname="d" oct="5"/><note xml:id="n414" pname="f" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1021" pname="a" oct="2" dur="16"/><note xml:id="n1022" pname="a" oct="2" dur="16"/><note xml:id="n1023" pname="a" oct="2" dur="16"/><note xml:id="n1024" pname="a" oct="2" dur="16"/><note xml:id="n1025" pname="a" oct="2" dur="16"/><note xml:id="n1026" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="72">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c415" dur="4"><note xml:id="n416" pname="d" oct="5"/><note xml:id="n417" pname="f" oct="5"/></chord><chord xml:id="c418" dur="8"><note xml:id="n419" pname="d" oct="5"/><note xml:id="n420" pname="f" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1027" pname="a" oct="2" dur="16"/><note xml:id="n1028" pname="a" oct="2" dur="16"/><note xml:id="n1029" pname="a" oct="2" dur="16"/><note xml:id="n1030" pname="a" oct="2" dur="16"/><note xml:id="n1031" pname="a" oct="2" dur="16"/><note xml:id="n1032" pname="a" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="73">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c421" dur="4" dots="1"><note xml:id="n422" pname="d" oct="5"/><note xml:id="n423" pname="f" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1033" pname="b" oct="2" dur="16" accid="f"/><note xml:id="n1034" pname="b" oct="2" dur="16"/><note xml:id="n1035" pname="b" oct="2" dur="16"/><note xml:id="n1036" pname="b" oct="2" dur="16"/><note xml:id="n1037" pname="b" oct="2" dur="16"/><note xml:id="n1038" pname="b" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="74">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c424" dur="4"><note xml:id="n425" pname="g" oct="4"/><note xml:id="n426" pname="e" oct="5" accid="f"/></chord><chord xml:id="c427" dur="16"><note xml:id="n428" pname="f" oct="4"/><note xml:id="n429" pname="d" oct="5"/></chord><chord xml:id="c430" dur="16"><note xml:id="n431" pname="e" oct="4" accid="f"/><note xml:id="n432" pname="c" oct="5"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1039" pname="b" oct="2" dur="16" accid="f"/><note xml:id="n1040" pname="b" oct="2" dur="16"/><note xml:id="n1041" pname="b" oct="2" dur="16"/><note xml:id="n1042" pname="b" oct="2" dur="16"/><note xml:id="n1043" pname="b" oct="2" dur="16"/><note xml:id="n1044" pname="b" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="75">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c433" dur="4"><note xml:id="n434" pname="d" oct="4"/><note xml:id="n435" pname="f" oct="4"/><note xml:id="n436" pname="b" oct="4" accid="f"/></chord><chord xml:id="c437" dur="8"><note xml:id="n438" pname="d" oct="4"/><note xml:id="n439" pname="f" oct="4"/><note xml:id="n440" pname="a" oct="4"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1045" pname="b" oct="2" dur="16" accid="f"/><note xml:id="n1046" pname="b" oct="2" dur="16"/><note xml:id="n1047" pname="b" oct="2" dur="16"/><note xml:id="n1048" pname="b" oct="2" dur="16"/><note xml:id="n1049" pname="b" oct="2" dur="16"/><note xml:id="n1050" pname="b" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="76">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c441" dur="4"><note xml:id="n442" pname="d" oct="4"/><note xml:id="n443" pname="f" oct="4"/><note xml:id="n444" pname="g" oct="4" accid="s"/></chord><chord xml:id="c445" dur="8"><note xml:id="n446" pname="d" oct="4"/><note xml:id="n447" pname="f" oct="4"/><note xml:id="n448" pname="g" oct="4"/></chord></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1051" pname="b" oct="2" dur="16" accid="n"/><note xml:id="n1052" pname="b" oct="2" dur="16"/><note xml:id="n1053" pname="b" oct="2" dur="16"/><note xml:id="n1054" pname="b" oct="2" dur="16"/><note xml:id="n1055" pname="b" oct="2" dur="16"/><note xml:id="n1056" pname="b" oct="2" dur="16"/></layer>
+              </staff>
+            </measure>
+            <measure n="77">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c449" dur="4"><note xml:id="n450" pname="c" oct="4"/><note xml:id="n451" pname="e" oct="4" accid="n"/><note xml:id="n452" pname="a" oct="4"/></chord><rest xml:id="r453" dur="8"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1057" pname="c" oct="3" dur="4"/><rest xml:id="r1058" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="78">
+              <staff n="1">
+                <layer n="1"><chord xml:id="c454" dur="8"><note xml:id="n455" pname="e" oct="4"/><note xml:id="n456" pname="b" oct="4"/></chord><rest xml:id="r457" dur="8"/><rest xml:id="r458" dur="8"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c1059" dur="8"><note xml:id="n1060" pname="e" oct="3"/><note xml:id="n1061" pname="g" oct="3" accid="s"/></chord><rest xml:id="r1062" dur="8"/><rest xml:id="r1063" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="79">
+              <staff n="1">
+                <layer n="1"><tuplet num="3" numbase="2"><note xml:id="n459" pname="a" oct="3" dur="16"/><note xml:id="n460" pname="c" oct="4" dur="16"/><note xml:id="n461" pname="e" oct="4" dur="16"/><note xml:id="n462" pname="a" oct="4" dur="16"/><note xml:id="n463" pname="c" oct="5" dur="16"/><note xml:id="n464" pname="e" oct="5" dur="16"/><note xml:id="n465" pname="d" oct="5" dur="16"/><note xml:id="n466" pname="c" oct="5" dur="16"/><note xml:id="n467" pname="b" oct="4" dur="16"/></tuplet></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1064" pname="a" oct="1" dur="8"/><rest xml:id="r1065" dur="8"/><chord xml:id="c1066" dur="8"><note xml:id="n1067" pname="a" oct="3"/><note xml:id="n1068" pname="c" oct="4"/><note xml:id="n1069" pname="e" oct="4"/></chord></layer>
+              </staff>
+              <dynam staff="1" tstamp="1" startid="#n459">pp</dynam>
+            </measure>
+            <measure n="80">
+              <staff n="1">
+                <layer n="1"><tuplet num="3" numbase="2"><note xml:id="n468" pname="a" oct="4" dur="16"/><note xml:id="n469" pname="c" oct="5" dur="16"/><note xml:id="n470" pname="e" oct="5" dur="16"/><note xml:id="n471" pname="a" oct="5" dur="16"/><note xml:id="n472" pname="c" oct="6" dur="16"/><note xml:id="n473" pname="e" oct="6" dur="16"/><note xml:id="n474" pname="d" oct="6" dur="16"/><note xml:id="n475" pname="c" oct="6" dur="16"/><note xml:id="n476" pname="b" oct="5" dur="16"/></tuplet></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c1070" dur="8"><note xml:id="n1071" pname="a" oct="3"/><note xml:id="n1072" pname="c" oct="4"/><note xml:id="n1073" pname="e" oct="4"/></chord><rest xml:id="r1074" dur="8"/><chord xml:id="c1075" dur="8"><note xml:id="n1076" pname="a" oct="3"/><note xml:id="n1077" pname="c" oct="4"/><note xml:id="n1078" pname="e" oct="4"/></chord></layer>
+              </staff>
+            </measure>
+            <measure n="81">
+              <staff n="1">
+                <layer n="1"><tuplet num="3" numbase="2"><note xml:id="n477" pname="a" oct="4" dur="16"/><note xml:id="n478" pname="c" oct="5" dur="16"/><note xml:id="n479" pname="e" oct="5" dur="16"/><note xml:id="n480" pname="a" oct="5" dur="16"/><note xml:id="n481" pname="c" oct="6" dur="16"/><note xml:id="n482" pname="e" oct="6" dur="16"/><note xml:id="n483" pname="d" oct="6" dur="16"/><note xml:id="n484" pname="c" oct="6" dur="16"/><note xml:id="n485" pname="b" oct="5" dur="16"/></tuplet></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c1079" dur="8"><note xml:id="n1080" pname="a" oct="3"/><note xml:id="n1081" pname="c" oct="4"/><note xml:id="n1082" pname="e" oct="4"/></chord><rest xml:id="r1083" dur="8"/><chord xml:id="c1084" dur="8"><note xml:id="n1085" pname="a" oct="3"/><note xml:id="n1086" pname="c" oct="4"/><note xml:id="n1087" pname="e" oct="4"/></chord></layer>
+              </staff>
+              <octave staff="1" dis="8" dis.place="above" startid="#n477" endid="#n489"/>
+            </measure>
+            <measure n="82">
+              <staff n="1">
+                <layer n="1"><tuplet num="3" numbase="2"><note xml:id="n486" pname="b" oct="5" dur="16" accid="f"/><note xml:id="n487" pname="a" oct="5" dur="16"/><note xml:id="n488" pname="g" oct="5" dur="16" accid="s"/><note xml:id="n489" pname="g" oct="5" dur="16" accid="n"/><note xml:id="n490" pname="f" oct="6" dur="16" accid="s"/><note xml:id="n491" pname="f" oct="6" dur="16" accid="n"/><note xml:id="n492" pname="e" oct="6" dur="16"/><note xml:id="n493" pname="d" oct="6" dur="16" accid="s"/><note xml:id="n494" pname="d" oct="6" dur="16" accid="n"/></tuplet></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c1088" dur="8"><note xml:id="n1089" pname="a" oct="3"/><note xml:id="n1090" pname="c" oct="4"/><note xml:id="n1091" pname="e" oct="4"/></chord><rest xml:id="r1092" dur="8"/><rest xml:id="r1093" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="83">
+              <staff n="1">
+                <layer n="1"><tuplet num="3" numbase="2"><note xml:id="n495" pname="c" oct="6" dur="16" accid="s"/><note xml:id="n496" pname="c" oct="6" dur="16" accid="n"/><note xml:id="n497" pname="b" oct="5" dur="16"/><note xml:id="n498" pname="b" oct="5" dur="16" accid="f"/><note xml:id="n499" pname="a" oct="5" dur="16"/><note xml:id="n500" pname="g" oct="5" dur="16" accid="s"/><note xml:id="n501" pname="g" oct="5" dur="16" accid="n"/><note xml:id="n502" pname="f" oct="5" dur="16" accid="s"/><note xml:id="n503" pname="f" oct="5" dur="16" accid="n"/></tuplet></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r1094"/></layer>
+              </staff>
+            </measure>
+            <measure n="84">
+              <staff n="1">
+                <layer n="1"><note xml:id="n504" pname="e" oct="5" dur="16"/><note xml:id="n505" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n506" pname="e" oct="5" dur="16"/><note xml:id="n507" pname="b" oct="4" dur="16"/><note xml:id="n508" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n509" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r1095"/></layer>
+              </staff>
+            </measure>
+            <measure n="85">
+              <staff n="1">
+                <layer n="1"><note xml:id="n510" pname="a" oct="4" dur="8"/><rest xml:id="r511" dur="16"/><note xml:id="n512" pname="c" oct="4" dur="16"/><note xml:id="n513" pname="e" oct="4" dur="16"/><note xml:id="n514" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1096" pname="a" oct="2" dur="16"/><note xml:id="n1097" pname="e" oct="3" dur="16"/><note xml:id="n1098" pname="a" oct="3" dur="16"/><rest xml:id="r1099" dur="16"/><rest xml:id="r1100" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="86">
+              <staff n="1">
+                <layer n="1"><note xml:id="n515" pname="b" oct="4" dur="8"/><rest xml:id="r516" dur="16"/><note xml:id="n517" pname="e" oct="4" dur="16"/><note xml:id="n518" pname="g" oct="4" dur="16" accid="s"/><note xml:id="n519" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1101" pname="e" oct="2" dur="16"/><note xml:id="n1102" pname="e" oct="3" dur="16"/><note xml:id="n1103" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r1104" dur="16"/><rest xml:id="r1105" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="87">
+              <staff n="1">
+                <layer n="1"><note xml:id="n520" pname="c" oct="5" dur="8"/><rest xml:id="r521" dur="16"/><note xml:id="n522" pname="e" oct="4" dur="16"/><note xml:id="n523" pname="e" oct="5" dur="16"/><note xml:id="n524" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1106" pname="a" oct="2" dur="16"/><note xml:id="n1107" pname="e" oct="3" dur="16"/><note xml:id="n1108" pname="a" oct="3" dur="16"/><rest xml:id="r1109" dur="16"/><rest xml:id="r1110" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="88">
+              <staff n="1">
+                <layer n="1"><note xml:id="n525" pname="e" oct="5" dur="16"/><note xml:id="n526" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n527" pname="e" oct="5" dur="16"/><note xml:id="n528" pname="b" oct="4" dur="16"/><note xml:id="n529" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n530" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r1111"/></layer>
+              </staff>
+            </measure>
+            <measure n="89">
+              <staff n="1">
+                <layer n="1"><note xml:id="n531" pname="a" oct="4" dur="8"/><rest xml:id="r532" dur="16"/><note xml:id="n533" pname="c" oct="4" dur="16"/><note xml:id="n534" pname="e" oct="4" dur="16"/><note xml:id="n535" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1112" pname="a" oct="2" dur="16"/><note xml:id="n1113" pname="e" oct="3" dur="16"/><note xml:id="n1114" pname="a" oct="3" dur="16"/><rest xml:id="r1115" dur="16"/><rest xml:id="r1116" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="90">
+              <staff n="1">
+                <layer n="1"><note xml:id="n536" pname="b" oct="4" dur="8"/><rest xml:id="r537" dur="16"/><note xml:id="n538" pname="e" oct="4" dur="16"/><note xml:id="n539" pname="c" oct="5" dur="16"/><note xml:id="n540" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1117" pname="e" oct="2" dur="16"/><note xml:id="n1118" pname="e" oct="3" dur="16"/><note xml:id="n1119" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r1120" dur="16"/><rest xml:id="r1121" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="91">
+              <staff n="1">
+                <layer n="1"><note xml:id="n541" pname="a" oct="4" dur="8"/><rest xml:id="r542" dur="16"/><note xml:id="n543" pname="b" oct="4" dur="16"/><note xml:id="n544" pname="c" oct="5" dur="16"/><note xml:id="n545" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1122" pname="a" oct="2" dur="16"/><note xml:id="n1123" pname="e" oct="3" dur="16"/><note xml:id="n1124" pname="a" oct="3" dur="16"/><rest xml:id="r1125" dur="16"/><rest xml:id="r1126" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="92">
+              <staff n="1">
+                <layer n="1"><note xml:id="n546" pname="e" oct="5" dur="8" dots="1"/><note xml:id="n547" pname="g" oct="4" dur="16"/><note xml:id="n548" pname="f" oct="5" dur="16"/><note xml:id="n549" pname="e" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1127" pname="c" oct="3" dur="16"/><note xml:id="n1128" pname="g" oct="3" dur="16"/><note xml:id="n1129" pname="c" oct="4" dur="16"/><rest xml:id="r1130" dur="16"/><rest xml:id="r1131" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="93">
+              <staff n="1">
+                <layer n="1"><note xml:id="n550" pname="d" oct="5" dur="8" dots="1"/><note xml:id="n551" pname="f" oct="4" dur="16"/><note xml:id="n552" pname="e" oct="5" dur="16"/><note xml:id="n553" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1132" pname="g" oct="2" dur="16"/><note xml:id="n1133" pname="g" oct="3" dur="16"/><note xml:id="n1134" pname="b" oct="3" dur="16"/><rest xml:id="r1135" dur="16"/><rest xml:id="r1136" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="94">
+              <staff n="1">
+                <layer n="1"><note xml:id="n554" pname="c" oct="5" dur="8" dots="1"/><note xml:id="n555" pname="e" oct="4" dur="16"/><note xml:id="n556" pname="d" oct="5" dur="16"/><note xml:id="n557" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1137" pname="a" oct="2" dur="16"/><note xml:id="n1138" pname="e" oct="3" dur="16"/><note xml:id="n1139" pname="a" oct="3" dur="16"/><rest xml:id="r1140" dur="16"/><rest xml:id="r1141" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="95">
+              <staff n="1">
+                <layer n="1"><note xml:id="n558" pname="b" oct="4" dur="8"/><rest xml:id="r559" dur="16"/><note xml:id="n560" pname="e" oct="4" dur="16"/><note xml:id="n561" pname="e" oct="5" dur="16"/><rest xml:id="r562" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1142" pname="e" oct="2" dur="16"/><note xml:id="n1143" pname="e" oct="3" dur="16"/><note xml:id="n1144" pname="e" oct="4" dur="16"/><rest xml:id="r1145" dur="16"/><rest xml:id="r1146" dur="16"/><clef shape="G" line="2"/><note xml:id="n1147" pname="e" oct="4" dur="16"/></layer>
+              </staff>
+              <slur staff="1" startid="#n560" endid="#n561"/>
+              <slur staff="2" startid="#n1143" endid="#n1144"/>
+              <slur staff="2" startid="#n1147" endid="#n1148"/>
+            </measure>
+            <measure n="96">
+              <staff n="1">
+                <layer n="1"><rest xml:id="r563" dur="16"/><note xml:id="n564" pname="e" oct="5" dur="16"/><note xml:id="n565" pname="e" oct="6" dur="16"/><rest xml:id="r566" dur="16"/><rest xml:id="r567" dur="16"/><note xml:id="n568" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1148" pname="e" oct="5" dur="16"/><rest xml:id="r1149" dur="16"/><rest xml:id="r1150" dur="16"/><note xml:id="n1151" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n1152" pname="e" oct="5" dur="16"/><rest xml:id="r1153" dur="16"/></layer>
+              </staff>
+              <slur staff="1" startid="#n564" endid="#n565"/>
+              <slur staff="1" startid="#n568" endid="#n569"/>
+              <slur staff="2" startid="#n1151" endid="#n1152"/>
+            </measure>
+            <measure n="97">
+              <staff n="1">
+                <layer n="1"><note xml:id="n569" pname="e" oct="5" dur="16"/><rest xml:id="r570" dur="16"/><rest xml:id="r571" dur="16"/><note xml:id="n572" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n573" pname="e" oct="5" dur="16"/><note xml:id="n574" pname="d" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><rest xml:id="r1154" dur="16"/><note xml:id="n1155" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n1156" pname="e" oct="5" dur="16"/><rest xml:id="r1157" dur="16"/><rest xml:id="r1158" dur="8"/></layer>
+              </staff>
+              <slur staff="2" startid="#n1155" endid="#n1156"/>
+            </measure>
+            <measure n="98">
+              <staff n="1">
+                <layer n="1"><note xml:id="n575" pname="e" oct="5" dur="16"/><note xml:id="n576" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n577" pname="e" oct="5" dur="16"/><note xml:id="n578" pname="b" oct="4" dur="16"/><note xml:id="n579" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n580" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r1159"/></layer>
+              </staff>
+            </measure>
+            <measure n="99">
+              <staff n="1">
+                <layer n="1"><note xml:id="n581" pname="a" oct="4" dur="8"/><rest xml:id="r582" dur="16"/><note xml:id="n583" pname="c" oct="4" dur="16"/><note xml:id="n584" pname="e" oct="4" dur="16"/><note xml:id="n585" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><clef shape="F" line="4"/><note xml:id="n1160" pname="a" oct="2" dur="16"/><note xml:id="n1161" pname="e" oct="3" dur="16"/><note xml:id="n1162" pname="a" oct="3" dur="16"/><rest xml:id="r1163" dur="16"/><rest xml:id="r1164" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="100">
+              <staff n="1">
+                <layer n="1"><note xml:id="n586" pname="b" oct="4" dur="8"/><rest xml:id="r587" dur="16"/><note xml:id="n588" pname="e" oct="4" dur="16"/><note xml:id="n589" pname="g" oct="4" dur="16" accid="s"/><note xml:id="n590" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1165" pname="e" oct="2" dur="16"/><note xml:id="n1166" pname="e" oct="3" dur="16"/><note xml:id="n1167" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r1168" dur="16"/><rest xml:id="r1169" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="101">
+              <staff n="1">
+                <layer n="1"><note xml:id="n591" pname="c" oct="5" dur="8"/><rest xml:id="r592" dur="16"/><note xml:id="n593" pname="e" oct="4" dur="16"/><note xml:id="n594" pname="e" oct="5" dur="16"/><note xml:id="n595" pname="d" oct="5" dur="16" accid="s"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1170" pname="a" oct="2" dur="16"/><note xml:id="n1171" pname="e" oct="3" dur="16"/><note xml:id="n1172" pname="a" oct="3" dur="16"/><rest xml:id="r1173" dur="16"/><rest xml:id="r1174" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="102">
+              <staff n="1">
+                <layer n="1"><note xml:id="n596" pname="e" oct="5" dur="16"/><note xml:id="n597" pname="d" oct="5" dur="16" accid="s"/><note xml:id="n598" pname="e" oct="5" dur="16"/><note xml:id="n599" pname="b" oct="4" dur="16"/><note xml:id="n600" pname="d" oct="5" dur="16" accid="n"/><note xml:id="n601" pname="c" oct="5" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><mRest xml:id="r1175"/></layer>
+              </staff>
+            </measure>
+            <measure n="103">
+              <staff n="1">
+                <layer n="1"><note xml:id="n602" pname="a" oct="4" dur="8"/><rest xml:id="r603" dur="16"/><note xml:id="n604" pname="c" oct="4" dur="16"/><note xml:id="n605" pname="e" oct="4" dur="16"/><note xml:id="n606" pname="a" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1176" pname="a" oct="2" dur="16"/><note xml:id="n1177" pname="e" oct="3" dur="16"/><note xml:id="n1178" pname="a" oct="3" dur="16"/><rest xml:id="r1179" dur="16"/><rest xml:id="r1180" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="104">
+              <staff n="1">
+                <layer n="1"><note xml:id="n607" pname="b" oct="4" dur="8"/><rest xml:id="r608" dur="16"/><note xml:id="n609" pname="e" oct="4" dur="16"/><note xml:id="n610" pname="c" oct="5" dur="16"/><note xml:id="n611" pname="b" oct="4" dur="16"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><note xml:id="n1181" pname="e" oct="2" dur="16"/><note xml:id="n1182" pname="e" oct="3" dur="16"/><note xml:id="n1183" pname="g" oct="3" dur="16" accid="s"/><rest xml:id="r1184" dur="16"/><rest xml:id="r1185" dur="8"/></layer>
+              </staff>
+            </measure>
+            <measure n="105" right="end">
+              <staff n="1">
+                <layer n="1"><note xml:id="n612" pname="a" oct="4" dur="8"/><rest xml:id="r613" dur="8"/></layer>
+              </staff>
+              <staff n="2">
+                <layer n="1"><chord xml:id="c1186" dur="8"><note xml:id="n1187" pname="a" oct="1"/><note xml:id="n1188" pname="a" oct="2"/></chord><rest xml:id="r1189" dur="8"/></layer>
+              </staff>
+            </measure>
+          </section>
+        </score>
+      </mdiv>
+    </body>
+  </music>
+</mei>

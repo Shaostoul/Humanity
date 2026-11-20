@@ -300,6 +300,26 @@ credit (`src/instrument_packs/data_tests.rs`). Redistributing these packs means 
 the licence link and the note that they were changed. The research, quoted and dated:
 `docs/reference/findings/2026-11-13-free-instrument-libraries.md`.
 
+## The written music (Mutopia Project, public domain)
+
+Three pieces of written music in `data/music/scores/` were converted to MEI by HumanityOS
+(`scripts/ly-to-mei.js`, 2026-11-20) from LilyPond files of the Mutopia Project
+(<https://www.mutopiaproject.org/>), each placed in the public domain by its typesetter:
+
+- **Für Elise**, WoO 59 (Beethoven), Mutopia piece 931, typeset by **Stelios Samelis** from the
+  Breitkopf & Härtel edition of 1888.
+- **In the Hall of the Mountain King**, Op. 46 No. 4, in Grieg's own piano arrangement, Mutopia piece
+  1888, typeset by **Coyau** from The University Society edition of 1918.
+- **Symphony No. 5**, Op. 67, first movement (Beethoven), Mutopia piece 941, typeset by **Stelios
+  Samelis** and adapted to LilyPond 2.16.2 by **Johannes Heinecke**, from the Breitkopf & Härtel
+  edition of 1862 to 1865.
+
+Nothing obliges a credit; the app credits Mutopia and the typesetters as a courtesy, on the Credits
+page (`data/credits.ron`) and under each piece on the Music page. Our conversions are dedicated to the
+public domain (CC0), like the rest of `data/`. Each file names its source, its edition and the
+SHA-256 of the file it came from. The research, quoted and dated:
+`docs/reference/findings/2026-11-20-public-domain-scores.md` (findings 16 and 20).
+
 ## OpenMoji - the emoji pictures (CC BY-SA 4.0, the third share-alike source)
 
 All emojis designed by [OpenMoji](https://openmoji.org/) – the open-source emoji and icon project.

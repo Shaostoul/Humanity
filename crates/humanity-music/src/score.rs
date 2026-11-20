@@ -513,6 +513,8 @@ impl ScoreEngine {
             s.tempo_bpm = qpm as f32;
             s.beat = beat;
             s.beats_per_bar = beats;
+            // Seconds into this time through: where the piano roll's playhead stands in the piece.
+            s.seconds = w.seconds();
         }
         self.analyse(out);
     }

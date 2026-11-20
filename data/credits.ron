@@ -355,5 +355,20 @@
             // 2026-11-20): web/chat/view/pillPopup.js, words emoji.credit in en.json.
             shown_in: ["Credits", "The website chat's reaction picker (the foot of its ∞ panel)", "The website's footer (its licence link opens LICENSING.md, which names OpenMoji and links LICENSES.md)", "assets/emoji/openmoji/LICENSE.md, beside the pictures"],
         ),
+        // The written music (docs/design/score-player.md, rung 2): three pieces converted to MEI from
+        // Mutopia Project LilyPond files whose typesetters placed them in the public domain
+        // (docs/reference/findings/2026-11-20-public-domain-scores.md, findings 16 and 20). Nothing
+        // obliges a credit; the finding recommends one as a courtesy. Each piece also names its edition
+        // and typesetter beside it on the Music page (data/music/scores/index.ron, credit_words).
+        (
+            id: "mutopia",
+            name: "The Mutopia Project",
+            used_for: "The written music the Music page plays: Beethoven's Für Elise (typeset by Stelios Samelis, from Breitkopf & Härtel 1888), Grieg's own piano arrangement of In the Hall of the Mountain King (typeset by Coyau, from The University Society 1918) and the first movement of Beethoven's Symphony No. 5 (typeset by Stelios Samelis and Johannes Heinecke, from Breitkopf & Härtel 1862 to 1865), converted to MEI by HumanityOS.",
+            licence: "Public domain (placed in the public domain by each typesetter)",
+            notice: "Written music from the Mutopia Project (mutopiaproject.org), typeset by Stelios Samelis, Coyau and Johannes Heinecke and placed in the public domain",
+            url: "https://www.mutopiaproject.org/",
+            attribution_required: false,
+            shown_in: ["Credits", "The Music page's Written music list (each piece's credit, under its title)"],
+        ),
     ],
 )

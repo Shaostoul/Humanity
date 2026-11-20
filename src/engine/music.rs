@@ -249,6 +249,9 @@ pub(crate) struct Built {
     /// Per genre: the parts that can sound with it that no installed recording of their own plays,
     /// each with the pack that would bring one.
     pub stand_ins: Vec<Vec<StandIn>>,
+    /// Each part a recording plays and the score's instrument for it (a written piece's staves are
+    /// pointed at these: score-player.md section 9, rung 2).
+    pub recorded: Vec<(String, String)>,
     /// How long it took on the worker, milliseconds.
     pub took_ms: f32,
 }
@@ -257,11 +260,18 @@ pub(crate) struct Built {
 /// installed recording of each part the genres in use (`genres`, ids) can sound, decode it through
 /// `bank`, level it and resolve the score. On the worker thread (the game thread never waits for it).
 pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut SampleBank, genres: &[String]) -> Result<Built, String> {
+    build_with(data_dir, a4, with_score, bank, genres, &[])
+}
+
+/// [`build`], with the parts a written piece's staves name (`written_parts`: each with its staff's
+/// synthesised instrument and the middle of its notes) attached beside the genres' (score-player.md
+/// section 9, rung 2).
+pub(crate) fn build_with(data_dir: &Path, a4: f32, with_score: bool, bank: &mut SampleBank, genres: &[String], written_parts: &[(String, String, i32)]) -> Result<Built, String> {
     let t0 = Instant::now();
     let lib = MusicLibrary::load(data_dir)?;
     let stand_ins = genre_stand_ins(data_dir, &lib);
     if !with_score {
-        return Ok(Built { lib: Arc::new(lib), score: None, plays: Vec::new(), problems: Vec::new(), stand_ins, took_ms: t0.elapsed().as_secs_f32() * 1000.0 });
+        return Ok(Built { lib: Arc::new(lib), score: None, plays: Vec::new(), problems: Vec::new(), stand_ins, recorded: Vec::new(), took_ms: t0.elapsed().as_secs_f32() * 1000.0 });
     }
     let mut with_parts = lib.clone();
     // How long recordings stream (data/music/streaming.ron), read every build.
@@ -274,13 +284,13 @@ pub(crate) fn build(data_dir: &Path, a4: f32, with_score: bool, bank: &mut Sampl
             if ids.is_empty() {
                 ids.push(0);
             }
-            crate::instrument_packs::score::attach(&mut with_parts, &installed, &parts, a4, bank, Some(&ids))
+            crate::instrument_packs::score::attach_with(&mut with_parts, &installed, &parts, a4, bank, Some(&ids), written_parts)
         }
         Err(e) => crate::instrument_packs::score::Attached { problems: vec![format!("data/music/parts.ron did not load, so every part is synthesised: {e}")], ..Default::default() },
     };
     attached.problems.extend(stream_problem);
     let res = Resolved::new(&with_parts, &attached.samples)?;
-    Ok(Built { lib: Arc::new(lib), score: Some(res), plays: attached.plays, problems: attached.problems, stand_ins, took_ms: t0.elapsed().as_secs_f32() * 1000.0 })
+    Ok(Built { lib: Arc::new(lib), score: Some(res), plays: attached.plays, problems: attached.problems, stand_ins, recorded: attached.recorded, took_ms: t0.elapsed().as_secs_f32() * 1000.0 })
 }
 
 /// Settings > Music's genre choices: each genre's id and words, with its stand-ins (`stand_ins`, per
@@ -524,8 +534,9 @@ pub(crate) struct MusicRuntime {
     /// A written piece that could not be read (its id and why): not asked for again until the person
     /// chooses another, so a broken file never rebuilds every frame; the Music page says why.
     written_failed: Option<(String, String)>,
-    /// The written piece the playing score plays (None: the composer composes).
-    score_written: Option<String>,
+    /// The written piece the playing score plays, its id and the piece (None: the composer composes):
+    /// the Music page's piano roll draws it.
+    score_written: Option<(String, Arc<humanity_music::scores::WrittenPiece>)>,
 }
 
 /// Whether two "in place of new pieces" choices compose the same piece (both none, or the same seed,
@@ -582,11 +593,25 @@ impl MusicRuntime {
         let asked = genres.clone();
         let written = written.filter(|_| with_score);
         let handle = std::thread::Builder::new().name("music-build".into()).spawn(move || {
-            let r = build(&dir, a4, with_score, &mut bank, &asked);
+            // The written piece first: the parts its staves name are attached with the build's, and
+            // its staves then play the recordings found (score-player.md section 9, rung 2).
             let w = written.map(|id| {
                 let piece = load_written(&dir, &id);
                 (id, piece)
             });
+            let parts = match &w {
+                Some((_, Ok(p))) => humanity_music::scores::written_parts(&p.entry, &p.score),
+                _ => Vec::new(),
+            };
+            let r = build_with(&dir, a4, with_score, &mut bank, &asked, &parts);
+            let w = match (w, &r) {
+                (Some((id, Ok(piece))), Ok(built)) if !parts.is_empty() => {
+                    let mut p = (*piece).clone();
+                    humanity_music::scores::point_staves(&mut p.entry, &built.recorded);
+                    Some((id, Ok(Arc::new(p))))
+                }
+                (w, _) => w,
+            };
             (r, bank, w)
         });
         match handle {
@@ -756,7 +781,7 @@ impl MusicRuntime {
                 let res_copy = Arc::new(res.clone());
                 // A written piece plays in place of the composer (score-player.md section 10); a
                 // rebuild of it carries on from the bar it was at (`form_pos` is its bar).
-                let written_id = ready_written.as_ref().map(|(id, _)| id.clone());
+                let written_now = ready_written.clone();
                 let engine = match (ready_written, resume) {
                     (Some((_, piece)), at) => {
                         let mut player = piece.player(&res, START_RATE, a4);
@@ -793,7 +818,7 @@ impl MusicRuntime {
                         self.score_choice = choice.clone();
                         self.score_seed = seed;
                         self.score_res = Some(res_copy);
-                        self.score_written = written_id;
+                        self.score_written = written_now;
                     }
                     Err(e) => log::warn!("[Music] the score did not start: {e}"),
                 }
@@ -862,7 +887,8 @@ impl MusicRuntime {
             readout.mood = readout.place_mood.clone();
         }
         readout.zone = inp.place.zone.clone();
-        readout.written = self.score.as_ref().and(self.score_written.clone());
+        readout.written = self.score.as_ref().and(self.score_written.as_ref().map(|(id, _)| id.clone()));
+        readout.written_piece = self.score.as_ref().and(self.score_written.as_ref().map(|(_, p)| p.clone()));
         readout.written_error = self.written_failed.clone();
         readout.seed = self.seed;
         readout.pieces = self.pieces;

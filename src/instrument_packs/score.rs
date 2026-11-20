@@ -49,6 +49,10 @@ pub struct Attached {
     pub plays: Vec<(String, PartPlays)>,
     /// Recordings that could not be decoded (their part falls back).
     pub problems: Vec<String>,
+    /// Each part a recording plays (its own, or its fallback part's), and the score's instrument id
+    /// for it: what a written piece's staves naming the part are pointed at
+    /// (`humanity_music::scores::point_staves`).
+    pub recorded: Vec<(String, String)>,
 }
 
 impl Attached {
@@ -100,6 +104,15 @@ pub fn named_parts(music: &MusicLibrary) -> Vec<(String, String, i32)> {
                     _ => 60,
                 };
                 named.push((p.clone(), e.instrument.clone(), m));
+            }
+        }
+    }
+    // The written pieces' staves (docs/design/score-player.md section 9, rung 2), at middle C: their
+    // own register is known only once a piece is read (`humanity_music::scores::written_parts`).
+    for s in music.scores.iter().flat_map(|p| p.staves.iter()) {
+        if let Some(p) = &s.part {
+            if !named.iter().any(|(n, _, _)| n == p) {
+                named.push((p.clone(), s.instrument.clone(), 60));
             }
         }
     }
@@ -225,11 +238,23 @@ fn depth(part: &str, parts: &Parts) -> usize {
 /// (RMS of one note at velocity 1, at A = `a4`). A part with no recording plays its fallback part's
 /// instrument when it has one.
 pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: &Parts, a4: f32, bank: &mut SampleBank, genres: Option<&[usize]>) -> Attached {
+    attach_with(music, instruments, parts, a4, bank, genres, &[])
+}
+
+/// [`attach`], with `extra` parts too (part, the synthesised instrument that plays it without a
+/// recording, the middle of its register): a written piece's staves while it plays
+/// (`humanity_music::scores::written_parts`; docs/design/score-player.md section 9, rung 2).
+pub fn attach_with(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: &Parts, a4: f32, bank: &mut SampleBank, genres: Option<&[usize]>, extra: &[(String, String, i32)]) -> Attached {
     let mut out = Attached::default();
     let mut named = match genres {
         Some(s) => sounding_parts(music, s),
         None => named_parts(music),
     };
+    for (part, synth, mid) in extra {
+        if !named.iter().any(|(n, _, _)| n == part) {
+            named.push((part.clone(), synth.clone(), *mid));
+        }
+    }
     named.sort_by_key(|(p, _, _)| depth(p, parts));
     // Every recording this build will ask for, decoded several at once first (BUG-297): whole, or
     // only its attack when a note plays it straight through (streams).
@@ -421,6 +446,8 @@ pub fn attach(music: &mut MusicLibrary, instruments: &InstrumentLibrary, parts: 
         plays_as.insert(part, (id, plays));
     }
     bank.end_build();
+    out.recorded = plays_as.into_iter().filter(|(_, (_, p))| matches!(p, PartPlays::Recorded { .. })).map(|(part, (id, _))| (part, id)).collect();
+    out.recorded.sort();
     out
 }
 

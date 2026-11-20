@@ -234,6 +234,16 @@ pub fn written_choice(s: &MusicSettings, lib: Option<&MusicLibrary>) -> MusicCho
 
 /// A written piece's title and composer for a person: their words by key, else the plain words a
 /// community index gives, else the id.
+/// The credit a written piece's index line gives (its `credit_words`, by key), None when it gives
+/// none or the key has no words.
+pub fn credit_words(e: &humanity_music::scores::ScoreEntry) -> Option<String> {
+    if e.credit_words.is_empty() {
+        return None;
+    }
+    let w = t_dyn(&e.credit_words);
+    (w != e.credit_words).then(|| w.to_string())
+}
+
 pub fn score_words(e: &humanity_music::scores::ScoreEntry) -> (String, String) {
     let pick = |key: &str, plain: &str, fallback: &str| -> String {
         if !key.is_empty() {

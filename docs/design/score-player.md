@@ -1,6 +1,6 @@
 # The score player: written music stored as MEI, played on our own instruments
 
-Planned and rung 1 built 2026-11-20. The crate is `crates/humanity-music` (its card:
+Planned and rungs 1 and 2 built 2026-11-20. The crate is `crates/humanity-music` (its card:
 [docs/crates/humanity-music.md](../crates/humanity-music.md)); the live composer it sits beside is
 [music.md](music.md); the page it plays from is [music-page.md](music-page.md).
 
@@ -93,14 +93,14 @@ reads as well.
 | What | Rung 1 (built) | Later |
 |---|---|---|
 | Header | `title`, `composer` (or a `persName` with `role="composer"`), `availability` text | `respStmt` credits shown on the page |
-| Structure | `music`, `body`, `mdiv`, `score`, `section`, `measure`, `staff`, `layer` (layers of a staff play together), `beam` (read through) | `ending` and repeat bar lines expanded (rung 2) |
-| Notes | `note` (`pname`, `oct`, `dur` from `long` to `2048`, `dots`, `accid` as attribute or child `accid`, `oct.ges`, `pname.ges`, `vel`, `xml:id`), `rest`, `mRest`, `space`, `chord` (its notes take its duration) | grace notes played (rung 2: counted, not played, in rung 1), `bTrem`/`fTrem`, `arpeg` |
-| Time | `tuplet` (nested, exact), the key and the meter (attributes and elements), a mid-piece `scoreDef` or `staffDef` (from the next bar), `tempo` at its `tstamp` | `fermata` (a held beat), `tempo@func="continuous"` (a gradual change), `rit.`/`accel.` words |
-| Pitch | the key signature, a written accidental holding to the end of its bar on its staff, a tie carrying its pitch over the bar line, `trans.semi`, quarter-tone accidentals (`1qs`, `3qf` ...) | `octave` lines (8va: counted as a problem until then, since they change the pitch) |
+| Structure | `music`, `body`, `mdiv`, `score`, `section`, `measure`, `staff`, `layer` (layers of a staff play together), `beam` (read through); rung 2: `ending` and the repeat bar lines played in order | |
+| Notes | `note` (`pname`, `oct`, `dur` from `long` to `2048`, `dots`, `accid` as attribute or child `accid`, `oct.ges`, `pname.ges`, `vel`, `xml:id`), `rest`, `mRest`, `space`, `chord` (its notes take its duration); rung 2: grace notes (`@grace`, `graceGrp`, `grace.time`), `bTrem` with `unitdur` (its strokes) | `fTrem`, `arpeg` |
+| Time | `tuplet` (nested, exact), the key and the meter (attributes and elements), a mid-piece `scoreDef` or `staffDef` (from the next bar), `tempo` at its `tstamp`; rung 2: `fermata` (element or attribute: its moment held twice its length) | `tempo@func="continuous"` (a gradual change), `rit.`/`accel.` words |
+| Pitch | the key signature, a written accidental holding to the end of its bar on its staff, a tie carrying its pitch over the bar line, `trans.semi`, quarter-tone accidentals (`1qs`, `3qf` ...); rung 2: `octave` lines (`dis` 8, 15, 22, above or below, to `endid` or `tstamp2`; a note with `oct.ges` left alone) | |
 | Ties | `@tie` and the `tie` element: the tied notes sound as one | |
-| Dynamics | `vel` on a note; `dynam` letters (`ppp` to `fff`, `sf`, `fp`) at their `tstamp`, per staff | `hairpin` (crescendo, diminuendo) moving the velocity, articulations (staccato shortens) |
+| Dynamics | `vel` on a note; `dynam` letters (`ppp` to `fff`) at their `tstamp`, per staff; rung 2: `sf`, `sfz`, `fz` (one note louder), `fp`, `hairpin` and "cresc." or "dim." words (the loudness moves to the dynamic at its end, else one step), articulations (`stacc` held half, `stacciss` a quarter, `ten` all, `acc` and `marc` struck harder) | |
 | Lyrics | `verse` (`n`) and `syl` (text, `wordpos`, `con`) under a note, or `syl` directly in it: each kept with its note's `xml:id`, its verse and its time | the Accord's `lg`/`l` line groups beside the music (rung 3) |
-| Parts | `staffDef` `n` and `label` | `instrDef` (`midi.instrnum`) as a hint for the instrument mapping |
+| Parts | `staffDef` `n` and `label`; rung 2: the index's `part` per staff (section 9) | `instrDef` (`midi.instrnum`) as a hint for the instrument mapping |
 | Readings | | `app`/`rdg`/`lem`, `choice`: the simple and the full arrangement (rung 4), `@source` named on the page |
 
 What the reader does with anything else: an element it does not know is skipped, its subtree with
@@ -235,7 +235,8 @@ the voice pool like any genre.
 1. **The reader, the timeline, the player, the index, one piece, the page's list** (built 2026-11-20,
    section 18).
 2. Recorded parts, grace notes, repeats and endings, `octave` lines, fermatas, hairpins and
-   articulations, the written piece in the piano roll.
+   articulations, the written piece in the piano roll (built 2026-11-20, section 19), with three
+   public-domain pieces converted from Mutopia's LilyPond by our own converter.
 3. The Accord sing-along: the five-vowel choir, the Accord set in MEI with its line groups, the
    scrolling line.
 4. The two modes as readings (`app`/`rdg`: the simple and the full arrangement), `@source` named on
@@ -284,3 +285,63 @@ the voice pool like any genre.
 - **Not built in rung 1**, by the plan: recorded parts, grace notes (counted), repeats and endings,
   `octave` lines (problems), hairpins, the web mirror (section 13), validation of the shipped file
   against the MEI Basic RNG schema (a download of the schema, to be asked for first).
+
+## 19. As built: rung 2 (2026-11-20)
+
+- **Repeats and endings** (`mei.rs`, `play_order`): the bars and definitions are gathered in the order
+  written, each with the ending it sits in, then played: a repeat's bars again from its start sign
+  (or the last repeat's end, or the beginning), each ending only on the times through its `n` names
+  ("1", "1, 2", "1-3"; an ending with none takes its place in its run), the run of endings ending the
+  repeat (as many times through as the highest ending number, else two). `MeiScore::bars` is the bars
+  as played and `written_bars` the count the file writes; a note's `bar` counts as played.
+- **Grace notes** take their time from the note (or rest) after them: an appoggiatura (`grace="acc"`)
+  half of it, two thirds of a dotted one, a group its written values up to half; a slashed or plain
+  one (`unacc`) at most a 32nd each, the group up to half; `grace.time` (a percentage) when written.
+  The note after them starts when they end. `graceGrp` gives its notes its kind.
+- **Octave lines** (`octave`, `dis` 8, 15 or 22, `dis.place`) move every note of their staff from
+  their start to their end (`endid`, or `tstamp2` as bars and a beat), both ends included, unless a
+  note gives `oct.ges`. MEI's `oct` is the WRITTEN octave: under an 8va a note is written an octave
+  below where it sounds (the converter writes it so; LilyPond writes the sounding pitch).
+- **Fermatas** (the element by `startid` or `tstamp`, or `@fermata`) hold what they stand on (the
+  note or rest named, else the longest starting there on their staff, else a beat): the timeline's
+  tempo map (`TempoMap::with_holds`) plays that moment at half speed (`FERMATA_HOLD` = 2), so every
+  note sounding is held and what follows comes later; fermatas on every staff at one moment hold it
+  once.
+- **Dynamics**: a hairpin (or "cresc." or "dim." written as words) moves the level of the notes under
+  it from where it starts to the dynamic at its end, else one step (`HAIRPIN_STEP`, 0.12) on, which
+  then holds; with no end written it runs to the next dynamic on its staff. `sf`, `sfz` and `fz`
+  strike their one note `SFORZANDO_ADD` (0.25) harder; `fp` strikes forte and leaves piano. A note's
+  own `vel` is never moved.
+- **Articulations** (`@artic` on a note or its chord, or `artic` elements): `stacc` held half its
+  length, `stacciss` a quarter, `spicc` 0.4, `ten` all but 5 ms, `ten-stacc` three quarters; `acc`
+  0.12 harder, `marc` 0.18. `TimedNote::hold_s` carries the held length to the player.
+- **Measured tremolos** (`bTrem` with `unitdur`) play their strokes (a half note with eighth
+  strokes is four eighths); the first keeps the note's id and ties. `fTrem` still plays its notes
+  plainly (counted as not played).
+- **Recorded parts** (section 9): a staff's `part` in the index; the build attaches the piece's parts
+  beside the genres' (`scores::written_parts`, with the middle of each staff's notes;
+  `instrument_packs::score::attach_with`; `engine::music::build_with`), and the staves are pointed at
+  the recordings found (`scores::point_staves` with `Attached::recorded`); without one, the index's
+  synthesised instrument plays. `named_parts` counts the written pieces' parts, so Settings > Audio >
+  Instruments says truthfully which parts the music plays (the flute, oboe, bassoon, horn, timpani and
+  middle strings parts lost their "not used yet" marks).
+- **The piano roll** draws a written piece: `Sheet::from_timeline` (each note in its staff's role, a
+  bar line at each bar, the first bar's beats), made again when the piece changes and every frame with
+  "turn off all reuse" off; the score's status reports the seconds into the piece for the playhead;
+  the engine hands the page the playing piece (`MusicReadout::written_piece`).
+- **The pieces**, converted with our own converter (`scripts/ly-to-mei.js`: a reader of the LilyPond
+  subset these files use, written for this; it never runs LilyPond or the Scheme inside a file; each
+  source file's SHA-256 in `scripts/ly-to-mei.pieces.json` is checked first). A converter rather than
+  hand-encoding: the symphony alone is twelve staves and about 10,000 notes. Für Elise (106 bars, both
+  repeats, 156.25 s), Grieg's piano Mountain King (88 bars, 147.7 s, its two right-hand voices as two
+  layers) and the symphony's first movement (502 bars, the exposition repeated, the oboe's Adagio
+  cadenza in bar 268 as the edition lays it out). Each MEI file names its source, edition and licence
+  in its header and comment; the index carries them and a credit by words key, which the Music page
+  shows under the piece. All three are public domain; Mutopia and its typesetters are credited as a
+  courtesy (data/credits.ron, LICENSES.md), as the finding recommends. The symphony's tempo (a half
+  note = 108, Beethoven's own metronome mark of 1817; the Adagio at 60 quarter notes a minute) is
+  written as playback values beside the edition's words; the double basses carry `trans.semi="-12"`.
+- **Section 17's questions** stay the operator's: a piece plays again after a short rest, as built; no
+  favourites or share codes for written pieces yet.
+- **Not built in rung 2**: fingered tremolos (`fTrem`), arpeggios, `rit.` and `accel.` words, the
+  MEI Basic RNG validation (a download, to be asked for first), and the web mirror.

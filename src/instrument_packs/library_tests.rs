@@ -19,7 +19,7 @@ use super::install;
 use super::install_tests::{fixture_dir, fixture_entry, fixture_tar};
 use super::library::{Choice, InstrumentLibrary};
 use super::samples::SampleBank;
-use super::score::{attach, PartPlays};
+use super::score::{attach, attach_with, PartPlays};
 
 const RATE: u32 = 48_000;
 
@@ -302,4 +302,37 @@ fn a_part_of_several_voices_gives_each_key_one_voice() {
     for k in 0..=127 {
         assert_eq!(bands.iter().filter(|b| (b.0..=b.1).contains(&k)).count(), 1, "key {k} has one voice");
     }
+}
+
+/// A WRITTEN PIECE'S STAFF PLAYS THE BEST RECORDING OF ITS PART (docs/design/score-player.md section 9,
+/// rung 2): the shipped Ode to Joy with its staff naming the part `piano`, over the fixture's data
+/// (whose core set records the piano), attached with the piece's parts beside the default genre's:
+/// the staff is pointed at the recorded piano, which the resolved score holds as a recording; with no
+/// part named, the staff keeps its own synthesised clarinet. RED 2026-11-20 with the piece's parts
+/// not passed to the attachment (`attach_with` ignoring them): "left: \"clarinet\", right:
+/// \"recorded:fixture_upright\"".
+#[test]
+fn a_written_staff_plays_the_recording_of_its_part() {
+    let data = data_folder("written-part");
+    let repo = PathBuf::from(env!("HUMANITY_REPO_ROOT")).join("data");
+    let mut music = MusicLibrary::load(&repo).expect("the shipped music");
+    let mut entry = music.score("ode_to_joy").expect("the index lists it").clone();
+    entry.staves[0].part = Some("piano".into());
+    let piece = humanity_music::scores::load_piece(&repo, &entry).expect("it reads");
+    let extra = humanity_music::scores::written_parts(&piece.entry, &piece.score);
+    assert_eq!(extra, vec![("piano".to_string(), "clarinet".to_string(), 63)], "the part, its synthesised voice and the middle of its notes (A3 57 to A4 69)");
+    let parts = Parts::load(&data).expect("parts.ron");
+    let installed = InstrumentLibrary::load(&data);
+    let attached = attach_with(&mut music, &installed, &parts, 432.0, &mut SampleBank::new(), Some(&[0]), &extra);
+    let mut played = piece.entry.clone();
+    humanity_music::scores::point_staves(&mut played, &attached.recorded);
+    assert_eq!(played.staves[0].instrument, "recorded:fixture_upright");
+    let res = Resolved::new(&music, &attached.samples).expect("resolves");
+    let inst = res.instrument_index(&played.staves[0].instrument).expect("the recording is in the score") as usize;
+    assert!(res.banks[inst].is_some(), "the staff plays the recording");
+    // No part named: the staff keeps the index's instrument.
+    let mut plain = piece.entry.clone();
+    plain.staves[0].part = None;
+    humanity_music::scores::point_staves(&mut plain, &attached.recorded);
+    assert_eq!(plain.staves[0].instrument, "clarinet");
 }

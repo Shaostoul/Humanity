@@ -9,10 +9,20 @@
 // sounds at the music's loudness target: the crate's tests hold it there), `rest_s` (the rest before
 // it plays again), and each staff's instrument (a synthesised one from data/music/instruments; recorded
 // parts are the score player's rung 2), its role on the Music page (pad, bass, drone, choir, bells,
-// melody, percussion, texture), its level and its pan.
+// melody, percussion, texture), its level and its pan, and (score player rung 2) its `part`: an id in
+// data/music/parts.ron whose best installed recording plays the staff instead (the core set's upright
+// piano plays `piano`), the instrument named here when none is installed.
 //
-// A file is added only from a source the dated finding allows (docs/reference/findings/); the one
-// below was written by the project by hand (CC0, like the rest of this folder).
+// A file is added only from a source the dated finding allows (docs/reference/findings/), and says
+// where it came from: `edition` (the printed edition it follows), `source` (the encoding it was
+// converted from), `licence`, and `credit_words` (the credit the Music page shows beside it, by words
+// key). Ode to Joy was written by the project by hand (CC0, like the rest of this folder); the three
+// after it were converted with scripts/ly-to-mei.js (our own converter; scripts/ly-to-mei.pieces.json
+// names each source file and its SHA-256) from Mutopia Project LilyPond files whose typesetters placed
+// them in the public domain (docs/reference/findings/2026-11-20-public-domain-scores.md, findings 16
+// and 20). None asks for credit; Mutopia and its typesetters are credited as a courtesy, as the
+// finding recommends. The symphony's tempo is Beethoven's own metronome mark (a half note = 108),
+// written in the file as playback values beside the edition's words.
 Scores(
     pieces: [
         (
@@ -26,6 +36,69 @@ Scores(
             staves: [
                 (staff: 1, instrument: "clarinet", role: "melody", level_db: 0.0, pan: 0.0),
             ],
+            edition: "written by the project from the melody as it is commonly sung",
+            licence: "CC0 1.0",
+        ),
+        (
+            id: "fur_elise",
+            file: "fur_elise.mei",
+            words: "music.score.fur_elise",
+            composer_words: "music.score.composer_beethoven",
+            qpm: 72.0,
+            level_db: 19.1,
+            rest_s: 4.0,
+            staves: [
+                (staff: 1, instrument: "electric_piano", part: Some("piano"), role: "melody", level_db: 0.0, pan: 0.1),
+                (staff: 2, instrument: "electric_piano", part: Some("piano"), role: "bass", level_db: 0.0, pan: -0.1),
+            ],
+            edition: "Breitkopf & Härtel, Leipzig, 1888 (Ludwig van Beethovens Werke, Serie 25, No. 298)",
+            source: "Mutopia Project piece 931, typeset by Stelios Samelis (2015)",
+            licence: "Public domain",
+            credit_words: "music.score.credit_fur_elise",
+        ),
+        (
+            id: "mountain_king",
+            file: "mountain_king.mei",
+            words: "music.score.mountain_king",
+            composer_words: "music.score.composer_grieg",
+            qpm: 138.0,
+            level_db: 8.7,
+            rest_s: 4.0,
+            staves: [
+                (staff: 1, instrument: "electric_piano", part: Some("piano"), role: "melody", level_db: 0.0, pan: 0.1),
+                (staff: 2, instrument: "electric_piano", part: Some("piano"), role: "bass", level_db: 0.0, pan: -0.1),
+            ],
+            edition: "Grieg's piano arrangement, The University Society, New York, 1918 (IMSLP #00581)",
+            source: "Mutopia Project piece 1888, typeset by Coyau (2013)",
+            licence: "Public domain",
+            credit_words: "music.score.credit_mountain_king",
+        ),
+        (
+            id: "beethoven_symphony5_1",
+            file: "beethoven_symphony5_1.mei",
+            words: "music.score.beethoven_symphony5_1",
+            composer_words: "music.score.composer_beethoven",
+            qpm: 216.0,
+            level_db: -2.5,
+            rest_s: 6.0,
+            staves: [
+                (staff: 1, instrument: "soft_lead", part: Some("flute"), role: "melody", level_db: -3.0, pan: -0.1),
+                (staff: 2, instrument: "clarinet", part: Some("oboe"), role: "melody", level_db: -3.0, pan: 0.1),
+                (staff: 3, instrument: "clarinet", part: Some("clarinet"), role: "texture", level_db: -3.0, pan: -0.2),
+                (staff: 4, instrument: "clarinet", part: Some("bassoon"), role: "bass", level_db: -3.0, pan: 0.2),
+                (staff: 5, instrument: "swing_horns", part: Some("french_horn"), role: "pad", level_db: -4.0, pan: -0.3),
+                (staff: 6, instrument: "swing_horns", part: Some("trumpet"), role: "pad", level_db: -4.0, pan: 0.3),
+                (staff: 7, instrument: "taiko_hit", part: Some("timpani"), role: "percussion", level_db: -2.0, pan: 0.0),
+                (staff: 8, instrument: "soft_lead", part: Some("strings_high"), role: "melody", level_db: 0.0, pan: -0.45),
+                (staff: 9, instrument: "soft_lead", part: Some("strings_high"), role: "texture", level_db: -1.0, pan: -0.2),
+                (staff: 10, instrument: "soft_lead", part: Some("strings_mid"), role: "texture", level_db: -1.0, pan: 0.15),
+                (staff: 11, instrument: "soft_lead", part: Some("strings_low"), role: "bass", level_db: 0.0, pan: 0.35),
+                (staff: 12, instrument: "round_bass", part: Some("bass_strings"), role: "bass", level_db: -2.0, pan: 0.45),
+            ],
+            edition: "Breitkopf & Härtel, Leipzig, 1862 to 1865 (Ludwig van Beethovens Werke, Serie 1, No. 5)",
+            source: "Mutopia Project piece 941, typeset by Stelios Samelis, adapted by Johannes Heinecke (2017)",
+            licence: "Public domain",
+            credit_words: "music.score.credit_beethoven_symphony5_1",
         ),
     ],
 )

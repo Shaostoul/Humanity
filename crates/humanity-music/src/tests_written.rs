@@ -22,7 +22,7 @@ use crate::SampleLibrary;
 const RATE: f32 = 48000.0;
 
 /// An MEI file around `measures`, with `def` as the score's definition attributes and one staff.
-fn mei_in(def: &str, staves: &str, measures: &str) -> String {
+pub(crate) fn mei_in(def: &str, staves: &str, measures: &str) -> String {
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.1+basic">
@@ -36,16 +36,16 @@ fn mei_in(def: &str, staves: &str, measures: &str) -> String {
 }
 
 /// One staff in C major, 4/4, around `measures`.
-fn mei(measures: &str) -> MeiScore {
+pub(crate) fn mei(measures: &str) -> MeiScore {
     read(&mei_in(r#"keysig="0" meter.count="4" meter.unit="4""#, r#"<staffDef n="1" lines="5"/>"#, measures)).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// One bar of one layer.
-fn bar(layer: &str) -> String {
+pub(crate) fn bar(layer: &str) -> String {
     format!(r#"<measure n="1"><staff n="1"><layer n="1">{layer}</layer></staff></measure>"#)
 }
 
-fn q(n: i64, d: i64) -> Frac {
+pub(crate) fn q(n: i64, d: i64) -> Frac {
     Frac::new(n, d)
 }
 
@@ -248,19 +248,20 @@ fn dynamics_and_velocity_set_how_hard_a_note_is_struck() {
 }
 
 /// AN ELEMENT THE READER DOES NOT KNOW IS SKIPPED AND COUNTED, NEVER A CRASH: an unknown element (with
-/// a note inside, not read), a slur and a grace note counted as known but not played, an 8va line and
-/// a repeat sign listed as problems (they would change what sounds), and broken files give errors that
-/// name the line. RED 2026-11-20 with unknown elements walked into (their note read): "left: 3,
-/// right: 2".
+/// a note inside, not read), a slur and a trill counted as known but not played, a measure repeat
+/// (`mRpt`) and a `tupletSpan` listed as problems (they would change what sounds), and broken files
+/// give errors that name the line. RED 2026-11-20 with unknown elements walked into (their note read):
+/// "left: 3, right: 2". (Rung 2, 2026-11-20: grace notes, octave lines and repeat signs, which this
+/// test held as not played or as problems in rung 1, are played now: tests_written2.rs.)
 #[test]
 fn unknown_elements_are_skipped_and_counted_never_a_crash() {
-    let s = mei(r#"<measure n="1" right="rptend"><staff n="1"><layer n="1"><note pname="c" oct="4" dur="2"/><wobble><note pname="d" oct="4" dur="2"/></wobble><note pname="e" oct="4" dur="8" grace="acc"/><note pname="e" oct="4" dur="2"/></layer></staff><slur startid="x" endid="y"/><octave dis="8" dis.place="above" tstamp="1" tstamp2="1m+1"/></measure>"#);
+    let s = mei(r#"<measure n="1"><staff n="1"><layer n="1"><note pname="c" oct="4" dur="2"/><wobble><note pname="d" oct="4" dur="2"/></wobble><mRpt/><note pname="e" oct="4" dur="2"/></layer></staff><slur startid="x" endid="y"/><trill tstamp="1"/><tupletSpan tstamp="1" tstamp2="1m+1"/></measure>"#);
     assert_eq!(s.notes.len(), 2);
     assert_eq!(s.skipped.get("wobble"), Some(&1));
     assert_eq!(s.not_played.get("slur"), Some(&1));
-    assert_eq!(s.not_played.get("note@grace"), Some(&1));
+    assert_eq!(s.not_played.get("trill"), Some(&1));
     assert_eq!(s.problems.len(), 2, "{:?}", s.problems);
-    assert!(s.problems.iter().any(|p| p.contains("octave")) && s.problems.iter().any(|p| p.contains("repeat")));
+    assert!(s.problems.iter().any(|p| p.contains("mRpt")) && s.problems.iter().any(|p| p.contains("tupletSpan")));
     let broken = read("<mei><music><body>\n<mdiv>\n</body></music></mei>").unwrap_err();
     assert!(broken.contains("line"), "{broken}");
     assert!(read("<score/>").unwrap_err().contains("not an MEI file"));
@@ -450,29 +451,48 @@ fn goertzel(x: &[f32], hz: f64) -> f64 {
 /// by the app's one BS.1770 meter): each piece's `level_db` in the index puts one time through within
 /// 1.5 LU of the music target, under the ceiling. RED 2026-11-20 with the index's level at 0 dB (in a
 /// run that also had two of this file's other gates broken, on pitch only): "ode_to_joy: -31.2 LUFS,
-/// the target -18.0"; the level was then set from it.
+/// the target -18.0"; the level was then set from it. Rung 2 (2026-11-20) measures every piece before
+/// the verdict; the three converted pieces at 0 dB read "fur_elise: -37.1 LUFS", "mountain_king: -26.7
+/// LUFS" and "beethoven_symphony5_1: -15.5 LUFS", and their levels were set from that (19.1, 8.7 and
+/// -2.5 dB). Rendered a second at a time.
 #[test]
 fn the_shipped_pieces_sound_at_the_music_target() {
     let _heavy = crate::tests_audio::heavy();
     let targets = LoudnessTargets::load(&data_dir()).unwrap();
     let music = targets.target_lufs("music");
     let lib = shipped();
+    let mut off: Vec<String> = Vec::new();
     for entry in &lib.scores {
         let piece = load_piece(&data_dir(), entry).unwrap();
         let ctx = MusicContext { mood: lib.mood_index("mothership_calm").unwrap() as u16, ..Default::default() };
         let mut score = ScoreEngine::written(res(), RATE, 1, ctx, piece.player(&res(), RATE, 432.0));
-        let mut buf = vec![[0f32; 2]; ((piece.timeline.length_s + 2.0) * RATE as f64) as usize];
-        score.render(&mut buf);
-        // From 6 s: the score's own fade-in (its 1.5 s and 4 s smoothers) is not the piece's level.
+        // A second at a time (the symphony's six minutes held whole would be 140 MB), metered from
+        // 6 s: the score's own fade-in (its 1.5 s and 4 s smoothers) is not the piece's level.
+        let total = ((piece.timeline.length_s + 2.0) * RATE as f64) as usize;
+        let mut buf = vec![[0f32; 2]; RATE as usize];
         let mut m = LoudnessMeter::new(RATE as u32, 2);
-        for f in &buf[(6.0 * RATE) as usize..] {
-            m.push_frame(f);
+        let mut done = 0usize;
+        while done < total {
+            let n = buf.len().min(total - done);
+            score.render(&mut buf[..n]);
+            for (k, f) in buf[..n].iter().enumerate() {
+                if done + k >= (6.0 * RATE) as usize {
+                    m.push_frame(f);
+                }
+            }
+            done += n;
         }
         m.finish();
         let lufs = m.integrated().unwrap_or(f64::NEG_INFINITY);
-        assert!((lufs - music).abs() <= 1.5, "{}: {lufs:.1} LUFS, the target {music:.1}", entry.id);
-        assert!(m.true_peak_dbtp() <= targets.ceiling_dbtp, "{}: true peak {:.2} dBTP", entry.id, m.true_peak_dbtp());
+        // Every piece measured before the verdict, so one run gives each level to set.
+        if (lufs - music).abs() > 1.5 {
+            off.push(format!("{}: {lufs:.1} LUFS, the target {music:.1}", entry.id));
+        }
+        if m.true_peak_dbtp() > targets.ceiling_dbtp {
+            off.push(format!("{}: true peak {:.2} dBTP", entry.id, m.true_peak_dbtp()));
+        }
     }
+    assert!(off.is_empty(), "{off:?}");
 }
 
 /// A WRITTEN PIECE'S `render` ALLOCATES NOTHING (the crate's rule): two times through the shipped piece

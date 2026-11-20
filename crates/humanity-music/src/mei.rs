@@ -138,10 +138,16 @@ pub struct MeiNote {
     /// The sounding pitch as a MIDI note (a quarter tone is half a semitone); the voice plays
     /// `tuning::note_hz(midi, a4)`.
     pub midi: f32,
-    /// 0..1: its own `vel`, else the dynamic marked before it, else mezzo-forte.
+    /// 0..1: its own `vel`, else the dynamic marked before it (a hairpin moving it, an accent
+    /// adding to it), else mezzo-forte.
     pub vel: f32,
-    /// The bar it starts in (0 = the first).
+    /// The bar it starts in (0 = the first, counted as played: a repeated bar twice).
     pub bar: u32,
+    /// How much of its written length it is held, from its articulation (staccato 0.5, tenuto 1);
+    /// None: the player's own rule (a little short, so repeated notes stay two).
+    pub hold: Option<f32>,
+    /// A grace note (it takes its time from the note after it).
+    pub grace: bool,
 }
 
 /// Where a syllable sits in its word (`syl@wordpos`).
@@ -217,7 +223,13 @@ pub struct MeiScore {
     pub syllables: Vec<MeiSyllable>,
     /// The tempo marks with a number, by position.
     pub tempos: Vec<MeiTempo>,
+    /// The bars as played: a repeat's bars twice, only the ending each time through takes.
     pub bars: Vec<MeiBar>,
+    /// How many bars the file writes (a repeated bar once).
+    pub written_bars: u32,
+    /// The fermatas, as played: where each held moment starts and how long it is written (the
+    /// timeline holds it longer: crate::written::FERMATA_HOLD), overlapping ones joined, by start.
+    pub fermatas: Vec<(Frac, Frac)>,
     /// Where the last bar ends.
     pub end: Frac,
     /// Elements the reader does not know, by name, and how many (skipped with what they hold).
@@ -243,7 +255,31 @@ pub fn read(text: &str) -> Result<MeiScore, String> {
             "meiHead" => w.header(k),
             "music" => {
                 saw_music = true;
-                w.container(k);
+                // The bars as written, then in the order they play (repeats and endings expanded).
+                let mut units = Vec::new();
+                w.collect(k, &[], &mut units);
+                let mut r = 0;
+                while r < units.len() {
+                    if units[r].ending.is_empty() {
+                        r += 1;
+                        continue;
+                    }
+                    let run_end = (r..units.len()).find(|&j| units[j].ending.is_empty()).unwrap_or(units.len());
+                    let most = units[r..run_end].iter().flat_map(|u| u.ending.iter().copied()).max().unwrap_or(1);
+                    for u in &mut units[r..run_end] {
+                        u.ending_max = most;
+                    }
+                    r = run_end;
+                }
+                w.out.written_bars = units.iter().filter(|u| u.el.name == "measure").count() as u32;
+                for i in play_order(&units) {
+                    let el = units[i].el;
+                    match el.name.as_str() {
+                        "measure" => w.measure(el),
+                        "scoreDef" => w.score_def(el),
+                        _ => w.staff_def(el),
+                    }
+                }
             }
             other => w.skip(other),
         }
@@ -535,13 +571,162 @@ fn dynamic_vel(words: &str) -> Option<f32> {
 pub const DEFAULT_VEL: f32 = 0.68;
 
 /// Elements the reader knows but does not play yet (score-player.md section 5's "later" column).
-const NOT_PLAYED: [&str; 32] = [
-    "slur", "hairpin", "fermata", "dir", "harm", "fing", "fingGrp", "pedal", "trill", "mordent", "turn", "arpeg", "breath", "caesura", "phrase", "reh", "gliss", "lv", "bend", "ornam", "symbol", "annot", "attacca", "bracketSpan", "beamSpan", "clef", "clefGrp", "graceGrp", "artic", "custos", "barLine", "parts",
+const NOT_PLAYED: [&str; 28] = [
+    "slur", "dir", "harm", "fing", "fingGrp", "pedal", "trill", "mordent", "turn", "arpeg", "breath", "caesura", "phrase", "reh", "gliss", "lv", "bend", "ornam", "symbol", "annot", "attacca", "bracketSpan", "beamSpan", "clef", "clefGrp", "custos", "barLine", "parts",
 ];
 
 /// Elements that change the timing or the pitch, which the reader does not apply yet: each one is
 /// a problem, since the music would play wrong.
-const NOT_APPLIED: [&str; 8] = ["octave", "mRpt", "mRpt2", "beatRpt", "halfmRpt", "multiRpt", "tupletSpan", "ending"];
+const NOT_APPLIED: [&str; 6] = ["mRpt", "mRpt2", "beatRpt", "halfmRpt", "multiRpt", "tupletSpan"];
+
+/// How much louder an accent (`sf`, `sfz`, `fz`) strikes its one note than the level around it.
+pub const SFORZANDO_ADD: f32 = 0.25;
+
+/// How far a hairpin with no dynamic at its end moves the level: one step of the letters' scale.
+pub const HAIRPIN_STEP: f32 = 0.12;
+
+/// The longest a slashed grace note (an acciaccatura) takes, whatever its written value: a 32nd.
+const ACCIACCATURA: Frac = Frac { n: 1, d: 32 };
+
+/// What an articulation does: the share of its written length a note is held (None: unchanged) and
+/// what it adds to how hard the note is struck. None for one the player does not play yet.
+fn artic_effect(v: &str) -> Option<(Option<f32>, f32)> {
+    Some(match v {
+        "stacc" => (Some(0.5), 0.0),
+        "stacciss" => (Some(0.25), 0.0),
+        "spicc" => (Some(0.4), 0.0),
+        "ten" => (Some(1.0), 0.0),
+        "ten-stacc" => (Some(0.75), 0.0),
+        "acc" | "acc-soft" => (None, 0.12),
+        "marc" => (None, 0.18),
+        "marc-stacc" => (Some(0.5), 0.18),
+        "acc-stacc" => (Some(0.5), 0.12),
+        _ => return None,
+    })
+}
+
+/// How a grace note takes its time (`@grace`): an appoggiatura (`acc`) takes a share of the note
+/// after it (half; a third of a dotted one); a slashed or plain grace note (`unacc`, `unknown`)
+/// is quick, at most a 32nd.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GraceKind {
+    Acc,
+    Unacc,
+}
+
+impl GraceKind {
+    fn parse(v: &str) -> GraceKind {
+        if v.trim() == "acc" {
+            GraceKind::Acc
+        } else {
+            GraceKind::Unacc
+        }
+    }
+}
+
+/// A line over some notes: an octave line (semitones it moves them) or a hairpin (louder or softer).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SpanKind {
+    Octave(f32),
+    Hairpin { louder: bool },
+}
+
+/// A span read: its kind, its staff (None: every staff), where it starts and ends (whole notes).
+#[derive(Clone, Copy, Debug)]
+struct Span {
+    kind: SpanKind,
+    staff: Option<u16>,
+    start: Frac,
+    end: Frac,
+}
+
+/// What a span still open waits for: the note or rest with this id, the bar it ends in (counted as
+/// played) and the beats into it, or (a hairpin with no end written) the next dynamic.
+#[derive(Clone, Debug, PartialEq)]
+enum SpanEnd {
+    Id(String),
+    Bar(u32, Frac),
+    NextDynamic,
+}
+
+/// A dynamic mark: a level (`p`, `f`) from where it stands, an accent on its one moment (`sf`), or
+/// forte then piano (`fp`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum DynKind {
+    Level(f32),
+    Accent,
+    FortePiano,
+}
+
+/// A bar or a definition in the order written, with the ending it sits in: the times through it
+/// plays (empty: not in an ending) and the most times any ending of its run names.
+struct Unit<'a> {
+    el: &'a El,
+    ending: Vec<u32>,
+    ending_max: u32,
+}
+
+/// The numbers an ending's `n` (or `label`) names: "1", "1, 2", "1-3", "2." (empty: none).
+fn ending_numbers(el: &El) -> Vec<u32> {
+    let text = el.attr("n").or_else(|| el.attr("label")).unwrap_or_default();
+    let mut out = Vec::new();
+    for part in text.split([',', ' ', ';', '.']).filter(|p| !p.is_empty()) {
+        match part.split_once('-') {
+            Some((a, b)) => {
+                if let (Ok(a), Ok(b)) = (a.trim().parse::<u32>(), b.trim().parse::<u32>()) {
+                    out.extend(a.min(b)..=b.max(a).min(a.min(b) + 16));
+                }
+            }
+            None => out.extend(part.trim().parse::<u32>().ok()),
+        }
+    }
+    out
+}
+
+/// The order the bars play in (indices into `units`): a repeat's bars again from its start sign (or
+/// the last repeat's end, or the beginning), each ending only on the times through it names, a run
+/// of endings ending the repeat. A safety limit keeps a malformed file from playing forever.
+fn play_order(units: &[Unit]) -> Vec<usize> {
+    let sign = |u: &Unit, side: &str, signs: &[&str]| u.el.name == "measure" && u.el.attr(side).is_some_and(|v| signs.contains(&v.trim()));
+    let mut out = Vec::new();
+    let (mut i, mut start, mut pass, mut in_endings) = (0usize, 0usize, 1u32, false);
+    let limit = units.len() * 16 + 64;
+    while i < units.len() && out.len() < limit {
+        let u = &units[i];
+        if !u.ending.is_empty() {
+            in_endings = true;
+            if !u.ending.contains(&pass) {
+                i += 1;
+                continue;
+            }
+        } else if in_endings {
+            // Past the run of endings: the repeat is over.
+            in_endings = false;
+            pass = 1;
+            start = i;
+        }
+        if sign(u, "left", &["rptstart", "rptboth"]) && i != start {
+            start = i;
+            pass = 1;
+        }
+        out.push(i);
+        if sign(u, "right", &["rptend", "rptboth"]) {
+            let times = if u.ending.is_empty() { 2 } else { u.ending_max.max(2) };
+            if pass < times {
+                pass += 1;
+                in_endings = false;
+                i = start;
+                continue;
+            }
+            if u.ending.is_empty() {
+                pass = 1;
+                start = i + 1;
+            }
+        }
+        i += 1;
+    }
+    out
+}
 
 /// Layout and definitions the reader understands as having no sound of their own.
 const SILENT: [&str; 8] = ["pb", "sb", "pgHead", "pgFoot", "label", "labelAbbr", "instrGrp", "symbolTable"];
@@ -577,10 +762,32 @@ struct Walk {
     /// `tie` elements: the end note's id to the start note's.
     tie_ends: HashMap<String, String>,
     ties: Vec<(usize, usize)>,
-    /// Dynamics: where, which staff (None: all), the velocity.
-    dynamics: Vec<(Frac, Option<u16>, f32)>,
+    /// Dynamics: where, which staff (None: all), what kind.
+    dynamics: Vec<(Frac, Option<u16>, DynKind)>,
     explicit_vel: Vec<bool>,
+    /// Per note: its octave given as sounding (`oct.ges`: an octave line leaves it alone), and what
+    /// its articulation adds to how hard it is struck.
+    oct_ges: Vec<bool>,
+    accent: Vec<f32>,
     pending: Vec<Pending>,
+    /// Grace notes read and waiting for the note after them: their indices (a grace chord's several),
+    /// written value, kind and `grace.time` (percent of the note after); and a `graceGrp`'s kind.
+    graces: Vec<(Vec<usize>, Frac, GraceKind, Option<Frac>)>,
+    grace_ctx: Option<GraceKind>,
+    /// Octave lines and hairpins: those with both ends, and those waiting for their end.
+    spans: Vec<Span>,
+    open_spans: Vec<(Span, SpanEnd)>,
+    /// The ids of the notes and rests read in the bar being read (an end met in its own bar).
+    bar_ids: std::collections::HashSet<String>,
+    /// Rests by id: where each starts and how long it lasts (a fermata may stand on one).
+    rest_ids: HashMap<String, (u16, Frac, Frac)>,
+    rests: Vec<(u16, Frac, Frac)>,
+    /// Fermatas: where and how long what they hold is written.
+    fermatas: Vec<(Frac, Frac)>,
+    /// A measured tremolo being read: its strokes' value; and whether the note being read is one of
+    /// its later strokes.
+    trem: Option<Frac>,
+    trem_copy: bool,
     /// The duration of the last note or rest of each staff and layer, for one written without its
     /// own. reuse: the reader's own state while it reads one file (made new for each read and
     /// dropped after), not a result kept between reads.
@@ -607,7 +814,19 @@ impl Walk {
             ties: Vec::new(),
             dynamics: Vec::new(),
             explicit_vel: Vec::new(),
+            oct_ges: Vec::new(),
+            accent: Vec::new(),
             pending: Vec::new(),
+            graces: Vec::new(),
+            grace_ctx: None,
+            spans: Vec::new(),
+            open_spans: Vec::new(),
+            bar_ids: Default::default(),
+            rest_ids: HashMap::new(),
+            rests: Vec::new(),
+            fermatas: Vec::new(),
+            trem: None,
+            trem_copy: false,
             last_dur: HashMap::new(),
         }
     }
@@ -656,18 +875,22 @@ impl Walk {
         }
     }
 
-    /// A container of the music (`music`, `body`, `mdiv`, `score`, `section`): read in order.
-    fn container(&mut self, el: &El) {
+    /// A container of the music (`music`, `body`, `mdiv`, `score`, `section`, `ending`): its bars and
+    /// definitions in the order written, each with the ending it sits in (`ending`: the times through
+    /// it plays; an ending with no number takes its place in its run).
+    fn collect<'a>(&mut self, el: &'a El, ending: &[u32], out: &mut Vec<Unit<'a>>) {
         for k in el.els() {
             match k.name.as_str() {
-                "body" | "mdiv" | "score" | "section" => self.container(k),
-                "scoreDef" => self.score_def(k),
-                "staffDef" => self.staff_def(k),
-                "measure" => self.measure(k),
+                "body" | "mdiv" | "score" | "section" => self.collect(k, ending, out),
                 "ending" => {
-                    self.problem(k.line, "an <ending> (a repeat's first or second time) is not expanded yet: its bars play once, in order".into());
-                    self.container(k);
+                    let mut ns = ending_numbers(k);
+                    if ns.is_empty() {
+                        let before = out.iter().rev().take_while(|u| !u.ending.is_empty()).filter_map(|u| u.ending.iter().max()).max().copied().unwrap_or(0);
+                        ns.push(before + 1);
+                    }
+                    self.collect(k, &ns, out);
                 }
+                "scoreDef" | "staffDef" | "measure" => out.push(Unit { el: k, ending: ending.to_vec(), ending_max: 0 }),
                 _ => self.other(k),
             }
         }
@@ -759,15 +982,109 @@ impl Walk {
                 return bar.add(beats.mul(Frac::new(1, self.meter.1)));
             }
         }
-        if let Some(i) = el.attr("startid").map(strip_hash).and_then(|id| self.ids.get(&id).copied()) {
-            return self.out.notes[i].at;
+        if let Some(id) = el.attr("startid").map(strip_hash) {
+            if let Some(i) = self.ids.get(&id).copied() {
+                return self.out.notes[i].at;
+            }
+            if let Some(&(_, at, _)) = self.rest_ids.get(&id) {
+                return at;
+            }
         }
         bar
+    }
+
+    /// The staff a control event belongs to: its `staff` (the first named), else its start note's.
+    fn control_staff(&self, el: &El) -> Option<u16> {
+        el.attr("staff").and_then(|s| s.split_whitespace().next()).and_then(|s| s.parse::<u16>().ok()).or_else(|| {
+            let id = strip_hash(el.attr("startid")?);
+            self.ids.get(&id).map(|&i| self.out.notes[i].staff).or_else(|| self.rest_ids.get(&id).map(|r| r.0))
+        })
+    }
+
+    /// Where a span (an octave line, a hairpin) ends: now (its end id read in this bar, or a
+    /// `tstamp2` inside this bar), later (an id not read yet, a later bar), or not written.
+    fn span_end(&self, el: &El, bar: Frac) -> Option<Result<Frac, SpanEnd>> {
+        if let Some(id) = el.attr("endid").map(strip_hash) {
+            if self.bar_ids.contains(&id) {
+                if let Some(&i) = self.ids.get(&id) {
+                    return Some(Ok(self.out.notes[i].at));
+                }
+                if let Some(&(_, at, _)) = self.rest_ids.get(&id) {
+                    return Some(Ok(at));
+                }
+            }
+            return Some(Err(SpanEnd::Id(id)));
+        }
+        let t2 = el.attr("tstamp2")?;
+        let (bars, beat) = match t2.split_once("m+") {
+            Some((b, x)) => (b.trim().parse::<u32>().unwrap_or(0), x),
+            None => (0, t2),
+        };
+        let beats = Frac::parse_decimal(beat).map(|b| b.sub(Frac::int(1))).filter(|b| *b >= Frac::ZERO).unwrap_or(Frac::ZERO);
+        Some(if bars == 0 { Ok(bar.add(beats.mul(Frac::new(1, self.meter.1)))) } else { Err(SpanEnd::Bar(self.bar_no + bars, beats)) })
+    }
+
+    /// An octave line or a hairpin (or a "cresc." written as words): kept with its ends to be applied
+    /// once the whole piece is read.
+    fn span(&mut self, el: &El, kind: SpanKind, bar: Frac, bar_end: Frac) {
+        let span = Span { kind, staff: self.control_staff(el), start: self.control_at(el, bar), end: Frac::ZERO };
+        match self.span_end(el, bar) {
+            Some(Ok(end)) => self.spans.push(Span { end, ..span }),
+            Some(Err(wait)) => self.open_spans.push((span, wait)),
+            None if matches!(kind, SpanKind::Hairpin { .. }) => self.open_spans.push((span, SpanEnd::NextDynamic)),
+            None => {
+                self.problem(el.line, format!("an <{}> without its end (endid or tstamp2): applied to the end of its bar", el.name));
+                self.spans.push(Span { end: bar_end, ..span });
+            }
+        }
+    }
+
+    /// An octave line: `dis` 8, 15 or 22 (one, two or three octaves), above or below.
+    fn octave(&mut self, el: &El, bar: Frac, bar_end: Frac) {
+        let semis = match el.attr("dis").map(str::trim) {
+            Some("8") => 12.0,
+            Some("15") => 24.0,
+            Some("22") => 36.0,
+            other => {
+                self.problem(el.line, format!("an octave line's dis {other:?} is not 8, 15 or 22: not applied"));
+                return;
+            }
+        };
+        let sign = if el.attr("dis.place").map(str::trim) == Some("below") { -1.0 } else { 1.0 };
+        self.span(el, SpanKind::Octave(semis * sign), bar, bar_end);
+    }
+
+    /// A fermata: what it holds is the note or rest it names, else the longest one starting where it
+    /// stands on its staff, else one beat.
+    fn fermata(&mut self, el: &El, bar: Frac) {
+        let at = self.control_at(el, bar);
+        let staff = self.control_staff(el);
+        let named = el.attr("startid").map(strip_hash).and_then(|id| self.ids.get(&id).map(|&i| self.out.notes[i].dur).or_else(|| self.rest_ids.get(&id).map(|r| r.2)));
+        let found = || {
+            let on = |s: u16| staff.is_none_or(|x| x == s);
+            let n = self.out.notes.iter().filter(|n| n.at == at && on(n.staff)).map(|n| n.dur);
+            let r = self.rests.iter().filter(|r| r.1 == at && on(r.0)).map(|r| r.2);
+            n.chain(r).max()
+        };
+        let len = named.or_else(found).unwrap_or(Frac::new(1, self.meter.1));
+        self.fermatas.push((at, len));
     }
 
     fn measure(&mut self, m: &El) {
         let start = self.bar_start;
         let meter_len = Frac::new(self.meter.0, self.meter.1);
+        self.bar_ids.clear();
+        // Spans that end in this bar, by its number and a beat.
+        let mut k = 0;
+        while k < self.open_spans.len() {
+            match self.open_spans[k].1 {
+                SpanEnd::Bar(n, beats) if n == self.bar_no => {
+                    let (s, _) = self.open_spans.remove(k);
+                    self.spans.push(Span { end: start.add(beats.mul(Frac::new(1, self.meter.1))), ..s });
+                }
+                _ => k += 1,
+            }
+        }
         // The bar's tie elements first, so a tie that ends in this bar is known when its note is read.
         for k in m.els().filter(|k| k.name == "tie") {
             match (k.attr("startid"), k.attr("endid")) {
@@ -793,29 +1110,34 @@ impl Walk {
                         let layer = l.attr("n").and_then(|n| n.trim().parse::<u16>().ok()).unwrap_or(li);
                         let mut t = start;
                         self.events(l, staff, layer, &mut t, Frac::int(1), meter_len);
+                        if !self.graces.is_empty() {
+                            // Grace notes with nothing after them in their layer keep their written place.
+                            self.graces.clear();
+                            self.problem(l.line, "grace notes with no note after them in their layer: played at their written length".into());
+                        }
                         longest = longest.max(t.sub(start));
                     }
                 }
                 "tie" => {}
-                "tempo" | "dynam" => controls.push(k),
+                "tempo" | "dynam" | "octave" | "hairpin" | "fermata" => controls.push(k),
                 _ => self.other(k),
             }
         }
-        for side in ["left", "right"] {
-            if let Some(v @ ("rptstart" | "rptend" | "rptboth")) = m.attr(side) {
-                self.problem(m.line, format!("a repeat sign ({v}) is not expanded yet: the bars play once"));
-            }
-        }
         self.resolve_pitches();
+        let len = if longest > Frac::ZERO { longest } else { meter_len };
         for c in controls {
             let at = self.control_at(c, start);
-            if c.name == "tempo" {
-                self.tempo(c, at);
-            } else {
-                self.dynam(c, at);
+            match c.name.as_str() {
+                "tempo" => self.tempo(c, at),
+                "dynam" => self.dynam(c, at, start, start.add(len)),
+                "octave" => self.octave(c, start, start.add(len)),
+                "hairpin" => match c.attr("form").map(str::trim) {
+                    Some(f @ ("cres" | "dim")) => self.span(c, SpanKind::Hairpin { louder: f == "cres" }, start, start.add(len)),
+                    other => self.problem(c.line, format!("a hairpin's form {other:?} is not cres or dim: not applied")),
+                },
+                _ => self.fermata(c, start),
             }
         }
-        let len = if longest > Frac::ZERO { longest } else { meter_len };
         self.out.bars.push(MeiBar { at: start, n: m.attr("n").unwrap_or_default().to_string(), len, meter: self.meter });
         self.bar_start = start.add(len);
         self.bar_no += 1;
@@ -842,11 +1164,111 @@ impl Walk {
         }
     }
 
-    fn dynam(&mut self, el: &El, at: Frac) {
+    /// A dynamic: a level (`ppp` to `fff`), an accent on one moment (`sf`, `sfz`, `fz` ...), forte
+    /// then piano (`fp`), or "cresc." / "dim." as words (a hairpin to its end, else to the next
+    /// dynamic).
+    fn dynam(&mut self, el: &El, at: Frac, bar: Frac, bar_end: Frac) {
         let staff = el.attr("staff").and_then(|s| s.split_whitespace().next()).and_then(|s| s.parse::<u16>().ok());
-        match dynamic_vel(&el.text()) {
-            Some(v) => self.dynamics.push((at, staff, v)),
-            None => self.not_played("dynam (words other than ppp to fff)"),
+        let words = el.text();
+        let w = words.trim();
+        if let Some(v) = dynamic_vel(w) {
+            self.dynamics.push((at, staff, DynKind::Level(v)));
+        } else if matches!(w, "sf" | "sfz" | "sffz" | "fz" | "ffz" | "rf" | "rfz") {
+            self.dynamics.push((at, staff, DynKind::Accent));
+        } else if matches!(w, "fp" | "sfp") {
+            self.dynamics.push((at, staff, DynKind::FortePiano));
+        } else if w.starts_with("cresc") || w.starts_with("dim") || w.starts_with("decresc") {
+            self.span(el, SpanKind::Hairpin { louder: w.starts_with("cresc") }, bar, bar_end);
+        } else {
+            self.not_played("dynam (words other than ppp to fff, sf, fp, cresc. and dim.)");
+        }
+    }
+
+    /// The grace notes waiting before a note (or a rest) at `t` lasting `dur`: each placed from `t`
+    /// on, taking its time from it (score-player.md section 5, rung 2). Where the note after them
+    /// starts.
+    fn place_graces(&mut self, t: Frac, dur: Frac) -> Frac {
+        let graces = std::mem::take(&mut self.graces);
+        let Some(first) = graces.first() else { return t };
+        let (kind, percent) = (first.2, graces.iter().find_map(|g| g.3));
+        let weight = |w: Frac| if kind == GraceKind::Unacc { w.min(ACCIACCATURA) } else { w };
+        let sum = graces.iter().fold(Frac::ZERO, |a, g| a.add(weight(g.1)));
+        let half = dur.mul(Frac::new(1, 2));
+        let total = match (percent, kind) {
+            (Some(p), _) => dur.mul(p).min(dur.mul(Frac::new(9, 10))),
+            // One appoggiatura takes half the note after it, a third of a dotted one (two of its three).
+            (None, GraceKind::Acc) if graces.len() == 1 => {
+                if dur.n == 3 {
+                    dur.mul(Frac::new(2, 3))
+                } else {
+                    half
+                }
+            }
+            (None, _) => sum.min(half),
+        };
+        let mut at = t;
+        for (idxs, w, _, _) in &graces {
+            let d = if sum.is_zero() { Frac::ZERO } else { total.mul(weight(*w)).div(sum) };
+            for &i in idxs {
+                self.out.notes[i].at = at;
+                self.out.notes[i].dur = d;
+                if let Some(p) = self.pending.iter_mut().find(|p| p.idx == i) {
+                    p.at = at;
+                }
+            }
+            at = at.add(d);
+        }
+        t.add(total)
+    }
+
+    /// How a note of `len` is played inside a measured tremolo: so many strokes of its unit (one
+    /// stroke of its own length outside one, or when the unit does not divide it).
+    fn strokes(&self, len: Frac) -> (i64, Frac) {
+        match self.trem.map(|u| (u, len.div(u))) {
+            Some((u, n)) if n.d == 1 && n.n > 1 && n.n <= 256 => (n.n, u),
+            _ => (1, len),
+        }
+    }
+
+    /// A grace note (or each note of a grace chord) read: placed once the note after it is known.
+    fn grace(&mut self, el: &El, kind: GraceKind, staff: u16, layer: u16, t: Frac) {
+        let notes: Vec<&El> = if el.name == "chord" { el.els().filter(|n| n.name == "note").collect() } else { vec![el] };
+        let w = dur_of(el).or_else(|| notes.first().and_then(|n| dur_of(n))).unwrap_or(Frac::new(1, 8));
+        let percent = el.attr("grace.time").and_then(Frac::parse_decimal).map(|p| p.mul(Frac::new(1, 100)));
+        let chord = (el.name == "chord").then_some(el);
+        let idxs: Vec<usize> = notes.iter().filter_map(|n| self.note(n, chord, staff, layer, t, w)).collect();
+        for &i in &idxs {
+            self.out.notes[i].grace = true;
+        }
+        if !idxs.is_empty() {
+            self.graces.push((idxs, w, kind, percent));
+        }
+    }
+
+    /// Spans waiting for the note or rest `id` as their end: they end at `at`.
+    fn close_spans(&mut self, id: &str, at: Frac) {
+        let mut k = 0;
+        while k < self.open_spans.len() {
+            if matches!(&self.open_spans[k].1, SpanEnd::Id(x) if x == id) {
+                let (s, _) = self.open_spans.remove(k);
+                self.spans.push(Span { end: at, ..s });
+            } else {
+                k += 1;
+            }
+        }
+    }
+
+    /// A rest (or a whole-bar rest) at `t` lasting `dur`: kept by id for fermatas and spans, and its
+    /// own fermata held.
+    fn rest(&mut self, el: &El, staff: u16, t: Frac, dur: Frac) {
+        self.rests.push((staff, t, dur));
+        if let Some(id) = el.attr("xml:id") {
+            self.rest_ids.insert(id.to_string(), (staff, t, dur));
+            self.bar_ids.insert(id.to_string());
+            self.close_spans(id, t);
+        }
+        if el.attr("fermata").is_some() {
+            self.fermatas.push((t, dur));
         }
     }
 
@@ -855,31 +1277,53 @@ impl Walk {
         for k in el.els() {
             match k.name.as_str() {
                 "note" => {
-                    // A grace note takes no time of its own (it is played later: section 5).
-                    if k.attr("grace").is_some() {
-                        self.not_played("note@grace");
+                    // A grace note takes no time of its own: it takes it from the note after it.
+                    if let Some(g) = k.attr("grace").map(GraceKind::parse).or(self.grace_ctx) {
+                        self.grace(k, g, staff, layer, *t);
                         continue;
                     }
                     let Some(dur) = self.duration(k, staff, layer) else { continue };
                     let dur = dur.mul(scale);
-                    if let Some(i) = self.note(k, None, staff, layer, *t, dur) {
-                        self.lyrics(k, i);
+                    let at = self.place_graces(*t, dur);
+                    let (strokes, each) = self.strokes(t.add(dur).sub(at));
+                    for n in 0..strokes {
+                        self.trem_copy = n > 0;
+                        if let Some(i) = self.note(k, None, staff, layer, at.add(each.mul(Frac::int(n))), each) {
+                            if n == 0 {
+                                self.lyrics(k, i);
+                            }
+                        }
                     }
+                    self.trem_copy = false;
                     *t = t.add(dur);
                 }
                 "rest" | "space" => {
                     if let Some(dur) = self.duration(k, staff, layer) {
-                        *t = t.add(dur.mul(scale));
+                        let dur = dur.mul(scale);
+                        self.place_graces(*t, dur);
+                        if k.name == "rest" {
+                            self.rest(k, staff, *t, dur);
+                        }
+                        *t = t.add(dur);
                     }
                 }
-                "mRest" => *t = t.add(meter_len),
+                "mRest" => {
+                    self.rest(k, staff, *t, meter_len);
+                    *t = t.add(meter_len);
+                }
                 "multiRest" => {
                     let bars = k.attr("num").and_then(|n| n.trim().parse::<i64>().ok()).unwrap_or(1).max(1);
                     *t = t.add(meter_len.mul(Frac::int(bars)));
                 }
+                "graceGrp" => {
+                    let outer = self.grace_ctx;
+                    self.grace_ctx = Some(k.attr("grace").map(GraceKind::parse).unwrap_or(GraceKind::Unacc));
+                    self.events(k, staff, layer, t, scale, meter_len);
+                    self.grace_ctx = outer;
+                }
                 "chord" => {
-                    if k.attr("grace").is_some() {
-                        self.not_played("chord@grace");
+                    if let Some(g) = k.attr("grace").map(GraceKind::parse).or(self.grace_ctx) {
+                        self.grace(k, g, staff, layer, *t);
                         continue;
                     }
                     // The chord's duration (else its first note's), its notes struck together.
@@ -901,20 +1345,29 @@ impl Walk {
                         },
                     }
                     .mul(scale);
+                    let at = self.place_graces(*t, dur);
+                    let (strokes, each) = self.strokes(t.add(dur).sub(at));
                     let mut first = None;
-                    for n in k.els() {
-                        match n.name.as_str() {
-                            "note" => {
-                                if let Some(i) = self.note(n, Some(k), staff, layer, *t, dur) {
-                                    self.lyrics(n, i);
-                                    first.get_or_insert(i);
+                    for stroke in 0..strokes {
+                        self.trem_copy = stroke > 0;
+                        let when = at.add(each.mul(Frac::int(stroke)));
+                        for n in k.els() {
+                            match n.name.as_str() {
+                                "note" => {
+                                    if let Some(i) = self.note(n, Some(k), staff, layer, when, each) {
+                                        if stroke == 0 {
+                                            self.lyrics(n, i);
+                                            first.get_or_insert(i);
+                                        }
+                                    }
                                 }
+                                "artic" | "verse" | "syl" => {}
+                                _ if stroke == 0 => self.other(n),
+                                _ => {}
                             }
-                            "artic" => self.not_played("artic"),
-                            "verse" | "syl" => {}
-                            _ => self.other(n),
                         }
                     }
+                    self.trem_copy = false;
                     if let Some(i) = first {
                         self.lyrics(k, i);
                     }
@@ -934,6 +1387,14 @@ impl Walk {
                     }
                 }
                 // A tremolo: its notes play plainly (the tremolo itself later).
+                // A measured tremolo (`unitdur`: the strokes' value) plays its strokes; a fingered one
+                // (or one with no unit) plays its notes plainly, the tremolo itself later.
+                "bTrem" if k.attr("unitdur").and_then(base_dur).is_some() => {
+                    let outer = self.trem;
+                    self.trem = k.attr("unitdur").and_then(base_dur);
+                    self.events(k, staff, layer, t, scale, meter_len);
+                    self.trem = outer;
+                }
                 "bTrem" | "fTrem" => {
                     self.not_played(&k.name);
                     self.events(k, staff, layer, t, scale, meter_len);
@@ -976,16 +1437,42 @@ impl Walk {
         let written = el.attr("accid").or_else(|| accid_el.and_then(|a| a.attr("accid"))).and_then(accid_alter);
         let ges = el.attr("accid.ges").or_else(|| accid_el.and_then(|a| a.attr("accid.ges"))).and_then(accid_alter);
         let vel = el.attr("vel").and_then(|v| v.trim().parse::<f32>().ok()).map(|v| (v / 127.0).clamp(0.0, 1.0));
-        let id = el.attr("xml:id").unwrap_or_default().to_string();
+        // A tremolo's later strokes are the same note again: no id of their own, no ties.
+        let id = if self.trem_copy { String::new() } else { el.attr("xml:id").unwrap_or_default().to_string() };
         let idx = self.out.notes.len();
-        self.out.notes.push(MeiNote { id: id.clone(), staff, layer, at, dur, midi: f32::NAN, vel: vel.unwrap_or(DEFAULT_VEL), bar: self.bar_no });
+        self.out.notes.push(MeiNote { id: id.clone(), staff, layer, at, dur, midi: f32::NAN, vel: vel.unwrap_or(DEFAULT_VEL), bar: self.bar_no, hold: None, grace: false });
         self.explicit_vel.push(vel.is_some());
+        self.oct_ges.push(el.attr("oct.ges").is_some());
+        // Its articulations (on it or its chord, as an attribute or `artic` elements): how long it
+        // is held and how hard it is struck.
+        let mut accent = 0.0;
+        let artics = |e: &El| -> Vec<String> {
+            let own = e.attr("artic").map(|a| a.split_whitespace().map(str::to_string).collect::<Vec<_>>()).unwrap_or_default();
+            own.into_iter().chain(e.els().filter(|k| k.name == "artic").flat_map(|k| k.attr("artic").unwrap_or_default().split_whitespace().map(str::to_string).collect::<Vec<_>>())).collect()
+        };
+        for a in artics(el).into_iter().chain(chord.map(artics).unwrap_or_default()) {
+            match artic_effect(&a) {
+                Some((hold, add)) => {
+                    if hold.is_some() {
+                        self.out.notes[idx].hold = hold;
+                    }
+                    accent += add;
+                }
+                None => self.not_played(&format!("artic {a}")),
+            }
+        }
+        self.accent.push(accent);
+        if el.attr("fermata").or_else(|| chord.and_then(|c| c.attr("fermata"))).is_some() {
+            self.fermatas.push((at, dur));
+        }
         if !id.is_empty() {
             self.ids.insert(id.clone(), idx);
+            self.bar_ids.insert(id.clone());
+            self.close_spans(&id, at);
         }
         // Ties: the attribute (i, m, t) on the note or its chord, and the tie elements by id.
         let mut tie_from = None;
-        let tie = el.attr("tie").or_else(|| chord.and_then(|c| c.attr("tie"))).unwrap_or_default();
+        let tie = if self.trem_copy { "" } else { el.attr("tie").or_else(|| chord.and_then(|c| c.attr("tie"))).unwrap_or_default() };
         if tie.contains('t') || tie.contains('m') {
             match self.open_ties.iter().position(|&(s, l, o, _)| s == staff && l == letter && o == oct) {
                 Some(p) => {
@@ -1010,7 +1497,7 @@ impl Walk {
         }
         for k in el.els() {
             match k.name.as_str() {
-                "accid" | "dot" | "verse" | "syl" => {}
+                "accid" | "dot" | "verse" | "syl" | "artic" => {}
                 _ => self.other(k),
             }
         }
@@ -1073,6 +1560,35 @@ impl Walk {
     /// After the last bar: join the ties, apply the dynamics, drop the joined notes, sort.
     fn finish(&mut self) {
         self.resolve_pitches();
+        // Spans still open: an end never met plays to the end; a hairpin with no end written runs to
+        // the next dynamic on its staff, else two bars.
+        let end = self.bar_start;
+        for (s, wait) in std::mem::take(&mut self.open_spans) {
+            let to = match wait {
+                SpanEnd::NextDynamic => {
+                    let next = self.dynamics.iter().filter(|(at, st, k)| *at > s.start && matches!(k, DynKind::Level(_)) && (st.is_none() || s.staff.is_none() || *st == s.staff)).map(|d| d.0).min();
+                    next.unwrap_or_else(|| {
+                        let bar = self.out.bars.iter().rev().find(|b| b.at <= s.start).map(|b| b.len).unwrap_or(Frac::int(1));
+                        s.start.add(bar.mul(Frac::int(2))).min(end)
+                    })
+                }
+                other => {
+                    self.out.problems.push(format!("a line from {:.3} whole notes waits for {other:?}, which never came: applied to the end", s.start.to_f64()));
+                    end
+                }
+            };
+            self.spans.push(Span { end: to, ..s });
+        }
+        // Octave lines move the notes under them (ends included), unless a note gives its sounding
+        // octave itself.
+        for s in self.spans.iter().filter(|s| matches!(s.kind, SpanKind::Octave(_))) {
+            let SpanKind::Octave(semis) = s.kind else { continue };
+            for (i, note) in self.out.notes.iter_mut().enumerate() {
+                if !self.oct_ges[i] && s.staff.is_none_or(|x| x == note.staff) && note.at >= s.start && note.at <= s.end {
+                    note.midi += semis;
+                }
+            }
+        }
         let n = self.out.notes.len();
         let mut root: Vec<usize> = (0..n).collect();
         let mut removed = vec![false; n];
@@ -1110,18 +1626,7 @@ impl Walk {
         for (end, start) in std::mem::take(&mut self.tie_ends) {
             self.out.problems.push(format!("a <tie> from {start:?} ends at {end:?}, a note that was never read"));
         }
-        // The dynamics: each note without its own velocity takes the last one marked at or before it
-        // on its staff (or on every staff).
-        let mut dynamics = std::mem::take(&mut self.dynamics);
-        dynamics.sort_by(|a, b| a.0.cmp(&b.0));
-        for (i, note) in self.out.notes.iter_mut().enumerate() {
-            if self.explicit_vel.get(i).copied().unwrap_or(false) {
-                continue;
-            }
-            if let Some(&(_, _, v)) = dynamics.iter().rev().find(|(at, staff, _)| *at <= note.at && staff.is_none_or(|s| s == note.staff)) {
-                note.vel = v;
-            }
-        }
+        self.dynamics_and_holds();
         // Drop the joined notes, sort what sounds, and point each syllable at its sounding note.
         let mut order: Vec<usize> = (0..n).filter(|&i| !removed[i]).collect();
         order.sort_by(|&a, &b| {
@@ -1144,6 +1649,80 @@ impl Walk {
         let notes = &self.out.notes;
         self.out.syllables.sort_by(|a, b| notes[a.note].at.cmp(&notes[b.note].at).then(a.verse.cmp(&b.verse)));
         self.out.end = self.bar_start;
+    }
+
+    /// The loudness of every note without its own velocity: the level marked last at or before it on
+    /// its staff (an `fp`'s piano from just after its note), moved by the hairpins it sits under (from
+    /// the level where each starts to the dynamic at its end, else one step on, which then holds),
+    /// then its accents (`sf`, its articulation). And the fermatas, overlapping ones joined.
+    fn dynamics_and_holds(&mut self) {
+        // (where, from just after it, staff, level)
+        let mut levels: Vec<(Frac, bool, Option<u16>, f32)> = Vec::new();
+        for &(at, staff, kind) in &self.dynamics {
+            match kind {
+                DynKind::Level(v) => levels.push((at, false, staff, v)),
+                DynKind::FortePiano => levels.push((at, true, staff, 0.42)),
+                DynKind::Accent => {}
+            }
+        }
+        let on = |a: Option<u16>, b: Option<u16>| a.is_none() || b.is_none() || a == b;
+        let level_at = |levels: &[(Frac, bool, Option<u16>, f32)], at: Frac, staff: Option<u16>| {
+            levels.iter().filter(|l| (l.0 < at || (l.0 == at && !l.1)) && on(l.2, staff)).max_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1))).map(|l| l.3).unwrap_or(DEFAULT_VEL)
+        };
+        // Each hairpin's two levels; one with no dynamic at its end sets the level it reaches there.
+        let mut ramps = Vec::new();
+        for s in &self.spans {
+            let SpanKind::Hairpin { louder } = s.kind else { continue };
+            if s.end <= s.start {
+                continue;
+            }
+            let v0 = level_at(&levels, s.start, s.staff);
+            let at_end = levels.iter().find(|l| l.0 == s.end && !l.1 && on(l.2, s.staff)).map(|l| l.3);
+            let v1 = at_end.unwrap_or_else(|| (v0 + if louder { HAIRPIN_STEP } else { -HAIRPIN_STEP }).clamp(0.1, 1.0));
+            ramps.push((*s, v0, v1, at_end.is_none()));
+        }
+        for (s, _, v1, synthetic) in &ramps {
+            if *synthetic {
+                levels.push((s.end, false, s.staff, *v1));
+            }
+        }
+        for (i, note) in self.out.notes.iter_mut().enumerate() {
+            if self.explicit_vel.get(i).copied().unwrap_or(false) {
+                continue;
+            }
+            note.vel = level_at(&levels, note.at, Some(note.staff));
+            for (s, v0, v1, _) in &ramps {
+                if note.at >= s.start && note.at < s.end && on(s.staff, Some(note.staff)) {
+                    let f = note.at.sub(s.start).div(s.end.sub(s.start)).to_f64() as f32;
+                    note.vel = v0 + (v1 - v0) * f;
+                }
+            }
+            for &(at, staff, kind) in &self.dynamics {
+                if at == note.at && on(staff, Some(note.staff)) {
+                    match kind {
+                        DynKind::Accent => note.vel = (note.vel + SFORZANDO_ADD).min(1.0),
+                        DynKind::FortePiano => note.vel = dynamic_vel("f").unwrap_or(0.8),
+                        DynKind::Level(_) => {}
+                    }
+                }
+            }
+            note.vel = (note.vel + self.accent.get(i).copied().unwrap_or(0.0)).min(1.0);
+        }
+        // The fermatas, by start, overlapping ones joined.
+        let mut holds = std::mem::take(&mut self.fermatas);
+        holds.retain(|h| h.1 > Frac::ZERO);
+        holds.sort();
+        let mut joined: Vec<(Frac, Frac)> = Vec::new();
+        for (at, len) in holds {
+            match joined.last_mut() {
+                Some(last) if at <= last.0.add(last.1) => {
+                    let end = last.0.add(last.1).max(at.add(len));
+                    last.1 = end.sub(last.0);
+                }
+                _ => joined.push((at, len)),
+            }
+        }
+        self.out.fermatas = joined;
     }
 }
 

@@ -13,7 +13,8 @@
 // `fallback_part`: another part that plays this one when no recording of it is installed, and the
 // notes its recording lacks (the handpan's nine notes; the rest on the steel pan). `sustained`: its
 // notes are held, so a recording of it made without loop points is held past its end by a
-// crossfaded loop. `not_used_yet`: no mood or genre plays this part yet; its instruments install
+// crossfaded loop. `not_used_yet`: no mood, genre or written piece (a staff's `part` in
+// data/music/scores/index.ron) plays this part yet; its instruments install
 // and wait, and Settings > Audio > Instruments says so (a data test fails when a part no music names
 // is not marked, or a marked part is named: src/instrument_packs/data_tests.rs).
 Parts(
@@ -21,7 +22,7 @@ Parts(
         (id: "piano", words: "instrument_packs.part.piano", synth: (kind: "fm", preset: "electric_piano")),
         (id: "harp", words: "instrument_packs.part.harp", synth: (kind: "plucked", preset: "harp")),
         (id: "strings_high", words: "instrument_packs.part.strings_high", synth: (kind: "synth", preset: "soft_saw_pad"), sustained: true),
-        (id: "strings_mid", words: "instrument_packs.part.strings_mid", synth: (kind: "synth", preset: "soft_saw_pad"), sustained: true, not_used_yet: true),
+        (id: "strings_mid", words: "instrument_packs.part.strings_mid", synth: (kind: "synth", preset: "soft_saw_pad"), sustained: true),
         (id: "strings_low", words: "instrument_packs.part.strings_low", synth: (kind: "synth", preset: "dark_pad"), sustained: true),
         (id: "bass_strings", words: "instrument_packs.part.bass_strings", synth: (kind: "synth", preset: "drone"), sustained: true),
         (id: "strings_pizzicato", words: "instrument_packs.part.strings_pizzicato", synth: (kind: "plucked", preset: "harp"), not_used_yet: true),
@@ -44,7 +45,7 @@ Parts(
         (id: "clarinet", words: "instrument_packs.part.clarinet", synth: (kind: "synth", preset: "clarinet"), sustained: true),
         (id: "double_bass_pizzicato", words: "instrument_packs.part.double_bass_pizzicato", synth: (kind: "plucked", preset: "upright_bass")),
         (id: "deep_drum", words: "instrument_packs.part.deep_drum", synth: (kind: "membrane", preset: "deep_drum")),
-        (id: "timpani", words: "instrument_packs.part.timpani", synth: (kind: "membrane", preset: "taiko_hit"), not_used_yet: true),
+        (id: "timpani", words: "instrument_packs.part.timpani", synth: (kind: "membrane", preset: "taiko_hit")),
         (id: "frame_drum", words: "instrument_packs.part.frame_drum", synth: (kind: "membrane", preset: "taiko"), not_used_yet: true),
         (id: "gong", words: "instrument_packs.part.gong", synth: (kind: "membrane", preset: "taiko_hit"), not_used_yet: true),
         // The library downloads the operator approved on 2026-11-13 (docs/reference/instrument-sources.md,
@@ -107,7 +108,7 @@ Parts(
         (id: "solo_violin_pizzicato", words: "instrument_packs.part.solo_violin_pizzicato", synth: (kind: "plucked", preset: "harp"), not_used_yet: true),
         (id: "solo_violin_spiccato", words: "instrument_packs.part.solo_violin_spiccato", synth: (kind: "plucked", preset: "harp"), not_used_yet: true),
         (id: "solo_violin_tremolo", words: "instrument_packs.part.solo_violin_tremolo", synth: (kind: "synth", preset: "soft_lead"), sustained: true, not_used_yet: true),
-        (id: "french_horn", words: "instrument_packs.part.french_horn", synth: (kind: "synth", preset: "swing_horns"), sustained: true, not_used_yet: true),
+        (id: "french_horn", words: "instrument_packs.part.french_horn", synth: (kind: "synth", preset: "swing_horns"), sustained: true),
         (id: "french_horn_staccato", words: "instrument_packs.part.french_horn_staccato", synth: (kind: "synth", preset: "swing_horns"), not_used_yet: true),
         (id: "french_horn_muted", words: "instrument_packs.part.french_horn_muted", synth: (kind: "synth", preset: "swing_horns"), sustained: true, not_used_yet: true),
         (id: "trumpet_vibrato", words: "instrument_packs.part.trumpet_vibrato", synth: (kind: "synth", preset: "swing_horns"), sustained: true, not_used_yet: true),
@@ -123,17 +124,17 @@ Parts(
         (id: "old_trombone_fall", words: "instrument_packs.part.old_trombone_fall", synth: (kind: "synth", preset: "swing_horns"), not_used_yet: true),
         (id: "orchestral_tuba", words: "instrument_packs.part.orchestral_tuba", synth: (kind: "synth", preset: "swing_horns"), sustained: true, not_used_yet: true),
         (id: "orchestral_tuba_staccato", words: "instrument_packs.part.orchestral_tuba_staccato", synth: (kind: "synth", preset: "swing_horns"), not_used_yet: true),
-        (id: "flute", words: "instrument_packs.part.flute", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
+        (id: "flute", words: "instrument_packs.part.flute", synth: (kind: "synth", preset: "clarinet"), sustained: true),
         (id: "flute_straight", words: "instrument_packs.part.flute_straight", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
         (id: "flute_expressive", words: "instrument_packs.part.flute_expressive", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
         (id: "flute_staccato", words: "instrument_packs.part.flute_staccato", synth: (kind: "synth", preset: "clarinet"), not_used_yet: true),
         (id: "piccolo", words: "instrument_packs.part.piccolo", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
         (id: "piccolo_staccato", words: "instrument_packs.part.piccolo_staccato", synth: (kind: "synth", preset: "clarinet"), not_used_yet: true),
-        (id: "oboe", words: "instrument_packs.part.oboe", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
+        (id: "oboe", words: "instrument_packs.part.oboe", synth: (kind: "synth", preset: "clarinet"), sustained: true),
         (id: "oboe_vibrato", words: "instrument_packs.part.oboe_vibrato", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
         (id: "oboe_staccato", words: "instrument_packs.part.oboe_staccato", synth: (kind: "synth", preset: "clarinet"), not_used_yet: true),
         (id: "clarinet_staccato", words: "instrument_packs.part.clarinet_staccato", synth: (kind: "synth", preset: "clarinet"), not_used_yet: true),
-        (id: "bassoon", words: "instrument_packs.part.bassoon", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
+        (id: "bassoon", words: "instrument_packs.part.bassoon", synth: (kind: "synth", preset: "clarinet"), sustained: true),
         (id: "bassoon_vibrato", words: "instrument_packs.part.bassoon_vibrato", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),
         (id: "bassoon_staccato", words: "instrument_packs.part.bassoon_staccato", synth: (kind: "synth", preset: "clarinet"), not_used_yet: true),
         (id: "tenor_saxophone_straight", words: "instrument_packs.part.tenor_saxophone_straight", synth: (kind: "synth", preset: "clarinet"), sustained: true, not_used_yet: true),

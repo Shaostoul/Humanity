@@ -37,7 +37,17 @@ fn tag_of(playing: &Playing, seconds: f64) -> SheetTag {
 /// Keep the sheet of the playing piece current: made again when the piece changes, when the playhead
 /// nears its end, and every frame with "turn off all reuse" off (CLAUDE.md, the no-caches rule).
 pub(super) fn ensure_sheet(state: &mut GuiState) {
-    // A written piece is not the composer's: no transcription of a seed's piece stands in for it.
+    // A written piece is drawn from its own timeline (score-player.md section 16, rung 2): made again
+    // when the piece changes, and every frame with "turn off all reuse" off. It is not the composer's,
+    // so no transcription of a seed's piece stands in for it.
+    if let Some(piece) = state.music_dev.readout.written_piece.clone() {
+        let tag = written_tag(&piece);
+        let keep = humanity_core::reuse::enabled() && state.music_page.sheet.as_ref().is_some_and(|s| s.tag == tag);
+        if !keep {
+            state.music_page.sheet = Some(SheetCache { tag, sheet: Sheet::from_timeline(&piece.timeline, &piece.staff_roles()) });
+        }
+        return;
+    }
     let Some(playing) = state.music_dev.readout.playing.clone().filter(|_| state.music_dev.readout.written.is_none()) else {
         state.music_page.sheet = None;
         return;
@@ -55,6 +65,12 @@ pub(super) fn ensure_sheet(state: &mut GuiState) {
     }
     let sheet = transcribe(&playing.res, playing.seed, &playing.ctx, 48000.0, reach);
     state.music_page.sheet = Some(SheetCache { tag: tag_of(&playing, reach), sheet });
+}
+
+/// The tag of a written piece's sheet: the piece's timeline (by address: a new read is a new piece).
+fn written_tag(piece: &humanity_music::scores::WrittenPiece) -> SheetTag {
+    let tune = humanity_music::tune::Tune { level_db: [0.0; ROLES], mute: 0, solo: 0, ..Default::default() };
+    SheetTag { seed: u64::MAX, res: std::sync::Arc::as_ptr(&piece.timeline) as usize, steer: [0; 6], tune, seconds: u32::MAX }
 }
 
 /// The piece in words: "D harmonic minor, AABA, 128 beats a minute", the lead and the answer.
@@ -90,7 +106,8 @@ pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         if state.settings.music.music_on && !readout.device {
             ui.label(RichText::new(t("music_page.no_device")).color(theme.text_muted()));
         }
-        if let (Some(c), Some(p)) = (state.music_page.sheet.as_ref(), readout.playing.as_ref()) {
+        // A written piece has no chords or sections of the composer's to name (its title is above).
+        if let (Some(c), Some(p), None) = (state.music_page.sheet.as_ref(), readout.playing.as_ref(), readout.written.as_ref()) {
             let (words, leads) = piece_words(&c.sheet, p);
             ui.label(RichText::new(words).color(theme.text_primary()));
             if let Some(l) = leads {
@@ -177,12 +194,9 @@ pub(super) fn see(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent
         // The parts muted in the choice as the page shows it (the person's, or what plays now).
         let mute = super::shown(&state.settings.music, &state.music_dev.readout).tune.mute;
         match state.music_page.sheet.as_ref() {
+            // A written piece's notes too (score-player.md section 16, rung 2): ensure_sheet draws it
+            // from its timeline.
             Some(c) if !c.sheet.bars.is_empty() => piano_roll(ui, theme, &c.sheet, now, mute),
-            // A written piece's notes are drawn here in the score player's rung 2 (score-player.md
-            // section 16); said plainly rather than left blank.
-            _ if state.music_dev.readout.written.is_some() => {
-                ui.label(RichText::new(t("music_page.roll_written_later")).color(theme.text_muted()));
-            }
             _ => {
                 ui.label(RichText::new(t("music_page.roll_empty")).color(theme.text_muted()));
             }

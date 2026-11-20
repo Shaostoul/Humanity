@@ -1,0 +1,94 @@
+{
+  "about": "The written pieces scripts/ly-to-mei.js converts from Mutopia Project LilyPond files (docs/reference/findings/2026-11-20-public-domain-scores.md, findings 16 and 20; downloaded with the operator's permission on 2026-11-20). Per piece: the files and their SHA-256 (checked before converting), the main file, the words for the MEI header, each staff's label (and a transposition the source leaves to the player), and tempo words the source writes without a number, with the number the piece plays them at.",
+  "pieces": {
+    "fur_elise": {
+      "main": "fur_Elise_WoO59.ly",
+      "sha256": {
+        "fur_Elise_WoO59.ly": "828a7bd1b42e441fe1b0eb0389ba46f1502dab28bbe488389e635fb446ba7a67"
+      },
+      "title": "Für Elise (Clavierstück in A minor, WoO 59)",
+      "composer": "Ludwig van Beethoven",
+      "availability": "Public domain. Beethoven's Für Elise, WoO 59, as Breitkopf & Härtel printed it in 1888 (Ludwig van Beethovens Werke, Serie 25, No. 298). Converted to MEI by HumanityOS (scripts/ly-to-mei.js, 2026-11-20) from Mutopia Project piece 931, typeset in LilyPond by Stelios Samelis and placed in the public domain by the typesetter (Mutopia-2015/08/18-931). The conversion is dedicated to the public domain (CC0).",
+      "comment": [
+        "Für Elise, WoO 59, by Ludwig van Beethoven: written music for HumanityOS's score player (docs/design/score-player.md).",
+        "Source: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931 (file fur_Elise_WoO59.ly, SHA-256 828a7bd1b42e441fe1b0eb0389ba46f1502dab28bbe488389e635fb446ba7a67).",
+        "Edition: Breitkopf & Härtel, 1888. Licence: public domain (docs/reference/findings/2026-11-20-public-domain-scores.md, finding 20).",
+        "Converted by scripts/ly-to-mei.js. The pedal line is left out; the hidden metronome mark of the LilyPond file (a quarter note at 72) is kept as the tempo.",
+        "Open it in MuseScore 4.2 or later, or any text editor; change a note and the game plays the change the next time the piece starts."
+      ],
+      "staves": {
+        "1": { "label": "Right hand" },
+        "2": { "label": "Left hand" }
+      }
+    },
+    "mountain_king": {
+      "main": "Dans_l_antre_du_roi_de_la_montagne.ly",
+      "sha256": {
+        "Dans_l_antre_du_roi_de_la_montagne.ly": "5ce52c65f3a019062baa72d8c85313274d2542dbf68a759d8712df4bea827b95"
+      },
+      "title": "In the Hall of the Mountain King (Peer Gynt Suite No. 1, Op. 46, No. 4)",
+      "composer": "Edvard Grieg",
+      "availability": "Public domain. Grieg's own piano arrangement of In the Hall of the Mountain King, Op. 46 No. 4, as The University Society printed it in 1918 (IMSLP #00581). Converted to MEI by HumanityOS (scripts/ly-to-mei.js, 2026-11-20) from Mutopia Project piece 1888, typeset in LilyPond by Coyau and placed in the public domain by the typesetter (Mutopia-2013/12/07-1888). The conversion is dedicated to the public domain (CC0).",
+      "comment": [
+        "In the Hall of the Mountain King, Op. 46 No. 4, by Edvard Grieg, in Grieg's own piano arrangement: written music for HumanityOS's score player (docs/design/score-player.md).",
+        "Source: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1888 (file Dans_l_antre_du_roi_de_la_montagne.ly, SHA-256 5ce52c65f3a019062baa72d8c85313274d2542dbf68a759d8712df4bea827b95).",
+        "Edition: The University Society, New York, 1918. Licence: public domain (docs/reference/findings/2026-11-20-public-domain-scores.md, finding 16).",
+        "Converted by scripts/ly-to-mei.js. The right hand's two voices (LilyPond's part-combined rightOne and rightTwo) are layers 1 and 2 of staff 1; the pedal marks are left out; the closing tremolos are written out as sixteenth notes.",
+        "Open it in MuseScore 4.2 or later, or any text editor; change a note and the game plays the change the next time the piece starts."
+      ],
+      "staves": {
+        "1": { "label": "Right hand" },
+        "2": { "label": "Left hand" }
+      }
+    },
+    "beethoven_symphony5_1": {
+      "main": "Symphony5_1-lys/Symphony5_1.ly",
+      "sha256": {
+        "Symphony5_1-lys/Symphony5_1.ly": "e8fa1a0a28b6869cc1edaab732193903a6d82732dd690d8daffd2095afada01d",
+        "Symphony5_1-lys/struktur.ly": "05acb565321760a0e7270afcd64650fc8c295e04a43b21129e856ab6dc550931",
+        "Symphony5_1-lys/flauti.ly": "2d1936f7d0a715b2f117124d499a67b7587c75dcbf5953f92608b19e97e9fb71",
+        "Symphony5_1-lys/oboi.ly": "1e970367ba6979a49c53be83ccb4b6623390ea9b8e3b7cd478d203f5473f21ce",
+        "Symphony5_1-lys/clarinetti.ly": "9db1a5027fe0d61fa7ed2442274119dcb30313d7f353f9e1ab2313b18311d4f3",
+        "Symphony5_1-lys/fagotti.ly": "7706313ea0c3d22fb41ae75be4425f3790d354e10cd4783215cb5c136fbe505d",
+        "Symphony5_1-lys/cornies.ly": "e80a20fe8012babd3df9b960df92c7c85aa8cedcf54125140954cadcab57f311",
+        "Symphony5_1-lys/trombec.ly": "5bae3939165eb146a2186e3b65a4710c904e549a68db2736907a598126d30cde",
+        "Symphony5_1-lys/timpani.ly": "b7f1a1409d3fa083ebbaf2d276ebdf79647b077f66fb56d448d0864871209976",
+        "Symphony5_1-lys/violinoone.ly": "44203988de3cb8664db15cb52c9049f086d3a6180dd7b593b837a252b2e29c59",
+        "Symphony5_1-lys/violinotwo.ly": "dab5138d5915e3667ff108fac3a6fd9f3a0428e422c79c7d401088a01edf1b46",
+        "Symphony5_1-lys/viola.ly": "6688802068e55d145e889579852f450afc9aa980d63e7ac05969a4db5599453e",
+        "Symphony5_1-lys/violoncello.ly": "2625a9512dec4cb8da87267e3978c566e7120979b91330b85f3b966a09bebbd3",
+        "Symphony5_1-lys/basso.ly": "ca160d07a023c7511ef927b10272f3e4830acbd0c05221a84304acbf0cd7acb0"
+      },
+      "title": "Symphony No. 5 in C minor, Op. 67: I. Allegro con brio",
+      "composer": "Ludwig van Beethoven",
+      "availability": "Public domain. The first movement of Beethoven's Symphony No. 5, Op. 67, as Breitkopf & Härtel printed it in 1862 to 1865 (Ludwig van Beethovens Werke, Serie 1, No. 5). Converted to MEI by HumanityOS (scripts/ly-to-mei.js, 2026-11-20) from Mutopia Project piece 941, typeset in LilyPond by Stelios Samelis, adapted to LilyPond 2.16.2 by Johannes Heinecke, and placed in the public domain by the typesetter (Mutopia-2017/11/05-941). The conversion is dedicated to the public domain (CC0).",
+      "comment": [
+        "Symphony No. 5 in C minor, Op. 67, first movement, by Ludwig van Beethoven: written music for HumanityOS's score player (docs/design/score-player.md).",
+        "Source: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=941 (Symphony5_1-lys.zip, SHA-256 a0165591776ac4f277ff4331b075774d739639726f26f162aad57761554abf80; each file's own SHA-256 is in scripts/ly-to-mei.pieces.json).",
+        "Edition: Breitkopf & Härtel, 1862-1865. Licence: public domain (docs/reference/findings/2026-11-20-public-domain-scores.md, finding 20).",
+        "Converted by scripts/ly-to-mei.js. Tempo numbers are not printed in this edition: Allegro con brio plays at a half note = 108 (216 quarter notes a minute, Beethoven's own metronome mark of 1817), the oboe's Adagio cadenza at 60 quarter notes a minute and the Allegro again after it; these are playback values (midi.bpm), the words are the edition's.",
+        "The double basses sound an octave below the written notes (trans.semi -12), as the instrument does; the clarinets in B flat and the horns in E flat are written as they read them (trans.semi -2 and -9).",
+        "Open it in MuseScore 4.2 or later, or any text editor; change a note and the game plays the change the next time the piece starts."
+      ],
+      "tempoWords": {
+        "Allegro con brio": 216,
+        "Adagio": 60
+      },
+      "afterCadenzaQpm": 216,
+      "staves": {
+        "1": { "label": "Flutes" },
+        "2": { "label": "Oboes" },
+        "3": { "label": "Clarinets in B flat" },
+        "4": { "label": "Bassoons" },
+        "5": { "label": "Horns in E flat" },
+        "6": { "label": "Trumpets in C" },
+        "7": { "label": "Timpani" },
+        "8": { "label": "Violins I" },
+        "9": { "label": "Violins II" },
+        "10": { "label": "Violas" },
+        "11": { "label": "Cellos" },
+        "12": { "label": "Double basses", "transSemi": -12, "transDiat": -7 }
+      }
+    }
+  }
+}

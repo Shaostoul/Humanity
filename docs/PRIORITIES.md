@@ -132,7 +132,7 @@ In order: (1) compare the open score formats (MusicXML, MIDI, LilyPond, ABC, MEI
 found), licences quoted, for "everyone can easily modify" and for orchestral detail, and recommend
 one (docs/reference/research/, CLAUDE.md's compare-before-adopting rule); (2) [DONE 2026-11-20: docs/reference/findings/2026-11-20-public-domain-scores.md] a dated finding on
 which public-domain editions and score files of Grieg's In the Hall of the Mountain King and
-Beethoven are free to use, and from where; (3) [RUNG 1 DONE 2026-11-20, d26fdda70: our own MEI reader, Ode to Joy with its words, the Music page's Written music list; rung 2 next, docs/design/score-player.md] the score player in crates/humanity-music: written
+Beethoven are free to use, and from where; (3) [RUNGS 1 AND 2 DONE 2026-11-20: our own MEI reader, Ode to Joy with its words, the Written music list; rung 2 repeats, graces, octave lines, fermatas, hairpins, recorded parts, the piano roll, and Für Elise, the Mountain King and Symphony No. 5 i converted from Mutopia by scripts/ly-to-mei.js; rung 3 (the Accord sing-along) next, docs/design/score-player.md] the score player in crates/humanity-music: written
 pieces as data in that format, played on our own instruments at the tuning, optionally in a
 genre's palette; (4) the Humanity Accord as instrumental music in that format, with the five-vowel
 choir singing its syllables and the line scrolling like a sing-along. Design notes:

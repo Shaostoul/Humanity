@@ -6561,7 +6561,14 @@ window.HOS_I18N_EN = {
       "action": "Action"
     },
     "score": {
+      "beethoven_symphony5_1": "Symphony No. 5, first movement",
       "composer_beethoven": "Ludwig van Beethoven",
+      "composer_grieg": "Edvard Grieg",
+      "credit_beethoven_symphony5_1": "As Breitkopf & Härtel printed it in 1862 to 1865. Typeset for the Mutopia Project by Stelios Samelis and Johannes Heinecke, who placed it in the public domain.",
+      "credit_fur_elise": "As Breitkopf & Härtel printed it in 1888. Typeset for the Mutopia Project by Stelios Samelis, who placed it in the public domain.",
+      "credit_mountain_king": "Grieg's own piano arrangement, as The University Society printed it in 1918. Typeset for the Mutopia Project by Coyau, who placed it in the public domain.",
+      "fur_elise": "Für Elise",
+      "mountain_king": "In the Hall of the Mountain King",
       "ode_to_joy": "Ode to Joy"
     },
     "instrument": {
@@ -8068,7 +8075,6 @@ window.HOS_I18N_EN = {
     "piece_words": "{{key}} {{mode}}, {{form}}, {{tempo}} beats a minute",
     "no_form": "no fixed form",
     "leads_line": "Lead voices: {{leads}}",
-    "roll_written_later": "The piano roll draws the music the game composes. A written piece is drawn here in a later version of the score player.",
     "section_now": "Section {{letter}}, chord {{chord}}",
     "beat": "Bar {{bar}}, beat {{beat}}",
     "visualizer_hint": "Moves with the music: the ring swells on every beat (most on the bar's first), each part's column jumps when it plays a note, and the spectrum on the right shows how loud each range of pitches is, from low (31 Hz) to high (16 kHz).",

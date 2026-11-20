@@ -90,5 +90,9 @@ mod tests_e5;
 mod tests_e6;
 #[cfg(test)]
 mod tests_written;
+#[cfg(test)]
+mod tests_written2;
+#[cfg(test)]
+mod tests_scores;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;
