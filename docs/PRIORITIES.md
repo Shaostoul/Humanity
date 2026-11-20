@@ -83,7 +83,7 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    before and after (live nginx is hand-applied: targeted edits, `nginx -t`, reload). Add a web
    check that user text never reaches `innerHTML` unescaped (there is none today). **Emoji**
    (operator, 2026-11-20: "make our own emojis... a task for human volunteers... adopted by user
-   provided/voted options", "Or that instead"): first host an open set ourselves (the operator chose OpenMoji, 2026-11-20: "of that list the OpenMoji sounds better"; CC BY-SA 4.0, version 17.0.0, its download awaiting his yes), compared as in the
+   provided/voted options", "Or that instead"): [DONE 2026-11-20 for the website, 774d86594: OpenMoji 17.0.0 served from assets/emoji/, Twemoji gone; the desktop app's four rungs in docs/design/emoji.md] first host an open set ourselves (the operator chose OpenMoji, 2026-11-20: "of that list the OpenMoji sounds better"; CC BY-SA 4.0, version 17.0.0, its download awaiting his yes), compared as in the
    house comparison (Twemoji CC BY 4.0, today's look; OpenMoji CC BY-SA 4.0, community-made;
    Noto Emoji; Fluent Emoji), one set for both apps, as a data pack; then a HumanityOS set grown by
    volunteers, each design proposed and voted on, replacing the open set's emoji one by one
