@@ -724,3 +724,17 @@ what we will say about it.
   Wikipedia's terms, CC0's irrevocable waiver (old releases stay public domain), no licence covering
   the name, copyleft reaching only human authorship, and the git history's authors (only the
   operator; Claude co-authors, whose outputs Anthropic assigns to the user). Not legal advice.
+- [`2026-11-18-digital-public-goods.md`](2026-11-18-digital-public-goods.md),
+  the Digital Public Goods Alliance's nine-indicator standard checked against HumanityOS: open
+  licences (the instrument packs too), documentation, privacy, standards and the safety tools meet it;
+  the gaps were a plain copyright line (added 2026-11-18) and a written content policy with its
+  report-and-remove process; the authorised person submits.
+- [`2026-11-20-public-domain-scores.md`](2026-11-20-public-domain-scores.md),
+  which editions and score files of Grieg's "In the Hall of the Mountain King" and Beethoven
+  HumanityOS may encode from or import: the compositions (Grieg died 1907, Beethoven 1827), the US
+  cutoff (published before 1931, Circular 15a; no restoration for an 1888 German edition), the EU's
+  30-year and Germany's 25-year critical-edition rights and the US "musical editing" rule (so no
+  modern Urtext), transcription as no authorship; Mutopia's public-domain piano Mountain King, Für
+  Elise and Symphony No. 5, OpenScore (CC0), TROMPA (CC BY 4.0, five files from a 1976 Henle edition
+  to avoid), IMSLP's 1888 Peters scans (its robots bar automated downloads); the orchestral Mountain
+  King is ours to encode. Not legal advice.

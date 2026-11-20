@@ -81,7 +81,7 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    before and after (live nginx is hand-applied: targeted edits, `nginx -t`, reload). Add a web
    check that user text never reaches `innerHTML` unescaped (there is none today). **Emoji**
    (operator, 2026-11-20: "make our own emojis... a task for human volunteers... adopted by user
-   provided/voted options", "Or that instead"): first host an open set ourselves, chosen after the
+   provided/voted options", "Or that instead"): first host an open set ourselves (the operator chose OpenMoji, 2026-11-20: "of that list the OpenMoji sounds better"; CC BY-SA 4.0, version 17.0.0, its download awaiting his yes), compared as in the
    house comparison (Twemoji CC BY 4.0, today's look; OpenMoji CC BY-SA 4.0, community-made;
    Noto Emoji; Fluent Emoji), one set for both apps, as a data pack; then a HumanityOS set grown by
    volunteers, each design proposed and voted on, replacing the open set's emoji one by one
@@ -123,7 +123,7 @@ experience."
 
 In order: (1) compare the open score formats (MusicXML, MIDI, LilyPond, ABC, MEI and any others
 found), licences quoted, for "everyone can easily modify" and for orchestral detail, and recommend
-one (docs/reference/research/, CLAUDE.md's compare-before-adopting rule); (2) a dated finding on
+one (docs/reference/research/, CLAUDE.md's compare-before-adopting rule); (2) [DONE 2026-11-20: docs/reference/findings/2026-11-20-public-domain-scores.md] a dated finding on
 which public-domain editions and score files of Grieg's In the Hall of the Mountain King and
 Beethoven are free to use, and from where; (3) the score player in crates/humanity-music: written
 pieces as data in that format, played on our own instruments at the tuning, optionally in a
