@@ -25,8 +25,8 @@ outside the repository.
 | 9b, illegal content | The content policy is merged ([docs/legal/content-policy.md](../legal/content-policy.md), 2026-11-20, in the Library and linked from Settings > Safety in both apps, the website's footer and its rules page), and it says plainly what the app does not do yet. There is no "hide and keep" action: "Delete the post" on a report removes the post but leaves an uploaded picture or file at its address, so until the action exists an operator follows the policy's manual steps (move the file, unopened, out of the uploads folder; keep it and the post's words for the year a CyberTipline report must be preserved). Hide and keep is designed, and its rungs are being built ([docs/design/hide-and-keep.md](../design/hide-and-keep.md): status "designed, not built"). Reports are deleted 90 days after a decision. No response time has been measured, and the policy sets no target. | Hide and keep built to its rung 5 (the button on the Reports page in both apps); then the policy drops its "not yet" list's first item, and the 9b answer's removal sentence changes to match. A report's retention for the child-danger reason is still an open decision (`docs/PRIORITIES.md`, "Report duties"). |
 | 9c, harassment | The content policy does not name harassment: it covers threats, blackmail and calls to harm a group of people, and leaves "every other report" to the admins' proportionate choice. Harassment is named in the rules of the project's own server, [united-humanity.us/rules](https://united-humanity.us/rules) ("No harassment, hate speech, doxxing or targeted attacks"), with the moderators' real powers and the order of responses. Those rules are one server's, though, and there is no code of conduct for contributors (the GitHub repository, the Discord). The Humanity Accord states principles, not rules with consequences. | A project-wide code of conduct that names harassment and what happens to it, covering contributors as well as servers, or a harassment section in the content policy. |
 | 3 and 4, ownership and dependencies | The Windows download ships two Microsoft files, `dxcompiler.dll` and `dxil.dll`, copied from the Windows SDK (`.github/workflows/build-desktop.yml`), with no licence notice anywhere in the project. The compiler's source is open (its repository's LICENSE.TXT is the "University of Illinois/NCSA Open Source License", read 2026-11-20), and that licence asks that a binary copy carry its copyright notice; the code comments call it MIT. Whether `dxil.dll`, as shipped in the SDK, carries the same terms is not settled (`docs/reference/attribution-audit-2026-09-06.md`, item 7). | A dated finding on the DirectX Shader Compiler's terms for both files, and their notice in `LICENSES.md` and the Windows archive. Or stop shipping them: the app runs without them (indicator 4). |
-| 8, standards | The post-quantum algorithms are tested against our own implementations (Rust, website, relay), not against NIST's published test vectors. | The conformance tests, item 1 of the security reset in `docs/PRIORITIES.md` (NIST ACVP vectors for FIPS 203 and 204). |
-| 9a, privacy and security | No independent human security audit has been done since the post-quantum switch; the reviews so far are AI reviews and one contributor's review of the cryptography (2026-11-16). Three known limits are open: direct messages have no forward secrecy yet; the Solana wallet key is the recovery phrase's raw entropy, the root of every other key; a private group's server can see its name, members and who posted when. | Say it plainly (the answer below does). The first two are decided and queued in the security reset; the third is named in the privacy policy. |
+| 8, standards | Closed 2026-11-20: the post-quantum code now passes NIST's published ACVP vectors for FIPS 203 and 204 (240 vectors, in the Rust build and on the website, run in CI), as well as the tests across our own implementations. | Nothing; keep the vectors running in CI. |
+| 9a, privacy and security | No independent human security audit has been done since the post-quantum switch; the reviews so far are AI reviews and one contributor's review of the cryptography (2026-11-16). Two known limits are open: direct messages have no forward secrecy yet; a private group's server can see its name, members and who posted when. (A third, the wallet key being the recovery phrase's raw entropy, was closed on 2026-11-19: it is now derived under its own label.) | Say it plainly (the answer below does). The first is decided and designed (`docs/design/dm-forward-secrecy.md`); the second is named in the privacy policy. |
 | 7, laws | The laws were read by AI from primary sources, not by a lawyer. No DMCA designated agent is registered (none until the project has an address to give, through a fiscal sponsor or a nonprofit of its own). | Say it plainly (the answer below does). |
 
 Not an indicator, but the form asks: the app is English only in practice, it runs on two servers
@@ -394,7 +394,7 @@ the best practices and principles followed, with evidence.
 
 | Standard | Where | How it is checked |
 |---|---|---|
-| FIPS 204, ML-DSA-65 (identity and signatures) and FIPS 203, ML-KEM-768 (sealing messages) | `docs/reference/cryptography.md`; RustCrypto `ml-dsa` 0.1.1 and `ml-kem` 0.3.3 | Known-answer tests between the Rust, website and relay implementations (`dilithium_cross_language_kat`, `kyber_cross_language_kat`, `scripts/pq-kat.mjs`). NIST's ACVP vectors: planned (thin spots table). |
+| FIPS 204, ML-DSA-65 (identity and signatures) and FIPS 203, ML-KEM-768 (sealing messages) | `docs/reference/cryptography.md`; RustCrypto `ml-dsa` 0.1.1 and `ml-kem` 0.3.3 | Known-answer tests between the Rust, website and relay implementations (`dilithium_cross_language_kat`, `kyber_cross_language_kat`, `scripts/pq-kat.mjs`). NIST's ACVP vectors for both (240 vectors from ACVP-Server 975de31) pass in the Rust build and on the website, in CI (`scripts/tests/pq-acvp.test.js`, the `humanity-protocol` conformance tests). |
 | BIP39 (the 24-word recovery phrase) | `docs/reference/cryptography.md` | In use on both apps |
 | WebRTC with DTLS-SRTP (calls) | `docs/reference/cryptography.md` | `just verify-browser-webrtc`: the desktop app against Chromium's own WebRTC, 2026-11-07 |
 | RFC 8291 and RFC 8292 (Web Push encryption and VAPID) | `src/relay/web_push.rs` | Checked byte for byte against RFC 8291's worked example |
@@ -413,8 +413,8 @@ privacy settings that start at their most private; an incident playbook
 **Answer, ready to paste:**
 
 > Open standards: FIPS 204 (ML-DSA-65) for identity and signatures and FIPS 203 (ML-KEM-768) for
-> sealing private messages, with known-answer tests across the Rust, website and server
-> implementations; BIP39 for the recovery phrase; WebRTC (DTLS-SRTP) for calls, tested against
+> sealing private messages, checked against NIST's published ACVP test vectors and with known-answer
+> tests across the Rust, website and server implementations; BIP39 for the recovery phrase; WebRTC (DTLS-SRTP) for calls, tested against
 > Chromium; RFC 8291 and 8292 for Web Push, tested against the RFC's worked example; RFC 5389 and
 > 5766 for STUN and TURN, tested with RFC 5769's vectors; SPDX licence identifiers. The cryptography
 > is documented in one table: https://github.com/Shaostoul/Humanity/blob/main/docs/reference/cryptography.md.
@@ -423,8 +423,7 @@ privacy settings that start at their most private; an incident playbook
 > with thousands of automated tests, an updater that installs only releases with a valid hybrid
 > post-quantum signature, private-by-default settings, and an open development history.
 
-**Verdict: ready, with a limit said; stronger after the conformance tests.** When the NIST ACVP
-vectors are in, add them to the first line.
+**Verdict: ready.** The NIST ACVP vectors are in (2026-11-20) and named in the first line.
 
 ## Indicator 9: Do No Harm By Design
 
@@ -470,10 +469,8 @@ the types of PII; and how privacy, security and integrity are ensured.
 > are encrypted. Settings start at their most private (not shown as online, not listed in the
 > directory). Each person can export everything a server holds about them, and erase it, without
 > asking anyone. Known limits, stated publicly: a private group's server can see the group's name,
-> its members and who posted when (not what was said); private messages do not yet have forward
-> secrecy; and the optional Solana wallet's key is the recovery phrase's own entropy, the root the
-> identity keys are derived from, so exporting it to another wallet would hand over the identity.
-> The last two are decided and scheduled. Security reviews so far are AI-assisted reviews and a
+> its members and who posted when (not what was said); and private messages do not yet have forward
+> secrecy, which is decided and designed. Security reviews so far are AI-assisted reviews and a
 > review of the cryptography by a contributor who works in post-quantum cryptography (November 2026);
 > no paid independent audit has been done yet. Details: https://github.com/Shaostoul/Humanity/blob/main/docs/reference/cryptography.md
 > and https://united-humanity.us/privacy.
