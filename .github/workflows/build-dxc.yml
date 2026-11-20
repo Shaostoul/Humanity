@@ -1,0 +1,110 @@
+name: Build DXC from source
+
+# THE SHADER COMPILER IN THE WINDOWS DOWNLOAD, BUILT BY US FROM ITS OPEN SOURCE (2026-11-20).
+#
+# The Windows download carries dxcompiler.dll and dxil.dll (the DirectX Shader Compiler, "DXC"): the
+# app compiles its shaders with them (boot about 5 s instead of about 25 s with Windows' own FXC, and
+# the clouds need them). The copies shipped until now came from the Windows SDK, whose licence does not
+# let us hand them out. Microsoft's own release zip of DXC carries the open-source licence
+# (University of Illinois/NCSA, LICENSE-LLVM.txt) AND a Microsoft licence titled for the whole
+# compiler (LICENSE-MS.txt), without saying which file each covers. Rather than ship on a reading of
+# that, we build the two files ourselves from DXC's source, which is under the NCSA licence alone
+# (its LICENSE.TXT; tools/clang/tools/dxildll builds dxil.dll from the same source). The research:
+# docs/reference/findings/2026-11-21-dxc-redistribution.md.
+#
+# Run by hand (Actions > Build DXC from source > Run workflow, or `gh workflow run build-dxc.yml -f
+# tag=v1.9.2609`) once per DXC version. It publishes an asset release, assets-dxc-<tag>, holding one
+# zip: the two DLLs, DXC's LICENSE.TXT and ThirdPartyNotices.txt, and BUILD-INFO.txt (the source
+# commit, the CMake settings, the compiler, each file's SHA-256). build-desktop.yml downloads that zip,
+# checks its SHA-256 against the value pinned there, and ships the pair with the licence beside each.
+# Nothing here is cached between runs: every run builds from a fresh clone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "DXC release tag to build (github.com/microsoft/DirectXShaderCompiler)"
+        required: true
+        default: "v1.9.2609"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build DXC ${{ inputs.tag }} (windows-x64)
+    runs-on: windows-2022
+    timeout-minutes: 300
+    env:
+      DXC_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Fetch the source at the tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$DXC_TAG" --recurse-submodules --shallow-submodules \
+            https://github.com/microsoft/DirectXShaderCompiler.git dxc-src
+          git -C dxc-src rev-parse HEAD > dxc-commit.txt
+          echo "Source commit: $(cat dxc-commit.txt)"
+
+      - name: Configure and build (Release, no tests, no SPIR-V)
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do set VSPATH=%%i
+          call "%VSPATH%\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cmake -S dxc-src -B dxc-build -C dxc-src/cmake/caches/PredefinedParams.cmake -DCMAKE_BUILD_TYPE=Release -DHLSL_INCLUDE_TESTS=OFF -DSPIRV_BUILD_TESTS=OFF -DENABLE_SPIRV_CODEGEN=OFF -DLLVM_INCLUDE_TESTS=OFF -DCLANG_INCLUDE_TESTS=OFF -G Ninja || exit /b 1
+          cmake --build dxc-build --target dxc dxcompiler dxildll || exit /b 1
+          cl 2> msvc-version.txt
+          exit /b 0
+
+      - name: Smoke test (compile and validate one shader with the built compiler)
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'RWStructuredBuffer<uint> o : register(u0);' \
+            '[numthreads(64, 1, 1)] void main(uint3 id : SV_DispatchThreadID) { o[id.x] = id.x * 2u; }' > smoke.hlsl
+          ./dxc-build/bin/dxc.exe -T cs_6_0 -E main smoke.hlsl -Fo smoke.dxil
+          test -s smoke.dxil
+          ls -l dxc-build/bin/dxcompiler.dll dxc-build/bin/dxil.dll
+
+      - name: Package with the licence and the build record
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="dxc-$DXC_TAG-windows-x64"
+          mkdir -p "pkg/$OUT"
+          cp dxc-build/bin/dxcompiler.dll dxc-build/bin/dxil.dll "pkg/$OUT/"
+          cp dxc-src/LICENSE.TXT dxc-src/ThirdPartyNotices.txt "pkg/$OUT/"
+          {
+            echo "DirectX Shader Compiler $DXC_TAG, built from source by the HumanityOS project's CI."
+            echo "Source: https://github.com/microsoft/DirectXShaderCompiler at commit $(cat dxc-commit.txt)"
+            echo "Licence: University of Illinois/NCSA Open Source License (LICENSE.TXT); third-party notices in ThirdPartyNotices.txt."
+            echo "Built: $(date -u +%Y-%m-%dT%H:%M:%SZ) on GitHub Actions windows-2022, run $GITHUB_RUN_ID"
+            echo "CMake: -C cmake/caches/PredefinedParams.cmake -DCMAKE_BUILD_TYPE=Release -DHLSL_INCLUDE_TESTS=OFF -DSPIRV_BUILD_TESTS=OFF -DENABLE_SPIRV_CODEGEN=OFF -DLLVM_INCLUDE_TESTS=OFF -DCLANG_INCLUDE_TESTS=OFF -G Ninja"
+            echo "Compiler: $(head -1 msvc-version.txt | tr -d '\r')"
+            echo "SHA-256:"
+            (cd "pkg/$OUT" && sha256sum dxcompiler.dll dxil.dll LICENSE.TXT ThirdPartyNotices.txt)
+          } > "pkg/$OUT/BUILD-INFO.txt"
+          cat "pkg/$OUT/BUILD-INFO.txt"
+          (cd pkg && 7z a -tzip "../$OUT.zip" "$OUT" > /dev/null)
+          sha256sum "$OUT.zip" | tee "$OUT.zip.sha256"
+
+      - name: Publish as an asset release (never Latest)
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="dxc-$DXC_TAG-windows-x64"
+          REL="assets-dxc-$DXC_TAG"
+          if gh release view "$REL" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$REL" "$OUT.zip" "$OUT.zip.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            printf '%s\n' \
+              "The DirectX Shader Compiler $DXC_TAG (dxcompiler.dll and dxil.dll, Windows x64), built from Microsoft's open-source code by this project's CI, for the Windows download of HumanityOS." \
+              "" \
+              "Licence: University of Illinois/NCSA Open Source License, in the zip as LICENSE.TXT with ThirdPartyNotices.txt. BUILD-INFO.txt records the source commit, the build settings and each file's SHA-256." \
+              "" \
+              "Why we build it: docs/reference/findings/2026-11-21-dxc-redistribution.md" > notes.md
+            gh release create "$REL" "$OUT.zip" "$OUT.zip.sha256" --repo "$GITHUB_REPOSITORY" \
+              --title "DXC $DXC_TAG built from source" --notes-file notes.md --latest=false
+          fi
