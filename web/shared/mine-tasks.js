@@ -400,8 +400,9 @@
     const sig = await root.pqSignMessage(ids.dilithiumSecret, new TextEncoder().encode(sigPreimage(ids.me, ids.me, ts, text)));
     if (!sig) return null;
     const inner = { v: 2, from: ids.me, to: ids.me, ts, text, sig: b64(sig) };
-    // Padding as Chat pads (crypto.js pqBuildDmPuts), so a note looks like any DM.
-    const bare = JSON.stringify(inner).length;
+    // Padding as Chat pads (crypto.js pqBuildDmPuts), so a note looks like any DM: in UTF-8 bytes,
+    // as the desktop measures (BUG-328; scripts/tests/dm-padding-web.test.js).
+    const bare = new TextEncoder().encode(JSON.stringify(inner)).length;
     const bucket = DM_PAD_BUCKETS.find((b) => bare + 12 <= b) || (bare + 12);
     inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
     const sealed = await root.pqDmSeal(ids.kyberPublicB64, JSON.stringify(inner));

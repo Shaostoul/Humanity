@@ -1716,3 +1716,13 @@ pub(crate) mod tests {
     }
 
 }
+
+/// Cross-implementation tests both ways against noble, the website's library (2026-11-19).
+#[cfg(test)]
+#[path = "pq_cross_tests.rs"]
+mod cross_tests;
+
+/// NIST's official ACVP vectors for ML-KEM-768 and ML-DSA-65 against the pinned crates (2026-11-19).
+#[cfg(test)]
+#[path = "pq_acvp_tests.rs"]
+mod acvp_tests;

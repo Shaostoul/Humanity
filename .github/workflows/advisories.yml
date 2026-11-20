@@ -1,0 +1,84 @@
+name: Advisories
+
+# Known security advisories in the versions we pin (2026-11-19, the post-quantum review's plan item
+# 1b, docs/reference/research/2026-11-16-pqc-review/). The tools were compared first:
+# docs/reference/research/2026-11-19-advisory-scans/. The job FAILS on any known vulnerability:
+#
+#   rust: `cargo audit` (RustSec's own tool and database, the one docs/SECURITY-CADENCE.md's
+#         monthly check runs) over Cargo.lock, every platform's crates included (the Windows
+#         desktop's too). Unmaintained, unsound and yanked notices print as warnings and do not
+#         fail the job, as in the monthly check.
+#   js:   `npm audit` over the root package-lock.json (sharp, the image scripts' dev tool), and over
+#         the exact versions the website's vendored post-quantum bundle was built from
+#         (scripts/audit-vendored-js.mjs: web/ has no package.json, every library it ships is one
+#         vendored file).
+#
+# It runs on every push to main and every pull request, and once a day on its own: an advisory
+# published today names a version we pinned months ago, with no change of ours to start a run.
+# An advisory that cannot be fixed yet is ignored only by its id, with its reason, in
+# .cargo/audit.toml (none today), never by turning the job off.
+#
+# Seen red (2026-11-19, on the dev host, nothing pushed): cargo-audit 0.22.2, the version pinned
+# below, over a scratch Cargo.lock pinning crypto-bigint 0.5.5 exits 1 naming RUSTSEC-2026-0387,
+# and `npm audit` over a scratch lockfile pinning a version with a published advisory exits 1.
+# The same day cargo audit exited 0 on Cargo.lock, and npm audit exited 1 on the root lockfile
+# (sharp 0.34.5, BUG-327) until main moved sharp to 0.35.5 on 2026-11-20 ("found 0
+# vulnerabilities" since). The research note above has the exact commands and output.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: cargo audit (Cargo.lock)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Pinned on purpose, the version the dev host's monthly check runs; moving it is a change
+      # like any other upgrade (the review's point: pins, and deliberate upgrades).
+      CARGO_AUDIT_VERSION: 0.22.2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the cargo-audit binary (keyed on its version)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ env.CARGO_AUDIT_VERSION }}-${{ runner.os }}
+
+      # Built outside the checkout, so the runner's own stable Rust builds it and rust-toolchain.toml
+      # (the project's pinned toolchain) is not installed just for this job.
+      - name: Install cargo-audit (pinned, from crates.io, its own lockfile)
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: cargo install cargo-audit --locked --version "=${CARGO_AUDIT_VERSION}"
+
+      # The binary is called directly (not through `cargo audit`), for the same reason.
+      - name: cargo audit (fails on any known vulnerability in Cargo.lock)
+        run: ~/.cargo/bin/cargo-audit audit --file Cargo.lock
+
+  js:
+    name: npm audit (package-lock.json and the vendored bundle's versions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: npm audit, the root package-lock.json (fails on any known vulnerability)
+        run: npm audit --audit-level=low
+
+      - name: npm audit, the exact versions the vendored post-quantum bundle was built from
+        run: node scripts/audit-vendored-js.mjs

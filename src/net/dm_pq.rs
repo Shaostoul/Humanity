@@ -470,6 +470,11 @@ pub fn parse_verify_inner(inner_json: &str) -> Result<DmInner, String> {
 #[path = "dm_pq_marker_tests.rs"]
 mod marker_tests;
 
+/// A complete envelope each way against the website's own sealing code (2026-11-19).
+#[cfg(test)]
+#[path = "dm_pq_cross_tests.rs"]
+mod cross_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;

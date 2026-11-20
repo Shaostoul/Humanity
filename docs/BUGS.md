@@ -7986,6 +7986,20 @@ he noticed the "2+ hour task".
 - **Fix**: the repo copy's three policy lines say `img-src 'self' data: blob: https:` (any https picture, shown only after the reader presses Load, whose hint says that site sees their network address, which is the design), and cdn.jsdelivr.net left img-src and connect-src once the emoji were hosted here; the service worker leaves another site's request to the browser (it never cached one anyway). Fetching such pictures through this server, so no other site sees the reader, stays a possible later step.
 - **Held by**: scripts/tests/inline-script-web.test.js checks that the three policy lines are identical and that img-src allows `https:`, and that the service worker passes another site's request through.
 
+## BUG-327: sharp 0.34.5 (the rigs' image scripts) carries high-severity advisories in its bundled libvips, libheif and librsvg (FIXED 2026-11-20)
+
+**Found by** `npm audit` over the root package-lock.json, run 2026-11-19 while adding the advisory job (`.github/workflows/advisories.yml`, the post-quantum review's item 1b).
+- **Symptom**: `npm audit` exits 1: sharp `<=0.35.5-rc.1`, "Severity: high", GHSA-f88m-g3jw-g9cj (libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591), GHSA-rgj7-g3m4-5g8c (libheif), GHSA-wq5f-xc86-pv6w (librsvg). The new advisory job's `js` step is red until it moves.
+- **Exposure**: sharp is a development dependency only (`package.json` devDependencies), used by the rigs' measurement scripts (scripts/cloud-*.js, scripts/aurora-*.js and others) on the game's own screenshots; nothing the website or the app ships contains it. An attacker would need to get a crafted image read by one of those scripts.
+- **Fix (2026-11-20, on main, 9de7ba691 "sharp 0.34.5 to 0.35.5")**: sharp 0.35.5 in package.json and package-lock.json. `npm audit --audit-level=low` over the root lockfile then: "found 0 vulnerabilities".
+
+## BUG-328: the website pads a DM by UTF-16 code units, not bytes, so non-ASCII text overshoots its size bucket (FIXED 2026-11-20)
+
+**Found by** the sealed-sender v2 envelope fixture (scripts/tests/fixtures/dm-envelope-v2.json, 2026-11-19), whose text is deliberately not ASCII, measured with the website's own `pqBuildDmPuts` in a node:vm page.
+- **Symptom**: the website's sealed inner payload is the bucket size only for ASCII text. Measured: plain ASCII text, 16,381 bytes (the 16,384 bucket); "Grüße, café, 日本語, 🌍", 16,392 bytes; 400 CJK characters, 17,181 bytes. The ciphertext's length therefore tells a mailbox holder roughly how many bytes beyond one per character the message holds, which the padding exists to hide. The desktop app pads by bytes and is exact.
+- **Cause**: web/chat/crypto.js `pqBuildDmPuts` measures `JSON.stringify(inner).length` (UTF-16 code units) where src/net/dm_pq.rs `build_signed_inner_ext` measures `bare.len()` (UTF-8 bytes). web/shared/mine-tasks.js `sealSelfNote` and web/pages/orgs-app.js `sealedPut` copied the same line (`JSON.stringify(inner).length`); the rigs' scripts/lib/sealed-dm.js already measured bytes (`Buffer.byteLength`).
+- **Fix (2026-11-20)**: all three website sealers measure the UTF-8 length (`new TextEncoder().encode(JSON.stringify(inner)).length`), as the desktop does. scripts/tests/dm-padding-web.test.js runs each (Chat's real page code; the Tasks page's sealSelfNote; the Organisations page's sealedPut, taken from the file) on an ASCII, a mixed and a CJK text and holds every sealed size to the desktop's rule, and holds the shared envelope fixture's website envelope to the desktop's size for the same text; seen red before the fix (16,392 bytes where 16,381 was due). The fixture's website half was rewritten with the fixed code. The offline bundle's copies under app/web/ follow at the next `just bundle-web` (ship).
+
 ## BUG-329: a relay with no ALLOWED_ORIGINS let united-humanity.us's pages call it and refused its own (FIXED 2026-11-20, found 2026-11-20)
 
 **Found by** BUG-322's review: the same mistake one function over. The operator approved the fix (2026-11-20).

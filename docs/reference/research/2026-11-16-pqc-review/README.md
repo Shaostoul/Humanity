@@ -147,7 +147,8 @@ Both start at the weekly reset, after the conformance tests.
 1. Now, done: the stale comment and the cryptography table's note.
 1b. First, before any change to the cryptography: the official ACVP vectors, the cross-implementation
    tests both ways with a full envelope fixture, and the advisory checks in CI (his second message), so
-   every change after them is held to the standard, not only to ourselves.
+   every change after them is held to the standard, not only to ourselves. **Built 2026-11-19** (the
+   section below).
 2. **Built 2026-11-19:** the wallet's Ed25519 key is BLAKE3 `derive_key("hum/ed25519-wallet/v1",
    entropy)` on both apps (`src/net/identity.rs` `wallet_secret_from_seed`, `web/shared/wallet.js`
    `walletSecretFromSeed`), pinned for the frozen seed by a known-answer test on each side and held
@@ -165,3 +166,35 @@ Both start at the weekly reset, after the conformance tests.
    and [`docs/design/dm-forward-secrecy.md`](../../../design/dm-forward-secrecy.md) (with disappearing
    messages), its questions for the operator in section 18.
 6. An outside review, once the above is built.
+
+## Item 1b, built (2026-11-19)
+
+Nothing in the cryptography changed: these pin today's behaviour, so the steps after them (the
+wallet label, X-Wing, rotation) are held to it.
+
+- **NIST's official vectors now run in CI and in `just verify`**, natively and on the web: NIST's
+  ACVP-Server `internalProjection.json` files at commit `975de31eb83d87039ec88934fdc47d8c312b892d`
+  (2026-08-12, "RELEASE/v1.1.0.43 including hotfix patches"; downloaded with the operator's
+  approval), cut down to ML-KEM-768 and ML-DSA-65 by `scripts/acvp-extract.mjs` into
+  `scripts/tests/fixtures/acvp/` (each fixture records its source path, the commit and the source
+  file's SHA-256; NIST's notice and the change are `NOTICE.md`; the licence question is
+  `docs/reference/findings/2026-11-19-nist-acvp-vectors.md`). The pinned RustCrypto `ml-kem` 0.3.3
+  and `ml-dsa` 0.1.1 run them in `crates/humanity-protocol/src/pq_acvp_tests.rs`, the vendored
+  noble bundle in `scripts/tests/pq-acvp.test.js`: ML-KEM key generation, encapsulation,
+  decapsulation (with modified ciphertexts) and both key checks; ML-DSA key generation, signing
+  (external with a context, internal, and with a precomputed mu; deterministic and hedged with the
+  vectors' randomness) and verification (with its modified messages and signatures). All 240 of
+  our parameter sets' runnable vectors pass on both sides. Left out: the HashML-DSA (pre-hash)
+  groups (sigGen 4 and 16, sigVer 4), which `ml-dsa` 0.1.1 has no interface for, whose hash
+  functions the vendored bundle does not export, and which the project never uses.
+- **Cross-implementation tests both ways**: `scripts/tests/fixtures/pq-cross-v1.json` (ML-KEM-768
+  encapsulated on one side and decapsulated on the other, both ways; the same randomness giving
+  the same ciphertext on both; ML-DSA-65 signatures verified across, and the deterministic
+  signature the same bytes on both) and `scripts/tests/fixtures/dm-envelope-v2.json` (a complete
+  sealed-sender v2 envelope sealed by the website's `pqBuildDmPuts` that `src/net/dm_pq.rs` opens
+  and verifies, and one sealed by `dm_pq` that the website's `pqOpenDmEnvelope` opens and
+  verifies). Written by `scripts/pq-cross-fixtures.mjs` and the Rust writers it names.
+- **Advisory scans**: `.github/workflows/advisories.yml` (`cargo audit` over Cargo.lock; `npm
+  audit` over the root lockfile and the vendored bundle's pinned versions), on every push and
+  pull request and daily; the tools compared in
+  `docs/reference/research/2026-11-19-advisory-scans/`.

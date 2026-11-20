@@ -1084,9 +1084,12 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
     if (opts && opts.ctlCert) inner.cert = opts.ctlCert;
     // Size padding (2026-08-24): round the sealed plaintext up to a
     // bucket so ciphertext length doesn't leak message length. Buckets
-    // must match native (net::dm_pq::DM_PAD_BUCKETS).
+    // must match native (net::dm_pq::DM_PAD_BUCKETS). Measured in UTF-8
+    // BYTES, as native measures (BUG-328, 2026-11-20: string length counted
+    // UTF-16 code units, so non-ASCII text overshot its bucket);
+    // scripts/tests/dm-padding-web.test.js holds it to native's rule.
     {
-      const bare = JSON.stringify(inner).length;
+      const bare = new TextEncoder().encode(JSON.stringify(inner)).length;
       const bucket = DM_PAD_BUCKETS.find((b) => bare + 12 <= b) || (bare + 12);
       inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
     }

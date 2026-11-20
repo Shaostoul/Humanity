@@ -93,6 +93,19 @@ jobs:
       - name: BIP39 wordlists in sync (web == native, canonical + round-trip)
         run: node scripts/check-bip39-wordlists.js
 
+      # Post-quantum conformance (2026-11-19, docs/reference/research/2026-11-16-pqc-review/, item
+      # 1b): NIST's official ACVP vectors for ML-KEM-768 and ML-DSA-65 (scripts/tests/fixtures/acvp/,
+      # ACVP-Server commit 975de31) against the website's vendored noble bundle and the pinned
+      # RustCrypto crates; each implementation against what the other made (the cross fixtures);
+      # and the key-generation known-answer test. The desktop's own envelope test
+      # (src/net/dm_pq_cross_tests.rs) runs with the native lib tests on the dev host.
+      - name: Post-quantum conformance, the website's side (KAT, NIST vectors, cross-implementation)
+        run: node scripts/pq-kat.mjs && node --test scripts/tests/pq-acvp.test.js scripts/tests/pq-cross.test.js
+
+      - name: Post-quantum conformance, the Rust side (NIST vectors, cross-implementation; humanity-protocol)
+        run: |
+          cargo test -p humanity-protocol --lib pq_crypto::
+
   # The native app compiled for Linux on every push (2026-11-10, see the scope note at the top):
   # a Windows-only name used without a cfg fails here at merge time instead of in the release's
   # macOS and Linux builds. A check, not a build: it compiles the library and the binary with the

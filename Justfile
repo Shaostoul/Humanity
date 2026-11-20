@@ -606,6 +606,7 @@ verify:
     @echo "-- cross-language KATs: a browser and the relay must encode identically --"
     just vote-kat
     just mod-kat
+    just pq-kat
     @echo "OK: verify passed"
     @echo "   (static only - nothing booted the app. For renderer/shader/world changes run: just verify-runtime)"
 

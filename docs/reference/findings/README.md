@@ -729,6 +729,11 @@ what we will say about it.
   licences (the instrument packs too), documentation, privacy, standards and the safety tools meet it;
   the gaps were a plain copyright line (added 2026-11-18) and a written content policy with its
   report-and-remove process; the authorised person submits.
+- [`2026-11-19-nist-acvp-vectors.md`](2026-11-19-nist-acvp-vectors.md),
+  whether NIST's official ML-KEM and ML-DSA test vectors (ACVP-Server, commit 975de31) may be kept
+  in the repository: yes, keeping NIST's notice intact, saying what was changed and when, and
+  acknowledging NIST; NIST employees' work is not under copyright in the United States. Not legal
+  advice.
 - [`2026-11-20-public-domain-scores.md`](2026-11-20-public-domain-scores.md),
   which editions and score files of Grieg's "In the Hall of the Mountain King" and Beethoven
   HumanityOS may encode from or import: the compositions (Grieg died 1907, Beethoven 1827), the US

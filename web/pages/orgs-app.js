@@ -331,7 +331,8 @@
     const sig = await window.pqSignMessage(m.id.dilithiumSecret, new TextEncoder().encode(`hum/dm/v2\n${m.hex}\n${to}\n${ts}\n${text}`));
     if (!sig) return null;
     const inner = { v: 2, from: m.hex, to, ts, text, sig: b64(sig) };
-    const bare = JSON.stringify(inner).length;
+    // Padded in UTF-8 bytes, as Chat and the desktop pad (BUG-328; scripts/tests/dm-padding-web.test.js).
+    const bare = new TextEncoder().encode(JSON.stringify(inner)).length;
     const bucket = [256, 1024, 4096, 16384, 32768].find((x) => bare + 12 <= x) || (bare + 12);
     inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
     const sealed = await window.pqDmSeal(kyberB64, JSON.stringify(inner));

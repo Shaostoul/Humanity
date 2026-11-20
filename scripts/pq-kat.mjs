@@ -14,7 +14,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const REPO = join(fileURLToPath(import.meta.url), '..', '..');
@@ -45,7 +45,10 @@ try {
   if (!head.includes('HumanityOS vendored post-quantum bundle')) {
     fail('vendored bundle missing or lacks provenance header — run `just pq-vendor`');
   }
-  const m = await import(pathToFileURL(BUNDLE).href);
+  // From its bytes as a data: module: the repository's package.json names no module type, and a
+  // file import of an ES-module .js there warns on node 22+ and fails on older node (CI runs this
+  // on node 20 since 2026-11-19, .github/workflows/verify.yml).
+  const m = await import('data:text/javascript;base64,' + readFileSync(BUNDLE).toString('base64'));
   if (!m.ml_dsa65 || !m.blake3) fail('bundle missing ml_dsa65 / blake3 exports');
   if (!m.ml_kem768) fail('bundle missing ml_kem768 export — run `just pq-vendor`');
 

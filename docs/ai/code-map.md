@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1590 Rust files (809,507 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,430 lines) under `web/`.
+1593 Rust files (810,161 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,435 lines) under `web/`.
 
 ## Folders
 
@@ -24,7 +24,7 @@
 - `crates/humanity-core/src/platform/` (2 files): Platform abstraction for native vs WASM.
 - `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
 - `crates/humanity-music/src/` (41 files)
-- `crates/humanity-protocol/src/` (31 files)
+- `crates/humanity-protocol/src/` (33 files)
 - `crates/humanity-ship/src/` (47 files)
 - `crates/humanity-ship/src/crowd_nav/` (7 files): CROWD NAVIGATION (rung 1, 2026-11-13; the whole plan is docs/design/crowd-navigation.md): people who walk somewhere, through doors, round...
 - `crates/humanity-ship/src/machines/` (1 files): Data-driven machine layout for the 3D home (First-Playable groundwork, v0.427).
@@ -78,7 +78,7 @@
 - `src/instrument_packs/` (15 files): The free instrument library (2026-11-06; docs/design/music.md rung 6, the operator's "let's build up our free library" and "in the settin...
 - `src/media/` (13 files): Purpose-built media player core (in-world screens ladder, rung 5).
 - `src/model_packs/` (4 files): Downloadable 3D model packs (2026-11-09; docs/design/simready-props.md, section 7).
-- `src/net/` (60 files): Multiplayer networking: WebSocket client and ECS state synchronization.
+- `src/net/` (61 files): Multiplayer networking: WebSocket client and ECS state synchronization.
 - `src/notifications/` (13 files): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan;...
 - `src/relay/` (85 files): Humanity Network relay server.
 - `src/relay/admin/` (6 files): The admin action registry, and the two endpoints an app or an AI uses it through (2026-10-22; docs/design/in-app-ops.md, "North star: the...
@@ -292,7 +292,7 @@
 - `moderation.rs` (472): Signed moderation objects: `mod_action_v1` and `space_policy_v1`. Main items: ModError, ModAction, SpacePolicy, mod_action_payload, build_mod_action_v1, space_policy_payload, build_space_policy_v1, payload_bytes (+2 more).
 - `object.rs` (453): The Humanity Network object model (post-quantum). Main items: Object, ObjectBuilder, PROTOCOL_VERSION, PAYLOAD_ENCODING_PLAINTEXT, PAYLOAD_ENCODING_ENCRYPTED.
 - `org.rs` (1406): Organisations (rung 1, 2026-11-14, docs/design/organisations.md): a group with members, roles and permissions, invitations the invitee accepts, a directory with privacy levels and an audit log ever... Main items: Role, Directory, Listing, Founding, Act, RoleBook, Refusal, Member (+41 more).
-- `pq_crypto.rs` (1719): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
+- `pq_crypto.rs` (1729): Post-quantum cryptography primitives. Main items: DilithiumKeypair, KyberKeypair, FriendCertError, FriendMay, FriendPass, PlotPermitError, FilePassError, FilePass (+54 more).
 - `profile_copy_fixtures.rs` (123): Child of profile_copy.rs (#[path], so `use super::*` reaches everything it has): the shared fixture both apps read (BUG-191), moved out of profile_copy_tests.rs for the relay's tests that read it (... Main items: FxCase, fx_cases, fx_key, copy_of_frame, FIXTURE, FX_SIGNER, FX_NOW_MS, FX_TIMES.
 - `profile_copy.rs` (345): The copy of a person's profile that other servers keep (BUG-191, 2026-10-12, docs/design/bug-191-profile-copies-plan.md sections 3.1 to 3.4): what it may hold, the words its owner's app signs, the... Main items: PublicCopy, listed, unlisted, kept_for_friends, withdrawal, is_withdrawal, public_copy, copy_text (+23 more).
 - `recovery.rs` (673): Recovery through trusted people: the protocol the relay and both apps share (2026-10-21). Main items: SharePayload, TrustedPerson, NoteToSelf, ServedPiece, OpenedPiece, OneTimeAsk, piece_aad, note_aad (+49 more).
@@ -302,7 +302,7 @@
 - `strip_heif_metadata.rs` (1848): HEIF and AVIF still picture metadata removal, in place (privacy hardening, 2026-10-11). Main items: HeifKind, HeifStrip, is_heif_still, strip_heif_metadata_in_place, strip_heif_metadata_in_buffer, HEIF_BRANDS.
 - `strip_metadata.rs` (594): Lossless image-metadata stripping (privacy hardening, 2026-08-23). Main items: GifRemoved, GifWalk, strip_image_metadata, try_strip_image_metadata, walk_gif, GIF_KEPT_APPLICATIONS.
 - `strip_video_metadata.rs` (1326): Video metadata removal, in place (privacy hardening, 2026-10-11). Main items: VideoKind, NeutralisedBox, VideoStrip, is_mp4_family, strip_video_metadata_in_place, strip_video_metadata_in_buffer, XMP_UUID.
-- tests: `describe_metadata_tests.rs`, `key_card_tests.rs`, `org_tests.rs`, `profile_copy_tests.rs`, `recovery_tests.rs`, `release_signature_tests.rs`
+- tests: `describe_metadata_tests.rs`, `key_card_tests.rs`, `org_tests.rs`, `pq_acvp_tests.rs`, `pq_cross_tests.rs`, `profile_copy_tests.rs`, `recovery_tests.rs`, `release_signature_tests.rs`
 
 ## crates/humanity-ship/src/
 
@@ -1318,7 +1318,7 @@
 - `choice.rs` (99): The choice for each friend, as a note to oneself (section 10n of docs/design/blocking-and-safe-mode.md, 2026-10-10): the words of the note, with no socket and no GUI, so each rule has a unit test. Main items: ChoiceNote.
 - `client.rs` (152): WebSocket network client for multiplayer. Main items: ConnectionState, NetClient.
 - `dm_file_stream.rs` (154): A private file's Save, decrypted from disk to disk a megabyte at a time (2026-10-11). Main items: decrypt_file, NOT_THIS_KEY.
-- `dm_pq.rs` (694): Post-quantum DM envelope, pure ML-KEM-768 → BLAKE3-KDF → AES-256-GCM. Main items: DmPqKeypair, SealedDm, DmInner, DmAttachment, seal, open, encrypt_attachment, encrypt_attachment_in_place (+23 more).
+- `dm_pq.rs` (699): Post-quantum DM envelope, pure ML-KEM-768 → BLAKE3-KDF → AES-256-GCM. Main items: DmPqKeypair, SealedDm, DmInner, DmAttachment, seal, open, encrypt_attachment, encrypt_attachment_in_place (+23 more).
 - `dm_store.rs` (1444): Local DM history store, the client-side half of sealed-sender DMs (2026-08-23). Main items: StoredDm, Choice, PendingChoice, PendingUnfollow, ScratchNote, NoteReply, SentPass, DmConversationSummary (+4 more).
 - `file_clean.rs` (242): Cleaning a file on the sender's own device, before it leaves (docs/design/files-showcase.md, "Files on the sender's device and in messages, exact", parts 1 and 2; the operator's answers 4 and 5 of... Main items: Look, Cleaned, clean_bytes, look_bytes, look_file, cleaned_dir, clean_copy, sweep_cleaned (+1 more).
 - `file_link.rs` (1383): Device-to-device big files, the connection (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 4): ONE WebRTC connection per pair of people at a time, on its own t... Main items: Relay, Side, Transfer, Setup, Cmd, LinkEvent, FileLink, idle_sleep (+18 more).
@@ -1355,7 +1355,7 @@
 - `warnings.rs` (379): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's rules, with no socket and no GUI so each one is unit... Main items: Warning, Sender, Warnings, WarningsUi, link_line, parse_warnings, load_warnings, normalize (+6 more).
 - `webrtc.rs` (5751): Native WebRTC DataChannel P2P transport (increment 1). Main items: OfferReason, OfferFacts, WebrtcEvent, WebrtcHandle, WebrtcManager, direct_offer_reason, holds_friendship, answer_while_hiding_address (+3 more).
 - `ws_client.rs` (545): WebSocket client for the HumanityOS chat relay server. Main items: WsClient, identify_frame, RECONNECT_DELAY_INITIAL_SECS.
-- tests: `crossing_tests.rs`, `dm_pq_marker_tests.rs`, `file_clean_tests.rs`, `file_link_tests.rs`, `file_offer_tests.rs`, `file_transfer_tests.rs`, `files_policy_tests.rs`, `group_report_tests.rs`, `kept_files_tests.rs`, `outside_help_tests.rs`, `part_file_tests.rs`, `person_controls_tests.rs`, `protected_tests.rs`, `webrtc_call_mode_tests.rs`
+- tests: `crossing_tests.rs`, `dm_pq_cross_tests.rs`, `dm_pq_marker_tests.rs`, `file_clean_tests.rs`, `file_link_tests.rs`, `file_offer_tests.rs`, `file_transfer_tests.rs`, `files_policy_tests.rs`, `group_report_tests.rs`, `kept_files_tests.rs`, `outside_help_tests.rs`, `part_file_tests.rs`, `person_controls_tests.rs`, `protected_tests.rs`, `webrtc_call_mode_tests.rs`
 
 ## src/notifications/
 
@@ -1701,7 +1701,7 @@
 - `chat-voice-streaming.js` (347): ── chat-voice-streaming.js ─────────────────────────────────────────────── Main items: toggleAutoWatchStreams, renderStreamSidebar, startStudioMetrics, stopStudioMetrics, collectStudioMetrics.
 - `chat-voice-webrtc.js` (839): ── chat-voice-webrtc.js ────────────────────────────────────────────────── Main items: toggleVideo, startDmVideo, stopDmVideo, toggleScreenShare, startDmScreenShare, stopDmScreenShare, startVrVideo, stopVrVideo (+22 more).
 - `chat-warnings.js` (348): ── chat-warnings.js ────────────────────────────────────────────────────── Main items: loadMessageWarnings, warnStore, warnSameKey, warningSenderIsFriend, messageWarningsOn, setMessageWarningsOn, applyWarningsSwitchToView, dmLinksHeld (+8 more).
-- `crypto.js` (1572): Humanity Network, client-side identity cryptography (inlined). Main items: openKeyDB, storeKeypair, loadKeypair, bufToHex, hexToBuf, supportsEd25519, generateKeypair, requestPersistentStorage (+61 more).
+- `crypto.js` (1575): Humanity Network, client-side identity cryptography (inlined). Main items: openKeyDB, storeKeypair, loadKeypair, bufToHex, hexToBuf, supportsEd25519, generateKeypair, requestPersistentStorage (+61 more).
 - `index-icons.js` (9): Moved out of web/chat/index.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `index-preflight.js` (31): Moved out of web/chat/index.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `pq.js` (241): pq.js, post-quantum (Dilithium3 / ML-DSA-65) identity for the chat Main items: _pqLoad, pqDeriveIdentity, pqSignMessage, pqVerifyMessage, pqDeriveKyber, _dmAesKey, pqDmSeal, pqDmOpen (+1 more).
@@ -1763,7 +1763,7 @@
 - `onboarding-icons.js` (7): Moved out of web/pages/onboarding.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `ops-admin-map.js` (52): Moved out of web/pages/ops.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: esc.
 - `ops-app.js` (89): Moved out of web/pages/ops.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: testBtnClick, cycleState, toggleChannel, startCooldown.
-- `orgs-app.js` (731): Organisations on the website (rung 1, 2026-11-14, docs/design/organisations.md): the mirror of Main items: deps, hexToBytes, me, b64, unb64, storeKey, load, saveBody (+40 more).
+- `orgs-app.js` (732): Organisations on the website (rung 1, 2026-11-14, docs/design/organisations.md): the mirror of Main items: deps, hexToBytes, me, b64, unb64, storeKey, load, saveBody (+40 more).
 - `privacy-app.js` (40): The website's privacy page (/privacy, 2026-11-07, docs/design/privacy-notice.md). Main items: failed.
 - `profile-app.js` (775): Moved out of web/pages/profile.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `recovery-app.js` (517): recovery-app.js: the website's Recovery through trusted people page (/recovery), the mirror of Main items: noble, esc, say, day, names, getJson, postJson, errorOf (+23 more).
@@ -1817,7 +1817,7 @@
 - `laws-logic.js` (156): HumanityOS Laws logic (pure functions, no DOM). Main items: pathToRoot, findJurisdiction, applicableRules, jurisdictionName, locationBreadcrumb, isBase, matchesFilters, filterRules (+1 more).
 - `level-picker.js` (55): The LEVEL PICKER for the web (Maps increment 3, docs/design/maps-zoom-to-anything.md 5.7): Main items: pickerRows, renderPicker.
 - `markdown.js` (367): HumanityOS shared markdown renderer. Main items: escapeHtml, inlineMarkdown, stripInline, headingSlug, dedupeSlug, headings, isSeparatorRow, tableCells (+2 more).
-- `mine-tasks.js` (444): ── mine-tasks.js ───────────────────────────────────────────────────────── Main items: clean, newId, gone, clampRecord, rank, wins, isNote, noteTexts (+9 more).
+- `mine-tasks.js` (445): ── mine-tasks.js ───────────────────────────────────────────────────────── Main items: clean, newId, gone, clampRecord, rank, wins, isNote, noteTexts (+9 more).
 - `model-inspect.js` (557): ── model-inspect.js ─────────────────────────────────────────────────────── Main items: multiply, compose, nodeMatrix, asBytes, base64Bytes, dataUri, plainName, emptyRule (+15 more).
 - `model-view.js` (1867): ── model-view.js ────────────────────────────────────────────────────────── Main items: fill, thousands, oneDecimal, sizeWords, isModelFile, modelError, asBytes, numbers (+35 more).
 - `notify-rules.js` (301): ── notify-rules.js ───────────────────────────────────────────────────────── Main items: use, kind, active, muteKey, parseClock, formatClock, inQuiet, quietWindow (+17 more).
