@@ -136,17 +136,20 @@ L.push('DELIVERY: ' + (sh('node "' + path.join(root, 'scripts', 'check-delivery.
 // remembered under (data/erased-accounts.key) is kept across restarts; "this_run_only" means
 // the file is damaged and every restart forgets every remembered erase (BUG-135 option 2,
 // review finding 7). A relay older than that field says nothing about it.
-{
-  const raw = sh('curl -s --max-time 6 https://united-humanity.us/health');
+// Both servers, from OUTSIDE (2026-11-20): public.guide was unreachable for six hours after a
+// reboot started a firewall that allowed only SSH, while its relay and nginx ran fine, and
+// nothing here said so. An answer from outside is the only check that sees a closed port.
+for (const [host, ssh] of [['united-humanity.us', 'humanity-vps'], ['public.guide', 'humanity-vps2']]) {
+  const raw = sh(`curl -s --max-time 6 https://${host}/health`);
   let row;
   try {
     const h = JSON.parse(raw);
     const up = Math.round((h.uptime_seconds || 0) / 3600);
     row = h.erase_memory === 'this_run_only'
-      ? `PROBLEM: up ${up} h, but data/erased-accounts.key on the VPS is damaged, so each restart forgets every remembered erase (fix or remove it, then restart: docs/admin/SELF-HOSTING.md)`
-      : `up ${up} h, ${h.connected_peers} connected` + (h.erase_memory === 'kept' ? '; erased accounts kept across restarts' : '');
+      ? `${host}: PROBLEM: up ${up} h, but data/erased-accounts.key there is damaged, so each restart forgets every remembered erase (fix or remove it, then restart: docs/admin/SELF-HOSTING.md)`
+      : `${host}: up ${up} h, ${h.connected_peers} connected` + (h.erase_memory === 'kept' ? '; erased accounts kept across restarts' : '');
   } catch {
-    row = 'UNREACHABLE: united-humanity.us/health did not answer (offline here, or the relay is down: just status)';
+    row = `UNREACHABLE: ${host}/health did not answer (offline here, the relay or nginx is down, or its firewall closed ports 80/443: ssh ${ssh} "ufw status; systemctl is-active nginx humanity-relay")`;
   }
   L.push('RELAY:    ' + row);
 }

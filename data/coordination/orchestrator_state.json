@@ -1452,6 +1452,11 @@
       "date": "2026-11-16",
       "decision": "just clean-worktrees removed 2 of 211 worktrees and refused the rest: every agent branch is SQUASH-merged, so its commits never appear in main's history and the script (scripts/clean-worktrees.sh) reads each as unmerged work; old worktrees also show the once-tracked .claude/settings.local.json as modified. --force-unmerged would destroy real work too, so it was not used. Fix at the reset (tooling): the merge step (the merge-agent skill, the orchestrator's squash merges) appends each landed branch to a ledger (for example data/coordination/merged-branches.jsonl: branch, squash commit, date), and clean-worktrees removes a worktree whose branch is in the ledger and whose only changes are the ignored settings file; backfill the ledger from the squash commits' messages.",
       "why": "Hundreds of stale worktrees are context rot and disk; the cleanup must recognise how we actually merge."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "BUG-320: public.guide was unreachable on 80/443 for six hours after a reboot started a ufw that allowed only SSH (settings written 2026-07-20, never started until the reboot). Opened 80/tcp and 443/tcp after backing up the rules; the backup stream resumed. UDP 3478 (call forwarder) left closed for the operator. just brief now checks both servers from outside.",
+      "why": "An outside answer is the only check that sees a closed port; nothing watched public.guide from outside before."
     }
   ],
   "active_scopes_to_avoid": [
