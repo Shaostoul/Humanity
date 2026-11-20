@@ -1054,8 +1054,8 @@ impl Renderer {
         // dxil.dll sit beside the exe and fall back to FXC when they do not,
         // so a bare exe still boots (just slower). The static-dxc cargo
         // feature was tried first but its prebuilt lib needs MSVC ATL, which
-        // plain Build Tools installs lack. DLL source: the Windows SDK bin
-        // dir or a Microsoft DirectXShaderCompiler release (MIT licensed).
+        // plain Build Tools installs lack. Licence: NOT MIT, and the SDK copy is not ours
+        // to ship: docs/reference/findings/2026-11-21-dxc-redistribution.md.
         #[cfg(target_os = "windows")]
         let backend_options = {
             match dxc_dlls_beside_exe() {

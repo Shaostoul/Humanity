@@ -81,7 +81,15 @@ jobs:
           # DXC shader compiler DLLs (v0.865, Windows only): the exe prefers DXC
           # when dxcompiler.dll + dxil.dll sit beside it (boot ~25 s -> ~5 s;
           # graceful FXC fallback without them). The hosted runner's Windows SDK
-          # ships both; bundle the newest. MIT-licensed, redistributable.
+          # ships both; bundle the newest.
+          # LICENCE (2026-11-21): NOT MIT, and NOT redistributable as copied here.
+          # DXC's own licence is University of Illinois/NCSA; this copy, from the
+          # SDK's bin folder, falls under the Windows SDK licence and is not on its
+          # REDIST.TXT list, and nothing travels with it. Which compliant source to
+          # switch to is the operator's decision:
+          # docs/reference/findings/2026-11-21-dxc-redistribution.md.
+          # scripts/tests/shipped-library-licences.test.js pins this pair as its one
+          # exception and fails on any other library shipped without a licence.
           if [[ "${{ runner.os }}" == "Windows" ]]; then
             SDKBIN=$(ls -d "/c/Program Files (x86)/Windows Kits/10/bin/"10.*/x64 2>/dev/null | sort -V | tail -1)
             if [[ -n "$SDKBIN" && -f "$SDKBIN/dxcompiler.dll" && -f "$SDKBIN/dxil.dll" ]]; then

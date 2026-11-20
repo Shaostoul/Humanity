@@ -762,3 +762,11 @@ what we will say about it.
   (about 909 KiB) resvg 0.50 would download against 0.45.1's 10, the alternatives declined (lyon,
   vello, NanoSVG, librsvg, zeno, a renderer of our own) and the recommended Cargo.toml line. Not
   legal advice.
+- [`2026-11-21-dxc-redistribution.md`](2026-11-21-dxc-redistribution.md),
+  the Windows download's `dxcompiler.dll` and `dxil.dll`: a NEGATIVE finding for the copies shipped so
+  far (the Windows SDK's tools-folder copies, not on the SDK's REDIST.TXT list; even listed copies
+  carry an end-user-agreement and indemnity condition an open download cannot meet), DXC's own licence
+  (University of Illinois/NCSA, not MIT), `dxil.dll`'s Microsoft licence dropped from DXC's packages
+  since February 2025, current wgpu needing only `dxcompiler.dll`; the options (DXC's GitHub release
+  with its LICENSE.TXT beside the DLLs, recommended; a wgpu upgrade; a source build; stop bundling)
+  for the operator. Not legal advice.
