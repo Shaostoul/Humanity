@@ -548,7 +548,7 @@ impl Storage {
     ///
     /// `open_resilient` checks the file before calling this; tests and tools call it directly.
     pub fn open(path: &Path) -> Result<Self, UpgradeFailed> {
-        let conn = Connection::open(path)?;
+        let mut writer = Connection::open(path)?;
 
         // Enable WAL mode for better concurrent read/write performance.
         // secure_delete=ON zeroes the bytes of deleted rows in the main DB file
@@ -560,13 +560,15 @@ impl Storage {
         // docs/reference/retention_and_deletion_semantics.md.
         // Outside the transaction: SQLite cannot change the journal mode inside one (every relay
         // database is in WAL mode already, so on one this changes nothing).
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;")?;
+        writer.execute_batch("PRAGMA journal_mode=WAL; PRAGMA secure_delete=ON;")?;
 
         // THE UPGRADE'S ONE TRANSACTION, from here to `upgrade.commit()` below. A `?` that returns
         // early drops it, which undoes every step. SQLite runs CREATE, ALTER and DROP inside a
         // transaction. What it cannot run inside one waits for the commit: the checkpoint that
-        // folds a dropped table's zeroed pages into the file (`scrub_wal`).
-        let upgrade = UpgradeTransaction::begin(&conn)?;
+        // folds a dropped table's zeroed pages into the file (`scrub_wal`). The transaction holds
+        // the writer until it ends, so every step reaches the connection through it (`conn`).
+        let upgrade = UpgradeTransaction::begin(&mut writer)?;
+        let conn: &Connection = &upgrade;
         let mut scrub_wal = false;
 
         conn.execute_batch(
@@ -3134,6 +3136,7 @@ impl Storage {
 
         // The last step: the upgrade commits, every step at once.
         upgrade.commit()?;
+        let conn = writer;
         // A table holding people's data was dropped above: fold the zeroed pages out of the WAL
         // into the file now (the checkpoint cannot run inside the transaction).
         if scrub_wal {

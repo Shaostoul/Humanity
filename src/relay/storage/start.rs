@@ -160,8 +160,13 @@ impl std::error::Error for OpenFailure {}
 /// whose error `open` ignores (the ALTER-if-missing loops, the search index's rebuild), the
 /// steps after it would then each commit on their own, a half upgrade again; with the hook each
 /// such commit is turned back into a rollback, and `commit` says the transaction ended early.
+///
+/// It holds the connection mutably and every step reaches the connection through it (it derefs
+/// to `Connection`): since rusqlite 0.38 registering a hook takes `&mut Connection` (BUG-334),
+/// so the borrow checker now says no step runs on the connection outside the transaction that
+/// guards it.
 pub(super) struct UpgradeTransaction<'c> {
-    conn: &'c Connection,
+    conn: &'c mut Connection,
     /// Set just before the one COMMIT the hook lets through.
     committing: Arc<AtomicBool>,
     /// Set by the hook when it refused a commit: the transaction had ended before its end.
@@ -170,7 +175,7 @@ pub(super) struct UpgradeTransaction<'c> {
 }
 
 impl<'c> UpgradeTransaction<'c> {
-    pub(super) fn begin(conn: &'c Connection) -> Result<Self, rusqlite::Error> {
+    pub(super) fn begin(conn: &'c mut Connection) -> Result<Self, rusqlite::Error> {
         conn.execute_batch("BEGIN IMMEDIATE;")?;
         let committing = Arc::new(AtomicBool::new(false));
         let refused = Arc::new(AtomicBool::new(false));
@@ -181,7 +186,7 @@ impl<'c> UpgradeTransaction<'c> {
             }
             refusals.store(true, Ordering::SeqCst);
             true // turn this commit into a rollback
-        }));
+        }))?;
         Ok(Self { conn, committing, refused, done: false })
     }
 
@@ -199,8 +204,8 @@ impl<'c> UpgradeTransaction<'c> {
             }
             committed
         };
-        self.conn.commit_hook(None::<fn() -> bool>);
-        result
+        let unhooked = self.conn.commit_hook(None::<fn() -> bool>);
+        result.and(unhooked)
     }
 
     fn ended_early() -> rusqlite::Error {
@@ -214,6 +219,14 @@ impl<'c> UpgradeTransaction<'c> {
     }
 }
 
+/// Every step of the upgrade runs on the connection through the transaction.
+impl std::ops::Deref for UpgradeTransaction<'_> {
+    type Target = Connection;
+    fn deref(&self) -> &Connection {
+        self.conn
+    }
+}
+
 impl Drop for UpgradeTransaction<'_> {
     /// A step failed: undo them all.
     fn drop(&mut self) {
@@ -221,7 +234,7 @@ impl Drop for UpgradeTransaction<'_> {
             return;
         }
         let _ = self.conn.execute_batch("ROLLBACK;");
-        self.conn.commit_hook(None::<fn() -> bool>);
+        let _ = self.conn.commit_hook(None::<fn() -> bool>);
         if self.refused.load(Ordering::SeqCst) {
             // The step named in the error is where a refused commit surfaced; this says why.
             tracing::error!("{}", Self::ended_early());
@@ -245,23 +258,23 @@ mod tests {
     #[test]
     fn a_transaction_ended_early_lets_nothing_after_it_commit() {
         let path = humanity_core::test_temp::db("upgrade_ended_early");
-        let conn = Connection::open(&*path).unwrap();
+        let mut conn = Connection::open(&*path).unwrap();
         conn.execute_batch("CREATE TABLE t (x INTEGER);").unwrap();
-        let count = || conn.query_row("SELECT COUNT(*) FROM t", [], |r| r.get::<_, i64>(0)).unwrap();
+        let count = |c: &Connection| c.query_row("SELECT COUNT(*) FROM t", [], |r| r.get::<_, i64>(0)).unwrap();
 
-        let upgrade = UpgradeTransaction::begin(&conn).unwrap();
-        conn.execute_batch("INSERT INTO t VALUES (1);").unwrap();
-        conn.execute_batch("ROLLBACK;").unwrap();
-        assert!(conn.execute_batch("INSERT INTO t VALUES (2);").is_err(), "a step after the early end does not commit");
+        let upgrade = UpgradeTransaction::begin(&mut conn).unwrap();
+        upgrade.execute_batch("INSERT INTO t VALUES (1);").unwrap();
+        upgrade.execute_batch("ROLLBACK;").unwrap();
+        assert!(upgrade.execute_batch("INSERT INTO t VALUES (2);").is_err(), "a step after the early end does not commit");
         assert!(upgrade.commit().is_err(), "the commit says the transaction ended early");
-        assert_eq!(count(), 0, "nothing of the upgrade was kept");
+        assert_eq!(count(&conn), 0, "nothing of the upgrade was kept");
 
         conn.execute_batch("INSERT INTO t VALUES (3);").unwrap();
-        assert_eq!(count(), 1, "the hook is gone once the upgrade is over");
+        assert_eq!(count(&conn), 1, "the hook is gone once the upgrade is over");
 
-        let upgrade = UpgradeTransaction::begin(&conn).unwrap();
-        conn.execute_batch("INSERT INTO t VALUES (4); INSERT INTO t VALUES (5);").unwrap();
+        let upgrade = UpgradeTransaction::begin(&mut conn).unwrap();
+        upgrade.execute_batch("INSERT INTO t VALUES (4); INSERT INTO t VALUES (5);").unwrap();
         upgrade.commit().expect("an upgrade that runs to its end commits");
-        assert_eq!(count(), 3, "with every step");
+        assert_eq!(count(&conn), 3, "with every step");
     }
 }

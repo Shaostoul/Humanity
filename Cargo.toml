@@ -70,7 +70,13 @@ wasm-bindgen = { version = "0.2" }
 wasm-bindgen-futures = { version = "0.4" }
 # "hooks": the relay's start refuses every commit but the upgrade's own while it runs
 # (src/relay/storage/start.rs `UpgradeTransaction`, BUG-230).
-rusqlite = { version = "0.34", features = ["bundled", "backup", "hooks"] }
+# "fallible_uint" (2026-11-20, BUG-334): binds u64 and usize values (a timestamp, a limit) as
+# SQLite integers, refusing one above i64::MAX with an error rather than wrapping it. rusqlite
+# 0.34 had this built in; 0.38 moved it behind this switch, so turning it on keeps exactly the
+# conversion every relay query was written and tested against.
+# 0.43 (2026-11-20, BUG-334): libsqlite3-sys 0.40, bundled SQLite 3.54.1, which clears
+# RUSTSEC-2026-0459 (libsqlite3-sys 0.32 and SQLite 3.49.1 before it).
+rusqlite = { version = "0.43", features = ["bundled", "backup", "hooks", "fallible_uint"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 ciborium = { version = "0.2" }
 blake3 = { version = "1" }
@@ -99,8 +105,8 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:humanity-ai-protocol", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
-relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:humanity-ai-protocol", "dep:gltf", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
     "humanity-core/wasm",
@@ -148,8 +154,10 @@ kira = { workspace = true, optional = true }
 # sound once on a worker for the Media page's waveform and spectrum (2026-10-19,
 # gui/widgets/sound_view.rs). The same crate and features kira enables: nothing new is built.
 symphonia = { version = "0.6", optional = true, default-features = false, features = ["mp3", "ogg", "vorbis", "flac", "wav", "pcm"] }
-# Asset loading
-gltf = "1.4"
+# Asset loading. Native only (2026-11-20): every reader of a glTF file (src/assets/mod.rs's
+# native-gated loaders, assets/skin.rs, assets/model_physics.rs, gui/model_view/) is the desktop
+# app's; the relay feature set compiled and linked it for nothing.
+gltf = { version = "1.4", optional = true }
 # Without the AVIF encoder (2026-10-24): nothing here writes AVIF (every save path writes PNG or
 # JPEG; the "avif" in chat.rs and protected.rs is a file type an attachment may have), and the
 # encoder pulled in ravif and rav1e, about 26 crates, for both feature sets. Reading AVIF was never
@@ -321,28 +329,25 @@ tower-http = { version = "0.6", optional = true, features = ["cors", "fs"] }
 # src/relay/backup_stream/capture.rs). A compile switch inside rusqlite, no new crate.
 rusqlite = { workspace = true, optional = true }
 # Connection pool for the relay's SQLite store (R3 concurrency work). r2d2 is a
-# generic pool; r2d2_sqlite adapts rusqlite into it. Gives the relay a pool of
+# generic pool that knows nothing of SQLite: it gives the relay a pool of
 # concurrent READ connections (WAL allows many readers) alongside the single
 # dedicated writer.
 #
-# VERSION PIN — IMPORTANT: r2d2_sqlite's version number does NOT track
-# rusqlite's. We use rusqlite 0.34 (→ libsqlite3-sys 0.32, the `links =
-# "sqlite3"` native lib). Only ONE crate in the graph may link `sqlite3`, so
-# r2d2_sqlite MUST depend on the SAME rusqlite 0.34 / libsqlite3-sys 0.32 —
-# otherwise the build fails with a native-library conflict. r2d2_sqlite 0.27.0
-# is the version whose dependency is `rusqlite = "^0.34"`; newer r2d2_sqlite
-# (0.33/0.34) pull rusqlite 0.39 / libsqlite3-sys 0.37 and WILL NOT BUILD here.
-# When you bump rusqlite, re-check the matching r2d2_sqlite (its rusqlite req
-# must satisfy the new rusqlite minor). `bundled` forwards to rusqlite/bundled
-# so both share the one bundled SQLite build.
+# No r2d2_sqlite (2026-11-20, BUG-334). The adapter that tells r2d2 how to open
+# a rusqlite connection is ours, about 30 lines (`ReadConnections` in
+# src/relay/storage/pool.rs), because r2d2_sqlite pinned rusqlite: only ONE
+# crate in the graph may link the native `sqlite3` library (libsqlite3-sys's
+# `links = "sqlite3"`), so every r2d2_sqlite release fits exactly one rusqlite
+# minor, and a rusqlite upgrade waited on an r2d2_sqlite release. That wait
+# kept the relay on rusqlite 0.34 / libsqlite3-sys 0.32 (SQLite 3.49.1) under
+# RUSTSEC-2026-0459 while rusqlite 0.43 had no matching r2d2_sqlite. r2d2 does
+# not depend on rusqlite, so rusqlite now moves on its own.
 r2d2 = { version = "0.8", optional = true }
-r2d2_sqlite = { version = "=0.27.0", optional = true, features = ["bundled"] }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter"] }
 reqwest = { workspace = true, optional = true }
 hmac = { version = "0.12", optional = true }
 base64ct = { version = "1", optional = true, features = ["alloc"] }
-tokio-stream = { version = "0.1", optional = true }
 futures = { version = "0.3", optional = true }
 regex = { version = "1", optional = true }
 url = { version = "2", optional = true }

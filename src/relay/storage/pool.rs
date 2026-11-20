@@ -8,9 +8,11 @@
 //! every read serializes against every other read AND against writes. On a busy
 //! relay that turns independent `SELECT`s into a queue.
 //!
-//! This module adds a small pool of **read-only** connections (built on
-//! `r2d2` + `r2d2_sqlite`, which wrap the same `rusqlite` the rest of the relay
-//! already uses). Reads that opt into [`Storage::with_read_conn`] can then run
+//! This module adds a small pool of **read-only** connections (built on the
+//! generic `r2d2` pool, with [`ReadConnections`], our own adapter that opens
+//! them through the same `rusqlite` the rest of the relay already uses; no
+//! `r2d2_sqlite` since BUG-334, see the root Cargo.toml). Reads that opt into
+//! [`Storage::with_read_conn`] can then run
 //! in parallel; the single dedicated writer (`Storage::with_conn` /
 //! `with_conn_mut`, still a `Mutex<Connection>`) keeps writes correctly
 //! serialized, exactly as WAL requires.
@@ -37,6 +39,8 @@
 //! settings as the writer:
 //!   * `journal_mode = WAL`     — required so a reader sees a consistent
 //!                                snapshot while the writer is mid-transaction.
+//!                                A property of the database FILE, set by the
+//!                                writer; a read-only connection cannot set it.
 //!   * `foreign_keys = ON`      — match the writer's referential-integrity view.
 //!   * `busy_timeout = 5000`    — a reader waits (up to 5 s) for a transient
 //!                                lock rather than erroring out with SQLITE_BUSY
@@ -44,9 +48,8 @@
 //!   * `query_only = ON`        — belt-and-suspenders on top of READ_ONLY.
 
 use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
-use rusqlite::OpenFlags;
-use std::path::Path;
+use rusqlite::{Connection, OpenFlags};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Number of read connections kept in the pool.
@@ -68,7 +71,7 @@ const READ_BUSY_TIMEOUT_MS: u32 = 5000;
 
 /// The relay's read-only connection pool. `Clone` is cheap (it's an `Arc`
 /// internally), but `Storage` just owns one.
-pub(crate) type ReadPool = Pool<SqliteConnectionManager>;
+pub(crate) type ReadPool = Pool<ReadConnections>;
 
 /// Build the read-only connection pool for the database at `path`.
 ///
@@ -85,29 +88,58 @@ pub(crate) fn build_read_pool(path: &Path) -> Result<ReadPool, rusqlite::Error> 
 
 /// The manager that opens the pool's connections to the database at `path`:
 /// each one read-only, with the writer's consistency pragmas.
-fn read_manager(path: &Path) -> SqliteConnectionManager {
-    // READ_ONLY: a pooled connection physically cannot write — a mis-routed
-    // write becomes a clean error, never silent corruption.
-    // NO_MUTEX: each connection is used by exactly one thread at a time (r2d2
-    // hands it out exclusively), so SQLite's per-connection mutex is needless
-    // overhead. Matches the single-thread-per-checkout invariant of r2d2.
-    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+fn read_manager(path: &Path) -> ReadConnections {
+    ReadConnections { path: path.to_path_buf() }
+}
 
-    SqliteConnectionManager::file(path)
-        .with_flags(flags)
-        .with_init(|conn| {
-            // Same consistency settings as the writer. WAL is set on the
-            // database file by the writer; a read-only connection cannot
-            // *change* the journal mode, but issuing the PRAGMA is harmless and
-            // documents intent. foreign_keys + busy_timeout are per-connection
-            // and DO matter here.
-            conn.busy_timeout(Duration::from_millis(READ_BUSY_TIMEOUT_MS as u64))?;
-            conn.pragma_update(None, "foreign_keys", true)?;
-            // query_only is a second guard: even a hypothetical writable handle
-            // would refuse writes. Cheap, defensive.
-            conn.pragma_update(None, "query_only", true)?;
-            Ok(())
-        })
+/// How r2d2 opens, checks and keeps the pool's connections: our own adapter
+/// over rusqlite (BUG-334). It replaced r2d2_sqlite's `SqliteConnectionManager`,
+/// whose releases each fit exactly one rusqlite minor and so held rusqlite
+/// back under a security advisory. It does what that manager did for this
+/// pool, opening the file with the flags below and then setting the pragmas,
+/// and checks a connection by running a statement rather than an empty batch.
+#[derive(Debug)]
+pub(crate) struct ReadConnections {
+    path: PathBuf,
+}
+
+impl r2d2::ManageConnection for ReadConnections {
+    type Connection = Connection;
+    type Error = rusqlite::Error;
+
+    fn connect(&self) -> Result<Connection, rusqlite::Error> {
+        // READ_ONLY: a pooled connection physically cannot write — a mis-routed
+        // write becomes a clean error, never silent corruption.
+        // NO_MUTEX: each connection is used by exactly one thread at a time (r2d2
+        // hands it out exclusively), so SQLite's per-connection mutex is needless
+        // overhead. Matches the single-thread-per-checkout invariant of r2d2.
+        let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+        let conn = Connection::open_with_flags(&self.path, flags)?;
+        // Same consistency settings as the writer. WAL is set on the database
+        // file by the writer; a read-only connection cannot change the journal
+        // mode, so it is not set here. foreign_keys and busy_timeout are
+        // per-connection and DO matter here.
+        conn.busy_timeout(Duration::from_millis(READ_BUSY_TIMEOUT_MS as u64))?;
+        conn.pragma_update(None, "foreign_keys", true)?;
+        // query_only is a second guard: even a hypothetical writable handle
+        // would refuse writes. Cheap, defensive.
+        conn.pragma_update(None, "query_only", true)?;
+        Ok(conn)
+    }
+
+    /// Run on every checkout (`test_on_check_out`): a statement that SQLite
+    /// really prepares and steps on this connection, so a handle that went bad
+    /// fails here, before a caller gets it. (r2d2_sqlite ran an empty batch,
+    /// which reaches nothing.)
+    fn is_valid(&self, conn: &mut Connection) -> Result<(), rusqlite::Error> {
+        conn.query_row("SELECT 1", [], |_| Ok(()))
+    }
+
+    /// A connection is never thrown away on its return: nothing a read can do
+    /// leaves one unusable, and `is_valid` checks it again on the next checkout.
+    fn has_broken(&self, _conn: &mut Connection) -> bool {
+        false
+    }
 }
 
 /// The pool's settings, the same in the product and in tests.
@@ -115,9 +147,9 @@ fn read_pool_builder<M: r2d2::ManageConnection>() -> r2d2::Builder<M> {
     Pool::builder()
         .max_size(READ_POOL_SIZE)
         .connection_timeout(POOL_CHECKOUT_TIMEOUT)
-        // Validate a connection on checkout (r2d2_sqlite's `is-valid` feature
-        // runs a trivial `SELECT 1`). Cheap insurance against handing out a
-        // connection whose underlying file handle went bad.
+        // Validate a connection on checkout (`ReadConnections::is_valid` runs
+        // `SELECT 1`). Cheap insurance against handing out a connection whose
+        // underlying file handle went bad.
         .test_on_check_out(true)
 }
 
@@ -286,12 +318,13 @@ mod tests {
 
     /// In-memory SQLite connections that each take 700 ms to open, the way a
     /// busy machine stretches them: the 8 of a pool take about 2.1 s on r2d2's
-    /// 3 worker threads.
-    struct Slow(r2d2_sqlite::SqliteConnectionManager);
+    /// 3 worker threads. Each is its own empty database: these tests count
+    /// connections and never read through them.
+    struct Slow;
 
     impl Slow {
         fn new() -> Self {
-            Slow(r2d2_sqlite::SqliteConnectionManager::memory())
+            Slow
         }
     }
 
@@ -300,14 +333,48 @@ mod tests {
         type Error = rusqlite::Error;
         fn connect(&self) -> Result<rusqlite::Connection, rusqlite::Error> {
             std::thread::sleep(std::time::Duration::from_millis(700));
-            self.0.connect()
+            rusqlite::Connection::open_in_memory()
         }
         fn is_valid(&self, conn: &mut rusqlite::Connection) -> Result<(), rusqlite::Error> {
-            self.0.is_valid(conn)
+            conn.query_row("SELECT 1", [], |_| Ok(()))
         }
-        fn has_broken(&self, conn: &mut rusqlite::Connection) -> bool {
-            self.0.has_broken(conn)
+        fn has_broken(&self, _conn: &mut rusqlite::Connection) -> bool {
+            false
         }
+    }
+
+    /// Every pooled connection carries the settings `ReadConnections::connect`
+    /// gives it, read back from SQLite itself through `with_read_conn`, and
+    /// passes the checkout check: the adapter that replaced r2d2_sqlite's
+    /// manager (BUG-334) opens what the old one opened. The flags are held by
+    /// `read_pool_rejects_writes` (a pooled write fails as READONLY).
+    ///
+    /// Seen red 2026-11-20 with the three setting lines removed from `connect`:
+    /// "the pooled connection's settings", left (1, 0, 5000) against right
+    /// (1, 1, 5000). Only query_only fell: the bundled SQLite turns foreign
+    /// keys on by default (libsqlite3-sys builds it with
+    /// SQLITE_DEFAULT_FOREIGN_KEYS=1) and rusqlite gives every connection it
+    /// opens a 5 s busy timeout, so those two lines state what we rely on
+    /// rather than change it today; they keep it true if either default moves.
+    #[test]
+    fn a_pooled_connection_has_the_writers_settings_and_passes_its_check() {
+        use r2d2::ManageConnection;
+        let path = humanity_core::test_temp::db("pool_connection_settings");
+        let db = Storage::open(&path).expect("open");
+        let settings: (i64, i64, i64) = db
+            .with_read_conn(|conn| {
+                let pragma = |name: &str| conn.query_row(&format!("PRAGMA {name}"), [], |r| r.get::<_, i64>(0));
+                Ok((pragma("foreign_keys")?, pragma("query_only")?, pragma("busy_timeout")?))
+            })
+            .expect("read the pragmas through the pool");
+        assert_eq!(settings, (1, 1, i64::from(super::READ_BUSY_TIMEOUT_MS)), "the pooled connection's settings");
+
+        let manager = super::read_manager(&path);
+        let mut conn = manager.connect().expect("the adapter opens the database");
+        assert!(manager.is_valid(&mut conn).is_ok(), "a good connection passes the checkout check");
+        assert!(!manager.has_broken(&mut conn), "and is kept on its return");
+        // Close everything before the guard (`path`, dropped last) deletes the files.
+        drop((conn, db));
     }
 
     /// BUG-152: a pool whose connections open slowly is waited for in tests,
