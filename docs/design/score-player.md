@@ -339,7 +339,9 @@ the voice pool like any genre.
   in its header and comment; the index carries them and a credit by words key, which the Music page
   shows under the piece. All three are public domain; Mutopia and its typesetters are credited as a
   courtesy (data/credits.ron, LICENSES.md), as the finding recommends. The symphony's tempo (a half
-  note = 108, Beethoven's own metronome mark of 1817; the Adagio at 60 quarter notes a minute) is
+  note = 108, Beethoven's own metronome mark as the Allgemeine musikalische Zeitung printed it on
+  17 December 1817: docs/reference/findings/2026-11-20-beethoven-5-metronome.md; the oboe's Adagio
+  cadenza at 60 quarter notes a minute, our own playback choice, since Beethoven gave it no mark) is
   written as playback values beside the edition's words; the double basses carry `trans.semi="-12"`.
 - **Section 17's questions** stay the operator's: a piece plays again after a short rest, as built; no
   favourites or share codes for written pieces yet.

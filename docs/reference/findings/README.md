@@ -768,6 +768,12 @@ what we will say about it.
   their own texts (MPL-2.0 symphonia naming the AGPL 3.0 a Secondary License, Unicode-3.0 ICU4X,
   CDLA-Permissive-2.0 webpki-roots, the OFL and Ubuntu font licences of egui's fonts), the ASF on
   Apache-2.0 into GPLv3; the FSF licence list refused (HTTP 429). Not legal advice.
+- [`2026-11-20-beethoven-5-metronome.md`](2026-11-20-beethoven-5-metronome.md),
+  Beethoven's own metronome mark for the first movement of his Fifth Symphony: a half note = 108,
+  read from the table he set by Maelzel's metronome in the Allgemeine musikalische Zeitung of
+  17 December 1817 (columns 873 and 874, the Bavarian State Library's copy on the Internet Archive),
+  which the score player already plays (216 quarter notes a minute in 2/4); the oboe's Adagio
+  cadenza has no mark of his, so its 60 quarter notes a minute is our own choice.
 - [`2026-11-21-dxc-redistribution.md`](2026-11-21-dxc-redistribution.md),
   the Windows download's `dxcompiler.dll` and `dxil.dll`: a NEGATIVE finding for the copies shipped so
   far (the Windows SDK's tools-folder copies, not on the SDK's REDIST.TXT list; even listed copies

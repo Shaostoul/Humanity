@@ -21,8 +21,11 @@
 // names each source file and its SHA-256) from Mutopia Project LilyPond files whose typesetters placed
 // them in the public domain (docs/reference/findings/2026-11-20-public-domain-scores.md, findings 16
 // and 20). None asks for credit; Mutopia and its typesetters are credited as a courtesy, as the
-// finding recommends. The symphony's tempo is Beethoven's own metronome mark (a half note = 108),
-// written in the file as playback values beside the edition's words.
+// finding recommends. The symphony's tempo is Beethoven's own metronome mark, a half note = 108 (216
+// quarter notes a minute), as the Allgemeine musikalische Zeitung printed it on 17 December 1817
+// (docs/reference/findings/2026-11-20-beethoven-5-metronome.md); the oboe's Adagio cadenza has no
+// mark of his, so its 60 quarter notes a minute is our own playback choice. Both are written in the
+// file as playback values beside the edition's words.
 Scores(
     pieces: [
         (
