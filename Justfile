@@ -1403,18 +1403,37 @@ verify-release version:
 # WORKTREE HYGIENE — prevent context rot
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Remove stale git worktrees (keeps main + current). Prevents AI agents
-# from writing to cached stale paths. Run this whenever a worktree drifts
-# behind main, or after long AI sessions.
-#
-# By default it REFUSES any worktree holding uncommitted or unmerged work.
-# Pass the script's own flag through to override that:
-#   just clean-worktrees --force-unmerged
-# Without the `*flags` below, just read that argument as the name of a second
-# recipe and failed with "Justfile does not contain recipe `--force-unmerged`",
-# even though the script has accepted the flag since it was hardened.
+# Remove agent worktrees whose work has LANDED on main (OPERATOR / ORCHESTRATOR
+# ONLY, never a dispatched subagent). Landed means in main's history, in the
+# ledger of squash merges (`just record-merge`), or proven by content: main
+# holds every change the branch makes (scripts/lib/landed.js). Each removed
+# worktree's branch is kept. It KEEPS, with the reason printed: a locked
+# worktree (a running agent), one changed in the last 2 hours, one with any
+# uncommitted file other than .claude/settings.local.json, one with commits
+# main does not hold. Removing runs only from the main checkout (a dispatched
+# agent, inside its worktree, is refused); --dry-run runs anywhere. Look first:
+#   just clean-worktrees --dry-run          what it would remove, and why
+#   just clean-worktrees                    remove those
+#   just clean-worktrees --force-unmerged   ALSO destroy unlanded work (never a locked one)
+# The first run after the 2026-11-20 rewrite proves most branches by content
+# (seconds each); `just merged-branches backfill --write` once makes later runs fast.
 clean-worktrees *flags:
-    @bash scripts/clean-worktrees.sh --yes {{flags}}
+    @node scripts/clean-worktrees.js --yes {{flags}}
+
+# The merge step's record (merge-agent skill, section 3): right after the squash
+# commit on main, write down which branch landed as which commit, so
+# `just clean-worktrees` can tell landed work from unmerged work. Squash merges
+# leave no trace in history: this ledger (data/coordination/merged-branches.jsonl)
+# is that trace. Commit it with your next commit.
+#   just record-merge worktree-agent-a1b2c3          (squash = main's tip)
+#   just record-merge <branch> --squash <commit>     (recorded later)
+record-merge branch *args:
+    @node scripts/merged-branches.js record {{branch}} {{args}}
+
+# The ledger of landed branches: `backfill` (which existing branches main holds
+# by content; --write appends them), `check <branch>`, `list`.
+merged-branches *args:
+    @node scripts/merged-branches.js {{args}}
 
 # List all current worktrees with sizes
 worktrees:

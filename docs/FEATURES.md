@@ -5780,6 +5780,30 @@ restart.
 
 ## Developer Tooling
 
+### A worktree cleanup that sees squash merges, and the ledger of landed branches (2026-11-20)
+`just clean-worktrees` (`scripts/clean-worktrees.js`, replacing `clean-worktrees.sh`) removes an
+agent worktree only when its branch has LANDED: its tip is in main's history, the ledger
+`data/coordination/merged-branches.jsonl` records it, or main provably holds every change it makes
+(a three-way merge into main's tip, or into the squash commit itself, adds nothing; or, where the
+squash was resolved by hand and so conflicts again, every conflict region of that commit has each
+line the branch added and none it removed, the rest matching byte for byte;
+`scripts/lib/landed.js`). Every agent branch is squash-merged, so the old ancestor test called all
+of them unmerged and removed 2 of 211 worktrees on 2026-11-16. It also keeps a locked worktree
+(Claude Code locks a running agent's), one changed in the last 2 hours (`--min-idle-hours`), and
+one with any uncommitted file except `.claude/settings.local.json`; it keeps every removed
+worktree's branch, re-checks each worktree just before removing it, and writes nothing into the
+repository while it judges (scratch trees go to a temp object folder; `git status` runs without
+optional locks). It removes nothing unless run from the main checkout, so a dispatched agent
+inside its worktree is refused (the 2026-07-01 failure, now mechanical). `--dry-run` prints every
+verdict with its reason, from anywhere. The merge step writes the ledger:
+`just record-merge <branch>` right after the squash commit (the `merge-agent` skill), noting
+"partial" when the commit does not hold every change; `just merged-branches backfill --write`
+records the branches that landed before the ledger, `check <branch>` and `list` read it. Tests:
+`scripts/tests/clean-worktrees.test.js` (throwaway repositories: squash-merged and hand-resolved
+merges removed; unmerged, uncommitted, untracked, locked and detached kept, and so are merges
+whose resolution dropped an added line or kept a deleted one; the ledger's partial merge and
+post-merge commits; the hook-environment trap).
+
 ### The simulation soak: game days of the homestead in seconds, no window or GPU (2026-11-15)
 The headless sim runner's increment 2 (`docs/design/headless-sim-runner.md`). The world's
 systems step from the simulation's own parts, `frame_sim::systems_slice` (`src/engine/frame_sim.rs`),

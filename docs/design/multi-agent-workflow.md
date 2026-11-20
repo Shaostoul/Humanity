@@ -239,8 +239,10 @@ The caveat that makes this bearable: worktrees share one `.git`, so a branch che
 out in one cannot be checked out in another. Give each agent its own branch name.
 
 The counterpart requirement: a workflow using worktrees must **never** invoke
-`just clean-worktrees`, which force-deletes worktrees and branches with no check for
-unmerged work and has already destroyed completed, review-approved agent work.
+`just clean-worktrees`, which removes worktrees and, before its 2026-07-01 hardening,
+destroyed completed, review-approved agent work. It now removes only landed, idle,
+unlocked worktrees (`docs/ai/orchestrator.md`, section 7), but it cannot know which
+sibling worktree a workflow is about to use: it stays the operator's or orchestrator's.
 
 ## The first real workflow: `domain-pass.js`
 
@@ -313,10 +315,11 @@ Two smaller findings from the same shakedown, both now fixed in the script:
 - **`just ship` commits staged-only** as of 2026-07-30, specifically because blanket
   adds swept other sessions' in-flight work into unrelated commits three times in one
   day. Do not reintroduce `git add -A` into any automated path.
-- **`just clean-worktrees` is destructive and operator-only.** It force-deletes
-  worktrees and branches with no check for unmerged work; it has destroyed completed,
-  review-approved agent work. A workflow using `isolation: "worktree"` must never
-  invoke it.
+- **`just clean-worktrees` is destructive and operator-only.** Before its 2026-07-01
+  hardening it force-deleted worktrees and branches with no check for unmerged work and
+  destroyed completed, review-approved agent work; it now keeps anything unlanded,
+  uncommitted, locked or recently active, but a workflow using `isolation: "worktree"`
+  must still never invoke it.
 - **Verification must be able to fail.** The recurring defect in this repo is a check
   that could not have detected the problem: pages marked "both" that read different
   data, settings that "saved" but had no config field, tests that pass vacuously.

@@ -37,7 +37,16 @@ In `C:\Humanity` on main (never in another agent's worktree):
 ```bash
 git merge --squash $B                        # stages exactly the branch's changes
 git commit -F <msg-file>                     # the agent's why, condensed; Co-Authored-By line last
+just record-merge $B                         # the ledger line: $B landed as this commit
 ```
+
+`just record-merge` is what lets `just clean-worktrees` remove the worktree later: a squash merge
+leaves none of the branch's commits in main's history, so without the ledger line the cleanup
+can only try to prove the landing by content, and a merge you edited or trimmed fails that proof
+and keeps the worktree forever. It appends to `data/coordination/merged-branches.jsonl` and says
+"partial" when the commit does not hold every change of the branch (fine when you left a part
+out on purpose; otherwise pass `--squash <commit>`). Stage the ledger with the next commit you
+make (`just mine data/coordination/merged-branches.jsonl`).
 
 A conflict with another session's uncommitted edits: stop and look, never stash or overwrite
 their files. A shared file holding both: the hunk-selective recipe in
@@ -58,6 +67,9 @@ their files. A shared file holding both: the hunk-selective recipe in
 git push origin main
 rm -rf $WT/target                            # frees 8-10 GB; worktree and branch stay
 ```
+
+The worktree itself goes at the next `just clean-worktrees` (orchestrator, once every agent of
+the session is merged or abandoned; `--dry-run` first shows each verdict and its reason).
 
 Record it: FEATURES.md for a new feature, BUGS.md for a fix, PRIORITIES.md if scope moved, a
 `recent_decisions` entry for a significant choice. Releases are batched (the `release` skill).

@@ -10,8 +10,13 @@
 // won't duplicate hooks or clobber your other settings); backs up first.
 //
 // What it does:
-//   1. .claude/settings.json      — adds 4 hooks (theme-sync, push-guard,
-//      clean-worktrees, precompact-reminder), merging with anything already there.
+//   1. .claude/settings.json      — adds 3 hooks (theme-sync, push-guard,
+//      precompact-reminder), merging with anything already there.
+//      (A fourth, `just clean-worktrees` at SessionStart, was dropped on 2026-11-20: the
+//      cleanup is for the operator or the orchestrator, run once every agent of the session is
+//      merged or abandoned (CLAUDE.md, START HERE), and a SessionStart hook runs it at the start
+//      of EVERY session, parallel sessions in this checkout included. Removing worktrees on
+//      that schedule is the 2026-07-01 failure, three times in one day.)
 //   2. .claude/settings.local.json — turns OFF "disableAllHooks" (it's currently
 //      true, which silences ALL hooks) so the new ones can actually fire.
 // Then open /hooks (or restart Claude Code) to load them.
@@ -23,7 +28,7 @@ const DIR = path.join(ROOT, '.claude');
 const PROJ = path.join(DIR, 'settings.json');
 const LOCAL = path.join(DIR, 'settings.local.json');
 
-// The 4 hooks, keyed by event. Each entry is one matcher-group.
+// The 3 hooks, keyed by event. Each entry is one matcher-group.
 const HOOKS = {
   PostToolUse: [{
     matcher: 'Write|Edit',
@@ -32,9 +37,6 @@ const HOOKS = {
   PreToolUse: [{
     matcher: 'Bash',
     hooks: [{ type: 'command', command: 'node scripts/hook-push-guard.js', if: 'Bash(git push*)', timeout: 15 }],
-  }],
-  SessionStart: [{
-    hooks: [{ type: 'command', command: 'just clean-worktrees', timeout: 120, statusMessage: 'Cleaning stale worktrees' }],
   }],
   PreCompact: [{
     hooks: [{ type: 'command', command: 'node scripts/precompact-reminder.js', timeout: 10, statusMessage: 'Flushing durable state before compaction' }],

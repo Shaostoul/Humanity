@@ -65,8 +65,9 @@ just ship "domain: what changed and why"
 ```
 
 - **Never `git add -A`, `git commit -a`, or `just ship-all`.** Those sweep other work.
-- **Never `just clean-worktrees`.** It force-deletes worktrees and branches with no
-  check for unmerged work, and has already destroyed completed agent work.
+- **Never `just clean-worktrees`.** It removes worktrees (before its 2026-07-01
+  hardening it destroyed completed agent work), and only the operator or orchestrator
+  knows when every agent of the session is merged or abandoned.
 - **Do not bump the version yourself** unless the caller told you to release. If
   `Cargo.toml` is already modified, that is someone's pending build-game stamp; leave
   it and let it carry the version.
