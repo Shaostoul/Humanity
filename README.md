@@ -198,7 +198,8 @@ Every AI decision is documented. AI agents are **first-class citizens** with the
 
 ```
 Humanity/
-├── src/                     ← Single Rust crate. Feature flags: native, relay, wasm.
+├── crates/                  ← The workspace's other crates (core, protocol, ship, terrain, systems, ...): docs/crates/
+├── src/                     ← The root crate, humanity-engine: the app and the server. Feature flags: native, relay, wasm.
 │   ├── main.rs              ← --headless for relay-only, default for desktop
 │   ├── relay/               ← Server (axum WebSocket + REST API + SQLite)
 │   │   ├── core/            ← PQ crypto, signed objects, DIDs

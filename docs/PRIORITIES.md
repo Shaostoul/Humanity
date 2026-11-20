@@ -72,6 +72,13 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    ("I feel like some people may want it") while listing the app on AlternativeTo, whose tag waits
    until it is built.
 6. An outside review once 1 to 5 are built.
+6b. **Website script policy** (2026-11-20, after an outside AI review flagged plain-JS XSS risk and
+   the live headers confirmed it): the CSP allows `script-src 'unsafe-inline'` and
+   `https://cdn.jsdelivr.net`, though no script comes from that CDN (only twemoji images, one
+   pinned to `@latest`); `img-src` allows `https://*`. Drop the CDN from script-src, vendor the
+   emoji images (no third-party request per chat visitor), move inline scripts into files so
+   `'unsafe-inline'` can go, narrow img-src; check each page for CSP violations in the browser
+   before and after (live nginx is hand-applied: targeted edits, `nginx -t`, reload).
 7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent. Beside it, a
    toolsmith: **`just clean-worktrees` that recognises squash merges.** It removed 2 of 211 on
    2026-11-16 and kept the rest as "real work", because a squash-merged branch's commits never appear
