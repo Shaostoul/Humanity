@@ -8,7 +8,7 @@ design is `docs/design/blocking-and-safe-mode.md` sections 7 and 10f; the code i
 
 ## Opening the port (the operator's decision)
 
-**Opened on both live servers on 2026-11-20** (operator: "Let's get that open"): united-humanity.us and public.guide each carry `HUMANITY_OPEN_CALL_PORT=1` in `/opt/Humanity/node.env` and the rule in `/etc/nftables.conf`, and each names itself in `TURN_PUBLIC_HOST` (BUG-322: without it a relay told callers to use united-humanity.us). Checked from outside with a STUN Binding request to UDP 3478.
+**Opened on both live servers on 2026-11-20** (operator: "Let's get that open"): united-humanity.us and public.guide each carry `HUMANITY_OPEN_CALL_PORT=1` in `/opt/Humanity/node.env` and the rule in `/etc/nftables.conf`, and each names itself in `TURN_PUBLIC_HOST` (BUG-322: without it a relay told callers to use united-humanity.us; since the fix it offers no forwarder at all). Checked from outside with a STUN Binding request to UDP 3478. `just brief`'s SERVERS row (`just server-upkeep`) warns when a server's call port is open and its `.env` names no `TURN_PUBLIC_HOST`.
 
 **Until you open it, nothing listens publicly.** The relay listens on UDP 3478, but the
 firewall that `scripts/provision-vps.sh` writes lets in only TCP 22, 80 and 443, so the
@@ -66,7 +66,7 @@ cannot send to an address a client names:
 |---|---|---|
 | `TURN_PORT` | 3478 | The UDP port. The provision script sets it from `HUMANITY_CALL_PORT`. |
 | `TURN_BIND` | the relay's `BIND_ADDRESS` | The address the port is bound to. A development relay on 127.0.0.1 keeps the forwarder on 127.0.0.1 too (no firewall prompt on Windows). A value that is not an IP address stops the forwarder (never widens it). |
-| `TURN_PUBLIC_HOST` | `TURN_SERVER_HOST`, else the bind address if it is one address, else united-humanity.us | The host the apps are told to reach. Its IPv4 address is the IP of every relayed address. The provision script sets it from `HUMANITY_CALL_HOST` (default the node's domain). |
+| `TURN_PUBLIC_HOST` | `TURN_SERVER_HOST`, else the bind address if it is one address, else none: the forwarder is not started | The host the apps are told to reach. Its IPv4 address is the IP of every relayed address. The provision script sets it from `HUMANITY_CALL_HOST` (default the node's domain). A server bound to every interface (`0.0.0.0`) with neither setting does not know its own name, so it opens no call port, its calls say "this server is not set up for that yet", and its log says `Call forwarder NOT started` and names this setting. Until 2026-11-20 it told callers to use united-humanity.us instead, whose forwarder refuses other servers' credentials (BUG-322). |
 | `HUMANITY_OPEN_CALL_PORT` | 0 | In `node.env`, read by the provision script only: 1 lets UDP `TURN_PORT` through the firewall. |
 
 The forwarder starts only when the owner offers voice (`features.voice` in

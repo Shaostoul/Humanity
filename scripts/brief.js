@@ -164,6 +164,17 @@ try {
 } catch {
   L.push('SCRIPTS:  could not check (run: just server-files)');
 }
+// Each server's upkeep, read over ssh and changing nothing (scripts/check-server-upkeep.js,
+// 2026-11-20): more than 5 waiting security updates (BUG-321: public.guide sat on 55 for months)
+// or package lists gone stale, and an open call port whose .env names no TURN_PUBLIC_HOST
+// (BUG-322: its relay then offers no call forwarder). One line per server.
+try {
+  const r = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'check-server-upkeep.js')], { encoding: 'utf8', timeout: 60000 });
+  const rows = String(r.stdout || '').trim().split('\n').filter(Boolean);
+  L.push('SERVERS:  ' + (rows.length ? rows.join('\n          ') : 'could not check (run: just server-upkeep)'));
+} catch {
+  L.push('SERVERS:  could not check (run: just server-upkeep)');
+}
 // C: and the hourly build-output guard (scripts/pc-disk-guard.js, 2026-09-29).
 try {
   const s = fs.statfsSync(path.parse(root).root);

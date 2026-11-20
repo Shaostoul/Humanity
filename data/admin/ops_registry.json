@@ -509,11 +509,11 @@
       "how": "SOLANA_RPC_URL=https://api.devnet.solana.com in /opt/Humanity/.env, restart (src/relay/api_v2_solana.rs:20-26)."
     },
     {
-      "name": "Configure and rotate voice TURN (TURN_SERVER_HOST, TURN_STATIC_SECRET)",
-      "what": "Points voice calls at your own relay host and, with the shared secret set, lets calls work behind strict home routers. Rotating the secret is a two-place edit (relay env + coturn config) plus restarts.",
+      "name": "Set up the call forwarder (TURN_PUBLIC_HOST, TURN_PORT, TURN_BIND)",
+      "what": "Tells callers where to reach this server's own call forwarder and STUN (one UDP port, 3478 by default), so calls work behind strict home routers without showing anyone's address. A server listening on every interface must be given its own domain in TURN_PUBLIC_HOST, or it offers no forwarder and calls say it is not set up for them (BUG-322). Nothing to rotate: credentials come from a secret made at each start (coturn and TURN_STATIC_SECRET were retired on 2026-10-09).",
       "where": "config-file",
       "audience": "owner",
-      "how": "TURN_SERVER_HOST=your-domain.com and TURN_STATIC_SECRET=<same secret as coturn static-auth-secret> in /opt/Humanity/.env, restart relay (+ coturn) (src/relay/turn.rs:57-92; rotation recipe docs/admin/turn-rotation.md)."
+      "how": "TURN_PUBLIC_HOST=your-domain.com (TURN_PORT and TURN_BIND only when the defaults do not fit) in /opt/Humanity/.env, restart the relay; open the UDP port with HUMANITY_OPEN_CALL_PORT=1 in /opt/Humanity/node.env and a provision run (src/relay/call_forwarder.rs start_from; docs/admin/call-forwarder.md)."
     },
     {
       "name": "Set log verbosity (RUST_LOG)",

@@ -760,9 +760,19 @@ pub struct Settings {
     pub port: u16,
     /// `TURN_PUBLIC_HOST`: the host clients are told to use. Unset: `TURN_SERVER_HOST` (the
     /// setting `/api/turn-credentials` already used), else the bind address when it is one
-    /// address, else united-humanity.us.
-    pub public_host: String,
+    /// address. `None` (a server bound to every interface that was never told its name): the
+    /// forwarder is not started at all, never pointed at another server's name (BUG-322: every
+    /// such relay told its callers to use united-humanity.us, whose forwarder refuses their
+    /// credentials).
+    pub public_host: Option<String>,
 }
+
+/// The log line when the forwarder is not started because the relay does not know the name
+/// callers should reach it at, naming the one setting that fixes it.
+pub const NO_PUBLIC_HOST: &str = "Call forwarder NOT started: this server listens on every interface and was not told its \
+     own public name, so it cannot tell callers where to reach it. Add TURN_PUBLIC_HOST=<this server's domain> to the relay's \
+     .env (/opt/Humanity/.env on a server set up by scripts/provision-vps.sh) and restart the relay. Until then calls \
+     through this server say it is not set up for them (docs/admin/call-forwarder.md)";
 
 impl Settings {
     /// Read the settings through `var` (the environment, or a test's map). A `TURN_BIND` that
@@ -779,9 +789,11 @@ impl Settings {
             None => DEFAULT_PORT,
             Some(v) => v.parse::<u16>().map_err(|_| format!("TURN_PORT={v:?} is not a port number"))?,
         };
-        let public_host = set("TURN_PUBLIC_HOST").or_else(|| set("TURN_SERVER_HOST")).unwrap_or_else(|| {
-            if bind.is_unspecified() { "united-humanity.us".to_string() } else { bind.to_string() }
-        });
+        // A concrete bind address names the server well enough (a development relay on
+        // 127.0.0.1, a server bound to its one public IP); every interface names nothing.
+        let public_host = set("TURN_PUBLIC_HOST")
+            .or_else(|| set("TURN_SERVER_HOST"))
+            .or_else(|| (!bind.is_unspecified()).then(|| bind.to_string()));
         Ok(Settings { bind, port, public_host })
     }
 }
@@ -807,15 +819,26 @@ pub async fn relayed_ip_for(public_host: &str, bind: IpAddr) -> Option<Ipv4Addr>
 
 /// Start the forwarder for this relay: read its settings, bind its UDP socket, tell the
 /// credential side where it is, and run it. Called by `run_relay` only when the owner offers
-/// voice. A setting that is wrong, or a port another program holds, leaves the relay running
-/// without it (calls then say this server is not set up for them) and says why in the log.
+/// voice. A setting that is wrong, a public name it was never given ([`NO_PUBLIC_HOST`]), or a
+/// port another program holds, leaves the relay running without it (calls then say this server
+/// is not set up for them) and says why in the log, once.
 pub async fn start(state: &Arc<RelayState>, relay_bind: IpAddr) {
-    let settings = match Settings::from_vars(|k| std::env::var(k).ok(), relay_bind) {
+    start_from(state, |k| std::env::var(k).ok(), relay_bind).await
+}
+
+/// [`start`] with the settings read through `var` (the environment, or a test's map).
+pub async fn start_from(state: &Arc<RelayState>, var: impl Fn(&str) -> Option<String>, relay_bind: IpAddr) {
+    let settings = match Settings::from_vars(var, relay_bind) {
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Call forwarder NOT started: {e}");
             return;
         }
+    };
+    // Decided before the socket is opened, so a nameless server opens no port at all.
+    let Some(public_host) = settings.public_host.clone() else {
+        tracing::warn!("{NO_PUBLIC_HOST}");
+        return;
     };
     let socket = match tokio::net::UdpSocket::bind(SocketAddr::new(settings.bind, settings.port)).await {
         Ok(s) => s,
@@ -825,12 +848,12 @@ pub async fn start(state: &Arc<RelayState>, relay_bind: IpAddr) {
         }
     };
     let port = socket.local_addr().map(|a| a.port()).unwrap_or(settings.port);
-    let relayed_ip = relayed_ip_for(&settings.public_host, settings.bind).await;
+    let relayed_ip = relayed_ip_for(&public_host, settings.bind).await;
     if relayed_ip.is_none() {
-        tracing::warn!("Call forwarder: {} has no IPv4 address, so calls cannot be carried (STUN still answers)", settings.public_host);
+        tracing::warn!("Call forwarder: {public_host} has no IPv4 address, so calls cannot be carried (STUN still answers)");
     }
-    state.calls.set_listening(&settings.public_host, port);
-    tracing::info!("Call forwarder and STUN listening on UDP {}:{port}, clients told {}:{port}", settings.bind, settings.public_host);
+    state.calls.set_listening(&public_host, port);
+    tracing::info!("Call forwarder and STUN listening on UDP {}:{port}, clients told {public_host}:{port}", settings.bind);
     let forwarder = Forwarder::new(state.calls.keys().clone(), relayed_ip, port, Instant::now());
     tokio::spawn(serve(socket, forwarder));
 }

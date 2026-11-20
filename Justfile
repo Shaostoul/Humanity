@@ -288,6 +288,12 @@ brief:
 server-files:
     @node scripts/check-server-files.js
 
+# Each server's upkeep, read over ssh and changing nothing: waiting security updates (a warning
+# past 5, BUG-321), stale package lists, and an open call port with no TURN_PUBLIC_HOST in its
+# .env (BUG-322); `just brief` prints the same as its SERVERS row (2026-11-20).
+server-upkeep:
+    @node scripts/check-server-upkeep.js
+
 # The code map (docs/ai/code-map.md, 2026-10-18): one line per source file under src/ and web/,
 # what it is and its main items, with a folder index first. Generated; `just brief` refreshes it.
 # Then the crate cards' generated blocks (docs/crates/, 2026-10-31: each planned crate's paths,

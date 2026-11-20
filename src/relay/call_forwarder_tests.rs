@@ -611,31 +611,94 @@ fn the_day_count_stops_one_person_past_their_limit_and_never_counts_a_call() {
 
 /// The settings: TURN_BIND follows the relay's own BIND_ADDRESS unless set; a bad value is an
 /// error, never every interface; TURN_PUBLIC_HOST falls back to TURN_SERVER_HOST, then the bind
-/// address when it is one address.
+/// address when it is one address, and otherwise to nothing, never another server's name.
 ///
 /// Seen red 2026-10-09 with the TURN_BIND default fixed at 0.0.0.0: "a development relay on
-/// 127.0.0.1 keeps the forwarder on 127.0.0.1: left: 0.0.0.0, right: 127.0.0.1".
+/// 127.0.0.1 keeps the forwarder on 127.0.0.1: left: 0.0.0.0, right: 127.0.0.1". Seen red
+/// 2026-11-20 with the old fallback put back (`unwrap_or("united-humanity.us")` for every
+/// interface): "a server on every interface with no name is given none, never another server's:
+/// left: Some(\"united-humanity.us\"), right: None" (BUG-322).
 #[test]
 fn settings_follow_the_relay_and_refuse_bad_values() {
     let vars = |pairs: &'static [(&'static str, &'static str)]| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| v.to_string());
     let loopback = IpAddr::V4(Ipv4Addr::LOCALHOST);
     let every = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+    let host = |s: &Settings| s.public_host.clone();
 
     let s = Settings::from_vars(vars(&[]), loopback).unwrap();
     assert_eq!(s.bind, loopback, "a development relay on 127.0.0.1 keeps the forwarder on 127.0.0.1");
-    assert_eq!((s.port, s.public_host.as_str()), (DEFAULT_PORT, "127.0.0.1"));
+    assert_eq!((s.port, host(&s).as_deref()), (DEFAULT_PORT, Some("127.0.0.1")));
+    let one = IpAddr::V4(Ipv4Addr::new(198, 51, 100, 9));
+    assert_eq!(host(&Settings::from_vars(vars(&[]), one).unwrap()).as_deref(), Some("198.51.100.9"), "a server bound to its one address is named by it");
 
     let s = Settings::from_vars(vars(&[]), every).unwrap();
-    assert_eq!((s.bind, s.public_host.as_str()), (every, "united-humanity.us"));
+    assert_eq!(s.bind, every);
+    assert_eq!(host(&s), None, "a server on every interface with no name is given none, never another server's");
+    assert_eq!(host(&Settings::from_vars(vars(&[("TURN_PUBLIC_HOST", "  ")]), every).unwrap()), None, "a blank name is no name");
 
     let s = Settings::from_vars(vars(&[("TURN_SERVER_HOST", "relay.example")]), every).unwrap();
-    assert_eq!(s.public_host, "relay.example");
+    assert_eq!(host(&s).as_deref(), Some("relay.example"));
     let s = Settings::from_vars(vars(&[("TURN_PUBLIC_HOST", "calls.example"), ("TURN_SERVER_HOST", "relay.example"), ("TURN_PORT", "0"), ("TURN_BIND", "127.0.0.1")]), every).unwrap();
-    assert_eq!((s.bind, s.port, s.public_host.as_str()), (loopback, 0, "calls.example"));
+    assert_eq!((s.bind, s.port, host(&s).as_deref()), (loopback, 0, Some("calls.example")));
 
     assert!(Settings::from_vars(vars(&[("TURN_BIND", "lan")]), loopback).is_err(), "a typo is an error, not every interface");
     assert!(Settings::from_vars(vars(&[("TURN_PORT", "34780")]), loopback).is_ok());
     assert!(Settings::from_vars(vars(&[("TURN_PORT", "99999")]), loopback).is_err());
+}
+
+/// A RELAY THAT WAS NEVER TOLD ITS PUBLIC NAME OFFERS NO FORWARDER (BUG-322). Bound to every
+/// interface with neither TURN_PUBLIC_HOST nor TURN_SERVER_HOST, a relay used to tell its callers
+/// to use united-humanity.us, another server's forwarder, which refuses this server's credentials.
+/// Now nothing is started: what the apps are sent is a refused credential reply (the "not set up"
+/// notice they already show) and `/api/turn-credentials` lists no STUN entry, exactly as with voice
+/// off. The control: the same start given a name (bound to loopback, so no firewall is asked)
+/// offers its own forwarder under that name, so the refusal is the missing name and nothing else.
+///
+/// Seen red 2026-11-20 with the nameless branch of `start_from` advertising the old fallback
+/// (`state.calls.set_listening("united-humanity.us", settings.port)` before returning, no socket
+/// opened): "no name, no forwarder offered: CallCredentials { room: Some(\"lounge\"), call: None,
+/// file: None, urls: [\"turn:united-humanity.us:3478?transport=udp\",
+/// \"stun:united-humanity.us:3478\"], username: ..., ttl: 3600, refused: false }".
+#[test]
+fn a_relay_never_told_its_public_name_offers_no_forwarder() {
+    use crate::relay::call_credentials::{handle, CallCredentials};
+    use crate::relay::relay::{RelayMessage, VoiceRoom};
+    use crate::relay::storage::Storage;
+    let rt = tokio::runtime::Runtime::new().expect("tokio rt");
+    let every = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+    // What alice, seated in voice room "lounge", is sent when her app asks for credentials.
+    let ask = |state: &Arc<RelayState>| -> CallCredentials {
+        rt.block_on(async {
+            let seat = ("alice_key".to_string(), "alice_key".to_string());
+            state.voice_rooms.write().await.insert("lounge".into(), VoiceRoom { name: "lounge".into(), participants: vec![seat] });
+        });
+        let mut rx = state.broadcast_tx.subscribe();
+        rt.block_on(handle(state, "alice_key", &serde_json::json!({ "type": "call_credentials", "room": "lounge" })));
+        std::iter::from_fn(|| rx.try_recv().ok())
+            .find_map(|m| match m {
+                RelayMessage::CallCredentials { to, creds } if to == "alice_key" => Some(creds),
+                _ => None,
+            })
+            .expect("every request gets a call_credentials reply, granted or refused")
+    };
+
+    let nameless = Arc::new(RelayState::new(Storage::open_temp("callfw_nameless")));
+    rt.block_on(start_from(&nameless, |_| None, every));
+    let creds = ask(&nameless);
+    assert!(creds.refused && creds.urls.is_empty(), "no name, no forwarder offered: {creds:?}");
+    assert_eq!(nameless.calls.stun_url(), None, "and /api/turn-credentials lists no STUN entry of ours");
+
+    let named = Arc::new(RelayState::new(Storage::open_temp("callfw_named")));
+    let vars = |k: &str| match k {
+        "TURN_PUBLIC_HOST" => Some("192.0.2.7".to_string()),
+        "TURN_BIND" => Some("127.0.0.1".to_string()),
+        "TURN_PORT" => Some("0".to_string()),
+        _ => None,
+    };
+    rt.block_on(start_from(&named, vars, every));
+    let creds = ask(&named);
+    assert!(!creds.refused && !creds.urls.is_empty(), "the control: a named relay offers its forwarder: {creds:?}");
+    assert!(creds.urls.iter().all(|u| u.contains(":192.0.2.7:")), "under its own name: {:?}", creds.urls);
 }
 
 /// ONE PERSON HOLDS AT MOST 8 LIVE FILE ALLOCATIONS (the relay review of 2026-10-12, rule 5),
