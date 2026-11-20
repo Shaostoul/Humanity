@@ -1118,6 +1118,10 @@ per-account levels, not only the Inbox.
 
 ### 15.3 Disappearing messages, permanent by default
 
+**Designed in full (2026-11-20) with forward secrecy in [`dm-forward-secrecy.md`](dm-forward-secrecy.md)
+section 9**: the timer and keep fields in the signed inner, the timer note, deleting, and archives
+that never hold a timed message. The points below are the operator's design it builds on.
+
 The operator: "I feel like we should default to permanent but, provide an always present option to
 enable disappearing messages of various rates, senders. Like maybe we want only 1 message to be
 timed. Maybe we want certain timed messages to remain permanent." For HumanityOS DMs and group

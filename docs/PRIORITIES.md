@@ -70,7 +70,9 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    message): both change the sealed message and the DM store, so the format changes once, and the
    encrypted backup must leave expired messages out. Raised again by the operator on 2026-11-18
    ("I feel like some people may want it") while listing the app on AlternativeTo, whose tag waits
-   until it is built.
+   until it is built. **Researched and planned 2026-11-20:** docs/design/dm-forward-secrecy.md (device
+   sessions with a KEM ratchet; ten rungs; five operator questions in section 18), research in
+   docs/reference/research/2026-11-20-forward-secrecy/.
 6. An outside review once 1 to 5 are built.
 6b. **Website script policy** (2026-11-20, after an outside AI review flagged plain-JS XSS risk and
    the live headers confirmed it): the CSP allows `script-src 'unsafe-inline'` and

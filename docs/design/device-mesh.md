@@ -87,7 +87,7 @@ Subsumes the shipped stopgap into the app.
 
 ## Open questions for the operator (resolve before Phase B)
 
-1. Encryption key for backups: derive from the seed (zero extra UX, but a seed compromise exposes all backups) vs. a separate backup passphrase (more secure, more friction)?
+1. Encryption key for backups: derive from the seed (zero extra UX, but a seed compromise exposes all backups) vs. a separate backup passphrase (more secure, more friction)? (For message history, `docs/design/dm-forward-secrecy.md` section 8.3 recommends both together: the recovery phrase and a backup password; its question 1 asks the operator.)
 2. Retention defaults per role, how many snapshots does a battle-station keep vs. an archive device?
 3. Should the dashboard show *real-time* device health (requires devices to stay connected + stream) or *last-report* (cheaper, devices report-then-disconnect)? Last-report is the cheaper default; real-time is a Phase A+ toggle.
 

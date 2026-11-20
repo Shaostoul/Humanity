@@ -154,4 +154,7 @@ Both start at the weekly reset, after the conformance tests.
    licence, and the native/web known-answer test seen red first.
 4. KEM keys by index, signed into the key card: rotation.
 5. Forward secrecy (after decision 1): research which option fits the offline mailbox, then a plan.
+   **Researched and planned 2026-11-20:** [`2026-11-20-forward-secrecy`](../2026-11-20-forward-secrecy/README.md)
+   and [`docs/design/dm-forward-secrecy.md`](../../../design/dm-forward-secrecy.md) (with disappearing
+   messages), its questions for the operator in section 18.
 6. An outside review, once the above is built.
