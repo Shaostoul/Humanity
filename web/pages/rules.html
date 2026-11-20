@@ -77,7 +77,7 @@
     Accord</a>, which takes precedence: a server rule may be stricter than the Accord, never
     looser, and never coercive.
   </p>
-  <p class="updated">Published 6 September 2026; rule 7 and the section on work put here without permission added 12 October 2026; the copyright form and the public takedown log added 13 October 2026. Anyone running their own HumanityOS server writes their own rules; these bind this server only.</p>
+  <p class="updated">Published 6 September 2026; rule 7 and the section on work put here without permission added 12 October 2026; the copyright form and the public takedown log added 13 October 2026. Anyone running their own HumanityOS server writes their own rules; these bind this server only. <span data-i18n="rules.checked_line">The table of powers, how to report and the list of what this server does not have yet were checked against the server's code on 20 November 2026.</span></p>
 
   <h2>The rules</h2>
 
@@ -126,10 +126,10 @@
   <table class="powers">
     <thead><tr><th>Action</th><th>Who</th><th>What it does</th><th>Reversible</th></tr></thead>
     <tbody>
-      <tr><td>Kick</td><td>Moderator</td><td>Closes your connection. Nothing is stored and you can reconnect immediately. It is a way to interrupt, not to exclude.</td><td>Yes, instantly</td></tr>
+      <tr><td>Kick</td><td>Moderator</td><td data-i18n="rules.kick_does">Closes your connection and takes you off this server's member list, your name with you. Nothing is kept on record, and you can reconnect and join again straight away. It is a way to interrupt, not to exclude.</td><td>Yes, instantly</td></tr>
       <tr><td>Mute</td><td>Moderator</td><td>You stay connected and can read, but cannot post in channels or send private messages.</td><td>Yes</td></tr>
       <tr><td>Ban</td><td>Admin only</td><td>Refuses your key at connection. It is checked before anything else and survives restarts.</td><td>Yes, by an admin</td></tr>
-      <tr><td>Delete a message</td><td>Moderator (anyone may delete their own)</td><td>Removes it for everyone.</td><td><strong>No</strong></td></tr>
+      <tr><td>Delete a message</td><td>Moderator (anyone may delete their own)</td><td data-i18n="rules.delete_does">Removes it for everyone, with the pictures and files its author posted only in it.</td><td><strong>No</strong></td></tr>
       <tr><td>Wipe a channel</td><td>Admin only</td><td>Deletes that channel's history.</td><td><strong>No</strong></td></tr>
       <tr><td>Change someone's role</td><td>Admin only</td><td>Grants or removes moderator and similar roles.</td><td>Yes</td></tr>
     </tbody>
@@ -152,11 +152,11 @@
   </p>
 
   <h2>Reporting something</h2>
-  <p>
-    Use <code>/report &lt;name&gt; &lt;what happened&gt;</code> in chat. Include the reason: it
-    is the difference between a report that can be acted on and one that cannot. Reports go to
-    moderators who are connected at that moment.
-  </p>
+  <!-- How reports are made since the report window (2026-10-09; the old /report command now only
+       says this), and the content policy (2026-11-20, docs/legal/content-policy.md in the Library). -->
+  <p data-i18n="rules.report_how">Use Report on one of the person's messages, in your conversation with them, or on their name in the member list, and choose the reason. Reports wait for this server's admins and moderators, who are volunteers, not police. The person you report is not told who reported them.</p>
+  <p><span data-i18n="rules.report_policy">What is never allowed, how to report it straight to the authorities, and what an admin does about a report are in the content policy.</span>
+    <a href="/library#content-policy" data-i18n="content_policy.open" data-i18n-tip="content_policy.open_hint" data-tip-desc="Opens the content policy in the Library: what is never allowed on HumanityOS servers, how to report it here or straight to the authorities, and what a server's operator does about a report.">Read the content policy</a></p>
   <p>
     You do not have to involve a moderator at all if you would rather not. You can block or
     mute anyone yourself, close a conversation, or leave a space, and nobody is told that you
@@ -233,14 +233,10 @@
         the database directly with no signed record, so not every action is logged yet, and this
         server has not yet published the signed policy that declares who may moderate it. Until
         both land, treat the log as a growing record rather than a complete one, and keep asking.</li>
-      <li><strong>Reports have no tracked outcome.</strong> There is no status on a report, so you
-        will not automatically hear what happened to one you filed. Ask if you want to know.</li>
-      <li><strong>Reports only reach moderators who are online</strong> when you file them. There is
-        no queue holding them for someone who was away.</li>
+      <li data-i18n="rules.gap_outcome">You are not told what was decided on a report you filed. Each report has a status the admins and moderators see, open or decided, and downloading your data shows each report you filed with its decision. Ask if you want to know more.</li>
       <li><strong>A ban message gives no reason and no contact.</strong> All you see is that you were
         banned. That is why this page exists at a public address you can reach while banned.</li>
-      <li><strong>There is no formal warning step</strong> in the software. A warning is a person
-        telling you, not a recorded action.</li>
+      <li data-i18n="rules.gap_warning">A warning is a notice the server sends you, asking you to keep to the rules. It is not kept as a record of its own, only as the decision on a report when it came from one.</li>
       <li><strong>No copyright agent is registered for this server yet.</strong> In the United States
         the law shields a site from blame for what its members upload only once the site registers an
         agent with the Copyright Office to receive takedown notices. This server has not done that yet. Until it

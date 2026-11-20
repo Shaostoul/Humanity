@@ -1624,6 +1624,10 @@
         // What this server keeps about a visitor (2026-11-07, docs/design/privacy-notice.md): on
         // every page, because a privacy policy has to be easy to find from wherever someone is.
         '<a href="/privacy" data-i18n="footer.privacy" data-i18n-tip="footer.privacy_hint" data-tip-desc="Opens the privacy page: what this server keeps about you, for how long, and how to erase it." style="margin-left:var(--space-lg, 12px);">Privacy</a>' +
+        // What is never allowed and how to report it (2026-11-20, docs/legal/content-policy.md, in the
+        // Library): beside Privacy and for the same reason, a policy has to be one press away from
+        // wherever someone is when they need it; the footer is on every page, the privacy page is one.
+        '<a href="/library#content-policy" data-i18n="footer.content_policy" data-i18n-tip="footer.content_policy_hint" data-tip-desc="Opens the content policy in the Library: what is never allowed on HumanityOS servers, how to report it, and what a server\'s operator does about a report." style="margin-left:var(--space-lg, 12px);">Content policy</a>' +
         '<a href="#" id="hos-take-tour" style="margin-left:var(--space-lg, 12px);font-size:0.72rem;">Take Tour</a>' +
       '</div>' +
     '</div>';

@@ -845,9 +845,29 @@ function safetyPanelHtml(model) {
     html += `<p style="${SAFETY_NOTE}">Nobody is blocked.</p>`;
   }
   html += safetyWarningsHtml(model);
-  // The protected setup (10h, chat-protected.js): its own section, last.
+  // The protected setup (10h, chat-protected.js): its own section.
   if (typeof protectedSafetyHtml === 'function') html += protectedSafetyHtml();
+  // What is not allowed, and how to report it (2026-11-20): last, as on the desktop.
+  html += contentPolicySafetyHtml();
   return html;
+}
+
+/**
+ * The content policy, one press away (2026-11-20): docs/legal/content-policy.md in the Library
+ * (slug content-policy), the Digital Public Goods Standard's indicator 9b. A short section and a
+ * link that opens the policy in a new tab, so the chat stays where it was. Words and the hint by
+ * key from data/i18n/en.json; the desktop's twin is src/gui/pages/safety_content_policy.rs, and
+ * scripts/tests/content-policy-web.test.js checks what this draws.
+ */
+function contentPolicySafetyHtml() {
+  const T = (key) => (window.i18n ? i18n.t(key) : key);
+  return '<div class="safety-content-policy" data-content-policy>'
+    + `<h3 style="${SAFETY_H3}" data-i18n="content_policy.heading">${reachEsc(T('content_policy.heading'))}</h3>`
+    + `<p style="${SAFETY_NOTE}">${reachEsc(T('content_policy.body'))}</p>`
+    + `<a class="vr-btn" href="/library#content-policy" target="_blank" rel="noopener" data-i18n="content_policy.open"`
+    + ` data-i18n-tip="content_policy.open_hint" data-tip-desc="${reachEsc(T('content_policy.open_hint'))}"`
+    + ` style="display:inline-block;font-size:0.75rem;text-decoration:none;">${reachEsc(T('content_policy.open'))}</a>`
+    + '</div>';
 }
 
 /**

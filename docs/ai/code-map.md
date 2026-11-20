@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1581 Rust files (806,529 lines) under `src/` and `crates/*/src/`; 149 JavaScript files (92,260 lines) under `web/`.
+1583 Rust files (806,673 lines) under `src/` and `crates/*/src/`; 149 JavaScript files (92,299 lines) under `web/`.
 
 ## Folders
 
@@ -58,7 +58,7 @@
 - `src/gui/crossing_tests/` (15 files): TESTS OF THE CRATES BELOW, TOGETHER WITH THE GUI OR WITH EACH OTHER (the crate split, 2026-10-31, docs/design/crate-split.md, "Not counte...
 - `src/gui/garment_textures/` (2 files): GARMENT TEXTURES (2026-11-10): Settings > Graphics > Garment textures, its levels, its plan of the garment texture pools, its optional pa...
 - `src/gui/model_view/` (8 files): The 3D model viewer (docs/design/model-viewer.md): a `.glb` or `.stl` file, fetched when the person presses View in 3D, read on a worker,...
-- `src/gui/pages/` (94 files): GUI pages composing widgets into full screens.
+- `src/gui/pages/` (96 files): GUI pages composing widgets into full screens.
 - `src/gui/pages/apps/` (12 files): Apps (2026-10-19): the Games library and the Tools page made one page (the operator: "What do you think about changing the name of ...
 - `src/gui/pages/calculator/` (1 files): Calculator page, full calculator with expression display, result line, button grid with scientific functions, history panel, keyboard input.
 - `src/gui/pages/chat/` (53 files): 3-panel chat page matching the website layout.
@@ -978,7 +978,7 @@
 - `market_directory.rs` (1191): Market directory: the signed provider/offering catalog (v0.1141). Main items: DirProvider, DirOffering, seed_for_snapshot, draw.
 - `market_publish.rs` (1077): In-app Market publishing (v0.1143): create or update your shop (provider_v1) and publish offerings (offering_v1) without touching a terminal. Main items: is_open, open, take_published, draw.
 - `market.rs` (806): Marketplace, browse, search, and create listings. Main items: category_color, draw.
-- `mod.rs` (139): GUI pages composing widgets into full screens.
+- `mod.rs` (142): GUI pages composing widgets into full screens.
 - `notes.rs` (331): Notes page, full notes app with sidebar list, text editor, toolbar with bold/italic markers, word count, auto-save indicator, delete with confirmation. Main items: draw.
 - `orgs.rs` (1001): Organisations page (rung 1, 2026-11-14, docs/design/organisations.md): your organisations, start one, open an invitation, acceptance or update someone sent you, and for each organisation its member... Main items: View, Tab, OrgsPage, when, role_word, log_words, draw, role_id_from.
 - `own_profile.rs` (400): This person's own profile on each server they use (2026-10-11, BUG-193, BUG-194, BUG-196). Main items: OwnProfile, current_server, names_socket, own_copy, keep_copy, take_own_copy, take_own_copy_at, sign_frame (+11 more).
@@ -992,9 +992,10 @@
 - `quests.rs` (419): Quests: the SIM quest surface, gameplay only. Main items: hub_summary, draw.
 - `real.rs` (150): Profile, your character / identity tab (renamed from "Real" v0.378; page carve v0.358). Main items: draw.
 - `relay_control.rs` (782): Relay Control Center (v0.846) - one main-menu entry to manage every relay the operator owns from one PC. Main items: draw.
+- `safety_content_policy.rs` (60): Settings > Safety > What is not allowed, and how to report it (2026-11-20): two sentences and one button that opens the content policy in the Library (docs/legal/content-policy.md, copied into data... Main items: draw_section, open_policy, CONTENT_POLICY_SLUG.
 - `safety_group_reports.rs` (166): Settings > Safety > Reports about your groups (section 10j of docs/design/blocking-and-safe-mode.md, 2026-10-10), and the count on a group in the chat's group list that leads here. Main items: draw_section, group_count.
 - `safety_protected.rs` (350): Settings > Safety > Protected setup (step G of docs/design/blocking-and-safe-mode.md, section 10h, 2026-10-10), and the small PIN prompt every locked action opens. Main items: PhraseLock, draw_status_line, accept_label, phrase_lock, draw_phrase_lock, draw_protected_section, draw_pin_prompt.
-- `safety.rs` (392): Settings > Safety (step B of docs/design/blocking-and-safe-mode.md, section 10c, 2026-10-09): "Who can reach me", one row per kind of contact the server checks (Messages, Calls, Trades) with the fi... Main items: draw_safety_content, draw_warnings_switch, chosen_rows, draw_requests_list, draw_blocked_people.
+- `safety.rs` (397): Settings > Safety (step B of docs/design/blocking-and-safe-mode.md, section 10c, 2026-10-09): "Who can reach me", one row per kind of contact the server checks (Messages, Calls, Trades) with the fi... Main items: draw_safety_content, draw_warnings_switch, chosen_rows, draw_requests_list, draw_blocked_people.
 - `screen_settings.rs` (237): A placed in-world screen's settings panel, opened by the cog on its picture in the build editor (rung 2 of "Aim assist, any size, and each screen's own settings", docs/design/in-world-screens.md, 2... Main items: Show, showable_pages, page_name, camera_posts, current, set_show, set_size, draw.
 - `server_settings.rs` (3270): Server and group settings page. Main items: draw, draw_changed_underneath_note, send_server_settings_update, settings_update_frame, int_input, send_slash.
 - `server_strip.rs` (429): The server strip (Media round 5, docs/design/media-round-5-plan.md 3.11, lane 1E, 2026-10-12): a bar fixed under the top menu on the four pages whose content belongs to one server (Media, Watch, Ch... Main items: shown_on, host_of, strip_label, server_name, uploads_on_their_way, uploads_question, draw, STRIP_ID (+12 more).
@@ -1014,7 +1015,7 @@
 - `weather_panel.rs` (626): Live weather panel (v0.1050, F11). Main items: WeatherPreset, test_stop_rect, sea_description, fmt_day_length, draw, PRESETS.
 - `where_you_live.rs` (621): "Choose where you live" (ship homes increment 6, lane 1E, 2026-10-12; docs/design/ship-homes-increment-6-plan.md section 3.9): the one widget that says where you live and lets you choose, drawn in... Main items: Choice, Place, starts, a_or_an, row_name, first_sentence, shared_line, engagement_line (+19 more).
 - `world_clock_admin.rs` (386): Server Settings > ADMIN > Shared world clock (2026-10-04). Main items: draw, explainer, real_duration, crop_growth_days.
-- tests: `dev_journal_tests.rs`, `dev_tab_tests.rs`, `escape_menu_tests.rs`, `fleet_ledger_tests.rs`, `household_tests.rs`, `hud_corner_tests.rs`, `inventory_garden_tests.rs`, `orgs_tests.rs`, `own_profile_tests.rs`, `performance_layout_tests.rs`, `privacy_click_tests.rs`, `screen_settings_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `tasks_click_tests.rs`, `where_you_live_tests.rs`
+- tests: `dev_journal_tests.rs`, `dev_tab_tests.rs`, `escape_menu_tests.rs`, `fleet_ledger_tests.rs`, `household_tests.rs`, `hud_corner_tests.rs`, `inventory_garden_tests.rs`, `orgs_tests.rs`, `own_profile_tests.rs`, `performance_layout_tests.rs`, `privacy_click_tests.rs`, `safety_content_policy_tests.rs`, `screen_settings_tests.rs`, `server_strip_tests.rs`, `showroom_tests.rs`, `tasks_click_tests.rs`, `where_you_live_tests.rs`
 
 ## src/gui/pages/apps/
 
@@ -1682,7 +1683,7 @@
 - `chat-notify.js` (946): ── chat-notify.js ────────────────────────────────────────────────────────── Main items: T, nowSecs, rules, esc, rerender, server, loadJson, saveJson (+71 more).
 - `chat-onboarding.js` (471): ── First-Time Onboarding Wizard ── Main items: showOnboardingWizard, render, finish, buildStep, step0, step1, wireStep1, step2 (+4 more).
 - `chat-p2p.js` (869): ── P2P: inject overlay modal CSS (no style.css dependency) ── Main items: exportContactCard, showContactCardExportModal, renderQrCode, showContactCardImportModal, importContactCardFromModal, importContactCard, verifyContactCardSignature, sameKeyHex (+17 more).
-- `chat-privacy.js` (1491): ── chat-privacy.js ─────────────────────────────────────────────────────── Main items: loadPrivacyTiers, tierWords, sendPresenceChoice, applyPrivacyTier, reassertPrivacyTier, privacyExplanationText, maybeShowPrivacyTierModal, exportMyAccountData (+57 more).
+- `chat-privacy.js` (1511): ── chat-privacy.js ─────────────────────────────────────────────────────── Main items: loadPrivacyTiers, tierWords, sendPresenceChoice, applyPrivacyTier, reassertPrivacyTier, privacyExplanationText, maybeShowPrivacyTierModal, exportMyAccountData (+58 more).
 - `chat-profile.js` (1832): ── Profile System ── Main items: saveProfileLocal, loadProfileLocal, openEditProfileModal, hasProfileData, buildProfileUpdate, filesAcceptUnsent, setFilesAcceptUnsent, profileStorage (+54 more).
 - `chat-protected.js` (901): ── chat-protected.js ───────────────────────────────────────────────────── Main items: protectedNow, loadProtectedPreset, pLabel, pEsc, pSay, pStore, pSocketOpen, protectedRedrawAll (+39 more).
 - `chat-reports.js` (1166): ── chat-reports.js ─────────────────────────────────────────────────────── Main items: repEsc, repSay, repName, repSameKey, repWhen, repTextLabel, repSocketOpen, loadReportReasons (+50 more).
@@ -1776,7 +1777,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8167): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8182): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).
@@ -1810,7 +1811,7 @@
 - `self-mail.js` (161): ── self-mail.js ────────────────────────────────────────────────────────── Main items: isSelfPut, randomDelay, createSelfMail, hosSelfMailSendNow.
 - `server-strip.js` (413): ── server-strip.js ─────────────────────────────────────────────────────── Main items: stripLabel, linkedOrigin, samePagePath, switchLinks, protectedHidesServers, mountServerStrip.
 - `settings.js` (551): Humanity Settings Panel Main items: load, save, hexToRgb, darken, applySettings, isOnChat, injectGearButton, togglePanel (+5 more).
-- `shell.js` (2610): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, navEsc, navRowTab, navRowHtml (+13 more).
+- `shell.js` (2614): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, navEsc, navRowTab, navRowHtml (+13 more).
 - `ship-plan.js` (158): The ship's PLAN for the web Maps page (Maps increment 3, "into the ship, deck by deck", Main items: storeyIndex, wallInStorey, levelAt, resolve, wallsAt, roomsOn, roomIsNamed, bounds (+2 more).
 - `sol-orbits.js` (235): The Sun's family for the web Maps page (Maps increment 2, "a solar system Main items: secondsSinceJ2000, kepler, perifocal, precessionDegPerSec, bodyOrbit, eccentricAnomalyAt, orbitPoint, positionAU (+8 more).
 - `sound-levels.js` (263): shared/sound-levels.js: the person's own level for each sound the website plays (2026-11-06), Main items: keptDb, load, save, levelDb, setLevel, reset, resetAll, gain (+5 more).

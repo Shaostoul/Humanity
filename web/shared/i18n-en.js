@@ -2029,6 +2029,12 @@ window.HOS_I18N_EN = {
     "finish_wall_side_open": "Side facing no room",
     "finish_wall_title": "This wall's finish"
   },
+  "content_policy": {
+    "body": "Child sexual abuse material is never allowed on any HumanityOS server, and nor is anything else the [[Humanity Accord|humanity_accord]] forbids absolutely. Private messages are sealed, so nobody on a server can read them: if you see something in one, report it from the conversation, and never forward a picture. If anyone is in danger right now, call your local emergency number.",
+    "heading": "What is not allowed, and how to report it",
+    "open": "Read the content policy",
+    "open_hint": "Opens the content policy in the Library: what is never allowed on HumanityOS servers, how to report it here or straight to the authorities, and what a server's operator does about a report."
+  },
   "crafting": {
     "page_title": "Crafting, HumanityOS",
     "title": "Crafting",
@@ -4083,7 +4089,14 @@ window.HOS_I18N_EN = {
     "cannot_sign": "The file was not sent: your key is not unlocked on this device, so your choice to send it with its hidden details could not be signed."
   },
   "rules": {
-    "disagree_body": "You can leave, and you can start your own. The software is free and open source, a server is a single binary, and nothing here punishes you for running one. The Accord is explicit that forking a community is legitimate rather than disloyal. A space that could not be left, or could not be replaced, would not be worth being in."
+    "checked_line": "The table of powers, how to report and the list of what this server does not have yet were checked against the server's code on 20 November 2026.",
+    "delete_does": "Removes it for everyone, with the pictures and files its author posted only in it.",
+    "disagree_body": "You can leave, and you can start your own. The software is free and open source, a server is a single binary, and nothing here punishes you for running one. The Accord is explicit that forking a community is legitimate rather than disloyal. A space that could not be left, or could not be replaced, would not be worth being in.",
+    "gap_outcome": "You are not told what was decided on a report you filed. Each report has a status the admins and moderators see, open or decided, and downloading your data shows each report you filed with its decision. Ask if you want to know more.",
+    "gap_warning": "A warning is a notice the server sends you, asking you to keep to the rules. It is not kept as a record of its own, only as the decision on a report when it came from one.",
+    "kick_does": "Closes your connection and takes you off this server's member list, your name with you. Nothing is kept on record, and you can reconnect and join again straight away. It is a way to interrupt, not to exclude.",
+    "report_how": "Use Report on one of the person's messages, in your conversation with them, or on their name in the member list, and choose the reason. Reports wait for this server's admins and moderators, who are volunteers, not police. The person you report is not told who reported them.",
+    "report_policy": "What is never allowed, how to report it straight to the authorities, and what an admin does about a report are in the content policy."
   },
   "screens": {
     "settings_title": "Screen settings: {{name}}",
@@ -6952,6 +6965,8 @@ window.HOS_I18N_EN = {
     }
   },
   "footer": {
+    "content_policy": "Content policy",
+    "content_policy_hint": "Opens the content policy in the Library: what is never allowed on HumanityOS servers, how to report it, and what a server's operator does about a report.",
     "licence": "free and open source",
     "licence_hint": "Opens LICENSING.md on GitHub: the code is under the GNU AGPL 3.0, the Library and docs under CC BY-SA 4.0, and the data under CC0.",
     "privacy": "Privacy",

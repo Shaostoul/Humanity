@@ -62,4 +62,9 @@ the operator submits.
 ## Progress
 
 - 2026-11-18: the copyright line is in (LICENSING.md, README). The instrument-pack licences are checked (all open).
-- Next, at the weekly reset: the dated legal finding on what US law asks of a server operator about child sexual abuse material, then the content policy and its report-and-remove process (both apps, linked from Settings > Safety and the website), then the evidence document for the nine indicators, then the eligibility tool. The operator submits.
+- 2026-11-20: the content policy is in (gap 9b): the dated finding
+  [`2026-11-20-csam-reporting.md`](2026-11-20-csam-reporting.md), the policy
+  `docs/legal/content-policy.md` (in the Library), linked from Settings > Safety in both apps, the
+  website's footer and its rules page. Left: the evidence document for the nine indicators, then
+  the eligibility tool; the operator submits.
+- (Written 2026-11-18) Next, at the weekly reset: the dated legal finding on what US law asks of a server operator about child sexual abuse material, then the content policy and its report-and-remove process (both apps, linked from Settings > Safety and the website), then the evidence document for the nine indicators, then the eligibility tool. The operator submits.

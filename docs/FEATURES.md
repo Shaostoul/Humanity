@@ -1479,7 +1479,14 @@ synced to your own devices. **Reports the admins can check** (v0.1469): signed r
 reported person's own signed DMs as evidence, never a file; Reports page for admins and
 moderators; kept 90 days. **Help outside this server** (v0.1472): for a child or someone in
 danger, the report dialog shows the emergency number and child-report body for a country the
-person picks (`data/safety/outside_help.json`, from a dated finding). **Calls through the
+person picks (`data/safety/outside_help.json`, from a dated finding). **The content policy**
+(2026-11-20): `docs/legal/content-policy.md`, in the Library as "What Is Not Allowed, and How to
+Report It" (what is never allowed, child sexual abuse material first; how to report in the app or
+straight to the CyberTipline; what an operator does on a report; what sealed DMs mean), from the
+dated finding `docs/reference/findings/2026-11-20-csam-reporting.md`; linked last in Settings >
+Safety on both clients (native `src/gui/pages/safety_content_policy.rs`, web
+`web/chat/chat-privacy.js` `contentPolicySafetyHtml`), the site footer (`web/shared/shell.js`) and
+the rules page. **Calls through the
 server** (v0.1470): our own STUN and a room-scoped forwarder on UDP 3478, so nobody in a call sees
 another's address. **How my calls connect** (10p, 2026-10-22): a per-person choice in Settings >
 Privacy (desktop) and Settings > Safety (web), words from `data/net/call_connection.json`: Private

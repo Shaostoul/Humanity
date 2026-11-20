@@ -132,3 +132,5 @@ Everything here is CC BY-SA 4.0 ([LICENSE](LICENSE)): copy it, adapt it, improve
 needed, as long as you credit HumanityOS and share what you adapt the same way. The Humanity Accord
 (`accord/`) is CC0, public domain. Which licence covers which folder: [LICENSING.md](../LICENSING.md).
 The name has its own short policy: [legal/trademark-policy.md](legal/trademark-policy.md).
+What is not allowed on HumanityOS servers, how to report it and what an operator does about a report:
+[legal/content-policy.md](legal/content-policy.md).

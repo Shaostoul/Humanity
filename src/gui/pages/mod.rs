@@ -38,6 +38,9 @@ pub mod safety_protected;
 /// Settings > Safety > Reports about your groups, and the count on a group in the chat (10j,
 /// 2026-10-10).
 pub mod safety_group_reports;
+/// Settings > Safety > What is not allowed, and how to report it: the content policy one press
+/// away (2026-11-20).
+pub mod safety_content_policy;
 pub mod profile;
 pub mod profile_skills;
 pub mod real;

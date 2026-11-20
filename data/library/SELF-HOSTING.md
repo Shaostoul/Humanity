@@ -381,6 +381,12 @@ BIND_ADDRESS=0.0.0.0                       # Address (default 0.0.0.0, every int
                                            # 127.0.0.1 = this computer only, enough when
                                            # nginx on the same box is the way in)
 
+# Required for CALLS through your server when it listens on every interface:
+# the name callers are told to reach its call forwarder at (UDP 3478 by default,
+# docs/admin/call-forwarder.md). Without it the forwarder is not started and
+# calls say the server is not set up for them; the log names this setting.
+TURN_PUBLIC_HOST=your-domain.example
+
 # Optional
 WEBHOOK_URL=https://your-webhook-endpoint # Notified on new messages
 WEBHOOK_TOKEN=your_webhook_bearer_token   # Auth for webhook calls

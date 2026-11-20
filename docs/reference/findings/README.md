@@ -744,3 +744,10 @@ what we will say about it.
   the release zip carrying no licence of its own, why showing unchanged pictures leaves our own
   licences alone (a collection, not an adaptation), and why volunteers' emoji must be drawn from
   scratch to be CC0. openmoji.org bars ClaudeBot and was not read. Not legal advice.
+- [`2026-11-20-csam-reporting.md`](2026-11-20-csam-reporting.md),
+  the US part of the 10 October report-duties finding re-checked against the official current US
+  Code (through Pub. L. 119-142): 18 U.S.C. 2258A unchanged for a server operator since the 2024
+  REPORT Act (its last amendment, Pub. L. 119-60 of December 2025, concerns NCMEC); the report to
+  the CyberTipline, a year's preservation, no duty to monitor or scan (2258A(f)), the limited
+  liability in 2258B; the STOP CSAM Act still not law; whether a volunteer's server is a
+  "provider" still a lawyer's question. The ground for docs/legal/content-policy.md. Not legal advice.

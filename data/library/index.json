@@ -1598,6 +1598,16 @@
           ]
         },
         {
+          "title": "What Is Not Allowed, and How to Report It",
+          "file": "content-policy.md",
+          "tags": [
+            "safety",
+            "reference",
+            "real",
+            "beginner"
+          ]
+        },
+        {
           "title": "Unfinished Software: What It Means and Why the Warning Is There",
           "file": "unfinished_software.md",
           "tags": [

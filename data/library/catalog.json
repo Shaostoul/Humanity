@@ -1483,6 +1483,16 @@
           ]
         },
         {
+          "title": "What Is Not Allowed, and How to Report It",
+          "src": "docs/legal/content-policy.md",
+          "tags": [
+            "safety",
+            "reference",
+            "real",
+            "beginner"
+          ]
+        },
+        {
           "title": "Unfinished Software: What It Means and Why the Warning Is There",
           "src": "docs/user/rights/unfinished_software.md",
           "tags": [

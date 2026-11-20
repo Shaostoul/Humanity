@@ -6,7 +6,9 @@
 //! also be blocked; Reports about your groups (10j), drawn by safety_group_reports.rs; Warnings
 //! (step F, 10g), the "Warnings on messages" switch; Blocked people (step C, 10d), each with the
 //! date and Unblock; and the Protected setup (step G, 10h), drawn by
-//! safety_protected.rs, whose always-visible line heads the page while it is on. While it is on,
+//! safety_protected.rs, whose always-visible line heads the page while it is on; and last, What
+//! is not allowed (2026-11-20), drawn by safety_content_policy.rs, whose button opens the content
+//! policy in the Library. While the protected setup is on,
 //! a row, a tick, Accept and turning the warnings off ask its PIN (engine/protected.rs).
 //!
 //! What the rows show is what the SERVER last said (`reach_settings`, kept in the DM store per
@@ -52,6 +54,7 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         draw_warnings_switch(ui, theme, state, accent);
         draw_blocked_people(ui, theme, state, accent);
         super::safety_protected::draw_protected_section(ui, theme, state, accent);
+        super::safety_content_policy::draw_section(ui, theme, state, accent);
         return;
     }
     let server_said = crate::engine::reach::current(state);
@@ -120,6 +123,8 @@ pub(crate) fn draw_safety_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
     draw_warnings_switch(ui, theme, state, accent);
     draw_blocked_people(ui, theme, state, accent);
     super::safety_protected::draw_protected_section(ui, theme, state, accent);
+    // What is not allowed, and how to report it: the content policy, last (safety_content_policy.rs).
+    super::safety_content_policy::draw_section(ui, theme, state, accent);
 }
 
 /// Settings > Safety > Warnings (step F of docs/design/blocking-and-safe-mode.md, 10g): the

@@ -734,7 +734,10 @@ sources say:
   purpose, and what it would require if it does.
 - What duties a server operator has on learning of child sexual abuse
   material (in the US, start from 18 U.S.C. 2258A), and what the report flow
-  in section 8 must then do.
+  in section 8 must then do. (Answered in
+  `docs/reference/findings/2026-10-10-report-duties-child-abuse-material.md`,
+  re-checked in `2026-11-20-csam-reporting.md`; what the project tells people
+  is `docs/legal/content-policy.md`, linked last in Settings > Safety.)
 
 Operator question 6 covers the name.
 
