@@ -240,7 +240,14 @@ test("the gate's clock starts with the game: a machine wait longer than the gate
   // the rig's exe). On this machine the sweep finds the pair in the main checkout, or does not.
   const dxc = ["dxcompiler.dll", "dxil.dll"].every((d) => fs.existsSync(path.join(r.rig, d)));
   const verdict = r.out.slice(r.out.lastIndexOf("-".repeat(72), r.out.indexOf("RESULT:")));
-  if (dxc) assert.match(verdict, /shader compiler {2}DXC/, `the verdict names DXC:\n${tail(r)}`);
+  // DXC and FXC are DirectX 12's compilers, Windows by nature (2026-11-20: Linux CI failed here on
+  // "the verdict names FXC, loudly"). Off Windows the verdict says there is no such choice, and
+  // never raises the FXC alarm. Seen red on Windows with this branch forced on: the verdict had no
+  // such line ("the verdict says the DXC or FXC question is not this platform's").
+  if (process.platform !== "win32") {
+    assert.match(verdict, /shader compiler {2}none to choose: off Windows/, `the verdict says the DXC or FXC question is not this platform's:\n${tail(r)}`);
+    assert.doesNotMatch(verdict, /SHADER COMPILER: FXC/, "no FXC alarm off Windows");
+  } else if (dxc) assert.match(verdict, /shader compiler {2}DXC/, `the verdict names DXC:\n${tail(r)}`);
   else assert.match(verdict, /SHADER COMPILER: FXC/, `the verdict names FXC, loudly:\n${tail(r)}`);
 });
 

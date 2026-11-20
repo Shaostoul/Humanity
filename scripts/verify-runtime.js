@@ -429,6 +429,10 @@ function report(sweepExit) {
     for (const l of DXC.fxcBanner({ exe: path.join(RIG, PLAT.EXE_NAME), pid: BOOTED && BOOTED.game_pid, rig: "the probe", where: DXC.pairHome(REPO) })) console.log(l);
   } else if (compiler) {
     console.log(`shader compiler  ${compiler}`);
+  } else if (!PLAT.IS_WINDOWS) {
+    // DXC and FXC are DirectX 12's shader compilers (2026-11-20, Linux CI): off Windows the game renders
+    // with Vulkan or Metal and there is no slow fallback to warn of, so the verdict says that instead.
+    console.log("shader compiler  none to choose: off Windows the game renders with Vulkan or Metal; DXC or FXC is DirectX 12's question");
   }
 
   if (!fs.existsSync(manifestPath) && !DRY && PHASE === "waiting") {
