@@ -54,10 +54,10 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
 (docs/reference/research/2026-11-16-pqc-review/, every claim checked in the code). Security is work now
 (CLAUDE.md), so at the reset, in order:
 
-1. **Conformance tests first**: NIST ACVP vectors for FIPS 203 and 204 against the pinned crates, web
+1. **[DONE 2026-11-20, aaedc4d85: 240 ACVP vectors native and web, cross tests both ways with a full envelope, advisories in CI, BUG-328 padding fixed]** **Conformance tests first**: NIST ACVP vectors for FIPS 203 and 204 against the pinned crates, web
    and native; cross-implementation tests both ways with a full sealed-sender v2 envelope fixture;
    cargo audit or vet and npm audit in CI; every crypto upgrade reruns them.
-2. **The wallet key under its own label** (decided by the operator: "Best point to do this now is
+2. **[DONE 2026-11-20, b4bab9a7e: derived under hum/ed25519-wallet/v1 on both apps, no notice]** **The wallet key under its own label** (decided by the operator: "Best point to do this now is
    before anyone is using the app"): today the Solana Ed25519 key is the recovery phrase's raw entropy,
    the root of every key.
 3. **X-Wing (X25519 + ML-KEM-768) for DMs**, after the draft-version and known-answer checks.
@@ -74,7 +74,7 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    sessions with a KEM ratchet; ten rungs; five operator questions in section 18), research in
    docs/reference/research/2026-11-20-forward-secrecy/.
 6. An outside review once 1 to 5 are built.
-6b. **Website script policy** (2026-11-20, after an outside AI review flagged plain-JS XSS risk and
+6b. **[DONE 2026-11-20, a1377bf55: no inline script anywhere; the live header applied the same night, script-src 'self' alone, img-src keeps https: for click-to-load pictures; united-humanity.us's nginx is now one file, sites-enabled linking sites-available, after the enabled copy had drifted]** **Website script policy** (2026-11-20, after an outside AI review flagged plain-JS XSS risk and
    the live headers confirmed it): the CSP allows `script-src 'unsafe-inline'` and
    `https://cdn.jsdelivr.net`, though no script comes from that CDN (only twemoji images, one
    pinned to `@latest`); `img-src` allows `https://*`. Drop the CDN from script-src, vendor the
@@ -88,7 +88,7 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    Noto Emoji; Fluent Emoji), one set for both apps, as a data pack; then a HumanityOS set grown by
    volunteers, each design proposed and voted on, replacing the open set's emoji one by one
    (docs/outreach/volunteers-wanted.md, "Emoji designers").
-7. **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent. Beside it, a
+7. **[DONE 2026-11-20: e20391f71 and 1b74b5633, Linux tooling and CI (tooling-linux, sim runs); the squash-aware cleanup merged earlier]** **The macOS and Linux dev tooling** (docs/design/cross-platform-dev.md): one agent. Beside it, a
    toolsmith: **`just clean-worktrees` that recognises squash merges.** It removed 2 of 211 on
    2026-11-16 and kept the rest as "real work", because a squash-merged branch's commits never appear
    in main's history. Fix: the merge step appends each landed branch to a ledger (branch, squash
@@ -113,7 +113,7 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
 9b. **DONE 2026-11-20 (5a788f29a): BUG-322's code fix** (a relay never told its public name offers
    no forwarder, never another server's) and the brief's SERVERS row (`just server-upkeep`: piled-up
    security updates, stale package lists, an open call port with no TURN_PUBLIC_HOST). Its follow-on,
-   in flight: ALLOWED_ORIGINS stops defaulting to another server (operator: "Yes.", 2026-11-20).
+   done the same night: ALLOWED_ORIGINS stops defaulting to another server (BUG-329, 0b2123102; united-humanity.us now sets it explicitly).
 10. **Task depth and everyday comforts** (operator, 2026-11-18): subtasks, recurring tasks (the
    garden's schedules make them), reminders, time tracking, goals, a focus timer, syntax
    highlighting, spell checking: docs/design/everyday-suite.md, section 2.15a.
@@ -132,7 +132,7 @@ In order: (1) compare the open score formats (MusicXML, MIDI, LilyPond, ABC, MEI
 found), licences quoted, for "everyone can easily modify" and for orchestral detail, and recommend
 one (docs/reference/research/, CLAUDE.md's compare-before-adopting rule); (2) [DONE 2026-11-20: docs/reference/findings/2026-11-20-public-domain-scores.md] a dated finding on
 which public-domain editions and score files of Grieg's In the Hall of the Mountain King and
-Beethoven are free to use, and from where; (3) the score player in crates/humanity-music: written
+Beethoven are free to use, and from where; (3) [RUNG 1 DONE 2026-11-20, d26fdda70: our own MEI reader, Ode to Joy with its words, the Music page's Written music list; rung 2 next, docs/design/score-player.md] the score player in crates/humanity-music: written
 pieces as data in that format, played on our own instruments at the tuning, optionally in a
 genre's palette; (4) the Humanity Accord as instrumental music in that format, with the five-vowel
 choir singing its syllables and the line scrolling like a sing-along. Design notes:
