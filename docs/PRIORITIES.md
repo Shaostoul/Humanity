@@ -511,7 +511,7 @@ refused, because the signed chat words changed); open UDP 3478 for Direct calls
 
 ### DONE 2026-10-23/24: the wave, released as v0.1544.0
 
-Rust 1.99.1 pinned for PC, CI and both servers, with an UPDATES row in `just brief`; the project
+Rust pinned for PC, CI and both servers (1.100.0 since 2026-11-20), with an UPDATES row in `just brief`; the project
 hooks; the saved skills (release, merge-agent, game-checks); CLAUDE.md split by audience (81 KB to
 36 KB); the build slot, the test-run policy and the lint cache; the closed-loop plan, reviewed
 three times; the How-to design and increment 1; continuous backup; voice connection modes;

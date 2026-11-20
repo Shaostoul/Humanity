@@ -9,5 +9,5 @@
 # rebuild of every target folder at that point in development. docs/SOP.md "Keeping components
 # up to date" has the steps (servers included).
 [toolchain]
-channel = "1.99.1"
+channel = "1.100.0"
 profile = "default"
