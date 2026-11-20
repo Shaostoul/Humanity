@@ -177,7 +177,8 @@ function loadChat() {
     setTimeout: () => 0, clearTimeout: () => {}, setInterval: () => 0, clearInterval: () => {},
     WebSocket: Object.assign(function () { return anything(); }, { OPEN: 1, CONNECTING: 0, CLOSED: 3 }),
     addEventListener: () => {}, removeEventListener: () => {}, matchMedia: () => anything(),
-    requestAnimationFrame: () => 0, Notification: anything(), crypto: anything(),
+    requestAnimationFrame: () => 0, Notification: anything(),
+    crypto: new Proxy(anything(), { get: (t, p) => (p === "getRandomValues" ? (a) => globalThis.crypto.getRandomValues(a) : t[p]) }), // safe-markup.js's handler tokens
     TextEncoder, TextDecoder, URLSearchParams, URL, CustomEvent: function () {},
   };
   ctx.window = ctx;

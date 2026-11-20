@@ -1222,19 +1222,19 @@ function renderTiles(ctx, alpha) {
 function updateBreadcrumbs() {
   const z = state.zoomLevel;
   let html = '';
-  html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_STELLAR_MIN ? ' current' : ''}" data-on-click="navigateTo('galaxy')">Galaxy</span>`;
+  html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_STELLAR_MIN ? ' current' : ''}" ${hosOn.attr('click', `navigateTo('galaxy')`)}>Galaxy</span>`;
 
   if (z >= ZOOM_STELLAR_MIN) {
     html += '<span class="sep">&rsaquo;</span>';
-    html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_SYSTEM_MIN || !state.focusStar ? ' current' : ''}" data-on-click="navigateTo('stellar')">Milky Way</span>`;
+    html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_SYSTEM_MIN || !state.focusStar ? ' current' : ''}" ${hosOn.attr('click', `navigateTo('stellar')`)}>Milky Way</span>`;
   }
   if (z >= ZOOM_SYSTEM_MIN && state.focusStar) {
     html += '<span class="sep">&rsaquo;</span>';
-    html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_GLOBE_MIN || !state.focusPlanet ? ' current' : ''}" data-on-click="navigateTo('system')">${state.focusStar.name}</span>`;
+    html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_GLOBE_MIN || !state.focusPlanet ? ' current' : ''}" ${hosOn.attr('click', `navigateTo('system')`)}>${state.focusStar.name}</span>`;
   }
   if (z >= ZOOM_GLOBE_MIN && state.focusPlanet) {
     html += '<span class="sep">&rsaquo;</span>';
-    html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_TILE_MIN ? ' current' : ''}" data-on-click="navigateTo('globe')">${state.focusPlanet.name}</span>`;
+    html += `<span role="button" tabindex="0" class="crumb${z < ZOOM_TILE_MIN ? ' current' : ''}" ${hosOn.attr('click', `navigateTo('globe')`)}>${state.focusPlanet.name}</span>`;
   }
   if (z >= ZOOM_TILE_MIN && state.focusPlanet && state.focusPlanet.hasMap) {
     html += '<span class="sep">&rsaquo;</span>';
@@ -1347,12 +1347,12 @@ function showInfo(obj) {
   }
 
   if (STARS.includes(obj)) {
-    html += `<button class="info-action-btn" data-on-click="zoomToStarAt(${hosNum(STARS.indexOf(obj))})">Zoom to System</button>`;
+    html += `<button class="info-action-btn" ${hosOn.attr('click', `zoomToStarAt(${hosNum(STARS.indexOf(obj))})`)}>Zoom to System</button>`;
   }
   if (PLANETS.includes(obj)) {
-    html += `<button class="info-action-btn" data-on-click="zoomToPlanetAt(${hosNum(PLANETS.indexOf(obj))})">Zoom to ${obj.name}</button>`;
+    html += `<button class="info-action-btn" ${hosOn.attr('click', `zoomToPlanetAt(${hosNum(PLANETS.indexOf(obj))})`)}>Zoom to ${obj.name}</button>`;
     if (obj.hasMap) {
-      html += `<button class="info-action-btn" data-on-click="viewSurfaceMapAt(${hosNum(PLANETS.indexOf(obj))})" style="margin-top:4px">View Surface Map</button>`;
+      html += `<button class="info-action-btn" ${hosOn.attr('click', `viewSurfaceMapAt(${hosNum(PLANETS.indexOf(obj))})`)} style="margin-top:4px">View Surface Map</button>`;
     }
   }
 

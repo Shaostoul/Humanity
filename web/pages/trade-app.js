@@ -306,7 +306,7 @@ function renderTradeList() {
     var myItemCount = isInitiator ? (t.initiator_items || []).length : (t.recipient_items || []).length;
     var theirItemCount = isInitiator ? (t.recipient_items || []).length : (t.initiator_items || []).length;
 
-    html += '<div class="trade-card" role="button" tabindex="0" data-on-click="viewTrade(' + hosArg(t.id) + ')" data-on-keydown="hosOn.onKey(event, \'Enter\', viewTrade, ' + hosArg(t.id) + ')">';
+    html += '<div class="trade-card" role="button" tabindex="0" ' + hosOn.attr('click', 'viewTrade(' + hosArg(t.id) + ')') + ' ' + hosOn.attr('keydown', 'hosOn.onKey(event, \'Enter\', viewTrade, ' + hosArg(t.id) + ')') + '>';
     html += '<div class="trade-card-head">';
     html += '<span class="trade-card-title">' + (isInitiator ? 'Trade with ' : 'Trade from ') + escHtml(partnerLabel) + '</span>';
     html += '<span class="status status-' + escHtml(t.status) + '">' + escHtml(t.status) + '</span>';
@@ -317,8 +317,8 @@ function renderTradeList() {
     html += '<div class="trade-card-counts">Your items: ' + myItemCount + ' | Their items: ' + theirItemCount + '</div>';
     if (t.status === 'pending' && !isInitiator) {
       html += '<div class="trade-card-actions">';
-      html += '<button class="btn-confirm btn-sm" data-on-click="event.stopPropagation();respondToTrade(' + hosArg(t.id) + ',true)">Accept</button>';
-      html += '<button class="btn-cancel btn-sm" data-on-click="event.stopPropagation();respondToTrade(' + hosArg(t.id) + ',false)">Decline</button>';
+      html += '<button class="btn-confirm btn-sm" ' + hosOn.attr('click', 'event.stopPropagation();respondToTrade(' + hosArg(t.id) + ',true)') + '>Accept</button>';
+      html += '<button class="btn-cancel btn-sm" ' + hosOn.attr('click', 'event.stopPropagation();respondToTrade(' + hosArg(t.id) + ',false)') + '>Decline</button>';
       html += '</div>';
     }
     html += '</div>';
@@ -343,8 +343,8 @@ function renderTradeDetail() {
   // If pending and we're recipient, show accept/decline
   if (t.status === 'pending' && !isInitiator) {
     headerEl.innerHTML += '<div class="trade-detail-actions">' +
-      '<button class="btn-confirm" data-on-click="respondToTrade(' + hosArg(t.id) + ',true)">Accept Trade</button>' +
-      '<button class="btn-cancel" data-on-click="respondToTrade(' + hosArg(t.id) + ',false)">Decline Trade</button>' +
+      '<button class="btn-confirm" ' + hosOn.attr('click', 'respondToTrade(' + hosArg(t.id) + ',true)') + '>Accept Trade</button>' +
+      '<button class="btn-cancel" ' + hosOn.attr('click', 'respondToTrade(' + hosArg(t.id) + ',false)') + '>Decline Trade</button>' +
       '</div>';
   }
 
@@ -352,7 +352,7 @@ function renderTradeDetail() {
 
   if (t.status === 'pending' && isInitiator) {
     viewEl.innerHTML = '<p class="trade-empty">Waiting for the other player to accept your trade request...</p>' +
-      '<div class="trade-actions"><button class="btn-cancel" data-on-click="cancelTrade(' + hosArg(t.id) + ')">Cancel Trade</button></div>';
+      '<div class="trade-actions"><button class="btn-cancel" ' + hosOn.attr('click', 'cancelTrade(' + hosArg(t.id) + ')') + '>Cancel Trade</button></div>';
     return;
   }
 
@@ -384,7 +384,7 @@ function renderTwoColumns(t, isInitiator, editable) {
     html += '<span class="item-name">' + escHtml(item.name) + '</span>';
     if (item.quantity > 1) html += '<span class="item-qty">x' + item.quantity + '</span>';
     if (item.description) html += '<span class="item-qty" title="' + escHtml(item.description) + '">(' + escHtml(item.item_type) + ')</span>';
-    if (editable) html += '<button class="remove-btn" data-on-click="removeMyItem(' + hosNum(idx) + ')" title="Remove">&times;</button>';
+    if (editable) html += '<button class="remove-btn" ' + hosOn.attr('click', 'removeMyItem(' + hosNum(idx) + ')') + ' title="Remove">&times;</button>';
     html += '</div>';
   });
   if (editable) {
@@ -392,7 +392,7 @@ function renderTwoColumns(t, isInitiator, editable) {
     html += '<input type="text" id="add-item-name" aria-label="Item name" placeholder="Item name">';
     html += '<input type="number" id="add-item-qty" class="qty" aria-label="Quantity" placeholder="Qty" value="1" min="1" max="9999">';
     html += '<select id="add-item-type" class="item-type" aria-label="Item type"><option>goods</option><option>service</option><option>currency</option><option>digital</option><option>other</option></select>';
-    html += '<button class="btn-primary" data-on-click="addMyItem()">Add</button>';
+    html += '<button class="btn-primary" ' + hosOn.attr('click', 'addMyItem()') + '>Add</button>';
     html += '</div>';
   }
   html += '</div>';
@@ -421,11 +421,11 @@ function renderTwoColumns(t, isInitiator, editable) {
   if (editable) {
     html += '<div class="trade-actions">';
     if (!myConfirmed) {
-      html += '<button class="btn-confirm" data-on-click="confirmTrade(' + hosArg(t.id) + ')">Confirm Trade</button>';
+      html += '<button class="btn-confirm" ' + hosOn.attr('click', 'confirmTrade(' + hosArg(t.id) + ')') + '>Confirm Trade</button>';
     } else {
       html += '<button class="btn-confirm" disabled>Waiting for partner...</button>';
     }
-    html += '<button class="btn-cancel" data-on-click="cancelTrade(' + hosArg(t.id) + ')">Cancel Trade</button>';
+    html += '<button class="btn-cancel" ' + hosOn.attr('click', 'cancelTrade(' + hosArg(t.id) + ')') + '>Cancel Trade</button>';
     html += '</div>';
   }
 
@@ -676,9 +676,9 @@ function renderOrderBook(orders, itemType, marketPrice) {
     html += '<td>' + (o.remaining_qty * o.price_per_unit).toFixed(2) + '</td>';
     html += '<td>';
     if (isMine) {
-      html += '<button class="cancel-order-btn" data-on-click="cancelOrder(' + hosNum(o.id) + ')">Cancel</button>';
+      html += '<button class="cancel-order-btn" ' + hosOn.attr('click', 'cancelOrder(' + hosNum(o.id) + ')') + '>Cancel</button>';
     } else if (tradeSignedIn()) {
-      html += '<button class="buy-btn" data-on-click="promptBuyOrder(' + hosNum(o.id) + ',' + hosNum(o.remaining_qty) + ',' + hosNum(o.price_per_unit) + ')">Buy</button>';
+      html += '<button class="buy-btn" ' + hosOn.attr('click', 'promptBuyOrder(' + hosNum(o.id) + ',' + hosNum(o.remaining_qty) + ',' + hosNum(o.price_per_unit) + ')') + '>Buy</button>';
     }
     html += '</td>';
     html += '</tr>';

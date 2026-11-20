@@ -2,7 +2,7 @@
 # outerHTML, insertAdjacentHTML) hold a value scripts/tests/inner-html-web.test.js cannot see is
 # escaped. Its header says how to lower these. The numbers only go DOWN; a file not listed has a
 # budget of zero.
-# Total: 241 in 56 files
+# Total: 224 in 55 files
 11 web/chat/app.js
 4 web/chat/chat-dms.js
 8 web/chat/chat-messages.js
@@ -10,14 +10,13 @@
 2 web/chat/chat-onboarding.js
 4 web/chat/chat-p2p.js
 2 web/chat/chat-privacy.js
-15 web/chat/chat-profile.js
+8 web/chat/chat-profile.js
 2 web/chat/chat-protected.js
 2 web/chat/chat-reports.js
 3 web/chat/chat-social.js
 5 web/chat/chat-ui.js
-7 web/chat/chat-voice-rooms.js
+6 web/chat/chat-voice-rooms.js
 1 web/chat/chat-voice-streaming.js
-4 web/chat/chat-voice-webrtc.js
 1 web/chat/chat-warnings.js
 2 web/chat/crypto.js
 2 web/pages/accord-app.js
@@ -45,10 +44,10 @@
 1 web/pages/ops-admin-map.js
 1 web/pages/ops-app.js
 1 web/pages/privacy-app.js
-6 web/pages/profile-app.js
+5 web/pages/profile-app.js
 5 web/pages/recovery-app.js
 2 web/pages/roadmap-app.js
-21 web/pages/settings-app.js
+17 web/pages/settings-app.js
 23 web/pages/tasks-app.js
 5 web/pages/trade-app.js
 6 web/pages/wallet-app.js

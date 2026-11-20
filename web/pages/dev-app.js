@@ -115,6 +115,9 @@
       };
 
       // ── Helpers ──
+      // An asset opened full size in a new tab (its handler named window.open, which a data-on
+      // handler may not reach since BUG-331).
+      window.devOpenFullSize = function (url) { window.open(url, '_blank', 'noopener'); };
       // An asset's path, copied by a press on it (was an inline onclick): it reads Copied!, and with
       // `restore` shows the path again after 1.2 s.
       window.devCopyPath = function (el, path, restore) {
@@ -345,7 +348,7 @@
 
         var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
           '<h2 style="margin:0;font-size:1.1rem">' + asset.n + '</h2>' +
-          '<button class="demo-btn" data-on-click="document.getElementById(\'asset-detail-overlay\').classList.remove(\'open\')" style="padding:4px 12px;font-size:0.8rem">Close</button>' +
+          '<button class="demo-btn" ' + hosOn.attr('click', 'hosOn.byId(\'asset-detail-overlay\').classList.remove(\'open\')') + ' style="padding:4px 12px;font-size:0.8rem">Close</button>' +
           '</div>';
 
         if (isImageExt(ext)) {
@@ -368,15 +371,15 @@
         }
 
         html += '<div class="detail-row"><span class="detail-label">Filename</span><span class="detail-val">' + asset.n + '</span></div>';
-        html += '<div class="detail-row"><span class="detail-label">Path</span><span role="button" tabindex="0" class="detail-val" style="cursor:pointer;color:var(--accent)" data-on-click="devCopyPath(this, ' + hosArg(asset.p) + ', true)">' + asset.p + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Path</span><span role="button" tabindex="0" class="detail-val" style="cursor:pointer;color:var(--accent)" ' + hosOn.attr('click', 'devCopyPath(this, ' + hosArg(asset.p) + ', true)') + '>' + asset.p + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Category</span><span class="detail-val">' + (assetCategories[asset.c] || asset.c) + '</span></div>';
         html += '<div class="detail-row"><span class="detail-label">File Size</span><span class="detail-val">' + formatSize(asset.s) + ' (' + asset.s.toLocaleString() + ' bytes)</span></div>';
         html += '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-val">' + ext.toUpperCase() + '</span></div>';
 
         html += '<div class="detail-actions">' +
-          '<button class="demo-btn primary" data-on-click="window.open(' + hosArg(asset.p) + ',\'_blank\')">Open Full Size</button>' +
+          '<button class="demo-btn primary" ' + hosOn.attr('click', 'devOpenFullSize(' + hosArg(asset.p) + ')') + '>Open Full Size</button>' +
           '<a class="demo-btn" href="' + asset.p + '" download="' + asset.n + '">Download</a>' +
-          '<button class="demo-btn" data-on-click="devCopyPath(this, ' + hosArg(asset.p) + ', false)">Copy Path</button>' +
+          '<button class="demo-btn" ' + hosOn.attr('click', 'devCopyPath(this, ' + hosArg(asset.p) + ', false)') + '>Copy Path</button>' +
           '</div>';
 
         panel.innerHTML = html;

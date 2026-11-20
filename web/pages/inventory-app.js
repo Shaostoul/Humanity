@@ -101,7 +101,7 @@ function renderItems() {
     content.innerHTML = `<div class="inv-empty-state">
       <div class="big">📭</div>
       <p>Nothing here yet. This is your own inventory, saved on this device.</p>
-      <button data-on-click="openAddModal()">+ Add your first item</button>
+      <button ${hosOn.attr('click', `openAddModal()`)}>+ Add your first item</button>
     </div>`;
     return;
   }
@@ -115,7 +115,7 @@ function renderItems() {
 
 function buildItemCard(item) {
   const icon = item.icon || hosIcon('box', 24);
-  return `<div role="button" tabindex="0" class="item-card" data-on-click="openEditModal(${hosArg(item.id)})">
+  return `<div role="button" tabindex="0" class="item-card" ${hosOn.attr('click', `openEditModal(${hosArg(item.id)})`)}>
     <div class="item-img">${icon}</div>
     <div class="item-name">${esc(item.name)}</div>
     <div class="item-meta">${esc(item.location || '')}</div>
@@ -125,13 +125,13 @@ function buildItemCard(item) {
 
 function buildItemRow(item) {
   const icon = item.icon || hosIcon('box', 16);
-  return `<div role="button" tabindex="0" class="item-row" data-on-click="openEditModal(${hosArg(item.id)})">
+  return `<div role="button" tabindex="0" class="item-row" ${hosOn.attr('click', `openEditModal(${hosArg(item.id)})`)}>
     <span class="row-icon">${icon}</span>
     <span class="row-name">${esc(item.name)}</span>
     <span class="row-location">${esc(item.location || '-')}</span>
     <span class="row-qty">×${item.qty}</span>
     <div class="row-actions">
-      <button class="row-act-btn" data-on-click="event.stopPropagation();openEditModal(${hosArg(item.id)})">Edit</button>
+      <button class="row-act-btn" ${hosOn.attr('click', `event.stopPropagation();openEditModal(${hosArg(item.id)})`)}>Edit</button>
     </div>
   </div>`;
 }
@@ -282,7 +282,7 @@ function equip_renderList() {
     list.innerHTML = '<div class="loadout-grid">' +
       EQUIP_LOADOUT_SLOTS.map(slot => {
         const item = slotMap[slot.id];
-        return `<div class="loadout-slot${item ? '' : ' empty'}" ${item ? `data-on-click="equip_openModal(${hosArg(item.id)})"` : `data-on-click="equip_openModalSlot(${hosArg(slot.id)})"`}>
+        return `<div class="loadout-slot${item ? '' : ' empty'}" ${item ? `${hosOn.attr('click', `equip_openModal(${hosArg(item.id)})`)}` : `${hosOn.attr('click', `equip_openModalSlot(${hosArg(slot.id)})`)}`}>
           <div class="slot-icon">${item ? equip_esc(item.icon || slot.icon) : slot.icon}</div>
           <div class="slot-label">${slot.label}</div>
           <div class="slot-item">${item ? equip_esc(item.name) : 'Empty'}</div>
@@ -299,7 +299,7 @@ function equip_renderList() {
   if (!visible.length) {
     list.innerHTML = `<div class="equip-empty-state"><div class="ei">${equip_getCatIcon(equip_activeCat)}</div>
       <p>No ${EQUIP_CAT_LABELS[equip_activeCat]} items yet.</p>
-      <button class="equip-btn-save" data-on-click="equip_openModal()" style="margin-top:var(--space-md);">+ Add First Item</button></div>`;
+      <button class="equip-btn-save" ${hosOn.attr('click', `equip_openModal()`)} style="margin-top:var(--space-md);">+ Add First Item</button></div>`;
     return;
   }
 
@@ -308,14 +308,14 @@ function equip_renderList() {
 
 function equip_renderItem(i) {
   const condClass = 'cond-' + (i.cond || 'good');
-  return `<div role="button" tabindex="0" class="equip-item" data-on-click="equip_openModal(${hosArg(i.id)})">
+  return `<div role="button" tabindex="0" class="equip-item" ${hosOn.attr('click', `equip_openModal(${hosArg(i.id)})`)}>
     <div class="item-icon">${i.icon || hosIcon('box', 20)}</div>
     <div class="item-body">
       <div class="item-name">${equip_esc(i.name)}</div>
       ${i.notes ? `<div class="item-sub">${equip_esc(i.notes.slice(0,80))}</div>` : ''}
     </div>
     <span class="item-cond ${condClass}">${i.cond || 'good'}</span>
-    <button class="equip-item-delete" data-on-click="event.stopPropagation();equip_deleteItem(${hosArg(i.id)})" title="Remove">✕</button>
+    <button class="equip-item-delete" ${hosOn.attr('click', `event.stopPropagation();equip_deleteItem(${hosArg(i.id)})`)} title="Remove">✕</button>
   </div>`;
 }
 

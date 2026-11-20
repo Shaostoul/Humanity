@@ -135,7 +135,7 @@ function renderTodaySidebar() {
   list.innerHTML = evs.map(e => {
     const timeStr = e.allday || !e.startTime ? esc(i18n.t('calendar.all_day')) :
       e.startTime + (e.endTime ? ' - ' + e.endTime : '');
-    return `<div role="button" tabindex="0" class="today-ev-item" data-on-click="openEditEvent(${hosArg(e.id)})" title="${esc(e.notes || '')}" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">
+    return `<div role="button" tabindex="0" class="today-ev-item" ${hosOn.attr('click', `openEditEvent(${hosArg(e.id)})`)} title="${esc(e.notes || '')}" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">
       <div class="today-ev-dot" style="background:${e.color || '#3498db'}"></div>
       <div class="today-ev-info">
         <div class="today-ev-title">${esc(e.title)}</div>
@@ -210,11 +210,11 @@ function dayCell(d, otherMonth, todayStr) {
   const openHint = hintWords('calendar.event_open_hint');
   const recurringTitle = '↻ ' + esc(i18n.t('calendar.recurring'));
   let chips = evs.slice(0, maxShow).map(e =>
-    `<div role="button" tabindex="0" class="event-chip" style="background:${e.color||'#3498db'}" data-on-click="event.stopPropagation();openEditEvent(${hosArg(e.id)})" title="${e._recurring ? recurringTitle : ''}" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${e._recurring ? '↻ ' : ''}${esc(e.title)}</div>`
+    `<div role="button" tabindex="0" class="event-chip" style="background:${e.color||'#3498db'}" ${hosOn.attr('click', `event.stopPropagation();openEditEvent(${hosArg(e.id)})`)} title="${e._recurring ? recurringTitle : ''}" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${e._recurring ? '↻ ' : ''}${esc(e.title)}</div>`
   ).join('');
   if (evs.length > maxShow) chips += `<div class="more-chip">${esc(i18n.t('calendar.more', { n: evs.length - maxShow }))}</div>`;
 
-  return `<div role="button" tabindex="0" class="cal-day${otherMonth?' other-month':''}${isToday?' today':''}" data-on-click="dayClick(${hosArg(ds)})" data-i18n-tip="calendar.day_add_hint" data-tip-desc="${hintWords('calendar.day_add_hint')}">
+  return `<div role="button" tabindex="0" class="cal-day${otherMonth?' other-month':''}${isToday?' today':''}" ${hosOn.attr('click', `dayClick(${hosArg(ds)})`)} data-i18n-tip="calendar.day_add_hint" data-tip-desc="${hintWords('calendar.day_add_hint')}">
     <div class="day-num">${d.getDate()}</div>
     <div class="day-events">${chips}</div>
   </div>`;
@@ -259,14 +259,14 @@ function renderWeek() {
     const dayEvs = eventsOn(ds).filter(e => !e.allday && e.startTime);
     let cells = '';
     for (let h = 0; h < 24; h++) {
-      cells += `<div role="button" tabindex="0" aria-label="${hourHint}" class="week-hour-cell" data-on-click="dayHourClick(${hosArg(ds)},${hosNum(h)})" data-i18n-tip="calendar.hour_add_hint" data-tip-desc="${hourHint}"></div>`;
+      cells += `<div role="button" tabindex="0" aria-label="${hourHint}" class="week-hour-cell" ${hosOn.attr('click', `dayHourClick(${hosArg(ds)},${hosNum(h)})`)} data-i18n-tip="calendar.hour_add_hint" data-tip-desc="${hourHint}"></div>`;
     }
     let eventMarkup = dayEvs.map(e => {
       const [sh,sm] = e.startTime.split(':').map(Number);
       const [eh,em] = (e.endTime||e.startTime).split(':').map(Number);
       const top = (sh*60+sm) * 48/60;
       const height = Math.max(20, ((eh*60+em)-(sh*60+sm)) * 48/60);
-      return `<div role="button" tabindex="0" class="week-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" data-on-click="event.stopPropagation();openEditEvent(${hosArg(e.id)})" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}</div>`;
+      return `<div role="button" tabindex="0" class="week-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" ${hosOn.attr('click', `event.stopPropagation();openEditEvent(${hosArg(e.id)})`)} data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}</div>`;
     }).join('');
     return `<div class="week-day-col" style="position:relative">${cells}${eventMarkup}</div>`;
   }).join('');
@@ -292,7 +292,7 @@ function renderDay() {
   let timeLabels = '', hourCells = '';
   for (let h = 0; h < 24; h++) {
     timeLabels += `<div class="day-hour-label">${esc(hourLabel(h))}</div>`;
-    hourCells   += `<div role="button" tabindex="0" aria-label="${hourHint}" class="day-hour-cell" data-on-click="dayHourClick(${hosArg(ds)},${hosNum(h)})" data-i18n-tip="calendar.hour_add_hint" data-tip-desc="${hourHint}"></div>`;
+    hourCells   += `<div role="button" tabindex="0" aria-label="${hourHint}" class="day-hour-cell" ${hosOn.attr('click', `dayHourClick(${hosArg(ds)},${hosNum(h)})`)} data-i18n-tip="calendar.hour_add_hint" data-tip-desc="${hourHint}"></div>`;
   }
 
   const eventMarkup = dayEvs.map(e => {
@@ -300,12 +300,12 @@ function renderDay() {
     const [eh,em] = (e.endTime||e.startTime).split(':').map(Number);
     const top = (sh*60+sm) * 56/60;
     const height = Math.max(24, ((eh*60+em)-(sh*60+sm)) * 56/60);
-    return `<div role="button" tabindex="0" class="day-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" data-on-click="event.stopPropagation();openEditEvent(${hosArg(e.id)})" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}<br><span style="opacity:.7;font-size:.65rem">${e.startTime}-${e.endTime||''}</span></div>`;
+    return `<div role="button" tabindex="0" class="day-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" ${hosOn.attr('click', `event.stopPropagation();openEditEvent(${hosArg(e.id)})`)} data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}<br><span style="opacity:.7;font-size:.65rem">${e.startTime}-${e.endTime||''}</span></div>`;
   }).join('');
 
   const allDay = eventsOn(ds).filter(e => e.allday);
   const allDayBar = allDay.length ? `<div style="padding:.4rem .8rem;border-bottom:1px solid var(--bg-secondary);display:flex;gap:.4rem;flex-wrap:wrap">
-    ${allDay.map(e=>`<span role="button" tabindex="0" class="event-chip" style="background:${e.color||'#3498db'};cursor:pointer" data-on-click="openEditEvent(${hosArg(e.id)})" data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}</span>`).join('')}
+    ${allDay.map(e=>`<span role="button" tabindex="0" class="event-chip" style="background:${e.color||'#3498db'};cursor:pointer" ${hosOn.attr('click', `openEditEvent(${hosArg(e.id)})`)} data-i18n-tip="calendar.event_open_hint" data-tip-desc="${openHint}">${esc(e.title)}</span>`).join('')}
   </div>` : '';
 
   const dayHeader = i18n.t('calendar.day_header', {
@@ -367,7 +367,7 @@ function dayHourClick(ds, hour) {
 function buildColorPicker() {
   const swatchHint = hintWords('calendar.color_swatch_hint');
   document.getElementById('color-picker').innerHTML = EVENT_COLORS.map(c =>
-    `<div role="button" tabindex="0" aria-label="${swatchHint}" class="color-swatch${c===selectedColor?' selected':''}" style="background:${c}" data-on-click="pickColor(${hosArg(c)})" data-i18n-tip="calendar.color_swatch_hint" data-tip-desc="${swatchHint}"></div>` // i18n-exempt: a CSS class name, not words
+    `<div role="button" tabindex="0" aria-label="${swatchHint}" class="color-swatch${c===selectedColor?' selected':''}" style="background:${c}" ${hosOn.attr('click', `pickColor(${hosArg(c)})`)} data-i18n-tip="calendar.color_swatch_hint" data-tip-desc="${swatchHint}"></div>` // i18n-exempt: a CSS class name, not words
   ).join('');
 }
 

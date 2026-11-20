@@ -1735,7 +1735,7 @@
       btn.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) var(--space-lg);border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;font-family:inherit;';
       var titleText = (tab.title||'Tab');
       if (titleText.length > 24) titleText = titleText.substring(0, 24) + '…';
-      btn.innerHTML = '<span>' + titleText + '</span><span data-on-click="event.stopPropagation();closeWebviewTab(' + hosArg(id) + ')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
+      btn.innerHTML = '<span>' + titleText + '</span><span ' + hosOn.attr('click', 'event.stopPropagation();closeWebviewTab(' + hosArg(id) + ')') + ' style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
       btn.onclick = function() { switchWebviewTab(id); };
       bar.appendChild(btn);
     });

@@ -3,8 +3,10 @@
 //
 // Run: node --test scripts/tests/inner-html-web.test.js
 //
-// The site's Content-Security-Policy now refuses inline script, so markup injected into a page can
-// no longer run code; it can still draw a fake button, a fake link or a fake form. So every value
+// The site's Content-Security-Policy refuses inline script, and web/shared/safe-markup.js runs only
+// the data-on-* handlers a page wrote itself (BUG-331: until 2026-11-20 it ran any data-on-*
+// attribute, so markup injected here could run script after all). Injected markup still draws a
+// fake button, a fake link or a fake form, and leans on every other check holding. So every value
 // written into markup (innerHTML =, innerHTML +=, outerHTML =, insertAdjacentHTML) goes through
 // the house escape, hosEsc (web/shared/safe-markup.js), or a page's own esc/escapeHtml/escHtml
 // helper that does the same; better still, the code sets textContent.
@@ -38,9 +40,10 @@ const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, 'web');
 const BUDGET = path.join(__dirname, 'fixtures', 'inner-html-web-budget.txt');
 const VENDOR = /[\\/]vendor[\\/]|qrcode\.js$/;
 
-// Calls whose result is safe to write into markup: the escapes, and producers of known markup.
+// Calls whose result is safe to write into markup: the escapes, and producers of known markup
+// (hosOn.attr writes only data-on-<type>="<token>", the token hex, BUG-331).
 const ESCAPES = ['hosEsc', 'esc', 'escHtml', 'escapeHtml', 'equip_esc', 'log_esc', 'quest_esc', 'vault_esc', 'vault_escAttr'];
-const PRODUCERS = ['hosIcon', 'hosArg', 'hosNum', 'i18n.html', 'Number', 'parseInt', 'parseFloat', 'Math.round', 'Math.floor', 'Math.ceil', 'Math.min', 'Math.max', 'Math.abs'];
+const PRODUCERS = ['hosIcon', 'hosOn.attr', 'hosArg', 'hosNum', 'i18n.html', 'Number', 'parseInt', 'parseFloat', 'Math.round', 'Math.floor', 'Math.ceil', 'Math.min', 'Math.max', 'Math.abs'];
 
 function walk(dir, out = []) {
   for (const f of fs.readdirSync(dir)) {
@@ -317,6 +320,7 @@ test('the reader counts a raw value and lets escaped, literal and numeric ones t
   assert.deepStrictEqual(u("el.innerHTML = i18n.t('a.b', { name: who });"), [["i18n.t('a.b', { name: who })"]]);
   assert.deepStrictEqual(u("el.innerHTML = '<p>' + s.replace(/'/g, '') + '</p>';"), [["s.replace(/'/g, '')"]]);
   assert.deepStrictEqual(u("if (el.innerHTML === '') go();"), [], 'a comparison is not a write');
+  assert.deepStrictEqual(u("el.innerHTML = '<b ' + hosOn.attr('click', 'go(' + hosArg(id) + ')') + '>x</b>';"), [[]], 'a handler token is safe');
   assert.ok(escapesEnough("function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}"));
   assert.ok(!escapesEnough("function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}"));
   assert.ok(!escapesEnough('function esc(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML;}'));

@@ -1127,9 +1127,9 @@ inline script, no eval, no outside host), so an injected script or onclick never
 their code in files and their handlers as `data-on-*`, run by a small parsed call language; data
 enters a handler through `hosArg`/`hosNum`, text enters markup through `hosEsc`. How:
 `docs/design/ui-system.md`, "The web's markup: no inline script".
-- Web: `web/shared/safe-markup.js` (data-on runtime, hosArg, hosNum, hosEsc, hosOn helpers)
+- Web: `web/shared/safe-markup.js` (data-on runtime that runs only the handlers a page wrote: static ones recorded as the parser builds the page, script-built ones through `hosOn.attr` tokens, BUG-331; hosArg, hosNum, hosEsc, hosOn helpers)
 - Policy: `scripts/nginx/humanity.conf` (the site), `src/relay/mod.rs` `csp_value` (a self-hosted relay); `scripts/preview-server.js` sends it in the preview
-- Checks: `scripts/tests/inline-script-web.test.js` (no inline script, handlers parse, data only through hosArg/hosNum, the policy itself), `scripts/tests/inner-html-web.test.js` (unescaped markup writes, a per-file ratchet; every page escape helper escapes all five characters)
+- Checks: `scripts/tests/inline-script-web.test.js` (no inline script, no data-on-* written by a script, handlers parse, data only through hosArg/hosNum, safe-markup.js first, no handler at a browser name, the policy itself), `scripts/tests/safe-markup-trust-web.test.js` (injected markup runs nothing), `scripts/tests/inner-html-web.test.js` (unescaped markup writes, a per-file ratchet; every page escape helper escapes all five characters)
 
 ### Dilithium3 / ML-DSA-65 Identity
 Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No sign-up, no passwords stored on any server. (Ed25519 survives only as the Solana wallet, its key derived from the seed under its own label since 2026-11-19, and in the hybrid release signature; see the canonical crypto table in `docs/reference/cryptography.md`.)

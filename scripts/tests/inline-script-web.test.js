@@ -11,20 +11,30 @@
 //  1. No HTML page under web/ has a <script> without src (JSON-LD data blocks excepted), an on*=
 //     attribute, or a javascript: address.
 //  2. No script under web/ writes an on*= attribute into markup, sets one with setAttribute, or
-//     runs a string as code (eval, new Function): the policy refuses all three.
-//  3. Every data-on-* handler, in a page or in a script's markup, names an event safe-markup.js
+//     runs a string as code (eval, new Function): the policy refuses all three. Nor does a script
+//     write a data-on-* attribute itself (BUG-331): markup built in script gets its handlers from
+//     hosOn.attr(type, text), whose token is the only thing safe-markup.js runs from such markup.
+//  3. Every handler, data-on-* in a page or hosOn.attr in a script, names an event safe-markup.js
 //     handles and parses in its language; in a script, every value put into one goes through
-//     hosArg() (a quote in a name then stays inside its string).
-//  4. Every page that has data-on-* handlers, or loads a script that writes them, loads
-//     /shared/safe-markup.js in its <head>.
+//     hosArg() (a quote in a name then stays inside its string) or hosNum().
+//  4. Every page that has data-on-* handlers, or loads a script that builds them, loads
+//     /shared/safe-markup.js as the FIRST script of its <head> (it records the page's static
+//     handlers as the parser makes them, so it must run before anything else can make markup).
 //  5. The site's policy itself: no 'unsafe-inline', 'unsafe-eval' or outside host in script-src,
 //     in every server block of the nginx config.
 //  6. safe-markup.js's language: what it runs and what it refuses.
+//  7. No handler starts a path at a name the browser's window already has (document, window,
+//     console, Math...): safe-markup.js refuses those at run time, so such a handler is broken.
 //
 // SEEN RED (2026-11-20): before the move, check 1 listed 25 inline <script> blocks and 497 on*=
 // attributes in 15 pages, check 2 listed 135 on*= attributes in 25 scripts and both new Function
 // calls (chat-onboarding.js, calculator-app.js), and check 5 failed on all three server blocks.
-// HOS_WEB_DIR points checks 1 to 4 at another copy of web/ (used to see each one red).
+// SEEN RED (2026-11-20, BUG-331) against web/ at 28d1c3596: check 2 listed 181 data-on-*
+// attributes written in strings on 172 lines of 31 scripts; check 3 refused 12 static handlers that
+// start at document or sessionStorage; check 4 named chat/index.html (emoji.js and
+// index-preflight.js ran first) and pages/files.html (files-frame.js first); check 7 named the
+// three that start at console, Math and String.
+// HOS_WEB_DIR points checks 1 to 4 and 7 at another copy of web/ (used to see each one red).
 
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -34,6 +44,7 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..', '..');
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, 'web');
 const SM = require(path.join(ROOT, 'web', 'shared', 'safe-markup.js'));
+const { pageHandlers, attrHandlers, stripComments, decodeEntities } = require('./handlers-web.js');
 
 // Third-party files kept as published (each also checked by hand when it was added).
 const VENDOR = /[\\/]vendor[\\/]|qrcode\.js$/;
@@ -49,10 +60,6 @@ function walk(dir, ext, out = []) {
 }
 const rel = (p) => path.relative(WEB, p).replace(/\\/g, '/');
 const lineOf = (src, idx) => src.slice(0, idx).split('\n').length;
-function decodeEntities(s) {
-  return s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-}
 
 const pages = walk(WEB, '.html');
 const scripts = walk(WEB, '.js').filter((p) => !VENDOR.test(p));
@@ -104,6 +111,18 @@ function scriptProblems(src) {
     re.lastIndex = 0;
     while ((m = re.exec(src))) out.push(lineOf(src, m.index) + ': ' + what);
   }
+  // A data-on-* attribute written by the script itself (BUG-331): safe-markup.js ignores it, since
+  // markup a script builds may hold someone else's text, and runs only hosOn.attr's tokens.
+  const code = stripComments(src);
+  const dataOn = [
+    [/data-on-[a-z]+\s*=/g, 'a data-on-* attribute written in a string (write hosOn.attr(type, text))'],
+    [/setAttribute(?:NS)?\(\s*(?:[^,()]+,\s*)?['"`]data-on-/g, 'setAttribute of a data-on-* attribute (write hosOn.attr(type, text) into the markup)'],
+    [/\.dataset\.on[A-Z]|dataset\[\s*['"`]on[A-Z]/g, 'a data-on-* attribute set through dataset'],
+  ];
+  for (const [re, what] of dataOn) {
+    re.lastIndex = 0;
+    while ((m = re.exec(code))) out.push(lineOf(src, m.index) + ': ' + what);
+  }
   return out;
 }
 
@@ -116,88 +135,33 @@ test('no script writes an on*= attribute, sets one, or runs a string as code', (
   assert.deepStrictEqual(bad, [], '\nINLINE SCRIPT in a script\'s markup:\n' + bad.join('\n'));
 });
 
-// ── 3. data-on-* handlers ────────────────────────────────────────────────
-/** Each data-on-* attribute in a page: {type, text, line}. */
-function pageHandlers(src) {
-  const out = [];
-  const re = /\sdata-on-([a-z]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  let m;
-  while ((m = re.exec(src))) out.push({ type: m[1], text: decodeEntities(m[2] !== undefined ? m[2] : m[3]), line: lineOf(src, m.index) });
-  return out;
-}
-
-/**
- * Each data-on-* attribute written in a script's strings: {type, text, line, bad}. The value runs
- * from the attribute's opening quote to its closing one. Inside it every interpolation, `${...}`
- * or a string broken by `' + ... + '`, must be hosArg(...) or hosNum(...): `bad` names the first
- * that is not. A line marked `// handler-exempt` (a builder whose every caller passes a constant
- * handler, never data) is skipped.
- */
-function scriptHandlers(src) {
-  const out = [];
-  const re = /data-on-([a-z]+)=(\\?["'])/g;
-  let m;
-  while ((m = re.exec(src))) {
-    const q = m[2].slice(-1);
-    const escaped = m[2].length === 2;
-    const start = m.index + m[0].length;
-    // Find the closing quote of the attribute, skipping over hosArg(...) and ${...} groups.
-    let i = start;
-    let seg = '';
-    let bad = null;
-    let closed = false;
-    while (i < src.length) {
-      if (src.startsWith('hosArg(', i) || src.startsWith('hosNum(', i)) {
-        let depth = 0;
-        let j = i + 6;
-        for (; j < src.length; j++) {
-          if (src[j] === '(') depth++;
-          else if (src[j] === ')') { depth--; if (depth === 0) break; }
-        }
-        seg += 'H';
-        i = j + 1;
-        continue;
-      }
-      if (escaped ? src.startsWith('\\' + q, i) : src[i] === q) { closed = true; break; }
-      if (src[i] === '\n') break;
-      seg += src[i];
-      i++;
-    }
-    if (!closed) bad = bad || 'the attribute does not close on its line';
-    // The allowed interpolations: ${H} and a string broken around H.
-    const rest = seg.replace(/\$\{\s*H\s*\}/g, '0').replace(/(['"`])\s*\+\s*H\s*\+\s*\1/g, '0');
-    if (/\$\{/.test(rest)) bad = bad || 'a ${...} value not written with hosArg() or hosNum()';
-    else if (/['"`]\s*\+|\+\s*['"`]/.test(rest)) bad = bad || 'a value joined into the string without hosArg() or hosNum()';
-    const text = decodeEntities(rest.replace(/\\(['"\\])/g, '$1'));
-    const eolAt = src.indexOf('\n', m.index);
-    const lineText = src.slice(src.lastIndexOf('\n', m.index) + 1, eolAt < 0 ? src.length : eolAt);
-    if (/\/\/ handler-exempt\b/.test(lineText)) continue;
-    out.push({ type: m[1], text, line: lineOf(src, m.index), bad });
-  }
-  return out;
-}
+// ── 3. handlers ──────────────────────────────────────────────────────────
+// Static handlers are data-on-* in a page; markup built in script takes hosOn.attr(type, text),
+// read by scripts/tests/handlers-web.js (hosArg values stand as "H", hosNum values as 0). A line
+// marked `// handler-exempt` (a builder whose every caller passes a constant handler) is skipped.
 
 function handlerProblems(where, list) {
   const out = [];
   for (const h of list) {
     if (!SM.TYPES.includes(h.type)) out.push(where + ':' + h.line + ': data-on-' + h.type + ' is not an event safe-markup.js handles');
     if (h.bad) { out.push(where + ':' + h.line + ': ' + h.bad); continue; }
+    if (h.text === null) continue;
     try { SM.parse(h.text); } catch (e) { out.push(where + ':' + h.line + ': ' + e.message); }
   }
   return out;
 }
 
-test('every data-on-* handler parses, names a handled event, and takes data only through hosArg()', () => {
+test('every handler parses, names a handled event, and takes data only through hosArg() or hosNum()', () => {
   const bad = [];
   for (const p of pages) bad.push(...handlerProblems(rel(p), pageHandlers(fs.readFileSync(p, 'utf8'))));
   for (const p of scripts) {
     if (/safe-markup\.js$/.test(p)) continue;
-    bad.push(...handlerProblems(rel(p), scriptHandlers(fs.readFileSync(p, 'utf8'))));
+    bad.push(...handlerProblems(rel(p), attrHandlers(fs.readFileSync(p, 'utf8'))));
   }
-  assert.deepStrictEqual(bad, [], '\nDATA-ON HANDLERS that will not run:\n' + bad.join('\n'));
+  assert.deepStrictEqual(bad, [], '\nHANDLERS that will not run:\n' + bad.join('\n'));
 });
 
-// ── 4. safe-markup.js loaded where it is needed ─────────────────────────
+// ── 4. safe-markup.js loaded where it is needed, first ──────────────────
 function scriptSrcs(src) {
   const out = [];
   const re = /<script\b[^>]*\bsrc\s*=\s*["']?([^"' >]+)/gi;
@@ -210,24 +174,61 @@ function fileForSrc(src) {
   const p = path.join(WEB, src.slice(1));
   return fs.existsSync(p) ? p : null;
 }
-
-test('every page with data-on-* handlers loads /shared/safe-markup.js in its <head>', () => {
-  const bad = [];
-  for (const p of pages) {
-    const src = fs.readFileSync(p, 'utf8');
-    const srcs = scriptSrcs(src);
-    let needs = /\sdata-on-[a-z]+\s*=/.test(src) ? 'its own markup' : null;
-    for (const s of srcs) {
-      if (needs) break;
-      const f = fileForSrc(s.src);
-      if (f && !/safe-markup\.js$/.test(f) && /data-on-[a-z]+=/.test(fs.readFileSync(f, 'utf8'))) needs = s.src;
-    }
-    if (!needs) continue;
-    const sm = srcs.find((s) => s.src === '/shared/safe-markup.js');
-    const head = src.search(/<\/head>/i);
-    if (!sm) bad.push(rel(p) + ': needs /shared/safe-markup.js (for ' + needs + ') and does not load it');
-    else if (head >= 0 && sm.at > head) bad.push(rel(p) + ': loads /shared/safe-markup.js after </head>; load it in the <head>');
+/** Where the page's first script tag starts (a JSON-LD data block is not a script). */
+function firstScriptAt(src) {
+  const m = /<script\b(?![^>]*type\s*=\s*["']?application\/(ld\+)?json)/i.exec(src);
+  return m ? m.index : -1;
+}
+/** Why a page needs safe-markup.js, or null. */
+function needsSafeMarkup(src) {
+  if (/\sdata-on-[a-z]+\s*=/.test(src)) return 'its own markup';
+  for (const s of scriptSrcs(src)) {
+    const f = fileForSrc(s.src);
+    if (f && !/safe-markup\.js$/.test(f) && /data-on-[a-z]+=|\bhosOn\.attr\s*\(/.test(fs.readFileSync(f, 'utf8'))) return s.src;
   }
+  return null;
+}
+function loadOrderProblems(name, src) {
+  const needs = needsSafeMarkup(src);
+  if (!needs) return [];
+  const sm = scriptSrcs(src).find((s) => s.src === '/shared/safe-markup.js');
+  const head = src.search(/<\/head>/i);
+  if (!sm) return [name + ': needs /shared/safe-markup.js (for ' + needs + ') and does not load it'];
+  if (head >= 0 && sm.at > head) return [name + ': loads /shared/safe-markup.js after </head>; load it in the <head>'];
+  if (firstScriptAt(src) !== sm.at) return [name + ': /shared/safe-markup.js is not the first script (it must see every element the parser makes)'];
+  return [];
+}
+
+test('every page with handlers loads /shared/safe-markup.js as the first script of its <head>', () => {
+  const bad = [];
+  for (const p of pages) bad.push(...loadOrderProblems(rel(p), fs.readFileSync(p, 'utf8')));
+  assert.deepStrictEqual(bad, [], '\n' + bad.join('\n'));
+});
+
+// ── 7. no handler starts at a browser name ──────────────────────────────
+// safe-markup.js refuses a path that starts at a name the window had when it loaded (it is the
+// first script, so those are the browser's own: document, location, console, Math...). The
+// browser's names: scripts/tests/fixtures/browser-window-names.txt.
+const BROWSER_NAMES = new Set(fs.readFileSync(path.join(__dirname, 'fixtures', 'browser-window-names.txt'), 'utf8')
+  .split('\n').filter((l) => !/^\s*#/.test(l)).join(' ').split(/\s+/).filter(Boolean));
+function builtinRootProblems(where, list) {
+  const out = [];
+  for (const h of list) {
+    if (h.bad || h.text === null) continue;
+    let calls;
+    try { calls = SM.parse(h.text); } catch (e) { continue; } // check 3 reports it
+    for (const g of SM.globalsOf(calls)) {
+      if (BROWSER_NAMES.has(g) || /^on[a-z]+$/.test(g)) out.push(where + ':' + h.line + ': starts at ' + g + ', the browser\'s (move it into a named page function): ' + h.text);
+    }
+  }
+  return out;
+}
+const HANDLER_ROOT_SKIP = /safe-markup\.js$/;
+
+test('no handler starts a path at a name the browser provides', () => {
+  const bad = [];
+  for (const p of pages) bad.push(...builtinRootProblems(rel(p), pageHandlers(fs.readFileSync(p, 'utf8'))));
+  for (const p of scripts) if (!HANDLER_ROOT_SKIP.test(p)) bad.push(...builtinRootProblems(rel(p), attrHandlers(fs.readFileSync(p, 'utf8'))));
   assert.deepStrictEqual(bad, [], '\n' + bad.join('\n'));
 });
 
@@ -294,13 +295,17 @@ test('safe-markup.js runs calls with literal and path arguments, as an inline ha
   };
   const el = { value: 'typed', checked: true, dataset: { id: '7' } };
   const ev = { stopPropagation() { seen.push(['stop']); }, key: 'Enter' };
-  const calls = SM.parse("event.stopPropagation(); showSection('a b', -2.5); savePref(\"k\", this.checked); HosTasks.open(this.dataset.id)");
+  const text = "event.stopPropagation(); showSection('a b', -2.5); savePref(\"k\", this.checked); HosTasks.open(this.dataset.id)";
+  const calls = SM.parse(text);
   assert.strictEqual(calls.length, 4);
   assert.deepStrictEqual(SM.globalsOf(calls).sort(), ['HosTasks', 'savePref', 'showSection']);
   // The module evaluates against the global object it was loaded under; put the stand-ins there.
   Object.assign(globalThis, win);
   try {
-    SM.run("event.stopPropagation(); showSection('a b', -2.5); savePref(\"k\", this.checked); HosTasks.open(this.dataset.id)", el, ev);
+    // A name is reachable only once a handler the page vouched for names it (BUG-331).
+    assert.throws(() => SM.run('showSection(1)', el, ev), ReferenceError, 'not yet vouched for');
+    assert.match(SM.attr('click', text), /^data-on-click="h[0-9a-f]{32}"$/, 'hosOn.attr writes a token, never the text');
+    SM.run(text, el, ev);
   } finally {
     for (const k of Object.keys(win)) delete globalThis[k];
   }
@@ -311,6 +316,12 @@ test('safe-markup.js refuses anything that is not a call, and hosArg keeps a quo
   for (const bad of [
     "x = 1", "if (a) b()", "a() + b()", "fn('unclosed)", "this.value", "eval('1')",
     "Function('x')()", "a.constructor.constructor('x')()", "a()b()", "setTimeout(f, 1)", "fn(() => 1)",
+    // BUG-331: no path from a written value, and none through the names that reach the window,
+    // the document, storage, or a way to run code or write markup.
+    "go(''.concat('x'))", "go([1].map(f))", "go(this.ownerDocument)", "go(event.view)", "go(event.composedPath())",
+    "location.assign('x')", "go(localStorage.getItem('k'))", "go(f.bind(null))", "go(p.then(f))",
+    "Object.assign(this, {innerHTML: 'x'})", "go(this.innerHTML)", "this.insertAdjacentHTML('beforeend', 'x')",
+    "go(document.cookie)", "window.open('x')", "go(this.getRootNode())", "go(this.contentWindow)",
   ]) {
     assert.throws(() => SM.parse(bad), SyntaxError, 'refused: ' + bad);
   }
@@ -322,6 +333,16 @@ test('safe-markup.js refuses anything that is not a call, and hosArg keeps a quo
   assert.strictEqual(calls.length, 1, 'one call');
   assert.deepStrictEqual(calls[0].args.map((a) => a.v), [name, 5, 'null'], 'hosArg writes String(v), hosNum a number');
   assert.strictEqual(SM.hosEsc('<a href="x">\'&'), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;');
+  // hosOn.attr reads the same text the attribute held: one token per text, a fresh one per text.
+  const a1 = SM.attr('click', 'openNote(' + SM.hosArg(name) + ')');
+  assert.strictEqual(SM.attr('click', 'openNote(' + SM.hosArg(name) + ')'), a1, 'the same text keeps its token');
+  assert.notStrictEqual(SM.attr('click', 'openNote(' + SM.hosArg('b') + ')'), a1);
+  assert.throws(() => SM.attr('clik', 'go()'), TypeError, 'an event it does not handle');
+  assert.throws(() => SM.attr('click', 'go('), SyntaxError, 'a mistake shows where the markup is built');
+  // set() refuses markup, handlers and addresses, and the window, document and storage as targets.
+  for (const [t, k] of [[{}, 'innerHTML'], [{}, 'outerHTML'], [{}, 'onclick'], [{}, 'href'], [{}, 'srcdoc'], [{}, '__proto__'], [globalThis, 'x']]) {
+    assert.throws(() => SM.set(t, k, 'x'), TypeError, 'set refuses ' + k);
+  }
 });
 
 test('the checks above each fail on what they are for', () => {
@@ -338,13 +359,31 @@ test('the checks above each fail on what they are for', () => {
   assert.strictEqual(scriptProblems("const m = await import(`${'https://esm.sh/@noble/post-quantum'}/ml-dsa`);").length, 1);
   assert.strictEqual(scriptProblems("const m = await import('https://example.org/x.js');").length, 1);
   assert.strictEqual(scriptProblems("const m = await import('/shared/vendor/noble-pq.bundle.js');").length, 0);
-  const h = (s) => scriptHandlers(s).map((x) => x.bad);
-  assert.deepStrictEqual(h("x = `<b data-on-click=\"open(${hosArg(id)})\">`;"), [null]);
-  assert.deepStrictEqual(h("x = '<b data-on-click=\"open(' + hosArg(n.id) + ', 1)\">';"), [null]);
-  assert.deepStrictEqual(h("x = `<b data-on-click=\"open('${id}')\">`;"), ['a ${...} value not written with hosArg() or hosNum()']);
-  assert.deepStrictEqual(h("x = '<b data-on-click=\"open(\\'' + id + '\\')\">';"), ['a value joined into the string without hosArg() or hosNum()']);
-  assert.deepStrictEqual(h("x = `<b data-on-click=\"open(${hosNum(i)}, ${hosArg(k)})\">`;"), [null]);
-  assert.deepStrictEqual(h("x = '<b data-on-click=\"' + h + '\">'; // handler-exempt"), [], 'a marked builder line is skipped');
+  // BUG-331: a data-on-* attribute a script writes itself, however it writes it.
+  assert.strictEqual(scriptProblems("x = `<b data-on-click=\"open(${hosArg(id)})\">`;").length, 1);
+  assert.strictEqual(scriptProblems("x = '<b data-on-click=\"go()\">';").length, 1);
+  assert.strictEqual(scriptProblems("b.setAttribute('data-on-click', 'go()');").length, 1);
+  assert.strictEqual(scriptProblems("b.dataset.onClick = 'go()';").length, 1);
+  assert.strictEqual(scriptProblems("// a comment may show data-on-click=\"go()\"\nx = 1;").length, 0);
+  assert.strictEqual(scriptProblems("x = '<b ' + hosOn.attr('click', 'go()') + '>';").length, 0);
+  const h = (s) => attrHandlers(s).map((x) => x.bad);
+  assert.deepStrictEqual(h("x = `<b ${hosOn.attr('click', `open(${hosArg(id)})`)}>`;"), [null]);
+  assert.deepStrictEqual(h("x = '<b ' + hosOn.attr('click', 'open(' + hosArg(n.id) + ', 1)') + '>';"), [null]);
+  assert.deepStrictEqual(h("x = `<b ${hosOn.attr('click', `open('${id}')`)}>`;"), ['a ${...} value not written with hosArg() or hosNum(): ${id}']);
+  assert.deepStrictEqual(h("x = '<b ' + hosOn.attr('click', 'open(\\'' + id + '\\')') + '>';").map((b) => /without hosArg/.test(b)), [true]);
+  assert.deepStrictEqual(h("x = `<b ${hosOn.attr('click', `open(${hosNum(i)}, ${hosArg(k)})`)}>`;"), [null]);
+  assert.deepStrictEqual(h("x = '<b ' + hosOn.attr('click', h) + '>'; // handler-exempt"), [null], 'a marked builder line is not judged');
+  assert.deepStrictEqual(attrHandlers("x = '<b ' + hosOn.attr('click', 'open(' + hosArg(i) + ')') + '>';")[0].text, 'open("H")');
   assert.deepStrictEqual(handlerProblems('t', [{ type: 'clik', text: 'go()', line: 1 }]).length, 1);
   assert.deepStrictEqual(handlerProblems('t', [{ type: 'click', text: 'go(', line: 1 }]).length, 1);
+  // Check 4: safe-markup.js present, in the head, and first.
+  const page = (head) => '<html><head>' + head + '</head><body><b data-on-click="go()">x</b></body></html>';
+  assert.strictEqual(loadOrderProblems('p', page('<script src="/shared/safe-markup.js"></script><script src="/x.js"></script>')).length, 0);
+  assert.strictEqual(loadOrderProblems('p', page('<script src="/x.js"></script><script src="/shared/safe-markup.js"></script>')).length, 1);
+  assert.strictEqual(loadOrderProblems('p', page('<script type="application/ld+json">{}</script><script src="/shared/safe-markup.js"></script>')).length, 0);
+  assert.strictEqual(loadOrderProblems('p', page('')).length, 1);
+  // Check 7: a handler that starts at the browser's names.
+  assert.strictEqual(builtinRootProblems('t', [{ text: "console.warn('x')", line: 1 }]).length, 1);
+  assert.strictEqual(builtinRootProblems('t', [{ text: "hosOn.byId('x').click(); go(Math)", line: 1 }]).length, 1);
+  assert.strictEqual(builtinRootProblems('t', [{ text: "hosOn.byId('x').click()", line: 1 }]).length, 0);
 });

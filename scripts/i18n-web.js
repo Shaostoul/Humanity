@@ -250,7 +250,58 @@ function markupWords(src, baseLine = 1, opts = {}) {
  * static text (`${...}` becomes '{}') and their expressions are tokenized in
  * place. Regex literals are recognised after an operator or keyword.
  */
+/**
+ * A script's hosOn.attr('click', ...) calls read as the attribute they write (BUG-331,
+ * 2026-11-20): markup built in script gets its handlers that way, and the readers here (the hint
+ * and keyboard checks: "a control with a data-on-click") must still see one there. A call inside
+ * a template's ${...} becomes the attribute's text in the template; one joined with + becomes a
+ * string of it. Line breaks are kept, so line numbers stay true.
+ */
+function handlerAttrsAsMarkup(src) {
+  if (src.indexOf('hosOn.attr(') < 0) return src;
+  const skipQuoted = (i) => {
+    const q = src[i];
+    i++;
+    while (i < src.length && src[i] !== q) {
+      if (src[i] === '\\') i++;
+      else if (q === '`' && src[i] === '$' && src[i + 1] === '{') { i = skipTo(i + 2, '}'); continue; }
+      i++;
+    }
+    return i + 1;
+  };
+  function skipTo(i, close) { // index just past the bracket that closes, from just inside it
+    const stack = [close];
+    while (i < src.length) {
+      const c = src[i];
+      if (c === "'" || c === '"' || c === '`') { i = skipQuoted(i); continue; }
+      if (c === '(') stack.push(')'); else if (c === '[') stack.push(']'); else if (c === '{') stack.push('}');
+      else if (c === stack[stack.length - 1]) { stack.pop(); if (!stack.length) return i + 1; }
+      i++;
+    }
+    return i;
+  }
+  let out = '';
+  let from = 0;
+  const re = /hosOn\.attr\(\s*['"`]([a-z]+)['"`]/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const end = skipTo(m.index + 'hosOn.attr('.length, ')');
+    const attr = 'data-on-' + m[1] + '="H"';
+    let a = m.index;
+    let b = end;
+    const before = /\$\{\s*$/.exec(src.slice(Math.max(from, a - 8), a));
+    const after = /^\s*\}/.exec(src.slice(b, b + 8));
+    let rep;
+    if (before && after) { a -= before[0].length; b += after[0].length; rep = attr; } else rep = "'" + attr + "'";
+    out += src.slice(from, a) + rep + '\n'.repeat((src.slice(a, b).match(/\n/g) || []).length);
+    from = b;
+    re.lastIndex = b;
+  }
+  return out + src.slice(from);
+}
+
 function jsTokens(src, baseLine = 1) {
+  src = handlerAttrsAsMarkup(src);
   const toks = [];
   let i = 0;
   let line = baseLine;

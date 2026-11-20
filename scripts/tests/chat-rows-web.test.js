@@ -37,6 +37,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { showHandlers } = require("./handlers-web.js"); // a token shown as its handler text (BUG-331)
 
 const ROOT = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, "web");
@@ -712,7 +713,7 @@ test("the channel header reads as native's: the name, then the description after
   const c = loadChat();
   vm.runInContext("channelList = [{ id: 'global', name: 'global', description: 'General discussion' }]; activeChannel = 'global';", c.ctx);
   c.fn("updateChannelHeader")();
-  const html = c.keep("#channel-header").innerHTML;
+  const html = showHandlers(c.keep("#channel-header").innerHTML, c.ctx.hosOn);
   assert.ok(html.includes('<span class="ch-name"># global</span><span class="ch-desc">General discussion</span>'), "no '- ' before the description (the bar is drawn by .ch-desc::before)");
   const css = read("chat/sidebar.css");
   assert.match(css, /#channel-header \.ch-desc::before \{ content: '\|'/, "the bar");
@@ -723,7 +724,7 @@ test("a DM's header: Back, then DM: and the name in the DM ink, then Report and 
   const c = loadChat();
   vm.runInContext("(k) => { activeDmPartner = k; activeDmPartnerName = 'Ada'; }", c.ctx)(ANN);
   c.fn("renderDmHeader")();
-  const html = c.keep("#channel-header").innerHTML;
+  const html = showHandlers(c.keep("#channel-header").innerHTML, c.ctx.hosOn);
   assert.ok(html.startsWith('<button type="button" class="ch-back" data-on-click="closeDmView()"'), "Back first, a real button");
   assert.ok(html.includes('<span class="ch-name ch-dm">DM: Ada</span>'), "DM: Ada in the DM ink");
   assert.ok(html.includes(">Report</button>") && html.includes(">Block</button>"), "Report and Block stay");

@@ -102,7 +102,7 @@ function loadChat(storage) {
     matchMedia: () => anything(),
     requestAnimationFrame: () => 0,
     Notification: anything(),
-    crypto: anything(),
+    crypto: new Proxy(anything(), { get: (t, p) => (p === "getRandomValues" ? (a) => globalThis.crypto.getRandomValues(a) : t[p]) }), // safe-markup.js draws its handler tokens from it
     alert: () => {},
     TextEncoder,
     TextDecoder,
@@ -341,6 +341,7 @@ test("the Tasks page takes account_erased as a refusal and stops retrying", asyn
     }, { OPEN: 1, CONNECTING: 0, CLOSED: 3 }),
     TextEncoder,
     btoa: (s) => Buffer.from(s, "binary").toString("base64"),
+    crypto: { getRandomValues: (a) => globalThis.crypto.getRandomValues(a) }, // safe-markup.js's handler tokens
   };
   ctx.window = ctx;
   vm.createContext(ctx);

@@ -1046,7 +1046,7 @@ async function openSeedPhraseModal() {
         Identity: <code style="color:var(--text-muted)">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
       </p>
       <div style="display:flex;justify-content:flex-end">
-        <button data-on-click="document.getElementById('seed-phrase-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('seed-phrase-overlay').remove()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
@@ -1093,7 +1093,7 @@ async function openSeedPhraseModal() {
       encMsg.textContent = '✓ Downloaded, store the file in cloud, passphrase stays in your head.';
       encBtn.textContent = 'Downloaded!';
     } catch(e) {
-      encMsg.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+      encMsg.innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`;
       encBtn.disabled = false; encBtn.innerHTML = hosIcon('save', 14) + ' Download';
     }
   });
@@ -1142,9 +1142,9 @@ function openRestoreFromMnemonicModal() {
 
       <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button data-on-click="document.getElementById('restore-mnemonic-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('restore-mnemonic-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="rm-btn" data-on-click="doRestoreFromMnemonic()"
+        <button id="rm-btn" ${hosOn.attr('click', `doRestoreFromMnemonic()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
@@ -1176,7 +1176,7 @@ function openRestoreFromMnemonicModal() {
       ta.dispatchEvent(new Event('input'));
       fileMsg.textContent = '✓ Decrypted, verify the words above, then click Restore Identity.';
     } catch(e) {
-      fileMsg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
+      fileMsg.innerHTML = `<span style="color:var(--danger)">⚠ ${esc(e.message)}</span>`;
     }
   });
 }
@@ -1200,7 +1200,7 @@ async function doRestoreFromMnemonic() {
     msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored! Public key: <code>${identity.publicKeyHex.slice(0,16)}…</code><br>Reloading in 2 seconds…</span>`;
     setTimeout(() => location.reload(), 2000);
   } catch (e) {
-    msg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">⚠ ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Restore Identity';
   }
 }
@@ -1264,9 +1264,9 @@ function openEncryptedBackupModal() {
       </div>
       <div id="eb-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button data-on-click="this.closest('#encrypted-backup-overlay').remove()"
+        <button ${hosOn.attr('click', `this.closest('#encrypted-backup-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="eb-btn" data-on-click="doEncryptedBackup()"
+        <button id="eb-btn" ${hosOn.attr('click', `doEncryptedBackup()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
       </div>
     </div>
@@ -1294,7 +1294,7 @@ async function doEncryptedBackup() {
     btn.textContent = 'Done';
     setTimeout(() => document.getElementById('encrypted-backup-overlay')?.remove(), 2500);
   } catch (e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Download Encrypted Backup';
   }
 }
@@ -1329,9 +1329,9 @@ function openRestoreIdentityModal() {
       </div>
       <div id="ri-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button data-on-click="this.closest('#restore-identity-overlay').remove()"
+        <button ${hosOn.attr('click', `this.closest('#restore-identity-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="ri-btn" data-on-click="doRestoreIdentity()"
+        <button id="ri-btn" ${hosOn.attr('click', `doRestoreIdentity()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
@@ -1457,7 +1457,7 @@ function openLinkThisDeviceModal() {
       </p>
       ${method('🔗', 'Enter a link code', 'No recovery phrase or QR code needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
       <div style="text-align:right;margin-top:var(--space-md)">
-        <button data-on-click="document.getElementById('link-this-device-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('link-this-device-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
       </div>
     </div>`;
@@ -1525,10 +1525,10 @@ async function doRestoreIdentity() {
     const parsed = JSON.parse(text);
     const result = await importIdentityBackup(parsed, passphrase || undefined);
 
-    msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored for <strong>${result.name}</strong>. Reloading…</span>`;
+    msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored for <strong>${esc(result.name)}</strong>. Reloading…</span>`;
     setTimeout(() => location.reload(), 1800);
   } catch (e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Restore Identity';
   }
 }
@@ -1564,12 +1564,12 @@ function openKeyProtectionModal() {
       </div>
       <div id="kp-msg" style="font-size:.75rem;margin-bottom:var(--space-md);min-height:1.2em"></div>
       <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;justify-content:flex-end">
-        <button data-on-click="document.getElementById('key-protection-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('key-protection-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        ${wrapped ? `<button id="kp-remove-btn" data-on-click="doRemoveKeyProtection()"
+        ${wrapped ? `<button id="kp-remove-btn" ${hosOn.attr('click', `doRemoveKeyProtection()`)}
           style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer"
           title="Remove passphrase protection, key will be stored in plaintext again">Remove Protection</button>` : ''}
-        <button id="kp-save-btn" data-on-click="doEnableKeyProtection()"
+        <button id="kp-save-btn" ${hosOn.attr('click', `doEnableKeyProtection()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
       </div>
@@ -1602,7 +1602,7 @@ async function doEnableKeyProtection() {
     const removeBtn = document.getElementById('kp-remove-btn');
     if (removeBtn) removeBtn.title = 'Remove passphrase encryption, key reverts to plaintext in localStorage';
   } catch(e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Protect Key';
   }
 }

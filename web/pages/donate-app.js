@@ -189,7 +189,7 @@
           '<h3>' + iconHtml(abbrev, color) + ' ' + escHtml(entry.network) + '</h3>' +
           '<p>' + escHtml(label) + '</p>' +
           '<div class="addr-row"><span class="addr-text">' + escHtml(value) + '</span>' +
-          '<button class="btn-copy" data-i18n-tip="donate.copy_address_hint" data-on-click="window.__donateCopy(' + hosArg(value) + ', this)">' + escHtml(i18n.t('donate.copy')) + '</button></div>' +
+          '<button class="btn-copy" data-i18n-tip="donate.copy_address_hint" ' + hosOn.attr('click', '__donateCopy(' + hosArg(value) + ', this)') + '>' + escHtml(i18n.t('donate.copy')) + '</button></div>' +
           '<div class="qr-container" id="qr-addr-' + idx + '"></div>';
       }
 

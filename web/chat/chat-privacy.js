@@ -278,9 +278,9 @@ function injectAccountDataButtons() {
   div.id = 'account-data-controls';
   div.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
   div.innerHTML =
-    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" data-on-click="openSafetyPanel()" title="Choose who can message you, call you and send you trade requests, answer contact requests, see who you blocked, and turn warnings on messages on or off.">Safety</button>'
-    + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" data-on-click="exportMyAccountData()" title="Download everything this server stores about you as a JSON file.">Export my data</button>'
-    + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" data-on-click="deleteMyAccount()" title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
+    '<button class="vr-btn" style="flex:1;font-size:0.7rem;" ' + hosOn.attr('click', 'openSafetyPanel()') + ' title="Choose who can message you, call you and send you trade requests, answer contact requests, see who you blocked, and turn warnings on messages on or off.">Safety</button>'
+    + '<button class="vr-btn" style="flex:1;font-size:0.7rem;" ' + hosOn.attr('click', 'exportMyAccountData()') + ' title="Download everything this server stores about you as a JSON file.">Export my data</button>'
+    + '<button class="vr-btn" style="flex:1;font-size:0.7rem;color:var(--danger);" ' + hosOn.attr('click', 'deleteMyAccount()') + ' title="Erase your account and its data from this server. Self-service, permanent.">Erase account</button>';
   host.appendChild(div);
 }
 setTimeout(injectAccountDataButtons, 500);

@@ -280,8 +280,8 @@ window.openSceneManager = function() {
     html += scenes.map((s, i) => `
       <div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid var(--border);font-size:0.78rem;">
         <span style="flex:1;color:var(--text);">${s.name}</span>
-        <button data-on-click="loadScene(${hosNum(i)})" style="background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:var(--space-xs) var(--space-md);border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">Load</button>
-        <button data-on-click="deleteScene(${hosNum(i)})" style="background:transparent;border:1px solid var(--danger);color:var(--danger);padding:var(--space-xs) var(--space-sm);border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">✕</button>
+        <button ${hosOn.attr('click', `loadScene(${hosNum(i)})`)} style="background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:var(--space-xs) var(--space-md);border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">Load</button>
+        <button ${hosOn.attr('click', `deleteScene(${hosNum(i)})`)} style="background:transparent;border:1px solid var(--danger);color:var(--danger);padding:var(--space-xs) var(--space-sm);border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">✕</button>
       </div>
     `).join('');
   } else {
@@ -290,7 +290,7 @@ window.openSceneManager = function() {
 
   html += '<div style="display:flex;gap:var(--space-md);margin-top:var(--space-md);">';
   html += '<input type="text" id="scene-name-input" placeholder="Scene name" style="flex:1;padding:var(--space-sm) var(--space-md);background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.78rem;">';
-  html += '<button data-on-click="saveCurrentScene()" style="background:var(--accent);border:none;color:#fff;padding:var(--space-sm) var(--space-lg);border-radius:var(--radius-sm);cursor:pointer;font-size:0.78rem;">Save Current</button>';
+  html += '<button ' + hosOn.attr('click', 'saveCurrentScene()') + ' style="background:var(--accent);border:none;color:#fff;padding:var(--space-sm) var(--space-lg);border-radius:var(--radius-sm);cursor:pointer;font-size:0.78rem;">Save Current</button>';
   html += '</div></div>';
 
   // Use a simple overlay
@@ -300,7 +300,7 @@ window.openSceneManager = function() {
     overlay.id = 'scene-manager-overlay';
     overlay.className = 'profile-modal-overlay';
     overlay.onclick = function(e) { if (e.target === overlay) overlay.classList.remove('open'); };
-    overlay.innerHTML = '<div class="profile-modal" data-on-click="event.stopPropagation()" style="max-width:380px;"><button class="close-btn" data-on-click="document.getElementById(\'scene-manager-overlay\').classList.remove(\'open\')">✕</button><h2>' + hosIcon('film', 16) + ' Studio Scenes</h2><div id="scene-manager-body"></div></div>';
+    overlay.innerHTML = '<div class="profile-modal" ' + hosOn.attr('click', 'event.stopPropagation()') + ' style="max-width:380px;"><button class="close-btn" ' + hosOn.attr('click', 'hosOn.byId(\'scene-manager-overlay\').classList.remove(\'open\')') + '>✕</button><h2>' + hosIcon('film', 16) + ' Studio Scenes</h2><div id="scene-manager-body"></div></div>';
     document.body.appendChild(overlay);
   }
   document.getElementById('scene-manager-body').innerHTML = html;

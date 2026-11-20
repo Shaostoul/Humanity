@@ -191,7 +191,7 @@ async function startVrVideo() {
       btn.classList.remove('vc-muted');
       // Show the active camera's label if known, otherwise just "On".
       const camLabel = localStorage.getItem('humanity-preferred-camera-label') || 'On';
-      btn.innerHTML = hosIcon('video', 16) + ' Camera, ' + camLabel;
+      btn.innerHTML = hosIcon('video', 16) + ' Camera, ' + esc(camLabel);
     }
     showLocalVideo(vrVideoStream, 'vr-self');
   } catch (e) {
@@ -385,7 +385,7 @@ function ensureStreamChatOverlay() {
     panel.appendChild(ov);
     makeStudioDragResize(ov, 'humanity-studio-chat-overlay');
   }
-  ov.innerHTML = `<div class="video-label">Chat Overlay · #${streamChatOverlayChannel}</div><div class="stream-chat-overlay-body">Chat overlay enabled for #${streamChatOverlayChannel}. (Live channel feed integration in progress)</div>`;
+  ov.innerHTML = `<div class="video-label">Chat Overlay · #${esc(streamChatOverlayChannel)}</div><div class="stream-chat-overlay-body">Chat overlay enabled for #${esc(streamChatOverlayChannel)}. (Live channel feed integration in progress)</div>`;
 }
 
 function updateStudioPreviewPanel() {
@@ -461,7 +461,7 @@ window.toggleStreamChatOverlay = function() {
   if (btn) {
     if (streamChatOverlayEnabled) {
       btn.classList.add('active');
-      btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + (streamChatOverlayChannel || 'global');
+      btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + esc(streamChatOverlayChannel || 'global');
     } else {
       btn.classList.remove('active');
       btn.innerHTML = hosIcon('chat', 16) + ' Overlay, Off';
@@ -477,7 +477,7 @@ window.selectStreamChatChannel = function() {
   ensureStreamChatOverlay();
   updateStudioPreviewPanel();
   const btn = document.getElementById('vc-chat-overlay-btn');
-  if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + streamChatOverlayChannel;
+  if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay, #' + esc(streamChatOverlayChannel);
 };
 
 function showLocalVideo(stream, id) {

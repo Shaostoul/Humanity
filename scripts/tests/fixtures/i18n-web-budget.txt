@@ -2,7 +2,7 @@
 # writes into the page instead of asking data/i18n/en.json by key. Checked by
 # scripts/tests/i18n-web.test.js (its header says how to lower these). The numbers only
 # go DOWN; a file not listed has a budget of zero.
-# Total: 3905
+# Total: 3903
 68 web/chat/app.js
 24 web/chat/chat-dms.js
 8 web/chat/chat-fleet.js
@@ -73,7 +73,7 @@
 12 web/pages/roadmap-app.js
 30 web/pages/roadmap.html
 101 web/pages/rules.html
-193 web/pages/settings-app.js
+191 web/pages/settings-app.js
 499 web/pages/settings.html
 8 web/pages/tasks-app.js
 69 web/pages/trade-app.js

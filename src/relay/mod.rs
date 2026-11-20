@@ -219,7 +219,10 @@ pub(crate) fn allowed_origins() -> &'static Vec<String> {
 /// script-src is 'self' alone (2026-11-20, docs/PRIORITIES.md item 6b), as nginx sends for the
 /// website (scripts/nginx/humanity.conf): the web pages a self-hosted relay serves from `client/`
 /// keep no inline script (their handlers are data-on-*, run by web/shared/safe-markup.js;
-/// scripts/tests/inline-script-web.test.js), so an injected <script> or onclick never runs.
+/// scripts/tests/inline-script-web.test.js), so an injected <script> or onclick never runs, and
+/// safe-markup.js runs only the handlers a page wrote itself (BUG-331: an injected data-on-*
+/// attribute ran as script until 2026-11-20). Injected markup can still draw a fake button or
+/// link, so every value written into markup is escaped too.
 fn csp_value() -> &'static str {
     static CSP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CSP.get_or_init(|| {

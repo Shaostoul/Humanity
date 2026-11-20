@@ -102,6 +102,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { showHandlers } = require("./handlers-web.js"); // a token shown as its handler text (BUG-331)
 
 const WEB = process.env.HOS_WEB_DIR || path.join(__dirname, "..", "..", "web");
 const ROOT = path.join(__dirname, "..", "..");
@@ -583,7 +584,7 @@ test("a message's menu opens the dialog on that post, and Send sends exactly the
   const { sock, store, appended, fetched, handle, fn, el, dialog } = await loadChat();
   // The menu opened on Ben's post (app.js passes the message it was opened on).
   fn("showUserContextMenu")(ev, "Ben", BEN, { timestamp: 1760000000555, text: "buy my scam coin", group: false });
-  const menu = el("user-context-menu").innerHTML;
+  const menu = showHandlers(el("user-context-menu").innerHTML, fn("hosOn"));
   assert.ok(menu.indexOf("blockFromCtx()") < menu.indexOf("reportUser()"), "Report beside Block");
   fn("reportUser")();
   await settle();
@@ -652,7 +653,7 @@ test("a DM report carries their messages' inner payloads, the most recent ticked
   // The conversation header offers Report.
   vm.runInContext("(k) => { activeDmPartner = k; activeDmPartnerName = 'Ben'; }", ctx)(BEN);
   fn("renderDmHeader")();
-  const header = el("channel-header").innerHTML;
+  const header = showHandlers(el("channel-header").innerHTML, fn("hosOn"));
   assert.ok(header.includes("reportActiveDm()") && header.includes(">Report</button>") && header.includes(">Block</button>"), "the DM header offers Report beside Block");
   fn("reportActiveDm")();
   await settle();

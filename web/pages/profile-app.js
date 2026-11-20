@@ -486,6 +486,7 @@
 
     /** Self-assessment: put the skill at the start of the chosen stage. */
     function skill_setStage(skillId, stageIdx, cardEl) {
+      stageIdx = Number(stageIdx); // the select's value, a string (its handler cannot call Number)
       var sk = skill_getById(skillId);
       if (!sk) return;
       var s = skill_get(skillId);
@@ -511,7 +512,7 @@
         var pct = total ? (done / total * 100).toFixed(1) : 0;
         var isActive = skill_activeFamily === f;
         return '<div class="domain-item' + (isActive ? ' active' : '') + '" style="--domain-color:var(--accent)" data-id="' + f + '" role="button" tabindex="0"' +
-          ' data-i18n-tip="skills_page.family_hint" data-tip-desc="' + skill_t('skills_page.family_hint') + '" data-on-click="skill_selectFamily(' + hosArg(f) + ')">' +
+          ' data-i18n-tip="skills_page.family_hint" data-tip-desc="' + skill_t('skills_page.family_hint') + '" ' + hosOn.attr('click', 'skill_selectFamily(' + hosArg(f) + ')') + '>' +
           '<div class="domain-dot"></div>' +
           '<div style="flex:1;min-width:0">' +
             '<div class="domain-name">' + skill_t('skill_families.' + f + '.name') + '</div>' +
@@ -569,7 +570,7 @@
       }).join('');
       var practise = function (n) {
         return '<button class="xp-btn" data-i18n-tip="skills_page.log_practice_hint" data-tip-desc="' + skill_t('skills_page.log_practice_hint') + '"' +
-          ' data-on-click="skill_addXp(' + hosArg(sk.id) + ', ' + hosNum(n) + ', document.getElementById(' + hosArg('card-' + sk.id) + '))">' + skill_t('skills_page.log_practice', { xp: n }) + '</button>';
+          ' ' + hosOn.attr('click', 'skill_addXp(' + hosArg(sk.id) + ', ' + hosNum(n) + ', hosOn.byId(' + hosArg('card-' + sk.id) + '))') + '>' + skill_t('skills_page.log_practice', { xp: n }) + '</button>';
       };
       return '<div class="skill-card" id="card-' + sk.id + '">' +
         '<div class="skill-card-header">' +
@@ -600,11 +601,11 @@
         '<div class="xp-actions">' +
           '<label class="xp-current">' + skill_t('skills_page.my_stage') + ' ' +
             '<select data-i18n-tip="skills_page.my_stage_hint" data-tip-desc="' + skill_t('skills_page.my_stage_hint') + '"' +
-            ' data-on-change="skill_setStage(' + hosArg(sk.id) + ', Number(this.value), document.getElementById(' + hosArg('card-' + sk.id) + '))">' + stageOptions + '</select>' +
+            ' ' + hosOn.attr('change', 'skill_setStage(' + hosArg(sk.id) + ', this.value, hosOn.byId(' + hosArg('card-' + sk.id) + '))') + '>' + stageOptions + '</select>' +
           '</label>' +
           practise(10) + practise(50) +
           '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" data-i18n-tip="skills_page.find_hint" data-tip-desc="' + skill_t('skills_page.find_hint') + '"' +
-          ' data-on-click="skill_findUsers(' + hosArg(sk.id) + ', ' + hosArg(name) + ')">' + hosIcon('users', 14) + ' ' + skill_t('skills_page.find') + '</button>' +
+          ' ' + hosOn.attr('click', 'skill_findUsers(' + hosArg(sk.id) + ', ' + hosArg(name) + ')') + '>' + hosIcon('users', 14) + ' ' + skill_t('skills_page.find') + '</button>' +
         '</div>' +
       '</div>';
     }
@@ -672,7 +673,7 @@
           '<p style="font-size:0.73rem;color:var(--pg-dim-ink);margin-bottom:var(--space-xl)">Community members with this skill (from relay database):</p>' +
           '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
           '<div style="display:flex;justify-content:flex-end;margin-top:var(--space-xl);">' +
-            '<button data-on-click="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid var(--pg-quiet-line);color:var(--pg-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:0.82rem;cursor:pointer;">Close</button>' +
+            '<button ' + hosOn.attr('click', 'this.closest(\'[style*=fixed]\').remove()') + ' style="background:none;border:1px solid var(--pg-quiet-line);color:var(--pg-quiet-ink);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:0.82rem;cursor:pointer;">Close</button>' +
           '</div>' +
         '</div>';
       document.body.appendChild(overlay);
@@ -692,13 +693,13 @@
             var c = lvColors[Math.min(lv, lvColors.length-1)];
             return '<div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid var(--pg-row-line);">' +
               '<div style="width:28px;height:28px;border-radius:50%;background:var(--pg-chip-bg);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:' + c + '">' + lv + '</div>' +
-              '<span style="flex:1;font-weight:600">' + (u.display_name || u.public_key.slice(0,12) + '…') + '</span>' +
+              '<span style="flex:1;font-weight:600">' + hosEsc(u.display_name || u.public_key.slice(0,12) + '…') + '</span>' +
               '<span style="font-size:0.68rem;color:var(--pg-faint-ink)">' + (u.reality_xp|0) + ' XP</span>' +
             '</div>';
           }).join('');
         })
         .catch(function(e) {
-          resultsEl.innerHTML = '<span style="color:#e55">Error: ' + e.message + '</span>';
+          resultsEl.innerHTML = '<span style="color:#e55">Error: ' + hosEsc(e.message) + '</span>';
         });
     }
 

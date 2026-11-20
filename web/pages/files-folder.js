@@ -93,7 +93,7 @@ const FilesFolder = (function () {
       if (isLast) {
         html += '<span class="breadcrumb-seg active">' + escapeHtml(parts[i]) + '</span>';
       } else {
-        html += '<button class="breadcrumb-seg" data-on-click="FilesFolder.openDir(' + hosArg(partial) + ')">' + escapeHtml(parts[i]) + '</button>';
+        html += '<button class="breadcrumb-seg" ' + hosOn.attr('click', 'FilesFolder.openDir(' + hosArg(partial) + ')') + '>' + escapeHtml(parts[i]) + '</button>';
       }
     }
     bc.innerHTML = html;
@@ -432,7 +432,7 @@ const FilesFolder = (function () {
     if (Array.isArray(obj)) {
       if (obj.length === 0) return '[]';
       const id = 'jt_' + Math.random().toString(36).slice(2, 8);
-      let html = '<span class="json-toggle" data-on-click="FilesFolder.toggleJson(' + hosArg(id) + ')">\u25BE</span>[<div id="' + id + '">';
+      let html = '<span class="json-toggle" ' + hosOn.attr('click', 'FilesFolder.toggleJson(' + hosArg(id) + ')') + '>\u25BE</span>[<div id="' + id + '">';
       obj.forEach((item, i) => {
         html += innerIndent + renderJson(item, depth + 1);
         if (i < obj.length - 1) html += ',';
@@ -446,7 +446,7 @@ const FilesFolder = (function () {
       const keys = Object.keys(obj);
       if (keys.length === 0) return '{}';
       const id = 'jt_' + Math.random().toString(36).slice(2, 8);
-      let html = '<span class="json-toggle" data-on-click="FilesFolder.toggleJson(' + hosArg(id) + ')">\u25BE</span>{<div id="' + id + '">';
+      let html = '<span class="json-toggle" ' + hosOn.attr('click', 'FilesFolder.toggleJson(' + hosArg(id) + ')') + '>\u25BE</span>{<div id="' + id + '">';
       keys.forEach((key, i) => {
         html += innerIndent + '<span class="json-key">"' + escapeHtml(key) + '"</span>: ' +
           renderJson(obj[key], depth + 1);
@@ -683,7 +683,7 @@ const FilesFolder = (function () {
     left.className = 'files-folder fd-tree';
     left.innerHTML =
       '<div class="tree-header"><h2 class="files-place-heading">' + PLACE + '</h2>' +
-      '<button class="btn-refresh-tree" data-on-click="FilesFolder.refreshTree()" title="Read the folder again">Refresh</button></div>' +
+      '<button class="btn-refresh-tree" ' + hosOn.attr('click', 'FilesFolder.refreshTree()') + ' title="Read the folder again">Refresh</button></div>' +
       '<div class="tree-list" id="tree-list"><div class="loading">Loading...</div></div>';
     const middle = document.createElement('div');
     middle.className = 'files-folder fd-middle';
@@ -691,8 +691,8 @@ const FilesFolder = (function () {
       '<div class="fd-topbar">' +
         '<span class="unsaved-dot" id="unsaved-dot" title="Unsaved changes">*</span>' +
         '<div class="breadcrumb" id="breadcrumb"></div>' +
-        '<button class="btn-wrap" id="btn-wrap" data-on-click="FilesFolder.toggleWrap()">Wrap</button>' +
-        '<button class="btn-save" id="btn-save" data-on-click="FilesFolder.save()">Save</button>' +
+        '<button class="btn-wrap" id="btn-wrap" ' + hosOn.attr('click', 'FilesFolder.toggleWrap()') + '>Wrap</button>' +
+        '<button class="btn-save" id="btn-save" ' + hosOn.attr('click', 'FilesFolder.save()') + '>Save</button>' +
       '</div>' +
       '<div class="file-viewer" id="file-viewer"><div class="viewer-empty"><p>Choose a file on the left to read it here.</p></div></div>';
     const right = document.createElement('div');

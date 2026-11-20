@@ -607,7 +607,7 @@ function showUserContextMenu(e, name, publicKey, message) {
       danger: 'border-left:3px solid var(--danger);padding-left:9px;color:var(--danger);',
     }[tier] || '';
     // handler-exempt: every caller below passes a constant handler, never data.
-    return '<div class="ctx-item" style="' + borderStyle + '" data-on-click="' + onclick + '">' + label + '</div>'; // handler-exempt
+    return '<div class="ctx-item" style="' + borderStyle + '" ' + hosOn.attr('click', onclick) + '>' + label + '</div>'; // handler-exempt
   };
 
   // Role badge for target user header.
@@ -2214,7 +2214,7 @@ var federatedRetryMs = 30000;
     const myRole = (window.myPeerRole || '').toLowerCase();
     if (myRole === 'admin') {
       html += `<div style="padding:var(--space-md) var(--space-md);">
-        <button data-on-click="promptAddServer()" style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
+        <button ${hosOn.attr('click', `promptAddServer()`)} style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
       </div>`;
     }
 
@@ -2418,10 +2418,11 @@ function clearUnread(channelId) {
 
 function renderUnreadDots() {
   document.querySelectorAll('.channel-item').forEach(el => {
-    // Get the channel id from data attribute or onclick attribute.
+    // Get the channel id from data attribute or the click handler (its text, from safe-markup.js:
+    // the attribute itself holds only a token).
     let chId = el.getAttribute('data-channel-id');
     if (!chId) {
-      const onclick = el.getAttribute('data-on-click') || '';
+      const onclick = (window.hosOn && hosOn.handlerOf(el, 'click')) || '';
       const match = onclick.match(/switchChannel\((['"])([^'"]+)\1\)/);
       if (!match) return;
       chId = match[2];
@@ -2760,9 +2761,9 @@ function renderSearchResults(data) {
     const highlighted = escaped.replace(new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>');
     // Truncate content preview
     const preview = highlighted.length > 300 ? highlighted.substring(0, 300) + '…' : highlighted;
-    return '<div class="search-result" data-channel="' + (r.channel || '') + '" data-timestamp="' + r.timestamp + '">' +
-      '<div class="sr-meta"><span class="sr-author">' + (r.from_name || 'Unknown') + '</span>' +
-      '<span class="sr-channel">#' + (r.channel || '?') + '</span>' +
+    return '<div class="search-result" data-channel="' + esc(r.channel || '') + '" data-timestamp="' + esc(r.timestamp) + '">' +
+      '<div class="sr-meta"><span class="sr-author">' + esc(r.from_name || 'Unknown') + '</span>' +
+      '<span class="sr-channel">#' + esc(r.channel || '?') + '</span>' +
       '<span class="sr-time">' + time + '</span></div>' +
       '<div class="sr-body">' + preview + '</div></div>';
   }).join('');

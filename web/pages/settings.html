@@ -784,7 +784,7 @@
             <span>Primary highlight used for buttons, links, and focus states</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="color" class="setting-color" id="pref-accent" value="#22aa66" data-on-input="hosOn.set(document.getElementById('accent-hex'), 'textContent', this.value); savePref()">
+            <input type="color" class="setting-color" id="pref-accent" value="#22aa66" data-on-input="hosOn.set(hosOn.byId('accent-hex'), 'textContent', this.value); savePref()">
             <span id="accent-hex" style="font-size:0.78rem;color:var(--text-muted);font-family:monospace"></span>
           </div>
         </div>
@@ -1535,7 +1535,7 @@
             <span>Restore from a previously exported JSON backup</span>
           </div>
           <input type="file" id="import-file" accept=".json" style="display:none;" data-on-change="importData(event)">
-          <button data-on-click="document.getElementById('import-file').click()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
+          <button data-on-click="hosOn.byId('import-file').click()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
         </div>
       </div>
 
@@ -1846,7 +1846,7 @@
             <strong>Manage Linked Devices</strong>
             <span>See all devices using your identity, label them, or revoke access</span>
           </div>
-          <a href="/chat" data-on-click="sessionStorage.setItem('open_device_panel','1')" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
+          <a href="/chat" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
         </div>
       </div>
 
@@ -2337,7 +2337,7 @@
 <div id="vault-sec-blur-overlay"
   style="display:none;position:fixed;inset:0;z-index:var(--z-shade);background:var(--set-cover-bg);
          align-items:center;justify-content:center;flex-direction:column;gap:var(--space-lg);cursor:pointer"
-  data-on-click="hosOn.set(document.getElementById('vault-sec-blur-overlay').style, 'display', 'none')">
+  data-on-click="hosOn.set(hosOn.byId('vault-sec-blur-overlay').style, 'display', 'none')">
   <div style="font-size:2.5rem">🔒</div>
   <div style="font-size:.95rem;color:var(--text-muted)">Vault hidden while you were away</div>
   <div style="font-size:.75rem;color:var(--text-muted)">Click to continue, or wait for auto-lock</div>
@@ -2366,7 +2366,7 @@
     </div>
     <div id="vault-sec-import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
     <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-      <button data-on-click="hosOn.set(document.getElementById('vault-sec-import-overlay').style, 'display', 'none')"
+      <button data-on-click="hosOn.set(hosOn.byId('vault-sec-import-overlay').style, 'display', 'none')"
         style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
       <button id="vault-sec-import-btn" data-on-click="vault_doImport()"
         style="background:var(--accent);color:var(--set-on-accent);border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>

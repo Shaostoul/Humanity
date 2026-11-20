@@ -70,6 +70,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { showHandlers } = require("./handlers-web.js"); // a token shown as its handler text (BUG-331)
 
 const WEB = process.env.HOS_WEB_DIR || path.join(__dirname, "..", "..", "web");
 const ROOT = path.join(__dirname, "..", "..");
@@ -742,19 +743,20 @@ test("Settings > Safety > Blocked people, the commands, the menus, and a Block m
   // The message and member list menu: Block beside Report, Unblock (and no Follow) while blocked.
   const ev = { preventDefault() {}, stopPropagation() {}, clientX: 10, clientY: 10 };
   fn("showUserContextMenu")(ev, "Ben", BEN);
-  let menu = el("user-context-menu").innerHTML;
+  let menu = showHandlers(el("user-context-menu").innerHTML, fn("hosOn"));
   assert.ok(menu.indexOf("blockFromCtx()") > 0 && menu.indexOf("blockFromCtx()") < menu.indexOf("reportUser()"), "Block, then Report");
   fn("blockFromCtx")();
   await settle();
   assert.ok(store.isBlocked(BEN), "the menu blocks by key");
   fn("showUserContextMenu")(ev, "Ben", BEN);
-  menu = el("user-context-menu").innerHTML;
+  menu = showHandlers(el("user-context-menu").innerHTML, fn("hosOn"));
   assert.ok(menu.includes("unblockFromCtx()") && !menu.includes("followFromCtx(true)"), "Unblock, and no Follow, while blocked");
 
   // The DM conversation header.
   vm.runInContext("(k) => { activeDmPartner = k; activeDmPartnerName = 'Cy'; }", ctx)(CY);
   fn("renderDmHeader")();
-  assert.ok(el("channel-header").innerHTML.includes("toggleBlockActiveDm()") && el("channel-header").innerHTML.includes(">Block</button>"), "the DM header offers Block");
+  const dmHeader = showHandlers(el("channel-header").innerHTML, fn("hosOn"));
+  assert.ok(dmHeader.includes("toggleBlockActiveDm()") && dmHeader.includes(">Block</button>"), "the DM header offers Block");
   fn("toggleBlockActiveDm")();
   await settle();
   assert.ok(store.isBlocked(CY), "which blocks them");

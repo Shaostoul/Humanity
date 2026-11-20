@@ -49,6 +49,13 @@ function inputNum(n) {
   updateDisplay();
 }
 
+// The pi and e keys (their handlers named Math and String, which a data-on handler may not reach
+// since BUG-331).
+var CALC_CONSTANTS = { PI: Math.PI, E: Math.E };
+function inputConst(name) {
+  if (Object.prototype.hasOwnProperty.call(CALC_CONSTANTS, name)) inputNum(String(CALC_CONSTANTS[name]));
+}
+
 function inputOp(op) {
   expression += op;
   updateDisplay();
@@ -255,7 +262,7 @@ function renderHistory() {
   const reuseTitle = esc(i18n.t('calculator.history_reuse_title'));
   const reuseHint = esc(i18n.t('calculator.history_reuse_hint'));
   list.innerHTML = history.map((h, i) =>
-    `<div role="button" tabindex="0" class="hist-item" data-on-click="useHistory(${hosNum(i)})" title="${reuseTitle}" data-i18n-tip="calculator.history_reuse_hint" data-tip-desc="${reuseHint}">
+    `<div role="button" tabindex="0" class="hist-item" ${hosOn.attr('click', `useHistory(${hosNum(i)})`)} title="${reuseTitle}" data-i18n-tip="calculator.history_reuse_hint" data-tip-desc="${reuseHint}">
       <div class="hist-expr">${esc(h.expr)}</div>
       <div class="hist-result">= ${esc(h.result)}</div>
     </div>`
@@ -347,7 +354,7 @@ function buildConverterUI() {
   const cats = document.getElementById('conv-cats');
   const hint = esc(i18n.t('calculator.category_hint'));
   cats.innerHTML = Object.entries(UNITS).map(([key, cat]) =>
-    `<button class="conv-cat-btn${key === convCategory ? ' active' : ''}" data-cat="${key}" data-on-click="setConvCategory(${hosArg(key)})" data-i18n-tip="calculator.category_hint" data-tip-desc="${hint}">${esc(cat.label)}</button>` // i18n-exempt: ' active' is a class name
+    `<button class="conv-cat-btn${key === convCategory ? ' active' : ''}" data-cat="${key}" ${hosOn.attr('click', `setConvCategory(${hosArg(key)})`)} data-i18n-tip="calculator.category_hint" data-tip-desc="${hint}">${esc(cat.label)}</button>` // i18n-exempt: ' active' is a class name
   ).join('');
   populateUnitSelects();
   doConvert();

@@ -363,20 +363,29 @@ To add a help button next to any UI element:
 The site's Content-Security-Policy (`scripts/nginx/humanity.conf`, and the relay's own for a
 self-hosted server) runs only script files from this site: `script-src 'self'`, no
 `'unsafe-inline'`, no `'unsafe-eval'`, no outside host. So an injected `<script>` or `onclick`
-never runs, and neither would ours. The rules, held by `scripts/tests/inline-script-web.test.js`:
+never runs, and neither would ours; and a `data-on-*` handler runs only when the page itself wrote it. The rules, held by `scripts/tests/inline-script-web.test.js`:
 
 - **No `<script>` block in a page** (JSON-LD data excepted) and no `onclick=`/`onchange=`/... in a
   page or in markup a script builds. A page's code is a file loaded where the block would stand.
-- **Handlers are `data-on-<event>="..."`**, run by `web/shared/safe-markup.js`, which every page
-  with one loads in its `<head>`. The value is a small call language, parsed and never evaluated:
-  calls, string/number/true/false/null arguments, objects and lists, and paths from `this` (the
-  element), `event` or a name on `window` (`showSection('ai')`, `savePref('k', this.checked)`,
+- **Handlers are `data-on-<event>="..."` in a page's static HTML**, run by `web/shared/safe-markup.js`,
+  which every page with one loads as the FIRST script of its `<head>`. The value is a small call
+  language, parsed and never evaluated: calls, string/number/true/false/null arguments, objects and
+  lists, and paths from `this` (the element), `event`, `hosOn` (its helpers) or a name the page
+  defined on `window` (`showSection('ai')`, `savePref('k', this.checked)`,
   `event.stopPropagation(); open(this.dataset.id)`). A top-level `let` or `const` is not on window;
   anything with an `if` or an `=` is a named function the attribute calls, or one of the helpers
   `hosOn.ifSelf` (a backdrop closing only on itself), `hosOn.onKey`/`onKeyPrevent` (Enter or Space),
-  `hosOn.set` and `hosOn.maybe`.
-- **Data goes into a handler only through `hosArg(v)`** (a string) **or `hosNum(v)`** (a number):
-  `'data-on-click="openNote(' + hosArg(note.id) + ')"'`. A quote in a name stays one string.
+  `hosOn.set`, `hosOn.maybe` and `hosOn.byId` (an element by id). A handler never names the
+  browser's own globals (`document`, `window`, `location`, storage, `console`, `Math`): those go in
+  a named page function.
+- **Markup built in script gets its handlers from `hosOn.attr(type, text)`**, never a
+  `data-on-*` it writes itself (BUG-331): `'<b ' + hosOn.attr('click', 'openNote(' + hosArg(note.id) + ')') + '>'`.
+  It keeps the text inside safe-markup.js under a token fresh for each page load and writes only
+  `data-on-click="<token>"`. ONLY handlers the page wrote run: the static ones recorded while the
+  parser built the page, and registered tokens. A `data-on-*` slipped in through an unescaped
+  innerHTML write does nothing, so stored or relayed text cannot run script that way.
+- **Data goes into a handler only through `hosArg(v)`** (a string) **or `hosNum(v)`** (a number).
+  A quote in a name stays one string.
 - **Text goes into markup through `hosEsc(s)`** (also in safe-markup.js) or the page's own
   `esc`/`escapeHtml`, each escaping `& < > " '`; better, set `textContent`.
   `scripts/tests/inner-html-web.test.js` counts, per file, the markup writes it cannot see are

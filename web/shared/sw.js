@@ -132,7 +132,13 @@ self.addEventListener('fetch', event => {
   // The How-to data (2026-10-23, docs/design/how-to.md) is network-first as well: a safety fix to a
   // how-to must reach a person on their next visit, not whenever this cache's version next changes.
   // Offline, the copy last fetched answers, so a how-to opened once still works without a connection.
-  const isShell = SHELL_URLS.some(s => url.endsWith(s)) || url.includes('/data/how_to/');
+  // Scripts and styles too (2026-11-20, BUG-331): they were cache-first, so a push without a version
+  // bump could leave fresh HTML (never cached) running yesterday's script ("X is not defined"): the
+  // page scripts moved to /pages/*-app.js carry no ?v= stamp. Offline, the last copy still answers.
+  const path = new URL(url).pathname;
+  const isCode = event.request.destination === 'script' || event.request.destination === 'style' ||
+    event.request.destination === 'worker' || /\.(m?js|css)$/.test(path);
+  const isShell = isCode || SHELL_URLS.some(s => url.endsWith(s)) || url.includes('/data/how_to/');
   if (isShell) {
     event.respondWith(
       fetch(event.request).then(response => {
@@ -147,7 +153,8 @@ self.addEventListener('fetch', event => {
   }
 
   // ── Cache-first for other static assets (images, fonts, icons) ────────────
-  // Safe to cache because they change rarely; bumping CACHE_NAME wipes old copies.
+  // Safe to cache because they change rarely; bumping CACHE_NAME wipes old copies. Never code:
+  // scripts and styles took the network-first branch above.
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;

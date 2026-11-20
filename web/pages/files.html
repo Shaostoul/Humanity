@@ -46,6 +46,7 @@
        the page and what its own parts put on the body show: the drop overlay, the press-and-hold
        confirmation Remove asks with (/shared/hold-confirm.js; hidden, its promise never settled and
        Remove did nothing), and the tooltip /shared/shell.js draws in place of every title. -->
+  <script src="/shared/safe-markup.js"></script>
   <script src="/pages/files-frame.js"></script>
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
@@ -54,7 +55,6 @@
     /* The item window: the item and its details in two panes filling the frame (files.css .files-panes-window). */
     [data-files-window] #files-root { padding: var(--space-sm); max-width: none; }
   </style>
-<script src="/shared/safe-markup.js"></script>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>

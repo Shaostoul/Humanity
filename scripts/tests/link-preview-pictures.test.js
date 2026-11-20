@@ -115,7 +115,7 @@ function loadChat() {
     matchMedia: () => anything(),
     requestAnimationFrame: () => 0,
     Notification: anything(),
-    crypto: anything(),
+    crypto: new Proxy(anything(), { get: (t, p) => (p === "getRandomValues" ? (a) => globalThis.crypto.getRandomValues(a) : t[p]) }), // safe-markup.js draws its handler tokens from it
     TextEncoder,
     TextDecoder,
     URLSearchParams,
@@ -125,6 +125,7 @@ function loadChat() {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
+  run("shared/safe-markup.js"); // as the pages load it first in their <head> (hosOn.attr, hosArg; BUG-331)
   run("shared/events.js");
   run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");

@@ -129,9 +129,9 @@ function renderFilters() {
   var sites = getAllSites();
   var cats = getCategories(sites);
   var el = document.getElementById('cat-filters');
-  var html = '<span role="button" tabindex="0" class="cat-pill' + (activeCategory === '' ? ' active' : '') + '" data-on-click="setCategory(\'\')">All</span>';
+  var html = '<span role="button" tabindex="0" class="cat-pill' + (activeCategory === '' ? ' active' : '') + '" ' + hosOn.attr('click', 'setCategory(\'\')') + '>All</span>';
   cats.forEach(function(c) {
-    html += '<span role="button" tabindex="0" class="cat-pill' + (activeCategory === c ? ' active' : '') + '" data-on-click="setCategory(' + hosArg(c) + ')">' + esc(categoryName(c)) + '</span>';
+    html += '<span role="button" tabindex="0" class="cat-pill' + (activeCategory === c ? ' active' : '') + '" ' + hosOn.attr('click', 'setCategory(' + hosArg(c) + ')') + '>' + esc(categoryName(c)) + '</span>';
   });
   el.innerHTML = html;
 }
@@ -190,7 +190,7 @@ function renderSites() {
       var review = s._custom ? 'Your bookmark' : embedLabel(s.embed);
       var hrefAttr = (hasUrl ? ' href="' + esc(s.url) + '" target="_blank" rel="noopener"' : '') +
         ' title="' + esc(s.name + '\n' + (s.url || '') + '\n' + review) + '"';
-      var clickHandler = hasUrl ? ' data-on-click="event.preventDefault();openSite(' + hosArg(s.url) + ')"' : '';
+      var clickHandler = hasUrl ? ' ' + hosOn.attr('click', 'event.preventDefault();openSite(' + hosArg(s.url) + ')') + '' : '';
 
       html += '<' + tag + ' class="site-card"' + hrefAttr + clickHandler + '>' +
         '<div class="site-icon" style="background:' + color + '">' + letter + '</div>' +
@@ -202,7 +202,7 @@ function renderSites() {
 
       // Delete button for custom bookmarks
       if (s._custom) {
-        html += '<button class="bookmark-delete" data-on-click="event.preventDefault();event.stopPropagation();deleteBookmark(' + hosArg(s.url) + ',' + hosArg(s.name) + ')" title="Remove bookmark" data-tip="Remove" data-tip-desc="Delete this custom bookmark.">✕</button>';
+        html += '<button class="bookmark-delete" ' + hosOn.attr('click', 'event.preventDefault();event.stopPropagation();deleteBookmark(' + hosArg(s.url) + ',' + hosArg(s.name) + ')') + ' title="Remove bookmark" data-tip="Remove" data-tip-desc="Delete this custom bookmark.">✕</button>';
       }
 
       html += '</' + tag + '>';

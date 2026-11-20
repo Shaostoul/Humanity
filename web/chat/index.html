@@ -49,6 +49,7 @@
        /assets/emoji/, CC BY-SA 4.0. Until then the chat ran Twemoji, whose pictures every
        visitor's browser fetched from cdn.jsdelivr.net (one pinned to @latest); now no emoji
        asks another site for anything. -->
+  <script src="/shared/safe-markup.js"></script>
   <script src="/shared/emoji.js?v=1"></script>
   <!--
     v0.196.0: pre-flight check for first-time visitors. If the browser
@@ -69,7 +70,6 @@
     normally and connect, the backup gets recreated on first send.
   -->
   <script src="/chat/index-preflight.js"></script>
-<script src="/shared/safe-markup.js"></script>
 </head>
 <body>
   <script src="/shared/icons.js?v=1"></script>
@@ -99,7 +99,7 @@
       <hr style="flex:1;border:none;border-top:1px solid var(--border);margin:0">
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;gap:0.4rem;">
-      <button data-on-click="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;"><span class="pg-ico" data-icon="download" data-size="16"></span> Import Identity Backup</button>
+      <button data-on-click="hosOn.byId('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;"><span class="pg-ico" data-icon="download" data-size="16"></span> Import Identity Backup</button>
       <button data-on-click="openLoginSeedRecovery()" style="background:none;color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;">🔑 Restore from recovery phrase</button>
     </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none;" data-on-change="handleImportFile(event)">
@@ -428,7 +428,7 @@
               data-tip-hotkey="?"
               data-tip-desc="Shows all slash commands and keyboard shortcuts."
               data-tip-detail="Press ? anywhere outside a text field to open this panel">?</button>
-            <button id="attach-btn" data-on-click="document.getElementById('file-upload-input').click()"
+            <button id="attach-btn" data-on-click="hosOn.byId('file-upload-input').click()"
               data-tip-title="Attach File"
               data-tip-desc="Upload an image or file to share in this channel."
               data-tip-detail="Images, video, audio, PDF, text, JSON, ZIP and 3D models. The size limit is your role's on this server, and smaller in private conversations."><span class="pg-ico" data-icon="clip" data-size="16"></span><span class="attach-label">Attach</span></button>
@@ -608,7 +608,7 @@
   <!-- Device Management Modal -->
   <div id="device-panel-overlay" class="profile-modal-overlay" data-on-click="hosOn.ifSelf(event, hosOn.removeClass, this, 'open')">
     <div class="profile-modal" data-on-click="event.stopPropagation()" style="max-width:420px;">
-      <button class="close-btn" data-on-click="document.getElementById('device-panel-overlay').classList.remove('open')">✕</button>
+      <button class="close-btn" data-on-click="hosOn.byId('device-panel-overlay').classList.remove('open')">✕</button>
       <h2>🔑 My Devices</h2>
       <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Keys linked to your account. Label them to remember which device is which.</p>
       <div id="device-list"></div>
@@ -631,7 +631,7 @@
   <!-- System Info Modal -->
   <div id="system-info-overlay" class="profile-modal-overlay" data-on-click="hosOn.ifSelf(event, hosOn.removeClass, this, 'open')">
     <div class="profile-modal" data-on-click="event.stopPropagation()" style="max-width:460px;">
-      <button class="close-btn" data-on-click="document.getElementById('system-info-overlay').classList.remove('open')">&#x2715;</button>
+      <button class="close-btn" data-on-click="hosOn.byId('system-info-overlay').classList.remove('open')">&#x2715;</button>
       <h2>💻 System Info</h2>
       <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">
         Your computer's info. Helps AI assistants give you better answers.
@@ -873,7 +873,7 @@
   <!-- Onboarding wizard: first-time user guide (ELI5 identity + recovery phrase) -->
   <script src="/chat/chat-onboarding.js?v=2"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->
-  <script src="/shared/qrcode.js?v=4" data-on-error="console.warn('qrcode.js not found, QR codes will be unavailable')"></script>
+  <script src="/shared/qrcode.js?v=4"></script>
   <script src="/chat/chat-p2p.js?v=19"></script>
 
   <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->

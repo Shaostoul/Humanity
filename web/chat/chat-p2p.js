@@ -153,11 +153,11 @@ function showContactCardExportModal(cardJson) {
           style="width:100%;height:120px;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);resize:none;"></textarea>
         <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
           <button id="p2p-copy-btn"
-            data-on-click="copyContactCardJson(this)"
+            ${hosOn.attr('click', `copyContactCardJson(this)`)}
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ${hosIcon('copy', 14)} Copy JSON
           </button>
-          <button data-on-click="closeContactCardExport()"
+          <button ${hosOn.attr('click', `closeContactCardExport()`)}
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ✕ Close
           </button>
@@ -226,11 +226,11 @@ function showContactCardImportModal() {
         <textarea id="p2p-import-json" placeholder="Paste contact card JSON here…"
           style="width:100%;height:140px;font-size:0.75rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);resize:none;"></textarea>
         <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
-          <button data-on-click="importContactCardFromModal()"
+          <button ${hosOn.attr('click', `importContactCardFromModal()`)}
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ${hosIcon('check', 14)} Add Contact
           </button>
-          <button data-on-click="document.getElementById('p2p-import-modal').classList.remove('open')"
+          <button ${hosOn.attr('click', `hosOn.byId('p2p-import-modal').classList.remove('open')`)}
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             Cancel
           </button>

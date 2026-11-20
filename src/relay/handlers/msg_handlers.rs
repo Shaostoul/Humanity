@@ -727,6 +727,22 @@ pub async fn handle_webrtc_signal(
     }
 }
 
+/// Why a voice room name (already trimmed) is refused, or None (BUG-331, 2026-11-20). An admin or
+/// mod types it and every client shows it, so: 1 to 48 characters, and no control character or
+/// text-direction control (a name that hides or reverses text). Refused with this message, never
+/// silently rewritten. Markup characters are allowed: the pages escape the name.
+pub(crate) fn voice_room_name_problem(name: &str) -> Option<&'static str> {
+    let count = name.chars().count();
+    if count == 0 || count > 48 {
+        return Some("Voice channel name must be 1-48 characters.");
+    }
+    let direction = |c: char| matches!(c, '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}');
+    if name.chars().any(|c| c.is_control() || direction(c)) {
+        return Some("Voice channel name may not hold control characters.");
+    }
+    None
+}
+
 /// `conn_id` is the socket the request arrived on: a join gives it the
 /// identity's voice seat, so its close takes them out of voice even while
 /// another socket of theirs stays open (2026-10-02, `live_conns`).
@@ -747,7 +763,12 @@ pub async fn handle_voice_room(
                 let private = RelayMessage::Private { to: my_key.to_string(), message: "Only admins and mods can create voice channels.".to_string() };
                 let _ = state.broadcast_tx.send(private);
             } else {
-                let rname = room_name.unwrap_or_else(|| format!("{}'s Room", display));
+                let rname = room_name.unwrap_or_else(|| format!("{}'s Room", display)).trim().to_string();
+                if let Some(why) = voice_room_name_problem(&rname) {
+                    let private = RelayMessage::Private { to: my_key.to_string(), message: why.to_string() };
+                    let _ = state.broadcast_tx.send(private);
+                    return;
+                }
                 match state.db.create_voice_channel(&rname, my_key) {
                     Ok(_id) => {
                         broadcast_voice_channel_list(state).await;
@@ -828,8 +849,8 @@ pub async fn handle_voice_room(
                 if id_num <= 0 {
                     let private = RelayMessage::Private { to: my_key.to_string(), message: "Voice channel not found.".to_string() };
                     let _ = state.broadcast_tx.send(private);
-                } else if new_name.is_empty() || new_name.len() > 48 {
-                    let private = RelayMessage::Private { to: my_key.to_string(), message: "Voice channel name must be 1-48 characters.".to_string() };
+                } else if let Some(why) = voice_room_name_problem(&new_name) {
+                    let private = RelayMessage::Private { to: my_key.to_string(), message: why.to_string() };
                     let _ = state.broadcast_tx.send(private);
                 } else {
                     match state.db.rename_voice_channel(id_num, &new_name) {
@@ -3990,6 +4011,10 @@ async fn persist_player_progress(state: &Arc<RelayState>, player_key: &str, play
 #[cfg(test)]
 #[path = "msg_handlers_mod_action_tests.rs"]
 mod mod_action_tests;
+
+#[cfg(test)]
+#[path = "msg_handlers_voice_name_tests.rs"]
+mod voice_name_tests;
 
 // THE LOOK AT THE RELAY (2026-11-09, character animation's "the look").
 #[cfg(test)]
