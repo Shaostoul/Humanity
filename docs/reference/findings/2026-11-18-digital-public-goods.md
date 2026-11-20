@@ -56,7 +56,7 @@ the operator submits.
 
 ## Not checked yet
 
-- The review policy and the submission form's questions (the page links them).
+- The review policy and the submission form's questions (the page links them). (Answered 2026-11-20: docs/outreach/dpg-application.md, "Submitting" and each indicator's "The form asks".)
 - (Answered 2026-11-18: the instrument packs are all open. The core set and most packs are CC0 or the Unlicense; the two credited packs, Choir and Electric pianos, are CC BY 4.0, with CC BY 3.0 on one SFZ mapping: LICENSES.md, "The instrument packs".)
 
 ## Progress
@@ -68,3 +68,4 @@ the operator submits.
   website's footer and its rules page. Left: the evidence document for the nine indicators, then
   the eligibility tool; the operator submits.
 - (Written 2026-11-18) Next, at the weekly reset: the dated legal finding on what US law asks of a server operator about child sexual abuse material, then the content policy and its report-and-remove process (both apps, linked from Settings > Safety and the website), then the evidence document for the nine indicators, then the eligibility tool. The operator submits.
+- 2026-11-20: the evidence document is written, [docs/outreach/dpg-application.md](../../outreach/dpg-application.md): each indicator quoted, our evidence, an answer to paste, the submission steps, and the thin spots at its top (hide and keep still being built; harassment named only in one server's rules, no project-wide code of conduct; the Windows DXC DLLs ship without a licence notice; NIST vectors not yet run).

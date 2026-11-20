@@ -1,6 +1,6 @@
 # Privacy: what this server keeps about you
 
-*Last changed 8 November 2026. This page covers the server at united-humanity.us and its website.*
+*Last changed 20 November 2026. This page covers the server at united-humanity.us and its website.*
 
 HumanityOS is free, open-source software. Anyone can run a server of their own, and each server's
 operator decides for that server; this page is about the one at **united-humanity.us**, run by the
@@ -67,10 +67,10 @@ the server. Please do not post health details in public rooms.
   (on 7 November 2026, public.guide, run by the same maintainer) gets copies of the public parts:
   messages in shared rooms, public profiles, key cards, bans, and our sealed backups. When you erase
   your account, linked servers are asked to remove your messages and profile.
-- **Services your browser contacts for some pages:** the chat loads emoji pictures from
-  cdn.jsdelivr.net; the wallet asks a Solana server and CoinGecko for balances and prices; the
-  download buttons fetch the app from GitHub, only when you press one. Each of
-  them sees your IP address when your browser asks. If you turn on notifications, your browser's
+- **Services your browser contacts for some pages:** the wallet asks a Solana server and CoinGecko
+  for balances and prices; the download buttons fetch the app from GitHub, only when you press one.
+  Each of them sees your IP address when your browser asks. Emoji pictures come from this server
+  itself, so no other service sees you load them. If you turn on notifications, your browser's
   maker (Google, Mozilla or Apple) carries them sealed: it sees when one arrives, not what it says.
 - **Nobody else.** We do not sell, rent or trade anything about anyone, and we do not share it for
   advertising.

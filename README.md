@@ -152,7 +152,7 @@ No compiler, no Docker. Under 10 minutes from download to live. Building from so
 | **Hashing** | BLAKE3 - fast and quantum-resistant |
 | **Transport** | WebSocket over TLS 1.2+, HSTS, CSP + full security-header set |
 | **Storage** | Encrypted vaults - server stores only ciphertext |
-| **Logs** | No analytics, no tracking pixels. The relay database has no IP column at all. The web server in front keeps access logs for 2 days so it can ban abusers, and the relay writes an IP into its own log only when a rate limit trips. For no IP at all, reach the server over the Tor onion service. |
+| **Logs** | No analytics, no tracking pixels. The relay database has no IP column at all. The web server in front keeps access logs for about 3 days so it can ban abusers, and the relay writes an IP into its own log only when a rate limit trips. For no IP at all, reach the server over the Tor onion service. |
 | **Privilege** | Non-root systemd service with hardened sandboxing |
 | **Audit** | Ongoing cadence → [SECURITY-CADENCE.md](docs/SECURITY-CADENCE.md) (initial Feb 2026 audit archived at [docs/history/SECURITY_AUDIT_2026-02-12.md](docs/history/SECURITY_AUDIT_2026-02-12.md)) |
 

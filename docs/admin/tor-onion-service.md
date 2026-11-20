@@ -9,7 +9,7 @@ Everything above the socket is now sealed: messages are end-to-end encrypted,
 the server stores no DM social graph, no follows graph, no readable marketplace
 or group chat, and presence can be hidden. But any server on the internet sees
 the IP address of a socket connected to it in the moment. We don't tie IPs to
-identity or retain them (nginx logs are cut to 2 days for fail2ban only), and
+identity or retain them (nginx keeps today's log and 2 rotated ones, about 3 days, for fail2ban only), and
 that is a real minimization, but it is not zero.
 
 A Tor onion service makes it zero for users who want it. When a user reaches the

@@ -106,8 +106,9 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    content policy went in on 2026-11-20: the finding docs/reference/findings/2026-11-20-csam-reporting.md
    (2258A unchanged for an operator since the 2024 REPORT Act; no duty to scan), the policy
    docs/legal/content-policy.md (in the Library), linked from Settings > Safety in both apps, the
-   website's footer and its rules page. Next: the evidence document for the nine indicators, then
-   the eligibility tool. The policy says plainly that the app has no "hide and keep" action yet
+   website's footer and its rules page. The evidence document for the nine indicators is written:
+   docs/outreach/dpg-application.md (2026-11-20; thin spots and questions at its top); next, the
+   eligibility tool. The policy says plainly that the app has no "hide and keep" action yet
    for a child-abuse report (planned: docs/design/hide-and-keep.md).
 9b. **DONE 2026-11-20 (5a788f29a): BUG-322's code fix** (a relay never told its public name offers
    no forwarder, never another server's) and the brief's SERVERS row (`just server-upkeep`: piled-up
