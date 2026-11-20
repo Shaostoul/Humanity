@@ -30,6 +30,11 @@ Each line is written the way a player would hear it; the release notes and
 - The post-quantum code is now checked against the official US government test vectors, in the app and on the website.
 - Written music: the Music page can play written pieces on our own instruments, starting with the Ode to Joy.
 - Developers on Linux can run the project's test tools; the checks run on Linux for every change.
+- Moderators can "hide and keep" a report about child abuse material: it disappears everywhere at once, a copy is sealed so only the server's owner can open it, kept a year and then deleted, and every step is signed and logged. Nobody, the owner included, gets a button to view it.
+- Even if someone slipped markup into a page, the website now ignores any button action the page did not write itself.
+- The Music page plays Für Elise, Grieg's In the Hall of the Mountain King (his piano arrangement) and the first movement of Beethoven's Fifth, with repeats, grace notes and dynamics.
+- Every open-source library inside the app now has its licence and copyright notice in the download and on the Credits page.
+- The simulation gives the same result every time for the same starting point, so the game's checks can trust it.
 
 ### Outreach
 
