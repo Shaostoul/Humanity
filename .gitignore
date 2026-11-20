@@ -138,3 +138,6 @@ node.env
 # Code in a clone, as a contributor pointed out. The shared, reviewable setup stays tracked:
 # .claude/settings.json (the safety hooks), .claude/agents/, .claude/skills/, .claude/workflows/, CLAUDE.md.
 .claude/settings.local.json
+
+# Files the operator downloads by hand for reference (score scans and the like): never committed.
+/downloads/
