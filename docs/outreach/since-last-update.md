@@ -18,7 +18,7 @@ Each line is written the way a player would hear it; the release notes and
 - Every website page checked on a small phone: Calendar, Inventory, Tasks, Settings, Maps and the Calculator no longer cut controls off.
 - Both public servers open their call forwarder, and each names itself as the place to connect.
 
-### Next release
+### v0.1566.0 (20 November 2026)
 
 - A server that was never told its own name no longer sends callers to another server's call forwarder; it says plainly which setting to add.
 - A server that was never told which websites may use it now allows only its own pages, never another server's.
@@ -36,6 +36,10 @@ Each line is written the way a player would hear it; the release notes and
 - Every open-source library inside the app now has its licence and copyright notice in the download and on the Credits page.
 - The simulation gives the same result every time for the same starting point, so the game's checks can trust it.
 - The Windows download's shader compiler (the part that makes startup fast and draws the clouds) is now built by the project from Microsoft's open-source code, with its licence beside it, instead of copied from a Microsoft kit whose licence did not allow passing it on.
+
+### Next release
+
+- The servers' database library is updated, closing a published security flaw in it; the server program also got smaller by dropping two pieces it never used.
 
 ### Outreach
 
