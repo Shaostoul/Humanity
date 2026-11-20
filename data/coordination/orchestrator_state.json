@@ -1457,6 +1457,11 @@
       "date": "2026-11-20",
       "decision": "BUG-320: public.guide was unreachable on 80/443 for six hours after a reboot started a ufw that allowed only SSH (settings written 2026-07-20, never started until the reboot). Opened 80/tcp and 443/tcp after backing up the rules; the backup stream resumed. UDP 3478 (call forwarder) left closed for the operator. just brief now checks both servers from outside.",
       "why": "An outside answer is the only check that sees a closed port; nothing watched public.guide from outside before."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "Operator: open the call port (\"Let's get that open\") and install public.guide's security updates (\"Yes.\"). UDP 3478 opened on BOTH servers the documented way (HUMANITY_OPEN_CALL_PORT=1 in node.env, the provision script's exact rule in /etc/nftables.conf, nft -c then nft -f; backups in /root), STUN answered from outside. public.guide's redundant ufw retired (BUG-320's deeper cause: two firewalls). BUG-321: public.guide's unattended-upgrades matched no Debian archive; drop-in fixed it, 55 security updates installed, rebooted for the kernel, everything back. BUG-322: no TURN_PUBLIC_HOST made public.guide send callers to united-humanity.us; .env fixed on both, code fix queued (never fall back to another server).",
+      "why": "Calls need the forwarder reachable on each server, and each server must name itself; security updates had silently stopped on public.guide."
     }
   ],
   "active_scopes_to_avoid": [

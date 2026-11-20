@@ -8,6 +8,8 @@ design is `docs/design/blocking-and-safe-mode.md` sections 7 and 10f; the code i
 
 ## Opening the port (the operator's decision)
 
+**Opened on both live servers on 2026-11-20** (operator: "Let's get that open"): united-humanity.us and public.guide each carry `HUMANITY_OPEN_CALL_PORT=1` in `/opt/Humanity/node.env` and the rule in `/etc/nftables.conf`, and each names itself in `TURN_PUBLIC_HOST` (BUG-322: without it a relay told callers to use united-humanity.us). Checked from outside with a STUN Binding request to UDP 3478.
+
 **Until you open it, nothing listens publicly.** The relay listens on UDP 3478, but the
 firewall that `scripts/provision-vps.sh` writes lets in only TCP 22, 80 and 443, so the
 port is closed to the internet and calls cannot use the forwarder yet (the apps say "this

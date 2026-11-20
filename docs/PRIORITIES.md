@@ -89,6 +89,10 @@ A contributor working in post-quantum cryptography reviewed the identity and DMs
    2026 Shaostoul and the HumanityOS contributors", after the operator's "That sounds fair"); the
    content policy starts with a dated legal finding from primary sources (what US law asks of a
    server operator who learns of child sexual abuse material, 18 U.S.C. 2258A and its amendments).
+9b. **BUG-322's code fix** (2026-11-20, small): `src/relay/call_forwarder.rs` `Settings::from_vars`
+   must never fall back to "united-humanity.us"; with no TURN_PUBLIC_HOST, offer no forwarder and
+   log the setting to add, with a test. And the brief's server rows could warn when security
+   updates pile up (BUG-321) or a server's .env lacks TURN_PUBLIC_HOST.
 10. **Task depth and everyday comforts** (operator, 2026-11-18): subtasks, recurring tasks (the
    garden's schedules make them), reminders, time tracking, goals, a focus timer, syntax
    highlighting, spell checking: docs/design/everyday-suite.md, section 2.15a.
