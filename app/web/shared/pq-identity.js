@@ -201,27 +201,22 @@
 
   // Lazy-loaded module references. We dynamic-import on first use so pages
   // that never need PQ crypto don't pay the bundle cost.
-  // Override _PQ_NOBLE_BASE before any pq* call to use a vendored copy
-  // instead of the public CDN.
-  let _PQ_NOBLE_BASE = (window.HUM_PQ_NOBLE_BASE || 'https://esm.sh/@noble/post-quantum');
-  let _PQ_HASHES_BASE = (window.HUM_PQ_HASHES_BASE || 'https://esm.sh/@noble/hashes');
+  // The noble build kept on this site (web/shared/vendor/noble-pq.bundle.js: ml_dsa65, ml_kem768
+  // and blake3), the one the chat and the Files page use. Until 2026-11-20 this imported each from
+  // esm.sh, which the site's Content-Security-Policy never allowed (script-src names no outside
+  // host), so the PQ calls on the governance, identity and orgs pages failed on the live site; and
+  // signing code fetched at run time from someone else's server is code nobody here checked.
+  const _PQ_BUNDLE = '/shared/vendor/noble-pq.bundle.js';
   let _ml_dsa65 = null;
   let _ml_kem768 = null;
   let _blake3 = null;
 
   async function _loadNoble() {
-    if (!_ml_dsa65) {
-      const m = await import(/* @vite-ignore */ `${_PQ_NOBLE_BASE}/ml-dsa`);
-      _ml_dsa65 = m.ml_dsa65;
-    }
-    if (!_ml_kem768) {
-      const m = await import(/* @vite-ignore */ `${_PQ_NOBLE_BASE}/ml-kem`);
-      _ml_kem768 = m.ml_kem768;
-    }
-    if (!_blake3) {
-      const m = await import(/* @vite-ignore */ `${_PQ_HASHES_BASE}/blake3`);
-      _blake3 = m.blake3;
-    }
+    if (_ml_dsa65 && _ml_kem768 && _blake3) return;
+    const m = await import(_PQ_BUNDLE);
+    _ml_dsa65 = m.ml_dsa65;
+    _ml_kem768 = m.ml_kem768;
+    _blake3 = m.blake3;
   }
 
   // Domain separators MUST match server-side derivation in
@@ -231,8 +226,10 @@
   const DOMAIN_KYBER = 'hum/kyber768/v1';
 
   /**
-   * Derive a 32-byte Dilithium3 seed from any high-entropy source
-   * (typically the 64-byte BIP39 PBKDF2 seed).
+   * Derive a 32-byte Dilithium3 seed from any high-entropy source. Every
+   * caller passes the recovery phrase's 32 bytes of ENTROPY, not BIP39's
+   * 64-byte PBKDF2 seed (corrected 2026-11-19, as pq_crypto.rs was on
+   * 2026-11-16: docs/reference/research/2026-11-16-pqc-review/).
    *
    * Uses BLAKE3 keyed-derivation with `hum/dilithium3/v1` so the same input
    * yields the same key as the server's pq_crypto::derive_dilithium_seed.

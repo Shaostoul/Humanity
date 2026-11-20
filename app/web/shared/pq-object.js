@@ -168,10 +168,20 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
 /** Actions a mod_action_v1 may carry. Mirrors moderation.rs::MOD_ACTIONS. */
 export const MOD_ACTIONS = [
   'ban', 'unban', 'mute', 'unmute', 'hide', 'unhide', 'grant_role', 'revoke_role', 'revoke',
+  'hide_and_keep', 'held_restore', 'held_export', 'held_legal_hold', 'held_destroy',
 ];
 
 /** What a target names. Mirrors moderation.rs::TARGET_KINDS. */
-export const TARGET_KINDS = ['identity', 'object'];
+export const TARGET_KINDS = ['identity', 'object', 'report', 'held'];
+
+/** The actions of hide and keep. Mirrors moderation.rs::HELD_ACTIONS. */
+export const HELD_ACTIONS = ['hide_and_keep', 'held_restore', 'held_export', 'held_legal_hold', 'held_destroy'];
+
+/** The target_kind a held action names, or null. Mirrors moderation.rs::held_target_kind. */
+export function heldTargetKind(action) {
+  if (action === 'hide_and_keep') return 'report';
+  return HELD_ACTIONS.includes(action) ? 'held' : null;
+}
 
 /**
  * `mod_action_v1` payload. Validation mirrors moderation.rs::mod_action_payload
@@ -183,7 +193,7 @@ export function modActionV1Payload({ action, target, targetKind, reason, rule, e
     throw new Error(`mod_action_v1: unknown action "${action}"`);
   }
   if (!TARGET_KINDS.includes(targetKind)) {
-    throw new Error(`mod_action_v1: target_kind must be identity or object, got "${targetKind}"`);
+    throw new Error(`mod_action_v1: target_kind must be identity, object, report or held, got "${targetKind}"`);
   }
   if (!String(target || '').trim()) throw new Error('mod_action_v1: target is required');
   if (!String(reason || '').trim()) {
@@ -198,6 +208,13 @@ export function modActionV1Payload({ action, target, targetKind, reason, rule, e
   }
   if (!roleAction && roleStr.trim()) {
     throw new Error('mod_action_v1: role is only meaningful for grant_role and revoke_role');
+  }
+  const heldKind = heldTargetKind(action);
+  if ((heldKind && heldKind !== targetKind) || (!heldKind && (targetKind === 'report' || targetKind === 'held'))) {
+    throw new Error('mod_action_v1: hide_and_keep names a report, the other held actions a held item, and nothing else names either');
+  }
+  if (heldKind && action !== 'held_legal_hold' && (Number(expiresAt) || 0) !== 0) {
+    throw new Error('mod_action_v1: of the held actions only held_legal_hold carries an end date');
   }
   // Key ORDER does not matter: cborMap sorts, and the Rust side canonicalizes
   // with the identical rule. Listed in the schema's reading order regardless.

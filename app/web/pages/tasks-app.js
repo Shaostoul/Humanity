@@ -89,7 +89,7 @@ function buildScopeTabs() {
   const container = document.getElementById('scope-tabs');
   container.innerHTML = SCOPES.map(s => `
     <button class="scope-tab${s.key === activeScope ? ' active' : '' /* i18n-exempt: a class name */}"
-            data-key="${s.key}" onclick="setScope('${s.key}')"
+            data-key="${s.key}" ${hosOn.attr('click', `setScope(${hosArg(s.key)})`)}
             title="${s.desc}" data-i18n-tip="tasks.scope_tab_hint">
       <span class="scope-fib scope-ink" style="--scope-c:${s.color}">${s.n}</span>
       <span class="scope-label">${s.label}</span>
@@ -243,7 +243,7 @@ function renderCard(task) {
       testTally = `<span class="test-tally" style="color:#555" title="${i18n.t('tasks.waiting_testing')}">🧪</span>`;
     }
   }
-  return `<div role="button" tabindex="0" class="card priority-${task.priority}" onclick="openDetail(${task.id})" data-i18n-tip="tasks.card_hint">
+  return `<div role="button" tabindex="0" class="card priority-${task.priority}" ${hosOn.attr('click', `openDetail(${hosNum(task.id)})`)} data-i18n-tip="tasks.card_hint">
     <div class="card-title">${esc(task.title)}</div>
     <div class="card-info">
       <span class="card-prio" style="color:${priorityColor(task.priority)}">${priorityName(task.priority).toUpperCase()}</span>
@@ -794,7 +794,7 @@ function openDetail(id) {
     statusSteps.map(s =>
       s.key === task.status
         ? `<button class="btn-status current current-${s.key}" disabled title="${i18n.t('tasks.current_status')}" data-i18n-tip="tasks.status_current_hint">${s.label}</button>`
-        : `<button class="btn-status" onclick="changeTaskStatus(${task.id},'${s.key}')" title="${i18n.t('tasks.move_to', { status: s.name })}" data-i18n-tip="tasks.status_button_hint">${s.label}</button>`
+        : `<button class="btn-status" ${hosOn.attr('click', `changeTaskStatus(${hosNum(task.id)},${hosArg(s.key)})`)} title="${i18n.t('tasks.move_to', { status: s.name })}" data-i18n-tip="tasks.status_button_hint">${s.label}</button>`
     ).join('') +
     `<span class="status-move-label">← ${i18n.t('tasks.move_to_label')}</span>`;
   i18n.apply(statusBtns);
@@ -811,7 +811,7 @@ function openDetail(id) {
     priorities.map(p =>
       p.key === task.priority
         ? `<button class="btn-status current current-${p.key}" disabled title="${i18n.t('tasks.current_priority')}" data-i18n-tip="tasks.priority_current_hint">${p.label}</button>`
-        : `<button class="btn-status" onclick="changeTaskPriority(${task.id},'${p.key}')" title="${i18n.t('tasks.set_priority_to', { priority: p.label })}" data-i18n-tip="tasks.priority_button_hint">${p.label}</button>`
+        : `<button class="btn-status" ${hosOn.attr('click', `changeTaskPriority(${hosNum(task.id)},${hosArg(p.key)})`)} title="${i18n.t('tasks.set_priority_to', { priority: p.label })}" data-i18n-tip="tasks.priority_button_hint">${p.label}</button>`
     ).join('') +
     `<span class="status-move-label">← ${i18n.t('tasks.priority_arrow_label')}</span>`;
   i18n.apply(priorityBtns);
@@ -822,7 +822,7 @@ function openDetail(id) {
     `<div class="assignee-row">
        <span style="font-size:0.68rem;color:var(--text-dim);min-width:65px;flex-shrink:0">${i18n.t('tasks.assignee')}</span>
        <input id="detail-assignee-input" type="text" value="${esc(task.assignee || '')}" placeholder="${i18n.t('tasks.unassigned')}" maxlength="80" data-i18n-tip="tasks.assignee_input_hint">
-       <button onclick="changeTaskAssignee(${task.id})" title="${i18n.t('tasks.save_assignee')}" data-i18n-tip="tasks.assignee_save_hint">${i18n.t('common.save')}</button>
+       <button ${hosOn.attr('click', `changeTaskAssignee(${hosNum(task.id)})`)} title="${i18n.t('tasks.save_assignee')}" data-i18n-tip="tasks.assignee_save_hint">${i18n.t('common.save')}</button>
      </div>`;
   i18n.apply(assigneeRow);
 
@@ -871,6 +871,19 @@ async function loadTaskComments(taskId) {
         <div style="font-size:0.68rem;color:var(--text-muted)">${new Date(c.created_at * 1000).toLocaleString()}</div>
       </div>`).join('');
   } catch { el.innerHTML = ''; }
+}
+
+// The open task's comment: its Post button and the box's Enter (were inline handlers, which could
+// name openDetailId; a page handler reaches only window names, and a top-level let is not one).
+function submitOpenComment() {
+  submitComment(openDetailId);
+}
+// The comment box: Enter posts the comment, Shift+Enter starts a new line.
+function commentBoxKeydown(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    submitOpenComment();
+  }
 }
 
 async function submitComment(taskId) {
@@ -1151,7 +1164,7 @@ function renderMineBoard() {
 /** One of my tasks as a card (its id is 32 hex, so it is safe in the click). */
 function renderMineCard(t) {
   const labels = (t.labels || []).slice(0, 3).map(l => `<span class="label-tag">${esc(l)}</span>`).join('');
-  return `<div role="button" tabindex="0" class="card priority-${t.priority}" onclick="openMineDetail('${t.id}')" data-i18n-tip="tasks.card_hint">
+  return `<div role="button" tabindex="0" class="card priority-${t.priority}" ${hosOn.attr('click', `openMineDetail(${hosArg(t.id)})`)} data-i18n-tip="tasks.card_hint">
     <div class="card-title">${esc(t.title || '')}</div>
     <div class="card-info">
       <span class="card-prio" style="color:${priorityColor(t.priority)}">${priorityName(t.priority).toUpperCase()}</span>
@@ -1179,7 +1192,7 @@ function openMineDetail(id) {
     const label = (typeof hosIcon === 'function' ? hosIcon(icon, 14) : '') + ' ' + mineStatusName(key);
     return key === t.status
       ? `<button class="btn-status current current-${key}" disabled title="${i18n.t('tasks.current_status')}" data-i18n-tip="tasks.status_current_hint">${label}</button>`
-      : `<button class="btn-status" onclick="mineChange('${id}',{status:'${key}'})" title="${i18n.t('tasks.move_to', { status: mineStatusName(key) })}" data-i18n-tip="tasks.status_button_hint">${label}</button>`;
+      : `<button class="btn-status" ${hosOn.attr('click', `mineChange(${hosArg(id)},{status:${hosArg(key)}})`)} title="${i18n.t('tasks.move_to', { status: mineStatusName(key) })}" data-i18n-tip="tasks.status_button_hint">${label}</button>`;
   }).join('') + `<span class="status-move-label">← ${i18n.t('tasks.move_to_label')}</span>`;
   i18n.apply(statusBtns);
   const priorityBtns = document.getElementById('detail-priority-btns');
@@ -1188,11 +1201,11 @@ function openMineDetail(id) {
     const label = glyph + ' ' + priorityName(key);
     return key === t.priority
       ? `<button class="btn-status current current-${key}" disabled title="${i18n.t('tasks.current_priority')}" data-i18n-tip="tasks.priority_current_hint">${label}</button>`
-      : `<button class="btn-status" onclick="mineChange('${id}',{priority:'${key}'})" title="${i18n.t('tasks.set_priority_to', { priority: label })}" data-i18n-tip="tasks.priority_button_hint">${label}</button>`;
+      : `<button class="btn-status" ${hosOn.attr('click', `mineChange(${hosArg(id)},{priority:${hosArg(key)}})`)} title="${i18n.t('tasks.set_priority_to', { priority: label })}" data-i18n-tip="tasks.priority_button_hint">${label}</button>`;
   }).join('') + `<span class="status-move-label">← ${i18n.t('tasks.priority_arrow_label')}</span>`;
   i18n.apply(priorityBtns);
   const row = document.getElementById('detail-assignee-row');
-  row.innerHTML = `<button class="btn-status" onclick="mineDelete('${id}')" data-i18n-tip="tasks.delete_mine_hint">${i18n.t('common.delete')}</button>`;
+  row.innerHTML = `<button class="btn-status" ${hosOn.attr('click', `mineDelete(${hosArg(id)})`)} data-i18n-tip="tasks.delete_mine_hint">${i18n.t('common.delete')}</button>`;
   i18n.apply(row);
   document.getElementById('detail-desc').textContent = t.description || i18n.t('tasks.no_description');
   renderDetailSteps(t);
@@ -1285,10 +1298,10 @@ function renderTestPanel(task) {
         : ''}
       <div class="test-owner-label">${i18n.t('tasks.your_vote')}</div>
       <div class="test-vote-row">
-        <button class="btn-test-vote${ownerPass?' vote-pass':''}" onclick="castOwnerVote(${task.id},'pass')" data-i18n-tip="tasks.owner_pass_hint">
+        <button class="btn-test-vote${ownerPass?' vote-pass':''}" ${hosOn.attr('click', `castOwnerVote(${hosNum(task.id)},'pass')`)} data-i18n-tip="tasks.owner_pass_hint">
           ✅ ${i18n.t('tasks.vote_pass')}${ownerPass?yourVote:''}
         </button>
-        <button class="btn-test-vote${ownerFail?' vote-fail':''}" onclick="castOwnerVote(${task.id},'fail')" data-i18n-tip="tasks.owner_fail_hint">
+        <button class="btn-test-vote${ownerFail?' vote-fail':''}" ${hosOn.attr('click', `castOwnerVote(${hosNum(task.id)},'fail')`)} data-i18n-tip="tasks.owner_fail_hint">
           ❌ ${i18n.t('tasks.vote_fail')}${ownerFail?yourVote:''}
         </button>
       </div>
@@ -1301,10 +1314,10 @@ function renderTestPanel(task) {
         <div style="margin-top:var(--space-md);display:flex;gap:var(--space-md)">
           <button class="btn-test-vote${community.find(v=>v.device==='_local')?.result==='pass'?' vote-pass':''}"
                   style="font-size:.72rem;padding:var(--space-sm) var(--space-md)"
-                  onclick="castCommunityVote(${task.id},'pass')" data-i18n-tip="tasks.tester_works_hint">✅ ${i18n.t('tasks.vote_works')}</button>
+                  ${hosOn.attr('click', `castCommunityVote(${hosNum(task.id)},'pass')`)} data-i18n-tip="tasks.tester_works_hint">✅ ${i18n.t('tasks.vote_works')}</button>
           <button class="btn-test-vote${community.find(v=>v.device==='_local')?.result==='fail'?' vote-fail':''}"
                   style="font-size:.72rem;padding:var(--space-sm) var(--space-md)"
-                  onclick="castCommunityVote(${task.id},'fail')" data-i18n-tip="tasks.tester_broken_hint">❌ ${i18n.t('tasks.vote_broken')}</button>
+                  ${hosOn.attr('click', `castCommunityVote(${hosNum(task.id)},'fail')`)} data-i18n-tip="tasks.tester_broken_hint">❌ ${i18n.t('tasks.vote_broken')}</button>
         </div>
       </div>
     </div>`;
@@ -1446,7 +1459,7 @@ function renderProjectDropdown() {
 
   // All Projects option
   html += `<button class="project-dropdown-item${activeProject === null ? ' active' : ''}"
-    onclick="setActiveProject(null)" data-i18n-tip="tasks.all_projects_hint">
+    ${hosOn.attr('click', `setActiveProject(null)`)} data-i18n-tip="tasks.all_projects_hint">
     <span class="proj-icon">📋</span>
     <span>${i18n.t('tasks.all_projects')}</span>
   </button>`;
@@ -1456,7 +1469,7 @@ function renderProjectDropdown() {
   // Default / General project
   const defaultCount = allTasks.filter(t => !t.project || t.project === 'default').length;
   html += `<button class="project-dropdown-item${activeProject === 'default' ? ' active' : ''}"
-    onclick="setActiveProject('default')" data-i18n-tip="tasks.project_general_hint">
+    ${hosOn.attr('click', `setActiveProject('default')`)} data-i18n-tip="tasks.project_general_hint">
     <span class="proj-icon">📋</span>
     <span class="proj-dot" style="background:#888"></span>
     <span>${i18n.t('tasks.project_general')}</span>
@@ -1470,7 +1483,7 @@ function renderProjectDropdown() {
     const vis = p.visibility === 'private' ? '🔒' : p.visibility === 'members-only' ? '👥' : '';
     const cnt = p.task_count != null ? p.task_count : allTasks.filter(t => t.project === p.id).length;
     html += `<button class="project-dropdown-item${activeProject === p.id ? ' active' : ''}"
-      onclick="setActiveProject('${esc(p.id)}')" oncontextmenu="event.preventDefault();openProjectSettings('${esc(p.id)}')" data-i18n-tip="tasks.project_item_hint">
+      ${hosOn.attr('click', `setActiveProject(${hosArg(p.id)})`)} ${hosOn.attr('contextmenu', `event.preventDefault();openProjectSettings(${hosArg(p.id)})`)} data-i18n-tip="tasks.project_item_hint">
       <span class="proj-icon">${icon}</span>
       <span class="proj-dot" style="background:${color}"></span>
       <span>${esc(p.name)}</span>
@@ -1481,7 +1494,7 @@ function renderProjectDropdown() {
   html += '<div class="project-dropdown-sep"></div>';
 
   // Create new project
-  html += `<button class="project-dropdown-item create-item" onclick="closeProjectDropdown();openProjectModal()" data-i18n-tip="tasks.new_project_button_hint">
+  html += `<button class="project-dropdown-item create-item" ${hosOn.attr('click', `closeProjectDropdown();openProjectModal()`)} data-i18n-tip="tasks.new_project_button_hint">
     <span class="proj-icon">+</span>
     <span>${i18n.t('tasks.project_create_new')}</span>
   </button>`;
@@ -1538,10 +1551,10 @@ function buildProjectColorPicker() {
   if (!container) return;
   container.innerHTML = PROJECT_COLORS.map((c, i) =>
     `<div role="button" tabindex="0" class="color-swatch${i === 0 ? ' selected' : ''}" style="background:${c}"
-      data-color="${c}" aria-label="${i18n.t('tasks.color_swatch_label', { n: i + 1 })}" onclick="selectProjectColor(this)" data-i18n-tip="tasks.color_swatch_hint"></div>`
+      data-color="${c}" aria-label="${i18n.t('tasks.color_swatch_label', { n: i + 1 })}" ${hosOn.attr('click', `selectProjectColor(this)`)} data-i18n-tip="tasks.color_swatch_hint"></div>`
   ).join('') + `<input type="color" value="#4488ff" id="pf-color-custom"
     style="width:28px;height:28px;border:none;padding:0;cursor:pointer;background:transparent;border-radius:50%;"
-    onchange="selectProjectColorCustom(this.value)" title="${i18n.t('tasks.custom_color')}" data-i18n-tip="tasks.custom_color_hint">`;
+    ${hosOn.attr('change', `selectProjectColorCustom(this.value)`)} title="${i18n.t('tasks.custom_color')}" data-i18n-tip="tasks.custom_color_hint">`;
   i18n.apply(container);
 }
 
@@ -1550,7 +1563,7 @@ function buildProjectIconPicker() {
   const container = document.getElementById('pf-icons');
   if (!container) return;
   container.innerHTML = PROJECT_ICONS.map((ic, i) =>
-    `<div role="button" tabindex="0" class="icon-option${i === 0 ? ' selected' : '' /* i18n-exempt: a class name */}" data-icon="${ic}" onclick="selectProjectIcon(this)" data-i18n-tip="tasks.icon_option_hint">${ic}</div>`
+    `<div role="button" tabindex="0" class="icon-option${i === 0 ? ' selected' : '' /* i18n-exempt: a class name */}" data-icon="${ic}" ${hosOn.attr('click', `selectProjectIcon(this)`)} data-i18n-tip="tasks.icon_option_hint">${ic}</div>`
   ).join('');
   i18n.apply(container);
 }
@@ -1827,7 +1840,7 @@ function quest_uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 function quest_esc(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function quest_setFilter(f) {
@@ -1887,7 +1900,7 @@ function quest_renderList() {
   if (!visible.length) {
     list.innerHTML = `<div class="quest-empty-state"><div class="empty-icon">${typeof hosIcon==='function'?hosIcon('tasklist',48):''}</div>
       <p>${search ? i18n.t('tasks.quest_none_match') : quest_currentFilter === 'done' ? i18n.t('tasks.quest_none_done') : i18n.t('tasks.quest_none')}</p>
-      ${!search && quest_currentFilter !== 'done' ? `<button class="quest-btn-save" onclick="quest_openModal()" style="margin-top:var(--space-md);" data-i18n-tip="tasks.quest_add_hint">${i18n.t('tasks.quest_add_first')}</button>` : ''}</div>`;
+      ${!search && quest_currentFilter !== 'done' ? `<button class="quest-btn-save" ${hosOn.attr('click', `quest_openModal()`)} style="margin-top:var(--space-md);" data-i18n-tip="tasks.quest_add_hint">${i18n.t('tasks.quest_add_first')}</button>` : ''}</div>`;
     i18n.apply(list);
     return;
   }
@@ -1896,8 +1909,8 @@ function quest_renderList() {
   list.innerHTML = visible.map(q => {
     const overdue = q.due && q.due < today && !q.done;
     const badgeClass = 'badge-' + q.type;
-    return `<div role="button" tabindex="0" class="quest-card${q.done ? ' done' : ''}" onclick="quest_openModal('${q.id}')" data-i18n-tip="tasks.quest_card_hint">
-      <div role="button" tabindex="0" class="quest-check" onclick="event.stopPropagation();quest_toggleDone('${q.id}')" data-i18n-tip="tasks.quest_check_hint">${q.done ? '✓' : ''}</div>
+    return `<div role="button" tabindex="0" class="quest-card${q.done ? ' done' : ''}" ${hosOn.attr('click', `quest_openModal(${hosArg(q.id)})`)} data-i18n-tip="tasks.quest_card_hint">
+      <div role="button" tabindex="0" class="quest-check" ${hosOn.attr('click', `event.stopPropagation();quest_toggleDone(${hosArg(q.id)})`)} data-i18n-tip="tasks.quest_check_hint">${q.done ? '✓' : ''}</div>
       <div class="quest-body">
         <div class="quest-title">${quest_esc(q.title)}</div>
         ${q.desc ? `<div class="quest-desc">${quest_esc(q.desc)}</div>` : ''}
@@ -1907,7 +1920,7 @@ function quest_renderList() {
           ${q.due ? `<span class="quest-due${overdue ? ' overdue' : '' /* i18n-exempt: a class name */}">${overdue ? '⚠ ' : ''}${q.due}</span>` : ''}
         </div>
       </div>
-      <button class="quest-delete" onclick="event.stopPropagation();quest_deleteQuest('${q.id}')" title="${i18n.t('common.delete')}" data-i18n-tip="tasks.quest_delete_hint">✕</button>
+      <button class="quest-delete" ${hosOn.attr('click', `event.stopPropagation();quest_deleteQuest(${hosArg(q.id)})`)} title="${i18n.t('common.delete')}" data-i18n-tip="tasks.quest_delete_hint">✕</button>
     </div>`;
   }).join('');
   i18n.apply(list);

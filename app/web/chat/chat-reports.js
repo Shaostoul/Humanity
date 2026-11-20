@@ -725,7 +725,8 @@ function onReportsFrame(msg) {
  * list is asked for again so the report moves to Decided.
  */
 function decideReport(id, decision) {
-  if (!REPORT_DECISIONS.includes(decision)) return false;
+  // Hide and keep carries the decider's signed action: chat-held.js builds and sends it.
+  if (!REPORT_DECISIONS.includes(decision) || decision === 'hide_and_keep') return false;
   if (!repSocketOpen()) { repSay('Not connected to the server, so nothing was decided.'); return false; }
   const note = reportNoteNorm(reportsView.notes[String(id)] || '');
   ws.send(JSON.stringify({ type: 'report_decide', id, decision, note }));
@@ -756,7 +757,8 @@ function reportsViewModel() {
         createdLabel: repWhen(v.created),
         decidedLabel: repWhen(v.decided),
         decisionLabel: REPORT_DECISION_LABELS[v.decision] || v.decision,
-        decisions: REPORT_DECISIONS.filter((d) => d !== 'delete_post' || v.context === 'post'),
+        // Hide and keep is drawn by chat-held.js (heldDecorateReports), with its signed action.
+        decisions: REPORT_DECISIONS.filter((d) => d !== 'hide_and_keep' && (d !== 'delete_post' || v.context === 'post')),
         evidence: v.evidence.map((ev) => {
           const fromLabel = repSameKey(ev.from, v.target) ? targetLabel : (ev.from ? repName(ev.from) : targetLabel);
           const shown = { ...ev, fromLabel, badge: reportEvidenceBadge(ev, fromLabel), timeLabel: repWhen(ev.ts), textLabel: repTextLabel(ev.text) };
@@ -910,6 +912,8 @@ function renderReportsView() {
       decideReport(item.id, b.dataset.decision);
     };
   });
+  // Hide and keep and the Held copies button (chat-held.js), added as DOM.
+  if (typeof window.heldDecorateReports === 'function') window.heldDecorateReports(card, model);
 }
 
 // ── Reports about my groups (10j, the creator's side) ────────────────────

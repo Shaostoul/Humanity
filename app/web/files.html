@@ -46,13 +46,8 @@
        the page and what its own parts put on the body show: the drop overlay, the press-and-hold
        confirmation Remove asks with (/shared/hold-confirm.js; hidden, its promise never settled and
        Remove did nothing), and the tooltip /shared/shell.js draws in place of every title. -->
-  <script>
-    (function () {
-      var framed = false;
-      try { framed = window.self !== window.top; } catch (e) { framed = true; }
-      if (framed && /(?:^|[?&])window=(?:upload|item)(?:&|$)/.test(location.search.slice(1))) document.documentElement.setAttribute('data-files-window', '');
-    })();
-  </script>
+  <script src="/shared/safe-markup.js"></script>
+  <script src="/pages/files-frame.js"></script>
   <style>
     body { background: var(--bg); color: var(--text); line-height: var(--line-height); min-height: 100vh; padding-bottom: 60px; }
     [data-files-window] body { min-height: 0; padding: 0; }
@@ -63,6 +58,7 @@
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/icons.js"></script>
 <script src="/shared/shell.js"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>

@@ -111,6 +111,26 @@ async function exportContactCard() {
   showContactCardExportModal(cardJson);
 }
 
+/** The export modal's Copy JSON button (was an inline onclick): copies the card, says how it went
+ *  for two seconds, then reads Copy JSON again. */
+function copyContactCardJson(btn) {
+  const word = (key) => ' ' + (window.i18n ? i18n.html(key) : '');
+  navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(function () {
+    btn.innerHTML = hosIcon('check', 14) + word('chat.contact_copied');
+    btn.style.background = '#1a5c2a';
+    setTimeout(function () { btn.innerHTML = hosIcon('copy', 14) + word('chat.contact_copy_json'); btn.style.background = ''; }, 2000);
+  }).catch(function () {
+    btn.innerHTML = hosIcon('close', 14) + word('chat.contact_copy_failed');
+    setTimeout(function () { btn.innerHTML = hosIcon('copy', 14) + word('chat.contact_copy_json'); }, 2000);
+  });
+}
+
+/** The export modal's Close button (was an inline onclick). */
+function closeContactCardExport() {
+  var m = document.getElementById('p2p-export-modal');
+  if (m) m.classList.remove('open');
+}
+
 /**
  * Show the export modal with the JSON card and a QR code.
  * @param {string} cardJson - Serialised contact card JSON
@@ -133,11 +153,11 @@ function showContactCardExportModal(cardJson) {
           style="width:100%;height:120px;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);resize:none;"></textarea>
         <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
           <button id="p2p-copy-btn"
-            onclick="(function(btn){navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(function(){btn.innerHTML=hosIcon('check',14)+' Copied!';btn.style.background='#1a5c2a';setTimeout(function(){btn.innerHTML=hosIcon('copy',14)+' Copy JSON';btn.style.background='';},2000);}).catch(function(){btn.innerHTML=hosIcon('close',14)+' Failed';setTimeout(function(){btn.innerHTML=hosIcon('copy',14)+' Copy JSON';},2000);})})(this)"
+            ${hosOn.attr('click', `copyContactCardJson(this)`)}
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ${hosIcon('copy', 14)} Copy JSON
           </button>
-          <button onclick="var m=document.getElementById('p2p-export-modal');if(m)m.classList.remove('open');"
+          <button ${hosOn.attr('click', `closeContactCardExport()`)}
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ✕ Close
           </button>
@@ -206,11 +226,11 @@ function showContactCardImportModal() {
         <textarea id="p2p-import-json" placeholder="Paste contact card JSON here…"
           style="width:100%;height:140px;font-size:0.75rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);resize:none;"></textarea>
         <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
-          <button onclick="importContactCardFromModal()"
+          <button ${hosOn.attr('click', `importContactCardFromModal()`)}
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ${hosIcon('check', 14)} Add Contact
           </button>
-          <button onclick="document.getElementById('p2p-import-modal').classList.remove('open')"
+          <button ${hosOn.attr('click', `hosOn.byId('p2p-import-modal').classList.remove('open')`)}
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             Cancel
           </button>

@@ -1,6 +1,8 @@
 /**
- * Humanity Network, Client-side Ed25519 cryptography (inlined).
- * Uses Web Crypto API. Keys persisted in IndexedDB.
+ * Humanity Network, client-side identity cryptography (inlined).
+ * Uses Web Crypto API. The identity's 32-byte seed is persisted in IndexedDB, inside an Ed25519
+ * CryptoKey used purely as its storage container (see SEED-ONLY IDENTITY below): every key is
+ * derived from the seed under its own label, the wallet's included (web/shared/wallet.js).
  */
 const DB_NAME = 'humanity-keys';
 const DB_VERSION = 1;
@@ -199,35 +201,12 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
   } catch (e) { console.error('Verification failed:', e); return false; }
 }
 
-// ── Solana Keypair Extraction ──
-
-/**
- * Extract raw 64-byte Solana keypair from Web Crypto API Ed25519 key pair.
- * Solana format: [32-byte private key | 32-byte public key]
- * @param {CryptoKey} privateKey - Ed25519 private key from Web Crypto API
- * @param {string} publicKeyHex - 64-char hex string of public key
- * @returns {Promise<Uint8Array>} 64-byte keypair
- */
-async function extractSolanaKeypair(privateKey, publicKeyHex) {
-  // Export private key as PKCS8
-  var pkcs8 = await crypto.subtle.exportKey('pkcs8', privateKey);
-  var pkcs8Bytes = new Uint8Array(pkcs8);
-
-  // PKCS8 Ed25519 format:
-  // 30 2e 02 01 00 30 05 06 03 2b 65 70 04 22 04 20 [32 bytes private key]
-  // The raw 32-byte private key starts at offset 16
-  var rawPrivate = pkcs8Bytes.slice(16, 48);
-
-  // Public key from hex
-  var rawPublic = hexToBuf(publicKeyHex);
-
-  // Concatenate: [private(32) | public(32)]
-  var keypair = new Uint8Array(64);
-  keypair.set(rawPrivate, 0);
-  keypair.set(rawPublic, 32);
-
-  return keypair;
-}
+// ── The Solana wallet key ──
+// Removed 2026-11-19: extractSolanaKeypair exported THIS identity key's private half (the seed
+// itself) as the Solana keypair, so a wallet key handed to any wallet tool handed over the whole
+// identity and every past private message (docs/reference/research/2026-11-16-pqc-review/). The
+// wallet's key is now derived from the seed under its own label: web/shared/wallet.js
+// walletKeyFromSeed, and exportSolanaKeypair for the 64-byte form wallet tools import.
 
 // ── Identity Export/Import ──
 
@@ -244,16 +223,18 @@ function extractSeedFromPkcs8(pkcs8Buf) {
 
 // ── SEED-ONLY IDENTITY (2026-09-30) ──
 // The identity IS the 32-byte seed: Dilithium3 and Kyber768 derive from it
-// (pq.js), and the Ed25519 key was only ever its container plus the Solana
-// wallet. WebCrypto Ed25519 is recent (on by default from Chrome 137, 2025),
+// (pq.js), and so, since 2026-11-19, does the Solana wallet's Ed25519 key, under
+// its own label (web/shared/wallet.js walletKeyFromSeed). The Ed25519 CryptoKey
+// here is only the seed's storage container: its public half is not the wallet
+// address and has no other role. WebCrypto Ed25519 is recent (on by default from Chrome 137, 2025),
 // so on the many phones running an older Chrome or a Chromium browser built on
 // one, the old fallback made a key with no private half and attachPqIdentity
 // refused to connect: "Post-quantum identity could not be initialized" (a
 // report from a user in Nigeria, 2026-09-30). There the seed is held directly.
 // It is saved in the SAME backup the Ed25519 path reads (humanity_key_backup,
 // PKCS8), so a browser that later gains Ed25519 restores the same seed and the
-// person keeps the same identity. Lost without Ed25519: the Solana wallet's
-// public key only (chat signing is Dilithium3 since the PQ cutover).
+// person keeps the same identity. Lost without Ed25519: the Solana wallet only
+// (WebCrypto makes its key; chat signing is Dilithium3 since the PQ cutover).
 const ED25519_PKCS8_PREFIX = new Uint8Array([
   0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
   0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
@@ -382,8 +363,8 @@ function renderDeviceList(devices) {
                placeholder="Label (e.g. PC, Phone, Laptop)"
                maxlength="32"
                style="flex:1;font-size:0.8rem;padding:var(--space-xs) var(--space-md);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)"
-               onchange="labelDevice('${d.public_key}', this.value)">
-        ${!d.is_current ? `<button onclick="revokeDevice('${d.public_key.substring(0, 8)}')"
+               ${hosOn.attr('change', `labelDevice(${hosArg(d.public_key)}, this.value)`)}>
+        ${!d.is_current ? `<button ${hosOn.attr('click', `revokeDevice(${hosArg(d.public_key.substring(0, 8))})`)}
                 style="font-size:0.75rem;padding:var(--space-xs) var(--space-xl);background:var(--danger);border:none;border-radius:var(--radius-sm);color:#fff;cursor:pointer"
                 title="Remove this device">✕</button>` : ''}
       </div>
@@ -427,7 +408,7 @@ async function openLinkDeviceModal() {
       <div style="display:flex;gap:var(--space-xl);justify-content:flex-end">
         <button id="link-device-copy"
           style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">📋 Copy JSON</button>
-        <button onclick="document.getElementById('link-device-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('link-device-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">Close</button>
       </div>
     </div>`;
@@ -580,7 +561,7 @@ async function importIdentityFromJSON(jsonData) {
 
 // ── Recovery Phrase Display (paper backup) ──
 // Goal: let users write their identity key on paper in a readable format.
-// Displays the 32-byte Ed25519 seed as 8 groups of 4 hex chars (like a PIN
+// Displays the 32-byte identity seed as 8 groups of 4 hex chars (like a PIN
 // sheet), easy to write down, hard to misread. No word list required.
 
 /**
@@ -783,8 +764,9 @@ function removeUnwrappedKey() {
 // ══════════════════════════════════════════════════════════════════════════════
 // Both keys derive deterministically from the SAME 32-byte BIP39 seed as
 // the Ed25519 key (see pq.js), byte-identical to the relay/native
-// (KAT-locked). The Ed25519 key is kept ONLY as the seed source + the
-// Solana wallet. The legacy ECDH-P256 DM keypair has been fully removed
+// (KAT-locked). The Ed25519 CryptoKey is kept ONLY as the seed's storage
+// container; the Solana wallet's key is derived from the seed under its own
+// label (web/shared/wallet.js). The legacy ECDH-P256 DM keypair has been fully removed
 //, DMs are pure ML-KEM-768 (see "Full-PQ DM" below).
 let myDilithiumPublicHex = null;   // hex of the 1952-byte ML-DSA-65 public key, THE chat identity (full-PQ)
 let myDilithiumSecret = null;      // Uint8Array secret key (in-memory only)
@@ -826,8 +808,8 @@ window.getDmStoreKey = getDmStoreKey;
  * seed derive Dilithium3 (THE chat identity + signing) AND Kyber768
  * (DM). Both are byte-identical to the relay/native (KAT-locked:
  * pq_crypto.rs::{dilithium,kyber}_cross_language_kat + pq-kat.mjs).
- * The Ed25519 key is kept ONLY as the seed source + the Solana
- * wallet, it is NO LONGER the chat identity.
+ * The Ed25519 CryptoKey is kept ONLY as the seed's storage container, it is
+ * NO LONGER the chat identity, nor the wallet (derived under its own label).
  *
  * PQ is MANDATORY now (no Ed25519 fallback). Returns true on success;
  * false means the caller MUST NOT connect (PQ unavailable). Awaited
@@ -854,11 +836,9 @@ async function attachPqIdentity() {
     myKyberPublicBase64 = btoa(String.fromCharCode(...kp.kyberPublicBytes));
     mySeed32 = seed;             // keys the local DM history store
     _dmStoreKeyPromise = null;   // re-derive if the identity changed
-    // Promote Dilithium to THE chat identity. Stash the old Ed25519
-    // hex (Solana-wallet use only); `publicKeyHex` is now Dilithium.
-    // Only before the first promotion: run twice on one identity, the second
-    // pass would file the Dilithium key here (seen 2026-09-30).
-    if (!myIdentity.dilithiumPublicHex) myIdentity.ed25519PublicKeyHex = myIdentity.publicKeyHex;
+    // Promote Dilithium to THE chat identity: `publicKeyHex` is now Dilithium.
+    // (The storage container's Ed25519 hex used to be stashed here as the
+    // wallet's; the wallet has its own derived key since 2026-11-19.)
     myIdentity.publicKeyHex = myDilithiumPublicHex;
     myIdentity.dilithiumPublicHex = myDilithiumPublicHex;
     myIdentity.kyberPublicBase64 = myKyberPublicBase64;
@@ -1104,9 +1084,12 @@ async function pqBuildDmPuts(text, partnerKey, ts, opts) {
     if (opts && opts.ctlCert) inner.cert = opts.ctlCert;
     // Size padding (2026-08-24): round the sealed plaintext up to a
     // bucket so ciphertext length doesn't leak message length. Buckets
-    // must match native (net::dm_pq::DM_PAD_BUCKETS).
+    // must match native (net::dm_pq::DM_PAD_BUCKETS). Measured in UTF-8
+    // BYTES, as native measures (BUG-328, 2026-11-20: string length counted
+    // UTF-16 code units, so non-ASCII text overshot its bucket);
+    // scripts/tests/dm-padding-web.test.js holds it to native's rule.
     {
-      const bare = JSON.stringify(inner).length;
+      const bare = new TextEncoder().encode(JSON.stringify(inner)).length;
       const bucket = DM_PAD_BUCKETS.find((b) => bare + 12 <= b) || (bare + 12);
       inner.pad = ' '.repeat(Math.max(0, bucket - bare - 12));
     }
@@ -1320,7 +1303,7 @@ function getPeerKyberPublic(peerKey) { return getPeerEcdhPublic(peerKey); }
 // Goal: let users write 24 words on paper and fully restore their identity
 // on a new device with no cloud, no server, no QR code required.
 //
-// Encoding: 256-bit entropy (32-byte Ed25519 seed) + 8-bit SHA-256 checksum
+// Encoding: 256-bit entropy (the 32-byte identity seed) + 8-bit SHA-256 checksum
 //           = 264 bits → 24 × 11 bits → 24 BIP39 words.
 //
 // The wordlist is loaded from window.BIP39_ENGLISH (bip39-english.js must be

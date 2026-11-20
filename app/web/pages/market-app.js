@@ -71,6 +71,21 @@ function loadMarketCategories() {
 }
 const STORE_DIRECTORY = [];
 
+// The listing form's quick price buttons (Free, Donations Welcome, Pay What You Want): the word,
+// from en.json, into the price box. (Their handlers named document and i18n, which a data-on
+// handler may not reach since BUG-331.)
+function setListingPrice(key) {
+  var el = document.getElementById('listing-price');
+  if (el) el.value = i18n.t(key);
+}
+
+// The seller profile box closes on a press outside it (market.html's backdrop handler named this
+// function, which did not exist; found 2026-11-20). Nothing opens the box yet.
+function closeSellerProfile() {
+  var m = document.getElementById('seller-profile-modal');
+  if (m) m.style.display = 'none';
+}
+
 function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 /** Render star display: filled stars + muted outline stars.
@@ -98,7 +113,7 @@ function renderStarSelector(currentRating) {
   let html = '<div id="review-star-selector" class="star-selector" role="group" aria-label="' + escHtml(i18n.t('market.rating')) + '">';
   for (let i = 1; i <= 5; i++) {
     const filled = i <= currentRating;
-    html += '<span onclick="setReviewRating(' + i + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();setReviewRating(' + i + ');}" onmouseenter="previewStars(' + i + ')" onmouseleave="previewStars(0)" data-star="' + i + '" class="star' + (filled ? ' on' : '') + '" role="button" tabindex="0" aria-label="' + escHtml(i18n.tn('market.star_count', i)) + '" data-i18n-tip="market.rate_star_hint">&#9733;</span>';
+    html += '<span ' + hosOn.attr('click', 'setReviewRating(' + hosNum(i) + ')') + ' ' + hosOn.attr('keydown', 'hosOn.onKeyPrevent(event, [\'Enter\', \' \'], setReviewRating, ' + hosNum(i) + ')') + ' ' + hosOn.attr('mouseenter', 'previewStars(' + hosNum(i) + ')') + ' ' + hosOn.attr('mouseleave', 'previewStars(0)') + ' data-star="' + i + '" class="star' + (filled ? ' on' : '') + '" role="button" tabindex="0" aria-label="' + escHtml(i18n.tn('market.star_count', i)) + '" data-i18n-tip="market.rate_star_hint">&#9733;</span>';
   }
   html += '</div>';
   return html;
@@ -301,7 +316,7 @@ function showListingDetail(id) {
   // Words by key (data/i18n/en.json, market.*); the hints ride data-i18n-tip and
   // i18n.apply() below fills their words in.
   content.innerHTML =
-    '<button onclick="closeListingDetail()" class="detail-close" aria-label="' + escHtml(i18n.t('market.close_listing_details')) + '" data-i18n-tip="market.close_details_hint">' + hosIcon('close', 14) + '</button>' +
+    '<button ' + hosOn.attr('click', 'closeListingDetail()') + ' class="detail-close" aria-label="' + escHtml(i18n.t('market.close_listing_details')) + '" data-i18n-tip="market.close_details_hint">' + hosIcon('close', 14) + '</button>' +
     '<h3 class="detail-title">' + escHtml(l.title) + '</h3>' +
     '<div class="detail-price">' + escHtml(l.price || i18n.t('market.contact_for_price')) + '</div>' +
     '<div class="detail-chips">' +
@@ -314,16 +329,16 @@ function showListingDetail(id) {
     (l.payment_methods ? '<div class="detail-meta">' + escHtml(i18n.t('market.payment_label')) + ' ' + escHtml(l.payment_methods) + '</div>' : '') +
     (l.location ? '<div class="detail-meta detail-location">' + hosIcon('mappin', 14) + ' ' + escHtml(l.location) + '</div>' : '') +
     (isMine ? '<div class="detail-actions">' +
-      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" class="detail-action" data-i18n-tip="market.edit_listing_hint">' + hosIcon('edit', 14) + ' ' + escHtml(i18n.t('common.edit')) + '</button>' +
-      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" class="detail-action is-sold" data-i18n-tip="market.mark_sold_hint">' + hosIcon('check', 14) + ' ' + escHtml(i18n.t('market.mark_sold')) + '</button>' +
-      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" class="detail-action is-delete" data-i18n-tip="market.delete_listing_confirm_hint">' + hosIcon('trash', 14) + ' ' + escHtml(i18n.t('common.delete')) + '</button>' +
+      '<button ' + hosOn.attr('click', 'editListing(' + hosArg(l.id) + ');closeListingDetail()') + ' class="detail-action" data-i18n-tip="market.edit_listing_hint">' + hosIcon('edit', 14) + ' ' + escHtml(i18n.t('common.edit')) + '</button>' +
+      '<button ' + hosOn.attr('click', 'markListingSold(' + hosArg(l.id) + ');closeListingDetail()') + ' class="detail-action is-sold" data-i18n-tip="market.mark_sold_hint">' + hosIcon('check', 14) + ' ' + escHtml(i18n.t('market.mark_sold')) + '</button>' +
+      '<button ' + hosOn.attr('click', 'deleteListing(' + hosArg(l.id) + ');closeListingDetail()') + ' class="detail-action is-delete" data-i18n-tip="market.delete_listing_confirm_hint">' + hosIcon('trash', 14) + ' ' + escHtml(i18n.t('common.delete')) + '</button>' +
     '</div>' : '') +
     '<div id="listing-contact-section" class="detail-section">' +
       '<h4 class="detail-section-title">' + escHtml(i18n.t('market.contact')) + '</h4>' +
       (isMine
         ? '<div class="detail-empty">' + i18n.html('market.contact_note_own_web') + '</div>'
         : marketMyKey && marketMyKey.indexOf('viewer_') !== 0
-          ? '<button onclick="messageSeller(\'' + escHtml(l.id) + '\')" class="btn btn-clickable btn-sm" data-i18n-tip="market.message_seller_hint">' + escHtml(i18n.t('market.message_seller')) + '</button>' +
+          ? '<button ' + hosOn.attr('click', 'messageSeller(' + hosArg(l.id) + ')') + ' class="btn btn-clickable btn-sm" data-i18n-tip="market.message_seller_hint">' + escHtml(i18n.t('market.message_seller')) + '</button>' +
             '<div class="detail-empty">' + i18n.html('market.contact_note') + '</div>'
           : '<div class="detail-empty">' + escHtml(i18n.t('market.contact_note_signin')) + '</div>') +
     '</div>' +
@@ -373,7 +388,7 @@ function renderDetailReviews(listingId, data) {
 
   if (reviews.length > 1) {
     html += '<div class="review-sort">' +
-      '<select id="review-sort-select" aria-label="' + escHtml(i18n.t('market.sort_reviews_label')) + '" data-i18n-tip="market.sort_reviews_hint" onchange="resortReviews(\'' + escHtml(listingId) + '\')">' +
+      '<select id="review-sort-select" aria-label="' + escHtml(i18n.t('market.sort_reviews_label')) + '" data-i18n-tip="market.sort_reviews_hint" ' + hosOn.attr('change', 'resortReviews(' + hosArg(listingId) + ')') + '>' +
         '<option value="newest"' + (sortVal === 'newest' ? ' selected' : '') + '>' + escHtml(i18n.t('market.sort_newest')) + '</option>' +
         '<option value="highest"' + (sortVal === 'highest' ? ' selected' : '') + '>' + escHtml(i18n.t('market.sort_highest')) + '</option>' +
         '<option value="lowest"' + (sortVal === 'lowest' ? ' selected' : '') + '>' + escHtml(i18n.t('market.sort_lowest')) + '</option>' +
@@ -392,7 +407,7 @@ function renderDetailReviews(listingId, data) {
         '<label class="review-label" for="review-comment">' + escHtml(i18n.t('market.comment')) + '</label>' +
         '<textarea id="review-comment" class="review-comment" rows="3" maxlength="2000" placeholder="' + escHtml(i18n.t('market.review_placeholder')) + '" data-i18n-tip="market.review_comment_hint"></textarea>' +
       '</div>' +
-      '<button onclick="submitReview(\'' + escHtml(listingId) + '\')" class="btn btn-clickable btn-sm" data-i18n-tip="market.submit_review_hint">' + escHtml(i18n.t('market.submit_review_web')) + '</button>' +
+      '<button ' + hosOn.attr('click', 'submitReview(' + hosArg(listingId) + ')') + ' class="btn btn-clickable btn-sm" data-i18n-tip="market.submit_review_hint">' + escHtml(i18n.t('market.submit_review_web')) + '</button>' +
       '<div id="review-error" class="review-error" role="alert" style="display:none;"></div>' +
     '</div>';
   }
@@ -411,7 +426,7 @@ function renderDetailReviews(listingId, data) {
           '</div>' +
           '<div class="review-meta">' +
             '<span class="review-date">' + escHtml(dateStr) + '</span>' +
-            (canDelete ? '<button onclick="deleteReview(\'' + escHtml(listingId) + '\',' + r.id + ')" class="review-delete" title="' + escHtml(i18n.t('market.delete_review')) + '" aria-label="' + escHtml(i18n.t('market.delete_review')) + '" data-i18n-tip="market.delete_review_hint">' + hosIcon('trash', 12) + '</button>' : '') +
+            (canDelete ? '<button ' + hosOn.attr('click', 'deleteReview(' + hosArg(listingId) + ',' + hosNum(r.id) + ')') + ' class="review-delete" title="' + escHtml(i18n.t('market.delete_review')) + '" aria-label="' + escHtml(i18n.t('market.delete_review')) + '" data-i18n-tip="market.delete_review_hint">' + hosIcon('trash', 12) + '</button>' : '') +
           '</div>' +
         '</div>' +
         (r.comment ? '<div class="review-body">' + escHtml(r.comment) + '</div>' : '') +
@@ -570,13 +585,13 @@ function renderListingCard(l, showActions) {
   // The hints ride data-i18n-tip; the caller's i18n.apply() fills their words in.
   var actions = (isMine || showActions) ?
     '<div class="listing-actions">' +
-     (isMine ? '<button onclick="event.stopPropagation();editListing(\'' + l.id + '\')" class="listing-action" data-i18n-tip="market.edit_listing_hint">' + hosIcon('edit', 14) + ' ' + escHtml(i18n.t('common.edit')) + '</button>' : '') +
-     (isMine ? '<button onclick="event.stopPropagation();markListingSold(\'' + l.id + '\')" class="listing-action is-sold" data-i18n-tip="market.mark_sold_hint">' + hosIcon('check', 14) + ' ' + escHtml(i18n.t('market.sold')) + '</button>' : '') +
-     ((isMine||isAdmin) ? '<button onclick="event.stopPropagation();deleteListing(\'' + l.id + '\')" class="listing-action is-delete" data-i18n-tip="market.delete_listing_confirm_hint">' + hosIcon('trash', 14) + ' ' + escHtml(i18n.t('common.delete')) + '</button>' : '') +
+     (isMine ? '<button ' + hosOn.attr('click', 'event.stopPropagation();editListing(' + hosArg(l.id) + ')') + ' class="listing-action" data-i18n-tip="market.edit_listing_hint">' + hosIcon('edit', 14) + ' ' + escHtml(i18n.t('common.edit')) + '</button>' : '') +
+     (isMine ? '<button ' + hosOn.attr('click', 'event.stopPropagation();markListingSold(' + hosArg(l.id) + ')') + ' class="listing-action is-sold" data-i18n-tip="market.mark_sold_hint">' + hosIcon('check', 14) + ' ' + escHtml(i18n.t('market.sold')) + '</button>' : '') +
+     ((isMine||isAdmin) ? '<button ' + hosOn.attr('click', 'event.stopPropagation();deleteListing(' + hosArg(l.id) + ')') + ' class="listing-action is-delete" data-i18n-tip="market.delete_listing_confirm_hint">' + hosIcon('trash', 14) + ' ' + escHtml(i18n.t('common.delete')) + '</button>' : '') +
     '</div>' : '';
   var statusBadge = l.status === 'sold' ? '<span class="status-badge">' + escHtml(i18n.t('market.badge_sold')) + '</span>' :
             l.status === 'withdrawn' ? '<span class="status-badge withdrawn">' + escHtml(i18n.t('market.badge_withdrawn')) + '</span>' : '';
-  return '<div class="listing-card" role="button" tabindex="0" data-i18n-tip="market.view_hint" onclick="showListingDetail(\'' + l.id + '\')" onkeydown="if(event.key===\'Enter\'){showListingDetail(\'' + l.id + '\')}">' +
+  return '<div class="listing-card" role="button" tabindex="0" data-i18n-tip="market.view_hint" ' + hosOn.attr('click', 'showListingDetail(' + hosArg(l.id) + ')') + ' ' + hosOn.attr('keydown', 'hosOn.onKey(event, \'Enter\', showListingDetail, ' + hosArg(l.id) + ')') + '>' +
     '<div class="listing-thumb">' + (l.category === '3D Models' ? '&#129482;' : '&#128230;') + '</div>' +
     '<div class="listing-body">' +
       '<div class="listing-head">' +
@@ -1019,7 +1034,7 @@ function renderDirectory() {
     var filtered = DIRECTORY.providerFilter ? dirProviderByRoot(DIRECTORY.providerFilter) : null;
     crumb.innerHTML = filtered
       ? '<span class="dir-crumb">' + escHtml(i18n.t('market.directory.storefront', { name: filtered.display_name }))
-        + ' <button class="btn dir-toggle" onclick="clearDirectoryProviderFilter()" data-i18n-tip="market.directory.all_providers_hint">' + escHtml(i18n.t('market.directory.all_providers')) + '</button></span>'
+        + ' <button class="btn dir-toggle" ' + hosOn.attr('click', 'clearDirectoryProviderFilter()') + ' data-i18n-tip="market.directory.all_providers_hint">' + escHtml(i18n.t('market.directory.all_providers')) + '</button></span>'
       : '';
     i18n.apply(crumb);
   }
@@ -1052,8 +1067,8 @@ function renderDirectoryOfferings(grid, empty) {
     var sel = dirAttr(dirSelKey(o));
     var thumb = window.hosIcon ? hosIcon(o.kind === 'service' ? 'tool' : 'box', 28) : '';
     return '<div class="listing-card" role="button" tabindex="0" data-i18n-tip="market.directory.offering_card_hint"' +
-      ' onclick="showOfferingDetail(\'' + sel + '\')"' +
-      ' onkeydown="if(event.key===\'Enter\'){showOfferingDetail(\'' + sel + '\')}">' +
+      ' ' + hosOn.attr('click', 'showOfferingDetail(' + hosArg(sel) + ')') + '' +
+      ' ' + hosOn.attr('keydown', 'hosOn.onKey(event, \'Enter\', showOfferingDetail, ' + hosArg(sel) + ')') + '>' +
       '<div class="listing-thumb">' + thumb + '</div>' +
       '<div class="listing-body">' +
         '<div class="listing-head">' +
@@ -1093,8 +1108,8 @@ function renderDirectoryProviders(grid, empty) {
     var root = dirAttr(p.root_id);
     var icon = window.hosIcon ? hosIcon('storefront', 24) : '';
     return '<div class="store-card provider-card" role="button" tabindex="0" data-i18n-tip="market.directory.provider_card_hint"' +
-      ' onclick="showProviderStorefront(\'' + root + '\')"' +
-      ' onkeydown="if(event.key===\'Enter\'){showProviderStorefront(\'' + root + '\')}">' +
+      ' ' + hosOn.attr('click', 'showProviderStorefront(' + hosArg(root) + ')') + '' +
+      ' ' + hosOn.attr('keydown', 'hosOn.onKey(event, \'Enter\', showProviderStorefront, ' + hosArg(root) + ')') + '>' +
       '<div class="store-icon">' + icon + '</div>' +
       '<div class="store-name">' + escHtml(p.display_name) + '</div>' +
       '<div class="store-category">' + escHtml(dirEnumLabel(p.kind)) + '</div>' +
@@ -1156,7 +1171,7 @@ function showOfferingDetail(selKey) {
       (provider.author_key_hex
         ? '<div class="dir-fact"><span>' + escHtml(i18n.t('market.directory.key_label_web')) + '</span></div>' +
           '<div class="dir-key" id="offering-provider-key">' + escHtml(provider.author_key_hex) + '</div>' +
-          '<button class="btn btn-sm" id="offering-copy-key" onclick="copyProviderKey()" data-i18n-tip="market.directory.copy_key_hint">' + escHtml(i18n.t('market.directory.copy_key')) + '</button>'
+          '<button class="btn btn-sm" id="offering-copy-key" ' + hosOn.attr('click', 'copyProviderKey()') + ' data-i18n-tip="market.directory.copy_key_hint">' + escHtml(i18n.t('market.directory.copy_key')) + '</button>'
         : '');
   } else {
     providerHtml = '<div class="detail-empty">' + escHtml(i18n.t('market.directory.provider_missing')) + '</div>';
@@ -1164,7 +1179,7 @@ function showOfferingDetail(selKey) {
 
   // Words by key (market.*); the hints ride data-i18n-tip and i18n.apply() below fills them in.
   content.innerHTML =
-    '<button onclick="closeOfferingDetail()" class="detail-close" aria-label="' + escHtml(i18n.t('market.directory.close_details')) + '" data-i18n-tip="market.close_details_hint">' +
+    '<button ' + hosOn.attr('click', 'closeOfferingDetail()') + ' class="detail-close" aria-label="' + escHtml(i18n.t('market.directory.close_details')) + '" data-i18n-tip="market.close_details_hint">' +
       (window.hosIcon ? hosIcon('close', 14) : 'x') + '</button>' +
     '<h3 class="detail-title">' + escHtml(o.title) + '</h3>' +
     '<div class="detail-chips">' +

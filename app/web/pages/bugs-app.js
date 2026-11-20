@@ -233,7 +233,7 @@
           '<span>' + ago + '</span>' +
           // Only in the admins' and moderators' list (POST /api/bugs/details).
           (b.reporter_name ? '<span>' + escapeHtml(i18n.t('bugs.by', { name: b.reporter_name })) + '</span>' : '') +
-          '<button class="vote-btn" data-i18n-aria-label="bugs.vote_label" data-i18n-tip="bugs.vote_hint" onclick="window.__voteBug(' + b.id + ', this)">' +
+          '<button class="vote-btn" data-i18n-aria-label="bugs.vote_label" data-i18n-tip="bugs.vote_hint" ' + hosOn.attr('click', '__voteBug(' + hosNum(b.id) + ', this)') + '>' +
             '\u25B2 ' + b.votes +
           '</button>' +
         '</div>' +
@@ -307,7 +307,7 @@
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function timeAgo(ms) {

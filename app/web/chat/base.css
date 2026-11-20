@@ -61,7 +61,7 @@
   --chat-admin-tier-ink: #4a3fc0;
 }
 
-/* Twemoji */
+/* Emoji pictures (web/shared/emoji.js, OpenMoji's SVGs in /assets/emoji/) */
 img.emoji {
   height: 1.2em;
   width: 1.2em;

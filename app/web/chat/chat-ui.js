@@ -512,7 +512,7 @@ function updateCharCounter(len) {
 
 // ── Signing status on the entry screen ──
 // Chat messages are signed with Dilithium3 (ML-DSA-65, pq.js, pure JavaScript), whether or not
-// the browser has WebCrypto Ed25519, which is only the recovery phrase's wallet key (BUG-106).
+// the browser has WebCrypto Ed25519, which only holds the seed and makes the wallet's key (BUG-106).
 // This line used to say "Ed25519 signatures enabled", or that messages would NOT be signed
 // without Ed25519: both untrue since v0.262 (2026-10-12). What signing does need is a secure
 // page (https or localhost), where the browser's crypto.subtle exists.
@@ -606,7 +606,8 @@ function showUserContextMenu(e, name, publicKey, message) {
       admin:  'border-left:3px solid var(--info);padding-left:9px;',
       danger: 'border-left:3px solid var(--danger);padding-left:9px;color:var(--danger);',
     }[tier] || '';
-    return '<div class="ctx-item" style="' + borderStyle + '" onclick="' + onclick + '">' + label + '</div>';
+    // handler-exempt: every caller below passes a constant handler, never data.
+    return '<div class="ctx-item" style="' + borderStyle + '" ' + hosOn.attr('click', onclick) + '>' + label + '</div>'; // handler-exempt
   };
 
   // Role badge for target user header.
@@ -671,7 +672,7 @@ function showUserContextMenu(e, name, publicKey, message) {
   }
 
   ctxMenu.innerHTML = html;
-  if (window.twemoji) twemoji.parse(ctxMenu);
+  if (window.hosEmoji) hosEmoji.parse(ctxMenu);
 
   const menuH = amAdmin ? 380 : amMod ? 300 : 220;
   const x = Math.min(e.clientX, window.innerWidth - 180);
@@ -1359,7 +1360,7 @@ function openLoginRestoreModal(opts) {
 
     try {
       // Unchanged crypto path: crypto.js checks the BIP39 checksum, rebuilds the
-      // Ed25519 seed key, and persists it (IndexedDB + localStorage backup).
+      // 32-byte identity seed, and persists it (IndexedDB + localStorage backup).
       await restoreIdentityFromMnemonic(shape.mnemonic);
 
       // Name goes back into the login input so connect() picks it up.
@@ -1549,6 +1550,12 @@ sendMessage = async function() {
   if (val === '/reports' && typeof reportsAmStaff === 'function' && reportsAmStaff()) {
     input.value = '';
     openReportsView();
+    return;
+  }
+  // Held copies (hide and keep, chat-held.js): admins only; it says so to anyone else.
+  if (val === '/held' && typeof window.openHeldView === 'function') {
+    input.value = '';
+    window.openHeldView();
     return;
   }
   if (val === '/dms') {
@@ -2213,12 +2220,12 @@ var federatedRetryMs = 30000;
     const myRole = (window.myPeerRole || '').toLowerCase();
     if (myRole === 'admin') {
       html += `<div style="padding:var(--space-md) var(--space-md);">
-        <button onclick="promptAddServer()" style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
+        <button ${hosOn.attr('click', `promptAddServer()`)} style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
       </div>`;
     }
 
     container.innerHTML = html;
-    if (window.twemoji) twemoji.parse(container);
+    if (window.hosEmoji) hosEmoji.parse(container);
     if (typeof renderUnreadDots === 'function') renderUnreadDots();
     if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
   }
@@ -2417,13 +2424,14 @@ function clearUnread(channelId) {
 
 function renderUnreadDots() {
   document.querySelectorAll('.channel-item').forEach(el => {
-    // Get the channel id from data attribute or onclick attribute.
+    // Get the channel id from data attribute or the click handler (its text, from safe-markup.js:
+    // the attribute itself holds only a token).
     let chId = el.getAttribute('data-channel-id');
     if (!chId) {
-      const onclick = el.getAttribute('onclick') || '';
-      const match = onclick.match(/switchChannel\('([^']+)'\)/);
+      const onclick = (window.hosOn && hosOn.handlerOf(el, 'click')) || '';
+      const match = onclick.match(/switchChannel\((['"])([^'"]+)\1\)/);
       if (!match) return;
-      chId = match[1];
+      chId = match[2];
     }
 
     // Remove existing dot.
@@ -2759,9 +2767,9 @@ function renderSearchResults(data) {
     const highlighted = escaped.replace(new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>');
     // Truncate content preview
     const preview = highlighted.length > 300 ? highlighted.substring(0, 300) + '…' : highlighted;
-    return '<div class="search-result" data-channel="' + (r.channel || '') + '" data-timestamp="' + r.timestamp + '">' +
-      '<div class="sr-meta"><span class="sr-author">' + (r.from_name || 'Unknown') + '</span>' +
-      '<span class="sr-channel">#' + (r.channel || '?') + '</span>' +
+    return '<div class="search-result" data-channel="' + esc(r.channel || '') + '" data-timestamp="' + esc(r.timestamp) + '">' +
+      '<div class="sr-meta"><span class="sr-author">' + esc(r.from_name || 'Unknown') + '</span>' +
+      '<span class="sr-channel">#' + esc(r.channel || '?') + '</span>' +
       '<span class="sr-time">' + time + '</span></div>' +
       '<div class="sr-body">' + preview + '</div></div>';
   }).join('');

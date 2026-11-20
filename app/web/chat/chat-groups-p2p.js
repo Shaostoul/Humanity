@@ -1045,7 +1045,7 @@
       header.style.display = 'block';
       // Native's group header (chat.rs draw_center_panel): Back, the group's name in the group
       // ink at the heading size, "end-to-end encrypted" small and muted, and Copy invite.
-      header.innerHTML = '<button type="button" class="ch-back" onclick="switchChannel(\'global\')" data-tip-desc="Return to #global.">Back</button>' +
+      header.innerHTML = '<button type="button" class="ch-back" ' + hosOn.attr('click', 'switchChannel(\'global\')') + ' data-tip-desc="Return to #global.">Back</button>' +
         '<span class="ch-name ch-group">' + esc(displayName) + '</span>' +
         '<span class="ch-desc">end-to-end encrypted · ' +
         '<a href="#" id="p2pg-header-invite" style="color:var(--accent);text-decoration:none;">Copy invite ticket</a></span>';

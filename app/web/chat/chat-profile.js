@@ -57,8 +57,7 @@ function loadProfileLocal() {
 }
 
 // The retired modal's markup still ships in chat/index.html and its buttons carry
-// inline onclick="saveProfile()" / "togglePrivacyField(...)" handlers for functions
-// that no longer exist. Remove the node so those handlers are unreachable and no
+// handlers (saveProfile(), togglePrivacyField(...)) for functions that no longer exist. Remove the node so those handlers are unreachable and no
 // stale second editor can be surfaced by accident.
 (function removeRetiredEditProfileModal() {
   const dead = document.getElementById('edit-profile-overlay');
@@ -713,21 +712,11 @@ function showViewProfileCard(name, publicKey, profile) {
     html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
   }
 
-  // Wallet section, show Solana address and balances if HosWallet is available
-  if (window.HosWallet && publicKey) {
-    var solAddress = HosWallet.publicKeyToSolanaAddress(publicKey);
-    var shortAddr = solAddress.length > 8 ? solAddress.substring(0, 4) + '...' + solAddress.substring(solAddress.length - 4) : solAddress;
-    html += '<div style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid var(--border);">';
-    html += '<div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-sm);">Wallet</div>';
-    html += '<div style="display:flex;align-items:center;gap:var(--space-md);font-size:0.8rem;">';
-    html += '<span style="color:var(--text-muted);">SOL</span> ';
-    html += '<span id="profile-wallet-addr" title="' + esc(solAddress) + '" style="font-family:monospace;color:var(--text);">' + esc(shortAddr) + '</span>';
-    html += '<button id="profile-wallet-copy" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 6px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;" title="Copy Solana address">Copy</button>';
-    html += '</div>';
-    html += '<div id="profile-wallet-balances" style="font-size:0.78rem;color:var(--text-muted);margin-top:var(--space-sm);">Loading balances...</div>';
-    html += '<a href="/wallet" style="font-size:0.72rem;color:var(--accent);text-decoration:none;margin-top:var(--space-sm);display:inline-block;">View Wallet</a>';
-    html += '</div>';
-  }
+  // No wallet section here (removed 2026-11-19): it made a "Solana address" out of this
+  // person's identity key, but a wallet address cannot be worked out from anyone's public
+  // identity. The wallet key is derived from their private seed under its own label
+  // (web/shared/wallet.js walletKeyFromSeed), and the identity key has been Dilithium3, never an
+  // Ed25519 address, since the PQ cutover. Someone who wants to be paid shares their address.
 
   // Follow/friend status + button
   if (publicKey && publicKey !== myKey) {
@@ -760,37 +749,6 @@ function showViewProfileCard(name, publicKey, profile) {
       pkEl.addEventListener('click', () => {
         navigator.clipboard.writeText(publicKey).then(() => addSystemMessage('Public key copied.'));
       });
-    }
-  }
-  // Wallet copy button + async balance loading
-  if (window.HosWallet && publicKey) {
-    var walletCopyBtn = document.getElementById('profile-wallet-copy');
-    if (walletCopyBtn) {
-      var _solAddr = HosWallet.publicKeyToSolanaAddress(publicKey);
-      walletCopyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(_solAddr).then(function() {
-          walletCopyBtn.textContent = 'Copied!';
-          setTimeout(function() { walletCopyBtn.textContent = 'Copy'; }, 2000);
-        });
-      });
-    }
-    // Async load balances
-    var balEl = document.getElementById('profile-wallet-balances');
-    if (balEl && typeof HosWallet.getBalance === 'function') {
-      var _addr = HosWallet.publicKeyToSolanaAddress(publicKey);
-      HosWallet.getBalance(_addr).then(function(sol) {
-        var text = sol !== null ? (sol + ' SOL') : 'Balance unavailable';
-        if (typeof HosWallet.getTokenBalance === 'function') {
-          HosWallet.getTokenBalance(_addr, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').then(function(usdc) {
-            if (usdc !== null) text += ' | $' + usdc + ' USDC';
-            balEl.textContent = text;
-          }).catch(function() { balEl.textContent = text; });
-        } else {
-          balEl.textContent = text;
-        }
-      }).catch(function() { balEl.textContent = 'Balance unavailable'; });
-    } else if (balEl) {
-      balEl.textContent = '';
     }
   }
   // Follow button handler
@@ -864,7 +822,7 @@ function showViewProfileCard(name, publicKey, profile) {
     }).catch(function() { /* server-info unavailable, skip funding section */ });
   }
 
-  if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
+  if (window.hosEmoji) hosEmoji.parse(document.getElementById('view-profile-content'));
   document.getElementById('view-profile-overlay').classList.add('open');
 }
 
@@ -1005,7 +963,7 @@ function closeViewProfileOverlay() {
 
 /**
  * Open a modal showing the identity as a 24-word BIP39 mnemonic.
- * Words are derived deterministically from the 32-byte Ed25519 seed via
+ * Words are derived deterministically from the 32-byte identity seed via
  * SHA-256 checksum → 264 bits → 24×11-bit word indices.
  * The user can copy the phrase or write it on paper for offline recovery.
  */
@@ -1088,7 +1046,7 @@ async function openSeedPhraseModal() {
         Identity: <code style="color:var(--text-muted)">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
       </p>
       <div style="display:flex;justify-content:flex-end">
-        <button onclick="document.getElementById('seed-phrase-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('seed-phrase-overlay').remove()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
@@ -1135,7 +1093,7 @@ async function openSeedPhraseModal() {
       encMsg.textContent = '✓ Downloaded, store the file in cloud, passphrase stays in your head.';
       encBtn.textContent = 'Downloaded!';
     } catch(e) {
-      encMsg.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+      encMsg.innerHTML = `<span style="color:var(--danger)">${esc(e.message)}</span>`;
       encBtn.disabled = false; encBtn.innerHTML = hosIcon('save', 14) + ' Download';
     }
   });
@@ -1184,9 +1142,9 @@ function openRestoreFromMnemonicModal() {
 
       <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('restore-mnemonic-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="rm-btn" onclick="doRestoreFromMnemonic()"
+        <button id="rm-btn" ${hosOn.attr('click', `doRestoreFromMnemonic()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
@@ -1218,7 +1176,7 @@ function openRestoreFromMnemonicModal() {
       ta.dispatchEvent(new Event('input'));
       fileMsg.textContent = '✓ Decrypted, verify the words above, then click Restore Identity.';
     } catch(e) {
-      fileMsg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
+      fileMsg.innerHTML = `<span style="color:var(--danger)">⚠ ${esc(e.message)}</span>`;
     }
   });
 }
@@ -1242,7 +1200,7 @@ async function doRestoreFromMnemonic() {
     msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored! Public key: <code>${identity.publicKeyHex.slice(0,16)}…</code><br>Reloading in 2 seconds…</span>`;
     setTimeout(() => location.reload(), 2000);
   } catch (e) {
-    msg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">⚠ ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Restore Identity';
   }
 }
@@ -1306,9 +1264,9 @@ function openEncryptedBackupModal() {
       </div>
       <div id="eb-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="this.closest('#encrypted-backup-overlay').remove()"
+        <button ${hosOn.attr('click', `this.closest('#encrypted-backup-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="eb-btn" onclick="doEncryptedBackup()"
+        <button id="eb-btn" ${hosOn.attr('click', `doEncryptedBackup()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
       </div>
     </div>
@@ -1336,7 +1294,7 @@ async function doEncryptedBackup() {
     btn.textContent = 'Done';
     setTimeout(() => document.getElementById('encrypted-backup-overlay')?.remove(), 2500);
   } catch (e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Download Encrypted Backup';
   }
 }
@@ -1371,9 +1329,9 @@ function openRestoreIdentityModal() {
       </div>
       <div id="ri-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="this.closest('#restore-identity-overlay').remove()"
+        <button ${hosOn.attr('click', `this.closest('#restore-identity-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="ri-btn" onclick="doRestoreIdentity()"
+        <button id="ri-btn" ${hosOn.attr('click', `doRestoreIdentity()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
@@ -1499,7 +1457,7 @@ function openLinkThisDeviceModal() {
       </p>
       ${method('🔗', 'Enter a link code', 'No recovery phrase or QR code needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
       <div style="text-align:right;margin-top:var(--space-md)">
-        <button onclick="document.getElementById('link-this-device-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('link-this-device-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
       </div>
     </div>`;
@@ -1567,10 +1525,10 @@ async function doRestoreIdentity() {
     const parsed = JSON.parse(text);
     const result = await importIdentityBackup(parsed, passphrase || undefined);
 
-    msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored for <strong>${result.name}</strong>. Reloading…</span>`;
+    msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored for <strong>${esc(result.name)}</strong>. Reloading…</span>`;
     setTimeout(() => location.reload(), 1800);
   } catch (e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Restore Identity';
   }
 }
@@ -1606,12 +1564,12 @@ function openKeyProtectionModal() {
       </div>
       <div id="kp-msg" style="font-size:.75rem;margin-bottom:var(--space-md);min-height:1.2em"></div>
       <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;justify-content:flex-end">
-        <button onclick="document.getElementById('key-protection-overlay').remove()"
+        <button ${hosOn.attr('click', `hosOn.byId('key-protection-overlay').remove()`)}
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
+        ${wrapped ? `<button id="kp-remove-btn" ${hosOn.attr('click', `doRemoveKeyProtection()`)}
           style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer"
           title="Remove passphrase protection, key will be stored in plaintext again">Remove Protection</button>` : ''}
-        <button id="kp-save-btn" onclick="doEnableKeyProtection()"
+        <button id="kp-save-btn" ${hosOn.attr('click', `doEnableKeyProtection()`)}
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
       </div>
@@ -1644,7 +1602,7 @@ async function doEnableKeyProtection() {
     const removeBtn = document.getElementById('kp-remove-btn');
     if (removeBtn) removeBtn.title = 'Remove passphrase encryption, key reverts to plaintext in localStorage';
   } catch(e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${esc(e.message)}</span>`;
     btn.disabled = false; btn.textContent = 'Protect Key';
   }
 }

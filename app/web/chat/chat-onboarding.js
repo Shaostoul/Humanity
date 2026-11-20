@@ -407,25 +407,25 @@ function step4() {
     </div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);margin-bottom:var(--space-xl)">
-      <button onclick="openSeedPhraseModal()" id="ob-seed-btn"
+      <button ${hosOn.attr('click', `openSeedPhraseModal()`)} id="ob-seed-btn"
         style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);
                color:var(--accent);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         🔑 View Recovery Phrase<br>
         <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">24-word paper backup</span>
       </button>
-      <button onclick="openEncryptedBackupModal()" id="ob-bkp-btn"
+      <button ${hosOn.attr('click', `openEncryptedBackupModal()`)} id="ob-bkp-btn"
         style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);
                color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         🔑 Encrypted Backup<br>
         <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">Download a backup file</span>
       </button>
-      <button onclick="openEditProfileModal()" id="ob-prof-btn"
+      <button ${hosOn.attr('click', `openEditProfileModal()`)} id="ob-prof-btn"
         style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);
                color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         ✏️ Edit Profile<br>
         <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">Name, bio, avatar…</span>
       </button>
-      <button onclick="openKeyProtectionModal()" id="ob-kp-btn"
+      <button ${hosOn.attr('click', `openKeyProtectionModal()`)} id="ob-kp-btn"
         style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);
                color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         🔒 Protect Your Key<br>
@@ -446,14 +446,17 @@ function wireStep4(overlay) {
   ['ob-seed-btn','ob-bkp-btn','ob-prof-btn','ob-kp-btn'].forEach(id => {
     const btn = overlay.querySelector('#' + id);
     if (btn) {
-      const originalClick = btn.getAttribute('onclick');
-      btn.removeAttribute('onclick');
+      // Its own handler runs after the wizard closes, through safe-markup.js (2026-11-20: it was
+      // run with new Function, which the site's policy refuses, so the modal never opened). The
+      // attribute holds only a token: hosOn.handlerOf gives the text the page registered.
+      const originalClick = hosOn.handlerOf(btn, 'click');
+      btn.removeAttribute('data-on-click');
       btn.addEventListener('click', () => {
         localStorage.setItem(ONBOARD_DONE_KEY, '1');
         overlay.remove();
         // Small delay so overlay is removed before modal opens
         setTimeout(() => {
-          if (originalClick) (new Function(originalClick))();
+          if (originalClick) hosOn.run(originalClick, btn, null);
         }, 80);
       });
     }

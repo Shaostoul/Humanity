@@ -145,9 +145,9 @@ function renderDmHeader() {
     : 'Block them: you will not see anything from them, and they are not told.';
   // Native's DM header (chat.rs draw_center_panel): a Back button, then "DM: Ada" in the DM ink
   // at the heading size, then Report and Block.
-  header.innerHTML = `<button type="button" class="ch-back" onclick="closeDmView()" data-tip-desc="Return to the channel.">Back</button><span class="ch-name ch-dm">DM: ${esc(activeDmPartnerName)}</span>`
-    + `<button class="vr-btn dm-block-btn" onclick="toggleBlockActiveDm()" title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`
-    + `<button class="vr-btn dm-report-btn" onclick="reportActiveDm()" title="Report them to this server's admins, with their messages you choose as evidence. They are not told who reported them." style="float:right;font-size:0.7rem;margin-right:var(--space-xs);color:var(--danger);">Report</button>`;
+  header.innerHTML = `<button type="button" class="ch-back" ${hosOn.attr('click', `closeDmView()`)} data-tip-desc="Return to the channel.">Back</button><span class="ch-name ch-dm">DM: ${esc(activeDmPartnerName)}</span>`
+    + `<button class="vr-btn dm-block-btn" ${hosOn.attr('click', `toggleBlockActiveDm()`)} title="${esc(blockTitle)}" style="float:right;font-size:0.7rem;${blocked ? '' : 'color:var(--danger);'}">${blocked ? 'Unblock' : 'Block'}</button>`
+    + `<button class="vr-btn dm-report-btn" ${hosOn.attr('click', `reportActiveDm()`)} title="Report them to this server's admins, with their messages you choose as evidence. They are not told who reported them." style="float:right;font-size:0.7rem;margin-right:var(--space-xs);color:var(--danger);">Report</button>`;
   header.style.display = 'block';
 }
 
@@ -302,7 +302,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   // A file's address in the words: its card's size and what kind of file it is (app.js).
   else if (typeof fillFileCards === 'function') fillFileCards(el);
   if (media && !holdLinks) filesCardsPut(el, media.ids, fromKey, timestamp);
-  if (window.twemoji) twemoji.parse(el);
+  if (window.hosEmoji) hosEmoji.parse(el);
   return el;
 }
 
@@ -844,12 +844,12 @@ function renderDmList() {
     // The conversation's bell (notifications rung 2, chat-notify.js): Mute conversation, as the
     // desktop's right-click; a right-click on the row opens the same menu.
     const dmBell = window.HosChatNotify ? HosChatNotify.dmBellHtml(c.partner_key) : '';
-    return `<div class="dm-item${isActive ? ' active' : ''}" data-dm-key="${esc(c.partner_key)}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
+    return `<div class="dm-item${isActive ? ' active' : ''}" data-dm-key="${esc(c.partner_key)}" ${hosOn.attr('click', `openDmConversation(${hosArg(c.partner_key)}, ${hosArg(c.partner_name)})`)}>
       <span class="dm-name">${esc(c.partner_name)} ${unread}</span>
       <span class="dm-time">${timeStr}</span>${dmBell}
     </div>`;
   }).join('') + purgeRow;
-  if (window.twemoji) twemoji.parse(list);
+  if (window.hosEmoji) hosEmoji.parse(list);
   if (typeof wireContactRequestButtons === 'function') wireContactRequestButtons(list);
   wirePurgeMailboxHold();
   if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();

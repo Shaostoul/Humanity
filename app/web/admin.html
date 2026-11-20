@@ -191,12 +191,14 @@
     .bk-sender { display: flex; gap: var(--space-md); align-items: center; flex-wrap: wrap; padding: var(--space-md); background: var(--pg-raised); border-radius: 6px; margin-bottom: var(--space-md); font-size: var(--text-sm); }
     #bk-sending { overflow-wrap: anywhere; }
   </style>
+<script src="/shared/safe-markup.js"></script>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
 <!-- Words by key (the Channels panel builds with i18n.t): English first, then i18n.js, before shell.js. -->
 <script src="/shared/i18n-en.js"></script>
 <script src="/shared/i18n.js"></script>
+<script src="/shared/icons.js"></script>
 <script src=/shared/shell.js data-active=ops></script>
 <!-- Which server this page is on, held under the nav while the page scrolls (media-round-5-plan.md 3.11). -->
 <script src="/shared/server-strip.js?v=1"></script>
@@ -539,6 +541,8 @@
         then choose View Reports in the command palette's Moderation section, or type
         <code>/reports</code>.
       </p>
+      <!-- Hide and keep (2026-11-20, docs/design/hide-and-keep.md rung 5): Held copies live in Chat too. -->
+      <p data-i18n="held.admin_where">Held copies, the posts an admin hid and kept from a report, are in Chat too, for admins: type /held, or press Held copies in the Reports view. Only the server owner can export, hold, destroy or restore one, and nobody can view one.</p>
     </div>
 
     <!-- The Files page (Media until 2026-10-19): the admins' section (who sees the page, the budget and each person's

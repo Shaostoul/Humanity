@@ -1,10 +1,13 @@
 /**
  * HumanityOS, Solana Wallet Module
  *
- * Pure vanilla JS, zero npm dependencies. Uses Web Crypto API + fetch().
- * The user's existing Ed25519 identity key IS their Solana wallet.
+ * Pure vanilla JS, zero npm dependencies. Uses Web Crypto API + fetch(), and the
+ * vendored noble bundle's BLAKE3 for the wallet key's derivation.
+ * The wallet key is an Ed25519 key DERIVED from the identity's 32-byte seed under its
+ * own label (walletKeyFromSeed below), never the seed itself (2026-11-19).
  *
- * Load order: crypto.js must load before this file (provides myIdentity, hexToBuf, bufToHex).
+ * Load order: self-contained; pages get the seed from /shared/pq-relay-auth.js
+ * (getPqRecoverySeed) and pass it to walletKeyFromSeed.
  * Usage: <script src="/shared/wallet.js"></script>
  *
  * All public API exposed via window.HosWallet.
@@ -99,6 +102,76 @@
     var bytes = hexToBytes(publicKeyHex);
     if (bytes.length !== 32) throw new Error('Public key must be 32 bytes, got ' + bytes.length);
     return base58Encode(bytes);
+  }
+
+  // ── The Wallet Key (2026-11-19, the PQC review's item 2) ────────────────────
+  // The identity's root secret is the 32 bytes the recovery phrase writes down (the "seed").
+  // Every key is derived from it under its own BLAKE3 derive_key label, and none IS it: the
+  // Dilithium3 chat identity (hum/dilithium3/v1, /chat/pq.js), the Kyber768 message key
+  // (hum/kyber768/v1) and this wallet's Ed25519 key (hum/ed25519-wallet/v1). Until 2026-11-19
+  // the seed itself was the wallet key, so a wallet key exported to any wallet tool handed over
+  // the whole identity and every past private message
+  // (docs/reference/research/2026-11-16-pqc-review/). The desktop app derives the same key
+  // (src/net/identity.rs wallet_secret_from_seed); scripts/tests/wallet-key-web.test.js and the
+  // Rust test wallet_key_known_answer_for_the_frozen_phrase pin the same values for one seed.
+  // This changed every wallet address; nothing carries an old one over (no funds were held).
+
+  var WALLET_KEY_DOMAIN = 'hum/ed25519-wallet/v1';
+  var NOBLE_BUNDLE_URL = '/shared/vendor/noble-pq.bundle.js';
+  // The standard 48-byte PKCS8 around a 32-byte Ed25519 private key (what WebCrypto imports).
+  var ED25519_PKCS8_PREFIX = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+                              0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
+
+  /** BLAKE3 from the same-origin vendored bundle (the one the chat's PQ identity uses). */
+  async function loadBlake3() {
+    var m = await import(NOBLE_BUNDLE_URL);
+    if (!m || !m.blake3) throw new Error('The vendored BLAKE3 did not load');
+    return m.blake3;
+  }
+
+  /**
+   * The wallet's 32-byte Ed25519 private key for an identity seed:
+   * BLAKE3 derive_key("hum/ed25519-wallet/v1", seed). One way: it gives nothing back about the
+   * seed. `blake3` may be passed in (the tests do); otherwise the vendored bundle is loaded.
+   */
+  async function walletSecretFromSeed(seed32, blake3) {
+    if (!seed32 || seed32.length !== 32) throw new Error('The identity seed must be 32 bytes');
+    var b3 = blake3 || await loadBlake3();
+    return b3.create({ context: new TextEncoder().encode(WALLET_KEY_DOMAIN), dkLen: 32 })
+      .update(seed32)
+      .digest();
+  }
+
+  /**
+   * The wallet's key from an identity seed: { privateKey, publicKey } (WebCrypto Ed25519
+   * CryptoKeys), publicKeyHex and address (the Solana address). This object is what sendSOL,
+   * sendSPLToken, executeSwap and stakeSOL take as their `wallet` argument. Needs WebCrypto
+   * Ed25519 (Chrome 137, Firefox 129, Safari 17 and later); throws without it.
+   */
+  async function walletKeyFromSeed(seed32, blake3) {
+    var secret = await walletSecretFromSeed(seed32, blake3);
+    var pkcs8 = new Uint8Array(48);
+    pkcs8.set(ED25519_PKCS8_PREFIX, 0);
+    pkcs8.set(secret, 16);
+    var privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);
+    var jwk = await crypto.subtle.exportKey('jwk', privateKey);
+    if (!jwk.x) throw new Error('The wallet key has no public half');
+    var pub = Uint8Array.from(atob(jwk.x.replace(/-/g, '+').replace(/_/g, '/')), function(c) { return c.charCodeAt(0); });
+    var publicKey = await crypto.subtle.importKey('raw', pub, 'Ed25519', true, ['verify']);
+    return { privateKey: privateKey, publicKey: publicKey, publicKeyHex: bytesToHex(pub), address: base58Encode(pub) };
+  }
+
+  /**
+   * The wallet key in the 64-byte form Solana wallet tools import ([private 32 | public 32]).
+   * This is the wallet's own key, derived above: it exposes the wallet and nothing else.
+   */
+  async function exportSolanaKeypair(seed32, blake3) {
+    var secret = await walletSecretFromSeed(seed32, blake3);
+    var wallet = await walletKeyFromSeed(seed32, blake3);
+    var out = new Uint8Array(64);
+    out.set(secret, 0);
+    out.set(hexToBytes(wallet.publicKeyHex), 32);
+    return out;
   }
 
   // ── RPC Helper ──────────────────────────────────────────────────────────────
@@ -395,8 +468,8 @@
   }
 
   /**
-   * Sign a transaction message with the user's Ed25519 private key.
-   * privateKey is a CryptoKey object from Web Crypto API (same as myIdentity.privateKey).
+   * Sign a transaction message with the wallet's Ed25519 private key.
+   * privateKey is the wallet's CryptoKey (walletKeyFromSeed), never the identity's.
    */
   async function signTransaction(messageBytes, privateKey) {
     var signature = await crypto.subtle.sign('Ed25519', privateKey, messageBytes);
@@ -436,8 +509,8 @@
 
   /**
    * Convenience: build, sign, and send a SOL transfer.
-   * identity is the myIdentity object from crypto.js (must have privateKey and publicKeyHex).
-   * Returns the transaction signature string.
+   * identity is the wallet key from walletKeyFromSeed (privateKey and publicKeyHex), not the
+   * chat identity. Returns the transaction signature string.
    */
   async function sendSOL(toAddress, amountSOL, identity) {
     if (!identity || !identity.privateKey || !identity.publicKeyHex) {
@@ -973,6 +1046,12 @@
   window.HosWallet = {
     // Address derivation
     publicKeyToSolanaAddress: publicKeyToSolanaAddress,
+
+    // The wallet key, derived from the identity seed under its own label
+    WALLET_KEY_DOMAIN: WALLET_KEY_DOMAIN,
+    walletSecretFromSeed: walletSecretFromSeed,
+    walletKeyFromSeed: walletKeyFromSeed,
+    exportSolanaKeypair: exportSolanaKeypair,
 
     // Balance queries
     getSOLBalance: getSOLBalance,

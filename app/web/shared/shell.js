@@ -138,26 +138,14 @@
   })();
 
   // ── Load shared icon system ──
+  // Every page loads /shared/icons.js itself, just before this file, so hosIcon() is there for the
+  // nav tabs (scripts/tests/inline-script-web.test.js checks it). This file used to fetch it with a
+  // synchronous request and run the text as an inline script, which the site's policy refuses since
+  // 2026-11-20 (no 'unsafe-inline'). A page that forgets still gets it, late, from a plain file.
   if (!window.hosIcon) {
-    // Synchronous load so hosIcon() is available for nav tab rendering
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/shared/icons.js', false);
-      xhr.send();
-      if (xhr.status === 200) {
-        var s = document.createElement('script');
-        s.textContent = xhr.responseText;
-        document.head.appendChild(s);
-      }
-    } catch(e) {
-      console.warn('[HOS] Sync icon load failed:', e);
-    }
-    // If sync load didn't work, try async
-    if (!window.hosIcon) {
-      var iconsScript = document.createElement('script');
-      iconsScript.src = '/shared/icons.js';
-      document.head.appendChild(iconsScript);
-    }
+    var iconsScript = document.createElement('script');
+    iconsScript.src = '/shared/icons.js';
+    document.head.appendChild(iconsScript);
   }
 
   // ── Load shared accessibility / i18n / glossary modules on EVERY page ──
@@ -1393,7 +1381,7 @@
       }
     }
 
-    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
     function showFor(el, x, y) {
       if (!el) return;
@@ -1624,6 +1612,10 @@
         // What this server keeps about a visitor (2026-11-07, docs/design/privacy-notice.md): on
         // every page, because a privacy policy has to be easy to find from wherever someone is.
         '<a href="/privacy" data-i18n="footer.privacy" data-i18n-tip="footer.privacy_hint" data-tip-desc="Opens the privacy page: what this server keeps about you, for how long, and how to erase it." style="margin-left:var(--space-lg, 12px);">Privacy</a>' +
+        // What is never allowed and how to report it (2026-11-20, docs/legal/content-policy.md, in the
+        // Library): beside Privacy and for the same reason, a policy has to be one press away from
+        // wherever someone is when they need it; the footer is on every page, the privacy page is one.
+        '<a href="/library#content-policy" data-i18n="footer.content_policy" data-i18n-tip="footer.content_policy_hint" data-tip-desc="Opens the content policy in the Library: what is never allowed on HumanityOS servers, how to report it, and what a server\'s operator does about a report." style="margin-left:var(--space-lg, 12px);">Content policy</a>' +
         '<a href="#" id="hos-take-tour" style="margin-left:var(--space-lg, 12px);font-size:0.72rem;">Take Tour</a>' +
       '</div>' +
     '</div>';
@@ -1743,7 +1735,7 @@
       btn.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) var(--space-lg);border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;font-family:inherit;';
       var titleText = (tab.title||'Tab');
       if (titleText.length > 24) titleText = titleText.substring(0, 24) + '…';
-      btn.innerHTML = '<span>' + titleText + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
+      btn.innerHTML = '<span>' + titleText + '</span><span ' + hosOn.attr('click', 'event.stopPropagation();closeWebviewTab(' + hosArg(id) + ')') + ' style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
       btn.onclick = function() { switchWebviewTab(id); };
       bar.appendChild(btn);
     });
@@ -1753,13 +1745,13 @@
   // A card or a row that is not a <button> but says role="button" with a tabindex
   // (a note in the list, a quest, a validator) opens with Enter or Space, as a
   // button does (WCAG 2.1.1; the accessibility audit, docs/design/wcag-audit-2026-10-23.md).
-  // One that answers its own keys (an onkeydown, a glossary word) is left to them.
+  // One that answers its own keys (a data-on-keydown, a glossary word) is left to them.
   document.addEventListener('keydown', function (e) {
     if (e.defaultPrevented || (e.key !== 'Enter' && e.key !== ' ')) return;
     var el = e.target;
     if (!el || !el.getAttribute || el.getAttribute('role') !== 'button') return;
     if (/^(BUTTON|A|INPUT|SELECT|TEXTAREA|SUMMARY)$/.test(el.tagName)) return;
-    if (el.hasAttribute('onkeydown') || el.hasAttribute('data-term')) return;
+    if (el.hasAttribute('data-on-keydown') || el.hasAttribute('data-term')) return;
     e.preventDefault();
     el.click();
   });
@@ -2161,7 +2153,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1565.0';
+    var CURRENT_VERSION = '0.1566.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

@@ -502,8 +502,8 @@ function renderKeybinds() {
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
             <kbd id="kb-${b.id}" style="background:var(--set-field-bg);border:1px solid var(--set-ops-border);color:var(--set-key-ink);padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
-              onclick="captureKeybind('${b.id}')">${formatKey(val)}</kbd>
-            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid var(--set-line-mid);color:var(--set-quiet-ink);padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
+              ${hosOn.attr('click', `captureKeybind(${hosArg(b.id)})`)}>${formatKey(val)}</kbd>
+            <button ${hosOn.attr('click', `clearKeybind(${hosArg(b.id)})`)} style="background:transparent;border:1px solid var(--set-line-mid);color:var(--set-quiet-ink);padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
           </div>
         </div>`;
       }).join('')}
@@ -760,7 +760,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.1565.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1566.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1501,42 +1501,40 @@ loadPushPrefs();
   walletDisplayAddress();
 })();
 
-/** Derive Solana address from identity public key and display it */
-function walletDisplayAddress() {
+/**
+ * Show the wallet's Solana address: the wallet's OWN key, derived from the identity seed under
+ * its own label (HosWallet.walletKeyFromSeed, 2026-11-19). Before, this showed an address made
+ * from myIdentity.publicKeyHex, which is the Dilithium3 identity key once the chat identity is
+ * attached (never an address) and, before that, the Ed25519 key of the seed itself, the old wallet.
+ */
+async function walletDisplayAddress() {
   var addrEl = document.getElementById('wallet-sol-address');
   var copyBtn = document.getElementById('wallet-copy-btn');
   if (!addrEl) return;
 
-  if (window.HosWallet && window.myIdentity && myIdentity.publicKeyHex) {
-    var fullAddr = HosWallet.publicKeyToSolanaAddress(myIdentity.publicKeyHex);
-    var shortAddr = fullAddr.length > 8 ? fullAddr.substring(0, 4) + '...' + fullAddr.substring(fullAddr.length - 4) : fullAddr;
-    addrEl.textContent = shortAddr;
-    addrEl.title = fullAddr;
-    if (copyBtn) {
-      copyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(fullAddr).then(function() {
-          copyBtn.textContent = 'Copied!';
-          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
-        });
-      });
-    }
-  } else if (window.myIdentity && myIdentity.publicKeyHex && typeof hexToBuf === 'function') {
-    // Fallback: show hex public key if wallet.js not loaded
-    var pk = myIdentity.publicKeyHex;
-    var shortPk = pk.length > 8 ? pk.substring(0, 4) + '...' + pk.substring(pk.length - 4) : pk;
-    addrEl.textContent = shortPk;
-    addrEl.title = pk + ' (wallet.js not loaded, install to see Solana address)';
-    if (copyBtn) {
-      copyBtn.addEventListener('click', function() {
-        navigator.clipboard.writeText(pk).then(function() {
-          copyBtn.textContent = 'Copied!';
-          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
-        });
-      });
-    }
-  } else {
+  var wallet = null;
+  try {
+    var seed = (typeof window.getPqRecoverySeed === 'function') ? await window.getPqRecoverySeed() : null;
+    if (seed && window.HosWallet) wallet = await HosWallet.walletKeyFromSeed(seed);
+  } catch (e) {
+    console.warn('The wallet key could not be made here:', e);
+  }
+  if (!wallet) {
     addrEl.textContent = 'No identity loaded';
     addrEl.title = '';
+    return;
+  }
+  var fullAddr = wallet.address;
+  var shortAddr = fullAddr.length > 8 ? fullAddr.substring(0, 4) + '...' + fullAddr.substring(fullAddr.length - 4) : fullAddr;
+  addrEl.textContent = shortAddr;
+  addrEl.title = fullAddr;
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      navigator.clipboard.writeText(fullAddr).then(function() {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    });
   }
 }
 
@@ -1778,7 +1776,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     }
 
     if (list) list.innerHTML = entries.map(e => `
-      <div class="entry-item ${e.id === activeId ? 'active' : ''}" onclick="vault_selectEntry('${e.id}')">
+      <div class="entry-item ${e.id === activeId ? 'active' : ''}" ${hosOn.attr('click', `vault_selectEntry(${hosArg(e.id)})`)}>
         <span class="entry-item-icon">${vault_entryIcon(e.type)}</span>
         <div class="entry-item-info">
           <div class="entry-item-title">${vault_esc(e.title)}</div>
@@ -1847,11 +1845,11 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
         return `
           <div class="field-display">
             <div class="field-display-label">${vault_esc(f.label)}</div>
-            <div class="field-display-value secret" id="${fid}" onclick="vault_toggleReveal('${fid}')"
+            <div class="field-display-value secret" id="${fid}" ${hosOn.attr('click', `vault_toggleReveal(${hosArg(fid)})`)}
                  title="Click to reveal">${vault_esc(f.value)}</div>
             <div class="field-copy-row">
-              <button class="btn-reveal" onclick="vault_toggleReveal('${fid}')">👁 Reveal</button>
-              <button class="btn-copy-field" onclick="vault_copyField('${fid}', '${vault_escAttr(f.value)}', this)">📋 Copy</button>
+              <button class="btn-reveal" ${hosOn.attr('click', `vault_toggleReveal(${hosArg(fid)})`)}>👁 Reveal</button>
+              <button class="btn-copy-field" ${hosOn.attr('click', `vault_copyField(${hosArg(fid)}, ${hosArg(f.value)}, this)`)}>📋 Copy</button>
               <span class="copy-confirm" id="${fid}-cc"></span>
             </div>
           </div>`;
@@ -1861,7 +1859,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
           <div class="field-display-label">${vault_esc(f.label)}</div>
           <div class="field-display-value" id="${fid}">${vault_esc(f.value)}</div>
           <div class="field-copy-row">
-            <button class="btn-copy-field" onclick="vault_copyField('${fid}', '${vault_escAttr(f.value)}', this)">📋 Copy</button>
+            <button class="btn-copy-field" ${hosOn.attr('click', `vault_copyField(${hosArg(fid)}, ${hosArg(f.value)}, this)`)}>📋 Copy</button>
             <span class="copy-confirm" id="${fid}-cc"></span>
           </div>
         </div>`;
@@ -2178,7 +2176,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   function vault_escAttr(str) {
-    return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   function vault_showMsg(el, text, type) {
@@ -2415,7 +2413,7 @@ async function settingsOpenBackup() {
       localStorage.setItem('hos_key_protected', '1');
       checkBackupStatus();
     } catch(e) {
-      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + e.message + '</span>';
+      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + hosEsc(e.message) + '</span>';
       this.disabled = false; this.textContent = 'Download';
     }
   });
@@ -2454,14 +2452,14 @@ function settingsOpenRestore() {
         var result = await importIdentityBackup(data, pass || undefined);
         localStorage.setItem('humanity_name', result.name);
         localStorage.setItem('humanity_pubkey', result.publicKeyHex);
-        msg.innerHTML = '<span style="color:var(--set-ok-ink)">✓ Identity restored for ' + result.name + '. Reloading…</span>';
+        msg.innerHTML = '<span style="color:var(--set-ok-ink)">✓ Identity restored for ' + hosEsc(result.name) + '. Reloading…</span>';
         setTimeout(function() { location.reload(); }, 1500);
       } else {
         msg.innerHTML = '<span style="color:var(--set-err-ink)">Restore function not available. Try from the Network page.</span>';
         this.disabled = false; this.textContent = 'Restore';
       }
     } catch(e) {
-      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + (e.message || 'Decryption failed, wrong passphrase?') + '</span>';
+      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + hosEsc(e.message || 'Decryption failed, wrong passphrase?') + '</span>';
       this.disabled = false; this.textContent = 'Restore';
     }
   });
@@ -2606,7 +2604,7 @@ function settingsOpenRestoreSeed() {
         this.disabled = false; this.textContent = 'Restore Identity';
       }
     } catch(e) {
-      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + (e.message || 'Invalid recovery phrase.') + '</span>';
+      msg.innerHTML = '<span style="color:var(--set-err-ink)">' + hosEsc(e.message || 'Invalid recovery phrase.') + '</span>';
       this.disabled = false; this.textContent = 'Restore Identity';
     }
   });

@@ -2,7 +2,8 @@
  * Wallet Dashboard, page logic for wallet.html
  *
  * Depends on window.HosWallet (from wallet.js) for all blockchain calls.
- * Identity comes from localStorage (humanity_pubkey) or window.myIdentity.
+ * The wallet key is derived from the identity seed under its own label
+ * (getWalletKey below, HosWallet.walletKeyFromSeed), never read back from storage.
  *
  * Words come from data/i18n/en.json by key (i18n.t, loaded by wallet.html before
  * this file); markup built here carries data-i18n-tip and is passed through
@@ -14,7 +15,6 @@
   // ── State ──
 
   let solAddress = '';
-  let publicKeyHex = '';
   let currentTab = 'overview';
   let slippage = 0.5; // percent
   let cachedBalances = null;
@@ -36,18 +36,7 @@
 
   document.addEventListener('DOMContentLoaded', init);
 
-  function init() {
-    publicKeyHex = localStorage.getItem('humanity_pubkey') || localStorage.getItem('humanity_key') || '';
-    if (!publicKeyHex && window.myIdentity) {
-      publicKeyHex = window.myIdentity.publicKeyHex || '';
-    }
-
-    if (!publicKeyHex) {
-      document.getElementById('wallet-no-identity').style.display = '';
-      document.getElementById('wallet-main').style.display = 'none';
-      return;
-    }
-
+  async function init() {
     // Check that HosWallet is available
     if (!window.HosWallet) {
       console.warn('wallet.js not loaded, HosWallet unavailable');
@@ -59,11 +48,13 @@
       return;
     }
 
-    // Derive Solana address
+    // The wallet's own key, derived from the identity seed under its own label (2026-11-19):
+    // never the seed itself, and never a public key read back from storage.
     try {
-      solAddress = HosWallet.publicKeyToSolanaAddress(publicKeyHex);
+      var wallet = await getWalletKey();
+      solAddress = wallet ? wallet.address : '';
     } catch (e) {
-      console.error('Failed to derive Solana address:', e);
+      console.error('Failed to derive the wallet key:', e);
       solAddress = '';
     }
 
@@ -385,18 +376,18 @@
     showPending('send-status', i18n.t('wallet.broadcasting'));
 
     try {
-      var privateKey = await getPrivateKey();
-      if (!privateKey) {
+      var wallet = await getWalletKey();
+      if (!wallet) {
         return showError('send-status', i18n.t('wallet.no_signing_key_connect'));
       }
 
       var txHash;
       if (token === 'SOL') {
-        txHash = await HosWallet.sendSOL(to, amount, privateKey);
+        txHash = await HosWallet.sendSOL(to, amount, wallet);
       } else if (token === 'USDC') {
         // sendSPLToken (the real export; sendToken never existed) needs the
         // mint's decimals to build the raw integer amount. USDC has 6.
-        txHash = await HosWallet.sendSPLToken(to, amount, USDC_MINT, 6, privateKey);
+        txHash = await HosWallet.sendSPLToken(to, amount, USDC_MINT, 6, wallet);
       }
 
       if (txHash) {
@@ -529,6 +520,10 @@
       onSwapInputChange();
     }
   };
+  // The custom slippage box: its number, or 0.5% when it holds none (was an inline onchange).
+  window.setSlippageFromBox = function (box) {
+    window.setSlippage(parseFloat(box.value) || 0.5, box);
+  };
 
   window.prepareSwap = function () {
     var inputAmount = document.getElementById('swap-input-amount').value;
@@ -551,8 +546,8 @@
     showPending('swap-status', i18n.t('wallet.swapping'));
 
     try {
-      var privateKey = await getPrivateKey();
-      if (!privateKey) {
+      var wallet = await getWalletKey();
+      if (!wallet) {
         return showError('swap-status', i18n.t('wallet.no_signing_key'));
       }
 
@@ -571,7 +566,7 @@
       // wallet.js signature: (inputMint, outputMint, amount, identity,
       // slippageBps) -- identity 4th. The old call had slippage and the
       // key swapped, so every swap failed the identity guard.
-      var txHash = await HosWallet.executeSwap(inputMint, outputMint, amountLamports, privateKey, slippage * 100);
+      var txHash = await HosWallet.executeSwap(inputMint, outputMint, amountLamports, wallet, slippage * 100);
 
       showSuccess('swap-status',
         escapeHtml(i18n.t('wallet.swap_confirmed')) + ' <a class="tx-link" data-i18n-tip="wallet.solscan_hint" href="https://solscan.io/tx/' + txHash + '" target="_blank" rel="noopener">' + escapeHtml(i18n.t('wallet.view_on_solscan')) + '</a>'
@@ -622,7 +617,7 @@
       var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 8) + '...' : '-');
       var commission = v.commission != null ? v.commission + '%' : '-';
       var stake = v.activatedStake != null ? formatAmount(v.activatedStake / 1e9, 0) + ' SOL' : '-'; // i18n-exempt: a number and the SOL unit symbol
-      return '<div role="button" tabindex="0" class="validator-item" data-i18n-tip="wallet.validator_row_hint" onclick="selectValidator(\'' + escapeHtml(v.votePubkey || '') + '\')">' +
+      return '<div role="button" tabindex="0" class="validator-item" data-i18n-tip="wallet.validator_row_hint" ' + hosOn.attr('click', 'selectValidator(' + hosArg(v.votePubkey || '') + ')') + '>' +
         '<span class="v-name">' + escapeHtml(name) + '</span>' +
         '<span class="v-commission">' + commission + '</span>' +
         '<span class="v-stake">' + stake + '</span>' +
@@ -700,7 +695,7 @@
           '<span class="sa-status ' + statusClass + '">' + statusText + '</span>' +
           '<span style="flex:1">' + escapeHtml(validator) + '</span>' +
           '<span style="font-weight:600">' + amountText + '</span>' +
-          '<button class="btn-small" data-i18n-tip="wallet.unstake_hint" onclick="unstakeSOL(\'' + escapeHtml(sa.pubkey || '') + '\')" style="margin-left:auto">' + escapeHtml(i18n.t('wallet.unstake')) + '</button>' +
+          '<button class="btn-small" data-i18n-tip="wallet.unstake_hint" ' + hosOn.attr('click', 'unstakeSOL(' + hosArg(sa.pubkey || '') + ')') + ' style="margin-left:auto">' + escapeHtml(i18n.t('wallet.unstake')) + '</button>' +
           '</div>';
       }).join('');
       i18n.apply(listEl);
@@ -727,14 +722,14 @@
     if (!confirm(i18n.t('wallet.stake_confirm', { amount: amount }))) return;
 
     try {
-      var privateKey = await getPrivateKey();
-      if (!privateKey) return alert(i18n.t('wallet.no_signing_key'));
+      var wallet = await getWalletKey();
+      if (!wallet) return alert(i18n.t('wallet.no_signing_key'));
 
       if (!HosWallet.stakeSOL) {
         return alert(i18n.t('wallet.stake_not_built'));
       }
 
-      var txHash = await HosWallet.stakeSOL(amount, validatorPubkey, privateKey);
+      var txHash = await HosWallet.stakeSOL(amount, validatorPubkey, wallet);
       alert(i18n.t('wallet.stake_submitted'));
 
       cachedBalances = null;
@@ -752,14 +747,14 @@
     if (!await holdConfirm(i18n.t('wallet.unstake_confirm'), { seconds: 3 })) return;
 
     try {
-      var privateKey = await getPrivateKey();
-      if (!privateKey) return alert(i18n.t('wallet.no_signing_key'));
+      var wallet = await getWalletKey();
+      if (!wallet) return alert(i18n.t('wallet.no_signing_key'));
 
       if (!HosWallet.unstakeSOL) {
         return alert(i18n.t('wallet.unstake_not_built'));
       }
 
-      await HosWallet.unstakeSOL(stakeAccountPubkey, privateKey);
+      await HosWallet.unstakeSOL(stakeAccountPubkey, wallet);
       alert(i18n.t('wallet.unstake_started'));
       stakeAccounts = [];
       loadStakeAccounts();
@@ -806,7 +801,7 @@
     gridEl.innerHTML = nfts.map(function (nft, i) {
       var imgSrc = nft.image || nft.uri || '';
       var name = nft.name || i18n.t('wallet.untitled_n', { n: i + 1 });
-      return '<div role="button" tabindex="0" class="nft-card" data-i18n-tip="wallet.nft_card_hint" onclick="showNFTDetail(' + i + ')">' +
+      return '<div role="button" tabindex="0" class="nft-card" data-i18n-tip="wallet.nft_card_hint" ' + hosOn.attr('click', 'showNFTDetail(' + hosNum(i) + ')') + '>' +
         (imgSrc ? '<img src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(name) + '" loading="lazy">' :
           '<div style="aspect-ratio:1;background:var(--bg-input);display:flex;align-items:center;justify-content:center;color:var(--text-muted)">' + escapeHtml(i18n.t('wallet.no_image')) + '</div>') +
         '<div class="nft-name">' + escapeHtml(name) + '</div>' +
@@ -856,15 +851,15 @@
     if (!await holdConfirm(i18n.t('wallet.send_nft_confirm', { name: selectedNFT.name || i18n.t('wallet.this_nft'), to: toAddr.slice(0, 8) }), { seconds: 5 })) return;
 
     try {
-      var privateKey = await getPrivateKey();
-      if (!privateKey) return alert(i18n.t('wallet.no_signing_key'));
+      var wallet = await getWalletKey();
+      if (!wallet) return alert(i18n.t('wallet.no_signing_key'));
 
       if (!HosWallet.sendNFT) {
         return alert(i18n.t('wallet.nft_not_built'));
       }
 
       var mint = selectedNFT.mint || selectedNFT.address;
-      await HosWallet.sendNFT(mint, toAddr, privateKey);
+      await HosWallet.sendNFT(mint, toAddr, wallet);
       alert(i18n.t('wallet.nft_sent'));
       closeNFTModal();
       ownedNFTs = [];
@@ -875,37 +870,42 @@
     }
   };
 
-  // ── Private Key Access ──
+  // ── The Wallet Key ──
 
-  // Returns a FULL identity object ({ publicKeyHex, privateKey, publicKey }),
-  // which is what wallet.js sendSOL/sendSPLToken actually require -- the old
-  // helper returned only the raw privateKey, which failed their identity
-  // guard, so sends never worked from this page. The IndexedDB fallback now
-  // reads crypto.js's REAL store (db 'humanity-keys', store 'identity', key
-  // 'primary'); the old code opened a nonexistent 'HumanityOS'/'keys' db.
-  async function getPrivateKey() {
-    // Try global myIdentity first (set by app.js/crypto.js)
-    if (window.myIdentity && window.myIdentity.privateKey && window.myIdentity.publicKeyHex) {
-      return window.myIdentity;
+  // The wallet's own key ({ privateKey, publicKey, publicKeyHex, address }), which is what
+  // wallet.js sendSOL/sendSPLToken/executeSwap/stakeSOL take. Since 2026-11-19 it is DERIVED
+  // from the identity seed under its own label (HosWallet.walletKeyFromSeed); before, this
+  // returned the identity's own key, whose private half IS the seed, so signing a transfer used
+  // the root of the whole account. Made fresh on each call, from the seed, never kept.
+  async function getWalletKey() {
+    var seed = await identitySeed();
+    return seed ? HosWallet.walletKeyFromSeed(seed) : null;
+  }
+
+  // The identity's 32-byte seed: the localStorage backup (/shared/pq-relay-auth.js
+  // getPqRecoverySeed, as the Recovery page reads it), or else crypto.js's IndexedDB record
+  // (db 'humanity-keys', store 'identity', key 'primary'), whose key holds the seed as its
+  // PKCS8 private half. Null when neither is readable here (a passphrase-locked identity:
+  // unlock it in Chat).
+  async function identitySeed() {
+    if (typeof window.getPqRecoverySeed === 'function') {
+      var fromBackup = await window.getPqRecoverySeed();
+      if (fromBackup) return fromBackup;
     }
-
-    // Fallback: crypto.js's IndexedDB identity record, which is stored as
-    // { id: 'primary', publicKeyHex, privateKey, publicKey }.
     try {
       var db = await openIdentityDB();
       if (db.objectStoreNames.contains('identity')) {
         var tx = db.transaction('identity', 'readonly');
         var store = tx.objectStore('identity');
-        var req = store.get('primary');
-        var result = await promisifyRequest(req);
-        if (result && result.privateKey && result.publicKeyHex) {
-          return result;
+        var result = await promisifyRequest(store.get('primary'));
+        if (result && result.privateKey) {
+          var pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', result.privateKey));
+          if (pkcs8.length === 48) return pkcs8.slice(16, 48);
         }
       }
     } catch (e) {
       console.warn('IndexedDB key access failed:', e);
     }
-
     return null;
   }
 

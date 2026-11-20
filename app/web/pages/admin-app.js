@@ -66,7 +66,7 @@
   function escapeHtml(str) {
     const el = document.createElement('span');
     el.textContent = str || '';
-    return el.innerHTML;
+    return el.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // ── Fetch admin stats ──
