@@ -161,7 +161,7 @@ async function settingsPage(opts = {}) {
   ctx.window = ctx;
   vm.createContext(ctx);
   // In settings.html's order: the words (shell.js loads them first), then the section's scripts.
-  for (const rel of ["shared/i18n-en.js", "shared/i18n.js", "shared/profile-changes.js", "shared/relay-session.js", "shared/privacy-tiers.js", "pages/settings-privacy.js"]) {
+  for (const rel of ["shared/safe-markup.js", "shared/i18n-en.js", "shared/i18n.js", "shared/profile-changes.js", "shared/relay-session.js", "shared/privacy-tiers.js", "pages/settings-privacy.js"]) {
     vm.runInContext(read(rel), ctx, { filename: rel });
   }
   await settle();
@@ -464,7 +464,8 @@ function fnSource(src, name) {
  * Sync (syncNetworkProfile), run over a stand-in page with the real profile-changes.js.
  */
 function profilePage(stored) {
-  const html = read("pages/profile.html");
+  // The page and its script (moved out of the page, 2026-11-20: no inline script).
+  const html = read("pages/profile.html") + "\n" + read("pages/profile-app.js");
   const tag = html.match(/<input[^>]*id="f-directory-listed"[^>]*>/);
   assert.ok(tag, "the Profile page has the directory box");
   const storage = fakeStorage(stored);

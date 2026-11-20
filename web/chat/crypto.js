@@ -363,8 +363,8 @@ function renderDeviceList(devices) {
                placeholder="Label (e.g. PC, Phone, Laptop)"
                maxlength="32"
                style="flex:1;font-size:0.8rem;padding:var(--space-xs) var(--space-md);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)"
-               onchange="labelDevice('${d.public_key}', this.value)">
-        ${!d.is_current ? `<button onclick="revokeDevice('${d.public_key.substring(0, 8)}')"
+               data-on-change="labelDevice(${hosArg(d.public_key)}, this.value)">
+        ${!d.is_current ? `<button data-on-click="revokeDevice(${hosArg(d.public_key.substring(0, 8))})"
                 style="font-size:0.75rem;padding:var(--space-xs) var(--space-xl);background:var(--danger);border:none;border-radius:var(--radius-sm);color:#fff;cursor:pointer"
                 title="Remove this device">✕</button>` : ''}
       </div>
@@ -408,7 +408,7 @@ async function openLinkDeviceModal() {
       <div style="display:flex;gap:var(--space-xl);justify-content:flex-end">
         <button id="link-device-copy"
           style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">📋 Copy JSON</button>
-        <button onclick="document.getElementById('link-device-overlay').remove()"
+        <button data-on-click="document.getElementById('link-device-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">Close</button>
       </div>
     </div>`;

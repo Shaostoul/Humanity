@@ -606,7 +606,8 @@ function showUserContextMenu(e, name, publicKey, message) {
       admin:  'border-left:3px solid var(--info);padding-left:9px;',
       danger: 'border-left:3px solid var(--danger);padding-left:9px;color:var(--danger);',
     }[tier] || '';
-    return '<div class="ctx-item" style="' + borderStyle + '" onclick="' + onclick + '">' + label + '</div>';
+    // handler-exempt: every caller below passes a constant handler, never data.
+    return '<div class="ctx-item" style="' + borderStyle + '" data-on-click="' + onclick + '">' + label + '</div>'; // handler-exempt
   };
 
   // Role badge for target user header.
@@ -2213,7 +2214,7 @@ var federatedRetryMs = 30000;
     const myRole = (window.myPeerRole || '').toLowerCase();
     if (myRole === 'admin') {
       html += `<div style="padding:var(--space-md) var(--space-md);">
-        <button onclick="promptAddServer()" style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
+        <button data-on-click="promptAddServer()" style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
       </div>`;
     }
 
@@ -2420,10 +2421,10 @@ function renderUnreadDots() {
     // Get the channel id from data attribute or onclick attribute.
     let chId = el.getAttribute('data-channel-id');
     if (!chId) {
-      const onclick = el.getAttribute('onclick') || '';
-      const match = onclick.match(/switchChannel\('([^']+)'\)/);
+      const onclick = el.getAttribute('data-on-click') || '';
+      const match = onclick.match(/switchChannel\((['"])([^'"]+)\1\)/);
       if (!match) return;
-      chId = match[1];
+      chId = match[2];
     }
 
     // Remove existing dot.

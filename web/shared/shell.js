@@ -138,26 +138,14 @@
   })();
 
   // ── Load shared icon system ──
+  // Every page loads /shared/icons.js itself, just before this file, so hosIcon() is there for the
+  // nav tabs (scripts/tests/inline-script-web.test.js checks it). This file used to fetch it with a
+  // synchronous request and run the text as an inline script, which the site's policy refuses since
+  // 2026-11-20 (no 'unsafe-inline'). A page that forgets still gets it, late, from a plain file.
   if (!window.hosIcon) {
-    // Synchronous load so hosIcon() is available for nav tab rendering
-    try {
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/shared/icons.js', false);
-      xhr.send();
-      if (xhr.status === 200) {
-        var s = document.createElement('script');
-        s.textContent = xhr.responseText;
-        document.head.appendChild(s);
-      }
-    } catch(e) {
-      console.warn('[HOS] Sync icon load failed:', e);
-    }
-    // If sync load didn't work, try async
-    if (!window.hosIcon) {
-      var iconsScript = document.createElement('script');
-      iconsScript.src = '/shared/icons.js';
-      document.head.appendChild(iconsScript);
-    }
+    var iconsScript = document.createElement('script');
+    iconsScript.src = '/shared/icons.js';
+    document.head.appendChild(iconsScript);
   }
 
   // ── Load shared accessibility / i18n / glossary modules on EVERY page ──
@@ -1393,7 +1381,7 @@
       }
     }
 
-    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
     function showFor(el, x, y) {
       if (!el) return;
@@ -1747,7 +1735,7 @@
       btn.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) var(--space-lg);border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;font-family:inherit;';
       var titleText = (tab.title||'Tab');
       if (titleText.length > 24) titleText = titleText.substring(0, 24) + '…';
-      btn.innerHTML = '<span>' + titleText + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
+      btn.innerHTML = '<span>' + titleText + '</span><span data-on-click="event.stopPropagation();closeWebviewTab(' + hosArg(id) + ')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
       btn.onclick = function() { switchWebviewTab(id); };
       bar.appendChild(btn);
     });
@@ -1757,13 +1745,13 @@
   // A card or a row that is not a <button> but says role="button" with a tabindex
   // (a note in the list, a quest, a validator) opens with Enter or Space, as a
   // button does (WCAG 2.1.1; the accessibility audit, docs/design/wcag-audit-2026-10-23.md).
-  // One that answers its own keys (an onkeydown, a glossary word) is left to them.
+  // One that answers its own keys (a data-on-keydown, a glossary word) is left to them.
   document.addEventListener('keydown', function (e) {
     if (e.defaultPrevented || (e.key !== 'Enter' && e.key !== ' ')) return;
     var el = e.target;
     if (!el || !el.getAttribute || el.getAttribute('role') !== 'button') return;
     if (/^(BUTTON|A|INPUT|SELECT|TEXTAREA|SUMMARY)$/.test(el.tagName)) return;
-    if (el.hasAttribute('onkeydown') || el.hasAttribute('data-term')) return;
+    if (el.hasAttribute('data-on-keydown') || el.hasAttribute('data-term')) return;
     e.preventDefault();
     el.click();
   });

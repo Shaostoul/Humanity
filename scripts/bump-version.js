@@ -82,21 +82,24 @@ if (fs.existsSync(swPath)) {
 // 4. web/pages/settings-app.js (comma separator; the em-dash here was removed in the v0.364 app-wide sweep)
 replaceInFile('web/pages/settings-app.js', `HumanityOS, v${oldVersion}`, `HumanityOS, v${newVersion}`);
 
-// 5. web/pages/ops.html
-replaceInFile('web/pages/ops.html', `'v${oldVersion}'`, `'v${newVersion}'`);
+// 5. web/pages/ops-app.js (the Ops page's script, out of ops.html since 2026-11-20: the site's
+// policy runs no inline script; scripts/tests/version-stamps-web.test.js checks every stamp)
+replaceInFile('web/pages/ops-app.js', `'v${oldVersion}'`, `'v${newVersion}'`);
 
 // 6. web/shared/shell.js
 replaceInFile('web/shared/shell.js', `var CURRENT_VERSION = '${oldVersion}'`, `var CURRENT_VERSION = '${newVersion}'`);
 
-// 7. web/pages/download.html
-const dlPath = path.join(ROOT, 'web/pages/download.html');
-if (fs.existsSync(dlPath)) {
-  let dl = fs.readFileSync(dlPath, 'utf8');
+// 7. web/pages/download.html (its markup) and web/pages/download-app.js (its script, out of the
+// page since 2026-11-20 for the same reason as step 5): every copy of the version in each.
+for (const rel of ['web/pages/download.html', 'web/pages/download-app.js']) {
+  const dlPath = path.join(ROOT, rel);
+  if (!fs.existsSync(dlPath)) continue;
+  const dl = fs.readFileSync(dlPath, 'utf8');
   let updated = dl.split(`v${oldVersion}`).join(`v${newVersion}`);
   updated = updated.split(`'${oldVersion}'`).join(`'${newVersion}'`);
   if (updated !== dl) {
     fs.writeFileSync(dlPath, updated, 'utf8');
-    console.log(`  updated web/pages/download.html`);
+    console.log(`  updated ${rel}`);
   }
 }
 

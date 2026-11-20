@@ -1122,7 +1122,7 @@ function renderUnifiedSection(id, title, streamRows, voipRows, onlineRows, offli
     const summary = rowsArr.length ? `(${rowsArr.length})` : '(none)';
     const body = rowsArr.length ? rowsArr.join('') : `<div class="stream-empty"></div>`;
     return `<div class="unified-subblock${c ? ' collapsed' : ''}" data-subid="${esc(sid)}">
-      <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('${esc(sid)}')">
+      <button class="unified-subhead-toggle" data-on-click="toggleUnifiedSubSection(${hosArg(sid)})">
         <span>${label} ${c ? '▸' : '▾'}</span>
         <span class="unified-subsummary">${summary}</span>
       </button>
@@ -1131,7 +1131,7 @@ function renderUnifiedSection(id, title, streamRows, voipRows, onlineRows, offli
   };
 
   return `<div class="unified-section${collapsed ? ' collapsed' : ''}" data-usid="${esc(id)}">
-    <button class="unified-header" onclick="toggleUnifiedSection('${esc(id)}')">${esc(title)} ${collapsed ? '▸' : '▾'}</button>
+    <button class="unified-header" data-on-click="toggleUnifiedSection(${hosArg(id)})">${esc(title)} ${collapsed ? '▸' : '▾'}</button>
     <div class="unified-body">
       ${sectionSub('streaming', 'Streaming', streamRows, 'No active streams', previewHtml || '')}
       ${sectionSub('voip', 'VOIP', voipRows, 'No active voice')}
@@ -1176,18 +1176,18 @@ function renderUnifiedRightSidebar() {
       : '<span class="status-dot offline" title="Offline"></span>';
     let badges = '';
     if (showCall) {
-      badges += `<button class="ulist-icon" onclick="openDmConversation('${esc(pk)}','${esc(name)}')" title="Message ${esc(name)}">${hosIcon('chat', 16)}</button>`;
+      badges += `<button class="ulist-icon" data-on-click="openDmConversation(${hosArg(pk)},${hosArg(name)})" title="Message ${esc(name)}">${hosIcon('chat', 16)}</button>`;
     }
     if (voiceMap.has(pk)) {
       const vcId = voiceMap.get(pk);
       const vc = (window._voiceChannels || []).find(c => String(c.id) === String(vcId));
       const vcName = vc ? esc(vc.name) : 'Voice';
-      badges += `<button class="ulist-icon" onclick="joinVoiceRoom(${vcId})" title="Join ${vcName}">${hosIcon('mic', 16)}</button>`;
+      badges += `<button class="ulist-icon" data-on-click="joinVoiceRoom(${hosNum(vcId)})" title="Join ${vcName}">${hosIcon('mic', 16)}</button>`;
     }
     if (streamMap.has(pk)) {
       const sid = streamMap.get(pk);
       const s = active.get(sid);
-      badges += `<button class="ulist-icon" onclick="toggleStreamVisibilityById('${esc(sid)}')" title="${s && !s.hidden ? 'Hide stream' : 'Watch stream'}">📺</button>`;
+      badges += `<button class="ulist-icon" data-on-click="toggleStreamVisibilityById(${hosArg(sid)})" title="${s && !s.hidden ? 'Hide stream' : 'Watch stream'}">📺</button>`;
     }
     // Role + streaming badges
     const role = typeof roleBadge === 'function' ? roleBadge(u.role) : '';
@@ -1210,7 +1210,7 @@ function renderUnifiedRightSidebar() {
       '<div class="stream-empty" style="padding:2px 4px;color:#555;font-size:0.78rem;">None</div>';
     const count = userList.length ? ` <span class="unified-subsummary">(${userList.length})</span>` : '';
     return `<div class="unified-section${c ? ' collapsed' : ''}" data-usid="${esc(id)}">
-      <button class="unified-header" onclick="toggleUnifiedSection('${esc(id)}')">${esc(title)}${count} ${c ? '▸' : '▾'}</button>
+      <button class="unified-header" data-on-click="toggleUnifiedSection(${hosArg(id)})">${esc(title)}${count} ${c ? '▸' : '▾'}</button>
       <div class="unified-body">${rows}</div>
     </div>`;
   }

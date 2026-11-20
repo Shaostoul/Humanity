@@ -166,7 +166,7 @@ function loadChat(o) {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
-  for (const rel of ["shared/i18n-en.js", "shared/i18n.js", "shared/events.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
+  for (const rel of ["shared/safe-markup.js", "shared/i18n-en.js", "shared/i18n.js", "shared/events.js", "shared/friend-pass.js", "shared/reach.js", "shared/block.js",
     "chat/crypto.js", "chat/chat-dm-store.js", "chat/view/timestampPill.js", "chat/view/messageRow.js",
     "shared/chat-access.js", "shared/chat-links.js", "chat/app.js", "chat/chat-messages.js", "chat/chat-dms.js", "chat/chat-social.js",
     "chat/chat-groups-p2p.js", "shared/notify-rules.js", "chat/chat-notify.js", "chat/chat-ui.js"]) {
@@ -391,11 +391,14 @@ async function bootRead(answers, hash) {
 const ANYONE = { channels: [{ id: "announcements", name: "announcements" }, { id: "general", name: "global" }, { id: "feedback", name: "feedback" }] };
 const ANYONE_WITH_GLOBAL = { channels: [{ id: "announcements", name: "announcements" }, { id: "global", name: "global" }, { id: "feedback", name: "feedback" }] };
 
-/** The preflight in web/chat/index.html, run for a browser with no key at `/chat` + `hash`: where it sends it. */
+/** The preflight web/chat/index.html runs first (web/chat/index-preflight.js since 2026-11-20, the page keeping
+ *  no inline script), run for a browser with no key at `/chat` + `hash`: where it sends it. */
 function preflight(hash) {
-  const html = fs.readFileSync(path.join(WEB, "chat", "index.html"), "utf8");
-  const m = html.match(/<script>\s*(\(function preflightIdentity\(\)[\s\S]*?\}\)\(\);)\s*<\/script>/);
-  assert.ok(m, "index.html has the preflight");
+  const page = fs.readFileSync(path.join(WEB, "chat", "index.html"), "utf8");
+  assert.ok(page.includes('<script src="/chat/index-preflight.js"></script>'), "index.html runs the preflight");
+  const html = fs.readFileSync(path.join(WEB, "chat", "index-preflight.js"), "utf8");
+  const m = html.match(/(\(function preflightIdentity\(\)[\s\S]*?\}\)\(\);)/);
+  assert.ok(m, "index-preflight.js has the preflight");
   const went = [];
   const location = { hash, pathname: "/chat", replace: (u) => went.push(String(u)) };
   const ctx = { location, localStorage: fakeStorage(), history: { replaceState() {} } };

@@ -118,6 +118,7 @@ function loadChat(storage) {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("shared/chat-access.js"); // who can read and post (2026-11-02), as web/chat/index.html loads it before app.js
   run("chat/app.js");
@@ -345,7 +346,7 @@ test("the Tasks page takes account_erased as a refusal and stops retrying", asyn
   vm.createContext(ctx);
   // The page's words, as tasks.html loads them before the page (2026-10-23): the checks below
   // then read the English a person sees, not a key name.
-  for (const rel of ["shared/i18n-en.js", "shared/i18n.js"]) {
+  for (const rel of ["shared/safe-markup.js", "shared/i18n-en.js", "shared/i18n.js"]) {
     vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   }
   vm.runInContext(fs.readFileSync(path.join(WEB, "pages", "tasks-app.js"), "utf8"), ctx, { filename: "tasks-app.js" });

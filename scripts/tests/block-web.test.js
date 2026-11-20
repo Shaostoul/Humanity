@@ -273,6 +273,7 @@ async function loadChat() {
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   // In index.html's order.
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("shared/friend-pass.js");
   run("shared/reach.js");
@@ -295,7 +296,7 @@ async function loadChat() {
   run("chat/chat-voice-calls.js");
   run("chat/chat-privacy.js");
   run("chat/chat-p2p.js");
-  // Page pieces from scripts this test does not load (icons.js, hold-confirm.js, twemoji).
+  // Page pieces from scripts this test does not load (icons.js, hold-confirm.js).
   for (const name of ["hosIcon", "holdToConfirm", "holdConfirm", "updateStats"]) {
     if (typeof ctx[name] !== "function") ctx[name] = () => "";
   }

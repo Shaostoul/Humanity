@@ -23,6 +23,10 @@ const { WEB, ROOT, ME, ANN, MIB, media, byId, text, respond, at, settle, item, l
 const FPL = require(path.join(WEB, "pages", "files-places.js"));
 const FSH = require(path.join(WEB, "pages", "files-shared.js"));
 const FFO = require(path.join(WEB, "pages", "files-folder.js"));
+// files-folder.js writes its handlers with hosArg, which a page has from /shared/safe-markup.js.
+const SM = require(path.join(WEB, "shared", "safe-markup.js"));
+global.hosArg = SM.hosArg;
+global.hosNum = SM.hosNum;
 const HOW = require(path.join(WEB, "shared", "how-it-works.js"));
 
 /** A history that keeps what the page asked of it. */

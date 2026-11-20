@@ -115,7 +115,7 @@ function renderList() {
     const preview = n.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',12):'') + ' ' + encryptedWord : (n.content || '').slice(0, 60).replace(/\n/g, ' ');
     const date = new Date(n.updatedAt).toLocaleDateString();
     const activeClass = n.id === activeId ? ' active' : ''; // i18n-exempt: a class name
-    return `<div role="button" tabindex="0" class="note-item${activeClass}" onclick="openNote('${n.id}')" data-i18n-tip="notes.open_hint" data-tip-desc="${openHint}">
+    return `<div role="button" tabindex="0" class="note-item${activeClass}" data-on-click="openNote(${hosArg(n.id)})" data-i18n-tip="notes.open_hint" data-tip-desc="${openHint}">
       <div class="note-item-title">${esc(title)}</div>
       <div class="note-item-preview">${esc(preview)}</div>
       <div class="note-item-date">${date}${n.encrypted ? ' <span class="note-item-encrypted">' + esc(encryptedWord) + '</span>' : ''}</div>
@@ -434,7 +434,7 @@ function log_uid() {
 }
 
 function log_esc(s) {
-  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function log_newEntry() {
@@ -574,7 +574,7 @@ function log_renderSidebar() {
       `<span class="log-tag" style="background:${log_tagColor(tag)}22;color:${log_tagColor(tag)};border:1px solid ${log_tagColor(tag)}44;">${log_esc(tag)}</span>`
     ).join('');
     const activeClass = isActive ? ' active' : ''; // i18n-exempt: a class name
-    return `<div role="button" tabindex="0" class="log-entry-item${activeClass}" onclick="log_openEntry('${e.id}')" data-i18n-tip="notes.log_open_hint" data-tip-desc="${openHint}">
+    return `<div role="button" tabindex="0" class="log-entry-item${activeClass}" data-on-click="log_openEntry(${hosArg(e.id)})" data-i18n-tip="notes.log_open_hint" data-tip-desc="${openHint}">
       <div class="log-item-date">${new Date(e.created).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
       <div class="log-item-title">${log_esc(e.title)}</div>
       ${preview ? `<div class="log-item-preview">${log_esc(preview)}</div>` : ''}

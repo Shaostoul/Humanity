@@ -183,9 +183,9 @@ test('5. Settings queues only the switch that changed', () => {
   assert.strictEqual(ctx.localStorage.getItem('hos_notify_mentions'), 'false', 'and this browser shows it');
   ctx.savePushPref(els['pref-push-dms']);
   assert.deepStrictEqual(JSON.parse(ctx.localStorage.getItem('hos_notify_pending')), { mentions: false, dm: true }, 'later changes join it');
-  // The page's checkboxes say onchange="savePushPref(this)", so the one that changed is named.
+  // The page's checkboxes say data-on-change="savePushPref(this)", so the one that changed is named.
   const html = read('pages/settings.html');
   for (const id of Object.keys(els)) {
-    assert.match(html, new RegExp('id="' + id + '"[^>]*onchange="savePushPref\\(this\\)"'), id + ' names itself');
+    assert.match(html, new RegExp('id="' + id + '"[^>]*data-on-change="savePushPref\\(this\\)"'), id + ' names itself');
   }
 });

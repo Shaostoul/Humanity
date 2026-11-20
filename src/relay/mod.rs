@@ -157,9 +157,6 @@ async fn feature_gate(
     next.run(req).await
 }
 
-/// Add security headers to every response.
-/// CSP uses unsafe-inline for now (inline scripts/handlers exist throughout the
-/// client); this still blocks external script injection and eval().
 /// ── Browser-origin allowlist: THE white-label seam (v0.1139) ──
 ///
 /// ONE source builds all three browser-origin gates: the WebSocket Origin
@@ -211,6 +208,11 @@ pub(crate) fn allowed_origins() -> &'static Vec<String> {
 
 /// The Content-Security-Policy string, with connect-src derived from the
 /// SAME origin allowlist (https origin -> wss host, http -> ws host).
+///
+/// script-src is 'self' alone (2026-11-20, docs/PRIORITIES.md item 6b), as nginx sends for the
+/// website (scripts/nginx/humanity.conf): the web pages a self-hosted relay serves from `client/`
+/// keep no inline script (their handlers are data-on-*, run by web/shared/safe-markup.js;
+/// scripts/tests/inline-script-web.test.js), so an injected <script> or onclick never runs.
 fn csp_value() -> &'static str {
     static CSP: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CSP.get_or_init(|| {
@@ -226,7 +228,7 @@ fn csp_value() -> &'static str {
         }
         format!(
             "default-src 'self'; \
-             script-src 'self' 'unsafe-inline'; \
+             script-src 'self'; \
              style-src 'self' 'unsafe-inline'; \
              img-src 'self' data: https:; \
              connect-src {connect}; \
@@ -361,6 +363,23 @@ mod security_header_tests {
         set_security_headers(&mut plain, true);
         assert_eq!(plain.get("content-security-policy").and_then(|v| v.to_str().ok()), Some(csp_value()), "an answer without one gets the relay's");
         assert_eq!(plain.get("content-disposition").and_then(|v| v.to_str().ok()), Some("attachment"), "an upload is still an attachment");
+    }
+
+    /// THE RELAY'S POLICY RUNS ONLY ITS OWN SCRIPT FILES (2026-11-20), as the website's does: no
+    /// 'unsafe-inline', no 'unsafe-eval', no other host in script-src.
+    ///
+    /// Seen red 2026-11-20 with 'unsafe-inline' put back in csp_value's script-src: "assertion
+    /// `left == right` failed: script-src is 'self' alone: script-src 'self' 'unsafe-inline'".
+    #[test]
+    fn the_relays_policy_allows_no_inline_script() {
+        let csp = csp_value();
+        let script = csp
+            .split(';')
+            .map(str::trim)
+            .find(|d| d.starts_with("script-src"))
+            .expect("the policy has a script-src");
+        assert_eq!(script, "script-src 'self'", "script-src is 'self' alone: {script}");
+        assert!(csp.contains("object-src 'none'"), "no plug-ins either");
     }
 }
 

@@ -354,9 +354,39 @@ To add a help button next to any UI element:
 2. **Check `docs/FEATURES.md`.** If the feature is listed, do not rebuild it.
 3. **Create native page first:** add a file under `src/gui/pages/`, add the variant to `GuiPage` enum in `src/gui/mod.rs`, register it in the page dispatch.
 4. **Register state in `GuiState`** for anything the page needs to remember across frames.
-5. **Create web page:** `web/pages/<name>.html` using the generated `theme.css`, sharing copy and structure with the native page.
+5. **Create web page:** `web/pages/<name>.html` using the generated `theme.css`, sharing copy and structure with the native page. Its script lives in a file (`web/pages/<name>-app.js`), never in a `<script>` block, and its controls say what they do with `data-on-click="..."`, never `onclick` (next section).
 6. **Link it** in `web/shared/shell.js` nav (if top-level) and in any onboarding or help content.
 7. **Add to the component registry** if it introduces any new shared widget.
+
+## The web's markup: no inline script (2026-11-20)
+
+The site's Content-Security-Policy (`scripts/nginx/humanity.conf`, and the relay's own for a
+self-hosted server) runs only script files from this site: `script-src 'self'`, no
+`'unsafe-inline'`, no `'unsafe-eval'`, no outside host. So an injected `<script>` or `onclick`
+never runs, and neither would ours. The rules, held by `scripts/tests/inline-script-web.test.js`:
+
+- **No `<script>` block in a page** (JSON-LD data excepted) and no `onclick=`/`onchange=`/... in a
+  page or in markup a script builds. A page's code is a file loaded where the block would stand.
+- **Handlers are `data-on-<event>="..."`**, run by `web/shared/safe-markup.js`, which every page
+  with one loads in its `<head>`. The value is a small call language, parsed and never evaluated:
+  calls, string/number/true/false/null arguments, objects and lists, and paths from `this` (the
+  element), `event` or a name on `window` (`showSection('ai')`, `savePref('k', this.checked)`,
+  `event.stopPropagation(); open(this.dataset.id)`). A top-level `let` or `const` is not on window;
+  anything with an `if` or an `=` is a named function the attribute calls, or one of the helpers
+  `hosOn.ifSelf` (a backdrop closing only on itself), `hosOn.onKey`/`onKeyPrevent` (Enter or Space),
+  `hosOn.set` and `hosOn.maybe`.
+- **Data goes into a handler only through `hosArg(v)`** (a string) **or `hosNum(v)`** (a number):
+  `'data-on-click="openNote(' + hosArg(note.id) + ')"'`. A quote in a name stays one string.
+- **Text goes into markup through `hosEsc(s)`** (also in safe-markup.js) or the page's own
+  `esc`/`escapeHtml`, each escaping `& < > " '`; better, set `textContent`.
+  `scripts/tests/inner-html-web.test.js` counts, per file, the markup writes it cannot see are
+  escaped, and the count only goes down.
+- **No code from strings or other sites**: no `eval`, `new Function`, string timers, or `import()`
+  from a CDN (vendor the module under `web/shared/vendor/`).
+- Every page loads `/shared/icons.js` itself just before `shell.js`.
+
+`scripts/preview-server.js` sends the same policy with every answer (`--no-csp` leaves it off), so
+a violation shows in the preview's console before it reaches the site.
 
 ## Migration status (live)
 

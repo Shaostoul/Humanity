@@ -298,6 +298,7 @@ async function loadChat() {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("shared/friend-pass.js");
   run("shared/reach.js");

@@ -90,31 +90,94 @@ function sinDeg(x) { return Math.sin(x * DEG); }
 function cosDeg(x) { return Math.cos(x * DEG); }
 function tanDeg(x) { return Math.tan(x * DEG); }
 
+// The calculator's own reader of what was typed (2026-11-20). It replaced a `new Function` that the
+// site's Content-Security-Policy has refused all along (it never allowed 'unsafe-eval'), so on the
+// live site every sum answered Error; a string is never run as code here. It reads numbers, pi,
+// + - * /, ^ (a power, right to left: 2^3^2 is 2^9; -2^2 is -4), % after a value (a hundredth of
+// it: 50% is 0.5, 200*10% is 20), brackets, a value written against a bracket, a name or a number
+// (2pi, 3(4+1), (2)3: times), and sin cos tan (in degrees), log, ln, sqrt, pow(a, b), fact.
+// Anything else is NaN, which the page shows as its error word.
 function safeEval(expr) {
-  // Replace scientific functions with Math equivalents (the trigonometry in degrees)
-  let e = expr
-    .replace(/sin\(/g, '__sin__(')
-    .replace(/cos\(/g, '__cos__(')
-    .replace(/tan\(/g, '__tan__(')
-    .replace(/log\(/g, 'Math.log10(')
-    .replace(/ln\(/g, 'Math.log(')
-    .replace(/sqrt\(/g, 'Math.sqrt(')
-    .replace(/pow\(/g, 'Math.pow(')
-    .replace(/fact\(/g, '__fact__(')
-    .replace(/\^/g, '**')
-    .replace(/pi/g, String(Math.PI))
-    .replace(/(\d)%/g, '($1/100)');
-
-  // Sanitize: only allow numbers, operators, parentheses, dots, commas, Math.*, __fact__
-  const sanitized = e.replace(/[^0-9+\-*/.(),%\s^]/g, function(ch) {
-    return ch; // allow through for Math.* calls
-  });
-
-  // Create a safe scope
-  const __fact__ = factorial;
+  const src = String(expr);
+  let i = 0;
+  const FNS = {
+    sin: sinDeg, cos: cosDeg, tan: tanDeg, log: Math.log10, ln: Math.log,
+    sqrt: Math.sqrt, pow: Math.pow, fact: factorial,
+  };
+  const fail = () => { throw new SyntaxError('calc'); };
+  const peek = () => { while (i < src.length && /\s/.test(src[i])) i++; return src[i] || ''; };
+  // sum := term (('+' | '-') term)*
+  function sum() {
+    let v = term();
+    for (;;) {
+      const c = peek();
+      if (c === '+') { i++; v += term(); }
+      else if (c === '-') { i++; v -= term(); }
+      else return v;
+    }
+  }
+  // term := unary (('*' | '/') unary | unary written straight after)*
+  function term() {
+    let v = unary();
+    for (;;) {
+      const c = peek();
+      if (c === '*') { i++; v *= unary(); }
+      else if (c === '/') { i++; v /= unary(); }
+      else if (c === '(' || /[a-z0-9.]/i.test(c)) v *= unary();
+      else return v;
+    }
+  }
+  // unary := ('-' | '+') unary | power
+  function unary() {
+    const c = peek();
+    if (c === '-') { i++; return -unary(); }
+    if (c === '+') { i++; return unary(); }
+    return power();
+  }
+  // power := percent ('^' unary)?
+  function power() {
+    const base = percent();
+    if (peek() === '^') { i++; return Math.pow(base, unary()); }
+    return base;
+  }
+  // percent := primary '%'*
+  function percent() {
+    let v = primary();
+    while (peek() === '%') { i++; v /= 100; }
+    return v;
+  }
+  // primary := number | 'pi' | name '(' sum (',' sum)* ')' | '(' sum ')'
+  function primary() {
+    const c = peek();
+    if (c === '(') {
+      i++;
+      const v = sum();
+      if (peek() !== ')') fail();
+      i++;
+      return v;
+    }
+    const num = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(src.slice(i));
+    if (num) { i += num[0].length; return parseFloat(num[0]); }
+    const word = /^[a-z]+/i.exec(src.slice(i));
+    if (!word) return fail();
+    const name = word[0].toLowerCase();
+    i += word[0].length;
+    if (name === 'pi') return Math.PI;
+    const fn = Object.prototype.hasOwnProperty.call(FNS, name) ? FNS[name] : null;
+    if (!fn || peek() !== '(') return fail();
+    i++;
+    const args = [];
+    if (peek() !== ')') {
+      args.push(sum());
+      while (peek() === ',') { i++; args.push(sum()); }
+    }
+    if (peek() !== ')') fail();
+    i++;
+    return fn(...args);
+  }
   try {
-    const fn = new Function('Math', '__fact__', '__sin__', '__cos__', '__tan__', '"use strict"; return (' + e + ')');
-    return fn(Math, __fact__, sinDeg, cosDeg, tanDeg);
+    const v = sum();
+    return peek() === '' ? v : NaN;
   } catch (err) {
     return NaN;
   }
@@ -192,7 +255,7 @@ function renderHistory() {
   const reuseTitle = esc(i18n.t('calculator.history_reuse_title'));
   const reuseHint = esc(i18n.t('calculator.history_reuse_hint'));
   list.innerHTML = history.map((h, i) =>
-    `<div role="button" tabindex="0" class="hist-item" onclick="useHistory(${i})" title="${reuseTitle}" data-i18n-tip="calculator.history_reuse_hint" data-tip-desc="${reuseHint}">
+    `<div role="button" tabindex="0" class="hist-item" data-on-click="useHistory(${hosNum(i)})" title="${reuseTitle}" data-i18n-tip="calculator.history_reuse_hint" data-tip-desc="${reuseHint}">
       <div class="hist-expr">${esc(h.expr)}</div>
       <div class="hist-result">= ${esc(h.result)}</div>
     </div>`
@@ -284,7 +347,7 @@ function buildConverterUI() {
   const cats = document.getElementById('conv-cats');
   const hint = esc(i18n.t('calculator.category_hint'));
   cats.innerHTML = Object.entries(UNITS).map(([key, cat]) =>
-    `<button class="conv-cat-btn${key === convCategory ? ' active' : ''}" data-cat="${key}" onclick="setConvCategory('${key}')" data-i18n-tip="calculator.category_hint" data-tip-desc="${hint}">${esc(cat.label)}</button>` // i18n-exempt: ' active' is a class name
+    `<button class="conv-cat-btn${key === convCategory ? ' active' : ''}" data-cat="${key}" data-on-click="setConvCategory(${hosArg(key)})" data-i18n-tip="calculator.category_hint" data-tip-desc="${hint}">${esc(cat.label)}</button>` // i18n-exempt: ' active' is a class name
   ).join('');
   populateUnitSelects();
   doConvert();

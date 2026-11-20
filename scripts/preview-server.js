@@ -18,6 +18,12 @@
 // itself stays the static page.
 //
 //   node scripts/preview-server.js [port]   (default 8099)
+//
+// It sends the site's Content-Security-Policy with every page and file, as nginx does
+// (2026-11-20, docs/PRIORITIES.md item 6b), so whatever breaks the policy shows as a violation in
+// the browser's console here first, not on the live site. The policy is read from the repo's copy
+// of the server config, scripts/nginx/humanity.conf (the main server block's line), so a change
+// there is tried before it goes live. --no-csp (or HUMANITY_PREVIEW_CSP=0) leaves it off.
 
 const http = require('http');
 const fs = require('fs');
@@ -44,6 +50,19 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8',
 };
+
+// The policy to send, or null (see above).
+const CSP = (() => {
+  if (process.argv.includes('--no-csp') || process.env.HUMANITY_PREVIEW_CSP === '0') return null;
+  const conf = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx', 'humanity.conf'), 'utf8');
+  const m = /add_header\s+Content-Security-Policy\s+"([^"]+)"/.exec(conf);
+  if (!m) throw new Error('no Content-Security-Policy line in scripts/nginx/humanity.conf (--no-csp runs without one)');
+  return m[1];
+})();
+/** A response's headers, with the policy unless --no-csp. */
+function withCsp(headers) {
+  return CSP ? { ...headers, 'Content-Security-Policy': CSP } : headers;
+}
 
 // Map a URL path to a file on disk, mirroring nginx aliases.
 function resolve(urlPath) {
@@ -148,13 +167,13 @@ const server = http.createServer((req, res) => {
             res.end('404: ' + req.url);
             return;
           }
-          res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.writeHead(404, withCsp({ 'Content-Type': 'text/html; charset=utf-8' }));
           res.end(page);
         });
         return;
       }
       const ext = path.extname(file).toLowerCase();
-      res.writeHead(200, { 'Content-Type': TYPES[ext] || 'application/octet-stream' });
+      res.writeHead(200, withCsp({ 'Content-Type': TYPES[ext] || 'application/octet-stream' }));
       res.end(buf);
     });
   });
@@ -186,4 +205,6 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`preview server on http://127.0.0.1:${PORT}  (root: ${ROOT})`);
   if (API_TARGET) console.log(`  /api, /uploads, /files/<number>, /health and /ws proxied to ${API_TARGET.origin}`);
   else console.log('  /api not proxied (pass --api http://127.0.0.1:PORT to reach a local relay)');
+  if (CSP) console.log('  sending the site\'s Content-Security-Policy (scripts/nginx/humanity.conf; --no-csp to leave it off): ' + CSP.slice(0, 60) + '...');
+  else console.log('  no Content-Security-Policy sent (--no-csp)');
 });

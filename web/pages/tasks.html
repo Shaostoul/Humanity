@@ -772,11 +772,13 @@
     .quest-btn-cancel:hover { border-color: var(--text-muted); color: var(--text-muted); }
     .quest-btn-save:hover { background: var(--tk-save-hover); }
   </style>
+<script src="/shared/safe-markup.js"></script>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
 <script src="/shared/i18n-en.js"></script>
 <script src="/shared/i18n.js"></script>
+<script src="/shared/icons.js"></script>
 <script src=/shared/shell.js data-active="tasks"></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
@@ -791,16 +793,16 @@
 
   <!-- View tabs: Kanban / Quests -->
   <div class="view-tabs">
-    <button class="view-tab active" data-view="kanban" onclick="switchView('kanban')" data-i18n="tasks.tab_kanban" data-i18n-tip="tasks.tab_kanban_hint" data-tip-desc="Shows the task board, with a column for each stage of the work.">Kanban</button>
-    <button class="view-tab" data-view="quests" onclick="switchView('quests')" data-i18n="tasks.tab_quests" data-i18n-tip="tasks.tab_quests_hint" data-tip-desc="Shows your own list of quests, kept in this browser.">Quests</button>
+    <button class="view-tab active" data-view="kanban" data-on-click="switchView('kanban')" data-i18n="tasks.tab_kanban" data-i18n-tip="tasks.tab_kanban_hint" data-tip-desc="Shows the task board, with a column for each stage of the work.">Kanban</button>
+    <button class="view-tab" data-view="quests" data-on-click="switchView('quests')" data-i18n="tasks.tab_quests" data-i18n-tip="tasks.tab_quests_hint" data-tip-desc="Shows your own list of quests, kept in this browser.">Quests</button>
   </div>
 
   <div id="kanban-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
 
   <!-- The kinds of task, and who can see the one shown (docs/design/tasks.md) -->
   <div class="task-kinds" role="tablist">
-    <button class="kind-tab active" id="kind-mine" role="tab" aria-selected="true" onclick="setTaskKind('mine')" data-i18n="tasks.kind_mine" data-i18n-tip="tasks.kind_mine_hint" data-tip-desc="Shows your own tasks. They are kept on your own devices, and no server can read them.">My tasks</button>
-    <button class="kind-tab" id="kind-board" role="tab" aria-selected="false" onclick="setTaskKind('board')" data-i18n="tasks.kind_board" data-i18n-tip="tasks.kind_board_hint" data-tip-desc="Shows the tasks of the server you are on, which everyone on it can see.">This server's board</button>
+    <button class="kind-tab active" id="kind-mine" role="tab" aria-selected="true" data-on-click="setTaskKind('mine')" data-i18n="tasks.kind_mine" data-i18n-tip="tasks.kind_mine_hint" data-tip-desc="Shows your own tasks. They are kept on your own devices, and no server can read them.">My tasks</button>
+    <button class="kind-tab" id="kind-board" role="tab" aria-selected="false" data-on-click="setTaskKind('board')" data-i18n="tasks.kind_board" data-i18n-tip="tasks.kind_board_hint" data-tip-desc="Shows the tasks of the server you are on, which everyone on it can see.">This server's board</button>
   </div>
   <p class="kind-who" id="kind-who" data-i18n="tasks.kind_mine_who">Only you can see these, on your own devices. They travel between your devices sealed, and no server can read them.</p>
   <!-- Said only when my saved tasks did not open as they were (tasks-app.js renderMineNotice) -->
@@ -809,7 +811,7 @@
   <!-- Project selector -->
   <div class="project-bar board-only" id="project-bar">
     <div class="project-selector" id="project-selector">
-      <button class="project-selector-btn" id="project-selector-btn" onclick="toggleProjectDropdown()" data-i18n-tip="tasks.project_selector_hint" data-tip-desc="Opens the list of projects, so you can see the tasks of just one.">
+      <button class="project-selector-btn" id="project-selector-btn" data-on-click="toggleProjectDropdown()" data-i18n-tip="tasks.project_selector_hint" data-tip-desc="Opens the list of projects, so you can see the tasks of just one.">
         <span class="proj-icon" id="proj-btn-icon">📋</span>
         <span class="proj-dot" id="proj-btn-dot" style="background:#4488ff"></span>
         <span id="proj-btn-label" data-i18n="tasks.all_projects">All Projects</span>
@@ -817,7 +819,7 @@
       </button>
       <div class="project-dropdown" id="project-dropdown"></div>
     </div>
-    <button class="btn-new-project" onclick="openProjectModal()" data-i18n="tasks.new_project_button" data-i18n-tip="tasks.new_project_button_hint" data-tip-desc="Opens a form for making a new project to group tasks in.">+ New Project</button>
+    <button class="btn-new-project" data-on-click="openProjectModal()" data-i18n="tasks.new_project_button" data-i18n-tip="tasks.new_project_button_hint" data-tip-desc="Opens a form for making a new project to group tasks in.">+ New Project</button>
     <span id="project-task-count" class="project-task-count"></span>
   </div>
 
@@ -839,12 +841,12 @@
   <div class="board-controls">
     <div class="scope-desc board-only" id="scope-desc"><span data-i18n="common.loading">Loading...</span></div>
     <div class="stats board-only" id="stats-bar"></div>
-    <input id="task-search" type="search" placeholder="Filter tasks..." data-i18n-placeholder="tasks.filter_tasks" data-i18n-tip="tasks.filter_tasks_web_hint" data-tip-desc="Type a word to show only the tasks that have it in their title, their description or the name of who does them." oninput="renderBoard()"
+    <input id="task-search" type="search" placeholder="Filter tasks..." data-i18n-placeholder="tasks.filter_tasks" data-i18n-tip="tasks.filter_tasks_web_hint" data-tip-desc="Type a word to show only the tasks that have it in their title, their description or the name of who does them." data-on-input="renderBoard()"
       style="background:var(--bg-input);border:1px solid var(--border-bright);border-radius:6px;padding:var(--space-sm) var(--space-lg);color:var(--text);font-size:0.78rem;font-family:inherit;outline:none;width:130px;flex-shrink:0;"
-      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
-    <button class="btn-refresh mine-only" id="btn-suggestions" onclick="toggleSuggestions()" data-i18n="tasks.hide_suggestions" data-i18n-tip="tasks.suggestions_hint" data-tip-desc="Shows or hides the suggestions at the top of the first column: step-by-step goals you can make your own. Your own tasks stay where they are.">Hide suggestions</button>
-    <button class="btn-refresh board-only" onclick="loadTasks()" title="Refresh" data-i18n-title="common.refresh" data-i18n-tip="tasks.refresh_hint" data-tip-desc="Loads the list of tasks again from the server.">↻</button>
-    <button class="btn-new" id="btn-new-task" onclick="openModal()" data-i18n="tasks.new_task" data-i18n-tip="tasks.new_task_hint" data-tip-desc="Opens the form for adding a new task to the board.">+ New Task</button>
+      data-on-focus="hosOn.set(this.style, 'borderColor', 'var(--accent)')" data-on-blur="hosOn.set(this.style, 'borderColor', '')">
+    <button class="btn-refresh mine-only" id="btn-suggestions" data-on-click="toggleSuggestions()" data-i18n="tasks.hide_suggestions" data-i18n-tip="tasks.suggestions_hint" data-tip-desc="Shows or hides the suggestions at the top of the first column: step-by-step goals you can make your own. Your own tasks stay where they are.">Hide suggestions</button>
+    <button class="btn-refresh board-only" data-on-click="loadTasks()" title="Refresh" data-i18n-title="common.refresh" data-i18n-tip="tasks.refresh_hint" data-tip-desc="Loads the list of tasks again from the server.">↻</button>
+    <button class="btn-new" id="btn-new-task" data-on-click="openModal()" data-i18n="tasks.new_task" data-i18n-tip="tasks.new_task_hint" data-tip-desc="Opens the form for adding a new task to the board.">+ New Task</button>
   </div>
 
   <!-- Kanban board -->
@@ -873,32 +875,32 @@
     <div id="quests-app">
       <nav id="quest-sidebar">
         <h2 data-i18n="tasks.quest_categories">Categories</h2>
-        <div role="button" tabindex="0" class="q-cat active" data-filter="all" onclick="quest_setFilter('all')" data-i18n-tip="tasks.quest_cat_all_hint" data-tip-desc="Shows every quest you have not finished yet.">
+        <div role="button" tabindex="0" class="q-cat active" data-filter="all" data-on-click="quest_setFilter('all')" data-i18n-tip="tasks.quest_cat_all_hint" data-tip-desc="Shows every quest you have not finished yet.">
           <span class="q-cat-dot" style="background:#aaa;"></span>
           <span data-i18n="tasks.quest_cat_all">All Tasks</span>
           <span class="q-cat-count" id="cnt-all">0</span>
         </div>
-        <div role="button" tabindex="0" class="q-cat" data-filter="daily" onclick="quest_setFilter('daily')" data-i18n-tip="tasks.quest_cat_daily_hint" data-tip-desc="Shows only your daily quests.">
+        <div role="button" tabindex="0" class="q-cat" data-filter="daily" data-on-click="quest_setFilter('daily')" data-i18n-tip="tasks.quest_cat_daily_hint" data-tip-desc="Shows only your daily quests.">
           <span class="q-cat-dot" style="background:#4cf;"></span>
           <span data-i18n="tasks.quest_cat_daily">Daily</span>
           <span class="q-cat-count" id="cnt-daily">0</span>
         </div>
-        <div role="button" tabindex="0" class="q-cat" data-filter="story" onclick="quest_setFilter('story')" data-i18n-tip="tasks.quest_cat_story_hint" data-tip-desc="Shows only your story quests.">
+        <div role="button" tabindex="0" class="q-cat" data-filter="story" data-on-click="quest_setFilter('story')" data-i18n-tip="tasks.quest_cat_story_hint" data-tip-desc="Shows only your story quests.">
           <span class="q-cat-dot" style="background:#c8f;"></span>
           <span data-i18n="tasks.quest_cat_story">Story</span>
           <span class="q-cat-count" id="cnt-story">0</span>
         </div>
-        <div role="button" tabindex="0" class="q-cat" data-filter="side" onclick="quest_setFilter('side')" data-i18n-tip="tasks.quest_cat_side_hint" data-tip-desc="Shows only your side quests.">
+        <div role="button" tabindex="0" class="q-cat" data-filter="side" data-on-click="quest_setFilter('side')" data-i18n-tip="tasks.quest_cat_side_hint" data-tip-desc="Shows only your side quests.">
           <span class="q-cat-dot" style="background:#fa4;"></span>
           <span data-i18n="tasks.quest_cat_side">Side</span>
           <span class="q-cat-count" id="cnt-side">0</span>
         </div>
-        <div role="button" tabindex="0" class="q-cat" data-filter="personal" onclick="quest_setFilter('personal')" data-i18n-tip="tasks.quest_cat_personal_hint" data-tip-desc="Shows only your personal quests.">
+        <div role="button" tabindex="0" class="q-cat" data-filter="personal" data-on-click="quest_setFilter('personal')" data-i18n-tip="tasks.quest_cat_personal_hint" data-tip-desc="Shows only your personal quests.">
           <span class="q-cat-dot" style="background:#4d9;"></span>
           <span data-i18n="tasks.quest_cat_personal">Personal</span>
           <span class="q-cat-count" id="cnt-personal">0</span>
         </div>
-        <div role="button" tabindex="0" class="q-cat" data-filter="done" onclick="quest_setFilter('done')" data-i18n-tip="tasks.quest_cat_done_hint" data-tip-desc="Shows the quests you have finished.">
+        <div role="button" tabindex="0" class="q-cat" data-filter="done" data-on-click="quest_setFilter('done')" data-i18n-tip="tasks.quest_cat_done_hint" data-tip-desc="Shows the quests you have finished.">
           <span class="q-cat-dot" style="background:#555;"></span>
           <span data-i18n="tasks.quest_cat_done">Completed</span>
           <span class="q-cat-count" id="cnt-done">0</span>
@@ -907,8 +909,8 @@
       <div id="quest-main">
         <div id="quest-header">
           <h1 id="quest-heading" data-i18n="tasks.quest_cat_all">All Tasks</h1>
-          <input id="quest-search" type="text" placeholder="Search quests..." data-i18n-placeholder="tasks.quest_search" data-i18n-tip="tasks.quest_search_hint" data-tip-desc="Type a word to show only the quests that have it in their title or description." oninput="quest_renderList()">
-          <button id="add-quest-btn" onclick="quest_openModal()" data-i18n="tasks.quest_add" data-i18n-tip="tasks.quest_add_hint" data-tip-desc="Opens a form for adding a new quest.">+ Add Quest</button>
+          <input id="quest-search" type="text" placeholder="Search quests..." data-i18n-placeholder="tasks.quest_search" data-i18n-tip="tasks.quest_search_hint" data-tip-desc="Type a word to show only the quests that have it in their title or description." data-on-input="quest_renderList()">
+          <button id="add-quest-btn" data-on-click="quest_openModal()" data-i18n="tasks.quest_add" data-i18n-tip="tasks.quest_add_hint" data-tip-desc="Opens a form for adding a new quest.">+ Add Quest</button>
         </div>
         <div id="quest-list"></div>
       </div>
@@ -955,17 +957,17 @@
       </div>
     </div>
     <div class="quest-modal-actions">
-      <button class="quest-btn-cancel" onclick="quest_closeModal()" data-i18n="common.cancel" data-i18n-tip="tasks.quest_cancel_hint" data-tip-desc="Closes this form without saving the quest.">Cancel</button>
-      <button class="quest-btn-save" onclick="quest_saveQuest()" data-i18n="tasks.quest_save" data-i18n-tip="tasks.quest_save_hint" data-tip-desc="Keeps this quest in your list, in this browser.">Save Quest</button>
+      <button class="quest-btn-cancel" data-on-click="quest_closeModal()" data-i18n="common.cancel" data-i18n-tip="tasks.quest_cancel_hint" data-tip-desc="Closes this form without saving the quest.">Cancel</button>
+      <button class="quest-btn-save" data-on-click="quest_saveQuest()" data-i18n="tasks.quest_save" data-i18n-tip="tasks.quest_save_hint" data-tip-desc="Keeps this quest in your list, in this browser.">Save Quest</button>
     </div>
   </div>
 </div>
 
 <!-- Task detail drawer -->
-<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()" data-i18n-tip="tasks.backdrop_hint" data-tip-desc="Clicking here, outside the panel, closes it.">
+<div class="detail-overlay" id="detail-overlay" data-on-click="hosOn.ifSelf(event, closeDetail)" data-i18n-tip="tasks.backdrop_hint" data-tip-desc="Clicking here, outside the panel, closes it.">
   <div id="detail-drawer">
     <div class="detail-header">
-      <button class="btn-close-detail" onclick="closeDetail()" title="Close (Esc)" data-i18n-title="tasks.close_esc" data-i18n-tip="tasks.close_detail_hint" data-tip-desc="Closes the task details and goes back to the board.">✕</button>
+      <button class="btn-close-detail" data-on-click="closeDetail()" title="Close (Esc)" data-i18n-title="tasks.close_esc" data-i18n-tip="tasks.close_detail_hint" data-tip-desc="Closes the task details and goes back to the board.">✕</button>
       <span class="detail-id" id="detail-id"></span>
       <div style="flex:1"></div>
       <span id="detail-scope-badge" class="scope-badge board-only"></span>
@@ -985,8 +987,8 @@
         <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:var(--space-md)"><span class="pg-ico" data-icon="chat" data-size="14"></span> <span data-i18n="tasks.comments">Comments</span></div>
         <div id="detail-comments"></div>
         <div style="display:flex;gap:var(--space-md);margin-top:var(--space-md)">
-          <input id="comment-input" type="text" placeholder="Add a comment..." data-i18n-placeholder="tasks.comment_placeholder" data-i18n-tip="tasks.comment_input_hint" data-tip-desc="Type a comment on this task. Press Enter to send it." maxlength="2000" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:var(--space-sm) var(--space-lg);font-size:0.8rem;font-family:inherit" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(openDetailId)}">
-          <button onclick="submitComment(openDetailId)" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:var(--space-sm) var(--space-xl);cursor:pointer;font-size:0.8rem" data-i18n="tasks.send" data-i18n-tip="tasks.comment_send_hint" data-tip-desc="Sends your comment, so everyone who opens this task can read it.">Send</button>
+          <input id="comment-input" type="text" placeholder="Add a comment..." data-i18n-placeholder="tasks.comment_placeholder" data-i18n-tip="tasks.comment_input_hint" data-tip-desc="Type a comment on this task. Press Enter to send it." maxlength="2000" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:var(--space-sm) var(--space-lg);font-size:0.8rem;font-family:inherit" data-on-keydown="commentBoxKeydown(event)">
+          <button data-on-click="submitOpenComment()" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:var(--space-sm) var(--space-xl);cursor:pointer;font-size:0.8rem" data-i18n="tasks.send" data-i18n-tip="tasks.comment_send_hint" data-tip-desc="Sends your comment, so everyone who opens this task can read it.">Send</button>
         </div>
       </div>
     </div>
@@ -1050,14 +1052,14 @@
     </div>
     <div id=form-msg></div>
     <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeModal()" data-i18n="common.cancel" data-i18n-tip="tasks.cancel_new_hint" data-tip-desc="Closes the form without adding a task.">Cancel</button>
-      <button class="btn-submit" id=btn-submit onclick="submitTask()" data-i18n="tasks.create_task" data-i18n-tip="tasks.create_task_hint" data-tip-desc="Sends the new task to the server and puts it on the board. It needs a title first.">Create Task</button>
+      <button class="btn-cancel" data-on-click="closeModal()" data-i18n="common.cancel" data-i18n-tip="tasks.cancel_new_hint" data-tip-desc="Closes the form without adding a task.">Cancel</button>
+      <button class="btn-submit" id=btn-submit data-on-click="submitTask()" data-i18n="tasks.create_task" data-i18n-tip="tasks.create_task_hint" data-tip-desc="Sends the new task to the server and puts it on the board. It needs a title first.">Create Task</button>
     </div>
   </div>
 </div>
 
 <!-- Project create/edit modal -->
-<div class="project-modal-overlay" id="project-modal-overlay" onclick="if(event.target===this)closeProjectModal()" data-i18n-tip="tasks.backdrop_hint" data-tip-desc="Clicking here, outside the panel, closes it.">
+<div class="project-modal-overlay" id="project-modal-overlay" data-on-click="hosOn.ifSelf(event, closeProjectModal)" data-i18n-tip="tasks.backdrop_hint" data-tip-desc="Clicking here, outside the panel, closes it.">
   <div class="project-modal">
     <h2 id="project-modal-title" data-i18n="tasks.project_new">New Project</h2>
     <div class="form-group">
@@ -1095,8 +1097,8 @@
     </div>
     <div id="project-form-msg"></div>
     <div class="modal-footer">
-      <button class="btn-cancel" onclick="closeProjectModal()" data-i18n="common.cancel" data-i18n-tip="tasks.project_cancel_hint" data-tip-desc="Closes this form without saving the project.">Cancel</button>
-      <button class="btn-submit" id="btn-project-submit" onclick="submitProject()" data-i18n="tasks.project_create" data-i18n-tip="tasks.project_submit_hint" data-tip-desc="Saves the project, so you can put tasks in it.">Create Project</button>
+      <button class="btn-cancel" data-on-click="closeProjectModal()" data-i18n="common.cancel" data-i18n-tip="tasks.project_cancel_hint" data-tip-desc="Closes this form without saving the project.">Cancel</button>
+      <button class="btn-submit" id="btn-project-submit" data-on-click="submitProject()" data-i18n="tasks.project_create" data-i18n-tip="tasks.project_submit_hint" data-tip-desc="Saves the project, so you can put tasks in it.">Create Project</button>
     </div>
   </div>
 </div>

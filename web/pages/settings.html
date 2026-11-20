@@ -702,6 +702,7 @@
       #vault-sec-main { padding: var(--space-lg); }
     }
   </style>
+<script src="/shared/safe-markup.js"></script>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
@@ -718,30 +719,25 @@
   <!-- Sidebar nav -->
   <nav id="settings-sidebar">
     <h2>Settings</h2>
-    <div class="s-nav active" data-sec="appearance" onclick="showSection('appearance')"><span class="s-ico" data-icon="eye"></span> Appearance</div>
-    <div class="s-nav" data-sec="notifications" onclick="showSection('notifications')"><span class="s-ico" data-icon="bell"></span> Notifications</div>
-    <div class="s-nav" data-sec="privacy" onclick="showSection('privacy')"><span class="s-ico" data-icon="lock"></span> Privacy</div>
-    <div class="s-nav" data-sec="chat" onclick="showSection('chat')"><span class="s-ico" data-icon="chat"></span> Chat</div>
-    <div class="s-nav" data-sec="app" onclick="showSection('app')"><span class="s-ico" data-icon="settings"></span> App</div>
-    <div class="s-nav" data-sec="account" onclick="showSection('account')"><span class="s-ico" data-icon="user"></span> Account</div>
-    <div class="s-nav" data-sec="advanced" onclick="showSection('advanced')"><span class="s-ico" data-icon="ops"></span> Advanced</div>
+    <div class="s-nav active" data-sec="appearance" data-on-click="showSection('appearance')"><span class="s-ico" data-icon="eye"></span> Appearance</div>
+    <div class="s-nav" data-sec="notifications" data-on-click="showSection('notifications')"><span class="s-ico" data-icon="bell"></span> Notifications</div>
+    <div class="s-nav" data-sec="privacy" data-on-click="showSection('privacy')"><span class="s-ico" data-icon="lock"></span> Privacy</div>
+    <div class="s-nav" data-sec="chat" data-on-click="showSection('chat')"><span class="s-ico" data-icon="chat"></span> Chat</div>
+    <div class="s-nav" data-sec="app" data-on-click="showSection('app')"><span class="s-ico" data-icon="settings"></span> App</div>
+    <div class="s-nav" data-sec="account" data-on-click="showSection('account')"><span class="s-ico" data-icon="user"></span> Account</div>
+    <div class="s-nav" data-sec="advanced" data-on-click="showSection('advanced')"><span class="s-ico" data-icon="ops"></span> Advanced</div>
     <h2 style="margin-top:var(--space-md)">More</h2>
-    <div class="s-nav" data-sec="keybinds" onclick="showSection('keybinds')"><span class="s-ico" data-icon="grid"></span> Shortcuts</div>
-    <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')"><span class="s-ico" data-icon="eye"></span> Accessibility</div>
-    <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
-    <div class="s-nav" data-sec="security" onclick="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
-    <div class="s-nav" data-sec="storage" onclick="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
-    <div class="s-nav" data-sec="ai" role="button" tabindex="0" onclick="showSection('ai')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showSection('ai');}" data-i18n-tip="ai.web.nav_hint" data-tip-desc="Whether HumanityOS uses AI, and why the website offers none."><span class="s-ico" data-icon="dev"></span> <span data-i18n="ai.title">AI</span></div>
-    <div class="s-nav" data-sec="wallet" onclick="showSection('wallet')"><span class="s-ico" data-icon="key"></span> Wallet</div>
-    <div class="s-nav" data-sec="vault" onclick="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
-    <div class="s-nav" data-sec="server-info" onclick="showSection('server-info')"><span class="s-ico" data-icon="monitor"></span> Server Info</div>
+    <div class="s-nav" data-sec="keybinds" data-on-click="showSection('keybinds')"><span class="s-ico" data-icon="grid"></span> Shortcuts</div>
+    <div class="s-nav" data-sec="accessibility" data-on-click="showSection('accessibility')"><span class="s-ico" data-icon="eye"></span> Accessibility</div>
+    <div class="s-nav" data-sec="audiovideo" data-on-click="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
+    <div class="s-nav" data-sec="security" data-on-click="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
+    <div class="s-nav" data-sec="storage" data-on-click="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
+    <div class="s-nav" data-sec="ai" role="button" tabindex="0" data-on-click="showSection('ai')" data-on-keydown="hosOn.onKeyPrevent(event, ['Enter', ' '], showSection, 'ai')" data-i18n-tip="ai.web.nav_hint" data-tip-desc="Whether HumanityOS uses AI, and why the website offers none."><span class="s-ico" data-icon="dev"></span> <span data-i18n="ai.title">AI</span></div>
+    <div class="s-nav" data-sec="wallet" data-on-click="showSection('wallet')"><span class="s-ico" data-icon="key"></span> Wallet</div>
+    <div class="s-nav" data-sec="vault" data-on-click="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
+    <div class="s-nav" data-sec="server-info" data-on-click="showSection('server-info')"><span class="s-ico" data-icon="monitor"></span> Server Info</div>
   </nav>
-  <script>
-    // Populate sidebar icons from icons.js
-    document.querySelectorAll('.s-ico[data-icon]').forEach(function(el) {
-      if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, 16);
-    });
-  </script>
+  <script src="/pages/settings-icons.js"></script>
 
   <!-- Settings panels -->
   <div id="settings-main">
@@ -774,7 +770,7 @@
             <strong>Color Scheme</strong>
             <span>Base palette, colors below override individual values</span>
           </div>
-          <select class="setting-select" id="pref-theme" onchange="savePref()">
+          <select class="setting-select" id="pref-theme" data-on-change="savePref()">
             <option value="dark">Dark</option>
             <option value="light">Light</option>
             <option value="system">Follow System</option>
@@ -788,7 +784,7 @@
             <span>Primary highlight used for buttons, links, and focus states</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="color" class="setting-color" id="pref-accent" value="#22aa66" oninput="document.getElementById('accent-hex').textContent=this.value;savePref()">
+            <input type="color" class="setting-color" id="pref-accent" value="#22aa66" data-on-input="hosOn.set(document.getElementById('accent-hex'), 'textContent', this.value); savePref()">
             <span id="accent-hex" style="font-size:0.78rem;color:var(--text-muted);font-family:monospace"></span>
           </div>
         </div>
@@ -797,7 +793,7 @@
             <strong>Space Background</strong>
             <span>Faint image of the galactic core behind every page, rendered from a real 25 million star catalog</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-space-bg" onchange="savePref(); if (window.hosApplyA11yToggles) hosApplyA11yToggles();"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-space-bg" data-on-change="savePref(); hosOn.maybe('hosApplyA11yToggles')"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -809,8 +805,8 @@
             <span>Confirmations, online status, positive actions</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="color" class="setting-color" id="pref-success-color" value="#44aa99" oninput="applyCustomizerLive()">
-            <button class="tc-reset" onclick="resetColor('success-color','#44aa99')" title="Reset to default">Reset</button>
+            <input type="color" class="setting-color" id="pref-success-color" value="#44aa99" data-on-input="applyCustomizerLive()">
+            <button class="tc-reset" data-on-click="resetColor('success-color','#44aa99')" title="Reset to default">Reset</button>
           </div>
         </div>
         <div class="setting-row">
@@ -819,8 +815,8 @@
             <span>Errors, destructive actions, offline status</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="color" class="setting-color" id="pref-danger-color" value="#cc4444" oninput="applyCustomizerLive()">
-            <button class="tc-reset" onclick="resetColor('danger-color','#cc4444')" title="Reset to default">Reset</button>
+            <input type="color" class="setting-color" id="pref-danger-color" value="#cc4444" data-on-input="applyCustomizerLive()">
+            <button class="tc-reset" data-on-click="resetColor('danger-color','#cc4444')" title="Reset to default">Reset</button>
           </div>
         </div>
         <div class="setting-row">
@@ -829,8 +825,8 @@
             <span>Cautions, pending states, attention needed</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="color" class="setting-color" id="pref-warning-color" value="#ccaa33" oninput="applyCustomizerLive()">
-            <button class="tc-reset" onclick="resetColor('warning-color','#ccaa33')" title="Reset to default">Reset</button>
+            <input type="color" class="setting-color" id="pref-warning-color" value="#ccaa33" data-on-input="applyCustomizerLive()">
+            <button class="tc-reset" data-on-click="resetColor('warning-color','#ccaa33')" title="Reset to default">Reset</button>
           </div>
         </div>
       </div>
@@ -845,7 +841,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-icon-weight" min="1" max="6" step="0.5" value="3"
               style="width:140px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="icon-weight-val" style="font-weight:700;min-width:24px;color:var(--accent)">3</span>
           </div>
         </div>
@@ -857,7 +853,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-icon-size" min="14" max="32" step="2" value="20"
               style="width:140px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="icon-size-val" style="font-weight:700;min-width:30px;color:var(--accent)">20px</span>
           </div>
         </div>
@@ -880,7 +876,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-font-size-slider" min="10" max="55" step="1" value="16"
               style="width:160px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="font-size-val" style="font-weight:700;min-width:36px;color:var(--accent)">16px</span>
           </div>
         </div>
@@ -889,7 +885,7 @@
             <strong>Compact Mode</strong>
             <span>Reduce padding and spacing for more content</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-compact" onchange="applyCustomizerLive()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-compact" data-on-change="applyCustomizerLive()"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -903,7 +899,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-border-radius" min="0" max="20" step="1" value="8"
               style="width:140px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="border-radius-val" style="font-weight:700;min-width:30px;color:var(--accent)">8px</span>
           </div>
         </div>
@@ -915,7 +911,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-content-width" min="0" max="1600" step="50" value="0"
               style="width:160px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="content-width-val" style="font-weight:700;min-width:50px;color:var(--accent)">Full</span>
           </div>
         </div>
@@ -927,7 +923,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-line-height" min="1.0" max="2.5" step="0.1" value="1.6"
               style="width:160px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="line-height-val" style="font-weight:700;min-width:30px;color:var(--accent)">1.6</span>
           </div>
         </div>
@@ -939,7 +935,7 @@
           <div style="display:flex;align-items:center;gap:10px">
             <input type="range" id="pref-spacing-scale" min="50" max="200" step="5" value="100"
               style="width:160px;accent-color:var(--accent)"
-              oninput="applyCustomizerLive()">
+              data-on-input="applyCustomizerLive()">
             <span id="spacing-scale-val" style="font-weight:700;min-width:40px;color:var(--accent)">100%</span>
           </div>
         </div>
@@ -952,14 +948,14 @@
             <strong>RGB Border Animation</strong>
             <span>Cycling color border on the active nav tab</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-rgb-nav" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-rgb-nav" checked data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Show Nav Tooltips</strong>
             <span>Display label tooltips when hovering nav icons</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-nav-tips" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-nav-tips" checked data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -970,7 +966,7 @@
             <strong id="lbl-hint-display" data-i18n="settings.hints">Hints</strong>
             <span data-i18n="settings.hints_desc">How help is shown. Full: each setting's description under it, and a hint when you rest the pointer on a button or box. Hover: the descriptions hide behind a small (?) you point at, and the hints still show. Off: no descriptions and no hints, for when you know your way around.</span>
           </div>
-          <select class="setting-select" id="pref-hint_display" aria-labelledby="lbl-hint-display" onchange="savePref(); if (window.hosApplyA11yToggles) hosApplyA11yToggles();">
+          <select class="setting-select" id="pref-hint_display" aria-labelledby="lbl-hint-display" data-on-change="savePref(); hosOn.maybe('hosApplyA11yToggles')">
             <option value="full" data-i18n="settings.hints_full">Full</option>
             <option value="hover" data-i18n="settings.hints_hover">Hover</option>
             <option value="off" data-i18n="settings.hints_off">Off</option>
@@ -981,14 +977,14 @@
             <strong data-i18n="settings.show_simple">Show Simple Explanations</strong>
             <span data-i18n="settings.show_simple_desc">Plain-language descriptions on every page</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked data-on-change="saveEli5Pref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong data-i18n="settings.show_expert">Show Expert Details</strong>
             <span data-i18n="settings.show_expert_desc">Technical info for developers and power users</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked data-on-change="saveEli5Pref()"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -1006,7 +1002,7 @@
             <strong>Push Notifications</strong>
             <span>Enable browser push notifications when the app is closed</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-push-enabled" onchange="togglePushNotifications(this.checked)"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-push-enabled" data-on-change="togglePushNotifications(this.checked)"><span class="toggle-track"></span></label>
         </div>
         <div id="push-status-msg" style="font-size:0.78rem;color:var(--text-muted);padding:0 0 var(--space-md) var(--space-lg);display:none;"></div>
         <div id="push-sub-toggles">
@@ -1015,21 +1011,21 @@
               <strong>Direct Messages</strong>
               <span>Notify when you receive a direct message</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked data-on-change="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row" style="padding-left:var(--space-2xl);">
             <div class="setting-label">
               <strong>@Mentions</strong>
               <span>Notify when someone mentions you in a channel</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked data-on-change="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row" style="padding-left:var(--space-2xl);">
             <div class="setting-label">
               <strong>Task Updates</strong>
               <span>Notify when tasks assigned to you are updated</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked data-on-change="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
         </div>
       </div>
@@ -1044,7 +1040,7 @@
             <strong data-i18n="notifications.quiet">Quiet hours</strong>
             <span data-i18n="notifications.quiet_hint">Between these hours nothing notifies you and calls do not ring, except what you let through below. The hours are your computer's own clock.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-push-dnd" onchange="savePushDnd()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-push-dnd" data-on-change="savePushDnd()"><span class="toggle-track"></span></label>
         </div>
         <!-- The operator, 2026-11-01: calls wait during quiet hours unless the caller is on the
              always-allow list, said here in the quiet-hours control itself (notifications rung 3). -->
@@ -1054,13 +1050,13 @@
             <div class="setting-label">
               <strong data-i18n="notifications.quiet_from">From</strong>
             </div>
-            <select class="setting-select" id="pref-dnd-start" onchange="savePushDnd()" style="min-width:110px;"></select>
+            <select class="setting-select" id="pref-dnd-start" data-on-change="savePushDnd()" style="min-width:110px;"></select>
           </div>
           <div class="setting-row">
             <div class="setting-label">
               <strong data-i18n="notifications.quiet_to">To</strong>
             </div>
-            <select class="setting-select" id="pref-dnd-end" onchange="savePushDnd()" style="min-width:110px;"></select>
+            <select class="setting-select" id="pref-dnd-end" data-on-change="savePushDnd()" style="min-width:110px;"></select>
           </div>
           <!-- What still comes through, read as one list: the people always allowed (rung 3, kept in
                this browser and on my other devices, drawn by settings-app.js renderAllowList), then
@@ -1076,14 +1072,14 @@
               <strong data-i18n="notifications.quiet_friends">Friends' messages come through</strong>
               <span data-i18n="notifications.quiet_friends_hint">During quiet hours a direct message from a friend (you follow each other) still notifies you. Their calls still wait: for calls, add them to your always-allow list. Off unless you turn it on. Your device decides it: your server never learns who sends you a direct message.</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-quiet-friends" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-quiet-friends" data-on-change="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
           <div class="setting-row">
             <div class="setting-label">
               <strong data-i18n="notifications.quiet_mentions">Mentions and replies come through</strong>
               <span data-i18n="notifications.quiet_mentions_hint">During quiet hours a mention of you, or a reply to something you wrote, still notifies you. Off unless you turn it on.</span>
             </div>
-            <label class="toggle"><input type="checkbox" id="pref-push-quiet-mentions" onchange="savePushPref(this)"><span class="toggle-track"></span></label>
+            <label class="toggle"><input type="checkbox" id="pref-push-quiet-mentions" data-on-change="savePushPref(this)"><span class="toggle-track"></span></label>
           </div>
         </div>
         <p class="section-desc" data-i18n="notifications.quiet_web_note">A push to this browser while no chat tab is open still comes at any hour: your server does not know your clock yet.</p>
@@ -1099,7 +1095,7 @@
             <strong id="lbl-notif-show" data-i18n="notifications.show">A notice shows</strong>
             <span data-i18n="notifications.show_hint">How much a notice says. Anyone near your screen can read a notice, and your computer keeps a copy of it, so the message itself is left out unless you choose it.</span>
           </div>
-          <select class="setting-select" id="pref-notif-show" aria-labelledby="lbl-notif-show" onchange="savePref()">
+          <select class="setting-select" id="pref-notif-show" aria-labelledby="lbl-notif-show" data-on-change="savePref()">
             <option value="nothing" data-i18n="notifications.show_nothing">Only that something arrived</option>
             <option value="name" data-i18n="notifications.show_name">Who it is from</option>
             <option value="name_and_text" data-i18n="notifications.show_name_and_text">Who it is from and the message</option>
@@ -1160,7 +1156,7 @@
             <strong>Network</strong>
             <span>Which Solana cluster to connect to</span>
           </div>
-          <select class="setting-select" id="wallet-network" onchange="walletNetworkChanged()" style="min-width:130px;">
+          <select class="setting-select" id="wallet-network" data-on-change="walletNetworkChanged()" style="min-width:130px;">
             <option value="mainnet">Mainnet</option>
             <option value="devnet">Devnet</option>
             <option value="testnet">Testnet</option>
@@ -1172,7 +1168,7 @@
             <strong>Custom RPC URL</strong>
             <span>Enter a custom Solana RPC endpoint</span>
           </div>
-          <input type="text" id="wallet-custom-rpc" placeholder="https://..." style="flex:1;max-width:320px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-sm) var(--space-md);color:var(--text);font-size:0.82rem;" onchange="walletSaveRpc()">
+          <input type="text" id="wallet-custom-rpc" placeholder="https://..." style="flex:1;max-width:320px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-sm) var(--space-md);color:var(--text);font-size:0.82rem;" data-on-change="walletSaveRpc()">
         </div>
       </div>
 
@@ -1183,7 +1179,7 @@
             <strong>Show balance in nav</strong>
             <span>Display your SOL balance in the navigation bar</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="wallet-show-nav-balance" onchange="walletSaveNavBalance()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="wallet-show-nav-balance" data-on-change="walletSaveNavBalance()"><span class="toggle-track"></span></label>
         </div>
       </div>
     </section>
@@ -1291,14 +1287,14 @@
             <strong>Send on Enter</strong>
             <span>Press Enter to send; Shift+Enter for new line</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-enter-send" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-enter-send" checked data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Show Timestamps</strong>
             <span>Display time next to each message</span>
           </div>
-          <select class="setting-select" id="pref-timestamps" onchange="savePref()">
+          <select class="setting-select" id="pref-timestamps" data-on-change="savePref()">
             <option value="hover">On hover</option>
             <option value="always">Always</option>
             <option value="never">Never</option>
@@ -1311,7 +1307,7 @@
             <strong id="lbl-timestamp-format" data-i18n="settings.timestamp_format">Timestamp format</strong>
             <span data-i18n="settings.timestamp_format_hint">How the time next to each chat message is written. The change shows at once, on messages already there too.</span>
           </div>
-          <select class="setting-select" id="pref-timestamp_format" aria-labelledby="lbl-timestamp-format" onchange="savePref()">
+          <select class="setting-select" id="pref-timestamp_format" aria-labelledby="lbl-timestamp-format" data-on-change="savePref()">
             <option value="hour_min" data-i18n="settings.timestamp_format_hour_min">Time, 17:42</option>
             <option value="hour_min_sec" data-i18n="settings.timestamp_format_hour_min_sec">Time + seconds, 17:42:09</option>
             <option value="date_hour_min" data-i18n="settings.timestamp_format_date_hour_min">Date + time, 2026-05-29 17:42</option>
@@ -1324,7 +1320,7 @@
             <strong id="lbl-timestamp-zone" data-i18n="settings.timestamp_zone">Time zone</strong>
             <span data-i18n="settings.timestamp_zone_hint">Whether the times beside messages and files are this computer's own time, or UTC: the one time used everywhere in the world, handy when people in different places compare times. The change shows at once.</span>
           </div>
-          <select class="setting-select" id="pref-timestamp_zone" aria-labelledby="lbl-timestamp-zone" onchange="savePref()">
+          <select class="setting-select" id="pref-timestamp_zone" aria-labelledby="lbl-timestamp-zone" data-on-change="savePref()">
             <option value="local" data-i18n="settings.timestamp_zone_local">This computer's time</option>
             <option value="utc" data-i18n="settings.timestamp_zone_utc">UTC</option>
           </select>
@@ -1334,7 +1330,7 @@
             <strong>Message Grouping</strong>
             <span>Group consecutive messages from the same person</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-msg-group" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-msg-group" checked data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -1345,7 +1341,7 @@
             <strong>Custom Relay Server</strong>
             <span>Connect to an alternative relay instead of the default</span>
           </div>
-          <input type="url" class="setting-input" id="pref-relay-url" placeholder="wss://your-relay.example.com" oninput="savePref()">
+          <input type="url" class="setting-input" id="pref-relay-url" placeholder="wss://your-relay.example.com" data-on-input="savePref()">
         </div>
       </div>
 
@@ -1356,7 +1352,7 @@
             <strong>Input Mode</strong>
             <span>How your microphone activates in voice channels</span>
           </div>
-          <select class="setting-select" id="vc-input-mode-select" onchange="saveVoicePref()">
+          <select class="setting-select" id="vc-input-mode-select" data-on-change="saveVoicePref()">
             <option value="open">Open Mic (always on)</option>
             <option value="ptt">Push to Talk</option>
             <option value="vad">Voice Activated (VAD)</option>
@@ -1369,7 +1365,7 @@
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
             <kbd id="ptt-key-display" style="background:var(--bg);border:1px solid var(--set-ops-border);color:var(--set-key-ink);padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.9rem;min-width:48px;text-align:center;">V</kbd>
-            <button onclick="beginPttRebind()" id="ptt-rebind-btn" style="background:var(--set-btn-bg);border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
+            <button data-on-click="beginPttRebind()" id="ptt-rebind-btn" style="background:var(--set-btn-bg);border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
           </div>
         </div>
       </div>
@@ -1387,7 +1383,7 @@
             <strong id="lbl-language">Language</strong>
             <span>Display language for the interface</span>
           </div>
-          <select class="setting-select" id="pref-language" aria-labelledby="lbl-language" onchange="savePref(); applyLanguagePref();">
+          <select class="setting-select" id="pref-language" aria-labelledby="lbl-language" data-on-change="savePref(); applyLanguagePref();">
             <option value="en">English</option>
             <option value="es">Español</option>
             <option value="fr">Français</option>
@@ -1400,7 +1396,7 @@
             <strong>Date Format</strong>
             <span>How dates are displayed throughout the app</span>
           </div>
-          <select class="setting-select" id="pref-date-fmt" onchange="savePref()">
+          <select class="setting-select" id="pref-date-fmt" data-on-change="savePref()">
             <option value="mdy">MM/DD/YYYY</option>
             <option value="dmy">DD/MM/YYYY</option>
             <option value="ymd">YYYY-MM-DD</option>
@@ -1410,7 +1406,7 @@
           <div class="setting-label">
             <strong>Time Format</strong>
           </div>
-          <select class="setting-select" id="pref-time-fmt" onchange="savePref()">
+          <select class="setting-select" id="pref-time-fmt" data-on-change="savePref()">
             <option value="12h">12-hour (AM/PM)</option>
             <option value="24h">24-hour</option>
           </select>
@@ -1424,14 +1420,14 @@
             <strong>Launch to Chat</strong>
             <span>Open the Network chat on app start</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-launch-chat" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-launch-chat" data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Auto-Save Interval</strong>
             <span>How often to auto-save local data</span>
           </div>
-          <select class="setting-select" id="pref-autosave" onchange="savePref()">
+          <select class="setting-select" id="pref-autosave" data-on-change="savePref()">
             <option value="30">Every 30 seconds</option>
             <option value="60" selected>Every minute</option>
             <option value="300">Every 5 minutes</option>
@@ -1453,7 +1449,7 @@
             <strong>Display Name</strong>
             <span>Your name shown to others in the network</span>
           </div>
-          <input type="text" class="setting-input" id="pref-display-name" placeholder="Your name" oninput="savePref()">
+          <input type="text" class="setting-input" id="pref-display-name" placeholder="Your name" data-on-input="savePref()">
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1482,14 +1478,14 @@
             <strong>Clear All Local Data</strong>
             <span>Wipe skills, inventory, logbook, quests, and calendar from this device</span>
           </div>
-          <button class="btn-danger" onclick="clearAllData()">Clear Data</button>
+          <button class="btn-danger" data-on-click="clearAllData()">Clear Data</button>
         </div>
         <div class="setting-row danger-row">
           <div class="setting-label">
             <strong>Reset Settings</strong>
             <span>Restore all settings to their defaults</span>
           </div>
-          <button class="btn-danger" onclick="resetSettings()">Reset</button>
+          <button class="btn-danger" data-on-click="resetSettings()">Reset</button>
         </div>
       </div>
     </section>
@@ -1506,14 +1502,14 @@
             <strong>Show Debug Panel</strong>
             <span>Display real-time connection and performance info</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-debug-panel" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-debug-panel" data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Console Logging</strong>
             <span>Enable verbose logging to browser console</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-verbose-log" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-verbose-log" data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1531,15 +1527,15 @@
             <strong>Export All Data</strong>
             <span>Download a JSON backup of all local HumanityOS data</span>
           </div>
-          <button onclick="exportData()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
+          <button data-on-click="exportData()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Import Data</strong>
             <span>Restore from a previously exported JSON backup</span>
           </div>
-          <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
-          <button onclick="document.getElementById('import-file').click()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
+          <input type="file" id="import-file" accept=".json" style="display:none;" data-on-change="importData(event)">
+          <button data-on-click="document.getElementById('import-file').click()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
         </div>
       </div>
 
@@ -1550,7 +1546,7 @@
             <strong>Clear App Cache &amp; Reload</strong>
             <span>Forces every page to re-download fresh, use when an update isn't showing up. Keyboard shortcut: <kbd style="background:var(--bg-input);border:1px solid var(--text-muted);border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
           </div>
-          <button onclick="clearAppCache()" style="background:var(--set-btn-bg);border:1px solid var(--set-ops-border);color:var(--set-ops-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
+          <button data-on-click="clearAppCache()" style="background:var(--set-btn-bg);border:1px solid var(--set-ops-border);color:var(--set-ops-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
         </div>
       </div>
 
@@ -1576,14 +1572,14 @@
             <strong>Reduce Motion</strong>
             <span>Turn off animations and transitions throughout the app</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-reduce-motion" onchange="savePref(); applyA11yPrefs();"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-reduce-motion" data-on-change="savePref(); applyA11yPrefs();"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Disable RGB Effects</strong>
             <span>Turn off all color-cycling and glow effects</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-no-rgb" onchange="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-no-rgb" data-on-change="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -1594,14 +1590,14 @@
             <strong>High Contrast</strong>
             <span>Increase contrast between text and background</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-high-contrast" onchange="savePref(); applyA11yPrefs();"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-high-contrast" data-on-change="savePref(); applyA11yPrefs();"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Colorblind Mode</strong>
             <span>Adjust colors for protanopia, deuteranopia, or tritanopia</span>
           </div>
-          <select class="setting-select" id="pref-colorblind" onchange="savePref(); applyA11yPrefs();">
+          <select class="setting-select" id="pref-colorblind" data-on-change="savePref(); applyA11yPrefs();">
             <option value="none">Off</option>
             <option value="protanopia">Protanopia (red-blind)</option>
             <option value="deuteranopia">Deuteranopia (green-blind)</option>
@@ -1613,14 +1609,14 @@
             <strong>Large Cursor Focus</strong>
             <span>Show a thick visible outline around the focused element</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-focus-ring" onchange="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-focus-ring" data-on-change="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Reading Comfort</strong>
             <span>Open out letter, word and line spacing. Many readers find text easier this way, and the research behind it is about spacing rather than about any special font.</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-dyslexia-font" onchange="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-dyslexia-font" data-on-change="savePref(); applyExtraA11yToggles();"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -1633,7 +1629,7 @@
             <strong>Enhanced ARIA Labels</strong>
             <span>Add extra descriptive labels for screen readers</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-aria-enhanced" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-aria-enhanced" data-on-change="savePref()"><span class="toggle-track"></span></label>
         </div>
       </div>
     </section>
@@ -1651,7 +1647,7 @@
             <strong>Input Device</strong>
             <span>Which microphone to use</span>
           </div>
-          <select class="setting-select" id="pref-mic-device" onchange="savePref()">
+          <select class="setting-select" id="pref-mic-device" data-on-change="savePref()">
             <option value="">System Default</option>
           </select>
         </div>
@@ -1663,14 +1659,14 @@
           <div style="flex:1;max-width:200px;height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden;">
             <div id="mic-level-bar" style="width:0%;height:100%;background:var(--success);transition:width 0.1s;border-radius:4px;"></div>
           </div>
-          <button onclick="testMic()" style="background:var(--set-btn-bg);border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
+          <button data-on-click="testMic()" style="background:var(--set-btn-bg);border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Input Gain</strong>
             <span>Boost or reduce your mic volume</span>
           </div>
-          <input type="range" class="setting-range" id="pref-mic-gain" min="0" max="200" value="100" oninput="savePref()">
+          <input type="range" class="setting-range" id="pref-mic-gain" min="0" max="200" value="100" data-on-input="savePref()">
           <span id="mic-gain-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
         </div>
       </div>
@@ -1682,7 +1678,7 @@
             <strong>Output Device</strong>
             <span>Which speaker or headphones to use</span>
           </div>
-          <select class="setting-select" id="pref-speaker-device" onchange="savePref()">
+          <select class="setting-select" id="pref-speaker-device" data-on-change="savePref()">
             <option value="">System Default</option>
           </select>
         </div>
@@ -1691,7 +1687,7 @@
             <strong>Output Volume</strong>
             <span>Master volume for all incoming audio</span>
           </div>
-          <input type="range" class="setting-range" id="pref-speaker-vol" min="0" max="100" value="100" oninput="savePref()">
+          <input type="range" class="setting-range" id="pref-speaker-vol" min="0" max="100" value="100" data-on-input="savePref()">
           <span id="speaker-vol-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
         </div>
       </div>
@@ -1706,7 +1702,7 @@
             <strong id="lbl-video-start" data-i18n="settings.video_start">New videos start at</strong>
             <span data-i18n="settings.video_start_hint">The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.</span>
           </div>
-          <select class="setting-select" id="pref-video-start" aria-labelledby="lbl-video-start" onchange="savePref()" data-i18n-tip="settings.video_start_hint" data-tip-desc="The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.">
+          <select class="setting-select" id="pref-video-start" aria-labelledby="lbl-video-start" data-on-change="savePref()" data-i18n-tip="settings.video_start_hint" data-tip-desc="The volume a video starts at when you play it, in chat, on the Media page and on a screen in the world. Each video's own volume bar still turns it up or down.">
             <option value="last" data-i18n="settings.video_start_last">My last volume</option>
             <option value="set" data-i18n="settings.video_start_set">A set volume</option>
           </select>
@@ -1716,7 +1712,7 @@
             <strong id="lbl-video-start-pct" data-i18n="settings.video_start_volume">Set volume %</strong>
             <span data-i18n="settings.video_start_volume_hint">The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.</span>
           </div>
-          <input type="range" class="setting-range" id="pref-video-start-pct" aria-labelledby="lbl-video-start-pct" min="0" max="100" value="100" oninput="savePref()" data-i18n-tip="settings.video_start_volume_hint" data-tip-desc="The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.">
+          <input type="range" class="setting-range" id="pref-video-start-pct" aria-labelledby="lbl-video-start-pct" min="0" max="100" value="100" data-on-input="savePref()" data-i18n-tip="settings.video_start_volume_hint" data-tip-desc="The volume every new video starts at, from 0% (silent) to 100% (full). Some videos are recorded much louder than others, so a low start like 5% keeps a loud one from blasting.">
           <span id="video-start-pct-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
         </div>
       </div>
@@ -1758,7 +1754,7 @@
             <strong>Camera Device</strong>
             <span>Which webcam to use</span>
           </div>
-          <select class="setting-select" id="pref-camera-device" onchange="savePref()">
+          <select class="setting-select" id="pref-camera-device" data-on-change="savePref()">
             <option value="">System Default</option>
           </select>
         </div>
@@ -1767,7 +1763,7 @@
             <strong>Video Quality</strong>
             <span>Resolution for your camera feed</span>
           </div>
-          <select class="setting-select" id="pref-video-quality" onchange="savePref()">
+          <select class="setting-select" id="pref-video-quality" data-on-change="savePref()">
             <option value="360">Low (360p)</option>
             <option value="480">Medium (480p)</option>
             <option value="720" selected>High (720p)</option>
@@ -1779,7 +1775,7 @@
             <strong>Camera Preview</strong>
             <span>Check how you look before going live</span>
           </div>
-          <button onclick="toggleCameraPreview()" id="cam-preview-btn" style="background:var(--set-btn-bg);border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
+          <button data-on-click="toggleCameraPreview()" id="cam-preview-btn" style="background:var(--set-btn-bg);border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
         </div>
       </div>
       <video id="settings-cam-preview" autoplay muted playsinline style="display:none;width:100%;max-width:320px;border-radius:8px;margin-top:var(--space-md);border:1px solid var(--border);"></video>
@@ -1833,7 +1829,7 @@
             <strong>Auto-Lock Timer</strong>
             <span>Automatically lock your key after being idle</span>
           </div>
-          <select class="setting-select" id="pref-auto-lock" onchange="savePref()">
+          <select class="setting-select" id="pref-auto-lock" data-on-change="savePref()">
             <option value="0">Never</option>
             <option value="5">5 minutes</option>
             <option value="15">15 minutes</option>
@@ -1850,7 +1846,7 @@
             <strong>Manage Linked Devices</strong>
             <span>See all devices using your identity, label them, or revoke access</span>
           </div>
-          <a href="/chat" onclick="sessionStorage.setItem('open_device_panel','1')" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
+          <a href="/chat" data-on-click="sessionStorage.setItem('open_device_panel','1')" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
         </div>
       </div>
 
@@ -1861,28 +1857,28 @@
             <strong>Download Encrypted Backup</strong>
             <span>Export your private key as a passphrase-protected file you can restore on any device</span>
           </div>
-          <button onclick="settingsOpenBackup()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔐 Backup</button>
+          <button data-on-click="settingsOpenBackup()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔐 Backup</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Restore from Backup File</strong>
             <span>Import an encrypted backup file to restore your identity on this device</span>
           </div>
-          <button onclick="settingsOpenRestore()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">📥 Restore</button>
+          <button data-on-click="settingsOpenRestore()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">📥 Restore</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>View Recovery Phrase</strong>
             <span>24-word recovery phrase, write it down, never share it, never screenshot it</span>
           </div>
-          <button onclick="settingsOpenSeed()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔑 View Recovery Phrase</button>
+          <button data-on-click="settingsOpenSeed()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔑 View Recovery Phrase</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Restore from Recovery Phrase</strong>
             <span>Rebuild your identity from the 24-word phrase (replaces current identity)</span>
           </div>
-          <button onclick="settingsOpenRestoreSeed()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔤 Restore from Words</button>
+          <button data-on-click="settingsOpenRestoreSeed()" style="background:var(--set-info-bg);border:1px solid var(--set-info-border);color:var(--set-info-ink);padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔤 Restore from Words</button>
         </div>
       </div>
       <!-- Mirrors the app's Settings > Account > "Recovery through trusted people" (2026-10-20, finished 2026-10-21). -->
@@ -1938,28 +1934,28 @@
             <strong>Clear Notes</strong>
             <span>Remove all local encrypted notes</span>
           </div>
-          <button class="btn-danger" onclick="clearModule('hos_notes_v1','notes')">Clear</button>
+          <button class="btn-danger" data-on-click="clearModule('hos_notes_v1','notes')">Clear</button>
         </div>
         <div class="setting-row danger-row">
           <div class="setting-label">
             <strong>Clear Inventory</strong>
             <span>Remove all inventory items</span>
           </div>
-          <button class="btn-danger" onclick="clearModule('hos_inventory_v1','inventory')">Clear</button>
+          <button class="btn-danger" data-on-click="clearModule('hos_inventory_v1','inventory')">Clear</button>
         </div>
         <div class="setting-row danger-row">
           <div class="setting-label">
             <strong>Clear Logbook</strong>
             <span>Remove all journal entries</span>
           </div>
-          <button class="btn-danger" onclick="clearModule('hos_logbook_v1','logbook')">Clear</button>
+          <button class="btn-danger" data-on-click="clearModule('hos_logbook_v1','logbook')">Clear</button>
         </div>
         <div class="setting-row danger-row">
           <div class="setting-label">
             <strong>Clear Calendar</strong>
             <span>Remove all calendar events</span>
           </div>
-          <button class="btn-danger" onclick="clearModule('hos_calendar_v1','calendar')">Clear</button>
+          <button class="btn-danger" data-on-click="clearModule('hos_calendar_v1','calendar')">Clear</button>
         </div>
       </div>
     </section>
@@ -2181,7 +2177,7 @@
             <input type="password" id="vault-sec-setup-pass2" placeholder="Type it again…" autocomplete="new-password">
           </div>
           <div id="vault-sec-setup-msg" class="vault-screen-msg"></div>
-          <button class="vault-btn-primary" id="vault-sec-setup-btn" onclick="vault_doSetup()">Create Vault</button>
+          <button class="vault-btn-primary" id="vault-sec-setup-btn" data-on-click="vault_doSetup()">Create Vault</button>
           <p style="font-size:.7rem;color:#3a3a3a;margin-top:var(--space-xl);text-align:center">
             Your passphrase is never stored or transmitted, only a mathematical lock derived from it.
           </p>
@@ -2196,12 +2192,12 @@
           <div class="vault-field-group">
             <label>Vault Passphrase</label>
             <input type="password" id="vault-sec-lock-pass" placeholder="Your vault passphrase…" autocomplete="current-password"
-              onkeydown="if(event.key==='Enter') vault_doUnlock()">
+              data-on-keydown="hosOn.onKey(event, 'Enter', vault_doUnlock)">
           </div>
           <div id="vault-sec-lock-msg" class="vault-screen-msg"></div>
-          <button class="vault-btn-primary" id="vault-sec-lock-btn" onclick="vault_doUnlock()">Unlock Vault</button>
+          <button class="vault-btn-primary" id="vault-sec-lock-btn" data-on-click="vault_doUnlock()">Unlock Vault</button>
           <p style="font-size:.72rem;color:#3a3a3a;margin-top:1.1rem;line-height:1.5">
-            💡 Don't have a vault yet? <a href="#" onclick="vault_showScreen('setup');return false;" style="color:var(--accent)">Create one.</a>
+            💡 Don't have a vault yet? <a href="#" data-on-click="vault_showScreen('setup'); event.preventDefault()" style="color:var(--accent)">Create one.</a>
           </p>
         </div>
       </div>
@@ -2211,25 +2207,25 @@
         <div id="vault-sec-sidebar">
           <div id="vault-sec-sidebar-header">
             <h2>Vault</h2>
-            <button id="vault-sec-cloud-sync-btn" onclick="vault_syncToCloud()" title="Sync encrypted vault to Humanity relay (requires chat identity)"
+            <button id="vault-sec-cloud-sync-btn" data-on-click="vault_syncToCloud()" title="Sync encrypted vault to Humanity relay (requires chat identity)"
               style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁ Sync</button>
-            <button onclick="vault_restoreFromCloud()" title="Restore vault from Humanity relay cloud backup"
+            <button data-on-click="vault_restoreFromCloud()" title="Restore vault from Humanity relay cloud backup"
               style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁⬇</button>
-            <button onclick="vault_export()" title="Download an encrypted backup file of your vault"
+            <button data-on-click="vault_export()" title="Download an encrypted backup file of your vault"
               style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬇</button>
-            <button onclick="vault_openImportUI()" title="Restore vault from a backup file"
+            <button data-on-click="vault_openImportUI()" title="Restore vault from a backup file"
               style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬆</button>
-            <button onclick="vault_openNewEntryModal()" title="Add a new entry (Ctrl+N)"
+            <button data-on-click="vault_openNewEntryModal()" title="Add a new entry (Ctrl+N)"
               style="background:var(--accent);color:var(--set-on-accent);border:none;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
           </div>
           <div id="vault-sec-search">
-            <input type="text" id="vault-sec-search-input" placeholder="Search…" oninput="vault_renderEntryList()">
+            <input type="text" id="vault-sec-search-input" placeholder="Search…" data-on-input="vault_renderEntryList()">
           </div>
           <div id="vault-sec-entry-list"></div>
           <div id="vault-sec-sidebar-footer">
             <span id="vault-sec-entry-count">0 entries</span>
             <span id="vault-sec-lock-countdown"></span>
-            <button class="btn-lock" onclick="vault_lock()" title="Lock the vault now (Ctrl+L)">🔒 Lock</button>
+            <button class="btn-lock" data-on-click="vault_lock()" title="Lock the vault now (Ctrl+L)">🔒 Lock</button>
           </div>
         </div>
 
@@ -2250,7 +2246,7 @@
                    padding:var(--space-sm) var(--space-xl);font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
                   Go to Chat → Get Recovery Phrase
                 </a>
-                <button onclick="vault_dismissSeedNudge()"
+                <button data-on-click="vault_dismissSeedNudge()"
                   style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:6px;
                          padding:var(--space-sm) var(--space-lg);font-size:.78rem;cursor:pointer">
                   Don't show again
@@ -2268,22 +2264,22 @@
               Nothing leaves your device.
             </p>
             <div class="quick-add-grid" id="vault-sec-quick-add-grid">
-              <button class="quick-add-btn" onclick="vault_openNewEntryModal('seed_phrase')">
+              <button class="quick-add-btn" data-on-click="vault_openNewEntryModal('seed_phrase')">
                 <span class="qa-icon">🔑</span>
                 <span class="qa-title">Recovery Phrase</span>
                 <span class="qa-desc">Your 24-word Humanity recovery phrase or any BIP39 phrase</span>
               </button>
-              <button class="quick-add-btn" onclick="vault_openNewEntryModal('password')">
+              <button class="quick-add-btn" data-on-click="vault_openNewEntryModal('password')">
                 <span class="qa-icon">🔑</span>
                 <span class="qa-title">Password</span>
                 <span class="qa-desc">A username and password for any website or service</span>
               </button>
-              <button class="quick-add-btn" onclick="vault_openNewEntryModal('note')">
+              <button class="quick-add-btn" data-on-click="vault_openNewEntryModal('note')">
                 <span class="qa-icon">📝</span>
                 <span class="qa-title">Secure Note</span>
                 <span class="qa-desc">Anything you want to remember privately</span>
               </button>
-              <button class="quick-add-btn" onclick="vault_openNewEntryModal('login')">
+              <button class="quick-add-btn" data-on-click="vault_openNewEntryModal('login')">
                 <span class="qa-icon">🔗</span>
                 <span class="qa-title">Login</span>
                 <span class="qa-desc">Website address, username, and password together</span>
@@ -2324,8 +2320,8 @@
                 <div id="vault-sec-detail-type"></div>
               </div>
               <div class="detail-actions">
-                <button class="btn-detail-edit" onclick="vault_openEditEntryModal()">✏️ Edit</button>
-                <button class="btn-detail-delete" onclick="vault_deleteEntry()">🗑 Delete</button>
+                <button class="btn-detail-edit" data-on-click="vault_openEditEntryModal()">✏️ Edit</button>
+                <button class="btn-detail-delete" data-on-click="vault_deleteEntry()">🗑 Delete</button>
               </div>
             </div>
             <div id="vault-sec-detail-fields"></div>
@@ -2341,7 +2337,7 @@
 <div id="vault-sec-blur-overlay"
   style="display:none;position:fixed;inset:0;z-index:var(--z-shade);background:var(--set-cover-bg);
          align-items:center;justify-content:center;flex-direction:column;gap:var(--space-lg);cursor:pointer"
-  onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
+  data-on-click="hosOn.set(document.getElementById('vault-sec-blur-overlay').style, 'display', 'none')">
   <div style="font-size:2.5rem">🔒</div>
   <div style="font-size:.95rem;color:var(--text-muted)">Vault hidden while you were away</div>
   <div style="font-size:.75rem;color:var(--text-muted)">Click to continue, or wait for auto-lock</div>
@@ -2351,7 +2347,7 @@
 <div id="vault-sec-import-overlay"
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:var(--z-shade);
          align-items:center;justify-content:center;padding:var(--space-xl)"
-  onclick="if(event.target===this)this.style.display='none'">
+  data-on-click="hosOn.ifSelf(event, hosOn.set, this.style, 'display', 'none')">
   <div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:var(--text)">
     <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:var(--space-md)">⬆ Import Vault Backup</h3>
     <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin-bottom:var(--space-xl)">
@@ -2370,34 +2366,34 @@
     </div>
     <div id="vault-sec-import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
     <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-      <button onclick="document.getElementById('vault-sec-import-overlay').style.display='none'"
+      <button data-on-click="hosOn.set(document.getElementById('vault-sec-import-overlay').style, 'display', 'none')"
         style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
-      <button id="vault-sec-import-btn" onclick="vault_doImport()"
+      <button id="vault-sec-import-btn" data-on-click="vault_doImport()"
         style="background:var(--accent);color:var(--set-on-accent);border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>
     </div>
   </div>
 </div>
 
 <!-- Vault entry modal -->
-<div id="vault-sec-entry-modal-overlay" onclick="if(event.target===this) vault_closeEntryModal()">
+<div id="vault-sec-entry-modal-overlay" data-on-click="hosOn.ifSelf(event, vault_closeEntryModal)">
   <div id="vault-sec-entry-modal">
     <h3 id="vault-sec-modal-title">New Entry</h3>
     <div id="vault-sec-type-selector-row">
       <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-md)">Type</div>
       <div class="type-selector">
-        <div class="type-chip selected" data-type="seed_phrase" onclick="vault_selectEntryType('seed_phrase')">
+        <div class="type-chip selected" data-type="seed_phrase" data-on-click="vault_selectEntryType('seed_phrase')">
           <span class="chip-icon">🔑</span> Recovery Phrase
         </div>
-        <div class="type-chip" data-type="password" onclick="vault_selectEntryType('password')">
+        <div class="type-chip" data-type="password" data-on-click="vault_selectEntryType('password')">
           <span class="chip-icon">🔑</span> Password
         </div>
-        <div class="type-chip" data-type="note" onclick="vault_selectEntryType('note')">
+        <div class="type-chip" data-type="note" data-on-click="vault_selectEntryType('note')">
           <span class="chip-icon">📝</span> Secure Note
         </div>
-        <div class="type-chip" data-type="login" onclick="vault_selectEntryType('login')">
+        <div class="type-chip" data-type="login" data-on-click="vault_selectEntryType('login')">
           <span class="chip-icon">🔗</span> Login
         </div>
-        <div class="type-chip" data-type="custom" onclick="vault_selectEntryType('custom')">
+        <div class="type-chip" data-type="custom" data-on-click="vault_selectEntryType('custom')">
           <span class="chip-icon">🪙</span> Custom
         </div>
       </div>
@@ -2409,15 +2405,15 @@
     <div id="vault-sec-modal-dynamic-fields"></div>
     <div id="vault-sec-modal-msg"></div>
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="vault_closeEntryModal()">Cancel</button>
-      <button class="btn-save" id="vault-sec-modal-save-btn" onclick="vault_saveEntry()">Save</button>
+      <button class="btn-cancel" data-on-click="vault_closeEntryModal()">Cancel</button>
+      <button class="btn-save" id="vault-sec-modal-save-btn" data-on-click="vault_saveEntry()">Save</button>
     </div>
   </div>
 </div>
 
 <div id="settings-action-bar">
-  <button class="btn-reset" onclick="resetThemeDefaults()"><span id="reset-icon"></span> Reset to Defaults</button>
-  <button id="settings-save" onclick="showSaved()"><span id="save-icon"></span> Save Settings</button>
+  <button class="btn-reset" data-on-click="resetThemeDefaults()"><span id="reset-icon"></span> Reset to Defaults</button>
+  <button id="settings-save" data-on-click="showSaved()"><span id="save-icon"></span> Save Settings</button>
 </div>
 
 <script src="/shared/phrase-cover.js?v=1"></script>

@@ -31,7 +31,8 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..", "..");
 const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, "web");
-const page = fs.readFileSync(path.join(WEB, "pages", "profile.html"), "utf8");
+// The page and the script it runs (moved out of the page, 2026-11-20: no inline script).
+const page = fs.readFileSync(path.join(WEB, "pages", "profile.html"), "utf8") + "\n" + fs.readFileSync(path.join(WEB, "pages", "profile-app.js"), "utf8");
 const quality = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "skills", "practice_quality.json"), "utf8"));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "i18n", "en.json"), "utf8"));
 

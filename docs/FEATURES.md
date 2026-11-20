@@ -1110,6 +1110,16 @@ Reply threads on messages.
 
 ## Identity and Security
 
+### The website's script policy: no inline script (web, 2026-11-20)
+The site's Content-Security-Policy runs only this site's script files (`script-src 'self'`: no
+inline script, no eval, no outside host), so an injected script or onclick never runs. Pages keep
+their code in files and their handlers as `data-on-*`, run by a small parsed call language; data
+enters a handler through `hosArg`/`hosNum`, text enters markup through `hosEsc`. How:
+`docs/design/ui-system.md`, "The web's markup: no inline script".
+- Web: `web/shared/safe-markup.js` (data-on runtime, hosArg, hosNum, hosEsc, hosOn helpers)
+- Policy: `scripts/nginx/humanity.conf` (the site), `src/relay/mod.rs` `csp_value` (a self-hosted relay); `scripts/preview-server.js` sends it in the preview
+- Checks: `scripts/tests/inline-script-web.test.js` (no inline script, handlers parse, data only through hosArg/hosNum, the policy itself), `scripts/tests/inner-html-web.test.js` (unescaped markup writes, a per-file ratchet; every page escape helper escapes all five characters)
+
 ### Dilithium3 / ML-DSA-65 Identity
 Post-quantum cryptographic keypair (Dilithium3 / ML-DSA-65, FIPS 204) IS your identity, derived deterministically from the BIP39 24-word seed. No sign-up, no passwords stored on any server. (Ed25519 survives only as the Solana wallet, its key derived from the seed under its own label since 2026-11-19, and in the hybrid release signature; see the canonical crypto table in `docs/reference/cryptography.md`.)
 - Web: `web/chat/crypto.js` (key derivation), `web/shared/pq-identity.js` (Dilithium signing)

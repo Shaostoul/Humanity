@@ -502,8 +502,8 @@ function renderKeybinds() {
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
             <kbd id="kb-${b.id}" style="background:var(--set-field-bg);border:1px solid var(--set-ops-border);color:var(--set-key-ink);padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
-              onclick="captureKeybind('${b.id}')">${formatKey(val)}</kbd>
-            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid var(--set-line-mid);color:var(--set-quiet-ink);padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
+              data-on-click="captureKeybind(${hosArg(b.id)})">${formatKey(val)}</kbd>
+            <button data-on-click="clearKeybind(${hosArg(b.id)})" style="background:transparent;border:1px solid var(--set-line-mid);color:var(--set-quiet-ink);padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
           </div>
         </div>`;
       }).join('')}
@@ -1776,7 +1776,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     }
 
     if (list) list.innerHTML = entries.map(e => `
-      <div class="entry-item ${e.id === activeId ? 'active' : ''}" onclick="vault_selectEntry('${e.id}')">
+      <div class="entry-item ${e.id === activeId ? 'active' : ''}" data-on-click="vault_selectEntry(${hosArg(e.id)})">
         <span class="entry-item-icon">${vault_entryIcon(e.type)}</span>
         <div class="entry-item-info">
           <div class="entry-item-title">${vault_esc(e.title)}</div>
@@ -1845,11 +1845,11 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
         return `
           <div class="field-display">
             <div class="field-display-label">${vault_esc(f.label)}</div>
-            <div class="field-display-value secret" id="${fid}" onclick="vault_toggleReveal('${fid}')"
+            <div class="field-display-value secret" id="${fid}" data-on-click="vault_toggleReveal(${hosArg(fid)})"
                  title="Click to reveal">${vault_esc(f.value)}</div>
             <div class="field-copy-row">
-              <button class="btn-reveal" onclick="vault_toggleReveal('${fid}')">👁 Reveal</button>
-              <button class="btn-copy-field" onclick="vault_copyField('${fid}', '${vault_escAttr(f.value)}', this)">📋 Copy</button>
+              <button class="btn-reveal" data-on-click="vault_toggleReveal(${hosArg(fid)})">👁 Reveal</button>
+              <button class="btn-copy-field" data-on-click="vault_copyField(${hosArg(fid)}, ${hosArg(f.value)}, this)">📋 Copy</button>
               <span class="copy-confirm" id="${fid}-cc"></span>
             </div>
           </div>`;
@@ -1859,7 +1859,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
           <div class="field-display-label">${vault_esc(f.label)}</div>
           <div class="field-display-value" id="${fid}">${vault_esc(f.value)}</div>
           <div class="field-copy-row">
-            <button class="btn-copy-field" onclick="vault_copyField('${fid}', '${vault_escAttr(f.value)}', this)">📋 Copy</button>
+            <button class="btn-copy-field" data-on-click="vault_copyField(${hosArg(fid)}, ${hosArg(f.value)}, this)">📋 Copy</button>
             <span class="copy-confirm" id="${fid}-cc"></span>
           </div>
         </div>`;
@@ -2176,7 +2176,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
   function vault_escAttr(str) {
-    return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   function vault_showMsg(el, text, type) {

@@ -488,7 +488,7 @@ function buildLinkPreviewCard(p) {
   html += '</div>';
   const pic = linkPreviewPicture(p, thisSiteOrigin());
   if (pic && pic.auto) {
-    html += `<img class="lp-thumb" src="${esc(pic.url)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
+    html += `<img class="lp-thumb" src="${esc(pic.url)}" alt="" loading="lazy" data-on-error="hosOn.set(this.style, 'display', 'none')">`;
   } else if (pic) {
     // Same 80 by 60 slot as the picture, so the card keeps its shape. Styled
     // inline because the card sits outside the message body, where the
@@ -2839,7 +2839,7 @@ function renderChannelList() {
     const title = ch.description ? ` title="${esc(ch.description)}"` : '';
     const lock = HosChatAccess.staffOnly(ch) ? ' ' + hosIcon('lock', 14) : '';
     const fedIcon = ch.federated ? '<span class="fed-icon" title="Federated">🌐</span>' : '';
-    return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}${fedIcon}</div>`;
+    return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}" data-on-click="switchChannel(${hosArg(ch.id)})">${esc(ch.name)}${lock}${fedIcon}</div>`;
   }).join('');
   if (window.hosEmoji) hosEmoji.parse(list);
   // Re-apply unread dots after re-rendering.
@@ -2969,14 +2969,14 @@ function updateRulesBanner() {
   const readLink = ' <a href="/rules" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.82rem;">Read the rules and how appeals work</a>';
   if (agreed === 'true') {
     banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' + readLink +
-      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
+      '<button data-on-click="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
   } else if (agreed === 'false') {
     banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>'+ readLink +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
+      '<button data-on-click="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
   } else {
     banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the community rules?</span>' + readLink +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:var(--space-sm) var(--space-2xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
-      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
+      '<button data-on-click="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:var(--space-sm) var(--space-2xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
+      '<button data-on-click="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
   }
 }
 
@@ -3606,7 +3606,7 @@ function formatBody(text, fromKey) {
       if (plainLen > 120 || quoteLines.length > 2) {
         const previewText = quoteLines[0].substring(0, 80) + (plainLen > 80 ? '…' : '');
         result.push(
-          '<div class="quote-block" onclick="this.classList.toggle(\'expanded\')">' +
+          '<div class="quote-block" data-on-click="this.classList.toggle(\'expanded\')">' +
             '<span class="quote-preview">' + previewText +
               '<span class="quote-expand">▸ show more</span>' +
             '</span>' +
@@ -3657,7 +3657,7 @@ function formatBody(text, fromKey) {
     if (!block) return match;
     const escapedCode = esc(block.code);
     const langLabel = block.lang ? `<span class="code-lang">${esc(block.lang)}</span>` : '';
-    return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.innerHTML='✓ Copied';setTimeout(()=>this.innerHTML=hosIcon('copy',14)+' Copy',1500)">${hosIcon('copy', 14)} Copy</button><pre><code>${escapedCode}</code></pre></div>`;
+    return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" data-on-click="copyCodeBlock(this)">${hosIcon('copy', 14)} Copy</button><pre><code>${escapedCode}</code></pre></div>`;
   });
   // And the file cards set aside in step 3 (a long quote's short preview may hold only part of
   // one: that part goes, and the card shows in the quote's full text).
@@ -3712,6 +3712,23 @@ function formatTodoMessage(text) {
   }
 
   return parts.join('');
+}
+
+// The Copy button on a code block in a message (was an inline onclick): copies the code, says
+// so for a moment, then reads Copy again.
+function copyCodeBlock(btn) {
+  navigator.clipboard.writeText(btn.parentElement.querySelector('code').textContent);
+  btn.innerHTML = '✓ ' + (window.i18n ? i18n.html('chat.code_copied') : '');
+  setTimeout(() => { btn.innerHTML = hosIcon('copy', 14) + ' ' + (window.i18n ? i18n.html('chat.code_copy') : ''); }, 1500);
+}
+
+// Your public key under your name in the sidebar (was an inline onclick): a press copies it, and
+// it shows in the accent colour for a moment.
+function copyMyKeyDisplay(el) {
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    el.style.color = 'var(--accent)';
+    setTimeout(() => { el.style.color = ''; }, 800);
+  });
 }
 
 function shortKey(hex) {

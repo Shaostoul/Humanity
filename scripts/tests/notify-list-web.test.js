@@ -246,7 +246,7 @@ test('7. Settings: the unread section is gone, the exceptions are there, the Mut
   assert.ok(!html.includes('id="sec-dnd"'), 'the unread Do Not Disturb section is gone');
   assert.ok(!html.includes('pref-notif-sound'), 'and the unread Notification Sound switch');
   for (const id of ['pref-push-quiet-friends', 'pref-push-quiet-mentions']) {
-    assert.match(html, new RegExp('id="' + id + '"[^>]*onchange="savePushPref\\(this\\)"'), id + ' names itself');
+    assert.match(html, new RegExp('id="' + id + '"[^>]*data-on-change="savePushPref\\(this\\)"'), id + ' names itself');
   }
   assert.ok(html.includes('id="notif-muted-list"'), 'the Muted list');
   const src = read('pages/settings-app.js');

@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v2775';
+const CACHE_NAME = 'humanity-v2776';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -106,6 +106,12 @@ self.addEventListener('fetch', event => {
   // HTML pages (document navigations): these change with every deploy,
   // stale HTML = broken JS. The browser's HTTP cache handles them via ETag.
   if (event.request.destination === 'document') return;
+
+  // Another site's file (a picture a reader chose to load, an NFT's image): the browser fetches it
+  // under the page's own img-src. Fetched from here it would come under connect-src instead, which
+  // names no picture hosts, so it failed (2026-11-20, BUG-326); and nothing from another site is
+  // ever cached here anyway (only same-origin answers are, below).
+  if (new URL(url).origin !== self.location.origin) return;
 
   // API calls, WebSocket upgrades, uploads
   if (url.includes('/ws') || url.includes('/api/') || url.includes('/uploads/')) return;

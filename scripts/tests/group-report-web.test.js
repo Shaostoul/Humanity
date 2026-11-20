@@ -469,6 +469,7 @@ async function loadChat(me, opts = {}) {
     vm.runInContext(src, ctx, { filename: rel });
   };
   // In index.html's order.
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("shared/friend-pass.js");
   run("shared/reach.js");

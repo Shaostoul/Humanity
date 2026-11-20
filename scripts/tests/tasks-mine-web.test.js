@@ -311,6 +311,7 @@ async function loadTasksPage({ storage, idb }) {
     if (rewrite) src = rewrite(src);
     vm.runInContext(src, ctx, { filename: rel });
   };
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/i18n-en.js");
   run("shared/i18n.js");
   run("chat/pq.js", (s) => s.replace(/\bimport\(/g, "__testImport("));

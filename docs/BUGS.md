@@ -7953,3 +7953,35 @@ he noticed the "2+ hour task".
 - **Fix (config)**: TURN_PUBLIC_HOST=public.guide and TURN_PORT=3478 in public.guide's `/opt/Humanity/.env` (backup `/root/relay.env.bak-2026-11-20`), relay restarted: "clients told public.guide:3478", STUN answered from outside. united-humanity.us got its own name written explicitly (no behaviour change).
 - **Fix (code, 2026-11-20)**: never fall back to another server's name. `Settings::public_host` is now an `Option`: TURN_PUBLIC_HOST, else TURN_SERVER_HOST, else the bind address when it is one address (a development relay on 127.0.0.1, a server bound to its one IP), else none. With none, `call_forwarder::start` opens no port and the credential side stays "not listening", so a credential request is refused with the notice the apps already show ("this server is not set up for that yet") and `/api/turn-credentials` lists nothing, exactly as with voice off; the log says once `Call forwarder NOT started` and names TURN_PUBLIC_HOST=<this server's domain> and where it goes (`NO_PUBLIC_HOST`). docs/admin/call-forwarder.md's settings table says so.
 - **Held by**: `settings_follow_the_relay_and_refuse_bad_values` (a server on every interface with no name is given none; seen red with the old fallback put back: `left: Some("united-humanity.us"), right: None`) and `a_relay_never_told_its_public_name_offers_no_forwarder` (what the apps are sent: a refused credential reply and no STUN entry, with a named control on loopback offering its own; seen red with the nameless branch advertising the old name: the reply carried `turn:united-humanity.us:3478`), both in src/relay/call_forwarder_tests.rs. And `just brief`'s SERVERS row warns when a server's call port is open while its `.env` names no TURN_PUBLIC_HOST (scripts/check-server-upkeep.js; key names only, never a value).
+
+## BUG-323: the website's calculator answered Error for every sum (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the script-policy work (PRIORITIES item 6b): web/pages/calculator-app.js ran each sum through `new Function`.
+- **Symptom**: on united-humanity.us/calculator every expression showed the error word.
+- **Cause**: the site's Content-Security-Policy has never allowed `'unsafe-eval'`, so the browser refused `new Function`; the evaluator caught the refusal and returned NaN. scripts/tests/calculator-degrees-web.test.js ran it in a vm that allowed code from strings, so it passed.
+- **Fix**: the calculator reads the expression itself (numbers, pi, + - * / ^, %, brackets, 2pi-style times, sin cos tan in degrees, log, ln, sqrt, pow, fact); nothing is run as code. Checked in the browser under the new policy: 7*6-2^3 = 34.
+- **Held by**: calculator-degrees-web.test.js now runs the evaluator in a vm with `codeGeneration.strings` false, as the browser does (red against the old evaluator: every case NaN); scripts/tests/inline-script-web.test.js refuses `new Function` and `eval` anywhere under web/.
+
+## BUG-324: the chat's welcome launch pad closed and never opened the chosen step (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** the same work: web/chat/chat-onboarding.js `wireStep4` re-ran each button's own handler with `new Function(originalClick)` after closing the wizard.
+- **Symptom**: Save your recovery phrase, Make a backup, Edit your profile and Protect your key closed the welcome wizard and showed nothing.
+- **Cause**: the policy refuses `new Function` (no `'unsafe-eval'`).
+- **Fix**: the handler is read from `data-on-click` and run through `hosOn.run` (web/shared/safe-markup.js), which parses it and calls the function.
+- **Held by**: scripts/tests/inline-script-web.test.js (no `new Function` under web/).
+
+## BUG-325: the governance, identity and orgs pages could not derive or use a PQ key (FIXED 2026-11-20, found 2026-11-20)
+
+**Found by** reading the browser console under the new policy: "Loading the script 'https://esm.sh/@noble/post-quantum/ml-dsa' violates ... script-src".
+- **Symptom**: any call into `HumOS.pq`'s key functions (web/shared/pq-identity.js) failed.
+- **Cause**: pq-identity.js imported noble from esm.sh at run time; the live policy's script-src never listed esm.sh. (Signing code fetched from someone else's server was also code nobody here had checked.)
+- **Fix**: it imports the vendored /shared/vendor/noble-pq.bundle.js, the build the chat and the Files page use. Checked in the browser: a Dilithium3 key derives from a seed (1952-byte public key).
+- **Held by**: scripts/tests/inline-script-web.test.js refuses an import from another site (esm.sh, unpkg, skypack, cdnjs, jspm, or any `import('https://...')`).
+
+## BUG-326: the site's policy refused every picture from another site, so "Load picture" showed nothing (FIXED in the repo 2026-11-20, live when the new header is applied; found 2026-11-20)
+
+**Found by** reading the click-to-load cards against the policy: web/chat/app.js `showLinkPreviewPicture` (and the pictures in messages behind their own button) set the picture's address on the other site after the reader asks for it.
+- **Symptom**: the button is replaced by an empty space; the picture's error handler hides it.
+- **Cause**: two refusals. (1) img-src listed only this site, data:, blob:, cdn.jsdelivr.net and the NFT hosts, so a browser refuses a picture from any other site, asked for or not. That is the live header too, read from outside on 2026-11-19 and again 2026-11-20 (`curl -sI https://united-humanity.us/library`: `img-src 'self' data: blob: https://cdn.jsdelivr.net https://*.arweave.net https://nftstorage.link https://*.ipfs.nftstorage.link`; no `https:` or `https://*`), so the live site has this bug until the header is applied. (2) Even with img-src open, web/shared/sw.js answered every request itself, another site's picture included, and a fetch made by the service worker comes under connect-src, which names no picture hosts: with the worker installed the picture still failed (the NFT pictures on the wallet page too). (The relay's own policy for self-hosted servers has `img-src 'self' data: https:`.)
+- **Fix**: the repo copy's three policy lines say `img-src 'self' data: blob: https:` (any https picture, shown only after the reader presses Load, whose hint says that site sees their network address, which is the design), and cdn.jsdelivr.net left img-src and connect-src once the emoji were hosted here; the service worker leaves another site's request to the browser (it never cached one anyway). Fetching such pictures through this server, so no other site sees the reader, stays a possible later step.
+- **Held by**: scripts/tests/inline-script-web.test.js checks that the three policy lines are identical and that img-src allows `https:`, and that the service worker passes another site's request through.

@@ -89,7 +89,7 @@ window.formatFullStamp = formatFullStamp;
 // Set or an array). `o`: { myKey, from, ts, esc, hidden }. A reaction nobody shown is left out.
 function reactionBadgesHTML(reactions, o) {
   o = o || {};
-  const esc = o.esc || ((s) => String(s));
+  const esc = o.esc || ((s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'));
   return Object.keys(reactions || {}).sort().map((emoji) => {
     const keys = Array.from(reactions[emoji] || []);
     const shown = keys.filter((k) => !(o.hidden && o.hidden(k))).length;

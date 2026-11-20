@@ -568,6 +568,7 @@ function loadChat() {
   ctx.self = ctx;
   vm.createContext(ctx);
   const run = (rel) => vm.runInContext(read(rel), ctx, { filename: rel });
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("chat/view/timestampPill.js");
   run("chat/view/messageRow.js");
@@ -723,7 +724,7 @@ test("a DM's header: Back, then DM: and the name in the DM ink, then Report and 
   vm.runInContext("(k) => { activeDmPartner = k; activeDmPartnerName = 'Ada'; }", c.ctx)(ANN);
   c.fn("renderDmHeader")();
   const html = c.keep("#channel-header").innerHTML;
-  assert.ok(html.startsWith('<button type="button" class="ch-back" onclick="closeDmView()"'), "Back first, a real button");
+  assert.ok(html.startsWith('<button type="button" class="ch-back" data-on-click="closeDmView()"'), "Back first, a real button");
   assert.ok(html.includes('<span class="ch-name ch-dm">DM: Ada</span>'), "DM: Ada in the DM ink");
   assert.ok(html.includes(">Report</button>") && html.includes(">Block</button>"), "Report and Block stay");
   const theme = read("shared/theme.css");

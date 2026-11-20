@@ -520,6 +520,10 @@
       onSwapInputChange();
     }
   };
+  // The custom slippage box: its number, or 0.5% when it holds none (was an inline onchange).
+  window.setSlippageFromBox = function (box) {
+    window.setSlippage(parseFloat(box.value) || 0.5, box);
+  };
 
   window.prepareSwap = function () {
     var inputAmount = document.getElementById('swap-input-amount').value;
@@ -613,7 +617,7 @@
       var name = v.name || v.identity || (v.votePubkey ? v.votePubkey.slice(0, 8) + '...' : '-');
       var commission = v.commission != null ? v.commission + '%' : '-';
       var stake = v.activatedStake != null ? formatAmount(v.activatedStake / 1e9, 0) + ' SOL' : '-'; // i18n-exempt: a number and the SOL unit symbol
-      return '<div role="button" tabindex="0" class="validator-item" data-i18n-tip="wallet.validator_row_hint" onclick="selectValidator(\'' + escapeHtml(v.votePubkey || '') + '\')">' +
+      return '<div role="button" tabindex="0" class="validator-item" data-i18n-tip="wallet.validator_row_hint" data-on-click="selectValidator(' + hosArg(v.votePubkey || '') + ')">' +
         '<span class="v-name">' + escapeHtml(name) + '</span>' +
         '<span class="v-commission">' + commission + '</span>' +
         '<span class="v-stake">' + stake + '</span>' +
@@ -691,7 +695,7 @@
           '<span class="sa-status ' + statusClass + '">' + statusText + '</span>' +
           '<span style="flex:1">' + escapeHtml(validator) + '</span>' +
           '<span style="font-weight:600">' + amountText + '</span>' +
-          '<button class="btn-small" data-i18n-tip="wallet.unstake_hint" onclick="unstakeSOL(\'' + escapeHtml(sa.pubkey || '') + '\')" style="margin-left:auto">' + escapeHtml(i18n.t('wallet.unstake')) + '</button>' +
+          '<button class="btn-small" data-i18n-tip="wallet.unstake_hint" data-on-click="unstakeSOL(' + hosArg(sa.pubkey || '') + ')" style="margin-left:auto">' + escapeHtml(i18n.t('wallet.unstake')) + '</button>' +
           '</div>';
       }).join('');
       i18n.apply(listEl);
@@ -797,7 +801,7 @@
     gridEl.innerHTML = nfts.map(function (nft, i) {
       var imgSrc = nft.image || nft.uri || '';
       var name = nft.name || i18n.t('wallet.untitled_n', { n: i + 1 });
-      return '<div role="button" tabindex="0" class="nft-card" data-i18n-tip="wallet.nft_card_hint" onclick="showNFTDetail(' + i + ')">' +
+      return '<div role="button" tabindex="0" class="nft-card" data-i18n-tip="wallet.nft_card_hint" data-on-click="showNFTDetail(' + hosNum(i) + ')">' +
         (imgSrc ? '<img src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(name) + '" loading="lazy">' :
           '<div style="aspect-ratio:1;background:var(--bg-input);display:flex;align-items:center;justify-content:center;color:var(--text-muted)">' + escapeHtml(i18n.t('wallet.no_image')) + '</div>') +
         '<div class="nft-name">' + escapeHtml(name) + '</div>' +

@@ -140,7 +140,8 @@ test("2. a visitor without a name reads the channels anyone may read, as plain w
   assert.ok(READ_HTML.includes('href="/?welcome=1&amp;return=/chat"') && READ_HTML.includes('data-i18n="chat_read.join"'), "Choose a name to join in opens the welcome step and comes back to the chat");
   assert.ok(/<meta name="robots" content="noindex/.test(READ_HTML), "search engines are asked not to keep people's words");
   // /chat sends a browser with no key here.
-  const index = fs.readFileSync(path.join(WEB, "chat", "index.html"), "utf8");
+  // (the preflight runs from web/chat/index-preflight.js since the page keeps no inline script, 2026-11-20)
+  const index = fs.readFileSync(path.join(WEB, "chat", "index-preflight.js"), "utf8");
   assert.ok(index.includes("location.replace('/chat/read' + hash)"), "/chat sends a visitor with no key to the read-only view (a link's channel kept: chat-links-web.test.js 6)");
 });
 
@@ -185,6 +186,7 @@ function loadChat() {
   const run = (rel) => vm.runInContext(fs.readFileSync(path.join(WEB, rel), "utf8"), ctx, { filename: rel });
   run("shared/i18n-en.js");
   run("shared/i18n.js");
+  run("shared/safe-markup.js"); // as the pages load it in their <head> (hosArg, hosNum, hosOn; 2026-11-20)
   run("shared/events.js");
   run("shared/chat-access.js");
   run("chat/app.js");

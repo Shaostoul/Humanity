@@ -634,7 +634,9 @@ test("the pages load the upload window and the guard, and its stylesheet uses th
   const m = order(media, ["/chat/pq.js", "/chat/bip39-english.js", "/shared/warnings.js", "/shared/pq-relay-auth.js", "/shared/upload-window.js", "/pages/files-app.js"]);
   assert.ok(m.every((i) => i > 0), "pages/files.html loads the guard's parts and /shared/upload-window.js before /pages/files-app.js: " + m);
   assert.deepEqual(m.slice().sort((x, y) => x - y), m, "in order");
-  assert.ok(/data-files-window/.test(media) && /window\.self !== window\.top/.test(media), "the menu is left out only in a frame");
+  // The frame check runs from /pages/files-frame.js in the head (moved out of the page, 2026-11-20).
+  const frame = page("pages/files-frame.js");
+  assert.ok(media.includes('<script src="/pages/files-frame.js"></script>') && /data-files-window/.test(media) && /window\.self !== window\.top/.test(frame), "the menu is left out only in a frame");
   // In a frame, everything but the page and what its own parts put on the body is left out (which
   // parts: files-card-web.test.js, "8. the framed windows show the page's own dialogs").
   const hide = /\[data-files-window\] body > ((?::not\([^)]*\))+) \{ display: none !important; \}/.exec(media);

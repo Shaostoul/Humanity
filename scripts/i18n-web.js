@@ -633,7 +633,7 @@ function keysUsed(src, isHtml) {
 // A CONTROL is an element a person can press, type into or choose from:
 // <button>, <a href>, <input> (not hidden), <select>, <textarea>, <summary>, an
 // element with a control role (button, link, tab, checkbox, switch, menuitem,
-// option, radio, slider, ...), an onclick, or a tabindex of 0 or more. In
+// option, radio, slider, ...), a data-on-click, or a tabindex of 0 or more. In
 // script, the same tags in markup strings, and document.createElement of a
 // control tag. It HAS A HINT when it carries data-tip-desc or data-i18n-tip
 // (or, made in script, gets one later in the file: el.dataset.tipDesc,
@@ -650,7 +650,7 @@ function isControl(name, attrs) {
   if (CONTROL_TAGS.has(name)) return true;
   if (name === 'a' && attrs.href !== undefined) return true;
   if (attrs.role && CONTROL_ROLES.has(attrs.role.toLowerCase())) return true;
-  if (attrs.onclick !== undefined) return true;
+  if (attrs.onclick !== undefined || attrs['data-on-click'] !== undefined) return true;
   if (attrs.contenteditable !== undefined && attrs.contenteditable !== 'false') return true;
   if (attrs.tabindex !== undefined && parseInt(attrs.tabindex, 10) >= 0) return true;
   return false;

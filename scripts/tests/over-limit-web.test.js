@@ -87,7 +87,7 @@ test('the styles are shared, in the theme colours, and the chat uses the shared 
 });
 
 test('the profile bio is a soft limit: marked past 280, and a save past it is refused with why', () => {
-  const html = read('pages/profile.html');
+  const html = read('pages/profile.html') + '\n' + read('pages/profile-app.js'); // its script moved out, 2026-11-20
   const bio = html.match(/<textarea id="f-bio"[^>]*>/);
   assert.ok(bio, 'the bio box');
   assert.doesNotMatch(bio[0], /maxlength/, 'no maxlength cutting a paste');

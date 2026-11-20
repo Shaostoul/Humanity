@@ -287,9 +287,9 @@ function renderPinBar() {
     currentPins.forEach((pin, i) => {
       const time = formatTime(pin.original_timestamp);
       const unpinBtn = isStaff
-        ? `<button class="pin-unpin" onclick="event.stopPropagation();unpinServer(${i + 1})" title="Unpin">✕</button>`
+        ? `<button class="pin-unpin" data-on-click="event.stopPropagation();unpinServer(${hosNum(i + 1)})" title="Unpin">✕</button>`
         : '';
-      html += `<div class="pin-card" onclick="this.classList.toggle('expanded')">${unpinBtn}
+      html += `<div class="pin-card" data-on-click="this.classList.toggle('expanded')">${unpinBtn}
         <div class="pin-card-author">${esc(pin.from_name)}</div>
         <div class="pin-card-body">${esc(pin.content)}</div>
         <div class="pin-expand-hint"><span class="hint-expand">▸ Click to expand</span><span class="hint-collapse">▴ Click to collapse</span></div>
@@ -308,7 +308,7 @@ function renderPinBar() {
     let html = '';
     myPins.forEach((pin, i) => {
       const time = formatTime(pin.original_timestamp);
-      html += `<div class="pin-card" onclick="this.classList.toggle('expanded')"><button class="pin-unpin" onclick="event.stopPropagation();removeMyPin(${i})" title="Remove">✕</button>
+      html += `<div class="pin-card" data-on-click="this.classList.toggle('expanded')"><button class="pin-unpin" data-on-click="event.stopPropagation();removeMyPin(${hosNum(i)})" title="Remove">✕</button>
         <div class="pin-card-author">${esc(pin.from_name)}</div>
         <div class="pin-card-body">${esc(pin.content)}</div>
         <div class="pin-expand-hint"><span class="hint-expand">▸ Click to expand</span><span class="hint-collapse">▴ Click to collapse</span></div>

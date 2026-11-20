@@ -50,7 +50,7 @@ test("every page's update check reads this server's release list", () => {
 });
 
 test("the download page takes the platform's file from this server's list and links its own address on GitHub", async () => {
-  const html = read('web/pages/download.html');
+  const html = read('web/pages/download-app.js'); // the page's script, moved out of download.html (2026-11-20)
   const start = html.indexOf('function newestRelease()');
   const end = html.indexOf('detectPlatform();', start);
   assert.ok(start > 0 && end > start, 'the release helpers are where the test expects them');

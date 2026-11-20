@@ -1,0 +1,61 @@
+# The innerHTML RATCHET's budgets: per script under web/, how many markup writes (innerHTML,
+# outerHTML, insertAdjacentHTML) hold a value scripts/tests/inner-html-web.test.js cannot see is
+# escaped. Its header says how to lower these. The numbers only go DOWN; a file not listed has a
+# budget of zero.
+# Total: 241 in 56 files
+11 web/chat/app.js
+4 web/chat/chat-dms.js
+8 web/chat/chat-messages.js
+1 web/chat/chat-notify.js
+2 web/chat/chat-onboarding.js
+4 web/chat/chat-p2p.js
+2 web/chat/chat-privacy.js
+15 web/chat/chat-profile.js
+2 web/chat/chat-protected.js
+2 web/chat/chat-reports.js
+3 web/chat/chat-social.js
+5 web/chat/chat-ui.js
+7 web/chat/chat-voice-rooms.js
+1 web/chat/chat-voice-streaming.js
+4 web/chat/chat-voice-webrtc.js
+1 web/chat/chat-warnings.js
+2 web/chat/crypto.js
+2 web/pages/accord-app.js
+3 web/pages/admin-app.js
+4 web/pages/backups-admin.js
+2 web/pages/bugs-app.js
+4 web/pages/calculator-app.js
+7 web/pages/calendar-app.js
+2 web/pages/crafting-app.js
+12 web/pages/dev-app.js
+1 web/pages/donate-app.js
+1 web/pages/download-app.js
+6 web/pages/files-folder.js
+2 web/pages/governance-app.js
+4 web/pages/home-app.js
+1 web/pages/identity-app.js
+2 web/pages/index-app.js
+6 web/pages/inventory-app.js
+3 web/pages/laws-app.js
+6 web/pages/library-app.js
+2 web/pages/maps-app.js
+6 web/pages/market-app.js
+4 web/pages/notes-app.js
+2 web/pages/onboarding-app.js
+1 web/pages/ops-admin-map.js
+1 web/pages/ops-app.js
+1 web/pages/privacy-app.js
+6 web/pages/profile-app.js
+5 web/pages/recovery-app.js
+2 web/pages/roadmap-app.js
+21 web/pages/settings-app.js
+23 web/pages/tasks-app.js
+5 web/pages/trade-app.js
+6 web/pages/wallet-app.js
+2 web/pages/wallet-guide-app.js
+3 web/pages/web-app.js
+2 web/pages/widgets-cistercian.js
+1 web/shared/accessibility.js
+1 web/shared/file-risk.js
+1 web/shared/front-door.js
+4 web/shared/shell.js

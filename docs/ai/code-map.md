@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1583 Rust files (806,756 lines) under `src/` and `crates/*/src/`; 149 JavaScript files (92,319 lines) under `web/`.
+1583 Rust files (806,775 lines) under `src/` and `crates/*/src/`; 175 JavaScript files (99,409 lines) under `web/`.
 
 ## Folders
 
@@ -91,10 +91,10 @@
 - `src/renderer/shader_loader/` (1 files): WGSL shader loading with optional hot-reload (native only).
 - `src/software/` (7 files): The readers of the Apps page's "Other programs" (2026-10-19; the operator: "What if we make the tools page like the games page?
 - `src/web_reader/` (5 files): The readable web: fetch a real page over HTTPS and turn it into a document HumanityOS can draw itself, with no browser engine and no Java...
-- `web/chat/` (31 files)
+- `web/chat/` (33 files)
 - `web/chat/view/` (4 files)
-- `web/pages/` (42 files)
-- `web/shared/` (72 files)
+- `web/pages/` (65 files)
+- `web/shared/` (73 files)
 
 ## Files
 
@@ -1403,7 +1403,7 @@
 - `governance_revotes.rs` (961): Scheduled re-votes: the part that OPENS a re-vote when its review date arrives. Main items: RevoteSweep, question_entries, question_bytes, question_digest, is_auto_opened, auto_opened_note, build_scheduled_revote, open_due_revotes (+9 more).
 - `ip_limit.rs` (357): Per-address limits on every HTTP route (2026-10-22, Tier 1 security residual 1). Main items: Class, Allowance, Verdict, IpLimits, edge, too_many, OVERFLOW, DEFAULT_CAP.
 - `live.rs` (819): Live video fanout (v0.853.0). Main items: LiveStream, LiveRegistry, pub_handler, sub_handler, list_handler.
-- `mod.rs` (1702): Humanity Network relay server. Main items: allowed_origins, keep_out_of_search, hidden_upload_path, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay (+5 more).
+- `mod.rs` (1721): Humanity Network relay server. Main items: allowed_origins, keep_out_of_search, hidden_upload_path, parse_bind_address, relay_listen_addr, validate_environment, write_claim_code_file, serve_relay (+5 more).
 - `outbound.rs` (454): Requests the server sends to an address someone else handed it: only to the public internet (2026-11-06, BUG-255). Main items: Schemes, Refusal, FetchError, OutboundGuard, url_shape, is_public, refusal_in, MAX_URL_LEN.
 - `owner_only.rs` (285): The relay's private files, readable by the relay's own account alone (BUG-285, 2026-11-07). Main items: plan, apply, apply, tighten, write, FILE_MODE, DIR_MODE, PRIVATE_FOLDERS.
 - `poster.rs` (108): A video's poster picture, the relay half (2026-11-06; docs/design/media-player.md, "Rung 2: the poster picture"). Main items: too_large, allowed_with, read_part, check_poster, POSTER_FIELD, POSTER_MAX_BYTES, POSTER_MAX_SIDE, PRIVATE_REFUSED (+4 more).
@@ -1667,7 +1667,7 @@
 
 ## web/chat/
 
-- `app.js` (3779): Parse static emoji on page load, skip hub-nav so emoji match other pages Main items: getStripeClass, resetMsgStripe, showErasedNote, signUpAgainChoice, endCallBeforeLeaving, isScratchPad, scratchPadOpen, scratchPadReady (+120 more).
+- `app.js` (3796): Parse static emoji on page load, skip hub-nav so emoji match other pages Main items: getStripeClass, resetMsgStripe, showErasedNote, signUpAgainChoice, endCallBeforeLeaving, isScratchPad, scratchPadOpen, scratchPadReady (+122 more).
 - `bip39-english.js` (189): BIP39 English wordlist -- the canonical 2048-word list, byte-identical to the
 - `chat-dm-store.js` (1156): ── chat-dm-store.js ──────────────────────────────────────────────────────
 - `chat-dms.js` (865): ── chat-dms.js ─────────────────────────────────────────────────────────── Main items: upsertDmConversation, openDmFromLink, openDmConversation, renderDmHeader, toggleBlockActiveDm, renderDmConversationFromStore, loadDmListFromStore, purgeServerMailbox (+26 more).
@@ -1681,14 +1681,14 @@
 - `chat-live.js` (81): chat-live.js: the web mirror of the native Chat live strip (v0.1151). Main items: container, render, poll.
 - `chat-messages.js` (1418): ── chat-messages.js ────────────────────────────────────────────────────── Main items: privateViewOpen, sendReaction, fromBlockedKey, applyReaction, renderReactions, applyReactionSync, loadReactionsForChannel, startEditMode (+58 more).
 - `chat-notify.js` (946): ── chat-notify.js ────────────────────────────────────────────────────────── Main items: T, nowSecs, rules, esc, rerender, server, loadJson, saveJson (+71 more).
-- `chat-onboarding.js` (471): ── First-Time Onboarding Wizard ── Main items: showOnboardingWizard, render, finish, buildStep, step0, step1, wireStep1, step2 (+4 more).
-- `chat-p2p.js` (869): ── P2P: inject overlay modal CSS (no style.css dependency) ── Main items: exportContactCard, showContactCardExportModal, renderQrCode, showContactCardImportModal, importContactCardFromModal, importContactCard, verifyContactCardSignature, sameKeyHex (+17 more).
+- `chat-onboarding.js` (473): ── First-Time Onboarding Wizard ── Main items: showOnboardingWizard, render, finish, buildStep, step0, step1, wireStep1, step2 (+4 more).
+- `chat-p2p.js` (889): ── P2P: inject overlay modal CSS (no style.css dependency) ── Main items: exportContactCard, copyContactCardJson, closeContactCardExport, showContactCardExportModal, renderQrCode, showContactCardImportModal, importContactCardFromModal, importContactCard (+19 more).
 - `chat-privacy.js` (1511): ── chat-privacy.js ─────────────────────────────────────────────────────── Main items: loadPrivacyTiers, tierWords, sendPresenceChoice, applyPrivacyTier, reassertPrivacyTier, privacyExplanationText, maybeShowPrivacyTierModal, exportMyAccountData (+58 more).
-- `chat-profile.js` (1791): ── Profile System ── Main items: saveProfileLocal, loadProfileLocal, openEditProfileModal, hasProfileData, buildProfileUpdate, filesAcceptUnsent, setFilesAcceptUnsent, profileStorage (+54 more).
+- `chat-profile.js` (1790): ── Profile System ── Main items: saveProfileLocal, loadProfileLocal, openEditProfileModal, hasProfileData, buildProfileUpdate, filesAcceptUnsent, setFilesAcceptUnsent, profileStorage (+54 more).
 - `chat-protected.js` (901): ── chat-protected.js ───────────────────────────────────────────────────── Main items: protectedNow, loadProtectedPreset, pLabel, pEsc, pSay, pStore, pSocketOpen, protectedRedrawAll (+39 more).
 - `chat-reports.js` (1166): ── chat-reports.js ─────────────────────────────────────────────────────── Main items: repEsc, repSay, repName, repSameKey, repWhen, repTextLabel, repSocketOpen, loadReportReasons (+50 more).
 - `chat-social.js` (1120): ── chat-social.js ──────────────────────────────────────────────────────── Main items: isFriend, sendFriendCodeRequest, redeemFriendCode, isFollowing, resolveNameToKey, updateFriendIndicators, addFollowContextMenu, renderGroupList (+30 more).
-- `chat-ui.js` (2815): ── chat-ui.js ──────────────────────────────────────────────────────────── Main items: toggleChannelVoice, startTitleFlash, stopTitleFlash, playNotificationChime, toggleSoundMenu, closeSoundMenuOutside, toggleIdentityMenu, closeIdentityMenuOutside (+74 more).
+- `chat-ui.js` (2816): ── chat-ui.js ──────────────────────────────────────────────────────────── Main items: toggleChannelVoice, startTitleFlash, stopTitleFlash, playNotificationChime, toggleSoundMenu, closeSoundMenuOutside, toggleIdentityMenu, closeIdentityMenuOutside (+74 more).
 - `chat-voice-calls.js` (486): ── chat-voice-calls.js ─────────────────────────────────────────────────── Main items: callCredentialsFor, callCannotConnect, startCall, acceptIncomingCall, rejectIncomingCall, hangupCall, cleanupCall, resetCallState (+14 more).
 - `chat-voice-modal.js` (340): Per-user voice control modal (v0.484). Opened by clicking a person in a voice Main items: peerPrefKey, loadPeerPrefs, savePeerPrefs, applyPeerGain, ensureSquelchPoll, myRole, withTarget, row (+4 more).
 - `chat-voice-rooms.js` (1349): ── chat-voice-rooms.js ─────────────────────────────────────────────────── Main items: callScopeKey, requestCallCredentials, callCredentialsFromReply, onCallCredentials, relayOnlyRtcConfig, callConnectionMode, callRtcConfig, sayCallsDirectOnly (+33 more).
@@ -1696,6 +1696,8 @@
 - `chat-voice-webrtc.js` (839): ── chat-voice-webrtc.js ────────────────────────────────────────────────── Main items: toggleVideo, startDmVideo, stopDmVideo, toggleScreenShare, startDmScreenShare, stopDmScreenShare, startVrVideo, stopVrVideo (+22 more).
 - `chat-warnings.js` (348): ── chat-warnings.js ────────────────────────────────────────────────────── Main items: loadMessageWarnings, warnStore, warnSameKey, warningSenderIsFriend, messageWarningsOn, setMessageWarningsOn, applyWarningsSwitchToView, dmLinksHeld (+8 more).
 - `crypto.js` (1572): Humanity Network, client-side identity cryptography (inlined). Main items: openKeyDB, storeKeypair, loadKeypair, bufToHex, hexToBuf, supportsEd25519, generateKeypair, requestPersistentStorage (+61 more).
+- `index-icons.js` (9): Moved out of web/chat/index.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `index-preflight.js` (31): Moved out of web/chat/index.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `pq.js` (241): pq.js, post-quantum (Dilithium3 / ML-DSA-65) identity for the chat Main items: _pqLoad, pqDeriveIdentity, pqSignMessage, pqVerifyMessage, pqDeriveKyber, _dmAesKey, pqDmSeal, pqDmOpen (+1 more).
 - `read.js` (188): The chat's read-only view for a visitor without a name (2026-11-02, docs/design/chat-access.md Main items: status, linked, showInAddress, row, load, choose, explain, open (+1 more).
 
@@ -1714,16 +1716,21 @@
 - `apps-app.js` (1022): Apps page (web): the web mirror of the desktop app's Apps page (src/gui/pages/apps.rs, its Main items: entriesOf, toolsOf, inPart, hostOf, platformWords, entryFact, mainLink, categoriesOf (+16 more).
 - `backups-admin.js` (366): ── backups-admin.js ────────────────────────────────────────────────────── Main items: hex, sha256Hex, purpose, destinationFromForm, settingsParams, utc, ago, lagWords (+15 more).
 - `bugs-app.js` (336): HumanityOS Bug Reporter, Client logic Main items: wordsFor, fillMenus, getBrowserInfo, getVersion, getPublicKey, getDisplayName, showStatus, filters (+5 more).
-- `calculator-app.js` (433): ══════════════════════════════════════════════ Main items: setMode, getExprEl, getResultEl, updateDisplay, inputNum, inputOp, inputFn, backspace (+23 more).
+- `calculator-app.js` (496): ══════════════════════════════════════════════ Main items: setMode, getExprEl, getResultEl, updateDisplay, inputNum, inputOp, inputFn, backspace (+29 more).
+- `calendar-app.js` (501): Moved out of web/pages/calendar.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: load, save, nextId, eventMatchesDate, eventsOn, dayName, monthName, hourLabel (+27 more).
 - `civilization-app.js` (139): Civilization page logic, fetches /api/civilization stats and renders dashboards Main items: animateCounter, renderReal, escText, civCard, fetchCivData, updateTimestamp.
+- `crafting-app.js` (83): Moved out of web/pages/crafting.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `dev-app.js` (720): Moved out of web/pages/dev.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `dev-claude.js` (263): The website's Dev > Claude (2026-10-22): the web twin of the desktop app's Dev > Claude Main items: oneLine, journalTail, tier0Headings, ago, fill, T, getJson, getText (+7 more).
 - `devlog-app.js` (91): The Devlog page (web/pages/devlog.html): every release, newest first, one update card each, the Main items: createDevlog, bootInBrowser.
 - `donate-app.js` (319): Donate page logic. Mirrors the desktop app's Donate page Main items: networkAbbrev, networkColor, fmtUSD, copyAddress, renderQR, escHtml, iconHtml, loadList (+7 more).
+- `download-app.js` (226): Moved out of web/pages/download.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `files-add.js` (1052): ── files-add.js ────────────────────────────────────────────────────────── Main items: postFavoriteKey, postFavorites, togglePostFavorite, postChoices, postText, createAddForm.
 - `files-admin.js` (524): ── files-admin.js ──────────────────────────────────────────────────────── Main items: hex, categoriesListText, categoriesBody, categoriesPurpose, expiresWords, storedAs, answersSave, otherNotice (+1 more).
 - `files-app.js` (2490): ── files-app.js ────────────────────────────────────────────────────────── Main items: num, parseKinds, kindWords, removeWords, removedWords, ownFilePath, fileRoute, storedName (+20 more).
 - `files-edit.js` (875): ── files-edit.js ───────────────────────────────────────────────────────── Main items: english, words, editingWords, badgeIcon, fileBadge, fillFileBadges, fileTypesKnown, loadFileTypes (+21 more).
-- `files-folder.js` (734): ── files-folder.js ─────────────────────────────────────────────────────── Main items: formatSize, formatDate, getExtension, escapeHtml, updateBreadcrumb, signedPost, fetchDir, fileIcon (+21 more).
+- `files-folder.js` (733): ── files-folder.js ─────────────────────────────────────────────────────── Main items: formatSize, formatDate, getExtension, escapeHtml, updateBreadcrumb, signedPost, fetchDir, fileIcon (+21 more).
+- `files-frame.js` (8): Moved out of web/pages/files.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `files-item.js` (1139): ── files-item.js ───────────────────────────────────────────────────────── Main items: hiddenBy, discardWords, sinceLine, counted, countsLine, byLine, firstLine, filesBadge (+6 more).
 - `files-panes.js` (347): ── files-panes.js ──────────────────────────────────────────────────────── Main items: arrangeFor, checked, drag, resetPair, template, defaultLayout, readLayout, saveLayout (+3 more).
 - `files-places.js` (307): ── files-places.js ─────────────────────────────────────────────────────── Main items: english, lookup, words, listed, groupOf, placeOf, addressOf, shownPlace (+7 more).
@@ -1732,24 +1739,42 @@
 - `files-space.js` (110): ── files-space.js ──────────────────────────────────────────────────────── Main items: oneDecimal, sizeWords, shareLeftWords, shareStop, limitStop, togetherStop, moreWords, budgetStop (+3 more).
 - `files-takedown.js` (436): ── files-takedown.js ───────────────────────────────────────────────────── Main items: makeH, jsonPost, refusalWords, answerOf, dayOf, itemNumberFrom, takedownBody, formProblem (+7 more).
 - `files-upload.js` (685): ── files-upload.js ─────────────────────────────────────────────────────── Main items: hex, readSlice, defaultDigest, fingerprint, readRemembered, writeRemembered, rememberUpload, touchUpload (+8 more).
+- `governance-app.js` (481): Moved out of web/pages/governance.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `home-app.js` (113): Moved out of web/pages/home.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: esc, reqRow, card, table, draw.
 - `how-to-app.js` (722): How-to page (web): the web mirror of the desktop app's How-to page (src/gui/pages/how_to.rs and Main items: createHowToPage, W, WF, getKept, keep, readLayout, saveRun, openRun (+31 more).
+- `identity-app.js` (143): Moved out of web/pages/identity.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `index-app.js` (437): The front door (web/pages/index.html, docs/design/front-door.md, adopted by the operator on Main items: createFrontDoor, bootInBrowser.
+- `inventory-app.js` (424): Moved out of web/pages/inventory.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: switchGearTab, load, save, nextId, getFilteredItems, toggleSection, setFilter, updateCounts (+25 more).
+- `laws-app.js` (208): Moved out of web/pages/laws.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `library-app.js` (1179): Library page: the web mirror of the native Library (src/gui/pages/library.rs). Main items: setSuggestedOrder, currentCat, catIsOpen, secIsOpen, esc, md, contentEl, slugOf (+42 more).
 - `library-order.js` (97): Library shelf order: the web twin of rail_order() in src/gui/pages/library.rs. Main items: titleSortKey, cmp, orderByTitle, railOrder.
+- `maps-app.js` (1907): Moved out of web/pages/maps.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: formatMass, drawGalaxyBackdrop, project3D, setMode, resize, requestRender, render, drawBackgroundStars (+34 more).
 - `market-app.js` (1264): The web Market page's script (pages/market.html): the signed Directory, the classified listings with reviews and ratings, and My Listings. Main items: categoryColor, fillCategorySelect, loadMarketCategories, escHtml, renderStars, renderStarSelector, setReviewRating, previewStars (+56 more).
+- `mission-redirect.js` (4): Moved out of web/pages/mission.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `music-app.js` (128): The Music page's web mirror (docs/design/music-page.md section 11): favourites kept as share Main items: b32decode, check16, read, load, save, render.
 - `notes-app.js` (615): ══════════════════════════════════════════════ Main items: switchTab, aesEncrypt, aesDecrypt, loadNotes, saveNotes, uid, getNote, renderList (+30 more).
+- `onboarding-app.js` (195): Moved out of web/pages/onboarding.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `onboarding-icons.js` (7): Moved out of web/pages/onboarding.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `ops-admin-map.js` (52): Moved out of web/pages/ops.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: esc.
+- `ops-app.js` (89): Moved out of web/pages/ops.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: testBtnClick, cycleState, toggleChannel, startCooldown.
 - `orgs-app.js` (731): Organisations on the website (rung 1, 2026-11-14, docs/design/organisations.md): the mirror of Main items: deps, hexToBytes, me, b64, unb64, storeKey, load, saveBody (+40 more).
 - `privacy-app.js` (40): The website's privacy page (/privacy, 2026-11-07, docs/design/privacy-notice.md). Main items: failed.
+- `profile-app.js` (775): Moved out of web/pages/profile.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `recovery-app.js` (517): recovery-app.js: the website's Recovery through trusted people page (/recovery), the mirror of Main items: noble, esc, say, day, names, getJson, postJson, errorOf (+23 more).
 - `roadmap-app.js` (184): Roadmap page. Renders data/roadmap.json, which is generated from docs/ROADMAP.md Main items: load, buildFilterBar, render, passesFilter, statusBadge, setText, esc, chevron.
 - `settings-app.js` (2612): The web Settings page's script (pages/settings.html): preferences, theme, accessibility, keybinds, devices, notifications, wallet, Vault and backup. Main items: loadPrefs, saveEli5Pref, savePref, applyPrefs, showSection, applyA11yPrefs, reflectA11yPrefs, applyLanguagePref (+118 more).
+- `settings-icons.js` (7): Moved out of web/pages/settings.html (2026-11-20) so the site's Content-Security-Policy can refuse
 - `settings-privacy.js` (248): ── settings-privacy.js ─────────────────────────────────────────────────── Main items: createPrivacySection, mountInBrowser.
 - `shared-files-upload.js` (441): ── shared-files-upload.js ──────────────────────────────────────────────── Main items: mbOf, overLimitWords, tooLargeWords, uploadingWords, uploadedWords, failedWords, refusalWords, createSharedFilesUpload (+1 more).
-- `tasks-app.js` (2048): ── Words ── Main items: defaultScope, xpToNext, init, buildScopeTabs, buildScopeSelect, setScope, loadTasks, getTaskScope (+106 more).
+- `tasks-app.js` (2061): ── Words ── Main items: defaultScope, xpToNext, init, buildScopeTabs, buildScopeSelect, setScope, loadTasks, getTaskScope (+108 more).
 - `trade-app.js` (817): trade-app.js, Peer-to-peer trading UI Main items: escHtml, tradeIdentifyPreimage, tradeBytesToB64, tradeIdentifyResponse, loadTradeIdentity, tradeSignedIn, tradeSend, tradeSay (+34 more).
-- `wallet-app.js` (1013): Wallet Dashboard, page logic for wallet.html Main items: init, generateQR, getSOLPrice, loadBalances, renderBalances, loadTransactions, renderTransactionList, fetchSwapQuote (+20 more).
+- `wallet-app.js` (1017): Wallet Dashboard, page logic for wallet.html Main items: init, generateQR, getSOLPrice, loadBalances, renderBalances, loadTransactions, renderTransactionList, fetchSwapQuote (+20 more).
 - `wallet-guide-app.js` (104): Wallet Guide, renders step-by-step wallet education sections. Main items: esc, render, boot.
+- `wallet-qrcode-loader.js` (10): Moved out of web/pages/wallet.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `watch-app.js` (165): Moved out of web/pages/watch.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `web-app.js` (292): Moved out of web/pages/web.html (2026-11-20) so the site's Content-Security-Policy can refuse Main items: stringColor, iconLetter, embedLabel, loadSites, fillCategorySelect, loadUserBookmarks, saveUserBookmarks, getAllSites (+12 more).
+- `widgets-cistercian.js` (140): Moved out of web/pages/widgets.html (2026-11-20) so the site's Content-Security-Policy can refuse
+- `widgets-hold-demo.js` (28): Moved out of web/pages/widgets.html (2026-11-20) so the site's Content-Security-Policy can refuse
 
 ## web/shared/
 
@@ -1777,7 +1802,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8183): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8189): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).
@@ -1796,7 +1821,7 @@
 - `over-limit.js` (69): Characters past a field's limit, shown as they are typed: the part within the limit as usual, Main items: mirrorOf, hosOverLimit.
 - `person-controls.js` (144): ── person-controls.js ──────────────────────────────────────────────────── Main items: lower, controlsFrom, mb, isDefault, readAll, get, set, levelOf (+2 more).
 - `phrase-cover.js` (164): ── phrase-cover.js ───────────────────────────────────────────────────────── Main items: cover, words, code.
-- `pq-identity.js` (368): HumanityOS, PQ Identity Bridge (Phase 0–8 client integration) Main items: getJson, postJson, resolveDid, listCredentials, getCredential, getTrustScore, listProposals, getProposal (+20 more).
+- `pq-identity.js` (363): HumanityOS, PQ Identity Bridge (Phase 0–8 client integration) Main items: getJson, postJson, resolveDid, listCredentials, getCredential, getTrustScore, listProposals, getProposal (+20 more).
 - `pq-object.js` (716): pq-object.js, build + sign Humanity Network signed objects in the browser. Main items: _b64, _b64d, _hex, buildSignedObject, verifyObjectSubmission, modActionV1Payload, buildModActionV1, spacePolicyV1Payload (+27 more).
 - `pq-relay-auth.js` (349): pq-relay-auth.js, shared helper for Dilithium-signed relay REST auth Main items: _extractSeedFromPkcs8, _bufToHex, _loadSeed, _nextTimestamp, getPqSignedAuth, getPqIdentity, getPqDmStoreKey, getPqTasksKey (+5 more).
 - `privacy-tiers.js` (199): ── privacy-tiers.js ────────────────────────────────────────────────────── Main items: fallback, parseTiers, loadTiers, read, write, tierById, chosenTierId, presenceHidden (+9 more).
@@ -1808,15 +1833,16 @@
 - `recovery.js` (419): recovery.js: Recovery through trusted people, the website's twin of crates/humanity-protocol/src/recovery.rs Main items: concat, hex, unhex, b64, unb64, randomBytes, shapeOk, split (+33 more).
 - `relay-session.js` (259): ── relay-session.js ────────────────────────────────────────────────────── Main items: identifyPreimage, bytesToB64, createRelaySession.
 - `report.js` (507): ── report.js ───────────────────────────────────────────────────────────── Main items: reportTextHasFile, reportCheckedBadge, reportPostFoundBadge, reportFilesFoundBadge, reportFilesHref, reportKeyNorm, reportPreimage, reportEvidenceJson (+21 more).
+- `safe-markup.js` (359): ── safe-markup.js ──────────────────────────────────────────────────────── Main items: parse, globalsOf, describe, value, run, attrEscape, hosArg, hosNum (+9 more).
 - `self-mail.js` (161): ── self-mail.js ────────────────────────────────────────────────────────── Main items: isSelfPut, randomDelay, createSelfMail, hosSelfMailSendNow.
 - `server-strip.js` (413): ── server-strip.js ─────────────────────────────────────────────────────── Main items: stripLabel, linkedOrigin, samePagePath, switchLinks, protectedHidesServers, mountServerStrip.
 - `settings.js` (551): Humanity Settings Panel Main items: load, save, hexToRgb, darken, applySettings, isOnChat, injectGearButton, togglePanel (+5 more).
-- `shell.js` (2614): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, navEsc, navRowTab, navRowHtml (+13 more).
+- `shell.js` (2602): HumanityOS Shared Shell, Nav + Footer Main items: showErrorBanner, showHelp, loadSharedModule, cls, navTab, navEsc, navRowTab, navRowHtml (+13 more).
 - `ship-plan.js` (158): The ship's PLAN for the web Maps page (Maps increment 3, "into the ship, deck by deck", Main items: storeyIndex, wallInStorey, levelAt, resolve, wallsAt, roomsOn, roomIsNamed, bounds (+2 more).
 - `sol-orbits.js` (235): The Sun's family for the web Maps page (Maps increment 2, "a solar system Main items: secondsSinceJ2000, kepler, perifocal, precessionDegPerSec, bodyOrbit, eccentricAnomalyAt, orbitPoint, positionAU (+8 more).
 - `sound-levels.js` (263): shared/sound-levels.js: the person's own level for each sound the website plays (2026-11-06), Main items: keptDb, load, save, levelDb, setLevel, reset, resetAll, gain (+5 more).
 - `strip-metadata.js` (1220): ── strip-metadata.js ───────────────────────────────────────────────────── Main items: asBytes, be16, be32, le32, is4, name4, startsWithAscii, sameBytes (+53 more).
-- `sw.js` (159): Bump version whenever cached assets change.
+- `sw.js` (165): Bump version whenever cached assets change.
 - `upload-clean.js` (553): ── upload-clean.js ─────────────────────────────────────────────────────── Main items: removeDetailsChosen, rememberRemoveDetails, protectedSetupOn, readRange, be32, name4, asciiBytes, standIn (+11 more).
 - `upload-window.js` (453): ── upload-window.js ────────────────────────────────────────────────────── Main items: signable, tokenShaped, isWindowAddress, isItemWindowAddress, itemPage, originOf, createHost, connectFrame.
 - `video-dock.js` (312): shared/video-dock.js: the chat's video dock on the website (2026-11-06), the twin of the desktop Main items: words, create.

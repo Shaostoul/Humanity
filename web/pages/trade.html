@@ -119,9 +119,11 @@
       .trade-divider{flex-direction:row;padding:0}
     }
   </style>
+<script src="/shared/safe-markup.js"></script>
 </head>
 <body>
 <script src="/shared/events.js?v=1"></script>
+<script src="/shared/icons.js"></script>
 <script src=/shared/shell.js data-active=trade></script>
 <script src="/shared/defaults.js"></script>
 <script src="/shared/settings.js"></script>
@@ -134,10 +136,10 @@
 <div id=page-app>
   <!-- Sub-navigation -->
   <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-xl);flex-wrap:wrap;align-items:center;">
-    <button class="btn btn-clickable trade-tab active" onclick="showTradeSection('list')" id="trade-nav-list" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;">My Trades</button>
-    <button class="btn btn-clickable trade-tab" onclick="showTradeSection('orderbook')" id="trade-nav-orderbook" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;">Order Book</button>
+    <button class="btn btn-clickable trade-tab active" data-on-click="showTradeSection('list')" id="trade-nav-list" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;">My Trades</button>
+    <button class="btn btn-clickable trade-tab" data-on-click="showTradeSection('orderbook')" id="trade-nav-orderbook" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;">Order Book</button>
     <span style="flex:1;"></span>
-    <button class="btn btn-primary" onclick="openTradeRequestModal()" id="trade-new-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;display:none;">+ New Trade</button>
+    <button class="btn btn-primary" data-on-click="openTradeRequestModal()" id="trade-new-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:.8rem;display:none;">+ New Trade</button>
   </div>
 
   <!-- Signing in, why the page cannot, or what the server said about a request (trade-app.js tradeSay) -->
@@ -159,7 +161,7 @@
           <label style="font-size:.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Item Type</label>
           <input type="text" id="ob-search-item" placeholder="e.g. wood, iron, food" style="width:100%;font-size:.85rem;">
         </div>
-        <button class="btn-primary" onclick="searchOrderBook()" style="font-size:.8rem;padding:var(--space-sm) var(--space-xl);">Search</button>
+        <button class="btn-primary" data-on-click="searchOrderBook()" style="font-size:.8rem;padding:var(--space-sm) var(--space-xl);">Search</button>
       </div>
       <div id="ob-market-price" style="font-size:.8rem;color:var(--text-muted);margin-top:var(--space-md);display:none;"></div>
     </div>
@@ -190,7 +192,7 @@
             <option value="SOL">SOL</option>
           </select>
         </div>
-        <button class="btn-primary" onclick="createSellOrder()" style="font-size:.8rem;padding:var(--space-sm) var(--space-xl);">Post Order</button>
+        <button class="btn-primary" data-on-click="createSellOrder()" style="font-size:.8rem;padding:var(--space-sm) var(--space-xl);">Post Order</button>
       </div>
     </div>
 
@@ -204,7 +206,7 @@
 
   <!-- Trade detail view -->
   <div id="trade-section-detail" style="display:none;">
-    <button onclick="showTradeSection('list')" style="background:none;border:none;color:var(--accent);font-size:.85rem;margin-bottom:var(--space-lg);cursor:pointer;">&larr; Back to trades</button>
+    <button data-on-click="showTradeSection('list')" style="background:none;border:none;color:var(--accent);font-size:.85rem;margin-bottom:var(--space-lg);cursor:pointer;">&larr; Back to trades</button>
     <div id="trade-detail-header" style="margin-bottom:var(--space-xl);"></div>
     <div id="trade-detail-view"></div>
   </div>
@@ -221,8 +223,8 @@
     <p class="trade-request-note">Most people accept trade requests only from friends. A request to a friend carries the friendship pass they gave you, which Chat keeps in this browser.</p>
     <p id="trade-request-msg" class="trade-request-msg" role="alert" style="display:none;"></p>
     <div style="display:flex;gap:var(--space-md);justify-content:flex-end;">
-      <button class="btn-cancel" onclick="closeTradeRequestModal()">Cancel</button>
-      <button class="btn-primary" id="trade-send-btn" onclick="sendTradeRequest()">Send Request</button>
+      <button class="btn-cancel" data-on-click="closeTradeRequestModal()">Cancel</button>
+      <button class="btn-primary" id="trade-send-btn" data-on-click="sendTradeRequest()">Send Request</button>
     </div>
   </div>
 </div>

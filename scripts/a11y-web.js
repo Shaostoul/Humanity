@@ -4,11 +4,11 @@
  * docs/design/wcag-audit-2026-10-23.md). Used by scripts/tests/a11y-web.test.js.
  *
  *  - NAMES (WCAG 4.1.2): every control (scripts/i18n-web.js's list: button, link, input,
- *    select, textarea, summary, a control role, an onclick, a tabindex) has an accessible
+ *    select, textarea, summary, a control role, a data-on-click, a tabindex) has an accessible
  *    name: its own text, aria-label / aria-labelledby, title, an <img alt> inside, a
  *    <label for> or a wrapping <label>, a button-type input's value, or (the browser's last
  *    resort) a placeholder.
- *  - KEYBOARD (2.1.1): an element made clickable with onclick that is not itself a control
+ *  - KEYBOARD (2.1.1): an element made clickable with data-on-click that is not itself a control
  *    (a div, a span, a row) has a role and a tabindex, or a keyboard user cannot reach it.
  *  - FOCUS ORDER (2.4.3): no tabindex above 0 anywhere (it pulls an element out of reading order).
  *  - LANGUAGE (3.1.1) and TITLE (2.4.2): every page has <html lang> and a <title>.
@@ -44,8 +44,8 @@ function markupProblems(src, baseLine = 1, opts = {}) {
       // A dialog's own backdrop closes it on a click outside the box: a mouse shortcut,
       // where the keyboard has Escape and the close button.
       const backdrop = a.role === 'dialog' || /overlay|backdrop/i.test((a.id || '') + ' ' + (a.class || ''));
-      if (a.onclick !== undefined && !backdrop && !['button', 'a', 'input', 'select', 'textarea', 'summary', 'label', 'option'].includes(ev.name) && !(a.role && a.tabindex !== undefined)) {
-        out.push({ line: ev.line, rule: 'keyboard', what: '<' + ev.name + (a.id ? ' id="' + a.id + '"' : '') + ' onclick> without role and tabindex' });
+      if ((a.onclick !== undefined || a['data-on-click'] !== undefined) && !backdrop && !['button', 'a', 'input', 'select', 'textarea', 'summary', 'label', 'option'].includes(ev.name) && !(a.role && a.tabindex !== undefined)) {
+        out.push({ line: ev.line, rule: 'keyboard', what: '<' + ev.name + (a.id ? ' id="' + a.id + '"' : '') + ' data-on-click> without role and tabindex' });
       }
       if (!isCtl || a['aria-hidden'] === 'true' || (ev.name === 'input' && (a.type || '').toLowerCase() === 'hidden')) {
         // An <img alt> inside an open control names it.

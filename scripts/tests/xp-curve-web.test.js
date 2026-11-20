@@ -42,7 +42,7 @@ function pageCopy(src, listName) {
 
 const PAGES = [
   { file: "pages/tasks-app.js", list: "XP_PER_LEVEL", base: "XP_BASE" },
-  { file: "pages/profile.html", list: "SKILL_XP_PER_LEVEL", base: "SKILL_XP_BASE" },
+  { file: "pages/profile-app.js", list: "SKILL_XP_PER_LEVEL", base: "SKILL_XP_BASE" }, // moved out of profile.html (2026-11-20)
 ];
 
 test("1. both pages level skills from data/skills/xp_curve.json", () => {

@@ -24,13 +24,13 @@ const WEB = process.env.HOS_WEB_DIR || path.join(ROOT, 'web');
 const quests = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'onboarding', 'quests.json'), 'utf8'));
 const en = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'i18n', 'en.json'), 'utf8'));
 
-/** The page's chain script: the <script> holding "Quest chain renderer". */
+/** The page's chain script, web/pages/onboarding-app.js (moved out of onboarding.html, 2026-11-20). */
 function chainScript() {
-  const html = fs.readFileSync(path.join(WEB, 'pages', 'onboarding.html'), 'utf8').replace(/\r\n/g, '\n');
-  const at = html.indexOf('Quest chain renderer');
-  assert.ok(at >= 0, 'onboarding.html has its chain renderer');
-  const from = html.lastIndexOf('<script>', at) + '<script>'.length;
-  return html.slice(from, html.indexOf('</script>', at));
+  const src = fs.readFileSync(path.join(WEB, 'pages', 'onboarding-app.js'), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(src.includes('Quest chain renderer'), 'onboarding-app.js has the chain renderer');
+  const html = fs.readFileSync(path.join(WEB, 'pages', 'onboarding.html'), 'utf8');
+  assert.ok(html.includes('<script src="/pages/onboarding-app.js"></script>'), 'onboarding.html runs it');
+  return src;
 }
 
 const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

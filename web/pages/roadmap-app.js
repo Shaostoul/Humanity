@@ -88,7 +88,7 @@
       const filtered = (theme.items || []).filter(passesFilter);
 
       html += '<section class="tier-section">';
-      html += '<div class="tier-header" onclick="window.__rmToggle(\'' + key + '\')">';
+      html += '<div class="tier-header" data-on-click="window.__rmToggle(' + hosArg(key) + ')">';
       html += '<span class="tier-chevron' + (isCollapsed ? ' collapsed' : '') + '">' + chevron() + '</span>';
       html += '<h2>' + esc(theme.title) + '</h2>';
       html += '<span class="tier-badge">' + pct + '%</span>';
@@ -155,7 +155,7 @@
   function esc(s) {
     const d = document.createElement('div');
     d.textContent = s == null ? '' : s;
-    return d.innerHTML;
+    return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function chevron() {

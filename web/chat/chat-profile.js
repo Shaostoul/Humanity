@@ -57,8 +57,7 @@ function loadProfileLocal() {
 }
 
 // The retired modal's markup still ships in chat/index.html and its buttons carry
-// inline onclick="saveProfile()" / "togglePrivacyField(...)" handlers for functions
-// that no longer exist. Remove the node so those handlers are unreachable and no
+// handlers (saveProfile(), togglePrivacyField(...)) for functions that no longer exist. Remove the node so those handlers are unreachable and no
 // stale second editor can be surfaced by accident.
 (function removeRetiredEditProfileModal() {
   const dead = document.getElementById('edit-profile-overlay');
@@ -1047,7 +1046,7 @@ async function openSeedPhraseModal() {
         Identity: <code style="color:var(--text-muted)">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
       </p>
       <div style="display:flex;justify-content:flex-end">
-        <button onclick="document.getElementById('seed-phrase-overlay').remove()"
+        <button data-on-click="document.getElementById('seed-phrase-overlay').remove()"
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
@@ -1143,9 +1142,9 @@ function openRestoreFromMnemonicModal() {
 
       <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
+        <button data-on-click="document.getElementById('restore-mnemonic-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="rm-btn" onclick="doRestoreFromMnemonic()"
+        <button id="rm-btn" data-on-click="doRestoreFromMnemonic()"
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
@@ -1265,9 +1264,9 @@ function openEncryptedBackupModal() {
       </div>
       <div id="eb-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="this.closest('#encrypted-backup-overlay').remove()"
+        <button data-on-click="this.closest('#encrypted-backup-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="eb-btn" onclick="doEncryptedBackup()"
+        <button id="eb-btn" data-on-click="doEncryptedBackup()"
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
       </div>
     </div>
@@ -1330,9 +1329,9 @@ function openRestoreIdentityModal() {
       </div>
       <div id="ri-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="this.closest('#restore-identity-overlay').remove()"
+        <button data-on-click="this.closest('#restore-identity-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="ri-btn" onclick="doRestoreIdentity()"
+        <button id="ri-btn" data-on-click="doRestoreIdentity()"
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
@@ -1458,7 +1457,7 @@ function openLinkThisDeviceModal() {
       </p>
       ${method('🔗', 'Enter a link code', 'No recovery phrase or QR code needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
       <div style="text-align:right;margin-top:var(--space-md)">
-        <button onclick="document.getElementById('link-this-device-overlay').remove()"
+        <button data-on-click="document.getElementById('link-this-device-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
       </div>
     </div>`;
@@ -1565,12 +1564,12 @@ function openKeyProtectionModal() {
       </div>
       <div id="kp-msg" style="font-size:.75rem;margin-bottom:var(--space-md);min-height:1.2em"></div>
       <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;justify-content:flex-end">
-        <button onclick="document.getElementById('key-protection-overlay').remove()"
+        <button data-on-click="document.getElementById('key-protection-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
+        ${wrapped ? `<button id="kp-remove-btn" data-on-click="doRemoveKeyProtection()"
           style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer"
           title="Remove passphrase protection, key will be stored in plaintext again">Remove Protection</button>` : ''}
-        <button id="kp-save-btn" onclick="doEnableKeyProtection()"
+        <button id="kp-save-btn" data-on-click="doEnableKeyProtection()"
           style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
       </div>

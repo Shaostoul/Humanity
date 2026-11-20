@@ -2,7 +2,7 @@
 # writes into the page instead of asking data/i18n/en.json by key. Checked by
 # scripts/tests/i18n-web.test.js (its header says how to lower these). The numbers only
 # go DOWN; a file not listed has a budget of zero.
-# Total: 3914
+# Total: 3905
 68 web/chat/app.js
 24 web/chat/chat-dms.js
 8 web/chat/chat-fleet.js
@@ -38,8 +38,10 @@
 14 web/pages/apps-app.js
 4 web/pages/apps.html
 12 web/pages/backups-admin.js
-118 web/pages/dev.html
-191 web/pages/download.html
+38 web/pages/dev-app.js
+80 web/pages/dev.html
+22 web/pages/download-app.js
+169 web/pages/download.html
 11 web/pages/files-add.js
 27 web/pages/files-admin.js
 44 web/pages/files-app.js
@@ -51,15 +53,21 @@
 9 web/pages/hi.html
 2 web/pages/how-to-app.js
 1 web/pages/how-to.html
-35 web/pages/identity.html
-125 web/pages/inventory.html
+28 web/pages/identity-app.js
+7 web/pages/identity.html
+27 web/pages/inventory-app.js
+98 web/pages/inventory.html
 31 web/pages/library-app.js
 8 web/pages/library.html
-70 web/pages/maps.html
+55 web/pages/maps-app.js
+15 web/pages/maps.html
 2 web/pages/mission.html
 45 web/pages/onboarding.html
-119 web/pages/ops.html
-130 web/pages/profile.html
+4 web/pages/ops-admin-map.js
+6 web/pages/ops-app.js
+109 web/pages/ops.html
+16 web/pages/profile-app.js
+114 web/pages/profile.html
 34 web/pages/recovery-app.js
 40 web/pages/recovery.html
 12 web/pages/roadmap-app.js
@@ -72,9 +80,12 @@
 32 web/pages/trade.html
 1 web/pages/wallet-guide-app.js
 7 web/pages/wallet-guide.html
-19 web/pages/watch.html
-25 web/pages/web.html
-39 web/pages/widgets.html
+6 web/pages/watch-app.js
+13 web/pages/watch.html
+7 web/pages/web-app.js
+18 web/pages/web.html
+7 web/pages/widgets-cistercian.js
+32 web/pages/widgets.html
 2 web/shared/file-risk.js
 12 web/shared/hold-confirm.js
 1 web/shared/how-to-logic.js

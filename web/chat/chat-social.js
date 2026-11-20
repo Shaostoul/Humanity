@@ -244,8 +244,8 @@ function renderGroupList() {
     html += '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet. Create one, or paste an invite ticket to join.</div>';
   }
   html += '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) 0;">'
-       + '<button class="vr-btn" onclick="promptCreateGroup()" style="flex:1;font-size:0.7rem;">+ Create Group</button>'
-       + '<button class="vr-btn" onclick="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
+       + '<button class="vr-btn" data-on-click="promptCreateGroup()" style="flex:1;font-size:0.7rem;">+ Create Group</button>'
+       + '<button class="vr-btn" data-on-click="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
        + '</div>';
   container.innerHTML = html;
   // P2P group rows → switch the main chat to this group (channel-style).
