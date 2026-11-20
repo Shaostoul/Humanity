@@ -123,6 +123,26 @@ test("a game that hands itself off and exits is reported, and the hand-off is st
   }
 });
 
+// Off Windows a file that is not a program is refused before the spawn, with the words Windows'
+// own refusal gets (2026-11-20: on Linux CI the rigs waited on a boot that had already failed).
+// Seen red with notAProgram answering null always: "a file of random bytes is no program".
+test("notAProgram: random bytes and a file without the run bit are no program; node is one", () => {
+  const junk = path.join(tmpRoot, "junk-program");
+  fs.writeFileSync(junk, Buffer.from("MZjunk that is not a program"));
+  fs.chmodSync(junk, 0o755);
+  assert.match(String(GL.notAProgram(junk)), /not a program/, "a file of random bytes is no program");
+  assert.match(String(GL.notAProgram(path.join(tmpRoot, "nothing-here"))), /not executable|unreadable/);
+  if (process.platform !== "win32") {
+    assert.strictEqual(GL.notAProgram(NODE), null, "node is a program");
+    const script = path.join(tmpRoot, "a-script");
+    fs.writeFileSync(script, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(script, 0o644);
+    assert.match(String(GL.notAProgram(script)), /not executable/, "no run bit");
+    fs.chmodSync(script, 0o755);
+    assert.strictEqual(GL.notAProgram(script), null, "a #! script with the bit is one");
+  }
+});
+
 test("an exit the rig asked for is not treated as a hand-off", async () => {
   const w = GL.spawnGame(NODE, ["-e", "setTimeout(() => {}, 60000)"], { fresh: judged(NODE), rigName: "test", log: () => {} });
   w.expectExit();

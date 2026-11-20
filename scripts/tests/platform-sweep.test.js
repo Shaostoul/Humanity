@@ -14,6 +14,8 @@
 //   - "HumanityOS.exe" joined into a path: use platform.js EXE_NAME or builtExe(repo)
 //   - taskkill / tasklist / Get-CimInstance / Get-Process / Stop-Process run as a command: use
 //     platform.js listProcesses, childProcesses, killTree or killByExe
+//   - mklink / fsutil (2026-11-20: probe-sweep's junction failed five rig tests on Linux CI): use
+//     platform.js linkDir and isLink
 // A file that is about Windows itself is listed below with its reason. Adding a file there is the
 // last resort, for a script that only means anything on Windows.
 //
@@ -21,7 +23,9 @@
 // one `taskkill /PID` put back into verify-falls.js on purpose:
 //   "scripts/verify-falls.js:646 runs a Windows process command itself"
 // and with "HumanityOS.exe" put back into boot-timing.js's rig path:
-//   "scripts/boot-timing.js:131 joins the Windows file name HumanityOS.exe into a path".
+//   "scripts/boot-timing.js:131 joins the Windows file name HumanityOS.exe into a path",
+// and (2026-11-20, after Linux CI) with boot-timing.js's `cmd /c mklink /J` put back:
+//   "scripts/boot-timing.js:126 runs a Windows process command itself".
 
 "use strict";
 
@@ -56,7 +60,7 @@ function scriptFiles(dir = SCRIPTS, out = []) {
 }
 
 const JOINS_EXE = /path\.(join|resolve)\([^)]*["'`]HumanityOS\.exe["'`]/;
-const RUNS_COMMAND = /["']taskkill["']|taskkill \/PID|["']tasklist["']|["'`]tasklist |tasklist \/FO|Get-CimInstance|\bGet-Process\b|\bStop-Process\b/;
+const RUNS_COMMAND = /["']taskkill["']|taskkill \/PID|["']tasklist["']|["'`]tasklist |tasklist \/FO|Get-CimInstance|\bGet-Process\b|\bStop-Process\b|\bmklink\b|\bfsutil\b/;
 
 /** The code lines of a file that break the rule: [{ line, text, why }]. PURE (text in). */
 function findings(text) {
@@ -81,7 +85,7 @@ function findings(text) {
       // A trailing // comment is not code (a URL's // sits inside quotes: only cut at " //").
       const code = l.replace(/\s\/\/\s.*$/, "");
       if (JOINS_EXE.test(code)) out.push({ line: i + 1, text: t, why: "joins the Windows file name HumanityOS.exe into a path (use platform.js EXE_NAME or builtExe(repo))" });
-      else if (RUNS_COMMAND.test(code)) out.push({ line: i + 1, text: t, why: "runs a Windows process command itself (use platform.js listProcesses, childProcesses, killTree or killByExe)" });
+      else if (RUNS_COMMAND.test(code)) out.push({ line: i + 1, text: t, why: "runs a Windows process command itself (use platform.js listProcesses, childProcesses, killTree, killByExe, or linkDir and isLink for folder links)" });
     });
   return out;
 }
@@ -95,6 +99,8 @@ test("the finder catches the old forms and passes the swept ones", () => {
     "const out = execSync('tasklist /FO CSV /NH');",
     '`powershell -NoProfile -Command "Get-Process HumanityOS | Stop-Process -Force"`',
     "const ps = `Get-CimInstance Win32_Process`;",
+    'execSync(`cmd /c mklink /J "${link}" "${target}"`, { stdio: "ignore" });',
+    'execSync(`fsutil reparsepoint query "${link}"`, { stdio: "ignore" });',
   ];
   for (const b of bad) assert.strictEqual(findings(b).length, 1, `not caught: ${b}`);
   const good = [

@@ -22,6 +22,7 @@
 //                                  force, SIGKILL) to each, the parent first so it starts no more
 //   killByExe(exe)                 force-end every process running FROM that file (a rig's own
 //                                  copy: ours by construction)
+//   linkDir / isLink               a folder link (a junction on Windows, a symlink elsewhere)
 //   startMs(pid)                   when a process started (ms since 1970), to tell a reused pid
 //                                  from the process that wrote a lock
 //   lowerPriority(pid)             below normal (Windows BelowNormal; nice 10 elsewhere), never
@@ -326,6 +327,24 @@ function isAlive(pid) {
   }
 }
 
+// ── folder links (a rig's data/ and assets/ point at the tree's own) ────────────────
+
+/** Make `link` point at the folder `target`: a junction on Windows (the reparse point `mklink /J`
+ *  makes, no administrator needed), a directory symlink elsewhere. Throws as fs.symlinkSync does. */
+function linkDir(target, link) {
+  fs.symlinkSync(target, link, IS_WINDOWS ? "junction" : "dir");
+}
+
+/** Is `p` a link (a Windows junction counts: Node reports it as a symbolic link)? False when it is
+ *  a real folder or file, or not there. */
+function isLink(p) {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 // ── start times (a pid is reused: the start time tells the processes apart) ──────────
 
 /** 100 ticks a second: USER_HZ, fixed at 100 by the kernel's ABI on every mainstream Linux. */
@@ -426,6 +445,8 @@ module.exports = {
   killTree,
   killByExe,
   isAlive,
+  linkDir,
+  isLink,
   bootSecondsFromProcStat,
   startMsFromProc,
   startMs,

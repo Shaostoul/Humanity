@@ -224,6 +224,30 @@ test("killByExe ends every process running from that one file, and nothing else"
   }
 });
 
+// Folder links (2026-11-20): probe-sweep made its rig's data/ link with `cmd /c mklink /J`, which
+// failed five rig tests on Linux CI. Seen red the same day with linkDir making a COPY of the folder
+// instead of a link: "a file written through the link appears in the target".
+test("linkDir links a folder (a junction on Windows), isLink tells a link from a real folder", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hum_platform_link_"));
+  try {
+    const target = path.join(dir, "target");
+    const link = path.join(dir, "link");
+    fs.mkdirSync(target);
+    fs.writeFileSync(path.join(target, "a.txt"), "a");
+    P.linkDir(target, link);
+    assert.strictEqual(fs.readFileSync(path.join(link, "a.txt"), "utf8"), "a", "the target's file is seen through the link");
+    fs.writeFileSync(path.join(link, "b.txt"), "b");
+    assert.ok(fs.existsSync(path.join(target, "b.txt")), "a file written through the link appears in the target");
+    assert.strictEqual(P.isLink(link), true);
+    assert.strictEqual(P.isLink(target), false, "a real folder is no link");
+    assert.strictEqual(P.isLink(path.join(dir, "nothing")), false);
+    fs.unlinkSync(link); // removes the link only
+    assert.ok(fs.existsSync(path.join(target, "a.txt")), "removing the link leaves the target whole");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("lowerPriority lowers a child to below normal (read back from the OS) and never raises one", async (t) => {
   const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", windowsHide: true });
   try {

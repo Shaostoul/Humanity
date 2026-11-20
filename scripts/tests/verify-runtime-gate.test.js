@@ -129,6 +129,7 @@ function stampedNonProgram() {
 function stampedNode() {
   const f = path.join(tmpRoot, `stamped-node-${++n}.exe`);
   fs.writeFileSync(f, Buffer.concat([fs.readFileSync(process.execPath), stamp()]));
+  if (process.platform !== "win32") fs.chmodSync(f, 0o755); // a program off Windows needs the bit
   return f;
 }
 
@@ -191,7 +192,7 @@ test("the gate's clock starts with the game: a machine wait longer than the gate
   const hang = path.join(tmpRoot, `hang-${n}.js`);
   fs.writeFileSync(
     hang,
-    `if (/HumanityOS\\.exe$/i.test(process.execPath)) {
+    `if (/HumanityOS(\\.exe)?$/i.test(process.execPath)) {
        require("fs").writeFileSync(process.env.HOS_TEST_FAKE_GAME_STARTED, String(process.pid));
        setInterval(() => {}, 1000);
        setTimeout(() => process.exit(0), 90000);
@@ -252,7 +253,7 @@ test("a machine that never goes quiet is REFUSED, exit 1, nothing booted: not a 
   assert.match(r.out, /HumanityOS\.exe pid 4242/, "what was still up is named");
   assert.match(r.out, /not a verdict on the build/);
   assert.doesNotMatch(r.out, /RESULT: FAIL|TIMEOUT/);
-  assert.ok(!fs.existsSync(path.join(r.rig, "HumanityOS.exe")), "nothing was copied into the rig, let alone booted");
+  assert.ok(!fs.existsSync(path.join(r.rig, PLAT.EXE_NAME)), "nothing was copied into the rig, let alone booted");
 });
 
 test("a build alone does not hold the sweep (2026-10-23: rigs wait for memory, not builds)", async () => {
@@ -260,7 +261,7 @@ test("a build alone does not hold the sweep (2026-10-23: rigs wait for memory, n
   const r = await runGate(["--exe", exe, "--timeout-min", "0.05", "--wait-min", "0.05"], { procs: BUILD });
   assert.doesNotMatch(r.out, /pre-boot: WAITING/, `the sweep waited on a build:\n${tail(r)}`);
   // It went on to the start of the "game", which is not a program: nothing booted, exit 1.
-  assert.match(r.out, /probe-sweep: could not start .*HumanityOS.exe .*nothing booted/, tail(r));
+  assert.match(r.out, /probe-sweep: could not start .*HumanityOS(\.exe)? .*nothing booted/, tail(r));
   assert.match(r.out, /RESULT: REFUSED {2}the probe stopped before it started the game \(probe exit 1\); nothing was booted\./);
   assert.strictEqual(r.status, 1, tail(r));
 });

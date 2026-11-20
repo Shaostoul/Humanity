@@ -655,7 +655,9 @@ const asPid = (v) => {
 function priorityScript(pids, { lower = true } = {}) {
   const ids = (Array.isArray(pids) ? pids : []).map(asPid);
   if (!ids.length) throw new Error("machine-guard: no process id to look at");
-  const names = BUILDS.map((n) => `'${n.toLowerCase()}'`).join(",");
+  // Windows names always (2026-11-20): this is a PowerShell script, run only on Windows; off Windows
+  // BUILDS holds the Linux names, which no Win32_Process ever carries.
+  const names = WATCHED_WINDOWS.filter((n) => !isGameName(n)).map((n) => `'${n.toLowerCase()}'`).join(",");
   const above = PRIORITY_CLASSES.slice(PRIORITY_CLASSES.indexOf("Normal")).map((c) => `'${c}'`).join(",");
   const out = (tail) => `[string]$id + '|' + $n + '|' + $i[1] + '|' + $s + '|' + $c + '|${tail}'`;
   return [

@@ -229,6 +229,15 @@ function spawnGame(exe, args, opts = {}) {
     windowNoteSaid = true;
     log(`[${rigName}] off Windows the game's window cannot be hidden: src/engine/rig_window.rs cloaks it on Windows only, so it opens as a normal window on this screen (docs/design/cross-platform-dev.md step 4). The headless runs (HumanityOS --sim soak, --sim walk) need no window.`);
   }
+  // NOT A PROGRAM, SAID THE SAME WAY EVERYWHERE (2026-11-20, Linux CI). Windows refuses a file that
+  // is not a program before any process exists (spawn throws); Linux and macOS start a process and
+  // fail it a moment later (an 'error' event), so a rig there waited on a boot that never came.
+  // Off Windows the file is checked first: executable by us, and a program (an ELF or Mach-O
+  // header, or a #! script), refused with the words Windows' refusal gets below.
+  if (!P.IS_WINDOWS) {
+    const why = notAProgram(exe);
+    if (why) throw new Error(`${rigName}: could not start ${exe} (${why}); nothing booted`);
+  }
   let child;
   try {
     child = spawn(exe, args || [], {
@@ -398,6 +407,33 @@ function readLowImpact(p) {
   }
 }
 
+/** Off Windows: why `exe` cannot be started (not there, not executable by us, not a program), or
+ *  null when it can. A program starts with an ELF header, a Mach-O magic, or "#!". */
+function notAProgram(exe) {
+  try {
+    fs.accessSync(exe, fs.constants.X_OK);
+  } catch (e) {
+    return `not executable: ${e.code || e.message}`;
+  }
+  let head = Buffer.alloc(0);
+  try {
+    const fd = fs.openSync(exe, "r");
+    try {
+      head = Buffer.alloc(4);
+      const n = fs.readSync(fd, head, 0, 4, 0);
+      head = head.subarray(0, n);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (e) {
+    return `unreadable: ${e.code || e.message}`;
+  }
+  const hex = head.toString("hex");
+  const MAGIC = ["7f454c46", "feedface", "feedfacf", "cefaedfe", "cffaedfe", "cafebabe"];
+  if (MAGIC.includes(hex) || head.subarray(0, 2).toString("latin1") === "#!") return null;
+  return "not a program: no ELF or Mach-O header and no #! line";
+}
+
 /** SHA-256 hex of a file (for tests and callers that build a fresh record). */
 const fileSha256 = (p) => crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
 
@@ -411,6 +447,7 @@ module.exports = {
   builtinDataRefusal,
   childProcesses,
   reapHandoff,
+  notAProgram,
   spawnGame,
   fileSha256,
 };

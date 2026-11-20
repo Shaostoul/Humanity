@@ -97,7 +97,9 @@ test("the disk guard deletes the old builds for real, beside a 'running build', 
     const guard = path.join(__dirname, "..", "pc-disk-guard.js");
     // A busy machine (the guard's own test hook names a process that is always running), so
     // steps 1 to 3 are skipped: step 0 must run anyway.
-    const env = { ...process.env, PC_DISK_GUARD_BUSY: "System,cargo.exe", PC_DISK_GUARD_WARN_PCT: "101", PC_DISK_GUARD_CRIT_PCT: "101" };
+    // "System" on Windows; elsewhere node, the guard's own process (2026-11-20: Linux has no "System").
+    const always = process.platform === "win32" ? "System" : path.basename(process.execPath);
+    const env = { ...process.env, PC_DISK_GUARD_BUSY: `${always},cargo.exe`, PC_DISK_GUARD_WARN_PCT: "101", PC_DISK_GUARD_CRIT_PCT: "101" };
     const dry = spawnSync(process.execPath, [guard, "--root", root, "--dry-run", "--no-log"], { encoding: "utf8", env });
     assert.match(dry.stdout, /would delete 4 old build file\(s\) of our crate/, dry.stdout + dry.stderr);
     assert.strictEqual(fs.readdirSync(deps).length, 26, "a dry run deletes nothing");

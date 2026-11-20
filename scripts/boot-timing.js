@@ -123,7 +123,7 @@ function ensureJunction(link, target) {
   } catch {
     /* not there yet */
   }
-  execSync(`cmd /c mklink /J "${link}" "${target}"`, { stdio: "ignore" });
+  PLAT.linkDir(target, link); // a junction on Windows (as mklink /J made), a directory symlink elsewhere
 }
 
 function killRigProcesses() {

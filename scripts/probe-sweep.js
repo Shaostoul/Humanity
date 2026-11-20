@@ -284,15 +284,12 @@ function ensureJunction(link, target) {
     // 3-week-old shader/asset copies (write-new+rename repo edits break
     // hard links). A junction is the whole point of the normal rig; if the
     // path exists but is NOT a reparse point, delete it and re-link.
-    try {
-      execSync(`fsutil reparsepoint query "${link}"`, { stdio: "ignore" });
-      return; // real junction: live, nothing to do
-    } catch {
-      log(`  HEAL: ${link} was a REAL directory (stale copies) - replacing with a junction`);
-      fs.rmSync(link, { recursive: true, force: true });
-    }
+    // A link (a junction on Windows, a symlink elsewhere: lib/platform.js) is live, nothing to do.
+    if (PLAT.isLink(link)) return;
+    log(`  HEAL: ${link} was a REAL directory (stale copies) - replacing with a link`);
+    fs.rmSync(link, { recursive: true, force: true });
   }
-  execSync(`cmd /c mklink /J "${link}" "${target}"`, { stdio: "ignore" });
+  PLAT.linkDir(target, link); // a junction on Windows (as mklink /J made), a directory symlink elsewhere
 }
 
 // A REAL directory at `link` -- never a junction. If a previous ordinary sweep

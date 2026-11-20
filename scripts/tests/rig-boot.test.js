@@ -30,6 +30,7 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const PLAT = require("../lib/platform.js");
 const crypto = require("node:crypto");
 const { spawnSync } = require("node:child_process");
 
@@ -254,9 +255,11 @@ test("every rig refuses an unchecked exe on the freshness gate, before it copies
     }
   };
   const runs = [
-    ...Object.entries(RIG_EXES).map(([f, rigExe]) => ({ f, rigExe: path.join(REPO, rigExe), args: ["--exe", exe] })),
+    // The rig copy by this platform's name (2026-11-20): off Windows a check of HumanityOS.exe was
+    // a check of a file no rig there writes, which could not fail.
+    ...Object.entries(RIG_EXES).map(([f, rigExe]) => ({ f, rigExe: path.join(REPO, rigExe.replace(/HumanityOS\.exe$/, PLAT.EXE_NAME)), args: ["--exe", exe] })),
     // boot-timing takes --rig: a folder that must not even be created.
-    { f: "scripts/boot-timing.js", rigExe: path.join(tmpRoot, "boot-rig", "HumanityOS.exe"), args: ["--exe", exe, "--rig", path.join(tmpRoot, "boot-rig"), "--runs", "1"] },
+    { f: "scripts/boot-timing.js", rigExe: path.join(tmpRoot, "boot-rig", PLAT.EXE_NAME), args: ["--exe", exe, "--rig", path.join(tmpRoot, "boot-rig"), "--runs", "1"] },
   ];
   assert.deepStrictEqual(
     [...runs.map((r) => r.f), "scripts/probe-sweep.js"].sort(),
@@ -345,6 +348,6 @@ test("probe-sweep judges the exe again after a machine wait, so a rebuild during
   assert.match(out, /re-checking the binary after the \d+ s machine wait/, "the swapped exe was judged again after the wait");
   assert.doesNotMatch(out, /BOOT COPY CHANGED/, out.slice(-1500));
   assert.match(out, /boot copy .* is byte-identical to the judged exe/);
-  assert.match(out, /probe-sweep: could not start .*HumanityOS.exe .*nothing booted/, out.slice(-1500));
+  assert.match(out, /probe-sweep: could not start .*HumanityOS(\.exe)? .*nothing booted/, out.slice(-1500));
   assert.strictEqual(status, 1, `exit ${status}`);
 });

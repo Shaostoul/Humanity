@@ -186,5 +186,15 @@ jobs:
         with:
           node-version: 24
 
+      # What the tests need beyond node (found by this job's first run, 2026-11-20): ffmpeg with
+      # libvorbis for the instrument pipeline (Ubuntu's ffmpeg has it), and the repo's node packages
+      # (sharp, for terminator-grain) exactly as package-lock.json pins them.
+      - name: The tests' own tools (ffmpeg, the node packages)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -hide_banner -encoders | grep -q libvorbis
+          npm ci --no-audit --no-fund
+
       - name: Every node rig test (just rig-tests)
         run: node scripts/rig-tests.js

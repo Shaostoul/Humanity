@@ -62,7 +62,11 @@ function ledgerPath(env = process.env) {
 function worktreeName(checkout) {
   if (!checkout) return null;
   const m = /[\\/]\.claude[\\/]worktrees[\\/]([^\\/]+)/i.exec(checkout);
-  return m ? m[1] : path.basename(path.resolve(checkout));
+  if (m) return m[1];
+  // The last folder, split on either separator (2026-11-20): path.basename on Linux does not split
+  // a Windows path ("C:\\Humanity" stayed whole), and a ledger line may come from either machine.
+  const abs = /^([A-Za-z]:)?[\\/]/.test(checkout) ? String(checkout) : path.resolve(checkout);
+  return abs.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || null;
 }
 
 /** Whether a boot with this environment is meant to be hidden (the engine decides; this mirrors it for the record). */

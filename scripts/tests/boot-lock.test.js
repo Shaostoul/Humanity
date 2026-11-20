@@ -438,6 +438,6 @@ test("probe-sweep waits for another rig's boot lock before it boots, and takes i
   removeJunctions(rig);
   assert.ok(released, `the sweep never waited for the lock:\n${out.slice(-2000)}`);
   assert.match(out, /took over a stale boot lock from the-other-rig/, out.slice(-2000));
-  assert.match(out, /probe-sweep: could not start .*HumanityOS.exe .*nothing booted/, out.slice(-2000));
+  assert.match(out, /probe-sweep: could not start .*HumanityOS(\.exe)? .*nothing booted/, out.slice(-2000));
   assert.strictEqual(status, 1, `exit ${status}`);
 });
