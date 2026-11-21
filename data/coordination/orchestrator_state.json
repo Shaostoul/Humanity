@@ -1657,6 +1657,11 @@
       "date": "2026-11-21",
       "decision": "Signed requests round 3 (worktree-agent-aaf6115c932a599d2) built C1-C7, C9, C10: the sign-in audience must equal the websocket's Host (an Arrival passed from ws_handler); loopback names only behind HUMANITY_DEV_LOOPBACK_NAMES=1 and only from loopback clients; LAN names only from the same /24 (/64); audience_of via url::Url (url was already in Cargo.lock: no download; THIRD-PARTY-NOTICES regenerated to credit it in the relay build); refusals never list own names; nginx $http_host, PUBLIC_HOSTS documented and written by provision/tor scripts; the start time from the monotonic clock plus a clock-behind message and the relay unit waiting for time sync; media_suggest and agent_override name targets; the script-version table backfilled (399) and rising; the Public address field on Host a node. Not done: C8 (passes name their audience) and the two sign-in boot rigs. MY CALL on its question: a home node keeps its loopback names for its owner's own app, restricted to that computer by the peer rule. Continuation dispatched (wk-sigreq4.txt). Live-server work after merge (mine): deploy nginx $http_host (nginx -t, reload), check PUBLIC_HOSTS/ALLOWED_ORIGINS, the time-sync drop-in via server-files.txt, restart the relay.",
       "why": "Security is work now."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Owner round 5 FINISHED on worktree-agent-ad422c175b33954db (head 0c4f91f6d): every Rust red run and recorded (R-a to R-l, P-1, P-2), main's merged lints caught two byte cuts and a reuse_switch case (fixed), main's multibyte-key test could not reach its refusal on this branch (which drops unasked cards first) and was rewritten to ask first and seen red, BUGs renumbered to 341-382 (main holds 338-340); gates on the final tree: just verify (6,667 lib tests), the relay check, verify-relay exit 0, KATs, held fixtures both ways, web tests, snapshots looked at. FIFTH review dispatched with the builder's pointers (cap_waiting_at standing down during a stuck carry-out, identify_unnoted's file-name match, the /reports-clear live path, the fresh draw's parity, the merge resolutions). Also corrected wk-common.txt: toolchain 1.100.0, and the commit-message-file rule from today's slip.",
+      "why": "Merge only after a review comes back clean."
     }
   ],
   "active_scopes_to_avoid": [
