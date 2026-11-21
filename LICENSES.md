@@ -328,7 +328,9 @@ License: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/#)
 That is OpenMoji's own requested attribution, word for word. `assets/emoji/openmoji/` holds all
 4,495 of OpenMoji's colour pictures from release 17.0.0 (2026-11-20), and the website's chat draws
 every emoji from them (`web/shared/emoji.js`), so no visitor's browser asks another site for one. The
-desktop app's plan for the same pictures is `docs/design/emoji.md`. They stay OpenMoji's, under
+desktop app's chat draws the same pictures (since 2026-11-20, `docs/design/emoji.md`), from the copy
+every download carries in `assets/emoji/`, with the same credit at the foot of its reaction picker.
+They stay OpenMoji's, under
 **CC BY-SA 4.0** (<https://creativecommons.org/licenses/by-sa/4.0/legalcode>): not public domain,
 unlike the project's own media.
 

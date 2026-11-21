@@ -42,12 +42,13 @@ with "OpenMoji" linking https://openmoji.org/ and "CC BY-SA 4.0" linking the lic
 (`emoji.credit_openmoji`, `emoji.credit_licence`, each with its `_hint`). Held by
 `scripts/tests/chat-rows-web.test.js`, which also holds the line to the Credits page's notice.
 
-## The desktop app (rungs 1 and 3 built 2026-11-20; rung 2 awaits a download)
+## The desktop app (rungs 1 to 4 built 2026-11-20)
 
-egui draws every font glyph in one colour, so today the native chat shows emoji from the system's
-emoji font (`src/gui/fonts.rs`), as monochrome shapes, and a machine without one shows boxes. The
-same pictures as the website need three things egui does not have: an SVG rasteriser, pictures inside
-a line of text, and the matcher.
+egui draws every font glyph in one colour, so until rung 2 the native chat showed emoji from the
+system's emoji font (`src/gui/fonts.rs`), as monochrome shapes, and a machine without one showed
+boxes. The same pictures as the website needed three things egui does not have: an SVG rasteriser,
+pictures inside a line of text, and the matcher. The system font is still the fallback for any emoji
+the pack has no picture for, or when the pack is missing.
 
 1. **The matcher in Rust (built).** `src/gui/widgets/emoji/mod.rs`: `find` (each emoji's byte range),
    `pieces` (text and pictures, each picture with its byte range, set folder and file name, the same
@@ -67,16 +68,31 @@ a line of text, and the matcher.
    Unicode version, a superset with an older one (CI's Node 20), and a failure saying to regenerate
    with a newer one. No crate added. The matcher is pure Rust; it lives under `src/gui/` (native
    only) because only the GUI draws emoji, and moves to `humanity-core` if a second surface needs it.
-2. **Rasterising the SVGs (prepared, not built).** The standard route is an SVG renderer drawing each
-   picture at the text's pixel size times the screen's scale into an egui texture. The comparison and
-   licences: `docs/reference/findings/2026-11-20-svg-rasteriser.md` (resvg with usvg and tiny-skia
-   recommended, without default features: 12 crates, about 909 KiB, to download once the operator
-   says yes). Rung 2 is one implementation of the trait rung 3 already asks for,
-   `widgets::emoji::EmojiPictures` ("the texture of this picture at this pixel size, if any"),
-   handed to the app with `widgets::emoji::install` together with the pack's `EmojiIndex`.
-   Rasterise on first sight of an emoji at a size; keep the textures in memory only, rebuilt when the
-   pack's files change (the index too), and obey the Dev page's "turn off all reuse" switch
-   (`HUMANITY_NO_REUSE=1`): CLAUDE.md's no-caches rule. No baked PNG atlas on disk.
+2. **Rasterising the SVGs (built).** `src/gui/widgets/emoji/pack.rs`: resvg 0.50 (with usvg and
+   tiny-skia 0.12, no default features; chosen, and its licences quoted, in
+   `docs/reference/findings/2026-11-20-svg-rasteriser.md`; the operator approved the download)
+   draws each picture at the text's pixel size times the screen's scale (`rasterise`: scaled to fit
+   the square and centred, as a browser draws the `<img>`) into a texture of the egui context that
+   asks. `PackPictures` is rung 3's `EmojiPictures`; `install_pack` hands it, with the pack's
+   `EmojiIndex`, to every egui context through `gui::install_fonts` (the main window and every wall
+   screen, so a screen never draws emoji the main window does not). Without `assets/emoji/` beside
+   the exe it installs nothing (said once in the log) and emoji stay the system font's glyphs.
+   **Reuse, per CLAUDE.md's no-caches rule:** a drawn picture is kept in memory only, keyed by set,
+   file and pixel size (the size already carries the theme's font scale and the screen's scale) and
+   tagged with the pack's version, which a watcher of `assets/emoji/` bumps on any change there; a
+   changed pack drops every kept picture and reads the list again (`inline::source` asks
+   `pack::due`). With the Dev page's "Turn off all reuse" (`HUMANITY_NO_REUSE=1`) every ask reads
+   and draws its file again and the list is read again every `LIST_REUSE_OFF_S` (1 s). Nothing is
+   written to disk. A picture that cannot be drawn is logged, kept as "none" (not read again every
+   frame) and stays the font's glyph. Over 2,048 kept pictures, those unused for 30 s are let go.
+   **Cost** (measured 2026-11-20 in a debug test build with resvg, usvg and tiny-skia optimised, as
+   the dev profile builds them; `pack_tests.rs` prints both): drawing a picture at 24 px, reading its
+   file included, took 0.853 ms on average over all 4,495 pictures, and 3.7 ms for a process's very
+   first picture (cold file and code). A reused picture took 0.006 ms, a hash look-up. So a frame pays
+   only for emoji it has never drawn at that size: opening the ∞ panel the first time draws up to 42
+   pictures (up to about 36 ms, once: a visible hitch on that one frame), and every later frame reuses
+   them. If that hitch matters, the next step is a per-frame drawing budget (the rest shown as glyphs
+   for a frame or two), not a cache on disk.
 3. **Pictures in a line of text (built).** `src/gui/widgets/emoji/inline.rs`. egui's text layout has
    no inline images, so `with_pictures` gives each emoji that has a picture its own section of the
    layout job: the same characters, drawn transparent, at the font size that makes their run the
@@ -92,16 +108,24 @@ a line of text, and the matcher.
    `paint_timestamp_pill`, measured and painted the same way). Tests: `widgets/emoji/tests.rs` (a
    picture on its placeholder, wrapping, nothing changes without a picture) and
    `pages/chat/emoji_tests.rs` (the pill on the real chat page; the drawn text and Copy text keep the
-   real emoji), each with a stand-in texture made in code. Still to follow: the ∞ panel's reaction
-   buttons (`pill_expand`, egui buttons that lay out their own text), names and other surfaces.
-4. **Ship it.** Add `assets/emoji` to `scripts/lib/release-files.js` `ROOTS` (about 24 MB; the phone
-   app too, it has a chat), and keep the system-font path as the fallback when a picture fails.
-   **The desktop picker shows the same credit** the moment the desktop draws these pictures (rung 2
-   makes the message bodies and pills draw them as soon as it installs its pictures): the foot of its
-   ∞ reaction panel (native `pill_expand`, the web panel's twin) carries the same line from the same
-   keys (`emoji.credit` with its two links and hints), small and muted, and the native chat joins the
-   `openmoji` row's `shown_in` in `data/credits.ron`. Until then the desktop draws system-font emoji,
-   which are not OpenMoji's, so it owes no credit.
+   real emoji), each with a stand-in texture made in code. **The reaction buttons** (the quick row
+   beside the Þ and the ∞ panel, `pages::chat::rows`) were egui buttons, which lay out their own
+   text; since 2026-11-20 each is `widgets::emoji::button::button`, framed and coloured as egui's
+   button is, its emoji laid out through `layout`. Still to follow: names, channel names, the DM
+   list and the other surfaces the website's `hosEmoji.parse` reaches.
+4. **Ship it (built 2026-11-20).** `assets/emoji` is in `scripts/lib/release-files.js` `ROOTS` (about
+   24 MB; the phone app's files follow the release's, so its chat has them too), and the system-font
+   path stays the fallback when a picture fails. **The desktop picker shows the same credit**: the
+   foot of its ∞ reaction panel (`pages::chat::rows`, the web panel's twin) carries the same line from
+   the same keys (`emoji.credit` with its two links and hints, `widgets::emoji::button::credit`),
+   small and muted, while the pack's pictures are installed (`emoji::pack_installed`); system-font
+   emoji are not OpenMoji's and owe no credit. The native chat is in the `openmoji` row's `shown_in`
+   in `data/credits.ron`, and resvg, usvg and tiny-skia's notices are in `THIRD-PARTY-NOTICES.txt`.
 
-Until rung 4 lands, the release download does not carry `assets/emoji/`: nothing in the desktop app
-reads it yet.
+**Tests** (each seen red, the break recorded at the test): `widgets/emoji/pack_tests.rs` (a
+rasterised emoji's drawn pixels cover its share of the square in the file's own colours; every one of
+the pack's 4,495 pictures draws; the reuse switch: with it off a second ask draws again; a missing
+picture stays text and is tried once; when the list is read again; the credit's two links; a reaction
+button paints its picture), `pages/chat/emoji_tests.rs` (the ∞ panel draws every reaction as a
+picture and carries the credit only for the pack's pictures), and the GPU snapshot
+`just snapshot chat_emoji` (it refuses a frame that painted no emoji picture).

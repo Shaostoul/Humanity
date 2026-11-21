@@ -137,7 +137,7 @@ impl EmojiPictures for NoPictures {
 /// The stand-in texture (kept alive by the handle) and the source that draws every emoji with it.
 pub(crate) fn stand_in(ctx: &egui::Context) -> (egui::TextureHandle, Arc<EmojiSource>) {
     let handle = ctx.load_texture("emoji-stand-in", egui::ColorImage::new([16, 16], Color32::WHITE), egui::TextureOptions::LINEAR);
-    let source = Arc::new(EmojiSource { index: shipped(), pictures: Box::new(StandIn(handle.id())) });
+    let source = Arc::new(EmojiSource { index: shipped(), pictures: Box::new(StandIn(handle.id())), pack: None });
     (handle, source)
 }
 
@@ -274,7 +274,7 @@ fn without_a_picture_the_line_is_drawn_as_before() {
     let before = draw_row(&plain, content, 600.0);
     let (_, plain_galley) = body_galley(&before, content);
     let none = egui::Context::default();
-    install(&none, Some(Arc::new(EmojiSource { index: shipped(), pictures: Box::new(NoPictures) })));
+    install(&none, Some(Arc::new(EmojiSource { index: shipped(), pictures: Box::new(NoPictures), pack: None })));
     draw_row(&none, content, 600.0);
     let after = draw_row(&none, content, 600.0);
     let (pos, galley) = body_galley(&after, content);

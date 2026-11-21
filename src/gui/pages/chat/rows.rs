@@ -617,6 +617,13 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
                 egui::pos2(pill_rect_for_msg.right(), pill_rect_for_msg.top() - 2.0),
                 Vec2::new(est_popup_w, pill_rect_for_msg.height() + 4.0),
             );
+            // And wherever the popup really was drawn last frame: its reactions are the emoji
+            // pack's pictures since 2026-11-20 (widgets/emoji/button.rs), a little wider than the
+            // estimate's glyphs, and a pointer on ∞ past the estimate closed the popup.
+            let est_popup_rect = match ui.ctx().memory(|m| m.area_rect(egui::Id::new(("pill_expand", target_ts)))) {
+                Some(drawn) if state.chat_open_popup_ts == Some(target_ts) => est_popup_rect.union(drawn),
+                _ => est_popup_rect,
+            };
             // Sticky hover gate: open if cursor is over THE PILL
             // or over THE POPUP REGION specifically. Earlier code
             // used pill.union(popup) which created a bounding
@@ -766,13 +773,12 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
                                     // any U+FE0F variation selector — it ends up
                                     // as a tofu square next to ❤ in fonts that
                                     // don't honor the emoji presentation hint.
+                                    // Each drawn as the pack's picture when one is installed
+                                    // (`emoji::button`, docs/design/emoji.md), else the glyph.
                                     for emoji in top_reactions {
                                         let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
-                                        if ui.add(
-                                            egui::Button::new(RichText::new(&clean).size(theme.font_size_body))
-                                                .min_size(Vec2::new(26.0, 22.0))
-                                                .corner_radius(CornerRadius::same(4))
-                                        ).clicked() {
+                                        let font = egui::FontId::proportional(theme.font_size_body);
+                                        if crate::gui::widgets::emoji::button::button(ui, &clean, font, Vec2::new(26.0, 22.0), Some(CornerRadius::same(4))).clicked() {
                                             pending_reactions.push((target_from.clone(), target_ts, clean.clone()));
                                         }
                                     }
@@ -795,12 +801,20 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, activ
                                             ui.horizontal_wrapped(|ui| {
                                                 for emoji in all_reactions {
                                                     let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
-                                                    if ui.button(&clean).clicked() {
+                                                    let font = egui::TextStyle::Button.resolve(ui.style());
+                                                    let min = Vec2::new(0.0, ui.spacing().interact_size.y); // as tall as egui's button
+                                                    if crate::gui::widgets::emoji::button::button(ui, &clean, font, min, None).clicked() {
                                                         pending_reactions.push((target_from.clone(), target_ts, clean.clone()));
                                                         ui.memory_mut(|m| m.close_popup());
                                                     }
                                                 }
                                             });
+                                            // OpenMoji's credit where its pictures are picked (the
+                                            // web panel's twin, pillPopup.js), while they are drawn.
+                                            if crate::gui::widgets::emoji::pack_installed(ui.ctx()) {
+                                                ui.add_space(theme.spacing_xs);
+                                                crate::gui::widgets::emoji::button::credit(ui, theme);
+                                            }
                                         },
                                     );
                                 });

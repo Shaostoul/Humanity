@@ -8,10 +8,11 @@
 //! is, a click maps to the same character index, and copying gives the real emoji.
 //!
 //! Where pictures come from is one small trait, [`EmojiPictures`]: "the picture of this file at this
-//! pixel size, if there is one". Rung 2 (the SVG rasteriser, docs/reference/findings/
-//! 2026-11-20-svg-rasteriser.md) supplies it; until something is [`install`]ed, or when it has no
-//! picture, an emoji is drawn as before, as the system emoji font's glyph. Used by the chat's message
-//! bodies (`widgets::row::message_row`) and reaction pills (`pages::chat` `paint_timestamp_pill`).
+//! pixel size, if there is one". Rung 2 (`pack.rs`, resvg drawing the pack's SVGs) supplies it and
+//! installs it on every egui context (`pack::install_pack`, through `gui::install_fonts`); when
+//! nothing is [`install`]ed, or when it has no picture, an emoji is drawn as before, as the system
+//! emoji font's glyph. Used by the chat's message bodies (`widgets::row::message_row`), reaction
+//! pills (`pages::chat` `paint_timestamp_pill`) and the reaction buttons (`button.rs`).
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -27,8 +28,8 @@ const SIDE_EM: f32 = 1.2;
 const LEFT_EM: f32 = 0.1;
 const RIGHT_EM: f32 = 0.05;
 
-/// Where emoji pictures come from. Rung 2 implements it (an SVG rasteriser drawing each picture at
-/// the asked pixel size into an egui texture); nothing does yet, so the chat draws font glyphs.
+/// Where emoji pictures come from. Rung 2 implements it (`pack::PackPictures`: resvg drawing each
+/// picture at the asked pixel size into an egui texture).
 pub trait EmojiPictures: Send + Sync {
     /// The texture of the picture `file` (its name without `.svg`) in the set folder `set`, drawn
     /// `px` pixels square, or None when there is none (the emoji then stays the font's glyph).
@@ -39,6 +40,10 @@ pub trait EmojiPictures: Send + Sync {
 pub struct EmojiSource {
     pub index: EmojiIndex,
     pub pictures: Box<dyn EmojiPictures>,
+    /// When the list came from the shipped pack, the pack version and time it was read (it is read
+    /// again when the pack changes, or on a schedule with the reuse switch off: `pack::list_due`);
+    /// None for a source made in code (a test's stand-in), which stays as it was installed.
+    pub pack: Option<super::pack::PackStamp>,
 }
 
 fn source_id() -> egui::Id {
@@ -54,9 +59,20 @@ pub fn install(ctx: &egui::Context, source: Option<Arc<EmojiSource>>) {
     });
 }
 
-/// The installed emoji pictures, if any.
+/// The installed emoji pictures, if any; the pack's are read again first when they are due (the pack
+/// changed, or the reuse switch's schedule: `pack::list_due`). Never call it inside `ctx.fonts`.
 pub fn source(ctx: &egui::Context) -> Option<Arc<EmojiSource>> {
-    ctx.data(|d| d.get_temp::<Arc<EmojiSource>>(source_id()))
+    let src = ctx.data(|d| d.get_temp::<Arc<EmojiSource>>(source_id()))?;
+    match src.pack {
+        Some(stamp) if super::pack::due(&stamp) => super::pack::reload(ctx),
+        _ => Some(src),
+    }
+}
+
+/// Do the installed pictures come from the shipped pack (OpenMoji's, which ask for their credit
+/// where they are picked: `button::credit`)?
+pub fn pack_installed(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<Arc<EmojiSource>>(source_id())).is_some_and(|s| s.pack.is_some())
 }
 
 /// One picture to paint over its placeholder.

@@ -337,8 +337,8 @@
         // OpenMoji (2026-11-20), the emoji pictures: the operator chose it ("of that list the
         // OpenMoji sounds better") to replace Twemoji, whose pictures came from a CDN per visitor
         // and were never credited (attribution audit 2026-09-06, gap 8). assets/emoji/openmoji/,
-        // drawn by web/shared/emoji.js on the website's chat; the desktop's rung is
-        // docs/design/emoji.md. The notice is the attribution OpenMoji's README asks for, word for
+        // drawn by web/shared/emoji.js on the website's chat and, since rung 2 (2026-11-20), by
+        // src/gui/widgets/emoji/pack.rs in the desktop app's chat (docs/design/emoji.md). The notice is the attribution OpenMoji's README asks for, word for
         // word (its en dash included). The website has no Credits page of its own: its footer's
         // licence link opens LICENSING.md, whose "Other people's work" row names OpenMoji and
         // links LICENSES.md (CC BY-SA 4.0 section 3(a)(2) allows "a URI or hyperlink to a resource
@@ -346,14 +346,16 @@
         (
             id: "openmoji",
             name: "OpenMoji",
-            used_for: "The emoji pictures in the website's chat: every emoji in a message, a reaction or a name is drawn from our own copy of OpenMoji's 4,495 colour pictures (release 17.0.0), never fetched from another site.",
+            used_for: "The emoji pictures in the chat, on the website and in the desktop app: every emoji in a message or a reaction (on the website in a name too) is drawn from our own copy of OpenMoji's 4,495 colour pictures (release 17.0.0), never fetched from another site.",
             licence: "CC BY-SA 4.0",
             notice: "All emojis designed by OpenMoji – the open-source emoji and icon project. License: CC BY-SA 4.0",
             url: "https://openmoji.org/",
             attribution_required: true,
             // The ∞ panel's foot is where the pictures are picked (the operator said yes,
-            // 2026-11-20): web/chat/view/pillPopup.js, words emoji.credit in en.json.
-            shown_in: ["Credits", "The website chat's reaction picker (the foot of its ∞ panel)", "The website's footer (its licence link opens LICENSING.md, which names OpenMoji and links LICENSES.md)", "assets/emoji/openmoji/LICENSE.md, beside the pictures"],
+            // 2026-11-20): web/chat/view/pillPopup.js, and its desktop twin `credit` in
+            // src/gui/widgets/emoji/button.rs (drawn by pages/chat/rows.rs while the pack's pictures
+            // are installed), words emoji.credit in en.json.
+            shown_in: ["Credits", "The website chat's reaction picker (the foot of its ∞ panel)", "The desktop chat's reaction picker (the foot of its ∞ panel)","The website's footer (its licence link opens LICENSING.md, which names OpenMoji and links LICENSES.md)", "assets/emoji/openmoji/LICENSE.md, beside the pictures"],
         ),
         // The written music (docs/design/score-player.md, rung 2): three pieces converted to MEI from
         // Mutopia Project LilyPond files whose typesetters placed them in the public domain

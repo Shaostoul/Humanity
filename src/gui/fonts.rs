@@ -44,6 +44,10 @@ use egui::FontFamily;
 /// wraps, to make room under that file's line budget.)
 pub fn install_fonts(ctx: &egui::Context) {
     install_font_fallbacks(ctx);
+    // The emoji pack's pictures (docs/design/emoji.md, rung 2): every context that gets the fonts
+    // gets them too, so a wall screen's chat draws the emoji the main window draws. Without the
+    // pack beside the exe it installs nothing and emoji stay the emoji font's glyphs.
+    crate::gui::widgets::emoji::install_pack(ctx);
 }
 
 /// Install every font fallback chain. Call once during init AFTER the egui

@@ -27,6 +27,16 @@ which crates would adding it download?
   0.15.0 (29 KiB), data-url 0.3.2 (23 KiB), simplecss 0.2.2 (22 KiB), polycool 0.4.0 (22 KiB),
   pico-args 0.5.0 (11 KiB). Everything else it needs is already in `Cargo.lock` (bytemuck, log, rgb,
   siphasher, arrayref, arrayvec, cfg-if, strict-num, smallvec, memchr, png).
+- **Correction, 2026-11-20 (found while adding it):** the real download is **14 crates, about
+  1,005 KiB**. The walk above missed two. **float-cmp 0.9.0** (10,102 bytes, MIT) comes in because
+  usvg 0.50 asks for strict-num with its default features, and strict-num's default `approx-eq`
+  feature turns float-cmp on, so it is compiled. **euclid 0.22.14** (88,222 bytes, MIT OR
+  Apache-2.0) comes in because kurbo 0.13's `std` feature names `euclid?/std`, a weak feature. That
+  writes euclid into Cargo.lock, and Cargo then downloads it even though nothing turns kurbo's
+  `euclid` feature on, so it is never compiled. `cargo update --workspace` listed both, and the
+  first build fetched both. The operator approved both on 2026-11-20 (euclid: "We'll keep it for
+  now. Less work for us."). Lesson: count what a new dependency adds to Cargo.lock, not only what
+  its active features need.
 - **A smaller alternative**: resvg 0.45.1 (2025-04-17) downloads 10 crates, about 519 KiB, because it
   uses the tiny-skia 0.11.4 already in `Cargo.lock`; but it is five releases and 19 months behind,
   and the house rule is to keep components current (memory `feedback_keep_components_current`), so

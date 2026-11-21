@@ -45,8 +45,11 @@
 const fs = require("fs");
 const path = require("path");
 
-/** The folders the download carries, relative to the repo root. */
-const ROOTS = ["data", "assets/icons", "assets/shaders", "assets/models", "assets/textures", "assets/audio"];
+/** The folders the download carries, relative to the repo root. assets/emoji (2026-11-20): the emoji
+ * pack (OpenMoji's SVGs, their LICENSE.md, sets.json and index.json, about 24 MB), which the desktop's
+ * chat draws its emoji from (src/gui/widgets/emoji/pack.rs, docs/design/emoji.md rung 2); the phone
+ * app carries it too, its chat draws them the same way. */
+const ROOTS = ["data", "assets/icons", "assets/shaders", "assets/models", "assets/textures", "assets/audio", "assets/emoji"];
 
 /** Single files the download carries: the licence files travel with every download (the ODbL offer
  * for the OpenStreetMap region files and the CC BY-SA offer for the star catalogues are in

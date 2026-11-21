@@ -19,18 +19,25 @@
 //! Unicode's emoji properties come from `props.rs`, generated from the same Unicode data the website's
 //! engine has (`scripts/gen-emoji-props.js`; why not the regex crate's tables: emoji.md, rung 1).
 //!
-//! **Rung 3, pictures in a line of text**: `inline.rs`.
+//! **Rung 2, the pictures**: `pack.rs` (resvg drawing the pack's SVGs into textures, kept in memory
+//! only, obeying the reuse switch). **Rung 3, pictures in a line of text**: `inline.rs`, and the
+//! reaction buttons and the pack's credit: `button.rs`.
 
 mod props;
+pub mod button;
 pub mod inline;
+pub mod pack;
 
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod pack_tests;
 
 use std::collections::HashMap;
 use std::ops::Range;
 
-pub use inline::{install, layout, layout_singleline, paint, picture_rects, source, with_pictures, EmojiPictures, EmojiSource, Placed};
+pub use inline::{install, layout, layout_singleline, pack_installed, paint, picture_rects, source, with_pictures, EmojiPictures, EmojiSource, Placed};
+pub use pack::install_pack;
 
 const ZWJ: char = '\u{200D}';
 const VS16: char = '\u{FE0F}'; // glyph-exempt: the selector as a code point the matcher reads, never drawn

@@ -105,7 +105,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:humanity-ai-protocol", "dep:gltf", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
+native = ["winit", "relay", "humanity-core/native", "humanity-protocol/native", "humanity-ship/native", "humanity-terrain/native", "humanity-systems/native", "dep:humanity-music", "dep:humanity-animation", "dep:humanity-ai-protocol", "dep:gltf", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:resvg", "dep:tungstenite", "dep:kira", "dep:symphonia", "dep:ureq", "dep:url", "dep:html5ever", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:ctr", "dep:ghash", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless", "dep:matroska-demuxer", "dep:mp4-atom", "dep:rav1d", "dep:libc", "dep:windows", "dep:windows-core", "dep:tray-icon"]
 relay = ["dep:humanity-protocol", "dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:sha1", "dep:hmac", "dep:p256", "dep:hkdf", "dep:sha2_11", "dep:base64", "dep:base64ct", "dep:bs58", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2", "dep:aes-gcm", "dep:md-5", "dep:blahaj", "dep:miniz_oxide"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -187,6 +187,12 @@ tokio = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
+# The emoji pictures in the desktop app (docs/design/emoji.md, rung 2): resvg draws each OpenMoji
+# SVG of assets/emoji/ at the text's pixel size into an egui texture. Chosen and its licences quoted
+# in docs/reference/findings/2026-11-20-svg-rasteriser.md (resvg and usvg Apache-2.0 OR MIT,
+# tiny-skia BSD-3-Clause); the operator approved the download on 2026-11-20. No default features:
+# they bring text shaping, raster images inside SVGs and svgz, and the pack uses none of them.
+resvg = { version = "0.50", default-features = false, optional = true }
 ureq = { version = "2", optional = true }
 # The readable web (src/web_reader/): Servo's HTML5 parser, pinned to an exact
 # version because the TreeSink trait it hands us changes shape between minors
@@ -541,6 +547,17 @@ opt-level = 3
 [profile.dev.package.miniz_oxide]
 opt-level = 3
 [profile.dev.package.crc32fast]
+opt-level = 3
+# The emoji pictures' SVG renderer (2026-11-20, docs/design/emoji.md rung 2): a dev build draws every
+# emoji the chat shows on first sight, and the pack test draws all 4,495; unoptimised, path filling
+# runs several times slower. Small crates.
+[profile.dev.package.resvg]
+opt-level = 3
+[profile.dev.package.usvg]
+opt-level = 3
+[profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.tiny-skia-path]
 opt-level = 3
 
 # rav1d is built from vendor/rav1d: the published 1.1.0 with one fix to its CDEF

@@ -1522,6 +1522,43 @@ fn snapshot_chat_click_to_load() {
     });
 }
 
+/// Emoji drawn as the pack's OpenMoji pictures (docs/design/emoji.md, rung 2, 2026-11-20): a message
+/// with a face, a hand with a skin tone, a joined sequence typed with U+FE0F, a flag and the bare
+/// heart, and reactions on it, each emoji rasterised by resvg into a texture of the page's own
+/// context. The check refuses a frame that painted no emoji picture, so the PNG cannot stand in for
+/// glyphs. Seen red 2026-11-20 on the GPU with `install_pack` left out: "chat_emoji: the frame to be
+/// captured fails its check, so no picture is written: 0 pictures painted; ...".
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_chat_emoji() {
+    let check = |_: &egui::Context, out: &egui::FullOutput| {
+        let n = crate::gui::pages::chat::inline_video::tests::pictures_of(out).len();
+        if n >= 8 { Ok(()) } else { Err(format!("{n} pictures painted; the message's six emoji and its reactions draw at least 8")) }
+    };
+    render_page_png_checked("chat_emoji", 1280, 600, crate::gui::font_size::DEFAULT_PERCENT, |ctx, theme, state| {
+        if !crate::gui::widgets::emoji::pack_installed(ctx) {
+            crate::gui::widgets::emoji::install_pack(ctx);
+        }
+        if !state.chat_messages.iter().any(|m| m.sender_key == "emo0") {
+            state.chat_messages.retain(|m| m.channel != "global");
+            let mut msg = ChatMessage {
+                sender_name: "Ann".into(),
+                sender_key: "emo0".into(),
+                content: "Good morning \u{1F600} the beans are up \u{1F44D}\u{1F3FD} \u{2764}\u{FE0F}\u{200D}\u{1F525} from \u{1F1F3}\u{1F1FF} \u{2764} \u{1F331}".into(), // glyph-exempt: a message typed with U+FE0F, drawn as a picture
+                timestamp: "09:20".into(),
+                timestamp_ms: 1_791_481_200_000,
+                channel: "global".into(),
+                ..Default::default()
+            };
+            msg.reactions.insert("\u{2764}".into(), vec!["bob0".into(), "cat0".into()]);
+            msg.reactions.insert("\u{1F44D}".into(), vec!["bob0".into()]);
+            state.chat_messages.push(msg);
+            state.chat_active_channel = "global".into();
+        }
+        crate::gui::pages::chat::draw(ctx, theme, state);
+    }, check);
+}
+
 // Files posted into a public channel (2026-10-17, chat/public_files.rs): a video with its size and
 // the line about the computer's own player, an archive with its word of caution, and a 3D model on
 // the server with View in 3D. Sizes are put in place so nothing is asked of any server.
