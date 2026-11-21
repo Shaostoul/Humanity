@@ -160,7 +160,6 @@ mod native_app {
     };
     use humanity_core::ecs::components::Controllable;
     use crate::gui::GuiPage;
-    use crate::renderer::Renderer;
     use humanity_ship::ship_structure::{zone_body, zone_body_mut};
     use humanity_ship::storey_edits::EditStorey;
     use std::path::PathBuf;
@@ -983,15 +982,15 @@ mod native_app {
                 }
             }
 
-            // Initialize renderer (block on async). The heaviest untimed phase:
-            // adapter + device request, every shader-module + pipeline + bind-
-            // group-layout, plus the cloud-noise volumes.
+            // Initialize renderer (block on async). The heaviest untimed phase on a desktop:
+            // adapter + device request, every shader-module + pipeline + bind-group-layout, plus
+            // the cloud-noise volumes. A pages-only start (a phone) makes only the device and the
+            // surface, and the world later if something needs it (engine/renderer_slot.rs, which
+            // also holds low impact's renderer switches as the world is built).
             let t_boot = std::time::Instant::now();
-            let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
+            let pages_only = crate::engine::renderer_slot::pages_only_start();
+            let renderer = pollster::block_on(crate::engine::renderer_slot::RendererSlot::new_native(window.clone(), pages_only));
             boot_timer.since("renderer_init", t_boot);
-            // Low impact's renderer switches that have no setting (god rays, the aurora, the
-            // Sun's glare, sun shadows): off for the whole run. A no-op in a normal game.
-            crate::engine::low_impact::hold_renderer(&mut renderer);
 
             // Both modes were created hidden. A human launch shows normally
             // (activating); a background launch shows WITHOUT activation, at
@@ -1080,7 +1079,9 @@ mod native_app {
                 false
             } else {
                 let gpu = gpu!(state);
-                gpu.egui_state.on_window_event(&gpu.window, &event).consumed
+                let r = gpu.egui_state.on_window_event(&gpu.window, &event);
+                crate::engine::redraw::note_event(state, r.repaint, &event); // a phone draws on change
+                r.consumed
             };
 
             match event {
@@ -1172,6 +1173,7 @@ mod native_app {
                     match scene_result {
                         Ok((surface_texture, view)) => {
                             let full_output = crate::engine::frame_ui_run::run(state, event_loop);
+                            crate::engine::redraw::after_ui(state, &full_output); // the next frame egui wants, the count
                             crate::engine::frame_audio::run(state, &full_output);
                             crate::engine::frame_ui_paint::run(state, full_output, &view);
                             crate::engine::frame_tail::run(state, &mut f, surface_texture);

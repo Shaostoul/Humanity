@@ -87,10 +87,20 @@ test-signed and named so, and a release does not publish it.
 - **Touch**: on a phone every control is at least the theme's `touch_target` high (44 points by
   default, Settings > Widgets), and egui lays the pages out at the phone's own scale (the
   operator's phone is about 412 points wide).
+- **A pages-only start** ([src/engine/renderer_slot.rs](../src/engine/renderer_slot.rs)): the phone
+  makes only the GPU device and the window's surface; the 3D world's renderer (its pipelines, the
+  cloud-noise bake, the ground textures, the star sky) is never built, since nothing on a phone
+  enters the world.
+- **Drawing only on change** ([src/engine/redraw.rs](../src/engine/redraw.rs)): a frame for a touch, a
+  key, an animation or a page's timer, or a network message the pages show; otherwise the app sleeps.
+  The run log says every ten seconds how many frames it drew (`[Redraw] reactive: ...`).
 
 **The phone preview on a desktop.** `HUMANITY_PHONE_PREVIEW=1` at start shows the pages as a phone
 shows them (the notices, the touch sizes, no world) on a desktop, for checking a layout without a
-phone. Make the window narrow to see the phone's width.
+phone, and starts the way a phone starts: pages-only, drawing only on change. Make the window narrow
+to see the phone's width. `HUMANITY_REDRAW_ALWAYS=1` beside it draws every frame again, for a
+comparison; `HUMANITY_PAGES_FIRST=1` alone starts a desktop pages-only with the world still
+enterable (built at the first Enter). `just verify-phone-start` boots all of these and judges them.
 
 ## What only a phone can prove
 

@@ -1055,6 +1055,23 @@ verify-storeys *ARGS:
 verify-tray *ARGS:
     node scripts/verify-tray.js "$@"
 
+# Proves on this PC what the phone app's start does (Android rung A1, 2026-11-20;
+# docs/design/platforms.md): a phone starts PAGES-ONLY (none of the 3D world's pipelines, the cloud
+# bake or the star sky: engine/renderer_slot.rs) and draws a frame only when something changed
+# (engine/redraw.rs). BOOTS FOUR games, one after the other, in their own portable sandbox
+# (.probe-rig/phone-start: background, never focused, silent, no server): a plain desktop start, the
+# phone preview (HUMANITY_PHONE_PREVIEW=1: pages visited, then idle), the preview drawing every frame
+# (HUMANITY_REDRAW_ALWAYS=1, the before), and a desktop started pages-only (HUMANITY_PAGES_FIRST=1)
+# that then enters the world. wgpu's own count of the pipelines it holds, any stray reach for the
+# world, the idle frames, the first frame's time. Judged by scripts/lib/phone-start-judge.js
+# (scripts/tests/phone-start-judge.test.js breaks each rule). A timing rig: waits while another
+# HumanityOS or one of the operator's GPU-heavy programs runs; exit 1 refused, 2 a check failed.
+#   just verify-phone-start --dry-verdict <manifest.json>   re-judge without booting
+# Boot the phone preview pages-only: pipelines counted, idle frames, start times
+[positional-arguments]
+verify-phone-start *ARGS:
+    node scripts/verify-phone-start.js "$@"
+
 # The dev MCP end to end (2026-10-22, docs/ai/mcp.md): starts scripts/mcp-server.js on stdio as
 # Claude Code does, then game_status, game_screenshot (printing the PNG's path) and
 # game_player_state through it. --boot boots a game first through game_boot (the rigs' launcher:

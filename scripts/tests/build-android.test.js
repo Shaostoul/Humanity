@@ -68,18 +68,27 @@ test("the desktop-only crates are left out of the phone build", () => {
   assert.ok(/^keyring = /m.test(coreNotAndroid), "humanity-core declares keyring for Android, whose mock store forgets the key");
 });
 
-// The mirror on the VPS takes a release's platform files by name; an APK it took would hold the
-// release back until the server had it. Broken by naming the APK HumanityOS-android-arm64.zip:
-// "the mirror would take".
-test("the VPS mirror passes the APK by", () => {
+// The mirror on the VPS takes a release's platform files by name, and a platform must have all three
+// of its files before the release counts as ready: an APK taken as a platform would hold the release
+// back. It takes the APK as an OPTIONAL file instead (PHONE_RE, 2026-11-20), so its manifest lists the
+// phone app and the download page shows the install steps (web/pages/download-app.js), and never its
+// .sha256. Broken by naming the APK HumanityOS-android-arm64.zip: "the mirror would take ... as a
+// platform"; by dropping PHONE_RE's branch: "the mirror would not list".
+test("the VPS mirror takes the APK as an optional file, never as a platform", () => {
   const mirror = read("scripts/vps/humanity-mirror-release");
   const m = /PLATFORM_RE = re\.compile\(r"(.*)"\)/.exec(mirror);
   assert.ok(m, "no PLATFORM_RE in the mirror");
-  const re = new RegExp(m[1]);
+  const platform = new RegExp(m[1]);
+  const p = /PHONE_RE = re\.compile\(r"(.*)"\)/.exec(mirror);
+  assert.ok(p && /elif PHONE_RE\.match\(name\):/.test(mirror), "the mirror would not list the phone app (no PHONE_RE branch)");
+  const phone = new RegExp(p[1]);
   const workflow = read(".github/workflows/build-android.yml");
   const names = [...workflow.matchAll(/dist\/(HumanityOS-android[^\s']*)/g)].map((x) => x[1]);
   assert.ok(names.length >= 2, "the workflow publishes no APK");
-  for (const n of names) assert.ok(!re.test(n), `the mirror would take ${n}`);
+  for (const n of names) {
+    assert.ok(!platform.test(n), `the mirror would take ${n} as a platform`);
+    assert.strictEqual(phone.test(n), n.endsWith(".apk"), `PHONE_RE on ${n}`);
+  }
 });
 
 // A test-signed APK is never a release asset: the release step publishes only the name the

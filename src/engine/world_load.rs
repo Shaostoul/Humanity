@@ -127,6 +127,11 @@ fn drawing(state: &mut EngineState, what: &'static str) -> bool {
 pub(crate) fn load_world(state: &mut EngineState) {
     log::info!("Loading 3D world...");
     let load_start = Instant::now();
+    // A pages-only start (HUMANITY_PAGES_FIRST) builds the world's renderer here, the first time
+    // the world is entered; a desktop built it at start, so this is a no-op (engine/renderer_slot.rs).
+    if let Some(gpu) = state.gpu.as_mut() {
+        gpu.renderer.ensure_world("entering the world");
+    }
     // A ship loaded afresh may be the server's ship again: try joining it, and the next welcome
     // is an arrival (the player stands where the relay holds them). engine/home_plot.rs.
     crate::engine::home_plot::clear_refusal(state);

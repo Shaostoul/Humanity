@@ -2055,6 +2055,24 @@ steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pr
   keyring left out of the phone build; the chat socket on rustls there.
 - Touch: theme token `touch_target` (44 points, Settings > Widgets) as the smallest control height on
   a phone. `HUMANITY_PHONE_PREVIEW=1` shows the phone's view on a desktop.
+- Pages-only start (2026-11-20): `src/engine/renderer_slot.rs` (`RendererSlot`: the pages' GPU always,
+  the 3D world's renderer built on demand, `ensure_world` at world entry; a stray reach logged by its
+  source line; `pipeline_counts` from wgpu's own report) and `src/renderer/pages_gpu.rs` (`PagesGpu`:
+  adapter, device, surface; `Renderer::build_world` builds the rest). A phone and the phone preview
+  start pages-only; `HUMANITY_PAGES_FIRST=1` starts a desktop that way with the world still enterable.
+  No star-sky or planet prebuild on a pages-only start.
+- Drawing only on change on a phone (2026-11-20): `src/engine/redraw.rs` (input, egui's repaint
+  requests from any thread, a network tick that draws only when the pages' data changed, a dev
+  request; `[Redraw]` frame counts every 10 s, `[Boot] first frame drawn ... ms`; `HUMANITY_REDRAW_ALWAYS=1`
+  to compare). The image cache's workers wake the frame (`WakeSender`); the Music page asks for frames
+  while music plays.
+- Rig: `just verify-phone-start` (`scripts/verify-phone-start.js`, judge `scripts/lib/phone-start-judge.js`,
+  `scripts/tests/phone-start-judge.test.js`): four boots (desktop, phone preview, before, pages-first),
+  wgpu's pipeline counts, stray reaches, idle frames, start times.
+- Download page (website): the Android card shows the APK and the install walk-through only when the
+  newest release in `/releases/manifest.json` carries `HumanityOS-android-arm64.apk`, else "not
+  published yet" (`web/pages/download.html`, `download-app.js`, words `download.android_*`; test
+  `scripts/tests/download-android-web.test.js`). The VPS mirror takes the APK as optional (`PHONE_RE`).
 - Checks: `scripts/tests/build-android.test.js` (manifest, entry point, gated crates, mirror,
   signed-only release, the phone's file list).
 - Plan and the later rungs (Keystore, background chat, the 3D world, F-Droid): `docs/design/platforms.md`.

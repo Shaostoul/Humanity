@@ -7,6 +7,11 @@ use crate::engine::frame_prelude::*;
 
 /// Places and draws the solar system for this frame.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): the solar system's bodies and orbit lines.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     humanity_core::frame_costs::span("cpu.span.lists_sky");
     // ── The real solar system around the home ──
     // (map sync increment B; procedural surfaces v0.763.)

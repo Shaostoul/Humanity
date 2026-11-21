@@ -17,12 +17,12 @@ pub(crate) fn run(state: &mut EngineState) {
     // the other unconditional per-frame polls - effectively
     // free when idle (one try_recv); a saved shader edit
     // swaps the PSOs in seconds with world state intact.
-    gpu!(state).renderer.poll_shader_reload();
+    if let Some(r) = gpu!(state).renderer.world_mut() { r.poll_shader_reload(); } // the world's (engine/renderer_slot.rs)
     // The two cloud PSOs compile in the background at boot
     // (2026-10-18): installed on the first frame after they
     // finish, and recorded as BACKGROUND spans, which the boot
     // timer never counts toward the time to playable.
-    if let Some(c) = gpu!(state).renderer.poll_deferred_pipelines() {
+    if let Some(c) = gpu!(state).renderer.world_mut().and_then(|r| r.poll_deferred_pipelines()) {
         let since_open = state.boot_timer.boot_start.elapsed();
         state.boot_timer.record_background("cloud_psos_compile", c.compile);
         state.boot_timer.record_background("clouds_ready_after_open", since_open);

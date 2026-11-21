@@ -6,6 +6,11 @@ use crate::engine::frame_prelude::*;
 
 /// Draws the players around you, the showroom ground and the hologram.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): the other players' bodies, the showroom ground and the hologram.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     let dt = state.clock.dt;
     let showroom = f.showroom;
     // ── Remote players (multiplayer co-presence, v0.472) ──

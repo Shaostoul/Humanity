@@ -101,11 +101,14 @@ class FakeGitHub {
     this.maxInflight = 0; // the most at once
   }
 
-  addRelease(tag, { omit = [], overrides = {} } = {}) {
+  // `extra`: files added to the release, each taken by the mirror when `mirroredExtra` says so
+  // (the phone app's APK is, its .sha256 is not).
+  addRelease(tag, { omit = [], overrides = {}, extra = [], mirroredExtra = [] } = {}) {
     const { mirrored, files } = releaseFiles(tag);
     for (const name of omit) files.delete(name);
+    extra.forEach((name, i) => files.set(name, { name, data: content(name, 30000 + i * 104729) }));
     this.releases.set(tag, { id: 1000 + this.releases.size, files, overrides });
-    return { mirrored: mirrored.filter((n) => !omit.includes(n)), files };
+    return { mirrored: [...mirrored.filter((n) => !omit.includes(n)), ...mirroredExtra].sort(), files };
   }
 
   asset(tag, file, overrides) {
@@ -510,6 +513,31 @@ test("a release missing a file, or one not uploaded or without a digest, is not 
   assert.match(r.out, /not ready: HumanityOS-linux-x64\.zip has no SHA-256 digest on GitHub/);
   assert.match(r.out, /not ready: HumanityOS-data-v0\.9\.0\.tar\.gz is not uploaded yet \(state 'starter'\)/);
   assert.strictEqual(unchecked.gh.cdnRequests().length, 0);
+});
+
+// THE PHONE APP (2026-11-20, Android rung A2, docs/design/platforms.md): the download page offers
+// the APK and its install steps only when this mirror's manifest lists it, so the mirror takes
+// HumanityOS-android-<arch>.apk when the release carries it ready, never waits for it, and still
+// skips its .sha256. Seen red 2026-11-20 with PHONE_RE's branch taken out (`elif
+// PHONE_RE.match(name):` became `elif False:`): the APK was skipped as "not part of the mirror" and
+// the published folder held 14 files where 15 were wanted.
+test("the phone app's APK is mirrored when the release carries it ready, and skipped by name while it uploads", async () => {
+  const apk = "HumanityOS-android-arm64.apk";
+  const extra = [apk, `${apk}.sha256`];
+  const w = await world({ extra, mirroredExtra: [apk] });
+  let r = await runPuller(w, FAST);
+  assert.strictEqual(r.code, 0, r.out);
+  assertPublished(w);
+  assert.match(r.out, /\[mirror v0\.9\.0\] RESULT: ok: published 15 files/);
+  assert.match(r.out, /skipping HumanityOS-android-arm64\.apk\.sha256 \(not part of the mirror\)/);
+  assert.ok(manifestOf(w).releases[0].assets.some((a) => a.name === apk), "the manifest lists the APK");
+
+  const waiting = await world({ extra, overrides: { [apk]: { state: "starter" } } });
+  r = await runPuller(waiting, FAST);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.match(r.out, /skipping HumanityOS-android-arm64\.apk \(the phone app, not ready on GitHub yet: the release mirrors without it\)/);
+  assert.match(r.out, /\[mirror v0\.9\.0\] RESULT: ok: published 14 files/);
+  assert.ok(!manifestOf(waiting).releases[0].assets.some((a) => a.name === apk), "an APK still uploading is not listed");
 });
 
 // Seen red with the 404 mapping taken out (`not_found_is=...` became `not_found_is=None`): an unknown

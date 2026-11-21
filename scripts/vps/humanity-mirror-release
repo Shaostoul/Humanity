@@ -22,6 +22,8 @@
 #        HumanityOS-<os>-<arch>[.exe], .tar.gz, .zip   each platform's program and its two archives
 #        HumanityOS-data-<tag>.tar.gz                  the data archive
 #        data-manifest-<tag>.json                      the per-file data manifest
+#        HumanityOS-android-<arch>.apk                 the phone app, when there is one (optional:
+#                                                      PHONE_RE says why)
 #      (not the headless relay, HumanityOS-relay-linux-x64 and its .sha256, which self-hosters
 #      fetch from GitHub; not files added to the release later). A new platform is picked up by
 #      the pattern, with no edit here. The release counts as ready only when every file it takes
@@ -124,6 +126,15 @@ TAG_RE = re.compile(r"^v[0-9][0-9A-Za-z.+-]*$")
 # HumanityOS-relay-linux-x64 (and its .sha256) and HumanityOS-data-<tag>.tar.gz.
 PLATFORM_RE = re.compile(r"^HumanityOS-(?!relay-|data-)([a-z0-9]+-[a-z0-9_]+)(\.exe|\.tar\.gz|\.zip)?$")
 DIGEST_RE = re.compile(r"^sha256:([0-9a-f]{64})$")
+# The phone app (Android rung A2, 2026-11-20; docs/design/platforms.md): HumanityOS-android-<arch>.apk,
+# which the download page offers, with its install steps, only when this mirror's manifest lists it
+# (web/pages/download-app.js; the page never asks GitHub, BUG-281). OPTIONAL: taken and checked like
+# every other file when the release carries it uploaded with a digest, and never required, so a
+# release without one (the signing secrets not set: the APK stays a test-signed workflow artifact,
+# android/README.md) mirrors exactly as before, and one still uploading is skipped by name rather
+# than holding the release back. The Android workflow attaches it about ten minutes after the tag;
+# this runs after the desktop builds, about thirty-five. Not its .sha256 (GitHub's digest checks it).
+PHONE_RE = re.compile(r"^HumanityOS-android-[a-z0-9_]+\.apk$")
 
 
 class Failure(Exception):
@@ -264,7 +275,9 @@ def list_assets(tag, args, log):
 
 
 def select_assets(assets, tag):
-    """Split the release's assets into (chosen, skipped names, problems).
+    """Split the release's assets into (chosen, skipped, problems).
+
+    skipped: each a name ("not part of the mirror") or a (name, why) pair.
 
     chosen: the assets the mirror holds, each with its "sha256" added, smallest first (the data
     manifest comes first, so a run proves the path works within seconds). problems: why the
@@ -280,6 +293,11 @@ def select_assets(assets, tag):
             have_data["archive"] = True
         elif name == data_manifest:
             have_data["manifest"] = True
+        elif PHONE_RE.match(name):
+            # The phone app: taken when it is ready, never waited for (PHONE_RE says why).
+            if asset.get("state") != "uploaded" or not DIGEST_RE.match(asset.get("digest") or ""):
+                skipped.append((name, "the phone app, not ready on GitHub yet: the release mirrors without it"))
+                continue
         else:
             m = PLATFORM_RE.match(name)
             if not m:
@@ -590,8 +608,9 @@ def run(args, log):
     log(f"listing the release's files ({args.api})")
     assets = list_assets(tag, args, log)
     chosen, skipped, problems = select_assets(assets, tag)
-    for name in skipped:
-        log(f"skipping {name} (not part of the mirror)")
+    for entry in skipped:
+        name, why = entry if isinstance(entry, tuple) else (entry, "not part of the mirror")
+        log(f"skipping {name} ({why})")
     if problems:
         for problem in problems:
             log(f"not ready: {problem}")

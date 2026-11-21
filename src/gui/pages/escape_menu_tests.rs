@@ -590,3 +590,27 @@ fn the_two_rows_cost_a_small_part_of_a_frame() {
     println!("the two rows, 2560x1440, previewing: fastest {best:.3} ms a frame, median {median:.3}, worst {worst:.3} (test build)");
     assert!(best < 0.6, "the rows took {best:.3} ms on their fastest frame of 300 (median {median:.3}): a blow-up");
 }
+
+/// THE MENU ASKS FOR FRAMES ONLY WHILE IT MOVES, AND HOLDS STILL ON A PHONE (2026-11-20, Android rung
+/// A1): it is on every page, so a colour cycling forever on a phone would be a frame every frame on
+/// every page (engine/redraw.rs). Found by the first phone-preview run, whose [Redraw] line named
+/// escape_menu.rs as the asker of 301 frames out of 301 in an idle ten seconds. Seen red 2026-11-20
+/// with the phone rule taken out of `menu_moves` (`!phone &&` dropped): "a phone holds the ambient
+/// cycle still".
+#[test]
+fn the_menu_asks_for_frames_only_while_it_moves_and_holds_still_on_a_phone() {
+    use crate::gui::theme::anim;
+    let mut theme = load_theme();
+    theme.animations_enabled = true;
+    theme.nav_active_border_animation = anim::RGB_CYCLE;
+    theme.nav_separator_animation = anim::RGB_CYCLE;
+    assert!(menu_moves(&theme, false, false), "a desktop with the RGB cycle animates");
+    assert!(!menu_moves(&theme, false, true), "a phone holds the ambient cycle still");
+    assert!(menu_moves(&theme, true, true), "an attack pulse moves on a phone too: it is a signal");
+    theme.nav_active_border_animation = anim::SOLID;
+    theme.nav_separator_animation = anim::OFF;
+    assert!(!menu_moves(&theme, false, false), "solid styles ask for nothing");
+    theme.nav_separator_animation = anim::PULSE;
+    theme.animations_enabled = false;
+    assert!(!menu_moves(&theme, true, false), "with animations off nothing moves, a pulse included");
+}

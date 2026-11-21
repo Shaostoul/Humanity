@@ -127,37 +127,8 @@ impl Renderer {
         // UI-only frame: no world pass runs, so the budget numbers stay frozen
         // at the last rendered world frame (resource budgets increment 1).
         self.frame_costs_begin(false);
-        let output = self.live_surface()?.get_current_texture()?;
-        let view = output
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Clear Encoder"),
-            });
-
-        {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Clear Pass"),
-                timestamp_writes: self.pass_timer("gpu.clear"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                ..Default::default()
-            });
-        }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
-
-        Ok((output, view))
+        // The one clear pass, shared with the pages' GPU before the world is built (pages_gpu.rs).
+        super::pages_gpu::acquire_cleared(self.live_surface()?, &self.device, &self.queue, clear_color, self.pass_timer("gpu.clear"))
     }
 
     /// Acquire surface and clear to black, returning the texture for star + scene rendering.
@@ -212,9 +183,16 @@ impl Renderer {
 
 /// The wgpu instance the window's surface was made with, kept so a new surface can be made on the
 /// same instance after a phone app comes back (wgpu ties a surface to the instance its adapter came
-/// from). Set once by `new_native`; a clone shares the one instance.
+/// from). Set once by `native_pages_gpu`; a clone shares the one instance.
 #[cfg(feature = "native")]
 static INSTANCE: std::sync::OnceLock<wgpu::Instance> = std::sync::OnceLock::new();
+
+/// The instance kept by [`remember_instance`]: a new surface after a phone app comes back, and
+/// wgpu's count of what the device holds (engine/renderer_slot.rs `pipeline_counts`).
+#[cfg(feature = "native")]
+pub fn kept_instance() -> Option<&'static wgpu::Instance> {
+    INSTANCE.get()
+}
 
 /// Keep a clone of the instance for [`Renderer::recreate_surface`], and hand it back to `init`.
 #[cfg(feature = "native")]

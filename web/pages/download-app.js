@@ -51,7 +51,10 @@
       updateUI(os, arch, svgKey, cardId);
     }
 
+    /** The platform updateUI last showed ('android' moves the main button to the phone app). */
+    var DETECTED_OS = null;
     function updateUI(os, arch, svgKey, cardId) {
+      DETECTED_OS = os;
       var names = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iOS', unknown: 'your device' };
       var archLabel = arch === 'arm64' || arch === 'arm' ? 'ARM64' : arch === 'x64' ? 'x64' : '';
       var detail = (names[os] || 'Unknown') + (archLabel ? ' · ' + archLabel : '');
@@ -149,7 +152,54 @@
         .catch(function() { /* use fallback link to releases page */ });
     }
 
+    // ── The phone app (Android rung A2, docs/design/platforms.md) ──
+    // Its card shows the download and the install steps only when this server's newest release
+    // carries the APK; otherwise the card says the phone app is not published yet (the page's
+    // default, so a failed fetch says the same). The words are the page's own, by key
+    // (data-i18n); this only picks which are shown, and the main button borrows them.
+    var ANDROID_APK = 'HumanityOS-android-arm64.apk';
+
+    /** The release's APK, by its exact name (the workflow publishes only one signed with the
+     *  project's key, never a test-signed one), or null. */
+    function androidApk(assets) {
+      for (var i = 0; i < (assets || []).length; i++) {
+        if (assets[i] && assets[i].name === ANDROID_APK) return assets[i];
+      }
+      return null;
+    }
+
+    /** Show the Android card's state for release `rel` ({ tag, assets } or null); the APK's
+     *  download address when there is one, else null. */
+    function showAndroid(rel) {
+      var apk = rel ? androidApk(rel.assets) : null;
+      function show(id, on) {
+        var el = document.getElementById(id);
+        if (el) el.hidden = !on;
+      }
+      ['android-arch-none', 'android-detail-none', 'android-use-web'].forEach(function(id) { show(id, !apk); });
+      ['android-arch-apk', 'android-detail-apk', 'android-apk-link', 'android-steps-link', 'android-install'].forEach(function(id) { show(id, !!apk); });
+      if (!apk) return null;
+      var url = releaseFileUrl(rel.tag, apk.name);
+      var link = document.getElementById('android-apk-link');
+      if (link) link.href = url;
+      return url;
+    }
+
     detectPlatform();
+
+    newestRelease()
+      .then(function(d) {
+        var url = showAndroid(d);
+        if (!url || DETECTED_OS !== 'android') return;
+        // On an Android phone the main button is the phone app's, in the card's own words.
+        var btn = document.getElementById('detected-download');
+        var sub = document.getElementById('detected-sub');
+        var words = document.getElementById('android-apk-link');
+        var then = document.getElementById('android-get-sub');
+        if (btn && words) { btn.textContent = words.textContent; btn.href = url; }
+        if (sub && then) sub.textContent = then.textContent;
+      })
+      .catch(function() { /* the card keeps saying the phone app is not published yet */ });
 
     // ── Native desktop app: check for updates against this server's release list ──
     (function desktopUpdateCheck() {

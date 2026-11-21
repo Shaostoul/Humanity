@@ -7,6 +7,11 @@ use crate::engine::frame_prelude::*;
 
 /// Takes this frame's draw lists and fills them with the home.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): the home's draw lists.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.lists_home");
     f.all_objects = crate::engine::state::DrawBufs::take(&mut state.draw_bufs.opaque); // last frame's memory (DrawBufs, S3)

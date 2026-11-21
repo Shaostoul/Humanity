@@ -7,6 +7,10 @@ use crate::engine::frame_prelude::*;
 
 /// Runs this frame's ambient particles.
 pub(crate) fn run(state: &mut EngineState) {
+    // Nothing to do before the world's renderer is built (a pages-only start, engine/renderer_slot.rs): the particles are drawn only in the world.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.particles");
     // ── Ambient particles (v0.966): leaves among trees, dust

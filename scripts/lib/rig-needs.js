@@ -110,6 +110,10 @@ const RIGS = Object.freeze({
     kind: "timing",
     why: "how long the game takes to boot",
   },
+  "verify-phone-start": {
+    kind: "timing",
+    why: "how long a phone's pages-only start takes against a desktop's, and how many frames an idle phone draws: times and frame counts, meaningless in low impact (it caps the frame rate and shrinks the window)",
+  },
   "ai-talk": {
     kind: "timing",
     why: "the talk card's AI replies and the game's frame cost while the AI engine writes (embeddable-ai.md 9.5's 5%): a frame time, meaningless in low impact",

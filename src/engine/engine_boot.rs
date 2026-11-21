@@ -90,6 +90,10 @@ impl EngineState {
         // for every in-world screen context (gui::screen_surface), so a
         // wall screen never shows tofu the main UI does not.
         crate::gui::install_fonts(&egui_ctx);
+        // A repaint any thread asks for wakes a phone's waiting event loop (engine/redraw.rs).
+        if gpu.is_some() {
+            crate::engine::redraw::install(&egui_ctx);
+        }
         // Load + cache the in-app glossary (data/glossary.json) so
         // widgets::definition_text can pop term definitions on
         // Alt+hover. Silent no-op if the file is missing — definition
@@ -146,6 +150,10 @@ impl EngineState {
         let t_boot = std::time::Instant::now();
         load_data_registries(&mut data_store, &data_dir);
         opts.boot_timer.since("eager_data_registries", t_boot);
+        // A pages-only start (a phone, engine/renderer_slot.rs) prebuilds neither the star sky nor
+        // the planet surfaces below: both are the 3D world's, and on a phone nothing enters it. Should
+        // something enter it later (HUMANITY_PAGES_FIRST), world_load.rs builds both itself.
+        let pages_only = gpu.as_ref().is_some_and(|g| g.renderer.pages_only());
         // ── Background star-sky prebuild (v0.865 boot speed) ──
         // star_catalog_and_glow measured 4100 ms ON the world-entry path:
         // catalog read + vertex packing + glow PNG decode + GPU upload.
@@ -154,7 +162,7 @@ impl EngineState {
         // is still on the chat screen. Entering the world receives the
         // finished sky; only someone who beats the thread waits (and then
         // exactly as long as they would have anyway).
-        let star_preload_rx = gpu.as_ref().and_then(|g| {
+        let star_preload_rx = gpu.as_ref().filter(|_| !pages_only).and_then(|g| {
             let renderer = &g.renderer;
             let (tx, rx) = std::sync::mpsc::channel();
             let device = renderer.device.clone();
@@ -198,7 +206,7 @@ impl EngineState {
         // the receiver (reload_planet_defs), so a stale prebuild is never
         // installed. The baked textures (about 100 MB of RGBA for the four
         // textured bodies) wait in the channel until then.
-        let planet_defs_preload_rx = {
+        let planet_defs_preload_rx = if pages_only { None } else {
             let (tx, rx) = std::sync::mpsc::channel();
             let dir = data_dir.clone();
             std::thread::Builder::new()
@@ -635,6 +643,7 @@ impl EngineState {
             last_frame: Instant::now(),
             window_focused: true,
             tray: Default::default(),
+            redraw: Default::default(),
             // Same policy as window creation (cached, so they always
             // agree): a script-launched boot must not grab the cursor
             // either. See src/engine/launch_focus.rs.

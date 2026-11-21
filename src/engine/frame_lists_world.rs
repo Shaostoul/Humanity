@@ -6,6 +6,11 @@ use crate::engine::frame_prelude::*;
 
 /// Adds the world's vehicles and storage to the draw lists and bridges time and weather.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): the world's draw lists (and the game time and weather they bridge, which only the HUD and the in-world panels show).
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     let dt = state.clock.dt;
     let showroom = f.showroom;
     humanity_core::frame_costs::span("cpu.span.lists_world");

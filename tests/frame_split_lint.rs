@@ -85,6 +85,7 @@ const STAGES: &[(&str, Kind, &str)] = &[
     ("frame_load_screens", View, "the loading screens"),
     ("frame_world_passes", View, "the scene passes"),
     ("frame_ui_run", Input, "the GUI: its pages set the requests the next step carries"),
+    ("redraw", View, "when the next frame is drawn on a phone, and the frame count (engine/redraw.rs)"),
     ("frame_audio", View, "the frame's sounds"),
     ("frame_ui_paint", View, "the GUI painted"),
     ("frame_tail", Input, "present, the settings mirrored to the controller, the world's entry"),

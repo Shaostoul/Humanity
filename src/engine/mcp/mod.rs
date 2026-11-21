@@ -144,6 +144,8 @@ pub(crate) fn inject(path: &Path, text: String) -> u64 {
     // would replace the first.
     pending.retain(|p| p.path != path);
     pending.push(Pending { path: path.to_path_buf(), text, ticket });
+    // A phone preview waiting for input draws the frames that take it (engine/redraw.rs).
+    crate::engine::redraw::dev_request_seen();
     ticket
 }
 

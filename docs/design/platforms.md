@@ -137,8 +137,9 @@ Android 11.
   with everything else. A mobile tier needs an ASTC path.
 - **Heat and battery.** A phone holds its top speed for minutes, not hours. The 3D world on a phone
   needs its own lighter settings (resolution scale, shadow distance, vegetation density, cloud
-  quality), stated in words per the graphics-settings rule ([`graphics-settings.md`](graphics-settings.md)),
-  and the app pages should redraw only when something changes, not every frame.
+  quality), stated in words per the graphics-settings rule ([`graphics-settings.md`](graphics-settings.md)).
+  The app pages already redraw only when something changes, and a phone starts without the world's
+  renderer at all (both 2026-11-20, rung A1 below).
 - **Say it plainly.** Per the hardware-notice rule, a phone that cannot run the 3D world (or a
   setting) says so on the screen where the person meets it: what it needs, what this phone has, and
   what works instead (the app pages always work).
@@ -216,13 +217,38 @@ world follows with its own lighter settings.
    - **Touch**: egui lays the pages out at the phone's own scale (about 412 points wide on the
      operator's phone), and on a phone every control is at least the theme's new `touch_target` high
      (44 points, Settings > Widgets). `HUMANITY_PHONE_PREVIEW=1` shows a desktop the phone's view.
+   - **A pages-only start** (2026-11-20, [src/engine/renderer_slot.rs](../../src/engine/renderer_slot.rs),
+     [src/renderer/pages_gpu.rs](../../src/renderer/pages_gpu.rs)): a phone makes only the device and
+     the window's surface, all egui needs; the 3D world's renderer (every shader module and pipeline,
+     the cloud-noise and ground-texture bakes) is built the first time something needs the world,
+     which on a phone is never, and the star sky and the planet surfaces are not prebuilt. A desktop
+     builds everything at start, in the same order as before. On this PC (RTX 4070, release build,
+     `just verify-phone-start`) the first frame came 18,588 ms after the window opened on a
+     desktop start (adapter 1.3 s, device 4.2 s, shaders and pipelines 9.5 s, the PC busy with other
+     builds) and 947 ms on a pages-only one, and wgpu held 6 render pipelines and
+     no compute pipeline on the pages against 53 and 12 with the world built. `HUMANITY_PAGES_FIRST=1` starts a
+     desktop pages-only with the world still reachable (built at the first Enter, 8,705 ms there), so the
+     on-demand build is checked on this PC. A stray reach for the world in a pages-only run is logged
+     by its source line (`[PagesOnly] world touched from ...`) and fails the rig.
+   - **Drawing only on change** (2026-11-20, [src/engine/redraw.rs](../../src/engine/redraw.rs)): on
+     a phone a frame is drawn for input, for egui's own requests (animations, spinners, a page's
+     timer, from any thread), when the network brings something the pages show (the sockets read
+     four times a second without drawing, as the tray's hidden window does), and for a dev request;
+     otherwise the event loop sleeps. An idle ten seconds drew 300 frames before (the background frame cap)
+     and 0 after in the phone preview (45 wakes for the network tick, none drawn). Pages that move by themselves ask for their frames: the chat's typing
+     marks (already did), the Music page's visualizer and roll while music plays, pictures the image
+     cache finishes in the background (its workers wake the frame), chat videos (already did).
+     The Dev, Maps and Watch pages draw on purpose while open (live numbers, the orrery, a video).
+     The menu's RGB colour cycle holds still on a phone (an attack pulse still moves): the menu is on
+     every page, and it had asked for every frame even with animations off; the [Redraw] line names
+     what asked egui for each window's frames, which is how it was found.
+     `HUMANITY_REDRAW_ALWAYS=1` keeps a preview drawing every frame, for the comparison.
 
    **Still to do in A1:** the Android Keystore through JNI (the key store notice until then); the
    on-screen keyboard is NativeActivity's (basic key events: GameActivity's full text input needs
-   Java code and Gradle, a later step); the 3D renderer is still built at start-up although a phone
-   never draws the world (the cloud-noise bake and every pipeline: the first phone run's start time
-   decides whether a pages-only start comes next); the app redraws every frame where it could redraw
-   only on change; the file browser still starts outside the app's folder; launching programs is
+   Java code and Gradle, a later step); the network wakes a waiting phone by a four-times-a-second
+   tick rather than by the socket itself (a socket thread waking the loop would let it sleep longer);
+   the file browser still starts outside the app's folder; launching programs is
    noticed on the Apps page only, not yet on the other screens whose buttons start a program
    (`std::process::Command` sits in 19 source files: the relay control page, Settings, the dev pages,
    the music controls, the media player's ffmpeg among them).
@@ -230,8 +256,19 @@ world follows with its own lighter settings.
    through "Install unknown apps". PARTLY BUILT 2026-11-14: the workflow publishes the APK on a
    release tag once the operator has made the key (`just android-signing-key`, which sets two
    repository secrets and keeps an encrypted backup); until then each build is test-signed and stays
-   a workflow artifact. The walk-through is in [android/README.md](../../android/README.md); the
-   download page does not show it yet. Free.
+   a workflow artifact. The walk-through is in [android/README.md](../../android/README.md), and
+   since 2026-11-20 the website's download page shows it, with the APK's download, only when this
+   server's newest release carries `HumanityOS-android-arm64.apk` (the page learns of a release's
+   files only from the mirror's `/releases/manifest.json`, never GitHub's API, BUG-281); otherwise
+   its Android card says plainly that the phone app is not published yet. The VPS mirror takes the
+   APK as an optional file for that (`PHONE_RE` in scripts/vps/humanity-mirror-release: never
+   required, so a release without one mirrors as before; an APK attached after the mirror ran is not
+   added to that release's folder, and the Android workflow's ten minutes against the desktop
+   builds' thirty-five keep it ahead). **No native mirror, by choice:** the download page is web-only
+   in [PAGES.md](../PAGES.md) because the desktop app is itself the download, and the phone app is
+   installed from the phone's own browser, which reaches the website, not the desktop app. A "send
+   it to my phone" card in the desktop app (a QR code to the download page) is a possible later step.
+   Free.
 3. **A3, a free Limited Distribution registration before 2027**, so the operator's phone (and up to
    50 authorized devices, per Google's guide) keeps installing without the advanced flow when
    developer verification reaches everyone. Needs the operator's own Google account.

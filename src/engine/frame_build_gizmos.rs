@@ -6,6 +6,11 @@ use crate::engine::frame_prelude::*;
 
 /// Draws the placed lights' gizmos and the corridor door-mouth handles.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): build mode's gizmos.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     // Placed-LIGHT gizmos (v0.572): a DIAMOND centre-marker + an RGB range "sphere"
     humanity_core::frame_costs::span("cpu.span.lists_fixtures");
     // ── PHYSICAL LIGHT FIXTURES (v0.780) ── every placed light gets visible

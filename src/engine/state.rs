@@ -14,7 +14,7 @@ use crate::gui::theme::Theme;
 use humanity_core::hot_reload::HotReloadCoordinator;
 use humanity_core::hot_reload::data_store::DataStore;
 use crate::renderer::camera::{Camera, CameraController};
-use crate::renderer::{RenderObject, Renderer};
+use crate::renderer::RenderObject;
 use humanity_ship::ship_structure::ShipStructure;
 use humanity_terrain::planet::PlanetDef;
 
@@ -123,7 +123,8 @@ pub(crate) struct ConstructionGizmoGrab {
 /// `EngineState::boot`; a headless run passes None and the simulation runs the same without it.
 pub(crate) struct Gpu {
     pub(crate) window: Arc<Window>,
-    pub(crate) renderer: Renderer,
+    /// The pages' GPU, and the 3D world's renderer once something needs it (engine/renderer_slot.rs).
+    pub(crate) renderer: crate::engine::renderer_slot::RendererSlot,
     pub(crate) egui_state: egui_winit::State,
     pub(crate) egui_renderer: egui_wgpu::Renderer,
 }
@@ -1138,6 +1139,8 @@ pub(crate) struct EngineState {
     /// The notification-area (tray) icon and whether the window is hidden in it (notifications
     /// rung 2 part 2, engine/tray.rs and engine/tray_window.rs).
     pub(crate) tray: crate::engine::tray::TrayState,
+    /// When the next frame is drawn on a phone (engine/redraw.rs), and the frame count.
+    pub(crate) redraw: crate::engine::redraw::Redraw,
     /// HUMANITY_NO_FOCUS instance that has not yet been clicked into
     /// (v0.1020): cursor management stays hands-off so a rig can never own
     /// the system cursor clip - but the FIRST genuine focus gain clears

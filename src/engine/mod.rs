@@ -219,6 +219,12 @@ pub mod tray_window;
 /// The app going to the background and coming back: Android's drawing surface dropped on
 /// `suspended` and made again on the next `resumed` (Android rung A1, docs/design/platforms.md).
 pub mod app_lifecycle;
+/// The renderer the engine holds: the pages' GPU always, the 3D world's renderer built when something
+/// needs it, so a phone starts pages-only (Android rung A1, 2026-11-20, docs/design/platforms.md).
+pub mod renderer_slot;
+/// Drawing a frame only when something changed, for the pages on a phone: input, egui's own
+/// requests, the network, a dev request (Android rung A1, 2026-11-20).
+pub mod redraw;
 /// The planet's two water shells (coarse backstop + displaced wave surface),
 /// built and pushed once per frame (extracted from lib.rs, v0.1320).
 pub mod frame_water;

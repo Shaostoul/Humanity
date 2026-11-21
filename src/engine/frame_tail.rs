@@ -60,9 +60,9 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
         }
         if let Some(grid) = latest {
             let gpu = gpu!(state);
-            gpu
-                .renderer
-                .update_weather_map(&gpu.renderer.queue, &grid);
+            if let Some(r) = gpu.renderer.world() {
+                r.update_weather_map(&gpu.renderer.queue, &grid);
+            }
             state.weather_grid = Some(grid);
             // Fresh satellite data owns placement
             // again (v0.1032): move the accumulated

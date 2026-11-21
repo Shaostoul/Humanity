@@ -351,8 +351,8 @@ pub(crate) fn about_to_wait(state: &mut EngineState, event_loop: &ActiveEventLoo
         return true;
     }
     if !state.tray.hidden {
-        event_loop.set_control_flow(ControlFlow::Wait);
-        gpu!(state).window.request_redraw();
+        // The next frame at once on a desktop; on a phone only when something changed (engine/redraw.rs).
+        crate::engine::redraw::shown(state, event_loop);
         return false;
     }
     let now = Instant::now();
@@ -365,8 +365,7 @@ pub(crate) fn about_to_wait(state: &mut EngineState, event_loop: &ActiveEventLoo
     }
     if !state.tray.hidden {
         // The tick showed the window.
-        event_loop.set_control_flow(ControlFlow::Wait);
-        gpu!(state).window.request_redraw();
+        crate::engine::redraw::shown(state, event_loop);
         return false;
     }
     event_loop.set_control_flow(ControlFlow::WaitUntil(state.tray.next_tick.unwrap_or(now + TICK)));

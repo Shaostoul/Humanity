@@ -446,6 +446,12 @@ pub fn role_words(role: usize) -> &'static str {
 /// Draw the Music page.
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let accent = theme.nav_cat_apps();
+    // The visualizer, the chord and section words and a written piece's roll move while music
+    // plays: a phone draws only when asked (engine/redraw.rs), so the page asks, about thirty times
+    // a second, while there is music, and stops asking when it stops.
+    if state.music_dev.readout.score.is_some() || state.music_dev.readout.written_piece.is_some() {
+        ctx.request_repaint_after(std::time::Duration::from_millis(33));
+    }
     egui::CentralPanel::default().frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0)).show(ctx, |ui| {
         ScrollArea::vertical().id_salt("music_page_scroll").auto_shrink([false, false]).show(ui, |ui| {
             ui.label(RichText::new(t("music_page.title")).size(theme.font_size_title).color(theme.text_primary()));

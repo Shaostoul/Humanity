@@ -604,6 +604,8 @@ impl RequestWatch {
         let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
             if let Ok(event) = res {
                 if matches!(event.kind, notify::EventKind::Create(_) | notify::EventKind::Modify(_)) {
+                    // A phone preview waiting for input draws the frames that take it (engine/redraw.rs).
+                    crate::engine::redraw::dev_request_seen();
                     for p in event.paths {
                         if let Some(name) = p.file_name() {
                             let _ = tx.send(name.to_os_string());

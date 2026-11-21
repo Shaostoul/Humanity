@@ -14,9 +14,11 @@ name: Build Android App
 # it is proven by the next push. It does not run on every push: a phone build of the whole engine
 # takes a runner the better part of an hour.
 #
-# The APK is named HumanityOS-android-arm64.apk: the VPS mirror's pattern
-# (scripts/vps/humanity-mirror-release, PLATFORM_RE) takes only .exe, .tar.gz and .zip, so the
-# mirror and the release's readiness check pass it by.
+# The APK is named HumanityOS-android-arm64.apk: the VPS mirror takes it as an OPTIONAL file
+# (scripts/vps/humanity-mirror-release, PHONE_RE, 2026-11-20), never required by the release's
+# readiness check, so its manifest lists it and the download page shows the install steps
+# (web/pages/download-app.js). This workflow finishes in about ten minutes; the mirror runs after the
+# desktop builds, about thirty-five, so the APK is there when the mirror looks.
 
 on:
   push:

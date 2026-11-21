@@ -225,3 +225,46 @@ fn the_box_stands_above_the_warning_with_its_line() {
         r.interact_rect
     );
 }
+
+/// THE TYPING MARKS ASK FOR THEIR OWN FRAMES (2026-11-20, Android rung A1): "Ann is typing…" leaves
+/// three seconds after the last typing event, and a phone draws only when something asks
+/// (engine/redraw.rs), so while the line shows the composer asks for a frame within half a second,
+/// and once it has gone it asks for none of its own. Seen red 2026-11-20 with the composer's
+/// `request_repaint_after` taken out: "while someone types, egui wants the next frame in
+/// 18446744073709551615999 ms" (Duration::MAX: never, so the line would stay until the next touch).
+#[test]
+fn the_typing_marks_ask_for_frames_while_they_show() {
+    let ctx = egui::Context::default();
+    let theme = crate::gui::theme::load_theme();
+    let mut state = GuiState::default();
+    state.chat_active_channel = "global".into();
+    // A second between frames, so egui's own short animations have finished before anything is
+    // judged: only a request that stays is left.
+    let mut t = 0.0;
+    let mut run = |state: &mut GuiState| {
+        t += 1.0;
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, SCREEN)), time: Some(t), ..Default::default() };
+        let out = ctx.run(input, |ctx| draw(ctx, &theme, state));
+        out.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |v| v.repaint_delay)
+    };
+    for _ in 0..5 {
+        run(&mut state);
+    }
+    let quiet = run(&mut state);
+    assert!(quiet >= std::time::Duration::from_secs(1), "nobody typing: egui wants the next frame in {} ms", quiet.as_millis());
+    state.chat_typing_users.insert("ann0".into(), ("Ann".into(), std::time::Instant::now()));
+    // The line's arrival and departure change the layout, which egui settles over a frame or two of
+    // its own: judged after them, so only the typing marks' own request is left.
+    run(&mut state);
+    run(&mut state);
+    let typing = run(&mut state);
+    assert!(typing <= std::time::Duration::from_millis(500), "while someone types, egui wants the next frame in {} ms", typing.as_millis());
+    let long_ago = std::time::Instant::now().checked_sub(std::time::Duration::from_secs(4)).expect("the clock is past four seconds");
+    state.chat_typing_users.insert("ann0".into(), ("Ann".into(), long_ago));
+    run(&mut state); // the line is pruned in this frame
+    run(&mut state);
+    run(&mut state);
+    let gone = run(&mut state);
+    assert!(state.chat_typing_users.is_empty(), "the old typing mark was pruned");
+    assert!(gone >= std::time::Duration::from_secs(1), "after the line went, egui wants the next frame in {} ms", gone.as_millis());
+}

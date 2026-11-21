@@ -261,6 +261,38 @@ fn filled_rects(out: &egui::FullOutput) -> usize {
 /// (`.filter(|_| false)` on each): "\"Für Elise\": no credit beside it", the same for the Mountain King and
 /// the symphony, and "the roll painted 0 rectangles more with Für Elise playing, its first four bars
 /// have 22 notes".
+/// WHILE MUSIC PLAYS THE PAGE ASKS FOR FRAMES, and stops when it stops: a phone draws only when
+/// something asks (engine/redraw.rs), and the visualizer, the chord words and the roll move on
+/// their own. Seen RED 2026-11-20 before the page asked: "playing: egui wants the next frame in
+/// 18446744073709551615999 ms" (Duration::MAX: never).
+#[test]
+fn the_music_page_asks_for_frames_while_music_plays_and_only_then() {
+    let (mut state, _lib) = music_state();
+    let theme = crate::gui::theme::load_theme();
+    let size = egui::vec2(1200.0, 2000.0);
+    // One context, a second between frames, so egui's own short animations (a panel opening) have
+    // finished before anything is judged: only a request that stays is left.
+    let ctx = egui::Context::default();
+    crate::gui::install_fonts(&ctx);
+    theme.apply_to_egui(&ctx);
+    let mut t = 0.0;
+    let mut run = |state: &mut GuiState| {
+        t += 1.0;
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), time: Some(t), ..Default::default() };
+        let out = ctx.run(input, |ctx| super::draw(ctx, &theme, state));
+        out.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |v| v.repaint_delay)
+    };
+    for _ in 0..5 {
+        run(&mut state);
+    }
+    let quiet = run(&mut state);
+    assert!(quiet >= std::time::Duration::from_secs(1), "no music: egui wants the next frame in {} ms", quiet.as_millis());
+    state.music_dev.readout.score = Some(humanity_music::MusicStatus::default());
+    run(&mut state);
+    let playing = run(&mut state);
+    assert!(playing <= std::time::Duration::from_millis(50), "playing: egui wants the next frame in {} ms", playing.as_millis());
+}
+
 #[test]
 fn the_music_page_credits_each_written_piece_and_draws_the_one_playing() {
     let (mut state, lib) = music_state();

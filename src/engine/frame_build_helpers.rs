@@ -6,6 +6,11 @@ use crate::engine::frame_prelude::*;
 
 /// Draws build mode's helper gizmos, the build avatar and the opening gizmos.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): build mode's helpers.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     let hover = f.hover;
     // HELPER GIZMOS (v0.583/586/587): bounds boxes on placed structures + machines, the
     // road graph (node rings + edge centerlines), and conduit-node markers -- the helper

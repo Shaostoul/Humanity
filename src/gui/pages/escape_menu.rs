@@ -229,8 +229,11 @@ enum Look {
 }
 
 fn draw_rows(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // The active button's channeling colour animates (the RGB language of the menu, v0.177).
-    ctx.request_repaint();
+    // The active button's channeling colour animates (the RGB language of the menu, v0.177): it
+    // asks for every frame, but only while something in it moves (`menu_moves`).
+    if menu_moves(theme, state.attack_pulse_active, humanity_core::platform::device::phone()) {
+        ctx.request_repaint();
+    }
     let menu = crate::gui::navigation::menu();
     let timings = menu.file.timings;
     let now = ctx.input(|i| i.time);
@@ -396,7 +399,7 @@ fn category_button(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rect:
     let resp = named(ui.interact(rect, id, Sense::click() | drag), true, Some(look == Look::Active), words);
     let col = colour(theme, cat);
     let look = if look == Look::Idle && resp.hovered() { Look::Hovered } else { look };
-    let time = ui.input(|i| i.time) as f32;
+    let time = menu_time(ui.ctx(), state.attack_pulse_active);
     let (fill, stroke) = match look {
         Look::Active => (tint(col, 46), Stroke::new(theme.nav_active_border_width, channeling_color(theme, time, state.attack_pulse_active, col))),
         Look::Previewed => (tint(col, 30), Stroke::new(theme.nav_hover_border_width, col)),
@@ -560,6 +563,34 @@ pub(crate) fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
     Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
 }
 
+/// Whether the menu moves by itself and so asks for every frame: the theme's animations on with a
+/// moving style on the active button or the separator line, or an attack pulse (a signal, which
+/// moves whatever the style). ON A PHONE the ambient colour cycle holds still (2026-11-20): a phone
+/// draws only when something changes (engine/redraw.rs), and a colour cycling forever on the menu,
+/// which is on every page, would be a frame every frame on every page, the battery drain the reactive
+/// redraw exists to stop. An attack pulse still moves there.
+fn menu_moves(theme: &Theme, attack_pulse: bool, phone: bool) -> bool {
+    use crate::gui::theme::anim;
+    if !theme.animations_enabled {
+        return false;
+    }
+    if attack_pulse {
+        return true;
+    }
+    let moving = |m: u8| m == anim::RGB_CYCLE || m == anim::PULSE;
+    !phone && (moving(theme.nav_active_border_animation) || moving(theme.nav_separator_animation))
+}
+
+/// The time the menu's colours are drawn at: the clock, or on a phone with no attack pulse a fixed
+/// moment, so the colour holds still between the frames a phone draws (`menu_moves`).
+fn menu_time(ctx: &egui::Context, attack_pulse: bool) -> f32 {
+    if humanity_core::platform::device::phone() && !attack_pulse {
+        0.0
+    } else {
+        ctx.input(|i| i.time) as f32
+    }
+}
+
 /// Active-element "channeling" color, theme-aware (v0.177.0).
 ///
 /// Reads `theme.nav_active_border_animation` (RGB_CYCLE / SOLID / PULSE / OFF)
@@ -646,7 +677,7 @@ fn rgb_separator(ctx: &egui::Context, theme: &Theme, panel_id: &'static str, att
         .exact_height(theme.nav_separator_height)
         .show_separator_line(false)
         .show(ctx, |ui| {
-            let time = ui.ctx().input(|i| i.time) as f32;
+            let time = menu_time(ui.ctx(), attack_pulse);
             // Separator's "fallback" solid color is the accent — that's the
             // single color used when SOLID is selected or animations off.
             let fallback = theme.accent();

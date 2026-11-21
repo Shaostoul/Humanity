@@ -21,6 +21,9 @@
 //!   `save_with` instead: the caller's job fetches and decrypts on the worker,
 //!   so neither the download nor the decryption ever runs on the frame, and
 //!   the decrypted bytes live only in memory until the person chooses Save.
+//! - A worker that finishes asks egui for a frame (`WakeSender`, 2026-11-20): a phone draws only
+//!   when something changed (engine/redraw.rs), so a picture that arrives while nobody touches the
+//!   screen must say so itself, or it would wait for the next touch.
 
 use egui::{ColorImage, Context, TextureHandle};
 use std::collections::{HashMap, HashSet};
@@ -34,6 +37,25 @@ pub enum ImageStatus {
     Fetching,
     Ready { width: u32, height: u32 },
     Failed(String),
+}
+
+/// The workers' end of the result channel: each result sent also asks egui for a frame, so the
+/// frame that takes it comes on a phone that draws only on change (engine/redraw.rs). The context
+/// is the one `poll` is given, kept from its first call; before that nothing is waiting to draw.
+#[derive(Clone)]
+struct WakeSender {
+    tx: mpsc::Sender<BgResult>,
+    ctx: std::sync::Arc<std::sync::Mutex<Option<Context>>>,
+}
+
+impl WakeSender {
+    fn send(&self, msg: BgResult) -> Result<(), mpsc::SendError<BgResult>> {
+        let sent = self.tx.send(msg);
+        if let Some(ctx) = self.ctx.lock().ok().and_then(|c| c.clone()) {
+            ctx.request_repaint();
+        }
+        sent
+    }
 }
 
 /// Message posted back to the main thread from background workers.
@@ -101,8 +123,8 @@ pub struct ImageCache {
     /// Cap on max pixels per image to avoid blowing memory on a 10k×10k jpg.
     /// Default ~8 MP (3840×2160). Larger images are downsampled before upload.
     pub max_pixels: u32,
-    /// Background-worker result channel.
-    tx: mpsc::Sender<BgResult>,
+    /// Background-worker result channel (its sending end wakes the frame, `WakeSender`).
+    tx: WakeSender,
     rx: mpsc::Receiver<BgResult>,
 }
 
@@ -113,6 +135,7 @@ impl Default for ImageCache {
 impl ImageCache {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel();
+        let tx = WakeSender { tx, ctx: Default::default() };
         Self {
             textures: HashMap::new(),
             decoded_at: HashMap::new(),
@@ -343,6 +366,11 @@ impl ImageCache {
     /// Drain any completed background results and upload textures. Call this
     /// once per frame (cheap if nothing is ready). `ctx` is an egui Context.
     pub fn poll(&mut self, ctx: &Context) {
+        if let Ok(mut kept) = self.tx.ctx.lock() {
+            if kept.is_none() {
+                *kept = Some(ctx.clone());
+            }
+        }
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 BgResult::Decoded { url, width, height, rgba } => {

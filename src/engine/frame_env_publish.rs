@@ -5,6 +5,10 @@ use crate::engine::frame_prelude::*;
 
 /// Publishes the ocean's state for this frame.
 pub(crate) fn run(state: &mut EngineState) {
+    // Nothing to do before the world's renderer is built (a pages-only start, engine/renderer_slot.rs): the ocean's upkeep and its pin are the world's.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     let dt = state.clock.dt;
     humanity_core::frame_costs::span("cpu.span.env_publish");
     // FFT-ocean upkeep (v0.1029, water-fft.md increment 1):

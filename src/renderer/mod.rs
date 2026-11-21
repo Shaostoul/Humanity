@@ -139,6 +139,8 @@ pub mod stars;
 /// Near sun cascades: the home and the planet build sites as sun casters
 /// (2026-09-27, docs/design/sun-cascades.md).
 pub mod sun_cascades;
+/// What the pages draw with: the device and the window's surface, without the 3D world (2026-11-20, Android rung A1).
+pub mod pages_gpu;
 /// Swapchain + render-target lifecycle: configure, resize, acquire, and the
 /// two target constructors everything else shares. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
@@ -1012,9 +1014,12 @@ fn dxc_dlls_beside_exe() -> Option<(std::path::PathBuf, std::path::PathBuf)> {
 }
 
 impl Renderer {
-    /// Create a new renderer attached to a native winit window.
+    /// The device and the surface of a native winit window (pages_gpu.rs), the first half of a
+    /// native renderer: `Renderer::build_world` on the result is the whole of it, which a desktop
+    /// runs at once and a pages-only start leaves for later (engine/renderer_slot.rs). `bakes_now`:
+    /// start the world's background bakes with the device (a desktop).
     #[cfg(feature = "native")]
-    pub async fn new_native(window: std::sync::Arc<winit::window::Window>) -> Self {
+    pub async fn native_pages_gpu(window: std::sync::Arc<winit::window::Window>, bakes_now: bool) -> pages_gpu::PagesGpu {
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
@@ -1090,7 +1095,7 @@ impl Renderer {
 
         let surface = instance.create_surface(window).expect("Failed to create surface");
 
-        Self::init(surface::remember_instance(instance), surface, width, height, true).await
+        pages_gpu::PagesGpu::new(surface::remember_instance(instance), surface, width, height, true, bakes_now).await
     }
 
     /// Create a new renderer attached to a WASM canvas element.
@@ -1111,12 +1116,13 @@ impl Renderer {
         Self::init(instance, surface, width, height, false).await
     }
 
-    /// Shared initialization: adapter, device, pipeline, depth buffer.
+    /// The wasm canvas's initialization: the device and the surface (pages_gpu.rs), then the
+    /// world's renderer on that device (`build_world`). Native goes through `native_pages_gpu`.
     /// `background_bakes`: true on native, where the cloud-noise volumes and
     /// the ground textures are baked on background threads that overlap the
     /// device request and the shader compiles. False on wasm, which has no
     /// threads and generates both inline where they are needed.
-    #[cfg(any(feature = "native", feature = "wasm"))]
+    #[cfg(feature = "wasm")]
     async fn init(
         instance: wgpu::Instance,
         surface: wgpu::Surface<'static>,
@@ -1124,144 +1130,32 @@ impl Renderer {
         height: u32,
         background_bakes: bool,
     ) -> Self {
-        // [BootPhase] sub-spans: renderer_init is the single largest boot
-        // phase (6.7 s measured 2026-08-14); these marks attribute it so
-        // optimization targets are data, not guesses. Grep run.log for
-        // "[BootPhase]" after any boot.
-        let t_phase = std::time::Instant::now();
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                force_fallback_adapter: false,
-                compatible_surface: Some(&surface),
-            })
-            .await
-            .expect("No suitable GPU adapter found");
-        log::info!("[BootPhase] adapter_request: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
-        // The card and its own memory, for Settings > Bounced light detail's warning.
-        bounced_light_detail::note_adapter(&adapter.get_info());
+        let core = pages_gpu::PagesGpu::new(instance, surface, width, height, background_bakes, true).await;
+        Self::build_world(core)
+    }
 
-        // ── The background bakes start HERE, and not one line earlier ──
-        // They used to spawn in `new_native`, before the instance existed,
-        // on the reasoning that more overlap is better. It is not: the next
-        // thing the boot thread does is ask the driver for an adapter, which
-        // is LATENCY-bound work (DXGI enumeration, a D3D12 device per adapter
-        // to query capabilities) that a saturated CPU stretches badly.
-        // Measured 2026-09-19 on the boot rig by delaying the two bakes past
-        // the adapter and changing nothing else: adapter_request 2173 ms ->
-        // 345 ms. Nearly two seconds of "the driver is slow" was this
-        // process's own twelve noise-bake threads. Everything AFTER the
-        // adapter is throughput-bound and shares the machine happily (device
-        // + shader modules + 19 PSO compiles run about 5 s, the bake needs
-        // about 4, and the upload still reports "waited 0 ms"). If you move
-        // these again, re-read `[BootPhase] adapter_request`: that is the
-        // number that says whether you were right.
-        let (cloud_rx, ground_rx) = if background_bakes {
-            let (tx, cloud_rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let threads =
-                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
-                let t0 = std::time::Instant::now();
-                let shape = cloud_noise::generate_shape(threads);
-                let detail = cloud_noise::generate_detail(threads);
-                let t_gen = t0.elapsed().as_secs_f32() * 1000.0;
-                let shape = cloud_noise::mip_chain(shape, cloud_noise::SHAPE_SIZE);
-                let detail = cloud_noise::mip_chain(detail, cloud_noise::DETAIL_SIZE);
-                log::info!(
-                    "Cloud noise volumes generated in background: {:.0} ms bake + {:.0} ms mips \
-                     ({} threads, {}^3 + {}^3, {:.0} MiB)",
-                    t_gen,
-                    t0.elapsed().as_secs_f32() * 1000.0 - t_gen,
-                    threads,
-                    cloud_noise::SHAPE_SIZE,
-                    cloud_noise::DETAIL_SIZE,
-                    (shape.iter().map(|l| l.len()).sum::<usize>()
-                        + detail.iter().map(|l| l.len()).sum::<usize>())
-                        as f32
-                        / (1024.0 * 1024.0),
-                );
-                let _ = tx.send((shape, detail));
-            });
-            let (tx, ground_rx) = std::sync::mpsc::channel();
-            std::thread::spawn(move || {
-                let _ = tx.send(ground_textures::bake_all());
-            });
-            (Some(cloud_rx), Some(ground_rx))
-        } else {
-            (None, None)
-        };
-
+    /// The 3D world's renderer on a device the pages already draw with (pages_gpu.rs): every shader
+    /// module and pipeline, the cloud-noise and ground-texture bakes (started here when the device
+    /// was made without them), the LUTs, buffers and bind groups. A desktop builds it at start, right
+    /// after the device (`init`); a pages-only start builds it the first time something needs the
+    /// world, which on a phone is never (engine/renderer_slot.rs).
+    #[cfg(any(feature = "native", feature = "wasm"))]
+    pub fn build_world(core: pages_gpu::PagesGpu) -> Self {
+        let pages_gpu::PagesGpu {
+            device,
+            queue,
+            surface,
+            config,
+            pending_present_mode,
+            supports_frame_capture,
+            patch_indirect,
+            background_bakes,
+            bakes,
+        } = core;
+        let (cloud_rx, ground_rx) = bakes.unwrap_or_else(|| pages_gpu::start_bakes(background_bakes));
+        let (width, height) = (config.width, config.height);
+        let surface_format = config.format; // display-format: the swapchain's, for the present pass and egui, as init always had it
         let t_phase = std::time::Instant::now();
-
-        // v0.784.2 BOOT FIX: the uncapped-lights storage buffer (v0.782) needs
-        // fragment-stage storage buffers, but the old `downlevel_webgl2_defaults`
-        // profile requests ZERO of them -- so creating the camera bind group
-        // layout failed device validation and the app died before the first
-        // frame (operator: "I get a flicker but the game never comes up").
-        // Request wgpu's standard native limits instead (every Vulkan/DX12-era
-        // GPU supports them; the WebGL2 profile only mattered for a wasm target
-        // this renderer doesn't build for). Resolution limits still follow the
-        // adapter so huge-texture support matches the hardware.
-        // 2026-07-11 (ultra star catalog): the 25M-star tier packs into a
-        // ~300 MB vertex buffer, which EXCEEDS wgpu's default 256 MiB
-        // max_buffer_size limit -- with the default, creating that buffer
-        // would fail device validation at world load, the same boot-killing
-        // failure class as v0.782. Follow the adapter's real buffer capacity
-        // instead (desktop GPUs allow gigabytes); requesting exactly what
-        // the adapter reports is always grantable. Every other limit stays
-        // at the safe standard defaults. StarRenderer::new additionally
-        // trims the star list to whatever THIS device's limit turns out to
-        // be, so a small-limit adapter degrades to a partial sky, never a
-        // dead app.
-        let adapter_limits = adapter.limits();
-        let mut required_limits =
-            wgpu::Limits::default().using_resolution(adapter_limits.clone());
-        required_limits.max_buffer_size = adapter_limits.max_buffer_size;
-        // Draw-batching increment 2: request the indirect-draw features IF
-        // the adapter has them (intersection = grantable by construction,
-        // never a boot risk). When granted, the 12k-patch terrain batch
-        // submits as ONE multi_draw_indexed_indirect; when not, the
-        // per-draw loop runs on the exact same buffers and shaders.
-        let indirect_features = wgpu::Features::MULTI_DRAW_INDIRECT
-            | wgpu::Features::INDIRECT_FIRST_INSTANCE;
-        // Same intersection trick for TIMESTAMP_QUERY (resource budgets
-        // increment 1): asking for exactly what the adapter reports can never
-        // fail device creation, which is the v0.782 boot-killer class. Without
-        // it the Performance page falls back to CPU-side pass timing.
-        // ... and block compression for the garment textures (BC7, the same intersection: texture_pool).
-        let granted_indirect = (adapter.features() & (indirect_features | wgpu::Features::TIMESTAMP_QUERY | shadow_gpu::required_features())) | texture_pool::block_compression_feature(adapter.features());
-        // Can this backend hand us a compiled-pipeline blob to keep between
-        // boots? That is the standard answer to a slow PSO build, and it is
-        // the first thing anyone looking at the `[Pipelines]` line will
-        // reach for, so the run log says outright whether it is even on
-        // offer. In wgpu 24 only the VULKAN backend advertises
-        // `PIPELINE_CACHE`; the DX12 backend's `create_pipeline_cache` is a
-        // stub that stores nothing and returns no data, and Windows runs
-        // DX12 here. Logged rather than silently skipped so this stops being
-        // re-investigated, and so the day it flips to true somebody sees it.
-        log::info!(
-            "[Pipelines] adapter offers a persistent pipeline cache: {}",
-            adapter.features().contains(wgpu::Features::PIPELINE_CACHE)
-        );
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("HumanityOS Renderer"),
-                    required_features: granted_indirect,
-                    required_limits,
-                    ..Default::default()
-                },
-                None,
-            )
-            .await
-            .expect("Failed to create device");
-        log::info!("[BootPhase] device_request: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
-        let t_phase = std::time::Instant::now();
-        let patch_indirect = granted_indirect.contains(indirect_features);
-        log::info!(
-            "[PatchBatch] indirect multi-draw: {}",
-            if patch_indirect { "SUPPORTED (one submit per batch)" } else { "unsupported (per-draw loop)" }
-        );
         // GPU pass timers. `None` = no timestamp queries on this adapter.
         let gpu_timers = crate::renderer::gpu_costs::GpuTimers::new(&device, &queue).map(std::sync::Arc::new);
         frame_costs::set_gpu_timing(gpu_timers.is_some());
@@ -1269,36 +1163,6 @@ impl Renderer {
             "[FrameCosts] GPU pass timing: {}",
             if gpu_timers.is_some() { "timestamp queries" } else { "CPU fallback (adapter has no TIMESTAMP_QUERY)" }
         );
-
-        // Surface configuration
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .find(|f| f.is_srgb())
-            .copied()
-            .unwrap_or(surface_caps.formats[0]);
-
-        // Live screenshot command (v0.639): request COPY_SRC on the swapchain surface so the
-        // rendered frame can be read back to a PNG. Most backends support this alongside
-        // RENDER_ATTACHMENT; check first rather than assuming, so a backend that doesn't just
-        // gets a clean `capture_current_frame` error instead of a wgpu validation panic.
-        let supports_frame_capture = surface_caps.usages.contains(wgpu::TextureUsages::COPY_SRC);
-        let mut surface_usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
-        if supports_frame_capture {
-            surface_usage |= wgpu::TextureUsages::COPY_SRC;
-        }
-        let config = wgpu::SurfaceConfiguration {
-            usage: surface_usage,
-            format: surface_format,
-            width,
-            height,
-            present_mode: wgpu::PresentMode::AutoVsync,
-            desired_maximum_frame_latency: 2,
-            alpha_mode: surface_caps.alpha_modes[0],
-            view_formats: vec![],
-        };
-        surface.configure(&device, &config);
 
         // Depth buffer
         let (depth_texture, depth_view) = Self::create_depth_texture(&device, width, height);
@@ -2033,7 +1897,7 @@ impl Renderer {
         Self {
             device,
             queue,
-            surface: Some(surface),
+            surface,
             config,
             depth_texture,
             depth_view,
@@ -2247,7 +2111,7 @@ impl Renderer {
             shadow_comparison_sampler,
             sun_shadows: true,
             shadow_strength: 1.0,
-            pending_present_mode: None,
+            pending_present_mode,
         }
     }
 

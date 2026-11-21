@@ -23,7 +23,7 @@
 //! OpenGL and DX12) with the debug layers on, so each test loaded the OpenGL and Vulkan driver,
 //! the Vulkan implicit layers installed on the machine (OBS, Steam's overlay and Fossilize,
 //! Epic's overlay) and a hidden window thread. The game itself never does any of that: on
-//! Windows the renderer uses DX12 only (`Renderer::new_native`, renderer/mod.rs). And twelve tests
+//! Windows the renderer uses DX12 only (`Renderer::native_pages_gpu`, renderer/mod.rs). And twelve tests
 //! made and dropped instances and devices side by side, which is how the exits and the loads met.
 //!
 //! WHAT THIS MODULE DOES.
@@ -229,7 +229,7 @@ fn shared(test: &str) -> Result<Option<&'static Shared>, String> {
     }
 }
 
-/// The backends the game's renderer uses (`Renderer::new_native`), never OpenGL.
+/// The backends the game's renderer uses (`Renderer::native_pages_gpu`), never OpenGL.
 pub fn backends() -> wgpu::Backends {
     if cfg!(target_os = "windows") {
         wgpu::Backends::DX12

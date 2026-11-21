@@ -163,7 +163,7 @@ compile there says so. The wrapper's header has the detail; docs/design/cross-pl
   it, one test's driver thread exited (holding the loader lock, waiting for a driver lock) while
   another test held that driver lock and loaded a DLL, and every finished test thread then
   waited to exit, libtest's `join` included. Before the helper: 4 of 13 runs of the GPU tests
-  froze. The helper opens the game's own backend (DX12 on Windows, as `Renderer::new_native`),
+  froze. The helper opens the game's own backend (DX12 on Windows, as `Renderer::native_pages_gpu`),
   ONE instance and adapter for the whole program, never dropped, and gives each test its device
   in turn (CPU tests stay parallel). A device or adapter that does not come within 60 s fails the
   test, naming it, and every later GPU test fails at once; a test that holds the GPU past 60 s is

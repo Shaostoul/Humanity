@@ -153,7 +153,8 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
             (a - step).max(target)
         };
     }
-    if crate::drone_dock_visible(showroom, hide_machines, state.drone_dock_anim <= 0.01) {
+    // The docked drone is drawn only once the world's renderer is built (engine/renderer_slot.rs).
+    if crate::drone_dock_visible(showroom, hide_machines, state.drone_dock_anim <= 0.01) && gpu_ref!(state).renderer.world_built() {
         if let Some((hangar_pos, hangar_yaw)) = hangar_placement(state) {
             if state.drone_dock_meshes.is_none() {
                 let gpu = gpu!(state);

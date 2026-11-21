@@ -938,8 +938,9 @@ pub(crate) fn run(state: &mut EngineState) {
         // space camera uses world-Y up again.
         state.camera.clear_surface();
         // No body context: full fill (the orbital/ship look).
-        if let Some(gpu) = state.gpu.as_mut() {
-            gpu.renderer.fill_scale = 1.0;
+        // (Only into a world renderer that is built: a pages-only start has none, engine/renderer_slot.rs.)
+        if let Some(r) = state.gpu.as_mut().and_then(|g| g.renderer.world_mut()) {
+            r.fill_scale = 1.0;
         }
     }
 

@@ -52,8 +52,9 @@ pub(crate) fn poll_and_apply(state: &mut crate::engine::state::EngineState) {
     }
     // The plants' meshes are drawing: rebuilt only with the view's GPU (the headless sim runner,
     // increment 4). Without one the signature (`plant_mesh_sig`) stays behind the farm's growth, the
-    // dirty flag a view that has a GPU rebuilds from.
-    if state.gpu.is_some() {
+    // dirty flag a view that has a GPU rebuilds from. The same until the world's renderer is built
+    // (a pages-only start, a phone: engine/renderer_slot.rs), which rebuilds them once it is.
+    if state.gpu.as_ref().is_some_and(|g| g.renderer.world_built()) {
         crate::engine::home_meshes::rebuild_plant_meshes(state);
     }
     // Hull-profile hot-reload (v0.770): saving

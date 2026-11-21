@@ -6,6 +6,11 @@ use crate::engine::frame_prelude::*;
 
 /// Draws build mode's previews and finds the hovered gizmo.
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
+    // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
+    // engine/renderer_slot.rs): build mode's previews.
+    if !gpu_ref!(state).renderer.world_built() {
+        return;
+    }
     // Placement ghost: the held palette item, previewed (semi-transparent, faintly
     // glowing) on the room floor under the cursor, so you see where a click drops it.
     // The ghost mesh is cached + rebuilt only when the held type changes. (v0.529)

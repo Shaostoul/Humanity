@@ -36,13 +36,22 @@ use std::path::{Path, PathBuf};
 
 /// Production code that opens the GPU: (path ending, instances, request_adapter calls,
 /// request_device calls, why). Tests never go here.
-const PRODUCTION: &[(&str, usize, usize, usize, &str)] = &[(
-    "renderer/mod.rs",
-    2,
-    1,
-    1,
-    "the renderer's instance for the desktop window (Renderer::new) and for the web canvas (new_wasm), and the one adapter and device both use",
-)];
+const PRODUCTION: &[(&str, usize, usize, usize, &str)] = &[
+    (
+        "renderer/mod.rs",
+        2,
+        0,
+        0,
+        "the renderer's instance for the desktop window (Renderer::native_pages_gpu) and for the web canvas (new_wasm)",
+    ),
+    (
+        "renderer/pages_gpu.rs",
+        0,
+        1,
+        1,
+        "the one adapter and device both instances use (PagesGpu::new, 2026-11-20: the pages' GPU, which the world renderer is built on)",
+    ),
+];
 
 /// The one file tests open the GPU through.
 const HELPER: &str = "src/renderer/test_gpu.rs";

@@ -360,6 +360,7 @@ const RIGS = {
   "verify-storeys.js": "EXE",
   "verify-tray.js": "EXE",
   "ai-talk-rig.js": "EXE",
+  "verify-phone-start.js": "EXE",
 };
 const SCRIPTS = path.join(__dirname, "..");
 
