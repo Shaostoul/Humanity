@@ -14,7 +14,7 @@ resolver = "2"
 # it here (the first `version = ` line of this file). The core's own code reports it too (the boot
 # timings, the frame costs, the play journal, the refresh check), so the members share it.
 [workspace.package]
-version = "0.1567.0"
+version = "0.1568.0"
 edition = "2021"
 # The code's licence (2026-11-14, plan B of docs/reference/findings/2026-10-25-licence-options.md; the
 # change and why "-or-later": docs/reference/findings/2026-11-14-licence-change.md). The Library and the
