@@ -1677,6 +1677,11 @@
       "date": "2026-11-21",
       "decision": "Signed requests rounds 3-4 REVIEW: C1, C3, C5, C7, C8, C9, C10 fixed; one HIGH: local-network reach (C2) used the edge-decided client address, so through any proxy on the node's own computer (Tor forwarding to 127.0.0.1, the onion the Public address hint suggests) a visitor counted as this computer, and an X-Real-IP the visitor writes was believed; loopback peers also satisfied LAN names; the round-2 pass-through attack returned for home nodes with an onion (a test asserted the forgery as admitted). LOWs: refusal words as a name-membership oracle; the start-time rule weakened by a backward clock step; passes on the owner's node revealing its LAN or first public name; 100.64/10 and .local too wide; systemd-time-wait-sync disabled on the live servers. MY CALLS (sent to the running finisher as added scope, wk-sigreq5-add.txt): reach from the RAW socket peer only, any proxied connection never local, loopback peers satisfy loopback names only, a node with a forwarded name lists no loopback names; one generic refusal for every audience/reach/port failure; a pre-restart signature never accepted whatever the clock does; passes name only the Public address; tighter CGNAT and .local reach. I enable systemd-time-wait-sync on the servers after merge.",
       "why": "Security is work now."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Operator report on v0.1568.0: 'I can't seem to play the procedural music any more. I can click play 20 seconds but, then it seems to switch back to the sheet music.' Cause read: settings.music.written persists once a written piece is chosen, and only Stop on that piece (Written tab) or Play again on a composed piece in the heard list clears it; genre and mood cards only change the genre and mood, and the 20-second audition returns to what was playing (the written piece). Workaround given: Written music tab > Stop on the playing piece. Fix dispatched (wk-musicback.txt): choosing composed music anywhere (a genre or mood card, a new seed, a favourite) switches to it, the strip gets a back-to-composed control, the Listen tab says which kind plays.",
+      "why": "An operator-reported defect in a shipped feature."
     }
   ],
   "active_scopes_to_avoid": [
