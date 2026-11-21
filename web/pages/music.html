@@ -77,6 +77,14 @@
     <button type="button" role="tab" id="mp-tab-written" aria-controls="mp-panel-written" data-i18n="music_page.tab_written" data-i18n-tip="music_page.tab_written_hint" data-tip-desc="Every written piece, to search, sort and play, with where each came from.">Written music</button>
     <button type="button" role="tab" id="mp-tab-yours" aria-controls="mp-panel-yours" data-i18n="music_page.tab_yours" data-i18n-tip="music_page.tab_yours_hint" data-tip-desc="Your favourites, the music for each mood, share codes and audio files.">Your music</button>
   </div>
+  <details class="keys" id="mp-keys">
+    <summary data-i18n="music_page.keys_title" data-i18n-tip="music_page.keys_hint" data-tip-desc="Shows the keys that work on this page.">Keyboard shortcuts</summary>
+    <dl>
+      <dt data-i18n="music_page.key_tabs">1, 2, 3, 4</dt><dd data-i18n="music_page.key_tabs_does">Listen, Explore, Written music, Your music</dd>
+      <dt data-i18n="music_page.key_search">/</dt><dd data-i18n="music_page.key_search_does">Search Written music</dd>
+    </dl>
+    <p class="muted" data-i18n="music_page.web_keys_note">They work whenever you are not typing in a box. In the desktop app, Space, N, P and L also pause, skip and like the music it plays.</p>
+  </details>
   <section id="mp-panel-listen" role="tabpanel" aria-labelledby="mp-tab-listen">
     <h2 data-i18n="music_page.what_plays">What plays</h2>
     <p data-i18n="music_page.web_what_plays">In the desktop app this page is the one place that chooses what the music plays: let the game choose, or your own genre, mood and seed, played on every page and in the world until you choose again. Settings &gt; Music there sets only how the music sounds.</p>
@@ -90,6 +98,12 @@
     <h2 data-i18n="music_page.moods_title">Moods</h2>
     <p class="line" data-i18n="music_page.moods_intro">A mood is where the music plays and how it feels there. The game picks one for each place; choosing one here makes it yours.</p>
     <div class="cards" id="mp-moods"></div>
+    <h2 data-i18n="music_page.web_heard_title">Pieces you opened here</h2>
+    <div class="row">
+      <p class="line" data-i18n="music_page.web_heard_intro">The written pieces whose details you opened on this website, newest first, kept only in this browser. The desktop app keeps the pieces you heard the same way, in your data folder.</p>
+      <button type="button" id="mp-heard-clear" data-i18n="music_page.heard_clear" data-i18n-tip="music_page.web_heard_clear_hint" data-tip-desc="Empties this list. It is kept only in this browser.">Clear</button>
+    </div>
+    <ul id="mp-heard"></ul>
   </section>
   <section id="mp-panel-written" role="tabpanel" aria-labelledby="mp-tab-written" hidden>
     <h2 data-i18n="music_page.written">Written music</h2>

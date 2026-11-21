@@ -3391,6 +3391,30 @@ music.
 - Web: the same tabs, cards and catalogue from `data/music/catalogue.json`
   (`scripts/gen-music-catalogue.js`, `scripts/lib/ron-read.js`); `scripts/tests/music-web.test.js`
 
+**Version 2, rung 2 (2026-11-20, docs/design/music-page.md section 24).** The MIXER: a compact strip
+per part (fader -24 to +6 dB, MUTE, SOLO: solo one or more parts and only those sound, the piece
+unchanged) with a LEVEL METER measured from the sound each part's voices make (after its fader, on the
+audio thread, only while the page is open); the genre's drum machine counts as the drums and its risers
+as the texture (`tune::part_of`), so Solo silences everything else. A card's LISTEN plays 20 seconds of
+audio of a piece in that genre or mood, then what played before comes back where it was (its phrase,
+or a written piece's bar), the person's choice untouched. The PIECES HEARD are kept across restarts in
+the person's data folder (`music/heard.json`, with Clear; Like from the list). A click on a bar of the
+piano roll (or the overview) PLAYS A WRITTEN PIECE FROM THAT BAR (a seek sent in the score's context).
+MUSIC FILES: the piece playing saved as a Standard MIDI File (format 1, a track per part, tempo, meter,
+key, section letters as markers, chord symbols as text) or as MEI (a written piece's own file copied
+exactly; a composed piece notated by our own MEI writer, triplets and ties included) to a name and a
+folder the person chooses; a written piece's details save it too. MIDI IMPORT: a `.mid` file opened
+into Written music as a piece of the person's own (an MEI file and a line in their own index in
+`music/scores/`, details editable, Remove), refused in words when it cannot be read; read and written
+through midly (the Unlicense, the operator's yes of 2026-11-20). KEYBOARD SHORTCUTS (Space, N/P or the
+arrows, L, 1 to 4, [ and ], F, /), listed under the strip, never while a text box has the keyboard.
+- Code: `crates/humanity-music/src/smf.rs` (MIDI in and out), `mei_write.rs` (the MEI writer),
+  `own.rs` (the person's own pieces), `voice.rs`/`score.rs` (the meters, the seek), `tests_rung2.rs`;
+  `src/gui/pages/music/mixer.rs`, `history.rs`, `files.rs`, `keys.rs`, `tests_rung2.rs`;
+  `src/engine/music.rs` (the audition and its way back, the person's own pieces)
+- Web: the shortcuts (1 to 4, /), the pieces opened kept in the browser with Clear, each written
+  piece's MEI file to download (MIDI says plainly it is saved from the app); `music-web.test.js`
+
 ### The score player: written music stored as MEI (rung 1, 2026-11-20)
 The goal of 2026-11-16 ("save orchestral music in a file format everyone can easily modify"), with MEI
 approved 2026-11-20 ("MEI sounds right unless there's better"; docs/design/score-player.md). Our own

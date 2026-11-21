@@ -155,11 +155,11 @@ fn visualizer(ui: &mut egui::Ui, theme: &Theme, status: Option<&humanity_music::
     let bar_n = status.map(|s| s.bar + 1).unwrap_or(0);
     let beat_n = beat.floor() as u32 + 1;
     painter.text(Pos2::new(centre.x, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, t("music_page.beat").replace("{{bar}}", &bar_n.to_string()).replace("{{beat}}", &format!("{beat_n}/{bpb:.0}")), font.clone(), theme.text_secondary());
-    // Each part's activity.
+    // Each part's level (the sound it makes, on the meters' decibel scale: rung 2).
     let parts = Rect::from_min_max(Pos2::new(rect.left() + pulse_w, rect.top() + 8.0), Pos2::new(rect.left() + pulse_w + (width - pulse_w) * 0.45, rect.bottom() - label_h));
     let col_w = parts.width() / ROLES as f32;
     for k in 0..ROLES {
-        let v = status.map(|s| s.roles[k]).unwrap_or(0.0).clamp(0.0, 1.0);
+        let v = status.map(|s| humanity_music::score::meter_fraction(s.roles[k])).unwrap_or(0.0);
         let x0 = parts.left() + k as f32 * col_w + col_w * 0.2;
         let x1 = x0 + col_w * 0.6;
         let h = parts.height() * v;

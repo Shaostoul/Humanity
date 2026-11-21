@@ -16,7 +16,7 @@ use crate::mei::MeiScore;
 use crate::written::{StaffVoice, Timeline, WrittenPlayer};
 
 /// One staff of a piece and what plays it.
-#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct StaffSpec {
     /// The staff's number in the file (`staffDef@n`).
     pub staff: u16,
@@ -51,7 +51,7 @@ fn default_qpm() -> f64 {
 }
 
 /// One written piece in the index.
-#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ScoreEntry {
     /// Stable id: what the person's settings keep (`MusicSettings::written`).
     pub id: String,
@@ -117,10 +117,14 @@ pub struct ScoreEntry {
     pub tempo_words: String,
     #[serde(default)]
     pub tempo_finding: String,
+    /// The folder its file sits in when it is not the shipped scores folder: a piece the person
+    /// imported (crate::own, music-page.md rung 2), listed from their own index. Never written.
+    #[serde(skip)]
+    pub folder: Option<std::path::PathBuf>,
 }
 
 /// The index file (its RON names the struct `Scores`).
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct Scores {
     pieces: Vec<ScoreEntry>,
 }
@@ -138,7 +142,14 @@ pub fn load_index(data_dir: &Path) -> Result<Vec<ScoreEntry>, String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(format!("{}: {e}", path.display())),
     };
-    let index: Scores = ron::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    parse_index(&text, &path)
+}
+
+/// An index file's text (`path` names it in the errors), checked: each id once, each file a plain
+/// .mei file name beside it, each staff in one of the roles, the tempo and the rest in range. The
+/// shipped index and the person's own (crate::own) are read alike.
+pub fn parse_index(text: &str, path: &Path) -> Result<Vec<ScoreEntry>, String> {
+    let index: Scores = ron::from_str(text).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut seen = std::collections::HashSet::new();
     for p in &index.pieces {
         let at = |what: String| format!("{}: piece {:?}: {what}", path.display(), p.id);
@@ -163,6 +174,13 @@ pub fn load_index(data_dir: &Path) -> Result<Vec<ScoreEntry>, String> {
     Ok(index.pieces)
 }
 
+/// The index file's text for `pieces` (the person's own index, crate::own): RON, readable and
+/// mendable in any text editor.
+pub fn index_text(pieces: &[ScoreEntry]) -> Result<String, String> {
+    let cfg = ron::ser::PrettyConfig::new().depth_limit(4);
+    ron::ser::to_string_pretty(&Scores { pieces: pieces.to_vec() }, cfg).map_err(|e| e.to_string())
+}
+
 /// A piece read and timed, ready to play.
 #[derive(Clone, Debug)]
 pub struct WrittenPiece {
@@ -173,7 +191,10 @@ pub struct WrittenPiece {
 
 /// Read and time one piece of the index.
 pub fn load_piece(data_dir: &Path, entry: &ScoreEntry) -> Result<WrittenPiece, String> {
-    let path = index_path(data_dir).with_file_name(&entry.file);
+    let path = match &entry.folder {
+        Some(dir) => dir.join(&entry.file),
+        None => index_path(data_dir).with_file_name(&entry.file),
+    };
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let score = crate::mei::read(&text).map_err(|e| format!("{}: {e}", path.display()))?;
     if score.notes.is_empty() {

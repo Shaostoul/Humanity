@@ -127,6 +127,10 @@ pub struct MusicReadout {
     /// The written piece itself, read and timed (the Music page's piano roll draws it; score-player.md
     /// section 16, rung 2).
     pub written_piece: Option<std::sync::Arc<humanity_music::scores::WrittenPiece>>,
+    /// An audition playing (docs/design/music-page.md section 9, rung 2): the audio seconds it has
+    /// played, and whether it has played them all (the page then ends it).
+    pub audition_s: Option<f64>,
+    pub audition_done: bool,
 }
 
 /// The score's music memory, for the Dev page's line.

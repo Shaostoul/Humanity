@@ -77,6 +77,8 @@ pub(super) fn panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _acc
     // The parts muted in the choice as the page shows it (the person's, or what plays now).
     let mute = super::shown(&state.settings.music, &state.music_dev.readout).tune.mute;
     let endless = state.music_dev.readout.written_piece.is_none() && state.music_dev.readout.next_piece_s.is_none();
+    // A written piece playing can be sought: a click on a bar plays from it (rung 2).
+    let seekable = state.music_dev.readout.written_piece.is_some();
     // Taken out for the frame and put back (never copied: a symphony is tens of thousands of notes).
     let cache = state.music_page.sheet.take();
     let p = &mut state.music_page;
@@ -109,22 +111,32 @@ pub(super) fn panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _acc
         });
         let n = bars_shown(p.roll_bars, total);
         let first = first_bar(sheet, now, n, p.roll_follow, p.roll_first);
-        if let Some(bar) = overview(ui, theme, sheet, now, first, n, mute) {
+        if let Some((bar, clicked)) = overview(ui, theme, sheet, now, first, n, mute) {
+            // A click on a written piece's overview also plays it from that bar; a click or a drag
+            // moves the window there and lets go of following, as in rung 1.
+            if seekable && clicked {
+                p.seek_to(bar);
+            }
             p.roll_follow = false;
             p.roll_first = bar.saturating_sub(n / 2).min(total - n);
         }
         let first = first_bar(sheet, now, n, p.roll_follow, p.roll_first);
         let room = ui.available_height();
         let h = if room > 1000.0 { 300.0 } else { (room - 4.0).max(140.0) };
-        piano_roll(ui, theme, sheet, now, mute, first, n, h);
+        let hint = if seekable { "music_page.roll_seek_hint" } else { "music_page.roll_hint" };
+        if let Some(bar) = piano_roll(ui, theme, sheet, now, mute, first, n, h, hint) {
+            if seekable {
+                p.seek_to(bar);
+            }
+        }
     });
     state.music_page.sheet = cache;
 }
 
 /// The overview: the whole piece at once (each part's notes merged per three-pixel column, the
 /// section letters, the playhead) with the bars shown marked as a window. Returns the bar a click or
-/// a drag on it points at.
-fn overview(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, first: usize, n: usize, muted: u8) -> Option<usize> {
+/// a drag on it points at, and whether it was a click (a drag only moves the window).
+fn overview(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, first: usize, n: usize, muted: u8) -> Option<(usize, bool)> {
     let width = ui.available_width().max(200.0);
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, OVERVIEW_H), Sense::click_and_drag());
     let resp = resp.hint("music_page.roll_overview_hint");
@@ -171,7 +183,7 @@ fn overview(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, first: us
     if resp.clicked() || resp.dragged() {
         if let Some(pos) = resp.interact_pointer_pos() {
             let at = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0) as f64 * end;
-            return sheet.bar_at(at).or(Some(sheet.bars.len().saturating_sub(1)));
+            return sheet.bar_at(at).or(Some(sheet.bars.len().saturating_sub(1))).map(|b| (b, resp.clicked()));
         }
     }
     None
@@ -179,16 +191,18 @@ fn overview(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, first: us
 
 /// The bars `first` .. `first + n` of the piece, `height` points tall: time across, pitch up, each
 /// part in its colour (a muted part faint), each bar's line and number, chord symbols above each
-/// chord and the section letter at each section's start, the playhead.
+/// chord and the section letter at each section's start, the playhead. Returns the bar a click
+/// landed on (a written piece plays from it: rung 2's seek).
 #[allow(clippy::too_many_arguments)]
-pub fn piano_roll(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, muted: u8, first: usize, n: usize, height: f32) {
+pub fn piano_roll(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, muted: u8, first: usize, n: usize, height: f32, hint: &'static str) -> Option<usize> {
     let width = ui.available_width().max(320.0);
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
-    resp.hint("music_page.roll_hint");
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, height), Sense::click());
+    let clicked_at = resp.clicked().then(|| resp.interact_pointer_pos()).flatten();
+    resp.hint(hint);
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 6.0, theme.bg_card());
     let bars: Vec<usize> = (first..first + n).filter(|&b| b < sheet.bars.len()).collect();
-    let Some(&last) = bars.last() else { return };
+    let Some(&last) = bars.last() else { return None };
     let (t0, _) = sheet.bar_span(first).unwrap_or((0.0, 1.0));
     let (_, t1) = sheet.bar_span(last).unwrap_or((t0, t0 + 1.0));
     // Two lines above the grid: the section letters, then the chord symbols.
@@ -264,4 +278,9 @@ pub fn piano_roll(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, mut
         let x = x_of(now);
         painter.line_segment([Pos2::new(x, grid.top()), Pos2::new(x, grid.bottom())], Stroke::new(2.0f32, theme.accent()));
     }
+    // The bar a click landed on: the time under the pointer, the bar it falls in.
+    clicked_at.map(|pos| {
+        let at = t0 + ((pos.x - grid.left()) / grid.width().max(1.0)).clamp(0.0, 1.0) as f64 * (t1 - t0);
+        sheet.bar_at(at).unwrap_or(first).clamp(first, last)
+    })
 }

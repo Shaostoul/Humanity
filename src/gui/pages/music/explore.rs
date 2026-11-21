@@ -2,64 +2,27 @@
 //! find some way to make the explore section more intuitive. What each style means and mood is kind
 //! of confusing"). A card for each genre (its name, ONE plain sentence of what it is from its data
 //! file, its tempo and the instruments it plays) and each mood (its name, where it plays, its tempo),
-//! the seed, and the pieces heard this session. Every card comes from the music's data: a new genre or
-//! mood file gets its card with no code change (infinite-of-X). Clicking a card chooses it; the
-//! choice plays from the next bar, everywhere (the page's one genre control is these cards).
-
-use std::time::Instant;
+//! the seed, and the pieces heard (kept across runs since rung 2: history.rs). Every card comes from the
+//! music's data: a new genre or mood file gets its card with no code change (infinite-of-X). Clicking
+//! a card chooses it; the choice plays from the next bar, everywhere (the page's one genre control is
+//! these cards). Each card's LISTEN (rung 2, the operator's "Agree") plays 20 seconds of a piece in it
+//! and then what played before comes back, without changing the person's choice.
 
 use egui::{Color32, RichText, Stroke};
 use humanity_core::i18n::{t, t_dyn};
-use humanity_music::tune::{Tune, ROLES};
-use humanity_music::{MusicLibrary, MusicSettings};
+use humanity_music::favourite::explore_intensity;
+use humanity_music::tune::Tune;
+use humanity_music::MusicLibrary;
 
-use super::{genre_label, mood_words, playing_genre, score_words, voice_words, Shown, RANDOM_SEED_MAX};
-use crate::gui::pages::dev_music::{GenreChoice, MusicReadout};
+use super::history::Heard;
+use super::{genre_label, mood_words, score_words, voice_words, Audition, Shown, AUDITION_S, RANDOM_SEED_MAX};
+use crate::gui::pages::dev_music::{GenreChoice, MusicChoice};
 use crate::gui::theme::Theme;
 use crate::gui::widgets::Hint;
 use crate::gui::{widgets, GuiState};
 
-/// The pieces heard this session kept at most (docs/design/music-page.md section 9).
-pub const HEARD_MOST: usize = 50;
-
 /// A card's width on a wide page, points (as many columns as fit).
 const CARD_W: f32 = 330.0;
-
-/// One piece heard: a composed piece's genre, mood, seed and tuning, or a written piece's id.
-#[derive(Clone, Debug)]
-pub struct Heard {
-    pub genre: String,
-    pub mood: String,
-    pub seed: u64,
-    pub tune: Tune,
-    pub written: Option<String>,
-    pub at: Instant,
-}
-
-/// The same piece (a level or a mute changed is still the piece heard).
-fn same_piece(a: &Heard, b: &Heard) -> bool {
-    let plain = |x: &Tune| Tune { level_db: [0.0; ROLES], mute: 0, solo: 0, ..*x };
-    a.written == b.written && (a.written.is_some() || (a.genre == b.genre && a.seed == b.seed && plain(&a.tune) == plain(&b.tune)))
-}
-
-/// Note what plays now at the top of the pieces heard (once per piece; a piece heard again moves to
-/// the top).
-pub fn note_heard(heard: &mut Vec<Heard>, s: &MusicSettings, r: &MusicReadout, now: Instant) {
-    let entry = if let Some(id) = &r.written {
-        Heard { genre: s.genre.clone(), mood: r.mood.clone(), seed: 0, tune: Tune::default(), written: Some(id.clone()), at: now }
-    } else if let Some(p) = r.playing.as_ref().filter(|p| p.seed > 0) {
-        let tune = p.choice.as_ref().map(|c| c.tune).unwrap_or(p.ctx.tune);
-        Heard { genre: playing_genre(p, &s.genre), mood: r.mood.clone(), seed: p.seed, tune, written: None, at: now }
-    } else {
-        return;
-    };
-    if heard.first().is_some_and(|h| same_piece(h, &entry)) {
-        return;
-    }
-    heard.retain(|h| !same_piece(h, &entry));
-    heard.insert(0, entry);
-    heard.truncate(HEARD_MOST);
-}
 
 /// One genre's card, as the data says it: its name, its plain sentence, its tempo, its instruments,
 /// and its longer "about" (shown on the chosen card).
@@ -145,6 +108,39 @@ fn card_columns(ui: &egui::Ui, theme: &Theme, wide: bool) -> (usize, f32) {
     (cols, ((avail - gap * (cols as f32 - 1.0)) / cols as f32).max(200.0))
 }
 
+/// Under a card: Listen (20 seconds of a piece in it, then back to what played), or while that card's
+/// audition plays, how long is left and Stop. Some(true): Listen clicked; Some(false): Stop clicked.
+fn listen_row(ui: &mut egui::Ui, theme: &Theme, words: &str, auditioning: Option<&str>, heard_s: Option<f64>) -> Option<bool> {
+    let mut out = None;
+    ui.horizontal(|ui| {
+        if auditioning == Some(words) {
+            let left = (AUDITION_S as f64 - heard_s.unwrap_or(0.0)).max(0.0).ceil() as u32;
+            let line = if heard_s.is_some() { t("music_page.listen_left").replace("{{n}}", &left.to_string()) } else { t("music_page.listen_waiting").to_string() };
+            ui.label(RichText::new(line).size(theme.font_size_small).color(theme.accent()));
+            if widgets::Button::new(t("music_page.listen_stop")).size(widgets::ButtonSize::Small).hint("music_page.listen_stop_hint").show(ui, theme) {
+                out = Some(false);
+            }
+        } else if widgets::Button::new(&t("music_page.listen").replace("{{n}}", &(AUDITION_S as u32).to_string())).size(widgets::ButtonSize::Small).hint("music_page.listen_hint").show(ui, theme) {
+            out = Some(true);
+        }
+    });
+    out
+}
+
+/// How long ago a piece began, in words: now, minutes, hours, days.
+pub fn ago_words(secs: u64) -> String {
+    let mins = secs / 60;
+    if mins == 0 {
+        t("music_page.heard_now").to_string()
+    } else if mins < 60 {
+        t("music_page.heard_minutes").replace("{{n}}", &mins.to_string())
+    } else if mins < 60 * 48 {
+        t("music_page.heard_hours").replace("{{n}}", &(mins / 60).to_string())
+    } else {
+        t("music_page.heard_days").replace("{{n}}", &(mins / (60 * 24)).to_string())
+    }
+}
+
 /// One card: a clickable surface `w` wide, marked when chosen. True when clicked.
 fn card(ui: &mut egui::Ui, theme: &Theme, w: f32, chosen: bool, hint: &'static str, add: impl FnOnce(&mut egui::Ui)) -> bool {
     let inner = w - 2.0 * theme.card_padding;
@@ -173,11 +169,19 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
     ui.label(RichText::new(t("music_page.genres_intro")).color(theme.text_secondary()));
     ui.add_space(theme.spacing_xs);
     let cards = genre_cards(lib.as_deref(), &offered, &sh.mood);
+    // The audition playing (its card's words) and the seconds it has played; a card's Listen asks
+    // for one, its Stop ends one (applied after the cards are drawn).
+    let auditioning = state.music_page.audition.as_ref().map(|a| a.words.clone());
+    let audition_s = state.music_dev.readout.audition_s;
+    let mut listen: Option<Audition> = None;
+    let mut stop = false;
+    let intensity = |mood: &str| lib.as_deref().map(|l| explore_intensity(l, mood)).unwrap_or(0.3);
     egui::Grid::new("music_page_genre_cards").num_columns(cols).spacing([gap, gap]).show(ui, |ui| {
         for (i, c) in cards.iter().enumerate() {
             let chosen = sh.genre == c.id;
             let stand_ins = offered.iter().find(|g| g.id == c.id).map(|g| g.stand_ins.clone()).unwrap_or_default();
-            if card(ui, theme, w, chosen, "music_page.genre_card_hint", |ui| {
+            let clicked = ui.vertical(|ui| {
+            let clicked = card(ui, theme, w, chosen, "music_page.genre_card_hint", |ui| {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(&c.name).size(theme.font_size_heading).strong().color(theme.text_primary()));
                     if chosen {
@@ -210,8 +214,16 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                         ui.label(RichText::new(t("music_page.genre_stand_ins").replace("{{parts}}", &parts.join(", "))).size(theme.font_size_small).color(theme.text_muted()));
                     }
                 }
-            }) && !chosen
-            {
+            });
+            match listen_row(ui, theme, &c.name, auditioning.as_deref(), audition_s) {
+                Some(true) => listen = Some(Audition { choice: MusicChoice { genre: c.id.clone(), mood: Some(sh.mood.clone()), intensity: Some(intensity(&sh.mood)), seed: sh.seed.max(1), tune: Tune::default(), written: None }, words: c.name.clone() }),
+                Some(false) => stop = true,
+                None => {}
+            }
+            clicked
+            })
+            .inner;
+            if clicked && !chosen {
                 sh.genre = c.id.clone();
             }
             if (i + 1) % cols == 0 {
@@ -230,7 +242,9 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
             for (i, m) in l.moods.iter().enumerate() {
                 let chosen = sh.mood == m.id;
                 let danger = l.intensity.bands.iter().any(|b| b.mood.as_deref() == Some(m.id.as_str()));
-                if card(ui, theme, w, chosen, "music_page.mood_card_hint", |ui| {
+                let name = mood_words(Some(l), &m.id);
+                let clicked = ui.vertical(|ui| {
+                let clicked = card(ui, theme, w, chosen, "music_page.mood_card_hint", |ui| {
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(mood_words(Some(l), &m.id)).size(theme.font_size_heading).strong().color(theme.text_primary()));
                         if chosen {
@@ -245,8 +259,16 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                     if danger {
                         ui.label(RichText::new(t("music_page.mood_danger")).size(theme.font_size_small).color(theme.warning()));
                     }
-                }) && !chosen
-                {
+                });
+                match listen_row(ui, theme, &name, auditioning.as_deref(), audition_s) {
+                    Some(true) => listen = Some(Audition { choice: MusicChoice { genre: sh.genre.clone(), mood: Some(m.id.clone()), intensity: Some(explore_intensity(l, &m.id)), seed: sh.seed.max(1), tune: Tune::default(), written: None }, words: name.clone() }),
+                    Some(false) => stop = true,
+                    None => {}
+                }
+                clicked
+                })
+                .inner;
+                if clicked && !chosen {
                     sh.mood = m.id.clone();
                 }
                 if (i + 1) % cols == 0 {
@@ -254,6 +276,11 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                 }
             }
         });
+    }
+    if let Some(a) = listen {
+        state.music_page.audition = Some(a);
+    } else if stop {
+        state.music_page.audition = None;
     }
     // The seed.
     ui.add_space(theme.spacing_md);
@@ -296,15 +323,26 @@ fn seed_row(ui: &mut egui::Ui, _theme: &Theme, state: &mut GuiState, sh: &mut Sh
     });
 }
 
-/// The pieces heard this session, newest first, each with Play again and Like.
+/// The pieces heard (kept in the person's own file), newest first, each with Play again and Like, and
+/// Clear to empty the list.
 fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown, accent: Color32) {
     let lib = state.music_dev.readout.lib.clone();
     let list = state.music_page.heard.clone();
     let mut play: Option<Heard> = None;
     let mut like: Option<Heard> = None;
+    let mut clear = false;
+    let now = super::history::now_s();
     widgets::subsection_header(ui, theme, accent, t("music_page.heard_title"), "");
     widgets::card(ui, theme, |ui| {
-        ui.label(RichText::new(t("music_page.heard_intro")).color(theme.text_secondary()));
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(t("music_page.heard_intro")).color(theme.text_secondary()));
+            if !list.is_empty() && widgets::Button::new(t("music_page.heard_clear")).size(widgets::ButtonSize::Small).hint("music_page.heard_clear_hint").show(ui, theme) {
+                clear = true;
+            }
+        });
+        if let Some(e) = &state.music_page.heard_error {
+            ui.label(RichText::new(e).size(theme.font_size_small).color(theme.warning()));
+        }
         if list.is_empty() {
             ui.label(RichText::new(t("music_page.heard_none")).color(theme.text_muted()));
         }
@@ -322,8 +360,7 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
                     t("music_page.heard_line").replace("{{genre}}", &genre).replace("{{mood}}", &mood_words(lib.as_deref(), &h.mood)).replace("{{seed}}", &h.seed.to_string())
                 }
             };
-            let mins = h.at.elapsed().as_secs() / 60;
-            let ago = if mins == 0 { t("music_page.heard_now").to_string() } else { t("music_page.heard_minutes").replace("{{n}}", &mins.to_string()) };
+            let ago = ago_words(now.saturating_sub(h.at));
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(line).color(if i == 0 { theme.text_primary() } else { theme.text_secondary() }));
                 ui.label(RichText::new(ago).size(theme.font_size_small).color(theme.text_muted()));
@@ -336,6 +373,10 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
             });
         }
     });
+    if clear {
+        state.music_page.clear_heard();
+    }
+    let tune_of = |h: &Heard| lib.as_deref().and_then(|l| l.genre_index(&h.genre).map(|g| h.tune.to_tune(l, g))).unwrap_or_default();
     if let Some(h) = play {
         match &h.written {
             Some(id) => {
@@ -350,11 +391,12 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
                 sh.genre = h.genre.clone();
                 sh.mood = h.mood.clone();
                 sh.seed = h.seed.max(1);
-                sh.tune = h.tune;
+                sh.tune = tune_of(&h);
             }
         }
     }
     if let Some(h) = like {
-        super::strip::like(state, &Shown { genre: h.genre, mood: h.mood, seed: h.seed, tune: h.tune });
+        let tune = tune_of(&h);
+        super::strip::like(state, &Shown { genre: h.genre, mood: h.mood, seed: h.seed, tune });
     }
 }

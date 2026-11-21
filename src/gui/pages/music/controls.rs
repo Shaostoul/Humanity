@@ -130,7 +130,8 @@ pub(super) fn what_plays(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState,
     }
 }
 
-/// Tune: the key, the tempo, the lead voices, and each part's level and mute.
+/// Tune: the key, the tempo and the lead voices (each part's level, Mute and Solo are the mixer's:
+/// mixer.rs).
 pub(super) fn tune(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown, accent: Color32) {
     let hint = state.settings.hint_display;
     let lib = state.music_dev.readout.lib.clone();
@@ -208,32 +209,6 @@ pub(super) fn tune(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
             ui.label(RichText::new(t("music_page.no_leads")).size(theme.font_size_small).color(theme.text_muted()));
         }
         widgets::setting_hint(ui, theme, hint, t("music_page.lead_hint"));
-        // Each part's level and mute.
-        ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new(t("music_page.parts")).color(theme.text_secondary()));
-        let plays: [bool; ROLES] = std::array::from_fn(|k| sheet.as_ref().is_none_or(|s| s.notes.iter().any(|n| n.role as usize == k)));
-        egui::Grid::new("music_page_parts").num_columns(3).spacing([theme.spacing_sm, theme.spacing_xs]).show(ui, |ui| {
-            for k in 0..ROLES {
-                let colour = if plays[k] { role_colour(theme, k as u8) } else { theme.text_muted() };
-                // A copy, written back only when the person moves it: a slider quietly holds a value
-                // to its range and steps when drawn, and that alone must never count as choosing.
-                let mut db = tu.level_db[k];
-                if widgets::slider(ui, theme, egui::Slider::new(&mut db, -24.0..=6.0).step_by(0.5).suffix(t("music_page.unit_db")).text(RichText::new(role_words(k)).color(colour))).hint("music_page.level_hint").changed() {
-                    tu.level_db[k] = db;
-                }
-                let mut muted = tu.mute & (1 << k) != 0;
-                if ui.checkbox(&mut muted, t("music_page.mute")).hint("music_page.mute_hint").changed() {
-                    tu.mute = if muted { tu.mute | 1 << k } else { tu.mute & !(1 << k) };
-                }
-                if plays[k] {
-                    ui.label("");
-                } else {
-                    ui.label(RichText::new(t("music_page.part_silent")).size(theme.font_size_small).color(theme.text_muted()));
-                }
-                ui.end_row();
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, t("music_page.parts_hint"));
         if *tu != Tune::default() && ui.button(t("music_page.reset_tune")).hint("music_page.reset_tune_hint").clicked() {
             *tu = Tune::default();
         }

@@ -458,12 +458,14 @@ search text from data; every genre file gets a card with its sentence, and a new
 with no code change; the website's tabs, cards and catalogue. Budget: no audio-thread change; the
 roll's whole-piece transcription once per piece.
 
-**Rung 2.** The mixer strips with Solo and meters (section 8); the audition (proposed); the history
+**Rung 2 (built 2026-11-20, section 24, but swing, intensity and A = 432/440 on the page, which
+wait).** The mixer strips with Solo and meters (section 8); the audition (proposed); the history
 kept in the person's data folder; clicking a bar seeks in a written piece; MEI and MIDI export
 (section 12); keyboard shortcuts (section 16); swing and intensity on the page; A = 432/440 shown on
 the page. Web: the history kept in the browser; the shortcuts.
 
-**Rung 2 also, after the operator's yes for the midly download (section 15a):** MIDI files read as
+**Rung 2 also, after the operator's yes for the midly download (section 15a; "Yes. Let's download it.",
+2026-11-20; built, section 24, each part on the piano until rung 3's styles):** MIDI files read as
 written pieces, played through the General-MIDI-like style. Without that yes, our own small reader
 instead.
 
@@ -585,3 +587,87 @@ current, the same search, sort and cards, the tabs by the app's keys).
 **Known limits, for rung 2:** a composed piece's whole length is the time until the next piece as
 the score reports it, so its last bar can fall a beat short of where the next piece takes over; the
 history lasts the session; Like on a written piece waits for playlists.
+
+## 24. As built: version 2, rung 2 (2026-11-20)
+
+The operator's answers of 2026-11-20: midly "Yes. Let's download it." (0.5.3, the Unlicense, without its
+`parallel` feature, so no other crate came with it); the pieces heard across restarts "Yes" (in his
+data folder, with Clear); a card's Listen "Agree" (20 seconds, then back to what was playing).
+
+**The mixer** (`src/gui/pages/music/mixer.rs`, on Listen beside Tune, which keeps the key, the tempo
+and the lead voices): a strip per part, side by side on a wide page (each `STRIP_W` = 64 points, a
+vertical fader named for its part, the meter beside it, Mute and Solo), a row each on a narrow one.
+**The meters** are the sound each part makes: `VoicePool` (crate `voice.rs`) squares and sums each
+voice's dry samples by part as they are written into the mix while the page is open (`set_metering`),
+and `ScoreEngine::analyse` turns them into an RMS a part, quick up and falling over a third of a
+second; `score::meter_fraction` puts it on a -60 to 0 dB meter. **Solo** was in the engine since rung 1
+(`Tune::solo`), but a genre's drum machine and build rolls (role 255) and its risers, stingers and
+swells (254) were in no part, so soloing the bass left electro swing's drums playing (found by the
+meter test's first run); `tune::part_of` now puts 255 in the drums and 254 in the texture, for the
+gains, the meters and the exports. A written piece hears the mixer too (`written_choice` carries the
+levels, mutes and solos; the composing half stays the composer's).
+
+**The audition** (`explore.rs` `listen_row` under each card; `engine/music.rs`): Listen asks for a
+`MusicChoice` (the card's genre in the mood shown, or the genre shown in the card's mood, the seed
+shown), which `choice_now` plays in place of everything while it lasts. When it takes over, the
+runtime keeps what played (`ReturnTo`: its choice, seed and phrase, or a written piece's bar); its
+clock is the audio it has played (the score's own seconds), and at `AUDITION_S` = 20 the readout says
+`audition_done`, the frame ends it, and the piece before comes back with its seed, carried on from
+where it was (`ScoreEngine::resume`, or the written player's `seek_bar`). Stop ends it early.
+
+**The pieces heard** (`history.rs`): `music/heard.json` beside the favourites, written when a new
+piece begins or on Clear (through a temporary file), read once when the music first runs; each entry
+keeps its tuning as the favourites do (`SavedTune`) and when it began in seconds since 1970, so "how
+long ago" survives a restart. An unreadable file is set aside, said in words.
+
+**The seek** (`roll.rs`): a click on a bar of the roll, or on the overview, while a written piece plays
+raises `MusicPage::seek` (a number and the bar); the engine sends both in the score's context
+(`MusicContext::seek`, `seek_bar`), and `ScoreEngine::set_context` moves the written player to that
+bar's start and lets the sounding notes go, once per number. A drag on the overview still only moves
+the window; a composed piece cannot be sought yet (rung 3).
+
+**Music files** (crate `smf.rs`, `mei_write.rs`, `own.rs`; page `files.rs`): a piece as notes in
+ticks (`Notated`, 960 a quarter: triplets and quintuplets land exactly), from a MIDI file
+(`read_smf`), from a written piece's MEI as read (`Notated::from_mei`: exact; a pickup bar is its own
+short meter so the bar lines land where they were written) or from a composed piece's sheet
+(`Notated::from_sheet`: each bar's seconds spread over its beats, so swing lands where it was heard).
+Out to MIDI through midly (`write_smf`: format 1, a conductor track with tempo, meter, key, markers and
+chord text, then a track a part); out to MEI by our own writer (`write_mei`: bars from the meters,
+overlapping notes in further layers, chords, each beat written straight or as a triplet when its notes
+sit on the triplet grid, ties over beats and bar lines, accidentals by a musician's rules plus
+`accid.ges` on every note, `vel`, tempo marks). Your music's **Music files** card saves the piece
+playing (a written piece's MEI is its own file, copied exactly; a composed piece is written down for its
+set length, else the audio export's length) to a name and a folder the person picks (the in-app folder
+picker); a written piece's details save it too. **MIDI import**: Open a MIDI file (Written music, and
+the Music files card) reads it, notates it as MEI and reads that back with our reader before keeping
+it in `music/scores/` beside the favourites (its MEI file and a line in the person's own
+`index.ron`, the shipped index's shape: `load_written` looks there for an id the shipped index lacks);
+its parts get roles by pitch (the highest the melody, the lowest the bass, a drum track the drums) and
+play on the piano part (a drum track on one drum) until rung 3's styles; its details (title, composer,
+year, where it came from, licence) are the person's to edit, and Remove deletes its file after a second
+click. What it cannot read it refuses in words (not MIDI, timed in film frames, a format 2 file, no
+notes, more than 16 MB).
+
+**Keyboard shortcuts** (`keys.rs`): section 16's keys, taken only when no widget has the keyboard
+(`wants_keyboard_input`: a text box, or a control reached with Tab) and no file picker is open, and
+only with no modifier held; listed in "Keyboard shortcuts" under the strip.
+
+**The website**: the shortcuts 1 to 4 and / (never while typing, never with a modifier), the written
+pieces opened kept in the browser (`hos_music_opened`, newest first, with Clear: the app's pieces heard,
+since the website plays nothing), and each written piece's MEI file to download (the catalogue now
+names each `file`), with a sentence saying MIDI files are saved from the app and why.
+
+**Tests:** the crate's `tests_rung2.rs` (`the_meters_follow_each_parts_real_level`,
+`solo_silences_the_other_parts_in_the_rendered_audio`, `a_seek_moves_the_written_piece_to_the_bar`,
+`export_then_import_round_trips_a_written_pieces_notes` (exact, Ode to Joy and Für Elise),
+`a_composed_piece_exports_as_midi_and_mei_with_its_notes`, `a_malformed_midi_file_is_refused_in_words`,
+`an_imported_piece_is_kept_in_the_persons_folder_and_read_from_there`); the page's `tests_rung2.rs`
+(the mixer's Solo heard in the rendered score, the pieces heard across a restart and Clear, a click on
+bar 6 seeking to it on the score's clock, a malformed file refused on the page, the shortcuts held back
+while typing); the runtime's `an_audition_plays_20_seconds_then_the_piece_before_comes_back`; the web's
+three in `music-web.test.js`. Each was seen red, recorded in its comment.
+
+**Known limits, for rung 3:** a composed piece cannot be sought; every imported part plays on the piano
+(the General-MIDI-like style is rung 3); swing, intensity and A = 432/440 on the page wait; a MIDI file's
+lyrics and program changes after the first are not kept; the meters measure each part's dry sound
+(the shared reverb is in no part).

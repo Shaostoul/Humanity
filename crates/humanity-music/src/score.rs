@@ -45,6 +45,11 @@ pub struct MusicContext {
     /// The Music page is open and reading the analyser (the spectrum and the role meters in the
     /// status): measured only then, so the score costs nothing extra the rest of the time.
     pub analyse: bool,
+    /// A seek in a written piece (music-page.md section 7, rung 2): a number the page raises each time
+    /// the person clicks a bar, and the bar (0 = the first). A new number moves the written player to
+    /// that bar's start; the same number again does nothing (the context is sent every frame).
+    pub seek: u32,
+    pub seek_bar: u32,
 }
 
 /// The spectrum's bands: octaves centred on 31.25 Hz times a power of two, 31 Hz to 16 kHz.
@@ -63,7 +68,7 @@ pub const DUCK_UP_S: f32 = 0.5;
 
 impl Default for MusicContext {
     fn default() -> Self {
-        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0, tune: crate::tune::Tune::default(), analyse: false }
+        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0, tune: crate::tune::Tune::default(), analyse: false, seek: 0, seek_bar: 0 }
     }
 }
 
@@ -104,8 +109,10 @@ pub struct MusicStatus {
     pub beat: f32,
     pub beats_per_bar: u8,
     /// With the context's `analyse` on (the Music page open): each octave band's level (RMS of the
-    /// output through a band-pass, quick to rise and slow to fall), and each role's activity (the
-    /// velocity of its last note, falling away over about a third of a second). Zero otherwise.
+    /// output through a band-pass, quick to rise and slow to fall), and each role's level: the RMS of
+    /// the sound its voices make (after its fader, mute and solo, before the music's own volume),
+    /// quick to rise and falling away over about a third of a second (`meter_fraction` puts it on
+    /// a meter). Zero otherwise.
     pub bands: [f32; BANDS],
     pub roles: [f32; crate::tune::ROLES],
 }
@@ -114,10 +121,8 @@ struct PoolSink<'a> {
     pool: &'a mut VoicePool,
     res: &'a Resolved,
     rate: f32,
-    /// Each role's gain from the person's tune (0: muted, or another role soloed), and the role
-    /// meters the notes push up.
+    /// Each role's gain from the person's tune (0: muted, or another role soloed).
     gains: [f32; crate::tune::ROLES],
-    meter: &'a mut [f32; crate::tune::ROLES],
     /// A ducking drum's sidechain, when one hit during this call.
     duck: &'a mut Option<(u8, f32, f32, f32)>,
     /// A gated drum hit during this call (its gate opens).
@@ -128,14 +133,12 @@ impl Sink for PoolSink<'_> {
     fn note_on(&mut self, mut note: NoteOn) {
         // A muted role's notes never reach a voice (the composer composed them all the same, so the
         // piece is unchanged); a role's level scales its notes.
-        let role = note.role as usize;
-        if role < crate::tune::ROLES {
-            let g = self.gains[role];
+        if let Some(part) = crate::tune::part_of(note.role) {
+            let g = self.gains[part];
             if g <= 0.0 {
                 return;
             }
             note.level *= g;
-            self.meter[role] = self.meter[role].max(note.vel.clamp(0.0, 1.0));
         }
         if note.gate > 0.0 {
             *self.gate_hit = true;
@@ -302,6 +305,12 @@ impl ScoreEngine {
 
     /// A new context from the game (read at the start of the next block).
     pub fn set_context(&mut self, ctx: MusicContext) {
+        if ctx.seek != self.ctx.seek && ctx.seek != 0 {
+            if let Some(w) = self.written.as_mut() {
+                w.seek_bar(ctx.seek_bar as usize);
+                self.pool.release_all(&self.res.instruments, self.rate);
+            }
+        }
         self.ctx = ctx;
         self.composer.steer = steer_of(&ctx);
         if let Some(w) = self.written.as_mut() {
@@ -386,6 +395,7 @@ impl ScoreEngine {
             self.duck.set_time(if down { DUCK_DOWN_S } else { DUCK_UP_S }, rate);
         }
         let gains = self.ctx.tune.gains();
+        self.pool.set_metering(self.ctx.analyse);
         let mut done = 0;
         while done < out.len() {
             // A tape stop that has just ended (rung E3): the tape ran down to silence, so whatever
@@ -406,7 +416,7 @@ impl ScoreEngine {
             {
                 let mut hit = None;
                 let mut gate_hit = false;
-                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, meter: &mut self.meter, duck: &mut hit, gate_hit: &mut gate_hit };
+                let mut sink = PoolSink { pool: &mut self.pool, res: &self.res, rate, gains, duck: &mut hit, gate_hit: &mut gate_hit };
                 match self.written.as_mut() {
                     Some(w) => w.process(&mut sink),
                     None => self.composer.process(&self.res, &mut sink),
@@ -626,11 +636,22 @@ impl ScoreEngine {
             s.bands[k] = if v > s.bands[k] { v } else { s.bands[k] * fall + v * (1.0 - fall) };
         }
         let fall_m = (-n / (self.rate * 0.33)).exp();
-        s.roles = self.meter;
-        for m in self.meter.iter_mut() {
-            *m *= fall_m;
+        let energy = self.pool.take_role_energy();
+        for k in 0..crate::tune::ROLES {
+            let v = (energy[k] / (2.0 * n as f64)).sqrt() as f32;
+            self.meter[k] = if v > self.meter[k] { v } else { self.meter[k] * fall_m + v * (1.0 - fall_m) };
         }
+        s.roles = self.meter;
     }
+}
+
+/// A part's level (an RMS amplitude, `MusicStatus::roles`) on a meter from 0 to 1: -60 dB to 0 dB
+/// in a straight line of decibels, so a quiet part still moves its meter.
+pub fn meter_fraction(rms: f32) -> f32 {
+    if rms <= 1e-6 {
+        return 0.0;
+    }
+    ((20.0 * rms.log10() + 60.0) / 60.0).clamp(0.0, 1.0)
 }
 
 /// The composer's steer from a score's context (the sheet's dry run steers it the same way).

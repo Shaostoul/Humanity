@@ -14,6 +14,9 @@
 (function () {
   'use strict';
   const KEY = 'hos_music_favourites';
+  // The written pieces whose details were opened here, newest first (the app's pieces heard, rung 2).
+  const OPENED = 'hos_music_opened';
+  const OPENED_MOST = 50;
   const PREFIX = 'HOSM1-';
   const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
   const TABS = ['listen', 'explore', 'written', 'yours'];
@@ -148,6 +151,63 @@
     for (const t of TABS) { const b = $('mp-tab-' + t); if (b) b.addEventListener('click', () => show(t)); }
     show('listen');
 
+    // The keyboard shortcuts (the app's, section 16): 1 to 4 the tabs, / the search. Never while a box
+    // has the keyboard, and never with a modifier held.
+    if (doc.addEventListener) {
+      doc.addEventListener('keydown', (ev) => {
+        const t = ev.target || {};
+        const tag = String(t.tagName || '').toUpperCase();
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return;
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const n = ['1', '2', '3', '4'].indexOf(ev.key);
+        if (n >= 0) { show(TABS[n]); if (ev.preventDefault) ev.preventDefault(); return; }
+        if (ev.key === '/') {
+          show('written');
+          const s = $('mp-w-search');
+          if (s && s.focus) s.focus();
+          if (ev.preventDefault) ev.preventDefault();
+        }
+      });
+    }
+
+    // The pieces opened here (kept in this browser, with Clear).
+    const loadOpened = () => { try { const v = JSON.parse(storage.getItem(OPENED) || '[]'); return Array.isArray(v) ? v.filter((h) => h && typeof h.id === 'string' && typeof h.at === 'number').slice(0, OPENED_MOST) : []; } catch (e) { return []; } };
+    const saveOpened = (list) => { try { storage.setItem(OPENED, JSON.stringify(list)); } catch (e) { /* private window: kept for this visit only */ } };
+    let opened = loadOpened();
+    function agoWords(secs) {
+      const mins = Math.floor(secs / 60);
+      if (mins < 1) return tr('music_page.heard_now');
+      if (mins < 60) return tr('music_page.heard_minutes', { n: mins });
+      if (mins < 60 * 48) return tr('music_page.heard_hours', { n: Math.floor(mins / 60) });
+      return tr('music_page.heard_days', { n: Math.floor(mins / (60 * 24)) });
+    }
+    function renderOpened() {
+      const ul = $('mp-heard');
+      if (!ul) return;
+      ul.textContent = '';
+      if (!opened.length) { ul.appendChild(el('li', 'muted', tr('music_page.heard_none'))); return; }
+      const now = Date.now() / 1000;
+      const scores = (state.cat && state.cat.scores) || [];
+      for (const h of opened) {
+        const s = scores.find((x) => x.id === h.id);
+        const title = s ? scoreWords(s)[0] : readable(h.id);
+        const li = el('li');
+        const b = tip(el('button', 'title', title), 'music_page.web_heard_open_hint');
+        b.type = 'button';
+        b.addEventListener('click', () => { state.selected = h.id; show('written'); renderWritten(); });
+        li.appendChild(b);
+        li.appendChild(el('span', 'line', agoWords(now - h.at)));
+        ul.appendChild(li);
+      }
+    }
+    function noteOpened(id) {
+      opened = [{ id, at: Math.floor(Date.now() / 1000) }, ...opened.filter((h) => h.id !== id)].slice(0, OPENED_MOST);
+      saveOpened(opened);
+      renderOpened();
+    }
+    const clearBtn = $('mp-heard-clear');
+    if (clearBtn) clearBtn.addEventListener('click', () => { opened = []; saveOpened(opened); renderOpened(); });
+
     // The favourites.
     const load = () => { try { const v = JSON.parse(storage.getItem(KEY) || '[]'); return Array.isArray(v) ? v.filter((c) => typeof c === 'string') : []; } catch (e) { return []; } };
     const save = (codes) => { try { storage.setItem(KEY, JSON.stringify(codes)); } catch (e) { /* private window: kept for this visit only */ } };
@@ -226,7 +286,7 @@
         const li = el('li', s.id === state.selected ? 'chosen' : '');
         const b = tip(el('button', 'title', title), 'music_page.written_row_hint');
         b.type = 'button';
-        b.addEventListener('click', () => { state.selected = s.id; renderWritten(); });
+        b.addEventListener('click', () => { state.selected = s.id; noteOpened(s.id); renderWritten(); });
         li.appendChild(b);
         li.appendChild(el('span', 'line', [composer, eraWords(s), s.length_s ? lengthWords(s.length_s) : ''].filter(Boolean).join(', ')));
         ul.appendChild(li);
@@ -261,6 +321,14 @@
         a.setAttribute('target', '_blank');
         d.appendChild(a);
       }
+      // Its MEI file, exactly as written (the app's Save as MEI); MIDI is saved from the app.
+      if (/^[a-z0-9_]+\.mei$/.test(chosen.file || '')) {
+        const m = tip(el('a', 'download', tr('music_page.web_download_mei')), 'music_page.web_download_mei_hint');
+        m.setAttribute('href', '/data/music/scores/' + chosen.file);
+        m.setAttribute('download', chosen.file);
+        d.appendChild(m);
+        d.appendChild(el('p', 'muted', tr('music_page.web_midi_note')));
+      }
     }
     function catalogueReady(cat) {
       state.cat = cat;
@@ -270,6 +338,7 @@
       fillSelect($('mp-w-era'), tr('music_page.written_all_eras'), uniq(eraWords), '');
       renderExplore();
       renderWritten();
+      renderOpened();
     }
     const onInput = (id, field) => { const e = $(id); const go = () => { state.q[field] = e.value; if (state.cat) renderWritten(); }; e.addEventListener('input', go); e.addEventListener('change', go); };
     onInput('mp-w-search', 'text');
@@ -280,7 +349,7 @@
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(catalogueReady)
       .catch(() => { $('mp-genres').textContent = tr('music_page.web_catalogue_failed'); })
-      .then(() => ({ show, state, renderWritten }));
+      .then(() => ({ show, state, renderWritten, opened: () => opened }));
   }
 
   const api = { read, words, scoreWords, eraWords, lengthWords, catalogue, genreCards, moodCards, start, TABS };

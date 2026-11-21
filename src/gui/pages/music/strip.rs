@@ -55,6 +55,18 @@ pub fn like(state: &mut GuiState, sh: &Shown) {
     p.save_favourites();
 }
 
+/// The written piece before or after the one playing in the list as the person sorted and filtered it
+/// (wrapping round at either end). True when it changed.
+pub fn step_written(state: &mut GuiState, next: bool) -> bool {
+    let scores = super::files::all_scores(state);
+    let order = written::catalogue(&scores, &state.music_page.written_query);
+    let Some(i) = order.iter().position(|&k| scores[k].id == state.settings.music.written) else { return false };
+    let n = order.len();
+    let j = if next { (i + 1) % n } else { (i + n - 1) % n };
+    state.settings.music.written = scores[order[j]].id.clone();
+    true
+}
+
 /// The strip: buttons, what plays, the chips and Like. Previous and Next change `sh` (a composed
 /// piece's seed) or the person's written piece (the one before or after it in the Written music list).
 pub(super) fn strip(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown, accent: Color32) {
@@ -76,16 +88,8 @@ pub(super) fn strip(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: 
             if prev || next {
                 if written_id.is_empty() {
                     sh.seed = if next { sh.seed.saturating_add(1) } else { sh.seed.saturating_sub(1).max(1) };
-                } else if let Some(l) = lib.as_deref() {
-                    // The written piece before or after this one in the list as the person sorted and
-                    // filtered it (wrapping round at either end).
-                    let order = written::catalogue(&l.scores, &state.music_page.written_query);
-                    if let Some(i) = order.iter().position(|&k| l.scores[k].id == written_id) {
-                        let n = order.len();
-                        let j = if next { (i + 1) % n } else { (i + n - 1) % n };
-                        state.settings.music.written = l.scores[order[j]].id.clone();
-                        dirty = true;
-                    }
+                } else {
+                    dirty |= step_written(state, next);
                 }
             }
             ui.add_space(theme.spacing_sm);
@@ -107,7 +111,7 @@ pub(super) fn strip(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: 
                     state.music_page.tab = Tab::Explore;
                 }
             } else {
-                let title = lib.as_deref().and_then(|l| l.score(&written_id)).map(|e| score_words(e).0).unwrap_or_else(|| written_id.replace('_', " "));
+                let title = super::files::entry_of(state, &written_id).map(|e| score_words(&e).0).unwrap_or_else(|| written_id.replace('_', " "));
                 if Button::ghost(&title).hint("music_page.chip_written_hint").show(ui, theme) {
                     state.music_page.tab = Tab::Written;
                     state.music_page.written_selected = Some(written_id.clone());

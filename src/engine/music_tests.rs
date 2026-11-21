@@ -96,6 +96,9 @@ fn inputs(data: &Path) -> Inputs {
         restart: false,
         favourites: Arc::default(),
         analyse: false,
+        seek: (0, 0),
+        audition: None,
+        own_scores: None,
     }
 }
 
@@ -917,4 +920,45 @@ fn a_full_keys_render_is_the_same_streamed() {
     let rms = |f: &[[f32; 2]]| (f.iter().map(|x| (x[0] * x[0] + x[1] * x[1]) as f64).sum::<f64>() / (2 * f.len()) as f64).sqrt();
     println!("before and after: {differing} of {} frames differ, the largest difference {diff:e}; RMS {:.6} and {:.6}", a.len(), rms(a), rms(b));
     assert_eq!(differing, 0, "the streamed render is the whole-file render, frame for frame");
+}
+
+/// A CARD'S LISTEN PLAYS 20 SECONDS OF AUDIO, THEN WHAT PLAYED BEFORE COMES BACK WHERE IT WAS
+/// (docs/design/music-page.md section 9, rung 2; the operator, 2026-11-20: "Agree"): the person's own
+/// piece (seed 77) plays some phrases; an audition (another seed, as a card's Listen asks) takes over at
+/// the next bar and is still playing after 19 seconds of its audio, done at 20; when the page ends it
+/// (as engine/music.rs's frame does), the person's piece comes back with its own seed and carries on
+/// from the phrase it had reached rather than starting again, and the person's settings never changed.
+///
+/// Seen RED 2026-11-20 with the runtime's way back left out (`return_to` never taken): "the piece
+/// before carries on from phrase 3, not from the start: 0".
+#[test]
+fn an_audition_plays_20_seconds_then_the_piece_before_comes_back() {
+    let t = quick_music("music_audition");
+    let data = t.join("data");
+    let mut inp = inputs(&data);
+    inp.settings.game_chooses = false;
+    inp.settings.seed = 77;
+    let settings = inp.settings.clone();
+    let mut rt = MusicRuntime { seed: 20261120, ..Default::default() };
+    let mut mix = Offline::default();
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.score.is_some_and(|s| s.piece_seed == 77 && s.seconds > 13.0));
+    let reached = r.score.unwrap().form_pos;
+    assert!(reached >= 2, "the person's piece has played some phrases: {reached}");
+    let prior = r.playing.as_ref().and_then(|p| p.choice.clone());
+    let audition = MusicChoice { genre: settings.genre.clone(), mood: None, intensity: Some(0.3), seed: 991, tune: humanity_music::tune::Tune::default(), written: None };
+    inp.audition = Some(audition);
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.audition_s.is_some());
+    assert_eq!(r.playing.as_ref().map(|p| p.seed), Some(991), "the audition plays");
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.audition_s.is_some_and(|s| s >= 19.0));
+    assert!(!r.audition_done, "still playing after 19 seconds of its audio");
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.audition_done);
+    let heard = r.audition_s.unwrap();
+    assert!((20.0..20.5).contains(&heard), "done after 20 seconds of its audio: {heard:.2}");
+    // The page ends it.
+    inp.audition = None;
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.score.is_some_and(|s| s.piece_seed == 77));
+    assert_eq!(r.playing.as_ref().and_then(|p| p.choice.clone()), prior, "the piece before comes back");
+    let pos = r.score.unwrap().form_pos;
+    assert!(pos >= reached, "the piece before carries on from phrase {reached}, not from the start: {pos}");
+    assert_eq!(inp.settings, settings, "the person's choice never changed");
 }

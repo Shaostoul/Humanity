@@ -30,8 +30,10 @@ pub mod instrument;
 pub mod intensity;
 pub mod library;
 pub mod mei;
+pub mod mei_write;
 pub mod mood;
 pub mod osc;
+pub mod own;
 pub mod piece;
 pub mod places;
 pub mod render;
@@ -41,6 +43,7 @@ pub mod score;
 pub mod scores;
 pub mod settings;
 pub mod sheet;
+pub mod smf;
 pub mod stream;
 pub mod genre;
 pub mod tune;
@@ -94,5 +97,7 @@ mod tests_written;
 mod tests_written2;
 #[cfg(test)]
 mod tests_scores;
+#[cfg(test)]
+mod tests_rung2;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;

@@ -41,6 +41,12 @@ symphonia = { version = "0.6", optional = true, default-features = false, featur
 # reader over the file's text, MIT, already in Cargo.lock (wayland-scanner's), no default features. Read
 # on the music's build thread only, never the audio thread.
 quick-xml = { version = "0.41", default-features = false }
+# Reading and writing Standard MIDI Files (smf.rs, docs/design/music-page.md sections 12 and 15a, rung 2):
+# midly, released into the public domain under the Unlicense, pure Rust. The operator, 2026-11-20: "Yes.
+# Let's download it." Without its `parallel` feature, so its one optional dependency (rayon) stays out:
+# `std` alone (which brings `alloc`). The server build never compiles this crate, so midly never reaches
+# it either. The scan behind it: docs/reference/research/2026-11-20-midi-input/README.md.
+midly = { version = "0.5.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 # The BS.1770 loudness meter the tests and the offline renderer measure with (humanity_core::audio::loudness,

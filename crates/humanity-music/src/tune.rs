@@ -49,13 +49,29 @@ impl Default for Tune {
     }
 }
 
+/// The part a note's role is heard in on the Music page's mixer (music-page.md section 8): the eight
+/// roles are their own; a genre's drum machine and its build's snare roll (role 255) are the drums
+/// (`percussion`), and its risers, stingers and swells into a section (role 254) the texture. So a
+/// strip's fader, Mute, Solo and meter act on everything a person hears as that part (rung 2: soloing
+/// the bass left electro swing's drum machine playing, measured in the rendered audio).
+pub fn part_of(role: u8) -> Option<usize> {
+    match role {
+        r if (r as usize) < ROLES => Some(r as usize),
+        255 => Some(PERCUSSION),
+        254 => Some(TEXTURE),
+        _ => None,
+    }
+}
+
+/// The drums' and the texture's places in [`ROLE_IDS`].
+pub const PERCUSSION: usize = 6;
+pub const TEXTURE: usize = 7;
+
 impl Tune {
-    /// Role `role`'s gain (0: silent), from its level, its mute and the solos. Roles outside the
-    /// eight (the stinger and the riser, 254) are never touched.
+    /// Role `role`'s gain (0: silent), from its level, its mute and the solos, for the part it is
+    /// heard in ([`part_of`]); a role in no part is never touched.
     pub fn role_gain(&self, role: usize) -> f32 {
-        if role >= ROLES {
-            return 1.0;
-        }
+        let Some(role) = u8::try_from(role).ok().and_then(part_of) else { return 1.0 };
         let bit = 1u8 << role;
         if self.mute & bit != 0 || (self.solo != 0 && self.solo & bit == 0) {
             return 0.0;

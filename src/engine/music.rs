@@ -123,6 +123,15 @@ pub(crate) struct Inputs {
     pub favourites: Arc<Favourites>,
     /// The Music page is open: the score measures its spectrum and role meters for it.
     pub analyse: bool,
+    /// The Music page's seek in a written piece (a number raised per click, and the bar), sent to the
+    /// score in its context (music-page.md section 7, rung 2).
+    pub seek: (u32, u32),
+    /// An audition the Music page asked for (a genre or mood card's Listen, section 9, rung 2): it
+    /// plays in place of everything for 20 seconds of audio, then what played before comes back.
+    pub audition: Option<MusicChoice>,
+    /// The person's own written pieces' folder (MIDI files they imported, crate::own): a written piece
+    /// the shipped index does not list is looked for there.
+    pub own_scores: Option<PathBuf>,
 }
 
 /// What plays this frame and how loud: Settings' choices, where the music is heard from, and the duck.
@@ -401,9 +410,14 @@ type WrittenLoad = (String, Result<Arc<humanity_music::scores::WrittenPiece>, St
 
 /// Read and time the written piece `id` (docs/design/score-player.md section 10): the index, then its
 /// MEI file. On the build's thread, never the game thread (a large orchestral file takes a while).
-pub(crate) fn load_written(data_dir: &Path, id: &str) -> Result<Arc<humanity_music::scores::WrittenPiece>, String> {
-    let index = humanity_music::scores::load_index(data_dir)?;
-    let entry = index.iter().find(|e| e.id == id).ok_or_else(|| format!("no written piece {id:?} in data/music/scores/index.ron"))?;
+pub(crate) fn load_written(data_dir: &Path, own: Option<&Path>, id: &str) -> Result<Arc<humanity_music::scores::WrittenPiece>, String> {
+    let mut index = humanity_music::scores::load_index(data_dir)?;
+    if !index.iter().any(|e| e.id == id) {
+        if let Some(dir) = own {
+            index.extend(humanity_music::own::load(dir)?);
+        }
+    }
+    let entry = index.iter().find(|e| e.id == id).ok_or_else(|| format!("no written piece {id:?} in data/music/scores/index.ron or the person's own"))?;
     let piece = humanity_music::scores::load_piece(data_dir, entry)?;
     for p in &piece.score.problems {
         log::warn!("[Music] {}: {p}", entry.file);
@@ -537,6 +551,22 @@ pub(crate) struct MusicRuntime {
     /// The written piece the playing score plays, its id and the piece (None: the composer composes):
     /// the Music page's piano roll draws it.
     score_written: Option<(String, Arc<humanity_music::scores::WrittenPiece>)>,
+    /// What to go back to when an audition ends (music-page.md section 9, rung 2): what played before
+    /// it (its choice, or None while the game chose), its seed and where it was (its phrase, or a
+    /// written piece's bar), so it carries on from there.
+    return_to: Option<ReturnTo>,
+    /// The audition playing: the audio seconds it has played.
+    audition_s: Option<f64>,
+    /// The person's own written pieces' folder, as the frame last gave it.
+    own_dir: Option<PathBuf>,
+}
+
+/// What played before an audition, to carry on with after it.
+#[derive(Clone, Debug)]
+struct ReturnTo {
+    choice: Option<MusicChoice>,
+    seed: u64,
+    at: u64,
 }
 
 /// Whether two "in place of new pieces" choices compose the same piece (both none, or the same seed,
@@ -566,6 +596,10 @@ pub(crate) fn mood_now(lib: &MusicLibrary, inp: &Inputs) -> String {
 /// A written piece the person chose comes first (docs/design/score-player.md section 10), unless it is
 /// `failed` (a piece that could not be read: what would have played without it plays instead).
 pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs, failed: Option<&str>) -> Option<MusicChoice> {
+    // An audition plays in place of everything while it lasts, without changing the person's choice.
+    if let Some(a) = &inp.audition {
+        return Some(a.clone());
+    }
     let s = &inp.settings;
     let chosen = if !s.written.is_empty() && failed == Some(s.written.as_str()) { crate::gui::pages::music::chosen_composed(s, lib) } else { crate::gui::pages::music::chosen(s, lib) };
     if let Some(c) = chosen {
@@ -590,13 +624,14 @@ impl MusicRuntime {
             bank.clear();
         }
         let dir = data_dir.to_path_buf();
+        let own = self.own_dir.clone();
         let asked = genres.clone();
         let written = written.filter(|_| with_score);
         let handle = std::thread::Builder::new().name("music-build".into()).spawn(move || {
             // The written piece first: the parts its staves name are attached with the build's, and
             // its staves then play the recordings found (score-player.md section 9, rung 2).
             let w = written.map(|id| {
-                let piece = load_written(&dir, &id);
+                let piece = load_written(&dir, own.as_deref(), &id);
                 (id, piece)
             });
             let parts = match &w {
@@ -682,6 +717,7 @@ impl MusicRuntime {
             self.score_lib = None;
         }
         let g = gains(inp);
+        self.own_dir = inp.own_scores.clone();
         let mut readout = MusicReadout { device: mixer.is_some(), duck_db: g.duck_db, pieces: self.pieces, ..Default::default() };
         let st = self.score.as_mut().map(|h| h.status());
         let phrase = st.map(|s| s.phrase);
@@ -773,10 +809,19 @@ impl MusicRuntime {
                 // score just began; a chosen piece (the Music page's, a mood's "my music") plays its
                 // own seed; anything else is a new piece, the next seed.
                 let resume = (take == Take::Refresh && self.score.is_some() && same_choice(self.score_choice.as_ref(), choice.as_ref())).then(|| st.map(|s| s.form_pos)).flatten();
-                let seed = match (resume, &choice) {
-                    (Some(_), _) => self.piece_seed,
-                    (None, Some(c)) => c.seed,
-                    (None, None) => self.seed.wrapping_add(self.piece_n.wrapping_mul(0x9e37_79b9)),
+                // An audition about to play keeps what played before it (unless an audition already
+                // plays: the first one's place is the one to go back to); its end goes back there.
+                if inp.audition.is_some() && self.return_to.is_none() && self.score.is_some() {
+                    self.return_to = Some(ReturnTo { choice: self.score_choice.clone(), seed: self.score_seed, at: st.map(|s| s.form_pos).unwrap_or(0) });
+                }
+                let back = if inp.audition.is_none() { self.return_to.take() } else { None };
+                let back = back.filter(|r| same_choice(r.choice.as_ref(), choice.as_ref())).map(|r| (r.seed, r.at));
+                let resume = resume.or(back.map(|b| b.1));
+                let seed = match (back, resume, &choice) {
+                    (Some((s, _)), _, _) => s,
+                    (None, Some(_), _) => self.piece_seed,
+                    (None, None, Some(c)) => c.seed,
+                    (None, None, None) => self.seed.wrapping_add(self.piece_n.wrapping_mul(0x9e37_79b9)),
                 };
                 let res_copy = Arc::new(res.clone());
                 // A written piece plays in place of the composer (score-player.md section 10); a
@@ -846,6 +891,11 @@ impl MusicRuntime {
             let st = h.status();
             key_pc = st.key_pc;
             readout.score = Some(st);
+            // The audition's time is the audio it has played (its own score's clock).
+            self.audition_s = match &inp.audition {
+                Some(a) if self.score_choice.as_ref().is_some_and(|c| c == a) => Some(st.seconds),
+                _ => None,
+            };
             if let (Some(res), Some(ctx0)) = (self.score_res.clone(), self.score_ctx0) {
                 readout.playing = Some(crate::gui::pages::dev_music::Playing { choice: self.score_choice.clone(), seed: self.score_seed, ctx: ctx0, res, lib: lib.clone() });
             }
@@ -890,6 +940,11 @@ impl MusicRuntime {
         readout.written = self.score.as_ref().and(self.score_written.as_ref().map(|(id, _)| id.clone()));
         readout.written_piece = self.score.as_ref().and(self.score_written.as_ref().map(|(_, p)| p.clone()));
         readout.written_error = self.written_failed.clone();
+        if inp.audition.is_none() {
+            self.audition_s = None;
+        }
+        readout.audition_s = self.audition_s;
+        readout.audition_done = self.audition_s.is_some_and(|s| s >= crate::gui::pages::music::AUDITION_S as f64);
         readout.seed = self.seed;
         readout.pieces = self.pieces;
         let piece_len_s = inp.settings.piece_minutes.max(0.0) * 60.0;
@@ -913,7 +968,7 @@ impl MusicRuntime {
             Some(i) if s.blend > 0.0 => (i as u16, s.blend.clamp(0.0, 1.0)),
             _ => (genre_a, 0.0),
         };
-        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity, duck_db: g.duck_db, tune, analyse: inp.analyse }
+        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity, duck_db: g.duck_db, tune, analyse: inp.analyse, seek: inp.seek.0, seek_bar: inp.seek.1 }
     }
 
     /// The readout's lists (Settings > Music's genres and tones) and the build's state.
@@ -1040,11 +1095,18 @@ pub(crate) fn frame(state: &mut EngineState) {
         restart: std::mem::take(&mut state.gui_state.music_dev.restart_requested),
         favourites: state.gui_state.music_page.favourites.clone(),
         analyse: on_page,
+        seek: state.gui_state.music_page.seek,
+        audition: state.gui_state.music_page.audition.as_ref().map(|a| a.choice.clone()),
+        own_scores: state.gui_state.music_page.own_dir.clone(),
     };
     let readout = {
         let EngineState { music, audio, .. } = &mut *state;
         music.step(audio.as_mut().map(|a| a as &mut dyn Mixer), &inputs)
     };
+    // An audition that has played its 20 seconds ends: what played before comes back.
+    if readout.audition_done {
+        state.gui_state.music_page.audition = None;
+    }
     state.gui_state.music_dev.readout = readout;
     // The Music page's pieces heard, page open or not (docs/design/music-page.md section 9).
     let crate::gui::GuiState { music_page, settings, music_dev, .. } = &mut state.gui_state;

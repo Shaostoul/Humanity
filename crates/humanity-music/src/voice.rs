@@ -312,6 +312,12 @@ pub struct VoicePool {
     /// Rendering offline (an export, a test): a streamed note WAITS for the worker instead of fading
     /// when its frames are not there yet. Never on the audio thread, which must not wait.
     pub offline: bool,
+    /// The Music page's part meters (music-page.md section 8, rung 2): while on, each voice's dry
+    /// samples are squared and summed by role as they are written into the mix, so a meter shows the
+    /// sound the part actually makes (after its fader, mute and solo), not the notes it was sent. Off,
+    /// nothing extra.
+    metering: bool,
+    role_sq: [f64; 8],
 }
 
 impl VoicePool {
@@ -325,6 +331,31 @@ impl VoicePool {
             last_hz: [0.0; 8],
             leases: (0..MAX_VOICES).map(|_| None).collect(),
             offline: false,
+            metering: false,
+            role_sq: [0.0; 8],
+        }
+    }
+
+    /// Measure each role's sound from now on (or stop).
+    pub fn set_metering(&mut self, on: bool) {
+        self.metering = on;
+        if !on {
+            self.role_sq = [0.0; 8];
+        }
+    }
+
+    /// Each role's summed squared samples (left and right) since the last call, and zero them.
+    pub fn take_role_energy(&mut self) -> [f64; 8] {
+        std::mem::replace(&mut self.role_sq, [0.0; 8])
+    }
+
+    /// Let go every sounding voice (a seek in a written piece: the notes that were sounding fade as a
+    /// let-go note does, rather than stopping with a click).
+    pub fn release_all(&mut self, insts: &[Instrument], rate: f32) {
+        for v in self.voices.iter_mut() {
+            if v.active && !v.released {
+                release(v, insts, rate);
+            }
         }
     }
 
@@ -675,7 +706,12 @@ impl VoicePool {
                 Some(b) if dsend > 0.0 || v.gate > 0.0 => Some((&mut b.delay_l[..n], &mut b.delay_r[..n], dsend, &mut b.gate_l[..n], &mut b.gate_r[..n])),
                 _ => None,
             };
-            render_voice(v, inst, bank, stream, ks, p, &mut dry_l[..n], &mut dry_r[..n], &mut send_l[..n], &mut send_r[..n], vfx);
+            let mut energy = 0.0f32;
+            let part = crate::tune::part_of(v.role).filter(|_| self.metering);
+            render_voice(v, inst, bank, stream, ks, p, &mut dry_l[..n], &mut dry_r[..n], &mut send_l[..n], &mut send_r[..n], vfx, part.map(|_| &mut energy));
+            if let Some(k) = part {
+                self.role_sq[k] += energy as f64;
+            }
             if !v.active && self.leases[slot].is_some() {
                 self.leases[slot] = None;
             }
@@ -974,6 +1010,7 @@ fn render_voice(
     sl: &mut [f32],
     sr: &mut [f32],
     mut fx: Option<(&mut [f32], &mut [f32], f32, &mut [f32], &mut [f32])>,
+    mut meter: Option<&mut f32>,
 ) {
     let n = dl.len();
     let rate = p.rate;
@@ -992,6 +1029,9 @@ fn render_voice(
         };
         dl[i] += l * gl;
         dr[i] += r * gr;
+        if let Some(e) = meter.as_mut() {
+            **e += l * gl * l * gl + r * gr * r * gr;
+        }
         sl[i] += l * gl * send;
         sr[i] += r * gr * send;
         if let Some((xl, xr, dsend, gtl, gtr)) = fx.as_mut() {

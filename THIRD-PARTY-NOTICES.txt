@@ -14,8 +14,8 @@ package; do not edit it by hand. Each package's licence files are reproduced as 
 carries them (line endings and trailing spaces aside). A text many packages share is printed once
 and named by its number.
 
-Fingerprint: 34016d331d780a903bdaf750c1344dacd872d1cbc0bec498a8813d7c8dacf6b4
-Body checksum: 5dd6f40d666295c16b5976d934d68af628246b1a76a5d82e41452e199f028073
+Fingerprint: 61a949931c9b0b48182426b425da9a83b5b228c9a0312755e808558ff19fcc73
+Body checksum: 6203a6dfa7c79a603c6dc7ab5bd881712f1250212c995bd698dc24c1fe80147d
 ================================================================================
 PART 1. RUST PACKAGES BUILT INTO THE PROGRAMS (759)
 ================================================================================
@@ -2127,6 +2127,13 @@ metal 0.31.0
     Repository: https://github.com/gfx-rs/metal-rs
     Built into: macos-arm64, macos-x64
     Texts: 12 LICENSE-APACHE; 140 LICENSE-MIT
+
+midly 0.5.3
+    Licence: Unlicense
+    Repository: https://github.com/negamartin/midly
+    Built into: windows-x64, linux-x64, macos-arm64, macos-x64, android-arm64
+    Texts: 16 the standard Unlicense text
+    Note: The published package carries no licence file at its top level, so the standard Unlicense text follows; its Cargo.toml names its authors: negamartin.
 
 mime 0.3.17
     Licence: MIT OR Apache-2.0
@@ -4350,12 +4357,6 @@ windows-sys 0.52.0
     Built into: windows-x64
     Texts: 432 license-apache-2.0; 433 license-mit
 
-windows-sys 0.59.0
-    Licence: MIT OR Apache-2.0
-    Repository: https://github.com/microsoft/windows-rs
-    Built into: windows-x64
-    Texts: 432 license-apache-2.0; 433 license-mit
-
 windows-sys 0.60.2
     Licence: MIT OR Apache-2.0
     Repository: https://github.com/microsoft/windows-rs
@@ -5752,7 +5753,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 -------------------------------------------------------------------------------- 16
-Text 16: UNLICENSE, from aho-corasick 1.1.5 (and 12 more packages; Parts 1 and 2 name them)
+Text 16: UNLICENSE, from aho-corasick 1.1.5 (and 13 more packages; Parts 1 and 2 name them)
 
 This is free and unencumbered software released into the public domain.
 
@@ -28517,7 +28518,7 @@ Text 431: LICENSE.MIT, from wgpu-hal 24.0.4
 ../LICENSE.MIT
 
 -------------------------------------------------------------------------------- 432
-Text 432: license-apache-2.0, from windows 0.58.0 (and 24 more packages; Parts 1 and 2 name them)
+Text 432: license-apache-2.0, from windows 0.58.0 (and 23 more packages; Parts 1 and 2 name them)
 
                                  Apache License
                            Version 2.0, January 2004
@@ -28722,7 +28723,7 @@ Text 432: license-apache-2.0, from windows 0.58.0 (and 24 more packages; Parts 1
    limitations under the License.
 
 -------------------------------------------------------------------------------- 433
-Text 433: license-mit, from windows 0.58.0 (and 24 more packages; Parts 1 and 2 name them)
+Text 433: license-mit, from windows 0.58.0 (and 23 more packages; Parts 1 and 2 name them)
 
     MIT License
 

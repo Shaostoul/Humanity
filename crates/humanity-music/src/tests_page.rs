@@ -274,7 +274,8 @@ fn a_mute_silences_a_part_without_changing_the_piece() {
     let (open, open_meter, bands) = render(ctx);
     let (shut, shut_meter, _) = render(muted);
     assert!((open - shut).abs() > 1.0, "muting the melody changes the sound");
-    assert!(open_meter > 0.1, "the melody's meter moves when it plays: {open_meter}");
+    // The meter is the melody's own sound since rung 2 (an RMS amplitude), shown on a decibel scale.
+    assert!(crate::score::meter_fraction(open_meter) > 0.3, "the melody's meter moves when it plays: {open_meter}");
     assert_eq!(shut_meter, 0.0, "and stays still when it is muted");
     assert!(bands.iter().filter(|&&b| b > 1e-4).count() >= 5, "the spectrum reads the music across its bands: {bands:?}");
 }

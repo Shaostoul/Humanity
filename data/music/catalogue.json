@@ -232,6 +232,7 @@
   "scores": [
     {
       "id": "ode_to_joy",
+      "file": "ode_to_joy.mei",
       "words": "music.score.ode_to_joy",
       "name": "",
       "composer_words": "music.score.composer_beethoven",
@@ -257,6 +258,7 @@
     },
     {
       "id": "fur_elise",
+      "file": "fur_elise.mei",
       "words": "music.score.fur_elise",
       "name": "",
       "composer_words": "music.score.composer_beethoven",
@@ -282,6 +284,7 @@
     },
     {
       "id": "mountain_king",
+      "file": "mountain_king.mei",
       "words": "music.score.mountain_king",
       "name": "",
       "composer_words": "music.score.composer_grieg",
@@ -307,6 +310,7 @@
     },
     {
       "id": "beethoven_symphony5_1",
+      "file": "beethoven_symphony5_1.mei",
       "words": "music.score.beethoven_symphony5_1",
       "name": "",
       "composer_words": "music.score.composer_beethoven",

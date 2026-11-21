@@ -65,20 +65,25 @@ class El {
   find(tag) { const out = []; const walk = (e) => { for (const c of e.children) { if (c.tagName === tag.toUpperCase()) out.push(c); walk(c); } }; walk(this); return out; }
 }
 
-const IDS = ['mp-list', 'mp-msg', 'mp-code', 'mp-add', 'mp-genres', 'mp-moods', 'mp-w-search', 'mp-w-sort', 'mp-w-composer', 'mp-w-era', 'mp-w-count', 'mp-w-list', 'mp-w-detail', ...app.TABS.flatMap((t) => ['mp-tab-' + t, 'mp-panel-' + t])];
+const IDS = ['mp-list', 'mp-msg', 'mp-code', 'mp-add', 'mp-genres', 'mp-moods', 'mp-heard', 'mp-heard-clear', 'mp-w-search', 'mp-w-sort', 'mp-w-composer', 'mp-w-era', 'mp-w-count', 'mp-w-list', 'mp-w-detail', ...app.TABS.flatMap((t) => ['mp-tab-' + t, 'mp-panel-' + t])];
 
-function page() {
+/** The page over a stand-in document. `store`: this browser's storage, shared between visits. */
+function page(store = new Map()) {
   const els = {};
   for (const id of IDS) {
     assert.ok(HTML.includes(`id="${id}"`), `music.html has #${id}`);
-    els[id] = new El(id.startsWith('mp-tab') ? 'button' : 'div', id);
+    els[id] = new El(id.startsWith('mp-tab') ? 'button' : id === 'mp-w-search' ? 'input' : 'div', id);
   }
   els['mp-w-sort'].value = 'title';
-  const doc = { getElementById: (id) => els[id] || null, createElement: (tag) => new El(tag) };
-  const store = new Map();
+  let focused = null;
+  els['mp-w-search'].focus = () => { focused = 'mp-w-search'; };
+  const keys = [];
+  const doc = { getElementById: (id) => els[id] || null, createElement: (tag) => new El(tag), addEventListener: (type, f) => { if (type === 'keydown') keys.push(f); } };
+  // A key pressed with `target` holding the keyboard (an element, or the page itself).
+  const press = (key, target = { tagName: 'BODY' }, mods = {}) => keys.forEach((f) => f({ key, target, preventDefault() {}, ...mods }));
   const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
   const fetchFn = (url) => { assert.strictEqual(url, '/data/music/catalogue.json'); return Promise.resolve({ ok: true, json: () => Promise.resolve(CAT) }); };
-  return app.start(doc, fetchFn, storage).then((handle) => ({ els, handle }));
+  return app.start(doc, fetchFn, storage).then((handle) => ({ els, handle, press, store, focused: () => focused }));
 }
 
 const ids = (list) => list.map((s) => s.id);
@@ -161,4 +166,55 @@ test('the tabs are the app tabs, by the same words keys', () => {
     assert.ok(HTML.includes(`data-i18n="${key}" data-i18n-tip="${hint}"`), `the website's tab ${key} with its hint`);
     assert.ok(typeof word(key) === 'string' && typeof word(hint) === 'string', `${key} has words`);
   }
+});
+
+// RUNG 2 (docs/design/music-page.md section 19: the web half of each native rung that needs no engine).
+
+// Seen RED 2026-11-20 against a copy of music-app.js whose key handler skipped its text-box check:
+// "1 while typing in the search box leaves the tab".
+test('the shortcuts: 1 to 4 the tabs, / the search, never while typing', async () => {
+  const { els, press, focused } = await page();
+  const visible = () => app.TABS.filter((t) => !els['mp-panel-' + t].hidden);
+  press('2');
+  assert.deepStrictEqual(visible(), ['explore'], '2 opens Explore');
+  press('/');
+  assert.deepStrictEqual(visible(), ['written'], '/ opens Written music');
+  assert.strictEqual(focused(), 'mp-w-search', 'and gives the search box the keyboard');
+  press('1', els['mp-w-search']);
+  assert.deepStrictEqual(visible(), ['written'], '1 while typing in the search box leaves the tab');
+  press('1', { tagName: 'BODY' }, { ctrlKey: true });
+  assert.deepStrictEqual(visible(), ['written'], 'Ctrl+1 stays the browser\'s');
+  press('4');
+  assert.deepStrictEqual(visible(), ['yours'], '4 opens Your music');
+  for (const k of ['music_page.key_tabs', 'music_page.key_search']) assert.ok(HTML.includes(`data-i18n="${k}"`), `the help lists ${k}`);
+});
+
+// Seen RED 2026-11-20 against a copy that kept the opened pieces in a variable only: "a second visit
+// lists the pieces opened (left: [], right: [fur_elise, ode_to_joy])".
+test('the pieces opened are kept in this browser, newest first, and Clear empties them', async () => {
+  const store = new Map();
+  const first = await page(store);
+  const title = (id) => word(CAT.scores.find((s) => s.id === id).words);
+  const open = (els, id) => els['mp-w-list'].find('button').find((b) => b.textContent === title(id)).fire('click');
+  open(first.els, 'ode_to_joy');
+  open(first.els, 'fur_elise');
+  const second = await page(store);
+  const listed = () => second.els['mp-heard'].find('button').map((b) => b.textContent);
+  assert.deepStrictEqual(second.handle.opened().map((h) => h.id), ['fur_elise', 'ode_to_joy'], 'a second visit lists the pieces opened');
+  assert.deepStrictEqual(listed(), [title('fur_elise'), title('ode_to_joy')], 'by their titles, newest first');
+  second.els['mp-heard-clear'].fire('click');
+  assert.deepStrictEqual(second.handle.opened(), [], 'Clear empties the list');
+  assert.strictEqual(JSON.parse(store.get('hos_music_opened')).length, 0, 'and what the browser keeps');
+});
+
+test('a written piece offers its MEI file, exactly as the app keeps it', async () => {
+  const { els } = await page();
+  const fur = CAT.scores.find((s) => s.id === 'fur_elise');
+  assert.strictEqual(fur.file, 'fur_elise.mei', 'the catalogue names each piece\'s file');
+  els['mp-w-list'].find('button').find((b) => b.textContent === word(fur.words)).fire('click');
+  const link = els['mp-w-detail'].find('a').find((a) => a.getAttribute('download'));
+  assert.ok(link, 'a download link');
+  assert.strictEqual(link.getAttribute('href'), '/data/music/scores/fur_elise.mei');
+  assert.ok(fs.existsSync(path.join(ROOT, 'data', 'music', 'scores', fur.file)), 'the file it points at ships');
+  assert.ok(els['mp-w-detail'].textContent.includes(i18n.t('music_page.web_midi_note')), 'and says where MIDI files are saved, and why');
 });

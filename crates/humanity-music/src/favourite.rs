@@ -159,6 +159,8 @@ impl Favourite {
             duck_db: 0.0,
             tune: self.tune.to_tune(lib, genre),
             analyse: false,
+            seek: 0,
+            seek_bar: 0,
         })
     }
 }

@@ -211,6 +211,8 @@ fn the_overview_window_matches_the_visible_bars() {
     let first = bar_number_at(&out, bar_lines(&out)[0]).expect("numbered");
     let clicked = sheet.bar_at(end * 0.75).unwrap() + 1;
     assert!(first <= clicked && clicked < first + 4, "the click at bar {clicked} shows bars from {first}");
+    // Rung 2: a written piece also plays from the bar the click landed on.
+    assert_eq!(state.music_page.seek, (1, (clicked - 1) as u32), "a click on a written piece's overview seeks to its bar");
 }
 
 /// The row titles the Written music tab drew, top to bottom (the list is the left part of the page;

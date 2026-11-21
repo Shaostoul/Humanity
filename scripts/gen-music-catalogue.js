@@ -67,7 +67,7 @@ function build() {
       danger: bands.includes(m.id),
     })),
     scores: scores.map((s) => ({
-      ...pick(s, ['id', 'words', 'name', 'composer_words', 'composer', 'era_words', 'era', 'composer_years', 'key_root', 'key_mode', 'edition', 'source', 'source_url', 'typesetter', 'licence', 'credit_words', 'tempo_words', 'tempo_finding']),
+      ...pick(s, ['id', 'file', 'words', 'name', 'composer_words', 'composer', 'era_words', 'era', 'composer_years', 'key_root', 'key_mode', 'edition', 'source', 'source_url', 'typesetter', 'licence', 'credit_words', 'tempo_words', 'tempo_finding']),
       year: s.year || 0,
       length_s: s.length_s || 0,
       parts: (s.staves || []).map((st) => (st.part ? `instrument_packs.part.${st.part}` : (instruments[st.instrument] || `music.instrument.${st.instrument}`))).filter((k, i, a) => a.indexOf(k) === i),

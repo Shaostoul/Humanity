@@ -103,6 +103,18 @@ And 36 more items, 37 references (`node scripts/crate-cards.js --interface human
   crashes; the shipped pieces read with nothing skipped and sound at the music target
   (`the_shipped_score_parses_with_nothing_skipped`, `the_shipped_pieces_sound_at_the_music_target`).
   Pieces are data (`data/music/scores/index.ron`). Source: [score-player.md](../design/score-player.md).
+- **A part is everything heard as that part** (`tune::part_of`, 2026-11-20): the eight roles, plus a
+  genre's drum machine and build rolls (role 255) as the drums and its risers, stingers and swells
+  (254) as the texture, for the mixer's gains, Mute and Solo, the meters (`VoicePool::set_metering`
+  sums each voice's dry samples by part, only while the page is open) and the MIDI and MEI exports. A
+  new note role must say which part it is heard in. Source: music-page.md section 8 (soloing the bass
+  left the drum machine playing until rung 2).
+- **MIDI through midly, MEI through our own writer** (`smf.rs`, `mei_write.rs`, `own.rs`, 2026-11-20):
+  midly 0.5.3 (the Unlicense, the operator's yes of 2026-11-20) without its `parallel` feature, so
+  rayon stays out; the server build never compiles this crate, so midly never reaches it. A piece in
+  ticks (`Notated`, 960 a quarter) is the one shape both formats go through; what the importer keeps is
+  read back by our own MEI reader first, and a written piece's notes survive export and import exactly
+  (`export_then_import_round_trips_a_written_pieces_notes`). Source: music-page.md sections 12 and 15a.
 - **The sheet is the score's own loop** (`sheet.rs`): `transcribe` cuts time where `ScoreEngine::render`
   does (128-frame blocks, chunks of at most 64 samples), so its notes are the score's to the sample;
   a change to the score's chunking changes both. Source: music-page.md section 9.

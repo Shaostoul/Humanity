@@ -31,16 +31,22 @@
 
 mod controls;
 mod explore;
+pub mod files;
+pub mod history;
+mod keys;
+mod mixer;
 mod roll;
 mod strip;
 #[cfg(test)]
 pub(crate) mod tests;
 #[cfg(test)]
+mod tests_rung2;
+#[cfg(test)]
 mod tests_v2;
 mod view;
 mod written;
 
-pub use explore::Heard;
+pub use history::Heard;
 pub use written::{WrittenQuery, WrittenSort};
 
 use std::path::PathBuf;
@@ -62,6 +68,17 @@ pub const EXPORT_MINUTES: [f32; 6] = [1.0, 3.0, 5.0, 10.0, 30.0, 60.0];
 
 /// The largest seed Random draws (seeds under a million are easy to read out and to type).
 pub const RANDOM_SEED_MAX: u64 = 999_999;
+
+/// How long a card's Listen plays, seconds of audio (docs/design/music-page.md section 9; the operator,
+/// 2026-11-20: "Agree"), before what played before comes back.
+pub const AUDITION_S: f32 = 20.0;
+
+/// An audition asked for: the piece it plays and the card's words (the page says what is auditioned).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Audition {
+    pub choice: MusicChoice,
+    pub words: String,
+}
 
 /// An export the page asked for: the engine renders it on its own thread (engine/music.rs).
 #[derive(Clone, Debug, PartialEq)]
@@ -154,8 +171,30 @@ pub struct MusicPage {
     pub roll_bars: usize,
     pub roll_follow: bool,
     pub roll_first: usize,
-    /// The pieces heard this session, newest first (`explore::HEARD_MOST` at most).
+    /// The pieces heard, newest first (`history::HEARD_MOST` at most), kept in the person's file
+    /// (None: not written, as in a test), and why it could not be read or written.
     pub heard: Vec<Heard>,
+    pub heard_path: Option<PathBuf>,
+    pub heard_error: Option<String>,
+    /// A seek in the written piece playing: a number raised per click, and the bar (engine/music.rs
+    /// sends both in the score's context).
+    pub seek: (u32, u32),
+    /// The audition playing or asked for (a card's Listen), until it has played `AUDITION_S`.
+    pub audition: Option<Audition>,
+    /// The person's own written pieces (MIDI files they imported: humanity_music::own), their folder,
+    /// and what the last import, edit or removal said.
+    pub own: Vec<humanity_music::scores::ScoreEntry>,
+    pub own_dir: Option<PathBuf>,
+    pub own_msg: Option<String>,
+    /// The open file picker of an import, or of the folder an export goes to.
+    pub import_picker: Option<crate::gui::widgets::file_browser::FilePickerState>,
+    pub export_picker: Option<crate::gui::widgets::file_browser::FilePickerState>,
+    /// The music-file export (MEI or MIDI): its name box, its folder, and what it last said.
+    pub file_name: String,
+    pub file_dir: Option<PathBuf>,
+    pub file_msg: Option<String>,
+    /// A piece of the person's own whose details are being changed: its id and the boxes' text.
+    pub editing: Option<files::OwnEdit>,
     /// The Written music list's search, sort and filters, and the piece whose details show.
     pub written_query: WrittenQuery,
     pub written_selected: Option<String>,
@@ -190,6 +229,19 @@ impl Default for MusicPage {
             roll_follow: true,
             roll_first: 0,
             heard: Vec::new(),
+            heard_path: None,
+            heard_error: None,
+            seek: (0, 0),
+            audition: None,
+            own: Vec::new(),
+            own_dir: None,
+            own_msg: None,
+            import_picker: None,
+            export_picker: None,
+            file_name: String::new(),
+            file_dir: None,
+            file_msg: None,
+            editing: None,
             written_query: WrittenQuery::default(),
             written_selected: None,
             share_text: String::new(),
@@ -208,6 +260,11 @@ impl Default for MusicPage {
 pub fn favourites_path() -> PathBuf {
     let cfg = crate::config::AppConfig::config_path();
     cfg.parent().map(|p| p.to_path_buf()).unwrap_or_default().join("music").join("favourites.json")
+}
+
+/// The person's own written pieces' folder: `music/scores` beside their favourites.
+pub fn own_scores_dir() -> PathBuf {
+    favourites_path().with_file_name("scores")
 }
 
 /// Where exports go: `Music\HumanityOS` in the person's home folder (the design's question 2), else
@@ -245,6 +302,48 @@ impl MusicPage {
             }
         }
         self.fav_path = Some(path);
+        // The pieces heard (history.rs) and the person's own written pieces (files.rs) beside them.
+        let heard = history::heard_path();
+        match history::load(&heard) {
+            Ok(list) => self.heard = list,
+            Err(e) => {
+                log::warn!("[Music] {e}");
+                self.heard_error = Some(e);
+            }
+        }
+        self.heard_path = Some(heard);
+        let own = own_scores_dir();
+        match humanity_music::own::load(&own) {
+            Ok(list) => self.own = list,
+            Err(e) => {
+                log::warn!("[Music] {e}");
+                self.own_msg = Some(e);
+            }
+        }
+        self.own_dir = Some(own);
+    }
+
+    /// Play the written piece from bar `bar` (0 = the first): a new seek number, sent to the score.
+    pub fn seek_to(&mut self, bar: usize) {
+        self.seek = (self.seek.0.wrapping_add(1).max(1), bar as u32);
+    }
+
+    /// Empty the pieces heard, and the file (Explore's Clear).
+    pub fn clear_heard(&mut self) {
+        self.heard.clear();
+        self.write_heard();
+    }
+
+    /// Write the pieces heard to the person's file (when there is one), saying so when it fails.
+    fn write_heard(&mut self) {
+        let Some(path) = self.heard_path.clone() else { return };
+        match history::save(&path, &self.heard) {
+            Ok(()) => self.heard_error = None,
+            Err(e) => {
+                log::warn!("[Music] {e}");
+                self.heard_error = Some(e);
+            }
+        }
     }
 
     /// Write the favourites (after any change), saying so on the page when it fails.
@@ -297,7 +396,13 @@ pub fn chosen_composed(s: &MusicSettings, lib: Option<&MusicLibrary>) -> Option<
 pub fn written_choice(s: &MusicSettings, lib: Option<&MusicLibrary>) -> MusicChoice {
     let mood = if s.game_chooses { humanity_music::library::DEFAULT_MOOD.to_string() } else { mood_or_default(&s.mood) };
     let intensity = lib.map(|l| explore_intensity(l, &mood)).unwrap_or(0.3);
-    MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune: Tune::default(), written: Some(s.written.clone()) }
+    let mut tune = Tune::default();
+    if let Some(full) = lib.and_then(|l| l.genre_index(&s.genre).map(|g| s.tune.to_tune(l, g))) {
+        tune.level_db = full.level_db;
+        tune.mute = full.mute;
+        tune.solo = full.solo;
+    }
+    MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune, written: Some(s.written.clone()) }
 }
 
 /// A written piece's title and composer for a person: their words by key, else the plain words a
@@ -427,7 +532,7 @@ pub fn now_playing_words(s: &MusicSettings, r: &MusicReadout) -> String {
     // have played without it plays, and is said below).
     let unreadable = r.written_error.as_ref().is_some_and(|(id, _)| *id == s.written);
     if !s.written.is_empty() && !unreadable {
-        let title = r.lib.as_deref().and_then(|l| l.score(&s.written)).map(|e| score_words(e).0).unwrap_or_else(|| s.written.replace('_', " "));
+        let title = r.lib.as_deref().and_then(|l| l.score(&s.written)).map(|e| score_words(e).0).or_else(|| r.written_piece.as_ref().filter(|p| p.entry.id == s.written).map(|p| score_words(&p.entry).0)).unwrap_or_else(|| s.written.replace('_', " "));
         return if !s.music_on {
             t("music_page.now_off").replace("{{what}}", &t("music_page.what_written").replace("{{title}}", &title))
         } else if r.playing.is_some() {
@@ -527,7 +632,9 @@ impl MusicPage {
     /// Note the piece playing now in the pieces heard (called every frame by the engine's music,
     /// page open or not, so a piece heard elsewhere is in the list too; explore.rs draws it).
     pub fn note_heard(&mut self, s: &MusicSettings, r: &MusicReadout) {
-        explore::note_heard(&mut self.heard, s, r, std::time::Instant::now());
+        if history::note_heard(&mut self.heard, s, r, history::now_s()) {
+            self.write_heard();
+        }
     }
 }
 
@@ -546,10 +653,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         // The choice as the page shows it; the strip, Explore and Tune change `sh`, written back below.
         let before = shown(&state.settings.music, &state.music_dev.readout);
         let mut sh = before.clone();
+        // The page's keyboard shortcuts (never while a text box has the keyboard: keys.rs).
+        keys::handle(ctx, state, &mut sh);
         let wide = ui.available_width() >= WIDE_POINTS;
         egui::TopBottomPanel::top("music_page_top").frame(Frame::NONE).show_separator_line(false).show_inside(ui, |ui| {
             ui.label(RichText::new(t("music_page.title")).size(theme.font_size_title).color(theme.text_primary()));
             strip::strip(ui, theme, state, &mut sh, accent);
+            keys::help(ui, theme);
             ui.add_space(theme.spacing_xs);
             ui.horizontal_wrapped(|ui| {
                 for tab in Tab::ALL {
@@ -575,13 +685,19 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             Tab::Listen => listen(ui, theme, state, &before, &mut sh, accent, wide),
             Tab::Explore => explore::explore(ui, theme, state, &mut sh, accent, wide),
             Tab::Written => written::written(ui, theme, state, accent, wide),
-            Tab::Yours => controls::keep(ui, theme, state, accent),
+            Tab::Yours => {
+                controls::keep(ui, theme, state, accent);
+                ui.add_space(theme.spacing_md);
+                files::files_card(ui, theme, state, accent);
+            }
         });
         let lib = state.music_dev.readout.lib.clone();
         if apply(&mut state.settings.music, lib.as_deref(), &before, &sh) {
             state.settings_dirty = true;
         }
     });
+    // An import's file picker or an export's folder picker, over the page.
+    files::pickers(ctx, theme, state);
 }
 
 /// Listen: What plays beside the piece in words, the visualizer and Tune (wide), or one column with
@@ -590,6 +706,7 @@ fn listen(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, before: &Shown
     if !wide {
         view::now_playing(ui, theme, state, accent);
         roll::panel(ui, theme, state, accent);
+        mixer::mixer(ui, theme, state, &mut sh.tune, accent, false);
         controls::what_plays(ui, theme, state, before, accent);
         controls::tune(ui, theme, state, sh, accent);
         return;
@@ -609,6 +726,7 @@ fn listen(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, before: &Shown
         ui.allocate_ui_with_layout(egui::vec2(right_w, h), egui::Layout::top_down(egui::Align::Min), |ui| {
             ui.set_width(right_w);
             view::now_playing(ui, theme, state, accent);
+            mixer::mixer(ui, theme, state, &mut sh.tune, accent, true);
             controls::tune(ui, theme, state, sh, accent);
         });
     });

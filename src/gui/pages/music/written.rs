@@ -56,6 +56,9 @@ pub struct WrittenQuery {
 }
 
 /// A piece's era in words (its key's, else a community file's plain words).
+/// The search box's id (the page's "/" shortcut gives it the keyboard).
+pub const SEARCH_ID: &str = "music_page_written_search";
+
 pub fn era_words(e: &ScoreEntry) -> String {
     if !e.era_words.is_empty() {
         let w = t_dyn(&e.era_words);
@@ -166,11 +169,11 @@ fn filter_combo(ui: &mut egui::Ui, id: &str, label: &str, all: &str, hint: &'sta
 /// Written music: the search, the sort and the filters, the list, and the chosen piece's details.
 pub(super) fn written(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Color32, wide: bool) {
     let hint = state.settings.hint_display;
-    let lib = state.music_dev.readout.lib.clone();
-    let scores: Vec<ScoreEntry> = lib.as_ref().map(|l| l.scores.clone()).unwrap_or_default();
+    let scores: Vec<ScoreEntry> = super::files::all_scores(state);
     let mut dirty = false;
     widgets::subsection_header(ui, theme, accent, t("music_page.written"), t("music_page.written_note"));
     ui.label(RichText::new(t("music_page.written_intro")).color(theme.text_secondary()));
+    super::files::import_button(ui, theme, state);
     ui.add_space(theme.spacing_xs);
     if scores.is_empty() {
         ui.label(RichText::new(t("music_page.written_none")).color(theme.text_muted()));
@@ -182,7 +185,7 @@ pub(super) fn written(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, ac
         let q = &mut state.music_page.written_query;
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(t("music_page.written_search")).color(theme.text_secondary()));
-            ui.add(egui::TextEdit::singleline(&mut q.text).desired_width(260.0)).hint("music_page.written_search_hint");
+            ui.add(egui::TextEdit::singleline(&mut q.text).id(egui::Id::new(SEARCH_ID)).desired_width(260.0)).hint("music_page.written_search_hint");
             ui.add_space(theme.spacing_lg);
             egui::ComboBox::new("music_page_written_sort", t("music_page.written_sort"))
                 .selected_text(t(q.sort.key()))
@@ -354,6 +357,22 @@ fn details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, e: &ScoreEntr
     }
     if !e.source_url.is_empty() && ui.button(t("music_page.detail_open_source")).hint("music_page.detail_open_source_hint").clicked() {
         ui.ctx().open_url(egui::OpenUrl::new_tab(&e.source_url));
+    }
+    // Save it as a music file (rung 2): MIDI from its notes, MEI as its own file.
+    ui.horizontal_wrapped(|ui| {
+        if ui.button(t("music_page.files_save_midi")).hint("music_page.detail_save_midi_hint").clicked() {
+            state.music_page.file_msg = Some(super::files::save_written(state, e, super::files::Format::Midi));
+        }
+        if ui.button(t("music_page.files_save_mei")).hint("music_page.detail_save_mei_hint").clicked() {
+            state.music_page.file_msg = Some(super::files::save_written(state, e, super::files::Format::Mei));
+        }
+        if let Some(m) = &state.music_page.file_msg {
+            ui.label(RichText::new(m).size(theme.font_size_small).color(accent));
+        }
+    });
+    // A piece of the person's own: its details are theirs to change, and theirs to remove.
+    if e.folder.is_some() {
+        super::files::own_details(ui, theme, state, e);
     }
     changed
 }

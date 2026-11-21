@@ -6394,7 +6394,8 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None };
     r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res, lib: lib.clone() });
     let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
-    status.roles = [0.6, 0.9, 0.0, 0.0, 0.4, 0.8, 0.0, 0.0];
+    // Each part's level as the meters read it (an RMS of its sound, rung 2).
+    status.roles = [0.04, 0.12, 0.0, 0.0, 0.02, 0.09, 0.07, 0.0];
     for (k, b) in status.bands.iter_mut().enumerate() {
         *b = 0.12 * (1.0 - (k as f32 - 3.0).abs() / 8.0).max(0.02);
     }
@@ -6419,8 +6420,8 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     p.roll_bars = 16;
     p.tab = tab;
     p.written_selected = Some("fur_elise".into());
-    let now = std::time::Instant::now();
-    let heard = |genre: &str, mood: &str, seed: u64, mins: u64| crate::gui::pages::music::Heard { genre: genre.into(), mood: mood.into(), seed, tune: humanity_music::tune::Tune::default(), written: None, at: now - std::time::Duration::from_secs(mins * 60) };
+    let now = crate::gui::pages::music::history::now_s();
+    let heard = |genre: &str, mood: &str, seed: u64, mins: u64| crate::gui::pages::music::Heard { genre: genre.into(), mood: mood.into(), seed, tune: Default::default(), written: None, at: now - mins * 60 };
     p.heard = vec![heard("electro_swing", "mothership_calm", 4242, 0), heard("electro_swing", "mothership_calm", 4241, 3), heard("lofi", "night_watch", 1907, 9)];
 }
 
@@ -6458,6 +6459,17 @@ fn snapshot_music_written() {
     });
 }
 
+/// The Music page's Your music tab at 2560 by 1440 (rung 2): the favourites, and the Music files card
+/// (the piece playing saved as MIDI or MEI to a chosen name and folder, and Open a MIDI file).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_yours() {
+    render_page_png("music_yours", 2560, 1440, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Yours);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
 /// The Music page on a phone (about 412 by 915 points, drawn at 200% with the phone preview on): one
 /// column, the strip's buttons wrapped, the piano roll inside Listen.
 #[test]
@@ -6472,6 +6484,25 @@ fn snapshot_phone_music() {
     humanity_core::platform::device::set_phone_preview(true);
     let _off = PreviewOff;
     render_page_png_at("phone_music", 824, 1830, 200.0, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// The Music page's whole Listen tab at a phone's width (412 points, drawn at 200%, as tall as the tab
+/// is, rung 2): the piece in words, the piano roll, the mixer's strips one row each, What plays and Tune.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_phone_music_listen() {
+    struct PreviewOff;
+    impl Drop for PreviewOff {
+        fn drop(&mut self) {
+            humanity_core::platform::device::set_phone_preview(false);
+        }
+    }
+    humanity_core::platform::device::set_phone_preview(true);
+    let _off = PreviewOff;
+    render_page_png_at("phone_music_listen", 824, 6400, 200.0, |ctx, theme, state| {
         music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
         wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
     });
