@@ -1637,6 +1637,11 @@
       "date": "2026-11-21",
       "decision": "Owner round 5 (worktree-agent-a4216023926a3f7fb) handed off: no trust exemption (every handover and naming asks four random fingerprint groups, drawn afresh, never the same set twice running), the arithmetic corrected (1-2 us per candidate; three ground groups pass no ask; four ground groups, about 2^64 candidates, pass one ask in 15: ACCEPTED as the written residual), key_cards.rs cut by characters, the website's successor name check, the waiting-hide gaps (note first and synced, replace path rolls back and seals, a 100-minute cap, reports kept, package = hide id for idempotence), a test reaching the under-lock recheck, Export/Restore compare author and time too. Web reds seen; Rust reds and the full gates not run; branch BUGs renumbered 339-373 plus 374-380 for this round (final renumber at its last merge). Continuation dispatched (wk-ownerfix7.txt), then a fifth review. Note: a cargo started by an agent keeps running after TaskStop and holds that worktree's build lock.",
       "why": "Security work continues until a review comes back clean."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Merged the harvest basket (93949c834, BUG-339): a harvest's fraction of an item is kept per player per item and counted toward the next whole item; harvest_quantity's rounding removed; CropPicking::carry removed; saved with the world. Took its recommendations: the kept grams are weightless and not edible (bookkeeping under one item each); the Garden panel's crop card gets one line of what is kept ('112 g of 300 g kept') as a small GUI follow-up. Main now ends at BUG-339; pending branches (signed requests 339/340 and later, owner 339-380) renumber from main's end at their merges.",
+      "why": "Never falsify data; let every gram count."
     }
   ],
   "active_scopes_to_avoid": [
