@@ -79,6 +79,12 @@ pub struct WorldSave {
     /// changed is not trusted). None: no place yet (a save from before, or one never aboard).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ship_place: Option<ShipPlace>,
+    /// Where this character wakes after a death, by place id (game-setting-and-intro.md 5.6,
+    /// rung 2, crates/humanity-ship/src/respawners.rs): None is "home", their home's respawner;
+    /// else the zone id of a public one ("general-services-1"). Changed by pressing E at a
+    /// respawner (engine/wake.rs); the death screen lists it first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wake_at: Option<String>,
     /// The ship's stores' meals and water this save has had away from a server (the mess hall's
     /// counter offline, increment 6): counted on this computer. Zero in a save from before.
     #[serde(default)]
@@ -436,6 +442,7 @@ impl WorldSave {
             household: default_household(),
             server: String::new(),
             ship_place: None,
+            wake_at: None,
             ship_meals: ShipMeals::default(),
             character_name: default_character_name(),
             appearance: Default::default(),
@@ -1122,6 +1129,7 @@ mod tests {
             household: "solo".to_string(),
             server: String::new(),
             ship_place: Some(ShipPlace { ship_id: "mothership-1".into(), ship_hash: "abc".into(), plot: "c2".into() }),
+            wake_at: Some("general-services-1".into()),
             ship_meals: ShipMeals { taken: 2, next_at_game_s: 28_800.0, water_l: 1.5 },
             character_name: "Test Character".to_string(),
             appearance: Default::default(),
@@ -1243,6 +1251,8 @@ mod tests {
         assert_eq!((&loaded.start, &loaded.household, &loaded.server), (&save.start, &save.household, &save.server));
         assert_eq!(loaded.ship_place, save.ship_place);
         assert_eq!(loaded.ship_meals, save.ship_meals);
+        // Where the character wakes after a death (game-setting-and-intro.md rung 2).
+        assert_eq!(loaded.wake_at.as_deref(), Some("general-services-1"));
 
         // Clean up
         let _ = std::fs::remove_file(&path);

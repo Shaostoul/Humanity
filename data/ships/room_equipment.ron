@@ -44,4 +44,15 @@
         room_type: "recreation",
         items: ["couch", "couch", "rug", "wall_screen"],
     ),
+    // General Services (2026-11-21, docs/design/game-setting-and-intro.md 5.5 and rung 2): its
+    // barracks of bunks anyone may sleep in, each with a locker, and its medbay. (Its hall is a
+    // "commons" zone, furnished above; the respawner itself is a machine, data/machines/ship.ron.)
+    (
+        room_type: "barracks",
+        items: ["bunk_bed", "bunk_bed", "locker", "locker", "notice_board"],
+    ),
+    (
+        room_type: "medical",
+        items: ["medical_bed", "first_aid_kit", "cabinet", "wash_basin"],
+    ),
 ]

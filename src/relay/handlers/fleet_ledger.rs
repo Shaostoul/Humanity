@@ -78,7 +78,9 @@ pub const ITEM: &str = "item";
 pub const ITEM_CREATIVE: &str = "item_creative";
 pub const POWER_DRAWN: &str = "power_drawn";
 pub const POWER_RETURNED: &str = "power_returned";
-pub const RECORDED_KINDS: [&str; 5] = [MEAL, ITEM, ITEM_CREATIVE, POWER_DRAWN, POWER_RETURNED];
+/// A new body after a death (game-setting-and-intro.md 2.4, rung 2): `record_body`.
+pub const BODY: &str = "body";
+pub const RECORDED_KINDS: [&str; 6] = [MEAL, ITEM, ITEM_CREATIVE, POWER_DRAWN, POWER_RETURNED, BODY];
 
 /// A game day in game seconds: lines keep the shared world's clock to the start of one.
 pub const GAME_DAY_S: f64 = 86_400.0;
@@ -325,6 +327,20 @@ pub fn take_meal_and_record(world: &mut GameWorld, db: &Storage, key: &str, enti
         }
     }
     reply
+}
+
+/// A new body for `key` (a respawn's join, `GameWorld::assign_home`): one `body` line, used, at
+/// the kind's price (0 until body materials are goods: nobody is ever refused a body, in the red
+/// or not; game-setting-and-intro.md 2.4 and question 8). A failure is logged and never stops the
+/// respawn; the kind's day cap keeps a game that dies in a loop from filling the ledger.
+pub fn record_body(world: &GameWorld, db: &Storage, key: &str) {
+    let Some(line) = world.fleet_ledger.line(BODY, "", 1.0, world.game_time, None) else {
+        tracing::error!("Fleet ledger: no priced \"body\" kind in data/ship/fleet_ledger.ron; a new body went unrecorded");
+        return;
+    };
+    if let Err(e) = db.record_fleet_entry(key, &line) {
+        tracing::warn!("Fleet ledger: a new body could not be recorded: {e}");
+    }
 }
 
 /// A player's give to the fleet (`game_fleet_give`): the reply, a `game_fleet_give_result`.

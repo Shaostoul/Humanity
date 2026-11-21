@@ -655,6 +655,14 @@ pub struct ShipPlots {
     pub ship_hash: String,
     pub plots: Vec<PlotArrival>,
     pub guest_spawn: Option<Vec3>,
+    /// The ship's own respawners (a cabin block's, General Services'), from its machine rows
+    /// (data/machines/ship.ron, `respawners::ship_wake`): where the relay stands a waking player
+    /// whose join names one, and every waking guest (game-setting-and-intro.md 5.5 and 5.6, rung
+    /// 2). Empty for a ship built by hand without them (`of_ship`).
+    pub wake: Vec<crate::respawners::ShipWake>,
+    /// Each plot's id and the zone its door opens on, in the file's order: whose block a
+    /// residence zone's respawner belongs to (`wake_eye`).
+    pub door_zones: Vec<(String, String)>,
 }
 
 impl ShipPlots {
@@ -665,7 +673,41 @@ impl ShipPlots {
     /// used to keep NO ship, and every game's join was then refused as "a different ship").
     /// Err only when neither loads.
     pub fn load(data_dir: &Path) -> Result<ShipPlots, String> {
-        ShipStructure::ship_for_relay(data_dir).map(|ship| Self::of_ship(&ship))
+        ShipStructure::ship_for_relay(data_dir).map(|ship| {
+            let mut plots = Self::of_ship(&ship);
+            plots.read_wake(&ship, data_dir);
+            plots
+        })
+    }
+
+    /// Read the ship's own respawners (`wake`) from its machine rows, data/machines/ship.ron
+    /// under `data_dir`, disk first, else the copy built into the exe (`MachineHome::load_file`),
+    /// so a throwaway relay has the same respawners. A ship file whose rows do not load keeps
+    /// none (a waking player then arrives at their door, a guest in the Commons, as before).
+    pub fn read_wake(&mut self, ship: &ShipStructure, data_dir: &Path) {
+        if let Some(rows) = crate::machines::MachineHome::load_file(&data_dir.join("machines").join("ship.ron")) {
+            self.wake = crate::respawners::ship_wake(ship, &rows);
+        }
+    }
+
+    /// Where the relay stands a player waking at the ship's respawner `place` (a zone id), who
+    /// holds `plot` (None for a guest): a public one for anyone; a residence zone's only for a
+    /// plot whose door opens on that zone. None when there is no such place or it is not theirs
+    /// (game-setting-and-intro.md 5.6: "the server checks the choice").
+    pub fn wake_eye(&self, place: &str, plot: Option<&str>) -> Option<Vec3> {
+        let w = self.wake.iter().find(|w| w.zone == place)?;
+        if w.residents {
+            let door = plot.and_then(|id| self.door_zones.iter().find(|(p, _)| p == id)).map(|(_, z)| z.as_str());
+            if door != Some(w.zone.as_str()) {
+                return None;
+            }
+        }
+        Some(w.eye)
+    }
+
+    /// The first public respawner of the ship (General Services): where a guest wakes.
+    pub fn public_wake_eye(&self) -> Option<Vec3> {
+        self.wake.iter().find(|w| !w.residents).map(|w| w.eye)
     }
 
     /// The plots of a ship file already loaded (what `load` reads; a test builds one by hand).
@@ -675,7 +717,8 @@ impl ShipPlots {
             .iter()
             .map(|p| PlotArrival { id: p.id.clone(), kind: p.kind.clone(), origin: p.origin, size: p.size })
             .collect();
-        ShipPlots { ship_id: ship.id.clone(), ship_hash: ship.ship_hash(), plots, guest_spawn: ship.guest_spawn() }
+        let door_zones = ship.plots.iter().map(|p| (p.id.clone(), p.door.zone.clone())).collect();
+        ShipPlots { ship_id: ship.id.clone(), ship_hash: ship.ship_hash(), plots, guest_spawn: ship.guest_spawn(), wake: Vec::new(), door_zones }
     }
 
     /// A plot by id.
@@ -2859,8 +2902,9 @@ mod tests {
         let ship = shipped_ship();
         // The home's door, the Commons to First Street, and since ship homes increment 6 First
         // Street to the cabin block's hall and to the South Commons, and since 2026-11-13 the lane
-        // from First Street to Row Street.
-        assert_eq!(ship.corridors.len(), 5);
+        // from First Street to Row Street, and since 2026-11-21 the corridor from First Street to
+        // General Services (game-setting-and-intro.md rung 2).
+        assert_eq!(ship.corridors.len(), 6);
         assert_eq!((ship.corridors[0].from_zone.as_str(), ship.corridors[0].to_zone.as_str()), ("home", "commons"));
         assert_eq!((ship.corridors[1].from_zone.as_str(), ship.corridors[1].to_zone.as_str()), ("commons", "street-1"));
         assert_eq!((ship.corridors[2].from_zone.as_str(), ship.corridors[2].to_zone.as_str()), ("street-1", "cabins-1"));
@@ -3129,8 +3173,8 @@ mod tests {
         // second bedroom, the boot room and the shower room. 306 since the NVIDIA SimReady props
         // (2026-11-09, docs/design/simready-props.md): 24 more, the kitchen counter, its tap and
         // its small things, a first aid kit, the workshop's tools, cabinet, ladder and extinguisher stand,
-        // a towel.
-        assert_eq!(before.machines.len(), 306, "every home machine is placed");
+        // a towel. 307 since the bedroom's respawner (2026-11-21, game-setting-and-intro.md rung 2).
+        assert_eq!(before.machines.len(), 307, "every home machine is placed");
         let p2 = ShipStructure::load_and_assemble_shipped(&data_dir(), Some("p2")).expect("the homestead assembles at p2");
         let mut failures = not_moved_by(&before, &home_parts(&p2), 0.0, 99.0);
         failures.extend(not_moved_by(&before, &home_parts(&assembled_on_p1_moved_by(-100.0, 0.0)), -100.0, 0.0));
@@ -3242,7 +3286,8 @@ mod tests {
         // recreation room; and without Row Street, its alleys and its green (2026-11-13, reached
         // from street-1 by a lane) and its twenty row house plots.
         let mut before_shape = ship.clone();
-        before_shape.zones.retain(|z| !["street-1", "cabins-1", "commons-2"].contains(&z.id.as_str()) && !z.id.starts_with("row-"));
+        // And without General Services (2026-11-21, game-setting-and-intro.md rung 2).
+        before_shape.zones.retain(|z| !["street-1", "cabins-1", "commons-2", "general-services-1"].contains(&z.id.as_str()) && !z.id.starts_with("row-"));
         before_shape.corridors.retain(|c| c.from_zone != "street-1" && c.to_zone != "street-1");
         before_shape.plots.retain(|p| p.kind != "cabin" && !p.kind.starts_with("row_house"));
         let ci = before_shape.zone_index("commons").expect("the Commons");
@@ -3300,8 +3345,10 @@ mod tests {
         // corridors make in their walls and in First Street's east wall, and their rails (148).
         let all = ship.generate_meshes().room_info;
         // 55 since Row Street (2026-11-13): its street, five alleys and green, seven rooms, and the
-        // lane from First Street, a walkable bound.
-        assert_eq!(all.len(), 55, "the whole ship's rooms");
+        // lane from First Street, a walkable bound. 59 since General Services (2026-11-21,
+        // game-setting-and-intro.md rung 2): its hall, barracks and medbay (two walls with doors
+        // make three) and its corridor from First Street.
+        assert_eq!(all.len(), 59, "the whole ship's rooms");
         assert!(all.iter().any(|r| r.id == "cabins-1:washroom-1"), "the cabin block's washroom is a room");
         // 48 rooms and 180 segments since the homestead's upper floor (2026-10-20); 41 and 148 before.
         // 305 since increment 7's review (2026-10-21): the same 180 walls and guards, 72 lintels
@@ -3312,8 +3359,11 @@ mod tests {
         // between them (three segments) is gone. 347 since Row Street (2026-11-13): the lane's rails
         // and its cuts in First Street's and Row Street's walls, Row Street's walls (its east line
         // kept for the walk and parted only where an alley joins it), each alley's two side lines
-        // (neighbours' gardens are seen across, never walked onto) and the green's walls.
-        assert_eq!(ship_wall_segments(&ship).len(), 347, "the whole ship's collision segments");
+        // (neighbours' gardens are seen across, never walked onto) and the green's walls. 363 since
+        // General Services (2026-11-21): 16 more, its shell, its two inner walls either side of
+        // their doors, its corridor's rails and the cuts that corridor makes in First Street's east
+        // wall and in General Services' west wall.
+        assert_eq!(ship_wall_segments(&ship).len(), 363, "the whole ship's collision segments");
         // The home's corridor keeps its id in the whole ship too: assembly puts it first.
         let c0 = all.iter().find(|r| r.id == "corridor_0").expect("corridor_0");
         assert!((c0.center - Vec3::new(60.0, 1.5, 40.0)).abs().max_element() < 1e-3, "corridor_0 is the home's corridor, got {:?}", c0.center);
@@ -4105,7 +4155,10 @@ mod plot_handout_tests {
         std::fs::write(&file, "( this is not a ship").unwrap();
         let got = ShipPlots::load(&dir);
         let built_in = ShipPlots::of_ship(&ShipStructure::built_in_ship_file("test: the built-in ship").unwrap());
-        assert!(got.as_ref().is_ok_and(|p| *p == built_in), "a relay with a broken ship file keeps the built-in ship: {got:?}");
+        // The ship's public respawners come from its machine rows (data/machines/ship.ron, here the
+        // copy built into the exe), which `of_ship` does not read (game-setting-and-intro.md rung 2).
+        assert!(got.as_ref().is_ok_and(|p| ShipPlots { wake: Vec::new(), ..p.clone() } == built_in), "a relay with a broken ship file keeps the built-in ship: {got:?}");
+        assert!(got.as_ref().is_ok_and(|p| p.wake.iter().any(|w| w.zone == "general-services-1")), "and the built-in respawners");
         assert!(!file.exists(), "the broken file was moved aside");
         let kept = std::fs::read_dir(file.parent().unwrap()).unwrap().filter_map(|e| e.ok()).any(|e| e.file_name().to_string_lossy().contains("invalid-"));
         assert!(kept, "and kept for recovery by hand");
@@ -4227,9 +4280,12 @@ mod storey_fields_tests {
             now.push((format!("homes/shipped/{kind}.ron, pretty"), fnv(ron::ser::to_string_pretty(&design, pretty()).unwrap())));
         }
         const PINNED: [&str; 7] = [
-            "92f6b6a8296ea952",
-            "92f6b6a8296ea952",
-            "f6e8760010cf92d6",
+            // General Services and its corridor (2026-11-21, game-setting-and-intro.md rung 2)
+            // moved these three on purpose; before it they were 92f6b6a8296ea952 (twice) and
+            // f6e8760010cf92d6.
+            "680c871f1a6cafb7",
+            "680c871f1a6cafb7",
+            "320f09c294add553",
             // The homestead's upper floor (increment 7, lane C1, 2026-10-20) moved these two on
             // purpose; before it they were 7f2c00ab2c30e0ce and d015569462471165. Then ramp-1
             // became the train platform's 1:17 boarding ramp (2026-10-21; it was 069cc7d553362752

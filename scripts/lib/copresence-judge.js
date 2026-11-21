@@ -1362,6 +1362,9 @@ function homeThingsOf(things) {
  * Judge a guest run. `g` (the manifest's `guest`):
  *   plots, doors   the ship's plots (probe) and door points' doors
  *   commons        the Commons place ({ min, max })
+ *   generalServices General Services' place ({ min, max }): where a guest WAKES after a death
+ *                  (game-setting-and-intro.md 5.5 and rung 2, 2026-11-21), though it ARRIVES
+ *                  in the Commons
  *   defaultPlot    the ship's default plot id (a guest's home comes back there)
  *   kind           the plot kind a player asking for no start is given (data/homes/
  *                  starts.ron's default start's plot_kind): the game is a guest once every
@@ -1441,7 +1444,16 @@ function judgeGuest(guest) {
   );
   for (const c of judgeRejoin(g.respawn || {}, { prefix: "guest_respawn", when: "it pressed Respawn as a guest" }).checks) checks.push(c);
   const rs = g.respawn || {};
-  add("respawn_in_commons", inCommons(rs.relaySpawn) && inCommons(rs.camera), `after Respawn the relay spawned the guest at ${fmt3(rs.relaySpawn)} and its camera stands at ${fmt3(rs.camera)}, ${inCommons(rs.relaySpawn) && inCommons(rs.camera) ? "both in" : "NOT both in"} the Commons`);
+  // A guest has no home aboard, so it wakes at the ship's public respawner, in General Services
+  // (rung 2 of game-setting-and-intro.md, 2026-11-21); before respawners it woke in the Commons.
+  const inServices = (p) => Array.isArray(p) && g.generalServices && [0, 2].every((k) => p[k] >= g.generalServices.min[k] - 0.05 && p[k] <= g.generalServices.max[k] + 0.05);
+  add(
+    "respawn_in_general_services",
+    inServices(rs.relaySpawn) && inServices(rs.camera),
+    !g.generalServices
+      ? "the rig recorded no General Services place, so where the guest woke cannot be judged"
+      : `after Respawn the relay spawned the guest at ${fmt3(rs.relaySpawn)} and its camera stands at ${fmt3(rs.camera)}, ${inServices(rs.relaySpawn) && inServices(rs.camera) ? "both in" : "NOT both in"} General Services`,
+  );
   const b = g.back || {};
   const def = (g.plots || []).find((p) => p.id === g.defaultPlot);
   const backThings = homeThingsOf(b.homeThings);

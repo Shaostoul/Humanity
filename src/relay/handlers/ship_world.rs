@@ -1187,7 +1187,14 @@ mod tests {
     /// hall, which is its north strip).
     fn inside(world: &GameWorld, id: &str) -> [f32; 3] {
         let room = world.rooms.iter().find(|x| x.id == id).cloned().unwrap();
-        room_point(&room, if id == "commons" { Some((25.0, 40.0)) } else { None })
+        // A zone whose middle is inside one of its volumes is visited on its own floor: the
+        // Commons' open floor, and General Services' hall, north of its barracks (2026-11-21).
+        let own_floor = match id {
+            "commons" => Some((25.0, 40.0)),
+            "general-services-1" => Some((9.0, 41.0)),
+            _ => None,
+        };
+        room_point(&room, own_floor)
     }
 
     /// "FIND YOUR HOME": the explore quest visits every room of the ship, then counts the

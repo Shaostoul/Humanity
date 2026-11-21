@@ -1100,6 +1100,9 @@ pub(crate) fn save_home_at(
         Some(m) => m,
         None => load_home_at(path).map(|s| s.ship_meals).unwrap_or_default(),
     };
+    // And where the character wakes after a death (game-setting-and-intro.md 5.6, rung 2), as
+    // the game holds it, else as the file had it.
+    save.wake_at = crate::engine::wake::usual_for_save(data, || load_home_at(path).and_then(|s| s.wake_at));
     // Before world entry the herd is not spawned yet and its saved timers
     // are still waiting for it: keep those rather than forget them.
     if save.herd.is_empty() {
@@ -1205,6 +1208,7 @@ pub fn put_save_on_world(
     apply_save_to_world(world, save);
     gui.own_home = save.home.clone();
     put_ship_meals(data, &save.ship_meals);
+    crate::engine::wake::put_usual(data, save.wake_at.clone());
     gui.places = start_places(data_dir, &save.start);
 }
 
@@ -1557,6 +1561,8 @@ pub fn resume_home(
     // THE MESS HALL'S METER (ship homes increment 6) comes back as saved: meals are not taken
     // while you are away.
     restore_ship_meals(data, &save.ship_meals);
+    // Where the character wakes after a death comes back as saved (rung 2, engine/wake.rs).
+    crate::engine::wake::set_usual(data, save.wake_at.clone());
     // THE DAY RECORD (2026-10-22, machines::day_energy): what each machine drew over its
     // last game day comes back as saved; the time away adds nothing to it, and charges
     // each machine that day (an estimate for one that had not run a whole one).

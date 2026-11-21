@@ -239,3 +239,22 @@ fn snapshot_music_stand_ins() {
         crate::gui::pages::music::draw(ctx, theme, state);
     });
 }
+
+/// THE DEATH SCREEN'S LIST OF WHERE TO WAKE (2026-11-21, docs/design/game-setting-and-intro.md
+/// 2.2 and 5.6, rung 2), at the operator's 2560 x 1440: the lore's words ("Your body died. You did
+/// not.", asleep on the lifeline with its glossary marks), the cause, and the two places a
+/// Homestead holder may wake, the usual one first and marked so, as engine/wake.rs
+/// `refresh_view` fills them on the shipped ship.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_death_screen_wake() {
+    render_page_png("death_screen_wake", 2560, 1440, |ctx, theme, state| {
+        state.player_death_cause = Some("dehydration".into());
+        state.wake.places = vec![
+            crate::gui::wake_view::WakeEntry { place: "home".into(), name: humanity_core::i18n::t("hud.wake_home").into(), usual: true },
+            crate::gui::wake_view::WakeEntry { place: "general-services-1".into(), name: "General Services".into(), usual: false },
+        ];
+        state.wake.filled = true;
+        crate::gui::pages::hud::draw_death_screen(ctx, theme, state);
+    });
+}

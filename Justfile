@@ -1040,6 +1040,19 @@ verify-falls *ARGS:
 verify-storeys *ARGS:
     node scripts/verify-storeys.js "$@"
 
+# Proves in the REAL game that respawners are places (docs/design/game-setting-and-intro.md rung
+# 2, 2026-11-21): one probe-sweep boot over tests/visual/respawn-vantages.json, then
+# scripts/lib/respawn-judge.js. A rig dies through the showcase `die` verb, wakes through
+# `respawn` ("home", "general-services-1") and is judged where it stands against the tree's data:
+# waking at home stands it UPSTAIRS in the bedroom at the pod, waking at General Services on the
+# ship's deck inside it. Two pictures to LOOK at: the bedroom's pod and the death screen's list of
+# where to wake. Exit 1 = refused before booting; 2 = a check failed. Evidence in
+# .probe-rig/respawn/runs/<stamp>/.
+#   just verify-respawn --dry-verdict <manifest.json>   re-judge without booting
+[positional-arguments]
+verify-respawn *ARGS:
+    node scripts/verify-respawn.js "$@"
+
 # Proves in the REAL game the hidden-window chain of the tray (notifications rung 2 part 2,
 # 2026-10-31; docs/design/notifications.md "The tray"). BOOTS TWO games, one after the other, in
 # their own portable sandbox (.probe-rig/tray: background, never focused, silent, no server, with

@@ -1877,6 +1877,37 @@
       "section": "About HumanityOS"
     },
     {
+      "name": "The Game's Story",
+      "docs": [
+        {
+          "title": "The Fleet",
+          "src": "docs/user/story/the_fleet.md",
+          "tags": [
+            "beginner",
+            "sim"
+          ]
+        },
+        {
+          "title": "Coming Back as Yourself",
+          "src": "docs/user/story/coming_back_as_yourself.md",
+          "tags": [
+            "beginner",
+            "sim"
+          ]
+        },
+        {
+          "title": "What Is Made Up in This Game",
+          "src": "docs/user/story/what_is_made_up_in_this_game.md",
+          "tags": [
+            "beginner",
+            "sim",
+            "real"
+          ]
+        }
+      ],
+      "section": "About HumanityOS"
+    },
+    {
       "name": "Creating Content",
       "docs": [
         {

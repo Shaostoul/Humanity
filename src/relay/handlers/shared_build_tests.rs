@@ -410,7 +410,8 @@ fn a_frame_comes_into_view_at_250_m_and_leaves_past_300() {
     let mut at = |z: f32| book.rejudge(id, Vec3::new(53.5, 1.7, z), in_m, out_m);
     let (came, went) = at(40.5);
     let cabins: Vec<String> = (1..=16).map(|n| format!("plot:c{n}")).collect();
-    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "plot:p1", "plot:p2", "plot:p3"].iter().map(|s| s.to_string()).collect();
+    // And since 2026-11-21 General Services beside the Medical Bay, 140 m from p1's door (rung 2).
+    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:general-services-1", "plot:p1", "plot:p2", "plot:p3"].iter().map(|s| s.to_string()).collect();
     want.extend(cabins.iter().cloned());
     // Since 2026-11-13 the room program's homesteads east of First Street, h1 and o1.
     want.extend(["plot:h1".to_string(), "plot:o1".to_string()]);
@@ -424,7 +425,7 @@ fn a_frame_comes_into_view_at_250_m_and_leaves_past_300() {
     assert_eq!(went, Vec::<String>::new(), "290 m keeps p4 in view / left: {went:?} / right: []");
     assert_eq!(at(-4.0), (vec![], vec!["plot:p4".to_string()]), "301 m: p4 leaves the view");
     let mut still: Vec<String> = cabins.clone();
-    still.extend(["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:cabins-1", "zone:commons", "zone:street-1"].iter().map(|s| s.to_string()));
+    still.extend(["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:cabins-1", "zone:commons", "zone:general-services-1", "zone:street-1"].iter().map(|s| s.to_string()));
     still.sort();
     assert_eq!(world.pieces.frames_in_view(id), still);
 }

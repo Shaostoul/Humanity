@@ -123,9 +123,9 @@ impl RoomTypeRegistry {
         self.types.get(id).map(|t| t.name.clone()).unwrap_or_else(|| id.to_string())
     }
 
-    /// Purpose text for a room id (empty if unknown).
+    /// Purpose text for a room id (empty if unknown), by key where one exists (`purpose_words`).
     pub fn purpose(&self, id: &str) -> String {
-        self.types.get(id).map(|t| t.purpose.clone()).unwrap_or_default()
+        self.types.get(id).map(|t| purpose_words(id, t)).unwrap_or_default()
     }
 
     /// Access class for a room id ("private" if unknown).
@@ -237,11 +237,30 @@ impl RoomTypeRegistry {
                     room.label.clone()
                 }
             }),
-            purpose: def.map(|t| t.purpose.clone()).unwrap_or_default(),
+            purpose: def.map(|t| purpose_words(key, t)).unwrap_or_default(),
             actions: def.map(|t| t.actions.iter().map(|a| self.action_label(a)).collect()).unwrap_or_default(),
             access: def.map(|t| t.access.clone()).unwrap_or_else(default_access),
         }
     }
+}
+
+/// The purpose a person reads for room type `id`: the words of the key `room_types.<id>.purpose`
+/// in data/i18n/en.json when it has one (the ELI5 mandate: words by key, so they translate), else
+/// the type's own rooms.ron text, which is also what the room editor writes. The respawner was the
+/// first with a key (2026-11-21, docs/design/game-setting-and-intro.md rung 1): its file text said
+/// "reconstruction", which reads like a copy, and the fleet never copies anyone. The server build
+/// (`--features relay --no-default-features`) has no word source and shows no room to anyone, so
+/// there it is the file's text.
+pub fn purpose_words(id: &str, def: &RoomTypeDef) -> String {
+    #[cfg(feature = "native")]
+    {
+        let key = format!("room_types.{id}.purpose");
+        if humanity_core::i18n::has(&key) {
+            return humanity_core::i18n::t_dyn(&key).to_string();
+        }
+    }
+    let _ = id;
+    def.purpose.clone()
 }
 
 /// What a detected room is FOR, as the HUD shows it (see `RoomTypeRegistry::function_for`).
@@ -257,6 +276,37 @@ pub struct RoomFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// THE RESPAWNER'S WORDS FOLLOW THE LORE, BY KEY (docs/design/game-setting-and-intro.md rung 1
+    /// and section 5.6): "reconstruction" reads like a copy, and the fleet never copies anyone, so
+    /// the purpose a person reads is the key `room_types.respawner.purpose` in data/i18n/en.json (a
+    /// pod that grows a new body for a mind that never stopped), on the HUD's room line and the
+    /// editor's alike. A room type with no such key keeps its rooms.ron words.
+    ///
+    /// Seen red 2026-11-21 before the key and `purpose_words` existed: `left: "Molecular
+    /// reconstruction pod for player respawn after death"`, `right: "room_types.respawner.purpose"`.
+    #[test]
+    #[cfg(feature = "native")]
+    fn the_respawners_purpose_is_read_by_key_and_never_says_reconstruction() {
+        let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+        let reg = RoomTypeRegistry::load(&dir);
+        let words = humanity_core::i18n::t("room_types.respawner.purpose");
+        assert_eq!(reg.purpose("respawner"), words, "the purpose is the key's words");
+        assert!(!words.to_lowercase().contains("reconstruct"), "{words}");
+        let room = crate::fibonacci::RoomInfo {
+            id: "respawner".into(),
+            center: glam::Vec3::ZERO,
+            dimensions: glam::Vec3::ONE,
+            is_hologram_room: false,
+            is_spawn_room: false,
+            room_type: None,
+            label: String::new(),
+        };
+        assert_eq!(reg.function_for(&room).purpose, words, "the HUD's room line reads the same words");
+        // A type with no key keeps its file's words.
+        assert!(!humanity_core::i18n::has("room_types.kitchen.purpose"));
+        assert_eq!(reg.purpose("kitchen"), reg.types["kitchen"].purpose);
+    }
 
     #[test]
     fn parses_rooms_and_joins_actions() {

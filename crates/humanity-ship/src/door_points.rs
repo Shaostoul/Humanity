@@ -254,6 +254,8 @@ mod tests {
             "zone:row-alley-4",
             "zone:row-alley-5",
             "zone:row-green-1",
+            // General Services (2026-11-21, game-setting-and-intro.md rung 2).
+            "zone:general-services-1",
         ]
             .iter()
             .map(|s| s.to_string())
@@ -265,9 +267,9 @@ mod tests {
     /// First Street, and since increment 6 First Street to the cabin block and to the South
     /// Commons) and one door per plot; since 2026-11-13 the lane from First Street to Row Street,
     /// and Row Street's ten open joins (the street to each of its five alleys, each alley to the
-    /// green).
+    /// green); since 2026-11-21 the corridor from First Street to General Services.
     fn shipped_door_count(ship: &ShipStructure) -> usize {
-        3 + 1 + 10 + ship.plots.len()
+        3 + 1 + 10 + 1 + ship.plots.len()
     }
 
     /// The shipped ship, from either plot: the shared zones and every plot (twelve homesteads

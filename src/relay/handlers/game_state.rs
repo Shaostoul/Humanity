@@ -494,11 +494,72 @@ pub fn start_of_kind(starts: &humanity_ship::starts::Starts, kind: &str) -> Stri
 ///                data/homes/starts.ron: "cabin", "homestead"). Only for a plot they do not hold
 ///                yet: a plot they hold is kept whatever they ask (`assign_home`). Unknown, not
 ///                offered or absent: the default start (`Starts::resolve`).
+///   `wake`       only on the join a RESPAWN causes (game-setting-and-intro.md 5.6, rung 2;
+///                the game's engine/wake.rs `join_field`): the respawner to wake at, which
+///                this relay checks and stands them at (`assign_home`, `wake_spawn`), and a
+///                new body in their fleet ledger (`fleet_ledger::record_body`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct JoinHome {
     pub ship_hash: Option<String>,
     pub door: Option<(f32, f32)>,
     pub start: Option<String>,
+    pub wake: Option<JoinWake>,
+}
+
+/// Where a respawning player asks to wake (`JoinHome::wake`): `place` "home" with `at`, the
+/// floor outside their own home's pod in PLOT-LOCAL metres (so it holds on whichever plot this
+/// relay gives them, upstairs included); or the zone id of one of the ship's respawners
+/// (`ShipPlots::wake`, from data/machines/ship.ron), which this relay looks up itself.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JoinWake {
+    pub place: String,
+    pub at: Option<(f32, f32, f32)>,
+}
+
+impl JoinWake {
+    /// Read from a join's `wake`: a place id (1 to 64 of a-z, 0-9, - and _) and, when given,
+    /// exactly three finite numbers. Anything else is no wake at all.
+    pub fn from_value(v: &serde_json::Value) -> Option<JoinWake> {
+        let place = v.get("place")?.as_str()?;
+        let id_ok = !place.is_empty() && place.len() <= 64 && place.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+        if !id_ok {
+            return None;
+        }
+        let at = match v.get("at") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(a) => match a.as_array()?.as_slice() {
+                [x, y, z] => {
+                    let (x, y, z) = (x.as_f64()? as f32, y.as_f64()? as f32, z.as_f64()? as f32);
+                    if !(x.is_finite() && y.is_finite() && z.is_finite()) {
+                        return None;
+                    }
+                    Some((x, y, z))
+                }
+                _ => return None,
+            },
+        };
+        Some(JoinWake { place: place.to_string(), at })
+    }
+}
+
+/// Where a respawning player is stood (`JoinHome::wake`), when this relay agrees: their own
+/// home's pod ("home" with `at`, plot-local, kept inside the plot they hold, its floor anywhere
+/// from the plot's deck to its top); one of the ship's respawners, a public one for anyone and a
+/// cabin block's for its cabins (`ShipPlots::wake_eye`). A GUEST (no plot) always wakes at the
+/// ship's public respawner, General Services, whatever they asked (they have no home pod aboard).
+/// None, and the usual arrival at their door, when the ask is not theirs or names nothing here.
+pub fn wake_spawn(sp: &humanity_ship::ship_structure::ShipPlots, w: &JoinWake, plot: Option<&humanity_ship::ship_structure::PlotArrival>) -> Option<glam::Vec3> {
+    let Some(plot) = plot else { return sp.public_wake_eye() };
+    if w.place == humanity_ship::respawners::HOME {
+        let (x, y, z) = w.at?;
+        let inside = (0.0..=plot.size.0).contains(&x) && (0.0..=plot.size.1).contains(&y) && (0.0..=plot.size.2).contains(&z);
+        if !inside {
+            return None;
+        }
+        let (ox, oy, oz) = plot.origin;
+        return Some(glam::Vec3::new(ox + x, oy + y + humanity_ship::ship_structure::SPAWN_EYE_HEIGHT_M, oz + z));
+    }
+    sp.wake_eye(&w.place, Some(&plot.id))
 }
 
 /// Why a `game_join` is refused before anything is spawned (home_plots.rs `refused_join`).
@@ -554,7 +615,8 @@ impl JoinHome {
             _ => None,
         });
         let start = raw.get("start").and_then(|v| v.as_str()).filter(|s| humanity_ship::starts::is_start_id(s)).map(str::to_string);
-        JoinHome { ship_hash, door, start }
+        let wake = raw.get("wake").and_then(JoinWake::from_value);
+        JoinHome { ship_hash, door, start, wake }
     }
 }
 
@@ -648,8 +710,11 @@ impl GameWorld {
     fn load_ship(&mut self) {
         match humanity_ship::ship_structure::ShipStructure::ship_for_relay(std::path::Path::new("data")) {
             Ok(ship) => {
-                let p = humanity_ship::ship_structure::ShipPlots::of_ship(&ship);
-                tracing::info!("Game: ship {} ({}) has {} plot(s)", p.ship_id, p.ship_hash, p.plots.len());
+                let mut p = humanity_ship::ship_structure::ShipPlots::of_ship(&ship);
+                // Its respawners (a cabin block's, General Services'), from the ship's machine
+                // rows: where a respawn's join may ask to wake (game-setting-and-intro.md rung 2).
+                p.read_wake(&ship, std::path::Path::new("data"));
+                tracing::info!("Game: ship {} ({}) has {} plot(s) and {} respawner(s) of its own", p.ship_id, p.ship_hash, p.plots.len(), p.wake.len());
                 // Each start a player may ask for, and how many plots of its kind the ship has
                 // (increment 6): a start whose kind has no plot here can never be given.
                 for s in self.starts.offered() {
@@ -1181,10 +1246,17 @@ impl GameWorld {
             }
         };
         let plot = held.and_then(|id| sp.plot(&id).cloned());
-        let spawn = match (&plot, sp.guest_spawn) {
-            (Some(p), _) => p.arrival(join.door),
-            (None, Some(g)) => g,
-            (None, None) => {
+        // A respawn's join wakes them at the respawner they chose, when this relay agrees it is
+        // theirs (game-setting-and-intro.md 5.6, rung 2), and writes the new body down.
+        let woke = join.wake.as_ref().and_then(|w| wake_spawn(sp, w, plot.as_ref()));
+        if join.wake.is_some() {
+            super::fleet_ledger::record_body(self, db, owner_key);
+        }
+        let spawn = match (woke, &plot, sp.guest_spawn) {
+            (Some(at), _, _) => at,
+            (None, Some(p), _) => p.arrival(join.door),
+            (None, None, Some(g)) => g,
+            (None, None, None) => {
                 let d = self.default_spawn_position();
                 glam::Vec3::new(d[0], d[1], d[2])
             }
@@ -1877,6 +1949,80 @@ mod tests {
         let world = GameWorld::new();
         assert!(world.plot_ids_of_kind("cabin").len() >= 16, "the shipped ship has its cabins");
         (world, crate::relay::storage::Storage::open_temp(&format!("gs_{tag}")))
+    }
+
+    /// A RESPAWN WAKES AT THE RESPAWNER CHOSEN, AND A GUEST IN GENERAL SERVICES
+    /// (game-setting-and-intro.md 5.6 and rung 2): the join a respawn causes names where to wake
+    /// (`wake`), and this relay stands the player there when it is theirs: Ann's own home pod,
+    /// upstairs on her homestead, at plot-local (37.5, 3.0, 31.468), lands on her plot at that
+    /// height; Bo, a cabin holder, wakes at Cabin Block A's pod, which Ann may not; anyone may
+    /// wake in General Services; a GUEST wakes in General Services whatever it asks, never in the
+    /// Commons where a guest ARRIVES; an ask that is not theirs (a pod outside the plot, another
+    /// block's) falls back to the usual arrival. Every respawn writes one `body` line, used, worth
+    /// 0, in the waker's ledger; a join without `wake` writes none.
+    ///
+    /// Seen red 2026-11-21 with `assign_home` ignoring `wake` (and not calling `record_body`): "Ann
+    /// wakes upstairs at her pod: left: [27.5, 1.7, 44.5] right: Vec3(37.5, 4.7, 31.468)" (the
+    /// middle of her plot, the usual arrival). The ledger's assertions after it were not reached in
+    /// that run. A first run failed earlier, at "General Services' pod": the relay's world read its
+    /// plots with `ShipPlots::of_ship` and never the ship's machine rows, which `load_ship` now
+    /// reads (`ShipPlots::read_wake`).
+    #[test]
+    fn a_respawn_wakes_at_the_chosen_respawner_and_a_guest_in_general_services() {
+        let (world, db) = world_with_cabins("wake");
+        let respawn = |key: &str, start: Option<&str>, wake: serde_json::Value| {
+            let mut raw = serde_json::json!({ "type": "game_join", "ship_hash": world.ship_plots.ship_hash, "wake": wake });
+            if let Some(s) = start {
+                raw["start"] = serde_json::json!(s);
+            }
+            world.assign_home(&db, key, &JoinHome::from_join(&raw))
+        };
+        let near = |a: [f32; 3], b: glam::Vec3| (glam::Vec3::from(a) - b).length() < 1e-3;
+        let gs = world.ship_plots.wake_eye("general-services-1", None).expect("General Services' pod");
+
+        let ann = respawn("a11ce0", Some("homestead"), serde_json::json!({ "place": "home", "at": [37.5, 3.0, 31.468] }));
+        let plot = ann.plot.clone().expect("Ann holds a homestead");
+        let want = glam::Vec3::new(plot.origin.0 + 37.5, plot.origin.1 + 3.0 + humanity_ship::ship_structure::SPAWN_EYE_HEIGHT_M, plot.origin.2 + 31.468);
+        assert!(near(ann.spawn, want), "Ann wakes upstairs at her pod: left: {:?} right: {want:?}", ann.spawn);
+        let gone = respawn("a11ce0", None, serde_json::json!({ "place": "home", "at": [37.5, 3.0, 300.0] }));
+        assert!(near(gone.spawn, plot.arrival(None)), "a pod outside her plot is not hers, so she arrives as usual: {:?}", gone.spawn);
+        let not_hers = respawn("a11ce0", None, serde_json::json!({ "place": "cabins-1" }));
+        assert!(near(not_hers.spawn, plot.arrival(None)), "the block's pod is not Ann's: {:?}", not_hers.spawn);
+        let ann_gs = respawn("a11ce0", None, serde_json::json!({ "place": "general-services-1" }));
+        assert!(near(ann_gs.spawn, gs), "anyone may wake in General Services: {:?}", ann_gs.spawn);
+
+        let bo = respawn("b0b0b0", Some("cabin"), serde_json::json!({ "place": "cabins-1" }));
+        assert_eq!(bo.plot.as_ref().map(|p| p.kind.as_str()), Some("cabin"));
+        let block = world.ship_plots.wake_eye("cabins-1", bo.plot.as_ref().map(|p| p.id.as_str())).expect("the block's pod is Bo's");
+        assert!(near(bo.spawn, block), "Bo wakes at the block's pod: {:?}", bo.spawn);
+
+        // A guest: a join naming no ship holds no plot.
+        let guest = world.assign_home(&db, "e7e7e7", &JoinHome::from_join(&serde_json::json!({ "type": "game_join", "wake": { "place": "home", "at": [1.0, 0.0, 1.0] } })));
+        assert!(guest.plot.is_none());
+        assert!(near(guest.spawn, gs), "a guest wakes in General Services: {:?}", guest.spawn);
+        let arrives = world.assign_home(&db, "e8e8e8", &JoinHome::from_join(&serde_json::json!({ "type": "game_join" })));
+        assert!(near(arrives.spawn, world.ship_plots.guest_spawn.unwrap()), "a guest still ARRIVES in the Commons");
+
+        // The ledger: a line per respawn, worth nothing; none for a plain join.
+        let bodies = |key: &str| {
+            let (_, kinds, _) = db.fleet_ledger_of(key, 20).expect("the ledger reads");
+            kinds.iter().filter(|k| k.kind == "body").map(|k| (k.quantity, k.value)).next()
+        };
+        assert_eq!(bodies("b0b0b0"), Some((1.0, 0.0)), "one body line per respawn");
+        assert_eq!(bodies("a11ce0").map(|b| b.0), Some(4.0), "Ann respawned four times");
+        assert_eq!(bodies("e8e8e8"), None, "an arrival is no new body");
+    }
+
+    /// `wake` is read strictly: a place id and three finite numbers, else nothing.
+    #[test]
+    fn a_joins_wake_is_read_strictly() {
+        let w = |v: serde_json::Value| JoinHome::from_join(&serde_json::json!({ "wake": v })).wake;
+        assert_eq!(w(serde_json::json!({ "place": "home", "at": [1, 2.5, 3] })), Some(JoinWake { place: "home".into(), at: Some((1.0, 2.5, 3.0)) }));
+        assert_eq!(w(serde_json::json!({ "place": "general-services-1" })), Some(JoinWake { place: "general-services-1".into(), at: None }));
+        for bad in [serde_json::json!({ "place": "Home" }), serde_json::json!({ "place": "" }), serde_json::json!({ "place": "home", "at": [1, 2] }), serde_json::json!({ "at": [1, 2, 3] }), serde_json::json!("home")] {
+            assert_eq!(w(bad.clone()), None, "{bad}");
+        }
+        assert_eq!(JoinHome::from_join(&serde_json::json!({})).wake, None);
     }
 
     /// A game's join asking for `start` (None: no `start` field), naming this world's ship.

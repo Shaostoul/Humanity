@@ -1,0 +1,46 @@
+{
+  "_comment": "The respawn rig's vantages (scripts/verify-respawn.js, `just verify-respawn`; docs/design/game-setting-and-intro.md rung 2, 2026-11-21). Run in order in one boot by scripts/probe-sweep.js: the bedroom's respawner seen from the room, the death screen's list of where to wake over it, a respawn at the home's respawner from the ground floor (it must wake upstairs, in the bedroom), and a death and a respawn in General Services. Poses are home-local metres (x, eye y, z, yaw, pitch); yaw 0 looks toward -Z, at the bedroom's north wall where the pod stands (data/machines/home.ron respawn_pod_1, (37.5, 3.0, 30.518)). The rig's own home is the family homestead (the dev autopilot's).",
+  "vantages": [
+    {
+      "id": "respawn-pod-bedroom",
+      "desc": "The homestead's respawner, in the main bedroom upstairs against its north wall, seen from the middle of the room.",
+      "expect": "A tall pale grey-blue box, about as tall as a person and under a metre wide, standing against the bedroom's north wall between the nightstand and the desk.",
+      "regressions": ["no pod at all (the respawner row missing or not drawn)", "the pod floating, sunk into the floor or through the wall"],
+      "camera": { "station": "home", "pose": "37.5,4.7,35.4,0,-0.15", "time": 20.15 },
+      "settle_s": 6
+    },
+    {
+      "id": "respawn-death-screen",
+      "desc": "The death screen over the bedroom: the lore's words and the list of where to wake, the usual place first.",
+      "expect": "A card: 'Your body died. You did not.', the cause, the line about sleeping on the lifeline, 'Where to wake', a primary 'Wake at your home's respawner' with 'your usual place' under it, and 'Wake at General Services'.",
+      "regressions": ["YOU DIED with one Respawn button (the list missing)", "a key showing instead of words"],
+      "camera": { "station": "home", "pose": "37.5,4.7,35.4,0,-0.15", "time": 20.15 },
+      "final_showcase": [{ "die": "a rig's check" }],
+      "final_settle_s": 4,
+      "settle_s": 3,
+      "probe_after": true
+    },
+    {
+      "id": "respawn-wake-home",
+      "desc": "Parked at the front door on the ground floor, the dead player presses 'Wake at your home's respawner'.",
+      "expect": "Standing upstairs in the bedroom, right in front of the respawner's door, looking at it.",
+      "regressions": ["still at the front door (the respawn ignored the pod)", "on the ground floor under the bedroom"],
+      "camera": { "station": "home", "pose": "53.5,1.7,40.5,0,0", "time": 20.15 },
+      "final_showcase": [{ "respawn": "home" }],
+      "final_settle_s": 5,
+      "settle_s": 3,
+      "probe_after": true
+    },
+    {
+      "id": "respawn-wake-general-services",
+      "desc": "From the front door again: die, then press 'Wake at General Services'.",
+      "expect": "Standing in General Services' hall beside the public respawner, on the ground floor of the ship.",
+      "regressions": ["at the front door or in the Commons instead"],
+      "camera": { "station": "home", "pose": "53.5,1.7,40.5,0,0", "time": 20.15 },
+      "final_showcase": [{ "die": "a rig's check" }, { "respawn": "general-services-1" }],
+      "final_settle_s": 5,
+      "settle_s": 3,
+      "probe_after": true
+    }
+  ]
+}

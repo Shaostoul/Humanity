@@ -181,11 +181,12 @@ fn the_prompt_names_the_ships_real_places() {
     // named by no one, the street joined to the green through them.
     // Seen red 2026-11-13 before the alleys were passages and the open joins counted: the prompt
     // listed "Row Street, alley 1, Row Street, alley 2, ..." and said no way led to the green.
-    for zone in ["the Commons", "First Street", "Cabin Block A", "the South Commons", "Row Street", "Row Street Green"] {
+    // And since 2026-11-21 General Services, beside the Medical Bay (game-setting-and-intro.md rung 2).
+    for zone in ["the Commons", "First Street", "Cabin Block A", "the South Commons", "Row Street", "Row Street Green", "General Services"] {
         assert!(a.contains(zone), "the prompt names the zone {zone:?}: {a}");
     }
     assert!(!a.contains("Row Alley"), "an alley is no place of its own: {a}");
-    assert!(a.contains("The Commons joins First Street; First Street joins Cabin Block A, the South Commons and Row Street; Row Street joins Row Street Green."), "and how they join: {a}");
+    assert!(a.contains("The Commons joins First Street; First Street joins Cabin Block A, the South Commons, Row Street and General Services; Row Street joins Row Street Green."), "and how they join: {a}");
     // What it costs the prompt: counted 2026-11-13 as 333 characters, 56 words (an estimate of about
     // 85 tokens at four characters a token; no tokenizer runs in the tests).
     let line = places.prompt_lines();

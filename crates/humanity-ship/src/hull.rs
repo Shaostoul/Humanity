@@ -1112,12 +1112,13 @@ mod tests {
         // Since 2026-11-13 the room program's two homesteads (h1, o1) have glass-lidded corridors too: 13.
         // And since Row Street (2026-11-13) seven glass roofs more (the street, its five alleys, the
         // green: 12), the lane's glass lid (5) and the twenty row houses' glass-lidded gates (33).
+        // And since 2026-11-21 General Services' glass roof (13) and its corridor's glass lid (6).
         let neighbours = ship.neighbour_plots().count();
         assert_eq!(neighbours, ship.plots.len() - 1, "every plot but the home's is a neighbour's");
         let roofs = ship.zones.iter().filter(|z| z.body.roof_is_glass()).count();
         let lids = ship.corridors.iter().filter(|c| c.glass_top).count();
         let neighbour_lids = ship.neighbour_plots().filter(|p| p.door.glass_top).count();
-        assert_eq!((roofs, lids, neighbour_lids), (12, 5, 33), "the shipped glass roofs, ship corridor lids and neighbour corridor lids");
+        assert_eq!((roofs, lids, neighbour_lids), (13, 6, 33), "the shipped glass roofs, ship corridor lids and neighbour corridor lids");
         // And since 2026-11-14 (BUG-307) every neighbour drawn with a glass roof: the homesteads
         // and the row houses (the cabins' roofs are steel).
         let view = crate::neighbours::neighbour_view(&ship);

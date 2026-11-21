@@ -641,9 +641,15 @@ pub(crate) fn run(state: &mut EngineState) {
     // design's respawner/medbay), full health, survivable vitals,
     // effects cleared, Dead removed. What the death cost was settled
     // when it happened (Realistic leaves the backpack in a pack).
+    // Where the dead player may wake, for the death screen's list: filled once per death, the
+    // usual place first (game-setting-and-intro.md 5.6, rung 2, engine/wake.rs).
+    crate::engine::wake::refresh_view(state);
     if state.gui_state.pending_respawn {
         state.gui_state.pending_respawn = false;
         state.gui_state.player_death_cause = None;
+        // At the respawner they chose (or their usual one, or home's, or General Services');
+        // their front door only when no respawner is theirs to use (rung 2, engine/wake.rs).
+        let wake_at = crate::engine::wake::respawn_spot(state).unwrap_or(state.fps_spawn);
         let mut player: Option<hecs::Entity> = None;
         for (e, _c) in state.game_world.world.query::<&Controllable>().iter() {
             player = Some(e);
@@ -676,12 +682,21 @@ pub(crate) fn run(state: &mut EngineState) {
                 .world
                 .remove_one::<humanity_core::ecs::components::Dead>(e);
             if let Ok(mut t) = state.game_world.world.get::<&mut Transform>(e) {
-                t.position = state.fps_spawn;
+                t.position = wake_at;
             }
         }
-        state.camera.position = state.fps_spawn;
+        state.camera.position = wake_at;
+        // A rig's camera park pins the camera where it parked (`probe_hold`, released by any key a
+        // person presses); a respawn is a placement, so the pin moves with it, as the far-frame
+        // split's does (ipc.rs), or the pin drags the body straight back to the park (seen
+        // 2026-11-21: verify-respawn's first run woke at home and stood at the front door again).
+        if let Some((_, t)) = state.probe_hold.take() {
+            state.probe_hold = Some((wake_at, t));
+        }
         // On the floor under the spawn, whatever storey the player died on (ship
-        // homes increment 7): the door is on the ground floor, under a slab.
+        // homes increment 7): the door is on the ground floor, under a slab, and the
+        // Homestead's respawner is upstairs (rung 2): the floor is measured from where
+        // the eye was put, so each lands on its own storey.
         crate::engine::home_plot::reseat_floor(state);
         // Out of the truck (its seat freed) and off the follow cam, either
         // of which would put the camera back on its vehicle next frame.
@@ -690,7 +705,7 @@ pub(crate) fn run(state: &mut EngineState) {
             &mut state.driving_vehicle,
             &mut state.follow_vehicle,
         );
-        log::info!("[Vitals] player respawned at the spawn room");
+        log::info!("[Vitals] player respawned at {wake_at:?}");
         // In the shared world the relay still holds them where they died, up
         // to 154 m away: step out and join again, so it stands them at their
         // door too (ship homes 1b, engine/home_plot.rs).

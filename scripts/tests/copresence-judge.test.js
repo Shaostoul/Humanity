@@ -744,8 +744,9 @@ test("routes: the walker's way to the meeting line never runs along it", () => {
 // the cabin block's hall and the South Commons.
 test("routes: the far places are the shared zones' corners", () => {
   const far = farPlaces(DOORS);
-  // Eleven shared zones since 2026-11-13: Row Street, its five alleys and its green.
-  assert.equal(far.length, 44, "four corners of each of the eleven shared zones");
+  // Eleven shared zones since 2026-11-13: Row Street, its five alleys and its green. Twelve since
+  // 2026-11-21: General Services (game-setting-and-intro.md rung 2).
+  assert.equal(far.length, 48, "four corners of each of the twelve shared zones");
   assert.deepEqual(far[0], [66, 1.7, 21]);
   assert.deepEqual(farthestFrom(far, P1_SPAWN), [74, 1.7, 1184]);
   assert.deepEqual(farthestFrom(far, P2_DOOR), [74, 1.7, 1184]);
@@ -797,6 +798,10 @@ test("far places: the farthest shared place every watching walker still has in v
 // Commons, held there by the relay; the walker drawn out of p2's corridor, along
 // First Street and into the Commons; the walker saw the game where it stands.
 const COMMONS_BOX = DOORS.places[0];
+// Where a guest wakes after a death since respawners (game-setting-and-intro.md rung 2): General
+// Services' public respawner, a step outside its door (the game's respawners::wake_floor).
+const SERVICES_BOX = DOORS.places.find((p) => p.id === "zone:general-services-1");
+const SERVICES_WAKE = [183.6, 1.7, 133];
 // p2's door corridor, found by its place: the report's door order changes as the ship grows
 // (since ship homes increment 6 the street's corridors to the cabin block and the South Commons
 // come before the plots' doors).
@@ -1074,7 +1079,8 @@ const GUEST_OK = {
   walkers: [{ name: "TestBotPlots", id: 1, plot: "p1" }, { name: "TestBotPlotsTwo", id: 2, plot: "p2" }],
   arrived: { lastWelcome: "guest", homePlot: null, homeAway: true, camera: GUEST_ARRIVAL, homeThings: THINGS_AWAY, notices: [`${GUEST_ARRIVAL_START}, so you are a guest on its ship.`] },
   editor: { open: false, notices: [`${GUEST_NO_EDITOR_START}, so your home is not aboard to build on.`] },
-  respawn: { far: [74, 1.7, 194], relaySpawn: GUEST_ARRIVAL, camera: GUEST_ARRIVAL, nudged: [82, 1.7, 48.5], seen: [[82, 1.7, 48.5]] },
+  generalServices: SERVICES_BOX,
+  respawn: { far: [74, 1.7, 194], relaySpawn: SERVICES_WAKE, camera: SERVICES_WAKE, nudged: [184.6, 1.7, 133], seen: [[184.6, 1.7, 133]] },
   back: { homeAway: false, homePlot: { id: "p1" }, homeThings: THINGS_BACK },
   again: { lastWelcome: "guest", homeAway: true, camera: GUEST_ARRIVAL },
   reconnect: {
@@ -1102,7 +1108,7 @@ test("guest: a run that went right passes, every check its own", () => {
     "guest_respawn_far_from_spawn",
     "guest_respawn_stands_where_held",
     "guest_respawn_moves_reach_others",
-    "guest_respawn_in_commons",
+    "guest_respawn_in_general_services",
     "guest_home_back",
     "guest_away_again",
     "guest_reconnect_setup",
@@ -1160,7 +1166,8 @@ test("guest: each broken guest run FAILS its own check", () => {
     ["no record of the home's things", w({ arrived: { ...GUEST_OK.arrived, homeThings: null } }), "guest_nothing_on_plots"],
     ["the build editor opened for a guest", w({ editor: { open: true, notices: [] } }), "guest_no_editor"],
     ["the editor shut with nothing said", w({ editor: { open: false, notices: [] } }), "guest_no_editor"],
-    ["Respawn stood the guest at its old door", w({ respawn: { ...GUEST_OK.respawn, relaySpawn: P1_SPAWN, camera: P1_SPAWN } }), "guest_respawn_in_commons"],
+    ["Respawn stood the guest at its old door", w({ respawn: { ...GUEST_OK.respawn, relaySpawn: P1_SPAWN, camera: P1_SPAWN } }), "guest_respawn_in_general_services"],
+    ["Respawn stood the guest in the Commons, where it arrives", w({ respawn: { ...GUEST_OK.respawn, relaySpawn: GUEST_ARRIVAL, camera: GUEST_ARRIVAL, nudged: [82, 1.7, 48.5], seen: [[82, 1.7, 48.5]] } }), "guest_respawn_in_general_services"],
     ["stepping out left the home away", w({ back: { ...GUEST_OK.back, homeAway: true, homePlot: null } }), "guest_home_back"],
     ["the home came back on p2, not the default", w({ back: { ...GUEST_OK.back, homePlot: { id: "p2" } } }), "guest_home_back"],
     ["a vehicle left where the home was kept", w({ back: { ...GUEST_OK.back, homeThings: { ...THINGS_BACK, vehicles: [[-950, -200, 50]] } } }), "guest_home_back"],

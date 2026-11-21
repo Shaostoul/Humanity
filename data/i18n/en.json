@@ -4075,9 +4075,23 @@
     }
   },
   "hud": {
+    "death_asleep": "You are asleep on the [[lifeline]], and a [[respawner]] is growing you a new body. You keep everything you know.",
+    "death_cause": "Cause: {{cause}}",
+    "death_title": "Your body died. You did not.",
     "planet_resources": "Resources: {{resources}}",
     "planet_status": "Status: {{status}}",
-    "room_here": "Here: {{actions}}"
+    "room_here": "Here: {{actions}}",
+    "wake_at": "Wake at {{place}}",
+    "wake_at_hint": "Wake up in a new body at this respawner, standing just outside its door.",
+    "wake_change": "To change your usual place, walk up to a respawner and press {{key}}.",
+    "wake_chosen": "After a death you will wake here, at {{place}}.",
+    "wake_here_prompt": "[E] wake at this {{name}} after a death",
+    "wake_home": "your home's respawner",
+    "wake_not_yours": "This respawner belongs to the homes of its block. You can wake at your own respawner, or in General Services.",
+    "wake_up": "Wake up",
+    "wake_up_hint": "Wake up in a new body at your front door. This home has no respawner of its own.",
+    "wake_usual": "your usual place",
+    "wake_where": "Where to wake"
   },
   "play": {
     "last": "You last played as {{character}} in {{world}}.",
@@ -4301,6 +4315,11 @@
     "send_anyway_hint": "Sends the file exactly as it is, hidden details and all. Your app signs this choice with your own key, so nothing else can make it for you.",
     "not_sent": "The file was not sent.",
     "cannot_sign": "The file was not sent: your key is not unlocked on this device, so your choice to send it with its hidden details could not be signed."
+  },
+  "room_types": {
+    "respawner": {
+      "purpose": "A pod that grows a new body for a mind that never stopped, so after a death you wake here, still yourself."
+    }
   },
   "rules": {
     "checked_line": "The table of powers, how to report and the list of what this server does not have yet were checked against the server's code on 20 November 2026.",

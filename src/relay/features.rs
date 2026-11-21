@@ -2403,14 +2403,16 @@ mod tests {
         rooms.sort();
         assert_eq!(
             rooms,
-            // Since 2026-11-13 also Row Street, its five alleys and its green.
-            ["cabins-1", "commons", "commons-2", "mess-hall", "mess-hall-2", "recreation", "row-alley-1", "row-alley-2", "row-alley-3", "row-alley-4", "row-alley-5", "row-green-1", "row-street-1", "street-1", "washroom-1"],
+            // Since 2026-11-13 also Row Street, its five alleys and its green; since 2026-11-21
+            // General Services, its barracks and its medbay (game-setting-and-intro.md rung 2).
+            ["cabins-1", "commons", "commons-2", "general-services-1", "gs-barracks", "gs-medbay", "mess-hall", "mess-hall-2", "recreation", "row-alley-1", "row-alley-2", "row-alley-3", "row-alley-4", "row-alley-5", "row-green-1", "row-street-1", "street-1", "washroom-1"],
             "the welcome's rooms are not the ship's: {rooms:?}"
         );
         let q = &w["current_quest"];
         assert_eq!(q["home_plot"], "p1", "their quest names their plot: {q}");
         // Since 2026-11-14 the five alleys are passages, never places to visit (ship_world::quest_places).
-        assert_eq!(q["total_rooms"], 11, "ten places and home: {q}");
+        // And General Services' three rooms since 2026-11-21.
+        assert_eq!(q["total_rooms"], 14, "thirteen places and home: {q}");
 
         let plots = humanity_ship::ship_structure::ShipPlots::load(std::path::Path::new("data")).unwrap().plots;
         let commons = (65.0, 20.0, 99.0, 75.0);
@@ -2464,6 +2466,11 @@ mod tests {
             ([100.0, 1.7, 377.0], "row-alley-3", false, false),
             ([100.0, 1.7, 407.0], "row-alley-4", false, false),
             ([100.0, 1.7, 435.0], "row-alley-5", false, false),
+            // Since 2026-11-21 General Services' hall, barracks and medbay (game-setting-and-
+            // intro.md rung 2), beside the Medical Bay at x 182..200.
+            ([191.0, 1.7, 134.0], "general-services-1", false, true),
+            ([191.0, 1.7, 120.0], "gs-barracks", false, true),
+            ([191.0, 1.7, 100.0], "gs-medbay", false, true),
             (door, "home", true, true),
         ];
         // Walked, not jumped (increment 4: the relay corrects a move faster than anyone can go):
@@ -4976,7 +4983,8 @@ mod tests {
         let frames: std::collections::BTreeSet<&str> = lists.iter().filter(|g| g["type"] == "game_pieces").filter_map(|g| g["frame"].as_str()).collect();
         let cabins: Vec<String> = (1..=16).map(|n| format!("plot:c{n}")).collect();
         // Since 2026-11-13 the room program's homesteads east of First Street (h1, o1) too.
-        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:commons", "zone:street-1", "zone:cabins-1"].into_iter().collect();
+        // And since 2026-11-21 General Services beside the Medical Bay, 140 m from p1's door (rung 2).
+        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:commons", "zone:street-1", "zone:cabins-1", "zone:general-services-1"].into_iter().collect();
         want.extend(cabins.iter().map(|s| s.as_str()));
         assert_eq!(frames, want, "the frames in view at p1's door");
         let p2 = lists.iter().find(|g| g["frame"] == "plot:p2").unwrap();
@@ -4989,7 +4997,8 @@ mod tests {
         assert_eq!(ids_of(&pieces), vec![on_p12], "p12 came into view, with its piece");
         let gone = shared_build_messages_for(&mut j, 600).await;
         let gone: std::collections::BTreeSet<&str> = gone.iter().filter(|g| g["type"] == "game_frame_out_of_view").filter_map(|g| g["frame"].as_str()).collect();
-        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:commons", "zone:cabins-1"].into_iter().collect();
+        // General Services too since 2026-11-21 (rung 2), 700 m back down the street.
+        let mut want: std::collections::BTreeSet<&str> = ["plot:p1", "plot:p2", "plot:p3", "plot:h1", "plot:o1", "zone:commons", "zone:cabins-1", "zone:general-services-1"].into_iter().collect();
         want.extend(cabins.iter().map(|s| s.as_str()));
         assert_eq!(gone, want, "the far end of the street is out of the Commons' view");
 
@@ -5206,7 +5215,8 @@ mod tests {
         // Since ship homes increment 6 the cabin block's hall and its sixteen cabins are in view
         // of p1's door too, at no change.
         // And since 2026-11-13 the room program's homesteads, h1 and o1.
-        let mut want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "plot:h1": 0, "plot:o1": 0, "zone:commons": 0, "zone:street-1": 0, "zone:cabins-1": 0 });
+        // And since 2026-11-21 General Services beside the Medical Bay, 140 m from p1's door (rung 2).
+        let mut want = serde_json::json!({ "plot:p1": 1, "plot:p2": 0, "plot:p3": 0, "plot:h1": 0, "plot:o1": 0, "zone:commons": 0, "zone:street-1": 0, "zone:cabins-1": 0, "zone:general-services-1": 0 });
         for n in 1..=16 {
             want[format!("plot:c{n}")] = serde_json::json!(0);
         }

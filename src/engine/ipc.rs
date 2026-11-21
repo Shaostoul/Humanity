@@ -929,9 +929,18 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
     // shared world steps out and joins again so the relay stands them there too
     // (engine/home_plot.rs `respawn_through_relay`). verify-copresence --plots walks the game
     // more than 100 m from its door first, then judges it stands where the relay respawned it.
-    if grab("respawn").as_deref() == Some("1") {
+    //
+    // A PLACE instead of "1" (2026-11-21, game-setting-and-intro.md 5.6, rung 2): {"respawn":
+    // "home"} or {"respawn":"general-services-1"} presses that place on the death screen's list of
+    // where to wake (engine/wake.rs), so scripts/verify-respawn.js wakes at each and is judged
+    // where it stands. "1" presses the first, the usual place, as the button did. "door" wakes
+    // at the front door as before respawners (engine/wake.rs `DEV_DOOR`, for verify-copresence).
+    if let Some(place) = grab("respawn") {
+        if place != "1" {
+            state.gui_state.wake.asked = Some(place.clone());
+        }
         state.gui_state.pending_respawn = true;
-        log::info!("Showcase: respawn -> the Respawn button");
+        log::info!("Showcase: respawn -> wake at {place}");
     }
     // {"walk_to":"x,y,z,yaw,pitch,speed"} (2026-10-04, ship homes increment 4): walk the camera
     // there in a straight line at that many metres a second, the way a person walks it with the
@@ -5127,6 +5136,9 @@ pub(crate) fn recorder_done(state: &EngineState) -> serde_json::Map<String, serd
         // Where the home's own things stand (Respawn point, hologram, showroom stage, animals,
         // plants): the --plots judge checks each is on the game's plot (home_plot.rs).
         "home_things": crate::engine::home_plot::home_things_json(state),
+        // Where the player may wake, where the last respawn woke them, the floor stood on and the
+        // room the HUD names (game-setting-and-intro.md rung 2): what verify-respawn judges.
+        "wake": crate::engine::wake::probe_json(state),
         "welcomed": state.game_welcomed,
         // Increment 2: the plot the world load built the home on (the remembered one, else the
         // default), what the last welcome did with the home ("stay", "move", "guest",

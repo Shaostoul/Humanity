@@ -121,6 +121,12 @@
         (id: "item_creative", direction: Contributed, label: "Given in Creative mode (not counted)", unit: "", price: Fixed(0.0), per_day: false, max_lines_per_day: Some(500)),
         (id: "power_drawn", direction: Used, label: "Power from the ship's reactor", unit: "kWh", price: Fixed(1.5), per_day: true),
         (id: "power_returned", direction: Contributed, label: "Power returned to the ship", unit: "kWh", price: Fixed(1.5), per_day: true),
+        // A NEW BODY (docs/design/game-setting-and-intro.md 2.4 and rung 2, 2026-11-21): a
+        // respawner grows one after every death in the shared world, and it is written down like
+        // any other thing the fleet gives. Priced at 0 until body materials exist as goods (the
+        // design's question 8 recommends it): nobody is ever refused a body, in the red or not.
+        // The cap stops a game that dies on purpose in a loop from filling the ledger.
+        (id: "body", direction: Used, label: "A new body after a death", unit: "body", price: Fixed(0.0), per_day: false, max_lines_per_day: Some(100)),
     ],
     max_give_quantity: 200,
     recent_entries: 20,

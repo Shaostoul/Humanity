@@ -2455,7 +2455,7 @@
     "respawn": {
       "term": "Respawn",
       "category": "gaming",
-      "definition": "Coming back into the world after your character dies, at a fixed safe spot rather than where you fell. In HumanityOS you wake in the respawner with nothing lost, and press Respawn on the death screen to continue."
+      "definition": "Coming back into the world after your character dies, at a fixed safe spot rather than where you fell. In HumanityOS you wake at a respawner you choose on the death screen; in the Simplified death mode nothing is lost, and in Realistic your backpack stays where you fell for an hour of play."
     },
     "stack_size": {
       "term": "Stack Size",
@@ -2786,6 +2786,36 @@
       "category": "gaming",
       "definition": "A set of instructions most desktop and laptop processors made since about 2015 have, which lets them do many sums at once. AI runs much faster with it; without it AI still works, only slowly.",
       "link": "https://en.wikipedia.org/wiki/Advanced_Vector_Extensions"
+    },
+    "lifeline": {
+      "term": "Lifeline",
+      "category": "gaming",
+      "definition": "In the game's story, the fleet's network that every crew member's mind runs on, together with their brain, so a death inside its reach is only sleep and you wake in a new body. It reaches about a light-year around each mothership. Not a web link: on the app's screens a link is a web address."
+    },
+    "field lifeline": {
+      "term": "Field lifeline",
+      "category": "gaming",
+      "definition": "In the game's story, a heavy machine carried like a backpack that takes the lifeline with a team beyond its edge, so a death near it is only sleep too. It is not in the game yet."
+    },
+    "beacon": {
+      "term": "Beacon",
+      "category": "gaming",
+      "definition": "In the game's story, a machine players build and set down far from the fleet so the lifeline reaches around it as well. It is not in the game yet. Not the relay: in HumanityOS the relay is the server program."
+    },
+    "respawner": {
+      "term": "Respawner",
+      "category": "gaming",
+      "definition": "The pod you wake in after your character dies: it grows a new body for a mind that never stopped. Your home has one, a cabin block shares one, and the public one is in General Services; you choose where to wake on the death screen, and pressing E at a respawner makes it your usual place."
+    },
+    "general services": {
+      "term": "General Services",
+      "category": "gaming",
+      "definition": "The ship's public hall beside the Medical Bay, with a respawner anyone may wake in, bunks you can sleep in and a medbay. It is where you wake if you have no home of your own aboard."
+    },
+    "frontier": {
+      "term": "Frontier",
+      "category": "gaming",
+      "definition": "In the game's story, the places a craft can jump to that lie beyond the lifeline's reach, where a death can cost more. It is not in the game yet."
     }
   }
 }

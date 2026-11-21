@@ -103,6 +103,10 @@ pub mod wall_collision;
 /// doors, floors and furniture, the path over it, and the avoidance between people.
 pub mod crowd_nav;
 pub mod room_types;
+/// Respawners as places: where a person wakes after a death (game-setting-and-intro.md 5.6).
+pub mod respawners;
+#[cfg(test)]
+mod respawners_tests;
 
 // Data-driven machine layout for the 3D home (pure data, relay-safe). The renderer
 // placement lives in load_world (native); the structs + RON loader compile everywhere.

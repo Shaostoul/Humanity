@@ -2299,6 +2299,9 @@ async function runPlotsOnce(order, runStamp, cleanups) {
     g.plots = manifest.plots;
     g.doors = dp.doors;
     g.commons = commons ? { min: commons.min, max: commons.max } : null;
+    // Where a guest wakes after a death (game-setting-and-intro.md rung 2): General Services.
+    const services = dp.places.find((p) => p.id === "zone:general-services-1");
+    g.generalServices = services ? { min: services.min, max: services.max } : null;
     // The ship's default plot: the first the relay hands out, where a guest's home comes back.
     g.defaultPlot = Array.isArray(manifest.plots) && manifest.plots.length ? manifest.plots[0].id : null;
     // The kind of plot the game, asking for no start, would be given: full means every one of
@@ -2866,7 +2869,11 @@ async function runPlotsOnce(order, runStamp, cleanups) {
         `walked ${route.length} steps to ${fmt(farTarget)}; the relay last passed on the game at ${heldFar ? fmt(heldFar) : "(never)"} (${walked.length} relayed move(s))`,
       );
       const markRespawn = walkerOut.length;
-      await showcase({ respawn: "1" });
+      // At its front door, as before respawners (the dev place "door", engine/wake.rs): the
+      // legs after this one walk from the door on the ground floor, and the Homestead's own
+      // respawner is upstairs (verify-respawn judges the pods; the guest leg wakes in General
+      // Services through the relay).
+      await showcase({ respawn: "door" });
       let respawnLine = null;
       for (const t0 = Date.now(); Date.now() - t0 < 15000 && !respawnLine; ) {
         respawnLine = walkerOut.slice(markRespawn).map((o) => o.line.match(nameRe)).find(Boolean) || null;

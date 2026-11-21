@@ -80,7 +80,15 @@ pub(crate) fn death_screen_lines(
 /// `player_death_cause` is Some. Respawn is handled by lib.rs (teleport to the
 /// spawn room, reset vitals, remove Dead) via `pending_respawn`. Under the
 /// cause, what the death cost in the Death mode chosen (`death_screen_lines`).
+///
+/// THE LORE AND WHERE TO WAKE (2026-11-21, docs/design/game-setting-and-intro.md 2.2 and 5.6,
+/// rung 2): the words follow the game's story ("Your body died. You did not.", asleep on the
+/// lifeline), and under them the places this player may wake (`GuiState::wake`, filled by
+/// engine/wake.rs), their usual place first; a press wakes them there. With no respawner theirs
+/// to use, one button wakes them at their front door, as before. Words by key, each button with
+/// its hint.
 pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    use humanity_core::i18n::{fill, t, t_marked};
     let Some(cause) = state.player_death_cause.clone() else { return };
     let key = humanity_core::input::bindings::pretty_key_name(state.keybinds.pair(humanity_core::input::bindings::GameAction::Interact).0);
     let lines = death_screen_lines(state.death_pack.note.as_ref(), &state.death_pack.rules, &key);
@@ -100,24 +108,52 @@ pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     ui.set_max_width(520.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
-                            RichText::new("YOU DIED")
-                                .size(theme.font_size_heading * 1.6)
+                            RichText::new(t("hud.death_title"))
+                                .size(theme.font_size_heading * 1.4)
                                 .strong()
                                 .color(theme.danger()),
                         );
                         ui.add_space(theme.spacing_sm);
                         ui.label(
-                            RichText::new(format!("Cause: {cause}"))
+                            RichText::new(fill(t("hud.death_cause"), &[("cause", &cause)]))
                                 .size(theme.font_size_body)
                                 .color(theme.text_primary()),
                         );
+                        ui.add_space(theme.spacing_xs);
+                        crate::gui::widgets::glossary_words(ui, theme, t_marked("hud.death_asleep"), theme.font_size_small, theme.text_secondary());
                         for line in &lines {
                             ui.add_space(theme.spacing_xs);
                             ui.label(RichText::new(line).size(theme.font_size_small).color(theme.text_muted()));
                         }
                         ui.add_space(theme.spacing_md);
-                        if crate::gui::widgets::Button::primary("Respawn").show(ui, theme) {
-                            state.pending_respawn = true;
+                        if state.wake.places.is_empty() {
+                            if crate::gui::widgets::Button::primary(t("hud.wake_up")).hint("hud.wake_up_hint").show(ui, theme) {
+                                state.pending_respawn = true;
+                            }
+                        } else {
+                            ui.label(RichText::new(t("hud.wake_where")).size(theme.font_size_body).strong().color(theme.text_primary()));
+                            ui.add_space(theme.spacing_xs);
+                            let mut pressed = None;
+                            for (i, w) in state.wake.places.iter().enumerate() {
+                                let label = fill(t("hud.wake_at"), &[("place", &w.name)]);
+                                let button = if i == 0 {
+                                    crate::gui::widgets::Button::primary(&label).hint("hud.wake_at_hint")
+                                } else {
+                                    crate::gui::widgets::Button::secondary(&label).hint("hud.wake_at_hint")
+                                };
+                                if button.show(ui, theme) {
+                                    pressed = Some(w.place.clone());
+                                }
+                                if w.usual {
+                                    ui.label(RichText::new(t("hud.wake_usual")).size(theme.font_size_small).color(theme.text_muted()));
+                                }
+                                ui.add_space(theme.spacing_xs);
+                            }
+                            ui.label(RichText::new(fill(t("hud.wake_change"), &[("key", &key)])).size(theme.font_size_small).color(theme.text_muted()));
+                            if let Some(place) = pressed {
+                                state.wake.asked = Some(place);
+                                state.pending_respawn = true;
+                            }
                         }
                         ui.add_space(theme.spacing_xs);
                     });

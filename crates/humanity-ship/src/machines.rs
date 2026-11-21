@@ -4827,7 +4827,10 @@ mod tests {
         }
         assert_eq!(ship_only.arrays.len(), 1, "the Commons' nutrition towers");
         assert_eq!(ship_only.connections.len(), 2, "the 2 connections between the ship's own rows");
-        assert!(ship_only.all_instances().iter().all(|i| i.zone == "commons" || i.zone == "commons-2"), "every row stands in a shared zone");
+        // Since 2026-11-21 (game-setting-and-intro.md rung 2) also Cabin Block A's shared respawner and
+        // General Services' respawner and bunks.
+        let shared = ["commons", "commons-2", "cabins-1", "general-services-1"];
+        assert!(ship_only.all_instances().iter().all(|i| shared.contains(&i.zone.as_str())), "every row stands in a shared zone");
         assert_eq!(home_only.connections.iter().filter(|c| c.from == "battery_7" && c.to.ends_with("_c1")).count(), 3, "home.ron powers the Commons");
         let solo = MachineHome::load(&machines.join("home_solo.ron")).expect("home_solo.ron loads");
         assert!(solo.ship_machines.is_none() && solo.all_instances().iter().all(|i| i.zone == "home"), "the solo home loads without them, as before");

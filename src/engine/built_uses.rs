@@ -266,7 +266,10 @@ mod tests {
                 .map(|(k, _)| k.as_str())
                 .collect();
             sleepers.sort();
-            assert_eq!(sleepers, vec!["bed"], "{file}: the machines E sleeps you in");
+            // home.ron merges the ship's rows, and since 2026-11-21 those hold General Services'
+            // barracks bunks, which sleep you too (game-setting-and-intro.md rung 2).
+            let want: Vec<&str> = if home.ship_machines.is_some() { vec!["bed", "bunk"] } else { vec!["bed"] };
+            assert_eq!(sleepers, want, "{file}: the machines E sleeps you in");
             assert!(home.all_instances().iter().any(|i| i.machine == "bed"), "{file}: a bed is placed");
         }
         let home = humanity_systems::grow_machines::load_home(&dir.join("home.ron")).unwrap();
@@ -390,11 +393,15 @@ pub(crate) fn refresh_shut_doors(state: &mut EngineState) {
 /// as a bed you built does. Only sleeping acts at a machine: a machine's storage is used
 /// through its card, so any other use leaves E opening the card. Which machines carry it is
 /// data, so a bunk or a hammock in a home is a data edit.
+///
+/// A RESPAWNER is the second (2026-11-21, docs/design/game-setting-and-intro.md 5.6): its
+/// `provides: Some("respawn")` makes E choose it as the place you wake after a death
+/// (`use_machine`, engine/wake.rs `choose_here`).
 pub(crate) fn machine_use(def: &humanity_ship::machines::MachineDef) -> Option<uses::StructureUse> {
     def.provides
         .as_deref()
         .and_then(uses::StructureUse::from_provides)
-        .filter(|u| *u == uses::StructureUse::Sleep)
+        .filter(|u| matches!(u, uses::StructureUse::Sleep | uses::StructureUse::Wake))
 }
 
 /// The E press at the home machine the player looks at, when it is one that is used (the
@@ -404,6 +411,12 @@ pub(crate) fn use_machine(state: &mut EngineState) -> bool {
     let Some(label) = state.gui_state.targeted_machine.and_then(|t| state.gui_state.machine_labels.get(t)) else {
         return false;
     };
+    // A respawner: E makes it where you wake (game-setting-and-intro.md 5.6, rung 2).
+    if label.on_use == Some(uses::StructureUse::Wake) {
+        let id = label.machine_id.clone();
+        crate::engine::wake::choose_here(state, &id);
+        return true;
+    }
     use_machine_label(&state.data_store, label)
 }
 
@@ -447,6 +460,8 @@ pub(crate) fn activate(state: &mut EngineState) -> bool {
             }
         }
         uses::StructureUse::Sleep => humanity_systems::sleep::request(&state.data_store, &name),
+        // Only a machine is a respawner (engine/wake.rs), never a built piece, so nothing here.
+        uses::StructureUse::Wake => {}
         // A fire (BUG-153): put a log from the pack on it, or say why not.
         uses::StructureUse::Tend => {
             let msg = humanity_systems::construction::fires::add_fuel(

@@ -1,7 +1,12 @@
 # The game's setting and its intro: why the fleet is between the stars, and how you arrive
 
-**Status: a design, written 2026-11-02 against main at 5aefdb02f. Nothing in it is built.** The
-operator decides. Every recommendation here is the author's (an agent's) unless it is marked as the
+**Status: a design, written 2026-11-02 against main at 5aefdb02f. Rungs 1 and 2 of section 9 are
+built (2026-11-21): the Library shelf "The Game's Story" (docs/user/story/), the glossary terms, the
+respawner's purpose by key; respawners as places, General Services, `wake_at`, the death screen's
+list, guests waking in General Services and the `body` ledger line (docs/FEATURES.md, "Respawners as
+places"). The pages use "the lifeline" (question 11, agreed) and the field lifeline of
+[respawn-and-revival.md](respawn-and-revival.md) in place of this design's recorder (his 10.1 words).
+The rest is not built.** The operator decides. Every recommendation here is the author's (an agent's) unless it is marked as the
 orchestrator's or as the operator's own words. Section 10 holds the questions only he can answer,
 each with a recommendation.
 

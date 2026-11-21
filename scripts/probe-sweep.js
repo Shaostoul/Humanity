@@ -1145,6 +1145,19 @@ async function main() {
             log(`  final showcase sent: ${JSON.stringify(step)}`);
           }
         }
+        // PROBE AFTER (2026-11-21, game-setting-and-intro.md rung 2): a vantage with
+        // `probe_after: true` records what the game reports right before its picture (the probe
+        // the co-presence rig reads, debug/remote_players_request.json): where the camera ended
+        // and the `wake` block (where the last respawn woke, the floor stood on, the room the HUD
+        // names). scripts/verify-respawn.js judges it. A game without the probe answers nothing,
+        // and the record says so.
+        if (v.probe_after) {
+          clearDone("remote_players_done.json");
+          req("remote_players_request.json", { seconds: 0 });
+          const pj = await waitFile("remote_players_done.json", 15000);
+          rec.probe = pj ? { camera_end: pj.camera_end ?? null, wake: pj.wake ?? null } : { error: "the game answered no probe" };
+          log(`  probe: ${JSON.stringify(rec.probe).slice(0, 300)}`);
+        }
         // Capture window opens: anyone else on this GPU from here to the last
         // shot below invalidates this vantage's timing numbers.
         const guardPre = guardBegin();

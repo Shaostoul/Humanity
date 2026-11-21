@@ -54,6 +54,10 @@ pub enum StructureUse {
     /// A fire (the blueprint's `burns`, BUG-153): E puts a fuel item from the
     /// pack on it (`fires::add_fuel`).
     Tend,
+    /// A respawner (`provides: "respawn"`, docs/design/game-setting-and-intro.md 5.6, rung 2):
+    /// E makes it the place you wake after a death (engine/wake.rs `choose_here`). Only a
+    /// machine is one today (data/machines/*.ron's `respawn_pod`).
+    Wake,
 }
 
 impl StructureUse {
@@ -64,6 +68,7 @@ impl StructureUse {
         match provides {
             "rest" => Some(Self::Sleep),
             "storage" => Some(Self::Store),
+            "respawn" => Some(Self::Wake),
             _ => None,
         }
     }
@@ -77,6 +82,8 @@ impl StructureUse {
             // The crosshair shows `fires::tend_prompt` instead, which names
             // the fuel and how the fire is burning (engine::built_uses).
             Self::Tend => format!("[E] put fuel on the {name}"),
+            // By key, through the word source the server build can read too (crafting::home_store).
+            Self::Wake => crate::crafting::home_store::words("hud.wake_here_prompt").replace("{{name}}", &name.to_lowercase()),
         }
     }
 }

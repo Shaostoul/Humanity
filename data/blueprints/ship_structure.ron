@@ -111,6 +111,19 @@
 // p5 to p12 are 5.0 to 13.3 minutes from the Commons' mess hall along the street, and with the
 // South Commons every home is within 4.6 minutes (p5) of one of the two.
 //
+// GENERAL SERVICES (2026-11-21, docs/design/game-setting-and-intro.md 5.5 and rung 2): zone
+// `general-services-1`, the ship's public hall, x 182..200, z 93..141, beside the Medical Bay
+// district (x 200, z 93..111), reached from First Street by a corridor at z 138 (an X run across
+// x 75..182, between the cabin block's end at z 136 and plot h1's start at z 140). Its north
+// third, local z 34..48, is the hall itself, where the corridor comes in and the ship's PUBLIC
+// RESPAWNER stands against its west wall 4 m from the corridor's mouth, its door facing into the
+// hall (data/machines/ship.ron `respawn_pod_gs`): anyone may wake there, and a player
+// with no home aboard always does. Behind a wall with a door, the BARRACKS (`gs-barracks`, local
+// z 18..34, a "quarters" room): bunks anyone may sleep in. Behind another, the MEDBAY
+// (`gs-medbay`, local z 0..18). Its purpose is "commons": a respawner in a commons zone is
+// public, one in a "residence" zone belongs to that block's residents (crates/humanity-ship/src/
+// respawners.rs). Adding it changed the ship's hash.
+//
 // The relay's world is this file (increment 3, src/relay/handlers/ship_world.rs): every zone is
 // a room of it, and so is every labelled volume in a zone's body (the Commons' "mess-hall", the
 // north strip along its first wall, where the crew eat and the ship's food stores stand,
@@ -1443,6 +1456,93 @@
                 rail_edges: [],
             ),
         ),
+        (
+            id: "general-services-1",
+            label: "General Services",
+            purpose: "commons",
+            origin: (182.0, 0.0, 93.0),
+            body: (
+                width: 18.0,
+                depth: 48.0,
+                height: 3.0,
+                shell_material: 1,
+                roof_material: 4,
+                walls: [
+                    (
+                        a: (0.0, 34.0),
+                        b: (18.0, 34.0),
+                        height: 3.0,
+                        material: 1,
+                        openings: [
+                            (
+                                kind: Door,
+                                at: 8.0,
+                                width: 2.0,
+                                sill: 0.0,
+                                height: 2.1,
+                                style: "slide",
+                                open_dist: 2.6,
+                                locked: false,
+                                auto_open: true,
+                                control_panel: false,
+                                locks: [],
+                            ),
+                        ],
+                        thickness: None,
+                        layers: [],
+                    ),
+                    (
+                        a: (0.0, 18.0),
+                        b: (18.0, 18.0),
+                        height: 3.0,
+                        material: 1,
+                        openings: [
+                            (
+                                kind: Door,
+                                at: 8.0,
+                                width: 2.0,
+                                sill: 0.0,
+                                height: 2.1,
+                                style: "slide",
+                                open_dist: 2.6,
+                                locked: false,
+                                auto_open: true,
+                                control_panel: false,
+                                locks: [],
+                            ),
+                        ],
+                        thickness: None,
+                        layers: [],
+                    ),
+                ],
+                shell_thickness: None,
+                lights: [],
+                spawn: None,
+                structures: [],
+                road_nodes: [],
+                road_edges: [],
+                zones: [
+                    (
+                        id: "gs-medbay",
+                        type_id: "medical",
+                        origin: (0.0, 0.0, 0.0),
+                        size: (18.0, 3.0, 18.0),
+                        label: "Medbay",
+                        room_type: Some("medbay"),
+                    ),
+                    (
+                        id: "gs-barracks",
+                        type_id: "barracks",
+                        origin: (0.0, 0.0, 18.0),
+                        size: (18.0, 3.0, 16.0),
+                        label: "Barracks",
+                        room_type: Some("quarters"),
+                    ),
+                ],
+                rail_nodes: [],
+                rail_edges: [],
+            ),
+        ),
     ],
     corridors: [
         (
@@ -1476,6 +1576,15 @@
             from_zone: "street-1",
             to_zone: "row-street-1",
             lat: 336.0,
+            width: 3.0,
+            door_width: 2.0,
+            door_height: 2.2,
+            glass_top: true,
+        ),
+        (
+            from_zone: "street-1",
+            to_zone: "general-services-1",
+            lat: 138.0,
             width: 3.0,
             door_width: 2.0,
             door_height: 2.2,

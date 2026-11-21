@@ -104,6 +104,9 @@ pub(crate) fn run(state: &mut EngineState) {
                     // Our ship and our own door, for the plot (increment 1b).
                     // Never a join without a ship (round 4).
                     if crate::engine::home_plot::add_join_fields(&mut join, state.gui_state.ship_structure.as_ref(), &humanity_systems::persistence::live_save::active_home().start) {
+                        // After a death: the respawner to wake at, so the relay stands us
+                        // there (game-setting-and-intro.md 5.6, rung 2, engine/wake.rs).
+                        crate::engine::wake::add_to_join(&mut join, state);
                         if let Some(ref ws) = state.gui_state.ws_client {
                             ws.send(&join.to_string());
                         }

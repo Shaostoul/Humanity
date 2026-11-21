@@ -4888,6 +4888,33 @@ fell for a while, to go back for."). Either way you wake in the respawner with f
   open-space distance, shore search, the pack's size and colours)
 - Design: `docs/design/death-and-your-pack.md`
 
+### Respawners as places, and General Services (2026-11-21)
+Rung 2 of `docs/design/game-setting-and-intro.md` (rung 1 is the Library shelf "The Game's Story": The Fleet,
+Coming Back as Yourself, What Is Made Up in This Game, and the glossary's lifeline, field lifeline, beacon, respawner,
+general services and frontier). Where you wake after a death is a place, in data:
+- **Respawners are machines** whose type `provides: Some("respawn")` (`respawn_pod`): one in each Homestead
+  household's main bedroom UPSTAIRS (`data/machines/home.ron`, `home_solo.ron`), Cabin Block A's shared pod by its
+  washroom and General Services' public pod (`data/machines/ship.ron`). Who may use one is the zone it stands in: your
+  own home's; a residence zone's for the homes whose door opens on it; any other ship zone's for anyone. A guest (no
+  plot, home put away) wakes in General Services.
+- **General Services**, zone `general-services-1` beside the Medical Bay, reached from First Street by a corridor at
+  z 138: its hall with the public pod, a barracks of ten bunks you can sleep in (`bunk`, `provides: "rest"`), and a
+  medbay room.
+- **The death screen** speaks the lore ("Your body died. You did not.", asleep on the lifeline) and lists where you
+  may wake, your usual place first; a press wakes you there, standing just outside the pod's door on its own storey.
+  E at a respawner makes it your usual place (`WorldSave::wake_at`). With no respawner yours to use, one button wakes
+  you at your front door as before.
+- **In the shared world** the respawn's join carries `wake` (a home pod plot-local with its floor, or a ship pod's zone);
+  the relay checks it (`wake_spawn`, `ShipPlots::wake_eye`) and stands you there, and writes one `body` line, used,
+  worth 0, in your fleet ledger (`data/ship/fleet_ledger.ron`); the website's fleet ledger shows it by its label.
+- Native: `crates/humanity-ship/src/respawners.rs` (places, access, the wake spot; tests `respawners_tests.rs`),
+  `src/engine/wake.rs` (the death screen's list, the respawn's spot, the join field, E at a pod, the probe; tests
+  `wake_tests.rs`), `src/gui/wake_view.rs`, `src/gui/pages/hud.rs` (`draw_death_screen`), `src/engine/frame_settles.rs`
+  (the respawn), `src/relay/handlers/game_state.rs` (`JoinWake`, `wake_spawn`), `src/relay/handlers/fleet_ledger.rs`
+  (`record_body`). The respawner room type's purpose is read by key (`room_types.respawner.purpose`).
+- Rig: `just verify-respawn` (a rig dies, wakes at home and at General Services, judged where it stands,
+  `scripts/lib/respawn-judge.js`); snapshot `just snapshot death_screen_wake`.
+
 ### Skills/Progression
 **The base set, skills rung 1 (2026-11-14, docs/design/skills.md, approved by the operator).** 90
 skills in 11 families (`data/skills/skills.csv`, `families.json`), each with six named stages,

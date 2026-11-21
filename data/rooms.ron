@@ -42,7 +42,9 @@
     ),
     "respawner": (
         name: "Respawn Chamber",
-        purpose: "Molecular reconstruction pod for player respawn after death",
+        // The words a person reads are the key room_types.respawner.purpose (data/i18n/en.json,
+        // room_types.rs `purpose_words`); this text is the fallback and what the editor shows.
+        purpose: "A pod that grows a new body for a mind that never stopped, so after a death you wake here",
         actions: ["respawn", "select_character", "customize_appearance"],
         access: "private",
         default_color: (0.5, 0.55, 0.6, 1.0),

@@ -30,6 +30,9 @@ fn an_older_game_is_refused_as_another_ship() {
     // Nor Row Street (the same day): its street, alleys and green, and the lane to it.
     older.zones.retain(|z| !z.id.starts_with("row-"));
     older.corridors.retain(|c| c.to_zone != "row-street-1");
+    // Nor General Services and its corridor (2026-11-21, game-setting-and-intro.md rung 2).
+    older.zones.retain(|z| z.id != "general-services-1");
+    older.corridors.retain(|c| c.to_zone != "general-services-1");
     if let Some(d) = older.districts.iter_mut().find(|d| d.id == "res-1") {
         d.size.0 = 100.0;
     }

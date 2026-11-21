@@ -67,6 +67,7 @@ pub mod gameplay_levels;
 /// When the 3D world is prepared (Settings > Graphics, 2026-11-20); the engine's half is engine/world_prep.rs.
 pub mod world_prep_choice;
 pub mod layers;
+pub mod wake_view; // the death screen's list of where to wake (game-setting-and-intro.md 5.6)
 /// The characters' bodies and animation as the pages see them (`GuiState::characters`).
 pub mod characters;
 /// The talk card: walk up to a crew member and press E (embeddable-ai.md rung 3, `GuiState::talk`).
@@ -2807,6 +2808,8 @@ pub struct GuiState {
     /// The death screen's Respawn button; lib.rs performs the respawn
     /// (teleport to spawn, reset vitals, remove Dead) and clears it.
     pub pending_respawn: bool,
+    /// Where the dead player may wake and which they chose (gui/wake_view.rs, engine/wake.rs).
+    pub wake: crate::gui::wake_view::WakeView,
     /// What the death cost in the Death mode chosen, the pack prompt and the rules
     /// (2026-10-04, systems::death_pack; set by engine/death_pack.rs).
     pub death_pack: humanity_systems::death_pack::DeathPackHud,
@@ -4143,6 +4146,7 @@ impl Default for GuiState {
             attack_pulse_last_hit_at: 0.0,
             player_death_cause: None,
             pending_respawn: false,
+            wake: Default::default(),
             death_pack: Default::default(),
             // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),

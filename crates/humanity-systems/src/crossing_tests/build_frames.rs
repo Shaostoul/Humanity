@@ -44,7 +44,8 @@ fn frames_of_the_shipped_ship() {
     // Since ship homes increment 6 (lane 1A): the cabin block's hall and the South Commons
     // are zones too, and the sixteen cabins plots, after the twelve homesteads.
     // And since 2026-11-13 Row Street, its five alleys and its green.
-    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2", "zone:row-street-1", "zone:row-alley-1", "zone:row-alley-2", "zone:row-alley-3", "zone:row-alley-4", "zone:row-alley-5", "zone:row-green-1"]
+    // And since 2026-11-21 General Services (game-setting-and-intro.md rung 2).
+    let mut want: Vec<String> = ["zone:commons", "zone:street-1", "zone:cabins-1", "zone:commons-2", "zone:row-street-1", "zone:row-alley-1", "zone:row-alley-2", "zone:row-alley-3", "zone:row-alley-4", "zone:row-alley-5", "zone:row-green-1", "zone:general-services-1"]
         .iter()
         .map(|s| s.to_string())
         .collect();

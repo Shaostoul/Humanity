@@ -254,6 +254,15 @@
         purpose: "Small homes around a common house with a mess hall, a big kitchen and a garden.",
         default_size: (40.0, 6.0, 40.0),
     ),
+    // General Services (docs/design/game-setting-and-intro.md 5.5, rung 2, 2026-11-21): the
+    // barracks where anyone with no home aboard may sleep.
+    (
+        id: "barracks",
+        label: "Barracks",
+        color: (0.66, 0.58, 0.46),
+        purpose: "Rows of bunks anyone may sleep in, for crew with no home of their own aboard yet.",
+        default_size: (18.0, 3.0, 16.0),
+    ),
     (
         id: "street",
         label: "Street",

@@ -181,6 +181,9 @@ pub mod own_home;
 /// The Death setting's engine half (2026-10-04): a death surfaced, the pack left where the
 /// player fell in Realistic, its prompt, E, drawing, marker and clock (systems::death_pack).
 pub mod death_pack;
+/// Waking at a respawner (game-setting-and-intro.md 5.6, rung 2): where the dead player may wake,
+/// the death screen's list, the respawn's spot, the relay join's `wake`, E at a pod.
+pub mod wake;
 /// The world's systems held still and quiet until the person enters a world (BUG-253): the frame's
 /// one tick of the systems and its notices (the rule: gui/world_entry.rs).
 pub(crate) mod world_hold;

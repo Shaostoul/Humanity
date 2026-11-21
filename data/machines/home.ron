@@ -2006,6 +2006,26 @@
             container_type: Some("pantry_cabinet_bin"),
             model: Some("assets/models/furniture/kitchencabinet/kitchencabinet.gltf"),
         ),
+        "respawn_pod": (
+            shape: "box",
+            // THE RESPAWNER (docs/design/game-setting-and-intro.md 5.6, rung 2, 2026-11-21): the pod
+            // that grows a new body for a mind that never stopped. Its door is its +Z face, and a
+            // person wakes standing just in front of it (crates/humanity-ship/src/respawners.rs
+            // `wake_floor`). Sized to stand in: 0.9 m square, 2.2 m tall. `provides: "respawn"` is
+            // what makes a machine a respawner, and E at one makes it the place you wake.
+            size: (0.9, 2.2, 0.9),
+            color: (0.62, 0.7, 0.78),
+            label: "Respawner",
+            category: "Medical",
+            stats: [],
+            provides: Some("respawn"),
+            power: None,
+            ports: [],
+            storage: [],
+            auto_recipe: None,
+            container_type: None,
+            model: None,
+        ),
         "rug": (
             shape: "box",
             size: (3.00, 0.02, 2.00),
@@ -3750,6 +3770,14 @@
             machine: "chair",
             room: "room-study",
             offset: (53.4, 3.0, 31.6),
+            rotation: 0.0,
+            zone: "home",
+        ),
+        (
+            id: "respawn_pod_1",
+            machine: "respawn_pod",
+            room: "room-bedroom",
+            offset: (37.5, 3.0, 30.518),
             rotation: 0.0,
             zone: "home",
         ),
