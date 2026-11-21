@@ -315,7 +315,7 @@ pub fn from_the_first_byte(headers: &HeaderMap) -> bool {
     let Ok(text) = value.to_str() else { return false };
     let text = text.trim();
     // The unit is case-insensitive (RFC 9110 14.1).
-    let Some(spec) = text.get(..6).filter(|u| u.eq_ignore_ascii_case("bytes=")).map(|_| &text[6..]) else {
+    let Some(spec) = text.get(..6).filter(|u| u.eq_ignore_ascii_case("bytes=")).and_then(|_| text.get(6..)) else {
         return false;
     };
     let first = spec.split(',').next().unwrap_or("").trim();

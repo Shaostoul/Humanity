@@ -363,7 +363,7 @@ pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gu
 
         // ── Public key, in a subtle framed row with an inline Copy ──
         let display_key = if key.len() > 16 {
-            format!("{}...{}", &key[..8], &key[key.len()-8..])
+            format!("{}...{}", humanity_core::text::prefix(&key, 8), humanity_core::text::suffix(&key, 8))
         } else {
             key.clone()
         };

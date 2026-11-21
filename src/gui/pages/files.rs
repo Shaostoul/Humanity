@@ -551,7 +551,7 @@ pub(crate) fn poll(ctx: &egui::Context, state: &mut GuiState) {
 /// the old one are asked for again: a refusal is never kept past the token it was given to.
 fn note_token(state: &mut GuiState) {
     let token = token_here(state);
-    let mark = token.as_deref().map(|t| blake3::hash(t.as_bytes()).to_hex()[..16].to_string()).unwrap_or_default();
+    let mark = token.as_deref().map(|t| humanity_core::text::prefix(&blake3::hash(t.as_bytes()).to_hex(), 16).to_string()).unwrap_or_default();
     if mark != state.files.token_mark {
         state.files.token_mark = mark;
         let keys: Vec<String> =

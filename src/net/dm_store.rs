@@ -292,7 +292,7 @@ impl DmStore {
         // the clear (the directory listing itself shouldn't map users to
         // servers).
         let tag = blake3::hash(format!("{identity_hex}\n{server_url}").as_bytes());
-        let path = Self::store_dir().join(format!("{}.dmstore", &tag.to_hex()[..24]));
+        let path = Self::store_dir().join(format!("{}.dmstore", humanity_core::text::prefix(&tag.to_hex(), 24)));
         let mut store = Self {
             path,
             key,
@@ -367,7 +367,7 @@ impl DmStore {
     /// Whether this is the store of `identity_hex` on `server_url` (the same file `load` opens).
     pub fn is_for(&self, identity_hex: &str, server_url: &str) -> bool {
         let tag = blake3::hash(format!("{identity_hex}\n{server_url}").as_bytes());
-        self.path.file_name().and_then(|n| n.to_str()) == Some(format!("{}.dmstore", &tag.to_hex()[..24]).as_str())
+        self.path.file_name().and_then(|n| n.to_str()) == Some(format!("{}.dmstore", humanity_core::text::prefix(&tag.to_hex(), 24)).as_str())
     }
 
     /// Raise the fetch high-water mark (never lowers it).
@@ -802,7 +802,7 @@ impl DmStore {
     /// remembered as it goes out, so its echo is not applied again. Only the first 128 bits of the
     /// hash are kept (the web chat keeps the same), newest NOTES_REMEMBERED of them.
     pub fn first_sight_note(&mut self, note_id: &str) -> bool {
-        let id = &note_id[..note_id.len().min(32)];
+        let id = humanity_core::text::prefix(&note_id, 32);
         if self.body.choice_notes_seen.iter().any(|n| n == id) {
             return false;
         }

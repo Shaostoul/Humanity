@@ -130,7 +130,7 @@ pub async fn handle_stream_offer(
     to: String,
     data: serde_json::Value,
 ) {
-    tracing::info!("StreamOffer from {} to {}", &my_key[..8], &to[..8]);
+    tracing::info!("StreamOffer from {} to {}", humanity_core::text::prefix(&my_key, 8), humanity_core::text::prefix(&to, 8));
     let _ = state.broadcast_tx.send(RelayMessage::StreamOffer {
         from: my_key.to_string(),
         to,
@@ -144,7 +144,7 @@ pub async fn handle_stream_answer(
     to: String,
     data: serde_json::Value,
 ) {
-    tracing::info!("StreamAnswer from {} to {}", &my_key[..8], &to[..8]);
+    tracing::info!("StreamAnswer from {} to {}", humanity_core::text::prefix(&my_key, 8), humanity_core::text::prefix(&to, 8));
     let _ = state.broadcast_tx.send(RelayMessage::StreamAnswer {
         from: my_key.to_string(),
         to,
@@ -158,7 +158,7 @@ pub async fn handle_stream_ice(
     to: String,
     data: serde_json::Value,
 ) {
-    tracing::info!("StreamIce from {} to {}", &my_key[..8], &to[..8]);
+    tracing::info!("StreamIce from {} to {}", humanity_core::text::prefix(&my_key, 8), humanity_core::text::prefix(&to, 8));
     let _ = state.broadcast_tx.send(RelayMessage::StreamIce {
         from: my_key.to_string(),
         to,

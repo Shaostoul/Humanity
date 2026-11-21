@@ -341,7 +341,7 @@ fn parse_iso6709(t: &str) -> Option<(f64, f64)> {
             } else if int.len() == deg + 2 {
                 digits_value(&int[..deg]) + parse_float_js(&(int[deg..].to_string() + &frac)) / 60.0
             } else if int.len() == deg + 4 {
-                digits_value(&int[..deg]) + digits_value(&int[deg..deg + 2]) / 60.0 + parse_float_js(&(int[deg + 2..].to_string() + &frac)) / 3600.0
+                digits_value(&int[..deg]) + digits_value(&int[deg..deg + 2]) / 60.0 + parse_float_js(&(int[deg + 2..].to_string() + &frac)) / 3600.0 // text-cut-ok: int holds ASCII digits (number_at)
             } else {
                 return f64::NAN;
             };

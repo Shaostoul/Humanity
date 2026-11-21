@@ -267,7 +267,7 @@ pub fn authorization(
         "{method}\n{canonical_path}\n{}\n{canonical_headers}\n{signed_headers}\n{payload_hash}",
         canonical_query(query)
     );
-    let date = &amz_date[..8];
+    let date = humanity_core::text::prefix(&amz_date, 8);
     let scope = format!("{date}/{region}/{service}/aws4_request");
     let string_to_sign = format!("AWS4-HMAC-SHA256\n{amz_date}\n{scope}\n{}", hex::encode(Sha256::digest(canonical_request.as_bytes())));
     let k_date = hmac(format!("AWS4{secret}").as_bytes(), date);

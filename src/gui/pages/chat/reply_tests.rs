@@ -87,7 +87,7 @@ fn a_preview_never_holds_a_file_key_and_is_cut_between_characters() {
     assert_eq!(preview_of(&photo), "Photo", "a picture: Photo");
     for text in [format!("look at this {marker}"), format!("{}{}", "x ".repeat(10), "[[hum:file:v9]]c2VjcmV0LWtleS1wYXJ0")] {
         let p = preview_of(&text);
-        assert!(!p.contains("[[hum:") && !p.contains(&att.k[..12]) && !p.contains("c2VjcmV0"), "no part of the marker: {p}");
+        assert!(!p.contains("[[hum:") && !p.contains(humanity_core::text::prefix(&att.k, 12)) && !p.contains("c2VjcmV0"), "no part of the marker: {p}");
     }
     assert_eq!(preview_of("[[hum:file:v2]]broken"), "File", "a marker alone that does not read");
 

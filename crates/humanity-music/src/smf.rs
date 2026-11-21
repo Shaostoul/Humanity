@@ -260,7 +260,7 @@ pub fn key_of(root: &str, mode: &str) -> Option<(i8, bool)> {
         'B' => 11,
         _ => return None,
     };
-    let rest = r[1..].trim().to_ascii_lowercase();
+    let rest = chars.as_str().trim().to_ascii_lowercase();
     let alter = if rest.starts_with('#') || rest.starts_with("sharp") {
         1
     } else if rest.starts_with('b') || rest.starts_with("flat") {

@@ -82,7 +82,7 @@ pub fn parse_show(id: &str, text: &str) -> Option<Package> {
         let l = l.trim_start_matches(|c: char| !c.is_alphanumeric());
         let rest = l.strip_prefix("Found ")?;
         let open = rest.rfind(" [")?;
-        (rest.ends_with(']') && rest[open + 2..rest.len() - 1].eq_ignore_ascii_case(id)).then(|| rest[..open].to_string())
+        rest[open + 2..].strip_suffix(']').is_some_and(|x| x.eq_ignore_ascii_case(id)).then(|| rest[..open].to_string())
     })?;
     let value = |label: &str| lines.iter().find_map(|l| l.strip_prefix(label).map(|v| v.trim().to_string())).filter(|v| !v.is_empty());
     let mut agreements = Vec::new();

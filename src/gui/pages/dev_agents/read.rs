@@ -232,7 +232,7 @@ pub fn count_uncommitted(status: &str) -> usize {
         .lines()
         .map(|l| l.trim_end_matches('\r'))
         .filter(|l| l.len() > 3)
-        .filter(|l| !IGNORED_CHANGES.contains(&l[3..].trim_matches('"')))
+        .filter(|l| !IGNORED_CHANGES.contains(&l.get(3..).unwrap_or("").trim_matches('"')))
         .count()
 }
 
@@ -417,7 +417,7 @@ pub fn parse_rfc3339(s: &str) -> Option<i64> {
     }
     let num = |r: std::ops::Range<usize>| s.get(r)?.parse::<i64>().ok();
     let (y, mo, d, h, mi, sec) = (num(0..4)?, num(5..7)?, num(8..10)?, num(11..13)?, num(14..16)?, num(17..19)?);
-    let mut rest = &s[19..];
+    let mut rest = s.get(19..)?;
     if let Some(frac) = rest.strip_prefix('.') {
         rest = frac.trim_start_matches(|c: char| c.is_ascii_digit());
     }
@@ -429,7 +429,7 @@ pub fn parse_rfc3339(s: &str) -> Option<i64> {
             b'-' => -1,
             _ => return None,
         };
-        let (oh, om) = rest[1..].split_once(':')?;
+        let (oh, om) = rest.get(1..)?.split_once(':')?;
         sign * (oh.parse::<i64>().ok()? * 3600 + om.parse::<i64>().ok()? * 60)
     };
     Some(days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + sec - offset)

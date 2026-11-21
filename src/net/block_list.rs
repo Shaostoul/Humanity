@@ -135,7 +135,7 @@ impl BlockList {
     /// Load (or start empty) the list of `identity_hex`, keyed by its seed.
     pub fn load(seed: &[u8], identity_hex: &str) -> Self {
         let tag = blake3::hash(format!("block-list\n{identity_hex}").as_bytes());
-        let path = super::dm_store::DmStore::store_dir().join(format!("{}.blocks", &tag.to_hex()[..24]));
+        let path = super::dm_store::DmStore::store_dir().join(format!("{}.blocks", humanity_core::text::prefix(&tag.to_hex(), 24)));
         Self::load_at(seed, identity_hex, path)
     }
 

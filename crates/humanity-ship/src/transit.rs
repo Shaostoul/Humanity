@@ -163,7 +163,7 @@ mod tests {
         assert!(old.structures.iter().all(|s| s.pair.as_deref() != Some(ladder.id.as_str())), "nobody is paired with the ladder");
         // And it saves in the new form: ids, pairs by id.
         let text = ron::ser::to_string(&old).expect("it serializes");
-        assert!(text.contains("pair:Some(\"teleporter-2\")") || text.contains("pair:Some(\"teleporter-1\")"), "pairs are written as ids: {}", &text[..text.len().min(200)]);
+        assert!(text.contains("pair:Some(\"teleporter-2\")") || text.contains("pair:Some(\"teleporter-1\")"), "pairs are written as ids: {}", humanity_core::text::prefix(&text, 200));
     }
 
     /// THE REPO'S OWN HOME STILL READS IN AN OLDER BUILD (ship homes increment 4 review, P3). An

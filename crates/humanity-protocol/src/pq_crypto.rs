@@ -922,7 +922,7 @@ fn hex_decode_str(s: &str) -> std::result::Result<Vec<u8>, ()> {
     }
     (0..s.len())
         .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| ()))
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|_| ())) // text-cut-ok: ASCII, checked above
         .collect()
 }
 
@@ -1365,7 +1365,7 @@ pub(crate) mod tests {
         assert_eq!(verify(&issuer_hex, "", "p3", &grantee, s, expiry, &sig, now).err(), malformed, "an empty server");
         assert_eq!(verify(&issuer_hex, &server, &"p".repeat(129), &grantee, s, expiry, &sig, now).err(), malformed, "an id over the cap");
         let bad_serial = Some(PlotPermitError::BadSerial);
-        for (what, serial) in [("upper case", s.to_uppercase()), ("too short", "0011".to_string()), ("not hex", format!("{}g", &s[..31])), ("none", String::new())] {
+        for (what, serial) in [("upper case", s.to_uppercase()), ("too short", "0011".to_string()), ("not hex", format!("{}g", humanity_core::text::prefix(&s, 31))), ("none", String::new())] {
             assert_eq!(verify(&issuer_hex, &server, "p3", &grantee, &serial, expiry, &sig, now).err(), bad_serial, "checked: {what}");
             assert_eq!(build_plot_permit(&issuer_master, &server, "p3", &grantee, &serial, expiry, now).err(), bad_serial, "minted: {what}");
         }
@@ -1497,7 +1497,7 @@ pub(crate) mod tests {
         let now = 1_760_000_000u64;
         let expiry = now + 3 * 86_400;
         let text = build_file_pass(&sender_master, &server, &sender, &receiver, &id, expiry, now).expect("a pass is minted");
-        assert!(text.starts_with(&format!("{{\"v\":1,\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"")), "the spec's key order: {}", &text[..80]);
+        assert!(text.starts_with(&format!("{{\"v\":1,\"id\":\"{id}\",\"expiry\":{expiry},\"sig\":\"")), "the spec's key order: {}", humanity_core::text::prefix(&text, 80));
         let pass: serde_json::Value = serde_json::from_str(&text).expect("the pass is JSON");
         assert_eq!(verify_file_pass(&server, &sender, &receiver, &pass, now), Ok(FilePass { id: id.clone(), expiry }));
         assert!(verify_file_pass(&server, &sender, &receiver, &pass, expiry - 1).is_ok(), "good to its last second");

@@ -76,7 +76,7 @@ pub fn allow(data_dir: &std::path::Path, label: &str, public_key: &str, quota_by
     let fp = fingerprint(&raw);
     let mut cfg = load(data_dir);
     let label = label.trim().chars().take(80).collect::<String>();
-    let label = if label.is_empty() { format!("server {}", &fp[..8]) } else { label };
+    let label = if label.is_empty() { format!("server {}", humanity_core::text::prefix(&fp, 8)) } else { label };
     match cfg.senders.iter_mut().find(|s| s.fingerprint == fp) {
         Some(s) => {
             s.label = label.clone();

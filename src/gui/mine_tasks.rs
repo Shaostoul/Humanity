@@ -382,7 +382,7 @@ impl MineTasks {
     pub fn load(seed: &[u8], identity_hex: &str) -> Self {
         let tag = blake3::hash(format!("tasks-mine\n{identity_hex}").as_bytes());
         let dir = crate::config::AppConfig::config_path().with_file_name("tasks");
-        Self::load_at(seed, identity_hex, Some(dir.join(format!("{}.mine", &tag.to_hex()[..24]))))
+        Self::load_at(seed, identity_hex, Some(dir.join(format!("{}.mine", humanity_core::text::prefix(&tag.to_hex(), 24)))))
     }
 
     fn load_at(seed: &[u8], identity_hex: &str, path: Option<PathBuf>) -> Self {

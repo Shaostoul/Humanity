@@ -186,7 +186,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, place
                     .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let hint = if state.chat_active_channel.starts_with("dm:") {
-                        let pk = &state.chat_active_channel[3..];
+                        let pk = &state.chat_active_channel["dm:".len()..];
                         let name = state.chat_dms.iter().find(|d| d.user_key == pk)
                             .map(|d| d.user_name.as_str()).unwrap_or("user");
                         format!("Message {}", name)

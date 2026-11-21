@@ -96,6 +96,9 @@ pub mod lod_registry;
 pub mod boot_timing;
 /// The one "turn off all reuse" switch every in-memory reuse obeys (CLAUDE.md's reuse rule, 2026-10-30).
 pub mod reuse;
+/// Cutting text by characters, never by bytes, never panicking: every prefix and suffix cut of a
+/// string goes through it (2026-11-21; `tests/text_cut_lint.rs` keeps the byte cut from returning).
+pub mod text;
 /// A clock a test moves by hand, for code that decides things by elapsed time
 /// (BUG-152). Test builds only: this crate's own, and another crate's through the
 /// `test-support` feature its [dev-dependencies] turn on (the crate split, rung 1).

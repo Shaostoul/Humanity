@@ -35,7 +35,7 @@ fn uncited_pullers(d: &PulleyData, finding: &str) -> Vec<String> {
     d.pullers
         .iter()
         .filter(|p| {
-            let cited: Vec<&str> = p.source.split(|c: char| !c.is_alphanumeric()).filter(|w| w.len() > 1 && w.starts_with('F') && w[1..].chars().all(|c| c.is_ascii_digit())).collect();
+            let cited: Vec<&str> = p.source.split(|c: char| !c.is_alphanumeric()).filter(|w| w.len() > 1 && w.strip_prefix('F').is_some_and(|d| d.chars().all(|c| c.is_ascii_digit()))).collect();
             let all_found = cited.iter().all(|f| finding.contains(&format!("**{f}.")));
             let design = p.source.contains("design value");
             p.source.trim().is_empty() || !all_found || (cited.is_empty() && !design)

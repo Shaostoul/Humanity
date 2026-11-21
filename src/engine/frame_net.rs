@@ -196,7 +196,7 @@ pub(crate) fn pump(state: &mut EngineState, dt: f32) {
         if state.gui_state.webrtc.is_some() {
             // Short, log-friendly form of a long pubkey hex.
             fn short(k: &str) -> String {
-                if k.len() > 12 { format!("{}…", &k[..12]) } else { k.to_string() }
+                humanity_core::text::clip(k, 12).into_owned()
             }
             let (outbound, events) = {
                 let w = state.gui_state.webrtc.as_ref().unwrap();

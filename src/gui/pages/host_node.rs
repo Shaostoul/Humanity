@@ -1076,8 +1076,8 @@ fn draw_running(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, n: &mut 
                 // this node dials OUT and the peering rides that socket.
                 let short = format!(
                     "{}\u{2026}{}",
-                    &n.server_pubkey[..n.server_pubkey.len().min(12)],
-                    &n.server_pubkey[n.server_pubkey.len().saturating_sub(6)..]
+                    humanity_core::text::prefix(&n.server_pubkey, 12),
+                    humanity_core::text::suffix(&n.server_pubkey, 6)
                 );
                 widgets::form_row(ui, theme, "Federation key", |ui| {
                     ui.label(

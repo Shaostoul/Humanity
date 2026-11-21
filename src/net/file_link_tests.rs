@@ -32,7 +32,7 @@ fn file(dir: &std::path::Path, id: &str, len: usize, seed: usize) -> (PathBuf, V
 /// A receiving transfer of `offer`, its part file made at full size in `dir`; `paused` as if
 /// paused here before it started.
 fn receive_as(dir: &std::path::Path, offer: &Offer, sender: &str, paused: bool) -> Transfer {
-    let part = dir.join(format!("{}.{}.part", offer.name, &offer.id[..12]));
+    let part = dir.join(format!("{}.{}.part", offer.name, humanity_core::text::prefix(&offer.id, 12)));
     std::fs::OpenOptions::new().write(true).create(true).truncate(true).open(&part).unwrap().set_len(offer.size).unwrap();
     let mut proto = Receiving::new(offer.clone(), sender, true, Instant::now());
     proto.set_paused(paused);

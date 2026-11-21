@@ -312,8 +312,8 @@ pub fn is_date(s: &str) -> bool {
     if !(digits(0..4) && digits(5..7) && digits(8..10)) {
         return false;
     }
-    let month: u32 = s[5..7].parse().unwrap_or(0);
-    let day: u32 = s[8..10].parse().unwrap_or(0);
+    let month: u32 = s.get(5..7).and_then(|x| x.parse().ok()).unwrap_or(0);
+    let day: u32 = s.get(8..10).and_then(|x| x.parse().ok()).unwrap_or(0);
     (1..=12).contains(&month) && (1..=31).contains(&day)
 }
 
@@ -326,7 +326,7 @@ fn is_source_date(s: &str) -> bool {
     let year = |r: std::ops::Range<usize>| b.len() >= r.end && b[r].iter().all(|c| c.is_ascii_digit());
     match b.len() {
         4 => year(0..4),
-        7 => year(0..4) && b[4] == b'-' && year(5..7) && (1..=12).contains(&s[5..7].parse::<u32>().unwrap_or(0)),
+        7 => year(0..4) && b[4] == b'-' && year(5..7) && (1..=12).contains(&s.get(5..7).and_then(|x| x.parse::<u32>().ok()).unwrap_or(0)),
         _ => false,
     }
 }

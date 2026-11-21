@@ -476,7 +476,7 @@ fn markers_are_not_in_the_binary() {
 #[test]
 fn the_tree_fingerprint_matches_build_rs() {
     let inputs = delivery::read_inputs(&std::fs::read_to_string(Path::new(env!("HUMANITY_REPO_ROOT")).join("build.rs")).unwrap()).unwrap();
-    assert_eq!(&inputs[..2], ["src", "assets/shaders"]);
+    assert_eq!(&inputs[..2], ["src", "assets/shaders"]); // text-cut-ok: a list of names, not text
     assert!(delivery::read_inputs("const FINGERPRINT_INPUTS: &[&str] = &[src];").is_err(), "a list that is not string literals");
     assert!(delivery::read_inputs("nothing").is_err());
     let built = std::fs::read_to_string(concat!(env!("OUT_DIR"), "/hos_src_stamp.txt")).expect("build.rs's stamp");

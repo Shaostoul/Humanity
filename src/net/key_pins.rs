@@ -62,7 +62,7 @@ impl KeyPins {
     /// Load (or start empty) the pins of `identity_hex`, keyed by its seed.
     pub fn load(seed: &[u8], identity_hex: &str) -> Self {
         let tag = blake3::hash(format!("key-pins\n{identity_hex}").as_bytes());
-        let path = super::dm_store::DmStore::store_dir().join(format!("{}.keypins", &tag.to_hex()[..24]));
+        let path = super::dm_store::DmStore::store_dir().join(format!("{}.keypins", humanity_core::text::prefix(&tag.to_hex(), 24)));
         Self::load_at(seed, identity_hex, path)
     }
 

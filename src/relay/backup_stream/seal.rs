@@ -47,7 +47,7 @@ pub fn object_key(backup_key: &[u8; 32]) -> [u8; 32] {
 pub fn key_fingerprint(backup_key: &[u8; 32]) -> String {
     let d = blake3::derive_key("HumanityOS backup key fingerprint v1 2026-10-22", backup_key);
     let h = hex::encode(&d[..8]);
-    format!("{} {} {} {}", &h[0..4], &h[4..8], &h[8..12], &h[12..16])
+    format!("{} {} {} {}", &h[0..4], &h[4..8], &h[8..12], &h[12..16]) // text-cut-ok: hex is ASCII
 }
 
 fn aad(name: &str, header: &[u8]) -> Vec<u8> {

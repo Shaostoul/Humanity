@@ -1193,7 +1193,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
                 "brows" => state.gui_state.appearance.brows = x,
                 "lashes" => state.gui_state.appearance.lashes = x,
                 k if k.starts_with("wear:") => {
-                    let slot = k[5..].to_string();
+                    let slot = k["wear:".len()..].to_string();
                     if x.is_empty() {
                         state.gui_state.outfit.equipped.remove(&slot);
                     } else {
@@ -1459,7 +1459,7 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             Some(key) => {
                 let waiting = state.gui_state.dm_store.as_ref().is_some_and(|s| s.requests().iter().any(|r| r.key == key));
                 crate::engine::reach::accept_request(&mut state.gui_state, &key);
-                log::info!("Showcase: accept_request -> {} ({})", &key[..key.len().min(12)], if waiting { "accepted" } else { "no such request waits" });
+                log::info!("Showcase: accept_request -> {} ({})", humanity_core::text::prefix(&key, 12), if waiting { "accepted" } else { "no such request waits" });
             }
             None => log::warn!("Showcase: accept_request wants a whole key in hex, not {spec:?}"),
         }
@@ -2088,8 +2088,8 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             "1" | "on" => 1,
             "hard" | "8" => 8,
             "ref" | "9" => 9,
-            s if s.starts_with('l') && s.len() == 2 && s[1..].parse::<i32>().ok().is_some_and(|l| (0..=5).contains(&l)) => {
-                2 + s[1..].parse::<i32>().unwrap_or(0)
+            s if s.starts_with('l') && s.len() == 2 && s["l".len()..].parse::<i32>().ok().is_some_and(|l| (0..=5).contains(&l)) => {
+                2 + s["l".len()..].parse::<i32>().unwrap_or(0)
             }
             s if s.parse::<i32>().ok().is_some_and(|k| (0..=9).contains(&k)) => s.parse::<i32>().unwrap_or(0),
             // An unknown value ("L6", "auto", a typo in a fixture) must be

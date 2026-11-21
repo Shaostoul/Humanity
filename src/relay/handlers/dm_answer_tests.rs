@@ -191,7 +191,7 @@ fn a_bad_ref_is_treated_as_no_ref() {
         assert!(heard.answers.is_empty(), "{bad:?} is no ref: {heard:?}");
     }
     st.dm_rate.forget(sender);
-    let longest = "Az09_-".repeat(11)[..64].to_string();
+    let longest = humanity_core::text::prefix(&"Az09_-".repeat(11), 64).to_string();
     let heard = put(&st, sender, inbox, Some(&longest));
     assert_eq!(heard.answers, vec![(longest.clone(), None)], "64 characters of the allowed set is a ref");
 }

@@ -197,7 +197,7 @@ mod tests {
             .unwrap();
         assert_eq!(cols, ["issuer_fingerprint", "serial", "revoked_day"]);
         let lower = ada.to_lowercase();
-        assert!(stored.iter().all(|v| !v.to_lowercase().contains(&lower[..8]) && v.len() == 64), "a stored value holds the key: {stored:?}");
+        assert!(stored.iter().all(|v| !v.to_lowercase().contains(humanity_core::text::prefix(&lower, 8)) && v.len() == 64), "a stored value holds the key: {stored:?}");
         assert_eq!(stored, vec![db.friend_pass_withdrawal_fingerprint(ada)]);
         assert_ne!(stored[0], db.erased_account_fingerprint(ada), "not the erased-accounts value for the same key");
         assert_ne!(stored[0], withdrawal_fingerprint(&[0u8; 32], ada), "another secret gives another fingerprint");

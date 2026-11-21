@@ -142,7 +142,7 @@ pub async fn post_admin_backups(State(state): State<Arc<RelayState>>, Json(req):
             let s = state.clone();
             match tokio::task::spawn_blocking(move || s.db.backup_now()).await {
                 Ok(Ok(done)) => {
-                    tracing::info!("Back up now (admin page) by {}: {}", &req.key[..12.min(req.key.len())], done.entry.file);
+                    tracing::info!("Back up now (admin page) by {}: {}", humanity_core::text::prefix(&req.key, 12), done.entry.file);
                     Ok(done.reply())
                 }
                 Ok(Err(e)) => Err(format!("Backup FAILED: {e}")),

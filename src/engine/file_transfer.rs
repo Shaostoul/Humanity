@@ -592,13 +592,13 @@ fn ended(gs: &mut GuiState, id: &str) {
 
 /// The part file of a transfer: `<name>.<first 12 of the id>.part`, beside where it will be saved.
 pub fn part_path(dir: &Path, safe_name: &str, id: &str) -> PathBuf {
-    dir.join(format!("{safe_name}.{}.part", &id[..12.min(id.len())]))
+    dir.join(format!("{safe_name}.{}.part", humanity_core::text::prefix(&id, 12)))
 }
 
 /// The name a finished file gets, from its part file's name.
 pub fn final_name(part: &Path, id: &str) -> Option<String> {
     let name = part.file_name()?.to_str()?;
-    name.strip_suffix(&format!(".{}.part", &id[..12.min(id.len())])).map(str::to_string)
+    name.strip_suffix(&format!(".{}.part", humanity_core::text::prefix(&id, 12))).map(str::to_string)
 }
 
 /// "Accept this one" on the Files in messages card: the question is asked next.

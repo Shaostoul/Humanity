@@ -781,7 +781,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             let key_display = if state.profile_public_key.is_empty() {
                 "No key generated".to_string()
             } else if state.profile_public_key.len() > 16 {
-                format!("{}…{}", &state.profile_public_key[..8], &state.profile_public_key[state.profile_public_key.len()-8..])
+                format!("{}…{}", humanity_core::text::prefix(&state.profile_public_key, 8), humanity_core::text::suffix(&state.profile_public_key, 8))
             } else {
                 state.profile_public_key.clone()
             };
@@ -1051,8 +1051,8 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     Ok(()) => {
                         state.settings.seed_phrase_recovery_status = format!(
                             "Identity recovered! {}…{}",
-                            &state.profile_public_key[..8.min(state.profile_public_key.len())],
-                            &state.profile_public_key[state.profile_public_key.len().saturating_sub(8)..]
+                            humanity_core::text::prefix(&state.profile_public_key, 8),
+                            humanity_core::text::suffix(&state.profile_public_key, 8)
                         );
                         // Clear the input
                         state.settings.seed_phrase_input.clear();
@@ -2734,7 +2734,7 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
             let addr = if state.wallet_address.is_empty() {
                 "Not generated".to_string()
             } else if state.wallet_address.len() > 12 {
-                format!("{}...{}", &state.wallet_address[..6], &state.wallet_address[state.wallet_address.len()-6..])
+                format!("{}...{}", humanity_core::text::prefix(&state.wallet_address, 6), humanity_core::text::suffix(&state.wallet_address, 6))
             } else {
                 state.wallet_address.clone()
             };

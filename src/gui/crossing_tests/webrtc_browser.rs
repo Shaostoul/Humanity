@@ -157,7 +157,7 @@ fn tamper_fingerprint(sdp: &str) -> String {
     let Some(space) = sdp[at..].find(' ') else { return sdp.to_string() };
     let digit = at + space + 1;
     let mut out = sdp.to_string();
-    let flipped = if &sdp[digit..digit + 1] == "0" { "1" } else { "0" };
+    let flipped = if sdp[digit..].starts_with('0') { "1" } else { "0" };
     out.replace_range(digit..digit + 1, flipped);
     out
 }
@@ -594,7 +594,7 @@ impl World {
         match ty.as_str() {
             "harness_hello" => {
                 self.browser = msg["key"].as_str().unwrap_or("").to_string();
-                say!("[page] signed in as {}... ({})", &self.browser[..self.browser.len().min(12)], msg["ua"].as_str().unwrap_or(""));
+                say!("[page] signed in as {}... ({})", humanity_core::text::prefix(&self.browser, 12), msg["ua"].as_str().unwrap_or(""));
             }
             "harness_error" => {
                 let line = format!("{} {}", msg["message"].as_str().unwrap_or(""), msg["where"].as_str().unwrap_or(""));
@@ -788,7 +788,7 @@ impl World {
         }
         let text = msg["harness_note"].as_str().unwrap_or("");
         let Some(file_offer::Note::Offer(mut offer)) = file_offer::parse_note(text) else {
-            say!("[desktop] the page's note {}", &text[..text.len().min(40)]);
+            say!("[desktop] the page's note {}", humanity_core::text::prefix(&text, 40));
             return;
         };
         if let Err(e) = file_offer::verify_file_pass(&self.browser, SERVER_DID, &self.desktop, &offer.pass, unix_now()) {

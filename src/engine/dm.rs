@@ -427,7 +427,7 @@ fn ingest_control(gui_state: &mut GuiState, inner: &DmInner) {
                                     gui_state.pass_pacer.held = true;
                                 }
                             }
-                            Err(e) => log::warn!("friendship pass from {} failed its check ({e:?}); dropped", &inner.from[..12.min(inner.from.len())]),
+                            Err(e) => log::warn!("friendship pass from {} failed its check ({e:?}); dropped", humanity_core::text::prefix(&inner.from, 12)),
                         }
                     }
                 }
@@ -493,7 +493,7 @@ pub(crate) fn control_puts_at(gui_state: &GuiState, peer: &str, text: &str, cert
     // that calls this again once the card has arrived is what sends it.
     let Some(peer_kyber) = gui_state.peer_kyber_keys.get(peer) else {
         let what: String = text.chars().take(26).collect(); // the marker, not a whole pass
-        log::warn!("control '{what}' to {}… not sent: no checked key card for them yet", &peer[..12.min(peer.len())]);
+        log::warn!("control '{what}' to {}… not sent: no checked key card for them yet", humanity_core::text::prefix(&peer, 12));
         return None;
     };
     let my_kp = crate::net::dm_pq::DmPqKeypair::from_bip39_seed(seed).ok()?;
@@ -718,7 +718,7 @@ pub(crate) fn withdrawal_confirmed(gui_state: &mut GuiState, frame: &serde_json:
         store.save();
     }
     if let Some(peer) = marked {
-        log::info!("a pass to {}… was withdrawn on another of my devices; left to that device", &peer[..12.min(peer.len())]);
+        log::info!("a pass to {}… was withdrawn on another of my devices; left to that device", humanity_core::text::prefix(&peer, 12));
         send_pending_withdrawals(gui_state);
         refresh_social_mirrors(gui_state);
     }

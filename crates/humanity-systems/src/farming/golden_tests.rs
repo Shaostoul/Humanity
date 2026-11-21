@@ -116,8 +116,8 @@ fn the_garden_ends_in_the_same_state_every_run_and_in_the_recorded_one() {
         let at = a.state.bytes().zip(b.state.bytes()).position(|(x, y)| x != y).unwrap_or(0);
         panic!(
             "the same garden built twice ended differently (the tick is not deterministic), first at byte {at}: ...{}... vs ...{}...",
-            &a.state[at.saturating_sub(80)..(at + 80).min(a.state.len())],
-            &b.state[at.saturating_sub(80)..(at + 80).min(b.state.len())]
+            a.state.get(at.saturating_sub(80)..(at + 80).min(a.state.len())).unwrap_or("(the window cuts a character)"),
+            b.state.get(at.saturating_sub(80)..(at + 80).min(b.state.len())).unwrap_or("(the window cuts a character)")
         );
     }
     // The garden did something worth recording.

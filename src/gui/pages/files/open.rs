@@ -134,7 +134,7 @@ pub(crate) fn forget_temp_files(state: &mut GuiState) {
 /// of it write into the same file).
 pub(crate) fn play_name(server: &str, id: i64) -> String {
     let h = blake3::hash(format!("{server}\n{id}").as_bytes());
-    format!("{}-{}-{}.video", &h.to_hex()[..16], std::process::id(), super::next_id())
+    format!("{}-{}-{}.video", humanity_core::text::prefix(&h.to_hex(), 16), std::process::id(), super::next_id())
 }
 
 /// Where a transfer of one of an item's files comes from: a public address, or, for a

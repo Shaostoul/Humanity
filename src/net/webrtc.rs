@@ -482,8 +482,8 @@ pub(crate) fn own_stun_hosts(body: &str, relay_host: &str) -> Vec<String> {
 fn host_of(base: &str) -> &str {
     let rest = base.split_once("://").map(|(_, r)| r).unwrap_or(base);
     let authority = rest.split('/').next().unwrap_or(rest);
-    if let Some(end) = authority.strip_prefix('[').and_then(|a| a.find(']')) {
-        return &authority[1..end + 1];
+    if let Some(inside) = authority.strip_prefix('[').and_then(|a| a.find(']').map(|end| &a[..end])) {
+        return inside;
     }
     authority.split(':').next().unwrap_or(authority)
 }
@@ -1016,7 +1016,7 @@ impl WebrtcManager {
             // outage it was most of a 318 KB run.log by itself.
             log::info!(
                 "WebRTC: bound UDP {local_addr}, identity {}..",
-                &my_pubkey_hex[..my_pubkey_hex.len().min(16)]
+                humanity_core::text::prefix(&my_pubkey_hex, 16)
             );
             humanity_core::debug::push_debug(format!("WebRTC bound UDP {local_addr}"));
 
@@ -2989,11 +2989,7 @@ enum PollResult {
 
 /// Short, log-friendly form of a long pubkey hex (first 12 chars + ellipsis).
 fn short(key: &str) -> String {
-    if key.len() > 12 {
-        format!("{}…", &key[..12])
-    } else {
-        key.to_string()
-    }
+    humanity_core::text::clip(key, 12).into_owned()
 }
 
 // ════════════════════════════════════════════════════════════════════════

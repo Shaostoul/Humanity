@@ -2203,11 +2203,9 @@ impl AppConfig {
         // This ensures zero-friction startup for new and returning users.
         if self.needs_key_migration() {
             // Parse the legacy hex key into bytes silently (available in memory)
-            if let Ok(bytes) = (0..self.private_key_hex.len())
-                .step_by(2)
-                .map(|i| u8::from_str_radix(&self.private_key_hex[i..i+2], 16))
-                .collect::<Result<Vec<u8>, _>>()
-            {
+            // hex::decode refuses odd lengths and anything not hex; cutting the text two bytes at a
+            // time could fall inside a character, or past the end, and panic at start-up (BUG-340).
+            if let Ok(bytes) = hex::decode(&self.private_key_hex) {
                 if bytes.len() == 32 {
                     state.private_key_bytes = Some(bytes);
                     log::info!("Legacy plaintext key loaded into memory (encrypt via Settings)");

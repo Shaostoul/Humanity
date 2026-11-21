@@ -513,7 +513,7 @@ mod tests {
             .unwrap();
         assert_eq!(stored.len(), 1);
         assert!(
-            stored.iter().all(|v| !v.contains(&key[..8]) && !key.contains(&v[..8])),
+            stored.iter().all(|v| !v.contains(humanity_core::text::prefix(&key, 8)) && !key.contains(humanity_core::text::prefix(&v, 8))),
             "a stored value holds the key: {stored:?}"
         );
         assert_eq!(cols, ["fingerprint", "erased_day", "ttl_days"], "only the fingerprint, the day and the window");

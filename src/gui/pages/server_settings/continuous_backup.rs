@@ -494,7 +494,7 @@ fn draw_host(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, p: &mut Pan
     if !sending.is_empty() {
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new("This server's backup sending key:").size(theme.font_size_small).color(theme.text_secondary()));
-            ui.label(RichText::new(format!("{}...{} ({} characters)", &sending[..16.min(sending.len())], &sending[sending.len().saturating_sub(16)..], sending.len())).size(theme.font_size_small).monospace());
+            ui.label(RichText::new(format!("{}...{} ({} characters)", humanity_core::text::prefix(&sending, 16), humanity_core::text::suffix(&sending, 16), sending.len())).size(theme.font_size_small).monospace());
             if widgets::Button::secondary("Copy").tooltip("Give this to the admin of the server that will keep this server's backups.").show(ui, theme) {
                 ui.ctx().copy_text(sending.clone());
                 p.message = "Copied the backup sending key.".into();

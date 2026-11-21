@@ -69,7 +69,7 @@ pub(crate) fn page_state(answer: ListAnswer, signed_in: bool) -> GuiState {
     apply_list(&mut state.files, answer, false);
     if signed_in {
         state.upload_token = Some((SERVER.to_string(), "tok".to_string()));
-        state.files.token_mark = blake3::hash(b"tok").to_hex()[..16].to_string();
+        state.files.token_mark = humanity_core::text::prefix(&blake3::hash(b"tok").to_hex(), 16).to_string();
     }
     state
 }

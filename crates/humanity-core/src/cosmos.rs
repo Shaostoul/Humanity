@@ -289,11 +289,13 @@ fn parse_rotation(v: &serde_json::Value) -> Option<RotationElements> {
 /// "#rrggbb" to sRGB bytes; None for anything else.
 fn parse_hex_rgb(s: &str) -> Option<[u8; 3]> {
     let h = s.strip_prefix('#')?;
-    if h.len() != 6 {
+    // Six hex digits, read whole: cutting other text two bytes at a time could fall inside a
+    // character and panic (BUG-340).
+    if h.len() != 6 || !h.bytes().all(|c| c.is_ascii_hexdigit()) {
         return None;
     }
-    let byte = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
-    Some([byte(0)?, byte(2)?, byte(4)?])
+    let [_, r, g, b] = u32::from_str_radix(h, 16).ok()?.to_be_bytes();
+    Some([r, g, b])
 }
 
 /// The neutral grey of a surface reflecting `albedo` of the light (sRGB

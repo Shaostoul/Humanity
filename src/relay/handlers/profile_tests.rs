@@ -91,7 +91,7 @@ fn own_copy_for(sent: &[RelayMessage], key: &str) -> Value {
     sent.iter()
         .map(|m| serde_json::to_value(m).unwrap())
         .find(|w| w["type"] == "profile_data" && w["target"] == key && w.get("privacy").is_some())
-        .unwrap_or_else(|| panic!("no own copy for {}: {sent:?}", &key[..8.min(key.len())]))
+        .unwrap_or_else(|| panic!("no own copy for {}: {sent:?}", humanity_core::text::prefix(&key, 8)))
 }
 
 /// What the person's app does with an own copy that asks (plan 3.10 and 3.11): the public copy of
@@ -527,7 +527,7 @@ fn a_save_asks_each_of_the_persons_devices_to_sign() {
     let mut expected = vec![(None, None, None), (Some(ann.clone()), Some(true), Some(0)), (Some(phone.clone()), Some(true), Some(0))];
     expected.sort();
     let got = asks_in(&sent);
-    assert!(got == expected, "each device is asked: {:?}", got.iter().map(|(t, s, a)| (t.as_deref().map(|k| &k[..8]), *s, *a)).collect::<Vec<_>>());
+    assert!(got == expected, "each device is asked: {:?}", got.iter().map(|(t, s, a)| (t.as_deref().map(|k| humanity_core::text::prefix(&k, 8)), *s, *a)).collect::<Vec<_>>());
 
     let (at, sig) = app_signs(&own_copy_for(&sent, &ann), 7, 0);
     send_sign(&st, &ann, at, &sig);

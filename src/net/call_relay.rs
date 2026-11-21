@@ -99,7 +99,7 @@ impl CallScope {
     pub fn label(&self) -> String {
         match self {
             CallScope::Room(id) => format!("room {id}"),
-            CallScope::Call(key) => format!("call with {}", &key[..key.len().min(12)]),
+            CallScope::Call(key) => format!("call with {}", humanity_core::text::prefix(&key, 12)),
         }
     }
 }

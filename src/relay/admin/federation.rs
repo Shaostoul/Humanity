@@ -155,7 +155,7 @@ pub async fn add_key(state: Arc<RelayState>, _caller: Caller, inputs: Inputs) ->
             fed::SERVER_KEY_HEX_LEN
         )));
     }
-    let name = inputs.text("name").unwrap_or_else(|| format!("peer-{}", &key[..8]));
+    let name = inputs.text("name").unwrap_or_else(|| format!("peer-{}", humanity_core::text::prefix(&key, 8)));
     match state.db.add_federated_server(&key, &name, "outbound-only") {
         Ok(true) => {
             // The key IS the identity here, handed over out of band by the operators themselves.

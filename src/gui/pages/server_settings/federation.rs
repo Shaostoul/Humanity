@@ -120,7 +120,7 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let Some(key) = v["own_key"].as_str().filter(|k| !k.is_empty()) {
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new("This server's federation key:").size(theme.font_size_small).color(theme.text_secondary()));
-                ui.label(RichText::new(format!("{}...{}", &key[..12.min(key.len())], &key[key.len().saturating_sub(6)..])).size(theme.font_size_small).color(theme.text_muted()).monospace());
+                ui.label(RichText::new(format!("{}...{}", humanity_core::text::prefix(&key, 12), humanity_core::text::suffix(&key, 6))).size(theme.font_size_small).color(theme.text_muted()).monospace());
                 if widgets::Button::ghost("Copy").tooltip("Copy the whole key, for another server's admin to add this one by key.").show(ui, theme) {
                     ui.ctx().copy_text(key.to_string());
                 }

@@ -176,7 +176,7 @@ fn mask(s: &str) -> String {
     if s.len() <= 4 {
         return "set".into();
     }
-    format!("…{}", &s[s.len() - 4..])
+    format!("…{}", humanity_core::text::suffix(&s, 4))
 }
 
 /// A destination ready to use.

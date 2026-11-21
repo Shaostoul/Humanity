@@ -372,7 +372,7 @@ pub fn slot_path(saves_dir: &Path, slot: &SaveSlot) -> PathBuf {
         SaveSlot::Server { server, identity } => {
             let server_tag = blake3::hash(server.as_bytes()).to_hex();
             let who: String = identity.chars().filter(|c| c.is_ascii_hexdigit()).take(16).collect::<String>().to_ascii_lowercase();
-            saves_dir.join(SERVER_SAVES_DIR).join(format!("{}-{who}.json", &server_tag[..16]))
+            saves_dir.join(SERVER_SAVES_DIR).join(format!("{}-{who}.json", humanity_core::text::prefix(&server_tag, 16)))
         }
     }
 }
@@ -1216,7 +1216,7 @@ mod tests {
                 for leak in ["united-humanity", "192.168", "ws:", "wss:", "3210"] {
                     assert!(!name.contains(leak), "{name} names where you play ({leak})");
                 }
-                assert!(name.ends_with(&format!("-{}.json", identity[..16].to_ascii_lowercase())), "{name} does not end with its identity");
+                assert!(name.ends_with(&format!("-{}.json", humanity_core::text::prefix(&identity, 16).to_ascii_lowercase())), "{name} does not end with its identity");
                 assert_eq!(slot_path(saves, &SaveSlot::Server { server: server.into(), identity: identity.into() }), p, "the same slot, the same file");
                 paths.insert(p);
             }

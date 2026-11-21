@@ -168,7 +168,7 @@ pub fn html_decode(s: &str) -> String {
 /// Short key helper (Rust-side).
 #[allow(non_snake_case)]
 pub fn shortKey_rust(hex: &str) -> String {
-    if hex.len() >= 8 { hex[..8].to_string() } else { hex.to_string() }
+    if hex.len() >= 8 { humanity_core::text::prefix(&hex, 8).to_string() } else { hex.to_string() }
 }
 
 #[cfg(test)]

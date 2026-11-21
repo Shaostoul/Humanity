@@ -9,7 +9,7 @@ use super::*;
 /// Hex with spaces and line breaks, as the RFC prints it, to bytes.
 fn hex(s: &str) -> Vec<u8> {
     let digits: String = s.chars().filter(|c| c.is_ascii_hexdigit()).collect();
-    (0..digits.len()).step_by(2).map(|i| u8::from_str_radix(&digits[i..i + 2], 16).unwrap()).collect()
+    hex::decode(digits).unwrap()
 }
 
 /// RFC 5769 section 2.1, "Sample Request": a Binding request with SOFTWARE, PRIORITY,

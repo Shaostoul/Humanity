@@ -553,7 +553,7 @@ pub(crate) mod tests {
             println!("{id}: {} ({bytes} bytes)", mb_words(*bytes));
             assert!(*bytes > 0 && !id.is_empty());
             let lower = id.to_ascii_lowercase();
-            let hex = |key: &str| lower.split(key).nth(1).and_then(|t| u32::from_str_radix(&t[..4.min(t.len())], 16).ok());
+            let hex = |key: &str| lower.split(key).nth(1).and_then(|t| u32::from_str_radix(humanity_core::text::prefix(&t, 4), 16).ok());
             if let (Some(v), Some(d)) = (hex("ven_"), hex("dev_")) {
                 assert!(pick_dedicated(&records, v, d).is_some(), "{id} is found by its own ids");
             }

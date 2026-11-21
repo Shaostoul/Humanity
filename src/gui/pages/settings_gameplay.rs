@@ -166,7 +166,7 @@ mod tests {
             }
         }
         let says = t_dyn("gameplay.body_heat_forgiving");
-        assert!(texts.iter().any(|x| x.starts_with(&says[..says.len().min(30)])), "the chosen level's sentence is under its row");
+        assert!(texts.iter().any(|x| x.starts_with(humanity_core::text::prefix(&says, 30))), "the chosen level's sentence is under its row");
         // Click Body heat's Off: the first "Off" drawn after the words "Body heat".
         let at = crate::gui::widgets::tint_section::texts_at(&out, t_dyn("gameplay.body_heat"))[0];
         let off = crate::gui::widgets::tint_section::texts_at(&out, t_dyn("gameplay.level.off")).into_iter().find(|r| r.top() > at.top()).expect("an Off under Body heat");

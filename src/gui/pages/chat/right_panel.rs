@@ -453,7 +453,7 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             webrtc.offer_to(peer_key.clone());
                             humanity_core::debug::push_debug(format!(
                                 "WebRTC: P2P test initiated to {}",
-                                if peer_key.len() > 12 { &peer_key[..12] } else { &peer_key }
+                                if peer_key.len() > 12 { humanity_core::text::prefix(&peer_key, 12) } else { &peer_key }
                             ));
                         } else {
                             humanity_core::debug::push_debug("WebRTC: manager not ready (connect to a server first)");

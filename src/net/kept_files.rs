@@ -157,7 +157,7 @@ impl KeptFiles {
     /// Where the file at `url` with key `k` and nonce `n` is kept, if it is.
     fn path_of(&self, url: &str, k: &str, n: &str) -> PathBuf {
         let h = blake3::keyed_hash(&self.name_key, format!("{url}\n{k}\n{n}").as_bytes());
-        self.dir.join(format!("{}.{EXT}", &h.to_hex()[..40]))
+        self.dir.join(format!("{}.{EXT}", humanity_core::text::prefix(&h.to_hex(), 40)))
     }
 
     /// Whether a copy of this file is kept.

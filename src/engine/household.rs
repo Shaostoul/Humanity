@@ -100,7 +100,7 @@ pub(crate) fn now_s() -> u64 {
 
 /// The first 12 characters of a key, for a log line (never the whole key).
 fn key12(key: &str) -> &str {
-    &key[..12.min(key.len())]
+    humanity_core::text::prefix(&key, 12)
 }
 
 /// How many days a permit given at `at_ms` and running out at `expiry` was given for: what Renew

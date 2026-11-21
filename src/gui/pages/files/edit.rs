@@ -528,7 +528,8 @@ pub(crate) fn stored_ending(stored: &str) -> String {
 /// `name` without its `ending`, for the rename box (the ending is shown after it, fixed).
 pub(crate) fn stem_of(name: &str, ending: &str) -> String {
     if !ending.is_empty() && name.to_ascii_lowercase().ends_with(&format!(".{ending}")) {
-        name[..name.len() - ending.len() - 1].to_string()
+        // to_ascii_lowercase moves no byte, so the cut is at the dot, a character boundary.
+        name.get(..name.len() - ending.len() - 1).unwrap_or(name).to_string()
     } else {
         name.to_string()
     }

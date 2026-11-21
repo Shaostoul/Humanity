@@ -63,7 +63,7 @@ pub fn new_identity_capped(state: &RelayState, client_ip: &str, public_key: &str
         tracing::warn!(
             "New-identity-per-IP cap hit for ip={}, new pubkey prefix={}",
             client_ip,
-            &public_key[..public_key.len().min(16)],
+            humanity_core::text::prefix(&public_key, 16),
         );
     }
     blocked

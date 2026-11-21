@@ -163,7 +163,7 @@ fn replace_p2p_messages(
                 .p2p_group_fp_to_name
                 .get(&m.author_fp)
                 .cloned()
-                .unwrap_or_else(|| format!("{}…", &m.author_fp[..12.min(m.author_fp.len())]))
+                .unwrap_or_else(|| format!("{}…", humanity_core::text::prefix(&m.author_fp, 12)))
         };
         // Use the app-standard "HH:MM UTC" formatter (same as chrono_now_str,
         // which the local send-echo uses) so a message keeps ONE timestamp
@@ -264,7 +264,7 @@ pub(super) fn apply_group_load(state: &mut GuiState, load: crate::net::api_v2::G
             .iter()
             .find(|u| u.public_key == *pubkey_hex)
             .map(|u| u.name.clone())
-            .unwrap_or_else(|| format!("{}…", &pubkey_hex[..8.min(pubkey_hex.len())]));
+            .unwrap_or_else(|| format!("{}…", humanity_core::text::prefix(&pubkey_hex, 8)));
         state.p2p_group_fp_to_name.insert(fp.clone(), name);
         state.p2p_group_fp_to_key.insert(fp.clone(), pubkey_hex.clone());
     }
@@ -741,7 +741,7 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
             .get(&verified.author_fp)
             .cloned()
             .unwrap_or_else(|| {
-                format!("{}…", &verified.author_fp[..12.min(verified.author_fp.len())])
+                format!("{}…", humanity_core::text::prefix(&verified.author_fp, 12))
             })
     };
     let created_ms = verified.created_at.max(0) as u64;

@@ -737,8 +737,8 @@ fn check_service(s: &[(Value, Value)]) -> Result<(), String> {
             let hhmm = |t: &str| {
                 t.len() == 5
                     && t.as_bytes()[2] == b':'
-                    && t[..2].parse::<u8>().map_or(false, |h| h <= 23)
-                    && t[3..].parse::<u8>().map_or(false, |m| m <= 59)
+                    && t.get(..2).and_then(|x| x.parse::<u8>().ok()).map_or(false, |h| h <= 23)
+                    && t.get(3..).and_then(|x| x.parse::<u8>().ok()).map_or(false, |m| m <= 59)
             };
             if !hhmm(start) || !hhmm(end) {
                 return Err("recurring times must be HH:MM".to_string());

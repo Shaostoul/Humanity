@@ -288,7 +288,7 @@ impl Storage {
                 Ok(outcome) => {
                     tracing::info!(
                         "mod_action_v1 from {}: {:?}",
-                        &hex::encode(&object.author_public_key)[..16.min(object.author_public_key.len() * 2)],
+                        humanity_core::text::prefix(&hex::encode(&object.author_public_key), 16),
                         outcome
                     );
                 }

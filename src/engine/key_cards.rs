@@ -266,7 +266,7 @@ pub fn ingest(gs: &mut GuiState, value: &serde_json::Value) -> Option<Seen> {
     let card = key_card::parse_card(value)?;
     gs.key_cards.asked.remove(&card.key);
     if !key_card::card_for(&card, &card.key) {
-        log::warn!("key cards: refused a card for {}… that does not check out as theirs", &card.key[..12.min(card.key.len())]);
+        log::warn!("key cards: refused a card for {}… that does not check out as theirs", humanity_core::text::prefix(&card.key, 12));
         if !gs.peer_kyber_keys.contains_key(&card.key) {
             gs.key_cards.no_card.insert(card.key.clone());
         }
@@ -287,7 +287,7 @@ pub fn ingest(gs: &mut GuiState, value: &serde_json::Value) -> Option<Seen> {
     }
     gs.key_cards.no_card.remove(&card.key);
     if seen == Seen::Changed {
-        log::warn!("key cards: the key of {}… changed; nothing is sealed to them until it is accepted", &card.key[..12]);
+        log::warn!("key cards: the key of {}… changed; nothing is sealed to them until it is accepted", humanity_core::text::prefix(&card.key, 12));
     }
     Some(seen)
 }

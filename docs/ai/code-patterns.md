@@ -84,6 +84,15 @@ Game data in external files next to exe. CSV for items/plants/recipes,
 TOML for config, RON for quests/blueprints/ships/planets. Hot-reloadable
 via notify file watcher. Mods = editing files in the data directory.
 
+**Cut text by characters, never by bytes** (BUG-340, 2026-11-21): `&s[..12]`, `&s[..12.min(s.len())]`
+and `&s[s.len() - 4..]` panic when the cut falls inside a multi-byte character (or, for `[..12]`, on
+text shorter than 12 bytes), and on text from a server or another person that is a remote crash.
+Use `humanity_core::text::prefix(s, n)` / `suffix(s, n)` (characters), `prefix_bytes` /
+`suffix_bytes` (a limit in bytes, cut back to a boundary), `clip(s, n)` ("…" when cut) or
+`ends(s, head, tail, sep)` (the "3f9a…b7e2" short form of a key). A cut after a prefix the code
+checked is written `&s["dm:".len()..]`; a reviewed byte cut on ASCII is `s.get(a..b)` or carries a
+`text-cut-ok: <why>` comment. `tests/text_cut_lint.rs` fails on a new one.
+
 ## Web gotchas
 
 - `settings.js` has `injectGearButton()` -- don't call it on pages that also load `shell.js` (already fixed: guards for `a[href="/settings"]`)

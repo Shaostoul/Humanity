@@ -191,7 +191,7 @@ fn draw_engine(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 row(ui, theme, t("dev.ai.brain"), note);
             }
             if let Some((id, sha, threads, cap)) = loaded.filter(|(id, ..)| c.is_loaded(id)) {
-                row(ui, theme, t("dev.ai.loaded"), tf("dev.ai.loaded_value", &[("id", &id), ("sha", &&sha[..12.min(sha.len())]), ("threads", &threads), ("cap", &cap)]));
+                row(ui, theme, t("dev.ai.loaded"), tf("dev.ai.loaded_value", &[("id", &id), ("sha", &humanity_core::text::prefix(&sha, 12)), ("threads", &threads), ("cap", &cap)]));
             }
         }
         if let Some(EngineMessage::Status { counters, reuse, loaded, .. }) = &c.last_status {
@@ -290,7 +290,7 @@ pub(crate) fn ask_test_question(c: &mut AiClient, prefer: &str) -> Option<u64> {
             }
             Prepared::Ready(ready) => {
                 dev.pending = false;
-                dev.brain_note = Some(tf("dev.ai.brain_ready", &[("model", &ready.entry.model), ("sha", &&ready.entry.sha256[..12])]));
+                dev.brain_note = Some(tf("dev.ai.brain_ready", &[("model", &ready.entry.model), ("sha", &humanity_core::text::prefix(&ready.entry.sha256, 12))]));
                 if !c.is_loaded(&ready.entry.id) {
                     let hw = hardware::read();
                     let threads = install::brain_threads(hw.cores, hw.threads);

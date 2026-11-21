@@ -61,14 +61,10 @@ fn network_abbrev(name: &str) -> String {
 /// Parse a "#rrggbb" hex color, falling back to the network-name color.
 fn parse_hex_color(hex: &str, fallback: Color32) -> Color32 {
     let h = hex.trim().trim_start_matches('#');
-    if h.len() == 6 {
-        if let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&h[0..2], 16),
-            u8::from_str_radix(&h[2..4], 16),
-            u8::from_str_radix(&h[4..6], 16),
-        ) {
-            return Color32::from_rgb(r, g, b); // theme-exempt: color parsed from data/donate/methods.json, not a hardcoded literal
-        }
+    // Six hex digits, read whole (cutting other text two bytes at a time could panic, BUG-340).
+    if h.len() == 6 && h.bytes().all(|c| c.is_ascii_hexdigit()) {
+        let [_, r, g, b] = u32::from_str_radix(h, 16).unwrap_or(0).to_be_bytes();
+        return Color32::from_rgb(r, g, b); // theme-exempt: color parsed from data/donate/methods.json, not a hardcoded literal
     }
     fallback
 }

@@ -63,7 +63,7 @@ fn unsigned(from: &str, plot: &str, serial: &str, expiry: u64, at: u64) -> HeldP
 fn the_permit_note_round_trips_and_a_bad_one_is_still_a_note() {
     let p = permit(1, "p1", 2, NOW + 30 * DAY);
     let text = note_text(&p);
-    assert!(text.starts_with("[[hum:permit:v1]]{\"issuer\":\""), "the marker, then the permit's JSON: {:?}", &text[..40]);
+    assert!(text.starts_with("[[hum:permit:v1]]{\"issuer\":\""), "the marker, then the permit's JSON: {:?}", humanity_core::text::prefix(&text, 40));
     let order: Vec<usize> = ["\"issuer\":", "\"server\":", "\"plot\":", "\"grantee\":", "\"serial\":", "\"expiry\":", "\"sig\":"]
         .iter()
         .map(|k| text.find(k).unwrap_or_else(|| panic!("{k} in the note")))
@@ -81,7 +81,7 @@ fn the_permit_note_round_trips_and_a_bad_one_is_still_a_note() {
     let bad: Vec<(&str, String)> = vec![
         ("not JSON", format!("{CTL_PERMIT}{{not json")),
         ("JSON that is not a permit", format!("{CTL_PERMIT}{{\"issuer\":\"aa\"}}")),
-        ("an issuer that is not hex", with(&|q| q.issuer = format!("zz{}", &q.issuer[2..]))),
+        ("an issuer that is not hex", with(&|q| q.issuer = format!("zz{}", q.issuer.get(2..).unwrap_or("")))),
         ("an issuer over the cap", with(&|q| q.issuer = "a".repeat(ISSUER_MAX_LEN + 1))),
         ("a signature over the cap", with(&|q| q.sig = "A".repeat(SIG_MAX_LEN + 1))),
         ("an empty plot", with(&|q| q.plot = String::new())),

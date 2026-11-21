@@ -198,7 +198,7 @@ fn draw_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let key_display = if state.profile_public_key.is_empty() {
                 "No key generated".to_string()
             } else if state.profile_public_key.len() > 16 {
-                format!("{}...{}", &state.profile_public_key[..8], &state.profile_public_key[state.profile_public_key.len()-8..])
+                format!("{}...{}", humanity_core::text::prefix(&state.profile_public_key, 8), humanity_core::text::suffix(&state.profile_public_key, 8))
             } else {
                 state.profile_public_key.clone()
             };

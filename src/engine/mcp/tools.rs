@@ -223,12 +223,9 @@ fn bounded(text: String, more_at: Option<&Path>) -> String {
     if text.len() <= MAX_TEXT {
         return text;
     }
-    let mut cut = MAX_TEXT;
-    while !text.is_char_boundary(cut) {
-        cut -= 1;
-    }
+    let kept = humanity_core::text::prefix_bytes(&text, MAX_TEXT);
     let tail = more_at.map(|p| format!(" The whole answer is {}.", p.display())).unwrap_or_default();
-    format!("{}\n... (cut at {MAX_TEXT} characters.{tail})", &text[..cut])
+    format!("{kept}\n... (cut at {MAX_TEXT} characters.{tail})")
 }
 
 fn pretty(v: &Value) -> String {

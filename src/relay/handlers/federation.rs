@@ -81,7 +81,7 @@ pub async fn forward_to_federation(state: &Arc<RelayState>, channel: &str, from_
 /// A server key as the log shows it: its first 16 hex characters. A whole Dilithium3 key is 3,904
 /// characters, and every hello and connect wrote it out in full (2026-10-12).
 pub(crate) fn key_in_log(key: &str) -> String {
-    if key.len() <= 16 { key.to_string() } else { format!("{}...", &key[..16]) }
+    if key.len() <= 16 { key.to_string() } else { format!("{}...", humanity_core::text::prefix(&key, 16)) }
 }
 
 /// How often a live federation link checks that its peer is still in the registry.
@@ -1452,7 +1452,7 @@ mod recheck_tests {
     #[test]
     fn a_key_in_the_log_is_its_first_16_characters() {
         let key = "a1".repeat(1952);
-        assert_eq!(key_in_log(&key), format!("{}...", &key[..16]), "16 characters and dots");
+        assert_eq!(key_in_log(&key), format!("{}...", humanity_core::text::prefix(&key, 16)), "16 characters and dots");
         assert_eq!(key_in_log("short"), "short");
     }
 

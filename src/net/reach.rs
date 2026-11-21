@@ -744,6 +744,6 @@ mod tests {
         assert_eq!(parse_contact_request_text(&text), Some(("Ann".to_string(), pass.to_string())), "it reads back");
         assert_eq!(parse_contact_request_text("hello"), None, "an ordinary DM is not a request");
         assert_eq!(parse_contact_request_text("[[hum:contact-request:v1]]{\"name\":\"Ann\"}"), None, "no pass, no request");
-        assert_eq!(parse_contact_request_text(&text[1..]), None, "the marker must lead");
+        assert_eq!(parse_contact_request_text(text.get(1..).unwrap()), None, "the marker must lead");
     }
 }

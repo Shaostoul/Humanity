@@ -154,7 +154,7 @@ fn draw_ban_list(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 // Short key.
                 let short_key = if b.public_key.len() > 20 {
-                    format!("{}...", &b.public_key[..20])
+                    format!("{}...", humanity_core::text::prefix(&b.public_key, 20))
                 } else {
                     b.public_key.clone()
                 };

@@ -266,7 +266,7 @@ pub fn encode_versioned<T: Serialize>(message: &T, version: u32) -> String {
     match serde_json::to_string(message) {
         // Every message type here is an internally tagged enum, so it is always an object with at least
         // its "type"; anything else would be a bug in this file, caught by the round-trip tests.
-        Ok(body) if body.starts_with('{') && body.len() > 2 => format!("{{\"v\":{version},{}", &body[1..]),
+        Ok(body) if body.starts_with('{') && body.len() > 2 => format!("{{\"v\":{version},{}", &body["{".len()..]),
         Ok(body) => format!("{{\"v\":{version},\"value\":{body}}}"),
         Err(e) => format!("{{\"v\":{version},\"encode_error\":{}}}", serde_json::Value::from(e.to_string())),
     }

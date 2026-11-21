@@ -731,8 +731,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     state.first_minutes.phrase_written = true;
                                     state.settings.seed_phrase_recovery_status = format!(
                                         "Recovered: {}...{}",
-                                        &pq.dilithium_hex[..8],
-                                        &pq.dilithium_hex[pq.dilithium_hex.len()-8..]
+                                        humanity_core::text::prefix(&pq.dilithium_hex, 8),
+                                        humanity_core::text::suffix(&pq.dilithium_hex, 8)
                                     );
                                     state.private_key_bytes = Some(privkey_bytes);
                                     // Canonical: derive Dilithium+Kyber and
@@ -776,7 +776,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.add_space(40.0);
             let key = &state.profile_public_key;
             let display = if key.len() > 16 {
-                format!("Identity: {}...{}", &key[..8], &key[key.len()-8..])
+                format!("Identity: {}...{}", humanity_core::text::prefix(&key, 8), humanity_core::text::suffix(&key, 8))
             } else {
                 format!("Identity: {}", key)
             };

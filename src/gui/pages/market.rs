@@ -94,7 +94,7 @@ fn seller_label(l: &GuiListing) -> String {
     if !l.seller_name.is_empty() {
         l.seller_name.clone()
     } else if l.seller_key.len() > 8 {
-        format!("{}...", &l.seller_key[..8])
+        format!("{}...", humanity_core::text::prefix(&l.seller_key, 8))
     } else {
         l.seller_key.clone()
     }
@@ -378,7 +378,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     ui.label(RichText::new(stars).size(theme.font_size_small));
                                     let who = if r.reviewer_name.is_empty() {
                                         if r.reviewer_key.len() > 8 {
-                                            format!("{}...", &r.reviewer_key[..8])
+                                            format!("{}...", humanity_core::text::prefix(&r.reviewer_key, 8))
                                         } else {
                                             r.reviewer_key.clone()
                                         }

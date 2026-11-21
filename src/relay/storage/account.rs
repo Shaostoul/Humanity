@@ -1118,7 +1118,7 @@ mod tests {
             let before = rest[..at].chars().last();
             let call = &rest[at..];
             if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
-                rest = &call[4..];
+                rest = &call["del(".len()..];
                 continue;
             }
             let (mut depth, mut in_str, mut prev, mut end) = (0i32, false, ' ', call.len());

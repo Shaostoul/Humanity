@@ -233,7 +233,7 @@ pub fn gen_release_key(pubkeys_path: &str, vault_path: &str) -> Result<(), Strin
     println!("  Public keys  -> {pubkeys_path}  (COMMIT this; it gets compiled in)");
     println!("  Private vault -> {vault_path}  (gitignored; BACK THIS UP, encrypted)");
     println!("  ed25519 pub : {}", pubs.ed25519);
-    println!("  dilithium pub: {}...", &pubs.dilithium[..32.min(pubs.dilithium.len())]);
+    println!("  dilithium pub: {}...", humanity_core::text::prefix(&pubs.dilithium, 32));
     println!("Next: commit {pubkeys_path}, rebuild, and sign releases with --sign-release.");
     Ok(())
 }

@@ -176,7 +176,7 @@ pub(crate) fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiS
                         } else {
                             state.profile_public_key.clone()
                         };
-                        log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
+                        log::info!("Connecting to {} as {} (key: {})", ws_url, name, humanity_core::text::prefix(&pubkey, 8));
                         // If another server's live state is still resident
                         // (dropped socket, message buffer), park it under
                         // the URL it was dialed for before dialing the new

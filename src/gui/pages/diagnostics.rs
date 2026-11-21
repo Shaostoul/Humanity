@@ -140,7 +140,7 @@ fn network<'a>(card: PaintedCard<'a>, theme: &Theme, state: &GuiState) -> Painte
         .trim_start_matches("wss://")
         .trim_start_matches("ws://")
         .trim_end_matches('/');
-    let host_short = if host.len() > 22 { format!("{}...", &host[..22]) } else { host.to_string() };
+    let host_short = if host.len() > 22 { format!("{}...", humanity_core::text::prefix(&host, 22)) } else { host.to_string() };
     card = row(card, theme, t("diagnostics.server"), if host_short.is_empty() { t("diagnostics.no_server").to_string() } else { host_short });
     card = row(card, theme, t("diagnostics.members"), state.chat_users.len().to_string());
     card = row(card, theme, t("diagnostics.msgs_in"), state.ws_msgs_in.to_string());
@@ -152,7 +152,7 @@ fn network<'a>(card: PaintedCard<'a>, theme: &Theme, state: &GuiState) -> Painte
                 .url
                 .trim_start_matches("https://")
                 .trim_start_matches("http://");
-            if h.len() > 16 { format!("{}...", &h[..16]) } else { h.to_string() }
+            if h.len() > 16 { format!("{}...", humanity_core::text::prefix(&h, 16)) } else { h.to_string() }
         };
         let link = if conn.identified {
             t("diagnostics.link_up")

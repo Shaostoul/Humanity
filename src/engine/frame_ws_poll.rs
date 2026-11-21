@@ -1007,8 +1007,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                                     .map(|u| u.name.clone())
                             })
                             .unwrap_or_else(|| {
-                                let n = from.len().min(8);
-                                format!("{}...", &from[..n])
+                                format!("{}...", humanity_core::text::prefix(&from, 8))
                             });
                         let action = val.get("action").and_then(|v| v.as_str()).unwrap_or("");
                         if !from.is_empty() {
@@ -1285,7 +1284,7 @@ pub(crate) fn poll_relay_messages(state: &mut EngineState) {
                             if state.gui_state.chat_user_modal_key == pk {
                                 state.gui_state.chat_user_modal_open = false;
                             }
-                            log::info!("Member left/kicked/banned: {}", &pk[..pk.len().min(16)]);
+                            log::info!("Member left/kicked/banned: {}", humanity_core::text::prefix(&pk, 16));
                         }
                     }
                     // The server's board: its own list, never merged into my own tasks (BUG-217,
@@ -1581,11 +1580,7 @@ fn clip(s: &str, max: usize) -> std::borrow::Cow<'_, str> {
     if s.len() <= max {
         return s.into();
     }
-    let mut end = max;
-    while !s.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}...", &s[..end]).into()
+    format!("{}...", humanity_core::text::prefix_bytes(s, max)).into()
 }
 
 #[cfg(test)]

@@ -111,7 +111,7 @@ pub fn parse_release_post(content: &str) -> Option<(String, String)> {
     if rest.ends_with(')') {
         if let Some(mid) = rest.rfind("](") {
             let open_text = rest[..mid].rfind('[')?;
-            let target = &rest[mid + 2..rest.len() - 1];
+            let target = rest[mid + 2..].strip_suffix(')').unwrap_or_default();
             let target = target.strip_prefix('<').and_then(|t| t.strip_suffix('>')).unwrap_or(target);
             if target != release_page(version) {
                 return None;

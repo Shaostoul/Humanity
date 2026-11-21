@@ -55,7 +55,7 @@ fn status_color(theme: &Theme, status: &str) -> Color32 {
 /// Short display for the other party's key.
 fn key_label(key: &str) -> String {
     if key.len() > 10 {
-        format!("{}...", &key[..10])
+        format!("{}...", humanity_core::text::prefix(&key, 10))
     } else {
         key.to_string()
     }

@@ -220,7 +220,7 @@ fn asking_answering_and_rebuilding() {
     let listed = db.recovery_open_asks(now(), 10).unwrap();
     assert_eq!(listed.len(), 1);
     let listed_json = serde_json::to_string(&listed).unwrap();
-    assert!(!listed_json.contains(&code) && !listed_json.contains(&view.one_time_key_b64[..40]), "the list shows no code and no key");
+    assert!(!listed_json.contains(&code) && !listed_json.contains(humanity_core::text::prefix(&view.one_time_key_b64, 40)), "the list shows no code and no key");
 
     let pieces = served(&db, &holder.did);
     let opened_a = open_piece(&a.kyber, &pieces[0]).unwrap();

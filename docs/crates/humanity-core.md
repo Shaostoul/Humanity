@@ -6,7 +6,8 @@ The bottom of the stack: the small pieces every other crate leans on. It holds t
 (`ecs`), the data files' parsers and their built-in copies (`data_parse`, `embedded_data`), hot
 reload, where a person's files live (`storage`), the Sol system's bodies and orbits (`cosmos`), the
 word source (`i18n`), the cost store every system records into (`frame_costs`), the one switch
-that turns off all reuse (`reuse`), and the one material catalog of what a run (a pipe, hose or
+that turns off all reuse (`reuse`), the one way to cut text by characters, never panicking
+(`text`, BUG-340), and the one material catalog of what a run (a pipe, hose or
 cable) is made of (`run_materials`, with `row_source`, where each row's numbers come from), here
 because `utilities`' cable checks read it. It may use no other crate and every crate may use it, so an
 edit here re-checks all of the code: keep it small, stable and free of anything that belongs higher.

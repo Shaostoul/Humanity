@@ -793,7 +793,7 @@ pub async fn run_relay() {
                 match db.set_role(&owner, "admin") {
                     Ok(()) => tracing::info!(
                         "Owner key {}... granted admin on this node",
-                        &owner[..12.min(owner.len())]
+                        humanity_core::text::prefix(&owner, 12)
                     ),
                     Err(e) => tracing::error!("Owner admin grant failed: {e}"),
                 }

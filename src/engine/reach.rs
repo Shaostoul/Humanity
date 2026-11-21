@@ -219,7 +219,7 @@ pub(crate) fn contact_request_in(store: &mut DmStore, me: &str, inner: &DmInner,
     }
     let server = store.pass_server().unwrap_or("").to_string();
     if let Err(e) = humanity_protocol::pq_crypto::verify_friend_cert(&server, &inner.from, me, &pass) {
-        log::warn!("contact request from {}… dropped: its pass failed its check ({e:?})", &inner.from[..12.min(inner.from.len())]);
+        log::warn!("contact request from {}… dropped: its pass failed its check ({e:?})", humanity_core::text::prefix(&inner.from, 12));
         return Arrival::Dropped;
     }
     if store.is_following(&inner.from) && may_complete {

@@ -446,7 +446,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if widgets::Button::ghost("Back").tooltip("Return to #global").show(ui, theme) {
                         state.chat_active_channel = humanity_protocol::chat_access::MAIN_CHANNEL.to_string();
                     }
-                    let partner_key = &ac[3..];
+                    let partner_key = &ac["dm:".len()..];
                     let partner_name = state.chat_dms.iter()
                         .find(|d| d.user_key == partner_key)
                         .map(|d| d.user_name.clone())
@@ -1344,7 +1344,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
             state.ws_status = "Not connected; DM not sent.".to_string();
             return false; // keep the draft
         }
-        let partner_key = channel[3..].to_string();
+        let partner_key = channel["dm:".len()..].to_string();
         match build_dm_puts(state, &partner_key, content, ts) {
             Ok((recipient_put, self_put, inner)) => {
                 crate::engine::dm::ensure_dm_store(state);
@@ -1400,7 +1400,7 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
                         None => None,
                     }
                 } else if channel.starts_with("group:") {
-                    let group_id = &channel[6..];
+                    let group_id = &channel["group:".len()..];
                     Some(serde_json::json!({
                         "type": "group_msg",
                         "group_id": group_id,
@@ -2400,14 +2400,11 @@ pub fn generate_random_hex_key() -> String {
 /// v0.241 (roles Phase R2).
 fn parse_role_color(hex: &str, theme: &Theme) -> Color32 {
     let h = hex.trim().trim_start_matches('#');
-    if h.len() == 6 {
-        if let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&h[0..2], 16),
-            u8::from_str_radix(&h[2..4], 16),
-            u8::from_str_radix(&h[4..6], 16),
-        ) {
-            return Color32::from_rgb(r, g, b); // theme-exempt: data-driven role color from server
-        }
+    // Six hex digits, read whole: the colour comes from the server, and cutting other text two
+    // bytes at a time could fall inside a character and panic (BUG-340).
+    if h.len() == 6 && h.bytes().all(|c| c.is_ascii_hexdigit()) {
+        let [_, r, g, b] = u32::from_str_radix(h, 16).unwrap_or(0).to_be_bytes();
+        return Color32::from_rgb(r, g, b); // theme-exempt: data-driven role color from server
     }
     theme.text_primary()
 }

@@ -194,7 +194,9 @@ impl CallKeys {
         if nonce.len() != 24 {
             return false;
         }
-        let Ok(ts) = u32::from_str_radix(&nonce[..8], 16) else { return false };
+        // A client sent it: split where a character boundary allows, never panicking (BUG-340).
+        let Some((ts_hex, mac)) = nonce.split_at_checked(8) else { return false };
+        let Ok(ts) = u32::from_str_radix(ts_hex, 16) else { return false };
         let now = unix_now as u32;
         // Fresh: made within the lifetime, or a few seconds "ahead" if the clock stepped back.
         let fresh = if ts <= now { now - ts < NONCE_LIFETIME_SECS as u32 } else { ts - now <= 5 };
@@ -202,8 +204,8 @@ impl CallKeys {
             return false;
         }
         let want = self.nonce_mac(ts, src);
-        want.len() == nonce[8..].len()
-            && want.bytes().zip(nonce[8..].bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
+        want.len() == mac.len()
+            && want.bytes().zip(mac.bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
     }
 }
 

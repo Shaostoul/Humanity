@@ -987,7 +987,7 @@ pub(crate) fn parse_lineup(spec: &str, feet: Vec3, forward: Vec3) -> Option<Vec<
                         "brows" => dress.brows = Some(plain(v)),
                         "lashes" => dress.lashes = Some(plain(v)),
                         _ if k.starts_with("wear:") => {
-                            dress.outfit.insert(plain(&k[5..]), plain(v));
+                            dress.outfit.insert(plain(&k["wear:".len()..]), plain(v));
                         }
                         _ => {
                             let (detailed, name) = match k.strip_prefix("d:") {

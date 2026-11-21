@@ -276,7 +276,7 @@ pub fn is_placeholder_name(name: &str) -> bool {
         || n.eq_ignore_ascii_case("player")
         || (n.len() > 12
             && n.starts_with("DesktopUser_")
-            && n[12..].bytes().all(|b| b.is_ascii_digit()))
+            && n["DesktopUser_".len()..].bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The name a signing-in socket is registered under. A real offered name is

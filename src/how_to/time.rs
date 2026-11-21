@@ -17,7 +17,7 @@ pub fn compact(ms: u64) -> String {
 
 /// The day, YYYY-MM-DD, of a time.
 pub fn day(ms: u64) -> String {
-    iso(ms)[..10].to_string()
+    humanity_core::text::prefix(&iso(ms), 10).to_string()
 }
 
 /// YYYY-MM-DDTHH:MM:SSZ back to milliseconds since 1970.

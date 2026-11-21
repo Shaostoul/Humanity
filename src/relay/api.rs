@@ -3224,7 +3224,7 @@ pub async fn post_account_export(
 
     tracing::info!(
         "Account export served for {}… ({} bytes)",
-        &req.key[..12.min(req.key.len())],
+        humanity_core::text::prefix(&req.key, 12),
         body.len()
     );
 

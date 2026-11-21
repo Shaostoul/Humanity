@@ -103,7 +103,7 @@ impl OrgStore {
     pub fn load(seed: &[u8], identity_hex: &str) -> Self {
         let tag = blake3::hash(format!("orgs\n{identity_hex}").as_bytes());
         let dir = crate::config::AppConfig::config_path().with_file_name("orgs");
-        Self::load_at(seed, Some(dir.join(format!("{}.orgs", &tag.to_hex()[..24]))))
+        Self::load_at(seed, Some(dir.join(format!("{}.orgs", humanity_core::text::prefix(&tag.to_hex(), 24)))))
     }
 
     /// A store at `path` (`None`: kept in memory only, as for a test or no identity yet).

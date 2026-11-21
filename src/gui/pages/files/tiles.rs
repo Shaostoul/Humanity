@@ -85,7 +85,7 @@ pub(crate) fn cache_key(state: &GuiState, item: &Item) -> String {
         // Its own file's stored name too: once its main file comes off (BUG-250) the next one is
         // its picture, at the same address, and is fetched afresh rather than shown from before.
         let h = blake3::hash(format!("{}\n{}\n{}", state.files.server, item.id, item.stored).as_bytes());
-        format!("{PRIVATE_KEY_PREFIX}media-{}", &h.to_hex()[..32])
+        format!("{PRIVATE_KEY_PREFIX}media-{}", humanity_core::text::prefix(&h.to_hex(), 32))
     } else {
         api::file_url(&super::base_of(state), item)
     }
@@ -130,7 +130,7 @@ pub(crate) fn cover_key(state: &GuiState, item: &Item) -> String {
     let base = super::base_of(state);
     if item.members_only() {
         let h = blake3::hash(format!("{}\n{}\ncover\n{}", state.files.server, item.id, cover.file).as_bytes());
-        format!("{PRIVATE_KEY_PREFIX}media-{}", &h.to_hex()[..32])
+        format!("{PRIVATE_KEY_PREFIX}media-{}", humanity_core::text::prefix(&h.to_hex(), 32))
     } else if cover.url.starts_with("http://") || cover.url.starts_with("https://") {
         cover.url.clone()
     } else {

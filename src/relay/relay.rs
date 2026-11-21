@@ -3859,7 +3859,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                         }
                     }
                     if let Err(deser_err) = serde_json::from_str::<RelayMessage>(&text).as_ref() {
-                        tracing::warn!("RelayMessage deserialization failed: {} | raw: {}", deser_err, &text[..text.len().min(200)]);
+                        tracing::warn!("RelayMessage deserialization failed: {} | raw: {}", deser_err, humanity_core::text::prefix(&text, 200));
                     }
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
@@ -4238,7 +4238,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                             if prefix.len() < 6 {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /revoke <first 6+ chars of device key>. Check your devices in the sidebar.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
-                                            } else if prefix.starts_with(&my_key_for_recv[..6]) {
+                                            } else if prefix.starts_with(humanity_core::text::prefix(&my_key_for_recv, 6)) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't revoke your current device. Use another linked device.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
@@ -4691,7 +4691,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     let mut lines = vec![format!("📌 Pinned messages in #{} ({}):", ch, pins.len())];
                                                     for (i, pin) in pins.iter().enumerate() {
                                                         let short_content = if pin.content.len() > 80 {
-                                                            format!("{}…", &pin.content[..80])
+                                                            format!("{}…", humanity_core::text::prefix(&pin.content, 80))
                                                         } else {
                                                             pin.content.clone()
                                                         };
@@ -4828,7 +4828,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add-key <server-key> [name]\nA server key is 3,904 hex characters: copy it from the other node's Host Node page (Federation key, Copy).".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
-                                                    let display_name = name.unwrap_or_else(|| format!("node-{}", &key[..8]));
+                                                    let display_name = name.unwrap_or_else(|| format!("node-{}", humanity_core::text::prefix(&key, 8)));
                                                     match state_clone.db.add_federated_server(&key, &display_name, "outbound-only") {
                                                         Ok(true) => {
                                                             // Pin the key immediately: it IS the identity here,
@@ -4836,7 +4836,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                             let _ = state_clone.db.update_federated_server_info(&key, &display_name, Some(&key), false);
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!(
                                                                 "✅ Added {display_name} by key. Next: /server-trust {} 2\nThen the other node adds THIS server by URL and federates; no port forward needed on their side.",
-                                                                &key[..12]
+                                                                humanity_core::text::prefix(&key, 12)
                                                             ) };
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                         }
@@ -5140,7 +5140,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         .and_then(|v| v.as_str())
                                         .map(|s| s.to_string());
                                     let is_bot = my_key_for_recv.starts_with("bot_");
-                                    let kp = &my_key_for_recv[..8.min(my_key_for_recv.len())];
+                                    let kp = humanity_core::text::prefix(&my_key_for_recv, 8);
                                     match pq_sig_opt.as_ref() {
                                         Some(pq_sig) => {
                                             // ML-DSA-65 verify is CPU-bound; run it OFF the
@@ -5561,7 +5561,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         Ok(()) => {
                                             let tname = state_clone.db.name_for_key(&target)
                                                 .ok().flatten()
-                                                .unwrap_or_else(|| target[..8.min(target.len())].to_string());
+                                                .unwrap_or_else(|| humanity_core::text::prefix(&target, 8).to_string());
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
                                                 message: format!("✓ {tname} is now \"{}\".", rd.label),
@@ -5797,7 +5797,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     }
                                     let display = state_clone.peers.read().await.get(&my_key_for_recv)
                                         .and_then(|p| p.display_name.clone())
-                                        .unwrap_or_else(|| my_key_for_recv[..8].to_string());
+                                        .unwrap_or_else(|| humanity_core::text::prefix(&my_key_for_recv, 8).to_string());
                                     match state_clone.db.pin_message(&ch, &from_key, &from_name, &content, timestamp, &display) {
                                         Ok(true) => {
                                             let pin = PinData {
@@ -5957,7 +5957,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 if !valid_statuses.contains(&status.as_str()) {
                                     continue;
                                 }
-                                let status_text = if text.len() > 128 { text[..128].to_string() } else { text };
+                                let status_text = if text.len() > 128 { humanity_core::text::prefix(&text, 128).to_string() } else { text };
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 if let Some(ref p) = peer {
                                     if let Some(ref name) = p.display_name {
@@ -6083,7 +6083,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                     tracing::info!(
                                         "privacy_update: presence {} for {}…",
                                         if hide_presence { "hidden" } else { "visible" },
-                                        &my_key_for_recv[..12.min(my_key_for_recv.len())]
+                                        humanity_core::text::prefix(&my_key_for_recv, 12)
                                     );
                                     // Roster refresh so the change is
                                     // immediate for everyone.

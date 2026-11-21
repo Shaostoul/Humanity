@@ -894,7 +894,7 @@ pub fn draw(
                                 let short = if humanity_core::i18n::has(&key) {
                                     humanity_core::i18n::t_dyn(&key)
                                 } else {
-                                    &d[..3]
+                                    humanity_core::text::prefix(&d, 3)
                                 };
                                 ui.checkbox(&mut ps.s_days[i], short)
                                     .hint("market.publish.day_hint");

@@ -2178,7 +2178,7 @@ mod tests {
             assert!(said.contains(words), "the guest sentence does not say {words:?}: {said}");
         }
         // The rig tells the build editor's refusal apart from this one by its first words.
-        assert!(!GUEST_ARRIVAL_START.starts_with(&GUEST_NO_EDITOR[..40]), "the two guest sentences start alike");
+        assert!(!GUEST_ARRIVAL_START.starts_with(humanity_core::text::prefix(&GUEST_NO_EDITOR, 40)), "the two guest sentences start alike");
         // Once: a reconnect (or a Respawn) while still a guest says nothing more.
         let reconnect = plan_welcome(Some(&ship), &welcome_full(None, &hash, Some(COMMONS.into()), true), &again(COMMONS));
         assert!(matches!(reconnect, WelcomeHome::Guest { join_afresh: false, .. }), "{reconnect:?}");

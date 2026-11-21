@@ -64,6 +64,28 @@ fn a_server_swapped_key_is_refused() {
     assert!(crate::engine::dm::control_puts(&gs, &ann, "[[hum:follow]]", None).is_some(), "and something can be sealed to her");
 }
 
+/// A REFUSED CARD WHOSE KEY HOLDS A MULTI-BYTE CHARACTER DOES NOT CRASH THE APP (BUG-340). The key
+/// of a card that fails its check is whatever the server sent, and the warning names its first
+/// twelve characters. It used to cut them by BYTES (`&card.key[..12.min(card.key.len())]`), which
+/// panics when byte 12 falls inside a character; the handler runs on the main frame thread with no
+/// catch, so any connected server could crash the desktop app with one frame, on every reconnect.
+/// The log line is read back, so the cut really ran (a warning nobody listens to is never built).
+///
+/// Seen red 2026-11-21 before the fix: "panicked at src\engine\key_cards.rs:269:100: end byte index
+/// 12 is not a char boundary; it is inside 'é' (bytes 11..13 of string)".
+#[test]
+fn a_refused_card_with_a_multibyte_key_does_not_crash() {
+    let mut gs = app(33);
+    let real = sign_card(&[34; 32], AT).unwrap();
+    // Eleven ASCII letters, then a two-byte e-acute at bytes 11 and 12: byte 12 is inside it.
+    let key = format!("{}\u{e9}{}", "a".repeat(11), "b".repeat(40));
+    let bad = KeyCard { key: key.clone(), ..real };
+    let ((), lines) = humanity_core::test_log::capture(|| on_key_cards_frame(&mut gs, &answer(&[card_json(&bad)])));
+    assert!(!gs.peer_kyber_keys.contains_key(&key), "a card that does not check out gave a key");
+    let want = format!("{}\u{e9}\u{2026}", "a".repeat(11));
+    assert!(lines.iter().any(|l| l.contains("refused a card") && l.contains(&want)), "the warning names the key's first twelve characters: {lines:?}");
+}
+
 /// A VALID CARD IS ACCEPTED FROM ANY SERVER: a card names no server, so the same check passes
 /// whichever link brought it (the active server's socket or a background link both hand the
 /// answer to `on_key_cards_frame`), and the pin belongs to the identity, so it still seals after

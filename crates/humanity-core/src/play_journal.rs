@@ -132,7 +132,8 @@ pub fn append_capped(path: &Path, lines: &[String], cap: u64) {
         return;
     }
     let Ok(all) = std::fs::read_to_string(path) else { return };
-    let keep_from = all.len().saturating_sub((cap / 2) as usize);
+    // The last half, from a character boundary (a byte count can fall inside a character, BUG-340).
+    let keep_from = all.len() - crate::text::suffix_bytes(&all, (cap / 2) as usize).len();
     // From the start of the first whole line at or after the halfway point.
     let start = all[keep_from..].find('\n').map(|i| keep_from + i + 1).unwrap_or(all.len());
     let _ = std::fs::write(path, &all[start..]);

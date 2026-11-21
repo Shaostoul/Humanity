@@ -138,7 +138,7 @@ fn state_of(gs: &GuiState, serial: &str) -> Option<GivenState> {
 }
 
 fn row_for(gs: &GuiState, key: &str) -> FriendRow {
-    friends(gs).into_iter().find(|r| r.key == key).unwrap_or_else(|| panic!("a row for {}", &key[..8]))
+    friends(gs).into_iter().find(|r| r.key == key).unwrap_or_else(|| panic!("a row for {}", humanity_core::text::prefix(&key, 8)))
 }
 
 /// GIVING SEALS ONE NOTE TO THE FRIEND, AND IT COUNTS ONLY ONCE THE SERVER TOOK IT (plan 3.3, the

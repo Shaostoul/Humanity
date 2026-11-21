@@ -301,7 +301,7 @@ mod tests {
             b[at] ^= 0x01;
             assert!(parse_header(&b).is_none(), "a header changed at byte {at} was accepted");
         }
-        assert!(parse_header(&raw[..31]).is_none());
+        assert!(parse_header(&raw[..31]).is_none()); // text-cut-ok: bytes, not text
         drop(conn);
     }
 }

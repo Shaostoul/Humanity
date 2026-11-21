@@ -807,7 +807,7 @@ async fn check_owner(dest: &Destination, key: &[u8; 32], fp: &str) -> Result<(),
             )),
             Ok((other, _)) if other != fp => Err(Talk::Refused(format!(
                 "That destination holds the backups of another server (…{}). Choose another folder or prefix; nothing was written there.",
-                &other[other.len().saturating_sub(8)..]
+                humanity_core::text::suffix(&other, 8)
             ))),
             Ok(_) => Ok(()),
         },

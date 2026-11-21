@@ -467,7 +467,7 @@ pub(crate) fn day_words(unix: u64, short: bool) -> String {
     let (y, m, d) = humanity_systems::persistence::civil_from_days((unix / 86_400) as i64);
     let month = MONTHS[(m as usize).clamp(1, 12) - 1];
     if short {
-        format!("{d} {} {y}", &month[..3])
+        format!("{d} {} {y}", humanity_core::text::prefix(&month, 3))
     } else {
         format!("{d} {month} {y}")
     }

@@ -306,7 +306,7 @@ pub fn amount_text(quantity: f64, unit: &str, item_name: Option<&str>) -> String
 pub fn when_text(game_time: f64, real_day: i64) -> String {
     let day = (game_time / 86_400.0).floor() as i64 + 1;
     let date = super::game_admin::format_ban_date(real_day * 86_400_000);
-    format!("Day {day} ({})", &date[..10.min(date.len())])
+    format!("Day {day} ({})", humanity_core::text::prefix(&date, 10))
 }
 
 /// The fleet store nearest the player, and how far it is in a straight line: the nearest of the

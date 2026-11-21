@@ -136,7 +136,7 @@ fn pane_balance_send(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.horizontal(|ui| {
             let addr = &state.wallet_address;
             let display = if addr.len() > 16 {
-                format!("{}...{}", &addr[..8], &addr[addr.len() - 8..])
+                format!("{}...{}", humanity_core::text::prefix(&addr, 8), humanity_core::text::suffix(&addr, 8))
             } else if addr.is_empty() {
                 t("wallet.no_address").to_string()
             } else {
@@ -288,7 +288,7 @@ fn pane_history_tokens(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
                             );
                             ui.add_space(10.0);
                             let hash_display = if tx.signature.len() > 12 {
-                                format!("{}...", &tx.signature[..10])
+                                format!("{}...", humanity_core::text::prefix(&tx.signature, 10))
                             } else {
                                 tx.signature.clone()
                             };

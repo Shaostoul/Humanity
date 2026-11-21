@@ -76,7 +76,7 @@ pub(crate) fn shows_in_place(att: &DmAttachment) -> bool {
 /// hashed so the file's key is never a texture name or the image viewer's title.
 pub(crate) fn cache_key(att: &DmAttachment) -> String {
     let h = blake3::hash(format!("{}\n{}\n{}", att.url, att.k, att.n).as_bytes());
-    format!("{PRIVATE_KEY_PREFIX}{}", &h.to_hex()[..32])
+    format!("{PRIVATE_KEY_PREFIX}{}", humanity_core::text::prefix(&h.to_hex(), 32))
 }
 
 /// How a private file is shown.

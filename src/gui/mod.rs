@@ -3068,7 +3068,7 @@ impl GuiState {
                 self.governance_my_votes.clear();
                 self.governance_vote_rx = None;
                 self.governance_vote_status.clear();
-                let kp = &self.profile_public_key[..16.min(self.profile_public_key.len())];
+                let kp = humanity_core::text::prefix(&self.profile_public_key, 16);
                 log::info!("PQ identity applied (Dilithium {kp}…); reconnecting to send its key card");
             }
             Err(e) => log::error!("apply_pq_identity: PQ derivation failed: {e}"),

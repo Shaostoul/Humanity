@@ -1224,7 +1224,7 @@ fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             );
             // Short key.
             let short_key = if b.public_key.len() > 16 {
-                format!("{}…", &b.public_key[..16])
+                format!("{}…", humanity_core::text::prefix(&b.public_key, 16))
             } else {
                 b.public_key.clone()
             };
@@ -1481,7 +1481,7 @@ fn draw_muted_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .truncate(),
             );
             let short_key = if m.public_key.len() > 16 {
-                format!("{}…", &m.public_key[..16])
+                format!("{}…", humanity_core::text::prefix(&m.public_key, 16))
             } else {
                 m.public_key.clone()
             };
@@ -1863,7 +1863,7 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             "Never modified, defaults active.".to_string()
         } else {
             let by = if s.updated_by.is_empty() { "?".to_string() }
-                     else if s.updated_by.len() > 16 { format!("{}…{}", &s.updated_by[..6], &s.updated_by[s.updated_by.len()-6..]) }
+                     else if s.updated_by.len() > 16 { format!("{}…{}", humanity_core::text::prefix(&s.updated_by, 6), humanity_core::text::suffix(&s.updated_by, 6)) }
                      else { s.updated_by.clone() };
             format!("Last updated: {} ms (by {})", s.updated_at, by)
         };
@@ -2642,14 +2642,11 @@ fn send_role_upsert(state: &GuiState, role: &crate::relay::storage::RoleDef) {
 /// no access to chat.rs::parse_role_color). #RRGGBB, theme fallback.
 fn parse_role_color_ss(hex: &str, theme: &Theme) -> Color32 {
     let h = hex.trim().trim_start_matches('#');
-    if h.len() == 6 {
-        if let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&h[0..2], 16),
-            u8::from_str_radix(&h[2..4], 16),
-            u8::from_str_radix(&h[4..6], 16),
-        ) {
-            return Color32::from_rgb(r, g, b); // theme-exempt: data-driven role color
-        }
+    // Six hex digits, read whole: the colour comes from the server, and cutting other text two
+    // bytes at a time could fall inside a character and panic (BUG-340).
+    if h.len() == 6 && h.bytes().all(|c| c.is_ascii_hexdigit()) {
+        let [_, r, g, b] = u32::from_str_radix(h, 16).unwrap_or(0).to_be_bytes();
+        return Color32::from_rgb(r, g, b); // theme-exempt: data-driven role color
     }
     theme.text_muted()
 }
@@ -3059,7 +3056,7 @@ fn short_key(key: &str) -> String {
     if key.len() <= 16 {
         key.to_string()
     } else {
-        format!("{}…{}", &key[..8], &key[key.len() - 4..])
+        format!("{}…{}", humanity_core::text::prefix(&key, 8), humanity_core::text::suffix(&key, 4))
     }
 }
 
@@ -3173,7 +3170,7 @@ mod tests {
         state.admin_erase.member_search = format!("{:x}", 0x69u32 + 0x1000_0000); // no one's key
         let out = members_frame(&ctx, &theme, &mut state);
         assert!(find_text_in_shapes(&out.shapes, "No member's name or key holds that.").is_some(), "nothing found says so");
-        state.admin_erase.member_search = format!("{:064x}", 105u32)[50..].to_string(); // part of a key
+        state.admin_erase.member_search = humanity_core::text::suffix(&format!("{:064x}", 105u32), 14).to_string(); // part of a key
         let out = members_frame(&ctx, &theme, &mut state);
         assert!(find_text_in_shapes(&out.shapes, "Walker 105").is_some(), "a part of a key finds them too");
     }

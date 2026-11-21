@@ -75,10 +75,10 @@ fn a_card_has_one_spelling() {
     let card = sign_card(&seed(SIGNER), AT).unwrap();
     let bad = [
         KeyCard { key: card.key.to_uppercase(), ..card.clone() },
-        KeyCard { kyber: format!(" {}", &card.kyber[1..]), ..card.clone() },
+        KeyCard { kyber: format!(" {}", card.kyber.get(1..).unwrap()), ..card.clone() },
         KeyCard { kyber: card.kyber.trim_end_matches('=').to_string(), ..card.clone() },
-        KeyCard { sig: card.sig[..card.sig.len() - 4].to_string(), ..card.clone() },
-        KeyCard { key: card.key[2..].to_string(), ..card.clone() },
+        KeyCard { sig: card.sig.get(..card.sig.len() - 4).unwrap().to_string(), ..card.clone() },
+        KeyCard { key: card.key.get(2..).unwrap().to_string(), ..card.clone() },
         KeyCard { v: 2, ..card.clone() },
         KeyCard { at: 0, ..card.clone() },
     ];

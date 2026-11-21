@@ -2284,7 +2284,7 @@ mod tests {
         assert_eq!(free_in(&a, "apartment"), Some(0));
         let text = a.to_string();
         for (who, key) in [("Ann", &ann_key), ("Bo", &bo_key), ("Cy", &cy_key)] {
-            assert!(!text.contains(&key[..16]) && !text.contains(&crate::relay::storage::plot_owner_id(key)), "Dee's answer names {who}: {text}");
+            assert!(!text.contains(humanity_core::text::prefix(&key, 16)) && !text.contains(&crate::relay::storage::plot_owner_id(key)), "Dee's answer names {who}: {text}");
         }
         for id in [&cabins[0], &cabins[1], &homesteads[0]] {
             assert!(!text.contains(&format!("\"{id}\"")), "Dee's answer names the plot {id}: {text}");
@@ -2295,7 +2295,7 @@ mod tests {
         assert!(lines.contains("Game: home chosen (cabin)"), "the choice is logged: {lines}");
         for line in lines.lines().filter(|l| l.contains("home chosen") || l.contains("home asked")) {
             for key in [&ann_key, &bo_key, &cy_key, &dee_key] {
-                assert!(!line.contains(&key[..12]) && !line.contains(&crate::relay::storage::plot_owner_id(key)), "a home line names a key: {line}");
+                assert!(!line.contains(humanity_core::text::prefix(&key, 12)) && !line.contains(&crate::relay::storage::plot_owner_id(key)), "a home line names a key: {line}");
             }
             for id in [&cabins[0], &cabins[1], &homesteads[0]] {
                 assert!(!line.contains(id.as_str()), "a home line names a plot: {line}");
@@ -4658,7 +4658,7 @@ mod tests {
         let mut named = Vec::new();
         for key in who {
             let did = crate::relay::storage::plot_owner_id(key);
-            for told in [key.to_string(), key[..16].to_string(), did] {
+            for told in [key.to_string(), humanity_core::text::prefix(&key, 16).to_string(), did] {
                 if logged.contains(&told) {
                     named.push(told);
                 }

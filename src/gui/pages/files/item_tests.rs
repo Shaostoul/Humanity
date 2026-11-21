@@ -80,7 +80,7 @@ pub(crate) fn page_on(base: &str, answer: ListAnswer, token: &str) -> GuiState {
     state.files.requested = true;
     super::super::apply_list(&mut state.files, answer, false);
     state.upload_token = Some((base.to_string(), token.to_string()));
-    state.files.token_mark = blake3::hash(token.as_bytes()).to_hex()[..16].to_string();
+    state.files.token_mark = humanity_core::text::prefix(&blake3::hash(token.as_bytes()).to_hex(), 16).to_string();
     state.private_key_bytes = Some(vec![7u8; 32]);
     // Files go up exactly as they are here: what the cleaning does is not what these test.
     state.settings.files_in_messages.remove_details = false;
@@ -773,7 +773,7 @@ fn rename_keeps_the_ending_and_a_picture_on_the_item_can_be_its_cover() {
     assert_eq!(form(&state), None, "the box closes");
     let requests = seen.lock().unwrap().clone();
     let rename = requests.iter().find(|r| r.starts_with("POST /api/files/item-files/rename ")).expect("asked");
-    assert!(rename.contains(r#""name":"skin.zip""#) && rename.contains(r#""file":1"#) && rename.contains(r#""file_name":"8_textures.zip""#), "the name with its ending put back: {}", &rename[..rename.len().min(300)]);
+    assert!(rename.contains(r#""name":"skin.zip""#) && rename.contains(r#""file":1"#) && rename.contains(r#""file_name":"8_textures.zip""#), "the name with its ending put back: {}", humanity_core::text::prefix(&rename, 300));
     assert!(shows(&settled(&ctx, &theme, &mut state), "skin.zip, "), "the row shows the new name");
 
     // The picture becomes the cover.
@@ -784,7 +784,7 @@ fn rename_keeps_the_ending_and_a_picture_on_the_item_can_be_its_cover() {
     until(&ctx, &theme, &mut state, "the cover is answered", |s| s.files.item.as_ref().is_some_and(|p| p.status == crate::gui::pages::files::item_view::COVER_CHOSEN));
     let requests = seen.lock().unwrap().clone();
     let cover = requests.iter().find(|r| r.starts_with("POST /api/files/item-files/cover ")).expect("asked");
-    assert!(cover.contains(r#""file":2"#) && cover.contains(r#""file_name":"9_shot.png""#), "that picture: {}", &cover[..cover.len().min(300)]);
+    assert!(cover.contains(r#""file":2"#) && cover.contains(r#""file_name":"9_shot.png""#), "that picture: {}", humanity_core::text::prefix(&cover, 300));
     let out = settled(&ctx, &theme, &mut state);
     assert!(shows(&out, "shot.png, cover picture, "), "it is the cover now");
     assert!(every_exact(&out, edit::USE_AS_COVER).is_empty(), "and the cover has no Use as cover");

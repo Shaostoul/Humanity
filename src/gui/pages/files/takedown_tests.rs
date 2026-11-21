@@ -43,7 +43,7 @@ fn signed_in_on(base: &str, role: &str) -> GuiState {
     state.files.requested = true;
     apply_list(&mut state.files, answer_of(vec![rich_item(("k2", "Ann"))]), false);
     state.upload_token = Some((base.to_string(), "tok".to_string()));
-    state.files.token_mark = blake3::hash(b"tok").to_hex()[..16].to_string();
+    state.files.token_mark = humanity_core::text::prefix(&blake3::hash(b"tok").to_hex(), 16).to_string();
     state.private_key_bytes = Some(seed);
     state.chat_users.push(ChatUser { name: "Me".into(), public_key: key, role: role.into(), status: String::new() });
     // The admins' categories, suggestions and meter count as asked: these tests are about the
