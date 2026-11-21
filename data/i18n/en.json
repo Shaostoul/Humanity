@@ -4027,6 +4027,11 @@
     "credit_openmoji": "OpenMoji",
     "credit_openmoji_hint": "Opens the website of OpenMoji, the open project that designed these emoji."
   },
+  "farming": {
+    "harvest_part": "Picked {{got}} of {{name}}, short of a whole one ({{whole}}): {{toward}} is kept toward it.",
+    "harvest_whole": "Picked {{got}} of {{name}}: {{n}} whole ({{whole}} each), and {{toward}} kept toward the next.",
+    "harvest_whole_exact": "Picked {{got}} of {{name}}: {{n}} whole ({{whole}} each)."
+  },
   "files": {
     "places": {
       "label": "Places",

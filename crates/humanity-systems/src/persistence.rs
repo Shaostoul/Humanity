@@ -140,6 +140,11 @@ pub struct WorldSave {
     /// each area at its own last turn, and the load owes each this again.
     #[serde(default)]
     pub farm_owed: crate::farming::clock::Owed,
+    /// The produce the player has picked toward each next whole item (2026-11-21,
+    /// farming::basket): a radish cup picks 4 g of a 300 g bunch, and those grams wait for the
+    /// next harvest instead of being rounded away. A save without it has nothing kept.
+    #[serde(default)]
+    pub harvest_basket: crate::farming::basket::HarvestBasket,
     /// The player's credit balance (v0.747, ladder rung 3). serde-default -1 =
     /// "no wallet saved yet" so pre-v0.747 saves keep the fresh-start default
     /// (10,000 CR) instead of loading as broke.
@@ -445,6 +450,7 @@ impl WorldSave {
             inventory_age: Vec::new(),
             soil_memory: Default::default(),
             farm_owed: Default::default(),
+            harvest_basket: Default::default(),
             credits: -1,
             quests: None,
             herd: Vec::new(),
@@ -1130,6 +1136,7 @@ mod tests {
             inventory_age: Vec::new(),
             soil_memory: Default::default(),
             farm_owed: Default::default(),
+            harvest_basket: Default::default(),
             credits: -1,
             quests: None,
             herd: Vec::new(),

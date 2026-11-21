@@ -21,6 +21,9 @@ pub mod sowing;
 pub mod step_path;
 pub mod clock;
 pub mod versions;
+pub mod basket;
+#[cfg(test)]
+mod basket_tests;
 #[cfg(test)]
 mod sowing_tests;
 #[cfg(test)]
@@ -764,34 +767,6 @@ pub fn season_health(crop: &CropInstance) -> f32 {
 /// stressed (2026-09-26). A presentation threshold, not agronomy: small dips
 /// stay quiet so a well-kept garden does not nag.
 const STRESSED_HARVEST_NOTICE_BELOW: f32 = 0.9;
-
-/// Whole items one harvest yields (2026-09-26, extracted so a test can drive
-/// it with a seeded generator).
-///
-/// `roll` and `round` are two uniform draws in [0, 1). The continuous yield
-/// is rolled in [ymin, ymax] and then SCALED BY SEASON HEALTH: a crop kept
-/// well all season gets the full range, one that spent the season at half
-/// health gets half, one that barely survived gets next to nothing. The
-/// linear shape is the standard crop-water production function (FAO
-/// Irrigation and Drainage Paper 33, Doorenbos and Kassam 1979: relative
-/// yield loss is proportional to the relative water deficit over the
-/// season, 1 - Ya/Ym = Ky (1 - ETa/ETm)). Season health stands in for the
-/// deficit, since stress (thirst above all, and RF and hard acceleration)
-/// is what drives crop health down here. Ky is taken as 1 because
-/// plants.csv carries no per-crop response factor yet; FAO's Ky runs above
-/// and below 1 by crop and by growth stage, so a per-crop column is the
-/// natural next rung, not a number invented here.
-///
-/// The scaled yield becomes a whole count by PROBABILISTIC ROUNDING (floor +
-/// Bernoulli on the fraction): a 0.3 yields 1 item 30% of the time and 0
-/// items 70%, so the expected value equals the scaled roll. Fractional crops
-/// average their real output over repeated harvests instead of being
-/// silently rounded up to a full unit (3x inflation for saffron) or floored
-/// to permanent zero, and a stressed crop's loss shows up the same way.
-fn harvest_quantity(ymin: f32, ymax: f32, season_health: f32, roll: f32, round: f32) -> u32 {
-    let rolled = (ymin + roll * (ymax - ymin)) * season_health.clamp(0.0, 1.0);
-    rolled.floor() as u32 + u32::from(round < rolled.fract())
-}
 
 /// What a crop draws from its UNIT over one growing season, grams of N, P2O5
 /// and K2O (2026-09-26, soil.rs): its harvest's removal (`crop_removal`),
@@ -2320,6 +2295,15 @@ impl FarmingSystem {
         // how many, and the sum of their season health for the average.
         let mut stressed_picked = 0u32;
         let mut stressed_health_sum = 0.0f32;
+        // What this tick's presses picked of each produce, for one line per
+        // produce after the loop (2026-11-21, basket.rs): the items picked
+        // (fractional) and the whole items handed over.
+        let mut picked_report: std::collections::BTreeMap<String, (f64, u32)> = std::collections::BTreeMap::new();
+        // Every gram picked goes into the player's harvest basket, so the
+        // player needs one (a fresh player is spawned without).
+        if !harvest_list.is_empty() {
+            basket::ensure(world);
+        }
         for bits in harvest_list {
             if let Some(entity) = hecs::Entity::from_bits(bits) {
                 // Read the crop (immutable, scoped) to confirm maturity + plant
@@ -2352,11 +2336,14 @@ impl FarmingSystem {
                     // units.rs): one for a tower cup, every plant a bed
                     // plot holds. One roll for the whole unit: its plants
                     // shared one season, one water supply and one soil.
-                    // Rolled in [ymin, ymax], scaled by the crop's season
-                    // health and fruit set, rounded probabilistically: see
-                    // harvest_quantity for the model and its source. A crop
-                    // harvested once gives it all now; a picked one the share
-                    // its ripe picks cover, or nothing yet (picking.rs).
+                    // Rolled in [ymin, ymax] and scaled by the crop's season
+                    // health and fruit set (picking::season_items has the
+                    // model and its source), never rounded: what it picks
+                    // goes into the player's harvest basket, which hands over
+                    // the whole items and keeps the rest toward the next
+                    // (basket.rs, 2026-11-21). A crop harvested once gives it
+                    // all now; a picked one the share its ripe picks cover,
+                    // or nothing yet (picking.rs).
                     let scale = crop_season_health * self.pollination.harvest_set(world, data, entity);
                     let Some(taken) =
                         self.picking.harvest(world, data, entity, &plant_id, (ymin, ymax), plants_here, scale)
@@ -2364,17 +2351,25 @@ impl FarmingSystem {
                         continue;
                     };
                     if let Some(yield_item) = harvest_item_for(&plant_id, plant_registry, item_registry) {
-                        let qty = taken.items;
                         if taken.first && crop_season_health < STRESSED_HARVEST_NOTICE_BELOW {
                             stressed_picked += 1;
                             stressed_health_sum += crop_season_health;
                         }
                         let max_stack =
                             item_registry.map(|r| r.max_stack_for(&yield_item)).unwrap_or(99);
-                        for (_e, (inv, _ctrl)) in world.query_mut::<(
+                        for (_e, (inv, basket, _ctrl)) in world.query_mut::<(
                             &mut crate::inventory::Inventory,
+                            &mut basket::HarvestBasket,
                             &humanity_core::ecs::components::Controllable,
                         )>() {
+                            // What it picked joins what the basket kept of
+                            // this produce; the whole items that makes come
+                            // out, the rest stays for the next harvest
+                            // (basket.rs, 2026-11-21).
+                            let qty = basket.add(&yield_item, taken.got);
+                            let line = picked_report.entry(yield_item.clone()).or_insert((0.0, 0));
+                            line.0 += taken.got;
+                            line.1 += qty;
                             // Volume-gated (Stage A slice 2): surplus that
                             // doesn't fit the pack routes to a home vessel
                             // after this borrow ends (v0.729).
@@ -2405,7 +2400,11 @@ impl FarmingSystem {
                                     item_registry.map(|r| r.volume_for(&seed_id)).unwrap_or(0.0);
                                 inv.add_item_volume_gated(&seed_id, taken.seeds, seed_stack, seed_vol);
                             }
-                            log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
+                            log::info!(
+                                "[Farming] harvested {qty}x {yield_item} from {plant_id} ({:.4} picked, {:.4} kept toward the next)",
+                                taken.got,
+                                basket.toward(&yield_item)
+                            );
                             // Harvesting trains Farming (scales lightly with yield).
                             // A picked plant earns the per-harvest 10 at its first
                             // pick only (2026-09-26), so 36 picks of a tomato train
@@ -2442,6 +2441,23 @@ impl FarmingSystem {
                         vacate_unit(world, entity, plants_here, plant_registry, item_registry, demand_scale, legume_harvest_share);
                     }
                 }
+            }
+        }
+        // Say what each produce's harvest came to (2026-11-21, basket.rs):
+        // what was picked, the whole items it made and what is kept toward
+        // the next, one line per produce however many crops a bulk harvest
+        // took. Without it a radish cup's 4 g would look like nothing at all.
+        if !picked_report.is_empty() {
+            let kept = basket::of_player(world);
+            for (item, (got, whole)) in &picked_report {
+                if !(*got > 0.0) && *whole == 0 {
+                    continue;
+                }
+                let name = item_registry
+                    .and_then(|r| r.items.get(item))
+                    .map_or_else(|| item.replace('_', " "), |d| d.name.to_lowercase());
+                let kg = item_registry.map_or(0.0, |r| f64::from(r.mass_for(item)));
+                push_reply(data, basket::report_line(&name, kg, *got, *whole, kept.toward(item)));
             }
         }
         // Say when picked plants finish bearing (2026-09-26, picking.rs): the
@@ -4332,15 +4348,24 @@ mod gardening_tests {
         let grain = |world: &hecs::World| {
             world.get::<&Inventory>(player).unwrap().count_item("vegetable_potato_0")
         };
-        let notices = |data: &DataStore| crate::notices::take_said(data);
+        // The stress notices among what the harvest said (since 2026-11-21
+        // every press also says what it picked, basket.rs).
+        let stress_lines = |said: &[String]| said.iter().filter(|l| l.contains("stressed")).cloned().collect::<Vec<_>>();
+        let notices = |data: &DataStore| stress_lines(&crate::notices::take_said(data));
 
         *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() =
             healthy;
         sys.tick(&mut world, 1.0, &data);
         let healthy_total = grain(&world);
+        let said = crate::notices::take_said(&data);
         assert!(
-            notices(&data).is_empty(),
-            "a well-kept harvest posts no stress notice"
+            stress_lines(&said).is_empty(),
+            "a well-kept harvest posts no stress notice: {said:?}"
+        );
+        assert_eq!(
+            said.iter().filter(|l| l.contains("of potato")).count(),
+            1,
+            "forty potato plants harvested at once say what they picked in one line: {said:?}"
         );
 
         *data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request").unwrap().lock().unwrap() =
@@ -4372,35 +4397,23 @@ mod gardening_tests {
         );
     }
 
-    /// The yield model on its own, seeded so it is exact run to run
-    /// (2026-09-26): the average harvest is proportional to season health
-    /// for a whole-unit crop and a fractional one alike (saffron rolls 0.3
-    /// to 1.0, so probabilistic rounding carries the loss), and a crop at
-    /// zero season health yields nothing at all.
+    /// The yield model on its own (2026-09-26): the harvest is the roll in
+    /// the plant's range times season health, for a whole-unit crop and a
+    /// fractional one alike, and a crop at zero season health yields nothing
+    /// at all. CHANGED 2026-11-21: the model no longer rounds (the harvest
+    /// basket keeps the fraction, basket.rs), so this checks `season_items`
+    /// exactly where it averaged 20,000 probabilistically rounded harvests.
     #[test]
-    fn harvest_quantity_scales_the_average_with_season_health() {
-        use rand::{Rng, SeedableRng};
-        let mean = |ymin: f32, ymax: f32, health: f32| {
-            let mut rng = rand::rngs::StdRng::seed_from_u64(0x5eed);
-            let n = 20_000;
-            let total: u32 = (0..n)
-                .map(|_| harvest_quantity(ymin, ymax, health, rng.random(), rng.random()))
-                .sum();
-            total as f32 / n as f32
-        };
-        for (ymin, ymax) in [(8.0, 20.0), (0.3, 1.0)] {
-            let full = mean(ymin, ymax, 1.0);
-            let half = mean(ymin, ymax, 0.5);
-            let expect = (ymin + ymax) / 2.0;
-            assert!(
-                (full - expect).abs() < expect * 0.03,
-                "full health averages the plant's range ({ymin}..{ymax}): {full} vs {expect}"
-            );
-            assert!(
-                (half / full - 0.5).abs() < 0.03,
-                "half the season health averages half the harvest ({ymin}..{ymax}): {half} vs {full}"
-            );
-            assert_eq!(mean(ymin, ymax, 0.0), 0.0, "zero season health yields nothing");
+    fn season_items_scales_the_harvest_with_season_health() {
+        for (ymin, ymax) in [(8.0_f32, 20.0_f32), (0.3, 1.0)] {
+            for roll in [0.0_f32, 0.5, 0.999] {
+                let at = |health: f32| picking::season_items(ymin, ymax, roll, health);
+                let rolled = f64::from(ymin) + f64::from(roll) * (f64::from(ymax) - f64::from(ymin));
+                assert!((at(1.0) - rolled).abs() < 1e-9, "full health gives the roll in the range ({ymin}..{ymax}, {roll})");
+                assert!((at(0.5) - rolled / 2.0).abs() < 1e-9, "half the season health gives half ({ymin}..{ymax}, {roll})");
+                assert_eq!(at(0.0), 0.0, "zero season health yields nothing");
+                assert_eq!(at(2.0), at(1.0), "health is clamped to 1");
+            }
         }
     }
 

@@ -575,10 +575,9 @@ pub struct CropPicking {
     /// one roll the way a crop harvested once has one.
     #[serde(default)]
     pub roll: Option<f32>,
-    /// Items this plant has grown that its picks have not yet handed over
-    /// (below one), so whole items come out and the season adds up.
-    #[serde(default)]
-    pub carry: f64,
+    // (Its `carry`, the fraction of an item between one pick and the next, went 2026-11-21: every
+    // pick's fraction now goes into the player's harvest basket, farming/basket.rs, which carries
+    // it across plants and harvests alike.)
 }
 
 /// What is left in the soil of units whose crop was harvested or died,

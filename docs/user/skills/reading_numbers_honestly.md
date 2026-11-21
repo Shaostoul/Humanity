@@ -435,9 +435,10 @@ random on purpose and others are smoothed.
   (`yield_min` and `yield_max` in `data/plants.csv`), scaled up by the
   number of plants in the bed, then scales it by how well the crop did:
   its health over the season and, for crops that need pollinating, how
-  well it set fruit. A fractional result is rounded up or down at
-  random, in proportion, so that the average comes out right over many
-  harvests. Two beds planted and tended the same way can therefore give
+  well it set fruit. Nothing is rounded away: what falls short of a
+  whole item (one radish plant gives a few grams of a 300 g bunch) is
+  kept toward the next harvest of the same produce, and the game says
+  how much is kept. Because of the roll, two beds planted and tended the same way can give
   different harvests. Before deciding that one bed or one way of tending
   is better, compare several harvests, not one.
 - **The same machine, three ways.** Press F2 for the performance
@@ -577,8 +578,9 @@ were read on 3 October 2026.
 
 ### Inside this project
 
-- The harvest roll: `harvest_quantity` in `crates/humanity-systems/src/farming/mod.rs`
-  and its caller in `crates/humanity-systems/src/farming/picking.rs`; the yields in
+- The harvest roll: `season_items` in `crates/humanity-systems/src/farming/picking.rs`,
+  and what is kept toward the next whole item in
+  `crates/humanity-systems/src/farming/basket.rs`; the yields in
   `data/plants.csv`, with their sources in `data/garden/yields.ron`.
 - The F2 performance overlay and its 120-frame bar graph:
   `src/gui/pages/diagnostics.rs`, with the per-frame figure set in

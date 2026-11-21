@@ -20,9 +20,10 @@
 //!    (`take`); pressing it again before the next comes ripe gives nothing.
 //!    Each share is `1 / picks` of the plant's season yield, rolled ONCE for
 //!    the plant (`CropPicking::roll`) and scaled by season health and fruit set
-//!    exactly as a once harvest is, and whole items come out with the fraction
-//!    carried (`pick_items`), so a plant picked every time gives its season
-//!    yield and never more.
+//!    exactly as a once harvest is. What a pick picks goes into the player's
+//!    harvest basket (basket.rs, 2026-11-21), which hands over the whole items
+//!    and keeps the fraction toward the next, so a plant picked every time
+//!    gives its season yield and never more.
 //! 3. The plant is spent after its last share (`spent`), and leaves its unit
 //!    empty the way a once harvest does (farming/mod.rs `vacate_unit`). The
 //!    player can also clear a plant early (the crop card's Clear button, the
@@ -316,34 +317,46 @@ pub fn next_in(rec: &CropPicking, plan: &Plan, realistic: bool) -> f64 {
 /// A plant's season, in (fractional) items: its roll in the plants.csv
 /// yield range, scaled by season health x fruit set. Per plant; the caller
 /// passes the range already times the plants in the unit.
+///
+/// THE YIELD MODEL (2026-09-26, moved here from `farming::harvest_quantity`
+/// when the harvest basket took over its rounding, 2026-11-21). `roll` is a
+/// uniform draw in [0, 1): the continuous yield is rolled in [ymin, ymax] and
+/// then SCALED BY SEASON HEALTH: a crop kept well all season gets the full
+/// range, one that spent the season at half health gets half, one that barely
+/// survived gets next to nothing. The linear shape is the standard crop-water
+/// production function (FAO Irrigation and Drainage Paper 33, Doorenbos and
+/// Kassam 1979: relative yield loss is proportional to the relative water
+/// deficit over the season, 1 - Ya/Ym = Ky (1 - ETa/ETm)). Season health
+/// stands in for the deficit, since stress (thirst above all, and RF and hard
+/// acceleration) is what drives crop health down here. Ky is taken as 1
+/// because plants.csv carries no per-crop response factor yet; FAO's Ky runs
+/// above and below 1 by crop and by growth stage, so a per-crop column is the
+/// natural next rung, not a number invented here.
+///
+/// The result is NOT rounded: it goes into the player's harvest basket
+/// (basket.rs), which hands over the whole items and keeps the fraction, so a
+/// fractional crop (saffron, a radish cup) is never rounded up to a full unit
+/// nor floored to permanent zero. (Until 2026-11-21 it was rounded
+/// probabilistically, which kept the average right but gave a radish grower a
+/// bunch in about one harvest in sixty and nothing in the rest.)
 pub fn season_items(ymin: f32, ymax: f32, roll: f32, scale: f32) -> f64 {
     let (lo, hi) = (f64::from(ymin), f64::from(ymax));
     (lo + f64::from(roll) * (hi - lo)) * f64::from(scale.clamp(0.0, 1.0))
 }
 
-/// Whole items one take hands over: `shares` of `picks` of the season, on top
-/// of what the plant was carrying. Whole items come out and the fraction is
-/// carried to the next pick, so small picks (a strawberry plant's daily
-/// berries are 0.01 of an item) add up instead of rounding to nothing. The
-/// plant's LAST take (`ends`) rounds the remainder probabilistically (+1 with
-/// the fraction's probability, `round` a uniform draw in [0, 1)), so the
-/// season's expected total is exactly `season` and its total is at most one
-/// item over: a crop harvested once is the one-share case, the same rounding
-/// `farming::harvest_quantity` does.
-pub fn pick_items(carry: &mut f64, season: f64, shares: u32, picks: u32, ends: bool, round: f64) -> u32 {
+/// What one take picks, in (fractional) items: `shares` of `picks` of the
+/// plant's season. Nothing is rounded here: the take goes into the player's
+/// harvest basket (basket.rs, 2026-11-21), which hands over the whole items
+/// and keeps the fraction toward the next, so small picks (a strawberry
+/// plant's daily berries are 0.01 of an item) add up instead of rounding to
+/// nothing. Until 2026-11-21 each plant carried its own fraction from pick to
+/// pick and its last pick rounded it probabilistically; the basket carries it
+/// across plants and harvests alike.
+pub fn pick_share(season: f64, shares: u32, picks: u32) -> f64 {
     if picks == 0 {
-        return 0;
+        return 0.0;
     }
-    let got = (*carry + season.max(0.0) * f64::from(shares) / f64::from(picks)).max(0.0);
-    let whole = got.floor();
-    let frac = got - whole;
-    if ends {
-        *carry = 0.0;
-        whole as u32 + u32::from(round < frac)
-    } else {
-        *carry = frac;
-        whole as u32
-    }
+    season.max(0.0) * f64::from(shares) / f64::from(picks)
 }
 
 /// Whether a harvest of this plant hands back its planting stock
@@ -378,8 +391,10 @@ pub fn seed_count(harvested: f64, full: f64, round: f64) -> u32 {
 /// What one press of Harvest took from a ripe crop.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Taken {
-    /// Whole items of its harvest item.
-    pub items: u32,
+    /// Items of its harvest item it picked, FRACTIONAL (a radish cup picks
+    /// about 0.018 of a Radish): the caller puts them in the player's harvest
+    /// basket (basket.rs), which hands over the whole items.
+    pub got: f64,
     /// Seed items to return in survival.
     pub seeds: u32,
     /// The plant is done: harvested once, or its last share picked. The
@@ -542,7 +557,8 @@ impl Picking {
     /// items (plants.csv yield_min, yield_max) in a unit of `plants` plants, at
     /// `scale` = season health x fruit set. None when a picked plant has
     /// nothing ready (the press gives nothing). A crop harvested once gives
-    /// its season (`farming::harvest_quantity`, as before this rung) and ends.
+    /// its season (`season_items`) and ends. What it gives is fractional
+    /// (`Taken::got`); the caller's harvest basket makes whole items of it.
     #[allow(clippy::too_many_arguments)]
     pub fn harvest(
         &mut self,
@@ -572,9 +588,9 @@ impl Picking {
         let rng = self.draws.rng(data);
         let Some(plan) = plan else {
             let roll = rng.random::<f32>();
-            let items = super::harvest_quantity(ymin, ymax, scale, roll, rng.random::<f32>());
-            let seeds = seed_count(season_items(ymin, ymax, roll, scale), full, rng.random::<f64>());
-            return Some(Taken { items, seeds, ends_plant: true, first: true, picked: false });
+            let got = season_items(ymin, ymax, roll, scale);
+            let seeds = seed_count(got, full, rng.random::<f64>());
+            return Some(Taken { got, seeds, ends_plant: true, first: true, picked: false });
         };
         let mut rec = world.get::<&CropPicking>(entity).map(|r| (*r).clone()).unwrap_or_default();
         let first = rec.taken == 0;
@@ -592,9 +608,8 @@ impl Picking {
         let roll = *rec.roll.get_or_insert_with(|| rng.random::<f32>());
         let season = season_items(ymin, ymax, roll, scale);
         let ends = spent(&rec, &plan, realistic);
-        let items = pick_items(&mut rec.carry, season, shares, plan.picks, ends, rng.random::<f64>());
-        let harvested = season * f64::from(shares) / f64::from(plan.picks);
-        let seeds = seed_count(harvested, full, rng.random::<f64>());
+        let got = pick_share(season, shares, plan.picks);
+        let seeds = seed_count(got, full, rng.random::<f64>());
         let had = match world.get::<&mut CropPicking>(entity) {
             Ok(mut r) => {
                 *r = rec.clone();
@@ -605,7 +620,7 @@ impl Picking {
         if !had {
             let _ = world.insert_one(entity, rec);
         }
-        Some(Taken { items, seeds, ends_plant: ends, first, picked: true })
+        Some(Taken { got, seeds, ends_plant: ends, first, picked: true })
     }
 }
 

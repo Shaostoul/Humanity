@@ -4331,7 +4331,11 @@ Picking windows (v0.1369.0): tomatoes, peppers, cucumbers, zucchini, strawberrie
 and cut herbs are picked over a cited window at a cited interval, their season split
 into picks that sum to the cited season yield (`farming/picking.rs`,
 `data/garden/harvest_windows.ron`); seed return follows what was harvested; Settings:
-Picking Forgiving/Realistic. Grow machine cards show kcal a day computed from their
+Picking Forgiving/Realistic. The harvest basket (2026-11-21, BUG-339): a harvest's yield
+is never rounded; what falls short of a whole item (a radish cup's 4 g of a 300 g bunch)
+is kept on the player per produce and added to the next harvest of it, saved in the home
+save, and each harvest press says what it picked and what is kept
+(`farming/basket.rs`, `WorldSave::harvest_basket`). Grow machine cards show kcal a day computed from their
 crops (`systems/grow_machines.rs`), the same figure the Home page's food loop sums.
 Each bed, tray or field plot is drawn with the plants it holds at the crop's spacing, up
 to 128 per plot and then as wider clumps, within a per-plot vertex budget

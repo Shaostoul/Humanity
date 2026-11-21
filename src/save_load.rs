@@ -278,6 +278,9 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         save.outfit = outfit.clone();
         break;
     }
+    // The produce picked toward each next whole item (2026-11-21, farming::basket): a radish
+    // cup's 4 g wait for the next harvest, so a restart must not throw them away.
+    save.harvest_basket = humanity_systems::farming::basket::of_player(world);
     // Deployed vehicles (economy Phase 2 Stage 1, v0.677): every Vehicle entity's
     // kind + pose, so a parked truck is still there after a restart. A truck a loaded save
     // left on the home's plot that is not the home's keeps its mark (ship homes 1b, round 4).
@@ -610,6 +613,9 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         *outfit = save.outfit.clone();
         break;
     }
+    // The produce picked toward each next whole item (2026-11-21, farming::basket), authoritative
+    // like the backpack it travels with.
+    humanity_systems::farming::basket::restore(world, &save.harvest_basket);
     // Wallet (v0.747): -1 = a pre-wallet save; keep the fresh-start default.
     if save.credits >= 0 {
         for (_e, (wallet, _ctrl)) in
@@ -2156,7 +2162,7 @@ mod tests {
             health_seconds: 0.0,
             growing_seconds: 0.0,
         };
-        let rec = CropPicking { days_ripe: 12.25, next_pick: 7, taken: 6, roll: Some(0.625), carry: 0.375 };
+        let rec = CropPicking { days_ripe: 12.25, next_pick: 7, taken: 6, roll: Some(0.625) };
         world.spawn((crop("tomato", "ripe"), rec.clone()));
         world.spawn((crop("lettuce", "mature"),));
         let save = extract_world_save(&world);

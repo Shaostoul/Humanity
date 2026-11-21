@@ -136,11 +136,15 @@ fn every_crop_the_homes_grow_says_how_it_is_harvested() {
 
 /// A tomato bed plot of ten plants, picked at every one of its 36 picks,
 /// gives its season and no more: ten plants x (yield_min + roll x (yield_max
-/// - yield_min)) items, to within the one item the last pick rounds, at the
-/// bottom, the top and the middle of the range. The 36th pick leaves the
-/// plot empty. Seen red by giving each pick the whole season (`shares /
-/// picks` dropped from `pick_items`): the bottom of the range gave 6,531
-/// items against its season of 181.4.
+/// - yield_min)) items, at the bottom, the top and the middle of the range.
+/// The 36th pick leaves the plot empty. Seen red by giving each pick the whole
+/// season (`shares / picks` dropped from what was then `pick_items`): the
+/// bottom of the range gave 6,531 items against its season of 181.4.
+///
+/// CHANGED 2026-11-21 (basket.rs): nothing is rounded now, so the season is
+/// exact: the whole items in the pack plus what the player's harvest basket
+/// keeps toward the next equal the season to 1e-6 (it was "within the one item
+/// the last pick rounds").
 #[test]
 fn a_picked_tomatos_picks_sum_to_its_season_yield() {
     let data = store();
@@ -161,9 +165,12 @@ fn a_picked_tomatos_picks_sum_to_its_season_yield() {
         }
         let season = 10.0 * (f64::from(def.yield_min) + f64::from(roll) * f64::from(def.yield_max - def.yield_min));
         let got = f64::from(count(&world, who, "vegetable_tomato_0"));
+        let kept = super::basket::of_player(&world).toward("vegetable_tomato_0");
         assert_eq!(presses, plan.picks, "roll {roll}: one press a pick, and the last empties the plot");
-        assert!(got >= season.floor() && got <= season.floor() + 1.0, "roll {roll}: {got} items against a season of {season:.2}");
-        assert!(got <= (10.0 * f64::from(def.yield_max)).ceil(), "never more than the top of the range");
+        // 1e-4: the tick multiplies the range by the plants in f32, this test in f64.
+        assert!(kept < 1.0, "roll {roll}: never a whole item left in the basket: {kept}");
+        assert!((got + kept - season).abs() < 1e-4, "roll {roll}: {got} whole + {kept} kept against a season of {season:.4}");
+        assert!(got <= 10.0 * f64::from(def.yield_max) + 1e-4, "never more than the top of the range");
     }
 }
 
@@ -422,11 +429,11 @@ fn the_bulk_harvest_picks_ready_picked_crops() {
     let fresh = world.spawn((crop("tomato", Some("tomato_bed"), &ripe), CropPicking::default()));
     let waiting = world.spawn((
         crop("tomato", Some("tomato_bed"), &ripe),
-        CropPicking { days_ripe: 0.5, next_pick: 1, taken: 1, roll: Some(0.5), carry: 0.0 },
+        CropPicking { days_ripe: 0.5, next_pick: 1, taken: 1, roll: Some(0.5) },
     ));
     let due = world.spawn((
         crop("tomato", Some("tomato_bed"), &ripe),
-        CropPicking { days_ripe: 1.8, next_pick: 1, taken: 1, roll: Some(0.5), carry: 0.0 },
+        CropPicking { days_ripe: 1.8, next_pick: 1, taken: 1, roll: Some(0.5) },
     ));
     let lettuce = world.spawn((crop("lettuce", Some("lettuce_bed"), &last_stage(&data, "lettuce")),));
     let view = picking::GuiView::new(&world, &data);
@@ -467,11 +474,11 @@ fn a_plant_between_picks_reads_bearing_not_ripe() {
         assert_eq!(ripe, "ripe", "the tomato's last plants.csv stage is the word the tile used to show");
         let waiting = world.spawn((
             crop("tomato", Some("tomato_bed"), &ripe),
-            CropPicking { days_ripe: 0.25, next_pick: 1, taken: 1, roll: Some(0.5), carry: 0.0 },
+            CropPicking { days_ripe: 0.25, next_pick: 1, taken: 1, roll: Some(0.5) },
         ));
         let due = world.spawn((
             crop("tomato", Some("tomato_bed"), &ripe),
-            CropPicking { days_ripe: 1.8, next_pick: 1, taken: 1, roll: Some(0.5), carry: 0.0 },
+            CropPicking { days_ripe: 1.8, next_pick: 1, taken: 1, roll: Some(0.5) },
         ));
         let flowering = world.spawn((crop("tomato", Some("tomato_bed"), "flower"),));
         let lettuce = world.spawn((crop("lettuce", Some("lettuce_bed"), &last_stage(&data, "lettuce")),));
@@ -571,20 +578,28 @@ fn the_food_model_counts_a_picked_season_once_per_window() {
     assert!(nutrition.get("basil").is_some(), "basil is in the food table, so the picked case ran");
 }
 
-/// The whole-number bookkeeping: whole items come out of each pick with the
-/// fraction carried, the last pick rounds the remainder, and seed follows the
-/// share harvested. Seen red by resetting the carry on every pick (a season
-/// of 36 picks of 0.9 items then gave nothing).
+/// The whole-number bookkeeping: each pick picks its share of the season, the
+/// harvest basket hands over the whole items with the fraction kept, and seed
+/// follows the share harvested. Seen red by resetting the carry on every pick
+/// (a season of 36 picks of 0.9 items then gave nothing).
+///
+/// CHANGED 2026-11-21 (basket.rs): the carry moved from each plant to the
+/// player's harvest basket and the last pick no longer rounds, so 36 picks of
+/// 0.9 give 32 whole items and keep 0.4 toward the next (it was 32 or 33 by a
+/// draw), and one take of the whole season does the same.
 #[test]
-fn picks_carry_their_fractions_and_the_last_rounds() {
-    let mut carry = 0.0;
+fn picks_carry_their_fractions_into_the_basket() {
+    let mut basket = super::basket::HarvestBasket::default();
     let mut total = 0;
-    for k in 0..36 {
-        total += picking::pick_items(&mut carry, 32.4, 1, 36, k == 35, 0.99);
+    for _ in 0..36 {
+        total += basket.add("tomato", picking::pick_share(32.4, 1, 36));
     }
-    assert_eq!(total, 32, "36 picks of 0.9 items give the season's 32 (0.4 left, rounded down at 0.99)");
-    let mut carry = 0.0;
-    assert_eq!(picking::pick_items(&mut carry, 32.4, 36, 36, true, 0.1), 33, "one take of it all rounds 0.4 up at 0.1");
+    assert_eq!(total, 32, "36 picks of 0.9 items give the season's 32 whole");
+    assert!((basket.toward("tomato") - 0.4).abs() < 1e-9, "and keep 0.4: {}", basket.toward("tomato"));
+    let mut basket = super::basket::HarvestBasket::default();
+    assert_eq!(basket.add("tomato", picking::pick_share(32.4, 36, 36)), 32, "one take of it all: the same 32");
+    assert!((basket.toward("tomato") - 0.4).abs() < 1e-9);
+    assert_eq!(picking::pick_share(32.4, 1, 0), 0.0, "no picks, nothing");
     assert_eq!(picking::seed_count(0.0, 10.0, 0.0), 0);
     assert_eq!(picking::seed_count(10.0, 10.0, 0.99), 2, "a full season, 2");
     assert_eq!(picking::seed_count(5.0, 10.0, 0.99), 1, "half, 1");

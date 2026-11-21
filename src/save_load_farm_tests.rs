@@ -137,3 +137,69 @@ fn a_settle_between_a_load_and_the_farms_next_tick_advances_nothing() {
     assert!(moved.is_empty(), "a settle before the farm's next tick moved the loaded garden: {moved:?}");
     assert_eq!(farming::owed(&data).as_ref(), Some(&saved.farm_owed), "a save before the tick writes the loaded debts");
 }
+
+/// THE HARVEST BASKET SURVIVES A SAVE AND A LOAD (2026-11-21, farming::basket). A radish cup picks
+/// 0.0079 to 0.0273 of a 300 g Radish: no whole Radish, the grams kept in the player's basket. The
+/// game's own save writes them (`save_home_at`), and the game's own load puts them back on a
+/// player spawned the way the game spawns one (`spawn_fresh_player`, `apply_save_to_world`), to
+/// the bit; the next cup harvested there adds to them. A fresh save loaded over a player holding
+/// grams empties the basket, as it empties the pack: two worlds' produce never mix.
+///
+/// Seen red 2026-11-21 with the save not writing the basket (`extract_world_save` without its
+/// `harvest_basket` line): "the save carries the kept grams: 0 saved".
+#[test]
+fn the_harvest_basket_survives_a_save_and_a_load() {
+    use humanity_systems::farming::basket;
+    const RADISH: &str = "vegetable_radish_0";
+    let data_dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let mut data = farming::fixtures::gardening::make_store();
+    humanity_systems::notices::register(&mut data);
+    data.insert("creative_mode", Mutex::new(true));
+    let last = data.get::<farming::PlantRegistry>("plant_registry").unwrap().get("radish").unwrap().last_stage().to_string();
+    let radish = || humanity_core::ecs::components::CropInstance {
+        crop_def_id: "radish".into(),
+        growth_stage: last.clone(),
+        planted_at: 0.0,
+        water_level: 1.0,
+        health: 100.0,
+        tower_id: None,
+        tower_slot: None,
+        health_seconds: 1000.0,
+        growing_seconds: 1000.0,
+    };
+    let press = |sys: &mut FarmingSystem, world: &mut hecs::World, e: hecs::Entity| {
+        *data.get::<Mutex<Option<u64>>>("harvest_request").unwrap().lock().unwrap() = Some(e.to_bits().into());
+        sys.tick(world, 1.0, &data);
+    };
+
+    let mut world = hecs::World::new();
+    spawn_fresh_player(&mut world, &data_dir, "homestead");
+    let mut sys = FarmingSystem::new();
+    let cup = world.spawn((radish(),));
+    press(&mut sys, &mut world, cup);
+    let kept = basket::of_player(&world).toward(RADISH);
+    assert!(kept > 0.0 && kept < 1.0, "a radish cup's grams are kept, short of a Radish: {kept}");
+
+    let root = humanity_core::test_temp::dir("harvest_basket_save");
+    let path = root.join("saves").join(persistence::OFFLINE_SAVE_FILE);
+    save_home_at(&path, &world, &[], &data, true, None);
+    let saved = persistence::load_world(&path).expect("the save reads back");
+    assert_eq!(saved.harvest_basket.toward(RADISH), kept, "the save carries the kept grams: {} saved", saved.harvest_basket.toward(RADISH));
+
+    // The load, onto a player as the game spawns one.
+    let mut world2 = hecs::World::new();
+    spawn_fresh_player(&mut world2, &data_dir, "homestead");
+    apply_save_to_world(&mut world2, &saved);
+    assert_eq!(basket::of_player(&world2).toward(RADISH), kept, "the load puts the grams back on the player");
+    // And they count toward the next harvest there.
+    let mut sys2 = FarmingSystem::new();
+    let cup2 = world2.spawn((radish(),));
+    press(&mut sys2, &mut world2, cup2);
+    let after = basket::of_player(&world2).toward(RADISH);
+    assert!(after > kept, "the next cup adds to the loaded grams: {after} after, {kept} loaded");
+
+    // A fresh save (nothing kept) loaded over it empties the basket.
+    let fresh = persistence::WorldSave::new_offline("fresh", "homestead");
+    apply_save_to_world(&mut world2, &fresh);
+    assert_eq!(basket::of_player(&world2).toward(RADISH), 0.0, "a save with nothing kept empties the basket");
+}
