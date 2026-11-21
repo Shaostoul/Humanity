@@ -140,7 +140,48 @@
     return out;
   }
 
-  const api = { tokens, keyOf, filesFrom, pieces, BASE };
+  // ── The outline on a dark theme (2026-11-20, docs/design/emoji.md "The outline") ──────────────
+  // OpenMoji draws every picture with black lines, which vanish on a dark ground. The operator
+  // asked (2026-11-20) for "a faint light halo behind each emoji on dark themes, as a theme
+  // setting so it can be adjusted or turned off". Its two tokens come from data/gui/theme.ron
+  // through theme.css: --emoji-outline (the colour) and --emoji-outline-width (px; 0 is off, which
+  // is what the light theme sets). The desktop draws the same outline into each picture it
+  // rasterises (src/gui/widgets/emoji/outline.rs): the picture's silhouette grown by the width, in
+  // the colour, beneath the picture. Here the same three steps are an SVG filter (feMorphology
+  // growing the picture's alpha, feFlood and feComposite colouring it, feMerge laying the picture
+  // over it), which web/chat/base.css applies to img.emoji while <html> has data-emoji-outline.
+
+  /** A theme colour as written in theme.css (#rgb, #rrggbb, #rrggbbaa, rgb(), rgba()), as
+   *  { r, g, b, a } with r, g, b 0 to 255 and a 0 to 1; null when it is not one of those. */
+  function parseColour(text) {
+    const s = String(text || '').trim().toLowerCase();
+    let m = /^#([0-9a-f]{3,8})$/.exec(s);
+    if (m) {
+      let h = m[1];
+      if (h.length === 3 || h.length === 4) h = h.split('').map((c) => c + c).join('');
+      if (h.length !== 6 && h.length !== 8) return null;
+      const v = (i) => parseInt(h.slice(i, i + 2), 16);
+      return { r: v(0), g: v(2), b: v(4), a: h.length === 8 ? v(6) / 255 : 1 };
+    }
+    m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/.exec(s);
+    if (m) return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
+    if (s === 'transparent') return { r: 0, g: 0, b: 0, a: 0 };
+    return null;
+  }
+
+  /** The outline the two tokens ask for: { on, radius (px), colour ('rgb(r, g, b)'), opacity }.
+   *  Off when the width is 0 or not a number, or the colour is unreadable or fully transparent. */
+  function outlineFrom(widthText, colourText) {
+    const radius = parseFloat(String(widthText || '').trim());
+    const c = parseColour(colourText);
+    if (!(radius > 0) || !c || !(c.a > 0)) return { on: false, radius: 0, colour: '', opacity: 0 };
+    return { on: true, radius, colour: `rgb(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)})`, opacity: c.a };
+  }
+
+  const OUTLINE_ID = 'hos-emoji-outline';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const api = { tokens, keyOf, filesFrom, pieces, parseColour, outlineFrom, OUTLINE_ID, BASE };
 
   if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     let files = null;
@@ -208,8 +249,66 @@
         return false;
       });
 
+    // The outline's filter (see the outline's note above `api`), made the first time it is on and
+    // updated in place whenever the theme's tokens change.
+    let outlineParts = null;
+    const outlineFilter = () => {
+      if (outlineParts) return outlineParts;
+      const host = document.body || document.documentElement;
+      if (!host || typeof document.createElementNS !== 'function') return null;
+      const make = (tag, attrs) => {
+        const e = document.createElementNS(SVG_NS, tag);
+        for (const k of Object.keys(attrs)) e.setAttribute(k, attrs[k]);
+        return e;
+      };
+      // Hidden by base.css (svg.hos-emoji-filters); sRGB so the halo blends as the desktop's does.
+      const svg = make('svg', { class: 'hos-emoji-filters', width: '0', height: '0', 'aria-hidden': 'true', focusable: 'false' });
+      const filter = make('filter', { id: OUTLINE_ID, x: '-25%', y: '-25%', width: '150%', height: '150%', 'color-interpolation-filters': 'sRGB' });
+      const grow = make('feMorphology', { in: 'SourceAlpha', operator: 'dilate', radius: '1', result: 'grown' });
+      const flood = make('feFlood', { 'flood-color': 'rgb(0, 0, 0)', 'flood-opacity': '0', result: 'ink' });
+      const halo = make('feComposite', { in: 'ink', in2: 'grown', operator: 'in', result: 'halo' });
+      const merge = make('feMerge', {});
+      merge.appendChild(make('feMergeNode', { in: 'halo' }));
+      merge.appendChild(make('feMergeNode', { in: 'SourceGraphic' }));
+      for (const p of [grow, flood, halo, merge]) filter.appendChild(p);
+      svg.appendChild(filter);
+      host.appendChild(svg);
+      outlineParts = { svg, filter, grow, flood };
+      return outlineParts;
+    };
+
+    /** Read the theme's two outline tokens and apply them; returns what was applied. */
+    const applyOutline = () => {
+      const root = document.documentElement;
+      if (!root || typeof getComputedStyle !== 'function') return outlineFrom('', '');
+      const style = getComputedStyle(root);
+      const o = outlineFrom(style.getPropertyValue('--emoji-outline-width'), style.getPropertyValue('--emoji-outline'));
+      const parts = o.on ? outlineFilter() : null;
+      if (parts) {
+        parts.grow.setAttribute('radius', String(o.radius));
+        parts.flood.setAttribute('flood-color', o.colour);
+        parts.flood.setAttribute('flood-opacity', String(o.opacity));
+        root.setAttribute('data-emoji-outline', '');
+      } else {
+        root.removeAttribute('data-emoji-outline');
+      }
+      return o;
+    };
+
+    // Once the page's body exists, and again whenever <html>'s theme changes (shell.js sets
+    // data-theme for the light theme; a class or an inline style can carry a preset).
+    const watchOutline = () => {
+      applyOutline();
+      if (typeof MutationObserver === 'function' && document.documentElement) {
+        new MutationObserver(applyOutline).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+      }
+    };
+    if (document.readyState === 'loading' && typeof document.addEventListener === 'function') document.addEventListener('DOMContentLoaded', watchOutline);
+    else watchOutline();
+
     api.parse = parse;
     api.ready = ready;
+    api.applyOutline = applyOutline;
     window.hosEmoji = api;
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
