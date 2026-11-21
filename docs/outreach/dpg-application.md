@@ -172,11 +172,13 @@ reference."
 > LICENSING.md maps every folder to its licence: https://github.com/Shaostoul/Humanity/blob/main/LICENSING.md.
 > Outside data shipped with the app keeps its own open licence (OpenStreetMap ODbL 1.0, the Gaia
 > star catalogue CC BY-SA 3.0 IGO, some planet textures CC BY 4.0), each listed with its obligation in
-> https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md. Every release before 14 November 2026
-> was dedicated to the public domain under CC0 and stays there.
+> https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md. Outside code keeps its own open licence
+> with its notice in every download: the Rust libraries in
+> https://github.com/Shaostoul/Humanity/blob/main/THIRD-PARTY-NOTICES.txt, and the DirectX Shader
+> Compiler (NCSA licence), which the project builds from Microsoft's open source. Every release before
+> 14 November 2026 was dedicated to the public domain under CC0 and stays there.
 
-**Verdict: ready.** The Windows DLLs' missing notice (the thin spots table) is a licence obligation
-of ours toward someone else's open work, not a question of our own licence.
+**Verdict: ready.** Since v0.1566.0 (2026-11-20) the Windows DLLs ship as our own build of DXC's open source with its NCSA licence beside each file (the thin spots table).
 
 ## Indicator 3: Clear Ownership
 
