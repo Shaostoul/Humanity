@@ -773,3 +773,48 @@ file that switches instruments mid-track plays its first throughout; the General
 instrument of ours yet for the sound effects (programs 120 to 127), most of the synth effects, several
 ethnic and pipe instruments and the hand percussion (the details name each); a style's level is one
 number for every piece (`level_db`), not measured per piece.
+
+## 26. As built: seekable pieces and the long arc on the page (2026-11-21)
+
+The composer half is music.md section 7h (every calm piece planned whole from its genre's arc, any bar
+computed from the piece's seed). On the page:
+
+**The roll draws the whole plan and writes down only the bars in view** (`view.rs` `planned_sheet`): the
+crate's `sheet::skeleton` gives every bar line, section letter and planned phrase (its stage and energy)
+of the piece's whole length (a set length, or 20 minutes past the playhead for a piece that plays on) in a
+few hundred phrases of arithmetic, and `sheet::transcribe_from` writes down the notes of the bars the roll
+shows from the bar itself (seeking there, the phrase before composed silently), so "how the piece looks X
+minutes out" costs the same as the bars now playing. Made again when the piece changes, when the bars in
+view are not written down, and every frame with "turn off all reuse" off. A piece outside the plan (a
+danger mood) is written down from its start as before. The OVERVIEW draws each planned phrase's energy as
+a band along its bottom, the climax stronger, and each section's letter where there is room for it (a
+20-minute plan is some 80 phrases, which on a phone overprinted into one smear); the header says the roll
+shows the plan to minute N with the notes of the bars on screen (`music_page.roll_planned`), and names the
+stage the playhead is in and its energy (`music_page.roll_stage`, its hint saying what the arc is).
+
+**A click on a bar seeks a composed piece too** (rung 2 sought only written pieces): the same
+`MusicContext::seek`, now handled by the score for the composer (`Composer::seek_to_bar`, on the audio
+thread, at most two phrases composed silently, nothing allocated), the chord and the drone struck again at
+the bar. The runtime's time into the piece is the score's own clock, so after a seek the next piece still
+comes when this one's length is played.
+
+**"A new piece" offers 20, 30 and 60 minutes** (`data/music/pieces.ron`): with an arc, a long piece has a
+shape across its length rather than one pass of its form improvised on.
+
+**The Written music tab at phone width** (`written.rs` `cell`): the search box, the sort and the two
+filters each sit in a cell of their own with the label above the control, laid out at a known width (at
+most 240 points, the screen's width on a phone), so the row wraps cell by cell. Rung 1 put each combo with
+its label beside it inside one wrapping row; egui does not wrap inside a combo, so on a phone the row ran
+off the screen and pushed the details card past its edge. The cells wrap in a TOP-aligned row
+(`Layout::left_to_right(Align::Min).with_main_wrap(true)`), not `horizontal_wrapped`: that centres each
+cell on a row that grows as the cells arrive, which drew the four labels as a staircase on the operator's
+screen (17 to 31 points apart) and left about 74 points from one stacked label to the next on a phone.
+
+**Tests** (each seen red, the evidence in its comment): the crate's `tests_arc.rs` (music.md section 7h)
+and the page's `tests_arc.rs` (`the_written_tab_fits_a_phone`: drawn 412 points wide, every word of the
+search row and of the details card inside the screen, and the cells stacked;
+`the_written_search_row_lines_up`: the labels level at 2560 by 1440, and at most 60 points from one
+stacked label to the next on a phone; `the_rolls_section_letters_never_overprint`: a chosen piece's
+20-minute plan on the roll, no two letters on a line overlapping at 412 or 2560 wide). The GPU snapshots `music` and `phone_music_listen` draw a chosen
+piece round its arc at the library's endless length, as the game's context gives it, so the roll shows the
+energy band and the stage the player hears.

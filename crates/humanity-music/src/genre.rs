@@ -554,6 +554,10 @@ pub struct Genre {
     pub delay: Option<DelaySpec>,
     #[serde(default)]
     pub gated_reverb: Option<GatedReverbSpec>,
+    /// The long arc a piece of this genre follows over its whole length (an id in data/music/arcs;
+    /// None: its form over and over). crate::arc; music.md section 7h.
+    #[serde(default)]
+    pub arc: Option<String>,
 }
 
 impl Genre {

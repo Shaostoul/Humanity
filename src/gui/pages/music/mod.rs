@@ -46,6 +46,8 @@ mod tests_rung2;
 mod tests_style;
 #[cfg(test)]
 mod tests_v2;
+#[cfg(test)]
+mod tests_arc;
 mod view;
 mod written;
 

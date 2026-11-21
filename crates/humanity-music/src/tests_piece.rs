@@ -84,7 +84,7 @@ fn pieces_for(res: &Resolved, st: Steer, first_seed: u64, total_s: f64, piece_s:
         let shift = |t: f64| t + t0;
         for e in rec.events {
             all.events.push(match e {
-                Event::Phrase { hash, at_s, mood, key_pc, section, chorus, returning } => Event::Phrase { hash, at_s: shift(at_s), mood, key_pc, section, chorus, returning },
+                Event::Phrase { hash, at_s, mood, key_pc, section, chorus, returning, stage, energy } => Event::Phrase { hash, at_s: shift(at_s), mood, key_pc, section, chorus, returning, stage, energy },
                 Event::Chord { chord, root, pcs, at_s, beats } => Event::Chord { chord, root, pcs, at_s: shift(at_s), beats },
                 Event::Voicing { role, notes, n, at_s } => Event::Voicing { role, notes, n, at_s: shift(at_s) },
                 Event::Motif { role, first_note, at_s } => Event::Motif { role, first_note, at_s: shift(at_s) },

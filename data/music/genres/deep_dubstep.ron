@@ -114,4 +114,6 @@ Genre(
     bass_patterns: ["x...............", "x.......x.......", "x.........o.....", "x.....x...x....."],
     recipe: (saturation: 0.1, reverb_scale: 0.7),
     level_db: -0.4,
+    // The long arc its pieces follow over their length (data/music/arcs; music.md section 7h).
+    arc: Some("club"),
 )

@@ -147,10 +147,27 @@ fn choices(entries: &[ScoreEntry], of: impl Fn(&ScoreEntry) -> String) -> Vec<St
     v
 }
 
-/// A filter's list: every one, or one value.
-fn filter_combo(ui: &mut egui::Ui, id: &str, label: &str, all: &str, hint: &'static str, values: &[String], chosen: &mut String) {
+/// The widest a search-row cell grows (the search box, the sort, each filter), points; on a narrow
+/// screen a cell takes the width there is, its label above its control.
+const CELL_W: f32 = 240.0;
+
+/// One cell of the search row: its label above its control, `w` points wide. A cell is laid out at a
+/// known size, so the row wraps cell by cell at any width (an egui combo with its label beside it
+/// inside a wrapping row ran off a phone's screen instead of wrapping, and clipped the details card).
+fn cell(ui: &mut egui::Ui, theme: &Theme, w: f32, label: &str, add: impl FnOnce(&mut egui::Ui, f32)) {
+    ui.allocate_ui_with_layout(egui::vec2(w, 0.0), egui::Layout::top_down(egui::Align::Min), |ui| {
+        ui.set_width(w);
+        ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_secondary()));
+        add(ui, w);
+    });
+}
+
+/// A filter's list: every one, or one value, `w` points wide.
+fn filter_combo(ui: &mut egui::Ui, id: &str, w: f32, all: &str, hint: &'static str, values: &[String], chosen: &mut String) {
     let shown = if chosen.is_empty() { all.to_string() } else { chosen.clone() };
-    egui::ComboBox::new(id, label)
+    egui::ComboBox::from_id_salt(id)
+        .width(w)
+        .truncate()
         .selected_text(shown)
         .show_ui(ui, |ui| {
             if ui.selectable_label(chosen.is_empty(), all).hint(hint).clicked() {
@@ -185,23 +202,36 @@ pub(super) fn written(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, ac
     let eras = choices(&scores, era_words);
     {
         let q = &mut state.music_page.written_query;
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(t("music_page.written_search")).color(theme.text_secondary()));
-            ui.add(egui::TextEdit::singleline(&mut q.text).id(egui::Id::new(SEARCH_ID)).desired_width(260.0)).hint("music_page.written_search_hint");
-            ui.add_space(theme.spacing_lg);
-            egui::ComboBox::new("music_page_written_sort", t("music_page.written_sort"))
-                .selected_text(t(q.sort.key()))
-                .show_ui(ui, |ui| {
-                    for s in WrittenSort::ALL {
-                        ui.selectable_value(&mut q.sort, s, t(s.key())).hint("music_page.written_sort_hint");
-                    }
-                })
-                .response
-                .hint("music_page.written_sort_hint");
-            ui.add_space(theme.spacing_lg);
-            filter_combo(ui, "music_page_written_composer", t("music_page.written_composer_filter"), t("music_page.written_all_composers"), "music_page.written_composer_filter_hint", &composers, &mut q.composer);
-            ui.add_space(theme.spacing_lg);
-            filter_combo(ui, "music_page_written_era", t("music_page.written_era_filter"), t("music_page.written_all_eras"), "music_page.written_era_filter_hint", &eras, &mut q.era);
+        // Each control in a cell of its own, its label above it: as many cells a row as fit, one a row
+        // on a phone (each then as wide as the screen allows). The row wraps with its cells' TOPS
+        // aligned: horizontal_wrapped centres each cell on a row that grows as the cells arrive, which
+        // drew the labels as a staircase on a wide screen and left a gap under each stacked cell on a
+        // phone (the_written_search_row_lines_up).
+        let w = (ui.available_width() - 4.0).clamp(80.0, CELL_W);
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true), |ui| {
+            ui.spacing_mut().item_spacing.y = theme.spacing_sm;
+            cell(ui, theme, w, t("music_page.written_search"), |ui, w| {
+                ui.add(egui::TextEdit::singleline(&mut q.text).id(egui::Id::new(SEARCH_ID)).desired_width(w - 8.0)).hint("music_page.written_search_hint");
+            });
+            cell(ui, theme, w, t("music_page.written_sort"), |ui, w| {
+                egui::ComboBox::from_id_salt("music_page_written_sort")
+                    .width(w - 8.0)
+                    .truncate()
+                    .selected_text(t(q.sort.key()))
+                    .show_ui(ui, |ui| {
+                        for s in WrittenSort::ALL {
+                            ui.selectable_value(&mut q.sort, s, t(s.key())).hint("music_page.written_sort_hint");
+                        }
+                    })
+                    .response
+                    .hint("music_page.written_sort_hint");
+            });
+            cell(ui, theme, w, t("music_page.written_composer_filter"), |ui, w| {
+                filter_combo(ui, "music_page_written_composer", w - 8.0, t("music_page.written_all_composers"), "music_page.written_composer_filter_hint", &composers, &mut q.composer);
+            });
+            cell(ui, theme, w, t("music_page.written_era_filter"), |ui, w| {
+                filter_combo(ui, "music_page_written_era", w - 8.0, t("music_page.written_all_eras"), "music_page.written_era_filter_hint", &eras, &mut q.era);
+            });
         });
     }
     widgets::setting_hint(ui, theme, hint, t("music_page.written_hint"));

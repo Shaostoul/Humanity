@@ -828,6 +828,100 @@ page's reuse switch), granular textures and a frozen reverb for ambient, the hea
 movement (two filters drifting apart), and a compressor for the gated room should the long decay ever
 prove too plain.
 
+## 7h. Seekable pieces and the long arc (built 2026-11-21)
+
+The operator, 2026-11-20: "couldn't we just say, here's how the song will look X minutes out? Then
+isn't a 'new song' just a new seed? Would that help us have more complex songs?" The answers given
+that day: yes, on the same version of the app and without the adaptive layers; a new song is a new
+seed; and yes, being able to compute any moment from the seed is what makes long-range structure
+possible. Both halves are built.
+
+**The long arc** (`crates/humanity-music/src/arc.rs`, `data/music/arcs/*.ron`, infinite-of-X). A
+genre names an ARC (`arc: Some("song")` in its file); an arc is the stages a piece passes through over
+its whole length, planned before a note is played. Each stage says:
+
+| Field | What it is |
+|---|---|
+| `kind` | Intro, Theme, Develop, Build, Climax, Return or Coda (the page names it; the planner places the climax by it) |
+| `share` | its share of the piece's length |
+| `energy` | its energy at its start and end (1 = the genre as levelled): velocities follow it (`arc::velocity_of`, 0.4 + 0.6 x energy) and so does how often the riffs, the choir and the heartbeat play (`arc::density_of`, a factor on each role's density) |
+| `letters` / `sections` | the sections it plays in turn: letters of a form ("BA"; none: the piece's own form), or for a genre with a structure, section names (each genre plays the names its structure has; none left: the structure between its first and last sections) |
+| `roles`, `drums` | the roles that may play in it (instruments entering and leaving over the whole piece) and whether the drums do |
+| `key` | `Home` (a bridge may still move, as a form's does), `Away` (the piece's second key) or `Up(n)` (the harmony's key nearest n semitones above home: a lifted climax) |
+| `tune` | its sections play their own tunes (the theme stated or returning); otherwise the band improvises over each section's chords, the second half reharmonised |
+
+and the arc's `climax_at` is where the climax stage may begin (a piece's seed picks within it). The
+planner (`arc::plan`) scales the shares to the piece's length in bars, places the climax, the stages
+before it scaled to end there and the rest to fill the piece, and lays out every phrase: its letter,
+its bars (a letter's length drawn once from the plan's seed, so the same letter is as long all piece;
+a structure's section as long as the data says), its first bar, its stage, its energy (by the phrase's
+middle along the stage), its roles, its key move, and whether it plays its tune (and if the tune was
+heard already: a return). A stage gets at least one phrase. The composer's section and bar writers
+fill what the plan says. Three arcs ship: `song` (electro swing, lo-fi: an intro on the theme's chords
+with the band thinned, the theme stated, a development away from home, a build, the climax two
+semitones up at 1.4, the theme's return, a coda), `drift` (the ship's own score and ambient: no
+drums added, a gentle swell at 1.2) and `club` (deep dubstep, drum and bass, house and synthwave, by
+their sections' names). These are the commonplace shapes of song, jazz and club arrangement (the
+2026-11-12 copyright finding); no piece's own arrangement is written anywhere.
+
+**The length** is the piece's: "A new piece" on the Music page (2, 3, 4, 6, 10, and now 20, 30 or 60
+minutes, `data/music/pieces.ron`), which reaches the score as `MusicContext::piece_s`; a piece that
+plays on (Never, or a chosen piece, a favourite) goes round its arc every `endless_minutes` (8), each
+round's improvised sections numbered on from the last so no two rounds reharmonise alike. A context
+with no length (offline renders and tests that set none) plays the genre's form over and over: still a
+plan (one stage, one time through the form, its tunes the first time), so still seekable. A genre with
+no arc does the same.
+
+**The seed scheme** (`composer.rs`, one documented derivation: `piece::mix`, SplitMix64's finaliser
+over `a + b x 0x9e3779b97f4a7c15`, every seed a child of the piece's seed S):
+
+| Seed | Is | Draws |
+|---|---|---|
+| S | the piece (session seed + n x the golden-ratio constant, section 7c) | its key, tempo, lead voices, kit, bridge (`Piece::new`, `mix(S, k)` for fixed k) |
+| `mix(S, 0xf0 ^ genre)` | the form | which of the genre's forms |
+| `plan_seed(S, genre) = mix(S, 0xa2c0 ^ genre)` | the plan | the climax's place, each letter's length |
+| `mix(mix(S, harmony + 0x5ec), letter + 1)` | a section | its chords (the same letter, the same chords), then its tune |
+| `mix(section, chorus)` | an improvised time through a section | its second half's reharmonisation |
+| `phrase_seed(S, i) = mix(mix(S, 0x9a5e), i)`, then `mix(that, attempt)` | planned phrase i (counted over every round) | its riffs, choir, heartbeat, drum and comping patterns, dynamics (attempt 0, or a later one if it sounds like a phrase of its letter in the mood's no-repeat window) |
+| `bar_seed(S, n) = mix(mix(S, 0xba70), n)` | piece bar n | everything decided within the bar: drum syncopation and timing, velocities, pans, the walking bass's choices, the heartbeat's hits |
+| `mix(mix(S, 0xda90), bars since the start)` | a bar outside the plan (danger) | the same, not seekable |
+
+Note tags are per bar too (the bar's number shifted 12 bits, the top bit for a bar outside the plan),
+so a bar's tags are the same however it was reached (they repeat after 2^19 bars, eleven days at 128
+bpm). Three more things made a bar independent of the bars long before it: a beat's start is computed
+from its number (`tempo_origin + beats x beat_len`), never summed, so it lands on the same sample at
+any distance; a step fires on the first sample at or after its time (it fired up to half a sample
+early before, when a block happened to end there, so where blocks fell changed the music); and pads
+and choir are VOICED nearest the register's reference voicing (`register_ref`, evenly spaced notes)
+rather than led from the last voicing, so a voicing depends on its chord alone (consecutive voicings
+still move no voice more than a fourth: the rung 3 test holds), and a phrase's first bass note is
+placed from the middle of its register. The no-repeat window (section 7c) is now checked from the plan:
+an improvised phrase is drawn again (up to six times) while it sounds like (same key, chords and
+fingerprint as any attempt of) an earlier phrase of the same letter within the window, each earlier
+phrase recomputed from its seeds, so a seek makes the same choice. Danger moods keep the remembered
+history.
+
+**Seeking** (`Composer::seek_to_bar`): plan the piece for the steer as it is, reset to the start of
+the phrase before the one bar N is in (its time computed), and compose silently from there to bar N's
+first sample. What a phrase plays depends only on the phrase before it, so the next bar played is bar
+N exactly as playing from the start would have played it, note for note, sample for sample (the test
+compares four genres up to twenty minutes in, and a bar two days in). The work is at most two phrases,
+whatever N. The score seeks on the audio thread when the page asks (`MusicContext::seek` now moves a
+composed piece too) and strikes again what is held there (the chord, the drone), so the harmony
+sounds from the bar; a rebuild of the same piece (`ScoreEngine::resume`) carries on from the bar the
+playing phrase began on (the status's `form_pos` is now that bar). Players in one place hearing one
+piece need only its seed and when it started.
+
+**What the seed does not decide**: the adaptive layers on top, which steer the composer as they
+happen: danger and action (a danger mood plays outside the plan; when it settles, the plan picks up at
+the phrase it had reached, so the piece's clock no longer matches the wall clock), a move to another
+place's mood (another harmony and its voices over the same plan), a blend or a genre chosen, and the
+Music page's Tune (a tempo change re-plans the piece in bars). Same version only: a change to the
+composer or the data changes what a seed plays.
+
+**The cost** (section 14, measured 2026-11-21): a bar computed alone in about 80 microseconds at
+minute 1, minute 60 or day 3; a 60-minute piece planned in about 9 microseconds.
+
 ## 7b. Danger and action: the score rising with the game
 
 The operator, 2026-11-06: "Let's also see what we can generate for high octane situations like a
@@ -1074,6 +1168,15 @@ score under 0.05 took the reverb's lines as fixed arrays with its modulation mov
 samples (a third of its cost), the choir's vibrato once a block, its 50-dB-down fifth formant
 skipped, and voices ended 60 dB down. The worst single block in an offline loop includes the OS
 preempting it, so the gate reads the 99th percentile; kira's own buffering covers a rare slow block.
+
+**Seeking and planning (2026-11-21, section 7h; `the_cost_of_a_bar_does_not_grow_with_its_position`,
+the fastest of seven, on the i7-8700K while other agents compiled).** Computing a bar of an electro
+swing piece (a fresh composer planning the piece, composing the phrase before silently, then the bar):
+78 us at minute 1, 76 us at minute 60, 105 us on day 3, the same within the machine's noise (the gate
+holds each to twice minute 1's). Planning a whole 60-minute piece: 8.6 us. Both run on the audio thread
+(a seek the page asks for, a new piece's first phrase) inside the worst-block budget above (0.25 ms);
+the plan is a fixed array of 512 phrases (about 20 KiB inside the composer), nothing allocated. The
+score's own cost per block is unchanged (the calm score's gate holds it).
 
 **How the gates measure on a shared machine (2026-11-15, `crates/humanity-music/src/tests_cost.rs`).**
 The genre, deep dubstep, streaming and Music page gates kept failing in full test runs beside other

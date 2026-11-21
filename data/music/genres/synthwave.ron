@@ -114,4 +114,6 @@ Genre(
     delay: Some((division: "1/8.", feedback: 0.35, low_cut_hz: 400.0, high_cut_hz: 3500.0, sends: [(Melody, 0.4), (Pad, 0.15)], wet: 0.55, reverb: 0.4)),
     recipe: (wow_cents: 3.0, wow_hz: 0.4, lowpass_hz: 9000.0, saturation: 0.12, reverb_scale: 0.8, reverb_t60_s: 5.0, reverb_low_cut_hz: 220.0),
     level_db: 3.5,
+    // The long arc its pieces follow over their length (data/music/arcs; music.md section 7h).
+    arc: Some("club"),
 )

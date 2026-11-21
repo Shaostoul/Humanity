@@ -128,7 +128,9 @@ fn music_alone(tag: &str) -> humanity_core::test_temp::TempPath {
             }
         }
     };
-    for d in ["instruments", "moods", "genres"] {
+    // The long arcs too (data/music/arcs, music.md section 7h): a genre that names an arc the data
+    // lacks is refused, and no score would ever build.
+    for d in ["instruments", "moods", "genres", "arcs"] {
         copy(&repo.join("music").join(d), &t.join("data/music").join(d));
     }
     for f in ["intensity.ron", "packs.ron", "parts.ron", "pieces.ron", "places.ron", "tones.ron"] {
@@ -452,7 +454,9 @@ fn a_new_piece_begins_after_its_minutes_and_a_rebuild_carries_the_piece_on() {
     // (A new score reports its status once it has rendered a block.)
     let after = run_until(&mut rt, &mut mix, &inp, 3000, |r| r.pieces >= 2 && r.score.is_some_and(|s| s.blocks > 0 || s.seconds > 0.0)).score.unwrap();
     assert_eq!(after.piece_seed, before.piece_seed, "a rebuild keeps the piece's seed");
-    assert!(after.form_pos > before.form_pos && after.form_pos <= before.form_pos + 2, "and carries its form on: phrase {} of the piece, then {}", before.form_pos, after.form_pos);
+    // (form_pos is the piece bar the playing phrase began on since 2026-11-21: music.md section 7h;
+    // a phrase is at most 16 bars here, so two phrases on is at most 32 bars.)
+    assert!(after.form_pos > before.form_pos && after.form_pos <= before.form_pos + 32, "and carries its form on: bar {} of the piece, then {}", before.form_pos, after.form_pos);
 }
 
 /// A FAVOURITE ASSIGNED TO DANGER PLAYS WHEN THE MOOD TURNS TO DANGER (docs/design/music-page.md

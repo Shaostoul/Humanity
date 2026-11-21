@@ -74,6 +74,25 @@ pub struct Sheet {
     /// sample: two transcriptions with the same hash composed the same piece, note for note.
     pub seconds: f64,
     pub hash: u64,
+    /// A composed piece's plan (crate::arc; music.md section 7h): every phrase of the piece with its
+    /// stage and energy, the whole length, whether or not its notes are written down yet.
+    pub plan: Vec<SheetPhrase>,
+    /// The seconds the notes, chords and sections were written down for (a window of a long piece;
+    /// the whole sheet for a transcription from the start).
+    pub notes_span: (f64, f64),
+}
+
+/// A planned phrase as the page draws it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SheetPhrase {
+    pub at_s: f64,
+    pub end_s: f64,
+    /// Its section's letter + 1 (0: none), its stage (None: no arc), its energy, and whether it is the
+    /// climax's first phrase.
+    pub letter: u8,
+    pub stage: Option<crate::arc::StageKind>,
+    pub energy: f32,
+    pub climax: bool,
 }
 
 /// A note of the piano roll: its place in the bar, in beats.
@@ -148,17 +167,74 @@ impl Sink for Recorder {
 pub fn transcribe(res: &Resolved, seed: u64, ctx: &MusicContext, rate: f32, seconds: f64) -> Sheet {
     let mut comp = Composer::new(rate, seed, crate::score::steer_of(ctx));
     let mut rec = Recorder { pos: 0, rate: rate as f64, sheet: Sheet::default(), open: Vec::new(), phrase_seen: false };
+    write_down(res, &mut comp, &mut rec, ctx, rate, 0, seconds)
+}
+
+/// Write down `seconds` of the piece from piece bar `from_bar` (music.md section 7h, "how the piece
+/// looks X minutes out"): the composer seeks there (the piece planned, the phrase before played
+/// silently), then the bar on is written down as playing from the start would have played it; times
+/// are the piece's own. Its `bars` are the bar lines from `from_bar` on (`first_bar` of the window).
+pub fn transcribe_from(res: &Resolved, seed: u64, ctx: &MusicContext, rate: f32, from_bar: u64, seconds: f64) -> Sheet {
+    let mut comp = Composer::new(rate, seed, crate::score::steer_of(ctx));
+    comp.seek_to_bar(res, from_bar, &mut crate::composer::Silent);
+    // What sounds at the bar (the chord, the drone) is written as starting there, as a seek plays it.
+    comp.strike_held_next();
+    let start = comp.pos();
+    let mut rec = Recorder { pos: start, rate: rate as f64, sheet: Sheet::default(), open: Vec::new(), phrase_seen: false };
+    write_down(res, &mut comp, &mut rec, ctx, rate, start, start as f64 / rate as f64 + seconds)
+}
+
+/// The plan of a composed piece written down without its notes, `seconds` long (a few hundred
+/// phrases of arithmetic, at any length): its bar lines, its sections and its planned phrases with
+/// their stages and energies (None: it is not planned, a danger mood). The page draws the whole of a
+/// long piece from it and writes down only the bars in view ([`transcribe_from`]).
+pub fn skeleton(res: &Resolved, seed: u64, ctx: &MusicContext, rate: f32, seconds: f64) -> Option<Sheet> {
+    let mut comp = Composer::new(rate, seed, crate::score::steer_of(ctx));
+    comp.seek_to_bar(res, 0, &mut crate::composer::Silent);
+    let plan = *comp.plan();
+    if plan.n == 0 {
+        return None;
+    }
+    let bpb = comp.beats_per_bar().max(1) as u64;
+    let beat = rate as f64 * 60.0 / comp.tempo().max(1.0) as f64;
+    // A bar's first sample, as the composer computes it (crate::composer: never summed).
+    let bar_at = |b: u64| ((b * bpb) as f64 * beat).ceil() / rate as f64;
+    let mut sheet = Sheet { beats_per_bar: bpb as u32, seconds, leads: [crate::tune::PIECE; 8], ..Sheet::default() };
+    let mut b = 0u64;
+    while bar_at(b) < seconds - 1e-9 && b < 4_000_000 {
+        sheet.bars.push(bar_at(b));
+        b += 1;
+    }
+    let mut i = 0u64;
+    while let Some((p, round, start)) = plan.phrase(i) {
+        let at_s = bar_at(start);
+        if at_s >= seconds {
+            break;
+        }
+        let letter = if p.letter == crate::arc::FREE { 0 } else { p.letter + 1 };
+        sheet.plan.push(SheetPhrase { at_s, end_s: bar_at(start + p.bars as u64).min(seconds), letter, stage: p.kind, energy: p.energy, climax: plan.climax == Some((i % plan.n as u64) as usize) });
+        let _ = round;
+        sheet.sections.push(SheetSection { at_s, letter, chorus: p.chorus, returning: p.returning, key_pc: comp.key_pc(), mode: comp.mode(), tempo_bpm: comp.tempo() });
+        i += 1;
+    }
+    sheet.form = comp.piece_form().to_vec();
+    Some(sheet)
+}
+
+/// Run `comp` dry from sample `start` until `seconds` of piece time, through `rec`, cut as the score
+/// cuts it, and finish the sheet.
+fn write_down(res: &Resolved, comp: &mut Composer, rec: &mut Recorder, ctx: &MusicContext, rate: f32, start: u64, seconds: f64) -> Sheet {
     let end = (seconds * rate as f64) as u64;
-    let mut bars_seen = 0u64;
+    let mut bars_seen = comp.bars();
     let block = crate::render::BLOCK as u64;
-    let mut pos = 0u64;
+    let mut pos = start;
     while pos < end {
         // One block as the score renders it: decide, then render up to the next decision (at most
         // a chunk), until the block is done.
         let block_end = (pos + block).min(end);
         while pos < block_end {
             rec.pos = pos;
-            comp.process(res, &mut rec);
+            comp.process(res, rec);
             if rec.phrase_seen {
                 rec.phrase_seen = false;
                 if let Some(s) = rec.sheet.sections.last_mut() {
@@ -175,11 +251,12 @@ pub fn transcribe(res: &Resolved, seed: u64, ctx: &MusicContext, rate: f32, seco
             pos += n as u64;
         }
     }
-    let mut sheet = rec.sheet;
-    for (_, i) in rec.open {
+    let mut sheet = std::mem::take(&mut rec.sheet);
+    for &(_, i) in &rec.open {
         let note = &mut sheet.notes[i];
         note.dur_s = (seconds - note.at_s).max(0.0) as f32;
     }
+    sheet.notes_span = (start as f64 / rate as f64, seconds);
     sheet.beats_per_bar = comp.beats_per_bar();
     sheet.form = comp.piece_form().to_vec();
     let dominant = if ctx.blend >= 0.5 { ctx.genre_b } else { ctx.genre_a };

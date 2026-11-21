@@ -1,0 +1,17 @@
+// THE DRIFT ARC (docs/design/music.md section 7h): a calm genre's long shape, for the ship's own score
+// and ambient music. It never builds hard: the pads and the drone open it, the theme is stated, the
+// harmony wanders to the second key, a gentle swell (the theme with everything in, no drums added), the
+// theme's return, and a coda back to the pads, the drone and the bells. Energy 1 is the genre as
+// levelled. Shares are of the piece's length; the swell begins where `climax_at` says.
+Arc(
+    id: "drift",
+    climax_at: (0.58, 0.7),
+    stages: [
+        (kind: Intro, share: 0.08, energy: (0.65, 0.8), letters: Some("A"), roles: [Pad, Drone, Texture, Bells], drums: false),
+        (kind: Theme, share: 0.26, energy: (0.9, 0.95), tune: true),
+        (kind: Develop, share: 0.22, energy: (0.95, 1.05), letters: Some("BC"), key: Away),
+        (kind: Climax, share: 0.14, energy: (1.2, 1.2), letters: Some("A"), tune: true),
+        (kind: Return, share: 0.2, energy: (1.0, 0.9), letters: Some("A"), tune: true),
+        (kind: Coda, share: 0.1, energy: (0.75, 0.5), letters: Some("A"), roles: [Pad, Drone, Bells, Texture], drums: false),
+    ],
+)

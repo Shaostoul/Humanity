@@ -186,4 +186,6 @@ Genre(
     ],
     recipe: (wow_cents: 2.0, wow_hz: 0.55, flutter_cents: 0.5, flutter_hz: 7.0, saturation: 0.15, reverb_scale: 0.5),
     level_db: 1.6,
+    // The long arc its pieces follow over their length (data/music/arcs; music.md section 7h).
+    arc: Some("song"),
 )

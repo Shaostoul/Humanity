@@ -151,7 +151,10 @@ fn the_exported_wav_of_a_seed_is_the_offline_render_of_it() {
     export_favourite(res(&lib), &lib, &fav, 432.0, seconds, &exported).expect("exported");
     // music-render's loop, written out here as the example runs it.
     let (mood, genre) = (lib.mood_index("mothership_calm").unwrap() as u16, lib.genre_index("lofi").unwrap() as u16);
-    let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood, genre_a: genre, genre_b: genre, blend: 0.0, intensity: 0.3, duck_db: 0.0, ..Default::default() };
+    // A favourite plays on round its genre's arc (music.md section 7h), so the render it equals plans
+    // the same piece (seen red 2026-11-21 with this line's length left at none: the export, planned
+    // round its 8-minute arc, differed from the form played over and over).
+    let ctx = MusicContext { gain: 1.0, a4_hz: 432.0, mood, genre_a: genre, genre_b: genre, blend: 0.0, intensity: 0.3, duck_db: 0.0, piece_s: lib.endless_minutes * 60.0, ..Default::default() };
     let mut eng = ScoreEngine::new(res(&lib), 48000.0, 777, ctx);
     let total = (seconds * 48000.0) as usize;
     let mut frames = vec![[0.0f32; 2]; total];

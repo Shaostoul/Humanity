@@ -3,4 +3,10 @@
 // piece is a seed: its key, its chords, its riffs, its form and its lead voices. The operator,
 // 2026-11-13: "So it generates a track based on the seed and then we can vary the seed X amount of
 // minutes to mix up the music?"
-Pieces(minutes: [2.0, 3.0, 4.0, 6.0, 10.0, 0.0])
+//
+// Since 2026-11-21 a piece follows its genre's long ARC over its length (data/music/arcs; music.md
+// section 7h): an intro, the theme, a development, a planned climax, the theme's return and a coda,
+// scaled to the minutes chosen here, so the longer choices (20, 30, 60) are whole pieces, not one
+// pass of the form improvised on. A piece that plays on (Never, or a piece the person chose) goes
+// round its arc every `endless_minutes`.
+Pieces(minutes: [2.0, 3.0, 4.0, 6.0, 10.0, 20.0, 30.0, 60.0, 0.0], endless_minutes: 8.0)

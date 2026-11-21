@@ -115,6 +115,15 @@ And 62 more items, 73 references (`node scripts/crate-cards.js --interface human
   ticks (`Notated`, 960 a quarter) is the one shape both formats go through; what the importer keeps is
   read back by our own MEI reader first, and a written piece's notes survive export and import exactly
   (`export_then_import_round_trips_a_written_pieces_notes`). Source: music-page.md sections 12 and 15a.
+- **A calm piece is seekable: nothing it plays is carried from its start** (`arc.rs`, `composer.rs`,
+  2026-11-21): the plan, each phrase's improvisation and each bar's own choices come from seeds derived
+  from the piece's seed (`plan_seed`, `phrase_seed`, `bar_seed`, all `piece::mix`), a beat's start is
+  computed from its number, a step fires on the first sample at or after its time, tags are per bar,
+  voicings are placed against the register's reference and a phrase's first bass note from the
+  register's middle, and the no-repeat window is checked from the plan. A change that makes a bar depend
+  on state from before the phrase before it breaks `a_bar_computed_alone_equals_the_bar_played_from_the_start`;
+  a seek that grows with the bar's position breaks `the_cost_of_a_bar_does_not_grow_with_its_position`.
+  Danger moods play outside the plan. Source: [music.md](../design/music.md) section 7h.
 - **The sheet is the score's own loop** (`sheet.rs`): `transcribe` cuts time where `ScoreEngine::render`
   does (128-frame blocks, chunks of at most 64 samples), so its notes are the score's to the sample;
   a change to the score's chunking changes both. Source: music-page.md section 9.

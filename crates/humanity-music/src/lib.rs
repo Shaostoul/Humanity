@@ -20,6 +20,7 @@
 //! offline. The `kira` feature adds the adapter that plays them on the sound card (kira_sound.rs).
 //! Nothing here is ever networked: each player's game composes its own music.
 
+pub mod arc;
 pub mod bed;
 pub mod composer;
 pub mod drum_machine;
@@ -103,5 +104,7 @@ mod tests_scores;
 mod tests_rung2;
 #[cfg(test)]
 mod tests_style;
+#[cfg(test)]
+mod tests_arc;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;

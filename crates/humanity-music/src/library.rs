@@ -38,12 +38,16 @@ pub struct MusicLibrary {
     pub intensity: crate::intensity::IntensityMap,
     /// Settings > Music's "A new piece" choices, minutes (0: never; data/music/pieces.ron).
     pub piece_minutes: Vec<f32>,
+    /// How long one round of a genre's long arc lasts when a piece plays on (crate::arc), minutes.
+    pub endless_minutes: f32,
     /// The written pieces the Music page offers (data/music/scores/index.ron; crate::scores): the
     /// index only, each piece's file is read when it is chosen.
     pub scores: Vec<crate::scores::ScoreEntry>,
     /// The sound styles a written piece can be played through (data/music/styles; crate::style,
     /// music-page.md rung 3a).
     pub styles: Vec<crate::style::SoundStyle>,
+    /// The long arcs a genre's pieces follow (data/music/arcs; crate::arc, music.md section 7h).
+    pub arcs: Vec<crate::arc::Arc>,
 }
 
 /// data/music/tones.ron.
@@ -56,6 +60,8 @@ struct Tones {
 #[derive(Clone, Debug, serde::Deserialize)]
 struct Pieces {
     minutes: Vec<f32>,
+    /// How long one round of a genre's arc lasts in a piece that plays on (Never, or a chosen piece).
+    endless_minutes: f32,
 }
 
 /// The genre a person hears unless they choose another.
@@ -138,9 +144,13 @@ impl MusicLibrary {
         if pieces.minutes.is_empty() || pieces.minutes.iter().any(|m| !(0.0..=600.0).contains(m)) {
             return Err(format!("{}: the choices must be 0 (never) to 600 minutes, and at least one", pieces_path.display()));
         }
+        if !(1.0..=600.0).contains(&pieces.endless_minutes) {
+            return Err(format!("{}: endless_minutes must be 1 to 600", pieces_path.display()));
+        }
         let scores = crate::scores::load_index(data_dir)?;
         let styles = crate::style::load_styles(data_dir)?;
-        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes, scores, styles };
+        let arcs: Vec<crate::arc::Arc> = read_dir_ron::<crate::arc::Arc>(&music.join("arcs"))?.into_iter().map(|(_, a)| a).collect();
+        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes, endless_minutes: pieces.endless_minutes, scores, styles, arcs };
         lib.order();
         lib.check()?;
         Ok(lib)
@@ -175,6 +185,12 @@ impl MusicLibrary {
         }
         unique("mood",self.moods.iter().map(|i| i.id.as_str()))?;
         unique("genre", self.genres.iter().map(|i| i.id.as_str()))?;
+        unique("arc", self.arcs.iter().map(|a| a.id.as_str()))?;
+        for g in &self.genres {
+            if let Some(a) = g.arc.as_ref().filter(|a| !self.arcs.iter().any(|x| &x.id == *a)) {
+                return Err(format!("genres/{}.ron: arc {a:?} is not in data/music/arcs", g.id));
+            }
+        }
         if self.moods.is_empty() {
             return Err("data/music/moods has no mood".into());
         }

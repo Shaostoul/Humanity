@@ -3327,7 +3327,13 @@ seed that draws its key, tempo, form (AABA and the like, sections that return), 
 passing diminished chords), its own riffs (motif rules) and its lead voices (clarinet, hot-club violin,
 tenor saxophone, vibraphone or piano; trombone, violin or trumpet answering), a new piece every few
 minutes (the Music page's What plays, "A new piece", Never included; Settings > Music's until 2026-11-14) crossfading at a phrase, the seed on the
-Dev page and `HUMANITY_MUSIC_SEED`; a genre change heard at the next bar (BUG-297); DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
+Dev page and `HUMANITY_MUSIC_SEED`; a genre change heard at the next bar (BUG-297); SEEKABLE PIECES AND THE LONG ARC (2026-11-21,
+music.md section 7h, `arc.rs`, `data/music/arcs/*.ron`): a piece planned whole before its notes from its genre's arc (song, drift,
+club: intro, theme, development, build, a planned climax in a lifted key, the theme's return, coda; roles entering and leaving, energy
+over time) scaled to "A new piece" (now 2 to 60 minutes; an endless piece goes round its arc every 8), every phrase and bar drawn from
+seeds derived from the piece's seed, so any bar is computed directly (`Composer::seek_to_bar`, at most two phrases of work at minute 1
+or day 3), the piano roll draws the whole plan and writes down only the bars in view, a click on any bar of a composed piece seeks
+there, and a rebuild carries on from its bar; DANGER AND ACTION driven by an intensity the game sets (stinger, riser,
 bar-line transitions, taiko ostinatos, brass stabs; the Dev page's knob and the `music_intensity` /
 `music_breach` showcase verbs); the ship's hum (brown noise with resonances on the key at 432, louder
 and darker toward the drive at the stern, softer in small rooms, silent off the ship, a stressed

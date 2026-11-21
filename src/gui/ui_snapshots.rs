@@ -6440,7 +6440,9 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     let mut tune = humanity_music::tune::Tune::default();
     tune.level_db[1] = -3.0;
     tune.mute = 1 << 7;
-    let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, ..Default::default() };
+    // A chosen piece plays round its long arc at the library's endless length, as the game's context
+    // gives it (src/engine/music.rs; music.md section 7h), so the roll draws the arc the player hears.
+    let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, piece_s: lib.endless_minutes * 60.0, ..Default::default() };
     let r = &mut state.music_dev.readout;
     r.device = true;
     r.lib = Some(lib.clone());

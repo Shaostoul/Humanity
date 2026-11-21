@@ -51,6 +51,13 @@ pub(crate) fn ensure_sheet(state: &mut GuiState) {
         return;
     };
     let now = state.music_dev.readout.score.map(|s| s.seconds).unwrap_or(0.0);
+    // A planned piece (music.md section 7h): its plan for its whole length (every bar line, section and
+    // stage, a few hundred phrases of arithmetic), and its notes written down only for the bars in view,
+    // each found from the piece's seed without playing what comes before ("how the piece looks X
+    // minutes out"). A piece outside the plan (a danger mood) is written down from its start as before.
+    if planned_sheet(state, &playing, now) {
+        return;
+    }
     // A piece with a set length (the game's "A new piece" every few minutes: the score says how long
     // until the next one) is written down to its end, so the piano roll can draw it whole
     // (docs/design/music-page.md section 7); an endless one (Never, or the person's own choice) 40
@@ -74,6 +81,49 @@ pub(crate) fn ensure_sheet(state: &mut GuiState) {
     }
     let sheet = transcribe(&playing.res, playing.seed, &playing.ctx, 48000.0, reach);
     state.music_page.sheet = Some(SheetCache { tag: tag_of(&playing, reach), sheet });
+}
+
+/// The longest a planned piece's plan is drawn for when it plays on, seconds past the playhead.
+const ENDLESS_AHEAD_S: f64 = 1200.0;
+
+/// A planned piece's sheet: its plan for its whole length, its notes for the bars the roll shows
+/// (made again when the piece changes, when the bars in view are not written down, and every frame
+/// with "turn off all reuse" off). False when the piece is not planned.
+fn planned_sheet(state: &mut GuiState, playing: &Playing, now: f64) -> bool {
+    let length = match state.music_dev.readout.next_piece_s {
+        Some(rem) => (now + rem as f64).max(1.0),
+        None => ((now + ENDLESS_AHEAD_S) / 60.0).ceil() * 60.0,
+    };
+    let tag = tag_of(playing, length);
+    let reuse = humanity_core::reuse::enabled();
+    let fresh = reuse && state.music_page.sheet.as_ref().is_some_and(|s| s.tag == tag && !s.sheet.plan.is_empty());
+    let mut sheet = match (fresh, state.music_page.sheet.take()) {
+        (true, Some(c)) => c.sheet,
+        _ => match humanity_music::sheet::skeleton(&playing.res, playing.seed, &playing.ctx, 48000.0, length) {
+            Some(s) => s,
+            None => return false,
+        },
+    };
+    // The bars in view (the roll's own reckoning), written down if they are not.
+    let p = &state.music_page;
+    let total = sheet.bars.len();
+    if total > 0 {
+        let n = super::roll::bars_shown(p.roll_bars, total);
+        let first = super::roll::first_bar(&sheet, now, n, p.roll_follow, p.roll_first);
+        let a = sheet.bars[first];
+        let b = sheet.bar_span(first + n - 1).map(|s| s.1).unwrap_or(sheet.seconds).min(a + MOST_S);
+        let covered = reuse && sheet.notes_span.0 <= a + 1e-6 && sheet.notes_span.1 >= b - 1e-6;
+        if !covered {
+            let w = humanity_music::sheet::transcribe_from(&playing.res, playing.seed, &playing.ctx, 48000.0, first as u64, (b - a).max(0.1));
+            sheet.notes = w.notes;
+            sheet.chords = w.chords;
+            sheet.notes_span = w.notes_span;
+            sheet.hash = w.hash;
+            sheet.leads = w.leads;
+        }
+    }
+    state.music_page.sheet = Some(SheetCache { tag, sheet });
+    true
 }
 
 /// The tag of a written piece's sheet: the piece's timeline (by address: a new read is a new piece).

@@ -12,4 +12,6 @@ Genre(
     // a B together can last over two minutes, and the first time through ABAB played that stretch
     // twice, note for note. AABA, ABAC and ABCA still bring a section back.
     forms: [(form: "AABA", weight: 2.0), (form: "ABAC", weight: 1.0), (form: "ABCA", weight: 0.8)],
+    // The long arc its pieces follow over their length (data/music/arcs; music.md section 7h).
+    arc: Some("drift"),
 )

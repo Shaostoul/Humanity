@@ -6734,6 +6734,15 @@ window.HOS_I18N_EN = {
     }
   },
   "music": {
+    "arc": {
+      "stage_build": "Build",
+      "stage_climax": "Climax",
+      "stage_coda": "Coda",
+      "stage_develop": "Development",
+      "stage_intro": "Intro",
+      "stage_return": "Theme returns",
+      "stage_theme": "Theme"
+    },
     "era": {
       "classical": "Classical",
       "romantic": "Romantic"
@@ -8544,8 +8553,11 @@ window.HOS_I18N_EN = {
     "roll_length_hint": "How much of the piece the roll draws: from two bars to the whole piece.",
     "roll_length_name": "Bars shown",
     "roll_overview_hint": "The whole piece at once. The box marks the bars drawn below; click or drag to move it.",
+    "roll_planned": "An endless piece: the roll shows its plan to minute {{minutes}}, with the notes of the bars on screen.",
     "roll_seek_hint": "The piece's notes as a piano roll: time across, pitch up, each part in its colour. Click a bar to play the piece from there.",
     "roll_show": "Show",
+    "roll_stage": "Now in the piece: {{stage}}, energy {{energy}}%",
+    "roll_stage_hint": "Where the piece is in its planned shape: every piece is laid out from its seed before it plays (an intro, the theme, a development, a build, a climax, the theme coming back, a coda). The band along the bottom of the overview shows how much energy each part has; click any bar to jump there.",
     "roll_whole": "the whole piece, {{n}} bars",
     "section_now": "Section {{letter}}, chord {{chord}}",
     "beat": "Bar {{bar}}, beat {{beat}}",

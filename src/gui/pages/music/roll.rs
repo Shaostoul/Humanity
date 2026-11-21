@@ -77,10 +77,11 @@ pub(super) fn panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _acc
     // The parts muted in the choice as the page shows it (the person's, or what plays now).
     let mute = super::shown(&state.settings.music, &state.music_dev.readout).tune.mute;
     let endless = state.music_dev.readout.written_piece.is_none() && state.music_dev.readout.next_piece_s.is_none();
-    // A written piece playing can be sought: a click on a bar plays from it (rung 2).
-    let seekable = state.music_dev.readout.written_piece.is_some();
     // Taken out for the frame and put back (never copied: a symphony is tens of thousands of notes).
     let cache = state.music_page.sheet.take();
+    // A written piece playing can be sought (rung 2), and a planned composed piece too (music.md
+    // section 7h: any bar is computed from the piece's seed): a click on a bar plays from it.
+    let seekable = state.music_dev.readout.written_piece.is_some() || cache.as_ref().is_some_and(|c| !c.sheet.plan.is_empty());
     let p = &mut state.music_page;
     widgets::card(ui, theme, |ui| {
         let Some(sheet) = cache.as_ref().map(|c| &c.sheet).filter(|s| !s.bars.is_empty()) else {
@@ -105,8 +106,16 @@ pub(super) fn panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _acc
                 p.roll_first = first_now;
             }
             if endless {
+                // A planned piece's roll is its plan ahead with the notes of the bars in view (view.rs
+                // planned_sheet); a piece outside the plan is written down from its start.
                 let minutes = format!("{:.0}", (sheet_end(sheet) / 60.0).max(1.0));
-                ui.label(RichText::new(t("music_page.roll_endless").replace("{{minutes}}", &minutes)).size(theme.font_size_small).color(theme.text_muted()));
+                let key = if sheet.plan.is_empty() { "music_page.roll_endless" } else { "music_page.roll_planned" };
+                ui.label(RichText::new(t(key).replace("{{minutes}}", &minutes)).size(theme.font_size_small).color(theme.text_muted()));
+            }
+            // Where a planned piece is in its shape (music.md section 7h).
+            if let Some((kind, energy)) = sheet.plan.iter().rev().find(|x| x.at_s <= now + 1e-6).and_then(|x| x.stage.map(|k| (k, x.energy))) {
+                let words = t("music_page.roll_stage").replace("{{stage}}", t(kind.words())).replace("{{energy}}", &format!("{:.0}", energy * 100.0));
+                ui.label(RichText::new(words).size(theme.font_size_small).color(theme.text_secondary())).hint("music_page.roll_stage_hint");
             }
         });
         let n = bars_shown(p.roll_bars, total);
@@ -148,6 +157,14 @@ fn overview(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, first: us
     let (lo, hi) = if lo > hi { (48.0, 72.0) } else { (lo - 1.0, hi + 1.0) };
     let inner = rect.shrink2(Vec2::new(0.0, 4.0));
     let y_of = |m: f32| inner.bottom() - (m - lo) / (hi - lo).max(1.0) * inner.height();
+    // A planned piece's arc (music.md section 7h): each phrase's energy as a band along the bottom, the
+    // climax stronger, over the whole piece whether or not its notes are written down yet.
+    let e_max = sheet.plan.iter().map(|p| p.energy).fold(1.0f32, f32::max);
+    for p in &sheet.plan {
+        let h = (p.energy / e_max).clamp(0.05, 1.0) * rect.height() * 0.45;
+        let band = Rect::from_min_max(Pos2::new(x_of(p.at_s), rect.bottom() - h), Pos2::new(x_of(p.end_s), rect.bottom()));
+        painter.rect_filled(band, 0.0, theme.accent().gamma_multiply(if p.climax { 0.35 } else { 0.14 }));
+    }
     let cols = ((rect.width() / 3.0).ceil() as usize).max(1);
     let mut spans = vec![[(f32::MAX, f32::MIN); ROLES]; cols];
     for x in sheet.notes.iter().filter(|x| (x.role as usize) < ROLES) {
@@ -166,9 +183,17 @@ fn overview(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, first: us
             painter.line_segment([Pos2::new(x, y_of(a) + 0.75), Pos2::new(x, y_of(b) - 0.75)], Stroke::new(2.0f32, colour));
         }
     }
+    // Each section's letter where there is room for it: a long plan on a phone (some 80 phrases in 400
+    // points) would otherwise overprint them into one smear (the_rolls_section_letters_never_overprint).
     let font = FontId::proportional(theme.font_size_small);
+    let mut free_x = f32::MIN;
     for s in sheet.sections.iter().filter(|s| s.letter > 0) {
-        painter.text(Pos2::new(x_of(s.at_s) + 2.0, rect.top() + 1.0), Align2::LEFT_TOP, ((b'A' + s.letter - 1) as char).to_string(), font.clone(), theme.text_secondary());
+        let x = x_of(s.at_s) + 2.0;
+        if x < free_x {
+            continue;
+        }
+        let r = painter.text(Pos2::new(x, rect.top() + 1.0), Align2::LEFT_TOP, ((b'A' + s.letter - 1) as char).to_string(), font.clone(), theme.text_secondary());
+        free_x = r.right() + 2.0;
     }
     // The window: the bars the roll draws below.
     let (a, _) = sheet.bar_span(first).unwrap_or((0.0, 0.0));

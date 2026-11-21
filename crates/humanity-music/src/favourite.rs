@@ -164,6 +164,8 @@ impl Favourite {
             analyse: false,
             seek: 0,
             seek_bar: 0,
+            // A favourite plays on (it is chosen), round its arc at the endless length.
+            piece_s: lib.endless_minutes * 60.0,
         })
     }
 }

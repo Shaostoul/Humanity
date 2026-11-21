@@ -764,8 +764,11 @@ impl MusicRuntime {
         // none has been read (Settings > Music lists its genres from it, music played or not; the hum
         // reads its sources from it), and with reuse off every few seconds.
         self.since_read_s += inp.dt;
-        if self.score.is_some() && g.music {
-            self.piece_s += inp.dt;
+        // The time into the piece is the score's own clock (music.md section 7h): a seek in a composed
+        // piece, or a rebuild carried on from a bar, moves it with the music, so the next piece still
+        // comes when this one's planned length is played.
+        if let (Some(s), true) = (st, self.score.is_some() && g.music) {
+            self.piece_s = s.seconds as f32;
         }
         // In place of new pieces: the person's choice, or the mood's "my music" (music-page.md).
         // A written piece that could not be read is forgotten once the person chooses another (or none).
@@ -1006,7 +1009,10 @@ impl MusicRuntime {
             Some(i) if s.blend > 0.0 => (i as u16, s.blend.clamp(0.0, 1.0)),
             _ => (genre_a, 0.0),
         };
-        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity, duck_db: g.duck_db, tune, analyse: inp.analyse, seek: inp.seek.0, seek_bar: inp.seek.1 }
+        // The piece's length its arc is planned over (music.md section 7h): "A new piece" every few
+        // minutes, or, for a piece that plays on (Never, a chosen piece), the endless round.
+        let piece_s = if choice.is_none() && s.piece_minutes > 0.0 { s.piece_minutes * 60.0 } else { lib.endless_minutes * 60.0 };
+        MusicContext { gain: g.music_gain, a4_hz: a4, mood, genre_a, genre_b, blend, intensity, duck_db: g.duck_db, tune, analyse: inp.analyse, seek: inp.seek.0, seek_bar: inp.seek.1, piece_s }
     }
 
     /// The readout's lists (Settings > Music's genres and tones) and the build's state.

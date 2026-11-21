@@ -12,7 +12,22 @@
 //!
 //! What it decides goes to a [`Sink`]: the score's sink starts and stops voices; a test's sink
 //! records, so an hour is "played" in milliseconds with no sound at all.
+//!
+//! SEEKING (music.md section 7h, 2026-11-21). A calm piece is PLANNED whole before its notes
+//! (crate::arc: every phrase's section, bars, stage and energy), and everything the composer draws
+//! comes from seeds derived from the piece's seed, never from a stream carried along from the start:
+//! the plan from [`plan_seed`], each phrase's improvisation from [`phrase_seed`], each bar's own
+//! choices (drum timing, velocities, the walking bass, the heartbeat, the riffs' notes) from
+//! [`bar_seed`], each section's chords from its section seed. Voicings are placed against the role's
+//! register, never led from a voicing long past, and a phrase's first bass note is placed from the
+//! middle of the register, so what a phrase plays depends only on the phrase before it.
+//! [`Composer::seek_to_bar`] therefore reaches bar N by planning the piece and playing, silently, from
+//! the start of the phrase before the one bar N is in: the same work at minute 1 and on day 3, and bar
+//! N then equals bar N reached by playing from the start, note for note. What the seed does not
+//! decide: the world's and the person's changes on top (danger and action, a move to another mood, a
+//! blend, the Music page's tune), which steer the composer as they happen.
 
+use crate::arc::{ArcPlan, PlanPhrase, FREE, ROUND_CHORUS};
 use crate::genre::{step_offset_in_beat, Comping, HarmonyRule, Recipe};
 use crate::mood::{Motif, RoleKind};
 use crate::piece::{GenMotif, Piece, Section, MAX_PIECE_MOTIFS};
@@ -27,7 +42,9 @@ pub enum Event {
     /// A phrase began: its plan's hash, when, in which mood and key; the piece's section it plays
     /// (its letter + 1, 0 with no form), which time through the form, and whether it is a section
     /// RETURNING the first time through (its tune again, on purpose).
-    Phrase { hash: u64, at_s: f64, mood: u16, key_pc: i32, section: u8, chorus: u32, returning: bool },
+    /// `stage`: the planned stage it is in (an index in the genre's arc; 255: not planned, danger),
+    /// and its planned energy (1 = as levelled).
+    Phrase { hash: u64, at_s: f64, mood: u16, key_pc: i32, section: u8, chorus: u32, returning: bool, stage: u8, energy: f32 },
     /// A chord began: which, its root's pitch class, its pitch classes as a 12-bit mask, how many
     /// beats it lasts (the Music page names it from the root and the mask: "Dm6", "A7").
     Chord { chord: u16, root: i8, pcs: u16, at_s: f64, beats: f32 },
@@ -65,6 +82,57 @@ pub struct Steer {
     /// What the person changed on the Music page (crate::tune): the key, the tempo, the swing and
     /// the lead voices are read here when a phrase is planned; the levels and mutes act in the score.
     pub tune: crate::tune::Tune,
+    /// The piece's length, seconds: its long arc is planned over it (0: no length, the genre's form
+    /// over and over; the game always sets it, from "A new piece").
+    pub piece_s: f32,
+}
+
+/// The seed scheme (music.md section 7h). Every seed is `piece::mix(parent, salt or number)` with the
+/// piece's seed at the root: the plan's, each phrase's, each bar's.
+const SALT_PLAN: u64 = 0xa2c0;
+const SALT_PHRASE: u64 = 0x9a5e;
+const SALT_BAR: u64 = 0xba70;
+/// A bar outside the plan (a danger mood's): keyed by the bars since the score began.
+const SALT_FREE_BAR: u64 = 0xda90;
+/// How many times an improvised phrase may be drawn again while it sounds like a phrase of its letter
+/// in the mood's no-repeat window.
+const ATTEMPTS: u64 = 6;
+
+/// The seed a piece's plan is laid out from, for the genre keyed `genre_key`.
+pub fn plan_seed(piece: u64, genre_key: u64) -> u64 {
+    crate::piece::mix(piece, SALT_PLAN ^ genre_key)
+}
+
+/// The seed planned phrase `i` (counted over every round of the arc) improvises from.
+pub fn phrase_seed(piece: u64, i: u64) -> u64 {
+    crate::piece::mix(crate::piece::mix(piece, SALT_PHRASE), i)
+}
+
+/// The seed piece bar `bar` draws its own choices from.
+pub fn bar_seed(piece: u64, bar: u64) -> u64 {
+    crate::piece::mix(crate::piece::mix(piece, SALT_BAR), bar)
+}
+
+/// A sink that keeps nothing (a seek's silent run up to its bar).
+pub struct Silent;
+
+impl Sink for Silent {
+    fn note_on(&mut self, _note: NoteOn) {}
+    fn note_off(&mut self, _tag: u32) {}
+}
+
+/// The register's reference voicing for `n` voices in `lo..=hi`: evenly spaced notes, clear of both ends
+/// (the lowest a step up from the register's floor, so a pad's low voice does not rumble). Every chord is
+/// voiced nearest it (crate::composer::voice_lead from it), so a voicing depends on its chord alone and
+/// two chords in a row never move a voice far (each sits near the same reference).
+pub fn register_ref(n: usize, lo: i32, hi: i32) -> [i32; 8] {
+    let n = n.clamp(1, 8);
+    let span = (hi - lo).max(1) as f32;
+    let mut out = [0i32; 8];
+    for (k, o) in out.iter_mut().take(n).enumerate() {
+        *o = (lo as f32 + span * (k as f32 + 1.0) / (n as f32 + 1.0)).round() as i32;
+    }
+    out
 }
 
 const PENDING: usize = 128;
@@ -205,8 +273,35 @@ pub struct Composer {
     pending: [Pending; PENDING],
     history: [(u64, f32); HISTORY],
     hist_w: usize,
-    tag: u32,
+    /// Tags: the bar's own range (its piece bar, or bars since the start with the top bit for a bar
+    /// outside the plan, shifted 12 bits) and the count within it, so a bar's tags are the same
+    /// however it was reached.
+    tag_base: u32,
+    tag_k: u32,
     started: bool,
+    /// The long arc (crate::arc): the piece laid out, what it was laid out from, and the planned phrase
+    /// playing with the piece bar it began on (None: a danger mood's phrase, outside the plan).
+    arc: ArcPlan,
+    arc_key: u64,
+    planned: Option<(PlanPhrase, u64)>,
+    /// The piece bar the last planned phrase began on (the status's place in the piece; a rebuild
+    /// carries on from it).
+    form_bar: u64,
+    /// The phrase's first bass note is placed from the middle of the register (so a phrase never
+    /// depends on the bass line of the one before).
+    bass_fresh: bool,
+    /// The home key moved with a change of harmony mid-piece (the world's doing, not the seed's).
+    home_adapted: bool,
+    /// The beat the tempo is counted from (a sample) and the beats since: each beat's start is
+    /// computed, never summed, so it lands on the same sample however the bar was reached.
+    tempo_origin: f64,
+    tempo_beats: u64,
+    /// Strike what is held again at the next decision (a seek: the harmony sounds from its bar).
+    restrike: bool,
+    /// The pad's and the choir's registers as last voiced (voices, low, high; 0 voices: none yet),
+    /// and whether each is still moving from an old register into a new one (crate::composer::voicing).
+    regs: [(u8, i32, i32); 2],
+    unsettled: [bool; 2],
     /// The intensity band playing, and a change waiting for a bar line: (band, the bar it starts on).
     band: usize,
     pending_band: Option<(usize, u64)>,
@@ -288,8 +383,20 @@ impl Composer {
             pending: [Pending::default(); PENDING],
             history: [(0, f32::NEG_INFINITY); HISTORY],
             hist_w: 0,
-            tag: 1,
+            tag_base: 0,
+            tag_k: 0,
             started: false,
+            arc: ArcPlan::default(),
+            arc_key: 0,
+            planned: None,
+            form_bar: 0,
+            bass_fresh: true,
+            home_adapted: false,
+            tempo_origin: 0.0,
+            tempo_beats: 0,
+            restrike: false,
+            regs: [(0, 0, 0); 2],
+            unsettled: [false; 2],
             band: 0,
             pending_band: None,
             bars_total: 0,
@@ -361,10 +468,111 @@ impl Composer {
         self.verbatim = true;
     }
 
-    /// Carry on the piece from its phrase `played` (a score rebuilt mid-piece, its data read again
-    /// or a pack installed, takes over where the old one was: the same seed, the same form).
-    pub fn resume_at(&mut self, played: u64) {
-        self.piece.played = played;
+    /// The piece laid out (crate::arc): its phrases, their stages and energies (empty before the first
+    /// calm phrase, or outside the plan).
+    pub fn plan(&self) -> &ArcPlan {
+        &self.arc
+    }
+
+    /// The planned phrase playing and the piece bar it began on (None: outside the plan).
+    pub fn planned(&self) -> Option<(PlanPhrase, u64)> {
+        self.planned
+    }
+
+    /// The piece bar now playing (the plan's clock; the bar of the last planned phrase while a danger
+    /// mood plays).
+    pub fn piece_bar(&self) -> u64 {
+        match self.planned {
+            Some((_, start)) => start + self.bar_in_phrase as u64,
+            None => self.form_bar,
+        }
+    }
+
+    /// Strike what the composer holds again at its next decision (after [`Composer::seek_to_bar`],
+    /// so the chord and the drone sound from the bar sought, not only from the next change).
+    pub fn strike_held_next(&mut self) {
+        self.restrike = true;
+    }
+
+    /// SEEK: make the composer stand at the start of piece bar `bar`, as if it had played the piece from
+    /// its start, without playing it (music.md section 7h). The piece is planned for the steer as it
+    /// is, then the composer runs silently (into `sink`: [`Silent`] to drop it, a recorder to keep it)
+    /// from the start of the phrase before the one `bar` is in, up to `bar`'s first decision; the next
+    /// [`Composer::process`] plays `bar` exactly as playing from the start would have. The cost is at
+    /// most two phrases of composing, whatever the bar. A steer outside the plan (no genre, a danger
+    /// mood) starts afresh at the bar's time with nothing planned before it.
+    pub fn seek_to_bar(&mut self, res: &Resolved, bar: u64, sink: &mut dyn Sink) {
+        let target = (self.steer.mood as usize).min(res.moods.len().saturating_sub(1));
+        let Some(mood) = res.moods.get(target) else { return };
+        let dominant = if self.steer.blend >= 0.5 && res.genres.get(self.steer.genre_b as usize).is_some() { self.steer.genre_b } else { self.steer.genre_a };
+        let g = res.genres.get(dominant as usize).filter(|_| !mood.urgent);
+        // A fresh composer at the phrase before the bar's.
+        self.mood = target;
+        self.harm_src = MOOD_SRC;
+        self.motif_src = MOOD_SRC;
+        let mut from = 0;
+        let mut from_bar = bar;
+        if let Some(gg) = g {
+            match &gg.structure {
+                Some(st) => self.piece.choose_form(dominant, gg.seed_key, &st.form),
+                None => self.piece.choose_form(dominant, gg.seed_key, &gg.forms),
+            }
+            self.ensure_plan(res, dominant, gg);
+            if let Some(i) = self.arc.phrase_at_bar(bar) {
+                from = i.saturating_sub(1);
+                from_bar = self.arc.phrase(from).map(|p| p.2).unwrap_or(0);
+            }
+        }
+        for h in [&mut self.pads, &mut self.pad_voicing, &mut self.choir, &mut self.choir_voicing, &mut self.bass, &mut self.drone, &mut self.texture] {
+            h.n = 0;
+        }
+        self.drone_root = -1;
+        self.pending = [Pending::default(); PENDING];
+        self.history = [(0, f32::NEG_INFINITY); HISTORY];
+        self.hist_w = 0;
+        self.phrase_count = 0;
+        self.band = 0;
+        self.pending_band = None;
+        self.gap_from = u64::MAX;
+        self.gap_done = false;
+        self.tape_from = u64::MAX;
+        self.tape_to = u64::MAX;
+        self.planned = None;
+        self.section = None;
+        self.part = None;
+        self.home_adapted = false;
+        self.restrike = false;
+        self.regs = [(0, 0, 0); 2];
+        self.unsettled = [false; 2];
+        self.started = true;
+        // The piece's tempo and bar from the genre and the mood the seek plays in.
+        let e = self.resolve_eff(res, &mut Rng::new(0));
+        let bpb = e.beats_per_bar.max(1) as u64;
+        self.tempo = self.piece_tempo(e.tempo);
+        self.beat_len = self.rate * 60.0 / self.tempo as f64;
+        self.eff = Some(e);
+        self.tempo_origin = 0.0;
+        self.tempo_beats = from_bar * bpb;
+        self.beat_start = self.tempo_origin + self.tempo_beats as f64 * self.beat_len;
+        self.next_step = self.beat_start;
+        self.pos = self.beat_start.ceil() as u64;
+        self.step_in_beat = 0;
+        self.beat_in_bar = 0;
+        self.bar_in_phrase = 0;
+        self.bars_in_phrase = 0;
+        self.bars_total = from_bar;
+        self.beats_total = from_bar * bpb;
+        self.piece.played = from;
+        self.form_bar = from_bar;
+        // Play silently up to the bar's first step (its start is computed as the run will compute it).
+        let stop = (self.tempo_origin + (bar * bpb) as f64 * self.beat_len).ceil() as u64;
+        let mut guard = 0u64;
+        while self.pos < stop && guard < 4_000_000 {
+            guard += 1;
+            self.process(res, sink);
+            let n = self.until_next().min((stop - self.pos) as usize).max(1);
+            self.advance(n);
+        }
     }
 
     /// The piece's seed.
@@ -392,12 +600,12 @@ impl Composer {
         out
     }
 
-    /// The section playing: its letter + 1 (0: no form), which time through the form, and the
-    /// piece's phrase index of it.
+    /// The section playing: its letter + 1 (0: no form), which time through the form, and the piece
+    /// bar its phrase began on (a rebuild carries on from there: [`Composer::seek_to_bar`]).
     pub fn section(&self) -> (u8, u32, u64) {
         match self.section {
-            Some((l, c, _)) => (l + 1, c.min(u32::MAX as u64) as u32, self.piece.played.saturating_sub(1)),
-            None => (0, 0, self.piece.played.saturating_sub(1)),
+            Some((l, c, _)) if l != FREE => (l + 1, c.min(u32::MAX as u64) as u32, self.form_bar),
+            _ => (0, 0, self.form_bar),
         }
     }
 
@@ -410,6 +618,7 @@ impl Composer {
         self.rate = rate as f64;
         self.beat_len *= k;
         self.beat_start *= k;
+        self.tempo_origin *= k;
         self.next_step *= k;
         self.pos = (self.pos as f64 * k) as u64;
         for p in self.pending.iter_mut() {
@@ -519,6 +728,12 @@ impl Composer {
             self.started = true;
             self.next_step = self.pos as f64;
             self.beat_start = self.pos as f64;
+            self.tempo_origin = self.beat_start;
+            self.tempo_beats = 0;
+        }
+        if self.restrike {
+            self.restrike = false;
+            self.strike_held(sink);
         }
         let in_gap = self.pos >= self.gap_from || self.in_tape_stop();
         for i in 0..PENDING {
@@ -533,11 +748,109 @@ impl Composer {
                 }
             }
         }
+        // A step is due once its time has come, on the first sample at or after it, wherever the
+        // caller cuts its blocks (so a seek's run and the score's agree to the sample).
         let mut guard = 0;
-        while self.next_step <= self.pos as f64 + 0.5 && guard < 64 {
+        while self.next_step <= self.pos as f64 && guard < 64 {
             guard += 1;
             self.on_step(res, sink);
         }
+    }
+
+    /// A role's voicing of a chord (`slot` 0 the pad, 1 the choir). Settled (always, in a steady piece):
+    /// each voice a chord tone within its WINDOW of the register's reference ([`register_ref`], from
+    /// two semitones under to three over), so a voicing depends on its chord alone and two in a row
+    /// never move a voice more than five semitones (a fourth). After a move to a mood whose register
+    /// differs (the world's doing): led from the last voicing (each voice at most a fourth) and pulled
+    /// toward the new reference, until a voicing lands inside the windows.
+    #[allow(clippy::too_many_arguments)]
+    fn voicing(&mut self, slot: usize, n: usize, lo: i32, hi: i32, prev: &[i32], pcs: &[i32], root_pc: i32) -> [i32; 8] {
+        let n = n.clamp(1, 8);
+        let reg = (n as u8, lo, hi);
+        if self.regs[slot] != reg {
+            self.unsettled[slot] = self.regs[slot].0 != 0;
+            self.regs[slot] = reg;
+        }
+        let r = register_ref(n, lo, hi);
+        if self.unsettled[slot] && prev.len() == n {
+            let v = voice_lead_within(prev, n, pcs, root_pc, lo, hi, (-5, 5), Some(&r));
+            if (0..n).all(|k| v[k] >= r[k] - 2 && v[k] <= r[k] + 3) {
+                self.unsettled[slot] = false;
+            }
+            return v;
+        }
+        self.unsettled[slot] = false;
+        voice_lead_within(&r[..n], n, pcs, root_pc, lo, hi, (-2, 3), None)
+    }
+
+    /// Strike again, with their own tags, the notes the composer holds (after a seek).
+    fn strike_held(&mut self, sink: &mut dyn Sink) {
+        let eff = self.eff();
+        let a4 = self.steer.a4;
+        for (h, role) in [(self.pads, RoleKind::Pad), (self.choir, RoleKind::Choir), (self.bass, RoleKind::Bass), (self.drone, RoleKind::Drone), (self.texture, RoleKind::Texture)] {
+            let Some(r) = eff.roles[role.index()] else { continue };
+            for k in 0..h.n {
+                sink.note_on(NoteOn { inst: r.inst, role: role.index() as u8, midi: h.notes[k] as f32, a4, vel: 0.8, pan: 0.0, gate: 0.0, hold_s: 0.0, tag: h.tags[k], level: r.level });
+            }
+        }
+    }
+
+    /// The tempo a planned piece keeps, from the genre's (or the mood's) range `range`: the piece's own
+    /// place in it, or the person's tempo on the Music page.
+    fn piece_tempo(&self, range: (f32, f32)) -> f32 {
+        self.steer.tune.tempo_for(range.0 + (range.1.max(range.0) - range.0) * self.piece.tempo_t, range).clamp(20.0, 240.0)
+    }
+
+    /// Lay the piece out for genre `dominant` (`g`) in the mood playing, unless the plan already in hand
+    /// was laid out from the same things (the genre, the length in bars, the section lengths, the seed).
+    fn ensure_plan(&mut self, res: &Resolved, dominant: u16, g: &crate::resolved::RGenre) {
+        let Some(m) = res.moods.get(self.mood) else { return };
+        let e = self.resolve_eff(res, &mut Rng::new(0));
+        let tempo = self.piece_tempo(e.tempo);
+        let bar_s = e.beats_per_bar.max(1) as f64 * 60.0 / tempo.max(1.0) as f64;
+        let arc = g.arc.as_ref().filter(|_| self.steer.piece_s > 0.0);
+        let length_bars = if arc.is_some() { (self.steer.piece_s as f64 / bar_s).round().clamp(1.0, 1e6) as u32 } else { 0 };
+        let phrase_bars: &[u32] = g.phrase_bars.as_deref().unwrap_or(&m.phrase_bars);
+        let mut key = fnv(fnv(fnv(0xcbf2_9ce4_8422_2325, dominant as u64), length_bars as u64), self.piece.seed);
+        for &b in phrase_bars {
+            key = fnv(key, b as u64);
+        }
+        for &l in &self.piece.form[..self.piece.form_len] {
+            key = fnv(key, l as u64 | 0x100);
+        }
+        if key == self.arc_key && self.arc.n > 0 {
+            return;
+        }
+        let mut structure_bars = [0u32; crate::piece::MAX_FORM];
+        let mut sn = 0;
+        if let Some(st) = &g.structure {
+            for (k, s) in st.sections.iter().take(crate::piece::MAX_FORM).enumerate() {
+                structure_bars[k] = s.bars;
+                sn = k + 1;
+            }
+        }
+        let form = self.piece.form;
+        let input = crate::arc::PlanInput { arc, form: &form[..self.piece.form_len], structure_bars: &structure_bars[..sn], phrase_bars, seed: plan_seed(self.piece.seed, g.seed_key), length_bars };
+        crate::arc::plan(&input, &mut self.arc);
+        self.arc_key = key;
+    }
+
+    /// Begin the bar now starting: its own stream of choices and its own range of tags (the planned
+    /// phrase's piece bar, else the bars since the score began).
+    fn begin_bar(&mut self) {
+        let (seed, base) = match self.planned {
+            Some((_, start)) => {
+                let b = start + self.bar_in_phrase as u64;
+                (bar_seed(self.piece.seed, b), ((b as u32) << 12) & 0x7fff_f000)
+            }
+            None => {
+                let b = self.bars_total.saturating_sub(1);
+                (crate::piece::mix(crate::piece::mix(self.piece.seed, SALT_FREE_BAR), b), 0x8000_0000 | (((b as u32) << 12) & 0x7fff_f000))
+            }
+        };
+        self.rng = Rng::new(seed);
+        self.tag_base = base;
+        self.tag_k = 0;
     }
 
     /// Run the composer alone for `seconds` (no sound): the tests' hour in milliseconds.
@@ -550,9 +863,13 @@ impl Composer {
         }
     }
 
+    /// The next tag in the bar's range (never 0, which means none).
     fn next_tag(&mut self) -> u32 {
-        self.tag = self.tag.wrapping_add(1).max(1);
-        self.tag
+        self.tag_k = (self.tag_k + 1) & 0xfff;
+        if self.tag_k == 0 {
+            self.tag_k = 1;
+        }
+        self.tag_base | self.tag_k
     }
 
     fn schedule(&mut self, at: u64, note: NoteOn) {
@@ -772,7 +1089,7 @@ impl Composer {
                 if !pat.is_empty() {
                     let c = pat[((step_of_bar as usize * pat.len()) / spb as usize).min(pat.len() - 1)];
                     let root = self.chord_root_pc(res);
-                    let prev = if self.bass.n > 0 { self.bass.notes[0] } else { (bass.low + bass.high) / 2 };
+                    let prev = if self.bass.n > 0 && !self.bass_fresh { self.bass.notes[0] } else { (bass.low + bass.high) / 2 };
                     let walking = matches!(c, b'w' | b'W');
                     let off = match c {
                         b'x' | b'X' => Some(0),
@@ -791,6 +1108,7 @@ impl Composer {
                         let tag = self.next_tag();
                         sink.note_on(NoteOn { inst: bass.inst, role: RoleKind::Bass.index() as u8, midi: target as f32, a4: self.steer.a4, vel: 0.8 + self.rng.range(-0.08, 0.08), pan: 0.0, gate: 0.0, hold_s: 0.0, tag, level: bass.level });
                         self.bass = Held { notes: [target, 0, 0, 0, 0, 0, 0, 0], tags: [tag, 0, 0, 0, 0, 0, 0, 0], n: 1 };
+                        self.bass_fresh = false;
                     }
                 }
             }
@@ -805,7 +1123,8 @@ impl Composer {
             self.step_in_beat = 0;
             self.beat_in_bar += 1;
             self.beats_total += 1;
-            self.beat_start += self.beat_len;
+            self.tempo_beats += 1;
+            self.beat_start = self.tempo_origin + self.tempo_beats as f64 * self.beat_len;
             if self.beat_in_bar >= bpb {
                 self.beat_in_bar = 0;
                 self.bar_in_phrase += 1;
@@ -971,6 +1290,7 @@ impl Composer {
     fn on_bar(&mut self, res: &Resolved, sink: &mut dyn Sink) {
         let bar = self.bars_total;
         self.bars_total += 1;
+        self.begin_bar();
         // A band change waiting for this bar line: the danger mood (or the calm one) begins here,
         // on a new phrase.
         let switch = matches!(self.pending_band, Some((_, at)) if bar >= at);
@@ -1016,7 +1336,9 @@ impl Composer {
         self.phrase_count > 0
     }
 
-    fn resolve_eff(&mut self, res: &Resolved) -> Eff {
+    /// The genre (or blend) over the mood playing, for a phrase; `rng` draws which genre's instrument a
+    /// role takes in a blend.
+    fn resolve_eff(&self, res: &Resolved, rng: &mut Rng) -> Eff {
         let mood = &res.moods[self.mood];
         let a = res.genres.get(self.steer.genre_a as usize);
         let b = if self.steer.blend > 0.001 { res.genres.get(self.steer.genre_b as usize) } else { None };
@@ -1072,7 +1394,7 @@ impl Composer {
                 // Each role takes the second genre's instrument with a chance equal to the blend;
                 // a role one genre lacks plays while the blend leans to the genre that has it.
                 match (ra, rb) {
-                    (Some(x), Some(y)) => Some(if self.rng.chance(t) { y } else { x }),
+                    (Some(x), Some(y)) => Some(if rng.chance(t) { y } else { x }),
                     (Some(x), None) => (t < 0.5).then_some(x),
                     (None, Some(y)) => (t >= 0.5).then_some(y),
                     (None, None) => None,
@@ -1315,13 +1637,29 @@ impl Composer {
                 self.gen_src = dominant;
             }
         }
-        let section = if calm { self.piece.section(self.piece.played) } else { None };
-        // The structure's section this phrase plays (its place in the form is its index).
-        self.part = match (g.and_then(|gg| gg.structure.as_ref()), section) {
-            (Some(st), Some(_)) if self.piece.form_len > 0 => {
-                let i = (self.piece.played % self.piece.form_len as u64) as usize;
-                (i < st.sections.len()).then_some((dominant, i as u8))
-            }
+        // The planned phrase (every calm phrase of a genre is planned: crate::arc): its section, its
+        // stage, its energy. A danger mood plays outside the plan, and the plan picks up where it was.
+        if let Some(gg) = g {
+            self.ensure_plan(res, dominant, gg);
+        }
+        let index = self.piece.played;
+        let planned = if calm && g.is_some() { self.arc.phrase(index) } else { None };
+        self.planned = planned.map(|(p, _, start)| (p, start));
+        if let Some((_, _, start)) = planned {
+            self.form_bar = start;
+        }
+        // (letter, chorus, returning, plays its tune): a genre without an arc improvises every time
+        // round after the first; an arc's tunes return in every round.
+        let trivial = self.arc.trivial;
+        let section = planned.map(|(p, round, _)| {
+            let tune = (p.tune && (!trivial || round == 0)) || self.verbatim;
+            let chorus = if trivial { round } else { p.chorus as u64 + round * ROUND_CHORUS as u64 };
+            let returning = tune && (p.returning || round > 0);
+            (p.letter, if tune { 0 } else { chorus }, returning, tune)
+        });
+        // The structure's section this phrase plays.
+        self.part = match (g.and_then(|gg| gg.structure.as_ref()), planned) {
+            (Some(st), Some((p, _, _))) if (p.part as usize) < st.sections.len() => Some((dominant, p.part)),
             _ => None,
         };
         let part_sec = self.part_section(res);
@@ -1348,16 +1686,16 @@ impl Composer {
                 (0..harm.keys.len()).min_by_key(|&i| fifths_distance(harm.keys[i].0, prev_key)).unwrap_or(0)
             };
             self.home_key = self.key_idx;
-        } else if let Some((letter, _, _)) = section {
-            // In a form: the A sections in the piece's home key; another section (the bridge) in a
-            // second key when this piece's seed says its bridge moves (about a third of pieces).
-            self.key_idx = if letter != 0 && harm.keys.len() > 1 && self.piece.bridge_moves < 0.35 {
-                let home = self.home_key;
-                crate::piece::pick(crate::piece::unit(crate::piece::mix(self.piece.seed, 0xb2 + letter as u64)), harm.keys.iter().enumerate().map(|(i, k)| if i == home { 0.0 } else { k.2 }))
-            } else {
-                self.home_key
-            };
-        } else if self.phrase_count % 4 == 0 {
+            self.home_adapted = !first;
+        }
+        if let Some((p, _, _)) = planned {
+            // A planned phrase's key: the piece's home key (the seed's, unless a move of harmony
+            // mid-piece re-keyed it), moved as the plan's stage says.
+            if !self.home_adapted {
+                self.home_key = crate::piece::pick(self.piece.key_draw, harm.keys.iter().map(|k| k.2));
+            }
+            self.key_idx = self.planned_key(harm, &p);
+        } else if !harm_changed && self.phrase_count % 4 == 0 {
             // A section's end: now and then the key moves to a related one (by the keys' weights).
             if harm.keys.len() > 1 && self.rng.chance(0.3) {
                 let cur = self.key_idx;
@@ -1371,7 +1709,20 @@ impl Composer {
         // bridge's included, so the piece keeps its shape.
         self.key_pc = (kpc + self.steer.tune.transpose.clamp(-6, 6) as i32).rem_euclid(12);
         self.mode = kmode;
-        let mut eff = self.resolve_eff(res);
+        let mut eff = match planned {
+            Some((p, _, _)) => {
+                let mut r = Rng::new(crate::piece::mix(phrase_seed(self.piece.seed, index), 0xb1e));
+                let mut e = self.resolve_eff(res, &mut r);
+                apply_stage(&mut e, &p, section.is_some_and(|s| s.3));
+                e
+            }
+            None => {
+                let mut r = self.rng;
+                let e = self.resolve_eff(res, &mut r);
+                self.rng = r;
+                e
+            }
+        };
         if self.steer.tune.swing >= 0.0 {
             eff.swing = self.steer.tune.swing.clamp(0.5, 0.75);
         }
@@ -1402,82 +1753,88 @@ impl Composer {
             let hi = froms.get(self.band + 1).copied().unwrap_or(1.0).max(lo + 1e-3);
             let x = ((self.steer.intensity - lo) / (hi - lo)).clamp(0.0, 1.0);
             eff.tempo.0 + (eff.tempo.1 - eff.tempo.0) * x
-        } else if section.is_some() {
-            self.steer.tune.tempo_for(eff.tempo.0 + (eff.tempo.1.max(eff.tempo.0) - eff.tempo.0) * self.piece.tempo_t, eff.tempo)
+        } else if planned.is_some() {
+            self.piece_tempo(eff.tempo)
         } else {
             // The draw happens whatever the person chose, so a tempo change leaves the rest alone.
             let drawn = self.rng.range(eff.tempo.0, eff.tempo.1.max(eff.tempo.0));
             self.steer.tune.tempo_for(drawn, eff.tempo)
         }
         .clamp(20.0, 240.0);
-        self.beat_len = self.rate * 60.0 / self.tempo as f64;
+        // A new tempo counts its beats from this bar line.
+        let beat_len = self.rate * 60.0 / self.tempo as f64;
+        if beat_len != self.beat_len {
+            self.tempo_origin = self.beat_start;
+            self.tempo_beats = 0;
+            self.beat_len = beat_len;
+        }
         let now_s = self.seconds() as f32;
         let window = m.no_repeat_s;
         let n_motifs = self.motif_count(res);
         let start_chord = if harm_changed { harm.start } else { self.chord };
-        let plan = match section {
-            Some((letter, chorus, _)) => {
+        let plan = match (planned, section) {
+            (Some((p, _, _)), Some((_, chorus, _, tune))) => {
                 // A section of the piece: its chords from its own seed (the same letter is the same
-                // chords all piece), its tune too the first time through the form; after that the
-                // riffs are improvised over the same chords, re-drawn while they repeat a phrase
-                // played within the window.
-                // (Keyed by the harmony's id, never its place in the list: BUG-299.)
-                let harmony_id = if harm_src == MOOD_SRC { 0x1000 ^ m.seed_key } else { res.genres.get(harm_src as usize).map(|x| x.seed_key).unwrap_or(0) };
-                let mut sec_rng = Rng::new(self.piece.section_seed(harmony_id, letter));
-                let choices = g.and_then(|g| g.phrase_bars.as_deref()).unwrap_or(&m.phrase_bars);
-                let drawn = choices[sec_rng.int(0, choices.len() as i32 - 1) as usize].clamp(1, 64);
-                // A structure's section is as long as the structure says.
-                let bars = part_sec.map(|s| s.bars).unwrap_or(drawn);
-                let chord_bars = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
-                let last_of_form = self.piece.form_len > 0 && (self.piece.played % self.piece.form_len as u64) as usize == self.piece.form_len - 1;
-                let seed = self.piece.seed;
-                let mut sec = section_chords(harm, &mut sec_rng, seed, letter, bars, chord_bars, last_of_form);
-                if chorus > 0 && !self.verbatim {
-                    // A later time through: the first half as before, the second half reharmonised
-                    // (its own seed for this time through), so the section stays recognisable and
-                    // the hour never plays the same two minutes twice.
-                    let mut alt_rng = Rng::new(crate::piece::mix(self.piece.section_seed(harmony_id, letter), chorus));
-                    let alt = section_chords(harm, &mut alt_rng, seed, letter, bars, chord_bars, last_of_form);
-                    sec = crate::piece::splice(&sec, &alt, sec.total_bars() / 2);
-                }
-                let mut plan = self.make_plan(m, harm, n_motifs, start_chord, false, eff, Some((sec, (chorus == 0 || self.verbatim).then_some(sec_rng))));
-                for _ in 0..24 {
-                    let seen = chorus > 0 && !self.verbatim && self.history.iter().any(|&(h, t)| h == plan.hash && now_s - t < window);
-                    if !seen {
-                        break;
+                // chords all piece), its tune where the plan states or returns it; elsewhere the riffs
+                // are improvised over the same chords (the second half reharmonised for this time),
+                // from the phrase's own seed, drawn again while they sound like a phrase of the same
+                // letter in the mood's window (a check made from the plan, so a seek makes it too).
+                let sec = self.planned_section(res, m, harm, harm_src, &eff, &p, index, chorus, tune);
+                let key_pc = self.key_pc;
+                if tune {
+                    let mut r = Rng::new(phrase_seed(self.piece.seed, index));
+                    self.make_plan(m, harm, n_motifs, start_chord, false, eff, Some((sec.0, Some(sec.1))), &mut r, key_pc)
+                } else {
+                    let mut chosen = None;
+                    let mut last = Plan::default();
+                    for a in 0..ATTEMPTS {
+                        let mut r = Rng::new(crate::piece::mix(phrase_seed(self.piece.seed, index), a));
+                        last = self.make_plan(m, harm, n_motifs, start_chord, false, eff, Some((sec.0, None)), &mut r, key_pc);
+                        if self.verbatim || !self.sounds_like_recent(res, m, harm, harm_src, index, &p, &sec.0, last.hash) {
+                            chosen = Some(last);
+                            break;
+                        }
                     }
-                    plan = self.make_plan(m, harm, n_motifs, start_chord, false, eff, Some((sec, None)));
+                    chosen.unwrap_or(last)
                 }
-                plan
             }
-            None => {
-                // No form (a danger mood, a genre without one): every phrase walked afresh, re-made
-                // while it repeats one played within the window.
-                let mut plan = self.make_plan(m, harm, n_motifs, start_chord, !harm_changed, eff, None);
+            _ => {
+                // Outside the plan (a danger mood): every phrase walked afresh, re-made while it
+                // repeats one played within the window.
+                let mut r = self.rng;
+                let key_pc = self.key_pc;
+                let mut plan = self.make_plan(m, harm, n_motifs, start_chord, !harm_changed, eff, None, &mut r, key_pc);
                 for _ in 0..24 {
                     let seen = self.history.iter().any(|&(h, t)| h == plan.hash && now_s - t < window);
                     if !seen {
                         break;
                     }
-                    plan = self.make_plan(m, harm, n_motifs, start_chord, !harm_changed, eff, None);
+                    plan = self.make_plan(m, harm, n_motifs, start_chord, !harm_changed, eff, None, &mut r, key_pc);
                 }
+                self.rng = r;
+                self.history[self.hist_w] = (plan.hash, now_s);
+                self.hist_w = (self.hist_w + 1) % HISTORY;
                 plan
             }
         };
-        if calm {
+        if planned.is_some() {
             self.piece.played += 1;
         }
-        self.section = section;
-        self.history[self.hist_w] = (plan.hash, now_s);
-        self.hist_w = (self.hist_w + 1) % HISTORY;
+        self.section = section.map(|(l, c, r, _)| (l, c, r));
         self.plan = plan;
         self.bars_in_phrase = (0..plan.n).map(|i| plan.bars[i] as u32).sum::<u32>().max(1);
         self.bar_in_phrase = 0;
         self.slot = 0;
         self.bars_into_chord = 0;
         self.phrase_count += 1;
-        let (sec_letter, chorus, returning) = section.map(|(l, c, r)| (l + 1, c.min(u32::MAX as u64) as u32, r && c == 0)).unwrap_or((0, 0, false));
-        sink.event(Event::Phrase { hash: plan.hash, at_s: self.seconds(), mood: self.mood as u16, key_pc: self.key_pc, section: sec_letter, chorus, returning });
+        self.bass_fresh = true;
+        // The phrase's first bar: its own stream and tags from here (its striking below included).
+        self.begin_bar();
+        // The plan's energy for this phrase moves its velocities.
+        let (stage, energy) = planned.map(|(p, _, _)| (p.stage, p.energy)).unwrap_or((255, 1.0));
+        self.plan.vel_scale *= crate::arc::velocity_of(energy);
+        let (sec_letter, chorus, returning) = section.filter(|s| s.0 != FREE).map(|(l, c, r, _)| (l + 1, c.min(u32::MAX as u64) as u32, r)).unwrap_or((0, 0, false));
+        sink.event(Event::Phrase { hash: plan.hash, at_s: self.seconds(), mood: self.mood as u16, key_pc: self.key_pc, section: sec_letter, chorus, returning, stage, energy });
         // A structure's section: its energy, a build's riser and silence, a drop's impact.
         if let (Some(sec), Some((_, index))) = (part_sec, self.part) {
             self.plan.vel_scale *= sec.energy;
@@ -1494,7 +1851,7 @@ impl Composer {
             if let Some((riser, impact, gap, reverse, downlifter)) = st {
                 // A reversed cymbal into the next section, if it swells in: it starts its `beats`
                 // before this section ends and stops dead on the next downbeat.
-                let next = (self.piece.form_len > 0).then(|| (self.piece.played % self.piece.form_len as u64) as usize);
+                let next = self.arc.phrase(self.piece.played).map(|(p, _, _)| p.part as usize);
                 let next_swells = next.and_then(|i| self.structure(res).and_then(|s| s.sections.get(i))).is_some_and(|s| s.swell);
                 if let (true, Some(r)) = (next_swells, reverse) {
                     let lead = (r.beats as f64).clamp(0.5, beats);
@@ -1570,7 +1927,10 @@ impl Composer {
     /// A phrase's plan. `sec`: a section of the piece, its chords already made and, the first time
     /// through the form, the section's own generator for its tune (so a returning section plays the
     /// same tune); None: the chords walked afresh from `start`.
-    fn make_plan(&mut self, m: &RMood, harm: &RHarmony, n_motifs: usize, start: usize, continuing: bool, eff: Eff, sec: Option<(Section, Option<Rng>)>) -> Plan {
+    #[allow(clippy::too_many_arguments)]
+    fn make_plan(&self, m: &RMood, harm: &RHarmony, n_motifs: usize, start: usize, continuing: bool, eff: Eff, sec: Option<(Section, Option<Rng>)>, rng: &mut Rng, key_pc: i32) -> Plan {
+        let seed = self.piece.seed;
+        let walk = |rng: &mut Rng, cur: usize, cadence: bool| crate::piece::walk(&harm.moves, &harm.cadence, rng, seed, cur, cadence);
         let mut p = Plan::default();
         let mut theme: Option<Rng> = None;
         if let Some((s, tune)) = sec {
@@ -1579,13 +1939,13 @@ impl Composer {
             p.bars[..p.n].copy_from_slice(&s.bars[..p.n]);
             theme = tune;
         } else {
-            let bars_total = m.phrase_bars[self.rng.int(0, m.phrase_bars.len() as i32 - 1) as usize].clamp(1, 64);
+            let bars_total = m.phrase_bars[rng.int(0, m.phrase_bars.len() as i32 - 1) as usize].clamp(1, 64);
             let (lo, hi) = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
             let (lo, hi) = (lo.max(1), hi.max(lo.max(1)));
-            let mut cur = if continuing { self.walk(harm, start, false) } else { start };
+            let mut cur = if continuing { walk(rng, start, false) } else { start };
             let mut used = 0u32;
             while used < bars_total && p.n < MAX_SLOTS {
-                let mut bars = self.rng.int(lo as i32, hi as i32) as u32;
+                let mut bars = rng.int(lo as i32, hi as i32) as u32;
                 if used + bars > bars_total || p.n == MAX_SLOTS - 1 {
                     bars = bars_total - used;
                 }
@@ -1595,7 +1955,7 @@ impl Composer {
                 used += bars;
                 if used < bars_total {
                     let last = used + lo > bars_total || used + hi >= bars_total;
-                    cur = self.walk(harm, cur, last);
+                    cur = walk(rng, cur, last);
                 }
             }
         }
@@ -1607,16 +1967,16 @@ impl Composer {
         for i in 0..p.n {
             p.motifs[i] = match theme.as_mut() {
                 Some(t) => draw_motif(t, &eff, n_motifs, &mut last_call),
-                None => draw_motif(&mut self.rng, &eff, n_motifs, &mut last_call),
+                None => draw_motif(rng, &eff, n_motifs, &mut last_call),
             };
-            p.choir[i] = self.rng.chance(dc);
+            p.choir[i] = rng.chance(dc);
         }
-        p.pulse = self.rng.chance(dp);
+        p.pulse = rng.chance(dp);
         for k in 0..8 {
-            p.patterns[k] = self.rng.int(0, 7) as u8;
+            p.patterns[k] = rng.int(0, 7) as u8;
         }
         p.vel_scale = match eff.dynamics {
-            Some((lo, hi)) => self.rng.range(lo, hi.max(lo)),
+            Some((lo, hi)) => rng.range(lo, hi.max(lo)),
             None => 1.0,
         };
         // The fingerprint of what will SOUND: the key, the chords and their lengths, the motifs and
@@ -1627,7 +1987,7 @@ impl Composer {
         let drum_parts = eff.drums.iter().flatten().count().min(8);
         let mut h = 0xcbf2_9ce4_8422_2325u64;
         h = fnv(h, self.mood as u64);
-        h = fnv(h, self.key_pc as u64);
+        h = fnv(h, key_pc as u64);
         for i in 0..p.n {
             let mp = p.motifs[i];
             h = fnv(h, p.chords[i] as u64 | (p.bars[i] as u64) << 16);
@@ -1650,10 +2010,97 @@ impl Composer {
         p
     }
 
-    /// One step along the chord graph from `cur`; `cadence` asks for a phrase-ending chord.
-    /// (Each move's weight leans by this piece's seed, crate::piece::lean.)
-    fn walk(&mut self, h: &RHarmony, cur: usize, cadence: bool) -> usize {
-        crate::piece::walk(&h.moves, &h.cadence, &mut self.rng, self.piece.seed, cur, cadence)
+    /// The key planned phrase `p` plays in (an index in `harm`'s keys): the home key; for a section
+    /// other than A, a second key when this piece's seed says its bridge moves (about a third of
+    /// pieces); a stage away, that second key; a stage lifted, the harmony's key nearest that many
+    /// semitones above home.
+    fn planned_key(&self, harm: &RHarmony, p: &PlanPhrase) -> usize {
+        let n = harm.keys.len();
+        let home = self.home_key.min(n.saturating_sub(1));
+        if n < 2 {
+            return home;
+        }
+        let away = || crate::piece::pick(crate::piece::unit(crate::piece::mix(self.piece.seed, 0xb2 + p.letter as u64)), harm.keys.iter().enumerate().map(|(i, k)| if i == home { 0.0 } else { k.2 }));
+        match p.key {
+            crate::arc::KeyMove::Home if p.letter != 0 && p.letter != FREE && self.piece.bridge_moves < 0.35 => away(),
+            crate::arc::KeyMove::Home => home,
+            crate::arc::KeyMove::Away => away(),
+            crate::arc::KeyMove::Up(st) => {
+                let want = (harm.keys[home].0 + st).rem_euclid(12);
+                (0..n).filter(|&i| i != home).min_by_key(|&i| {
+                    let d = (harm.keys[i].0 - want).rem_euclid(12);
+                    d.min(12 - d)
+                })
+                .unwrap_or(home)
+            }
+        }
+    }
+
+    /// Planned phrase `index`'s section (`p`, in the key and with the genre's rules `eff`): its chords
+    /// from its section's seed (the same letter, the same chords), the second half reharmonised for an
+    /// improvised time (`chorus`), and the section's own generator after its chords, for its tune.
+    #[allow(clippy::too_many_arguments)]
+    fn planned_section(&self, res: &Resolved, m: &RMood, harm: &RHarmony, harm_src: u16, eff: &Eff, p: &PlanPhrase, index: u64, chorus: u64, tune: bool) -> (Section, Rng) {
+        // Keyed by the harmony's id, never its place in the list (BUG-299).
+        let harmony_id = if harm_src == MOOD_SRC { 0x1000 ^ m.seed_key } else { res.genres.get(harm_src as usize).map(|x| x.seed_key).unwrap_or(0) };
+        let base = if p.letter == FREE { crate::piece::mix(self.piece.section_seed(harmony_id, FREE), index) } else { self.piece.section_seed(harmony_id, p.letter) };
+        let mut sec_rng = Rng::new(base);
+        let chord_bars = eff.harmony.chord_bars.unwrap_or(m.chord_bars);
+        let seed = self.piece.seed;
+        let mut sec = section_chords(harm, &mut sec_rng, seed, p.letter, p.bars, chord_bars, p.end_home);
+        if !tune && chorus > 0 && p.letter != FREE {
+            // The first half as stated, the second half reharmonised (its own seed for this time), so
+            // the section stays recognisable and no two minutes of an hour are alike.
+            let mut alt_rng = Rng::new(crate::piece::mix(base, chorus));
+            let alt = section_chords(harm, &mut alt_rng, seed, p.letter, p.bars, chord_bars, p.end_home);
+            sec = crate::piece::splice(&sec, &alt, sec.total_bars() / 2);
+        }
+        (sec, sec_rng)
+    }
+
+    /// Whether an improvised plan (`hash`, its section `sec`) of planned phrase `index` sounds like a
+    /// phrase of the same letter within the mood's no-repeat window: one in the same key with the same
+    /// chords, any of whose own attempts has the same fingerprint. Made from the plan alone (each
+    /// earlier phrase recomputed from its seeds), so the same answer comes however the phrase was
+    /// reached; the cost is a section's chords for each phrase of the letter in the window.
+    #[allow(clippy::too_many_arguments)]
+    fn sounds_like_recent(&self, res: &Resolved, m: &RMood, harm: &RHarmony, harm_src: u16, index: u64, p: &PlanPhrase, sec: &Section, hash: u64) -> bool {
+        let Some((_, _, start)) = self.arc.phrase(index) else { return false };
+        let bar_s = self.beat_len / self.rate * self.eff().beats_per_bar.max(1) as f64;
+        let window_bars = (m.no_repeat_s as f64 / bar_s.max(1e-3)).ceil() as u64;
+        let key_now = self.key_idx;
+        let trivial = self.arc.trivial;
+        let mut j = index;
+        while j > 0 {
+            j -= 1;
+            let Some((pj, round, sj)) = self.arc.phrase(j) else { break };
+            if start.saturating_sub(sj) > window_bars {
+                break;
+            }
+            let tune_j = (pj.tune && (!trivial || round == 0)) || self.verbatim;
+            if pj.letter != p.letter || tune_j || pj.letter == FREE {
+                continue;
+            }
+            if self.planned_key(harm, &pj) != key_now {
+                continue;
+            }
+            let chorus_j = if trivial { round } else { pj.chorus as u64 + round * ROUND_CHORUS as u64 };
+            let mut r = Rng::new(crate::piece::mix(phrase_seed(self.piece.seed, j), 0xb1e));
+            let mut eff_j = self.resolve_eff(res, &mut r);
+            apply_stage(&mut eff_j, &pj, false);
+            let (sec_j, _) = self.planned_section(res, m, harm, harm_src, &eff_j, &pj, j, chorus_j, false);
+            if sec_j.n != sec.n || sec_j.chords[..sec.n] != sec.chords[..sec.n] || sec_j.bars[..sec.n] != sec.bars[..sec.n] {
+                continue;
+            }
+            let n_motifs = self.motif_count(res);
+            for b in 0..ATTEMPTS {
+                let mut r = Rng::new(crate::piece::mix(phrase_seed(self.piece.seed, j), b));
+                if self.make_plan(m, harm, n_motifs, 0, false, eff_j, Some((sec_j, None)), &mut r, self.key_pc).hash == hash {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn change_chord(&mut self, res: &Resolved, sink: &mut dyn Sink, chord: usize) {
@@ -1691,8 +2138,10 @@ impl Composer {
         let at_s = self.seconds();
         // Pads: voice-led.
         if let Some(pad) = eff.roles[RoleKind::Pad.index()] {
-            let prev = self.pad_voicing;
-            let notes = voice_lead(&prev.notes[..prev.n], pad.voices as usize, &pcs[..n], root_pc, pad.low, pad.high);
+            // Placed nearest the register's reference voicing (register_ref): a voicing depends on its
+            // chord alone, never on one long past, so a seek voices it the same.
+            let led = self.pad_voicing;
+            let notes = self.voicing(0, pad.voices as usize, pad.low, pad.high, &led.notes[..led.n], &pcs[..n], root_pc);
             self.pad_voicing = Held { notes, tags: [0; 8], n: pad.voices as usize };
             sink.event(Event::Voicing { role: RoleKind::Pad.index() as u8, notes, n: pad.voices, at_s });
             if eff.pad_patterns.is_none() {
@@ -1733,7 +2182,7 @@ impl Composer {
                 // Stabs: the voicing is led and remembered here; the genre's pattern strikes it short
                 // (on_step), so nothing is held.
                 let led = self.choir_voicing;
-                let notes = voice_lead(&led.notes[..led.n], ch.voices as usize, &pcs[..n], root_pc, ch.low, ch.high);
+                let notes = self.voicing(1, ch.voices as usize, ch.low, ch.high, &led.notes[..led.n], &pcs[..n], root_pc);
                 self.choir_voicing = Held { notes, tags: [0; 8], n: ch.voices as usize };
                 sink.event(Event::Voicing { role: RoleKind::Choir.index() as u8, notes, n: ch.voices, at_s });
                 for k in 0..self.choir.n {
@@ -1744,7 +2193,7 @@ impl Composer {
             Some(ch) if choir_on => {
                 let prev = self.choir;
                 let led = self.choir_voicing;
-                let notes = voice_lead(&led.notes[..led.n], ch.voices as usize, &pcs[..n], root_pc, ch.low, ch.high);
+                let notes = self.voicing(1, ch.voices as usize, ch.low, ch.high, &led.notes[..led.n], &pcs[..n], root_pc);
                 self.choir_voicing = Held { notes, tags: [0; 8], n: ch.voices as usize };
                 sink.event(Event::Voicing { role: RoleKind::Choir.index() as u8, notes, n: ch.voices, at_s });
                 let mut next = Held::default();
@@ -1778,7 +2227,8 @@ impl Composer {
         }
         // Bass, held (a genre's pattern plays it on its steps instead).
         if let (Some(b), None) = (eff.roles[RoleKind::Bass.index()], eff.bass_patterns) {
-            let prev = if self.bass.n > 0 { self.bass.notes[0] } else { (b.low + b.high) / 2 };
+            let prev = if self.bass.n > 0 && !self.bass_fresh { self.bass.notes[0] } else { (b.low + b.high) / 2 };
+            self.bass_fresh = false;
             let target = nearest_within(prev, &[root_pc, (root_pc + 7) % 12], 5).unwrap_or_else(|| nearest_pc_in(root_pc, b.low, b.high, prev));
             if self.bass.n == 0 || self.bass.notes[0] != target {
                 for k in 0..self.bass.n {
@@ -1834,6 +2284,27 @@ impl Composer {
 
 /// A drum part's or a pattern's source meaning "the mood's own", not a genre's.
 const MOOD_SRC: u16 = u16::MAX;
+
+/// A planned phrase's stage over the genre's setup: only the roles the stage lets play, the drums
+/// only where it says, and the riffs, the choir and the heartbeat as often as its energy says (a
+/// phrase playing its section's TUNE keeps the tune's own densities, so the theme returns note for
+/// note at any energy; its velocities still follow the energy).
+fn apply_stage(eff: &mut Eff, p: &PlanPhrase, tune: bool) {
+    for (k, r) in eff.roles.iter_mut().enumerate() {
+        if p.roles & (1 << k) == 0 {
+            *r = None;
+        }
+    }
+    if !p.drums {
+        eff.drums = [None; 8];
+    }
+    let f = if tune { 1.0 } else { crate::arc::density_of(p.energy) };
+    for k in [RoleKind::Melody, RoleKind::Bells, RoleKind::Choir, RoleKind::Percussion] {
+        if let Some(r) = eff.roles[k.index()].as_mut() {
+            r.density = (r.density * f).min(1.0);
+        }
+    }
+}
 
 /// A section's chords in `harm`: from its grammar when it has one, else walked from its chord graph
 /// (section A from the graph's start, another letter from a step away), `bars` bars long.
@@ -1997,6 +2468,14 @@ fn nearest_within(from: i32, pcs: &[i32], max: i32) -> Option<i32> {
 /// movement that keeps the chord's tones covered, doubles little and stays in [lo, hi]. With no
 /// previous voicing (or a different voice count) it spreads the chord over the register.
 pub fn voice_lead(prev: &[i32], n: usize, pcs: &[i32], root_pc: i32, lo: i32, hi: i32) -> [i32; 8] {
+    voice_lead_within(prev, n, pcs, root_pc, lo, hi, (-5, 5), None)
+}
+
+/// [`voice_lead`] with each voice's candidates the chord tones within `window` semitones of where it
+/// was (the nearest within a fourth when none is), and, with `pull`, each voice's distance from that
+/// reference voicing added to the cost (a voicing drawn toward a register).
+#[allow(clippy::too_many_arguments)]
+pub fn voice_lead_within(prev: &[i32], n: usize, pcs: &[i32], root_pc: i32, lo: i32, hi: i32, window: (i32, i32), pull: Option<&[i32; 8]>) -> [i32; 8] {
     let n = n.clamp(1, 8);
     let mut out = [0i32; 8];
     if pcs.is_empty() {
@@ -2020,11 +2499,16 @@ pub fn voice_lead(prev: &[i32], n: usize, pcs: &[i32], root_pc: i32, lo: i32, hi
     let mut cand = [[0i32; 11]; 8];
     let mut cn = [0usize; 8];
     for v in 0..n {
-        for d in -5..=5 {
-            let m = sorted[v] + d;
-            if pcs.contains(&m.rem_euclid(12)) && cn[v] < 11 {
-                cand[v][cn[v]] = m;
-                cn[v] += 1;
+        for (a, b) in [window, (-5, 5)] {
+            if cn[v] > 0 {
+                break;
+            }
+            for d in a..=b {
+                let m = sorted[v] + d;
+                if pcs.contains(&m.rem_euclid(12)) && cn[v] < 11 {
+                    cand[v][cn[v]] = m;
+                    cn[v] += 1;
+                }
             }
         }
         if cn[v] == 0 {
@@ -2043,6 +2527,9 @@ pub fn voice_lead(prev: &[i32], n: usize, pcs: &[i32], root_pc: i32, lo: i32, hi
         let mut cost = 0;
         for v in 0..n {
             cost += (cur[v] - sorted[v]).abs() * 2;
+            if let Some(r) = pull {
+                cost += (cur[v] - r[v]).abs();
+            }
             if cur[v] < lo {
                 cost += (lo - cur[v]) * 6;
             }

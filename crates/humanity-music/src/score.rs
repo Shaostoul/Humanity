@@ -50,6 +50,10 @@ pub struct MusicContext {
     /// that bar's start; the same number again does nothing (the context is sent every frame).
     pub seek: u32,
     pub seek_bar: u32,
+    /// The piece's length, seconds, which its long arc is planned over (crate::arc; music.md section
+    /// 7h): the game's "A new piece" choice, or the length an endless piece goes round its arc in. 0:
+    /// no length, the genre's form over and over (offline renders and tests that set none).
+    pub piece_s: f32,
 }
 
 /// The spectrum's bands: octaves centred on 31.25 Hz times a power of two, 31 Hz to 16 kHz.
@@ -68,7 +72,7 @@ pub const DUCK_UP_S: f32 = 0.5;
 
 impl Default for MusicContext {
     fn default() -> Self {
-        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0, tune: crate::tune::Tune::default(), analyse: false, seek: 0, seek_bar: 0 }
+        MusicContext { gain: 1.0, a4_hz: crate::tuning::A4_DEFAULT_HZ, mood: 0, genre_a: 0, genre_b: 0, blend: 0.0, intensity: 0.3, duck_db: 0.0, tune: crate::tune::Tune::default(), analyse: false, seek: 0, seek_bar: 0, piece_s: 0.0 }
     }
 }
 
@@ -84,7 +88,8 @@ pub struct MusicStatus {
     /// change, BUG-297).
     pub bars: u64,
     /// The piece playing (crate::piece): its seed, the section of its form (its letter + 1, 0 with
-    /// no form), which time through the form, and the piece's phrase index now playing.
+    /// no form), which time through the form, and the piece bar the playing phrase began on (a
+    /// rebuild carries on from it: music.md section 7h).
     pub piece_seed: u64,
     pub section: u8,
     pub chorus: u32,
@@ -278,11 +283,14 @@ impl ScoreEngine {
         }
     }
 
-    /// The same piece as a score that played it, carried on from the piece's phrase `played` (the
-    /// runtime's rebuild mid-piece: the data read again with reuse off, a pack installed).
-    pub fn resume(res: Resolved, rate: f32, seed: u64, ctx: MusicContext, played: u64) -> Self {
+    /// The same piece as a score that played it, carried on from piece bar `bar` (the runtime's rebuild
+    /// mid-piece: the data read again with reuse off, a pack installed; an audition's return). The
+    /// composer seeks there (music.md section 7h: planned, then the phrase before run silently) and
+    /// strikes what it holds, so the harmony sounds from the bar.
+    pub fn resume(res: Resolved, rate: f32, seed: u64, ctx: MusicContext, bar: u64) -> Self {
         let mut s = Self::new(res, rate, seed, ctx);
-        s.composer.resume_at(played);
+        s.composer.seek_to_bar(&s.res, bar, &mut crate::composer::Silent);
+        s.composer.strike_held_next();
         s
     }
 
@@ -305,14 +313,22 @@ impl ScoreEngine {
 
     /// A new context from the game (read at the start of the next block).
     pub fn set_context(&mut self, ctx: MusicContext) {
-        if ctx.seek != self.ctx.seek && ctx.seek != 0 {
+        let seek = ctx.seek != self.ctx.seek && ctx.seek != 0;
+        if seek {
             if let Some(w) = self.written.as_mut() {
                 w.seek_bar(ctx.seek_bar as usize);
-                self.pool.release_all(&self.res.instruments, self.rate);
             }
+            self.pool.release_all(&self.res.instruments, self.rate);
         }
         self.ctx = ctx;
         self.composer.steer = steer_of(&ctx);
+        // A seek in a composed piece (music.md section 7h): the composer computes the bar from the
+        // piece's seed (at most two phrases composed silently, the same work at any bar) and strikes
+        // what sounds there; nothing allocates.
+        if seek && self.written.is_none() {
+            self.composer.seek_to_bar(&self.res, ctx.seek_bar as u64, &mut crate::composer::Silent);
+            self.composer.strike_held_next();
+        }
         if let Some(w) = self.written.as_mut() {
             w.set_a4(ctx.a4_hz);
         }
@@ -656,5 +672,5 @@ pub fn meter_fraction(rms: f32) -> f32 {
 
 /// The composer's steer from a score's context (the sheet's dry run steers it the same way).
 pub(crate) fn steer_of(ctx: &MusicContext) -> Steer {
-    Steer { mood: ctx.mood, genre_a: ctx.genre_a, genre_b: ctx.genre_b, blend: ctx.blend, intensity: ctx.intensity, a4: ctx.a4_hz, tune: ctx.tune }
+    Steer { mood: ctx.mood, genre_a: ctx.genre_a, genre_b: ctx.genre_b, blend: ctx.blend, intensity: ctx.intensity, a4: ctx.a4_hz, tune: ctx.tune, piece_s: ctx.piece_s }
 }

@@ -327,6 +327,8 @@ pub struct RGenre {
     /// Its id's hash: what a piece's draws are keyed by (its form, riffs and chords), so a piece
     /// never changes when another genre file is added (BUG-299).
     pub seed_key: u64,
+    /// The long arc its pieces follow (None: its form over and over; crate::arc).
+    pub arc: Option<crate::arc::RArc>,
 }
 
 /// An id's FNV-1a hash (a genre's or a mood's seed key).
@@ -486,6 +488,16 @@ impl Resolved {
                 return Err(format!("{owner}: a structure has at most 26 differently named sections"));
             }
             let drums = drums_of(&s.drums, &s.kits, &names, &owner)?;
+            // The genre's long arc, its stages' section names found in this genre's structure (each
+            // name's first place in it).
+            let arc = match &s.arc {
+                Some(id) => {
+                    let a = lib.arcs.iter().find(|a| &a.id == id).ok_or_else(|| format!("{owner}: arc {id:?} is not in data/music/arcs"))?;
+                    let places: Vec<String> = s.structure.as_ref().map(|st| st.sections.iter().map(|x| x.name.clone()).collect()).unwrap_or_default();
+                    Some(crate::arc::RArc::resolve(a, &places)?)
+                }
+                None => None,
+            };
             let hit = |h: &Option<crate::genre::Hit>| -> Result<Option<RHit>, String> {
                 match h {
                     Some(h) => Ok(Some(RHit { inst: inst_of(&h.instrument, &owner)?, midi: note(&h.note, &owner)?, velocity: h.velocity.clamp(0.0, 1.0), beats: h.beats.max(0.0) })),
@@ -627,6 +639,7 @@ impl Resolved {
                 sidechain,
                 delay,
                 gated,
+                arc,
             });
         }
         let im = &lib.intensity;

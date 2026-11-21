@@ -54,7 +54,7 @@ pub(crate) fn run(c: &mut Composer, res: &Resolved, seconds: f64, rec: &mut Reco
 
 pub(crate) fn steer(lib: &MusicLibrary, mood: &str, genre: &str) -> Steer {
     let s = lib.genre_index(genre).unwrap() as u16;
-    Steer { mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity: 0.3, a4: 432.0, tune: Default::default() }
+    Steer { mood: lib.mood_index(mood).unwrap() as u16, genre_a: s, genre_b: s, blend: 0.0, intensity: 0.3, a4: 432.0, tune: Default::default(), piece_s: 0.0 }
 }
 
 /// THE PITCH TABLE AT A = 432 Hz: every note of D Lydian from D2 to D6 (the calm mood's scale,

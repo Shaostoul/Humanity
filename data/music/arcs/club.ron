@@ -1,0 +1,20 @@
+// THE CLUB ARC (docs/design/music.md section 7h): the long shape of a genre built from a structure of
+// named sections (deep dubstep, drum and bass, house, synthwave). Its stages name sections; each genre
+// plays the ones its structure has, in the order listed, and a stage naming none plays the structure
+// between its first and last sections. The intro; the structure played through (its sections' own
+// tunes); a development on the quieter sections away from home; a build; the climax, the drops (or the
+// choruses, or the main groove) lifted two semitones where the harmony has the key; the structure
+// again; the outro. Energy 1 is the genre as levelled (each section's own energy still applies under it).
+Arc(
+    id: "club",
+    climax_at: (0.62, 0.75),
+    stages: [
+        (kind: Intro, share: 0.08, energy: (0.95, 1.0), sections: ["intro"]),
+        (kind: Theme, share: 0.3, energy: (1.0, 1.0), tune: true),
+        (kind: Develop, share: 0.15, energy: (0.95, 1.0), sections: ["breakdown", "middle", "bridge", "verse", "groove"], key: Away),
+        (kind: Build, share: 0.07, energy: (1.05, 1.1), sections: ["build"]),
+        (kind: Climax, share: 0.15, energy: (1.2, 1.2), sections: ["drop", "chorus", "main"], key: Up(2), tune: true),
+        (kind: Return, share: 0.15, energy: (1.0, 1.0), tune: true),
+        (kind: Coda, share: 0.1, energy: (0.95, 0.85), sections: ["outro"]),
+    ],
+)

@@ -111,4 +111,6 @@ Genre(
     delay: Some((division: "1/8.", feedback: 0.4, low_cut_hz: 500.0, high_cut_hz: 3000.0, ping_pong: true, sends: [(Bells, 0.45), (Pad, 0.08)], wet: 0.6, reverb: 0.3)),
     recipe: (saturation: 0.1, reverb_scale: 0.7, reverb_low_cut_hz: 300.0),
     level_db: 3.0,
+    // The long arc its pieces follow over their length (data/music/arcs; music.md section 7h).
+    arc: Some("club"),
 )

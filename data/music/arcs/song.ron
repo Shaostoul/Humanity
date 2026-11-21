@@ -1,0 +1,26 @@
+// THE SONG ARC (docs/design/music.md section 7h): the shape a song-like genre's piece follows over
+// its whole length, laid out from the piece's seed before a note is played. The operator, 2026-11-20:
+// "couldn't we just say, here's how the song will look X minutes out? ... Would that help us have more
+// complex songs?"
+//
+// An intro on the theme's chords with the band thinned out; the theme stated (the piece's own form,
+// each section's tune); a development (the B section and the A away from home, improvised); a build
+// to a planned climax (the theme again, in a key lifted two semitones where the harmony has one, at
+// its most energy, 1.4); the theme's return at home; a coda thinning back out. Shares are of the piece's length;
+// the climax begins where `climax_at` says (a seed picks within it), the stages either side scaled to
+// meet it. Energy 1 is the genre as levelled: over it louder and busier, under it softer and sparser.
+// The commonplace shape of popular song and jazz arrangement (intro, head, solos, shout chorus, head
+// out, tag); no piece's own arrangement is written here.
+Arc(
+    id: "song",
+    climax_at: (0.6, 0.72),
+    stages: [
+        (kind: Intro, share: 0.06, energy: (0.65, 0.75), letters: Some("A"), roles: [Pad, Bass, Drone, Texture]),
+        (kind: Theme, share: 0.24, energy: (0.85, 0.9), tune: true),
+        (kind: Develop, share: 0.2, energy: (0.9, 1.0), letters: Some("BA"), key: Away),
+        (kind: Build, share: 0.08, energy: (0.85, 1.1), letters: Some("B")),
+        (kind: Climax, share: 0.14, energy: (1.4, 1.4), letters: Some("AA"), key: Up(2), tune: true),
+        (kind: Return, share: 0.18, energy: (0.95, 0.9), letters: Some("A"), tune: true),
+        (kind: Coda, share: 0.1, energy: (0.8, 0.55), letters: Some("A"), roles: [Pad, Bass, Drone, Bells, Texture]),
+    ],
+)
