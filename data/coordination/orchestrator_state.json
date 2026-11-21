@@ -1567,6 +1567,11 @@
       "date": "2026-11-21",
       "decision": "Merged Music page v2 rung 2 (2e0024397; BUG-336 drums in no part; midly std-only, absent from the relay) and the desktop pages-first start (e10efd0ae; default only-when-I-press-Play per the operator, 914 ms to first page frame vs 8,814 ms; verify-runtime 3/3 and verify-phone-start 6/6 on the branch; the combined tree checked native+relay+lints). Took both agents' recommendations as my calls: Music: overview click seeks AND moves the window with Follow off; imported MIDI on piano until the styles (now rung 3a, dispatched with swing/intensity/A=432/440 folded in); meters on the dry sound. Pages-first: a build Play waits for stays at normal priority (below-normal starved it to 121 s beside compiles); the remaining 262/529 ms page-frame gaps under the background build and the Play card get a profiling follow-up. Also noted: lib-tests logged a deterministic failure (every_placeholder_is_double_braced) as FLAKY passed_alone, worth a toolsmith look. Owner branch round 3 renumbers its BUGs after main's 336.",
       "why": "Batch ready for the release: Android APK, pages-first, emoji pictures, phone start, Music rungs 1 and 2."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "v0.1567.0 RELEASED and delivered (c9edc0226): pages-first desktop start with world on Play, Android A1 key store + A4 stay connected, Music v2 rungs 1+2, desktop emoji pictures + outline, phone pages-only start, SQLite 3.54.1 and rustix advisories. Release exe checks: verify-runtime 3/3 panics 0; verify-phone-start PASS (pages ready 1,036 ms vs 10,451 ms old order; world ready after Play 9,247 ms; frame share worst 0.04 ms of 2 ms); lints; rig-tests; test-lib 6,544 passed. check-delivery OK. Noted for the profiling follow-up: a 3,050 ms gap between page frames before Play on the busy machine (may be redraw-on-change idling). Owner work NOT in it (third round running).",
+      "why": "First release of 2026-11-21 (the second of the batch day); the APK attaches through the Android workflow on the tag."
     }
   ],
   "active_scopes_to_avoid": [

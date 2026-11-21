@@ -37,12 +37,18 @@ Each line is written the way a player would hear it; the release notes and
 - The simulation gives the same result every time for the same starting point, so the game's checks can trust it.
 - The Windows download's shader compiler (the part that makes startup fast and draws the clouds) is now built by the project from Microsoft's open-source code, with its licence beside it, instead of copied from a Microsoft kit whose licence did not allow passing it on.
 
-### Next release
+### v0.1567.0 (21 November 2026)
 
 - The servers' database library is updated, closing a published security flaw in it; the server program also got smaller by dropping two pieces it never used.
 - The desktop app shows emoji as the same OpenMoji pictures the website does, in messages, reactions and the reaction picker.
 - On dark themes every emoji gets a faint light outline, so dark-edged pictures stay readable, in both apps; it can be adjusted or turned off in Settings. The reaction panel no longer stutters the first time it opens.
 - The phone app starts in about a second (it no longer builds the 3D world it does not show) and redraws only when something changes, which saves battery. The download page shows the phone app's install steps once a release carries it.
+- The desktop app opens to its pages in about a second instead of ten: the 3D world is prepared when you press Play, with a card saying what is being prepared. Settings > Graphics lets you prepare it in the background or at start instead.
+- The phone app keeps your key in Android's own key store, sealed by a key the phone's secure hardware never lets out, and can stay connected to chat while closed, with notices hidden on a locked phone.
+- The Music page is rebuilt: a Now playing strip with Like, a mixer with Mute, Solo and real level meters, 20-second previews from the genre and mood cards, the pieces you heard kept with Clear, click a bar to play from there, and save or open MIDI and MEI music files.
+
+### Next release
+
 
 ### Outreach
 
