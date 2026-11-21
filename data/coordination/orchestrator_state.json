@@ -1577,6 +1577,11 @@
       "date": "2026-11-21",
       "decision": "Owner round 3 (re-wrap, seal v4) HANDED OFF part-way (worktree-agent-af967ed3d82c36c37 at 6cfc91605): D1-D8 built on relay+desktop, website code built, owner-chat-web test not reworked, full gates not run; BUGs renumbered 337-348 (earlier rounds) and 349-359 (this round). My answers to its three questions: fingerprint confirmation takes the LAST TWO groups (32 bits; one 16-bit group is ~65k relay tries); a checking recipient learning each part key from its own slot is an accepted, written residual; TOFU-pinned key cards count as trusted, stated. Continuation dispatched (wk-ownerfix4.txt), then a third critic review before merge. Also: v0.1567.0 APK attached to the release and mirrored on united-humanity.us (/releases/v0.1567.0/), so the phone app is publicly downloadable; DPG form fields 9b + mobile get replacement text once the owner claim lands.",
       "why": "The operator: We just want to make sure the system itself cannot be abused."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Quest chains rung 1 HANDED OFF (worktree-agent-a283cad9ba579b146): seven survival quests (Water First, Food First, A Night's Sleep, Clean Hands, Ready for Accidents, Keep It, When Water Leaves You) finish in a 30-day soak on the real systems; P1 joins (after: AnyOf/AllOf), P2 tracked quest, P3 intake ledger, plus E1 Drink/E2 Keep/E3 Learn; a refutation pass fixed 10 taught claims; found and fixed energy draining during sleep (numbered 337 on its branch, will renumber). My calls on its questions: keep E1-E3; a normal 16-hour waking day must end ABOVE the fatigue line (today it lands exactly on 25), from a sourced drain, both modes, no nap instruction; quest rewards that do not fit the pack go to home storage with words. Continuation dispatched (wk-quests1b.txt): the tower planting that sowed nothing in the soak, the unseen reds, gates. The quest agent's security flag (Modify Shared Resources) checked: main clean, no stash, no push, no edits outside its worktree; the flagged step was likely git add -A inside its own worktree.",
+      "why": "Game work the operator asked about at bedtime; correctness checks before merge."
     }
   ],
   "active_scopes_to_avoid": [
