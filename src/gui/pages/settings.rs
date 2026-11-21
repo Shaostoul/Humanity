@@ -473,7 +473,10 @@ fn draw_locked_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         }
     });
     if let Some(outcome) = opened.into_inner() {
-        crate::gui::widgets::passphrase_modal::apply_unlock_outcome(state, Ok(outcome));
+        // Never remembers: this gate shows no Remember tick, so a tick left from a skipped unlock
+        // dialog must not store the seed here.
+        let now = ui.ctx().input(|i| i.time);
+        crate::gui::widgets::passphrase_modal::apply_unlock_outcome(state, Ok(outcome), false, now);
         ui.ctx().request_repaint();
     }
 }
@@ -565,6 +568,37 @@ mod erase_memory_note_tests {
         assert!(!ask(false, false), "asked before the sign-in completed: the relay drops it");
         assert!(ask(true, false), "a new sign-in did not ask");
         assert!(!ask(true, true), "asked twice");
+    }
+}
+
+/// The words under a remembering mode in Unlock on App Launch: where its secret goes on this
+/// key store (`auto_unlock::mode_words`), and, when this phone already remembers with it, where
+/// Android's key store said it keeps the sealing key (Android rung A1, 2026-11-20: a phone
+/// without secure hardware says so, since it gives less than the words above promise).
+fn mode_words(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    state: &GuiState,
+    mode: humanity_core::auto_unlock::AutoUnlockMode,
+    kind: humanity_core::auto_unlock::KeyStoreKind,
+    slot: humanity_core::auto_unlock::KeychainSlot,
+) {
+    use humanity_core::i18n::t;
+    if let Some(key) = humanity_core::auto_unlock::mode_words(mode, kind) {
+        ui.label(RichText::new(t(key)).color(theme.text_muted()).size(theme.font_size_small));
+    }
+    if state.auto_unlock_mode != mode || state.profile_public_key.is_empty() {
+        return;
+    }
+    if let Some(info) = humanity_core::auto_unlock::key_info(slot, &state.profile_public_key) {
+        let p = info.protection;
+        let kind = if p == humanity_core::platform::key_wrap::Protection::Software { widgets::AlertKind::Warning } else { widgets::AlertKind::Info };
+        widgets::alert(ui, theme, kind, t(p.words_key()));
+        // Whether Android refuses this key while the phone is locked, as this phone's key store
+        // answered when it made the key: said per phone, never promised (Android 8 has no such
+        // rule, and a phone may refuse it; the second review's D).
+        let rule = if info.unlocked_only { widgets::AlertKind::Info } else { widgets::AlertKind::Warning };
+        widgets::alert(ui, theme, rule, t(info.rule_words_key()));
     }
 }
 
@@ -1102,85 +1136,70 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
         let current = state.auto_unlock_mode;
         use humanity_core::auto_unlock::AutoUnlockMode;
+        use crate::gui::widgets::passphrase_modal as unlock;
+        // A switch or forget that did not fully happen says so below, by key (the details are in
+        // the log): every switch goes through set_unlock_mode (BUG-335), which keeps the words in
+        // state.unlock_alert, as start-up does for a leftover it still could not forget.
 
         // Mode 1: Always prompt
         let mut sel_always = current == AutoUnlockMode::AlwaysPrompt;
-        if ui.radio_value(&mut sel_always, true, "Always ask for passphrase").changed() && sel_always {
-            // Switching INTO AlwaysPrompt: clear keychain entries + PIN
-            // blob so we don't leave secrets on disk/keychain the user
-            // thinks they revoked.
-            let identity = state.profile_public_key.clone();
-            if !identity.is_empty() {
-                let _ = humanity_core::auto_unlock::keychain_clear(humanity_core::auto_unlock::KeychainSlot::Seed, &identity);
-                let _ = humanity_core::auto_unlock::keychain_clear(humanity_core::auto_unlock::KeychainSlot::DeviceKey, &identity);
-            }
-            state.pin_encrypted_seed.clear();
-            state.pin_salt.clear();
-            state.auto_unlock_mode = AutoUnlockMode::AlwaysPrompt;
-            crate::config::AppConfig::from_gui_state(state).save();
+        if ui.radio_value(&mut sel_always, true, "Always ask for passphrase").clicked() {
+            // Switching INTO AlwaysPrompt: forget every remembered secret and the PIN blob, so
+            // nothing the person thinks they revoked stays behind; a failure is said, not dropped.
+            // Clicked when already chosen, it forgets again (the retry the alert offers).
+            let _ = unlock::set_unlock_mode(state, AutoUnlockMode::AlwaysPrompt, None, None);
         }
         ui.label(RichText::new("Most secure. Use on shared or public machines.")
             .color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_xs);
 
-        // A phone build has no device key store yet (Android rung A1): both modes below need one,
-        // so they are off, and the notice says why and what works instead (the passphrase).
-        let key_store = humanity_core::platform::device::has(humanity_core::platform::device::Capability::KeyStore);
-        if !key_store {
-            widgets::alert(ui, theme, widgets::AlertKind::Info, &humanity_core::i18n::t(
-                humanity_core::platform::device::notice_key(humanity_core::platform::device::Capability::KeyStore)));
-            ui.add_space(theme.spacing_xs);
-        }
+        // The key store the two modes below remember with: the computer's own, or on a phone
+        // (Android rung A1, 2026-11-20) Android's key store, which seals the same secret instead
+        // of keeping it (humanity_core::auto_unlock::KeyStoreKind). The words follow what the
+        // pages show, so the phone preview shows a phone's.
+        use humanity_core::auto_unlock::{KeyStoreKind, KeychainSlot};
+        let kind = KeyStoreKind::for_view(humanity_core::platform::device::phone());
 
         // Mode 2: Remember on this device (Keychain)
-        let mut sel_keychain = current == AutoUnlockMode::Keychain;
-        // Read as "locked" when there is no key store: the two modes below stay off.
-        let key_locked = state.private_key_bytes.is_none() || !key_store;
+        let sel_keychain = current == AutoUnlockMode::Keychain;
+        let key_locked = state.private_key_bytes.is_none();
         let resp = ui.add_enabled(
             !key_locked, // can only enable Keychain when seed is in memory
             egui::RadioButton::new(sel_keychain, "Remember on this device"),
         );
         if resp.clicked() && !sel_keychain {
-            // Switching INTO Keychain. Need the seed in memory; stash it.
+            // Switching INTO Keychain. Need the seed in memory; stash it (a Quick PIN set up
+            // before is forgotten with it).
             if let Some(ref kb) = state.private_key_bytes {
                 if kb.len() == 32 && !state.profile_public_key.is_empty() {
                     let mut seed = [0u8; 32];
                     seed.copy_from_slice(kb);
-                    match humanity_core::auto_unlock::keychain_stash(
-                        humanity_core::auto_unlock::KeychainSlot::Seed,
-                        &state.profile_public_key,
-                        &seed,
-                    ) {
-                        Ok(()) => {
-                            // Clear KeychainPin remnants if user switched
-                            // from KeychainPin → Keychain
-                            let _ = humanity_core::auto_unlock::keychain_clear(
-                                humanity_core::auto_unlock::KeychainSlot::DeviceKey,
-                                &state.profile_public_key,
-                            );
-                            state.pin_encrypted_seed.clear();
-                            state.pin_salt.clear();
-                            state.auto_unlock_mode = AutoUnlockMode::Keychain;
-                            crate::config::AppConfig::from_gui_state(state).save();
-                            sel_keychain = true;
-                        }
-                        Err(e) => {
-                            log::warn!("Keychain stash failed from Settings: {}", e);
-                        }
-                    }
+                    // A failure is said on the screen, not only in the log (state.unlock_alert,
+                    // below): on a phone Android's key store can refuse in ways a desktop's never
+                    // does. A sentence by key, never the error's own text (a phone's can be a Java
+                    // stack trace).
+                    let _ = unlock::set_unlock_mode(state, AutoUnlockMode::Keychain, Some(&seed), None);
+                    humanity_core::platform::key_wrap::wipe(&mut seed);
                 }
             }
         }
-        let _ = sel_keychain; // explicit ack the radio bool is now-or-never
-        if !key_store {
-            // The notice above says why.
-        } else if key_locked && current != AutoUnlockMode::Keychain {
+        if let Some(key) = state.unlock_alert {
+            widgets::alert(ui, theme, widgets::AlertKind::Warning, humanity_core::i18n::t(key));
+            if key == "unlock.forget_failed" {
+                // The retry: forget again what the modes not chosen still keep (no secret needed).
+                let again = widgets::hint::with_hint(ui, "unlock.try_again_hint", |ui| {
+                    widgets::secondary_button(ui, theme, humanity_core::i18n::t("unlock.try_again"))
+                });
+                if again {
+                    let _ = unlock::forget_other_modes(state);
+                }
+            }
+        }
+        if key_locked && current != AutoUnlockMode::Keychain {
             ui.label(RichText::new("(Unlock with passphrase first to enable.)")
                 .color(theme.text_muted()).size(theme.font_size_small));
         } else {
-            ui.label(RichText::new(
-                "OS keychain (Windows Credential Manager / macOS Keychain) holds your key. Silent unlock on launch.")
-                .color(theme.text_muted()).size(theme.font_size_small));
+            mode_words(ui, theme, state, AutoUnlockMode::Keychain, kind, KeychainSlot::Seed);
         }
         ui.add_space(theme.spacing_xs);
 
@@ -1201,15 +1220,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
             state.pin_confirm.clear();
         }
         let _ = sel_pin;
-        if !key_store {
-            // The notice above says why.
-        } else if key_locked && current != AutoUnlockMode::KeychainPin {
+        if key_locked && current != AutoUnlockMode::KeychainPin {
             ui.label(RichText::new("(Unlock with passphrase first to enable.)")
                 .color(theme.text_muted()).size(theme.font_size_small));
         } else {
-            ui.label(RichText::new(
-                "Small barrier against opportunistic OS-account access. PIN protects a device key kept in the OS keychain.")
-                .color(theme.text_muted()).size(theme.font_size_small));
+            mode_words(ui, theme, state, AutoUnlockMode::KeychainPin, kind, KeychainSlot::DeviceKey);
         }
 
         ui.add_space(theme.spacing_sm);

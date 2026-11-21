@@ -32,6 +32,40 @@ fn show_words(s: Show) -> (&'static str, &'static str) {
     }
 }
 
+/// The phone's rows in "On this device" (Android rung A4, 2026-11-20), in place of the tray's:
+/// staying connected while closed (`notifications::stay_connected`, off by default, its hint saying
+/// a notification stays in the bar and it uses some battery), and a notice when Android is not
+/// letting the app show notifications. Turning it on asks Android to allow notices (Android 13
+/// and later) and starts the service; off stops it. True when a setting changed.
+fn phone_rows(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate::gui::HintDisplay) -> bool {
+    use crate::notifications::stay_connected as stay;
+    let refused = egui::Id::new("stay_connected_refused");
+    let s = &mut state.settings.notifications;
+    let changed = with_hint(ui, stay::HINT, |ui| widgets::toggle(ui, theme, t(stay::LABEL), &mut s.stay_connected));
+    widgets::setting_hint(ui, theme, hint, t(stay::HINT));
+    if changed {
+        if s.stay_connected {
+            stay::ask_for_notices();
+        }
+        let ok = stay::apply(s.stay_connected);
+        ui.ctx().data_mut(|d| d.insert_temp(refused, !ok));
+    }
+    if ui.ctx().data(|d| d.get_temp::<bool>(refused)).unwrap_or(false) {
+        widgets::alert(ui, theme, widgets::AlertKind::Warning, t(stay::REFUSED));
+    }
+    if stay::notices_allowed() == Some(false) {
+        widgets::alert(ui, theme, widgets::AlertKind::Info, t(stay::BLOCKED));
+    }
+    // What a locked phone shows of a notice (2026-11-20): with a screen lock (a PIN, pattern or
+    // password; a swipe-only lock shows it whole, as the hint says) nothing unless the person turns this on,
+    // and the hint says the line hides the message only where the phone's own "hide sensitive
+    // content" setting is on (notifications::toast, the Android Backend).
+    let s = &mut state.settings.notifications;
+    let line = with_hint(ui, stay::LOCK_SCREEN_HINT, |ui| widgets::toggle(ui, theme, t(stay::LOCK_SCREEN_LABEL), &mut s.lock_screen_line));
+    widgets::setting_hint(ui, theme, hint, t(stay::LOCK_SCREEN_HINT));
+    changed | line
+}
+
 /// The person's synced switches as the relay takes them: all five, quiet hours off as null (which
 /// the relay reads as "clear them"). `None` until the server has said what it holds
 /// (`notif_prefs_loaded`): before that this device has only the defaults, and sending them would
@@ -182,6 +216,16 @@ pub(crate) fn draw(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accen
             ui.label(RichText::new(t("notifications.test_shown")).size(theme.font_size_small).color(theme.text_secondary()));
         }
         widgets::setting_hint(ui, theme, hint, t("notifications.test_hint"));
+
+        // On a phone (Android rung A4, 2026-11-20) there is no tray: staying connected while closed
+        // is a foreground service instead, and Android may be blocking the notices outright.
+        if humanity_core::platform::device::phone() {
+            dirty |= phone_rows(ui, theme, state, hint);
+            if dirty {
+                state.settings_dirty = true;
+            }
+            return;
+        }
 
         // The notification area (rung 2, part 2): the tray icon, and closing into it.
         let s = &mut state.settings.notifications;

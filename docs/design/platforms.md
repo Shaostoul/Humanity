@@ -112,7 +112,7 @@ on 2026-11-14):
 | GPU | wgpu 24 | Vulkan (wgpu's README: "First Class Support") | Metal ("First Class Support") | The renderer already picks Vulkan or Metal off Windows (`src/renderer/mod.rs`) |
 | GUI | egui 0.31 through egui-winit and egui-wgpu (no eframe) | eframe lists Android; egui-winit is the same layer | through winit | Touch input and the on-screen keyboard need testing on a phone |
 | Audio | kira 0.12 on cpal 0.18 | AAudio, Android 8.0 (API 26) and later | CoreAudio | Microphone needs a permission prompt on both |
-| Key storage | keyring 3 | **no backend** (Linux, BSD, macOS, iOS, Windows only) | Keychain | Android needs the Android Keystore through JNI (already noted in `docs/PRIORITIES.md`, TIER 2 item 13). Until then the phone build leaves keyring out (its in-memory mock would forget the key) and Settings says why |
+| Key storage | keyring 3 | **no backend** (Linux, BSD, macOS, iOS, Windows only) | Keychain | **Android: BUILT 2026-11-20** through Android's own key store (rung A1 below): keyring stays out of the phone build (its in-memory mock would forget the key) |
 | Clipboard | arboard 3 | **no** (its platform code excludes Android) | **no** | Needs the platform's clipboard through JNI or UIKit. The phone build leaves arboard out; words still copy and paste inside egui |
 | Tray icon | tray-icon 0.26 | **no** (Windows, macOS, Linux, FreeBSD) | **no** | Left out of the Android build (2026-11-14); the tray makes no icon there |
 | TLS for the chat socket | tungstenite with `native-tls` | OpenSSL, which must be cross-compiled | Security framework | Done for Android (2026-11-14): rustls with the compiled-in roots there, native-tls kept on the desktop |
@@ -208,10 +208,33 @@ world follows with its own lighter settings.
    - **What a phone lacks, said on screen**
      ([crates/humanity-core/src/platform/device.rs](../../crates/humanity-core/src/platform/device.rs),
      words under `device.*`): the 3D world (Play's Enter button becomes the notice; every way in lands
-     on Play), the key store (Settings, Unlock on App Launch: the two remembering modes off, with the
-     reason), launching programs (the Apps page). tray-icon, arboard and keyring are left out of the
+     on Play), launching programs (the Apps page). tray-icon, arboard and keyring are left out of the
      phone build in `Cargo.toml`; the tray makes no icon there and a clipboard picture paste returns
      nothing.
+   - **Remembering the key (2026-11-20; operator: "We should add that.")**: Settings, Unlock on App
+     Launch works on a phone through Android's key store. It holds keys, not secrets, so each of the
+     desktop's two modes keeps the same 32 bytes (the seed for Remember on this device, the device key
+     for Quick PIN) SEALED with AES-256-GCM by a key made inside the key store that cannot be copied
+     out (StrongBox first, else the phone's secure hardware, else software, and Settings says which:
+     a phone without secure hardware is told its passphrase is the safer choice). The sealed 68 bytes
+     live in the app's folder (`crates/humanity-core/src/platform/key_wrap.rs`, host-tested); the key
+     store's work is Java (`android/java/.../KeyStoreBridge.java`, checked by `javac`), called through
+     JNI (`platform/android_jni.rs`, the `jni` crate already in the tree). The row in
+     [cryptography.md](../reference/cryptography.md). Not proven on a phone yet. **Fixed after the
+     review (2026-11-20):** every switch between the modes goes through one function that forgets
+     the other mode's secret (BUG-335: Remember, then Quick PIN, left the seed remembered, on a
+     desktop too); the key is usable only while the phone is unlocked (Android 9+, on a phone with a screen
+     lock; Settings says whether this phone's key carries the rule) and the Quick
+     PIN's words say the PIN is checked by HumanityOS, not by Android; data extraction rules keep
+     the app's folder out of device-to-device transfers as well as backups, and a remembered file
+     this phone's key store has no key for reads as not remembered (Settings offers Remember again);
+     the plaintext copies are wiped on both sides of JNI; a Java stack trace goes to the log, never
+     the screen.
+   - **The Java in the APK (2026-11-20)**: three small classes under `android/java/` (the key store,
+     the stay-connected service, the notices), compiled by `build-apk.sh` with the runner's `javac`
+     and the SDK's `d8` into `classes.dex`; still no Gradle and no libraries. Every call Rust makes
+     into them is checked against their source by `platform::android_java`'s test, and the manifest
+     by `tests/android_manifest_lint.rs`.
    - **TLS**: the chat socket uses rustls with the compiled-in Mozilla roots on Android (ring is
      already rustls's provider there through reqwest); the desktop keeps native-tls.
    - **Touch**: egui lays the pages out at the phone's own scale (about 412 points wide on the
@@ -244,7 +267,7 @@ world follows with its own lighter settings.
      what asked egui for each window's frames, which is how it was found.
      `HUMANITY_REDRAW_ALWAYS=1` keeps a preview drawing every frame, for the comparison.
 
-   **Still to do in A1:** the Android Keystore through JNI (the key store notice until then); the
+   **Still to do in A1:** the
    on-screen keyboard is NativeActivity's (basic key events: GameActivity's full text input needs
    Java code and Gradle, a later step); the network wakes a waiting phone by a four-times-a-second
    tick rather than by the socket itself (a socket thread waking the loop would let it sleep longer);
@@ -272,9 +295,49 @@ world follows with its own lighter settings.
 3. **A3, a free Limited Distribution registration before 2027**, so the operator's phone (and up to
    50 authorized devices, per Google's guide) keeps installing without the advanced flow when
    developer verification reaches everyone. Needs the operator's own Google account.
-4. **A4, chat while the app is closed.** Android stops background apps; a live connection needs a
-   foreground service with a visible notification, or a push service (Google's, or an open one such
-   as UnifiedPush). Pick one that keeps messages sealed end to end. Free.
+4. **A4, chat while the app is closed. BUILT 2026-11-20, waiting on the phone.** Android stops an app
+   that is not on the screen, and its connection with it. Settings, Notifications, **Stay connected
+   while HumanityOS is closed** (phone only, OFF by default; its hint says a notification stays in the
+   bar and it uses some battery) starts a foreground service, `ChatService`
+   (`android/java/`, `src/notifications/stay_connected.rs`), that keeps the app's process and its own
+   connection alive; turning it on asks Android to allow notices (Android 13 and later), and Settings
+   says when Android blocks them or refused the service. It is started while the app is on the
+   screen (at launch, or the moment it is turned on), since Android 12 and later refuse a foreground
+   service started from the background. The service's type is `specialUse` with its reason in the
+   manifest: `dataSync` stops after 6 hours a day on Android 15, and `remoteMessaging` is described
+   as moving messages between a person's own devices. `stopWithTask`: swiping the app away in the
+   recent-apps list closes it, notification and all. **Notices on a phone** go through the same rule
+   as a desktop's (`notifications::decide`): who a message is from by default, the message itself
+   only when the person chose "Who it is from and the message". On the locked screen of a phone
+   with a screen lock (a PIN, pattern or password) a notice shows NOTHING (`VISIBILITY_SECRET`;
+   Android hides notices only on a secure lock screen, so a phone locked only by a swipe shows
+   every notice whole, which the setting's hint says since the second review; corrected
+   2026-11-20 after a review: the first build made each
+   `VISIBILITY_PRIVATE` with a public version and said a locked screen showed only "Something new
+   arrived", but Android shows the private version there unless the phone's own "hide sensitive
+   content" setting is on, and by default it is off). Settings, Notifications, **Show a line on the
+   locked screen** (off by default) makes it `VISIBILITY_PRIVATE` with that line as the public
+   version, and its hint says the line hides the message only where the phone's setting is on.
+   Stopping the service right after starting it cannot crash the app (Android kills an app whose
+   foreground service ends before `startForeground`): `stop` waits for the foreground, and the
+   service stops itself when told before it got there; since the second review every start owes
+   a new `startForeground` and a stop marks the service gone as it stops it, both under one lock,
+   so off, on, off quickly never stops the new instance early. A tap opens the app (not yet
+   the conversation). Not yet: a wake lock (with the screen off Android may pause the app between
+   packets; an arriving message wakes it), opening the conversation from a tap. Free.
+
+   **Staying connected: the foreground service and UnifiedPush (compared 2026-11-20, from
+   developer.android.com's foreground service types, its Android 15 behaviour changes and its
+   notification permission pages, read that day).** The operator, 2026-11-20: "Whichever one you
+   believe is best." A FOREGROUND SERVICE first: the app keeps its own connection to its own server,
+   so it needs no other app, no third party learns when a message arrives, and messages stay sealed
+   end to end; the price is the notification Android requires for as long as it runs, and the battery
+   a held connection costs. UNIFIEDPUSH can come later as a battery-saving choice: a distributor app
+   the person installs (ntfy, for example) holds one connection for every app that uses it and wakes
+   ours when the relay posts to it, so ours can stop between messages; but it needs that second app
+   and a push server (the distributor's or the person's own) that sees when messages arrive, and the
+   relay would need to post to it. Google's push service (FCM) is not used: it needs Google's code in
+   the app and Google's servers in the path.
 5. **A5, the 3D world on a phone**: Vulkan, ASTC textures, the lighter settings above, measured on the
    OnePlus 9 Pro. Free.
 6. **A6, F-Droid**, after a person reads its Inclusion Policy (Claude may not read f-droid.org).

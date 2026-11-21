@@ -290,6 +290,7 @@ fn a_toast_cannot_be_made_into_something_else() {
         group: "dm".into(),
         launch: String::new(),
         expire_ms: super::toast::EXPIRE_MS,
+        lock_screen_line: false,
     };
     let xml = toast_xml(&t);
     assert!(!xml.contains("<actions>"), "{xml}");
@@ -577,7 +578,7 @@ fn no_banner_on_a_broadcast_window() {
 /// A notice carries its click token, escaped, and Linux's click is an option before `--`.
 #[test]
 fn a_notice_carries_its_click_token() {
-    let t = Toast { title: "Ben".into(), body: "hi".into(), tag: tag_for("dm:k1"), group: "dm".into(), launch: "hos1.r.1\" onclick=\"x".into(), expire_ms: super::toast::EXPIRE_MS };
+    let t = Toast { title: "Ben".into(), body: "hi".into(), tag: tag_for("dm:k1"), group: "dm".into(), launch: "hos1.r.1\" onclick=\"x".into(), expire_ms: super::toast::EXPIRE_MS, lock_screen_line: false };
     let xml = toast_xml(&t);
     assert!(xml.starts_with("<toast launch=\"hos1.r.1&quot; onclick=&quot;x\">"), "a token cannot add an attribute: {xml}");
     assert!(toast_xml(&Toast { launch: String::new(), ..t.clone() }).starts_with("<toast><visual>"));

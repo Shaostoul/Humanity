@@ -19,13 +19,13 @@ household permits, low impact). The native app is the source of truth; the websi
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - `feature = "native"`: `gui/`, `config.rs`, `notifications/`, `games/`, `software/`, `media/`, `web_reader/`, `instrument_packs/`, `model_packs/`, `ai/`, `updater.rs`, `release_update.rs`, `engine/protected.rs`, `engine/warnings.rs`, `engine/dm.rs`, `engine/block.rs`, `engine/report.rs`, `engine/held.rs`, `engine/reach.rs`, `engine/key_cards.rs`, `engine/group_report.rs`, `engine/file_transfer.rs`, `engine/friend_code.rs`, `engine/choice.rs`, `engine/put_answer.rs`, `engine/household.rs`, `engine/low_impact.rs`, `engine/quiet_allow.rs`, `engine/mine_tasks.rs`, `engine/org_mail.rs`
-- **Size:** 242,675 lines in 545 files, 48,789 of them in 139 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `gui/pages/maps/sky_events.rs` 463 of 465, `gui/mod.rs` 4,778 of 4,800, `gui/pages/chat/modals.rs` 1,541 of 1,550, `gui/pages/maps/ship_view.rs` 406 of 410, `gui/pages/chat/left_panel.rs` 1,868 of 1,900, `gui/pages/maps/time_bar.rs` 245 of 250, `gui/pages/maps/system_view.rs` 774 of 790, `gui/loaders.rs` 1,609 of 1,650, `gui/pages/maps/bodies.rs` 346 of 355, `gui/pages/maps/mod.rs` 346 of 355, `gui/pages/maps/overlays.rs` 458 of 470, `gui/pages/maps/camera.rs` 526 of 540, `gui/pages/construction.rs` 4,120 of 4,250, `gui/pages/chat.rs` 2,738 of 2,830, `gui/pages/maps/you_layer.rs` 266 of 275, `gui/pages/maps/body_list.rs` 353 of 365, `gui/pages/maps/scene.rs` 140 of 145, `gui/pages/maps/labels.rs` 154 of 160, `gui/pages/maps/galaxy_view.rs` 380 of 395, `gui/state_types.rs` 1,778 of 1,850, `gui/pages/maps/controls.rs` 120 of 125, `gui/pages/maps/orbits.rs` 278 of 290, `gui/pages/maps/night_sky.rs` 254 of 265, `gui/pages/chat/p2p_groups.rs` 766 of 800, `gui/pages/maps/planet_view.rs` 416 of 435, `gui/pages/maps/diagram.rs` 114 of 120, `gui/pages/chat/rows.rs` 1,092 of 1,150, `gui/pages/chat/composer.rs` 644 of 680, `gui/widgets/level_picker.rs` 151 of 160, `gui/pages/maps/stations.rs` 117 of 125, `gui/pages/maps/world_layer.rs` 135 of 145, `gui/pages/maps/belts.rs` 318 of 385, `gui/pages/chat/right_panel.rs` 476 of 600.
+- **Size:** 243,627 lines in 549 files, 49,122 of them in 140 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `gui/pages/maps/sky_events.rs` 463 of 465, `gui/mod.rs` 4,778 of 4,800, `gui/pages/chat/modals.rs` 1,541 of 1,550, `gui/pages/maps/ship_view.rs` 406 of 410, `gui/pages/chat/left_panel.rs` 1,868 of 1,900, `gui/pages/maps/time_bar.rs` 245 of 250, `gui/pages/maps/system_view.rs` 774 of 790, `gui/loaders.rs` 1,609 of 1,650, `gui/pages/maps/bodies.rs` 346 of 355, `gui/pages/maps/mod.rs` 346 of 355, `gui/pages/maps/overlays.rs` 458 of 470, `gui/pages/maps/camera.rs` 526 of 540, `gui/pages/construction.rs` 4,120 of 4,250, `gui/pages/chat.rs` 2,738 of 2,830, `gui/pages/maps/you_layer.rs` 266 of 275, `gui/pages/maps/body_list.rs` 353 of 365, `gui/pages/maps/scene.rs` 140 of 145, `gui/pages/maps/labels.rs` 154 of 160, `gui/pages/maps/galaxy_view.rs` 380 of 395, `gui/pages/chat/rows.rs` 1,106 of 1,150, `gui/state_types.rs` 1,778 of 1,850, `gui/pages/maps/controls.rs` 120 of 125, `gui/pages/maps/orbits.rs` 278 of 290, `gui/pages/maps/night_sky.rs` 254 of 265, `gui/pages/chat/p2p_groups.rs` 766 of 800, `gui/pages/maps/planet_view.rs` 416 of 435, `gui/pages/maps/diagram.rs` 114 of 120, `gui/pages/chat/composer.rs` 644 of 680, `gui/widgets/level_picker.rs` 151 of 160, `gui/pages/maps/stations.rs` 117 of 125, `gui/pages/maps/world_layer.rs` 135 of 145, `gui/pages/maps/belts.rs` 318 of 385, `gui/pages/chat/right_panel.rs` 476 of 600.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 214.
-- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, music, ai-protocol. **Uses today** (references in non-test code): core 636, net 365, systems 193, ship 164, relay 109, protocol 96, renderer 65, music 62, terrain 33, ai-protocol 17.
-- **May be used by** (the plan): engine. **Used today by:** engine 686.
-- **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 1,771 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **May use** (the plan): core, protocol, ship, terrain, systems, relay, net, renderer, music, ai-protocol. **Uses today** (references in non-test code): core 656, net 365, systems 193, ship 164, relay 109, protocol 96, renderer 65, music 62, terrain 33, ai-protocol 17, engine 1.
+- **May be used by** (the plan): engine. **Used today by:** engine 688.
+- **Wrong-way references:** 1 in code, to engine 1; 0 in test code. Each is held to its file's budget in scripts/crate-layers.json and must go before this crate is cut (docs/design/crate-split.md, rung 0, "Not counted"); `node scripts/check-crate-layers.js` fails on any other.
+- **Its lib tests:** 1,783 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine gui:: config:: notifications:: games:: software:: media:: web_reader:: instrument_packs:: model_packs:: ai:: updater:: release_update:: engine::protected:: engine::warnings:: engine::dm:: engine::block:: engine::report:: engine::held:: engine::reach:: engine::key_cards:: engine::group_report:: engine::file_transfer:: engine::friend_code:: engine::choice:: engine::put_answer:: engine::household:: engine::low_impact:: engine::quiet_allow:: engine::mine_tasks:: engine::org_mail:: --skip relay::api_v2_ai::
@@ -37,7 +37,7 @@ just test-lib --crate humanity-engine gui:: config:: notifications:: games:: sof
 |---|---:|---|
 | `gui::GuiState` | 55 | engine 55 |
 | `gui::pages::chat::norm_server_url` | 22 | engine 22 |
-| `config::AppConfig` | 20 | engine 20 |
+| `config::AppConfig` | 21 | engine 21 |
 | `gui::GuiPage` | 19 | engine 19 |
 | `gui::ToastKind` | 15 | engine 15 |
 | `gui` | 11 | engine 11 |
@@ -51,7 +51,7 @@ just test-lib --crate humanity-engine gui:: config:: notifications:: games:: sof
 | `gui::ServerConnection` | 6 | engine 6 |
 | `gui::ChatChannel` | 5 | engine 5 |
 
-And 351 more items, 480 references (`node scripts/crate-cards.js --interface humanity-gui` lists them all).
+And 352 more items, 481 references (`node scripts/crate-cards.js --interface humanity-gui` lists them all).
 <!-- end generated -->
 
 ## Rules

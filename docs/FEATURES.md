@@ -2040,8 +2040,9 @@ The same native app (egui pages, chat, Settings) as an APK for an Android phone 
 and later), built free on GitHub's runners; installed by sideloading (android/README.md has the
 steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pro prove it.
 - Build: `.github/workflows/build-android.yml` runs `android/build-apk.sh` (cargo-ndk builds the
-  engine's lib as a `cdylib`; aapt2, zipalign and apksigner package a NativeActivity APK, no Java
-  code, no Gradle). Release tags publish `HumanityOS-android-arm64.apk` once the project's signing
+  engine's lib as a `cdylib`; aapt2, zipalign and apksigner package a NativeActivity APK, no
+  Gradle; since 2026-11-20 three small Java classes under `android/java/` compiled with javac and d8,
+  "The Java in the APK" in android/README.md). Release tags publish `HumanityOS-android-arm64.apk` once the project's signing
   key exists (`just android-signing-key`, `scripts/android-signing-key.sh`); else a test-signed
   workflow artifact. Tool comparison: `docs/reference/research/2026-11-14-android-build-tools/`.
 - Entry: `src/android.rs` (`android_main`; HOME and TMPDIR in the app's private folder; the APK's page
@@ -2051,8 +2052,23 @@ steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pr
   `Renderer::drop_surface` / `recreate_surface` in `src/renderer/surface.rs`).
 - What a phone lacks, said on screen: `crates/humanity-core/src/platform/device.rs` (`Capability`,
   `has`, `notice_key`; words `device.*`): no 3D world (Play's notice, every way in lands on Play), no
-  key store (Settings, Unlock on App Launch), no launching programs (Apps page). tray-icon, arboard and
-  keyring left out of the phone build; the chat socket on rustls there.
+  launching programs (Apps page). tray-icon, arboard and keyring left out of the phone build; the chat
+  socket on rustls there.
+- Remembering the key on a phone (2026-11-20): Settings, Unlock on App Launch's two remembering modes
+  through Android's key store, the same secret sealed (AES-256-GCM) by a non-exportable key it makes
+  (StrongBox, else secure hardware, else software, said in Settings with `unlock.*` words; usable
+  only while the phone is unlocked, Android 9+). File format, names and the file store
+  (`KeyFileStore` over a `Sealer`, host-tested with a stand-in key store; a file this phone's key
+  store has no key for reads as nothing remembered and is removed)
+  `crates/humanity-core/src/platform/key_wrap.rs`; backend `auto_unlock.rs` (`android_key_store`,
+  `KeyStoreKind`, `remembered_slot`, `mode_words`, `protection`); JNI `platform/android_jni.rs`;
+  Java `android/java/.../KeyStoreBridge.java`; the calls checked against the Java by
+  `platform/android_java.rs`'s test. Settings card: `src/gui/pages/settings.rs` (`mode_words`).
+  Row in docs/reference/cryptography.md.
+- Switching Unlock on App Launch (2026-11-20, BUG-335): every switch, desktop and phone, goes
+  through `auto_unlock::remember` (keeps the new mode's secret, forgets every other mode's) via
+  `set_unlock_mode` in `src/gui/widgets/passphrase_modal.rs`; at start-up `auto_unlock::start_up`
+  treats a mode whose secret is gone as Always ask, so Remember works again in one click.
 - Touch: theme token `touch_target` (44 points, Settings > Widgets) as the smallest control height on
   a phone. `HUMANITY_PHONE_PREVIEW=1` shows the phone's view on a desktop.
 - Pages-only start (2026-11-20): `src/engine/renderer_slot.rs` (`RendererSlot`: the pages' GPU always,
@@ -2075,7 +2091,33 @@ steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pr
   `scripts/tests/download-android-web.test.js`). The VPS mirror takes the APK as optional (`PHONE_RE`).
 - Checks: `scripts/tests/build-android.test.js` (manifest, entry point, gated crates, mirror,
   signed-only release, the phone's file list).
-- Plan and the later rungs (Keystore, background chat, the 3D world, F-Droid): `docs/design/platforms.md`.
+- Checks since 2026-11-20: `tests/android_manifest_lint.rs` (the service, its type and property, the
+  permissions, the Java built in) and `scripts/tests/build-android.test.js` (the desktop keeps keyring).
+- Plan and the later rungs (the 3D world, F-Droid): `docs/design/platforms.md`.
+
+### The native app on Android, rung A4: staying connected while closed (2026-11-20)
+Settings, Notifications, "Stay connected while HumanityOS is closed" (phone only, off by default; the
+hint says a notification stays in the bar and it uses some battery) runs a foreground service that
+keeps the app's process and its own chat connection alive, so messages and notices arrive while the
+app is not on the screen; no push service, nothing through Google. Not yet run on a phone.
+- Setting: `LocalSettings::stay_connected` (`src/notifications/settings.rs`); the switch and the
+  "Android blocks notices" and "Android refused" notices: `src/gui/pages/settings/notifications.rs`
+  (`phone_rows`, in place of the tray's rows on a phone).
+- Start and stop, asking to allow notices (Android 13+): `src/notifications/stay_connected.rs`
+  (`apply`, `ask_for_notices`, `notices_allowed`); started at launch when on (`src/android.rs`).
+- The service: `android/java/.../ChatService.java` (type `specialUse`, START_NOT_STICKY,
+  stopWithTask), declared in `android/AndroidManifest.xml` with FOREGROUND_SERVICE,
+  FOREGROUND_SERVICE_SPECIAL_USE and POST_NOTIFICATIONS.
+- The phone's notices: the Android `Backend` in `src/notifications/toast.rs` through
+  `android/java/.../Notices.java`; what they say follows "A notice shows" (who by default, the
+  message only by choice), and a locked screen shows nothing of them (`VISIBILITY_SECRET`) unless
+  the person turns on "Show a line on the locked screen" (`LocalSettings::lock_screen_line`, off
+  by default; its hint says the line hides the message only where the phone's own "hide
+  sensitive content" setting is on). Stopping right after starting cannot crash (ChatService
+  stops itself after `startForeground` when told to stop before it got there).
+- Nothing of the app's folder leaves the phone by backup or device transfer:
+  `android/res/xml/data_extraction_rules.xml` (named by the manifest beside `allowBackup="false"`).
+- Why a foreground service and not UnifiedPush or Google's push: `docs/design/platforms.md`, rung A4.
 
 ### egui GUI System
 Immediate-mode UI with theme.ron, 13 reusable widgets, 20+ pages.

@@ -309,6 +309,7 @@ fn tell_still_running(state: &mut EngineState, voice_left: bool) {
         group: "tray".into(),
         launch,
         expire_ms: n::toast::EXPIRE_MS,
+        lock_screen_line: false,
     });
 }
 

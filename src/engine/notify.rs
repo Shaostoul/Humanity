@@ -344,7 +344,8 @@ pub(crate) fn act_on(state: &mut EngineState, c: Candidate, out: n::Outcome, now
     }
     if out.toast {
         let expire_ms = if is_call { RING_FOR.as_millis() as u32 } else { n::toast::EXPIRE_MS };
-        n::toast::show(n::toast::Toast { title, body, tag, group: c.kind.clone(), launch, expire_ms });
+        let lock_screen_line = state.gui_state.settings.notifications.lock_screen_line;
+        n::toast::show(n::toast::Toast { title, body, tag, group: c.kind.clone(), launch, expire_ms, lock_screen_line });
     }
     // The taskbar button's flash, until the window is in front: a person's launch only (a rig's
     // window never flashes in the operator's taskbar), never while hidden (cues).
@@ -406,6 +407,8 @@ pub(crate) fn pump(state: &mut EngineState) {
             group: "test".into(),
             launch,
             expire_ms: n::toast::EXPIRE_MS,
+            // The test notice follows the choice, so a person sees what a locked phone will show.
+            lock_screen_line: state.gui_state.settings.notifications.lock_screen_line,
         });
         let s = &state.gui_state.settings.notifications;
         if s.sound {

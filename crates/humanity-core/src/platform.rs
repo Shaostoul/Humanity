@@ -14,6 +14,21 @@ pub mod registry;
 /// Android rung A1, docs/design/platforms.md. Ungated: the pages and the server's words both ask.
 pub mod device;
 
+/// The phone's remembered key on disk (Android rung A1, 2026-11-20): the file's layout and
+/// everything else about it that needs no Java, so the host tests run it.
+#[cfg(feature = "native")]
+pub mod key_wrap;
+
+/// The Java the phone app carries and every call Rust makes into it, checked against the Java
+/// sources by its test (Android rungs A1 and A4, 2026-11-20).
+#[cfg(feature = "native")]
+pub mod android_java;
+
+/// The calls themselves, through JNI: Android's key store, the stay-connected service and the
+/// notices. Only on Android.
+#[cfg(all(target_os = "android", feature = "native"))]
+pub mod android_jni;
+
 /// Log a message through the platform's logging mechanism.
 pub fn log_info(msg: &str) {
     log::info!("{}", msg);

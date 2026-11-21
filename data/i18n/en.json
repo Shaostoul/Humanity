@@ -2907,6 +2907,9 @@
     "test_title": "Test notification",
     "test_body": "This is how a notice from HumanityOS looks. Nothing was sent.",
     "test_shown": "A test notice was shown. If none appeared, check that notifications for HumanityOS are allowed in your computer's settings.",
+    "stay_connected": "Stay connected while HumanityOS is closed",
+    "stay_connected_hint": "Keeps HumanityOS running when you switch to another app or turn the screen off, so messages and notices still arrive. While it is on, Android shows a notification in the bar, and it uses some battery. Swiping HumanityOS away in the recent apps list closes it. Off unless you turn it on.",
+    "stay_connected_refused": "Android did not let HumanityOS keep running. Turn this on again while HumanityOS is on the screen.",
     "synced_heading": "What notifies you",
     "synced_note": "Kept on your server, so every device you use follows the same choices.",
     "kind_dm": "Direct messages",
@@ -2963,6 +2966,8 @@
     "dm_title": "Message from {{name}}",
     "dm_title_hidden": "New message",
     "body_hidden": "Open HumanityOS to read it.",
+    "lock_screen_line": "Show a line on the locked screen",
+    "lock_screen_line_hint": "Off unless you turn it on. Off: on a phone with a screen lock (a PIN, pattern or password), the locked screen shows nothing of a message notice, and you see it when you unlock. A phone locked only by a swipe is not locked as far as Android is concerned, so its locked screen shows the whole notice whatever you choose here. On: a locked phone shows that something new arrived. Whether it also hides who it is from and the message depends on your phone's own setting for sensitive notifications on the lock screen (\"Hide sensitive content\", or on newer Android \"Show sensitive content when locked\" turned off). If your phone shows sensitive content there, the locked screen shows the whole notice.",
     "mention_title": "{{name}} mentioned you in #{{room}}",
     "mention_title_hidden": "Someone mentioned you",
     "reply_title": "{{name}} replied to you in #{{room}}",
@@ -3000,6 +3005,12 @@
     "muted_person": "Conversation with {{name}}",
     "dm_bell_hint": "Mutes this conversation's notices for a while, or unmutes it.",
     "room_bell_hint": "Mutes this room's notices for a while, or sets how much it notifies you.",
+    "android_blocked": "Android is not letting HumanityOS show notifications, so nothing appears in the bar. To allow them: Android's Settings, Apps, HumanityOS, Notifications.",
+    "android_channel_connection": "Staying connected",
+    "android_channel_messages": "Messages and notices",
+    "android_locked_body": "Something new arrived. Unlock your phone to see it.",
+    "android_ongoing_text": "New messages and notices arrive while the app is closed. To stop this, turn it off in Settings, Notifications.",
+    "android_ongoing_title": "HumanityOS is staying connected",
     "bell": "Notices",
     "bell_hint": "What notified you while you were busy elsewhere: messages, mentions and replies. The number is how many you have not opened yet.",
     "bell_count": "{{count}} not opened yet",
@@ -3778,7 +3789,6 @@
     "detail_reset_all_hint": "Puts every face and body detail back to the body as made. Height, build and ancestry stay as they are."
   },
   "device": {
-    "key_store": "This phone build cannot remember your key yet. Remembering it needs the phone's own key store (the Android Keystore), which is not built in yet. What works instead: your passphrase unlocks your key each time you open the app.",
     "launch_programs": "Starting other programs is for the desktop app. Android lets an app start only its own code, so Launch and Install do nothing on a phone. What works instead: open the program on your phone yourself, or use the desktop app on Windows, macOS or Linux.",
     "world_3d": "The 3D world is not on phones yet. It needs its own lighter graphics settings and a test on a phone's graphics chip first, and this build has the app's pages only. What works instead: Chat, Settings and the other pages work here, and the 3D world runs in the desktop app on Windows, macOS or Linux."
   },
@@ -4213,6 +4223,22 @@
   "model_view": {
     "help": "{{name}}: drag to turn it, scroll to zoom, right-drag or Shift-drag to move it, double-click to start over. {{triangles}} triangles.",
     "close_hint": "Stop showing the model here. The file stays where it is."
+  },
+  "unlock": {
+    "forget_failed": "Something this device remembered for unlocking could not be forgotten. The details are in the app's log. Try again forgets it again, and HumanityOS also tries each time it starts.",
+    "locked_rule_off": "This phone's key does not carry Android's rule that refuses it while the phone is locked: the rule needs Android 9 or later, and some phones refuse it (one without a screen lock, for example). The key works whenever HumanityOS runs.",
+    "locked_rule_on": "Android also refuses to use this key while the phone is locked, as long as the phone has a screen lock (a PIN, pattern or password). A phone locked only by a swipe never counts as locked, so there the key works whenever HumanityOS runs: set a screen lock in Android's Settings for this to count.",
+    "pin_android": "Your PIN is checked by HumanityOS on this phone, not by Android: it opens a device key that Android's key store keeps sealed here, and every guess is slowed down on purpose. A small barrier against someone who picks up your phone while it is unlocked.",
+    "pin_desktop": "A small barrier against someone using your computer account while you are away. Your PIN protects a device key kept in your computer's key store.",
+    "protection_hardware": "On this phone the sealing key lives in its secure hardware, so it cannot be copied off the phone.",
+    "protection_software": "This phone has no secure hardware for keys, so Android keeps the sealing key in software: someone with full control of the phone could use it. Your passphrase is the safer choice on this phone.",
+    "protection_strongbox": "On this phone the sealing key lives in a separate security chip (StrongBox), so it cannot be copied off the phone.",
+    "protection_unknown": "Android did not say where this phone keeps the sealing key.",
+    "remember_android": "Android's key store seals your key with a key of its own that never leaves this phone and works only for HumanityOS. It unlocks by itself when HumanityOS starts. Uninstalling the app forgets it.",
+    "remember_desktop": "Your computer's own key store (Windows Credential Manager, macOS Keychain or the Linux Secret Service) holds your key. It unlocks by itself when HumanityOS starts.",
+    "stash_failed": "Your key could not be remembered on this device. The details are in the app's log. Your passphrase still unlocks it.",
+    "try_again": "Try again",
+    "try_again_hint": "Tries again to forget what this device still remembers for a way to unlock you no longer use. Your passphrase is not needed."
   },
   "upload_keep": {
     "title": "Send it with its hidden details?",

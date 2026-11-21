@@ -31,6 +31,12 @@ on:
       - 'src/android.rs'
       - 'src/engine/app_lifecycle.rs'
       - 'crates/humanity-core/src/platform/device.rs'
+      # The phone's key store and its calls into the app's Java (2026-11-20).
+      - 'crates/humanity-core/src/platform/android_jni.rs'
+      - 'crates/humanity-core/src/platform/key_wrap.rs'
+      - 'crates/humanity-core/src/auto_unlock.rs'
+      - 'src/notifications/stay_connected.rs'
+      - 'src/notifications/toast.rs'
   workflow_dispatch:
   # Once a day (the operator, 2026-11-15: "Yes." to a daily build): the path filter cannot see
   # desktop code that only breaks on a phone (the first real build failed on src/net/ws_client.rs

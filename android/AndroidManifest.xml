@@ -3,8 +3,14 @@
   The phone app's manifest (Android rung A1, 2026-11-14; android/README.md, docs/design/platforms.md).
 
   NativeActivity: Android's own activity that loads a native library and calls its android_main
-  (src/android.rs), so the APK holds no Java code (android:hasCode="false") and builds without
-  Gradle. android/build-apk.sh passes the version, the minimum and the target SDK to aapt2.
+  (src/android.rs), so the app itself is Rust and builds without Gradle. android/build-apk.sh passes
+  the version, the minimum and the target SDK to aapt2.
+
+  The Java (2026-11-20, android/README.md "The Java in the APK"): a few small classes under
+  android/java/, compiled by build-apk.sh with javac and d8 into classes.dex, which is why
+  android:hasCode is no longer false. KeyStoreBridge does the Android key store's work for
+  "Remember on this device" (rung A1); ChatService keeps the app connected while it is closed and
+  Notices shows its notices (rung A4).
 
   configChanges: turning the phone, folding out the keyboard or changing the screen's density
   must not restart the activity (which would start the app over); winit reports a new size and
@@ -13,14 +19,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="us.united_humanity.humanityos">
 
-    <!-- Chat, the relay and every download: the only permission the app pages need. -->
+    <!-- Chat, the relay and every download. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Staying connected while closed (rung A4, 2026-11-20; off unless the person turns it on in
+         Settings, Notifications): a foreground service, whose own permission Android 14 and
+         later require beside FOREGROUND_SERVICE, and the notices, which Android 13 and later show
+         only once the person allows them (the app asks when they turn staying connected on).
+         tests/android_manifest_lint.rs holds these. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Backups (2026-11-20): nothing of the app's folder leaves the phone. allowBackup="false"
+         stops the cloud backup, and before Android 12 everything; at targetSdk 31 and later some
+         makers' phones still move the folder to a new phone unless data extraction rules exclude
+         it, which res/xml/data_extraction_rules.xml does for both (it says why, with the source).
+         tests/android_manifest_lint.rs holds both. -->
     <application
         android:label="HumanityOS"
         android:icon="@mipmap/ic_launcher"
-        android:hasCode="false"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:extractNativeLibs="true">
         <activity
             android:name="android.app.NativeActivity"
@@ -36,5 +55,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- The stay-connected service (android/java/.../ChatService.java): it only keeps the
+             process, and so the app's own chat connection, alive while the app is closed.
+             specialUse: dataSync stops after 6 hours a day on Android 15, and remoteMessaging
+             is for moving messages between a person's own devices (docs/design/platforms.md).
+             stopWithTask: swiping HumanityOS away in the recent-apps list ends it. -->
+        <service
+            android:name="us.united_humanity.humanityos.ChatService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="true">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the person's own end-to-end encrypted chat connection open while the app is closed, at their choice (off by default), so messages arrive without a push service." />
+        </service>
     </application>
 </manifest>

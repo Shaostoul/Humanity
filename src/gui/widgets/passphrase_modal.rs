@@ -186,7 +186,8 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             Some(Ok(outcome)) => {
                 state.passphrase_unlock_rx = None;
                 state.passphrase_unlocking = false;
-                apply_unlock_outcome(state, outcome);
+                let (remember, now) = (state.remember_on_device, ui.ctx().input(|i| i.time));
+                apply_unlock_outcome(state, outcome, remember, now);
             }
             Some(Err(std::sync::mpsc::TryRecvError::Disconnected)) => {
                 state.passphrase_unlock_rx = None;
@@ -241,10 +242,7 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
             if widgets::secondary_button(ui, theme, "Skip (limited mode)") {
                 // User skips: no private key available, chat-only mode
-                state.passphrase_needed = false;
-                state.passphrase_input.clear();
-                state.passphrase_status.clear();
-                log::info!("User skipped passphrase; private key unavailable");
+                skip_unlock(state);
             }
         }
     });
@@ -256,9 +254,16 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// unlocked seed, derive the PQ identity, and save. Mirrors the old inline
 /// post-decrypt logic exactly — only WHERE the PBKDF2 runs changed. Settings, Account's
 /// Reveal recovery phrase gate on a locked identity ends the same way (BUG-213).
+///
+/// `remember` is the dialog's own "Remember on this device" tick, passed by the dialog and
+/// `false` from everywhere else, so an unlock that never showed the tick never remembers the seed
+/// (the second review: a tick left from a skipped dialog stored the seed on a later Reveal).
+/// `now` is the egui time, for the notice a failed remember shows.
 pub(crate) fn apply_unlock_outcome(
     state: &mut GuiState,
     outcome: Result<(Vec<u8>, Option<(String, String, u32)>), String>,
+    remember: bool,
+    now: f64,
 ) {
     match outcome {
         Ok((key_bytes, reenc)) => {
@@ -272,36 +277,13 @@ pub(crate) fn apply_unlock_outcome(
                 log::info!("Vault PBKDF2 silently upgraded: {} -> {} iters", old_iters, new_iters);
             }
 
-            // "Remember on this device": stash the freshly-unlocked seed in the
-            // OS keychain BEFORE moving it into state. Best-effort — a failure
-            // just logs and falls back to AlwaysPrompt (the unlock succeeded).
-            if state.remember_on_device {
-                if key_bytes.len() != 32 {
-                    log::warn!("Auto-unlock stash skipped: seed is {} bytes, expected 32", key_bytes.len());
-                } else {
-                    let mut seed_arr = [0u8; 32];
-                    seed_arr.copy_from_slice(&key_bytes);
-                    let identity = state.profile_public_key.clone();
-                    if !identity.is_empty() {
-                        match humanity_core::auto_unlock::keychain_stash(
-                            humanity_core::auto_unlock::KeychainSlot::Seed,
-                            &identity,
-                            &seed_arr,
-                        ) {
-                            Ok(()) => {
-                                state.auto_unlock_mode = humanity_core::auto_unlock::AutoUnlockMode::Keychain;
-                                log::info!("Auto-unlock: seed stashed in OS keychain; mode -> Keychain");
-                            }
-                            Err(e) => {
-                                log::warn!("Auto-unlock stash FAILED ({}). Mode stays AlwaysPrompt.", e);
-                            }
-                        }
-                    } else {
-                        log::warn!("Auto-unlock stash skipped: no profile_public_key in state");
-                    }
-                }
-                state.remember_on_device = false; // one-shot per modal
+            // "Remember on this device": stash the freshly-unlocked seed in the key store BEFORE
+            // moving it into state (remember_after_unlock). A failure is said and the mode stays
+            // as it was (the unlock succeeded).
+            if remember {
+                remember_after_unlock(&mut humanity_core::auto_unlock::ThisDevice, state, &key_bytes, now);
             }
+            state.remember_on_device = false; // one-shot per modal
 
             state.private_key_bytes = Some(key_bytes);
             state.passphrase_needed = false;
@@ -426,6 +408,107 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // AppConfig.pin_encrypted_seed / pin_salt (the passphrase vault is left
 // intact — they coexist as alternate unlock paths).
 
+/// Switch Unlock on App Launch to `mode`: the one way every switch goes, from Settings and from
+/// the unlock and PIN dialogs, on a desktop and on a phone (BUG-335: Remember on this device, then
+/// Quick PIN, left the seed remembered). The key store keeps `secret` for the new mode and
+/// forgets every other mode's (`auto_unlock::remember`); the PIN blob is `pin_blob` for the Quick
+/// PIN and cleared otherwise; the config is saved. When the new secret could not be kept nothing
+/// changes; when it was kept but another mode's could not be forgotten the switch still happens
+/// (the new mode works) and the screen says so. `Err` is the words' key for the screen, also kept
+/// in `state.unlock_alert` for Settings (cleared by a switch that fully happens); the details go
+/// to the log only (a phone's can hold a Java stack trace).
+pub(crate) fn set_unlock_mode(
+    state: &mut GuiState,
+    mode: humanity_core::auto_unlock::AutoUnlockMode,
+    secret: Option<&[u8; 32]>,
+    pin_blob: Option<(String, String)>,
+) -> Result<(), &'static str> {
+    set_unlock_mode_in(&mut humanity_core::auto_unlock::ThisDevice, state, mode, secret, pin_blob)
+}
+
+/// [`set_unlock_mode`] with the key store named, so the tests can stand one in.
+pub(crate) fn set_unlock_mode_in(
+    store: &mut impl humanity_core::auto_unlock::SecretStore,
+    state: &mut GuiState,
+    mode: humanity_core::auto_unlock::AutoUnlockMode,
+    secret: Option<&[u8; 32]>,
+    pin_blob: Option<(String, String)>,
+) -> Result<(), &'static str> {
+    use humanity_core::auto_unlock::{self as au, AutoUnlockMode, RememberError};
+    // An empty identity is `remember`'s to judge: nothing to forget is not a failure, so Always
+    // ask always works; a remembering mode is refused there (the second review).
+    let identity = state.profile_public_key.clone();
+    let result = au::remember(store, mode, &identity, secret);
+    if let Err(e) = &result {
+        log::warn!("unlock on launch: switching to {mode:?}: {}", e.details());
+        if matches!(e, RememberError::NotKept(_)) {
+            state.unlock_alert = Some(e.words_key());
+            return Err(e.words_key());
+        }
+    }
+    let (enc, salt) = if mode == AutoUnlockMode::KeychainPin { pin_blob.unwrap_or_default() } else { Default::default() };
+    state.pin_encrypted_seed = enc;
+    state.pin_salt = salt;
+    state.auto_unlock_mode = mode;
+    crate::config::AppConfig::from_gui_state(state).save();
+    log::info!("unlock on launch: mode -> {mode:?}");
+    let result = result.map_err(|e| e.words_key());
+    state.unlock_alert = result.err();
+    result
+}
+
+/// Settings' Try again beside a forget that failed (and choosing Always ask again): forget what
+/// the modes not chosen still keep. Nothing new is kept, so no secret is needed, whichever mode
+/// is chosen. The outcome lands in `state.unlock_alert` as a switch's does.
+pub(crate) fn forget_other_modes(state: &mut GuiState) -> Result<(), &'static str> {
+    forget_other_modes_in(&mut humanity_core::auto_unlock::ThisDevice, state)
+}
+
+/// [`forget_other_modes`] with the key store named.
+pub(crate) fn forget_other_modes_in(store: &mut impl humanity_core::auto_unlock::SecretStore, state: &mut GuiState) -> Result<(), &'static str> {
+    let identity = state.profile_public_key.clone();
+    let result = humanity_core::auto_unlock::forget_others(store, state.auto_unlock_mode, &identity).map_err(|e| {
+        log::warn!("unlock on launch: forgetting again: {}", e.details());
+        e.words_key()
+    });
+    state.unlock_alert = result.err();
+    result
+}
+
+/// "Skip (limited mode)" in the unlock dialog: it closes with the key still locked, and its
+/// Remember tick goes with it, so no later unlock remembers the seed unasked (the second review:
+/// the tick survived, and Account's Reveal recovery phrase then stored the seed).
+pub(crate) fn skip_unlock(state: &mut GuiState) {
+    state.passphrase_needed = false;
+    humanity_core::platform::key_wrap::wipe_string(&mut state.passphrase_input);
+    state.passphrase_status.clear();
+    state.remember_on_device = false;
+    log::info!("User skipped passphrase; private key unavailable");
+}
+
+/// The unlock dialog's "Remember on this device", once the passphrase has opened the key: the
+/// seed kept through the one switch every mode change takes (a Quick PIN set up before is
+/// forgotten with it). The unlock itself succeeded whatever happens here; a remember that did not
+/// fully happen is said as a sentence by key, as a notice now (the dialog closes) and in Settings'
+/// alert (`set_unlock_mode_in` keeps it), never only as a log line (the second review).
+pub(crate) fn remember_after_unlock(store: &mut impl humanity_core::auto_unlock::SecretStore, state: &mut GuiState, key_bytes: &[u8], now: f64) {
+    let result = if key_bytes.len() != 32 {
+        log::warn!("Auto-unlock stash skipped: seed is {} bytes, expected 32", key_bytes.len());
+        state.unlock_alert = Some("unlock.stash_failed");
+        Err("unlock.stash_failed")
+    } else {
+        let mut seed = [0u8; 32];
+        seed.copy_from_slice(key_bytes);
+        let result = set_unlock_mode_in(store, state, humanity_core::auto_unlock::AutoUnlockMode::Keychain, Some(&seed), None);
+        humanity_core::platform::key_wrap::wipe(&mut seed);
+        result
+    };
+    if let Err(key) = result {
+        log::warn!("Auto-unlock: Remember on this device did not complete ({key})");
+        state.notice(humanity_core::i18n::t(key), now);
+    }
+}
+
 /// Common helper: load the device_key from the OS keychain for the
 /// current identity. Returns None when the entry is genuinely absent
 /// (caller's UI surface should display "PIN setup gone, re-run setup
@@ -493,9 +576,15 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.pin_status = "PINs do not match.".to_string();
                 return;
             }
+            // Checked before the seed is copied, so no early return leaves a copy unwiped (the
+            // second review's C).
+            if state.profile_public_key.is_empty() {
+                state.pin_status = "No identity loaded, generate or recover first.".to_string();
+                return;
+            }
             // Must already have the seed in memory (set up post-unlock
             // or right after fresh identity generation).
-            let seed_bytes = match &state.private_key_bytes {
+            let mut seed_bytes = match &state.private_key_bytes {
                 Some(b) if b.len() == 32 => {
                     let mut s = [0u8; 32];
                     s.copy_from_slice(b);
@@ -506,48 +595,44 @@ fn draw_pin_setup(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     return;
                 }
             };
-            if state.profile_public_key.is_empty() {
-                state.pin_status = "No identity loaded, generate or recover first.".to_string();
-                return;
-            }
 
-            // Generate fresh device_key, stash to keychain.
-            let device_key = match humanity_core::auto_unlock::generate_device_key() {
+            // A fresh device key; the seed sealed with the PIN and it (nothing is kept yet).
+            let mut device_key = match humanity_core::auto_unlock::generate_device_key() {
                 Ok(k) => k,
-                Err(e) => { state.pin_status = format!("RNG failed: {}", e); return; }
-            };
-            if let Err(e) = humanity_core::auto_unlock::keychain_stash(
-                humanity_core::auto_unlock::KeychainSlot::DeviceKey,
-                &state.profile_public_key,
-                &device_key,
-            ) {
-                state.pin_status = format!("Keychain unavailable: {}", e);
-                return;
-            }
-
-            // Encrypt seed with PIN + device_key.
-            match humanity_core::auto_unlock::encrypt_seed_with_pin(&seed_bytes, &state.pin_input, &device_key) {
-                Ok((enc, salt)) => {
-                    state.pin_encrypted_seed = enc;
-                    state.pin_salt = salt;
-                    state.auto_unlock_mode = humanity_core::auto_unlock::AutoUnlockMode::KeychainPin;
-                    state.passphrase_needed = false;
-                    state.pin_input.clear();
-                    state.pin_confirm.clear();
-                    state.pin_status.clear();
-                    crate::config::AppConfig::from_gui_state(state).save();
-                    log::info!("PIN set; auto-unlock mode -> KeychainPin");
+                Err(e) => {
+                    humanity_core::platform::key_wrap::wipe(&mut seed_bytes);
+                    state.pin_status = format!("RNG failed: {}", e);
+                    return;
                 }
+            };
+            let encrypted = humanity_core::auto_unlock::encrypt_seed_with_pin(&seed_bytes, &state.pin_input, &device_key);
+            humanity_core::platform::key_wrap::wipe(&mut seed_bytes);
+            match encrypted {
+                // Then the one switch every mode change takes: the device key kept, the seed
+                // Remember on this device kept forgotten (BUG-335), the blob and the mode saved.
+                Ok(blob) => match set_unlock_mode(state, humanity_core::auto_unlock::AutoUnlockMode::KeychainPin, Some(&device_key), Some(blob)) {
+                    Ok(()) => {
+                        state.passphrase_needed = false;
+                        wipe_pin_boxes(state);
+                        state.pin_status.clear();
+                    }
+                    Err(key) if key == "unlock.forget_failed" => {
+                        // The PIN works; something kept before could not be forgotten: said here.
+                        wipe_pin_boxes(state);
+                        state.pin_status = humanity_core::i18n::t(key).to_string();
+                    }
+                    Err(key) => state.pin_status = humanity_core::i18n::t(key).to_string(),
+                },
                 Err(e) => {
                     state.pin_status = format!("PIN encrypt failed: {}", e);
                 }
             }
+            humanity_core::platform::key_wrap::wipe(&mut device_key);
         }
 
         if widgets::secondary_button(ui, theme, "Cancel") {
             state.passphrase_needed = false;
-            state.pin_input.clear();
-            state.pin_confirm.clear();
+            wipe_pin_boxes(state);
             state.pin_status.clear();
         }
     });
@@ -592,7 +677,7 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.pin_unlocking = false;
                 state.private_key_bytes = Some(seed);
                 state.passphrase_needed = false;
-                state.pin_input.clear();
+                wipe_pin_boxes(state);
                 state.pin_status.clear();
                 state.apply_pq_identity();
                 log::info!("Unlocked via PIN");
@@ -623,24 +708,35 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_small));
         } else {
             if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
-                let device_key = match load_device_key(state) {
+                let mut device_key = match load_device_key(state) {
                     Some(k) => k,
                     None => {
                         state.pin_status = "PIN setup gone (keychain cleared). Use passphrase to re-unlock.".to_string();
                         return;
                     }
                 };
-                // Run the PBKDF2 (decrypt_seed_with_pin) on a worker thread.
+                // Run the PBKDF2 (decrypt_seed_with_pin) on a worker thread. Every plaintext copy
+                // is wiped once used (the second review's C): the worker's device key and PIN
+                // after the decrypt, the 32-byte seed once it is in the Vec the app keeps, and
+                // this thread's device key (an array is Copy, so the worker got its own) at once.
                 let enc = state.pin_encrypted_seed.clone();
                 let salt = state.pin_salt.clone();
                 let pin = state.pin_input.clone();
                 let (tx, rx) = std::sync::mpsc::channel();
                 std::thread::spawn(move || {
+                    let (mut device_key, mut pin) = (device_key, pin);
                     let result = humanity_core::auto_unlock::decrypt_seed_with_pin(&enc, &salt, &pin, &device_key)
-                        .map(|seed| seed.to_vec())
+                        .map(|mut seed| {
+                            let kept = seed.to_vec();
+                            humanity_core::platform::key_wrap::wipe(&mut seed);
+                            kept
+                        })
                         .map_err(|e| e.to_string());
+                    humanity_core::platform::key_wrap::wipe(&mut device_key);
+                    humanity_core::platform::key_wrap::wipe_string(&mut pin);
                     let _ = tx.send(result);
                 });
+                humanity_core::platform::key_wrap::wipe(&mut device_key);
                 state.pin_unlock_rx = Some(rx);
                 state.pin_unlocking = true;
                 state.pin_status.clear();
@@ -648,7 +744,7 @@ fn draw_pin_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
             if widgets::secondary_button(ui, theme, "Use passphrase instead") {
                 state.passphrase_mode = PassphraseMode::Unlock;
-                state.pin_input.clear();
+                wipe_pin_boxes(state);
                 state.pin_status.clear();
             }
         }
@@ -702,34 +798,36 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.pin_status = "New PINs do not match.".to_string();
                 return;
             }
-            let device_key = match load_device_key(state) {
-                Some(k) => k,
-                None => {
-                    state.pin_status = "PIN setup gone, set up a new PIN from Settings.".to_string();
-                    return;
-                }
+            let Some(mut device_key) = load_device_key(state) else {
+                state.pin_status = "PIN setup gone, set up a new PIN from Settings.".to_string();
+                return;
             };
-            // Verify old PIN by decrypting existing blob.
-            let seed = match humanity_core::auto_unlock::decrypt_seed_with_pin(
+            // Verify the old PIN by opening the existing blob, then re-seal with the new one
+            // (same device key, no churn in the key store). The device key and the seed are wiped
+            // on every way out, a wrong PIN included (the second review's C).
+            let resealed = match humanity_core::auto_unlock::decrypt_seed_with_pin(
                 &state.pin_encrypted_seed, &state.pin_salt,
                 &state.pin_old_input, &device_key,
             ) {
-                Ok(s) => s,
-                Err(_) => { state.pin_status = "Current PIN is incorrect.".to_string(); return; }
+                Ok(mut seed) => {
+                    let sealed = humanity_core::auto_unlock::encrypt_seed_with_pin(&seed, &state.pin_input, &device_key);
+                    humanity_core::platform::key_wrap::wipe(&mut seed);
+                    Some(sealed)
+                }
+                Err(_) => None,
             };
-            // Re-encrypt with new PIN (same device_key — no churn in keychain).
-            match humanity_core::auto_unlock::encrypt_seed_with_pin(&seed, &state.pin_input, &device_key) {
-                Ok((enc, salt)) => {
+            humanity_core::platform::key_wrap::wipe(&mut device_key);
+            match resealed {
+                None => state.pin_status = "Current PIN is incorrect.".to_string(),
+                Some(Ok((enc, salt))) => {
                     state.pin_encrypted_seed = enc;
                     state.pin_salt = salt;
-                    state.pin_old_input.clear();
-                    state.pin_input.clear();
-                    state.pin_confirm.clear();
+                    wipe_pin_boxes(state);
                     state.pin_status = "PIN changed successfully.".to_string();
                     crate::config::AppConfig::from_gui_state(state).save();
                     log::info!("PIN changed");
                 }
-                Err(e) => {
+                Some(Err(e)) => {
                     state.pin_status = format!("Re-encrypt failed: {}", e);
                 }
             }
@@ -737,10 +835,20 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         if widgets::secondary_button(ui, theme, "Cancel") {
             state.passphrase_needed = false;
-            state.pin_old_input.clear();
-            state.pin_input.clear();
-            state.pin_confirm.clear();
+            wipe_pin_boxes(state);
             state.pin_status.clear();
         }
     });
 }
+
+/// The PIN boxes emptied with their bytes zeroed (`key_wrap::wipe_string`), not just cleared.
+fn wipe_pin_boxes(state: &mut GuiState) {
+    use humanity_core::platform::key_wrap::wipe_string;
+    wipe_string(&mut state.pin_old_input);
+    wipe_string(&mut state.pin_input);
+    wipe_string(&mut state.pin_confirm);
+}
+
+#[cfg(test)]
+#[path = "passphrase_modal_tests.rs"]
+mod tests;

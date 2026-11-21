@@ -40,8 +40,24 @@ fn android_main(app: AndroidApp) {
         }
         None => eprintln!("HumanityOS: Android gave no private folder; files will not be saved"),
     }
+    if let Ok(mut held) = APP.lock() {
+        // SAFETY: the activity's global reference lives as long as the AndroidApp that owns it,
+        // which this static keeps until a later start replaces both.
+        unsafe { humanity_core::platform::android_jni::set_activity(app.activity_as_ptr()) };
+        *held = Some(app.clone());
+    }
+    // Staying connected while closed (rung A4, 2026-11-20), when the person turned it on: started
+    // now, while the app is coming onto the screen, since Android 12 and later refuse to start a
+    // foreground service from the background (crate::notifications::stay_connected).
+    if crate::config::AppConfig::load().notifications.stay_connected {
+        crate::notifications::stay_connected::apply(true);
+    }
     crate::run_android(app);
 }
+
+/// The running app, kept so the activity reference handed to humanity-core
+/// (`platform::android_jni::set_activity`, for asking to allow notices) stays valid.
+static APP: std::sync::Mutex<Option<AndroidApp>> = std::sync::Mutex::new(None);
 
 /// The page files the APK carries (android/build-apk.sh: `assets/files/<path>`, listed in
 /// `assets/files.txt`, made by scripts/lib/release-files.js --phone-list) copied into the app's

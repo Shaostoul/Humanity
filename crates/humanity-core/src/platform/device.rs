@@ -17,6 +17,9 @@
 //! layout and its notices can be seen and checked on the operator's PC (the snapshots render the
 //! pages at the phone's size with it on). Nothing else changes: a desktop in preview still has
 //! its tray and its key store; only what the pages SHOW follows the preview.
+//!
+//! The key store left this list on 2026-11-20: a phone remembers the key through Android's key
+//! store now (`auto_unlock::KeyStoreKind`, `platform::key_wrap`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
@@ -47,10 +50,6 @@ pub enum Capability {
     /// The 3D world: a later rung on a phone (A5), with its own lighter settings, ASTC textures
     /// and the renderer measured on the phone's GPU first.
     World3d,
-    /// Remembering the identity in the device's key store (the desktop's Windows Credential
-    /// Manager, macOS Keychain or Linux Secret Service, through the `keyring` crate, which has no
-    /// Android backend). On a phone it needs the Android Keystore through JNI, not built yet.
-    KeyStore,
     /// Starting other programs (the Tools page, the Games library, launchers): Android lets an
     /// app start only its own code.
     LaunchPrograms,
@@ -59,7 +58,7 @@ pub enum Capability {
 /// Whether this build has `c`. Answers for what the pages SHOW, so the phone preview counts.
 pub fn has(c: Capability) -> bool {
     match c {
-        Capability::World3d | Capability::KeyStore | Capability::LaunchPrograms => !phone(),
+        Capability::World3d | Capability::LaunchPrograms => !phone(),
     }
 }
 
@@ -68,13 +67,12 @@ pub fn has(c: Capability) -> bool {
 pub fn notice_key(c: Capability) -> &'static str {
     match c {
         Capability::World3d => "device.world_3d",
-        Capability::KeyStore => "device.key_store",
         Capability::LaunchPrograms => "device.launch_programs",
     }
 }
 
 /// Every capability, for the test that each has its words.
-pub const ALL: [Capability; 3] = [Capability::World3d, Capability::KeyStore, Capability::LaunchPrograms];
+pub const ALL: [Capability; 2] = [Capability::World3d, Capability::LaunchPrograms];
 
 #[cfg(test)]
 mod tests {

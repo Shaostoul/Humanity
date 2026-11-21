@@ -33,6 +33,7 @@ pub mod list;
 pub mod mutes;
 pub mod quiet;
 pub mod settings;
+pub mod stay_connected;
 pub mod toast;
 pub mod tray;
 

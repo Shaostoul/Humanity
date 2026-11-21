@@ -77,6 +77,10 @@ node scripts/lib/release-files.js --phone-summary
 # 3. The APK: the manifest, the icon (the window's icon, assets/icon.png) and the files, then the
 #    library.
 cp assets/icon.png "$WORK/res/mipmap-xxxhdpi/ic_launcher.png"
+# The data extraction rules the manifest names (2026-11-20): nothing of the app's folder leaves
+# the phone by backup or device-to-device transfer.
+mkdir -p "$WORK/res/xml"
+cp android/res/xml/*.xml "$WORK/res/xml/"
 "$BT/aapt2" compile --dir "$WORK/res" -o "$WORK/res.zip"
 "$BT/aapt2" link -o "$WORK/unaligned.apk" \
   -I "$PLATFORM/android.jar" \
@@ -86,6 +90,27 @@ cp assets/icon.png "$WORK/res/mipmap-xxxhdpi/ic_launcher.png"
   -A "$WORK/assets" \
   "$WORK/res.zip"
 (cd "$WORK" && zip -q -r unaligned.apk "lib/$ABI/libhumanity_engine.so")
+
+# 3b. The Java (2026-11-20, android/README.md "The Java in the APK"): the few small classes under
+#     android/java/ (Android's key store for "Remember on this device", the stay-connected
+#     service, the notices), compiled against the platform's android.jar by the runner's JDK and
+#     turned into classes.dex by the SDK's d8. No Gradle, no libraries: only Android's own
+#     classes. javac checks every Android class, method and argument they use; that the Rust side
+#     calls them with the right signatures is checked by a host test (crates/humanity-core/src/
+#     platform/android_java.rs).
+mkdir -p "$WORK/classes" "$WORK/dex"
+find android/java -name '*.java' > "$WORK/java-sources.txt"
+# The newest JDK the runner has (its android.jar may hold class files a JDK 17 cannot read).
+JAVAC="${JAVA_HOME_21_X64:+$JAVA_HOME_21_X64/bin/}javac"
+"$JAVAC" -version
+"$JAVAC" -source 8 -target 8 -Xlint:-options -encoding UTF-8 \
+  -bootclasspath "$PLATFORM/android.jar" -d "$WORK/classes" @"$WORK/java-sources.txt"
+find "$WORK/classes" -name '*.class' > "$WORK/classes.txt"
+# shellcheck disable=SC2046  # a handful of class files, in a folder mktemp made (no spaces)
+"$BT/d8" --release --min-api "$MIN_SDK" --lib "$PLATFORM/android.jar" --output "$WORK/dex" $(cat "$WORK/classes.txt")
+test -f "$WORK/dex/classes.dex" || { echo "d8 made no classes.dex" >&2; exit 1; }
+(cd "$WORK/dex" && zip -q ../unaligned.apk classes.dex)
+unzip -l "$WORK/unaligned.apk" | grep -q ' classes\.dex$' || { echo "classes.dex is not in the APK" >&2; exit 1; }
 "$BT/zipalign" -p -f 4 "$WORK/unaligned.apk" "$WORK/aligned.apk"
 
 # 4. Signed: the project's key when the secrets are there, else a key for this build only.

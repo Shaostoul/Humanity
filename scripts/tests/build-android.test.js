@@ -34,7 +34,31 @@ test("the manifest names the library the build makes", () => {
   assert.ok(script.includes(`lib${libName}.so`), `build-apk.sh does not copy lib${libName}.so`);
   assert.ok(/rustc --lib --release --crate-type cdylib/.test(script), "build-apk.sh does not build the lib as a cdylib");
   assert.ok(manifest.includes('android:name="android.app.NativeActivity"'), "the manifest's activity is not NativeActivity");
-  assert.ok(manifest.includes('android:hasCode="false"'), "an APK with no Java code must say android:hasCode=\"false\"");
+  // Since 2026-11-20 the APK carries a little Java (android/java/: the key store, the
+  // stay-connected service, the notices), so the manifest must not say hasCode="false" (Android
+  // would never load classes.dex) and the build must compile it. Broken by putting hasCode="false"
+  // back: "the APK carries Java now".
+  assert.ok(!manifest.includes('android:hasCode="false"'), "the APK carries Java now: the manifest must not say android:hasCode=\"false\"");
+  assert.ok(/find android\/java -name '\*\.java'/.test(script) && script.includes("classes.dex"), "build-apk.sh does not compile android/java into classes.dex");
+});
+
+// The desktop keeps remembering the key through its own key store (keyring) exactly as before,
+// and the phone's JNI crates are the phone's alone (2026-11-20). Broken by gating the desktop's
+// keychain_stash to no target ("#[cfg(any())]"): "the desktop's keychain_stash no longer goes
+// through keyring".
+test("the desktop keeps keyring and the phone's JNI crates are phone-only", () => {
+  const unlock = read("crates/humanity-core/src/auto_unlock.rs");
+  for (const f of ["keychain_stash", "keychain_load", "keychain_clear"]) {
+    const desktop = new RegExp(`#\\[cfg\\(not\\(target_os = "android"\\)\\)\\]\\npub fn ${f}\\([^]*?keyring::Entry::new`);
+    assert.ok(desktop.test(unlock), `the desktop's ${f} no longer goes through keyring`);
+  }
+  const core = read("crates/humanity-core/Cargo.toml");
+  const coreAndroid = (core.split("[target.'cfg(target_os = \"android\")'.dependencies]")[1] || "").split("\n[")[0];
+  for (const name of ["jni", "ndk-context"]) {
+    assert.ok(new RegExp(`^${name} = `, "m").test(coreAndroid), `humanity-core does not declare ${name} for Android`);
+    const deps = (core.split("\n[dependencies]\n")[1] || "").split("\n[")[0];
+    assert.ok(!new RegExp(`^${name} = `, "m").test(deps), `${name} is in humanity-core's [dependencies], for every target`);
+  }
 });
 
 // The library's entry point is the function NativeActivity's glue calls, and winit's backend for

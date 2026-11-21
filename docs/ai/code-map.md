@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1618 Rust files (818,713 lines) under `src/` and `crates/*/src/`; 177 JavaScript files (100,667 lines) under `web/`.
+1625 Rust files (820,556 lines) under `src/` and `crates/*/src/`; 177 JavaScript files (100,686 lines) under `web/`.
 
 ## Folders
 
@@ -21,7 +21,7 @@
 - `crates/humanity-core/src/input/` (2 files): Input types shared across the engine.
 - `crates/humanity-core/src/mods/` (1 files): Mod support framework for HumanityOS
 - `crates/humanity-core/src/physics/` (2 files): Physics, Rapier3d world setup and stepping.
-- `crates/humanity-core/src/platform/` (2 files): Platform abstraction for native vs WASM.
+- `crates/humanity-core/src/platform/` (5 files): Platform abstraction for native vs WASM.
 - `crates/humanity-core/src/storage/` (2 files): Storage-mode resolution (v0.707): WHERE HumanityOS keeps a user's files.
 - `crates/humanity-music/src/` (43 files)
 - `crates/humanity-protocol/src/` (34 files)
@@ -74,13 +74,13 @@
 - `src/gui/state_types/` (3 files): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them.
 - `src/gui/talk/` (5 files): THE TALK CARD (rung 3 of docs/design/embeddable-ai.md, 2026-11-12; the card the operator approved on 2026-11-11).
 - `src/gui/widgets/` (47 files): Reusable egui widgets styled by the HumanityOS theme.
-- `src/gui/widgets/emoji/` (4 files): Emoji in a piece of text, for the desktop app (2026-11-20, docs/design/emoji.md rungs 1 and 3).
+- `src/gui/widgets/emoji/` (7 files): Emoji in a piece of text, for the desktop app (2026-11-20, docs/design/emoji.md rungs 1 and 3).
 - `src/how_to/` (9 files): How-to: step-by-step procedures for real life, the game and this platform, as data (docs/design/how-to.md; increment 1, 2026-10-23).
 - `src/instrument_packs/` (15 files): The free instrument library (2026-11-06; docs/design/music.md rung 6, the operator's "let's build up our free library" and "in the settin...
 - `src/media/` (13 files): Purpose-built media player core (in-world screens ladder, rung 5).
 - `src/model_packs/` (4 files): Downloadable 3D model packs (2026-11-09; docs/design/simready-props.md, section 7).
 - `src/net/` (63 files): Multiplayer networking: WebSocket client and ECS state synchronization.
-- `src/notifications/` (13 files): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan;...
+- `src/notifications/` (14 files): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan;...
 - `src/relay/` (85 files): Humanity Network relay server.
 - `src/relay/admin/` (6 files): The admin action registry, and the two endpoints an app or an AI uses it through (2026-10-22; docs/design/in-app-ops.md, "North star: the...
 - `src/relay/backup_stream/` (12 files): Continuous backup of the relay's database (2026-10-22, PRIORITIES Tier 2 item 12).
@@ -145,7 +145,7 @@
 ## crates/humanity-core/src/
 
 - `atomic_write.rs` (68): Writing a file so a crash at any moment leaves either the whole old file or the whole new one: the bytes go to a temp file beside it (`<name>.tmp`), are flushed to the disk, and the temp file is re... Main items: staging_path, stage_write, write_atomic.
-- `auto_unlock.rs` (436): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, keychain_stash, keychain_load, keychain_clear, encrypt_seed_with_pin, decrypt_seed_with_pin, generate_device_key (+4 more).
+- `auto_unlock.rs` (604): Auto-unlock: let the user opt into silent startup without typing the full BIP39-derived passphrase every launch. Main items: AutoUnlockMode, KeychainSlot, KeyStoreKind, remembered_slot, mode_words, protection, keychain_stash, keychain_load (+9 more).
 - `boot_timing.rs` (176): Boot-phase timing (2026-07-12 dev tooling). Main items: BootTimer.
 - `build_permission.rs` (115): Who may build where, as the wire says it: a household permit (`Permit`, a plot holder's signed leave for one person to build on their plot, on one server, until a date), the longest one may run (`P... Main items: Permit, Why, PERMIT_MAX_DAYS.
 - `camera_angles.rs` (181): Which way a camera looks: the tangent frame on a planet's surface (up is the local radial, so the horizon is level wherever you stand), the forward a yaw and pitch give in it, and the yaw and pitch... Main items: tangent_basis, surface_forward, surface_look_angles, world_look_angles.
@@ -162,7 +162,7 @@
 - `lib.rs` (124): humanity-core: the bottom of the stack, which every other crate of the workspace uses (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-core.md).
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
 - `look_data.rs` (419): THE LOOK'S DATA, read (character animation, "the look", 2026-11-09; docs/design/character-animation.md section 16). Main items: BaseShared, BodyBase, DetailTargets, Binding, GarmentData, DETAIL_UNIT_M.
-- `platform.rs` (92): Platform abstraction for native vs WASM. Main items: log_info, current_time_secs, current_time_secs, load_asset_bytes_sync, load_asset_bytes_async.
+- `platform.rs` (107): Platform abstraction for native vs WASM. Main items: log_info, current_time_secs, current_time_secs, load_asset_bytes_sync, load_asset_bytes_async.
 - `play_journal.rs` (476): The play journal (docs/design/play-journal.md, rung 1): what happened while the game ran, by kind, in small capped files a Claude session reads through the dev MCP (`dev_play_journal`, `dev_play_ma... Main items: MarkAsk, Seen, Now, dir_for, start, dir, record, event_line (+13 more).
 - `player_look.rs` (552): How another player looks, in a shared world (2026-09-29, Tier D). Main items: SliderBlock, DetailBlock, DetailSliderView, LookWear, LookIds, PlayerLook, clean_shape_id, clean_shape (+15 more).
 - `raw_frame.rs` (19): A frame of pixels read back from the GPU for the live stream. Main items: RawFrame.
@@ -224,7 +224,10 @@
 
 ## crates/humanity-core/src/platform/
 
-- `device.rs` (118): What THIS device can do, for the screens that have to say so (Android rung A1, 2026-11-14). Main items: Capability, phone, set_phone_preview, has, notice_key, ANDROID, ALL.
+- `android_java.rs` (166): The Java the phone app carries, and every call the Rust side makes into it (Android rungs A1 and A4, 2026-11-20; android/README.md "The Java in the APK"). Main items: JavaCall, PACKAGE, KEY_CREATE, KEY_SEAL, KEY_UNSEAL, KEY_FORGET, SERVICE_START, SERVICE_STOP (+5 more).
+- `android_jni.rs` (193): The phone app's calls into its own Java (Android rungs A1 and A4, 2026-11-20): Android's key store, the stay-connected service and the notices. Main items: NoticeWords, key_create, key_seal, key_unseal, key_forget, service_start, service_stop, notice_show (+3 more).
+- `device.rs` (116): What THIS device can do, for the screens that have to say so (Android rung A1, 2026-11-14). Main items: Capability, phone, set_phone_preview, has, notice_key, ANDROID, ALL.
+- `key_wrap.rs` (250): The phone's remembered key, as bytes on disk (Android rung A1, 2026-11-20; docs/design/platforms.md, docs/reference/cryptography.md "Remembering the key on a phone"). Main items: Protection, Wrapped, encode, decode, entry_name, key_alias, aad, file_path (+8 more).
 - `registry.rs` (205): Reading the Windows registry, and only reading: every key is opened with KEY_READ, and nothing here can create, change or delete a key or a value. Main items: Root, View, Key, open, open_view.
 
 ## crates/humanity-core/src/storage/
@@ -592,7 +595,7 @@
 
 ## src/
 
-- `android.rs` (185): The phone build's entry point (Android rung A1, 2026-11-14; docs/design/platforms.md, android/README.md).
+- `android.rs` (203): The phone build's entry point (Android rung A1, 2026-11-14; docs/design/platforms.md, android/README.md). Main items: activity.
 - `config.rs` (3307): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+15 more).
 - `lib.rs` (1259): HumanityOS Game Engine Main items: drone_dock_visible, run, run_android.
 - `main.rs` (256): HumanityOS, One binary to rule them all.
@@ -877,7 +880,7 @@
 - `first_minutes.rs` (346): The first five minutes (the ELI5 mandate, docs/PRIORITIES.md TIER 3, 2026-10-22): a short guided tour for a new person, on the desktop app and the website alike, in plain words. Main items: FirstMinutes, Step, Place, steps, step_done, draw.
 - `first_steps.rs` (172): A new player's first steps in the world (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Friction 1: nothing teaches the game). Main items: controls_hint.
 - `font_size.rs` (334): The Font Size setting (Settings > Appearance): ONE scale for the whole desktop app (BUG-225). Main items: checked, zoom_for, before_frame, setting_row, DEFAULT_PERCENT, MIN_PERCENT, MAX_PERCENT, KEY_STEP_PERCENT.
-- `fonts.rs` (406): Font fallback chains for the native app. Main items: install_fonts, install_font_fallbacks.
+- `fonts.rs` (410): Font fallback chains for the native app. Main items: install_fonts, install_font_fallbacks.
 - `furniture_detail.rs` (280): FURNITURE DETAIL (2026-11-09): Settings > Graphics > Furniture detail, and the hardware notice beside it (docs/design/simready-props.md, sections 9 and 10). Main items: DetailLevel, levels, is_level, level, texture_divisor, note_model_memory, measured_full_bytes, level_bytes (+7 more).
 - `gameplay_levels.rs` (315): THE GAMEPLAY SETTINGS' LEVELS (2026-11-11). Main items: Level, Setting, LevelsFile, file, setting, level_of, value_of, understood (+2 more).
 - `garment_textures.rs` (562): GARMENT TEXTURES (2026-11-10): Settings > Graphics > Garment textures, its levels, its plan of the garment texture pools, its optional packs and the hardware notices beside it (docs/design/characte... Main items: TextureLevel, GarmentArt, Source, LevelPlan, Plan, GarmentTexturesUi, MeshPlan, levels (+28 more).
@@ -902,7 +905,7 @@
 - `state_types.rs` (1779): The VALUE TYPES the GUI passes around: one struct or enum per thing a page shows, and the small conversions that build them. Main items: GuiItemSlot, GuiGameTime, GuiWeather, TaskPriority, TaskStatus, GuiTask, GuiListing, GuiReview (+46 more).
 - `theme.rs` (1279): Theme system loaded from data/gui/theme.ron. Main items: Theme, load_theme.
 - `trade_types.rs` (81): The P2P trade value types (moved out of `state_types.rs` 2026-09-29, when an offer line gained the item id a finished trade moves, and that file was at its size budget). Main items: GuiTradeItem, GuiTrade.
-- `ui_snapshots.rs` (6515): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
+- `ui_snapshots.rs` (6552): Headless UI snapshots (v0.495). Main items: snapshot_ctx, render_page_png, render_page_png_at, render_page_png_checked, shipped_garment_arts, shipped_garment_plan, SHIPPED_OWN_POOL.
 - `world_entry.rs` (94): Whether the person is in a world, and the world held still and quiet until they are (BUG-253, 2026-11-06).
 - tests: `a11y_tests.rs`, `click_sound_tests.rs`, `donate_funding_tests.rs`, `drop_files_tests.rs`, `history_tests.rs`, `layers_tests.rs`, `mine_tasks_tests.rs`, `navigation_tests.rs`, `org_mail_tests.rs`, `tooltip_click_tests.rs`
 
@@ -1014,7 +1017,7 @@
 - `settings_garden.rs` (59): Settings > Gameplay > Garden updates (2026-10-31, docs/design/farm-clock.md rung 2, `systems::farming::clock`). Main items: draw.
 - `settings_music.rs` (126): Settings > Music (docs/design/music.md, sections 7a, 10, 11 and 15): how the game's live music sounds. Main items: draw.
 - `settings_time.rs` (126): Settings > Gameplay > Time: the one game clock's three settings (2026-09-27, decision-briefs.md Brief 6, `systems::time`). Main items: day_in_real_time, draw.
-- `settings.rs` (5057): Settings panel with sidebar navigation and category content panels. Main items: IdentityOnDevice, GraphicsPreset, draw, build_link_qr_texture, restore_from_phrase, identity_on_device, erase_memory_note, draw_account_content (+27 more).
+- `settings.rs` (5079): Settings panel with sidebar navigation and category content panels. Main items: IdentityOnDevice, GraphicsPreset, draw, build_link_qr_texture, restore_from_phrase, identity_on_device, erase_memory_note, draw_account_content (+27 more).
 - `showroom.rs` (1528): Character showroom panel (v0.441/442). Main items: Drawn, column_widths, drawn, stage_shift, shift_for, draw, server_info_kept, rebalance_shares (+4 more).
 - `studio.rs` (1374): Broadcasting Studio page, simplified OBS-like streaming control UI. Main items: draw.
 - `tasks.rs` (1319): Tasks: the not-game surface. Main items: Kind, Chain, ChainStep, load_chains, task_from_server, take_board_list, add_chain_task, draw (+1 more).
@@ -1073,7 +1076,7 @@
 - `reply.rs` (91): Quote / reply in the chat (the 2026-10-10 batch review of docs/design/blocking-and-safe-mode.md): what a reply carries, and where it may go. Main items: cut, preview_of, context_for, made_in, wire_reply, drop_if_elsewhere, PREVIEW_CHARS, QUOTE_CHARS.
 - `report_dialog.rs` (375): The Report dialog (step D of docs/design/blocking-and-safe-mode.md, section 10e, 2026-10-09) and the buttons that open it: Report in a message's menu (chat.rs, beside Block), in the DM conversation... Main items: draw_report_dialog, MEDIA_EVIDENCE_LINE, REPORT_TIP.
 - `right_panel.rs` (477): The chat page's PEOPLE surfaces: the right rail and the live strip.
-- `rows.rs` (1093): The chat's message rows, one copy for every view of a conversation: the Chat page's message list and the chat footer's unfolded strip on the other pages (gui/bottom_strip/chat_footer.rs, docs/desig... Main items: in_conversation, newest, preview, draw, draw_full_timestamp.
+- `rows.rs` (1107): The chat's message rows, one copy for every view of a conversation: the Chat page's message list and the chat footer's unfolded strip on the other pages (gui/bottom_strip/chat_footer.rs, docs/desig... Main items: in_conversation, newest, preview, draw, draw_full_timestamp.
 - `timestamps.rs` (332): The app's timestamps: the display format and time zone (Settings), the formatter every page's times go through, and the always-full one the message pill's hover shows. Main items: TimestampFormat, TimestampZone, format_full_timestamp, chrono_now_str, set_timestamp_format, timestamp_format, set_timestamp_zone, timestamp_zone (+3 more).
 - `transfer_rows.rs` (255): Device-to-device big files in the conversation (docs/design/files-showcase.md, "Device-to-device big files: the shapes, exact", part 6): one row per transfer with the other person, at the top of th...
 - `video_dock.rs` (409): The chat videos' dock (rung 3 of docs/design/media-player.md's "Videos inside chat messages", 2026-11-06). Main items: Spot, origin_here, conversation_name, dock_width, free_spot, draw_video_dock, SHARE, MIN_WIDTH (+4 more).
@@ -1199,7 +1202,7 @@
 - `garments.rs` (234): Settings > Graphics > Garment textures (2026-11-10; docs/design/character-animation.md section 16, docs/design/graphics-settings.md). Main items: View, Requests, draw_garment_textures, draw_with.
 - `graphics.rs` (1019): Settings > Graphics (moved out of settings.rs on 2026-11-10; docs/design/graphics-settings.md). Main items: Cost, Row, Registry, registry, cost_line, graphics_hint, draw_graphics_content, REGISTRY_SRC.
 - `instruments.rs` (248): Settings > Audio > Instruments (2026-11-06; docs/design/music.md rung 6). Main items: mb, draw_instruments, LIST_OPEN_MAX.
-- `notifications.rs` (473): Settings > Notifications (2026-10-30, docs/design/notifications.md, section 5): the whole set, mirroring the website's Settings > Notifications. Main items: synced_frame, send_synced, until_words, mute_choices, draw, level_words.
+- `notifications.rs` (510): Settings > Notifications (2026-10-30, docs/design/notifications.md, section 5): the whole set, mirroring the website's Settings > Notifications. Main items: synced_frame, send_synced, until_words, mute_choices, draw, level_words.
 - `own_licence.rs` (50): Settings > Credits, its first section: HumanityOS's own licences (2026-11-14; LICENSING.md and docs/reference/findings/2026-11-14-licence-change.md). Main items: draw_own_licence.
 - `recovery_net.rs` (478): The work behind Settings > Account > "Recovery through trusted people" (2026-10-21): every call to the server and every lock and unlock, run on a thread by the section (`recovery.rs`), never on the... Main items: Friend, MySetup, Asking, CodeLookup, Found, LiveAsk, Poll, load_my_setup (+13 more).
 - `recovery.rs` (707): Settings > Account > Recovery through trusted people (2026-10-21: finished; the section that said "not finished yet" since 2026-10-20). Main items: Job, RecoveryState, friends, suggested_needed, draw, TITLE.
@@ -1272,10 +1275,12 @@
 
 ## src/gui/widgets/emoji/
 
-- `inline.rs` (191): Pictures in a line of text (2026-11-20, docs/design/emoji.md rung 3). Main items: EmojiPictures, EmojiSource, Placed, install, source, with_pictures, picture_rects, paint (+2 more).
-- `mod.rs` (355): Emoji in a piece of text, for the desktop app (2026-11-20, docs/design/emoji.md rungs 1 and 3). Main items: EmojiIndex, Piece, unicode_version, find, key_of, pieces.
+- `button.rs` (94): The reaction buttons' emoji and the pack's credit (2026-11-20, docs/design/emoji.md rungs 3 and 4). Main items: CreditPart, button, credit_parts, credit.
+- `inline.rs` (207): Pictures in a line of text (2026-11-20, docs/design/emoji.md rung 3). Main items: EmojiPictures, EmojiSource, Placed, install, source, pack_installed, with_pictures, picture_rects (+3 more).
+- `mod.rs` (362): Emoji in a piece of text, for the desktop app (2026-11-20, docs/design/emoji.md rungs 1 and 3). Main items: EmojiIndex, Piece, unicode_version, find, key_of, pieces.
+- `pack.rs` (236): Rung 2: the pack's pictures, drawn by resvg (2026-11-20, docs/design/emoji.md). Main items: PackStamp, PackPictures, pack_dir, rasterise, pack_version, list_due, pack_source, install_pack (+1 more).
 - `props.rs` (77): GENERATED by scripts/gen-emoji-props.js from Unicode 17.0 (the JavaScript engine's own Unicode data, the same the website's matcher asks).
-- tests: `tests.rs`
+- tests: `pack_tests.rs`, `tests.rs`
 
 ## src/how_to/
 
@@ -1383,11 +1388,12 @@
 - `decide.rs` (360): THE RULE: should this message notify, and how (docs/design/notifications.md, section 4). Main items: Candidate, Synced, Moment, Why, Outcome, burst_key, key_of, decide (+6 more).
 - `game.rs` (131): Game events, folded (rung 3, 2026-11-01; docs/design/notifications.md section 11): what the simulation raises through `systems::push_game_event` becomes at most one notice of each kind of event per... Main items: Folded, Folder, GATHER_SECS, KINDS_KEPT.
 - `list.rs` (167): The in-app list (rung 2, docs/design/notifications.md section 3): the last [`KEPT`] notices, behind the bell in the header, with the count of the ones not yet seen. Main items: Entry, List, KEPT.
-- `mod.rs` (96): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan; rung 1 built 2026-10-30). Main items: Runtime, Ringing, now_secs.
+- `mod.rs` (97): Notifications: telling a person that something happened while they were looking elsewhere (docs/design/notifications.md, the whole plan; rung 1 built 2026-10-30). Main items: Runtime, Ringing, now_secs.
 - `mutes.rs` (125): Mutes: everything, a server, one of a server's rooms, or a conversation with a person, silenced for a while or until the person unmutes it (docs/design/notifications.md, section 5). Main items: Mutes, active, ends.
 - `quiet.rs` (53): Quiet hours: a daily window, by the device's own clock, in which nothing notifies. Main items: parse_clock, format_clock, window, in_quiet, local_minute.
-- `settings.rs` (162): What this device keeps about notifications (`config.json` `notifications`, AppConfig): the choices that depend on the screen and the speakers, not on the person (docs/design/ notifications.md, sect... Main items: Show, LocalSettings, NO_SOUND.
-- `toast.rs` (573): The operating system's notice: the toast in the corner of the screen, kept in the notification centre (docs/design/notifications.md, section 3). Main items: Toast, show, withdraw, enable_clicks, clicked, clicks_waiting, take_clicks, tag_for (+9 more).
+- `settings.rs` (168): What this device keeps about notifications (`config.json` `notifications`, AppConfig): the choices that depend on the screen and the speakers, not on the person (docs/design/ notifications.md, sect... Main items: Show, LocalSettings, NO_SOUND.
+- `stay_connected.rs` (146): Staying connected while the phone app is closed (Android rung A4, 2026-11-20; docs/design/platforms.md "Staying connected: the foreground service and UnifiedPush", android/README.md). Main items: apply, ask_for_notices, notices_allowed, LABEL, HINT, REFUSED, BLOCKED.
+- `toast.rs` (609): The operating system's notice: the toast in the corner of the screen, kept in the notification centre (docs/design/notifications.md, section 3). Main items: Toast, show, withdraw, enable_clicks, clicked, clicks_waiting, take_clicks, tag_for (+9 more).
 - `tray.rs` (251): The notification-area (tray) icon's look and menu, worked out from the state alone (rung 2, part 2, 2026-10-31; docs/design/notifications.md, "The tray"). Main items: Look, MenuLine, Action, MarkColours, muted_line, action, sni_host_answer, cut_units (+8 more).
 - tests: `tests.rs`
 
@@ -1552,13 +1558,13 @@
 - `members.rs` (525): Server storage for the member directory (`server_members`): joining and leaving, the paged and searchable member list, presence hiding and last seen, and the name a key goes by now. Main items: MemberRecord.
 - `messages.rs` (489): Server storage for chat messages and name registration: storing and loading messages, federated messages, the FTS5 rebuild, peers' last seen, names, and device link codes.
 - `misc.rs` (695): Server storage for small things with no file of their own: invite codes, server key-value state, user data sync, federated servers, channel flags, voice channels, categories.
-- `mod.rs` (3743): SQLite persistence for relay message history and peers. Main items: PinnedMessageRecord, ReactionRecord, TaskRecord, TaskCommentRecord, LinkPreviewRecord, VoiceChannelRecord, MarketplaceListing, ListingImage (+4 more).
+- `mod.rs` (3746): SQLite persistence for relay message history and peers. Main items: PinnedMessageRecord, ReactionRecord, TaskRecord, TaskCommentRecord, LinkPreviewRecord, VoiceChannelRecord, MarketplaceListing, ListingImage (+4 more).
 - `moderation_held.rs` (209): The signed actions of hide and keep (2026-11-20, docs/design/hide-and-keep.md guarantee 5; docs/design/signed_moderation_logs.md). Main items: HeldAction, HeldActionRow, HeldCounts, is_held_action_object, HELD_ACTION_FRESH_MS.
 - `moderation.rs` (962): Rung 2 of `docs/design/signed_moderation_logs.md`: the relay verifies a signed moderation action against the space's declared authority and applies it. Main items: ModAuthority, ModOutcome.
 - `notification_prefs.rs` (264): Server storage for a person's notification preferences (`notification_prefs`): direct messages, mentions and tasks on or off, the do-not-disturb hours, and (notifications rung 2, 2026-10-31) the qu... Main items: NotifPrefsChange, NotifPrefs, PushKind, sent_or_null.
 - `pins.rs` (383): Server storage for pinned messages (pin, unpin by position, list a channel's pins) and neighbours: message search, delete by row id, user status text, a channel's last message.
 - `plots.rs` (334): Who holds which plot of the ship (increment 1b of docs/design/ship-homes-and-logistics.md, section 5.10). Main items: plot_owner_id.
-- `pool.rs` (413): Read-connection pool for the relay's SQLite store (R3 concurrency work). Main items: ReadPool, build_read_pool, READ_POOL_SIZE.
+- `pool.rs` (480): Read-connection pool for the relay's SQLite store (R3 concurrency work). Main items: ReadPool, ReadConnections, build_read_pool, READ_POOL_SIZE.
 - `private_files.rs` (74): Files from private conversations (2026-10-11; docs/design/files-showcase.md, follow-up B5, the operator's answers 9 and 10). Main items: is_private_file, leaves_at, PRIVATE_SUFFIX.
 - `profile.rs` (386): Server storage for chat profiles (`profiles`, by name): bio, socials, avatar, banner, pronouns, location, website, the privacy map, and the `accepts_files` word. Main items: public_field, accepts_files_word, ACCEPTS_FILES_WORDS, ACCEPTS_FILES_DEFAULT.
 - `projects.rs` (200): Server storage for projects, the board's grouping of tasks: create, list what a viewer may see (public ones and their own), update, and delete, which moves the project's tasks to `default`. Main items: ProjectRecord.
@@ -1575,7 +1581,7 @@
 - `signed_profiles.rs` (313): The copies of people's profiles that other servers keep (`signed_profiles`): each one the profile as anyone may see it (`core::profile_copy::PublicCopy`), signed by its owner's own app. Main items: SignedProfileRecord, CATCH_UP_COPIES_MAX.
 - `skill_dna.rs` (102): Server storage for Skill DNA (`user_skills`): each person's reality and fantasy XP and level per skill, finding people by skill and level, and endorsements (`skill_verifications`) with their counts.
 - `social.rs` (22): Social storage, deliberately (almost) empty since 2026-08-24.
-- `start.rs` (268): The relay's database at start (BUG-230, 2026-11-03): what the check before the upgrade found, the upgrade's one transaction, and the words a start that fails stops with. Main items: UpgradeFailed, OpenFailure.
+- `start.rs` (281): The relay's database at start (BUG-230, 2026-11-03): what the check before the upgrade found, the upgrade's one transaction, and the words a start that fails stops with. Main items: UpgradeFailed, OpenFailure.
 - `streams.rs` (69): Server storage for live streams: a stream's record (streamer, title, category, start, end and viewer peak), its chat messages, and the recent streams for history.
 - `system.rs` (44): Server storage for a person's system profile (`system_profiles`): the JSON of their computer's specs (OS, CPU, GPU, RAM), stored, read and deleted by public key behind `/api/me/system`.
 - `takedowns.rs` (162): Copyright reports about Media items (2026-10-13; the operator's answers of that day: "a simple form so it's easy... Main items: TakedownRow, NewTakedown, TAKEDOWN_PERSONAL_KEEP_DAYS.
@@ -1833,7 +1839,7 @@
 - `hold-confirm.js` (168): hold-confirm.js, press-and-HOLD confirmation for destructive actions. Main items: holdToConfirm, holdConfirm, injectStyle.
 - `how-it-works.js` (144): ── how-it-works.js ─────────────────────────────────────────────────────── Main items: readOpen, writeOpen, createFold.
 - `how-to-logic.js` (523): How-to rules, shared by the website's How-to page (web/pages/how-to-app.js) and the build Main items: rank, isGrave, inShort, visibleSteps, shown, isDone, currentStep, position (+34 more).
-- `i18n-en.js` (8322): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
+- `i18n-en.js` (8341): GENERATED from data/i18n/en.json by scripts/gen-i18n.js. Do not edit by hand:
 - `i18n.js` (312): HumanityOS words, by key, from /data/i18n/{lang}.json (the ELI5 mandate, Main items: resolve, segments, plain, fillVars, lookup, fetchLang, storedLanguage, segmentsWith (+5 more).
 - `icons.js` (162): HumanityOS Shared Icon System
 - `kept-files.js` (364): ── kept-files.js ───────────────────────────────────────────────────────── Main items: cryptoOf, mbWords, sizeWords, capMb, capBytes, setCapMb, req, openDb (+15 more).

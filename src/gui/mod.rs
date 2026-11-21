@@ -2161,6 +2161,8 @@ pub struct GuiState {
     /// stashed in the OS keychain and `auto_unlock_mode` flips to
     /// `Keychain`. Resets to false after each modal close.
     pub remember_on_device: bool,
+    /// Unlock on App Launch's words for a switch or forget that did not fully happen (Settings shows it, with Try again).
+    pub unlock_alert: Option<&'static str>,
     /// True while the passphrase-unlock worker runs the 600k-iter PBKDF2 OFF
     /// the UI thread (v0.306.0). Drives the "Unlocking…" spinner + disables the
     /// button so the click can't re-fire. Previously the PBKDF2 ran inline on
@@ -3905,6 +3907,7 @@ impl Default for GuiState {
             pin_encrypted_seed: String::new(),
             pin_salt: String::new(),
             remember_on_device: false,
+            unlock_alert: None,
             passphrase_unlocking: false,
             #[cfg(feature = "native")]
             passphrase_unlock_rx: None,

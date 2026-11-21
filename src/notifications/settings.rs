@@ -79,6 +79,18 @@ pub struct LocalSettings {
     /// (rung 2, part 2). Off by default: closing quits unless the person turns this on, and it
     /// does nothing without the tray icon (there would be no way back to the window).
     pub close_to_tray: bool,
+    /// On a phone (Android rung A4, 2026-11-20): keep HumanityOS running while it is not on the
+    /// screen, through a foreground service, so the chat connection and its notices go on
+    /// (`crate::stay_connected`). Off by default: Android then shows a notification in the bar for
+    /// as long as it runs, and it uses some battery. The phone's counterpart of `close_to_tray`.
+    pub stay_connected: bool,
+    /// On a phone (2026-11-20, the review of rung A4): a line on the locked screen saying that
+    /// something arrived. OFF by default: a phone with a screen lock (a PIN, pattern or password)
+    /// then shows nothing of a notice while locked (`VISIBILITY_SECRET`; a swipe-only lock shows
+    /// it whole, Android's rule). On, the notice is `VISIBILITY_PRIVATE` with that line as its public
+    /// version, which Android shows only when the phone's own "hide sensitive content" setting is
+    /// on; with it off (Android's default) the whole notice shows, which the hint says.
+    pub lock_screen_line: bool,
 }
 
 impl Default for LocalSettings {
@@ -95,6 +107,8 @@ impl Default for LocalSettings {
             room_levels: BTreeMap::new(),
             tray: true,
             close_to_tray: false,
+            stay_connected: false,
+            lock_screen_line: false,
         }
     }
 }

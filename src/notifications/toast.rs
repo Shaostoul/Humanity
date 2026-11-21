@@ -7,6 +7,9 @@
 //!   `DisplayName`, `IconUri`), the registration the Windows App SDK makes for unpackaged apps.
 //! - Linux: the freedesktop notification service through `notify-send` (libnotify).
 //! - macOS: `osascript`'s `display notification`, the words passed as arguments.
+//! - Android (2026-11-20): the phone's own notices through the app's Java, nothing of them on a
+//!   secure locked screen (a PIN, pattern or password) unless the person chose a line there (the
+//!   Android `Backend` below).
 //!
 //! A click on a notice (rung 2, part 2) hands its token back to the app ([`take_clicks`]), which
 //! opens its conversation (`notifications::clicks`): on Windows through the notice activator, a COM
@@ -43,6 +46,12 @@ pub struct Toast {
     /// How long Linux's notification service shows it, in milliseconds ([`EXPIRE_MS`]; a call's
     /// notice lasts its ring, rung 3, since `notify-send` cannot withdraw one it showed).
     pub expire_ms: u32,
+    /// On a phone: the person chose a line on the locked screen (Settings, Notifications, "Show a
+    /// line on the locked screen", OFF by default, `LocalSettings::lock_screen_line`). Without it
+    /// a phone locked with a PIN, pattern or password shows nothing of the notice (a swipe-only
+    /// lock shows it whole, Android's rule). The desktops ignore it: their lock screens
+    /// follow the operating system's own settings.
+    pub lock_screen_line: bool,
 }
 
 /// How long a notice stays on Linux unless it says otherwise.
@@ -554,10 +563,49 @@ impl Backend {
     fn withdraw(&mut self, _tag: &str, _group: &str) {}
 }
 
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+/// Android (rung A4, 2026-11-20): the phone's own notices, through the app's Java (`Notices`,
+/// android/java/; the JNI call is `humanity_core::platform::android_jni::notice_show`). On the
+/// locked screen of a phone with a screen lock (a PIN, pattern or password; a swipe-only lock
+/// shows every notice whole) a notice shows NOTHING (`VISIBILITY_SECRET`) unless the person chose a
+/// line there ([`Toast::lock_screen_line`], off by default); with that choice Android shows the
+/// line "Something new arrived" only when the phone's own "hide sensitive content" setting is on,
+/// and the whole notice when it is off (Android's default), which the choice's hint says. A tap
+/// opens the app (not yet the conversation).
+/// Android 13 and later show none until the person allows them (Settings, Notifications asks,
+/// and says so when they are blocked).
+#[cfg(target_os = "android")]
 struct Backend;
 
-#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+#[cfg(target_os = "android")]
+impl Backend {
+    fn start() -> Backend {
+        Backend
+    }
+
+    fn show(&mut self, t: &Toast) -> Result<(), String> {
+        use humanity_core::i18n::t as words;
+        humanity_core::platform::android_jni::notice_show(&humanity_core::platform::android_jni::NoticeWords {
+            channel: words("notifications.android_channel_messages"),
+            tag: &t.tag,
+            title: &t.title,
+            body: &t.body,
+            lock_screen_line: t.lock_screen_line,
+            public_title: APP_NAME,
+            public_body: words("notifications.android_locked_body"),
+        })
+    }
+
+    fn withdraw(&mut self, tag: &str, _group: &str) {
+        if let Err(e) = humanity_core::platform::android_jni::notice_withdraw(tag) {
+            log::warn!("notifications: the notice was not withdrawn: {e}");
+        }
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos", target_os = "android")))]
+struct Backend;
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos", target_os = "android")))]
 impl Backend {
     fn start() -> Backend {
         Backend

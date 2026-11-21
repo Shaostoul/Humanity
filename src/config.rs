@@ -2207,54 +2207,56 @@ impl AppConfig {
             // v0.278.0 auto-unlock: honor the user's mode choice on startup.
             // Default (AlwaysPrompt) preserves the pre-v0.278 behavior — no
             // modal, user clicks Unlock when they need signing.
-            use humanity_core::auto_unlock::{AutoUnlockMode, KeychainSlot};
-            match self.auto_unlock_mode {
-                AutoUnlockMode::Keychain => {
-                    // Try silent load. The `profile_public_key` is the
-                    // Dilithium hex identity; falls back to public_key_hex
-                    // for legacy configs that haven't refreshed yet.
-                    let identity = if !self.public_key_hex.is_empty() {
-                        self.public_key_hex.as_str()
-                    } else {
-                        ""
-                    };
-                    if identity.is_empty() {
-                        log::warn!("Auto-unlock (Keychain): no public_key_hex in config; skipping silent unlock");
-                    } else {
-                        match humanity_core::auto_unlock::keychain_load(KeychainSlot::Seed, identity) {
-                            Ok(Some(seed)) => {
-                                state.private_key_bytes = Some(seed.to_vec());
-                                state.apply_pq_identity();
-                                log::info!("Auto-unlock (Keychain): seed loaded from OS keychain — silent unlock OK");
-                            }
-                            Ok(None) => {
-                                // Keychain entry gone (user cleared it, new
-                                // device, OS reinstall). Fall back to the
-                                // passphrase prompt without panicking the
-                                // user — `needs_passphrase()` will surface
-                                // the Settings unlock path.
-                                log::warn!("Auto-unlock (Keychain): no keychain entry — falling back to passphrase mode");
-                            }
-                            Err(e) => {
-                                // Platform-level failure (no keychain
-                                // backend, permissions denied). Same
-                                // graceful degrade — keep the user signed
-                                // in via Settings Unlock.
-                                log::warn!("Auto-unlock (Keychain): keychain load failed: {}. Falling back to passphrase mode.", e);
-                            }
-                        }
+            use humanity_core::auto_unlock::{self as au, AutoUnlockMode, StartUp};
+            // The `profile_public_key` is the Dilithium hex identity; public_key_hex holds it in
+            // the config.
+            let identity = self.public_key_hex.as_str();
+            if self.auto_unlock_mode.wants_startup_unlock() && identity.is_empty() {
+                log::warn!("Auto-unlock ({:?}): no public_key_hex in config; skipping silent unlock", self.auto_unlock_mode);
+            } else {
+                // Ask the key store what it holds for the saved mode. A mode whose secret is gone
+                // (the entry cleared, a new device, OS reinstall, or on a phone a remembered file
+                // whose key this phone's key store lacks) is not remembered any more: the app
+                // treats it as Always ask, so Settings shows that and Remember or Quick PIN works
+                // again in one click, instead of claiming a remembered key it cannot use (the
+                // review's finding 3, 2026-11-20). A store that could not be asked leaves the
+                // mode alone; the passphrase unlocks either way.
+                let report = au::start_up(&mut au::ThisDevice, self.auto_unlock_mode, identity);
+                // Start-up also forgets what the other modes still keep (a forget that failed
+                // before, a switch cut short), so a failure does not end with the app; one it
+                // still cannot forget is said in Settings, with Try again (the second review).
+                if let Err(e) = &report.leftovers {
+                    log::warn!("unlock on launch: another mode's secret could not be forgotten at start-up: {}", e.details());
+                    state.unlock_alert = Some(e.words_key());
+                }
+                match (self.auto_unlock_mode, report.found) {
+                    (_, StartUp::Nothing) => {
+                        log::info!("Encrypted key found; running in limited mode (unlock via Settings)");
                     }
-                }
-                AutoUnlockMode::KeychainPin => {
-                    // Don't try to unlock automatically — wait for user
-                    // input. The startup PIN modal is queued by the UI
-                    // layer (chat unlock button + Settings) so we don't
-                    // pop a modal over the splash. The seed stays locked
-                    // until the user types their PIN.
-                    log::info!("Auto-unlock (KeychainPin): waiting for user PIN entry");
-                }
-                AutoUnlockMode::AlwaysPrompt => {
-                    log::info!("Encrypted key found; running in limited mode (unlock via Settings)");
+                    (AutoUnlockMode::Keychain, StartUp::Loaded(mut seed)) => {
+                        state.private_key_bytes = Some(seed.to_vec());
+                        humanity_core::platform::key_wrap::wipe(&mut seed);
+                        state.apply_pq_identity();
+                        log::info!("Auto-unlock (Keychain): seed loaded from OS keychain — silent unlock OK");
+                    }
+                    (_, StartUp::Loaded(mut device_key)) => {
+                        // Quick PIN: the device key is there. Don't unlock automatically: the
+                        // PIN modal is queued by the UI layer (chat unlock button + Settings) so
+                        // no modal pops over the splash. The seed stays locked until the PIN.
+                        humanity_core::platform::key_wrap::wipe(&mut device_key);
+                        log::info!("Auto-unlock (KeychainPin): waiting for user PIN entry");
+                    }
+                    (mode, StartUp::Forgotten) => {
+                        log::warn!("Auto-unlock ({mode:?}): the key store holds nothing for it; treating it as Always ask");
+                        state.auto_unlock_mode = AutoUnlockMode::AlwaysPrompt;
+                        state.pin_encrypted_seed.clear();
+                        state.pin_salt.clear();
+                    }
+                    (mode, StartUp::Failed(e)) => {
+                        // Platform-level failure (no keychain backend, permissions denied, a
+                        // locked keyring). Graceful degrade: unlock via Settings.
+                        log::warn!("Auto-unlock ({mode:?}): keychain load failed: {e}. Falling back to passphrase mode.");
+                    }
                 }
             }
         }

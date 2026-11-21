@@ -16,7 +16,7 @@ default = ["native"]
 # The desktop app's parts: the hot-reload watcher, the audio engine, the process memory reading, the
 # keychain unlock, the Windows registry reader and the debug console's panel. The root's `native`
 # turns it on; the server build (`--features relay --no-default-features`) leaves it off.
-native = ["dep:notify", "dep:memory-stats", "dep:kira", "dep:egui", "dep:keyring", "dep:aes-gcm", "dep:pbkdf2", "dep:sha2", "dep:base64", "dep:getrandom", "dep:windows"]
+native = ["dep:notify", "dep:memory-stats", "dep:kira", "dep:egui", "dep:keyring", "dep:aes-gcm", "dep:pbkdf2", "dep:sha2", "dep:base64", "dep:getrandom", "dep:windows", "dep:jni", "dep:ndk-context"]
 wasm = ["dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 # The test helpers other crates' tests use: test_temp, test_clock, test_log, the frame-cost store's
 # reset and lock, and the fixtures named `fixtures` beside the tests they came from. A crate's
@@ -54,6 +54,14 @@ wasm-bindgen-futures = { workspace = true, optional = true }
 # mock would forget the key when the app closes (rung A1, docs/design/platforms.md).
 [target.'cfg(not(target_os = "android"))'.dependencies]
 keyring = { workspace = true, optional = true }
+
+# On a phone (rungs A1 and A4, 2026-11-20): the app's calls into its own Java, Android's key
+# store, the stay-connected service and the notices (platform/android_jni.rs). jni-rs (MIT OR
+# Apache-2.0) is the version android-activity, cpal and webbrowser already bring; ndk-context
+# (MIT OR Apache-2.0) is where android-activity leaves the Java VM and the Application.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.22.4", optional = true }
+ndk-context = { version = "0.1.1", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, optional = true }

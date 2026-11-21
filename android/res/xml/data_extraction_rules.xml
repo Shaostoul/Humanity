@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing of the app's folder leaves the phone, by cloud backup OR by device-to-device transfer
+  (2026-11-20; android/README.md "Remembering your key", docs/reference/cryptography.md).
+
+  The folder holds the remembered keys (key-store/, each sealed by a key that never leaves THIS
+  phone's key store, so a copy is useless on another phone) and the config with the
+  passphrase-sealed identity and the Quick PIN's blob. A new phone is set up from the recovery
+  phrase instead.
+
+  Why this file as well as android:allowBackup="false": for apps targeting Android 12 (API 31) and
+  later, "On devices from some device manufacturers, specifying android:allowBackup="false" does
+  disable backups to Google Drive, but doesn't disable D2D transfers for the app."
+  (developer.android.com, "Behavior changes: Apps targeting Android 12", Backup and restore, read
+  2026-11-20). These rules are what Android 12 and later read for both kinds; on Android 11 and
+  earlier allowBackup="false" stops both. The format: developer.android.com, "Back up user data
+  with Auto Backup", XML config syntax for Android 12 or higher (read 2026-11-20): an <exclude>
+  takes precedence, a folder rule covers everything under it, and "." is the domain's own folder.
+
+  Excluded in each section: root (every private file of the app: files/, databases/,
+  shared_prefs/), device_root (the device-protected storage, in case anything is ever put there)
+  and external (getExternalFilesDir). tests/android_manifest_lint.rs holds this.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="external" path="." />
+    </device-transfer>
+</data-extraction-rules>

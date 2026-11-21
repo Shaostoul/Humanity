@@ -311,6 +311,8 @@ setup hides never notifies. Where each kind is raised (rung 2):
 | Notifications from one person: everything / only calls, mentions and replies / nothing (each kind's `person_level`, the candidate's `from_level`; checked right after the mutes) | this device, by identity (rung 2 of docs/design/per-person-controls.md: notes to myself) | everything | their profile card, "Your settings for <name>" (the always-allow switch is there too) | their profile card | per-person controls rung 1 (built 2026-11-03) |
 | Show HumanityOS in the notification area (the tray) | this device | on | Settings | n/a | 2 part 2 (built) |
 | Closing the window keeps HumanityOS running in the tray | this device | off (closing quits) | Settings | n/a | 2 part 2 (built) |
+| Stay connected while HumanityOS is closed (phone only: a foreground service, Android rung A4 in docs/design/platforms.md; shown in place of the two tray rows on a phone) | this device | off | Settings | n/a: a web page cannot hold a connection while closed; the website's notices come from Web Push | built 2026-11-20 |
+| Show a line on the locked screen (phone only: off, a phone with a screen lock (a PIN, pattern or password) shows nothing of a notice while locked, `VISIBILITY_SECRET`, and a swipe-only lock shows it whole either way; on, `VISIBILITY_PRIVATE` with "Something new arrived" as the public version, which Android shows only where the phone's own "hide sensitive content" setting is on, as the hint says) | this device | off | Settings | n/a: the browser and the operating system decide what a locked screen shows of a Web Push notice | built 2026-11-20 |
 
 On the website the DM rows and room rows had no menu at all, so rung 2 gives each the server row's
 bell (shown on hover and focus, and always while muted, keyboard-reachable as a button with its
@@ -589,6 +591,10 @@ to the right click menu a button for mute that opens to the available options."
   needs a signed app bundle (Apple's rule for `UNUserNotificationCenter`), which arrives with the
   signed macOS build (rung 5).
 - Windows' Focus Assist (Do not disturb) silences our notices like everyone's, which is right.
+- Android (2026-11-20) stops an app that is not on the screen; staying connected needs a
+  foreground service, and Android requires it to show a notification for as long as it runs
+  (Google's rule). Android 13 and later show no notices until the person allows them; the phone's
+  Settings asks when staying connected is turned on and says so when they are blocked.
 
 ## 11. The rungs
 
