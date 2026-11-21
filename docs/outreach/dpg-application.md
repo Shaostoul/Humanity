@@ -271,13 +271,12 @@ dependency; if so, the open alternatives and how little has to change to use the
 > as MIT, Apache-2.0, BSD and MPL-2.0). The same source builds for Linux, Windows and macOS; on Linux
 > the app can run entirely on open components (Vulkan with open drivers), and the server runs on
 > Linux with no graphics hardware. On Windows and macOS it uses the operating system's own graphics
-> interface. The Windows download includes Microsoft's DirectX Shader Compiler files (the compiler's
-> source is open) for faster start-up; the app runs without them. Outside services are optional (a
+> interface. The Windows download's shader compiler is built by the project from Microsoft's
+> open-source DXC (NCSA licence) for faster start-up, and is optional: the app runs without it. Outside services are optional (a
 > Solana node for the optional wallet, browser push services for optional notifications), and no AI
 > model is bundled.
 
-**Verdict: ready.** The DLL notice (thin spots table) is the only loose end, and it is a notice,
-not a closed dependency.
+**Verdict: ready.** The DLLs are our own build of DXC's open source since v0.1566.0 (2026-11-20).
 
 ## Indicator 5: Documentation
 
