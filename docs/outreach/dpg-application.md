@@ -652,13 +652,16 @@ section 6):
 > about the setup is sent to any server. The app says on screen what the setup does not do, and that
 > no regulator or outside body has reviewed it. The service is for a general audience and not meant
 > for children under 13; a parent can ask an admin to erase what a server holds about a child.
-> Conduct: the project's own server publishes its rules, beginning "No harassment, hate speech,
-> doxxing or targeted attacks", with each moderator power and the order of responses (a word, mute,
-> kick, ban): https://united-humanity.us/rules. What is never allowed anywhere is in the content
-> policy: https://github.com/Shaostoul/Humanity/blob/main/docs/legal/content-policy.md.
+> Conduct: the project's code of conduct
+> (https://github.com/Shaostoul/Humanity/blob/main/CODE_OF_CONDUCT.md) covers contributors and members
+> alike, in the GitHub repository, the Discord and the project's server: it applies the server's
+> published rules, beginning "No harassment, hate speech, doxxing or targeted attacks", defines
+> harassment, and says how to report it in each place and how to appeal. The server's rules list each
+> moderator power and the order of responses (a word, mute, kick, ban): https://united-humanity.us/rules.
+> What is never allowed anywhere is in the content policy:
+> https://github.com/Shaostoul/Humanity/blob/main/docs/legal/content-policy.md.
 
-**Verdict: ready for the protection systems; thin on a code of conduct** (thin spots table): the
-rules that name harassment are one server's, and nothing covers contributors. The
+**Verdict: ready.** The code of conduct (2026-11-20) covers contributors and the project's spaces. The
 protected setup must not be called "child safe", "kid safe" or "compliant with" anything: the
 2026-10-10 finding says nothing read supports those words.
 
