@@ -91,6 +91,22 @@ compile there says so. The wrapper's header has the detail; docs/design/cross-pl
   reported FLAKY (a banner), written to `data/coordination/flaky-tests.jsonl` with its first
   failure's message, and does not fail the run. One that fails again is a REAL FAILURE. More
   than five failures are not timing, and none is rerun.
+- **"Passed alone" is proven, not assumed (2026-11-21).** On 2026-11-20 a deterministic failure (a
+  `{name}` placeholder in `data/i18n/en.json`, `every_placeholder_is_double_braced`) was logged
+  FLAKY and the run exited 0: the word was corrected while the suite was still running, and the
+  rerun read the corrected file. Now a FLAKY verdict needs the rerun's output to name that test ok
+  with exactly one pass, AND the checkout (the same identity as the pass record) and the failed
+  test program (size and time: another cargo command can relink it) unchanged since the run began.
+  Otherwise it is **NOT PROVEN A FLAKE**: the run fails, the banner lists what changed, and no
+  ledger line is written. Ledger lines written since carry `same_inputs: true`; older lines were
+  never checked, so an old line is weaker evidence. So: do not edit files a running suite reads
+  (`data/`, `tests/`, `scripts/`, `web/`, `docs/`) and expect its flake verdicts to hold; if you
+  fixed something mid-run, the run will say so and fail, and that is correct.
+- **A run where no test ran is not a pass (2026-11-21).** `just test-lib "a|b"` used to run nothing
+  and exit 0. A filter is a plain piece of a name (no `|`, no wildcard; several filters are several
+  words: `just test-lib net::webrtc kdf::`), and a run in which no test ran fails with NOTHING RAN,
+  saying whether nothing matched or every match is `#[ignore]`d (add `--ignored`). `--list` is not
+  a run. A full pass is also recorded only if the checkout did not change while it ran.
 - A FLAKY line is a lead, not a verdict: "passes alone" is also how a bug that shows only under
   load looks. Of the four tests that failed under load on 2026-10-21, three waited on the clock
   and one was BUG-201, the file link losing datagrams on a loaded machine. A test that comes

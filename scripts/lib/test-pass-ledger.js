@@ -130,6 +130,70 @@ function parseFailures(output) {
   return names;
 }
 
+// THE RERUN'S PROOF (2026-11-21). A failure that passes when run again alone is logged FLAKY and
+// does not fail the run, so "it passed alone" has to be proven, not assumed. Until this day it was
+// "the rerun exited 0 and printed `running 1 test`": that never asked WHICH test ran, nor whether
+// the rerun ran on the files the failure came from (a deterministic failure, a single-brace
+// placeholder in data/i18n/en.json, was logged FLAKY on 2026-11-20 after its word was corrected
+// while the suite was still running).
+
+/** libtest's line per test (its pretty format). Not anchored at the start: with --nocapture a
+ * test's own output can precede it on the line. */
+const RESULT_RE = /test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored\b.*)$/;
+
+/** The counts of a run's last "test result:" line: { passed, failed, ignored, filtered } or null. */
+function resultCounts(output) {
+  const lines = String(output || "").match(/^test result: .*$/gm);
+  if (!lines) return null;
+  const s = lines[lines.length - 1];
+  const n = (k) => {
+    const m = new RegExp(`(\\d+) ${k}`).exec(s);
+    return m ? Number(m[1]) : 0;
+  };
+  return { passed: n("passed"), failed: n("failed"), ignored: n("ignored"), filtered: n("filtered out") };
+}
+
+/**
+ * Did a run of one test, alone, run THAT test and pass it? The output must name `name` ("test
+ * <name> ... "), say ok for it where it says a result, and count exactly one pass and no failure.
+ * With --test-threads=1 libtest prints "test <name> ... " BEFORE the test runs and "ok" after it,
+ * so with --nocapture the test's own output can stand between the two, on lines of its own: there
+ * the name and the count are the proof (a rerun is run with --exact, so only that name can pass).
+ * { ok: true } or { ok: false, why }, `why` saying in words what the output showed instead.
+ */
+function passedAlone(output, name) {
+  const text = String(output || "");
+  const results = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = RESULT_RE.exec(line);
+    if (m) results.push({ name: m[1], result: m[2] });
+  }
+  const counts = resultCounts(text);
+  const named = text.includes(`test ${name} ... `) || text.includes(`test ${name} - should panic ... `);
+  const mine = results.find((r) => r.name === name);
+  if (!counts) return { ok: false, why: "the rerun printed no result line (it did not run, or crashed)" };
+  if (!named && counts.passed + counts.failed === 0) return { ok: false, why: `the rerun matched no test of that name (${counts.filtered} filtered out): nothing ran` };
+  if (!named) return { ok: false, why: `the rerun ran ${results.map((r) => r.name).join(", ") || "no test it named"}, not ${name}` };
+  if (mine && mine.result !== "ok") return { ok: false, why: `the rerun's result for it was "${mine.result}"` };
+  if (counts.passed !== 1 || counts.failed !== 0) return { ok: false, why: `the rerun counted ${counts.passed} passed and ${counts.failed} failed, not exactly that one test` };
+  return { ok: true };
+}
+
+/** What changed between two tree identities (treeIdentity), as lines a person reads; [] if none. */
+function identityDiff(a, b) {
+  if (!a || !b) return ["the checkout's identity could not be read, so nothing proves the files stayed the same"];
+  if (a.hash === b.hash) return [];
+  const out = [];
+  if (a.head_tree !== b.head_tree) out.push(`the commit moved (its tree ${a.head_tree.slice(0, 12)} -> ${b.head_tree.slice(0, 12)}): a commit, checkout, merge or reset`);
+  if (a.rustc !== b.rustc) out.push(`the compiler changed (${a.rustc} -> ${b.rustc})`);
+  const before = new Map(a.dirty);
+  const after = new Map(b.dirty);
+  for (const [p, h] of after) if (before.get(p) !== h) out.push(`${p} (${h === "deleted" ? "deleted" : "changed"})`);
+  for (const p of before.keys()) if (!after.has(p)) out.push(`${p} (back to the commit's version)`);
+  if (!out.length) out.push("the checkout's identity changed");
+  return out;
+}
+
 function readJson(file) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -146,4 +210,4 @@ function writeJsonAtomic(file, value) {
   fs.renameSync(tmp, file);
 }
 
-module.exports = { parsePorcelainZ, treeIdentity, isFullRun, nonSelecting, parseFailures, readJson, writeJsonAtomic, SELECTING };
+module.exports = { parsePorcelainZ, treeIdentity, isFullRun, nonSelecting, parseFailures, readJson, writeJsonAtomic, SELECTING, RESULT_RE, resultCounts, passedAlone, identityDiff };

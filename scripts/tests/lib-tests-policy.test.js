@@ -105,13 +105,23 @@ test("a test that fails once and passes alone is FLAKY: banner, ledger line, the
     assert.strictEqual(ledger.length, 1);
     assert.strictEqual(ledger[0].test, "flaky_once");
     assert.match(ledger[0].first_failure, /made-up flake/);
+    // Since 2026-11-21 a line says it was proven: the same files and program, and the rerun named it ok.
+    assert.strictEqual(ledger[0].same_inputs, true);
     // The rerun ran ONLY that test, by its exact name.
     const after = runs(root);
     assert.strictEqual(after.filter((x) => x === "flaky_once").length, 2);
     assert.strictEqual(after.filter((x) => x === "always_ok").length, 1);
+    // The test program's own -q prints no names; the rerun's proof needs them, so the rerun drops
+    // -q (2026-11-21). Seen red while writing the proof: "NOT PROVEN: ... the rerun ran no test it
+    // named, not flaky_once", a true flake failing the run.
+    fs.rmSync(`${root}.flake.marker`, { force: true });
+    const q = run(root, exe, ["-q", "--force"], { TINY_FLAKE_MARKER: `${root}.flake.marker` });
+    assert.strictEqual(q.status, 0, q.out);
+    assert.match(q.out, /FLAKY: 1 test\(s\) failed in this run and PASSED when run again alone/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(runLog(root), { force: true });
+    fs.rmSync(`${root}.flake.marker`, { force: true });
   }
 });
 
@@ -128,6 +138,171 @@ test("a real failure still fails (it fails again alone), and nothing is recorded
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(runLog(root), { force: true });
   }
+});
+
+// THE RERUN'S PROOF (2026-11-21). On 2026-11-20 i18n::tests::every_placeholder_is_double_braced
+// failed on a single-brace placeholder in data/i18n/en.json, the word was corrected while the suite
+// was still running, the rerun alone read the corrected file and passed, and lib-tests logged a
+// deterministic failure FLAKY (passed_alone: true) and exited 0. Reproduced the same day in a
+// worktree against the real core program (the plant corrected the moment its F mark printed):
+// "FLAKY: 1 test(s) failed in this run and PASSED when run again alone", exit 0.
+// RED before the fix, both of the next two tests: the first exited 0 with the FLAKY banner and a
+// ledger line; the second (the program relinked between run and rerun) the same.
+const ledgerFile = (root) => path.join(root, "data", "coordination", "flaky-tests.jsonl");
+
+test("a failure whose input was corrected while the run went on is not a flake: the run fails, no ledger line", () => {
+  const exe = suiteExe();
+  const root = repo();
+  try {
+    const words = path.join(root, "words.json");
+    fs.writeFileSync(words, "Hello {name}\n");
+    const r = run(root, exe, [], { TINY_INPUT: words, TINY_FIX_INPUT: "1" });
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.doesNotMatch(r.out, /FLAKY:/);
+    assert.match(r.out, /NOT PROVEN A FLAKE: 1 test\(s\) failed in the run and passed alone, but what they ran on changed between the two:/);
+    assert.match(r.out, /\n!!\s+reads_its_input\n/);
+    assert.match(r.out, /\n!!\s+words\.json \(changed\)/);
+    assert.ok(!fs.existsSync(ledgerFile(root)), "nothing is written to the flaky ledger");
+    assert.ok(!fs.existsSync(path.join(root, "target", "lib-tests", "last-full-pass.json")), "and nothing is recorded as a pass");
+    // The same failure left alone is what it always was: a REAL FAILURE.
+    fs.writeFileSync(words, "Hello {name}\n");
+    const r2 = run(root, exe, [], { TINY_INPUT: words });
+    assert.notStrictEqual(r2.status, 0, r2.out);
+    assert.match(r2.out, /REAL FAILURE: 1 test\(s\) failed and failed again alone:\s+reads_its_input/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+test("a test program relinked between the run and the rerun: a pass alone proves nothing", () => {
+  const root = repo();
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "hum_lib_tests_bin_"));
+  try {
+    const exes = twoPrograms(bin);
+    const first = exes.split(path.delimiter)[0];
+    // flaky_once fails in the first program and passes after; the second program's run touches the
+    // first one's file, as another cargo command relinking it would.
+    const r = run(root, exes, [], { TINY_FLAKE_MARKER: `${root}.flake.marker`, TINY_TOUCH: first, TINY_TOUCH_IN: "second-member" });
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.doesNotMatch(r.out, /FLAKY:/);
+    assert.match(r.out, /NOT PROVEN A FLAKE/);
+    assert.match(r.out, /first-member\.exe \(the test program was rebuilt/);
+    assert.ok(!fs.existsSync(ledgerFile(root)));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+    fs.rmSync(`${root}.flake.marker`, { force: true });
+  }
+});
+
+// Point 9 (2026-11-21): the tests read the checkout as they run, so a full pass across an edit is a
+// pass of neither version and is not recorded. RED with the check removed (recordPass without its
+// changedSinceStart): the pass was recorded against the tree as it was BEFORE the edit, so undoing
+// the edit would have had that version refused as "already passed" though no run ever tested it whole.
+test("a full pass during which the checkout changed is not recorded, so the next run runs", () => {
+  const exe = suiteExe();
+  const root = repo();
+  try {
+    const r = run(root, exe, [], { TINY_APPEND: path.join(root, "notes.txt") });
+    assert.strictEqual(r.status, 0, r.out);
+    assert.match(r.out, /the suite passed, but the checkout changed while it ran, so the pass is NOT recorded/);
+    assert.match(r.out, /\n  notes\.txt \(changed\)/);
+    assert.ok(!fs.existsSync(path.join(root, "target", "lib-tests", "last-full-pass.json")));
+    const again = run(root, exe);
+    assert.doesNotMatch(again.out, /SKIPPED/, "the edited tree was never passed as a whole: it runs");
+    assert.strictEqual(again.status, 0, again.out);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+// A filter that matches nothing (reported 2026-11-21: `node scripts/lib-tests.js "a|b"` ran no test
+// and exited 0). RED before the fix: every run here but --list exited 0.
+test("a filter that matches no test fails, in words; one matching only ignored tests says --ignored", () => {
+  const exe = suiteExe();
+  const root = repo();
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), "hum_lib_tests_bin_"));
+  try {
+    let r = run(root, exe, ["a|b"]);
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.match(r.out, /NOTHING RAN: no test matched "a\|b", so this is not a pass/);
+    assert.match(r.out, /plain piece of a test's name, not a pattern/);
+    // Across several programs: none matched in any.
+    r = run(root, twoPrograms(bin), ["no_such_test_anywhere"]);
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.match(r.out, /NOTHING RAN: no test matched "no_such_test_anywhere" in any of the 2 test programs/);
+    // Matching only an ignored test runs nothing either, and says how to run it.
+    r = run(root, exe, ["ignored_unless_asked"]);
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.match(r.out, /NOTHING RAN: "ignored_unless_asked" matched 1 test\(s\), every one #\[ignore\]d/);
+    assert.match(r.out, /--ignored/);
+    r = run(root, exe, ["ignored_unless_asked", "--ignored"]);
+    assert.strictEqual(r.status, 0, r.out);
+    assert.ok(runs(root).includes("ignored_unless_asked"), "with --ignored it runs");
+    // Several filters, one of which matches: a run.
+    r = run(root, exe, ["always_ok", "a|b"]);
+    assert.strictEqual(r.status, 0, r.out);
+    // --list runs no test by design: not refused.
+    r = run(root, exe, ["--list"]);
+    assert.strictEqual(r.status, 0, r.out);
+    assert.match(r.out, /always_ok: test/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+  }
+});
+
+test("a rerun that never reports the test (the program ended with exit 0) is not a pass alone", () => {
+  const exe = suiteExe();
+  const root = repo();
+  try {
+    // RED against the check before 2026-11-21 (exit 0 and "running 1 test"): with the proof put back
+    // to that, this run exited 0 with "FLAKY: 1 test(s) failed in this run and PASSED when run again
+    // alone: exits_the_program_once_it_has_failed" and a ledger line.
+    const r = run(root, exe, [], { TINY_EXIT_MARKER: `${root}.exit.marker` });
+    assert.notStrictEqual(r.status, 0, r.out);
+    assert.doesNotMatch(r.out, /FLAKY:/);
+    assert.match(r.out, /NOT PROVEN: 1 test\(s\) failed, and the rerun alone exited 0 without proving it ran them:\s+exits_the_program_once_it_has_failed: the rerun printed no result line/);
+    assert.ok(!fs.existsSync(ledgerFile(root)));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(runLog(root), { force: true });
+    fs.rmSync(`${root}.exit.marker`, { force: true });
+  }
+});
+
+test("a rerun's pass is proven by the test's own ok line and a count of exactly one", () => {
+  const ok = "\nrunning 1 test\ntest a::b ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s\n";
+  assert.deepStrictEqual(L.passedAlone(ok, "a::b"), { ok: true });
+  assert.deepStrictEqual(L.passedAlone(ok.replace("test a::b", "printed by the test, no newline test a::b"), "a::b"), { ok: true }, "--nocapture output before the line");
+  // --test-threads=1 --nocapture: the name before the test runs, its output, then "ok" on its own line.
+  assert.deepStrictEqual(L.passedAlone(ok.replace("test a::b ... ok", "test a::b ... rendering the page\nok"), "a::b"), { ok: true }, "the result after the test's own output");
+  // Each of these satisfied the check this replaced (exit 0 and /running 1 test/): RED for it.
+  const other = ok.replace("test a::b ... ok", "test a::c ... ok");
+  const ignored = "\nrunning 1 test\ntest a::b ... ignored\n\ntest result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 9 filtered out\n";
+  for (const [out, why] of [
+    [other, /ran a::c, not a::b/],
+    [ignored, /"ignored"/],
+  ]) {
+    assert.match(out, /running 1 test/);
+    const p = L.passedAlone(out, "a::b");
+    assert.strictEqual(p.ok, false, out);
+    assert.match(p.why, why);
+  }
+  const none = "\nrunning 0 tests\n\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out\n";
+  assert.match(L.passedAlone(none, "a::b").why, /matched no test of that name \(10 filtered out\)/);
+  assert.match(L.passedAlone("running 1 test\n", "a::b").why, /no result line/);
+  // What changed between two identities, in words.
+  const a = { hash: "1", head_tree: "t1", rustc: "r", dirty: [["x.txt", "h1"], ["gone.txt", "h2"]] };
+  const b = { hash: "2", head_tree: "t1", rustc: "r", dirty: [["x.txt", "h9"], ["new.txt", "deleted"]] };
+  assert.deepStrictEqual(L.identityDiff(a, a), []);
+  assert.deepStrictEqual(L.identityDiff(a, b), ["x.txt (changed)", "new.txt (deleted)", "gone.txt (back to the commit's version)"]);
+  assert.match(L.identityDiff(a, { ...b, head_tree: "t2" })[0], /the commit moved/);
+  assert.match(L.identityDiff(a, null)[0], /could not be read/);
 });
 
 test("quiet by default, one line per test with --verbose", () => {
@@ -278,10 +453,11 @@ test("every member's program runs; the counts are added up; the pass is recorded
     assert.match(r.out, /lib-tests: program 1 \(first-member\.exe\)/);
     assert.match(r.out, /lib-tests: program 2 \(second-member\.exe\)/);
     assert.strictEqual(runs(root).filter((x) => x === "always_ok").length, 2, "both programs ran");
-    // The tiny suite has five tests, and all five pass in each program: the line adds them up.
-    assert.match(r.out, /lib-tests: test result: ok\. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out \(program 1 5, program 2 5\)/);
+    // The tiny suite has eight tests that run and one ignored, and all eight pass in each program:
+    // the line adds them up.
+    assert.match(r.out, /lib-tests: test result: ok\. 16 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out \(program 1 8, program 2 8\)/);
     const rec = JSON.parse(fs.readFileSync(path.join(root, "target", "lib-tests", "last-full-pass.json"), "utf8"));
-    assert.match(rec.result, /10 passed.*\(program 1 5, program 2 5\)/);
+    assert.match(rec.result, /16 passed.*\(program 1 8, program 2 8\)/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(bin, { recursive: true, force: true });

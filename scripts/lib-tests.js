@@ -79,6 +79,20 @@
 //      data/coordination/flaky-tests.jsonl (which test, when, the first failure's message), and
 //      the run counts as passed, so a flake does not cost a whole rerun. One that fails again is
 //      a real failure, and the run fails. More than five failures are not timing: no reruns.
+//      THE PROOF (2026-11-21). On 2026-11-20 a DETERMINISTIC failure (a single-brace placeholder in
+//      data/i18n/en.json, i18n::tests::every_placeholder_is_double_braced) was logged FLAKY and the
+//      run exited 0: the word was corrected while the suite went on running (the core's program runs
+//      first, the engine's for minutes after), and the rerun alone read the corrected file.
+//      Reproduced that day against the real core program. So "passed alone" now has to be proven:
+//        - the rerun's output names THAT test as ok and counts exactly one pass
+//          (scripts/lib/test-pass-ledger.js, passedAlone); until then "exit 0 and `running 1 test`"
+//        - the checkout is the same as when the run began (the tree identity of point 1, read for
+//          every run now, before the build, and again after the reruns), and so is each test program
+//          that failed (its size and modified time: another cargo command can relink it mid-run).
+//      A pass alone on changed files or a changed build is NOT PROVEN A FLAKE: the run fails, the
+//      banner names what changed, and nothing goes in the ledger. A ledger line written since says
+//      `same_inputs: true`; older lines were never checked for it. Points 8 and 9 below are the
+//      same day's.
 //
 // THE OPERATOR'S GPU GAME (2026-11-01). On that day the full run froze at 3,852 of 5,584 for two
 // hours while he played helldivers2.exe, burning CPU, without one "has been running for over 60
@@ -116,6 +130,13 @@
 //      (scripts/lib/stack-dump.js over scripts/stackdump/): target/lib-tests/hang-<time>-<program>
 //      .stacks.txt, beside .log, the run's output up to then. libtest names each test's thread
 //      after its test, so the report prints the stuck test's frames: which test, and where.
+//
+// WHAT COUNTS AS A RESULT (2026-11-21, with point 3's proof).
+//   8. A run in which no test ran is not a pass (`node scripts/lib-tests.js "a|b"` ran nothing,
+//      libtest's filter being a plain piece of a name, and exited 0). NOTHING RAN fails it, saying
+//      why: no test matched in any program, or every match is #[ignore]d. --list is not a run.
+//   9. A full pass is recorded only if the checkout is still the one it began on: the tests read
+//      the tree as they run, so a pass across an edit is a pass of neither version.
 
 "use strict";
 const fs = require("fs");
@@ -206,16 +227,19 @@ function fmtTime(iso) {
   return isNaN(d) ? String(iso) : d.toLocaleString("en-GB", { hour12: false });
 }
 
-// 1. The refusal: this exact tree already passed the full suite.
+// The checkout the tests are built from and read, for every run (point 3's proof, 2026-11-21): a
+// failure is called a flake, and a full pass recorded, only if it is the same afterwards.
 let identity = null;
+try {
+  identity = L.treeIdentity(ROOT);
+} catch (e) {
+  console.error(`lib-tests: could not read the tree's identity (${e.message}); ${full ? "the pass will not be recorded, and " : ""}a failure that passes alone cannot be proven a flake`);
+}
+
+// 1. The refusal: this exact tree already passed the full suite.
 // A pass on this tree that left out the GPU tests (point 4): only they are left to run.
 let partialPass = null;
 if (full) {
-  try {
-    identity = L.treeIdentity(ROOT);
-  } catch (e) {
-    console.error(`lib-tests: could not read the tree's identity (${e.message}); the pass will not be recorded`);
-  }
   const last = L.readJson(PASS_FILE);
   if (identity && last && last.identity && last.identity.hash === identity.hash && !opts.force) {
     const changed = identity.dirty.length ? ` + ${identity.dirty.length} changed file(s)` : "";
@@ -338,9 +362,9 @@ function buildTestPrograms() {
   return want.map((name) => ({ name, exe: exes.get(name) }));
 }
 
-// The lines libtest prints per test (its pretty format): a result, and the 60-second warning.
-// Not anchored at the start: with --nocapture a test's own output can precede it on the line.
-const RESULT_RE = /test (\S+)(?: - should panic)? \.\.\. (ok|FAILED|ignored\b.*)$/;
+// The lines libtest prints per test (its pretty format): a result (scripts/lib/test-pass-ledger.js,
+// which the rerun's proof reads too), and the 60-second warning.
+const RESULT_RE = L.RESULT_RE;
 const WARNED_RE = /test (\S+) has been running for over \d+ seconds/;
 const RUNNING_RE = /^running (\d+) tests?$/;
 
@@ -619,16 +643,18 @@ function failureExcerpt(out, name) {
   return block.join("\n").trim();
 }
 
-/** The arguments a rerun keeps: everything but name filters, --skip and --exact (it adds its own). */
+/** The arguments a rerun keeps: everything but name filters, --skip and --exact (it adds its own),
+ * and -q / --format (2026-11-21): the rerun's proof reads libtest's own "test <name> ... ok" line,
+ * which -q and the other formats do not print. */
 function rerunArgs(args) {
   const out = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === "--skip") {
+    if (a === "--skip" || a === "--format") {
       i++;
       continue;
     }
-    if (a.startsWith("--skip=") || a === "--exact") continue;
+    if (a.startsWith("--skip=") || a.startsWith("--format=") || a === "--exact" || a === "-q" || a === "--quiet") continue;
     if (!a.startsWith("-")) continue; // a name filter
     out.push(a);
     if ((a === "--test-threads" || a === "--format" || a === "--color" || a === "-Z" || a === "--logfile") && i + 1 < args.length) out.push(args[++i]);
@@ -647,6 +673,14 @@ function banner(lines) {
 
 function recordPass(result, secs, flaky, skipped = []) {
   if (!full || !identity) return;
+  // Point 9: only a pass of the checkout as it was throughout (one read after the run).
+  const moved = changedSinceStart([]);
+  if (moved.length) {
+    console.log("lib-tests: the suite passed, but the checkout changed while it ran, so the pass is NOT recorded (it was a pass of neither version):");
+    for (const l of moved) console.log(`  ${l}`);
+    console.log("The next full run runs.");
+    return;
+  }
   const rec = { at: new Date().toISOString(), identity, result, run_s: secs, flaky };
   // A pass without the GPU tests (point 4) says which, so the next run on this tree runs just them.
   if (skipped.length) Object.assign(rec, { gpu_skipped: skipped, gpu_busy: busy.join(", ") });
@@ -679,8 +713,83 @@ function resultLine(runs, extra = "") {
   return line + extra;
 }
 
+/** A test program's size and modified time, or null: a relink changes both (point 3's proof). */
+function exeStamp(exe) {
+  try {
+    const st = fs.statSync(exe);
+    return `${st.size}:${st.mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+/** Each test program's stamp as it was built, before any ran. */
+const BUILT_STAMPS = new Map();
+
+/**
+ * What changed since the run began, as lines a person reads ([] = nothing): the checkout (its tree
+ * identity, read again now) and each of `exes` (test programs that failed, whose rerun used them).
+ */
+function changedSinceStart(exes) {
+  const lines = [];
+  for (const exe of exes) {
+    if (exeStamp(exe) !== BUILT_STAMPS.get(exe)) lines.push(`${path.basename(exe)} (the test program was rebuilt or replaced after it ran, so the rerun ran another build)`);
+  }
+  let now = null;
+  try {
+    now = L.treeIdentity(ROOT);
+  } catch {}
+  return [...lines, ...L.identityDiff(identity, now)];
+}
+
+/** The name filters among the test program's arguments (not flags, nor a flag's value). */
+function nameFilters(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a.startsWith("-")) {
+      if (/^(--skip|--test-threads|--format|--color|-Z|--logfile)$/.test(a)) i++;
+      continue;
+    }
+    out.push(a);
+  }
+  return out;
+}
+
+/**
+ * Point 8: a run in which no test ran is not a pass. null when tests ran (or it cannot be told: a
+ * program printed no result line, or --list was asked for); else the lines saying why, in words.
+ */
+function nothingRan(runs, args) {
+  if (args.some((a) => a === "--list")) return null;
+  const counts = runs.map((r) => L.resultCounts(r.out));
+  if (counts.some((c) => !c)) return null;
+  if (counts.reduce((n, c) => n + c.passed + c.failed, 0) > 0) return null;
+  const ignored = counts.reduce((n, c) => n + c.ignored, 0);
+  const filters = nameFilters(args);
+  if (!filters.length && !ignored) return [`NOTHING RAN: the test program${runs.length > 1 ? "s ran" : " ran"} no test at all, so this is not a pass.`];
+  const what = filters.length ? filters.map((f) => `"${f}"`).join(" or ") : "the run";
+  const where = runs.length > 1 ? ` in any of the ${runs.length} test programs (${runs.map((r) => r.name).join(", ")})` : "";
+  const again = `node scripts/lib-tests.js ${filters.join(" ")}`;
+  if (ignored) {
+    return [
+      `NOTHING RAN: ${what} matched ${ignored} test(s), every one #[ignore]d, so this is not a pass.`,
+      "An ignored test runs only when asked: add --ignored (just those) or --include-ignored (those and the rest):",
+      `  ${again} --ignored`,
+    ];
+  }
+  const lines = [`NOTHING RAN: no test matched ${what}${where}, so this is not a pass.`];
+  lines.push("A filter is a plain piece of a test's name, not a pattern: each is looked for exactly as written.");
+  const odd = filters.filter((f) => /[|*+?()[\]^$\\]/.test(f));
+  if (odd.length) lines.push(`(${odd.map((f) => `"${f}"`).join(", ")}: a | * ? ( ) [ ] ^ $ or \\ is looked for as that very character; a filter has no "or" and no wildcard.)`);
+  if (args.includes("--exact")) lines.push("With --exact a filter must be a test's WHOLE name: its path inside its own crate, such as i18n::tests::every_placeholder_is_double_braced.");
+  lines.push("To run the tests matching any of several pieces, give each as its own word: node scripts/lib-tests.js net::webrtc kdf::");
+  lines.push("To see which names a piece matches: node scripts/lib-tests.js <piece> --list");
+  return lines;
+}
+
 async function main() {
   const programs = buildTestPrograms();
+  for (const p of programs) BUILT_STAMPS.set(p.exe, exeStamp(p.exe));
   try {
     fs.mkdirSync(path.dirname(GPU_SKIPPED_FILE), { recursive: true });
     fs.writeFileSync(GPU_SKIPPED_FILE, "");
@@ -704,6 +813,12 @@ async function main() {
   // The programs' counts added up (not for a run that prints no result line, such as --list).
   if (programs.length > 1 && runs.some((r) => summaryOf(r.out))) console.log(`lib-tests: ${resultLine(runs)}`);
   if (runs.every((r) => r.code === 0)) {
+    const none = nothingRan(runs, runArgs);
+    if (none) {
+      console.error("");
+      for (const l of none) console.error(l);
+      process.exit(1);
+    }
     const skipped = gpuSkipped();
     gpuBanner(skipped);
     recordPass(resultLine(runs), secs, partialPass ? partialPass.flaky || [] : [], skipped);
@@ -729,8 +844,10 @@ async function main() {
     process.exit(firstCode);
   }
   console.log(`lib-tests: ${failed.length} test(s) failed; running each once more, alone, to tell a timing flake from a real failure:`);
-  const flaky = [];
+  // Rerun alone and passed (proven to have run it), rerun alone and failed, rerun exited 0 unproven.
+  const passed = [];
   const real = [];
+  const noProof = [];
   for (const { run, name } of failed) {
     console.log(`lib-tests: again, alone: ${name}${programs.length > 1 ? ` (${run.name})` : ""}`);
     const args = [name, "--exact", ...rerunArgs(runArgs)];
@@ -739,9 +856,29 @@ async function main() {
       hangReport(run.exe, args, again, `${name}, run again alone, ${again.stalled ? `printed nothing for ${opts.stallMin} minutes` : `went past ${opts.runTimeoutMin} minutes`}`);
       process.exit(1);
     }
-    const ran = /running 1 test/.test(again.out);
-    if (again.code === 0 && ran) flaky.push({ run, name });
+    // Point 3's proof, part one: the rerun ran THAT test and passed it (not merely exit 0).
+    const proof = again.code === 0 ? L.passedAlone(again.out, name) : null;
+    if (proof && proof.ok) passed.push({ run, name });
+    else if (proof) noProof.push({ name, why: proof.why });
     else real.push(name);
+  }
+  // Part two: what they ran on is what the failure ran on (the checkout, and each program that
+  // failed). Read once, after every rerun, so a change during the reruns counts too.
+  const changed = passed.length ? changedSinceStart([...new Set(passed.map((p) => p.run.exe))]) : [];
+  const flaky = changed.length ? [] : passed;
+  if (changed.length) {
+    banner([
+      `NOT PROVEN A FLAKE: ${passed.length} test(s) failed in the run and passed alone, but what they ran on changed between the two:`,
+      ...passed.map((f) => `  ${f.name}`),
+      "What changed since the run began:",
+      ...changed.map((l) => `  ${l}`),
+      "A pass on other files or another build says nothing about the failure. Most often it is a REAL",
+      "failure, corrected (or broken differently) while the suite was still running. So the run FAILS,",
+      `and nothing is written to ${path.relative(ROOT, FLAKY_LEDGER)}.`,
+      "Run it again on the files as they are now, the whole of it or just those:",
+      `  node scripts/lib-tests.js ${argv.join(" ")}`.trimEnd(),
+      `  node scripts/lib-tests.js ${passed.map((f) => f.name).join(" ")} --exact`,
+    ]);
   }
   for (const { run, name } of flaky) {
     const entry = {
@@ -749,6 +886,8 @@ async function main() {
       test: name,
       first_failure: failureExcerpt(run.out, name),
       passed_alone: true,
+      // Proven since 2026-11-21: the same checkout and the same build, and the rerun named it ok.
+      same_inputs: true,
       tree: identity ? identity.head_tree.slice(0, 12) : null,
       rustc: identity ? identity.rustc : null,
       full_run: full,
@@ -765,15 +904,22 @@ async function main() {
     banner([
       `FLAKY: ${flaky.length} test(s) failed in this run and PASSED when run again alone:`,
       ...flaky.map((f) => `  ${f.name}`),
-      "That is a test whose result depends on timing or on its neighbours, not on the code under test.",
+      "Same files, same build, and the rerun named each one ok: a test whose result depends on timing",
+      "or on its neighbours, not on the code under test.",
       `Recorded in ${path.relative(ROOT, FLAKY_LEDGER)} (one line each, with the first failure's message).`,
-      real.length ? "" : "The run counts as PASSED. Fix the flake when you can: the ledger says how often it bites.",
+      real.length || noProof.length ? "" : "The run counts as PASSED. Fix the flake when you can: the ledger says how often it bites.",
     ].filter((l) => l !== ""));
   }
-  if (real.length) {
+  if (real.length || noProof.length || changed.length) {
     gpuBanner(gpuSkipped());
-    console.log(`REAL FAILURE: ${real.length} test(s) failed and failed again alone:`);
-    for (const n of real) console.log(`  ${n}`);
+    if (real.length) {
+      console.log(`REAL FAILURE: ${real.length} test(s) failed and failed again alone:`);
+      for (const n of real) console.log(`  ${n}`);
+    }
+    if (noProof.length) {
+      console.log(`NOT PROVEN: ${noProof.length} test(s) failed, and the rerun alone exited 0 without proving it ran them:`);
+      for (const f of noProof) console.log(`  ${f.name}: ${f.why}`);
+    }
     process.exit(firstCode || 1);
   }
   const skipped = gpuSkipped();
