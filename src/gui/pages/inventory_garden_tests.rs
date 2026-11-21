@@ -490,3 +490,56 @@ fn a_group_changed_off_screen_is_laid_out_again_when_it_returns() {
     assert!((back.content_h - whole_there.content_h).abs() <= 1.0, "and the page is its height: {} vs {}", back.content_h, whole_there.content_h);
     offscreen::set_test_override(None);
 }
+
+/// One tower of two slots: a radish whose produce the harvest basket keeps grams of (its row's
+/// `kept` words, as engine/garden_mirror.rs makes them), and a lettuce with nothing kept.
+fn basket_tower() -> GuiState {
+    let mut s = GuiState::default();
+    s.trees_start_collapsed = false;
+    let cfg: crate::gui::TowerConfig = serde_json::from_value(serde_json::json!({
+        "id": "t0", "name": "Kitchen tower", "slots": 2,
+        "plantings": [
+            { "plant": "radish", "slots": 1, "role": "", "note": "" },
+            { "plant": "lettuce", "slots": 1, "role": "", "note": "" },
+        ],
+    }))
+    .expect("a tower design");
+    s.tower_configs.push(cfg);
+    for (k, (name, kept)) in [("Radish", "112 g of 300 g kept toward the next radish"), ("Lettuce", "")].into_iter().enumerate() {
+        s.crops.push(GuiCrop {
+            entity_bits: 7000 + k as u64,
+            name: name.into(),
+            stage: "root_swell".into(),
+            progress: 0.75,
+            tower_id: Some("t0".into()),
+            tower_slot: Some(k as u32),
+            kept: kept.into(),
+            ..Default::default()
+        });
+    }
+    s
+}
+
+/// THE CARD'S BASKET LINE (2026-11-21, farming/basket.rs). The card of a crop whose produce the
+/// harvest basket keeps grams of shows a "Basket" row with them in words; the card of a crop with
+/// nothing kept has no such row. Drawn for real, headless, each slot's card opened in turn.
+///
+/// Seen red 2026-11-21 with the card not drawing the row: "the radish's card shows what the basket
+/// keeps".
+#[test]
+fn the_card_shows_the_basket_line_only_for_a_crop_with_grams_kept() {
+    let theme = crate::gui::theme::load_theme();
+    let state = basket_tower();
+    let ctx = ctx_for(&theme);
+    let card = |slot: usize| {
+        ctx.data_mut(|d| d.insert_temp(egui::Id::new(("garden_sel_slot", 0usize)), Some(slot)));
+        visible_texts(&settled(&ctx, &theme, &state, 0.0).output).into_iter().map(|(t, _)| t).collect::<Vec<_>>()
+    };
+    let radish = card(0);
+    assert!(radish.iter().any(|t| t == "Radish · Slot 1"), "the radish's card is open: {radish:?}");
+    assert!(radish.iter().any(|t| t == "112 g of 300 g kept toward the next radish"), "the radish's card shows what the basket keeps: {radish:?}");
+    assert!(radish.iter().any(|t| t == humanity_core::i18n::t("inventory.garden_kept_label")), "under its label: {radish:?}");
+    let lettuce = card(1);
+    assert!(lettuce.iter().any(|t| t == "Lettuce · Slot 2"), "the lettuce's card is open: {lettuce:?}");
+    assert!(!lettuce.iter().any(|t| t == humanity_core::i18n::t("inventory.garden_kept_label")), "a crop with nothing kept has no basket line: {lettuce:?}");
+}

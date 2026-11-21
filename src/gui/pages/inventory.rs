@@ -2412,6 +2412,24 @@ pub(crate) fn draw_garden_section(
                                                 stat(ui, "Health", format!("{:.0}%", c.health));
                                                 // What the harvest will be scaled by (2026-09-26).
                                                 stat(ui, "Season health", format!("{:.0}%", c.season_health * 100.0));
+                                                // What the harvest basket keeps toward the next whole
+                                                // item of its produce (2026-11-21, farming/basket.rs).
+                                                if !c.kept.is_empty() {
+                                                    use crate::gui::widgets::Hint;
+                                                    ui.label(
+                                                        RichText::new(t("inventory.garden_kept_label"))
+                                                            .size(theme.font_size_small)
+                                                            .color(theme.text_muted()),
+                                                    )
+                                                    .hint("inventory.garden_kept_hint");
+                                                    ui.label(
+                                                        RichText::new(&c.kept)
+                                                            .size(theme.font_size_small)
+                                                            .color(theme.text_secondary()),
+                                                    )
+                                                    .hint("inventory.garden_kept_hint");
+                                                    ui.end_row();
+                                                }
                                             });
                                         ui.add_space(theme.spacing_xs);
                                         ui.horizontal(|ui| {

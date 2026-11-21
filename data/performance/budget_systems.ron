@@ -421,14 +421,16 @@
         category: "cpu",
         // What a page shows, gathered from the game world only on a frame that draws that page
         // (2026-10-30, docs/design/sim-frame-cost.md S1): the Garden on the Inventory page first
-        // (engine/garden_mirror.rs). Zero on a frame that draws no such page. A page open on the
-        // main screen hides the world, and those frames are not measured (frame_costs::discard_frame),
-        // so this row shows the cost when a wall screen in view draws the page.
-        sources: ["cpu.page_data.garden"],
+        // (engine/garden_mirror.rs), and the skill rows on the Skills section and the Crafting page
+        // (engine/skills_mirror.rs, 2026-11-21: only when the skills moved). Zero on a frame that
+        // draws no such page. A page open on the main screen hides the world, and those frames are
+        // not measured (frame_costs::discard_frame), so this row shows the cost when a wall screen
+        // in view draws the page.
+        sources: ["cpu.page_data.garden", "cpu.page_data.skills"],
         locked: false,
         base_frac: 0.02,
         color: "badge_donor",
-        note: "Gathering what an open page shows from the game world: the Garden on the Inventory page. Paid only on a frame that draws that page; measured when a wall screen in view shows it (a page open on the main screen pauses these measurements).",
+        note: "Gathering what an open page shows from the game world: the Garden on the Inventory page, the skills on the Skills section and the Crafting page. Paid only on a frame that draws that page; measured when a wall screen in view shows it (a page open on the main screen pauses these measurements).",
     ),
 
     // ── VRAM pie: tracked graphics-memory allocations ──

@@ -28,6 +28,9 @@ use crate::gui::{GardenPests, GuiCrop};
 use humanity_core::hot_reload::data_store::DataStore;
 use humanity_systems::farming::{self, fixtures::step, FarmingSystem};
 
+/// The radish's harvest item (items.csv: a 300 g bunch), what its crops fill the basket with.
+const RADISH: &str = "vegetable_radish_0";
+
 /// The page's data as one text: every crop's row (its tile key included) and every per-area list,
 /// the outlook sorted by crop.
 fn snapshot(crops: &[GuiCrop], p: &GardenPests) -> String {
@@ -325,6 +328,28 @@ fn every_kind_of_change_reaches_the_rows_the_same_build() {
     set_clock(&data, clock_now(&data) - 86_400.0);
     before = check(&mut page, &world, &data, &before, "the clock set back", true);
 
+    // The harvest basket (2026-11-21, farming/basket.rs): the player's, so no area's version moves
+    // when it fills. A harvest's grams of radish kept toward the next whole one (every radish card
+    // in every area says so), more of them, a whole radish out with a little kept, and the basket
+    // emptied (a load of a save with nothing kept). Seen red 2026-11-21 with the rows' basket words
+    // never filled: "a harvest's grams kept in the basket: the page did not change at all".
+    let player = world.spawn((humanity_core::ecs::components::Controllable, farming::basket::HarvestBasket::default()));
+    let basket = |world: &mut hecs::World, f: &dyn Fn(&mut farming::basket::HarvestBasket)| f(&mut world.get::<&mut farming::basket::HarvestBasket>(player).unwrap());
+    basket(&mut world, &|b| {
+        b.add(RADISH, 0.25);
+    });
+    before = check(&mut page, &world, &data, &before, "a harvest's grams kept in the basket", true);
+    basket(&mut world, &|b| {
+        b.add(RADISH, 0.5);
+    });
+    before = check(&mut page, &world, &data, &before, "more grams kept", true);
+    basket(&mut world, &|b| {
+        b.add(RADISH, 0.375);
+    });
+    before = check(&mut page, &world, &data, &before, "a whole radish out, an eighth of one kept", true);
+    basket(&mut world, &|b| *b = farming::basket::HarvestBasket::default());
+    before = check(&mut page, &world, &data, &before, "the basket emptied", true);
+
     // The air: a grow room's air made far damper (as a humidifier stuck on would leave it), written
     // into the soil memory with no farm run, so the rows' air words can only come from the room's
     // own reading; then frames through the evening, the air on its own turn every second (moving
@@ -516,6 +541,37 @@ fn a_reorder_of_the_crops_alone_builds_nothing() {
     let kept = page.kept(&world, &data);
     let which: Vec<String> = page.rows.areas.iter().filter(|a| a.built_at == page.rows.builds).map(|a| a.name.clone()).collect();
     assert!(which.is_empty(), "a crop moved in the world's order, nothing else changed, but these areas were built again: {which:?}");
+    let fresh = scratch(&world, &data);
+    assert!(kept == fresh, "and the page is the page from scratch{}", first_difference(&kept, &fresh));
+}
+
+/// THE CARD'S BASKET LINE (2026-11-21, farming/basket.rs). With a harvest's grams of radish kept
+/// toward the next whole one, every radish crop's row, in every area that grows it, says how much
+/// in words ("112 g of 300 g kept toward the next radish"); a crop of any other produce, with
+/// nothing kept, has no line; and the kept build is the build from scratch.
+///
+/// Seen red 2026-11-21 with the rows' basket words never filled (the field there, left ""): "a
+/// radish crop's row says what the basket keeps toward the next radish".
+#[test]
+fn the_basket_line_names_the_grams_kept_on_every_crop_of_that_produce() {
+    let (data, mut world, mut sys) = garden(3600.0);
+    frame(&data, &mut world, &mut sys, 1.0);
+    let mut basket = farming::basket::HarvestBasket::default();
+    assert_eq!(basket.add(RADISH, 112.0 / 300.0), 0, "112 g of a 300 g bunch makes no whole one");
+    world.spawn((humanity_core::ecs::components::Controllable, basket));
+    let mut page = Page::default();
+    let kept = page.kept(&world, &data);
+    let radish: Vec<&GuiCrop> = page.crops.iter().filter(|c| c.name == "Radish").collect();
+    let areas: std::collections::HashSet<_> = radish.iter().map(|c| c.tower_id.clone()).collect();
+    assert!(areas.len() >= 2, "radish grows in several areas of the garden: {areas:?}");
+    for c in &radish {
+        assert_eq!(c.kept, "112 g of 300 g kept toward the next radish", "a radish crop's row says what the basket keeps toward the next radish ({:?})", c.tower_id);
+    }
+    let others: Vec<&GuiCrop> = page.crops.iter().filter(|c| c.name != "Radish").collect();
+    assert!(others.len() > 10, "and other produce grows there too");
+    for c in &others {
+        assert!(c.kept.is_empty(), "a {} crop, with nothing of its produce kept, has no basket line: {:?}", c.name, c.kept);
+    }
     let fresh = scratch(&world, &data);
     assert!(kept == fresh, "and the page is the page from scratch{}", first_difference(&kept, &fresh));
 }

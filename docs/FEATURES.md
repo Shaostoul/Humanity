@@ -4341,7 +4341,9 @@ Picking Forgiving/Realistic. The harvest basket (2026-11-21, BUG-339): a harvest
 is never rounded; what falls short of a whole item (a radish cup's 4 g of a 300 g bunch)
 is kept on the player per produce and added to the next harvest of it, saved in the home
 save, and each harvest press says what it picked and what is kept
-(`farming/basket.rs`, `WorldSave::harvest_basket`). Grow machine cards show kcal a day computed from their
+(`farming/basket.rs`, `WorldSave::harvest_basket`). The Garden card's "Basket" row says it too, for
+every crop of that produce ("112 g of 300 g kept toward the next radish", `GuiCrop::kept`, made in
+`engine/garden_mirror.rs`; native only: the website shows no crop card). Grow machine cards show kcal a day computed from their
 crops (`systems/grow_machines.rs`), the same figure the Home page's food loop sums.
 Each bed, tray or field plot is drawn with the plants it holds at the crop's spacing, up
 to 128 per plot and then as wider clumps, within a per-plot vertex budget
@@ -4963,7 +4965,7 @@ carry their stages. The headless soak's routine report lists each try at a skill
 `scripts/tests/skills-practice-web.test.js`.
 
 Before rung 1: 20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `crates/humanity-systems/src/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
-- Native: `crates/humanity-systems/src/skills/mod.rs`, `crates/humanity-systems/src/skills/quality.rs`, `src/engine/practice_view.rs`
+- Native: `crates/humanity-systems/src/skills/mod.rs`, `crates/humanity-systems/src/skills/quality.rs`, `src/engine/practice_view.rs`, `src/engine/skills_mirror.rs` (the rows the Skills section and the Crafting page read, built only on a frame that draws one of them and kept while the player's skills, the skill data and the language hold, 2026-11-21)
 - Data: `data/skills/skills.csv`, `data/skills/families.json`, `data/skills/stages.json`, `data/skills/practice.json`, `data/skills/xp_curve.json`, `data/skills/practice_quality.json`, `data/skills/guides.json`
 
 ### AI Behaviors

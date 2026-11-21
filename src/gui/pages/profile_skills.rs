@@ -5,8 +5,9 @@
 //! its named stage in words ("Baking: Novice, level 2"), what the person can do at the stages they
 //! have reached ("I can ..."), what the next stage asks, and a bar from this stage to the next. The
 //! numbers stay underneath; the words lead (the ELI5 mandate). Every word is a key of
-//! data/i18n/en.json; the rows come from `GuiState::skills`, which src/engine/frame_mirrors.rs fills
-//! from the SkillRegistry each frame. The web mirror is the Skills tab of web/pages/profile.html.
+//! data/i18n/en.json; the rows come from `GuiState::skills`, which src/engine/skills_mirror.rs fills
+//! from the SkillRegistry on the frames that draw them. The web mirror is the Skills tab of
+//! web/pages/profile.html.
 
 use egui::RichText;
 use humanity_core::i18n::{t, t_dyn, tf};

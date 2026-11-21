@@ -309,6 +309,9 @@ pub mod frame_settles;
 pub mod frame_mirrors;
 /// Practice quality between the skills and the screen (skills rung 2).
 pub(crate) mod practice_view;
+/// The skill rows the Skills section and the Crafting page read, built only on a frame that draws
+/// one of them and kept while nothing they are made from moved (2026-11-21).
+pub(crate) mod skills_mirror;
 pub mod frame_mirrors_world;
 pub mod frame_lists_world;
 pub mod frame_env_publish;

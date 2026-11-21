@@ -97,9 +97,13 @@ pub(crate) fn run(state: &mut EngineState) {
     }
 
     state.gui_state.practice.reading = Some(q.reading.clone());
-    // The Skills page's words only while the Profile page is drawn (here or on a wall screen):
-    // the HUD's teacher line below is the only part every frame needs.
-    let page_open = crate::engine::screens::page_drawn(state.gui_state.active_page, &state.screens.framed_pages, crate::gui::GuiPage::Profile);
+    // The Skills section's words only while the sheet is drawn (here or on a wall screen): the HUD's
+    // teacher line below is the only part every frame needs. The sheet's own rule
+    // (skills_mirror::sheet_drawn, 2026-11-21): this asked for the Profile page, which the main
+    // screen draws as the Real page from its first frame on (frame_ui_run.rs), so the main screen's
+    // Skills section never had these words.
+    let gs = &state.gui_state;
+    let page_open = crate::engine::skills_mirror::sheet_drawn(gs.active_page, &state.screens.framed_pages, &gs.active_real_section, gs.profile_section);
     if page_open {
         state.gui_state.practice.rules = crate::gui::pages::profile_skills::rule_lines(&rules);
     }

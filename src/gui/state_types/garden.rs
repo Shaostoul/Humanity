@@ -146,4 +146,9 @@ pub struct GuiCrop {
     /// 0: not worked out (a row made by hand, in a test or a snapshot), and the page works it
     /// out itself.
     pub tile_key: u64,
+    /// Its "Basket" card row (2026-11-21, farming/basket.rs): what the player's harvest basket
+    /// keeps toward the next whole item of this crop's produce ("112 g of 300 g kept toward the
+    /// next radish"); "" = nothing kept. Worked out apart from the kept rows, like the light and the
+    /// air: the basket is the player's, shared by every area growing that produce.
+    pub kept: String,
 }

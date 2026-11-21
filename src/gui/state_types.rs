@@ -806,7 +806,7 @@ pub struct GuiDrone {
 }
 
 /// A player skill (level, XP, its named stage) for the Skills page, built by GuiSkill::from_def
-/// (pages/profile_skills.rs) each frame in src/engine/frame_mirrors.rs. No top level.
+/// (pages/profile_skills.rs) in src/engine/skills_mirror.rs on the frames that show it. No top level.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
 pub struct GuiSkill {

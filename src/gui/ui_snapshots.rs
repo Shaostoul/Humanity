@@ -4579,6 +4579,78 @@ fn snapshot_garden_modal_soil() {
     });
 }
 
+/// The Garden card of a crop whose produce the harvest basket keeps grams of (2026-11-21,
+/// farming/basket.rs): its "Basket" row says how much in words. One tower of two slots (a radish
+/// with 112 g of a 300 g bunch kept, a lettuce with nothing), the radish's card open. The picture
+/// is refused when the basket line is not drawn.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_inventory_garden_card() {
+    const LINE: &str = "112 g of 300 g kept toward the next radish";
+    render_page_png_checked(
+        "inventory_garden_card",
+        1280,
+        900,
+        crate::gui::font_size::DEFAULT_PERCENT,
+        |ctx, theme, state| {
+            if state.tower_configs.first().map(|c| c.id.as_str()) != Some("kitchen_tower") {
+                let mut s = GuiState::default();
+                s.trees_start_collapsed = false;
+                let cfg: crate::gui::TowerConfig = serde_json::from_value(serde_json::json!({
+                    "id": "kitchen_tower", "name": "Kitchen tower", "slots": 2,
+                    "plantings": [
+                        { "plant": "radish", "slots": 1, "role": "Root crop", "note": "Pull at about 25 days." },
+                        { "plant": "lettuce", "slots": 1, "role": "Greens", "note": "" },
+                    ],
+                }))
+                .expect("a tower design");
+                s.tower_configs.push(cfg);
+                for (k, (name, stage, kept)) in [("Radish", "root_swell", LINE), ("Lettuce", "rosette", "")].into_iter().enumerate() {
+                    s.crops.push(GuiCrop {
+                        entity_bits: 9000 + k as u64,
+                        name: name.into(),
+                        stage: stage.into(),
+                        progress: 0.75,
+                        water: 0.8,
+                        health: 96.0,
+                        season_health: 0.94,
+                        plants: 1,
+                        n: 2.1,
+                        p: 0.9,
+                        k: 3.4,
+                        water_per_day: 0.05,
+                        temp_min: 8.0,
+                        temp_max: 24.0,
+                        light: "Grow lights".into(),
+                        soil: [1.2, 0.5, 1.8],
+                        need: [0.6, 0.2, 0.7],
+                        tower_id: Some("kitchen_tower".into()),
+                        tower_slot: Some(k as u32),
+                        kept: kept.into(),
+                        ..Default::default()
+                    });
+                }
+                *state = s;
+            }
+            // The radish's slot selected, as a click on its tile leaves it.
+            ctx.data_mut(|d| d.insert_temp(egui::Id::new(("garden_sel_slot", 0usize)), Some(0usize)));
+            crate::gui::pages::inventory::test_close_garden_edit();
+            let mut acts = crate::gui::pages::inventory::GardenActions::default();
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding))
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        crate::gui::pages::inventory::draw_garden_section(ui, theme, state, None, true, &mut acts);
+                    });
+                });
+        },
+        |_, out| match crate::gui::screen_surface::find_text_in_shapes(&out.shapes, LINE) {
+            Some(_) => Ok(()),
+            None => Err(format!("the radish's card does not show its basket line {LINE:?}")),
+        },
+    );
+}
+
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_mining_modal() {

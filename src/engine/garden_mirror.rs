@@ -43,6 +43,11 @@
 //! words changed. What the air lines and the home's air say, and the hives' lines (their colonies
 //! age on the air's turn), are made every build: a line per area or per hive, never per crop.
 //!
+//! The card's "Basket" row (2026-11-21, farming/basket.rs) reads the player's harvest basket, which
+//! a harvest in ANY area fills, so it is kept apart the same way: the basket is read whole every
+//! build (one entry per produce with grams kept), and an area's words are made again, once per
+//! species there, only when the basket or the global key moved.
+//!
 //! Each crop's slot tile key for the page's skipping of rows off screen (gui/widgets/offscreen.rs)
 //! is worked out with its row (`GuiCrop::tile_key`), so the page no longer hashes every tile of
 //! every open group every frame.
@@ -154,6 +159,9 @@ struct Area {
     light: Option<(u64, [String; 2])>,
     /// The air's words for each species, and the key they were made under.
     air: Option<(u64, Vec<String>)>,
+    /// The basket's words for each species (what the player's harvest basket keeps toward the
+    /// next whole item of its produce), and the key they were made under.
+    kept: Option<(u64, Vec<String>)>,
 }
 
 thread_local! {
@@ -439,6 +447,7 @@ pub(crate) fn build(
             a.living_crops.clear();
             a.light = None;
             a.air = None;
+            a.kept = None;
             for (k, &entity) in a.crops.iter().enumerate() {
                 let Ok(mut q) = world.query_one::<(&CropInstance, Option<&CropSoil>)>(entity) else { continue };
                 let Some((crop, soil)) = q.get() else { continue };
@@ -512,6 +521,8 @@ pub(crate) fn build(
                     humidity: String::new(),
                     weeds: weed_view.crop_row(crop, def),
                     tile_key: 0,
+                    // The basket's words come below, from the player's basket.
+                    kept: String::new(),
                 };
                 row.tile_key = crate::gui::pages::inventory::crop_tile_key(&row, &outlook_row.tile);
                 out.outlook.insert(bits, outlook_row);
@@ -560,6 +571,33 @@ pub(crate) fn build(
     };
     let air = humidity::GuiView::with_areas(world, data, tags);
     let air_severity = air.severity();
+    // The basket (2026-11-21, farming/basket.rs): the player's, filled by a harvest in any area, so
+    // read whole every build (a handful of entries) and keyed with what its words read.
+    let item_reg = data.get::<ItemRegistry>("item_registry");
+    let basket = farming::basket::of_player(world);
+    let basket_key = {
+        let mut h = KeyHasher::default();
+        for (item, part) in &basket.toward {
+            h.write(item.as_bytes());
+            h.write_u8(0xff);
+            h.write_u64(part.to_bits());
+        }
+        h.write_u64(global);
+        h.finish()
+    };
+    let kept_words = |species: &str| -> String {
+        let Some(item) = farming::harvest_item_for(species, plant_reg, item_reg) else { return String::new() };
+        let part = basket.toward(&item);
+        if !(part > 0.0) {
+            return String::new();
+        }
+        let kg = item_reg.map_or(0.0, |r| f64::from(r.mass_for(&item)));
+        let name = item_reg.and_then(|r| r.items.get(&item)).map_or_else(|| item.replace('_', " "), |d| d.name.to_lowercase());
+        humanity_core::i18n::tf(
+            "inventory.garden_kept",
+            &[("toward", &farming::basket::amount_words(part, kg)), ("whole", &farming::basket::amount_words(1.0, kg)), ("name", &name)],
+        )
+    };
     for (i, a) in rows.areas.iter_mut().enumerate() {
         if a.crops.is_empty() {
             continue;
@@ -605,6 +643,18 @@ pub(crate) fn build(
                 }
             }
             a.air = Some((air_key, words));
+        }
+        // The basket: what it keeps toward the next whole item of each species' produce, made once
+        // per species, for an area whose key moved.
+        if fresh || !reuse || a.kept.as_ref().map_or(true, |(k, _)| *k != basket_key) {
+            let words: Vec<String> = a.species.iter().map(|s| kept_words(s)).collect();
+            for (row, (species, _)) in rows_here.iter_mut().zip(&a.kinds) {
+                let w = &words[*species];
+                if row.kept != *w {
+                    row.kept = w.clone();
+                }
+            }
+            a.kept = Some((basket_key, words));
         }
     }
 

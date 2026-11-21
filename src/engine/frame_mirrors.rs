@@ -90,37 +90,10 @@ pub(crate) fn run(state: &mut EngineState) {
         }
     }
     humanity_core::frame_costs::span("cpu.span.mirror_skills");
-    // Bridge player skills (live levels + XP) from ECS for the profile
-    // Skills panel. Reads SkillRegistry for the display name + the
-    // per-level XP curve (xp_needed = XP to reach the next level).
-    {
-        let skill_reg = state
-            .data_store
-            .get::<SkillRegistry>("skill_registry");
-        state.gui_state.skills.clear();
-        if let Some(reg) = skill_reg {
-            for (_e, (skills, _ctrl)) in state
-                .game_world
-                .world
-                .query::<(&PlayerSkills, &Controllable)>()
-                .iter()
-            {
-                // Show EVERY defined skill with the player's progress (0 if untrained): a complete,
-                // real skill sheet, each with its named stage, its "I can" list and the progress to
-                // the next stage (skills rung 1), in family order, then by name.
-                for (id, def) in reg.skills.iter() {
-                    let prog = skills.skills.get(id);
-                    let level = prog.map(|p| p.level).unwrap_or(0);
-                    let xp = prog.map(|p| p.xp).unwrap_or(0);
-                    state.gui_state.skills.push(crate::gui::GuiSkill::from_def(def, reg, level, xp));
-                }
-                state.gui_state.skills.sort_by(|a, b| {
-                    a.family_order.cmp(&b.family_order).then(a.name.cmp(&b.name))
-                });
-                break;
-            }
-        }
-    }
+    // The player's skills (live levels and XP) for the Skills section and the Crafting page: built
+    // only on a frame that draws one of them, and then only when the skills, the skill data or the
+    // language moved (engine/skills_mirror.rs, 2026-11-21; it was every skill on every frame).
+    crate::engine::skills_mirror::run(state);
     // Practice quality (skills rung 2): the level, the teachers near, a guide read, the words.
     crate::engine::practice_view::run(state);
     humanity_core::frame_costs::span("cpu.span.mirror_quests");

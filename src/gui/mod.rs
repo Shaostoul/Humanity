@@ -1439,8 +1439,8 @@ pub struct GuiState {
     pub factory_status: Vec<String>,
 
     // ── Skills / progression state ──
-    /// Player skills (live level + XP), synced from the ECS PlayerSkills each
-    /// frame for the profile Skills panel. Empty until the first XP is earned.
+    /// Every skill with the player's level and XP, for the Skills section and the Crafting page:
+    /// built from PlayerSkills only on a frame that draws one of them (engine/skills_mirror.rs).
     pub skills: Vec<GuiSkill>,
     /// Practice quality in words (skills rung 2): the rules, the HUD's teacher lines, a guide read.
     pub practice: crate::gui::state_types::PracticeGui,

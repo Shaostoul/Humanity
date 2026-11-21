@@ -554,6 +554,19 @@ more than 4 ms over the average):
   crop before its own guard; publish a crop-change counter from FarmingSystem instead.
 - **S5. Page mirrors rebuilt for pages that are not open** (skills 12673, abilities 12336, machine
   card stats 13756, `publish_home_stock` triple clone, `herd_rows` 6682): gate on visibility.
+  **Skills DONE 2026-11-21 (engine/skills_mirror.rs).** By then the sheet had grown to 90 skills,
+  each with its stages and "I can" lists, rebuilt and sorted on every frame (`cpu.span.mirror_skills`,
+  seen at 504 ms in one page frame of a loaded startup check). The rows are now built only on a
+  frame that draws the Skills section or the Crafting page, and on such a frame only when the
+  player's skills (a fingerprint of the map, every level and XP), the skill data's stamp or the
+  language moved; the Dev page's "Turn off all reuse" builds them on every such frame. MEASURED
+  (`HUMANITY_FRAME_COSTS=1`, the home overview pose at noon, world frames with no page open; a page
+  open on the main screen pauses the cost file): before (v0.1568.0) 0.140 ms average, 0.268 ms worst
+  in the last 5 to 10 s; after 0.013 ms average, 0.037 ms worst (what is left is practice quality's
+  every-frame part: the learning level, the teachers near, the HUD's line). With the bedroom's
+  standing mirror showing the Skills section (a reader drawn on world frames): 0.074 ms average,
+  0.145 ms worst, nearly all of it practice quality writing each row's words while the sheet is
+  drawn (`GuiSkill::fill_practice`); the rows themselves are kept.
 - **S6. Dev IPC polls, 0.05-0.4 ms:** ~11 `Path::exists` per frame (ipc.rs:548); one `notify`
   watcher on `debug/` instead.
 

@@ -720,7 +720,9 @@ fn plant_id_from_seed(seed_id: &str) -> Option<String> {
 /// registry so a harvest only ever produces an item that actually exists. Tries
 /// the `vegetable_/fruit_/grain_` naming convention. (A `harvest_item` column on
 /// plants.csv would make this fully data-driven — tracked in gameplay-loops.md.)
-fn harvest_item_for(
+/// Public for the Garden card's basket line (engine/garden_mirror.rs, 2026-11-21): the item a
+/// crop's harvest fills the basket with.
+pub fn harvest_item_for(
     plant_id: &str,
     plants: Option<&PlantRegistry>,
     items: Option<&crate::inventory::ItemRegistry>,

@@ -282,7 +282,8 @@ fn frame_src() -> String {
     let mut src = src_file("lib.rs");
     // The startup's simulation, built without the GPU (2026-11-15): the DataStore's slots are made there.
     // And the engine's boot, moved out of lib.rs `resumed` (increment 4, 2026-11-15).
-    for sim in ["engine/sim_boot.rs", "engine/world_sim.rs", "engine/engine_boot.rs"] {
+    // And the skill rows the frame's mirror stage builds (frame_mirrors.rs calls it, 2026-11-21).
+    for sim in ["engine/sim_boot.rs", "engine/world_sim.rs", "engine/engine_boot.rs", "engine/skills_mirror.rs"] {
         src.push('\n');
         src.push_str(&src_file(sim));
     }
