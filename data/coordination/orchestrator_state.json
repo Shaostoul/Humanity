@@ -1607,6 +1607,11 @@
       "date": "2026-11-21",
       "decision": "Merged survival quest chains rung 1 (f3b8b2b90): eight survival quests, P1 joins, P2 tracked quest, P3 intake ledger, E1-E3, rewards to home storage when the pack is full, the Energy fixes renumbered BUG-360 to BUG-337 at merge (main's next number; pending branches renumber from main's end at their merges). Its questions: the radish cup (2.4-8.2 g against a 300 g item, about 1.6% of harvests yield anything) -> MY CALL: a harvest keeps its fractional yield toward the next item, never falsifying data (wk-harvestfrac.txt, domain-writer dispatched); the midnight-start first day of 22.5 hours awake -> nothing unless the operator sees it in play. Its rule slip noted: it rendered an offscreen snapshot while another HumanityOS.exe was running. NEXT GAME RUNGS dispatched: the arrival rungs 1 (Library pages The Fleet, Coming back as yourself, What is made up; glossary) and 2 (respawner pods, General Services, wake_at, the death screen's list) per game-setting-and-intro.md section 9 (wk-arrive1.txt).",
       "why": "Game work the operator asked for, in the design's own order."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Merged the page-frame gaps fix (706def65c, renumbered BUG-338 at merge): before-Play worst 3,050.6 ms to 41.3 ms (a settings save and the instrument list's first read on the frame), the Play card 606.8 ms (939 on one run) to 127 ms (build threads off the frame's core; the star sky's GPU memory held behind a compiles' gate because wgpu-hal 24 DX12 creates every buffer and texture under one allocator mutex shared with the frame's uploads), world ready after Play 10.2 s to 9.0 s; new judge rules incl. no page frame over 300 ms after the last while building. Batch since v0.1567.0 for today's second release: Music rung 3a, survival quests rung 1, the page-gaps fix, the lib-tests misfiling fix; waiting on Music composer (mus4b), harvest fractions, arrival rungs 1-2, and the owner (round 4) and signed requests (round 2) security branches, each with a review before merge.",
+      "why": "Release batching."
     }
   ],
   "active_scopes_to_avoid": [
