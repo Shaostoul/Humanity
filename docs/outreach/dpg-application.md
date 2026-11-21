@@ -1,6 +1,6 @@
 # Digital Public Goods application: the evidence, indicator by indicator
 
-**Prepared 2026-11-20. Not submitted.** The Digital Public Goods Alliance (DPGA) takes an
+**Prepared 2026-11-20. Filled in on the DPGA form on 2026-11-20, saved, NOT submitted**: the operator waits until the current work lands. Before submitting, update these fields on the form: **9b** (the sentence "It needs the server's owner to be set, which is still done on the server itself" changes once the owner claim code ships); **the general page's Solution type** and **indicator 4** (add the mobile app once an APK is published on a release). The Digital Public Goods Alliance (DPGA) takes an
 application only from a person authorised to speak for the project, so the operator submits it.
 This file holds everything the application form asks, the evidence a reviewer can open for each
 answer, and an answer for each field written so a reviewer can check it in under a minute. Why we
