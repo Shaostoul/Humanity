@@ -66,9 +66,9 @@ that are both the maintainer's, and no other organisation uses it yet. The answe
 - 5: submit soon, "maybe today or this weekend", after a few things are wrapped up.
 - 1 and 2: he asked for advice. Given: the answers (which are published) carry the copyright line's
   name, "Shaostoul and the HumanityOS contributors"; the private submitter fields may carry his legal
-  name, which the DPGA says it keeps private. For the type of organisation, the question list does not
-  publish the form's choices: pick the one nearest an individual or community project, never a
-  company or a nonprofit (none is registered, and the website says so). Where the owner is based: the
+  name, which the DPGA says it keeps private. For the type of organisation, the form's choices (seen 2026-11-20) are Academic, NGO/Non
+  Profit, Multilateral, Government, Private and Other: **Other** (no nonprofit is registered, and
+  Private reads as a company). Where the owner is based: the
   United States.
 - 9c: a project-wide [CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md) (2026-11-20) applies the rules of
   united-humanity.us to the GitHub repository and the Discord, names harassment and says how to report
