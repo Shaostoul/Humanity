@@ -47,6 +47,15 @@ Each line is written the way a player would hear it; the release notes and
 - The phone app keeps your key in Android's own key store, sealed by a key the phone's secure hardware never lets out, and can stay connected to chat while closed, with notices hidden on a locked phone.
 - The Music page is rebuilt: a Now playing strip with Like, a mixer with Mute, Solo and real level meters, 20-second previews from the genre and mood cards, the pieces you heard kept with Clear, click a bar to play from there, and save or open MIDI and MEI music files.
 
+### v0.1568.0 (21 November 2026)
+
+- A new homestead offers eight survival quests that teach real skills: drinking enough water, eating enough, sleeping, clean hands, first aid with oral rehydration salts, and growing and eating your own lettuce. Every figure a quest teaches names its source.
+- Energy no longer drains while you sleep, and a normal day ends tired but not fatigued.
+- Every gram you harvest counts: a harvest smaller than one item is kept toward the next, so a radish grower gets radishes.
+- The Music page plays any piece as retro FM synth, solo piano or (for MIDI files) the instruments the file asks for; swing, intensity and A = 432 / 440 are on the page; composed pieces are planned as a whole, with a build, a climax and the theme's return, in lengths up to 60 minutes.
+- The desktop's pages no longer stall before Play, and the progress card while the 3D world is prepared stays smooth.
+- Text sent by a server or another person can no longer crash the app or a server's connection handler.
+
 ### Next release
 
 

@@ -1647,6 +1647,11 @@
       "date": "2026-11-21",
       "decision": "Merged the composer's seekable pieces and long arc (233712b18; eight engine music tests that could never pass fixed, the phone roll's letters, the Written search row) and the text-cut fix (bbb5ad530, BUG-340: humanity_core::text, every counted string cut moved, tests/text_cut_lint.rs; remote-reachable crashes closed on the desktop and the relay, e.g. the first 200 bytes of any malformed message on the relay). Combined trees checked native + relay + lints before each commit. Starting today's second release (v0.1568) with: lib-tests fix, Music rung 3a, survival quests, page-frame gaps, harvest basket, composer, text-cut. Not in it: arrival rungs 1-2 (running), owner round 5 (gates running, then a fifth review), signed requests round 3 (running). Pending BUG numbers renumber from main's end (340) at their merges.",
       "why": "The batch includes remote-crash fixes; ship them."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "v0.1568.0 RELEASED and delivered (the second release of 2026-11-21): survival quests rung 1, the harvest basket, Music rung 3a and the composer's seekable long arc, the page-frame gap fixes, the text-cut crash fixes, the lib-tests misfiling fix. Checks on the release exe: verify-runtime 3/3 panics 0; verify-phone-start failed its new 300 ms rule once under heavy compile load (background: mirror_skills 504 ms; play_during: world_passes 440 ms) and PASSED on a re-run of those two boots (worst 280 ms, different stages): load, but the rule is borderline on a loaded machine; lints; rig-tests 2,024; test-lib passed with two flakes logged (a music timing budget; the harvest basket save test comparing f64 exactly across serde_json, whose default float parsing is not exactly round-trip: test fixed after tagging to a 1e-12 tolerance). Follow-up noted: frame_mirrors rebuilds all 90 skills' GUI rows every frame (gate it to frames that draw the Skills page or rebuild on change, like the Garden mirror).",
+      "why": "Release record."
     }
   ],
   "active_scopes_to_avoid": [

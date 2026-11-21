@@ -141,8 +141,12 @@ fn a_settle_between_a_load_and_the_farms_next_tick_advances_nothing() {
 /// THE HARVEST BASKET SURVIVES A SAVE AND A LOAD (2026-11-21, farming::basket). A radish cup picks
 /// 0.0079 to 0.0273 of a 300 g Radish: no whole Radish, the grams kept in the player's basket. The
 /// game's own save writes them (`save_home_at`), and the game's own load puts them back on a
-/// player spawned the way the game spawns one (`spawn_fresh_player`, `apply_save_to_world`), to
-/// the bit; the next cup harvested there adds to them. A fresh save loaded over a player holding
+/// player spawned the way the game spawns one (`spawn_fresh_player`, `apply_save_to_world`),
+/// within 1e-12 of an item; the next cup harvested there adds to them. Not to the bit: the save is
+/// JSON, and serde_json's default float parsing can land one unit in the last place away from the
+/// f64 it wrote, depending on the random harvest's value, so an exact compare failed about one run
+/// in several (logged FLAKY 2026-11-21: "0.010632411080340852 saved" against the kept value one
+/// unit away; harmless in play, 1e-17 of a 300 g bunch). A fresh save loaded over a player holding
 /// grams empties the basket, as it empties the pack: two worlds' produce never mix.
 ///
 /// Seen red 2026-11-21 with the save not writing the basket (`extract_world_save` without its
@@ -184,13 +188,14 @@ fn the_harvest_basket_survives_a_save_and_a_load() {
     let path = root.join("saves").join(persistence::OFFLINE_SAVE_FILE);
     save_home_at(&path, &world, &[], &data, true, None);
     let saved = persistence::load_world(&path).expect("the save reads back");
-    assert_eq!(saved.harvest_basket.toward(RADISH), kept, "the save carries the kept grams: {} saved", saved.harvest_basket.toward(RADISH));
+    let close = |a: f64, b: f64| (a - b).abs() < 1e-12;
+    assert!(close(saved.harvest_basket.toward(RADISH), kept), "the save carries the kept grams: {} saved, {kept} kept", saved.harvest_basket.toward(RADISH));
 
     // The load, onto a player as the game spawns one.
     let mut world2 = hecs::World::new();
     spawn_fresh_player(&mut world2, &data_dir, "homestead");
     apply_save_to_world(&mut world2, &saved);
-    assert_eq!(basket::of_player(&world2).toward(RADISH), kept, "the load puts the grams back on the player");
+    assert!(close(basket::of_player(&world2).toward(RADISH), kept), "the load puts the grams back on the player: {} against {kept}", basket::of_player(&world2).toward(RADISH));
     // And they count toward the next harvest there.
     let mut sys2 = FarmingSystem::new();
     let cup2 = world2.spawn((radish(),));
