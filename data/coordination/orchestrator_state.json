@@ -1682,6 +1682,11 @@
       "date": "2026-11-21",
       "decision": "Operator report on v0.1568.0: 'I can't seem to play the procedural music any more. I can click play 20 seconds but, then it seems to switch back to the sheet music.' Cause read: settings.music.written persists once a written piece is chosen, and only Stop on that piece (Written tab) or Play again on a composed piece in the heard list clears it; genre and mood cards only change the genre and mood, and the 20-second audition returns to what was playing (the written piece). Workaround given: Written music tab > Stop on the playing piece. Fix dispatched (wk-musicback.txt): choosing composed music anywhere (a genre or mood card, a new seed, a favourite) switches to it, the strip gets a back-to-composed control, the Listen tab says which kind plays.",
       "why": "An operator-reported defect in a shipped feature."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Merged cooking rung 1 (b5241dfb1): heat, time and doneness by a model of the food's inside heating; safety by CDC/FDA figures (poultry 74 C, fish 63 C, eggs 71 C, beans 30 min at a full boil); Simplified (default), Guided and Realistic (thermometer needed) levels; unsafe dishes keep their risk, burnt ones are lost, overcooking costs vitamins via USDA retention factors; meal quality acted on; Cook It Through; the refutation pass refuted nothing and corrected eleven wordings (finding 2026-11-21-cooking-safety-facts). BUG-342 open (Fry Egg and Make Pancakes make bread). My call on its question 2: beans simmered below a full boil stay unsafe (cautious, labelled as the game's choice). Its question 1 is the operator's (game pacing): should a dish take its real cooking time on the game clock at 1x (rice about 24 minutes), able to burn if forgotten (recommended, rung 2)? Asked.",
+      "why": "Game work in the activities order."
     }
   ],
   "active_scopes_to_avoid": [
