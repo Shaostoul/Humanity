@@ -40,6 +40,7 @@ Each line is written the way a player would hear it; the release notes and
 ### Next release
 
 - The servers' database library is updated, closing a published security flaw in it; the server program also got smaller by dropping two pieces it never used.
+- The desktop app shows emoji as the same OpenMoji pictures the website does, in messages, reactions and the reaction picker.
 
 ### Outreach
 
