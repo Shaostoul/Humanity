@@ -121,7 +121,7 @@ fn unicode_17_emoji_in_the_pack_are_pictures() {
 /// A stand-in for rung 2: every picture is the one solid square drawn here.
 struct StandIn(TextureId);
 impl EmojiPictures for StandIn {
-    fn picture(&self, _set: &str, _file: &str, _px: u32) -> Option<TextureId> {
+    fn picture(&self, _set: &str, _file: &str, _px: u32, _outline: super::outline::Outline) -> Option<TextureId> {
         Some(self.0)
     }
 }
@@ -129,7 +129,7 @@ impl EmojiPictures for StandIn {
 /// Rung 2 before it can draw anything: no picture for any emoji.
 struct NoPictures;
 impl EmojiPictures for NoPictures {
-    fn picture(&self, _set: &str, _file: &str, _px: u32) -> Option<TextureId> {
+    fn picture(&self, _set: &str, _file: &str, _px: u32, _outline: super::outline::Outline) -> Option<TextureId> {
         None
     }
 }

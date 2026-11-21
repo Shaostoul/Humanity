@@ -182,6 +182,13 @@ function buildCss(tokens) {
   lines.push(`  --inspect-box: ${c('inspect_box')};`);
   lines.push(`  --inspect-collision: ${c('inspect_collision')};`);
   lines.push('');
+  lines.push('  /* Emoji pictures (docs/design/emoji.md): the faint light outline round each one, so');
+  lines.push('     OpenMoji\'s black lines still show on a dark ground; its colour and its width in px');
+  lines.push('     (0 is off). web/shared/emoji.js builds the outline\'s SVG filter from these two;');
+  lines.push('     the desktop draws the same outline into each picture (widgets/emoji/outline.rs). */');
+  lines.push(`  --emoji-outline: ${c('emoji_outline')};`);
+  lines.push(`  --emoji-outline-width: ${n(t.emoji_outline_width, 0)}px;`);
+  lines.push('');
   lines.push('  /* Radii */');
   lines.push(`  --radius-sm: ${n(t.border_radius_widget, 3)}px;`);
   lines.push(`  --radius: ${n(t.border_radius, 4)}px;`);
@@ -412,19 +419,39 @@ const LIGHT = {
   '--inspect-bounds': 'rgba(40, 40, 52, 0.8)',
   '--inspect-box': '#8a6100',
   '--inspect-collision': 'rgba(0, 120, 128, 0.9)',
+  // The emoji outline is for dark grounds; on a light page OpenMoji's own black lines already
+  // read, so the light theme turns it off by its width (LIGHT_OTHER below) and keeps the colour.
+  '--emoji-outline': 'same',
+};
+
+// The light theme's values for variables that are not colours (a width, a size). Each must be
+// a variable the :root block defines, or the generator stops, as for LIGHT.
+const LIGHT_OTHER = {
+  // Off on a light page (docs/design/emoji.md): the outline helps only where the ground is dark.
+  '--emoji-outline-width': '0px',
 };
 
 /** Emit the light block, refusing to run if it does not cover every colour
  *  variable the :root block defines (or names one that no longer exists). */
-function buildLight(rootLines, light = LIGHT) {
+function buildLight(rootLines, light = LIGHT, other = LIGHT_OTHER) {
   const colourVars = [];
+  const allVars = [];
   for (const line of rootLines) {
     // A trailing /* comment */ is allowed (the theme-exempt note on --map-space).
     const m = /^\s*(--[\w-]+):\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\));\s*(\/\*.*\*\/)?\s*$/.exec(line);
     if (m) colourVars.push(m[1]);
+    const any = /^\s*(--[\w-]+):/.exec(line);
+    if (any) allVars.push(any[1]);
   }
   const missing = colourVars.filter((v) => !(v in light));
   const stale = Object.keys(light).filter((v) => !colourVars.includes(v));
+  const staleOther = Object.keys(other).filter((v) => !allVars.includes(v) || colourVars.includes(v));
+  if (staleOther.length) {
+    throw new Error(
+      'gen-theme-css: LIGHT_OTHER names a variable :root does not define, or a colour (colours go in LIGHT): ' +
+      staleOther.join(', ')
+    );
+  }
   if (missing.length || stale.length) {
     throw new Error(
       'gen-theme-css: the LIGHT palette must cover every colour variable exactly.\n' +
@@ -443,6 +470,9 @@ function buildLight(rootLines, light = LIGHT) {
   for (const v of colourVars) {
     if (light[v] === 'same') continue;
     out.push(`  ${v}: ${light[v]};`);
+  }
+  for (const v of allVars) {
+    if (v in other) out.push(`  ${v}: ${other[v]};`);
   }
   out.push('}');
   return out;
@@ -501,4 +531,4 @@ function main() {
 // Run when called as a script; scripts/tests/web-theme-light.test.js requires it
 // to check theme.css against it and to see the light-coverage rule refuse.
 if (require.main === module) main();
-module.exports = { parseTheme, buildCss, buildLight, LIGHT, BEGIN, END, RON_PATH, CSS_PATH };
+module.exports = { parseTheme, buildCss, buildLight, LIGHT, LIGHT_OTHER, BEGIN, END, RON_PATH, CSS_PATH };

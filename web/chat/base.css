@@ -69,3 +69,8 @@ img.emoji {
   vertical-align: -0.2em;
   display: inline-block;
 }
+/* The outline on a dark theme (docs/design/emoji.md "The outline"): emoji.js builds the filter
+   from the theme's --emoji-outline and --emoji-outline-width and marks <html> while it is on (the
+   light theme's width is 0, so it is off there). The filter's own <svg> takes no room. */
+html[data-emoji-outline] img.emoji { filter: url(#hos-emoji-outline); }
+svg.hos-emoji-filters { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }

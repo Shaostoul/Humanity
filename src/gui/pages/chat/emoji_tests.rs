@@ -126,3 +126,84 @@ fn the_all_reactions_panel_draws_pictures_and_carries_the_credit() {
     let texts = crate::gui::pages::chat::inline_video::tests::texts_of(&out);
     assert!(!texts.iter().any(|t| t == humanity_core::i18n::t("emoji.credit_openmoji")), "pictures that are not the pack's owe OpenMoji no credit");
 }
+
+/// One frame of the app as the engine draws it with the emoji drawn ahead (`warm::frame`, from the
+/// app's main frame), timed: (the whole frame in ms, the drawing-ahead's share in ms, its step).
+fn timed_frame(chat: &mut Chat, events: Vec<egui::Event>) -> (egui::FullOutput, f64, f64, emoji::warm::Step) {
+    let t0 = std::time::Instant::now();
+    let step = emoji::warm::frame_with(&chat.ctx, chat.theme.font_size_body, 0.0, true);
+    let ahead_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    let out = chat.frame(events);
+    (out, t0.elapsed().as_secs_f64() * 1000.0, ahead_ms, step)
+}
+
+/// THE ∞ PANEL'S FIRST OPENING DRAWS NO PICTURE ON THE FRAME, AND DRAWING AHEAD IS GRADUAL: with the
+/// shipped pack and theme (its outline), the frames after start-up hand the reaction pictures to the
+/// worker, which draws them one at a time, and each frame uploads at most `UPLOADS_PER_FRAME` of
+/// them; once all are ready, hovering the Þ and opening ∞ paints every reaction's picture with no
+/// picture drawn on any of those frames. Prints the worst frame and the worst drawing-ahead share
+/// while the worker runs, and the worst frame of the opening (the numbers in docs/design/emoji.md).
+///
+/// Seen red 2026-11-20 with the finished pictures never uploaded and never taken from the waiting
+/// list (what the app did before: every picture drawn when first shown): "the first opening drew
+/// 52 pictures on the frame (0 wanted)" (left: 52, right: 0).
+#[test]
+fn the_panels_first_opening_draws_no_picture_on_the_frame() {
+    let mut chat = Chat::new("chat_emoji_ahead", &["the beans are up"], 1280.0, 800.0);
+    chat.theme.apply_to_egui(&chat.ctx); // the theme's outline, as the engine's start-up gives it
+    let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("assets").join("emoji");
+    let pack = emoji::pack::pack_source(&chat.ctx, &dir).expect("the shipped pack installs");
+    let pictures = pack.pictures.as_pack().expect("the pack's pictures").clone();
+    let index = pack.index.clone();
+    emoji::install(&chat.ctx, Some(std::sync::Arc::new(pack)));
+    // The first frame lays the page out (egui's style settles); then the pictures wanted are known.
+    chat.frame(Vec::new());
+    let wanted = emoji::warm::reaction_pictures(&chat.ctx, &index, chat.theme.font_size_body, emoji::outline::tokens(&chat.ctx));
+    assert!(wanted.len() >= 40, "the palette's pictures at the quick row's and the panel's sizes ({})", wanted.len());
+    assert!(wanted.iter().all(|k| !k.outline.is_none()), "drawn with the theme's outline");
+
+    // While the worker draws: frames go on, each uploading a few.
+    let (mut worst, mut worst_ahead, mut most, mut frames) = (0f64, 0f64, 0usize, 0usize);
+    let started = std::time::Instant::now();
+    while !emoji::warm::all_ready(&pictures, &wanted) && started.elapsed().as_secs_f32() < 10.0 {
+        let (_, ms, ahead_ms, step) = timed_frame(&mut chat, Vec::new());
+        worst = worst.max(ms);
+        worst_ahead = worst_ahead.max(ahead_ms);
+        most = most.max(step.uploaded);
+        frames += 1;
+        std::thread::sleep(std::time::Duration::from_millis(8)); // about a 120 Hz frame
+    }
+    let ready = wanted.iter().filter(|k| pictures.is_kept(k, emoji::pack::pack_version())).count();
+    let drawn_while_ahead = pictures.drawn();
+    eprintln!("HALO-AHEAD while drawing ahead: {frames} frames over {:.0} ms, worst frame {worst:.1} ms, worst drawing-ahead share {worst_ahead:.2} ms, at most {most} uploads a frame, {} drawn by the worker, {ready} of {} ready", started.elapsed().as_secs_f64() * 1000.0, pictures.drawn_ahead(), wanted.len());
+
+    // The first opening: hover the Þ (the quick row), press ∞ (the panel).
+    let mut opening = Vec::new();
+    let (out, ms, _, _) = timed_frame(&mut chat, Vec::new());
+    opening.push(ms);
+    let thorn = find_text_in_shapes(&out.shapes, "Þ").expect("the pill's Þ is drawn").rect.center();
+    let (_, ms, _, _) = timed_frame(&mut chat, vec![egui::Event::PointerMoved(thorn)]);
+    opening.push(ms);
+    let (out, ms, _, _) = timed_frame(&mut chat, Vec::new());
+    opening.push(ms);
+    let inf = find_text_in_shapes(&out.shapes, "∞").expect("the popup offers ∞").rect.center();
+    let (_, ms, _, _) = timed_frame(&mut chat, vec![egui::Event::PointerMoved(inf)]);
+    opening.push(ms);
+    let m = egui::Modifiers::default();
+    let (_, ms, _, _) = timed_frame(&mut chat, vec![
+        egui::Event::PointerButton { pos: inf, button: egui::PointerButton::Primary, pressed: true, modifiers: m },
+        egui::Event::PointerButton { pos: inf, button: egui::PointerButton::Primary, pressed: false, modifiers: m },
+    ]);
+    opening.push(ms);
+    let (out, ms, _, _) = timed_frame(&mut chat, Vec::new());
+    opening.push(ms);
+    assert_eq!(pictures.drawn(), 0, "the first opening drew {} pictures on the frame (0 wanted)", pictures.drawn());
+    let painted = pictures_of(&out).len();
+    assert!(painted >= wanted.len(), "every reaction is a picture ({painted} painted, {} wanted)", wanted.len());
+    // And how it got there: the worker drew them all, a few uploads a frame, nothing drawn on one.
+    assert_eq!(ready, wanted.len(), "the worker drew the reaction pictures ahead ({ready} of {} ready after 10 s)", wanted.len());
+    assert!(most <= emoji::warm::UPLOADS_PER_FRAME, "at most {} uploads in a frame ({most})", emoji::warm::UPLOADS_PER_FRAME);
+    assert!(frames >= wanted.len() / emoji::warm::UPLOADS_PER_FRAME, "spread over frames, not one burst ({frames} frames for {})", wanted.len());
+    assert_eq!(drawn_while_ahead, 0, "nothing was drawn on a frame while the worker worked");
+    eprintln!("HALO-AHEAD first opening frames ms {:?}, worst {:.1} ms", opening.iter().map(|t| (t * 10.0).round() / 10.0).collect::<Vec<_>>(), opening.iter().cloned().fold(0.0, f64::max));
+}

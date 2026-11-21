@@ -21,6 +21,11 @@
 //     server (/assets/emoji/...): no request to any other site.
 //  4. The website: no page or script writes an image or script address on another site
 //     (src="https://..."), nothing calls Twemoji any more, and the chat loads /shared/emoji.js.
+//  5. The outline on a dark theme (2026-11-20, docs/design/emoji.md "The outline"): theme.css
+//     carries theme.ron's emoji_outline and emoji_outline_width (the light theme's width is 0),
+//     emoji.js builds its SVG filter from those two values (the alpha grown by the width, filled
+//     with the colour, the picture over it), base.css applies it to every picture, and switching
+//     to the light theme turns it off.
 //
 // HOS_WEB_DIR points it at another copy of web/ (used to see each test red).
 //
@@ -45,6 +50,12 @@
 //  - Test 2, 2026-11-20 (later): the bare red heart, as the reactions store it, got [text "❤"]: the
 //    old Twemoji (a9efb263f) drew U+2764 bare, its one text-by-default exception (every other one,
 //    206, needs U+FE0F), so the heart reaction had turned into a glyph. FIRST gained the exception.
+//  - Test 5, 2026-11-20 (the outline): before theme.ron had the tokens, "theme.ron has the
+//    outline's colour, emoji_outline"; on emoji.js as it was before the outline (HEAD's copy
+//    through HOS_WEB_DIR), "on a dark theme <html> says the outline is on"; with the filter's merge
+//    order swapped, "the picture is laid over its outline, not under it" (got SourceGraphic, then
+//    halo); with base.css's filter rule taken out, "base.css applies the filter to every emoji
+//    picture while it is on".
 
 "use strict";
 
@@ -157,19 +168,31 @@ class Node {
   }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+  removeAttribute(k) { delete this.attrs[k]; }
+  hasAttribute(k) { return k in this.attrs; }
   get textContent() {
     return this.nodeType === 3 ? this.nodeValue : this.childNodes.map((c) => c.textContent).join("");
   }
 }
-function makePage() {
+/** `style` is what getComputedStyle(<html>) answers: a map of custom properties to their text,
+ *  changeable by the test (the theme switching). */
+function makePage(style = {}) {
   const requests = [];
   let release;
   const indexArrives = new Promise((r) => { release = r; });
+  const documentElement = new Node(1, "HTML");
+  const body = new Node(1, "BODY");
+  documentElement.appendChild(body);
   const document = {
+    documentElement,
+    body,
+    readyState: "complete",
     createElement: (tag) => new Node(1, tag.toUpperCase()),
+    createElementNS: (ns, tag) => Object.assign(new Node(1, tag), { namespaceURI: ns }),
     createTextNode: (text) => Object.assign(new Node(3, "#text"), { nodeValue: text }),
     createDocumentFragment: () => new Node(11, "#document-fragment"),
   };
+  const getComputedStyle = (el) => ({ getPropertyValue: (k) => (el === documentElement && k in style ? style[k] : "") });
   const fetch = async (url) => {
     requests.push(url);
     await indexArrives;
@@ -177,7 +200,7 @@ function makePage() {
     return { ok: true, status: 200, json: async () => INDEX };
   };
   const window = {};
-  const ctx = vm.createContext({ window, document, fetch, console, module: undefined });
+  const ctx = vm.createContext({ window, document, fetch, getComputedStyle, console, module: undefined });
   const file = path.join(WEB, "shared", "emoji.js");
   vm.runInContext(fs.readFileSync(file, "utf8"), ctx, { filename: file });
   const el = (tag, ...kids) => {
@@ -185,8 +208,16 @@ function makePage() {
     for (const k of kids) e.appendChild(typeof k === "string" ? document.createTextNode(k) : k);
     return e;
   };
-  return { emoji: window.hosEmoji, document, el, requests, release };
+  return { emoji: window.hosEmoji, document, el, requests, release, style };
 }
+/** Every element under `node` named `name` (an SVG filter's parts keep their case). */
+const named = (node, name, out = []) => {
+  for (const c of node.childNodes) {
+    if (c.nodeName === name) out.push(c);
+    named(c, name, out);
+  }
+  return out;
+};
 const imgs = (node, out = []) => {
   for (const c of node.childNodes) {
     if (c.nodeName === "IMG") out.push(c);
@@ -252,4 +283,73 @@ test("4. the website: no address on another site for an image or script, no Twem
   assert.deepStrictEqual(offenders, []);
   const chat = fs.readFileSync(path.join(WEB, "chat", "index.html"), "utf8");
   assert.match(chat, /<script src="\/shared\/emoji\.js(\?v=\d+)?"><\/script>/, "the chat loads /shared/emoji.js");
+});
+
+test("5. the outline on a dark theme comes from the theme's two tokens, and the light theme has none", () => {
+  // The tokens: data/gui/theme.ron's emoji_outline and emoji_outline_width, the same ones the
+  // desktop draws into each picture (src/gui/widgets/emoji/outline.rs).
+  const GEN = require("../gen-theme-css.js");
+  const ron = GEN.parseTheme(fs.readFileSync(GEN.RON_PATH, "utf8"));
+  assert.ok(ron.emoji_outline && ron.emoji_outline.kind === "rgba", "theme.ron has the outline's colour, emoji_outline");
+  assert.ok(ron.emoji_outline_width && ron.emoji_outline_width.kind === "num", "theme.ron has the outline's width, emoji_outline_width");
+  assert.ok(ron.emoji_outline_width.value > 0 && ron.emoji_outline.a > 0, "the desktop's (dark) palette has the outline on");
+
+  // theme.css carries them: the dark :root block from theme.ron, and the light block turns it off.
+  const css = fs.readFileSync(path.join(WEB, "shared", "theme.css"), "utf8").replace(/\r\n/g, "\n");
+  const block = (sel) => {
+    const at = css.indexOf(sel + " {");
+    assert.ok(at >= 0, `theme.css has ${sel}`);
+    return css.slice(at, css.indexOf("\n}", at));
+  };
+  const value = (text, v) => {
+    const m = new RegExp("\\n\\s*" + v + ":\\s*([^;]+);").exec(text);
+    return m ? m[1].trim() : null;
+  };
+  const dark = block(":root");
+  const light = block(':root[data-theme="light"]');
+  const darkStyle = { "--emoji-outline": value(dark, "--emoji-outline"), "--emoji-outline-width": value(dark, "--emoji-outline-width") };
+  const t = ron.emoji_outline;
+  // The generator writes a see-through colour as rgba() and an opaque one as #rrggbb.
+  const m = /^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$|^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(darkStyle["--emoji-outline"] || "");
+  assert.ok(m, `theme.css's --emoji-outline is a colour (${darkStyle["--emoji-outline"]})`);
+  const have = m[1] ? [+m[1], +m[2], +m[3], Math.round(+m[4] * 100)] : [parseInt(m[5], 16), parseInt(m[6], 16), parseInt(m[7], 16), 100];
+  assert.deepStrictEqual(have, [Math.round(t.r * 255), Math.round(t.g * 255), Math.round(t.b * 255), Math.round(t.a * 100)], "theme.css's --emoji-outline is theme.ron's emoji_outline");
+  assert.strictEqual(darkStyle["--emoji-outline-width"], `${ron.emoji_outline_width.value}px`, "theme.css's --emoji-outline-width is theme.ron's emoji_outline_width");
+  assert.strictEqual(value(light, "--emoji-outline-width"), "0px", "the light theme turns the outline off");
+
+  // The page: the filter is made from those values, and base.css applies it to every picture.
+  const page = makePage({ ...darkStyle });
+  const html = page.document.documentElement;
+  assert.ok(html.hasAttribute("data-emoji-outline"), "on a dark theme <html> says the outline is on");
+  const filters = named(html, "filter");
+  assert.strictEqual(filters.length, 1, "one filter");
+  assert.strictEqual(filters[0].getAttribute("id"), page.emoji.OUTLINE_ID);
+  const [grow] = named(filters[0], "feMorphology");
+  assert.ok(grow, "the filter grows the picture's silhouette");
+  assert.strictEqual(grow.getAttribute("in"), "SourceAlpha");
+  assert.strictEqual(grow.getAttribute("operator"), "dilate");
+  assert.strictEqual(Number(grow.getAttribute("radius")), ron.emoji_outline_width.value, "by the token's width");
+  const [flood] = named(filters[0], "feFlood");
+  const c = page.emoji.parseColour(darkStyle["--emoji-outline"]);
+  assert.strictEqual(flood.getAttribute("flood-color"), `rgb(${c.r}, ${c.g}, ${c.b})`, "in the token's colour");
+  assert.strictEqual(Number(flood.getAttribute("flood-opacity")), c.a, "at the token's opacity");
+  const [composite] = named(filters[0], "feComposite");
+  assert.deepStrictEqual([composite.getAttribute("in"), composite.getAttribute("in2"), composite.getAttribute("operator")], ["ink", "grown", "in"], "the colour fills the grown silhouette");
+  const nodes = named(filters[0], "feMergeNode").map((n) => n.getAttribute("in"));
+  assert.deepStrictEqual(nodes, ["halo", "SourceGraphic"], "the picture is laid over its outline, not under it");
+  assert.strictEqual(filters[0].getAttribute("color-interpolation-filters"), "sRGB", "blended in sRGB, as the desktop blends");
+  const base = fs.readFileSync(path.join(WEB, "chat", "base.css"), "utf8");
+  assert.ok(base.includes(`html[data-emoji-outline] img.emoji { filter: url(#${page.emoji.OUTLINE_ID}); }`), "base.css applies the filter to every emoji picture while it is on");
+
+  // The theme switching to light: read again, and off.
+  page.style["--emoji-outline-width"] = value(light, "--emoji-outline-width");
+  assert.strictEqual(page.emoji.applyOutline().on, false);
+  assert.ok(!html.hasAttribute("data-emoji-outline"), "on the light theme the outline is off");
+  // A width that is set but a colour that is fully transparent is off too; back to dark, on again.
+  page.style["--emoji-outline-width"] = "1px";
+  page.style["--emoji-outline"] = "rgba(255, 255, 255, 0)";
+  assert.strictEqual(page.emoji.applyOutline().on, false, "a transparent colour draws nothing");
+  Object.assign(page.style, darkStyle);
+  assert.strictEqual(page.emoji.applyOutline().on, true);
+  assert.strictEqual(named(html, "filter").length, 1, "turning it on again reuses the one filter");
 });

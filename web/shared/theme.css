@@ -165,6 +165,13 @@
   --inspect-box: #f5bd1f;
   --inspect-collision: rgba(56, 219, 219, 0.85);
 
+  /* Emoji pictures (docs/design/emoji.md): the faint light outline round each one, so
+     OpenMoji's black lines still show on a dark ground; its colour and its width in px
+     (0 is off). web/shared/emoji.js builds the outline's SVG filter from these two;
+     the desktop draws the same outline into each picture (widgets/emoji/outline.rs). */
+  --emoji-outline: rgba(235, 235, 242, 0.55);
+  --emoji-outline-width: 1px;
+
   /* Radii */
   --radius-sm: 3.9643755px;
   --radius: 4px;
@@ -330,6 +337,7 @@
   --section-magenta: #9c2c90;
   --section-yellow-bg: #f6f0d6;
   --section-yellow: #7f6200;
+  --emoji-outline-width: 0px;
 }
 /* ======================== END AUTO-GENERATED ======================== */
 

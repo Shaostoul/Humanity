@@ -163,13 +163,18 @@ test('the light block redefines every colour variable the :root block defines', 
 test('the generator refuses a light palette that misses a variable or names a gone one', () => {
   const lines = ['  --bg: #000000;', '  --bg-panel: #000000;', '  --nav-red: #e74c3c;', '  --space-xs: 0.125rem;'];
   const ok = { '--bg': '#f4f4f4', '--bg-panel': '#ffffff', '--nav-red': 'same' };
-  const out = GEN.buildLight(lines, ok).join('\n');
+  const out = GEN.buildLight(lines, ok, {}).join('\n');
   assert.match(out, /--bg: #f4f4f4;/);
   assert.doesNotMatch(out, /--nav-red/, "'same' writes nothing: the dark value stands");
   assert.doesNotMatch(out, /--space-xs/, 'only colours are themed');
   const missing = { ...ok }; delete missing['--bg-panel'];
-  assert.throws(() => GEN.buildLight(lines, missing), /no light value for: --bg-panel/);
-  assert.throws(() => GEN.buildLight(lines, { ...ok, '--gone': '#fff' }), /no longer defines: --gone/);
+  assert.throws(() => GEN.buildLight(lines, missing, {}), /no light value for: --bg-panel/);
+  assert.throws(() => GEN.buildLight(lines, { ...ok, '--gone': '#fff' }, {}), /no longer defines: --gone/);
+  // A value that is not a colour (the emoji outline's width, off in the light theme, 2026-11-20):
+  // written in the light block, refused when :root does not define it or when it is a colour.
+  assert.match(GEN.buildLight(lines, ok, { '--space-xs': '0px' }).join('\n'), /--space-xs: 0px;/);
+  assert.throws(() => GEN.buildLight(lines, ok, { '--gone-width': '0px' }), /LIGHT_OTHER names a variable :root does not define/);
+  assert.throws(() => GEN.buildLight(lines, ok, { '--bg': '#fff' }), /colours go in LIGHT/);
   // The real palette covers the real :root block (buildCss would throw otherwise).
   assert.doesNotThrow(() => GEN.buildCss(GEN.parseTheme(fs.readFileSync(GEN.RON_PATH, 'utf8'))));
 });

@@ -20,6 +20,7 @@ use std::sync::Arc;
 use egui::text::{Fonts, Galley, LayoutJob, LayoutSection};
 use egui::{Color32, Rect, Stroke, TextureId};
 
+use super::outline::{self, Outline};
 use super::{pieces, EmojiIndex, Piece};
 
 /// The picture's side and the room around it, in ems of the text's font size: the website's
@@ -28,12 +29,26 @@ const SIDE_EM: f32 = 1.2;
 const LEFT_EM: f32 = 0.1;
 const RIGHT_EM: f32 = 0.05;
 
+/// The pixel size a picture is drawn at for text of `font_size` points on a screen of
+/// `pixels_per_point`: its side (1.2 em) in pixels. The one rule both the text that shows emoji and
+/// the reaction pictures drawn ahead (`warm.rs`) use, so both ask for the same picture.
+pub fn picture_px(font_size: f32, pixels_per_point: f32) -> u32 {
+    (SIDE_EM * font_size * pixels_per_point).round().max(1.0) as u32
+}
+
 /// Where emoji pictures come from. Rung 2 implements it (`pack::PackPictures`: resvg drawing each
 /// picture at the asked pixel size into an egui texture).
 pub trait EmojiPictures: Send + Sync {
     /// The texture of the picture `file` (its name without `.svg`) in the set folder `set`, drawn
-    /// `px` pixels square, or None when there is none (the emoji then stays the font's glyph).
-    fn picture(&self, set: &str, file: &str, px: u32) -> Option<TextureId>;
+    /// `px` pixels square with `outline` beneath it (`outline.rs`), or None when there is none (the
+    /// emoji then stays the font's glyph).
+    fn picture(&self, set: &str, file: &str, px: u32, outline: Outline) -> Option<TextureId>;
+
+    /// The shipped pack's pictures behind this, for drawing the reaction pictures ahead
+    /// (`warm.rs`); None for any other source (a test's stand-in).
+    fn as_pack(&self) -> Option<&super::pack::PackPictures> {
+        None
+    }
 }
 
 /// The pack's list and its pictures, as the text that shows emoji sees them.
@@ -69,6 +84,12 @@ pub fn source(ctx: &egui::Context) -> Option<Arc<EmojiSource>> {
     }
 }
 
+/// The installed emoji pictures as they are, without reading the pack's list again (`warm.rs`, which
+/// leaves that to the text).
+pub(super) fn installed(ctx: &egui::Context) -> Option<Arc<EmojiSource>> {
+    ctx.data(|d| d.get_temp::<Arc<EmojiSource>>(source_id()))
+}
+
 /// Do the installed pictures come from the shipped pack (OpenMoji's, which ask for their credit
 /// where they are picked: `button::credit`)?
 pub fn pack_installed(ctx: &egui::Context) -> bool {
@@ -88,16 +109,18 @@ pub struct Placed {
 }
 
 /// `job` with a transparent placeholder in place of each emoji the installed pictures can draw, and
-/// the pictures to paint once it is laid out. A job with no such emoji comes back unchanged.
-pub fn with_pictures(fonts: &Fonts, job: LayoutJob, source: &EmojiSource, pixels_per_point: f32) -> (LayoutJob, Vec<Placed>) {
+/// the pictures to paint once it is laid out, each drawn with `outline` (the theme's, in pixels at
+/// this scale). A job with no such emoji comes back unchanged.
+pub fn with_pictures(fonts: &Fonts, job: LayoutJob, source: &EmojiSource, pixels_per_point: f32, outline: Outline) -> (LayoutJob, Vec<Placed>) {
     // The emoji that have a picture, with the section each starts in.
     let mut cuts: Vec<(Range<usize>, usize, TextureId, f32)> = Vec::new();
     for piece in pieces(&job.text, &source.index) {
         let Piece::Picture { range, set, file } = piece else { continue };
         let Some(sec) = job.sections.iter().position(|s| s.byte_range.contains(&range.start)) else { continue };
-        let side = SIDE_EM * job.sections[sec].format.font_id.size;
-        let px = (side * pixels_per_point).round().max(1.0) as u32;
-        if let Some(texture) = source.pictures.picture(&set, &file, px) {
+        let size = job.sections[sec].format.font_id.size;
+        let side = SIDE_EM * size;
+        let px = picture_px(size, pixels_per_point);
+        if let Some(texture) = source.pictures.picture(&set, &file, px, outline) {
             cuts.push((range, sec, texture, side));
         }
     }
@@ -192,8 +215,10 @@ pub fn layout(ctx: &egui::Context, job: LayoutJob) -> (Arc<Galley>, Vec<Placed>)
         None => (ctx.fonts(|f| f.layout_job(job)), Vec::new()),
         Some(src) => {
             let ppp = ctx.pixels_per_point();
+            // The theme's outline (`Theme::apply_to_egui`), read here: never inside `ctx.fonts`.
+            let outline = outline::tokens(ctx).at(ppp);
             ctx.fonts(|f| {
-                let (job, placed) = with_pictures(f, job, &src, ppp);
+                let (job, placed) = with_pictures(f, job, &src, ppp, outline);
                 (f.layout_job(job), placed)
             })
         }

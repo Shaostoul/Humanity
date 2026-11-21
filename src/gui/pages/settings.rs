@@ -117,6 +117,8 @@ fn styled_slider(
             Vec2::new(desired_width, widget_height),
             egui::Sense::click_and_drag(),
         );
+        // A hint waiting from `with_hint` (the emoji outline's width) goes on the track.
+        let response = crate::gui::widgets::hint::apply_pending(ui, response);
         let old_val = *value;
         if response.dragged() || response.clicked() {
             if let Some(pos) = response.interact_pointer_pos() {
@@ -1506,6 +1508,8 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     let card_radius = theme.border_radius;
     let card_padding = theme.card_padding;
     let label_color = theme.text_secondary();
+    // The emoji outline's width slider (below), styled before the frame borrows the theme.
+    let outline_slider = SliderStyle::from_theme(theme);
 
     egui::Frame::NONE
         .fill(card_bg)
@@ -1625,6 +1629,23 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     }
                 }
             });
+
+            // The emoji outline (docs/design/emoji.md "The outline"): the faint light edge round each
+            // emoji picture on a dark theme, its colour and its width (0 is off). A change redraws the
+            // pictures (the outline is part of each kept picture's key).
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new(t("settings.emoji_outline_title")).size(theme.font_size_body).color(theme.text_primary()).strong());
+            widgets::setting_hint(ui, theme, hint, t("settings.emoji_outline_desc"));
+            // The colour rows' pattern above (a pointer, so the editor-coverage test sees the row).
+            let outline_colour: *mut (f32, f32, f32, f32) = &mut theme.emoji_outline as *mut _;
+            if with_hint(ui, "settings.emoji_outline_colour_hint", |ui| color_row(ui, t("settings.emoji_outline_colour"), unsafe { &mut *outline_colour }, label_color)) {
+                any_color_changed = true;
+            }
+            if with_hint(ui, "settings.emoji_outline_width_hint", |ui| styled_slider(ui, &outline_slider, t("settings.emoji_outline_width"), &mut theme.emoji_outline_width, 0.0..=3.0, label_color)) {
+                any_color_changed = true;
+            }
 
             ui.add_space(theme.spacing_md);
             ui.separator();
@@ -1861,7 +1882,9 @@ fn color_row(
     let mut rgba = [color_tuple.0, color_tuple.1, color_tuple.2, color_tuple.3];
     let mut changed = false;
     ui.horizontal(|ui| {
-        if ui.color_edit_button_rgba_unmultiplied(&mut rgba).changed() {
+        // A hint waiting from `with_hint` (the emoji outline's row) goes on the swatch.
+        let swatch = ui.color_edit_button_rgba_unmultiplied(&mut rgba);
+        if crate::gui::widgets::hint::apply_pending(ui, swatch).changed() {
             color_tuple.0 = rgba[0];
             color_tuple.1 = rgba[1];
             color_tuple.2 = rgba[2];

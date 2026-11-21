@@ -56,6 +56,10 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
         // mouse's side buttons and Alt+arrows. On pages only: in the world
         // the side buttons are the game's (unbound).
         crate::gui::history::frame(ctx, &mut state.gui_state);
+        // The chat's reaction pictures, drawn ahead after start-up by a worker one at a time and
+        // uploaded a few a frame, so the reaction panel's first opening draws nothing on the frame
+        // (gui/widgets/emoji/warm.rs; docs/design/emoji.md "Drawn ahead, gradually").
+        crate::gui::widgets::emoji::warm::frame(ctx, state.theme.font_size_body);
         // Show RGB nav bar on all pages except None and MainMenu
         match state.gui_state.active_page {
             GuiPage::None | GuiPage::MainMenu => {}

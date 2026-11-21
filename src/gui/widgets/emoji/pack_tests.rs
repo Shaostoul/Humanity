@@ -9,6 +9,7 @@ use egui::mutex::RwLock;
 use egui::ColorImage;
 
 use super::button::{credit_parts, CreditPart};
+use super::outline::Outline;
 use super::pack::{list_due, rasterise, PackPictures, PackStamp, LIST_REUSE_OFF_S};
 
 fn pack_dir() -> std::path::PathBuf {
@@ -64,7 +65,7 @@ fn a_rasterised_emoji_has_the_pictures_colours() {
     for (file, what, want) in [("1F600", "grinning face", [0xFC, 0xEA, 0x2B]), ("2764", "red heart", [0xD2, 0x2F, 0x27])] {
         let bytes = svg(file);
         assert!(fills(&bytes).contains(&want), "{what}: the file's own fills hold the colour the test looks for");
-        let image = rasterise(&bytes, 48).expect("the picture draws");
+        let image = rasterise(&bytes, 48, Outline::NONE).expect("the picture draws");
         assert_eq!(image.size, [48, 48], "{what}: drawn at the asked size");
         let (share, top) = measure(&image);
         let range = if file == "1F600" { 0.25..0.6 } else { 0.15..0.6 };
@@ -94,7 +95,7 @@ fn every_picture_in_the_pack_draws() {
         }
         n += 1;
         let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_string();
-        match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|b| rasterise(&b, 24)) {
+        match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|b| rasterise(&b, 24, Outline::NONE)) {
             Ok(image) if image.pixels.iter().any(|p| p.a() > 0) => {}
             Ok(_) => failed.push(format!("{name}: blank")),
             Err(e) => failed.push(format!("{name}: {e}")),
@@ -123,23 +124,23 @@ fn textures() -> Arc<RwLock<egui::epaint::TextureManager>> {
 fn with_reuse_off_a_second_draw_rasterises_again() {
     let pics = PackPictures::new(pack_dir(), textures());
     let t0 = std::time::Instant::now();
-    let a = pics.picture_with("openmoji", "1F600", 24, true, 0).expect("drawn");
+    let a = pics.picture_with("openmoji", "1F600", 24, Outline::NONE, true, 0).expect("drawn");
     let first = t0.elapsed();
     let t1 = std::time::Instant::now();
-    let b = pics.picture_with("openmoji", "1F600", 24, true, 0).expect("kept");
+    let b = pics.picture_with("openmoji", "1F600", 24, Outline::NONE, true, 0).expect("kept");
     let reused = t1.elapsed();
     eprintln!("emoji picture at 24 px: first draw {:.3} ms, reused {:.4} ms", first.as_secs_f64() * 1000.0, reused.as_secs_f64() * 1000.0);
     assert_eq!(pics.drawn(), 1, "reuse on: drawn once");
     assert_eq!(a, b, "reuse on: the same texture comes back");
 
-    pics.picture_with("openmoji", "1F600", 32, true, 0).expect("drawn");
+    pics.picture_with("openmoji", "1F600", 32, Outline::NONE, true, 0).expect("drawn");
     assert_eq!(pics.drawn(), 2, "a new size is drawn");
-    pics.picture_with("openmoji", "1F600", 24, true, 1).expect("drawn");
+    pics.picture_with("openmoji", "1F600", 24, Outline::NONE, true, 1).expect("drawn");
     assert_eq!(pics.drawn(), 3, "a new pack version draws again");
 
     let off = PackPictures::new(pack_dir(), textures());
-    let c = off.picture_with("openmoji", "1F600", 24, false, 0).expect("drawn");
-    let d = off.picture_with("openmoji", "1F600", 24, false, 0).expect("drawn again");
+    let c = off.picture_with("openmoji", "1F600", 24, Outline::NONE, false, 0).expect("drawn");
+    let d = off.picture_with("openmoji", "1F600", 24, Outline::NONE, false, 0).expect("drawn again");
     assert_eq!(off.drawn(), 2, "reuse off: the second ask draws again");
     assert_ne!(c, d, "reuse off: into a new texture");
 }
@@ -152,11 +153,11 @@ fn with_reuse_off_a_second_draw_rasterises_again() {
 #[test]
 fn a_missing_picture_stays_text_and_is_tried_once() {
     let pics = PackPictures::new(pack_dir(), textures());
-    assert!(pics.picture_with("openmoji", "NOPE", 24, true, 0).is_none(), "no texture for a missing picture");
-    assert!(pics.picture_with("openmoji", "NOPE", 24, true, 0).is_none());
+    assert!(pics.picture_with("openmoji", "NOPE", 24, Outline::NONE, true, 0).is_none(), "no texture for a missing picture");
+    assert!(pics.picture_with("openmoji", "NOPE", 24, Outline::NONE, true, 0).is_none());
     assert_eq!(pics.drawn(), 1, "a missing picture is tried once");
-    assert!(pics.picture_with("..", "1F600", 24, true, 0).is_none(), "a set outside the pack is refused");
-    assert!(pics.picture_with("openmoji", "../index", 24, true, 0).is_none(), "a file outside the set is refused");
+    assert!(pics.picture_with("..", "1F600", 24, Outline::NONE, true, 0).is_none(), "a set outside the pack is refused");
+    assert!(pics.picture_with("openmoji", "../index", 24, Outline::NONE, true, 0).is_none(), "a file outside the set is refused");
 }
 
 /// WHEN THE INSTALLED LIST IS READ AGAIN: when the pack changed (the watcher bumped its version),
@@ -238,7 +239,7 @@ fn the_installed_pack_uploads_a_drawn_picture() {
     let ctx = egui::Context::default();
     let source = super::pack::pack_source(&ctx, &pack_dir()).expect("the pack installs");
     assert!(source.pack.is_some(), "a source from the pack is stamped, so it is read again when the pack changes");
-    let id = source.pictures.picture("openmoji", "1F600", 20).expect("drawn");
+    let id = source.pictures.picture("openmoji", "1F600", 20, Outline::NONE).expect("drawn");
     let manager = ctx.tex_manager();
     let meta = manager.read().meta(id).cloned().expect("the texture is the context's");
     assert_eq!(meta.size, [20, 20], "uploaded at the asked size");

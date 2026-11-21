@@ -98,6 +98,16 @@ pub struct Theme {
     pub map_room_edge: C,
     #[serde(default = "default_map_room_fill_alpha")]
     pub map_room_fill_alpha: f32,
+    /// The faint light outline round each emoji picture, so OpenMoji's black lines still show on a
+    /// dark ground (operator, 2026-11-20: "a faint light halo behind each emoji on dark themes, as a
+    /// theme setting so it can be adjusted or turned off"; docs/design/emoji.md "The outline"): its
+    /// colour, whose opacity is how faint it is, and its width in points (0 turns it off). Drawn
+    /// into each picture (`widgets/emoji/outline.rs`); the website's `--emoji-outline` and
+    /// `--emoji-outline-width`.
+    #[serde(default = "default_emoji_outline")]
+    pub emoji_outline: C,
+    #[serde(default = "default_emoji_outline_width")]
+    pub emoji_outline_width: f32,
     /// The model inspector (docs/design/model-inspector.md): the three axes it draws at the
     /// origin and on every empty, the box round the visible model, the catalog box it is fitted
     /// to, and the collision shapes.
@@ -618,6 +628,12 @@ impl Theme {
     pub fn map_reference(&self) -> Color32 { Self::c32(&self.map_reference) }
     pub fn map_room_fill(&self) -> Color32 { Self::c32(&self.map_room_fill) }
     pub fn map_room_edge(&self) -> Color32 { Self::c32(&self.map_room_edge) }
+    pub fn emoji_outline(&self) -> Color32 { Self::c32(&self.emoji_outline) }
+    /// The emoji outline as the text that shows emoji reads it (`Theme::apply_to_egui` hands it to
+    /// every egui context).
+    pub fn emoji_outline_tokens(&self) -> crate::gui::widgets::emoji::outline::Tokens {
+        crate::gui::widgets::emoji::outline::Tokens::from_theme(self.emoji_outline, self.emoji_outline_width)
+    }
     pub fn axis_x(&self) -> Color32 { Self::c32(&self.axis_x) }
     pub fn axis_y(&self) -> Color32 { Self::c32(&self.axis_y) }
     pub fn axis_z(&self) -> Color32 { Self::c32(&self.axis_z) }
@@ -768,6 +784,7 @@ impl Theme {
         self.badge_verified = (0.165, 0.722, 0.439, 1.0);
         self.badge_donor = (0.929, 0.549, 0.141, 1.0);
         self.badge_live = (0.937, 0.310, 0.310, 1.0);
+        self.emoji_outline = default_emoji_outline();
     }
 
     /// Reset only the widget variables to their defaults while keeping colors.
@@ -804,6 +821,7 @@ impl Theme {
         self.cell_name_width = 150.0;
         self.button_pad_y = 3.0;
         self.touch_target = 44.0;
+        self.emoji_outline_width = default_emoji_outline_width();
     }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
@@ -874,6 +892,9 @@ impl Theme {
             style.debug.show_unaligned = false;
         }
         ctx.set_style(style);
+        // The emoji outline (docs/design/emoji.md "The outline"): every picture this context draws
+        // from now on carries it, and a changed outline draws the pictures again.
+        crate::gui::widgets::emoji::outline::set_tokens(ctx, self.emoji_outline_tokens());
     }
 }
 
@@ -963,6 +984,8 @@ fn default_map_label_size() -> f32 { 12.5 }
 fn default_map_room_fill() -> C { (0.55, 0.58, 0.64, 1.0) } // a neutral grey-blue floor
 fn default_map_room_edge() -> C { (0.80, 0.84, 0.92, 0.75) } // a pale line round a room
 fn default_map_room_fill_alpha() -> f32 { 0.32 }
+fn default_emoji_outline() -> C { (0.92, 0.92, 0.95, 0.55) } // a faint near-white edge round each emoji
+fn default_emoji_outline_width() -> f32 { 1.0 }
 fn default_axis_x() -> C { (0.90, 0.30, 0.26, 1.0) } // an x axis: red
 fn default_axis_y() -> C { (0.40, 0.82, 0.32, 1.0) } // a y axis (up): green
 fn default_axis_z() -> C { (0.32, 0.56, 0.96, 1.0) } // a z axis (front): blue
@@ -1112,6 +1135,8 @@ fn default_theme() -> Theme {
         map_room_fill: default_map_room_fill(),
         map_room_edge: default_map_room_edge(),
         map_room_fill_alpha: default_map_room_fill_alpha(),
+        emoji_outline: default_emoji_outline(),
+        emoji_outline_width: default_emoji_outline_width(),
         axis_x: default_axis_x(),
         axis_y: default_axis_y(),
         axis_z: default_axis_z(),

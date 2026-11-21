@@ -21,17 +21,25 @@
 //!
 //! **Rung 2, the pictures**: `pack.rs` (resvg drawing the pack's SVGs into textures, kept in memory
 //! only, obeying the reuse switch). **Rung 3, pictures in a line of text**: `inline.rs`, and the
-//! reaction buttons and the pack's credit: `button.rs`.
+//! reaction buttons and the pack's credit: `button.rs`. **The outline on a dark theme**: `outline.rs`
+//! (drawn into each picture from the theme's two tokens). **The reaction panel's pictures drawn
+//! ahead, gradually**: `warm.rs`.
 
 mod props;
 pub mod button;
 pub mod inline;
+pub mod outline;
 pub mod pack;
+pub mod warm;
 
 #[cfg(test)]
 pub(crate) mod tests;
 #[cfg(test)]
 mod pack_tests;
+#[cfg(test)]
+mod outline_tests;
+#[cfg(test)]
+mod warm_tests;
 
 use std::collections::HashMap;
 use std::ops::Range;

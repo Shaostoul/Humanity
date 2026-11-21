@@ -91,8 +91,8 @@ the pack has no picture for, or when the pack is missing.
    first picture (cold file and code). A reused picture took 0.006 ms, a hash look-up. So a frame pays
    only for emoji it has never drawn at that size: opening the ∞ panel the first time draws up to 42
    pictures (up to about 36 ms, once: a visible hitch on that one frame), and every later frame reuses
-   them. If that hitch matters, the next step is a per-frame drawing budget (the rest shown as glyphs
-   for a frame or two), not a cache on disk.
+   them. That hitch is gone since the panel's pictures are drawn ahead, gradually, by a worker after
+   start-up (below, "Drawn ahead, gradually"); there is still no cache on disk.
 3. **Pictures in a line of text (built).** `src/gui/widgets/emoji/inline.rs`. egui's text layout has
    no inline images, so `with_pictures` gives each emoji that has a picture its own section of the
    layout job: the same characters, drawn transparent, at the font size that makes their run the
@@ -122,10 +122,114 @@ the pack has no picture for, or when the pack is missing.
    emoji are not OpenMoji's and owe no credit. The native chat is in the `openmoji` row's `shown_in`
    in `data/credits.ron`, and resvg, usvg and tiny-skia's notices are in `THIRD-PARTY-NOTICES.txt`.
 
+## The outline on a dark theme (built 2026-11-20)
+
+OpenMoji draws every picture with black lines, which vanish on a dark ground: in the GPU snapshot
+`chat_emoji` the faces lost their edge and the seedling showed as two green dashes. The operator
+approved (2026-11-20) "a faint light halo behind each emoji on dark themes, as a theme setting so it
+can be adjusted or turned off".
+
+- **One source, two tokens.** `data/gui/theme.ron` `emoji_outline` (its colour, with its opacity:
+  how faint it is) and `emoji_outline_width` (in points; 0 is off). `Theme::emoji_outline` and
+  `emoji_outline_tokens` read them; Settings > Appearance > Theme colors > "Emoji outline" edits
+  both, words by key with their hints (`settings.emoji_outline_*`); `tests/theme_editor_coverage.rs`
+  holds them there. `node scripts/gen-theme-css.js` copies them into the website's `theme.css` as
+  `--emoji-outline` and `--emoji-outline-width`.
+- **Per theme.** The desktop has one palette, dark: on. The website's dark theme is that palette:
+  on. The website's light theme sets the width to 0 (`LIGHT_OTHER` in the generator): on a light
+  ground OpenMoji's own black lines read, and a light edge would only blur them.
+- **Desktop: drawn into the picture.** `src/gui/widgets/emoji/outline.rs` `apply`, called by
+  `pack::rasterise`: the picture's alpha silhouette grown by the width (an exact disc: each
+  neighbour is covered by the share of it lying within the width of a drawn pixel, measured once per
+  outline on an 8 by 8 grid, so edges stay soft and fractional widths work), filled with the colour,
+  laid beneath the picture (premultiplied "over", in sRGB as egui blends). Since each picture is
+  rasterised once and kept, the outline costs nothing per frame. The outline is part of a kept
+  picture's key (with set, file, size and the pack's version), so a theme change draws the pictures
+  again. The width is in points times the screen's scale, the same on screen at every emoji size,
+  as the website's CSS pixels are. `Theme::apply_to_egui` hands each egui context the tokens
+  (`outline::set_tokens`), at start-up, after an edit in Settings, and every frame for a wall screen;
+  `inline::layout` reads them before it lays a line out.
+- **Website: the same three steps as an SVG filter.** `web/shared/emoji.js` `applyOutline` reads
+  the two variables from `<html>`'s computed style and builds one hidden filter, `#hos-emoji-outline`:
+  `feMorphology` dilating `SourceAlpha` by the width, `feFlood` in the colour and opacity with
+  `feComposite in` (the grown silhouette coloured), `feMerge` with the picture over it,
+  `color-interpolation-filters="sRGB"`. While it is on, `<html data-emoji-outline>` and
+  `web/chat/base.css` give every `img.emoji` `filter: url(#hos-emoji-outline)`. A
+  `MutationObserver` on `<html>`'s `data-theme`, `class` and `style` reads the tokens again, so
+  switching to the light theme turns it off. CSS `drop-shadow` was weighed and refused: chained
+  offset shadows with a see-through colour compound into an uneven, lopsided edge, and a blurred
+  shadow gives thin lines (the seedling's stems) almost no edge at all, which is the case this exists
+  for.
+- **How the two were compared.** The browser's `feMorphology` grows by a square of whole pixels; the
+  desktop grows by a disc with fractional widths, which stays round at large sizes. resvg follows the
+  SVG filter specification as the browsers do, so `outline_tests.rs`
+  `the_desktop_outline_matches_the_websites_filter` draws the website's exact filter round the same
+  pictures with resvg and compares the outline each lays round the picture (the summed opacity of
+  the ring outside the silhouette, and its colour) at 24 px with a 1 px width and 48 px with 2 px.
+  Measured 2026-11-20 on the seedling, the grinning face and the red heart: both reach the same
+  ring pixels (75 and 75, 300 and 300, 272 and 272: never more than one apart), in the same colour
+  (within 3 of 255 on each channel), and the desktop's ring holds 0.79 to 0.86 of the website's
+  opacity, because the browser's square fills each diagonal neighbour whole where the disc fills
+  its share (pi/4 at a 1 px width). The test holds the reach within 10% and the opacity within 0.75
+  to 1.25. The comparison pictures (plain, desktop, website, scaled up 8 times on the theme's black)
+  come from `write_the_outline_comparison_pictures` (`HUMANITY_EMOJI_OUTLINE_PNGS=<folder>`); by
+  eye the desktop's and the website's are the same picture, the seedling's stem and leaves now
+  drawn where they had been two green dashes. A real browser was not driven for this comparison;
+  resvg's filter code, written to the same specification, stands in for it (worth one look in a
+  browser at the live chat after the next deploy).
+- **The shipped values**: `emoji_outline: (0.92, 0.92, 0.95, 0.55)` (near-white with a little blue,
+  at 55% opacity: a faint grey ring on black, #808083 where it is whole) and `emoji_outline_width:
+  1.0` point, chosen by looking at the comparison pictures and the GPU snapshot `chat_emoji`
+  (`tests/snapshots/chat_emoji.png`): the faces have their edge again and the seedling reads as a
+  seedling, while the ring stays fainter than the emoji's own colours. Settings offers 0 to 3 points.
+
+## Drawn ahead, gradually (built 2026-11-20)
+
+Each picture is drawn the first time it is asked for, so the first opening of the ∞ reaction panel
+drew up to 42 pictures in one frame (the hitch the operator asked about). He then set the rule for
+the fix (2026-11-20): "Just remember we don't want to precache all at once. We want to do it
+gradually so the app doesn't hang."
+
+- **The worker.** `src/gui/widgets/emoji/warm.rs`, called once a frame from the app's main frame
+  (`engine::frame_ui_run`). From `warm::START_AFTER_S` (2 s) after the pictures were installed, it
+  hands a worker thread the reaction panel's pictures: the palette's reactions
+  (`data/reactions.json`) at the quick row's size (the body text) and the ∞ panel's (egui's button
+  text), with the theme's outline, through the same size rule the chat asks with
+  (`inline::picture_px`). The worker draws ONE picture, rests `warm::GAP_MS` (15 ms), draws the next:
+  never a burst, never holding a core, and it holds a lock only to look and to hand a picture over.
+  A new list (a font size, a screen scale, a theme or a pack change) replaces the old one and stops
+  its worker.
+- **The frame's share.** Each frame turns at most `warm::UPLOADS_PER_FRAME` (4) finished pictures into
+  textures, and stops early past `warm::FRAME_BUDGET_MS`: **the budget is 2 ms of emoji work per
+  frame**. Nothing waits for the worker: a picture asked for before it is ready is drawn then, as
+  before, and a finished one still waiting is used instead of being drawn twice.
+- **Reuse.** The drawn-ahead pictures are kept pictures like the rest (memory only, tagged with the
+  pack's version, keyed by size and outline). With "Turn off all reuse" nothing is drawn ahead
+  (`PackPictures::stop_ahead`), since every ask draws again anyway.
+- **Measured** (2026-11-20, `pages/chat/emoji_tests.rs`
+  `the_panels_first_opening_draws_no_picture_on_the_frame`, a debug test build with resvg, usvg and
+  tiny-skia optimised, the chat page at 1280x800, the shipped pack and theme, frames about 8 ms
+  apart):
+  - **While the worker draws ahead** (two runs): 52 pictures (the quick row's 10 and the panel's
+    42, each at its own size) over 79 to 83 frames and 828 to 859 ms; the worst frame 1.8 to 5.4 ms,
+    the drawing-ahead's share of any frame at most 0.27 to 0.38 ms (the budget is 2 ms), at most 1
+    upload in a frame, nothing drawn on a frame.
+  - **The panel's first opening:** before, the frame that opened ∞ took 51.0 ms (42 pictures drawn
+    in it) and the hover that showed the quick row 10.5 ms (10 pictures); after, 7.4 to 11.5 ms and
+    3.0 to 5.3 ms, with no picture drawn on any frame of the opening. What is left is egui laying
+    the panel out for the first time (its 42 buttons, and the placeholder font sizes it meets for
+    the first time), in a debug build.
+
 **Tests** (each seen red, the break recorded at the test): `widgets/emoji/pack_tests.rs` (a
 rasterised emoji's drawn pixels cover its share of the square in the file's own colours; every one of
 the pack's 4,495 pictures draws; the reuse switch: with it off a second ask draws again; a missing
 picture stays text and is tried once; when the list is read again; the credit's two links; a reaction
-button paints its picture), `pages/chat/emoji_tests.rs` (the ∞ panel draws every reaction as a
-picture and carries the credit only for the pack's pictures), and the GPU snapshot
+button paints its picture), `widgets/emoji/outline_tests.rs` (a dark-outlined picture gets a ring in
+the outline's colour on the dark theme and is exactly the plain picture with the token off; the
+desktop's outline against the website's filter drawn by resvg; a theme change draws the pictures
+again), `widgets/emoji/warm_tests.rs` (drawing ahead is gradual and so are the uploads; a waiting
+picture is used, not drawn twice; the reuse switch and the start delay), `pages/chat/emoji_tests.rs`
+(the ∞ panel draws every reaction as a picture and carries the credit only for the pack's pictures;
+its first opening draws no picture on the frame), `scripts/tests/emoji-web.test.js` test 5 (the
+website's outline from the tokens, off in the light theme), and the GPU snapshot
 `just snapshot chat_emoji` (it refuses a frame that painted no emoji picture).
