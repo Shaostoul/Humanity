@@ -11,6 +11,10 @@ use humanity_music::{BedContext, BedEngine, BedStatus, MusicContext, MusicSettin
 
 use super::*;
 
+// Back to composed music from a written piece (BUG-343): the page's clicks heard in the runtime.
+#[path = "music_tests_back.rs"]
+mod back;
+
 /// Kira's place in the tests: every score and bed started, rendered offline on demand.
 #[derive(Default)]
 struct Offline {

@@ -818,3 +818,46 @@ stacked label to the next on a phone; `the_rolls_section_letters_never_overprint
 20-minute plan on the roll, no two letters on a line overlapping at 412 or 2560 wide). The GPU snapshots `music` and `phone_music_listen` draw a chosen
 piece round its arc at the library's endless length, as the game's context gives it, so the roll shows the
 energy band and the stage the player hears.
+
+## 27. As built: back to composed music (2026-11-21, BUG-343)
+
+The operator, on v0.1568.0: "I can't seem to play the procedural music any more. I can click play 20
+seconds but, then it seems to switch back to the sheet music." A written piece chosen on the Written
+music list is the person's choice in their settings (`MusicSettings::written`) and plays in place of
+composed music until it is cleared; only Stop on that piece and Play again on a composed piece in the
+pieces heard cleared it, so a genre or mood card changed nothing heard, and a card's Listen (an
+audition, section 9) went back, as it should, to the written piece.
+
+**Choosing composed music anywhere plays it.** One rule, `music::back_to_composed`, clears the written
+choice; composed music then takes over at the next bar. Every choice of composed music calls it: a genre
+or mood card, chosen or not (a click on the card already marked chosen is how a person says "this, not
+the written piece"); a genre, mood or seed changed through the page's controls (`music::apply`: the seed
+row, a piece heard again; a change of the MIXER is not one, since the mixer mixes the written piece too);
+an opened favourite or a pasted share code (`music::open_favourite`); and What plays' Let the game choose
+and Play my choice, each a choice of composed music. The strip's Previous and Next, and the keys N and P,
+still follow what plays: the written piece before or after in the list while one is the choice, the seed
+before or after once composed music is (L likes only composed music, as before).
+
+**The way back is in view, and the page says which kind plays.** While a written piece is the choice the
+Now playing strip (section 6) shows **Back to composed music** beside the piece's title chip
+(`music_page.composed_back`, its hint saying it stops the written piece and composed music comes back
+from the next bar, in the genre and mood chosen on Explore). The Listen tab's first line says which kind
+of music is the person's (`music::kind_words`): "Kind of music: written. Ode to Joy plays the same notes
+every time.", with how to hear composed music again, or "Kind of music: composed. The app makes new music
+as it plays, in the genre Lo-fi and the mood Mothership calm." Explore says, while a written piece plays,
+that its cards play composed music again, and the cards' hints say so.
+
+**The audition is unchanged**: Listen plays 20 seconds and then exactly what played before comes back,
+the written piece included, without changing the person's choice (Listen is not a click on its card).
+
+**The website** plays no music and has no Now playing strip (section 19), so it needed no change; the
+cards' new hint words are the app's.
+
+**Tests** (each seen red, the evidence in its comment): in `src/engine/music_tests_back.rs` the real page
+is drawn over a runtime playing Ode to Joy, the click's settings are handed to the runtime, and what the
+RUNTIME plays is read from its readout: `with_a_written_piece_playing_a_genre_card_plays_composed_music`
+(the card already chosen), `..._a_mood_card_plays_composed_music`,
+`..._the_strips_back_control_plays_composed_music` and `an_audition_over_a_written_piece_goes_back_to_it`;
+in `src/gui/pages/music/tests_back.rs`, `the_page_says_which_kind_of_music_plays_and_the_keys_follow_it`.
+The GPU snapshots `music_listen_written` (the strip and the Listen tab with Für Elise as the choice) and
+`music` (a composed piece) show both kinds.

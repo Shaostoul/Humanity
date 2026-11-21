@@ -6671,6 +6671,32 @@ fn snapshot_music_written() {
     });
 }
 
+/// The Music page's Listen tab at 2560 by 1440 with a WRITTEN piece as the person's music (BUG-343):
+/// Für Elise playing, the strip showing its title and Back to composed music, Listen's first line
+/// saying the kind of music is written and how to hear composed music again, and the roll drawing the
+/// piece's own notes.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_listen_written() {
+    render_page_png("music_listen_written", 2560, 1440, |ctx, theme, state| {
+        if !state.music_page.fav_loaded {
+            music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+            let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+            let r = &mut state.music_dev.readout;
+            let lib = r.lib.clone().expect("the music data");
+            let piece = std::sync::Arc::new(humanity_music::scores::load_piece(&data, lib.score("fur_elise").expect("listed")).expect("it reads"));
+            state.settings.music.written = "fur_elise".into();
+            let choice = crate::gui::pages::music::written_choice(&state.settings.music, Some(&lib));
+            if let Some(p) = r.playing.as_mut() {
+                p.choice = Some(choice);
+            }
+            r.written = Some("fur_elise".into());
+            r.written_piece = Some(piece);
+        }
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
 /// The Music page's Your music tab at 2560 by 1440 (rung 2): the favourites, and the Music files card
 /// (the piece playing saved as MIDI or MEI to a chosen name and folder, and Open a MIDI file).
 #[test]

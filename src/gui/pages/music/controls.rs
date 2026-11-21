@@ -15,7 +15,7 @@ use humanity_core::i18n::t;
 use humanity_music::favourite::{from_share_code, share_code, Favourite, SavedTune, ShareError};
 use humanity_music::tune::{Tune, PIECE, ROLES};
 
-use super::{export_dir, export_file_name, genre_label, mood_words, open_favourite, role_colour, role_words, voice_words, ExportJob, ExportStatus, Shown, EXPORT_MINUTES};
+use super::{back_to_composed, export_dir, export_file_name, genre_label, mood_words, open_favourite, role_colour, role_words, voice_words, ExportJob, ExportStatus, Shown, EXPORT_MINUTES};
 use crate::gui::pages::dev_music::GenreChoice;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{with_hint, Hint};
@@ -55,9 +55,14 @@ pub(super) fn what_plays(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState,
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new(t("music_page.what_plays_note")).color(theme.text_secondary()));
         ui.add_space(theme.spacing_xs);
-        if ui.radio(m.game_chooses, RichText::new(t("music_page.game_chooses")).color(theme.text_primary())).hint("music_page.game_chooses_hint").clicked() && !m.game_chooses {
-            m.game_chooses = true;
-            dirty = true;
+        // Either choice here is a choice of composed music: it plays in place of a written piece
+        // (BUG-343), even clicked when it is already chosen.
+        if ui.radio(m.game_chooses, RichText::new(t("music_page.game_chooses")).color(theme.text_primary())).hint("music_page.game_chooses_hint").clicked() {
+            if !m.game_chooses {
+                m.game_chooses = true;
+                dirty = true;
+            }
+            dirty |= back_to_composed(m);
         }
         widgets::setting_hint(ui, theme, hint, t("music_page.game_chooses_hint"));
         // What the game chooses by, greyed while the person's choice plays.
@@ -112,16 +117,19 @@ pub(super) fn what_plays(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState,
             });
         });
         ui.add_space(theme.spacing_xs);
-        if ui.radio(!m.game_chooses, RichText::new(t("music_page.my_choice")).color(theme.text_primary())).hint("music_page.my_choice_hint").clicked() && m.game_chooses {
-            // What plays now becomes the person's choice, so the switch alone changes nothing heard.
-            m.game_chooses = false;
-            m.mood = shown.mood.clone();
-            m.seed = shown.seed.max(1);
-            m.tune = match lib.as_deref().and_then(|l| l.genre_index(&m.genre).map(|g| (l, g))) {
-                Some((l, g)) => SavedTune::from_tune(&shown.tune, l, g),
-                None => SavedTune::default(),
-            };
-            dirty = true;
+        if ui.radio(!m.game_chooses, RichText::new(t("music_page.my_choice")).color(theme.text_primary())).hint("music_page.my_choice_hint").clicked() {
+            if m.game_chooses {
+                // What plays now becomes the person's choice, so the switch alone changes nothing heard.
+                m.game_chooses = false;
+                m.mood = shown.mood.clone();
+                m.seed = shown.seed.max(1);
+                m.tune = match lib.as_deref().and_then(|l| l.genre_index(&m.genre).map(|g| (l, g))) {
+                    Some((l, g)) => SavedTune::from_tune(&shown.tune, l, g),
+                    None => SavedTune::default(),
+                };
+                dirty = true;
+            }
+            dirty |= back_to_composed(m);
         }
         widgets::setting_hint(ui, theme, hint, t("music_page.my_choice_hint"));
     });

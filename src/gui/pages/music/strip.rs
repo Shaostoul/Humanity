@@ -2,8 +2,9 @@
 //! add a button to save a liked seed"): always in view along the top of the Music page. Pause or
 //! play (the music on or off everywhere, Settings > Music's own switch), the previous and the next
 //! piece, the sentence that says what plays and who chose it (`now_playing_words`, the very words
-//! Settings > Music shows), chips for the genre, the mood and the seed that open their tab, and
-//! LIKE: the piece shown, with every change made to it, kept as a favourite in one click under a
+//! Settings > Music shows), chips for the genre, the mood and the seed that open their tab (for a
+//! written piece its title, and BACK TO COMPOSED MUSIC: BUG-343), and LIKE: the piece shown, with
+//! every change made to it, kept as a favourite in one click under a
 //! name made for you. Nothing leaves the computer: it is the person's own favourites file.
 
 use std::sync::Arc;
@@ -115,6 +116,10 @@ pub(super) fn strip(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: 
                 if Button::ghost(&title).hint("music_page.chip_written_hint").show(ui, theme) {
                     state.music_page.tab = Tab::Written;
                     state.music_page.written_selected = Some(written_id.clone());
+                }
+                // The way back to composed music, in view on every tab (BUG-343).
+                if Button::new(t("music_page.composed_back")).hint("music_page.composed_back_hint").show(ui, theme) {
+                    dirty |= super::back_to_composed(&mut state.settings.music);
                 }
             }
             ui.add_space(theme.spacing_sm);

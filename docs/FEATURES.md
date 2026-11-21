@@ -3468,6 +3468,20 @@ kept in favourites and share codes) and the TUNING (A = 432 or 440, for everythi
 - Web: Explore's style cards from `data/music/catalogue.json` (`styles`), saying the app plays them;
   the Listen tab names the tuning, swing and intensity the app sets; `music-web.test.js`
 
+**Back to composed music (2026-11-21, BUG-343, docs/design/music-page.md section 27).** The operator:
+"I can't seem to play the procedural music any more." Choosing composed music anywhere plays it in
+place of a chosen written piece, from the next bar: a genre or mood card (chosen or not), a seed, a
+piece heard again, an opened favourite or a pasted code, What plays' two choices (one rule,
+`music::back_to_composed`). While a written piece is the choice the Now playing strip shows BACK TO
+COMPOSED MUSIC beside its title, the Listen tab says which kind of music is the person's
+(`music::kind_words`: a written piece by name, or composed music with its genre and mood), and Explore
+says its cards play composed music again. Listen's 20-second audition still returns to exactly what
+played, the written piece included; N, P and L follow what plays.
+- Code: `src/gui/pages/music/mod.rs` (`back_to_composed`, `written_title`, `kind_words`, `apply`,
+  `open_favourite`), `strip.rs`, `explore.rs`, `view.rs`, `controls.rs`; tests
+  `src/engine/music_tests_back.rs` (each click heard in the runtime), `src/gui/pages/music/tests_back.rs`
+- Web: nothing to mirror (the website plays no music and has no strip)
+
 ### The score player: written music stored as MEI (rung 1, 2026-11-20)
 The goal of 2026-11-16 ("save orchestral music in a file format everyone can easily modify"), with MEI
 approved 2026-11-20 ("MEI sounds right unless there's better"; docs/design/score-player.md). Our own

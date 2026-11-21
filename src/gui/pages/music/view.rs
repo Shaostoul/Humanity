@@ -158,6 +158,13 @@ pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     let readout = &state.music_dev.readout;
     let status = readout.score;
     widgets::card(ui, theme, |ui| {
+        // Which kind of music is the person's, said plainly, and while it is a written piece, how to
+        // hear composed music again (BUG-343).
+        ui.label(RichText::new(super::kind_words(&state.settings.music, readout)).strong().color(theme.text_primary()));
+        if super::written_title(&state.settings.music, readout).is_some() {
+            ui.label(RichText::new(t("music_page.kind_back")).size(theme.font_size_small).color(theme.text_secondary()));
+        }
+        ui.add_space(theme.spacing_xs);
         // A written piece has no chords or sections of the composer's to name (its title is above).
         if let (Some(c), Some(p), None) = (state.music_page.sheet.as_ref(), readout.playing.as_ref(), readout.written.as_ref()) {
             let (words, leads) = piece_words(&c.sheet, p);

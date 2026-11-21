@@ -5,8 +5,10 @@
 //! the seed, and the pieces heard (kept across runs since rung 2: history.rs). Every card comes from the
 //! music's data: a new genre or mood file gets its card with no code change (infinite-of-X). Clicking
 //! a card chooses it; the choice plays from the next bar, everywhere (the page's one genre control is
-//! these cards). Each card's LISTEN (rung 2, the operator's "Agree") plays 20 seconds of a piece in it
-//! and then what played before comes back, without changing the person's choice.
+//! these cards), in place of a written piece the person chose (BUG-343: a click on a card, chosen or
+//! not, is a choice of composed music). Each card's LISTEN (rung 2, the operator's "Agree") plays 20
+//! seconds of a piece in it and then what played before comes back, without changing the person's
+//! choice.
 
 use egui::{Color32, RichText, Stroke};
 use humanity_core::i18n::{t, t_dyn};
@@ -167,8 +169,14 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
     // The genres.
     widgets::subsection_header(ui, theme, accent, t("music_page.genres_title"), "");
     ui.label(RichText::new(t("music_page.genres_intro")).color(theme.text_secondary()));
+    // While a written piece is the music, the cards are the way back to composed music (BUG-343).
+    if let Some(title) = super::written_title(&state.settings.music, &state.music_dev.readout) {
+        ui.label(RichText::new(t("music_page.explore_written_note").replace("{{title}}", &title)).color(theme.accent()));
+    }
     ui.add_space(theme.spacing_xs);
     let cards = genre_cards(lib.as_deref(), &offered, &sh.mood);
+    // A genre or mood card clicked, chosen or not: composed music plays in place of a written piece.
+    let mut composed = false;
     // The audition playing (its card's words) and the seconds it has played; a card's Listen asks
     // for one, its Stop ends one (applied after the cards are drawn).
     let auditioning = state.music_page.audition.as_ref().map(|a| a.words.clone());
@@ -223,8 +231,11 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
             clicked
             })
             .inner;
-            if clicked && !chosen {
-                sh.genre = c.id.clone();
+            if clicked {
+                if !chosen {
+                    sh.genre = c.id.clone();
+                }
+                composed = true;
             }
             if (i + 1) % cols == 0 {
                 ui.end_row();
@@ -268,8 +279,11 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                 clicked
                 })
                 .inner;
-                if clicked && !chosen {
-                    sh.mood = m.id.clone();
+                if clicked {
+                    if !chosen {
+                        sh.mood = m.id.clone();
+                    }
+                    composed = true;
                 }
                 if (i + 1) % cols == 0 {
                     ui.end_row();
@@ -277,6 +291,10 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
             }
         });
     }
+    if composed && super::back_to_composed(&mut state.settings.music) {
+        state.settings_dirty = true;
+    }
+    // A card's Listen is not a click on it: the audition goes back to what played, written or not.
     if let Some(a) = listen {
         state.music_page.audition = Some(a);
     } else if stop {
@@ -421,8 +439,7 @@ fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown,
                 state.settings_dirty = true;
             }
             None => {
-                if !state.settings.music.written.is_empty() {
-                    state.settings.music.written.clear();
+                if super::back_to_composed(&mut state.settings.music) {
                     state.settings_dirty = true;
                 }
                 sh.genre = h.genre.clone();

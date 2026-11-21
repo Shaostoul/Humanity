@@ -48,6 +48,8 @@ mod tests_style;
 mod tests_v2;
 #[cfg(test)]
 mod tests_arc;
+#[cfg(test)]
+mod tests_back;
 mod view;
 mod written;
 
@@ -473,6 +475,11 @@ pub fn shown(s: &MusicSettings, r: &MusicReadout) -> Shown {
 /// changed (the settings are then saved).
 pub fn apply(s: &mut MusicSettings, lib: Option<&MusicLibrary>, before: &Shown, after: &Shown) -> bool {
     let mut changed = false;
+    // A genre, a mood or a seed is a choice of composed music: it plays in place of a written piece
+    // (BUG-343). A change of the mixer is not one: the mixer mixes the written piece too.
+    if (after.genre != before.genre || after.mood != before.mood || after.seed != before.seed) && back_to_composed(s) {
+        changed = true;
+    }
     if after.genre != before.genre {
         s.genre = after.genre.clone();
         s.tune.leads.clear();
@@ -490,8 +497,25 @@ pub fn apply(s: &mut MusicSettings, lib: Option<&MusicLibrary>, before: &Shown, 
     changed
 }
 
-/// Make a favourite (opened from Keep, or a pasted code) the person's choice.
+/// BACK TO COMPOSED MUSIC (BUG-343; the operator, 2026-11-21: "I can't seem to play the procedural
+/// music any more. I can click play 20 seconds but, then it seems to switch back to the sheet
+/// music."): clear the written piece the person chose, so the music the app composes as it plays takes
+/// over at the next bar, in the genre and mood chosen (the game's mood while it chooses). Every choice
+/// of composed music calls it: a genre or mood card (chosen or not), a genre, mood or seed changed
+/// through the page (`apply`), an opened favourite or a pasted code, What plays' two choices, and the
+/// strip's Back to composed music. True when a written piece was chosen.
+pub fn back_to_composed(s: &mut MusicSettings) -> bool {
+    if s.written.is_empty() {
+        return false;
+    }
+    s.written.clear();
+    true
+}
+
+/// Make a favourite (opened from Keep, or a pasted code) the person's choice, in place of a written
+/// piece.
 pub fn open_favourite(s: &mut MusicSettings, f: &Favourite) {
+    back_to_composed(s);
     s.genre = f.genre.clone();
     s.mood = f.mood.clone();
     s.seed = f.seed.max(1);
@@ -532,6 +556,28 @@ fn reported_genre_words(r: &MusicReadout, id: &str) -> String {
     }
 }
 
+/// The title of the written piece the person chose, while it is their music: None for composed
+/// music, and for a piece that could not be read (what would have played without it plays then).
+pub fn written_title(s: &MusicSettings, r: &MusicReadout) -> Option<String> {
+    let unreadable = r.written_error.as_ref().is_some_and(|(id, _)| *id == s.written);
+    if s.written.is_empty() || unreadable {
+        return None;
+    }
+    Some(r.lib.as_deref().and_then(|l| l.score(&s.written)).map(|e| score_words(e).0).or_else(|| r.written_piece.as_ref().filter(|p| p.entry.id == s.written).map(|p| score_words(&p.entry).0)).unwrap_or_else(|| s.written.replace('_', " ")))
+}
+
+/// WHICH KIND OF MUSIC IS THE PERSON'S, in words (BUG-343, the Listen tab's first line): a written
+/// piece by its name, or composed music with its genre and mood (the game's mood while it chooses).
+pub fn kind_words(s: &MusicSettings, r: &MusicReadout) -> String {
+    match written_title(s, r) {
+        Some(title) => t("music_page.kind_written").replace("{{title}}", &title),
+        None => {
+            let sh = shown(s, r);
+            t("music_page.kind_composed").replace("{{genre}}", &reported_genre_words(r, &sh.genre)).replace("{{mood}}", &mood_words(r.lib.as_deref(), &sh.mood))
+        }
+    }
+}
+
 /// WHAT IS PLAYING NOW, IN WORDS, and who chose it: the person, the game, or the person's music for
 /// the game's mood; or, with nothing playing, what will. ONE function for the Music page and
 /// Settings > Music, so the two pages can never say different things
@@ -539,9 +585,7 @@ fn reported_genre_words(r: &MusicReadout, id: &str) -> String {
 pub fn now_playing_words(s: &MusicSettings, r: &MusicReadout) -> String {
     // A written piece the person chose comes first (unless it could not be read: then what would
     // have played without it plays, and is said below).
-    let unreadable = r.written_error.as_ref().is_some_and(|(id, _)| *id == s.written);
-    if !s.written.is_empty() && !unreadable {
-        let title = r.lib.as_deref().and_then(|l| l.score(&s.written)).map(|e| score_words(e).0).or_else(|| r.written_piece.as_ref().filter(|p| p.entry.id == s.written).map(|p| score_words(&p.entry).0)).unwrap_or_else(|| s.written.replace('_', " "));
+    if let Some(title) = written_title(s, r) {
         return if !s.music_on {
             t("music_page.now_off").replace("{{what}}", &t("music_page.what_written").replace("{{title}}", &title))
         } else if r.playing.is_some() {
