@@ -264,8 +264,11 @@ fn offer(id: &str, quests: &humanity_systems::quests::QuestRegistry, tracker: Op
     let state = match tracker {
         Some(t) if t.is_completed(id) => OfferState::Done,
         Some(t) if t.is_active(id) => OfferState::Taken,
-        _ => match q.prerequisite.as_deref() {
-            Some(pre) if !tracker.is_some_and(|t| t.is_completed(pre)) => OfferState::Locked(quests.get(pre).map(|p| p.name.clone()).unwrap_or_else(|| pre.to_string())),
+        // Locked until its `after` is met (P1): named by the first quest it still waits for.
+        _ => match q.after.ids().iter().find(|pre| !tracker.is_some_and(|t| t.is_completed(pre))) {
+            Some(pre) if !q.after.met(|p| tracker.is_some_and(|t| t.is_completed(p))) => {
+                OfferState::Locked(quests.get(pre).map(|p| p.name.clone()).unwrap_or_else(|| pre.to_string()))
+            }
             _ => OfferState::Available,
         },
     };

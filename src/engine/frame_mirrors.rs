@@ -130,17 +130,28 @@ pub(crate) fn run(state: &mut EngineState) {
         let quest_reg =
             state.data_store.get::<QuestRegistry>("quest_registry");
         state.gui_state.quests.clear();
-        for (_e, (tracker, _ctrl)) in state
+        let now_s = humanity_systems::time::elapsed_now(&state.data_store);
+        for (_e, (tracker, _ctrl, vitals, intake)) in state
             .game_world
             .world
-            .query::<(&QuestTracker, &Controllable)>()
+            .query::<(&QuestTracker, &Controllable, Option<&humanity_core::ecs::components::Vitals>, Option<&humanity_systems::intake::IntakeLedger>)>()
             .iter()
         {
+            // What a Keep step reads (E2): the body and its intake ledger, on the game clock.
+            let body = humanity_systems::quests::readings::Body { vitals, intake, now_s };
             // The step as the player reads it (the own front door named, 2026-10-04),
             // the chain and the rewards: gui/quest_types.rs.
             humanity_systems::quests::chain::with_store_words(&state.data_store, |w| {
+                // The HUD's quest (P2): the tracked one, else the most recently accepted.
+                let hud = tracker.hud_quest().map(|a| a.quest_id.as_str());
                 for active in &tracker.active_quests {
-                    state.gui_state.quests.push(crate::gui::GuiQuest::active(quest_reg, active, w));
+                    let mut q = crate::gui::GuiQuest::active(quest_reg, active, w);
+                    q.tracked = hud == Some(active.quest_id.as_str());
+                    q.keep_line = quest_reg
+                        .and_then(|r| r.get(&active.quest_id))
+                        .and_then(|d| d.steps.get(active.current_step))
+                        .and_then(|s| crate::gui::keep_line(&s.objective, active.current_step, &active.progress, &body));
+                    state.gui_state.quests.push(q);
                 }
             });
             for cid in &tracker.completed_quests {
@@ -157,25 +168,25 @@ pub(crate) fn run(state: &mut EngineState) {
                 humanity_systems::quests::chain::with_store_words(&state.data_store, |w| humanity_systems::quests::chain::build(reg, tracker, id, reveal, w))
             });
             // Available quests (v0.748, ladder rung 4): accept-able
-            // content the chaining alone never reached — quests with
-            // no prerequisite (or a completed one) that aren't active
+            // content the chaining alone never reached: quests whose
+            // `after` is met (none, or finished) that aren't active
             // or done. Sorted for a stable list.
             state.gui_state.quests_available.clear();
             if let Some(reg) = quest_reg {
                 // Another start's opening is never offered (increment 6: each start
-                // has its own, and none has a prerequisite).
+                // has its own, and none has an `after`).
                 let my_start = humanity_systems::persistence::live_save::active_home().start;
                 let openings = humanity_ship::starts::opening_quests(&state.data_dir);
                 let mut avail: Vec<crate::gui::GuiAvailableQuest> = reg
                     .quests
                     .values()
                     .filter(|d| !openings.iter().any(|(start, quest)| *quest == d.id && *start != my_start))
+                    // Never one whose home lacks what its steps use (`QuestDef::starts`).
+                    .filter(|d| d.offered_to(&my_start))
                     .filter(|d| {
                         !tracker.is_active(&d.id)
                             && !tracker.is_completed(&d.id)
-                            && d.prerequisite
-                                .as_deref()
-                                .map_or(true, |p| tracker.is_completed(p))
+                            && d.after.met(|p| tracker.is_completed(p))
                     })
                     .map(|d| crate::gui::GuiAvailableQuest {
                         id: d.id.clone(),

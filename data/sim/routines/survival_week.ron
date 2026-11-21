@@ -1,0 +1,92 @@
+// A person playing the survival quests at home, for the soak (`HumanityOS --sim soak --routine
+// survival_week --days 70`; 2026-11-20, docs/design/quest-chains.md rung 1). The daily routine's
+// day (daily.ron: drinks, meals, the night in bed) with the clicks a player makes to play the
+// survival chains of data/quests/survival.ron: Accept each offered chain on the Quests page, look
+// at the vitals, open the guides and the how-to its steps name, mix the oral rehydration salts,
+// plant, and compost. Every act is the request a page sends, carried by the same bridges
+// (src/engine/sim_routine.rs), so a quest finishes here only if the real systems finish it.
+//
+// The test the_survival_chains_finish_in_the_soak (src/engine/frame_sim_tests.rs) runs this and
+// holds every quest of survival.ron to finished, and Start Farming to started by its join.
+//
+// The acts beyond daily.ron's (`what` names what they act on; `day` limits one to one day of the
+// run, 0 the first):
+//   Accept   the Quests page's Accept on quest `what`
+//   View     a view on screen: "vitals" is the Inventory page's Status section
+//   Read     opening a guide: "library:<file stem>", or "how_to:<id>" on the How-to page
+//   Craft    the Crafting page's Craft on recipe `what`
+//   Plant    the backpack's Plant on seed `what` (into a grow machine within reach)
+//   PlantTower  the Garden page's "Plant this tower" on tower design `what`: every empty slot
+//            whose seed the backpack holds
+//   Compost  the Inventory page's Compost
+// A count step counts from the moment its quest was accepted, so the views and readings run
+// every day: a quest started later (Keep It starts when Food First ends) still sees one.
+//
+// Days: Food First ends on day 0 (three of the kit's field rations, 2,400 kcal, by 19:00), which
+// starts Grow Your Own and Keep It, and gives radish seeds; on day 1 "Plant this tower" on the
+// opening's tower sows its empty radish slot with one (the soak's person stands where no grow
+// machine is in reach, so the backpack's Plant would sow nothing), which is Grow Your Own's Plant
+// step. The radish ripens on day 26 and is harvested, but one plant is a few grams of a 300 g
+// Radish, so the quest asks for the lettuce the run planted at the start: 45 days at full health
+// and slower below it, harvested and eaten by the next meal once ripe, which finishes Grow Your Own.
+// (The radish version stalled at its Eat step: the run's end showed 4 crops again after the
+// radish's harvest, which the handed-off rung read as "nothing sown".) No nap: Energy reaches the
+// fatigue line of 25 after 17 waking hours (food.rs, 2026-11-21), so this person's day, up at
+// 06:40 and in bed at 22:30, ends tired and above it, and the test holds the lowest reading of the
+// run at 25 or more (until then the line came at 16 hours and this routine napped at 15:00). The
+// Compost button is pressed only on the first three
+// days, while Clean Hands holds the Waste meter under 75 (it peaks near 65): each press puts
+// fertilizer (2.78 L a bag) and a day's stored urine (1.8 L) in the 65 L backpack, and this routine
+// has no act that puts them away, so pressing it every day filled the pack within a week and the
+// food taken from storage no longer fitted (the person starved on day 26). The kit's water jugs are not in `drinks`: they
+// are kept for the oral rehydration salts (mix_ors takes one).
+(
+    id: "survival_week",
+    name: "Playing the survival quests at home",
+    foods: [
+        "vegetable_lettuce_0",
+        "vegetable_spinach_0",
+        "vegetable_kale_0",
+        "vegetable_radish_0",
+        "vegetable_tomato_0",
+        "vegetable_carrot_0",
+        "legume_bean_0",
+        "vegetable_potato_0",
+        "ration_basic_0",
+        "rice_0",
+        "flour_0",
+        "grain_corn_0",
+    ],
+    // The mixed salts first, so the next Drink after the Craft drinks them; then a filled bottle.
+    drinks: ["ors_solution_0", "water_bottle_0"],
+    acts: [
+        (hour: 7.0, act: Drink),
+        (hour: 7.1, act: Accept, what: "water_first", day: Some(0)),
+        (hour: 7.2, act: Accept, what: "food_first", day: Some(0)),
+        (hour: 7.3, act: Accept, what: "rest_first", day: Some(0)),
+        (hour: 7.4, act: Accept, what: "clean_first", day: Some(0)),
+        (hour: 7.5, act: Accept, what: "aid_first", day: Some(0)),
+        (hour: 7.6, act: View, what: "vitals"),
+        (hour: 7.7, act: Read, what: "library:nutrition_that_keeps_you_working"),
+        (hour: 7.8, act: Read, what: "library:handwashing_and_hygiene"),
+        (hour: 7.9, act: Read, what: "library:first_aid_until_help_arrives"),
+        (hour: 8.0, act: Eat),
+        (hour: 8.2, act: Read, what: "library:when_food_or_water_makes_you_sick"),
+        (hour: 8.3, act: Read, what: "how_to:mix_ors_packet"),
+        (hour: 8.5, act: Craft, what: "mix_ors", day: Some(0)),
+        (hour: 9.0, act: Drink),
+        (hour: 10.0, act: Drink),
+        (hour: 10.5, act: Read, what: "library:the_chemistry_of_keeping_food"),
+        (hour: 11.0, act: PlantTower, what: "nutrition", day: Some(1)),
+        (hour: 12.5, act: Drink),
+        (hour: 13.0, act: Eat),
+        (hour: 15.5, act: Drink),
+        (hour: 18.5, act: Drink),
+        (hour: 19.0, act: Eat),
+        (hour: 20.0, act: Compost, day: Some(0)),
+        (hour: 20.0, act: Compost, day: Some(1)),
+        (hour: 20.0, act: Compost, day: Some(2)),
+        (hour: 21.5, act: Drink),
+        (hour: 22.5, act: Sleep),
+    ],
+)

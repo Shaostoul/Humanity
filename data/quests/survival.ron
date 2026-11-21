@@ -1,0 +1,224 @@
+// HumanityOS Quest Chains: Survival (water, food, rest, clean hands, first aid)
+//
+// The survival chains of docs/design/quest-chains.md, rung 1 (2026-11-20): the steps whose
+// every need is in the game today plus the engine pieces P1 (joins, `after: AnyOf`), P2 (the
+// tracked quest on the HUD) and P3 (the intake ledger), with the objective kinds those steps
+// name: Drink, Keep and Learn (E1 to E3). Each chain's first quest is OFFERED (`after: None`):
+// it waits on the Quests page under Available, so a new player's HUD is not flooded with seven
+// chains in the first minutes (design 1.3). The steps left for later rungs, and what each waits
+// for, are listed in the design's section 4.3 note for rung 1.
+//
+// `starts: ["homestead"]`: every quest here is offered to the Homestead start only, whose home
+// has the tank, the garden, the compost and the kit these steps use. A Cabin is given them when
+// the per-start test (P10) reads each quest against the Cabin's kit and machines.
+//
+// THE TEACHING RULE (memory project_teaching_data_needs_refutation): every fact a player reads
+// here carries its source beside it, and each was read from that source and passed the
+// refutation pass of 2026-10-30 (docs/reference/findings/2026-10-30-quest-chain-facts-review.md)
+// and this rung's own pass of 2026-11-20 (the fact ids W1 and so on are the design's section 3).
+// A number that is the GAME's choice, not a fact about the world, says so where it is shown.
+//
+// Objective kinds (crates/humanity-systems/src/quests/objectives.rs):
+//   View(view: "vitals")              the Inventory page's Status section came on screen
+//   Learn(page: "library:<file>")     a Library guide opened (data/library/<file>.md)
+//   Learn(page: "how_to:<id>")        a how-to opened (data/how_to/**/<id>.json)
+//   Drink(item_id, quantity)          drinks the body actually took (FoodSystem)
+//   Keep(reading, min, max, hours)    a reading held in its band: hours 0 = reach once, more =
+//                                     hold that many game hours without a break; readings are
+//                                     quests::readings::READINGS ("vital.*", "intake.*")
+//   Gather, Craft, Plant, Harvest, Eat as in getting_started.ron
+//
+// A step's text is the HUD's quest line, "<text> (2/5)", held to 64 characters by
+// every_step_of_every_shipped_quest_fits_the_hud_line.
+//
+// Tests: shipped_quest_objective_ids_all_resolve (every id, reading, page and start resolves);
+// the survival soak (src/engine/frame_sim_tests.rs, the_survival_chains_finish_in_the_soak)
+// plays every quest here to its end in the headless sim runner, following
+// data/sim/routines/survival_week.ron, with the real systems.
+[
+    // ── Water (design 2.1) ──────────────────────────────────────────────
+    (
+        id: "water_first",
+        name: "Water First",
+        // W1: the game's drain (food.rs: 50 Hydration points a day at the default Vitals drain,
+        // HYDRATION_PER_LITRE 20, so 2.5 L; Jequier and Constant 2010). US National Academies news
+        // release (last update 2004-02-11): "3.7 liters for adult men and 2.7 liters for adult
+        // women per day", for "healthy, sedentary people in temperate climates"; W2, same release:
+        // "the other 20 percent is derived from food"; W4, same release: "Prolonged physical
+        // activity and heat exposure will increase water losses". W3: MedlinePlus "Dehydration"
+        // (reviewed 2025-07-01), signs of mild to moderate dehydration: "Thirst", "Dry or sticky
+        // mouth", "Darker yellow urine". EFSA's lower figures (2.0 and 2.5 L) were never read from
+        // EFSA itself (its journal refused automated reading on 2026-11-21), so they are not taught.
+        description: "Your body loses water all day: about two and a half litres in this game's reckoning, and more in the heat or when you work hard. The US National Academies' figures for adults are about 2.7 litres a day for women and 3.7 for men, from drinks and food together, and about a fifth of it comes from food. Thirst, a dry mouth and darker urine are signs of drying out. Take in a day's water and keep your Hydration up for a whole day.",
+        steps: [
+            (description: "See your Hydration: press I, Inventory > Status", objective: View(view: "vitals")),
+            (description: "Fill a bottle at a water tank: E, then Fill", objective: Gather(item_id: "water_bottle_0", quantity: 1)),
+            (description: "Drink 2 bottles: press I, click one, then Drink", objective: Drink(item_id: Some("water_bottle_0"), quantity: 2)),
+            // Counts food's water as well as drinks (the intake ledger, W2): that is the lesson.
+            (description: "Take in 2.5 L of water in one day", objective: Keep(reading: "intake.water_l_24h", min: Some(2.5))),
+            // From full, a day of the game's drain leaves 50 (food.rs), so 60 or more for a whole
+            // day means drinking through the day and before sleep. The night asleep counts.
+            (description: "Keep your Hydration at 60 or more for a day", objective: Keep(reading: "vital.hydration", min: Some(60.0), hours: 24.0)),
+        ],
+        // The design's reward, an empty 20 L jerrycan, is for Water for Bad Days (water_store),
+        // which waits for the water contents model: it comes with that quest. It is 24 L of a
+        // 65 L backpack, and the soak's person, given it here, could no longer fit food taken
+        // from storage.
+        rewards: [],
+        xp_rewards: [("water_purification", 20)],
+        after: None,
+        starts: ["homestead"],
+    ),
+
+    // ── Food (design 2.2) ───────────────────────────────────────────────
+    (
+        id: "food_first",
+        name: "Food First",
+        // F1: FDA, "How to Understand and Use the Nutrition Facts Label" (current 2024-03-05):
+        // "2,000 calories a day is used as a general guide for nutrition advice."; "Your calorie
+        // needs may be higher or lower". The game's Satiation runs on the same figure
+        // (food.rs DAILY_KCAL, 21 CFR 101.9(d)(9)).
+        description: "Your body runs on food energy. Food labels use 2,000 kcal a day as a general guide, and your own need may be higher or lower with your age, sex, size and how active you are. Watch your Satiation and eat a day's worth.",
+        steps: [
+            (description: "See your Satiation: press I, Inventory > Status", objective: View(view: "vitals")),
+            (description: "Read: Nutrition That Keeps You Working (Library)", objective: Learn(page: "library:nutrition_that_keeps_you_working")),
+            (description: "Eat 2,000 kcal of food in one day", objective: Keep(reading: "intake.kcal_24h", min: Some(2000.0))),
+        ],
+        rewards: [("seed_lettuce_0", 5), ("seed_radish_0", 5)],
+        xp_rewards: [("cooking", 15)],
+        after: None,
+        starts: ["homestead"],
+    ),
+    (
+        id: "food_grow",
+        name: "Grow Your Own",
+        // F2: CDC, "Preventing Food Poisoning" (2025-11-24): "Rinse fresh fruits and vegetables
+        // under running water." Days to harvest are each crop's row in data/plants.csv (radish 25,
+        // lettuce 45, potato 90, wheat 120): weeks to months. The game has no rinse action, so the
+        // HUD line says the rinse is real life's.
+        // A LETTUCE, not a radish (2026-11-21, the soak): a tower cup is one plant, and one radish
+        // plant gives 2.4 to 8.2 g (data/plants.csv yield_min/yield_max of the 300 g Radish item,
+        // data/items.csv), so a cup's harvest is almost always no whole Radish to eat; the soak
+        // planted, grew and harvested its radish and then had nothing to eat. A lettuce plant gives
+        // a head (1.085 items), from the tower's lettuce cup the opening plants, in 45 days.
+        description: "Seeds take weeks to months to become food: each crop's time is on its card in the Garden. Plant crops, harvest a lettuce you grew and eat it. With real produce, rinse it under running water first, as the CDC advises.",
+        steps: [
+            // Any crop: Food First's reward is lettuce and radish seeds, and the tower's radish
+            // cup is empty after the opening.
+            (description: "Plant a crop: press I, Garden, then Plant", objective: Plant(crop_id: None, quantity: 1)),
+            (description: "Harvest a lettuce you grew: press I, Garden", objective: Harvest(crop_id: "lettuce", quantity: 1)),
+            (description: "Eat the lettuce (rinse real produce under running water)", objective: Eat(item_id: Some("vegetable_lettuce_0"), quantity: 1)),
+        ],
+        rewards: [],
+        xp_rewards: [("farming", 20)],
+        // Start Farming (data/quests/tutorial.ron) joins after this or after Build First
+        // Habitat, whichever the player finishes first (P1, `after: AnyOf`).
+        after: Quest("food_first"),
+        starts: ["homestead"],
+    ),
+    (
+        id: "food_keep",
+        name: "Keep It",
+        // F5: FDA, "Are You Storing Food Safely?" (current 2023-01-18): "Keeping foods chilled at
+        // proper temperatures is one of the best ways to prevent or slow the growth of these
+        // bacteria."; "food can make you very sick even when it doesn't look, smell, or taste
+        // spoiled."; "Keep the refrigerator temperature at or below 40° F (4° C)."; "The freezer
+        // temperature should be 0° F (-18° C)."; "While freezing does not kill most bacteria, it
+        // does stop bacteria from growing."
+        description: "Keeping food cold is one of the best ways to slow the bacteria that make people sick, and food can make you sick even when it does not look, smell or taste spoiled. A fridge should hold 4 C (40 F) or below and a freezer -18 C (0 F). Freezing stops bacteria growing, but it does not kill most of them.",
+        steps: [
+            (description: "Read: The Chemistry of Keeping Food (Library)", objective: Learn(page: "library:the_chemistry_of_keeping_food")),
+        ],
+        rewards: [],
+        xp_rewards: [("cooking", 10)],
+        after: Quest("food_first"),
+        starts: ["homestead"],
+    ),
+
+    // ── Rest (design 2.7) ───────────────────────────────────────────────
+    (
+        id: "rest_first",
+        name: "A Night's Sleep",
+        // R1: CDC, "About Sleep" (2024-05-15): "18–60 years" "7 or more hours"; "61–64 years"
+        // "7–9 hours"; "65 years and older" "7–8 hours"
+        // (systems::sleep cites the AASM consensus, Watson et al. 2015, to the same 7 hours).
+        // 25 is the game's FATIGUED_THRESHOLD (food.rs), a game choice, said so. Energy reaches it
+        // after 17 waking hours (food.rs ENERGY_DECAY_PER_SEC, 2026-11-21): R2, Williamson and
+        // Feyer 2000, Occup Environ Med 57(10):649-655, abstract: "After 17-19 hours without
+        // sleep, corresponding to 2230 and 0100, performance on some tests was equivalent or worse
+        // than that at a BAC of 0.05%." So a regular day (16 hours awake) ends tired, near 29, and
+        // never fatigued; no nap is needed (it was 16 hours to the line until then, and this text
+        // told people to nap).
+        description: "Adults 18 to 60 need 7 or more hours of sleep a night (7 to 9 from 61 to 64, and 7 to 8 from 65). Your Energy falls while you are awake and comes back while you sleep, so you are tired at bedtime, as everyone is. Below 25, the point at which this game makes you fatigued, you slow down. The game puts that about 17 hours after you wake, because one study found that people kept awake 17 to 19 hours did as badly on some tests as they had at a blood alcohol level of 0.05%, or worse. Sleep in your bed each night and go two days without growing fatigued.",
+        steps: [
+            (description: "See your Energy: press I, Inventory > Status", objective: View(view: "vitals")),
+            (description: "Keep your Energy at 25 or more for 2 days", objective: Keep(reading: "vital.energy", min: Some(25.0), hours: 48.0)),
+        ],
+        rewards: [],
+        xp_rewards: [("fitness", 10)],
+        after: None,
+        starts: ["homestead"],
+    ),
+
+    // ── Clean hands and waste (design 2.5) ──────────────────────────────
+    (
+        id: "clean_first",
+        name: "Clean Hands",
+        // C1: CDC, "About Handwashing" (2024-02-16): "Scrub your hands for at least 20 seconds.";
+        // "Washing hands with soap and water is the best way to get rid of germs in most
+        // situations."; "If soap and water are not readily available, you can use an
+        // alcohol-based hand sanitizer that contains at least 60% alcohol." 75 is the game's
+        // UNSANITARY_THRESHOLD (food.rs), a game choice, said so. The real-life gap is the
+        // Library's Toilets and Human Waste: the game leaves out "the months to years that real
+        // human waste takes to become safe".
+        description: "Washing your hands with soap and water, scrubbing for at least 20 seconds, is the best way to get rid of germs in most situations; when soap and water are not at hand, use an alcohol-based hand sanitiser with at least 60% alcohol. Your Waste meter rises as you live: compost it before it passes 75, the level at which this game makes you unsanitary. In real life human waste takes months to years to become safe: see Toilets and Human Waste in the Library.",
+        steps: [
+            (description: "Read: Handwashing and Personal Hygiene (Library)", objective: Learn(page: "library:handwashing_and_hygiene")),
+            (description: "Keep Waste at 75 or less for 3 days (I, Compost)", objective: Keep(reading: "vital.waste", max: Some(75.0), hours: 72.0)),
+        ],
+        rewards: [("soap_bar_0", 2)],
+        xp_rewards: [("medicine", 10)],
+        after: None,
+        starts: ["homestead"],
+    ),
+
+    // ── First aid (design 2.6) ──────────────────────────────────────────
+    (
+        id: "aid_first",
+        name: "Ready for Accidents",
+        // The Library guide carries its own sources (MedlinePlus "Bleeding" and the rest, the
+        // design's M1); the quest teaches nothing beyond pointing at it.
+        description: "An accident far from help is when knowing what to do matters most. Read what to do in the first minutes, until help arrives.",
+        steps: [
+            (description: "Read: First Aid Until Help Arrives (Library)", objective: Learn(page: "library:first_aid_until_help_arrives")),
+        ],
+        rewards: [("bandage_0", 2)],
+        xp_rewards: [("medicine", 15)],
+        after: None,
+        starts: ["homestead"],
+    ),
+    (
+        id: "aid_rehydrate",
+        name: "When Water Leaves You",
+        // WHO, "Diarrhoeal disease" fact sheet (2024-03-07): "water and electrolytes (sodium,
+        // chloride, potassium and bicarbonate) are lost through liquid stools, vomit"; "ORS is
+        // absorbed in the small intestine and replaces the water and electrolytes lost in the
+        // faeces." NIDDK, "Treatment of Diarrhea" (reviewed 2024-09): "Older adults; people with a
+        // weak immune system; and people who have diabetes, kidney disease, or other health
+        // conditions" "should talk with their doctor before drinking oral rehydration
+        // solutions."; "Talk with a doctor before giving oral rehydration solutions to your
+        // infant." The kit's sachets and the mix_ors recipe are BUG-162's; how much water a
+        // sachet takes is the packet's, so the text says "as the packet says" and no figure.
+        description: "Diarrhoea and vomiting take water and salts out of the body. Oral rehydration salts, mixed with clean water as the packet says, put both back. Learn to mix them before you need to. You drink one here to learn how; in real life it is for when you are ill, and babies, older adults and people with diabetes, kidney disease or another condition check with a doctor first.",
+        steps: [
+            (description: "Read: When Food or Water Makes You Sick", objective: Learn(page: "library:when_food_or_water_makes_you_sick")),
+            (description: "Learn: Mix oral rehydration solution (How-to)", objective: Learn(page: "how_to:mix_ors_packet")),
+            (description: "Mix oral rehydration salts: Crafting", objective: Craft(recipe_id: "mix_ors", quantity: 1)),
+            (description: "Drink it (in real life, sip it while ill): I, click, Drink", objective: Drink(item_id: Some("ors_solution_0"), quantity: 1)),
+        ],
+        rewards: [("ors_sachet_0", 2)],
+        xp_rewards: [("medicine", 15)],
+        after: Quest("aid_first"),
+        starts: ["homestead"],
+    ),
+]

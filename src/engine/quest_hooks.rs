@@ -8,6 +8,12 @@
 //!    not on screen the frame before becomes one quest event. Once per
 //!    opening, not once per frame, so a progress counter does not grow for as
 //!    long as the page stays open.
+//!    Guides and how-tos opened (2026-11-20, E3): the Library page and the
+//!    How-to page note each one the player opens (`GuiState::quest_learned`,
+//!    `HowToState::opened`), and here each becomes one `learn_<page>` event.
+//!    Both run in `report`, on the sim's step (`frame_sim::bridges_slice`), so
+//!    the headless soak's routine counts a view or a reading the way a
+//!    player's click does.
 //! 2. The player's own front door, for the opening's last step: the doorstep
 //!    of whichever plot the home stands on, read off the ship the game runs
 //!    (`systems::quests::publish_front_door`). A guest's home is put away and
@@ -15,13 +21,30 @@
 
 use crate::engine::state::EngineState;
 
-/// Once per frame: report the views that came on screen and publish the
-/// front door.
+/// Once per frame: publish the front door (the views and guides are `report`'s, on the step).
 pub(crate) fn frame(state: &mut EngineState) {
-    for view in views_that_came_on_screen(&mut state.gui_state) {
-        humanity_systems::quests::push_quest_event(&state.data_store, humanity_systems::quests::view_event_key(view));
-    }
     humanity_systems::quests::publish_front_door(&mut state.data_store, state.gui_state.ship_structure.as_ref());
+}
+
+/// Once a step (`frame_sim::bridges_slice`, the windowed frame's and the soak's): the views that
+/// came on screen and the guides and how-tos opened, as quest events.
+pub(crate) fn report(gui: &mut crate::gui::GuiState, data: &humanity_core::hot_reload::data_store::DataStore) {
+    use humanity_systems::quests::{learn_event_key, push_quest_event, view_event_key};
+    for view in views_that_came_on_screen(gui) {
+        push_quest_event(data, view_event_key(view));
+    }
+    for page in learned(gui) {
+        push_quest_event(data, learn_event_key(&page));
+    }
+}
+
+/// The guides and how-tos opened since this was last asked, as Learn pages: "library:<file
+/// stem>" (the Library's slug is the file's stem with hyphens, `library_slug_of_file`) and
+/// "how_to:<id>". Pure on the GuiState.
+pub(crate) fn learned(gui: &mut crate::gui::GuiState) -> Vec<String> {
+    let mut pages: Vec<String> = std::mem::take(&mut gui.quest_learned);
+    pages.extend(std::mem::take(&mut gui.how_to.opened).into_iter().map(|id| format!("how_to:{id}")));
+    pages
 }
 
 /// The views the interface drew since this was last asked that it had not
@@ -44,8 +67,11 @@ pub(crate) fn views_that_came_on_screen(gui: &mut crate::gui::GuiState) -> Vec<&
 /// was marked before `draw` stays; what `draw` marks is dropped.
 pub(crate) fn off_the_record<R>(gui: &mut crate::gui::GuiState, draw: impl FnOnce(&mut crate::gui::GuiState) -> R) -> R {
     let opened = std::mem::take(&mut gui.views_on_screen);
+    // A wall's Library opening its own document is not the player opening a guide (E3).
+    let learned = std::mem::take(&mut gui.quest_learned);
     let out = draw(gui);
     gui.views_on_screen = opened;
+    gui.quest_learned = learned;
     out
 }
 

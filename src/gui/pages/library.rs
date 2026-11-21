@@ -755,6 +755,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     // Read to its end (skills rung 2): the Skills page's guide bonus.
                                     let end = ui.allocate_response(Vec2::new(1.0, 1.0), Sense::hover()).rect;
                                     if let Some(e) = entry {
+                                        // Opened just now (a new slug in the reader): a quest's Learn step
+                                        // (2026-11-20, E3) counts the opening, by the guide's file stem.
+                                        if s.opened.as_ref().is_none_or(|(open, _)| open != &e.slug) {
+                                            state.quest_learned.push(format!("library:{}", e.slug.replace('-', "_")));
+                                        }
                                         if note_read(ui, s, &e.slug, body, state.practice.reading.as_ref(), end) {
                                             guide_read = Some(e.slug.clone());
                                         }

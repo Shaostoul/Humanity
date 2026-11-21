@@ -23,7 +23,7 @@
         rewards: [
             ("welding_torch_0", 1),
         ],
-        prerequisite: Some("tutorial_first_habitat"),
+        after: Quest("tutorial_first_habitat"),
     ),
 
     (
@@ -47,6 +47,6 @@
         rewards: [
             ("steel_ingot_0", 20),
         ],
-        prerequisite: Some("construction_advanced_habitat"),
+        after: Quest("construction_advanced_habitat"),
     ),
 ]

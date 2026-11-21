@@ -140,6 +140,8 @@ pub const QUEST_EXPLORATION_RON: &str = include_str!(concat!(env!("HUMANITY_REPO
 pub const QUEST_FARMING_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/quests/farming.ron"));
 pub const QUEST_TUTORIAL_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/quests/tutorial.ron"));
 pub const QUEST_GETTING_STARTED_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/quests/getting_started.ron"));
+/// The survival chains, rung 1 (2026-11-20, docs/design/quest-chains.md).
+pub const QUEST_SURVIVAL_RON: &str = include_str!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/quests/survival.ron"));
 // The Travel destinations (2026-10-04): the opening's last step walks to the
 // player's own front door, one of these, so an exe shipped without data/ (a
 // fresh install extracts only what is listed here) needs them or that step
@@ -473,6 +475,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "quests/farming.ron" => Some(QUEST_FARMING_RON),
         "quests/tutorial.ron" => Some(QUEST_TUTORIAL_RON),
         "quests/getting_started.ron" => Some(QUEST_GETTING_STARTED_RON),
+        "quests/survival.ron" => Some(QUEST_SURVIVAL_RON),
         "entities/destinations.ron" => Some(ENTITIES_DESTINATIONS_RON),
 
         // RON — Blueprints
@@ -791,6 +794,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "quests/farming.ron",
     "quests/tutorial.ron",
     "quests/getting_started.ron",
+    "quests/survival.ron",
     "entities/destinations.ron",
     "blueprints/basic.ron",
     "blueprints/construction.ron",

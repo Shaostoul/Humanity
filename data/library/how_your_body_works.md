@@ -656,11 +656,15 @@ timescales, and leaves out nearly everything that can go wrong inside one.
   item's weight less the peel, core, shell or bone USDA counts as waste).
   The numbers are in `crates/humanity-systems/src/food.rs`, and the slowdowns in
   `data/status_effects.csv`.
-- **Tiredness and sleep.** Energy runs down through the waking day, and
-  after about sixteen waking hours it falls below a quarter and you are
-  Fatigued and slower. A night in a bed restores it, the bedroom's own or
-  one you have built ("[E] sleep in the Bed"); the game sleeps you 8
-  hours.
+- **Tiredness and sleep.** Energy runs down through the waking day, so
+  you are tired by bedtime, as everyone is. After about seventeen waking
+  hours it falls below a quarter and you are Fatigued and slower: in one
+  study, after 17 to 19 hours without sleep people did as badly on some
+  tests as they did with a blood alcohol level of 0.05%, or worse
+  (Williamson and Feyer 2000, below). A regular day of 16 hours awake does not get you
+  there; staying up late or hard work does. A night in a bed restores it,
+  the bedroom's own or one you have built ("[E] sleep in the Bed"); the
+  game sleeps you 8 hours.
 - **Air.** Out of breathable air, your Oxygen falls in about 40 seconds;
   below half you have Hypoxia, which slows you hard, and at zero
   Suffocation drains your health fast.
@@ -902,6 +906,13 @@ Grouped by what kind of authority each one is. Web pages were read on
   December 2023 (the causes; who is most at risk; the signs in adults and
   in infants and young children; when to get medical help right away).
   https://medlineplus.gov/dehydration.html
+- Williamson A, Feyer A. Moderate sleep deprivation produces impairments
+  in cognitive and motor performance equivalent to legally prescribed
+  levels of alcohol intoxication. Occupational and Environmental Medicine
+  57(10):649-655, October 2000, read 21 November 2026 (after 17 to 19
+  hours without sleep, performance on some tests as bad as or worse than
+  at a blood alcohol level of 0.05%; the game's 17 hours to Fatigued).
+  https://pmc.ncbi.nlm.nih.gov/articles/PMC1739867/
 
 ### Inside this project
 

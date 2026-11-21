@@ -10,7 +10,7 @@
 /// ingot, could never be done in the one-person home, nor Toolsmith's hammer after it.
 ///
 /// The starter chain is the quest accepted at spawn (`gs_first_steps`, lib.rs) and each
-/// quest that follows it in the data (the one naming it as `prerequisite`), until the chain
+/// quest that follows it in the data (the one whose `after` names it), until the chain
 /// branches. For each shipped home: a Craft step's recipe has its station placed, a Make
 /// step's item comes from a recipe whose station is placed, and every material a Build step
 /// uses is in the home's stores (data/places/seed.json) or sold at a trading post the home
@@ -77,7 +77,7 @@ fn every_shipped_home_has_what_the_starter_quests_need() {
     let mut chain = vec![quests.get("gs_first_steps").expect("the starter quest ships")];
     loop {
         let last = chain.last().unwrap().id.clone();
-        let next: Vec<_> = quests.quests.values().filter(|q| q.prerequisite.as_deref() == Some(last.as_str())).collect();
+        let next: Vec<_> = quests.quests.values().filter(|q| q.after.names(&last)).collect();
         if next.len() != 1 || chain.iter().any(|q| q.id == next[0].id) {
             break;
         }

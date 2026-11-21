@@ -1,6 +1,6 @@
 # Survival quest chains: water, food, warmth, air, cleanliness, first aid and rest
 
-Status: **design, 2026-10-30.** Nothing here is built, and no quest data is written yet: the
+Status: **design, 2026-10-30; rung 0, P3 and the chains that need only them built 2026-11-20 (section 4.3a).** The
 operator reviews this first, then `data/quests/*.ron` is written from it rung by rung (section 4).
 Every fact in section 3 was read from its primary source on 2026-10-30 (the few that could not be
 are marked so, and listed in 3.6), and **every one needs a refutation pass before it reaches a
@@ -428,6 +428,11 @@ First Habitat): rather than rebuild it, Start Farming's `after` becomes
 | 1 | "Plant 3 crops: press I, Garden, then Plant" | `Plant(any, 3)` | exists | planned `start_seeds_indoors` | |
 | 2 | "Harvest a crop you grew" | `Harvest(lettuce, 1)` | exists | | |
 | 3 | "Rinse it under running water, then eat it" | `Eat(vegetable_lettuce_0, 1)` | exists | | F2 |
+
+Built 2026-11-21 with lettuce, as designed, after a radish version failed in the soak: a tower cup
+is one plant, one radish plant yields 2.4 to 8.2 g (`data/plants.csv` against the 300 g Radish of
+`data/items.csv`), so a radish cup's harvest is almost never a whole item to eat. Step 1 is one crop
+(`Plant(any, 1)`): Food First's seeds fill the tower's empty radish cup.
 
 Facts about each crop (days to harvest, light, water) are its row in `data/plants.csv`, sourced
 row by row by the botanist; this chain cites none of its own. Rewards: XP farming 20.
@@ -1414,6 +1419,27 @@ breathed in, or when unsure. **⚠ serious.**
   more hours".
 - **Refutation pass 2026-10-30: CONFIRMED** ([finding R1](../reference/findings/2026-10-30-quest-chain-facts-review.md#r1)).
 
+**R2. When tiredness becomes impairment (2026-11-21).** The game's Energy reaches its fatigue line
+(25, a game choice) after 17 waking hours (`ENERGY_DECAY_PER_SEC`, food.rs), so a regular day of
+16 hours awake ends tired and not fatigued; until then it reached the line at 16 hours and A Night's
+Sleep told people to nap.
+- Williamson A, Feyer A, "Moderate sleep deprivation produces impairments in cognitive and motor
+  performance equivalent to legally prescribed levels of alcohol intoxication", Occup Environ Med
+  57(10):649-655, October 2000, https://pmc.ncbi.nlm.nih.gov/articles/PMC1739867/ (abstract).
+  Quote: "After 17-19 hours without sleep, corresponding to 2230 and 0100, performance on some
+  tests was equivalent or worse than that at a BAC of 0.05%." The subjects ("39 subjects, 30
+  employees from the transport industry and nine from the army") were kept awake 28 hours; the
+  abstract's clock times put their waking at about 05:30 to 06:00.
+- Tiredness at bedtime is real: sleep pressure builds through the waking day (Borbély 1982, "A two
+  process model of sleep regulation", Hum Neurobiol 1(3):195-204, the homeostatic process).
+- **Refutation pass 2026-11-21: CONFIRMED, two words tightened.** A separate read-only check read
+  the abstract and matched the quotation character for character; it found nothing that puts
+  impairment before 17 hours (Dawson and Reid 1997, Nature, could not be read: nature.com's
+  robots.txt disallows ClaudeBot). Taken: "did as badly ... or worse" for the abstract's
+  "equivalent or worse", and the Borbély citation's accent and issue. Noted, not taken: in the
+  study 17 hours fell at 22:30, late in the body clock's day, so a line at 17 hours awake whatever
+  the hour is a simplification; and the abstract cannot rule out smaller impairment before 17 hours.
+
 ### 3.4 Where the sources disagree
 
 Updated by the refutation pass ([finding](../reference/findings/2026-10-30-quest-chain-facts-review.md#where-the-sources-disagree-the-designs-34-updated)).
@@ -1618,6 +1644,59 @@ not reset when the reading leaves its band; a `Drink` that counts eating), per
   `can_fruit_water_bath`, `dispose_of_a_spoiled_jar`; new `pressure_can_vegetables`.
 - **Rung 6, wild food.** P9, its own species refutation pass (toxicity and lookalikes first),
   then `food_forage` and the how-to `tell_hemlock_from_wild_carrot`.
+
+### 4.3a Built 2026-11-20: the plumbing and the chains that need only it
+
+What a new player meets now (`data/quests/survival.ron`, Homestead start only until P10): eight
+offered or chained quests beside the opening (a few roots wait on the Quests page under Available), each
+with its sourced facts in the data and refuted again before it shipped (2026-11-21: ten
+corrections taken, among them the age bands for sleep, the sanitiser's "when soap and water are
+not at hand", the doctor-first caution on oral rehydration salts, and EFSA's never-read 2.0 L
+dropped from the water range).
+
+Built: P1 (`after`, `quests/after.rs`), P2 (the tracked quest and "Show on
+HUD"), P3 (the intake ledger, `intake.rs`, every nutrient the food data carries), E1 Drink, E2
+Keep (`quests/readings.rs`: the readings are a code table and their words are en.json keys, not
+a data/quests/readings.ron, which the quest loader would have read as a quest file), E3 Learn
+(opening counts), and a Keep step's reading on its card. Quests: `water_first` (steps 1, 3 to 6),
+`food_first`, `food_keep` (Learn only), `food_grow` (2026-11-21, with Start Farming's join),
+`rest_first` (steps 1 and 3), `clean_first` (steps 1 and 3), `aid_first` (step 1), `aid_rehydrate`. Each is
+finished in the headless sim runner (`the_survival_chains_finish_in_the_soak`, 70 game days).
+
+Settled 2026-11-21 (the orchestrator's answers to rung 1's questions): Energy reaches the fatigue
+line after 17 waking hours, not 16 (R2), so a regular sleeper ends each day tired and above it and
+A Night's Sleep no longer tells people to nap (the soak holds the lowest Energy from the first
+morning on at 25 or more: 28.7 at 22:40); a quest's item reward that the backpack has no room for
+goes to home storage, said on the completion notice. "Plant this tower sowed nothing in the soak"
+was a misreading, not a defect of the game or of the soak's act: the press did sow the radish cup
+(checked alone, crops 4 to 5, radish in cup 8; and in the 30-day run the radish was harvested on
+day 26, after which the run ended with 4 crops again, which read as nothing sown). What stalled was
+Grow Your Own's Eat step: one radish plant yields 2.4 to 8.2 g, a small share of the 300 g Radish
+item, so its harvest is almost never a whole item. Grow Your Own now eats a lettuce, as section
+2.2 designed. The backpack's Plant needing a grow machine within reach is the game's rule
+(first-hour audit F11): the soak's person does not walk, so it presses the Garden page's tower Plant.
+
+Left for later rungs, and what each waits for:
+
+| Left | Waits for |
+|---|---|
+| `water_first` step 2 (Learn `drink_enough_water`) | the how-to, to write and refute |
+| `water_first`'s reward (the empty jerrycan) | `water_store`, which uses it (24 L of a 65 L pack, carried until put away: the soak has no act that puts things away) |
+| `water_unsafe`, `water_boil`, `water_distil`, `water_store` | P5 (water contents), the raw sources, the new recipes (rung 1 of this plan) |
+| every other water branch | P5's other methods, P6, new items and machines (rungs 3 to 5) |
+| `food_keep` step 2, `food_cook` | E4 (Use), E6 (Store), the thermometer item |
+| `food_keep_dry` | nothing in the engine: its ingredients (apples, bananas, mutton) are not in a homestead's first weeks, so no soak can finish it yet; a start with them, or a later rung |
+| `food_keep_salt` | its facts (3.6) and `cook_dried_meat`'s fix |
+| `food_keep_ferment`, `food_keep_can`, `food_balance` | P7; the canners; vitamin C per food (the first twelve nutrition rows' vitamins are category estimates, so a vitamin C step would teach the data's guesses) |
+| `food_forage` | P9 and its own refutation pass |
+| `warm_first`, `warm_fire` (steps 1, 2, 4) | nothing in the engine; a soak act that walks the body to a destination (or a rig), so the outdoor Keep and the campfire can be proven finished |
+| `warm_fire` step 3, `warm_alarm`, `warm_heat_safely` | the planned how-tos; placement readings; `co_alarm_0` |
+| `warm_cool` | a weather reading: "on a hot day" is not checkable yet |
+| `air_*` | the `home.*` readings and the Home > Air view key (rung 5) |
+| `clean_first` step 2, `clean_compost`, `aid_wound`, `aid_burn` | E4 (Use) and the sink walk-up; P8 (compost's make events) |
+| `aid_first` steps 2 and 3 | the planned how-to `stop_heavy_bleeding`; a way to get cloth for bandages in the first days |
+| `rest_first` step 2 | E5 (Sleep) |
+| `power_backup`, `self_reliant` | the placement rule; every chain |
 
 ### 4.4 Calls made here (each can be overruled in one line)
 

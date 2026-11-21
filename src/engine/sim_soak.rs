@@ -105,6 +105,9 @@ pub(crate) struct Span {
     pub death: Option<(f64, String)>,
     /// What the person's routine did, measured (None: a run with no routine, the untouched home).
     pub routine: Option<RoutineLog>,
+    /// The player's quests at the end, from the quest tracker (2026-11-20): (finished, under way),
+    /// each in the order the tracker holds them.
+    pub quests: (Vec<String>, Vec<String>),
 }
 
 /// Step a fresh homestead `span_s` game seconds at `step_s`, reading every quantity every
@@ -174,10 +177,20 @@ fn span_on_this_thread(data_dir: &Path, seed: u64, step_s: f64, span_s: f64, mar
     let end = home.observe();
     let notices = std::mem::take(&mut home.notices);
     let routine = home.routine.take().map(|r| r.log);
+    let quests = quests_of(&home.sim.game_world.world);
     drop(home);
     let _ = std::fs::remove_dir_all(&saves);
     let first = first.unwrap_or_else(|| start.clone());
-    Span { start, first, marks, end, steps, wall_s: wall, enter_s, notices, death, routine }
+    Span { start, first, marks, end, steps, wall_s: wall, enter_s, notices, death, routine, quests }
+}
+
+/// The player's quests, (finished, under way), read off the quest tracker.
+fn quests_of(world: &hecs::World) -> (Vec<String>, Vec<String>) {
+    let mut q = world.query::<(&humanity_systems::quests::QuestTracker, &humanity_core::ecs::components::Controllable)>();
+    q.iter()
+        .next()
+        .map(|(_, (t, _))| (t.completed_quests.clone(), t.active_quests.iter().map(|a| a.quest_id.clone()).collect()))
+        .unwrap_or_default()
 }
 
 /// A saves folder of the run's own in the system's temporary folder, empty: no player's save is
@@ -465,6 +478,11 @@ impl SoakReport {
         // routine's run and the untouched one compare line for line.
         if let (Some(name), Some(log)) = (&self.routine, &r.routine) {
             out += &routine_text(name, log);
+            // The quests the routine's person played (2026-11-20: the survival chains are proven
+            // here, `--sim soak --routine survival_week`).
+            let (done, under_way) = &r.quests;
+            let names = |v: &Vec<String>| if v.is_empty() { "none".to_string() } else { v.join(", ") };
+            out += &format!("Quests finished: {}. Under way: {}.\n", names(done), names(under_way));
         }
         out += &format!("The systems said {} things", r.notices.len());
         if let Some(last) = r.notices.last() {
@@ -536,6 +554,9 @@ fn routine_text(name: &str, log: &RoutineLog) -> String {
     );
     if !log.missed.is_empty() {
         out += &format!("  Acts that did nothing: {}.\n", log.missed.iter().map(|(why, n)| format!("{n} x {why}")).collect::<Vec<_>>().join("; "));
+    }
+    if !log.asked.is_empty() {
+        out += &format!("  Other acts: {}.\n", list(&log.asked));
     }
     out += &practice_text(&log.practice);
     out

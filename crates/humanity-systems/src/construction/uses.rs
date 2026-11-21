@@ -6,7 +6,7 @@
 //! 2.4, "the construction sink terminates in a decorative box". Now:
 //!
 //! - `rest`: press E at it to sleep. The body's sleep need is
-//!   `Vitals::energy`, which drains over about sixteen waking hours and
+//!   `Vitals::energy`, which drains to 25 over seventeen waking hours and
 //!   leaves you `fatigued` below 25. A night in a bed refills it, and the
 //!   world runs through the night while you sleep (the sleep pass in
 //!   `systems::food`).

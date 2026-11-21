@@ -504,13 +504,16 @@ fn restore_settled_trades(world: &mut hecs::World, save: &WorldSave, rewound: bo
 /// body (a test's bare world).
 fn body_of(world: &hecs::World) -> Option<persistence::BodySave> {
     use humanity_core::ecs::components::{Dead, Health, StatusEffects, Vitals};
-    let mut q = world.query::<(&Health, &Vitals, &StatusEffects, Option<&Dead>, &Controllable)>();
-    let (_e, (health, vitals, effects, dead, _)) = q.iter().next()?;
+    use humanity_systems::intake::IntakeLedger;
+    let mut q = world.query::<(&Health, &Vitals, &StatusEffects, Option<&Dead>, Option<&IntakeLedger>, &Controllable)>();
+    let (_e, (health, vitals, effects, dead, intake, _)) = q.iter().next()?;
     Some(persistence::BodySave {
         health: health.clone(),
         vitals: vitals.clone(),
         effects: effects.clone(),
         dead: dead.map(|d| if d.cause.is_empty() { "injuries".to_string() } else { d.cause.clone() }),
+        // What the body took in over the last game day (P3), so "in one day" survives a save.
+        intake: intake.cloned().unwrap_or_default(),
     })
 }
 
@@ -533,6 +536,8 @@ fn restore_body(world: &mut hecs::World, body: Option<&persistence::BodySave>) {
         *v = vitals;
         *fx = effects;
     }
+    // The intake ledger (P3) as saved: the save is authoritative, as for the vitals.
+    let _ = world.insert_one(p, body.map(|b| b.intake.clone()).unwrap_or_default());
     match death {
         Some(cause) => {
             let _ = world.insert_one(p, Dead { cause, ..Default::default() });
@@ -874,6 +879,8 @@ pub fn spawn_player_of_start(world: &mut hecs::World, start: &humanity_ship::sta
         Wallet::default(),
         PlayerSkills::new(),
         quests,
+        // What the body takes in, by the hour (P3): the quests' "in one day" counts.
+        humanity_systems::intake::IntakeLedger::default(),
     ))
 }
 

@@ -114,7 +114,7 @@
         xp_rewards: [
             ("metallurgy", 30),
         ],
-        prerequisite: None,
+        after: None,
     ),
     (
         id: "gs_toolsmith",
@@ -134,7 +134,7 @@
             ("smithing", 20),
             ("woodworking", 10),
         ],
-        prerequisite: Some("gs_first_steps"),
+        after: Quest("gs_first_steps"),
     ),
     // THE CABIN'S OPENING (ship homes increment 6, docs/design/ship-homes-
     // increment-6-plan.md section 3.10): the opening a new Cabin character is
@@ -182,6 +182,6 @@
         rewards: [
             ("ration_basic_0", 1),
         ],
-        prerequisite: None,
+        after: None,
     ),
 ]

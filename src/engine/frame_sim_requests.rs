@@ -361,9 +361,18 @@ pub(crate) fn carry(gui: &mut GuiState, data: &mut DataStore, world: &mut hecs::
     // The quest page's Accept, on the live tracker (moved from frame_mirrors.rs, the view's mirror,
     // in the headless sim runner's increment 4: the mirror applied it after the tick, on the frame
     // after the click; here it lands before the tick of that same frame).
-    if let Some(qid) = gui.pending_accept_quest.take() {
+    let accept = gui.pending_accept_quest.take();
+    // "Show on HUD" (P2), on the same tracker, after the accept so a quest accepted and
+    // tracked in one frame is shown.
+    let track = gui.pending_track_quest.take();
+    if accept.is_some() || track.is_some() {
         for (_e, (tracker, _c)) in world.query_mut::<(&mut humanity_systems::quests::QuestTracker, &humanity_core::ecs::components::Controllable)>() {
-            tracker.accept_quest(&qid);
+            if let Some(qid) = &accept {
+                tracker.accept_quest(qid);
+            }
+            if let Some(qid) = &track {
+                tracker.track(qid);
+            }
             break;
         }
     }

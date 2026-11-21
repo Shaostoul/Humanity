@@ -64,4 +64,38 @@ pub enum QuestObjective {
     /// "vitals" is the Inventory page's Status section, every vital with its
     /// numbers (src/gui/pages/inventory.rs).
     View { view: String },
+    /// Drink (2026-11-20, E1 of docs/design/quest-chains.md 2.10): the food
+    /// system reports each drink the body actually took as `drink_<item_id>`,
+    /// where `eat_` is reported, so a click on a drink the player does not
+    /// carry counts nothing, and eating never counts. `item_id` None counts
+    /// any drink, Some only that one.
+    Drink {
+        #[serde(default)]
+        item_id: Option<String>,
+        quantity: u32,
+    },
+    /// Keep a reading in a band (2026-11-20, E2): `reading` is one of
+    /// `quests::readings::READINGS` ("vital.hydration", "intake.water_l_24h"),
+    /// held at `min` or more and `max` or less. `hours` 0 means reach it once;
+    /// more means hold it that many game hours without a break (leaving the
+    /// band, or `at`, starts the count again). `at` names a destination
+    /// (data/entities/destinations.ron) the player must stand in. Checked on
+    /// the current step only, on the game clock, so time away from the game
+    /// neither counts nor breaks it.
+    Keep {
+        reading: String,
+        #[serde(default)]
+        min: Option<f32>,
+        #[serde(default)]
+        max: Option<f32>,
+        #[serde(default)]
+        hours: f32,
+        #[serde(default)]
+        at: Option<String>,
+    },
+    /// Learn (2026-11-20, E3): open a guide during play. `page` is
+    /// "library:<file stem>" (a Library guide, data/library/<file>.md) or
+    /// "how_to:<id>" (a how-to, data/how_to/). The pages report each one the
+    /// player opens as `learn_<page>`; opening counts.
+    Learn { page: String },
 }

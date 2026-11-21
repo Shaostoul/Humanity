@@ -1,8 +1,8 @@
 //! Sleeping in a bed (2026-09-27): the night passes and the body wakes rested.
 //!
-//! The body's sleep need is `Vitals::energy`: it drains over about sixteen
-//! waking hours (`ENERGY_DECAY_PER_SEC` in `systems::food`) and leaves the
-//! `fatigued` slowdown below 25. A night's sleep puts it back. How long a
+//! The body's sleep need is `Vitals::energy`: it drains to 25 over seventeen
+//! waking hours (`ENERGY_DECAY_PER_SEC` in `systems::food`, sourced there) and
+//! leaves the `fatigued` slowdown below 25. A night's sleep puts it back. How long a
 //! night is: the American Academy of Sleep Medicine and Sleep Research
 //! Society consensus (Watson et al. 2015, "Recommended Amount of Sleep for a
 //! Healthy Adult", J Clin Sleep Med 11(6)) is that adults should sleep 7 or
@@ -336,15 +336,15 @@ mod tests {
     }
 
     /// The Rest button is a ten-minute nap, not a night (Brooks and Lack 2006):
-    /// it repays ten minutes of sleep (1.6 energy points, where the old button
+    /// it repays ten minutes of sleep (about 1.5 energy points, where the old button
     /// gave all 90 back), lifts the fatigue slowdown for 155 minutes for a
     /// tired person but not an exhausted one, and a second nap inside that
     /// window adds nothing. Red check: make `short_rest` set energy to
     /// `energy_max`, as the old Rest button did, and `energy < 15` fails.
     #[test]
     fn a_short_rest_is_a_nap_not_a_night() {
-        // The food system's waking energy drain: 75 points over 16 hours.
-        let decay = 75.0 / 57_600.0;
+        // The food system's waking energy drain: 75 points over 17 hours.
+        let decay = crate::food::ENERGY_DECAY_PER_SEC;
         let mut v = Vitals::default();
         v.energy = 12.0;
         let mut fx = StatusEffects::default();

@@ -61,6 +61,43 @@ pub struct NutritionProfile {
     /// Probability (0..1) of illness when eaten raw. 0 for cooked/preserved food.
     #[serde(default)]
     pub raw_consumption_risk: f32,
+    /// Vitamins A, B, C, D, E and K per 100 g as shares of the US FDA Daily Value (the file's
+    /// header), read for the intake ledger (2026-11-20, P3; `intake.rs`).
+    #[serde(default)]
+    pub vitamins: Vitamins,
+    /// Iron, calcium, zinc and potassium, milligrams per 100 g, read for the intake ledger.
+    #[serde(default)]
+    pub minerals: Minerals,
+}
+
+/// A profile's vitamins, as data/food_system.ron writes them: `(A: .., B: .., C: .., D: .., E: .., K: ..)`.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct Vitamins {
+    #[serde(rename = "A", default)]
+    pub a: f32,
+    #[serde(rename = "B", default)]
+    pub b: f32,
+    #[serde(rename = "C", default)]
+    pub c: f32,
+    #[serde(rename = "D", default)]
+    pub d: f32,
+    #[serde(rename = "E", default)]
+    pub e: f32,
+    #[serde(rename = "K", default)]
+    pub k: f32,
+}
+
+/// A profile's minerals, milligrams per 100 g: `(iron: .., calcium: .., zinc: .., potassium: ..)`.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct Minerals {
+    #[serde(default)]
+    pub iron: f32,
+    #[serde(default)]
+    pub calcium: f32,
+    #[serde(default)]
+    pub zinc: f32,
+    #[serde(default)]
+    pub potassium: f32,
 }
 
 /// An optional number written plainly in the data (`water_g: 88.13`): present
@@ -314,9 +351,23 @@ const CONDITION_LINGER: f32 = 3.0;
 const FALLBACK_WELL_FED_S: f32 = 1800.0;
 const FALLBACK_FOOD_POISONING_S: f32 = 172_800.0;
 const FALLBACK_RESTED_S: f32 = 3600.0;
-/// Energy lost per real second while awake (real scale, v0.1005: full ->
-/// fatigued threshold after ~16 waking hours; a sleep cycle refills).
-const ENERGY_DECAY_PER_SEC: f32 = 75.0 / 57_600.0;
+/// Energy lost per game second while awake (real scale): full to the fatigue line
+/// (`FATIGUED_THRESHOLD`, 25, a game choice) in 17 waking hours, the point at which being awake
+/// alone impairs a person: Williamson and Feyer 2000, "Moderate sleep deprivation produces
+/// impairments in cognitive and motor performance equivalent to legally prescribed levels of
+/// alcohol intoxication", Occup Environ Med 57(10):649-655 (abstract): "After 17-19 hours without
+/// sleep, corresponding to 2230 and 0100, performance on some tests was equivalent or worse than
+/// that at a BAC of 0.05%." The game takes the first of those hours.
+///
+/// So a regular day (awake 16 hours around the 8 the bed sleeps, `sleep::SLEEP_HOURS`) ends tired,
+/// at about 29, and not fatigued: being low at bedtime is real (sleep pressure builds through the
+/// waking day: the homeostatic process of Borbély 1982, "A two process model of sleep
+/// regulation", Hum Neurobiol 1(3):195-204), and
+/// the fatigue slowdown means you stayed up late or spent Energy on hard work (abilities.rs).
+/// Until 2026-11-21 it was 75 over 16 hours (v0.1005), which put every regular sleeper on the line
+/// each evening, so the survival quest A Night's Sleep had to tell people to nap. The Vitals drain
+/// setting scales it (Off, the simplified mode, drains nothing; Real time is this rate).
+pub(crate) const ENERGY_DECAY_PER_SEC: f32 = 75.0 / (17.0 * 3600.0);
 /// Below this energy the `fatigued` speed debuff applies; resting refills to full.
 const FATIGUED_THRESHOLD: f32 = 25.0;
 // ── Environment vitals (oxygen + body temperature; driven by EnvironmentContext). ──
@@ -651,6 +702,26 @@ impl FoodSystem {
         Some(kcal * SATIATION_PER_KCAL)
     }
 
+    /// What one fresh `item_id` carries into the body, for the intake ledger (2026-11-20, P3):
+    /// its grams (`portion_g`) of everything its profile carries, the water as `water_points`
+    /// reckons it. None when it is not food.
+    pub(crate) fn intake_of(&self, item_id: &str) -> Option<crate::intake::Intake> {
+        let p = self.profile_for(item_id)?;
+        let per_100 = f64::from(self.portion_g(item_id)?) / 100.0;
+        let g = |v: f32| per_100 * f64::from(v);
+        let (v, m) = (p.vitamins, p.minerals);
+        Some(crate::intake::Intake {
+            water_l: f64::from(self.water_points(item_id).unwrap_or(0.0) / HYDRATION_PER_LITRE),
+            kcal: g(p.calories_per_100g as f32),
+            protein_g: g(p.protein_g),
+            carbs_g: g(p.carbs_g),
+            fat_g: g(p.fat_g),
+            fiber_g: g(p.fiber_g),
+            vitamins_dv: [g(v.a), g(v.b), g(v.c), g(v.d), g(v.e), g(v.k)],
+            minerals_mg: [g(m.iron), g(m.calcium), g(m.zinc), g(m.potassium)],
+        })
+    }
+
     /// How long (game seconds at room temperature) this item stays fresh, or None
     /// when it is not food and therefore never spoils.
     fn freshness_secs(&self, item_id: &str) -> Option<f64> {
@@ -696,13 +767,20 @@ impl FoodSystem {
         // than a loaf, and a loaf feeds you more than a cucumber.
         let satiation_gain = self.satiation_points(item_id).unwrap_or(0.0);
         let hydration_gain = self.water_points(item_id).unwrap_or(0.0);
+        // What it carries into the body, for the intake ledger (P3), and when.
+        let took = self.intake_of(item_id).unwrap_or_default();
+        let now_s = crate::time::elapsed_now(data);
 
         // Spoiled = the stack's own clock past the food's time (§3).
         let keeps = self.freshness_secs(item_id).unwrap_or(f64::INFINITY);
         let mut dead_carrier = false;
-        for (_e, (inv, vitals, effects, dead)) in
-            world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects, Option<&humanity_core::ecs::components::Dead>)>()
-        {
+        for (_e, (inv, vitals, effects, dead, ledger)) in world.query_mut::<(
+            &mut Inventory,
+            &mut Vitals,
+            &mut StatusEffects,
+            Option<&humanity_core::ecs::components::Dead>,
+            Option<&mut crate::intake::IntakeLedger>,
+        )>() {
             if !inv.has_item(item_id, 1) {
                 continue;
             }
@@ -747,6 +825,21 @@ impl FoodSystem {
             vitals.satiation = (vitals.satiation + satiation_gain * nutrition_mult).min(vitals.satiation_max);
             vitals.hydration =
                 (vitals.hydration + hydration_gain * nutrition_mult * kept).min(vitals.hydration_max);
+            // The intake ledger (P3): what the body took in, as the meters were just given it
+            // (spoiled food a quarter, a drink's water only the share an illness lets it keep),
+            // whether or not a full meter could hold it.
+            if let Some(ledger) = ledger {
+                let mult = f64::from(nutrition_mult);
+                let mut got = crate::intake::Intake::default().plus(&took);
+                got.water_l *= mult * f64::from(kept);
+                got.kcal *= mult;
+                got.protein_g *= mult;
+                got.carbs_g *= mult;
+                got.fat_g *= mult;
+                got.fiber_g *= mult;
+                got.vitamins_dv.iter_mut().chain(got.minerals_mg.iter_mut()).for_each(|x| *x *= mult);
+                ledger.add(now_s, &got);
+            }
             // Eating solid food leaves a little organic waste (scraps) to
             // compost later; a drink leaves none.
             if !is_beverage {
@@ -932,7 +1025,12 @@ impl System for FoodSystem {
             }
             if let Some(item_id) = drank {
                 let back = empty_of(&item_id);
-                self.consume(world, &item_id, Consume::Drink, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)), data);
+                // Drunk, it counts for a Drink quest step (2026-11-20, E1): only a drink the
+                // body took, never a click on one the player does not carry. Drinking is not
+                // eating, so it reports no eat_ event.
+                if self.consume(world, &item_id, Consume::Drink, &fx, back.as_ref().map(|(e, m)| (e.as_str(), *m)), data) {
+                    crate::quests::push_quest_event(data, crate::quests::drink_event_key(&item_id));
+                }
             }
         }
 
@@ -1163,7 +1261,10 @@ impl System for FoodSystem {
             // Energy drains while awake; low energy -> fatigued (speed debuff, #3b),
             // unless a short rest is still keeping a tired (not exhausted)
             // person alert (systems::sleep::short_rest, 2026-09-27).
-            let tiring = f64::from(ENERGY_DECAY_PER_SEC) * drain * game_s;
+            // Not while asleep in a bed (BUG-337, 2026-11-20): the night's game seconds drained it
+            // too, 37.5 points at the night's speed, so every sleeper went under the fatigue
+            // line asleep and was put back at waking; a quest holding Energy over a day saw it.
+            let tiring = if sleeping { 0.0 } else { f64::from(ENERGY_DECAY_PER_SEC) * drain * game_s };
             change_exactly(&mut vitals.energy, &mut carry.energy, -tiring, 0.0, f32::INFINITY);
             if vitals.energy < FATIGUED_THRESHOLD && !crate::sleep::nap_holds_off_fatigue(vitals.energy, effects) {
                 effects.apply("fatigued", CONDITION_LINGER);
@@ -2327,6 +2428,36 @@ mod nutrition_tests {
             world.get::<&Vitals>(player).unwrap().hydration > 40.0,
             "drinking restored hydration"
         );
+    }
+
+    /// A DRINK COUNTS FOR A DRINK STEP AND EATING DOES NOT (2026-11-20, E1 of
+    /// docs/design/quest-chains.md). The food system reports a drink the body took as
+    /// `drink_<item>`, and nothing for a drink asked for that is not carried; eating reports
+    /// `eat_<item>` and no drink. Seen red 2026-11-21 with the drink's report missing: "the drink is
+    /// reported / left: [] / right: [\"drink_water_purified_0\"]".
+    #[test]
+    fn a_drink_is_reported_as_a_drink_and_eating_is_not() {
+        let mut data = make_store();
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut sys = FoodSystem::new(data_dir());
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("water_purified_0", 1, 99);
+        inv.add_item("ration_basic_0", 1, 99);
+        world.spawn((inv, vitals(50.0, 40.0), StatusEffects::default(), Health::default()));
+        let events = |data: &DataStore| std::mem::take(&mut *data.get::<std::sync::Mutex<Vec<String>>>("quest_events").unwrap().lock().unwrap());
+        let ask = |data: &DataStore, slot: &str, item: &str| {
+            *data.get::<std::sync::Mutex<Option<String>>>(slot).unwrap().lock().unwrap() = Some(item.to_string());
+        };
+        ask(&data, "drink_request", "water_purified_0");
+        sys.tick(&mut world, 0.0, &data);
+        assert_eq!(events(&data), vec!["drink_water_purified_0".to_string()], "the drink is reported");
+        ask(&data, "drink_request", "water_purified_0");
+        sys.tick(&mut world, 0.0, &data);
+        assert!(events(&data).is_empty(), "a drink asked for and not carried is not reported");
+        ask(&data, "consume_request", "ration_basic_0");
+        sys.tick(&mut world, 0.0, &data);
+        assert_eq!(events(&data), vec!["eat_ration_basic_0".to_string()], "eating reports a meal, never a drink");
     }
 
     // ── Which items are food: data/food/item_profiles.ron (2026-09-25) ──

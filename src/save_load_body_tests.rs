@@ -258,3 +258,57 @@ fn a_save_from_before_the_body_loads_with_a_new_body() {
     assert!(world.get::<&Dead>(p).is_err(), "alive");
     assert_eq!(humanity_systems::food::urine_tank_level(&world), 0.0, "an empty urine tank");
 }
+
+/// THE INTAKE LEDGER COUNTS WHAT THE BODY TOOK IN AND SURVIVES A SAVE (2026-11-20, P3 of
+/// docs/design/quest-chains.md). Through the real food system: two bottles drunk and a field
+/// ration eaten in one game hour put in the ledger exactly the water and food energy they carry
+/// (data/food/item_profiles.ron's portions times data/food_system.ron's rows: a bottle is 0.5 L of
+/// water at 99.98 g per 100 g; a ration is 400 g at 200 kcal and 45 g of water per 100 g), a
+/// drink asked for that the player does not carry adds nothing, and a full Hydration meter does
+/// not stop the count (the body still took the water in). Through the file format and back onto
+/// a new character, the day's record is as it was; 24 game hours later it has dropped out.
+///
+/// Seen red 2026-11-21 with the ledger not written in `FoodSystem::consume`: "water the body
+/// took in / left: 0 / right: 1.1798"; and with `BodySave::intake` not restored by
+/// `restore_body` (round 2, 2026-11-21): "the load gave the body its ledger:
+/// MissingComponent(MissingComponent(\"humanity_systems::intake::IntakeLedger\"))".
+#[test]
+fn the_intake_ledger_counts_what_the_body_took_in_and_survives_a_save() {
+    use humanity_systems::intake::IntakeLedger;
+    let mut data = food_store();
+    let mut clock = humanity_systems::time::GameTime::default();
+    clock.set_elapsed(10.0 * 3600.0 + 60.0);
+    data.insert("game_time", Mutex::new(clock));
+    let mut world = hecs::World::new();
+    let p = new_player(&mut world);
+    world.insert_one(p, IntakeLedger::default()).unwrap();
+    {
+        let mut inv = world.get::<&mut Inventory>(p).unwrap();
+        inv.add_item("water_bottle_0", 2, 99);
+        inv.add_item("ration_basic_0", 1, 99);
+    }
+    let mut food = FoodSystem::new(data_dir());
+    let ask = |data: &DataStore, slot: &str, item: &str| {
+        *data.get::<Mutex<Option<String>>>(slot).unwrap().lock().unwrap() = Some(item.to_string());
+    };
+    for (slot, item) in [("drink_request", "water_bottle_0"), ("drink_request", "water_bottle_0"), ("drink_request", "ors_solution_0"), ("consume_request", "ration_basic_0")] {
+        ask(&data, slot, item);
+        food.tick(&mut world, 0.0, &data);
+    }
+    let now = 10.0 * 3600.0 + 120.0;
+    let day = world.get::<&IntakeLedger>(p).unwrap().last_day(now);
+    let water = 2.0 * 0.5 * 0.9998 + 0.4 * 0.45;
+    assert!((day.water_l - water).abs() < 1e-3, "water the body took in / left: {} / right: {water:.4}", day.water_l);
+    assert!((day.kcal - 800.0).abs() < 1e-3, "food energy: {}", day.kcal);
+    assert!(world.get::<&Vitals>(p).unwrap().hydration >= 99.0, "the meter was full, and the water still counted");
+
+    let save = round_trip(&extract_world_save(&world));
+    let mut fresh = hecs::World::new();
+    let q = new_player(&mut fresh);
+    apply_save_to_world(&mut fresh, &save);
+    let back = fresh.get::<&IntakeLedger>(q).expect("the load gave the body its ledger").last_day(now);
+    assert!((back.water_l - water).abs() < 1e-3, "the day's intake after a save and load / left: {} / right: {water:.4}", back.water_l);
+    assert!((back.kcal - 800.0).abs() < 1e-3);
+    let next_day = fresh.get::<&IntakeLedger>(q).unwrap().last_day(now + 24.0 * 3600.0);
+    assert_eq!(next_day.water_l, 0.0, "a day later the hour has dropped out of the last day");
+}

@@ -5798,7 +5798,7 @@ fn after_the_habitat(reg: &humanity_systems::quests::QuestRegistry) -> humanity_
     let mut branches: Vec<&str> = reg
         .quests
         .values()
-        .filter(|q| q.prerequisite.as_deref() == Some("tutorial_first_habitat"))
+        .filter(|q| q.after.names("tutorial_first_habitat"))
         .map(|q| q.id.as_str())
         .collect();
     branches.sort();
@@ -5812,6 +5812,7 @@ fn after_the_habitat(reg: &humanity_systems::quests::QuestRegistry) -> humanity_
             })
             .collect(),
         completed_quests: vec!["gs_first_steps".into(), "gs_toolsmith".into(), "tutorial_first_habitat".into()],
+        tracked: None,
     }
 }
 
@@ -5826,6 +5827,59 @@ fn snapshot_quests_branches() {
         state.quests = tracker.active_quests.iter().map(|a| snapshot_quest(&reg, &a.quest_id, a.current_step)).collect();
         state.quests.extend(tracker.completed_quests.iter().map(|c| GuiQuest::completed(Some(&reg), c)));
         crate::gui::pages::quests::draw(ctx, theme, state);
+    });
+}
+
+/// Three survival quests under way (2026-11-20, docs/design/quest-chains.md rung 1): Water First
+/// holding its Hydration (the Keep step's reading, band and hours held under the step), Food First
+/// on its 2,000 kcal day and shown on the HUD ("Shown on your HUD" under it, "Show on HUD" under the
+/// others), A Night's Sleep; the other survival chains offered under Available.
+fn survival_quests_state(state: &mut crate::gui::GuiState) {
+    let reg = shipped_quests();
+    let vitals = humanity_core::ecs::components::Vitals { hydration: 72.0, ..Default::default() };
+    let mut ledger = humanity_systems::intake::IntakeLedger::default();
+    let now = 30.0 * 3600.0;
+    ledger.add(now - 2.0 * 3600.0, &humanity_systems::intake::Intake { kcal: 1250.0, water_l: 1.4, ..Default::default() });
+    let body = humanity_systems::quests::readings::Body { vitals: Some(&vitals), intake: Some(&ledger), now_s: now };
+    let quest = |id: &str, step: usize, held_h: Option<f64>, tracked: bool| {
+        let mut progress = std::collections::HashMap::new();
+        if let Some(h) = held_h {
+            progress.insert(humanity_systems::quests::keep_since_key(step), (now - h * 3600.0) as u32);
+        }
+        let mut q = snapshot_quest(&reg, id, step);
+        q.keep_line = crate::gui::keep_line(&reg.get(id).unwrap().steps[step].objective, step, &progress, &body);
+        q.tracked = tracked;
+        q
+    };
+    state.quests = vec![quest("water_first", 4, Some(5.0), false), quest("food_first", 2, None, true), quest("rest_first", 1, Some(20.0), false)];
+    state.quests.push(GuiQuest::completed(Some(&reg), "gs_first_steps"));
+    state.quests_available = ["aid_first", "clean_first"]
+        .iter()
+        .map(|id| {
+            let d = reg.get(id).unwrap();
+            crate::gui::GuiAvailableQuest { id: d.id.clone(), name: d.name.clone(), description: d.description.clone() }
+        })
+        .collect();
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_survival() {
+    render_page_png("quests_survival", 1280, 1000, |ctx, theme, state| {
+        survival_quests_state(state);
+        crate::gui::pages::quests::draw(ctx, theme, state);
+    });
+}
+
+/// The HUD with those three survival quests running: it shows Food First, the tracked one, not
+/// Water First, the first accepted (P2).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_hud_quests() {
+    render_page_png("hud_quests", 900, 300, |ctx, theme, state| {
+        survival_quests_state(state);
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(theme.bg_primary())).show(ctx, |_ui| {});
+        crate::gui::pages::hud::draw(ctx, theme, state, 0.0, glam::Mat4::IDENTITY, glam::Vec3::ZERO);
     });
 }
 
@@ -5845,6 +5899,7 @@ fn on_the_second_step() -> humanity_systems::quests::QuestTracker {
     humanity_systems::quests::QuestTracker {
         active_quests: vec![humanity_systems::quests::ActiveQuest { quest_id: "gs_first_steps".into(), current_step: 1, progress: Default::default() }],
         completed_quests: Vec::new(),
+        tracked: None,
     }
 }
 

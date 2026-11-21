@@ -237,8 +237,9 @@ fn the_soaks_body_breathes_the_homes_air() {
 #[test]
 fn a_routines_acts_fall_due_once_at_their_hours() {
     use sim_routine::{due_between, Act, ActKind};
-    let acts = vec![Act { hour: 7.0, act: ActKind::Drink }, Act { hour: 22.5, act: ActKind::Sleep }];
-    let due = |a: f64, b: f64| due_between(&acts, 24.0, a, b).into_iter().map(|(_, k)| k).collect::<Vec<_>>();
+    let act = |hour: f64, act: ActKind| Act { hour, act, what: String::new(), day: None };
+    let acts = vec![act(7.0, ActKind::Drink), act(22.5, ActKind::Sleep)];
+    let due = |a: f64, b: f64| due_between(&acts, 24.0, a, b).into_iter().map(|(_, i)| acts[i].act).collect::<Vec<_>>();
     assert_eq!(due(6.0, 7.0), vec![ActKind::Drink], "an act at the end of the span is due");
     assert!(due(7.0, 8.0).is_empty(), "an act at the start of the span was due last time");
     assert_eq!(due(22.0, 31.0), vec![ActKind::Sleep, ActKind::Drink], "across midnight, in order");
@@ -295,7 +296,7 @@ fn a_routines_span_stepped_at_the_frames_dt_and_coarsely_agrees() {
         foods: vec!["ration_basic_0".into()],
         // Bottles only, so the drink is filled at the tank first (the kit's jugs are left).
         drinks: vec!["water_bottle_0".into()],
-        acts: vec![sim_routine::Act { hour: hour(5.0), act: sim_routine::ActKind::Drink }, sim_routine::Act { hour: hour(10.0), act: sim_routine::ActKind::Eat }],
+        acts: vec![sim_routine::Act { hour: hour(5.0), act: sim_routine::ActKind::Drink, what: String::new(), day: None }, sim_routine::Act { hour: hour(10.0), act: sim_routine::ActKind::Eat, what: String::new(), day: None }],
     };
     // Long enough for both acts at the coarsest step: each takes two steps, one act starts a step.
     let span_s = 300.0;
@@ -447,4 +448,75 @@ fn the_routine_soak_repeats_in_one_process_and_across_two() {
 fn the_routine_soak_in_a_process_of_its_own() {
     let Some(out) = std::env::var_os(REPEAT_CHILD) else { return };
     std::fs::write(&out, routine_soak().join("\n")).expect("write the child run's lines");
+}
+
+// -- The survival quests, played through in the soak (2026-11-20, docs/design/quest-chains.md) --
+
+/// EVERY SURVIVAL QUEST FINISHES IN THE HEADLESS SIM RUNNER, ON THE REAL SYSTEMS. A person
+/// following data/sim/routines/survival_week.ron (the daily routine's day, plus the clicks the
+/// survival chains ask for: Accept, look at the vitals, open the guides and the how-to, mix the
+/// oral rehydration salts, plant, compost; no nap) for 70 game days at the safe step finishes every quest
+/// of data/quests/survival.ron: Water First's drinks and its day of water counted by the intake
+/// ledger and its day of Hydration held, Food First's 2,000 kcal day, Keep It, Grow Your Own's
+/// radish grown, harvested and eaten, A Night's Sleep's two days of Energy, Clean Hands' three
+/// days of Waste held under 75, Ready for Accidents and When Water Leaves You's salts mixed and
+/// drunk. Start Farming then starts through its join (`after: AnyOf`), its other quest, Build
+/// First Habitat, never done. No quest event is made up here: every one comes from the system
+/// that reports it.
+///
+/// AND A REGULAR SLEEPER IS NEVER FATIGUED (2026-11-21): up at 06:40, in bed at 22:30, no nap, the
+/// lowest Energy from the first morning on is 25 or more (the run's first day starts at midnight,
+/// 22.5 hours awake: `RoutineLog::lowest_energy`). Tiredness at bedtime is real; the fatigue
+/// slowdown is for staying up late or hard work (food.rs ENERGY_DECAY_PER_SEC, 17 hours to the
+/// line, Williamson and Feyer 2000).
+/// Seen red 2026-11-21 with the nap gone and the drain back at 75 over 16 hours: "a regular
+/// sleeper went under the fatigue line: Energy 24.2 at 22.67 h" (up at 06:40, the lowest at
+/// 22:40). With the 17-hour drain the lowest is 28.7 at 22:40.
+///
+/// Seen red 2026-11-20 before BUG-337's fix (Energy drained while asleep): "the soak finished
+/// [\"aid_first\", \"water_first\", \"food_first\", \"clean_first\", \"food_keep\", \"aid_rehydrate\"] of
+/// the survival quests; under way [\"gs_first_steps\", \"rest_first\", ...]", Energy every 3 h
+/// "88, 74, 62, 48, 34, 20, 5, 0" through each night; and, before Water First's jerrycan reward
+/// moved, "the person died playing the survival quests: Some((2316599.97, \"starvation\"))" (the
+/// 24 L reward filled the backpack, so food from storage no longer fitted).
+#[test]
+fn the_survival_chains_finish_in_the_soak() {
+    let tol = tolerances();
+    let routine = sim_routine::Routine::load(&data_dir(), "survival_week").expect("data/sim/routines/survival_week.ron");
+    // 70 days: Grow Your Own's lettuce takes 45 days at full health (data/plants.csv), and a crop
+    // grows at its health (farming::step_path::growth_factor): a 50-day run ended with it unripe.
+    let span = sim_soak::run_span(&data_dir(), tol.seed, tol.safe_step_s, 70.0 * DAY_S, Some(3.0 * 3600.0), Some(&routine));
+    let log = span.routine.clone().expect("the run kept no routine log");
+    let (done, under_way) = &span.quests;
+    assert!(span.death.is_none(), "the person died playing the survival quests: {:?}; {log:?}", span.death);
+    let (low, at) = log.lowest_energy.expect("the routine read no Energy");
+    assert!(
+        low >= 25.0,
+        "a regular sleeper went under the fatigue line: Energy {low:.1} at {at:.2} h; Energy every 3 h of the first days {:?}",
+        span.marks.iter().take(16).map(|(_, o)| get(o, "vitals.energy").round()).collect::<Vec<_>>()
+    );
+    let survival: Vec<String> = humanity_systems::quests::QuestRegistry::from_ron_dir(&data_dir().join("quests"))
+        .quests
+        .values()
+        .filter(|q| q.starts == ["homestead"])
+        .map(|q| q.id.clone())
+        .collect();
+    assert!(survival.len() >= 8, "the survival quests load: {survival:?}");
+    let finished: Vec<&String> = survival.iter().filter(|id| done.contains(id)).collect();
+    assert_eq!(
+        finished.len(),
+        survival.len(),
+        "the soak finished {finished:?} of the survival quests; under way {under_way:?}; crops {} (grown {:.1} days each on average, health {:.0}); Energy every 3 h of the first days {:?}; notices {:?}; asked {:?}; {log:?}",
+        get(&span.end, "crops.count"),
+        get(&span.end, "crops.growing_s") / get(&span.end, "crops.count").max(1.0) / DAY_S,
+        get(&span.end, "crops.health") / get(&span.end, "crops.count").max(1.0),
+        span.marks.iter().take(32).map(|(_, o)| get(o, "vitals.energy").round()).collect::<Vec<_>>(),
+        span.notices.iter().filter(|n| n.contains("sleep") || n.contains("slept") || n.contains("lie down") || n.contains("Plant") || n.contains("plant") || n.starts_with("Quest complete")).take(16).collect::<Vec<_>>(),
+        log.asked
+    );
+    assert!(
+        under_way.iter().chain(done.iter()).any(|q| q == "tutorial_farming_basics"),
+        "Start Farming started through its join after Grow Your Own; under way {under_way:?}"
+    );
+    assert!(!done.iter().any(|q| q == "tutorial_first_habitat"), "the join's other quest was never done");
 }

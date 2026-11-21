@@ -42,6 +42,23 @@ pub(crate) enum ActKind {
     Sleep,
     /// A ten-minute nap (the Rest button).
     Rest,
+    /// The Quests page's Accept on quest `what` (2026-11-20, the survival quests' soak).
+    Accept,
+    /// A view coming on screen: `what` "vitals" is the Inventory page's Status section (the
+    /// page marks it, `GuiState::views_on_screen`).
+    View,
+    /// Opening a guide, as the page notes it: `what` "library:<file stem>" (the Library page)
+    /// or "how_to:<id>" (the How-to page's open).
+    Read,
+    /// The Crafting page's Craft on recipe `what`.
+    Craft,
+    /// The backpack's Plant on seed `what` (it sows into a grow machine within reach).
+    Plant,
+    /// The Garden page's "Plant this tower" on tower design `what` (data/towers/
+    /// aeroponic_configs.ron): every empty slot whose seed the backpack holds is sown.
+    PlantTower,
+    /// The Inventory page's Compost button.
+    Compost,
 }
 
 /// One act at an hour of the home's day.
@@ -50,6 +67,13 @@ pub(crate) struct Act {
     /// The hour of the home's day (the HUD's), 0 to the day's hours.
     pub hour: f64,
     pub act: ActKind,
+    /// What the act names, for the acts that name something (the quest, view, guide, recipe or
+    /// seed); empty for the rest.
+    #[serde(default)]
+    pub what: String,
+    /// Only on this day of the run (0 = the day it starts on); None every day.
+    #[serde(default)]
+    pub day: Option<u32>,
 }
 
 /// data/sim/routines/<id>.ron.
@@ -102,6 +126,15 @@ pub(crate) struct RoutineLog {
     /// Every attempt at a skill the person's acts made (a harvest trains farming), with what
     /// practice quality made it worth (skills rung 2), oldest first.
     pub practice: Vec<PracticeTry>,
+    /// The acts that only ask (accept, view, read, craft, plant, compost), by what they asked:
+    /// "craft mix_ors". What came of them is the systems' to show (the quests' tracker).
+    pub asked: BTreeMap<String, u32>,
+    /// The lowest Energy the body read at the end of any step from the first morning after a night
+    /// in bed, and the home's local hour then (2026-11-21): a regular sleeper's day must end above
+    /// the fatigue line, so a soak holds this at 25 or more. Not before: a run's clock starts at the
+    /// home's midnight with the body full, so its first day is 22.5 hours awake, not a regular day
+    /// (seen in the first run: 0.7 at 22:30 on day 0, 29 at every bedtime after). None until then.
+    pub lowest_energy: Option<(f32, f64)>,
 }
 
 /// One attempt at a skill during a soak, as the SkillSystem weighed it
@@ -159,19 +192,24 @@ pub(crate) struct RoutineRun {
     /// The home's local time, hours since the clock's start, as the last step began (None before
     /// the first step: acts due at the very start are not run backwards).
     last_h: Option<f64>,
-    /// Acts due but not yet started (one act starts per step).
-    queue: Vec<ActKind>,
+    /// Acts due but not yet started (one act starts per step), by their place in the routine.
+    queue: Vec<usize>,
+    /// The day of the run's first step, counted from the clock's start (an act's `day` counts from it).
+    first_day: Option<f64>,
     pending: Vec<Pending>,
     /// Produce the garden's harvest put in the backpack and not yet eaten, by item.
     garden: BTreeMap<String, u32>,
     pub log: RoutineLog,
     /// Attempts at skills already copied into the log (`practice_since`).
     tries_seen: u64,
+    /// The person has woken from a night in bed (Energy back to full after a Sleep act), so their
+    /// days are regular ones from here (`RoutineLog::lowest_energy`).
+    woke_rested: bool,
 }
 
 impl RoutineRun {
     pub(crate) fn new(routine: Routine) -> Self {
-        RoutineRun { routine, last_h: None, queue: Vec::new(), pending: Vec::new(), garden: BTreeMap::new(), log: RoutineLog::default(), tries_seen: 0 }
+        RoutineRun { routine, last_h: None, queue: Vec::new(), first_day: None, pending: Vec::new(), garden: BTreeMap::new(), log: RoutineLog::default(), tries_seen: 0, woke_rested: false }
     }
 
     /// Before a step: the acts that came due since the last step queue up, and the next act's
@@ -185,10 +223,14 @@ impl RoutineRun {
             return;
         }
         let (now_h, day_h) = local_hours(data);
+        let first_day = *self.first_day.get_or_insert((now_h / day_h).floor());
         if let Some(last) = self.last_h {
-            for (at, kind) in due_between(&self.routine.acts, day_h, last, now_h) {
-                let _ = at;
-                self.queue.push(kind);
+            for (at, i) in due_between(&self.routine.acts, day_h, last, now_h) {
+                // An act for one day of the run only on that day.
+                let day = ((at / day_h).floor() - first_day).max(0.0) as u32;
+                if self.routine.acts[i].day.is_none_or(|d| d == day) {
+                    self.queue.push(i);
+                }
             }
         }
         self.last_h = Some(now_h);
@@ -203,8 +245,9 @@ impl RoutineRun {
         }
         // One new act a step, so two acts due in one coarse step do not ask for the same thing twice.
         if self.pending.iter().all(|p| !matches!(p, Pending::Check { .. })) && !self.queue.is_empty() {
-            let kind = self.queue.remove(0);
-            self.start(world, data, gui, kind);
+            let i = self.queue.remove(0);
+            let act = self.routine.acts[i].clone();
+            self.start(world, data, gui, act.act, &act.what);
         }
     }
 
@@ -225,6 +268,20 @@ impl RoutineRun {
 
     /// After a step: what the requests did, from the backpack.
     pub(crate) fn after_step(&mut self, world: &hecs::World, data: &DataStore) {
+        // The body's Energy as the step left it (the HUD's meter), the lowest kept with its hour,
+        // from the first morning after a night in bed (waking puts Energy back to full).
+        if let Some((_, (v, _))) = world.query::<(&humanity_core::ecs::components::Vitals, &Controllable)>().iter().next() {
+            // Within 5 points of full: the step that wakes the sleeper goes on awake for the rest
+            // of it, so it ends a little under (an exact `>= energy_max` never held: the first try
+            // read no Energy at all).
+            if !self.woke_rested && self.log.sleeps > 0 && v.energy >= v.energy_max - 5.0 {
+                self.woke_rested = true;
+            }
+            if self.woke_rested && self.log.lowest_energy.map_or(true, |(low, _)| v.energy < low) {
+                let (hours, day_h) = local_hours(data);
+                self.log.lowest_energy = Some((v.energy, hours.rem_euclid(day_h)));
+            }
+        }
         // What the step's acts practised (skills rung 2), as the skills weighed it.
         let (tries, seen) = practice_since(world, self.tries_seen);
         self.log.practice.extend(tries);
@@ -269,7 +326,7 @@ impl RoutineRun {
     }
 
     /// Start one act: fetch what it needs (its requests on `gui`), to eat or drink next step.
-    fn start(&mut self, world: &hecs::World, data: &DataStore, gui: &mut GuiState, kind: ActKind) {
+    fn start(&mut self, world: &hecs::World, data: &DataStore, gui: &mut GuiState, kind: ActKind, what: &str) {
         let pack = pack_counts(world);
         match kind {
             ActKind::Drink => {
@@ -311,6 +368,36 @@ impl RoutineRun {
                 gui.pending_rest = true;
                 self.log.rests += 1;
             }
+            // The acts that only ask (2026-11-20): each sets the field its page sets, and the
+            // frame's bridges carry it (engine/frame_sim_requests.rs, quest_hooks::report).
+            ActKind::Accept => gui.pending_accept_quest = Some(what.to_string()),
+            ActKind::View => match what {
+                "vitals" => gui.views_on_screen.push("vitals"),
+                other => {
+                    self.miss(format!("no page shows a view called {other}"));
+                    return;
+                }
+            },
+            ActKind::Read => match what.strip_prefix("how_to:") {
+                Some(id) => gui.how_to.open(id),
+                None => gui.quest_learned.push(what.to_string()),
+            },
+            ActKind::Craft => gui.pending_craft_recipe = Some(what.to_string()),
+            ActKind::Plant => gui.pending_plant_seed = Some(what.to_string()),
+            ActKind::PlantTower => {
+                let towers = crate::gui::load_tower_configs(&humanity_core::storage::data_dir());
+                let Some(tower) = towers.iter().find(|t| t.id == what) else {
+                    self.miss(format!("no tower design called {what}"));
+                    return;
+                };
+                let cups: Vec<String> = tower.plantings.iter().flat_map(|p| std::iter::repeat(p.plant.clone()).take(p.slots.max(1) as usize)).collect();
+                gui.pending_plant_tower = Some((tower.id.clone(), cups));
+            }
+            ActKind::Compost => gui.pending_compost = true,
+        }
+        if !matches!(kind, ActKind::Drink | ActKind::Eat | ActKind::Sleep | ActKind::Rest) {
+            let asked = if what.is_empty() { act_word(kind).to_string() } else { format!("{} {what}", act_word(kind)) };
+            *self.log.asked.entry(asked).or_default() += 1;
         }
     }
 
@@ -355,6 +442,13 @@ fn act_word(kind: ActKind) -> &'static str {
         ActKind::Eat => "eat",
         ActKind::Sleep => "sleep",
         ActKind::Rest => "rest",
+        ActKind::Accept => "accept",
+        ActKind::View => "view",
+        ActKind::Read => "read",
+        ActKind::Craft => "craft",
+        ActKind::Plant => "plant",
+        ActKind::PlantTower => "plant tower",
+        ActKind::Compost => "compost",
     }
 }
 
@@ -370,18 +464,19 @@ pub(crate) fn local_hours(data: &DataStore) -> (f64, f64) {
     (elapsed / humanity_systems::time::SECONDS_PER_HOUR + lon / 360.0 * day_h, day_h)
 }
 
-/// The acts due in the local time span (last, now], each with the local hour it fell at.
-pub(crate) fn due_between(acts: &[Act], day_h: f64, last: f64, now: f64) -> Vec<(f64, ActKind)> {
+/// The acts due in the local time span (last, now], each with the local hour it fell at and its
+/// place in `acts`.
+pub(crate) fn due_between(acts: &[Act], day_h: f64, last: f64, now: f64) -> Vec<(f64, usize)> {
     let mut out = Vec::new();
     if !(now > last) {
         return out;
     }
     let mut day = (last / day_h).floor();
     while day * day_h <= now {
-        for a in acts {
+        for (i, a) in acts.iter().enumerate() {
             let at = day * day_h + a.hour;
             if at > last && at <= now {
-                out.push((at, a.act));
+                out.push((at, i));
             }
         }
         day += 1.0;

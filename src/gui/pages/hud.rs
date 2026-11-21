@@ -208,7 +208,7 @@ pub fn draw(
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, line, 11.0, theme.success());
                 y += 15.0;
             }
-            if let Some(q) = state.quests.iter().find(|q| !q.completed) {
+            if let Some(q) = hud_quest(&state.quests) {
                 y += 4.0;
                 text_shadowed(painter, Pos2::new(16.0, y), Align2::LEFT_TOP, &truncate_chars(&q.name, 48), 12.0, theme.accent());
                 y += 15.0;
@@ -1279,6 +1279,14 @@ fn crew_label_lines(name: &str, activity: &str, cam_dist: f32) -> Option<(String
         None
     };
     Some((name.to_string(), activity_line))
+}
+
+/// The quest the HUD shows (2026-11-20, P2, docs/design/quest-chains.md 1.5): the one marked
+/// `tracked` (the Quests page's "Show on HUD", else the most recently accepted, as the quest
+/// mirror marks it), else the last one under way. It used to be the FIRST under way, so once a
+/// quest started its branches the HUD kept showing whichever began first.
+pub(crate) fn hud_quest(quests: &[crate::gui::GuiQuest]) -> Option<&crate::gui::GuiQuest> {
+    quests.iter().find(|q| q.tracked && !q.completed).or_else(|| quests.iter().rev().find(|q| !q.completed))
 }
 
 /// The most characters of the quest line the HUD shows under the quest's name;
@@ -3125,3 +3133,7 @@ mod counter_card_tests {
 #[cfg(test)]
 #[path = "hud_corner_tests.rs"]
 mod corner_tests;
+
+#[cfg(test)]
+#[path = "hud_quest_tests.rs"]
+mod quest_tests;

@@ -92,6 +92,8 @@ pub mod fire;
 pub mod status_effects;
 pub mod flight;
 pub mod food;
+/// The intake ledger: what the body took in over the last game day (2026-11-20, P3).
+pub mod intake;
 /// Body heat: the Gagge two-node heat balance behind the core temperature (2026-09-27).
 pub mod body_heat;
 /// Illness: what a stomach illness from food does to the body's water, over game hours,

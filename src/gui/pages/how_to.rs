@@ -86,6 +86,9 @@ pub struct HowToState {
     announced: HashSet<(String, String)>,
     /// A step to scroll to on the next frame.
     pub scroll_to: Option<String>,
+    /// How-tos opened since the frame last asked, for the quests' Learn steps (2026-11-20, E3;
+    /// `engine::quest_hooks::learned`).
+    pub opened: Vec<String>,
 }
 
 impl Default for HowToState {
@@ -106,6 +109,7 @@ impl Default for HowToState {
             save_error: None,
             announced: HashSet::new(),
             scroll_to: None,
+            opened: Vec::new(),
         }
     }
 }
@@ -137,6 +141,7 @@ impl HowToState {
     /// Open a how-to, unfolding its branch in the rail.
     pub fn open(&mut self, id: &str) {
         self.open = Some(id.to_string());
+        self.opened.push(id.to_string());
         if let Some(lib) = &self.lib {
             let cat = lib.find(id).map(|l| l.how_to.category.clone()).or_else(|| lib.find_planned(id).map(|p| p.category.clone()));
             if let Some(cat) = cat {

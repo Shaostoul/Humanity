@@ -119,6 +119,9 @@ pub(crate) fn bridges_slice(parts: SimParts<'_>, place: &BodyPlace<'_>) {
     crate::engine::drone::bridge_gui(gui, data);
     // The GUI's requests into the systems' channels (engine/frame_sim_requests.rs).
     crate::engine::frame_sim_requests::carry(gui, data, world);
+    // The quests' glue: views that came on screen and guides opened, as quest events
+    // (engine/quest_hooks.rs; on the step so the soak's routine counts them too, 2026-11-20).
+    crate::engine::quest_hooks::report(gui, data);
 }
 
 /// What one step reads and writes: the simulation's own parts.

@@ -7,6 +7,11 @@
 pub mod objectives;
 /// A quest's chain for the Quests page's chain window (2026-10-30).
 pub mod chain;
+/// What must be finished before a quest starts (2026-11-20, P1).
+pub mod after;
+pub use after::After;
+/// The numbers a Keep step reads (2026-11-20, E2).
+pub mod readings;
 // The opening, played on the shipped data with the real systems (2026-10-04), plays it through the
 // engine's start and the GUI's pages, so it is the engine's since the crate split's backlog
 // (2026-10-31): engine/crossing_tests/quests_opening.rs.
@@ -25,6 +30,7 @@ pub use objectives::{QuestObjective, QuestStep};
 
 /// A complete quest definition loaded from data files.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QuestDef {
     /// Unique quest identifier (e.g., "tutorial_first_habitat").
     pub id: String,
@@ -41,8 +47,35 @@ pub struct QuestDef {
     /// Quests page always promised XP; QuestDef finally carries it).
     #[serde(default)]
     pub xp_rewards: Vec<(String, u32)>,
-    /// Quest ID that must be completed before this quest can be accepted.
-    pub prerequisite: Option<String>,
+    /// What must be finished before it starts (2026-11-20, P1; `after.rs`): `None` (offered),
+    /// `Quest(id)`, `AnyOf([..])` (a join) or `AllOf([..])`. It replaced `prerequisite`.
+    #[serde(default)]
+    pub after: After,
+    /// The starts it is offered to (data/homes/starts.ron ids; empty: every start), so a start
+    /// whose home lacks what its steps use is never given it (design 1.7: a cabin has no garden).
+    #[serde(default)]
+    pub starts: Vec<String>,
+}
+
+impl QuestDef {
+    /// Whether a character of `start` may be given it. An empty `start` (no home start known:
+    /// the relay build, which has no active home) filters nothing.
+    pub fn offered_to(&self, start: &str) -> bool {
+        self.starts.is_empty() || start.is_empty() || self.starts.iter().any(|s| s == start)
+    }
+}
+
+/// The start of the character playing here: the active home's in the desktop app; none in the
+/// relay build, whose persistence has no active home.
+fn active_start() -> String {
+    #[cfg(feature = "native")]
+    {
+        crate::persistence::live_save::active_home().start
+    }
+    #[cfg(not(feature = "native"))]
+    {
+        String::new()
+    }
 }
 
 /// Registry of all quest definitions, keyed by quest ID.
@@ -672,10 +705,31 @@ pub fn view_event_key(view: &str) -> String {
     format!("view_{view}")
 }
 
+/// The quest event one `item_id` drunk reports (FoodSystem), read by `Drink`
+/// objectives (2026-11-20, E1).
+pub fn drink_event_key(item_id: &str) -> String {
+    format!("{DRINK_EVENT}{item_id}")
+}
+
+/// The quest event a guide or how-to opened reports (the Library and How-to
+/// pages, through the game's frame), read by `Learn` objectives (2026-11-20,
+/// E3): `page` is "library:<file stem>" or "how_to:<id>".
+pub fn learn_event_key(page: &str) -> String {
+    format!("learn_{page}")
+}
+
+/// Where a Keep step's streak keeps the game second it began (E2): in the
+/// quest's progress map, by step, so nothing new is saved and a later Keep
+/// step of the same quest starts its own.
+pub fn keep_since_key(step: usize) -> String {
+    format!("keep_since_{step}")
+}
+
 /// The prefixes of the eat and plant events: an `Eat` or `Plant` step that
 /// names no item counts every event with its prefix.
 const EAT_EVENT: &str = "eat_";
 pub const PLANT_EVENT: &str = "plant_";
+const DRINK_EVENT: &str = "drink_";
 
 /// How many events a count step has seen: of `prefix` + `id` when it names
 /// one, else of every event with that prefix (any food, any crop).
@@ -707,9 +761,12 @@ pub fn push_quest_event(data: &DataStore, key: String) {
 
 /// "Quest complete: First Steps. You received 2 Iron Ingot and 30 Metalworking
 /// XP." Names come from the item and skill registries, falling back to the id.
+/// `stored` is the part of the item rewards the backpack had no room for, which went to home
+/// storage (2026-11-21): the line says so in words, so a reward is never silently somewhere else.
 pub fn completion_notice(
     name: &str,
     rewards: &[(String, u32)],
+    stored: &[(String, u32)],
     xp_rewards: &[(String, u32)],
     items: Option<&crate::inventory::ItemRegistry>,
     skills: Option<&crate::skills::SkillRegistry>,
@@ -718,11 +775,34 @@ pub fn completion_notice(
     let skill = |id: &str| skills.and_then(|r| r.get(id)).map(|d| d.name()).unwrap_or_else(|| id.replace('_', " "));
     let mut got: Vec<String> = rewards.iter().map(|(id, q)| format!("{q} {}", item(id))).collect();
     got.extend(xp_rewards.iter().map(|(id, xp)| format!("{xp} {} XP", skill(id))));
-    if got.is_empty() {
+    let line = if got.is_empty() {
         format!("Quest complete: {name}.")
     } else {
         format!("Quest complete: {name}. You received {}.", crate::crafting::away::join_list(&got))
+    };
+    if stored.is_empty() {
+        return line;
     }
+    let kept: Vec<String> = stored.iter().map(|(id, q)| format!("{q} {}", item(id))).collect();
+    let words = crate::crafting::home_store::words("quests.reward_to_storage");
+    format!("{line} {}", words.replace("{{items}}", &crate::crafting::away::join_list(&kept)))
+}
+
+/// Put one item reward in the backpack as far as its room takes it, by volume as every pickup is
+/// (2026-11-21): returns how many did not fit, for home storage. With no home storage to send them
+/// to (`to_storage` false: a unit test's world, the server build) the backpack takes them by count
+/// as it always did, and what the slots refuse is logged.
+pub fn reward_into_pack(inv: &mut Inventory, item_id: &str, quantity: u32, items: Option<&crate::inventory::ItemRegistry>, to_storage: bool) -> u32 {
+    let max_stack = items.map_or(99, |r| r.max_stack_for(item_id));
+    if !to_storage {
+        let overflow = inv.add_item(item_id, quantity, max_stack);
+        if overflow > 0 {
+            log::warn!("Quest reward overflow: {overflow} of {item_id} could not fit in inventory");
+        }
+        return 0;
+    }
+    let unit_l = items.map_or(0.0, |r| r.volume_for(item_id));
+    inv.add_item_volume_gated(item_id, quantity, max_stack, unit_l)
 }
 
 /// The line for the quests a finished one started: "New quest: Toolsmith.
@@ -781,9 +861,30 @@ pub struct QuestTracker {
     pub active_quests: Vec<ActiveQuest>,
     /// IDs of completed quests.
     pub completed_quests: Vec<String>,
+    /// The quest the player chose to show on the HUD (2026-11-20, P2, design 1.5): the Quests
+    /// page's "Show on HUD". None, or a quest no longer under way, shows the most recently
+    /// accepted one (`hud_quest`). Saved with the tracker.
+    #[serde(default)]
+    pub tracked: Option<String>,
 }
 
 impl QuestTracker {
+    /// The quest the HUD shows: the tracked one while it is under way, else the most recently
+    /// accepted (several run side by side once a quest starts its branches).
+    pub fn hud_quest(&self) -> Option<&ActiveQuest> {
+        self.tracked
+            .as_deref()
+            .and_then(|id| self.active_quests.iter().find(|q| q.quest_id == id))
+            .or_else(|| self.active_quests.last())
+    }
+
+    /// Show `quest_id` on the HUD (only one under way can be).
+    pub fn track(&mut self, quest_id: &str) {
+        if self.is_active(quest_id) {
+            self.tracked = Some(quest_id.to_string());
+        }
+    }
+
     /// Whether a quest has been completed.
     pub fn is_completed(&self, quest_id: &str) -> bool {
         self.completed_quests.iter().any(|id| id == quest_id)
@@ -838,12 +939,15 @@ impl QuestSystem {
     /// Check if a single objective is met given the player's inventory, what
     /// the home holds (`at_home`, by item id), the progress map and the
     /// destinations the player stands in now (`here`, `destinations_here`).
+    /// A Keep step's met-ness is worked out by the tick (`keep_step`), which keeps its streak,
+    /// and handed in as `keep_met`.
     fn check_objective(
         objective: &QuestObjective,
         inventory: Option<&Inventory>,
         at_home: &dyn Fn(&str) -> u32,
         progress: &HashMap<String, u32>,
         here: &std::collections::HashSet<String>,
+        keep_met: bool,
     ) -> bool {
         match objective {
             QuestObjective::Gather { item_id, quantity } => {
@@ -888,7 +992,49 @@ impl QuestSystem {
             QuestObjective::Eat { item_id, quantity } => counted(progress, EAT_EVENT, item_id.as_deref()) >= *quantity,
             QuestObjective::Plant { crop_id, quantity } => counted(progress, PLANT_EVENT, crop_id.as_deref()) >= *quantity,
             QuestObjective::View { view } => progress.get(&view_event_key(view)).copied().unwrap_or(0) >= 1,
+            // What the player drank and opened (2026-11-20, E1 and E3).
+            QuestObjective::Drink { item_id, quantity } => counted(progress, DRINK_EVENT, item_id.as_deref()) >= *quantity,
+            QuestObjective::Learn { page } => progress.get(&learn_event_key(page)).copied().unwrap_or(0) >= 1,
+            QuestObjective::Keep { .. } => keep_met,
         }
+    }
+
+    /// A Keep step on the step it is (E2): whether its reading is in its band (and the player
+    /// at its place) now, and for how long. The streak's start is the game second it entered the
+    /// band, kept in `progress` under `keep_since_<step>`; leaving the band or the place removes
+    /// it, so the count starts again. Met when held `hours` (at once, for 0). Returns (met,
+    /// whether `progress` changed).
+    fn keep_step(
+        objective: &QuestObjective,
+        step: usize,
+        progress: &mut HashMap<String, u32>,
+        body: &readings::Body,
+        here: &std::collections::HashSet<String>,
+    ) -> (bool, bool) {
+        let QuestObjective::Keep { reading, min, max, hours, at } = objective else {
+            return (false, false);
+        };
+        let in_band = readings::read(reading, body).is_some_and(|v| readings::in_band(v, *min, *max))
+            && at.as_ref().is_none_or(|a| here.contains(a));
+        let key = keep_since_key(step);
+        if !in_band {
+            return (false, progress.remove(&key).is_some());
+        }
+        if *hours <= 0.0 {
+            return (true, false);
+        }
+        let now = body.now_s.max(0.0).min(f64::from(u32::MAX)) as u32;
+        let mut changed = false;
+        let since = match progress.get(&key).copied() {
+            // A clock set back (a rig's time verb) starts the streak again from now.
+            Some(s) if s <= now => s,
+            _ => {
+                progress.insert(key, now);
+                changed = true;
+                now
+            }
+        };
+        (f64::from(now - since) >= f64::from(*hours) * 3600.0, changed)
     }
 }
 
@@ -949,12 +1095,20 @@ impl System for QuestSystem {
             hecs::Entity,
             QuestTracker,
             Vec<(String, Vec<(String, u32)>, Vec<(String, u32)>)>,
+            Option<String>,
         )> = Vec::new();
 
-        for (entity, (tracker, inventory)) in
-            world.query_mut::<(&QuestTracker, Option<&Inventory>)>()
-        {
+        // The game clock, for Keep steps' streaks and the intake readings (E2).
+        let now_s = crate::time::elapsed_now(data);
+        for (entity, (tracker, inventory, vitals, intake)) in world.query_mut::<(
+            &QuestTracker,
+            Option<&Inventory>,
+            Option<&humanity_core::ecs::components::Vitals>,
+            Option<&crate::intake::IntakeLedger>,
+        )>() {
             let mut tracker = tracker.clone();
+            let body = readings::Body { vitals, intake, now_s };
+            let mut keep_changed = false;
             // Apply this frame's progress events to every active quest's counters
             // (e.g. a "craft_smelt_iron" event bumps progress["craft_smelt_iron"]).
             let events_applied = !events.is_empty() && !tracker.active_quests.is_empty();
@@ -970,7 +1124,7 @@ impl System for QuestSystem {
             let mut quests_to_advance: Vec<(usize, usize)> = Vec::new(); // (quest_index, new_step)
             let mut quests_to_complete: Vec<usize> = Vec::new();
 
-            for (qi, active) in tracker.active_quests.iter().enumerate() {
+            for (qi, active) in tracker.active_quests.iter_mut().enumerate() {
                 let quest_def = match registry.get(&active.quest_id) {
                     Some(def) => def,
                     None => continue, // Quest definition not found
@@ -989,7 +1143,9 @@ impl System for QuestSystem {
                 }
 
                 let step = &quest_def.steps[active.current_step];
-                if Self::check_objective(&step.objective, inventory, &at_home, &active.progress, &here) {
+                let (keep_met, changed) = Self::keep_step(&step.objective, active.current_step, &mut active.progress, &body, &here);
+                keep_changed |= changed;
+                if Self::check_objective(&step.objective, inventory, &at_home, &active.progress, &here, keep_met) {
                     // Skills rung 1: finding your way to a place is navigation practice.
                     if matches!(step.objective, QuestObjective::Travel { .. }) {
                         crate::skills::practice(data, "reach_destination", None);
@@ -1032,16 +1188,24 @@ impl System for QuestSystem {
             for qi in quests_to_complete.into_iter().rev() {
                 let quest_id = tracker.active_quests[qi].quest_id.clone();
                 tracker.active_quests.remove(qi);
+                // Finished: the HUD goes back to the most recently accepted (P2).
+                if tracker.tracked.as_deref() == Some(quest_id.as_str()) {
+                    tracker.tracked = None;
+                }
                 tracker.completed_quests.push(quest_id.clone());
                 log::info!("Quest completed: {}", quest_id);
             }
 
-            // Prerequisite chaining: completing a quest auto-accepts any quest whose
-            // prerequisite it satisfies (and that isn't already active or completed).
+            // Chaining (P1, `after.rs`): a finished quest starts every quest whose `after`
+            // names it and is now met (any one of an AnyOf, every one of an AllOf), that is
+            // offered to this character's start and is neither active nor done.
             let mut started: Vec<&QuestDef> = Vec::new();
-            for (completed_id, _, _) in &completed_this_tick {
+            if !completed_this_tick.is_empty() {
+                let start = active_start();
                 for def in registry.quests.values() {
-                    if def.prerequisite.as_deref() == Some(completed_id.as_str())
+                    if completed_this_tick.iter().any(|(id, _, _)| def.after.names(id))
+                        && def.after.met(|q| tracker.is_completed(q))
+                        && def.offered_to(&start)
                         && !tracker.is_active(&def.id)
                         && !tracker.is_completed(&def.id)
                     {
@@ -1051,51 +1215,60 @@ impl System for QuestSystem {
                 }
             }
 
-            // Tell the player (2026-10-04, F3): what finished and what it gave,
-            // then what started. Only the player carries a QuestTracker.
-            let items = data.get::<crate::inventory::ItemRegistry>("item_registry");
-            let skills = data.get::<crate::skills::SkillRegistry>("skill_registry");
-            for (completed_id, rewards, xp_rewards) in &completed_this_tick {
-                let name = registry.get(completed_id).map_or(completed_id.as_str(), |d| d.name.as_str());
-                post_notice(data, completion_notice(name, rewards, xp_rewards, items, skills));
-            }
+            // What started, said after what finished (the rewards' lines, below, once the
+            // backpack has taken what fits).
             started.sort_by(|a, b| a.name.cmp(&b.name)); // the registry's order is a hash map's
-            if let Some(line) = next_quest_notice(&started, |d| step_text(d, data)) {
-                post_notice(data, line);
-            }
+            let started_line = next_quest_notice(&started, |d| step_text(d, data));
 
             if events_applied
+                || keep_changed
                 || !completed_this_tick.is_empty()
                 || !quests_to_advance.is_empty()
             {
-                updates.push((entity, tracker, completed_this_tick));
+                updates.push((entity, tracker, completed_this_tick, started_line));
             }
         }
 
-        // Apply tracker updates and grant rewards directly to inventory
-        for (entity, tracker, completed) in updates {
+        // Apply tracker updates and grant rewards directly to inventory, then tell the player
+        // (2026-10-04, F3): what finished and what it gave, then what started. Only the player
+        // carries a QuestTracker.
+        let items = data.get::<crate::inventory::ItemRegistry>("item_registry");
+        let skills = data.get::<crate::skills::SkillRegistry>("skill_registry");
+        // What the backpack has no room for goes to home storage (2026-11-21), filed by the main
+        // loop beside a hand craft's overflow (engine::stock_piles::receive_machine_outputs): a
+        // reward is never dropped and never packs the backpack past its volume. Rewards came in by
+        // count until then, and a 24 L jerrycan filled the 65 L pack so food from storage no
+        // longer fitted (the survival quests' soak, rung 1).
+        let to_storage = data.contains(crate::crafting::home_store::HAND_MADE_TO_STORAGE);
+        for (entity, tracker, completed, started_line) in updates {
             if let Ok(mut t) = world.get::<&mut QuestTracker>(entity) {
                 *t = tracker;
             }
 
             // Grant item + XP rewards for completed quests (XP via the shared
             // xp_grants channel, drained by SkillSystem later this same frame).
-            for (_quest_id, rewards, xp_rewards) in completed {
-                for (item_id, quantity) in rewards {
-                    if let Ok(mut inv) = world.get::<&mut Inventory>(entity) {
-                        let overflow = inv.add_item(&item_id, quantity, 99);
-                        if overflow > 0 {
-                            log::warn!(
-                                "Quest reward overflow: {} of {} could not fit in inventory",
-                                overflow,
-                                item_id
-                            );
-                        }
+            for (quest_id, rewards, xp_rewards) in completed {
+                let mut stored: Vec<(String, u32)> = Vec::new();
+                for (item_id, quantity) in &rewards {
+                    let left = match world.get::<&mut Inventory>(entity) {
+                        Ok(mut inv) => reward_into_pack(&mut inv, item_id, *quantity, items, to_storage),
+                        Err(_) if to_storage => *quantity,
+                        Err(_) => 0,
+                    };
+                    if left > 0 {
+                        stored.push((item_id.clone(), left));
                     }
                 }
-                for (skill_id, amount) in xp_rewards {
-                    crate::skills::award_skill_xp(data, &skill_id, amount);
+                let goods: Vec<(String, u32, u8)> = stored.iter().map(|(id, q)| (id.clone(), *q, 0)).collect();
+                crate::crafting::home_store::send_to_storage(data, &goods);
+                for (skill_id, amount) in &xp_rewards {
+                    crate::skills::award_skill_xp(data, skill_id, *amount);
                 }
+                let name = registry.get(&quest_id).map_or(quest_id.as_str(), |d| d.name.as_str());
+                post_notice(data, completion_notice(name, &rewards, &stored, &xp_rewards, items, skills));
+            }
+            if let Some(line) = started_line {
+                post_notice(data, line);
             }
         }
 
@@ -1117,7 +1290,8 @@ mod quest_tests {
             }],
             rewards: reward,
             xp_rewards: Vec::new(),
-            prerequisite: prereq.map(|s| s.to_string()),
+            after: prereq.map_or(After::None, |s| After::Quest(s.to_string())),
+            starts: Vec::new(),
         }
     }
 
@@ -1163,6 +1337,45 @@ mod quest_tests {
         );
     }
 
+    /// A reward larger than the backpack's free room (2026-11-21): what fits goes in the pack, the
+    /// rest to home storage (the hand-made goods' channel the main loop files), and the completion
+    /// line says so in words. The pack is never filled past its volume and nothing is dropped.
+    ///
+    /// Seen red 2026-11-21 with `reward_into_pack` adding by count as before (`add_item`, 99 a
+    /// stack): "the backpack takes what its room holds / left: 3 / right: 2".
+    #[test]
+    fn a_reward_too_big_for_the_backpack_goes_to_home_storage_and_says_so() {
+        let can = "water_jerrycan_empty_0"; // 24 L each (data/items.csv)
+        let items = crate::inventory::ItemRegistry::from_csv(include_bytes!(concat!(env!("HUMANITY_REPO_ROOT"), "/data/items.csv"))).unwrap();
+        let mut reg = QuestRegistry::default();
+        let mut q = quest("big_reward", QuestObjective::Gather { item_id: "stick_0".into(), quantity: 1 }, vec![(can.to_string(), 3)], None);
+        q.name = "Big Reward".to_string();
+        reg.quests.insert(q.id.clone(), q);
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("item_registry", items);
+        data.insert("player_notices", std::sync::Mutex::new(Vec::<String>::new()));
+        crate::crafting::home_store::register(&mut data);
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("stick_0", 1, 99);
+        inv.volume_capacity_l = 50.0; // room for two 24 L cans, not three
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("big_reward");
+        let who = world.spawn((inv, tracker));
+
+        QuestSystem::new().tick(&mut world, 0.1, &data);
+
+        let inv = world.get::<&Inventory>(who).unwrap();
+        assert_eq!(inv.count_item(can), 2, "the backpack takes what its room holds");
+        assert!(inv.volume_current_l <= inv.volume_capacity_l + 1e-3, "the pack is not packed past its volume: {} of {} L", inv.volume_current_l, inv.volume_capacity_l);
+        let stored = data.get::<std::sync::Mutex<Vec<(String, u32, u8)>>>(crate::crafting::home_store::HAND_MADE_TO_STORAGE).unwrap().lock().unwrap().clone();
+        assert_eq!(stored, vec![(can.to_string(), 1, 0)], "the rest goes to home storage");
+        let notices = data.get::<std::sync::Mutex<Vec<String>>>("player_notices").unwrap().lock().unwrap().clone();
+        let line = notices.iter().find(|n| n.starts_with("Quest complete: Big Reward")).unwrap_or_else(|| panic!("no completion line: {notices:?}"));
+        assert!(line.contains("3 Water Jerrycan (empty)") && line.contains("1 Water Jerrycan (empty) went to home storage"), "the line says where the reward went: {line}");
+    }
+
     #[test]
     fn from_ron_dir_loads_the_real_quests() {
         let dir = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/quests");
@@ -1184,7 +1397,7 @@ mod quest_tests {
         let quests = data.join("quests");
         std::fs::create_dir_all(&quests).expect("make the folder");
         std::fs::write(quests.join("getting_started.ron"), "[ (id: \"gs_first_steps\", name: ").expect("write");
-        let own = r#"[(id: "my_quest", name: "Mine", description: "A modder's quest", steps: [], rewards: [], prerequisite: None)]"#;
+        let own = r#"[(id: "my_quest", name: "Mine", description: "A modder's quest", steps: [], rewards: [], after: None)]"#;
         std::fs::write(quests.join("zz_mine.ron"), own).expect("write");
         std::fs::write(quests.join("zz_broken.ron"), "[(").expect("write");
         let reg = QuestRegistry::load(&data);
@@ -1461,9 +1674,50 @@ mod quest_tests {
                         "quest {}: View names {view}, which no page reports",
                         q.id
                     ),
+                    // A Drink item must be something the player drinks (not eats).
+                    QuestObjective::Drink { item_id, .. } => {
+                        if let Some(id) = item_id {
+                            assert_eq!(crate::food::consume_kinds().get(id), Some(&true), "quest {}: Drink names {id}, which is not drunk", q.id);
+                        }
+                    }
+                    // A Keep reading is one the code reads, with a band, at a real place.
+                    QuestObjective::Keep { reading, min, max, at, .. } => {
+                        assert!(readings::known(reading), "quest {}: Keep names {reading}, which is not a reading", q.id);
+                        assert!(min.is_some() || max.is_some(), "quest {}: a Keep step needs a min or a max", q.id);
+                        if let Some(a) = at {
+                            assert!(dest_ids.contains(a.as_str()), "quest {}: Keep at unknown destination {a}", q.id);
+                        }
+                    }
+                    // A Learn page is a shipped Library guide or how-to.
+                    QuestObjective::Learn { page } => {
+                        let found = match page.split_once(':') {
+                            Some(("library", stem)) => root.join("data/library").join(format!("{stem}.md")).is_file(),
+                            Some(("how_to", id)) => std::fs::read_dir(root.join("data/how_to"))
+                                .into_iter()
+                                .flatten()
+                                .flatten()
+                                .any(|d| d.path().join(format!("{id}.json")).is_file()),
+                            _ => false,
+                        };
+                        assert!(found, "quest {}: Learn names {page}, which is no shipped guide or how-to", q.id);
+                    }
                 }
                 // Reward items must exist too - a completed quest that grants
                 // a phantom item would vanish the reward silently.
+            }
+            // Every quest an `after` names exists (P1), a join names some, and every start a
+            // quest is offered to is a real start.
+            for pre in q.after.ids() {
+                assert!(reg.quests.contains_key(pre), "quest {}: after names unknown quest {pre}", q.id);
+            }
+            assert!(
+                !matches!(&q.after, After::AnyOf(v) | After::AllOf(v) if v.is_empty()),
+                "quest {}: an empty AnyOf or AllOf is never met",
+                q.id
+            );
+            let starts = humanity_ship::starts::Starts::load(&root.join("data"));
+            for s in &q.starts {
+                assert!(starts.get(s).is_some(), "quest {}: offered to unknown start {s}", q.id);
             }
             for (item_id, _) in &q.rewards {
                 assert!(
@@ -1695,6 +1949,135 @@ mod quest_tests {
             t.is_active("q_next"),
             "completing q_craft auto-accepts its dependent q_next"
         );
+    }
+
+    /// A KEEP STEP HOLDS ITS READING ON THE GAME CLOCK AND STARTS AGAIN WHEN IT SLIPS (2026-11-20,
+    /// E2, design 2.10). "Keep your Hydration at 60 or more for 2 hours": an hour in the band is
+    /// not done; dropping under 60 starts the count again from when it is back; two unbroken
+    /// hours finish it. A reach-once step (hours 0) finishes the tick its reading is in the band,
+    /// and one with a place (`at`) never finishes while the player is elsewhere. Seen red
+    /// 2026-11-21 with the streak kept across the drop (the `keep_since` key not removed out of the band): "a
+    /// drop under 60 starts the count again".
+    #[test]
+    fn a_keep_step_holds_on_the_game_clock_and_starts_again_when_it_slips() {
+        use humanity_core::ecs::components::Vitals;
+        let keep = |min: f32, hours: f32, at: Option<&str>| QuestObjective::Keep {
+            reading: "vital.hydration".into(),
+            min: Some(min),
+            max: None,
+            hours,
+            at: at.map(String::from),
+        };
+        let mut reg = QuestRegistry::default();
+        reg.quests.insert("q_hold".into(), quest("q_hold", keep(60.0, 2.0, None), vec![], None));
+        reg.quests.insert("q_once".into(), quest("q_once", keep(30.0, 0.0, None), vec![], None));
+        reg.quests.insert("q_there".into(), quest("q_there", keep(30.0, 0.0, Some("outdoor_fields")), vec![], None));
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert("game_time", std::sync::Mutex::new(crate::time::GameTime::default()));
+        let mut world = hecs::World::new();
+        let mut tracker = QuestTracker::default();
+        for q in ["q_hold", "q_once", "q_there"] {
+            tracker.accept_quest(q);
+        }
+        let player = world.spawn((tracker, Vitals { hydration: 70.0, ..Vitals::default() }));
+        let mut sys = QuestSystem::new();
+        let mut at = |world: &mut hecs::World, hours: f64, hydration: f32| {
+            data.get::<std::sync::Mutex<crate::time::GameTime>>("game_time").unwrap().lock().unwrap().set_elapsed(hours * 3600.0);
+            world.get::<&mut Vitals>(player).unwrap().hydration = hydration;
+            sys.tick(world, 0.0, &data);
+            world.get::<&QuestTracker>(player).unwrap().is_completed("q_hold")
+        };
+        assert!(!at(&mut world, 0.0, 70.0));
+        assert!(world.get::<&QuestTracker>(player).unwrap().is_completed("q_once"), "a reach-once step finishes at once");
+        assert!(!world.get::<&QuestTracker>(player).unwrap().is_completed("q_there"), "never while the player is not at its place");
+        assert!(!at(&mut world, 1.0, 70.0), "an hour of two is not done");
+        assert!(!at(&mut world, 1.5, 55.0), "out of the band");
+        assert!(!at(&mut world, 2.5, 70.0), "a drop under 60 starts the count again");
+        assert!(!at(&mut world, 4.4, 70.0), "1.9 hours since it came back");
+        assert!(at(&mut world, 4.5, 70.0), "two unbroken hours finish it");
+    }
+
+    /// THE HUD'S QUEST IS THE TRACKED ONE, ELSE THE MOST RECENTLY ACCEPTED (2026-11-20, P2). One
+    /// not under way cannot be tracked, and a tracked quest that finishes hands the HUD back.
+    #[test]
+    fn the_hud_quest_is_the_tracked_one_else_the_most_recent() {
+        let mut t = QuestTracker::default();
+        assert!(t.hud_quest().is_none());
+        for q in ["a", "b", "c"] {
+            t.accept_quest(q);
+        }
+        assert_eq!(t.hud_quest().map(|q| q.quest_id.as_str()), Some("c"), "the most recently accepted");
+        t.track("a");
+        assert_eq!(t.hud_quest().map(|q| q.quest_id.as_str()), Some("a"), "the tracked one");
+        t.track("zzz");
+        assert_eq!(t.tracked.as_deref(), Some("a"), "a quest not under way is not tracked");
+        let mut reg = QuestRegistry::default();
+        reg.quests.insert("a".into(), quest("a", QuestObjective::View { view: "a".into() }, vec![], None));
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        let p = world.spawn((t,));
+        push_quest_event(&data, view_event_key("a"));
+        QuestSystem::new().tick(&mut world, 0.0, &data);
+        let t = world.get::<&QuestTracker>(p).unwrap();
+        assert!(t.is_completed("a") && t.tracked.is_none(), "finished: no longer tracked");
+        assert_eq!(t.hud_quest().map(|q| q.quest_id.as_str()), Some("c"));
+    }
+
+    /// A JOIN STARTS FROM ANY ONE OF ITS QUESTS (2026-11-20, P1, design 1.4). Start Farming
+    /// follows Build First Habitat or Grow Your Own, whichever the player finished: here the
+    /// join names two quests, and finishing either one alone starts it, the other never
+    /// started; finishing the second afterwards does not start it again; an AllOf waits for
+    /// both. Seen red 2026-11-21 with the chaining matching only the first quest an `after` names
+    /// (the old one-prerequisite rule): "finishing the FIRST quest of an AnyOf starts the join"
+    /// (the order an AnyOf's names come back in is the test's to choose; either one alone must
+    /// start it).
+    #[test]
+    fn a_join_starts_from_any_one_of_its_quests() {
+        let view = |id: &str| QuestObjective::View { view: id.to_string() };
+        for finish_first in ["q_build", "q_grow"] {
+            let mut reg = QuestRegistry::default();
+            reg.quests.insert("q_build".into(), quest("q_build", view("build"), vec![], None));
+            reg.quests.insert("q_grow".into(), quest("q_grow", view("grow"), vec![], None));
+            let mut join = quest("q_farm", view("farm"), vec![], None);
+            join.after = After::AnyOf(vec!["q_build".into(), "q_grow".into()]);
+            reg.quests.insert("q_farm".into(), join);
+            let mut both = quest("q_both", view("both"), vec![], None);
+            both.after = After::AllOf(vec!["q_build".into(), "q_grow".into()]);
+            reg.quests.insert("q_both".into(), both);
+            let mut data = DataStore::new();
+            data.insert("quest_registry", reg);
+            data.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+            let mut world = hecs::World::new();
+            let mut tracker = QuestTracker::default();
+            tracker.accept_quest(finish_first);
+            let player = world.spawn((tracker,));
+            let mut sys = QuestSystem::new();
+            let other = if finish_first == "q_build" { "q_grow" } else { "q_build" };
+            push_quest_event(&data, view_event_key(finish_first.trim_start_matches("q_")));
+            sys.tick(&mut world, 0.0, &data);
+            {
+                let t = world.get::<&QuestTracker>(player).unwrap();
+                assert!(t.is_completed(finish_first));
+                assert!(!t.is_active(other) && !t.is_completed(other), "the other branch was never started");
+                let which = if finish_first == "q_build" { "FIRST" } else { "SECOND" };
+                assert!(t.is_active("q_farm"), "finishing the {which} quest of an AnyOf starts the join");
+                assert!(!t.is_active("q_both"), "an AllOf waits for every one of its quests");
+            }
+            // The join finished, then the other branch: the join is not started again; the
+            // AllOf is now met and starts.
+            world.get::<&mut QuestTracker>(player).unwrap().accept_quest(other);
+            push_quest_event(&data, view_event_key("farm"));
+            sys.tick(&mut world, 0.0, &data);
+            push_quest_event(&data, view_event_key(other.trim_start_matches("q_")));
+            sys.tick(&mut world, 0.0, &data);
+            let t = world.get::<&QuestTracker>(player).unwrap();
+            assert!(t.is_completed("q_farm") && !t.is_active("q_farm"), "a finished join is never started again");
+            assert!(t.is_active("q_both"), "the AllOf starts once both are done");
+        }
     }
 
     /// TRAVEL STEPS READ WHERE THE PLAYER IS (2026-10-04, the first-hour audit's

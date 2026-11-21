@@ -35,7 +35,8 @@ pub(crate) fn run(state: &mut EngineState) {
     humanity_core::frame_costs::span("cpu.span.bridges");
     // Built beds and chests: prompt + chests in the places tree (2026-09-27).
     crate::engine::built_uses::frame(state);
-    // The quests' glue: views that came on screen, the own front door (2026-10-04).
+    // The quests' glue: the own front door (2026-10-04; the views and guides are reported on
+    // the step, frame_sim::bridges_slice).
     crate::engine::quest_hooks::frame(state);
     // A pack left where you fell, in reach: its prompt (2026-10-04).
     crate::engine::death_pack::frame(state);

@@ -29,7 +29,7 @@
             ("seed_strawberry_0", 5),
             ("seed_pepper_0", 5),
         ],
-        prerequisite: Some("tutorial_farming_basics"),
+        after: Quest("tutorial_farming_basics"),
     ),
 
     (
@@ -53,6 +53,6 @@
         rewards: [
             ("fertilizer_0", 20),
         ],
-        prerequisite: Some("farming_greenhouse"),
+        after: Quest("farming_greenhouse"),
     ),
 ]

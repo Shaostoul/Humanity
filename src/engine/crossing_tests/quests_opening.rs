@@ -384,7 +384,8 @@ fn eating_counts_only_what_the_player_really_eats() {
                     steps: vec![QuestStep { description: "Eat".into(), objective }],
                     rewards: vec![],
                     xp_rewards: vec![],
-                    prerequisite: None,
+                    after: After::None,
+                    starts: vec![],
                 },
             );
             data.insert("quest_registry", reg);
@@ -458,7 +459,8 @@ fn planting_counts_every_way_the_player_sows_and_nothing_else() {
                 steps: vec![QuestStep { description: String::new(), objective: QuestObjective::Plant { crop_id: crop.map(String::from), quantity: 99 } }],
                 rewards: vec![],
                 xp_rewards: vec![],
-                prerequisite: None,
+                after: After::None,
+                starts: vec![],
             },
         );
         tracker.accept_quest(id);
@@ -1332,7 +1334,7 @@ fn a_player_who_finished_the_old_first_steps_is_not_sent_back() {
     assert!(t.is_completed("gs_first_steps"), "First Steps stays finished");
     assert_eq!(t.active_quests.first().map(|q| q.quest_id.as_str()), Some("gs_toolsmith"), "the HUD's quest line is Toolsmith's");
     assert!(
-        QuestRegistry::from_ron_dir(&data_dir().join("quests")).get("gs_toolsmith").unwrap().prerequisite.as_deref() == Some("gs_first_steps"),
+        QuestRegistry::from_ron_dir(&data_dir().join("quests")).get("gs_toolsmith").unwrap().after == After::Quest("gs_first_steps".into()),
         "Toolsmith still follows First Steps, by the id the old saves hold"
     );
 }

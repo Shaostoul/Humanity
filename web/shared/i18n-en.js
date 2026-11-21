@@ -854,6 +854,13 @@ window.HOS_I18N_EN = {
   },
   "quests": {
     "title": "Quests",
+    "track": "Show on HUD",
+    "track_hint": "Puts this quest's next step on your screen while you play, in place of the one shown now. Only one quest shows at a time.",
+    "unit_celsius": "C",
+    "unit_grams": "g",
+    "unit_kcal": "kcal",
+    "unit_litres": "L",
+    "unit_points": "points",
     "subtitle": "Auto-tracked from the game. Real-life guides live in Tasks.",
     "empty": "No quests yet, start a game session to receive your first quest.",
     "active": "Active",
@@ -868,6 +875,7 @@ window.HOS_I18N_EN = {
     "now": "Now",
     "reward_line": "Reward: {{list}}",
     "reward_item": "{{n}} {{item}}",
+    "reward_to_storage": "Your backpack had no room, so {{items}} went to home storage.",
     "reward_xp": "{{n}} {{skill}} XP",
     "see_chain": "See the whole chain",
     "card_hint": "Opens this quest's chain: the quests before and after it, with their steps.",
@@ -879,6 +887,17 @@ window.HOS_I18N_EN = {
     "branches": "Branches from here, in any order",
     "state_done": "Done",
     "state_locked": "Not unlocked yet",
+    "on_hud": "Shown on your HUD",
+    "on_hud_hint": "This is the quest whose next step your screen shows while you play. Press Show on HUD on another quest to show that one instead.",
+    "reading_intake_kcal_24h": "Food energy eaten over the last day",
+    "reading_intake_protein_g_24h": "Protein eaten over the last day",
+    "reading_intake_water_l_24h": "Water taken in over the last day",
+    "reading_vital_body_temp_c": "Core temperature",
+    "reading_vital_energy": "Energy",
+    "reading_vital_hydration": "Hydration",
+    "reading_vital_oxygen": "Oxygen",
+    "reading_vital_satiation": "Satiation",
+    "reading_vital_waste": "Waste",
     "ready_steps": {
       "one": "Ready to start, 1 step",
       "other": "Ready to start, {{n}} steps"
@@ -887,6 +906,12 @@ window.HOS_I18N_EN = {
       "one": "1 more step to discover",
       "other": "{{n}} more steps to discover"
     },
+    "keep_between": "keep it between {{low}} and {{high}} {{unit}}.",
+    "keep_held": "Held for {{held}} of {{hours}} hours.",
+    "keep_hint": "This step watches one number. It counts only while the number stays where the step asks; if it slips out, the count starts again. Time with the game closed neither counts nor breaks it.",
+    "keep_max": "keep it at {{value}} {{unit}} or less.",
+    "keep_min": "keep it at {{value}} {{unit}} or more.",
+    "keep_now": "{{reading}} is {{value}} {{unit}} now;",
     "more_quests": "More quests to discover after this one"
   },
   "market": {

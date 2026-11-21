@@ -3,11 +3,12 @@
 //! modes. One mode where we see all of the quest steps for dev. Then normal play shows only
 //! what's been learned. Like we shouldn't know what step 8 is at step 1").
 //!
-//! A chain is every quest joined to the clicked one by `prerequisite` links: the quest at the
-//! top (no prerequisite), and every quest that needs it finished, and every quest that needs
-//! those, and so on. A quest has at most one prerequisite, so a chain is a TREE: two or more
-//! quests needing the same one are BRANCHES, and finishing that one starts them all
-//! (`QuestSystem`'s chaining), so no branch ever locks another.
+//! A chain is every quest joined to the clicked one by `after` links (`after.rs`): the quest at
+//! the top (`after: None`), and every quest that needs it finished, and every quest that needs
+//! those, and so on. Two or more quests needing the same one are BRANCHES, and finishing that one
+//! starts them all (`QuestSystem`'s chaining), so no branch ever locks another. A JOIN (an
+//! `AnyOf` or `AllOf`, 2026-11-20) needs several: the window draws it once, under the first of
+//! them the walk reaches (`After::parent` for the way up), so the drawing stays a tree.
 //!
 //! What a chain shows depends on [`Reveal`]:
 //! - `Learned` (normal play): only what the player has reached. Finished quests with their
@@ -44,9 +45,9 @@ pub enum QuestState {
     Done,
     /// Under way.
     Active,
-    /// Not started, but nothing stands in its way: no prerequisite, or a finished one.
+    /// Not started, but nothing stands in its way: its `after` is met.
     Available,
-    /// Its prerequisite is not finished yet. Only an `All` view holds one.
+    /// Its `after` is not met yet. Only an `All` view holds one.
     Locked,
 }
 
@@ -156,7 +157,7 @@ pub fn state_of(def: &QuestDef, tracker: &QuestTracker) -> QuestState {
         QuestState::Done
     } else if tracker.is_active(&def.id) {
         QuestState::Active
-    } else if def.prerequisite.as_deref().map_or(true, |p| tracker.is_completed(p)) {
+    } else if def.after.met(|p| tracker.is_completed(p)) {
         QuestState::Available
     } else {
         QuestState::Locked
@@ -164,14 +165,14 @@ pub fn state_of(def: &QuestDef, tracker: &QuestTracker) -> QuestState {
 }
 
 /// The quest at the top of `id`'s chain and how many quests lead to `id` (0 when `id` is at
-/// the top): follows `prerequisite` up, stopping at a quest with none, one naming a quest the
-/// registry lacks, or a loop. None when the registry lacks `id`.
+/// the top): follows `after` up (a join's first quest, `After::parent`), stopping at a quest with
+/// none, one naming a quest the registry lacks, or a loop. None when the registry lacks `id`.
 pub fn top_of<'a>(registry: &'a QuestRegistry, id: &str) -> Option<(&'a QuestDef, usize)> {
     let mut at = registry.get(id)?;
     let mut seen: HashSet<&str> = HashSet::new();
     seen.insert(at.id.as_str());
     let mut depth = 0;
-    while let Some(up) = at.prerequisite.as_deref().and_then(|p| registry.get(p)) {
+    while let Some(up) = at.after.parent(|_| false).and_then(|p| registry.get(p)) {
         if !seen.insert(up.id.as_str()) {
             break;
         }
@@ -195,7 +196,7 @@ pub fn build(registry: &QuestRegistry, tracker: &QuestTracker, focus: &str, reve
     let mut top = focus_def;
     let mut seen: HashSet<&str> = HashSet::new();
     seen.insert(top.id.as_str());
-    while let Some(up) = top.prerequisite.as_deref().and_then(|p| registry.get(p)) {
+    while let Some(up) = top.after.parent(|q| tracker.is_completed(q)).and_then(|p| registry.get(p)) {
         if !known(up) || !seen.insert(up.id.as_str()) {
             break;
         }
@@ -204,8 +205,8 @@ pub fn build(registry: &QuestRegistry, tracker: &QuestTracker, focus: &str, reve
     // Who needs whom, sorted by name so the branches keep their places (the registry is a map).
     let mut children: std::collections::HashMap<&str, Vec<&QuestDef>> = std::collections::HashMap::new();
     for d in registry.quests.values() {
-        if let Some(p) = d.prerequisite.as_deref() {
-            children.entry(p).or_default().push(d);
+        for p in d.after.ids() {
+            children.entry(p.as_str()).or_default().push(d);
         }
     }
     for list in children.values_mut() {
@@ -306,7 +307,8 @@ mod tests {
                 .collect(),
             rewards: vec![(format!("{id}_reward"), 1)],
             xp_rewards: vec![(format!("{id}_skill"), 5)],
-            prerequisite: prereq.map(str::to_string),
+            after: prereq.map_or(super::super::After::None, |p| super::super::After::Quest(p.to_string())),
+            starts: Vec::new(),
         }
     }
 
@@ -333,6 +335,7 @@ mod tests {
         let tracker = QuestTracker {
             active_quests: vec![ActiveQuest { quest_id: "b".into(), current_step: 1, progress: Default::default() }],
             completed_quests: vec!["a".into()],
+            tracked: None,
         };
         (reg, tracker)
     }
@@ -383,6 +386,7 @@ mod tests {
             let tracker = QuestTracker {
                 active_quests: vec![ActiveQuest { quest_id: "gs_first_steps".into(), current_step: at, progress: Default::default() }],
                 completed_quests: vec![],
+                tracked: None,
             };
             let view = plain_words(|w| build(&reg, &tracker, "gs_first_steps", Reveal::Learned, w)).expect("under way");
             let words = all_words(&view);
@@ -404,11 +408,12 @@ mod tests {
     #[test]
     fn branches_are_shown_side_by_side_and_their_followers_stay_hidden() {
         let reg = QuestRegistry::from_ron_dir(&std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data/quests"));
-        let branches: Vec<&QuestDef> = reg.quests.values().filter(|q| q.prerequisite.as_deref() == Some("tutorial_first_habitat")).collect();
+        let branches: Vec<&QuestDef> = reg.quests.values().filter(|q| q.after.names("tutorial_first_habitat")).collect();
         assert!(branches.len() >= 2, "the habitat has branches");
         let tracker = QuestTracker {
             active_quests: branches.iter().map(|q| ActiveQuest { quest_id: q.id.clone(), current_step: 0, progress: Default::default() }).collect(),
             completed_quests: vec!["gs_first_steps".into(), "gs_toolsmith".into(), "tutorial_first_habitat".into()],
+            tracked: None,
         };
         let view = plain_words(|w| build(&reg, &tracker, &branches[0].id, Reveal::Learned, w)).expect("under way");
         assert_eq!(view.root.id, "gs_first_steps", "the chain starts at the top");
@@ -417,7 +422,7 @@ mod tests {
         assert!(habitat.next.iter().all(|b| b.state == QuestState::Active));
         for b in &habitat.next {
             assert!(b.next.is_empty(), "{} is shown, its followers are not", b.id);
-            let followers = reg.quests.values().filter(|q| q.prerequisite.as_deref() == Some(b.id.as_str())).count();
+            let followers = reg.quests.values().filter(|q| q.after.names(&b.id)).count();
             assert_eq!(b.hidden_next, followers);
         }
         let names: Vec<&str> = habitat.next.iter().map(|b| b.name.as_str()).collect();

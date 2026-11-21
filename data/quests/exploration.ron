@@ -38,7 +38,7 @@
         rewards: [
             ("flashlight_0", 1),
         ],
-        prerequisite: Some("tutorial_first_habitat"),
+        after: Quest("tutorial_first_habitat"),
     ),
 
     (
@@ -70,6 +70,6 @@
         rewards: [
             ("multimeter_0", 1),
         ],
-        prerequisite: Some("exploration_first_survey"),
+        after: Quest("exploration_first_survey"),
     ),
 ]

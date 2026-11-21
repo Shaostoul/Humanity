@@ -1449,11 +1449,15 @@ pub struct GuiState {
     /// frame for the profile Quests panel.
     pub quests: Vec<GuiQuest>,
     /// Acceptable-but-unaccepted quests (v0.747.x, rung 4). Before this, quests
-    /// with no prerequisite were unreachable authored content.
+    /// with no `after` were unreachable authored content.
     pub quests_available: Vec<GuiAvailableQuest>,
     /// Quest id the player clicked Accept on; the frame bridge applies it to
     /// the ECS QuestTracker.
     pub pending_accept_quest: Option<String>,
+    /// Quest id the player chose to show on the HUD (P2); applied like Accept.
+    pub pending_track_quest: Option<String>,
+    /// Guides and how-tos opened this frame ("library:<file>", "how_to:<id>"), for Learn steps.
+    pub quest_learned: Vec<String>,
     /// The quest whose chain window is open (a click on its card on the Quests page), and its
     /// chain, which the quest mirror builds only while that window is open on the Quests page,
     /// the main screen's or a wall screen's (`engine::screens::page_drawn`;
@@ -3587,6 +3591,8 @@ impl Default for GuiState {
             quests: Vec::new(),
             quests_available: Vec::new(),
             pending_accept_quest: None,
+            pending_track_quest: None,
+            quest_learned: Vec::new(),
             quest_chain_open: None,
             quest_chain: None,
             views_on_screen: Vec::new(),

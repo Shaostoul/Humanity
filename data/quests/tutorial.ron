@@ -33,7 +33,7 @@
         // prerequisite, so the chaining never reached it, the HUD's quest line went
         // blank after the hammer and a new player had to find it on the Quests page.
         // Now finishing Toolsmith accepts it (data/quests/getting_started.ron).
-        prerequisite: Some("gs_toolsmith"),
+        after: Quest("gs_toolsmith"),
     ),
 
     (
@@ -59,7 +59,10 @@
             ("seed_carrot_0", 5),
             ("fertilizer_0", 5),
         ],
-        prerequisite: Some("tutorial_first_habitat"),
+        // A JOIN (2026-11-20, P1, docs/design/quest-chains.md 2.2): after Build First Habitat
+        // or the survival chain's Grow Your Own (data/quests/survival.ron), whichever the
+        // player finishes first, rather than a second farming tutorial beside this one.
+        after: AnyOf(["tutorial_first_habitat", "food_grow"]),
     ),
 
     (
@@ -83,6 +86,6 @@
         rewards: [
             ("wire_0", 20),
         ],
-        prerequisite: Some("tutorial_first_habitat"),
+        after: Quest("tutorial_first_habitat"),
     ),
 ]

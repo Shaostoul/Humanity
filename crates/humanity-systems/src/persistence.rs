@@ -289,6 +289,10 @@ pub struct BodySave {
     /// with it, and Respawn. None: alive.
     #[serde(default)]
     pub dead: Option<String>,
+    /// What the body took in over the last game day, hour by hour (2026-11-20, P3;
+    /// `intake.rs`), so a save and load keeps a quest's "in one day" count.
+    #[serde(default)]
+    pub intake: crate::intake::IntakeLedger,
 }
 
 impl BodySave {

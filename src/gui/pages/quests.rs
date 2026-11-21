@@ -51,14 +51,14 @@ const STRIPE: f32 = 3.0;
 /// The Play hub's Quests card (pages/play.rs, 2026-11-11): the first quest under way and its
 /// step, then how many more wait and how many are done, read from what GuiState holds.
 pub(crate) fn hub_summary(state: &GuiState) -> Vec<String> {
-    let mut active = state.quests.iter().filter(|q| !q.completed);
     let done = state.quests.iter().filter(|q| q.completed).count();
     let mut lines = Vec::new();
-    match active.next() {
+    // The HUD's quest first (P2), then how many others are under way.
+    match crate::gui::pages::hud::hud_quest(&state.quests) {
         Some(q) => {
             let (step, total) = ((q.step_index + 1).min(q.step_total.max(1)).to_string(), q.step_total.max(1).to_string());
             lines.push(tf("play.hub.quests_now", &[("quest", &q.name), ("step", &step), ("total", &total)]));
-            let more = active.count();
+            let more = state.quests.iter().filter(|q| !q.completed).count().saturating_sub(1);
             if more > 0 {
                 lines.push(tf("play.hub.quests_more", &[("count", &more.to_string())]));
             }
@@ -133,6 +133,8 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // The quest whose card was clicked: its chain window opens (the quest mirror builds the
     // chain next frame, `quests/chain_window.rs`).
     let mut open: Option<String> = None;
+    // The quest whose "Show on HUD" was pressed (P2): the frame applies it to the tracker.
+    let mut track: Option<String> = None;
     let avail = ui.available_width();
     if avail >= TWO_COLUMNS_FROM && (has_completed || !state.quests_available.is_empty()) {
         let gap = theme.spacing_xl;
@@ -140,7 +142,7 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(main);
-                draw_active(ui, theme, state, &mut open);
+                draw_active(ui, theme, state, &mut open, &mut track);
             });
             ui.add_space(gap);
             ui.vertical(|ui| {
@@ -150,12 +152,15 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
         });
     } else {
-        draw_active(ui, theme, state, &mut open);
+        draw_active(ui, theme, state, &mut open, &mut track);
         draw_available(ui, theme, state, &mut open);
         draw_completed(ui, theme, state, &mut open);
     }
     if open.is_some() {
         state.quest_chain_open = open;
+    }
+    if track.is_some() {
+        state.pending_track_quest = track;
     }
 }
 
@@ -167,7 +172,7 @@ fn heading(ui: &mut egui::Ui, theme: &Theme, key: &'static str) {
 
 /// The quests under way, each a card: its chain, its name, "Step 2 of 8" over the step meter,
 /// the step it is on as the focus, its rewards.
-fn draw_active(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, open: &mut Option<String>) {
+fn draw_active(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, open: &mut Option<String>, track: &mut Option<String>) {
     heading(ui, theme, "quests.active");
     if !state.quests.iter().any(|q| !q.completed) {
         widgets::card(ui, theme, |ui| {
@@ -187,14 +192,14 @@ fn draw_active(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, open: &mut Op
             for (i, q) in active.iter().enumerate() {
                 // A column's layout is justified, which spreads a wrapped line's words across
                 // it ("A d v a n c e d"); a plain vertical inside keeps text left-aligned.
-                cols[i % across].vertical(|ui| active_card(ui, theme, q, open));
+                cols[i % across].vertical(|ui| active_card(ui, theme, q, open, track));
             }
         });
     } else {
         for q in active {
             ui.scope(|ui| {
                 ui.set_max_width(CARD_MAX_WIDTH);
-                active_card(ui, theme, q, open);
+                active_card(ui, theme, q, open, track);
             });
         }
     }
@@ -202,8 +207,9 @@ fn draw_active(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, open: &mut Op
 }
 
 /// One quest under way: its chain, its name, "Step 2 of 8" over the step meter, the step it is
-/// on as the focus, its rewards. A click opens its chain.
-fn active_card(ui: &mut egui::Ui, theme: &Theme, q: &crate::gui::GuiQuest, open: &mut Option<String>) {
+/// on as the focus, its rewards. A click opens its chain. Under it, whether the HUD shows it, or
+/// "Show on HUD" (P2): outside the card, which takes every click inside it.
+fn active_card(ui: &mut egui::Ui, theme: &Theme, q: &crate::gui::GuiQuest, open: &mut Option<String>, track: &mut Option<String>) {
     let card = Frame::NONE
         .fill(theme.bg_card())
         .stroke(Stroke::new(1.0_f32, theme.border()))
@@ -237,7 +243,7 @@ fn active_card(ui: &mut egui::Ui, theme: &Theme, q: &crate::gui::GuiQuest, open:
                 ui.add_space(theme.spacing_xs);
                 step_meter(ui, theme, q.step_index, q.step_total);
                 ui.add_space(theme.spacing_md);
-                now_block(ui, theme, &q.step_desc);
+                now_block(ui, theme, &q.step_desc, q.keep_line.as_deref());
             }
             let rewards = reward_list(&q.rewards, &q.xp_rewards);
             if !rewards.is_empty() {
@@ -273,6 +279,14 @@ fn active_card(ui: &mut egui::Ui, theme: &Theme, q: &crate::gui::GuiQuest, open:
     if click.clicked() {
         *open = Some(q.id.clone());
     }
+    ui.add_space(theme.spacing_xs);
+    ui.horizontal(|ui| {
+        if q.tracked {
+            ui.label(RichText::new(t("quests.on_hud")).size(theme.font_size_small).color(theme.text_muted())).hint("quests.on_hud_hint");
+        } else if with_hint(ui, "quests.track_hint", |ui| widgets::compact_button(ui, theme, t("quests.track"), widgets::ButtonVariant::Secondary)) {
+            *track = Some(q.id.clone());
+        }
+    });
     ui.add_space(theme.spacing_sm);
 }
 
@@ -309,8 +323,9 @@ fn step_meter(ui: &mut egui::Ui, theme: &Theme, done: usize, total: usize) {
     }
 }
 
-/// The step the player is on: the card's focus, on a faint accent ground with a stripe.
-fn now_block(ui: &mut egui::Ui, theme: &Theme, step: &str) {
+/// The step the player is on: the card's focus, on a faint accent ground with a stripe; under a
+/// Keep step, the reading it watches (`GuiQuest::keep_line`).
+fn now_block(ui: &mut egui::Ui, theme: &Theme, step: &str, keep: Option<&str>) {
     let block = Frame::NONE
         .fill(theme.accent().gamma_multiply(0.08))
         .corner_radius(egui::CornerRadius::same(theme.border_radius as u8))
@@ -319,6 +334,10 @@ fn now_block(ui: &mut egui::Ui, theme: &Theme, step: &str) {
             ui.set_width(ui.available_width());
             ui.label(RichText::new(t("quests.now")).size(theme.font_size_small).color(theme.accent()).strong());
             ui.add(egui::Label::new(RichText::new(step).size(theme.font_size_body).color(theme.text_primary())).wrap());
+            if let Some(keep) = keep {
+                ui.add(egui::Label::new(RichText::new(keep).size(theme.font_size_small).color(theme.text_secondary())).wrap())
+                    .hint("quests.keep_hint");
+            }
         });
     let r = block.response.rect;
     ui.painter().rect_filled(
@@ -336,7 +355,7 @@ pub(super) fn reward_list(items: &[(String, u32)], xp: &[(String, u32)]) -> Stri
 }
 
 /// Available quests (v0.748, ladder rung 4): accept-able content the
-/// prerequisite chaining alone never surfaced. One card per quest with an
+/// `after` chaining alone never surfaced. One card per quest with an
 /// Accept button; the frame bridge applies it to the live tracker. A click on
 /// the card opens its chain.
 fn draw_available(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, open: &mut Option<String>) {
