@@ -1612,6 +1612,11 @@
       "date": "2026-11-21",
       "decision": "Merged the page-frame gaps fix (706def65c, renumbered BUG-338 at merge): before-Play worst 3,050.6 ms to 41.3 ms (a settings save and the instrument list's first read on the frame), the Play card 606.8 ms (939 on one run) to 127 ms (build threads off the frame's core; the star sky's GPU memory held behind a compiles' gate because wgpu-hal 24 DX12 creates every buffer and texture under one allocator mutex shared with the frame's uploads), world ready after Play 10.2 s to 9.0 s; new judge rules incl. no page frame over 300 ms after the last while building. Batch since v0.1567.0 for today's second release: Music rung 3a, survival quests rung 1, the page-gaps fix, the lib-tests misfiling fix; waiting on Music composer (mus4b), harvest fractions, arrival rungs 1-2, and the owner (round 4) and signed requests (round 2) security branches, each with a review before merge.",
       "why": "Release batching."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Owner round 4 (worktree-agent-ab7d7d30fa889852e) handed off with all twelve third-review findings fixed and each test seen red: pin only asked-for cards, trusted = confirmed fingerprint (memory only) or friendship pass, two random-position groups, honest-name rule with separate name/fingerprint fields, the building mark and the carry-out recheck of every acceptance, hides during a change wait in data/held/.waiting-<id>/ and seal after it ends, restore.plan synced, claim code 0600, thread-reply /claim guard, answers counted only on the relay's acknowledgement, Export/Restore compare the manifest. BUGs renumbered 338-372 after main took 337 (main has since taken 338 too: renumber at merge). Its gates (just verify, relay check, verify-relay, snapshots) are running in its background script ownfix5-gates.sh. Took both its recommendations: the confirmed mark stays memory-only (re-confirm after a restart); a waiting hide's plaintext stays unsealed out of every view until the change ends (at most about 90 minutes). FOURTH review (one critic, both lenses, round-4 diff) dispatched before merge.",
+      "why": "The operator: We just want to make sure the system itself cannot be abused."
     }
   ],
   "active_scopes_to_avoid": [
