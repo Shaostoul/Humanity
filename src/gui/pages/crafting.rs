@@ -738,6 +738,9 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         );
     });
 
+    // A dish's method, heat and time (cooking rung 1, 2026-11-21).
+    crate::gui::pages::cooking_panel::draw(ui, theme, state, recipe);
+
     ui.add_space(theme.spacing_md);
 
     // Craft button — gated by ingredients AND (#8b tech-unlock) the recipe's skill.
@@ -827,6 +830,8 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
             // and produces outputs on the player's actual inventory. The local queue
             // below is just a visual progress indicator.
             state.pending_craft_recipe = Some(recipe.id.clone());
+            // A dish goes with the heat and time its cooking card set (None: the station picks).
+            state.pending_cook_choice = crate::gui::pages::cooking_panel::choice_for(state, &recipe.id);
             state.craft_status = tf("crafting.crafting_status", &[("name", &recipe.name)]);
             with_local(|local| {
                 local.queue.push(CraftQueueItem {

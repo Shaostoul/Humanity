@@ -414,6 +414,10 @@ pub struct CraftSave {
     /// Factory pad pose (position, rotation xyzw) for vehicle outputs.
     #[serde(default)]
     pub pad: Option<([f32; 3], [f32; 4])>,
+    /// How a hand-cooked dish will come out (cooking rung 1, 2026-11-21): decided when the craft
+    /// started, from the heat and time chosen then, and kept through a save to its end.
+    #[serde(default)]
+    pub cook: Option<crate::cooking::CookResult>,
 }
 
 /// Put the save channels in the DataStore (lib.rs, at boot): craft batches
@@ -461,6 +465,9 @@ pub struct ActiveCraft {
     /// The craft's station lost power and the craft is paused (2026-09-26);
     /// marks that the player has been told once.
     pub pause_notified: bool,
+    /// How a hand-cooked dish will come out (cooking rung 1, `cooking::start`); None for every
+    /// craft that is not a dish.
+    pub cook: Option<crate::cooking::CookResult>,
 }
 
 impl ActiveCraft {
@@ -472,6 +479,7 @@ impl ActiveCraft {
             auto: self.auto,
             machine_id: self.machine_id.clone(),
             pad: self.pad.map(|(p, r)| (p.to_array(), r.to_array())),
+            cook: self.cook.clone(),
         }
     }
 }
@@ -761,10 +769,18 @@ impl CraftingSystem {
         recipe: &Recipe,
         item_registry: Option<&crate::inventory::ItemRegistry>,
         quality: u8,
+        // A hand-cooked dish's state for its food (cooking::DishState's byte), 0 for none.
+        food_state: u8,
     ) -> Vec<(String, u32, u8)> {
         let mut left = Vec::new();
         for (item_id, qty) in &recipe.outputs {
-            let grade = if item_registry.map_or(false, |r| r.durability_for(item_id) > 0) { quality } else { 0 };
+            let grade = if item_registry.map_or(false, |r| r.durability_for(item_id) > 0) {
+                quality
+            } else if food_state > 0 && crate::food::consume_kinds().contains_key(item_id) {
+                food_state
+            } else {
+                0
+            };
             let max_stack = item_registry
                 .map(|r| r.max_stack_for(item_id))
                 .unwrap_or(99);
@@ -987,6 +1003,7 @@ impl System for CraftingSystem {
                         machine_id: c.machine_id,
                         waiting_notified: false,
                         pause_notified: false,
+                        cook: c.cook,
                     });
                 }
             }
@@ -1217,6 +1234,7 @@ impl System for CraftingSystem {
                     machine_id,
                     waiting_notified: false,
                     pause_notified: false,
+                    cook: None,
                 });
             }
         }
@@ -1414,6 +1432,10 @@ impl System for CraftingSystem {
                     .ok()
                     .map(|t| (t.position, t.rotation));
 
+                // A dish (cooking rung 1, 2026-11-21): how it will come out, from the heat and
+                // time the cooking card chose (or the station's pick in Simplified).
+                let cook = crate::cooking::start(world, data, &recipe.id, recipe.skill_required.as_deref(), request.crafter);
+
                 // If instant craft (time <= 0), produce outputs immediately
                 if recipe.craft_time <= 0.0 {
                     Self::deliver_outputs(
@@ -1428,6 +1450,7 @@ impl System for CraftingSystem {
                         to_home,
                         crate::notices::reply,
                         self.draws.rng(data),
+                        cook.as_ref(),
                     );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
@@ -1441,6 +1464,7 @@ impl System for CraftingSystem {
                         machine_id: None,
                         waiting_notified: false,
                         pause_notified: false,
+                        cook,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -1585,6 +1609,7 @@ impl System for CraftingSystem {
                             hand_to_home,
                             crate::notices::world,
                             self.draws.rng(data),
+                            craft.cook.as_ref(),
                         );
                         log::debug!("Craft complete: {}", recipe.id);
                     }
@@ -1706,9 +1731,24 @@ impl CraftingSystem {
         say: fn(&DataStore, String),
         // The system's stream, for a hand craft's grade (BUG-333).
         rng: &mut rand::rngs::StdRng,
+        // How a hand-cooked dish came out (cooking rung 1); None for every other craft.
+        cook: Option<&crate::cooking::CookResult>,
     ) {
-        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say, rng);
-        Self::on_craft_complete(data, recipe, graded);
+        let graded = Self::deliver_goods(world, data, recipe, target, pad, item_registry, vehicle_kits, to_storage, overflow_home, say, rng, cook);
+        match cook {
+            // A burnt dish made nothing: no quest counts it, but the cook still practised.
+            Some(c) if c.doneness == crate::cooking::Doneness::Burnt => {
+                if let Some(skill) = &recipe.skill_required {
+                    crate::skills::award_practice(data, skill, Some(&format!("craft.{}", recipe.id)), 10 + recipe.skill_level * 5, Some(recipe.skill_level), Some(0.0));
+                }
+            }
+            _ => {
+                Self::on_craft_complete(data, recipe, graded);
+                if let Some(c) = cook {
+                    crate::cooking::credit(data, c, &recipe.outputs);
+                }
+            }
+        }
     }
 
     /// `deliver_outputs` without the completion hooks: the goods only.
@@ -1725,6 +1765,7 @@ impl CraftingSystem {
         overflow_home: bool,
         say: fn(&DataStore, String),
         rng: &mut rand::rngs::StdRng,
+        cook: Option<&crate::cooking::CookResult>,
     ) -> Option<f32> {
         // The hand craft's grade as a 0..1 quality, for the skill XP it teaches (skills.md
         // section 3: a good result teaches more than a careless one). None: not graded.
@@ -1798,6 +1839,16 @@ impl CraftingSystem {
             inv_recipe
                 .outputs
                 .retain(|(id, _)| !vehicle_outputs.iter().any(|(vid, _)| vid == id));
+            // A dish (cooking rung 1): burnt, its food is lost; otherwise its food goes out with
+            // the dish's state on its grade byte (cooking::DishState), and the cook is told how it
+            // came out.
+            if let Some(c) = cook {
+                if c.doneness == crate::cooking::Doneness::Burnt {
+                    inv_recipe.outputs.retain(|(id, _)| !crate::food::consume_kinds().contains_key(id));
+                }
+                say(data, crate::cooking::finished_line_for(data, &recipe.id, &recipe.name, c));
+            }
+            let food_state = cook.and_then(|c| c.state()).and_then(|st| st.to_byte()).unwrap_or(0);
             if !inv_recipe.outputs.is_empty() && to_storage {
                 if let Some(slot) = data.get::<std::sync::Mutex<Vec<(String, u32)>>>("home_stock_outputs") {
                     if let Ok(mut out) = slot.lock() {
@@ -1810,7 +1861,7 @@ impl CraftingSystem {
                 let grade = Self::craft_quality(world, data, recipe, target, rng);
                 graded = data.get::<quality::QualityLevels>("quality_levels").and_then(|l| l.fraction(grade));
                 let left = match world.get::<&mut Inventory>(target) {
-                    Ok(mut inv) => Self::produce_outputs(&mut inv, &inv_recipe, item_registry, grade),
+                    Ok(mut inv) => Self::produce_outputs(&mut inv, &inv_recipe, item_registry, grade, food_state),
                     Err(_) => {
                         log::warn!("Craft complete but entity lost Inventory: {}", recipe.id);
                         Vec::new()
@@ -2347,6 +2398,7 @@ mod skill_xp_tests {
             machine_id: Some("bench_1".into()),
             waiting_notified: false,
             pause_notified: false,
+            cook: None,
         });
         sys.tick(&mut world, 5.0, &data);
         assert_eq!(sys.active_crafts.len(), 1, "held: its machine has no power");

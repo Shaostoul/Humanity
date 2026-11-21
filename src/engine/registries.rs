@@ -55,6 +55,10 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &Path) {
         humanity_systems::crafting::RecipeRegistry::from_csv(b).map(|r| r.with_tools(&tool_rules))
     });
     put(store, data_dir, "plants.csv", "plant_registry", humanity_systems::farming::PlantRegistry::from_csv);
+    // Cooking (2026-11-21, rung 1): the dishes, food classes and methods of food_system.ron, and the
+    // cooking card's heat and time for the next craft of a dish.
+    store.insert(humanity_systems::cooking::DATA_KEY, humanity_systems::cooking::Cooking::load(data_dir));
+    store.insert(humanity_systems::cooking::CHOICE_KEY, std::sync::Mutex::new(Option::<humanity_systems::cooking::Choice>::None));
 
     // Environment region kinds (v0.1329). Same loader as every other registry:
     // it is bytes in, parsed table out, so the RON gets disk-first modding and

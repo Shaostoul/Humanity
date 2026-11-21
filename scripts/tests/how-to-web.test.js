@@ -86,7 +86,9 @@ test("1. the page reads the same four files as the desktop, and lists every how-
   assert.ok(t.includes("How-to"), "the heading");
   for (const e of INDEX.how_tos) assert.ok(t.includes(e.title), "lists " + e.title);
   assert.ok(t.includes("Not written yet"), "planned ones are listed dimmed");
-  assert.ok(t.includes("6 written, 48 planned"), "All how-tos counts both");
+  // The counts from the files themselves (2026-11-21: a hard-coded "6 written" broke on the seventh how-to).
+  const counts = INDEX.how_tos.length + " written, " + data("how_to/planned.json").planned.length + " planned";
+  assert.ok(t.includes(counts), "All how-tos counts both: " + counts);
   for (const c of data("how_to/categories.json").categories) assert.ok(t.includes(c.title), "the tree has " + c.title);
 });
 

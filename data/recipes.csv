@@ -655,6 +655,14 @@ cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,
 # more water than the rice absorbs a real pot needs was not sourced). data/food_system.ron's cooked_rice
 # profile is the cooked row.
 cook_rice,Cook Rice,cooking,rice_0:1|water_purified_0:1,cooked_rice_0:4,15,stove_0,cooking,1,Boil milled white rice until it soaks up its water
+# Cooking rung 1 (2026-11-21, docs/design/cooking.md): dishes with a food-safety line (data/food_system.ron
+# food_classes). Dry beans: 300 g dry take up 500 g of water and cook to 800 g, four 200 g bowls (SR Legacy
+# NDB 16027 raw against 16028 boiled, legumes_cooked in food_system.ron). Roast poultry: three 0.6 kg pieces
+# roast to the 1.5 kg item.
+cook_boiled_eggs,Boil Eggs,cooking,egg_0:2|water_purified_0:1,egg_boiled_0:2,10,stove_0,cooking,0,Boil eggs until both the yolk and white are firm (CDC)
+cook_beans,Cook Dry Beans,cooking,legume_bean_0:1|water_purified_0:1,beans_cooked_0:4,15,stove_0,cooking,1,Soak dry beans at least 5 hours and pour the water away then boil them in fresh water for at least 30 minutes (FDA for kidney beans): the game counts beans kept below a full boil as unsafe
+cook_fish,Grill Fish,cooking,raw_fish_0:1,fish_grilled_0:1,10,stove_0,cooking,1,Grill fish to 145 F (63 C) inside or until the flesh is opaque and separates easily with a fork (CDC)
+cook_roast_chicken,Roast Poultry,cooking,raw_poultry_0:3,roast_chicken_0:1,20,oven_0,cooking,2,Roast poultry until it reaches 165 F (74 C) inside (CDC)
 bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,baking,3,Bake a sweet layered dessert
 bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,baking,3,Bake a fruit-filled pastry
 bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,baking,2,Bake sweet dough discs

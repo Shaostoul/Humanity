@@ -971,8 +971,12 @@ fn draw_item_card(
                 let left = full.saturating_sub(item.wear);
                 widgets::detail_row(ui, theme, "Uses left", &format!("{left} of {full}"));
             }
-            if let Some(grade) = quality_levels.name(item.quality) {
+            // Food's grade byte is a hand-cooked dish's state, not a craft grade (cooking rung 1).
+            if let Some(grade) = quality_levels.name(humanity_systems::cooking::craft_grade(&item.item_id, item.quality)) {
                 widgets::detail_row(ui, theme, "Quality", grade);
+            }
+            if let Some(words) = crate::gui::pages::cooking_panel::dish_words(&item.item_id, item.quality) {
+                widgets::detail_row(ui, theme, t("cooking.card_cooked"), &words);
             }
         }
     });

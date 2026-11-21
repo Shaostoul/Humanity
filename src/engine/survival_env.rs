@@ -180,6 +180,8 @@ pub(crate) fn publish_levels(gui: &crate::gui::GuiState, data: &mut humanity_cor
     data.insert(humanity_systems::illness::MODE_KEY, illness);
     data.insert(humanity_systems::animal_care::MODE_KEY, animals);
     data.insert(humanity_systems::death_pack::MODE_KEY, death);
+    // Cooking (2026-11-21, rung 1): whether the cook chooses the heat and time.
+    data.insert(humanity_systems::cooking::MODE_KEY, humanity_systems::cooking::Mode::from_level(levels.level("cooking")).unwrap_or_default());
 }
 
 /// Once a step: publish the survival context, the body heat mode and the

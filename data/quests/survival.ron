@@ -117,6 +117,34 @@
         starts: ["homestead"],
     ),
     (
+        id: "food_cook",
+        name: "Cook It Through",
+        // Cooking rung 1 (2026-11-21, docs/design/cooking.md; quest-chains.md 2.2, food_cook).
+        // F3: CDC, "Preventing Food Poisoning" (2025-11-24): "The only way to tell if food is
+        // safely cooked is to use a food thermometer."; "All poultry, including ground chicken and
+        // turkey": "165°F"; "Ground meats, such as beef and pork": "160°F"; whole cuts "145°F (then
+        // allow the meat to rest for 3 minutes before carving or eating)"; "Fish with fins": "145°F
+        // or cook until the flesh is opaque and separates easily with a fork". CDC, "Backyard
+        // Poultry" (2025-07-18): "Cook eggs until both the yolk and white are firm."; "Egg dishes
+        // should be cooked to an internal temperature of 160°F (71°C) or hotter." Celsius for the
+        // meats is our conversion. Serious hazard: undercooked meat, poultry, fish and eggs.
+        // What waits for later rungs (quest-chains.md 4.3a): the hand-washing step (E4, the sink's
+        // walk-up use) and putting leftovers in the fridge within 2 hours (E6, Store). The cook
+        // step boils eggs rather than grilling fish because a homestead's first days have eggs (the
+        // kit's six) and no fish; Grill Fish (cook_fish) cooks the trading post's raw fish the same
+        // way. The kit carries the thermometer, the trading post sells another.
+        description: "Undercooked meat, poultry, fish and eggs can make you seriously ill. For meat and poultry, colour and texture do not tell you they are safe: the CDC says the only way to tell is a food thermometer. Safe inside: poultry 74 C (165 F), ground meat 71 C (160 F), whole cuts 63 C (145 F) then rest 3 minutes, fish with fins 63 C (145 F) or until the flesh is opaque and separates easily with a fork, egg dishes 71 C (160 F); cook eggs until the yolk and white are firm.",
+        steps: [
+            (description: "Learn: Cook meat, fish and eggs safely (How-to)", objective: Learn(page: "how_to:cook_meat_to_a_safe_temperature")),
+            (description: "Get a food thermometer (kit or trading post)", objective: Gather(item_id: "food_thermometer_0", quantity: 1)),
+            (description: "Boil 2 eggs until firm: Crafting, Boil Eggs", objective: Cook(item_id: Some("egg_boiled_0"), quantity: 2)),
+        ],
+        rewards: [],
+        xp_rewards: [("cooking", 25)],
+        after: Quest("food_first"),
+        starts: ["homestead"],
+    ),
+    (
         id: "food_keep",
         name: "Keep It",
         // F5: FDA, "Are You Storing Food Safely?" (current 2023-01-18): "Keeping foods chilled at

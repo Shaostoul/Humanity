@@ -135,6 +135,14 @@
         { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.skill_learning_simplified" },
         { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.skill_learning_realistic" }
       ]
+    },
+    {
+      "id": "cooking", "words": "gameplay.cooking", "note": "gameplay.cooking_note", "default": "simplified",
+      "levels": [
+        { "id": "simplified", "words": "gameplay.level.simplified", "says": "gameplay.cooking_simplified" },
+        { "id": "guided", "words": "gameplay.level.guided", "says": "gameplay.cooking_guided" },
+        { "id": "realistic", "words": "gameplay.level.realistic", "says": "gameplay.cooking_realistic" }
+      ]
     }
   ]
 }

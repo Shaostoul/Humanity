@@ -8105,3 +8105,10 @@ he noticed the "2+ hour task".
 - **Found by**: the skills mirror rework (2026-11-21), reading every reader of `GuiState::skills` to build the rows only on frames that draw one.
 - **Fix**: one rule for "the skill sheet is drawn", `engine::skills_mirror::sheet_drawn` (the main screen's Real or Profile page on the "skills" section, a wall screen's Profile page on its Skills section, a wall screen's Real page on the "skills" section), used by practice_view.rs and by the skills mirror itself.
 - **Held by**: `the_readers_are_the_skill_sheet_and_the_crafting_page` (`src/engine/skills_mirror_tests.rs`; seen red against the old rule: "the main screen's Real page on its Skills section").
+
+## BUG-342: Fry Egg and Make Pancakes make bread (OPEN, found 2026-11-21)
+
+- **What**: `data/recipes.csv` `cook_fried_egg` (2 eggs and cooking oil) outputs `bread_0:1`, and `cook_pancake` (flour, 2 eggs, milk) outputs `bread_0:3`: no fried-egg or pancake item exists, so both make loaves. The eaten food is bread's, not the egg's or the batter's.
+- **Found by**: cooking rung 1 (2026-11-21), deciding every stove and oven recipe as a dish or not (`data/food_system.ron` `not_dishes`).
+- **Fix (to do)**: an `egg_fried_0` and a `pancake_0` item, each with a nutrition profile from USDA (SR Legacy "Egg, whole, cooked, fried"; a pancake row), portions in `data/food/item_profiles.ron`, the recipes making them, and both moved from `not_dishes` to `dishes` (fried; class eggs and dough).
+- **Held by**: `every_stove_and_oven_recipe_is_decided` (`crates/humanity-systems/src/cooking_tests.rs`) keeps both listed until fixed.

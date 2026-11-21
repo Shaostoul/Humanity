@@ -1,5 +1,5 @@
 {
-  "count": 386,
+  "count": 390,
   "categories": [
     "assembly",
     "chemistry",
@@ -42,10 +42,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 1,
       "description": "Reduce iron ore into a pure iron ingot",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_copper",
@@ -77,10 +78,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 1,
       "description": "Reduce copper ore into a pure copper ingot and skim off the slag",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_nickel",
@@ -107,10 +109,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 2,
       "description": "Reduce nickel ore into a nickel ingot",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_platinum",
@@ -137,10 +140,11 @@
       ],
       "craft_time_sec": 18,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 4,
       "description": "Refine platinum-group ore into a platinum ingot",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_stainless",
@@ -177,10 +181,11 @@
       ],
       "craft_time_sec": 18,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 3,
       "description": "Alloy iron with nickel into corrosion-resistant stainless steel",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_steel",
@@ -212,10 +217,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 2,
       "description": "Alloy iron with carbon to form steel",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_aluminum",
@@ -242,10 +248,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 3,
       "description": "Electrolytic reduction of alumina ore",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_titanium",
@@ -272,10 +279,11 @@
       ],
       "craft_time_sec": 30,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 5,
       "description": "High-temperature titanium extraction",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_gold",
@@ -297,10 +305,11 @@
       ],
       "craft_time_sec": 25,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 4,
       "description": "Refine gold from raw ore",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_silver",
@@ -322,10 +331,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 3,
       "description": "Refine silver from raw ore",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_glass",
@@ -357,10 +367,11 @@
       ],
       "craft_time_sec": 12,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Glassmaking",
       "skill_level": 2,
       "description": "Melt silica sand into clear glass",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "draw_glass_fiber",
@@ -392,10 +403,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Glassmaking",
       "skill_level": 3,
       "description": "Remelt glass and draw it through a bushing into continuous fiber",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "fire_brick",
@@ -427,10 +439,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Kiln",
-      "skill": "Metalworking",
+      "skill": "Ceramics",
       "skill_level": 1,
       "description": "Fire clay into durable bricks",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "fire_porcelain",
@@ -467,10 +480,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Kiln",
-      "skill": "Metalworking",
+      "skill": "Ceramics",
       "skill_level": 3,
       "description": "Fire fine porcelain ceramic",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "saw_planks",
@@ -507,10 +521,11 @@
       ],
       "craft_time_sec": 5,
       "station": "Sawmill",
-      "skill": "",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Cut logs into flat lumber boards and keep the sawdust slabs and bark",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "saw_planks_hand",
@@ -545,7 +560,8 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Hand-saw a log into planks and keep the sawdust and bark",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cut_stone",
@@ -567,10 +583,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Masonry",
       "skill_level": 1,
       "description": "Shape raw stone into building blocks",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "refine_crude",
@@ -597,10 +614,11 @@
       ],
       "craft_time_sec": 150,
       "station": "Fuel Refinery",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Distill crude oil into gasoline and diesel",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "grind_flour",
@@ -627,10 +645,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Grain Mill",
-      "skill": "",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Mill wheat and sift the white flour from the bran",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "mill_rice",
@@ -662,10 +681,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Grain Mill",
-      "skill": "",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Hull paddy rice and polish it white and keep the hulls and the bran",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "dehull_barley",
@@ -692,10 +712,11 @@
       ],
       "craft_time_sec": 16,
       "station": "Grain Mill",
-      "skill": "",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Rub the husk off covered barley and keep the hulls",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "dehull_oats",
@@ -722,10 +743,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Grain Mill",
-      "skill": "",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Rub the hulls off whole oats for groats and keep the hulls",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "dehull_spelt",
@@ -752,10 +774,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Grain Mill",
-      "skill": "",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Rub the hulls off spelt kernels and keep the hulls",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "purify_water",
@@ -777,10 +800,11 @@
       ],
       "craft_time_sec": 5,
       "station": "Water Purifier",
-      "skill": "",
+      "skill": "Water Purification",
       "skill_level": 1,
       "description": "Filter and sterilize drinking water",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_charcoal",
@@ -802,10 +826,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Kiln",
-      "skill": "",
+      "skill": "Fire Making",
       "skill_level": 1,
       "description": "Carbonize wood into charcoal",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_charcoal_slabs",
@@ -827,10 +852,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Kiln",
-      "skill": "",
+      "skill": "Fire Making",
       "skill_level": 1,
       "description": "Carbonize sawmill slabs into charcoal at the same yield as logs",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "extract_fiber",
@@ -852,10 +878,11 @@
       ],
       "craft_time_sec": 8,
       "station": "",
-      "skill": "Woodworking",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Strip plant matter into raw fibers",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_rope",
@@ -877,10 +904,11 @@
       ],
       "craft_time_sec": 10,
       "station": "",
-      "skill": "Woodworking",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Braid plant fibers into strong rope",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_wire",
@@ -902,10 +930,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Draw copper into insulated wire",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "coagulate_latex",
@@ -927,10 +956,11 @@
       ],
       "craft_time_sec": 60,
       "station": "",
-      "skill": "",
+      "skill": "Chemistry",
       "skill_level": 1,
       "description": "Let fresh latex stand in a pan until it sets and press it into a sheet",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "vulcanize_rubber",
@@ -967,10 +997,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Cure raw rubber with sulfur and heat into tough elastic sheets",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "tan_leather",
@@ -1002,10 +1033,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Leatherworking",
       "skill_level": 2,
       "description": "Salt-cure a raw hide and tan it in bark liquor into leather",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_cement",
@@ -1037,10 +1069,11 @@
       ],
       "craft_time_sec": 10,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 1,
       "description": "Blend mineral powder for concrete",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_concrete",
@@ -1072,10 +1105,11 @@
       ],
       "craft_time_sec": 15,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 2,
       "description": "Mix and cure concrete blocks",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_concrete_slag",
@@ -1112,10 +1146,11 @@
       ],
       "craft_time_sec": 15,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 2,
       "description": "Mix concrete with smelter slag standing in for half the gravel",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_plastic",
@@ -1137,10 +1172,11 @@
       ],
       "craft_time_sec": 12,
       "station": "Fuel Refinery",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Polymerize crude oil into HDPE sheet",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "weave_cloth",
@@ -1162,10 +1198,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Loom",
-      "skill": "Tailoring",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Weave raw fiber into cotton fabric",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "spin_thread",
@@ -1187,10 +1224,11 @@
       ],
       "craft_time_sec": 20,
       "station": "",
-      "skill": "Tailoring",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Hand-spin fiber into thread and fabric",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_glue",
@@ -1217,10 +1255,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Stove",
-      "skill": "",
+      "skill": "Chemistry",
       "skill_level": 1,
       "description": "Boil bones into adhesive glue",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "render_tallow",
@@ -1245,7 +1284,8 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Slowly melt the fat out of mutton trimmings and strain it to set as tallow",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "mold_salt_block",
@@ -1272,10 +1312,11 @@
       ],
       "craft_time_sec": 30,
       "station": "Stove",
-      "skill": "",
+      "skill": "Preserving",
       "skill_level": 1,
       "description": "Pack damp salt into a mold and dry it hard over low heat into a solid block",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "press_oil_sunflower",
@@ -1305,7 +1346,8 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Screw-press whole sunflower seed into cooking oil and seed cake",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "press_oil_rapeseed",
@@ -1335,7 +1377,8 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Screw-press rapeseed into cooking oil and seed cake",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "press_oil_camelina",
@@ -1365,7 +1408,8 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Screw-press camelina seed into cooking oil and seed cake",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "press_oil_safflower",
@@ -1395,7 +1439,8 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Screw-press safflower seed into cooking oil and seed cake",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "press_oil_olive",
@@ -1425,7 +1470,8 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Crush and press olives and skim the oil off the fruit water",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "make_paint",
@@ -1452,10 +1498,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Chemistry Set",
-      "skill": "",
+      "skill": "Chemistry",
       "skill_level": 1,
       "description": "Mix pigment with binder for paint",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_hammer",
@@ -1482,10 +1529,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a claw hammer",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_screwdriver_flat",
@@ -1512,10 +1560,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a slotted screwdriver",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_screwdriver_phillips",
@@ -1542,10 +1591,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a cross-head screwdriver",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_wrench",
@@ -1567,7 +1617,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge an adjustable wrench",
       "tools": [
@@ -1575,7 +1625,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_pliers",
@@ -1597,7 +1648,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a pair of pliers",
       "tools": [
@@ -1605,7 +1656,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_saw_hand",
@@ -1632,7 +1684,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge and set a hand saw blade",
       "tools": [
@@ -1640,7 +1692,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_axe",
@@ -1667,7 +1720,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge an axe head and haft it",
       "tools": [
@@ -1675,7 +1728,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_hatchet",
@@ -1702,7 +1756,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a compact chopping hatchet",
       "tools": [
@@ -1710,7 +1764,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_pickaxe",
@@ -1737,7 +1792,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a pointed mining pick",
       "tools": [
@@ -1745,7 +1800,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_shovel",
@@ -1772,7 +1828,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a flat digging blade",
       "tools": [
@@ -1780,7 +1836,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_hoe",
@@ -1807,7 +1864,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a soil cultivation hoe",
       "tools": [
@@ -1815,7 +1872,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_chisel",
@@ -1837,7 +1895,7 @@
       ],
       "craft_time_sec": 8,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a flat-edge chisel",
       "tools": [
@@ -1845,7 +1903,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_crowbar",
@@ -1867,7 +1926,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a heavy prying bar",
       "tools": [
@@ -1875,7 +1934,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_knife_utility",
@@ -1902,7 +1962,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a folding knife",
       "tools": [
@@ -1910,7 +1970,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_trowel",
@@ -1937,7 +1998,7 @@
       ],
       "craft_time_sec": 8,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge a flat masonry trowel",
       "tools": [
@@ -1945,7 +2006,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_rake",
@@ -1972,7 +2034,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge tines and mount on handle",
       "tools": [
@@ -1980,7 +2042,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_scythe",
@@ -2007,7 +2070,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Forge a curved harvesting blade",
       "tools": [
@@ -2015,7 +2078,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_anvil",
@@ -2037,7 +2101,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Forge a heavy work anvil",
       "tools": [
@@ -2045,7 +2109,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_vise",
@@ -2072,7 +2137,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Assemble a bench clamping vise",
       "tools": [
@@ -2080,7 +2145,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_clamp",
@@ -2107,10 +2173,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Forge adjustable workpiece clamps",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_file",
@@ -2132,7 +2199,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Cut abrasive grooves into a steel bar",
       "tools": [
@@ -2140,7 +2207,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bolt_cutter",
@@ -2167,7 +2235,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Forge heavy shearing jaws",
       "tools": [
@@ -2175,7 +2243,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_pipe_wrench",
@@ -2197,7 +2266,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a serrated-jaw wrench",
       "tools": [
@@ -2205,7 +2274,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_pruning_shears",
@@ -2227,7 +2297,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge spring-loaded branch cutters",
       "tools": [
@@ -2235,7 +2305,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_knife_combat",
@@ -2262,7 +2333,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a fixed-blade fighting knife",
       "tools": [
@@ -2270,7 +2341,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_sword",
@@ -2297,7 +2369,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Forge and temper a steel sword",
       "tools": [
@@ -2305,7 +2377,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_spear",
@@ -2332,7 +2405,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Forge a spearhead and mount on shaft",
       "tools": [
@@ -2340,7 +2413,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_mace",
@@ -2367,7 +2441,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Forge a flanged striking head",
       "tools": [
@@ -2375,7 +2449,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bow_recurve",
@@ -2410,7 +2485,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bow_compound",
@@ -2445,7 +2521,8 @@
       "skill": "Woodworking",
       "skill_level": 4,
       "description": "Assemble a cam-levered bow",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_crossbow",
@@ -2480,7 +2557,8 @@
       "skill": "Woodworking",
       "skill_level": 3,
       "description": "Assemble a trigger-release crossbow",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_sling",
@@ -2507,10 +2585,11 @@
       ],
       "craft_time_sec": 5,
       "station": "",
-      "skill": "Woodworking",
+      "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and tie a leather sling pouch",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_staff",
@@ -2535,7 +2614,8 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Carve and smooth a hardwood staff",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_shield_round",
@@ -2562,7 +2642,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Hammer and rivet a circular shield",
       "tools": [
@@ -2570,7 +2650,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_shield_tower",
@@ -2597,7 +2678,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Construct a full-body standing shield",
       "tools": [
@@ -2605,7 +2686,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_arrow",
@@ -2640,7 +2722,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bolt_crossbow",
@@ -2670,7 +2753,8 @@
       "skill": "Woodworking",
       "skill_level": 2,
       "description": "Forge short heavy bolts",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_quiver",
@@ -2692,7 +2776,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Tailoring",
       "skill_level": 1,
       "description": "Stitch a back-mounted arrow holder",
       "tools": [
@@ -2700,7 +2784,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_holster",
@@ -2722,7 +2807,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Tailoring",
       "skill_level": 2,
       "description": "Stitch a belt-mounted holster",
       "tools": [
@@ -2730,7 +2815,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_ammo_pouch",
@@ -2757,10 +2843,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Tailoring",
       "skill_level": 1,
       "description": "Sew a belt cartridge carrier",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_chair",
@@ -2787,7 +2874,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a four-leg wooden chair",
       "tools": [
@@ -2799,7 +2886,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_table_dining",
@@ -2826,7 +2914,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a six-seat table",
       "tools": [
@@ -2838,7 +2926,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_table_work",
@@ -2870,7 +2959,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a reinforced work table",
       "tools": [
@@ -2882,7 +2971,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_desk",
@@ -2909,7 +2999,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a writing desk",
       "tools": [
@@ -2921,7 +3011,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_bed_single",
@@ -2953,7 +3044,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a single sleeping frame",
       "tools": [
@@ -2965,7 +3056,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_bed_double",
@@ -2997,7 +3089,7 @@
       ],
       "craft_time_sec": 45,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Assemble a double sleeping frame",
       "tools": [
@@ -3009,7 +3101,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_bunk_bed",
@@ -3041,7 +3134,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Assemble a stacked two-tier bed",
       "tools": [
@@ -3053,7 +3146,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_shelf",
@@ -3080,7 +3174,7 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Mount a wall shelf with brackets",
       "tools": [
@@ -3092,7 +3186,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_bookcase",
@@ -3119,7 +3214,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a multi-shelf bookcase",
       "tools": [
@@ -3131,7 +3226,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_cabinet",
@@ -3158,7 +3254,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble an enclosed shelf cabinet",
       "tools": [
@@ -3170,7 +3266,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_wardrobe",
@@ -3197,7 +3294,7 @@
       ],
       "craft_time_sec": 35,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Assemble a full-height wardrobe",
       "tools": [
@@ -3209,7 +3306,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_dresser",
@@ -3236,7 +3334,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a multi-drawer dresser",
       "tools": [
@@ -3248,7 +3346,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_nightstand",
@@ -3275,7 +3374,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a bedside table",
       "tools": [
@@ -3287,7 +3386,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_couch",
@@ -3319,7 +3419,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Upholster a three-seat sofa frame",
       "tools": [
@@ -3331,7 +3431,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_bench",
@@ -3358,7 +3459,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a backless long seat",
       "tools": [
@@ -3370,7 +3471,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_stool",
@@ -3397,7 +3499,7 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a simple round stool",
       "tools": [
@@ -3409,7 +3511,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_door",
@@ -3436,7 +3539,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a hinged wood door",
       "tools": [
@@ -3448,7 +3551,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_window",
@@ -3475,7 +3579,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Frame glass into a window",
       "tools": [
@@ -3487,7 +3591,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_hammock",
@@ -3514,10 +3619,11 @@
       ],
       "craft_time_sec": 10,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Tailoring",
       "skill_level": 1,
       "description": "Sew and tie a fabric hammock",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_rug",
@@ -3539,10 +3645,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Loom",
-      "skill": "Tailoring",
+      "skill": "Textiles",
       "skill_level": 2,
       "description": "Weave a decorative floor covering",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_curtain",
@@ -3567,7 +3674,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Stitch window covering drapes",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_chest",
@@ -3594,7 +3702,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a lidded storage chest",
       "tools": [
@@ -3606,7 +3714,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_crate",
@@ -3633,7 +3742,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Nail together a shipping crate",
       "tools": [
@@ -3645,7 +3754,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_barrel",
@@ -3672,7 +3782,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Cooperage of a staved barrel",
       "tools": [
@@ -3684,7 +3794,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_picture_frame",
@@ -3711,7 +3822,7 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a simple picture frame",
       "tools": [
@@ -3723,7 +3834,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_bread",
@@ -3755,10 +3867,18 @@
       ],
       "craft_time_sec": 10,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Knead and bake wheat bread loaves",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "cook_bread_whey",
@@ -3790,10 +3910,18 @@
       ],
       "craft_time_sec": 10,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Knead bread with the whey left from cheese making instead of water",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "cook_jerky",
@@ -3825,7 +3953,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Stove",
-      "skill": "Cooking",
+      "skill": "Preserving",
       "skill_level": 1,
       "description": "Slice lean meat thin and season it; heat to 160 F then dry (USDA FSIS)",
       "tools": [
@@ -3833,7 +3961,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_canned_food",
@@ -3865,7 +3994,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Stove",
-      "skill": "Cooking",
+      "skill": "Preserving",
       "skill_level": 2,
       "description": "Canned vegetables. Low-acid food like potatoes and carrots is only safe canned in a pressure canner (USDA): a pot on a stove cannot get hot enough to kill botulism spores",
       "tools": [
@@ -3873,7 +4002,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_mre",
@@ -3905,10 +4035,11 @@
       ],
       "craft_time_sec": 10,
       "station": "",
-      "skill": "Cooking",
+      "skill": "Preserving",
       "skill_level": 2,
       "description": "Vacuum-pack field rations",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_protein_bar",
@@ -3940,10 +4071,18 @@
       ],
       "craft_time_sec": 8,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 1,
       "description": "Bake high-protein nutrition bars",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "cook_soup",
@@ -3988,7 +4127,11 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": {
+        "method": "boiled",
+        "safe": null
+      }
     },
     {
       "id": "cook_stew",
@@ -4033,7 +4176,11 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": {
+        "method": "boiled",
+        "safe": null
+      }
     },
     {
       "id": "cook_fried_egg",
@@ -4060,10 +4207,11 @@
       ],
       "craft_time_sec": 3,
       "station": "Stove",
-      "skill": "",
+      "skill": "Cooking",
       "skill_level": 1,
       "description": "Fry eggs for a quick meal",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_pancake",
@@ -4098,7 +4246,8 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Mix batter and griddle pancakes",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_cheese",
@@ -4130,10 +4279,11 @@
       ],
       "craft_time_sec": 30,
       "station": "Stove",
-      "skill": "Cooking",
+      "skill": "Fermenting",
       "skill_level": 3,
       "description": "Culture and press milk into cheese",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_butter",
@@ -4158,7 +4308,8 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Agitate cream into solid butter",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_dried_fruit",
@@ -4185,7 +4336,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Oven",
-      "skill": "",
+      "skill": "Preserving",
       "skill_level": 1,
       "description": "Dehydrate fruit for preservation",
       "tools": [
@@ -4193,7 +4344,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_dried_meat",
@@ -4220,10 +4372,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Stove",
-      "skill": "Cooking",
+      "skill": "Preserving",
       "skill_level": 1,
       "description": "Heat thin meat strips to 160 F (poultry to 165 F) then salt and dry them (USDA FSIS; CDC)",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_juice",
@@ -4253,7 +4406,8 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Squeeze fresh fruit into juice",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_coffee",
@@ -4275,10 +4429,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Stove",
-      "skill": "",
+      "skill": "Cooking",
       "skill_level": 1,
       "description": "Pulp dry and roast coffee cherries into beans",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_sugar",
@@ -4303,7 +4458,8 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Extract and crystallize plant sugar",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "cook_honey",
@@ -4330,7 +4486,7 @@
       ],
       "craft_time_sec": 60,
       "station": "",
-      "skill": "Farming",
+      "skill": "Beekeeping",
       "skill_level": 2,
       "description": "Cut the comb out of a hive frame then crush it and strain out the honey and keep the wax",
       "tools": [
@@ -4338,7 +4494,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_spice",
@@ -4368,7 +4525,8 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Grind and mix seasoning blend",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_tshirt",
@@ -4393,7 +4551,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and stitch a cotton t-shirt",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_long_sleeve",
@@ -4418,7 +4577,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and stitch a long-sleeve shirt",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_hoodie",
@@ -4448,7 +4608,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Construct a hooded sweatshirt",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_pants",
@@ -4473,7 +4634,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and stitch full-length trousers",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_shorts",
@@ -4498,7 +4660,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and stitch knee-length shorts",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_dress",
@@ -4523,7 +4686,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Pattern and stitch a one-piece dress",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_overalls",
@@ -4553,7 +4717,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Construct bib-and-brace overalls",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_underwear",
@@ -4578,7 +4743,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and stitch basic undergarments",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_socks",
@@ -4603,7 +4769,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Knit ankle-height foot coverings",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_backpack_small",
@@ -4633,7 +4800,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Construct a 20L day rucksack",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_backpack_large",
@@ -4668,7 +4836,8 @@
       "skill": "Tailoring",
       "skill_level": 3,
       "description": "Construct a 60L expedition rucksack",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_apron",
@@ -4693,7 +4862,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Stitch a front-body work apron",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_scarf",
@@ -4718,7 +4888,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and hem a neck wrap",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_vest",
@@ -4743,7 +4914,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and stitch a sleeveless top",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_skirt",
@@ -4768,7 +4940,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Pattern and stitch a simple skirt",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_jumpsuit",
@@ -4793,7 +4966,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Construct a one-piece utility suit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_coveralls",
@@ -4818,7 +4992,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Stitch full-body mechanic coveralls",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_poncho",
@@ -4848,7 +5023,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Waterproof a sleeveless rain cover",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_hat_beanie",
@@ -4873,7 +5049,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Knit a cold-weather cap",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_gloves_work",
@@ -4898,7 +5075,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Cut and stitch reinforced gloves",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_gloves_winter",
@@ -4928,7 +5106,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Insulate and stitch warm gloves",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_belt",
@@ -4953,7 +5132,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Cut and buckle a leather belt",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_boots_work",
@@ -4988,7 +5168,8 @@
       "skill": "Tailoring",
       "skill_level": 3,
       "description": "Cobble steel-toe protective boots",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_boots_hiking",
@@ -5018,7 +5199,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Cobble ankle-support trail boots",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_shoes",
@@ -5048,7 +5230,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Cobble everyday walking shoes",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_sandals",
@@ -5078,7 +5261,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Shape rubber sole open-toe footwear",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_raincoat",
@@ -5108,7 +5292,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Laminate waterproof full-length coat",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "sew_wetsuit",
@@ -5138,7 +5323,8 @@
       "skill": "Tailoring",
       "skill_level": 3,
       "description": "Construct a neoprene thermal suit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_helmet_hard",
@@ -5160,10 +5346,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Thermoform an impact safety helmet",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_goggles",
@@ -5190,10 +5377,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Glassmaking",
       "skill_level": 1,
       "description": "Mold splash-proof eye guards",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_hat_baseball",
@@ -5218,7 +5406,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Stitch a brimmed casual cap",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_nails",
@@ -5240,7 +5429,7 @@
       ],
       "craft_time_sec": 8,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Cut and point a box of wire nails",
       "tools": [
@@ -5248,7 +5437,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_screws",
@@ -5270,7 +5460,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Thread and slot steel screws",
       "tools": [
@@ -5278,7 +5468,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bolts",
@@ -5300,7 +5491,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Thread and hex-head steel bolts",
       "tools": [
@@ -5308,7 +5499,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_tape_duct",
@@ -5340,10 +5532,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Laminate adhesive reinforced tape",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_sandpaper",
@@ -5370,10 +5563,11 @@
       ],
       "craft_time_sec": 5,
       "station": "Workbench",
-      "skill": "",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Bond grit to paper backing",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_circuit_board",
@@ -5405,7 +5599,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Etch and populate a printed circuit board",
       "tools": [
@@ -5417,7 +5611,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_battery_pack",
@@ -5449,7 +5644,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Wire cells into a rechargeable pack",
       "tools": [
@@ -5461,7 +5656,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_solar_charger",
@@ -5493,7 +5689,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Wire a portable PV charging panel",
       "tools": [
@@ -5505,7 +5701,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_flashlight",
@@ -5537,10 +5734,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 1,
       "description": "Assemble an LED handheld torch",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_lantern",
@@ -5572,10 +5770,11 @@
       ],
       "craft_time_sec": 12,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 1,
       "description": "Assemble a portable area light",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_radio",
@@ -5607,7 +5806,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Assemble a two-way transceiver",
       "tools": [
@@ -5619,7 +5818,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_walkie_talkie",
@@ -5651,7 +5851,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Assemble a short-range voice radio",
       "tools": [
@@ -5663,7 +5863,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_multimeter",
@@ -5695,7 +5896,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Assemble an electrical test meter",
       "tools": [
@@ -5707,7 +5908,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_smoke_detector",
@@ -5739,7 +5941,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 1,
       "description": "Wire a particle fire alarm",
       "tools": [
@@ -5751,7 +5953,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_motion_light",
@@ -5783,7 +5986,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Wire a PIR-activated light",
       "tools": [
@@ -5795,7 +5998,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_gps",
@@ -5827,7 +6031,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Assemble a satellite positioning unit",
       "tools": [
@@ -5839,7 +6043,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_camera",
@@ -5876,7 +6081,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Assemble a digital photography device",
       "tools": [
@@ -5888,7 +6093,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_computer",
@@ -5925,7 +6131,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Assemble a networked computing terminal",
       "tools": [
@@ -5937,7 +6143,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_geiger",
@@ -5969,7 +6176,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Assemble an ionizing radiation detector",
       "tools": [
@@ -5981,7 +6188,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "assemble_water_tester",
@@ -6008,7 +6216,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 1,
       "description": "Assemble a water quality probe",
       "tools": [
@@ -6020,7 +6228,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_workbench",
@@ -6052,10 +6261,11 @@
       ],
       "craft_time_sec": 30,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a general crafting station",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_forge",
@@ -6087,10 +6297,11 @@
       ],
       "craft_time_sec": 60,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 3,
       "description": "Construct a metal-heating furnace",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_smelter",
@@ -6122,10 +6333,11 @@
       ],
       "craft_time_sec": 50,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 3,
       "description": "Construct an ore-melting furnace",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_kiln",
@@ -6152,10 +6364,11 @@
       ],
       "craft_time_sec": 60,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 3,
       "description": "Construct a high-temperature kiln",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_anvil_station",
@@ -6187,7 +6400,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Mount anvil on a stable platform",
       "tools": [
@@ -6199,7 +6412,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_electronics_bench",
@@ -6231,7 +6445,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Set up a circuit assembly station",
       "tools": [
@@ -6243,7 +6457,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_sewing_machine",
@@ -6275,7 +6490,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Assemble an electric sewing machine",
       "tools": [
@@ -6287,7 +6502,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_loom",
@@ -6319,7 +6535,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Assemble a frame-based loom",
       "tools": [
@@ -6331,7 +6547,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_stove",
@@ -6363,7 +6580,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Assemble a four-burner range",
       "tools": [
@@ -6375,7 +6592,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_oven",
@@ -6407,7 +6625,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 3,
       "description": "Construct an enclosed baking oven",
       "tools": [
@@ -6419,7 +6637,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_fridge",
@@ -6456,7 +6675,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Hvac",
       "skill_level": 3,
       "description": "Assemble a refrigerated storage unit",
       "tools": [
@@ -6468,7 +6687,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_generator",
@@ -6505,7 +6725,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Electrical",
       "skill_level": 4,
       "description": "Assemble a 2kW gasoline generator",
       "tools": [
@@ -6517,7 +6737,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_generator_diesel",
@@ -6559,7 +6780,7 @@
       ],
       "craft_time_sec": 180,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a 6.5kW diesel generator",
       "tools": [
@@ -6571,7 +6792,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_solar_panel",
@@ -6603,7 +6825,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electrical",
       "skill_level": 3,
       "description": "Assemble a photovoltaic panel",
       "tools": [
@@ -6615,7 +6837,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_wind_turbine",
@@ -6652,7 +6875,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Electrical",
       "skill_level": 4,
       "description": "Construct a rooftop wind generator",
       "tools": [
@@ -6664,7 +6887,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_water_pump",
@@ -6701,7 +6925,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Plumbing",
       "skill_level": 2,
       "description": "Assemble an electric water pump",
       "tools": [
@@ -6713,7 +6937,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_water_purifier",
@@ -6745,7 +6970,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Plumbing",
       "skill_level": 2,
       "description": "Construct a filtration treatment unit",
       "tools": [
@@ -6757,7 +6982,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_heater",
@@ -6789,7 +7015,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Hvac",
       "skill_level": 2,
       "description": "Assemble an electric space heater",
       "tools": [
@@ -6801,7 +7027,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_heat_pump",
@@ -6853,7 +7080,7 @@
       ],
       "craft_time_sec": 120,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Hvac",
       "skill_level": 4,
       "description": "Assemble a ductless air-source heat pump",
       "tools": [
@@ -6865,7 +7092,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_wood_stove",
@@ -6907,7 +7135,7 @@
       ],
       "craft_time_sec": 90,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Build a steel wood stove with a firebrick lining",
       "tools": [
@@ -6919,7 +7147,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_cooler",
@@ -6951,7 +7180,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Hvac",
       "skill_level": 2,
       "description": "Assemble an evaporative cooler",
       "tools": [
@@ -6963,7 +7192,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_washing_machine",
@@ -6995,7 +7225,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 3,
       "description": "Assemble an automatic laundry washer",
       "tools": [
@@ -7007,7 +7237,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_sawmill",
@@ -7044,7 +7275,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 3,
       "description": "Construct a powered lumber cutting station",
       "tools": [
@@ -7056,7 +7287,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_grain_mill",
@@ -7088,7 +7320,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Construction",
       "skill_level": 2,
       "description": "Construct a seed-to-flour grinding mill",
       "tools": [
@@ -7100,7 +7332,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_fuel_refinery",
@@ -7137,7 +7370,7 @@
       ],
       "craft_time_sec": 90,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct a crude oil distillation unit",
       "tools": [
@@ -7149,7 +7382,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_battery_bank",
@@ -7186,7 +7420,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electrical",
       "skill_level": 4,
       "description": "Wire a large-scale energy storage array",
       "tools": [
@@ -7198,7 +7432,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_3d_printer",
@@ -7235,7 +7470,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Assemble an additive manufacturing device",
       "tools": [
@@ -7247,7 +7482,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_microscope",
@@ -7279,7 +7515,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Machining",
       "skill_level": 3,
       "description": "Assemble an optical magnification instrument",
       "tools": [
@@ -7291,7 +7527,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_telescope",
@@ -7323,7 +7560,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Machining",
       "skill_level": 3,
       "description": "Assemble a celestial observation instrument",
       "tools": [
@@ -7335,7 +7572,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_chemistry_set",
@@ -7367,7 +7605,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Assemble laboratory reaction apparatus",
       "tools": [
@@ -7379,7 +7617,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_composter",
@@ -7406,7 +7645,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Construct an organic waste bin",
       "tools": [
@@ -7418,7 +7657,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_greenhouse",
@@ -7450,7 +7690,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Construction",
       "skill_level": 3,
       "description": "Construct a climate-controlled enclosure",
       "tools": [
@@ -7462,7 +7702,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_irrigation",
@@ -7494,7 +7735,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Plumbing",
       "skill_level": 2,
       "description": "Assemble an automated watering network",
       "tools": [
@@ -7506,7 +7747,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_air_filter",
@@ -7538,7 +7780,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Life Support",
       "skill_level": 2,
       "description": "Construct a powered air purifier",
       "tools": [
@@ -7550,7 +7792,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_toolbox",
@@ -7572,10 +7815,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 1,
       "description": "Weld a portable compartmented case",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_locker",
@@ -7602,10 +7846,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Assemble a vertical locking cabinet",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_safe",
@@ -7632,7 +7877,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Forge an armored valuables vault",
       "tools": [
@@ -7640,7 +7885,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_fuel_drum",
@@ -7662,7 +7908,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Roll and weld a 200L drum",
       "tools": [
@@ -7670,7 +7916,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_water_tank",
@@ -7697,10 +7944,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Plumbing",
       "skill_level": 2,
       "description": "Mold a potable water cistern",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_ammo_crate",
@@ -7727,10 +7975,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Nail together sealed ammo shipping boxes",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_bicycle",
@@ -7762,7 +8011,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Assemble a two-wheel pedal vehicle",
       "tools": [
@@ -7774,7 +8023,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_hand_cart",
@@ -7806,7 +8056,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a two-wheel push cart",
       "tools": [
@@ -7818,7 +8068,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_horse_cart",
@@ -7865,7 +8116,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Construct a four-wheel wagon",
       "tools": [
@@ -7877,7 +8128,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_sled",
@@ -7909,7 +8161,7 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a snow-surface sled",
       "tools": [
@@ -7921,7 +8173,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_raft",
@@ -7948,10 +8201,11 @@
       ],
       "craft_time_sec": 20,
       "station": "",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Lash together a simple floating platform",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_canoe",
@@ -7988,7 +8242,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Hollow and seal a narrow paddle boat",
       "tools": [
@@ -8000,7 +8254,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_rowboat",
@@ -8047,7 +8302,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 3,
       "description": "Plank and seal a small rowboat hull",
       "tools": [
@@ -8059,7 +8314,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_sailboat",
@@ -8116,7 +8372,7 @@
       ],
       "craft_time_sec": 120,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 4,
       "description": "Construct a wind-powered sailing vessel",
       "tools": [
@@ -8128,7 +8384,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_wheelbarrow",
@@ -8160,7 +8417,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a single-wheel hand cart",
       "tools": [
@@ -8172,7 +8429,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_ladder",
@@ -8199,7 +8457,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a folding step ladder",
       "tools": [
@@ -8211,7 +8469,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bandage",
@@ -8233,10 +8492,11 @@
       ],
       "craft_time_sec": 5,
       "station": "",
-      "skill": "Medicine",
+      "skill": "First Aid",
       "skill_level": 1,
       "description": "Cut and roll sterile wound dressings",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_medkit",
@@ -8273,10 +8533,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Medicine",
+      "skill": "First Aid",
       "skill_level": 2,
       "description": "Pack a complete first-aid kit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_splint",
@@ -8303,10 +8564,11 @@
       ],
       "craft_time_sec": 8,
       "station": "Workbench",
-      "skill": "Medicine",
+      "skill": "First Aid",
       "skill_level": 1,
       "description": "Bend and pad fracture immobilizers",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_antiseptic",
@@ -8336,7 +8598,8 @@
       "skill": "Medicine",
       "skill_level": 1,
       "description": "Distill wound disinfectant solution",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "mix_ors",
@@ -8363,10 +8626,11 @@
       ],
       "craft_time_sec": 30,
       "station": "",
-      "skill": "",
+      "skill": "First Aid",
       "skill_level": 1,
       "description": "Dissolve one sachet of oral rehydration salts in one litre of clean drinking water",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fire_extinguisher",
@@ -8393,10 +8657,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Pressurize a fire suppression unit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_flare",
@@ -8431,7 +8696,8 @@
       "skill": "Chemistry",
       "skill_level": 1,
       "description": "Mix and pack emergency signal flares",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fertilizer",
@@ -8466,7 +8732,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost sawdust with seed press cake into plant food",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "compost_bran",
@@ -8501,7 +8768,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost sawdust with wheat bran into plant food",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "compost_pomace",
@@ -8531,7 +8799,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost pressed olive pomace into plant food",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "compost_apple_pomace",
@@ -8556,7 +8825,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost the pulp left from pressing apples into plant food",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "compost_rice_hulls",
@@ -8591,7 +8861,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost rice hulls with rice bran into plant food",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "compost_cereal_hulls",
@@ -8626,7 +8897,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Compost barley or oat or spelt hulls with seed press cake into plant food",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_compass",
@@ -8653,10 +8925,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Machining",
       "skill_level": 1,
       "description": "Magnetize a needle in a glass housing",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_lamp_floor",
@@ -8688,10 +8961,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Electrical",
       "skill_level": 2,
       "description": "Assemble a standing room light",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_lamp_desk",
@@ -8723,10 +8997,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Electrical",
       "skill_level": 1,
       "description": "Assemble an adjustable task light",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_chandelier",
@@ -8758,10 +9033,11 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Electrical",
       "skill_level": 3,
       "description": "Assemble a suspended multi-light fixture",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_clock",
@@ -8793,7 +9069,7 @@
       ],
       "craft_time_sec": 12,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Machining",
       "skill_level": 2,
       "description": "Assemble a mechanical wall clock",
       "tools": [
@@ -8801,7 +9077,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_mirror",
@@ -8833,10 +9110,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Glassmaking",
       "skill_level": 2,
       "description": "Coat glass with reflective silver",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_grain_silo",
@@ -8868,7 +9146,7 @@
       ],
       "craft_time_sec": 90,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Construction",
       "skill_level": 4,
       "description": "Erect a bulk crop storage cylinder",
       "tools": [
@@ -8880,7 +9158,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_carbon_fiber",
@@ -8912,10 +9191,11 @@
       ],
       "craft_time_sec": 60,
       "station": "Chemistry Set",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 4,
       "description": "Pyrolyze polymer precursor into carbon composite",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fiberglass",
@@ -8942,10 +9222,11 @@
       ],
       "craft_time_sec": 45,
       "station": "Chemistry Set",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 3,
       "description": "Wet glass fiber with polyester resin made from crude oil and cure it into rigid sheet",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_ceramic_composite",
@@ -8977,10 +9258,11 @@
       ],
       "craft_time_sec": 40,
       "station": "Kiln",
-      "skill": "Metalworking",
+      "skill": "Ceramics",
       "skill_level": 4,
       "description": "Sinter ceramic matrix with carbon reinforcement",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_optical_fiber",
@@ -9007,7 +9289,7 @@
       ],
       "craft_time_sec": 35,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Glassmaking",
       "skill_level": 4,
       "description": "Draw silica glass into light-transmitting strands",
       "tools": [
@@ -9019,7 +9301,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_superconductor",
@@ -9051,10 +9334,11 @@
       ],
       "craft_time_sec": 90,
       "station": "Chemistry Set",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 5,
       "description": "Cool rare-earth compound into zero-resistance wire",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_kevlar_sheet",
@@ -9081,10 +9365,11 @@
       ],
       "craft_time_sec": 50,
       "station": "Loom",
-      "skill": "Tailoring",
+      "skill": "Textiles",
       "skill_level": 4,
       "description": "Weave aramid fiber into ballistic fabric",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_aerogel",
@@ -9116,10 +9401,11 @@
       ],
       "craft_time_sec": 80,
       "station": "Chemistry Set",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 5,
       "description": "Supercritically dry silica gel into ultralight insulator",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_graphene",
@@ -9146,10 +9432,11 @@
       ],
       "craft_time_sec": 100,
       "station": "Chemistry Set",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 5,
       "description": "Exfoliate graphite into single-atom carbon sheets",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_bioplastic",
@@ -9181,10 +9468,11 @@
       ],
       "craft_time_sec": 30,
       "station": "Fuel Refinery",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 3,
       "description": "Polymerize plant starch into biodegradable plastic",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "manufacture_circuit_board",
@@ -9216,7 +9504,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Etch copper traces on laminate substrate",
       "tools": [
@@ -9228,7 +9516,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_battery_small",
@@ -9260,7 +9549,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Assemble lithium-ion cell packs",
       "tools": [
@@ -9272,7 +9561,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_battery_large",
@@ -9309,7 +9599,7 @@
       ],
       "craft_time_sec": 45,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Wire high-capacity energy storage module",
       "tools": [
@@ -9321,7 +9611,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_solar_cell",
@@ -9353,7 +9644,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Deposit photovoltaic layer on glass substrate",
       "tools": [
@@ -9365,7 +9656,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_antenna",
@@ -9397,7 +9689,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Shape and tune radio signal transducers",
       "tools": [
@@ -9409,7 +9701,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_sensor_module",
@@ -9446,7 +9739,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Calibrate multi-spectrum detector array",
       "tools": [
@@ -9458,7 +9751,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_cpu",
@@ -9490,7 +9784,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 5,
       "description": "Etch logic gates into silicon wafer die",
       "tools": [
@@ -9502,7 +9796,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_servo_motor",
@@ -9534,7 +9829,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 3,
       "description": "Wind precision position actuator coils",
       "tools": [
@@ -9546,7 +9841,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_led_panel",
@@ -9578,7 +9874,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Solder diode array onto display substrate",
       "tools": [
@@ -9590,7 +9886,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "manufacture_camera",
@@ -9627,7 +9924,7 @@
       ],
       "craft_time_sec": 35,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Assemble digital image sensor and lens optics",
       "tools": [
@@ -9639,7 +9936,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bandage_sterile",
@@ -9666,10 +9964,11 @@
       ],
       "craft_time_sec": 8,
       "station": "",
-      "skill": "Medicine",
+      "skill": "First Aid",
       "skill_level": 1,
       "description": "Cut and sterilize wound dressing strips",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_medkit_full",
@@ -9706,10 +10005,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Medicine",
+      "skill": "First Aid",
       "skill_level": 3,
       "description": "Pack a comprehensive field medical kit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_splint_padded",
@@ -9736,10 +10036,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "Medicine",
+      "skill": "First Aid",
       "skill_level": 1,
       "description": "Bend and cushion fracture immobilizers",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_painkillers",
@@ -9774,7 +10075,8 @@
       "skill": "Medicine",
       "skill_level": 3,
       "description": "Extract and tablet analgesic compounds",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_antivenom",
@@ -9809,7 +10111,8 @@
       "skill": "Medicine",
       "skill_level": 4,
       "description": "Prepare venom neutralization serum",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_surgical_kit",
@@ -9844,7 +10147,8 @@
       "skill": "Medicine",
       "skill_level": 5,
       "description": "Sterilize and pack field surgery instruments",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_stim_pack",
@@ -9879,7 +10183,8 @@
       "skill": "Medicine",
       "skill_level": 3,
       "description": "Mix fast-acting combat stimulant formula",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_chest_wood",
@@ -9906,7 +10211,7 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 1,
       "description": "Assemble a lidded wooden storage box",
       "tools": [
@@ -9918,7 +10223,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_chest_metal",
@@ -9945,7 +10251,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Weld a reinforced lockable container",
       "tools": [
@@ -9953,7 +10259,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_safe_heavy",
@@ -9985,7 +10292,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Forge a thick-walled armored vault",
       "tools": [
@@ -9993,7 +10300,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_barrel_coopered",
@@ -10020,7 +10328,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Woodworking",
       "skill_level": 2,
       "description": "Stave and band wooden liquid containers",
       "tools": [
@@ -10032,7 +10340,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_backpack_small",
@@ -10067,7 +10376,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Construct a 20L carry pack",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_backpack_large",
@@ -10107,7 +10417,8 @@
       "skill": "Tailoring",
       "skill_level": 3,
       "description": "Construct a 65L expedition rucksack",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_arrows_batch",
@@ -10142,7 +10453,8 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Whittle shafts and forge broadhead tips",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_bullets_pistol",
@@ -10174,10 +10486,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Machining",
       "skill_level": 2,
       "description": "Press brass casings and seat projectiles",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_bullets_rifle",
@@ -10209,10 +10522,11 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Machining",
       "skill_level": 3,
       "description": "Press long casings and seat heavy projectiles",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fuel_cell",
@@ -10249,7 +10563,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Chemistry",
       "skill_level": 4,
       "description": "Assemble hydrogen electrochemical converter",
       "tools": [
@@ -10261,7 +10575,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_healing_potion",
@@ -10296,7 +10611,8 @@
       "skill": "Medicine",
       "skill_level": 2,
       "description": "Distill restorative herbal tincture",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_grenade",
@@ -10328,10 +10644,11 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Chemistry",
       "skill_level": 3,
       "description": "Pack and fuse fragmentation shells",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_smoke_bomb",
@@ -10363,10 +10680,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Chemistry",
       "skill_level": 2,
       "description": "Pack slow-burn obscurant canisters",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "enchant_fire_imbue",
@@ -10403,7 +10721,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Imbue an item with searing flame essence",
       "tools": [
@@ -10411,7 +10729,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_sharpness",
@@ -10443,7 +10762,7 @@
       ],
       "craft_time_sec": 45,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Hone an edge to preternatural keenness",
       "tools": [
@@ -10451,7 +10770,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_fortification",
@@ -10483,7 +10803,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Reinforce material beyond natural limits",
       "tools": [
@@ -10491,7 +10811,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_efficiency",
@@ -10523,7 +10844,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Tune a tool for reduced resource consumption",
       "tools": [
@@ -10535,7 +10856,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_indestructible",
@@ -10567,7 +10889,7 @@
       ],
       "craft_time_sec": 90,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 5,
       "description": "Render material virtually immune to wear",
       "tools": [
@@ -10575,7 +10897,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_speed_boost",
@@ -10607,7 +10930,7 @@
       ],
       "craft_time_sec": 45,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Accelerate action speed beyond normal limits",
       "tools": [
@@ -10619,7 +10942,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_night_vision",
@@ -10651,7 +10975,7 @@
       ],
       "craft_time_sec": 50,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 4,
       "description": "Grant low-light visual amplification",
       "tools": [
@@ -10663,7 +10987,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "enchant_auto_repair",
@@ -10695,7 +11020,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 5,
       "description": "Enable gradual self-restoration of durability",
       "tools": [
@@ -10707,7 +11032,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_painting",
@@ -10739,10 +11065,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Drawing Painting",
       "skill_level": 2,
       "description": "Stretch and paint a framed canvas",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_statue_small",
@@ -10764,7 +11091,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Masonry",
       "skill_level": 3,
       "description": "Chisel a decorative stone figure",
       "tools": [
@@ -10776,7 +11103,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_statue_large",
@@ -10803,7 +11131,7 @@
       ],
       "craft_time_sec": 90,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Masonry",
       "skill_level": 5,
       "description": "Sculpt a monumental stone figure",
       "tools": [
@@ -10815,7 +11143,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_flag",
@@ -10850,7 +11179,8 @@
       "skill": "Tailoring",
       "skill_level": 1,
       "description": "Stitch and mount a cloth standard",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fountain",
@@ -10887,7 +11217,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Masonry",
       "skill_level": 4,
       "description": "Construct an ornamental water feature",
       "tools": [
@@ -10899,7 +11229,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_planter",
@@ -10926,10 +11257,11 @@
       ],
       "craft_time_sec": 15,
       "station": "Kiln",
-      "skill": "Woodworking",
+      "skill": "Ceramics",
       "skill_level": 2,
       "description": "Fire and glaze ornamental plant pots",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "build_electric_car",
@@ -11041,7 +11373,7 @@
       ],
       "craft_time_sec": 600,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a battery-powered four-seat sedan",
       "tools": [
@@ -11053,7 +11385,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_electric_truck",
@@ -11165,7 +11498,7 @@
       ],
       "craft_time_sec": 600,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a battery-powered cargo hauler",
       "tools": [
@@ -11177,7 +11510,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_electric_scooter",
@@ -11234,7 +11568,7 @@
       ],
       "craft_time_sec": 120,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 3,
       "description": "Assemble a personal mobility scooter",
       "tools": [
@@ -11246,7 +11580,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_locomotive",
@@ -11378,7 +11713,7 @@
       ],
       "craft_time_sec": 1200,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct a diesel-electric rail engine",
       "tools": [
@@ -11390,7 +11725,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_bicycle_full",
@@ -11427,7 +11763,7 @@
       ],
       "craft_time_sec": 45,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Assemble a lightweight two-wheel pedal vehicle",
       "tools": [
@@ -11439,7 +11775,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_motorcycle_full",
@@ -11531,7 +11868,7 @@
       ],
       "craft_time_sec": 300,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 4,
       "description": "Assemble a two-wheel combustion cycle",
       "tools": [
@@ -11543,7 +11880,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_hovercraft",
@@ -11635,7 +11973,7 @@
       ],
       "craft_time_sec": 480,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct an air-cushion surface vehicle",
       "tools": [
@@ -11647,7 +11985,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_rover",
@@ -11759,7 +12098,7 @@
       ],
       "craft_time_sec": 480,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble an all-terrain exploration vehicle",
       "tools": [
@@ -11771,7 +12110,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_mech_light",
@@ -11903,7 +12243,7 @@
       ],
       "craft_time_sec": 900,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a bipedal exosuit for rough terrain",
       "tools": [
@@ -11915,7 +12255,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_mech_heavy",
@@ -12052,7 +12393,7 @@
       ],
       "craft_time_sec": 1200,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct an armored combat walker",
       "tools": [
@@ -12064,7 +12405,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_mech_construction",
@@ -12191,7 +12533,7 @@
       ],
       "craft_time_sec": 1050,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble an industrial lifter with crane arms",
       "tools": [
@@ -12203,7 +12545,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_mech_mining",
@@ -12335,7 +12678,7 @@
       ],
       "craft_time_sec": 1050,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct a drill-equipped tunnel borer",
       "tools": [
@@ -12347,7 +12690,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_mech_scout",
@@ -12474,7 +12818,7 @@
       ],
       "craft_time_sec": 750,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a fast recon walker with sensors",
       "tools": [
@@ -12486,7 +12830,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_fighter",
@@ -12633,7 +12978,7 @@
       ],
       "craft_time_sec": 1200,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a light combat vessel with dual thrusters",
       "tools": [
@@ -12645,7 +12990,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_freighter",
@@ -12802,7 +13148,7 @@
       ],
       "craft_time_sec": 1800,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct a large modular cargo hauler",
       "tools": [
@@ -12814,7 +13160,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_shuttle",
@@ -12976,7 +13323,7 @@
       ],
       "craft_time_sec": 1050,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a personnel transport shuttle",
       "tools": [
@@ -12988,7 +13335,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_corvette",
@@ -13150,7 +13498,7 @@
       ],
       "craft_time_sec": 1500,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct a fast multi-role warship",
       "tools": [
@@ -13162,7 +13510,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_mining",
@@ -13324,7 +13673,7 @@
       ],
       "craft_time_sec": 1350,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble an asteroid ore extraction ship",
       "tools": [
@@ -13336,7 +13685,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_explorer",
@@ -13498,7 +13848,7 @@
       ],
       "craft_time_sec": 1200,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Construct a long-range survey vessel with sensors",
       "tools": [
@@ -13510,7 +13860,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_station_module",
@@ -13667,7 +14018,7 @@
       ],
       "craft_time_sec": 1800,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Fabricate a habitable orbital station segment",
       "tools": [
@@ -13679,7 +14030,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "build_spacecraft_pod",
@@ -13831,7 +14183,7 @@
       ],
       "craft_time_sec": 900,
       "station": "Workbench",
-      "skill": "Engineering",
+      "skill": "Mechanics",
       "skill_level": 5,
       "description": "Assemble a single-seat orbital vehicle",
       "tools": [
@@ -13843,7 +14195,8 @@
           "id": "screwdriver_flat_0",
           "label": "Screwdriver Flat"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_wall_wood",
@@ -13870,7 +14223,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Construction",
       "skill_level": 2,
       "description": "Frame and sheath a standard wall section",
       "tools": [
@@ -13882,7 +14235,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_wall_reinforced",
@@ -13914,7 +14268,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Construction",
       "skill_level": 4,
       "description": "Construct a steel-reinforced concrete wall panel",
       "tools": [
@@ -13926,7 +14280,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_floor_tile",
@@ -13953,10 +14308,11 @@
       ],
       "craft_time_sec": 25,
       "station": "Kiln",
-      "skill": "Shelter Building",
+      "skill": "Ceramics",
       "skill_level": 2,
       "description": "Fire and set ceramic floor tiles",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_roof_panel",
@@ -13988,7 +14344,7 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Shelter Building",
+      "skill": "Construction",
       "skill_level": 2,
       "description": "Frame and weatherproof a roof section",
       "tools": [
@@ -14000,7 +14356,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_ring_gold",
@@ -14022,7 +14379,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Anvil Station",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Hammer a polished gold finger band",
       "tools": [
@@ -14030,7 +14387,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_ring_silver",
@@ -14052,7 +14410,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Anvil Station",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Hammer a polished silver finger band",
       "tools": [
@@ -14060,7 +14418,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_necklace_gold",
@@ -14082,7 +14441,7 @@
       ],
       "craft_time_sec": 60,
       "station": "Anvil Station",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 4,
       "description": "Link gold rings into a neck chain",
       "tools": [
@@ -14090,7 +14449,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_bracelet_silver",
@@ -14112,7 +14472,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Anvil Station",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Link silver into a wrist band",
       "tools": [
@@ -14120,7 +14480,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_amulet",
@@ -14142,7 +14503,7 @@
       ],
       "craft_time_sec": 45,
       "station": "Anvil Station",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Engrave a protective silver charm",
       "tools": [
@@ -14150,7 +14511,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_book_blank",
@@ -14182,10 +14544,11 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Textiles",
       "skill_level": 2,
       "description": "Sew and bind paper into a blank book",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_pencil",
@@ -14215,7 +14578,8 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Glue graphite core into wooden sticks",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_ink",
@@ -14245,7 +14609,8 @@
       "skill": "Chemistry",
       "skill_level": 2,
       "description": "Combine carbon and binder into writing fluid",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_notebook",
@@ -14272,10 +14637,11 @@
       ],
       "craft_time_sec": 30,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Spiral-bind paper into a notebook",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_candle",
@@ -14302,10 +14668,11 @@
       ],
       "craft_time_sec": 20,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Chemistry",
       "skill_level": 1,
       "description": "Pour wax around cotton wicks",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_lantern_oil",
@@ -14337,10 +14704,11 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Build a glass-shielded oil lamp",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_flashlight",
@@ -14377,7 +14745,7 @@
       ],
       "craft_time_sec": 30,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Assemble a handheld battery torch",
       "tools": [
@@ -14389,7 +14757,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_headlamp",
@@ -14431,7 +14800,7 @@
       ],
       "craft_time_sec": 35,
       "station": "Electronics Bench",
-      "skill": "Engineering",
+      "skill": "Electronics",
       "skill_level": 2,
       "description": "Build a strap-mounted hands-free light",
       "tools": [
@@ -14443,7 +14812,8 @@
           "id": "pliers_0",
           "label": "Pliers"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_soup_vegetable",
@@ -14488,7 +14858,11 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": {
+        "method": "boiled",
+        "safe": null
+      }
     },
     {
       "id": "cook_stew_meat",
@@ -14533,7 +14907,11 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": {
+        "method": "boiled",
+        "safe": null
+      }
     },
     {
       "id": "cook_sandwich",
@@ -14573,7 +14951,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "cook_pasta",
@@ -14613,7 +14992,15 @@
       "skill": "Cooking",
       "skill_level": 2,
       "description": "Boil noodles and toss with sauce",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "boiled",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "cook_pizza",
@@ -14645,10 +15032,18 @@
       ],
       "craft_time_sec": 25,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 3,
       "description": "Bake topped flatbread into pizza",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "cook_omelette",
@@ -14683,7 +15078,15 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Fold eggs and filling in a pan",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "fried",
+        "safe": {
+          "core_c": 71,
+          "boil_min": null,
+          "say": "cooking.safe_eggs"
+        }
+      }
     },
     {
       "id": "cook_porridge",
@@ -14718,7 +15121,11 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Simmer milled rice in milk",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "boiled",
+        "safe": null
+      }
     },
     {
       "id": "cook_rice",
@@ -14748,7 +15155,153 @@
       "skill": "Cooking",
       "skill_level": 1,
       "description": "Boil milled white rice until it soaks up its water",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "boiled",
+        "safe": null
+      }
+    },
+    {
+      "id": "cook_boiled_eggs",
+      "name": "Boil Eggs",
+      "category": "cooking",
+      "inputs": [
+        {
+          "id": "egg_0",
+          "label": "Egg",
+          "qty": 2
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "egg_boiled_0",
+          "label": "Egg Boiled",
+          "qty": 2
+        }
+      ],
+      "craft_time_sec": 10,
+      "station": "Stove",
+      "skill": "Cooking",
+      "skill_level": 1,
+      "description": "Boil eggs until both the yolk and white are firm (CDC)",
+      "tools": [],
+      "dish": {
+        "method": "boiled",
+        "safe": {
+          "core_c": 71,
+          "boil_min": null,
+          "say": "cooking.safe_eggs"
+        }
+      }
+    },
+    {
+      "id": "cook_beans",
+      "name": "Cook Dry Beans",
+      "category": "cooking",
+      "inputs": [
+        {
+          "id": "legume_bean_0",
+          "label": "Legume Bean",
+          "qty": 1
+        },
+        {
+          "id": "water_purified_0",
+          "label": "Water Purified",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "beans_cooked_0",
+          "label": "Beans Cooked",
+          "qty": 4
+        }
+      ],
+      "craft_time_sec": 15,
+      "station": "Stove",
+      "skill": "Cooking",
+      "skill_level": 1,
+      "description": "Soak dry beans at least 5 hours and pour the water away then boil them in fresh water for at least 30 minutes (FDA for kidney beans): the game counts beans kept below a full boil as unsafe",
+      "tools": [],
+      "dish": {
+        "method": "boiled",
+        "safe": {
+          "core_c": null,
+          "boil_min": 30,
+          "say": null
+        }
+      }
+    },
+    {
+      "id": "cook_fish",
+      "name": "Grill Fish",
+      "category": "cooking",
+      "inputs": [
+        {
+          "id": "raw_fish_0",
+          "label": "Raw Fish",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "fish_grilled_0",
+          "label": "Fish Grilled",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 10,
+      "station": "Stove",
+      "skill": "Cooking",
+      "skill_level": 1,
+      "description": "Grill fish to 145 F (63 C) inside or until the flesh is opaque and separates easily with a fork (CDC)",
+      "tools": [],
+      "dish": {
+        "method": "grilled",
+        "safe": {
+          "core_c": 63,
+          "boil_min": null,
+          "say": null
+        }
+      }
+    },
+    {
+      "id": "cook_roast_chicken",
+      "name": "Roast Poultry",
+      "category": "cooking",
+      "inputs": [
+        {
+          "id": "raw_poultry_0",
+          "label": "Raw Poultry",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "id": "roast_chicken_0",
+          "label": "Roast Chicken",
+          "qty": 1
+        }
+      ],
+      "craft_time_sec": 20,
+      "station": "Oven",
+      "skill": "Cooking",
+      "skill_level": 2,
+      "description": "Roast poultry until it reaches 165 F (74 C) inside (CDC)",
+      "tools": [],
+      "dish": {
+        "method": "roasted",
+        "safe": {
+          "core_c": 74,
+          "boil_min": null,
+          "say": null
+        }
+      }
     },
     {
       "id": "bake_cake",
@@ -14790,10 +15343,18 @@
       ],
       "craft_time_sec": 45,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 3,
       "description": "Bake a sweet layered dessert",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "bake_pie",
@@ -14830,7 +15391,7 @@
       ],
       "craft_time_sec": 40,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 3,
       "description": "Bake a fruit-filled pastry",
       "tools": [
@@ -14838,7 +15399,15 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "bake_cookies",
@@ -14875,10 +15444,18 @@
       ],
       "craft_time_sec": 20,
       "station": "Oven",
-      "skill": "Cooking",
+      "skill": "Baking",
       "skill_level": 2,
       "description": "Bake sweet dough discs",
-      "tools": []
+      "tools": [],
+      "dish": {
+        "method": "baked",
+        "safe": {
+          "core_c": null,
+          "boil_min": null,
+          "say": "cooking.safe_dough"
+        }
+      }
     },
     {
       "id": "cook_salad",
@@ -14918,7 +15495,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_soap_bar",
@@ -14953,7 +15531,8 @@
       "skill": "Chemistry",
       "skill_level": 2,
       "description": "Saponify fat with lye into cleaning bars",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_pipe_metal",
@@ -14975,7 +15554,7 @@
       ],
       "craft_time_sec": 25,
       "station": "Forge",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 2,
       "description": "Form threaded steel pipe segments",
       "tools": [
@@ -14983,7 +15562,8 @@
           "id": "hammer_0",
           "label": "Hammer"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_faucet",
@@ -15010,10 +15590,11 @@
       ],
       "craft_time_sec": 40,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Plumbing",
       "skill_level": 3,
       "description": "Assemble a threaded water tap",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_toilet",
@@ -15040,10 +15621,11 @@
       ],
       "craft_time_sec": 90,
       "station": "Kiln",
-      "skill": "Woodworking",
+      "skill": "Ceramics",
       "skill_level": 3,
       "description": "Fire a porcelain waste fixture",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_sink",
@@ -15065,10 +15647,11 @@
       ],
       "craft_time_sec": 60,
       "station": "Kiln",
-      "skill": "Woodworking",
+      "skill": "Ceramics",
       "skill_level": 2,
       "description": "Fire a porcelain wash basin",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_paintbrush_set",
@@ -15103,7 +15686,8 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Bind bristles to wooden handles",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_canvas_blank",
@@ -15130,10 +15714,11 @@
       ],
       "craft_time_sec": 25,
       "station": "Workbench",
-      "skill": "Tailoring",
+      "skill": "Textiles",
       "skill_level": 2,
       "description": "Stretch primed cloth on a frame",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_easel",
@@ -15172,7 +15757,8 @@
           "id": "saw_hand_0",
           "label": "Saw Hand"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_guitar_acoustic",
@@ -15216,7 +15802,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_violin",
@@ -15260,7 +15847,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_flute_wood",
@@ -15290,7 +15878,8 @@
           "id": "knife_utility_0",
           "label": "Knife Utility"
         }
-      ]
+      ],
+      "dish": null
     },
     {
       "id": "craft_drum_hand",
@@ -15320,7 +15909,8 @@
       "skill": "Woodworking",
       "skill_level": 2,
       "description": "Stretch hide over a wooden frame",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_harmonica",
@@ -15342,10 +15932,11 @@
       ],
       "craft_time_sec": 45,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Smithing",
       "skill_level": 3,
       "description": "Cut and tune brass reed plates",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_tent_2person",
@@ -15380,7 +15971,8 @@
       "skill": "Tailoring",
       "skill_level": 3,
       "description": "Sew a backpack camping shelter",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_sleeping_bag",
@@ -15410,7 +16002,8 @@
       "skill": "Tailoring",
       "skill_level": 2,
       "description": "Sew an insulated portable bedroll",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fishing_rod",
@@ -15440,7 +16033,8 @@
       "skill": "Woodworking",
       "skill_level": 1,
       "description": "Carve a reel-and-line fish capture pole",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_fishing_net",
@@ -15467,10 +16061,11 @@
       ],
       "craft_time_sec": 45,
       "station": "Sewing Machine",
-      "skill": "Tailoring",
+      "skill": "Textiles",
       "skill_level": 2,
       "description": "Weave a weighted mesh fish trap",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "craft_binoculars",
@@ -15497,10 +16092,11 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Woodworking",
+      "skill": "Machining",
       "skill_level": 3,
       "description": "Build a twin-tube long-range optic",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_truck_kit",
@@ -15532,10 +16128,11 @@
       ],
       "craft_time_sec": 90,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Bolt together a flat-packed pickup truck kit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_rover_kit",
@@ -15567,10 +16164,11 @@
       ],
       "craft_time_sec": 60,
       "station": "Workbench",
-      "skill": "Metalworking",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Bolt together a flat-packed rover kit",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_rover",
@@ -15602,10 +16200,11 @@
       ],
       "craft_time_sec": 120,
       "station": "Vehicle Assembler",
-      "skill": "Metalworking",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Assemble a complete rover on the factory pad",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_truck",
@@ -15637,10 +16236,11 @@
       ],
       "craft_time_sec": 180,
       "station": "Vehicle Assembler",
-      "skill": "Metalworking",
+      "skill": "Mechanics",
       "skill_level": 2,
       "description": "Assemble a complete pickup truck on the factory pad",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_iron_graphite",
@@ -15672,10 +16272,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 1,
       "description": "Reduce iron ore using asteroid graphite as the carbon source",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_copper_graphite",
@@ -15707,10 +16308,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 1,
       "description": "Reduce copper ore using asteroid graphite and skim off the slag",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "smelt_nickel_graphite",
@@ -15737,10 +16339,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Smelter",
-      "skill": "Metalworking",
+      "skill": "Metallurgy",
       "skill_level": 2,
       "description": "Reduce nickel ore using asteroid graphite",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "assemble_nova",
@@ -15777,10 +16380,11 @@
       ],
       "craft_time_sec": 240,
       "station": "Vehicle Assembler",
-      "skill": "Metalworking",
+      "skill": "Mechanics",
       "skill_level": 3,
       "description": "Assemble a complete 1975 Chevy Nova on the factory pad",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "bundle_cotton",
@@ -15802,10 +16406,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Card and bundle cotton into usable fiber",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "bundle_flax",
@@ -15827,10 +16432,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Rett and bundle flax into usable fiber",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "bundle_hemp",
@@ -15852,10 +16458,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Strip and bundle hemp into usable fiber",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "bundle_jute",
@@ -15877,10 +16484,11 @@
       ],
       "craft_time_sec": 10,
       "station": "Workbench",
-      "skill": "",
+      "skill": "Textiles",
       "skill_level": 1,
       "description": "Strip and bundle jute into usable fiber",
-      "tools": []
+      "tools": [],
+      "dish": null
     },
     {
       "id": "mix_insecticidal_soap",
@@ -15910,7 +16518,8 @@
       "skill": "Farming",
       "skill_level": 1,
       "description": "Dissolve a bar of soap in 5 L of water for a 2% spray against aphids and mites",
-      "tools": []
+      "tools": [],
+      "dish": null
     }
   ]
 }

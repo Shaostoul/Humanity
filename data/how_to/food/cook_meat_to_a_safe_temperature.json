@@ -1,0 +1,210 @@
+{
+  "id": "cook_meat_to_a_safe_temperature",
+  "title": "Cook meat, fish and eggs safely",
+  "summary": "Use a food thermometer to know that meat and poultry are cooked enough to be safe, because their colour and texture cannot tell you. Fish can also be judged by its flesh, and eggs by a firm yolk and white.",
+  "for": "Anyone cooking meat, poultry, fish, eggs or leftovers for themselves or others.",
+  "audience": "everyone",
+  "category": "food_cooking",
+  "tags": [
+    "real",
+    "food",
+    "safety",
+    "guide"
+  ],
+  "realities": [
+    "real",
+    "sim"
+  ],
+  "time": {
+    "active_min": 5,
+    "waiting_min": 3
+  },
+  "difficulty": 1,
+  "hazard": "serious",
+  "skills": [
+    "cooking"
+  ],
+  "topics": [],
+  "reading": [
+    "when-food-or-water-makes-you-sick"
+  ],
+  "needs_first": [],
+  "tools": [
+    {
+      "item": "food_thermometer_0",
+      "qty": {
+        "value": 1,
+        "unit": "each"
+      },
+      "note": "A food thermometer that reads the inside of food. Washed between uses."
+    }
+  ],
+  "materials": [],
+  "stop_and_call": [
+    {
+      "when": "After eating, someone has bloody diarrhoea, diarrhoea for more than 3 days, a fever over 102 F (38.9 C), vomiting so often they cannot keep liquids down, or signs of drying out: peeing little, a dry mouth and throat, or dizziness on standing.",
+      "do": "See a doctor.",
+      "who": "A doctor or a clinic",
+      "cites": [
+        "cdc_symptoms"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "wash_hands",
+      "kind": "do",
+      "text": "Wash your hands after handling raw meat, poultry, seafood or eggs.",
+      "why": [
+        "Raw meat, poultry, seafood and eggs can carry germs that make people ill, and hands carry them on to other food."
+      ],
+      "cites": [
+        "cdc_prevent"
+      ]
+    },
+    {
+      "id": "separate",
+      "kind": "do",
+      "text": "Keep raw meat, poultry, seafood and eggs away from food that is ready to eat.",
+      "why": [
+        "Their germs spread to ready-to-eat food unless they are kept separate."
+      ],
+      "cites": [
+        "cdc_prevent"
+      ]
+    },
+    {
+      "id": "which_food",
+      "kind": "choose",
+      "text": "What are you cooking? That decides the temperature the inside must reach.",
+      "options": [
+        {
+          "id": "poultry",
+          "label": "Poultry, including ground chicken and turkey: 165 F (74 C)"
+        },
+        {
+          "id": "ground",
+          "label": "Ground meat such as beef and pork: 160 F (71 C)"
+        },
+        {
+          "id": "whole_cut",
+          "label": "Whole cuts of beef, veal, lamb or pork: 145 F (63 C), then rest 3 minutes"
+        },
+        {
+          "id": "fish",
+          "label": "Fish with fins: 145 F (63 C), or until the flesh is opaque and separates easily with a fork"
+        },
+        {
+          "id": "eggs",
+          "label": "Eggs: until yolk and white are firm; egg dishes 160 F (71 C)"
+        },
+        {
+          "id": "leftovers",
+          "label": "Leftovers and casseroles: 165 F (74 C)"
+        }
+      ],
+      "why": [
+        "Each kind of food has its own safe temperature. The Celsius figures are our conversion of CDC's Fahrenheit, except the eggs' 71 C, which CDC gives itself."
+      ],
+      "cites": [
+        "cdc_prevent",
+        "cdc_eggs"
+      ]
+    },
+    {
+      "id": "measure",
+      "kind": "do",
+      "text": "Cook it, then check the temperature inside it with the food thermometer.",
+      "why": [
+        "Except for seafood, colour and texture do not show whether food is safe: the thermometer does."
+      ],
+      "detail": [
+        "Read the middle of the thickest part, which is the last part to heat through (our reading)."
+      ],
+      "uses": [
+        "food_thermometer_0"
+      ],
+      "cites": [
+        "cdc_prevent"
+      ]
+    },
+    {
+      "id": "reached",
+      "kind": "check",
+      "text": "Does the thermometer read the safe temperature for this food, or higher? (Whole eggs: are the yolk and white firm?)",
+      "no": "keep_cooking",
+      "cites": [
+        "cdc_prevent"
+      ]
+    },
+    {
+      "id": "rest",
+      "kind": "wait",
+      "text": "If it is a whole cut of beef, veal, lamb or pork, let it rest 3 minutes before you carve or eat it.",
+      "wait": {
+        "min_s": 180,
+        "max_s": 180
+      },
+      "cites": [
+        "cdc_prevent"
+      ]
+    }
+  ],
+  "worked_if": [
+    "The thermometer read at least the safe temperature for the food before anyone ate it."
+  ],
+  "problems": [
+    {
+      "id": "keep_cooking",
+      "sign": "The thermometer reads under the safe temperature.",
+      "why": "The inside has not reached the temperature that makes it safe.",
+      "fix": "Keep cooking it and check again until it does. Do not go by the colour.",
+      "cites": [
+        "cdc_prevent"
+      ]
+    }
+  ],
+  "repeat": null,
+  "makes": null,
+  "sources": [
+    {
+      "key": "cdc_prevent",
+      "source": "cdc",
+      "title": "Preventing Food Poisoning",
+      "where": "https://www.cdc.gov/food-safety/prevention/index.html",
+      "dated": "2025-11-24",
+      "read": "2026-11-21",
+      "quote": "The only way to tell if food is safely cooked is to use a food thermometer.",
+      "note": "Its list of safe internal temperatures: whole cuts of beef, veal, lamb and pork, including fresh ham, 145 F, then rest 3 minutes before carving or eating; fish with fins 145 F or until the flesh is opaque and separates easily with a fork; ground meats such as beef and pork 160 F; all poultry, including ground chicken and turkey, 165 F; leftovers and casseroles 165 F. Also: 'Always wash hands after handling uncooked meat, chicken and other poultry, seafood, flour, or eggs.' and 'Keep raw or marinating meat, poultry, seafood, and eggs separate from all other foods.' CDC gives Fahrenheit only; the Celsius figures are our conversion. The sentence after the quote: \"You can't tell if food is safely cooked by checking its color and texture (except for seafood).\""
+    },
+    {
+      "key": "cdc_eggs",
+      "source": "cdc",
+      "title": "Backyard Poultry",
+      "where": "https://www.cdc.gov/healthy-pets/about/backyard-poultry.html",
+      "dated": "2025-07-18",
+      "read": "2026-11-21",
+      "quote": "Egg dishes should be cooked to an internal temperature of 160°F (71°C) or hotter.",
+      "note": "Also: 'Cook eggs until both the yolk and white are firm.' and 'Raw and undercooked eggs may contain Salmonella bacteria that can make you sick.'"
+    },
+    {
+      "key": "cdc_symptoms",
+      "source": "cdc",
+      "title": "Symptoms of Food Poisoning",
+      "where": "https://www.cdc.gov/food-safety/signs-symptoms/index.html",
+      "dated": "2025-11-24",
+      "read": "2026-11-21",
+      "quote": "See a doctor if you have any symptoms that are severe, including:",
+      "note": "The list: bloody diarrhea; diarrhea that lasts more than 3 days; high fever (temperature over 102°F); vomiting so often that you cannot keep liquids down; signs of dehydration, which include not urinating much, a dry mouth and throat, and/or feeling dizzy when standing up. 38.9 C is our conversion."
+    }
+  ],
+  "review": {
+    "status": "sourced",
+    "hash": "08a4ea64740cc6254e0d31d75de22625e1776fd50481ced5575fe848c60c5e18",
+    "checked": "2026-11-21",
+    "by": "a refutation pass (AI)",
+    "person": null
+  },
+  "written_by": "ai",
+  "updated": "2026-11-21"
+}

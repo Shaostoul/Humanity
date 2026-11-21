@@ -207,13 +207,24 @@ pub struct TemperatureZone {
 }
 
 /// Top-level RON schema for `data/food_system.ron`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct FoodData {
     pub nutrition_profiles: Vec<NutritionProfile>,
     pub preservation_methods: Vec<ron::Value>,
-    pub cooking_methods: Vec<ron::Value>,
-    pub meal_quality_levels: Vec<ron::Value>,
+    /// The heat around the food, per method (cooking rung 1, 2026-11-21, `crate::cooking`).
+    pub cooking_methods: Vec<crate::cooking::CookingMethod>,
+    /// A hand-cooked dish's grade, acted on when it is eaten (cooking rung 1).
+    pub meal_quality_levels: Vec<crate::cooking::MealQuality>,
     pub temperature_zones: Vec<TemperatureZone>,
+    /// How each kind of food heats through, when it is done and when it is safe (cooking rung 1).
+    #[serde(default)]
+    pub food_classes: Vec<crate::cooking::FoodClass>,
+    /// Every hand-cooked recipe that is a heat procedure (cooking rung 1).
+    #[serde(default)]
+    pub dishes: Vec<crate::cooking::Dish>,
+    /// (recipe, why) for the stove and oven recipes that are not dishes.
+    #[serde(default)]
+    pub not_dishes: Vec<(String, String)>,
 }
 
 impl FoodData {
@@ -484,6 +495,9 @@ struct MealEffects {
     illness_mode: crate::illness::Mode,
     well_fed_s: f32,
     nourished_s: f32,
+    /// How long each status effect a meal grade can give lasts (cooking rung 1,
+    /// food_system.ron `meal_quality_levels`), game seconds; 0 for one with no row.
+    meal_fx_s: Vec<(String, f32)>,
 }
 
 // ── EXACT AT ANY FRAME RATE (BUG-164, 2026-10-05) ─────────────────────────────
@@ -577,6 +591,10 @@ pub struct FoodSystem {
     /// seed when it set one (BUG-333, `sim_seed::Stream`): rolled on the thread's own generator,
     /// the routine soak's person fell ill in some runs and not others.
     draws: crate::sim_seed::Stream,
+    /// The cooking tables (2026-11-21, `crate::cooking`): which items are hand-cooked dishes, their
+    /// food classes (what an unsafe one keeps of its raw food's risk, what an overcooked one loses)
+    /// and the meal grades' effects, all read off food_system.ron with the rest.
+    cooking: crate::cooking::Cooking,
 }
 
 impl FoodSystem {
@@ -588,7 +606,7 @@ impl FoodSystem {
             humanity_core::embedded_data::load_data_or_embedded(data_dir, "food_system.ron", humanity_core::data_parse::parse_ron)
                 .unwrap_or_else(|e| {
                     log::warn!("{e}; no food data this session");
-                    FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }
+                    FoodData::default()
                 });
         log::info!("Loaded food data: {} nutrition profiles, {} cooking methods", data.nutrition_profiles.len(), data.cooking_methods.len());
 
@@ -634,6 +652,7 @@ impl FoodSystem {
                 log::warn!("food_system.ron: profile '{}' has no water_g, so it puts back no water", p.id);
             }
         }
+        let cooking = crate::cooking::Cooking::from_food_data(&data);
         let illnesses = crate::illness::Illnesses::load(data_dir);
         let treatments = crate::treatment::Treatments::load(data_dir);
         let wounds = crate::wounds::Wounds::load(data_dir);
@@ -655,6 +674,7 @@ impl FoodSystem {
             treatments,
             wounds,
             draws: crate::sim_seed::Stream::new(crate::sim_seed::FOOD),
+            cooking,
         }
     }
 
@@ -770,6 +790,15 @@ impl FoodSystem {
         // What it carries into the body, for the intake ledger (P3), and when.
         let took = self.intake_of(item_id).unwrap_or_default();
         let now_s = crate::time::elapsed_now(data);
+        // A hand-cooked dish (cooking rung 1, 2026-11-21): its food class says what an unsafe one
+        // keeps of its raw food's risk and what an overcooked one loses again of its vitamins.
+        let made_by = self.cooking.dish_for_item(item_id);
+        let class = made_by.and_then(|d| self.cooking.class(&d.class)).cloned();
+        let unsafe_risk = made_by
+            .and_then(|d| self.cooking.raw_profile_of(d))
+            .and_then(|raw| self.data.nutrition_profiles.iter().find(|p| p.id == raw))
+            .map(|p| p.raw_consumption_risk);
+        let dish_keeps = made_by.and_then(|d| self.cooking.keeps_of(d));
 
         // Spoiled = the stack's own clock past the food's time (§3).
         let keeps = self.freshness_secs(item_id).unwrap_or(f64::INFINITY);
@@ -805,6 +834,18 @@ impl FoodSystem {
                 .flatten()
                 .find(|stack| stack.item_id == item_id)
                 .is_some_and(|stack| stack.age_s >= keeps);
+            // The same stack's dish state (cooking::DishState on its grade byte), 0 when it was not
+            // cooked by hand. Only an item a dish makes carries one.
+            let dish = class.as_ref().and_then(|_| {
+                let byte = inv.slots.iter().rev().flatten().find(|stack| stack.item_id == item_id).map_or(0, |stack| stack.quality);
+                crate::cooking::DishState::from_byte(byte)
+            });
+            // An unsafe dish (undercooked meat or eggs, beans never boiled long enough) keeps its
+            // raw food's risk; cooked to its safety line it keeps its own (0 for every dish).
+            let risk = match dish {
+                Some(d) if !d.safe => unsafe_risk.unwrap_or(risk).max(risk),
+                _ => risk,
+            };
 
             inv.remove_item(item_id, 1);
             // Drinking from a vessel hands the empty vessel back (2026-09-26,
@@ -838,6 +879,14 @@ impl FoodSystem {
                 got.fat_g *= mult;
                 got.fiber_g *= mult;
                 got.vitamins_dv.iter_mut().chain(got.minerals_mg.iter_mut()).for_each(|x| *x *= mult);
+                // Overcooked, a dish loses its vitamin C and B group a second time, by its class's
+                // USDA retention factors (cooking rung 1): what was really eaten.
+                if let (Some(d), Some(k)) = (dish, dish_keeps) {
+                    if d.doneness == crate::cooking::Doneness::Overcooked {
+                        got.vitamins_dv[2] *= f64::from(k.c);
+                        got.vitamins_dv[1] *= f64::from(k.b);
+                    }
+                }
                 ledger.add(now_s, &got);
             }
             // Eating solid food leaves a little organic waste (scraps) to
@@ -889,6 +938,16 @@ impl FoodSystem {
             if calories > 0.0 && vitals.satiation >= WELL_FED_THRESHOLD {
                 effects.apply("well_fed", fx.well_fed_s);
                 effects.apply("well_nourished", fx.nourished_s);
+            }
+            // A hand-cooked dish's meal grade does what the data says (cooking rung 1,
+            // food_system.ron meal_quality_levels): each of its effects on its chance.
+            if let Some(level) = dish.and_then(|d| self.cooking.meals.get(usize::from(d.meal))) {
+                for id in &level.status_effects {
+                    let lasts = fx.meal_fx_s.iter().find(|(e, _)| e == id).map_or(0.0, |(_, s)| *s);
+                    if lasts > 0.0 && rand::Rng::random::<f32>(self.draws.rng(data)) < level.status_effect_chance {
+                        effects.apply(id, lasts);
+                    }
+                }
             }
             log::info!(
                 "[Food] {} {item_id} ({}): satiation {:.0}/{:.0}, hydration {:.0}/{:.0}",
@@ -1008,6 +1067,13 @@ impl System for FoodSystem {
                 illness_mode,
                 well_fed_s: effect_s("well_fed", FALLBACK_WELL_FED_S),
                 nourished_s: effect_s("well_nourished", FALLBACK_WELL_FED_S),
+                meal_fx_s: self
+                    .cooking
+                    .meals
+                    .iter()
+                    .flat_map(|m| m.status_effects.iter())
+                    .map(|id| (id.clone(), effect_s(id, 0.0)))
+                    .collect(),
             };
             let fluids = data.get::<crate::fluids::FluidTable>("fluid_table");
             let empty_of = |id: &str| {

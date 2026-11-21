@@ -31,6 +31,15 @@ pub(crate) fn carry(gui: &mut GuiState, data: &mut DataStore, world: &mut hecs::
             }
         }
     }
+    // A dish's heat and time (cooking rung 1, 2026-11-21): the crafting system takes it when the
+    // craft above starts (humanity_systems::cooking::start).
+    if let Some(choice) = gui.pending_cook_choice.take() {
+        if let Some(slot) = data.get::<std::sync::Mutex<Option<humanity_systems::cooking::Choice>>>(humanity_systems::cooking::CHOICE_KEY) {
+            if let Ok(mut s) = slot.lock() {
+                *s = Some(choice);
+            }
+        }
+    }
     if gui.dev_stock_materials {
         gui.dev_stock_materials = false;
         if let Some(slot) = data

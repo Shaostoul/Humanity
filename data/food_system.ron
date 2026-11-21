@@ -66,10 +66,10 @@
 //     36% fat, 51% carbohydrate as quoted by mreinfo.com.
 //
 // Preservation methods multiply base shelf life. Multiple methods do NOT stack.
-// Cooking methods modify nutrition, taste, preservation, and require cooking skill.
-// Meal quality is determined by ingredients, cooking method, and cook skill level.
-// (Preservation, cooking and meal quality are loaded but no code acts on them
-// yet. The temperature zones scale the spoilage clock, see spoilage_rate_hours.)
+// Cooking methods, food classes and dishes are the cooking procedure (heat, time
+// and doneness; docs/design/cooking.md), and meal quality grades a hand-cooked
+// dish (cooking rung 1, 2026-11-21). Preservation methods are loaded and not yet
+// acted on. The temperature zones scale the spoilage clock, see spoilage_rate_hours.
 //
 // Status effect IDs reference status_effects.csv.
 
@@ -975,6 +975,57 @@
             description: "A lean white fish fillet cooked over heat. Almost pure protein.",
         ),
 
+        // Cooking rung 1 (2026-11-21, docs/design/cooking.md): a hard-boiled egg
+        // (cook_boiled_eggs). Its numbers are the eggs row's, whose base already is
+        // SR28 NDB 01129 "Egg, whole, cooked, hard-boiled"; cooked through, it keeps
+        // no raw risk. Keeps: 72 h, the cooked dishes' three days, a game choice not
+        // separately sourced (FoodKeeper's hard-cooked egg row was not read this pass).
+        (
+            id: "eggs_cooked",
+            name: "Boiled Eggs",
+            category: "protein",
+            calories_per_100g: 155,
+            protein_g: 13.0,
+            carbs_g: 1.1,
+            fat_g: 11.0,
+            fiber_g: 0.0,
+            water_g: 74.62, // SR28 NDB 01129, as the eggs row
+            vitamins: (A: 0.06, B: 0.10, C: 0.0, D: 0.04, E: 0.05, K: 0.01),
+            minerals: (iron: 1.8, calcium: 56.0, zinc: 1.3, potassium: 138.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "An egg boiled until the yolk and white are firm.",
+        ),
+
+        // Cooking rung 1 (2026-11-21): dry beans soaked and boiled (cook_beans).
+        // Base: USDA SR Legacy NDB 16028 "Beans, kidney, all types, mature seeds,
+        // cooked, boiled, without salt" (FoodData Central 173740, published
+        // 2019-04-01, read 2026-11-21 through the FDC search API): 127 kcal, protein
+        // 8.67 g, fat 0.5 g, carbohydrate 22.8 g, fibre 6.4 g, water 66.9 g; calcium
+        // 35, iron 2.22, zinc 1, potassium 405 mg; vitamin C 1.2 mg, E 0.03 mg, K
+        // 8.4 ug, A and D 0; thiamin 0.16, riboflavin 0.058, niacin 0.578, B6 0.12 mg,
+        // folate 130 ug, B12 0. Vitamins as fractions of the FDA Daily Values as the
+        // rows above (B the mean of the six: 0.133, 0.045, 0.036, 0.071, 0.325, 0 =
+        // 0.10). The raw row is legumes_dry's base, NDB 16027: 300 g of dry beans
+        // (88.25 g of solids per 100 g) cook to 800 g (33.1 g per 100 g), the
+        // recipe's four 200 g bowls. Keeps: 72 h, as eggs_cooked, a game choice.
+        (
+            id: "legumes_cooked",
+            name: "Cooked Beans",
+            category: "staple",
+            calories_per_100g: 127,
+            protein_g: 8.67,
+            carbs_g: 22.8,
+            fat_g: 0.5,
+            fiber_g: 6.4,
+            water_g: 66.9, // SR Legacy NDB 16028, the base above
+            vitamins: (A: 0.0, B: 0.10, C: 0.01, D: 0.0, E: 0.0, K: 0.07),
+            minerals: (iron: 2.22, calcium: 35.0, zinc: 1.0, potassium: 405.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Dry beans soaked and boiled hard until soft. Safe once they have boiled long enough.",
+        ),
+
         // --- Preserved and packaged ---
 
         // Base: USDA SR Legacy NDB 19002 "Snacks, beef jerky, chopped and formed".
@@ -1166,139 +1217,246 @@
 
     cooking_methods: [
         // =====================================================================
-        // COOKING METHODS (9)
+        // COOKING METHODS (10): the heat around the food (cooking rung 1,
+        // 2026-11-21, docs/design/cooking.md section 1; read by
+        // crates/humanity-systems/src/cooking.rs).
+        //   medium_c: the temperature of what surrounds the food at each heat
+        //     (low, medium, high), or None for a method with no heat. Water
+        //     boils at 100 C at sea-level pressure, so boiling and steaming
+        //     cannot get hotter whatever the burner does (low heat holds a
+        //     pot at a simmer below the boil). The pan, grill and oven
+        //     figures are typical kitchen settings: a game choice, not a
+        //     sourced figure, and never a safety line (those are on the food
+        //     classes below, with their sources).
+        //   heat_transfer: how fast that medium gets heat into food, boiling
+        //     water 1.0 (hot air in an oven is far slower than water or steam
+        //     around the food). A game choice.
+        //   skill_required: the skill a hand-cooked dish's meal grade reads
+        //     when its recipe names none.
+        // (Until 2026-11-21 these rows carried nutrition, taste, preservation,
+        // time and safety multipliers that no source supported and no code
+        // read; the doneness model and the sourced retention factors on the
+        // food classes replace them.)
         // =====================================================================
 
-        (
-            id: "raw",
-            name: "Raw (No Cooking)",
-            nutrition_modifier: 1.0,
-            taste_modifier: 0.5,
-            preservation_modifier: 1.0,
-            skill_required: None,
-            skill_level: 0,
-            requires_heat_source: false,
-            cooking_time_multiplier: 0.0,
-            food_safety_risk: 0.3,
-            description: "No preparation. Full nutrition retained but risk of foodborne illness.",
-        ),
+        (id: "raw", name: "Raw (No Cooking)", medium_c: None, heat_transfer: 0.0, skill_required: None,
+            description: "No preparation: what is in the food stays in it, the good and the bad."),
+        (id: "boiled", name: "Boiled", medium_c: Some((90.0, 100.0, 100.0)), heat_transfer: 1.0, skill_required: Some("cooking"),
+            description: "Cooked in water at the boil, or at a simmer just under it. Water cannot get hotter than its boiling point, so more heat only makes it boil harder."),
+        (id: "steamed", name: "Steamed", medium_c: Some((100.0, 100.0, 100.0)), heat_transfer: 1.0, skill_required: Some("cooking"),
+            description: "Cooked in the steam over boiling water, at the water's boiling point."),
+        (id: "fried", name: "Fried", medium_c: Some((120.0, 160.0, 190.0)), heat_transfer: 0.8, skill_required: Some("cooking"),
+            description: "Cooked in a hot pan or in oil, far hotter than boiling water: it browns, and it can burn."),
+        (id: "grilled", name: "Grilled", medium_c: Some((150.0, 200.0, 250.0)), heat_transfer: 0.6, skill_required: Some("cooking"),
+            description: "Direct heat over flames, coals or an element."),
+        (id: "baked", name: "Baked", medium_c: Some((150.0, 180.0, 220.0)), heat_transfer: 0.35, skill_required: Some("baking"),
+            description: "Dry heat in an enclosed oven: even, but hot air heats food slowly."),
+        (id: "roasted", name: "Roasted", medium_c: Some((160.0, 190.0, 220.0)), heat_transfer: 0.35, skill_required: Some("cooking"),
+            description: "Meat or vegetables in a hot oven, uncovered."),
+        (id: "smoked", name: "Smoked", medium_c: Some((80.0, 110.0, 130.0)), heat_transfer: 0.25, skill_required: Some("preserving"),
+            description: "Slow-cooked in wood smoke at a low heat."),
+        (id: "dehydrated", name: "Dehydrated", medium_c: Some((55.0, 60.0, 70.0)), heat_transfer: 0.3, skill_required: Some("preserving"),
+            description: "Moisture driven off with prolonged low heat, about 60 C (140 F) in a dehydrator or oven (NCHFP, Jerky)."),
+        (id: "fermented", name: "Fermented", medium_c: None, heat_transfer: 0.0, skill_required: Some("fermenting"),
+            description: "Controlled microbial transformation, at room temperature over days to weeks."),
+    ],
 
+    // =========================================================================
+    // FOOD CLASSES (cooking rung 1, 2026-11-21, docs/design/cooking.md section 1;
+    // read by crates/humanity-systems/src/cooking.rs). How a kind of food heats
+    // through, when it is done, when it is safe, and what overcooking costs it.
+    //   raw_profile: the nutrition profile above whose raw_consumption_risk an
+    //     undercooked, unsafe dish of this class keeps (the game's existing
+    //     odds, game-scale judgements as that field says). None: nothing to keep.
+    //   start_c: where the food starts, 4 C from the fridge (FDA: a refrigerator
+    //     at or below 4 C) or 20 C from the pantry.
+    //   heat_up_min: the time constant of the inside's first-order approach to
+    //     the medium, in boiling water (a method's heat_transfer divides it),
+    //     for a typical piece. A game choice sized so the times come out near a
+    //     kitchen's; a dish may give its own (a pancake is thinner than a loaf).
+    //   done_c, tender_min: done tender_min minutes after the inside reaches
+    //     done_c (meat and eggs at once; beans, grains and vegetables soften
+    //     with time). For a class with a core safety line done_c is that line,
+    //     so a done dish is a safe one; beans' safety is the boil instead.
+    //   safe: the safety line, from a primary source with its date and words.
+    //     core_c: the inside must reach it. boil_min: the medium must be at a
+    //     full boil (100 C) at least this many minutes. rest_min: rest after
+    //     cooking (said on the card; resting is rung 2). None: cooking does not
+    //     make this food safe or unsafe.
+    //   overcook_after_min: minutes past done before it is overcooked (dry,
+    //     tough, mushy). burn_after_min at a medium of burns_above_c or hotter:
+    //     minutes past done before it burns and is lost. Game choices.
+    //   keeps: what an overcooked dish keeps AGAIN of its vitamin C and B group
+    //     (the profile already carries one proper cook), USDA's true retention
+    //     factor for the food and method: "USDA Table of Nutrient Retention
+    //     Factors, Release 6" (Nutrient Data Laboratory, December 2007),
+    //     https://www.ars.usda.gov/ARSUserFiles/80400525/Data/retn/retn06.pdf,
+    //     read 2026-11-21 (PDF, text extracted locally). c is its "Vitamin C,
+    //     total ascorbic acid" column; b the mean of its thiamin, riboflavin,
+    //     niacin, vitamin B-6, folate (total) and vitamin B-12 columns, the six
+    //     B vitamins the profiles' B is the mean of. Applying it a second time
+    //     for overcooking is the game's model; the table itself shows longer
+    //     cooking keeping less (code 0501, legumes cooked 15/20 min, folate 60;
+    //     code 0521, 45/75 min, folate 45). None: no factor read, nothing lost.
+    // Every safety line and factor here had a separate refutation pass before
+    // it shipped: docs/reference/findings/2026-11-21-cooking-safety-facts.md.
+    // =========================================================================
+    food_classes: [
         (
-            id: "boiled",
-            name: "Boiled",
-            nutrition_modifier: 0.80,
-            taste_modifier: 0.7,
-            preservation_modifier: 1.2,
-            skill_required: Some("cooking"),
-            skill_level: 1,
-            requires_heat_source: true,
-            cooking_time_multiplier: 1.0,
-            food_safety_risk: 0.02,
-            description: "Immersed in boiling water. Safe and easy but some nutrients leach into water.",
+            id: "poultry",
+            raw_profile: Some("raw_meat"),
+            start_c: 4.0, heat_up_min: 20.0, done_c: 74.0, tender_min: 0.0,
+            // CDC, "Preventing Food Poisoning", https://www.cdc.gov/food-safety/prevention/index.html
+            // (dated Nov. 24, 2025; read 2026-11-21): "All poultry, including ground chicken and
+            // turkey": "165°F". 74 C is our conversion (CDC gives Fahrenheit only).
+            safe: Some((core_c: Some(74.0), boil_min: None, rest_min: 0.0)),
+            overcook_after_min: 15.0, burn_after_min: 20.0, burns_above_c: 180.0,
+            // Code 0805 CHICKEN,ROASTED: C 80; B (70+90+80+80+60+65)/6 = 74.
+            keeps: Some((c: 0.80, b: 0.74)),
         ),
+        (
+            id: "fish",
+            raw_profile: Some("raw_fish"),
+            start_c: 4.0, heat_up_min: 10.0, done_c: 63.0, tender_min: 0.0,
+            // CDC, the same page: "Fish with fins": "145°F or cook until the flesh is opaque and
+            // separates easily with a fork". 63 C is our conversion.
+            safe: Some((core_c: Some(63.0), boil_min: None, rest_min: 0.0)),
+            overcook_after_min: 6.0, burn_after_min: 10.0, burns_above_c: 180.0,
+            // Code 2305 FINFISH,<5%FAT,BROILED,WO/DRIPPINGS: C 80; B (90+95+95+90+90+90)/6 = 92.
+            keeps: Some((c: 0.80, b: 0.92)),
+        ),
+        (
+            id: "eggs",
+            raw_profile: Some("eggs"),
+            start_c: 4.0, heat_up_min: 9.0, done_c: 71.0, tender_min: 0.0,
+            // CDC, "Backyard Poultry", https://www.cdc.gov/healthy-pets/about/backyard-poultry.html
+            // (dated July 18, 2025; read 2026-11-21): "Cook eggs until both the yolk and white are
+            // firm." and "Egg dishes should be cooked to an internal temperature of 160°F (71°C) or
+            // hotter." Our reading: CDC gives a temperature only for egg dishes; the game holds a
+            // whole egg's centre to that same 71 C, and the card says so (cooking.safe_eggs).
+            safe: Some((core_c: Some(71.0), boil_min: None, rest_min: 0.0, say: Some("cooking.safe_eggs"))),
+            overcook_after_min: 8.0, burn_after_min: 6.0, burns_above_c: 150.0,
+            // Code 0105 EGGS,HARD COOKED: C 80; B (85+95+95+95+75+85)/6 = 88. (Code 0103
+            // EGGS,FRIED,SCRAMBLED, the omelette's, has the same figures.)
+            keeps: Some((c: 0.80, b: 0.88)),
+        ),
+        (
+            id: "dry_beans",
+            raw_profile: Some("legumes_dry"),
+            start_c: 20.0, heat_up_min: 6.0, done_c: 85.0, tender_min: 45.0,
+            // FDA, "Bad Bug Book", 2nd ed. (2012), chapter "Phytohaemagglutinin (kidney bean
+            // lectin)", https://www.fda.gov/media/83271/download (read 2026-11-21, PDF, text
+            // extracted locally): "Consumers should boil the beans for at least 30 minutes to ensure
+            // that the product reaches sufficient temperature, for a sufficient amount of time, to
+            // completely destroy the toxin." and "Studies of casseroles cooked in slow cookers
+            // revealed that the food often reached internal temperatures of only 75°C or less, which
+            // is inadequate for destruction of the toxin." FDA gives no safe line below the boil (its
+            // evidence is slow cookers at 75 C or less), so the game counts beans simmered below a
+            // full boil as unsafe, however soft: a cautious game choice, not FDA's finding. FDA's
+            // advice is for kidney beans, the richest in the toxin; the game applies it to every dry
+            // bean (the safe side). Its consumer box also says to soak them at least 5 hours, pour
+            // the water away and boil them in fresh water (cook_beans' words; soaking is not modelled).
+            safe: Some((core_c: None, boil_min: Some(30.0), rest_min: 0.0)),
+            overcook_after_min: 60.0, burn_after_min: 20.0, burns_above_c: 150.0,
+            // Overcooked beans have been boiled about two hours: code 0541 LEGUMES,CKD 2/2.5HRS,
+            // BOILED,DRAINED (C 65; B (40+75+55+50+30+100)/6 = 58.3) against code 0521 LEGUMES,CKD
+            // 45/75MIN (C 65; B 67.5), the beans' own done time: C 65/65 = 1.00, B 58.3/67.5 = 0.86.
+            // A sourced ratio, not the second-cook model (legumes' vitamin C holds at 65 from 15
+            // minutes to 2.5 hours).
+            keeps: Some((c: 1.00, b: 0.86)),
+        ),
+        (
+            id: "vegetables",
+            raw_profile: None,
+            start_c: 20.0, heat_up_min: 6.0, done_c: 85.0, tender_min: 10.0,
+            safe: None,
+            overcook_after_min: 15.0, burn_after_min: 10.0, burns_above_c: 150.0,
+            // Code 3776 VEG,OTHER,BLD,WATER USED (a soup keeps its water): C 85;
+            // B (90+95+95+90+85+100)/6 = 93.
+            keeps: Some((c: 0.85, b: 0.93)),
+        ),
+        (
+            id: "grains",
+            raw_profile: None,
+            start_c: 20.0, heat_up_min: 4.0, done_c: 95.0, tender_min: 12.0,
+            safe: None,
+            overcook_after_min: 10.0, burn_after_min: 8.0, burns_above_c: 150.0,
+            // Code 0358 CEREAL,REG/QUICK,COOKED, porridge's row: C 80; B (80+90+90+90+70+100)/6 = 87.
+            // Rice carries its own (dishes below).
+            keeps: Some((c: 0.80, b: 0.87)),
+        ),
+        (
+            id: "dough",
+            // Raw flour's risk (the grains row's game odds); a dish with raw egg in it keeps the
+            // eggs row's instead (dishes below).
+            raw_profile: Some("grains"),
+            start_c: 20.0, heat_up_min: 15.0, done_c: 95.0, tender_min: 0.0,
+            // CDC, "Preventing Food Poisoning" (Nov. 24, 2025), its riskier foods: "Raw dough or raw
+            // batter made with uncooked flour" and "Raw or undercooked poultry, meat, seafood, or
+            // eggs". CDC gives no temperature for them, so the game counts a dough dish safe once it
+            // is done (done: true) and undercooked as keeping its raw flour's or egg's risk.
+            safe: Some((core_c: None, boil_min: None, rest_min: 0.0, done: true, say: Some("cooking.safe_dough"))),
+            overcook_after_min: 10.0, burn_after_min: 10.0, burns_above_c: 200.0,
+            // The table has no row for breads or cakes: overcooked dough only dries out here.
+            keeps: None,
+        ),
+    ],
 
-        (
-            id: "fried",
-            name: "Fried",
-            nutrition_modifier: 0.85,
-            taste_modifier: 1.3,
-            preservation_modifier: 1.0,
-            skill_required: Some("cooking"),
-            skill_level: 2,
-            requires_heat_source: true,
-            cooking_time_multiplier: 0.7,
-            food_safety_risk: 0.03,
-            description: "Cooked in hot oil. Tasty and fast but adds fat content.",
-        ),
-
-        (
-            id: "grilled",
-            name: "Grilled",
-            nutrition_modifier: 0.90,
-            taste_modifier: 1.4,
-            preservation_modifier: 1.1,
-            skill_required: Some("cooking"),
-            skill_level: 2,
-            requires_heat_source: true,
-            cooking_time_multiplier: 0.8,
-            food_safety_risk: 0.05,
-            description: "Direct heat over flames or coals. Great flavor with good nutrient retention.",
-        ),
-
-        (
-            id: "baked",
-            name: "Baked",
-            nutrition_modifier: 0.88,
-            taste_modifier: 1.2,
-            preservation_modifier: 1.3,
-            skill_required: Some("cooking"),
-            skill_level: 3,
-            requires_heat_source: true,
-            cooking_time_multiplier: 1.5,
-            food_safety_risk: 0.01,
-            description: "Dry heat in an enclosed oven. Even cooking, good for breads and casseroles.",
-        ),
-
-        (
-            id: "smoked",
-            name: "Smoked",
-            nutrition_modifier: 0.82,
-            taste_modifier: 1.5,
-            preservation_modifier: 3.0,
-            skill_required: Some("cooking"),
-            skill_level: 3,
-            requires_heat_source: true,
-            cooking_time_multiplier: 4.0,
-            food_safety_risk: 0.03,
-            description: "Slow-cooked in wood smoke. Excellent flavor and greatly extended shelf life.",
-        ),
-
-        (
-            id: "steamed",
-            name: "Steamed",
-            nutrition_modifier: 0.93,
-            taste_modifier: 0.9,
-            preservation_modifier: 1.1,
-            skill_required: Some("cooking"),
-            skill_level: 2,
-            requires_heat_source: true,
-            cooking_time_multiplier: 1.0,
-            food_safety_risk: 0.01,
-            description: "Cooked by steam vapor. Best nutrition retention of all heat methods.",
-        ),
-
-        (
-            id: "fermented",
-            name: "Fermented",
-            nutrition_modifier: 1.10,
-            taste_modifier: 1.1,
-            preservation_modifier: 5.0,
-            skill_required: Some("cooking"),
-            skill_level: 4,
-            requires_heat_source: false,
-            cooking_time_multiplier: 48.0,
-            food_safety_risk: 0.08,
-            description: "Controlled microbial transformation. Creates new nutrients and preserves for months.",
-        ),
-
-        (
-            id: "dehydrated",
-            name: "Dehydrated",
-            nutrition_modifier: 0.70,
-            taste_modifier: 0.6,
-            preservation_modifier: 8.0,
-            skill_required: Some("cooking"),
-            skill_level: 2,
-            requires_heat_source: true,
-            cooking_time_multiplier: 6.0,
-            food_safety_risk: 0.02,
-            description: "Moisture removed through prolonged low heat. Lightweight and shelf-stable.",
-        ),
+    // =========================================================================
+    // DISHES (cooking rung 1): every hand-cooked recipe that is a heat
+    // procedure, with its method, its food class, the item it makes (which the
+    // eaten dish's state is read against), and the heat the station picks in
+    // Simplified (the time it picks follows from the model). heat_up_min, when
+    // given, replaces the class's for this dish (a pancake is thin). A stove or
+    // oven recipe in the cooking category is either here or in not_dishes with
+    // why (cooking.rs's tests hold every one to a decision).
+    // =========================================================================
+    dishes: [
+        (recipe: "cook_boiled_eggs", makes: "egg_boiled_0", method: "boiled", class: "eggs", heat: "medium"),
+        (recipe: "cook_omelette", makes: "omelette_0", method: "fried", class: "eggs", heat: "medium", heat_up_min: Some(3.0)),
+        (recipe: "cook_fish", makes: "fish_grilled_0", method: "grilled", class: "fish", heat: "medium"),
+        (recipe: "cook_roast_chicken", makes: "roast_chicken_0", method: "roasted", class: "poultry", heat: "medium", heat_up_min: Some(45.0)),
+        (recipe: "cook_beans", makes: "beans_cooked_0", method: "boiled", class: "dry_beans", heat: "medium"),
+        (recipe: "cook_soup", makes: "soup_vegetable_0", method: "boiled", class: "vegetables", heat: "low"),
+        (recipe: "cook_soup_vegetable", makes: "soup_vegetable_0", method: "boiled", class: "vegetables", heat: "low"),
+        (recipe: "cook_stew", makes: "stew_meat_0", method: "boiled", class: "vegetables", heat: "low"),
+        (recipe: "cook_stew_meat", makes: "stew_meat_0", method: "boiled", class: "vegetables", heat: "low"),
+        // Rice: code 0432 RICE,WHITE/BROWN,COOKED,WATER USED, C 80; B (80+90+100+95+70+100)/6 = 89.
+        (recipe: "cook_rice", makes: "cooked_rice_0", method: "boiled", class: "grains", heat: "medium", keeps: Some((c: 0.80, b: 0.89))),
+        // Pasta is a dough of flour and raw egg (cook_pasta): code 0381 PASTA,BOILED,DRAINED, C 70;
+        // B (65+75+65+80+70+100)/6 = 76.
+        (recipe: "cook_pasta", makes: "pasta_cooked_0", method: "boiled", class: "dough", heat: "medium", heat_up_min: Some(2.0), raw_profile: Some("eggs"), keeps: Some((c: 0.70, b: 0.76))),
+        (recipe: "cook_porridge", makes: "porridge_0", method: "boiled", class: "grains", heat: "low"),
+        (recipe: "cook_bread", makes: "bread_0", method: "baked", class: "dough", heat: "medium"),
+        (recipe: "cook_bread_whey", makes: "bread_0", method: "baked", class: "dough", heat: "medium"),
+        (recipe: "cook_pizza", makes: "pizza_slice_0", method: "baked", class: "dough", heat: "high", heat_up_min: Some(5.0)),
+        (recipe: "cook_protein_bar", makes: "protein_bar_0", method: "baked", class: "dough", heat: "medium", heat_up_min: Some(8.0), raw_profile: Some("eggs")),
+        (recipe: "bake_cake", makes: "cake_0", method: "baked", class: "dough", heat: "medium", raw_profile: Some("eggs")),
+        (recipe: "bake_pie", makes: "pie_0", method: "baked", class: "dough", heat: "medium"),
+        (recipe: "bake_cookies", makes: "cookies_batch_0", method: "baked", class: "dough", heat: "medium", heat_up_min: Some(5.0), raw_profile: Some("eggs")),
+    ],
+    not_dishes: [
+        ("cook_jerky", "drying meat is preserving's procedure (quest-chains.md, Dry It); its heat-first rule is in its text"),
+        ("cook_dried_meat", "drying meat is preserving's procedure (quest-chains.md, Salt It)"),
+        ("cook_dried_fruit", "drying fruit is preserving's procedure (quest-chains.md, Dry It)"),
+        ("cook_canned_food", "canning is preserving's procedure and needs a pressure canner (quest-chains.md, Can It)"),
+        ("cook_cheese", "warming milk to culture it is cheesemaking, fermenting's procedure"),
+        ("cook_coffee", "roasting coffee beans is not a dish and carries no food-safety line"),
+        ("cook_sugar", "refining sugar is a process, not a dish"),
+        ("cook_fried_egg", "its output is bread_0, a data defect (BUG-342): a dish once it makes a fried egg"),
+        ("cook_pancake", "its output is bread_0, a data defect (BUG-342): a dish once it makes pancakes"),
     ],
 
     meal_quality_levels: [
         // =====================================================================
-        // MEAL QUALITY LEVELS (6)
+        // MEAL QUALITY LEVELS (6). Acted on since cooking rung 1 (2026-11-21,
+        // docs/design/cooking.md): a hand-cooked dish that came out done takes the
+        // highest level whose min_cook_skill the cook has in the recipe's skill
+        // (overcooked at most "poor", undercooked "terrible"), and eating it rolls
+        // each of status_effects at status_effect_chance. ingredient_quality_min,
+        // morale_modifier, health_modifier and reputation_modifier wait for
+        // systems that have them (ingredient freshness is rung 2; there is no
+        // morale meter); nothing reads them yet.
         // =====================================================================
 
         (
@@ -1309,8 +1467,11 @@
             morale_modifier: -5,
             health_modifier: -2,
             reputation_modifier: -3,
-            status_effects: ["food_poisoning"],
-            status_effect_chance: 0.20,
+            // Its food poisoning (0.20) went 2026-11-21: an undercooked dish now keeps
+            // its raw food's own risk (food_classes raw_profile), and a spoiled one
+            // always poisons (food.rs), so a flat extra roll would count it twice.
+            status_effects: [],
+            status_effect_chance: 0.0,
             description: "Burnt, raw, or spoiled. May cause illness. Nobody wants seconds.",
         ),
 

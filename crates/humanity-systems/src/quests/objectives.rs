@@ -98,4 +98,13 @@ pub enum QuestObjective {
     /// "how_to:<id>" (a how-to, data/how_to/). The pages report each one the
     /// player opens as `learn_<page>`; opening counts.
     Learn { page: String },
+    /// Cook (2026-11-21, cooking rung 1, docs/design/cooking.md): the crafting system reports each
+    /// unit of food a hand-cooked dish made that came out cooked through (done or overcooked, AND
+    /// safe; never undercooked, never burnt) as `cooked_<item_id>` (`cooking::credit`), so a dish
+    /// the cook got wrong counts nothing. `item_id` None counts any dish, Some only that one.
+    Cook {
+        #[serde(default)]
+        item_id: Option<String>,
+        quantity: u32,
+    },
 }

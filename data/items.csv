@@ -591,6 +591,13 @@ porridge_0,Porridge,food,cooked,plant_fiber,0.4,10,0,Hot oat or grain breakfast 
 # its source), 350 g, about two cups (USDA FoodData Central gives a cup of cooked long-grain white rice as
 # 158 g).
 cooked_rice_0,Cooked Rice,food,cooked,plant_fiber,0.35,10,0,A bowl of plain boiled white rice (cook_rice),solid,0.65
+# Cooking rung 1 (2026-11-21, docs/design/cooking.md). A boiled egg weighs what the egg did (egg_0, 60 g
+# in the shell). A bowl of cooked beans is a quarter of cook_beans' pot: 300 g of dry beans cook to 800 g
+# (data/food_system.ron legumes_cooked has the ratio and its source). The food thermometer is a digital
+# probe for reading the inside of food; it is not worn by use (durability 0).
+egg_boiled_0,Boiled Egg,food,cooked,shell,0.06,30,0,An egg boiled until the yolk and white are firm (cook_boiled_eggs),solid,0.05
+beans_cooked_0,Cooked Beans,food,cooked,plant_fiber,0.2,10,0,A bowl of dry beans soaked and boiled hard (cook_beans),solid,0.25
+food_thermometer_0,Food Thermometer,tool,kitchen,stainless_steel,0.05,1,0,A probe thermometer that reads the temperature inside food,solid,0.1
 salad_0,Salad,food,cooked,plant_fiber,0.4,10,0,Mixed raw vegetable bowl,solid,0.74
 cake_0,Cake,food,baked,plant_fiber,1.0,5,0,Sweet layered baked dessert,solid,1.85
 pie_0,Pie,food,baked,plant_fiber,0.8,5,0,Filled pastry-crust baked dish,solid,1.48

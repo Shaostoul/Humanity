@@ -83,9 +83,11 @@ pub fn draw_vendor_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     .flatten()
                     .filter_map(|it| {
                         state.vendor_goods.iter().find(|g| g.id == it.item_id).map(|g| {
-                            let m = state.quality_levels.price_multiplier(it.quality);
+                            // Food's grade byte is a dish's state, never a craft grade (cooking rung 1).
+                            let grade = humanity_systems::cooking::craft_grade(&it.item_id, it.quality);
+                            let m = state.quality_levels.price_multiplier(grade);
                             let price = humanity_systems::economy::parts::graded_pay(g.sell_price, g.parts_price, m).unwrap_or(0);
-                            let name = match state.quality_levels.name(it.quality) {
+                            let name = match state.quality_levels.name(grade) {
                                 Some(grade) => format!("{} ({grade})", it.name),
                                 None => it.name.clone(),
                             };

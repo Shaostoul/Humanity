@@ -124,6 +124,11 @@
                 // When Food or Water Makes You Sick, from the CDC: keep them in the
                 // house and start them as soon as the diarrhoea begins.
                 ("ors_sachet_0", 4),
+                // A food thermometer and the hens' first eggs (cooking rung 1, 2026-11-21): CDC,
+                // "The only way to tell if food is safely cooked is to use a food thermometer."
+                // Cook It Through (data/quests/survival.ron) boils two of the eggs.
+                ("food_thermometer_0", 1),
+                ("egg_0", 6),
                 ("trowel_0", 1),
                 ("hoe_0", 1),
                 ("knife_utility_0", 1),

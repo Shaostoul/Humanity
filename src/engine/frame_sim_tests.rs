@@ -469,6 +469,11 @@ fn the_routine_soak_in_a_process_of_its_own() {
 /// 22.5 hours awake: `RoutineLog::lowest_energy`). Tiredness at bedtime is real; the fatigue
 /// slowdown is for staying up late or hard work (food.rs ENERGY_DECAY_PER_SEC, 17 hours to the
 /// line, Williamson and Feyer 2000).
+/// AND COOK IT THROUGH (2026-11-21, cooking rung 1): the kit's eggs boiled on the stove at the
+/// station's pick, a dish cooked through and safe, which its Cook step counts. Seen red with the
+/// routine's three Craft cook_boiled_eggs acts taken out: "the soak finished [...8 quests] of the
+/// survival quests; under way [\"gs_first_steps\", \"food_cook\", \"tutorial_farming_basics\"]".
+///
 /// Seen red 2026-11-21 with the nap gone and the drain back at 75 over 16 hours: "a regular
 /// sleeper went under the fatigue line: Energy 24.2 at 22.67 h" (up at 06:40, the lowest at
 /// 22:40). With the 17-hour drain the lowest is 28.7 at 22:40.

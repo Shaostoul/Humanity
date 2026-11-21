@@ -203,15 +203,15 @@
     },
     {
       "id": "cooking", "family": "food", "name": "Cooking", "skills": ["cooking", "nutrition"], "status": "partial",
-      "evidence": ["crates/humanity-systems/src/crafting/mod.rs", "crates/humanity-systems/src/crafting/quality.rs", "data/recipes.csv", "data/food_system.ron"],
-      "features_heading": "Quality Grades for Crafted Goods",
-      "design_doc": "docs/design/quest-chains.md", "levels_setting": null, "tier": "T1",
+      "evidence": ["crates/humanity-systems/src/cooking.rs", "crates/humanity-systems/src/crafting/mod.rs", "data/food_system.ron", "data/recipes.csv"],
+      "features_heading": "Cooking: heat, time and doneness (cooking rung 1, 2026-11-21)",
+      "design_doc": "docs/design/cooking.md", "levels_setting": "cooking", "tier": "T1",
       "real_life_twin": "None yet (a diet and meal tracker in Home is planned by two-realities.md)",
       "real_life_twin_path": "data/library/nutrition_that_keeps_you_working.md",
       "engagement_modes": ["direct", "trade", "cooperative", "background"],
       "consumes": ["crops", "eggs and milk", "fuel or power", "water"], "produces": ["meals", "whey and pomace byproducts"],
       "budget": { "frame": "none", "network": "state" }, "operator_to_decide": null,
-      "note": "31 cooking recipes, gated to the stove and oven (v0.749), with quality grades; the cooking methods and meal quality in food_system.ron are loaded and acted on by nothing, and the procedure is a menu click."
+      "note": "Rung 1 (2026-11-21, docs/design/cooking.md): a dish has a method, a heat and a time, and comes out undercooked, done, overcooked or burnt by a core-temperature model per food class; CDC and FDA safety lines decide whether meat, eggs, beans and dough are safe; overcooking costs vitamins (USDA retention factors) and meal quality is acted on. Still partial: the heat and time are chosen on a card, not done with the hands (rung 5), and the pot does not yet cook on the game clock (rung 2)."
     },
     {
       "id": "baking_milling", "family": "food", "name": "Milling and baking", "skills": ["baking"], "status": "partial",

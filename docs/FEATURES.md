@@ -4565,6 +4565,23 @@ the good's parts cost there, so no grade loops money (BUG-146, v0.1463.0).
 - Native: `crates/humanity-systems/src/crafting/quality.rs`, `crates/humanity-systems/src/inventory/mod.rs` (`ItemStack::quality`, `add_item_q`, `TransferOp`), `crates/humanity-systems/src/economy/mod.rs` (`vendor_sell`), `crates/humanity-systems/src/economy/parts.rs` (`graded_pay`, `parts_prices`)
 - Data: `data/manufacturing.ron` (`quality_levels`)
 
+### Cooking: heat, time and doneness (cooking rung 1, 2026-11-21)
+A hand-cooked dish (food_system.ron `dishes`: boiled eggs, beans, grilled fish, roast poultry,
+soups, stews, rice, pasta, porridge, breads, cakes, pizza) has a method and comes out undercooked,
+done, overcooked or burnt from the heat and time it cooked, by a first-order model of the inside
+heating toward the medium per food class (`food_classes`). Safety is separate: CDC's internal
+temperatures (poultry 74 C, fish 63 C, egg dishes 71 C), FDA's 30-minute boil for dry beans, and
+dough or raw egg safe only once done; an unsafe dish keeps its raw food's risk when eaten, a burnt
+one is lost, an overcooked one loses vitamin C and B by USDA's retention factors in the intake
+ledger, and a meal grade from the cook's skill rolls its status effects (well fed, inspired).
+Settings > Gameplay > Cooking: Simplified (the station picks; always done), Guided (choose heat and
+time, see the inside's temperature), Realistic (see it only with a food thermometer). The Crafting
+page's cooking card; the inventory card says how a dish came out; the `Cook` quest objective and
+Cook It Through. Design: docs/design/cooking.md; sources: docs/reference/findings/2026-11-21-cooking-safety-facts.md.
+- Native: `crates/humanity-systems/src/cooking.rs`, `crates/humanity-systems/src/food.rs` (`consume`), `crates/humanity-systems/src/crafting/mod.rs` (`deliver_goods`), `src/gui/pages/cooking_panel.rs`
+- Data: `data/food_system.ron` (`cooking_methods`, `food_classes`, `dishes`, `not_dishes`, `meal_quality_levels`), `data/gameplay/levels.json` (`cooking`), `data/quests/survival.ron` (`food_cook`), `data/how_to/food/cook_meat_to_a_safe_temperature.json`
+- Web: `scripts/gen-recipes-json.js` -> `data/recipes.json` (`dish`), `web/pages/crafting-app.js`
+
 ### Byproducts and Machine Output to Storage
 Recipes leave real byproducts at sourced ratios (slag, sawdust, bran, press
 cake, olive and apple pomace, whey; ratios and sources as # comments in

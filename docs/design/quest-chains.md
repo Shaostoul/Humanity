@@ -451,6 +451,17 @@ row by row by the botanist; this chain cites none of its own. Rewards: XP farmin
 
 **⚠ serious** on step 4: undercooked meat, poultry and fish. Rewards: XP cooking 25.
 
+Built 2026-11-21 with cooking rung 1 ([cooking.md](cooking.md)), every step against what exists:
+1 Learn the how-to (written, `data/how_to/food/cook_meat_to_a_safe_temperature.json`), 2 Gather the
+food thermometer (`food_thermometer_0`, in the homestead kit and sold at the trading post), 3 Cook
+(`Cook(egg_boiled_0, 2)`, the new objective that counts only a dish cooked through and safe):
+"Boil 2 eggs until firm". Eggs, not fish, because a homestead's first days have the kit's six eggs
+and no fish; Grill Fish (`cook_fish`) cooks the trading post's raw fish by the same model. The
+hand-washing step waits for E4 (the sink's walk-up use) and the leftovers step for E6 (Store). The
+description carries CDC's whole list, the 3-minute rest and the seafood exception (the refutation
+pass, [finding](../reference/findings/2026-11-21-cooking-safety-facts.md)). Finished in the soak by
+the_survival_chains_finish_in_the_soak.
+
 #### `food_keep` Keep It
 
 *After `food_first`. The hub for keeping food.*
@@ -1684,7 +1695,7 @@ Left for later rungs, and what each waits for:
 | `water_first`'s reward (the empty jerrycan) | `water_store`, which uses it (24 L of a 65 L pack, carried until put away: the soak has no act that puts things away) |
 | `water_unsafe`, `water_boil`, `water_distil`, `water_store` | P5 (water contents), the raw sources, the new recipes (rung 1 of this plan) |
 | every other water branch | P5's other methods, P6, new items and machines (rungs 3 to 5) |
-| `food_keep` step 2, `food_cook` | E4 (Use), E6 (Store), the thermometer item |
+| `food_keep` step 2, `food_cook`'s hand-washing and leftovers steps | E4 (Use), E6 (Store); the rest of `food_cook` was built 2026-11-21 with cooking rung 1 (2.2) |
 | `food_keep_dry` | nothing in the engine: its ingredients (apples, bananas, mutton) are not in a homestead's first weeks, so no soak can finish it yet; a start with them, or a later rung |
 | `food_keep_salt` | its facts (3.6) and `cook_dried_meat`'s fix |
 | `food_keep_ferment`, `food_keep_can`, `food_balance` | P7; the canners; vitamin C per food (the first twelve nutrition rows' vitamins are category estimates, so a vitamin C step would teach the data's guesses) |

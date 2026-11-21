@@ -92,6 +92,8 @@ pub mod fire;
 pub mod status_effects;
 pub mod flight;
 pub mod food;
+/// Cooking as a procedure: heat, time, doneness and what cooking changes (2026-11-21, rung 1).
+pub mod cooking;
 /// The intake ledger: what the body took in over the last game day (2026-11-20, P3).
 pub mod intake;
 /// Body heat: the Gagge two-node heat balance behind the core temperature (2026-09-27).

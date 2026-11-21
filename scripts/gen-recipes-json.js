@@ -70,6 +70,25 @@ function toolsFor(id, station, category, outputs) {
   return list.filter((t) => !outputs.some((o) => o.id === t)).map((t) => ({ id: t, label: pretty(t) }));
 }
 
+// Dishes (cooking rung 1, 2026-11-21, docs/design/cooking.md): each hand-cooked recipe's method
+// and its food class's safety line, from data/food_system.ron, so the website's recipe card says
+// what the desktop's cooking card says (src/gui/pages/cooking_panel.rs, the same en.json keys).
+const FOOD_RON = fs.readFileSync(path.join('data', 'food_system.ron'), 'utf8');
+const classSafe = {};
+const classesBlock = FOOD_RON.slice(FOOD_RON.indexOf('food_classes: ['), FOOD_RON.indexOf('dishes: ['));
+for (const m of classesBlock.matchAll(/id: "([a-z_]+)",[\s\S]*?safe: (None|Some\(\((.*)\)\)),/g)) {
+  if (m[2] === 'None') { classSafe[m[1]] = null; continue; }
+  const f = m[3];
+  const num = (k) => { const x = f.match(new RegExp(k + ': Some\\(([0-9.]+)\\)')); return x ? Number(x[1]) : null; };
+  const say = f.match(/say: Some\("([a-z_.]+)"\)/);
+  classSafe[m[1]] = { core_c: num('core_c'), boil_min: num('boil_min'), say: say ? say[1] : null };
+}
+const dishes = {};
+for (const m of FOOD_RON.matchAll(/\(recipe: "([a-z_0-9]+)", makes: "[a-z_0-9]+", method: "([a-z]+)", class: "([a-z_]+)"/g)) {
+  dishes[m[1]] = { method: m[2], safe: classSafe[m[3]] || null };
+}
+if (!Object.keys(dishes).length) throw new Error('food_system.ron: no dishes parsed');
+
 const recipes = lines.map((line) => {
   const f = splitRow(line);
   const outputs = parseItems(f[col.outputs]);
@@ -85,6 +104,7 @@ const recipes = lines.map((line) => {
     skill_level: Number(f[col.skill_level]) || 1,
     description: (f[col.description] || '').trim(),
     tools: toolsFor(f[col.id], (f[col.station_required] || '').trim(), f[col.category] || '', outputs),
+    dish: dishes[f[col.id]] || null,
   };
 }).filter((r) => r.id);
 

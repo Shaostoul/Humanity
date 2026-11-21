@@ -192,6 +192,7 @@
     // =========================================================================
 
     (id: "hoe_0",             name: "Hoe",                category: "tool",            base_value: 10,   weight_kg: 1.5,   description: "Farming tool for tilling soil"),
+    (id: "food_thermometer_0", name: "Food Thermometer", category: "tool",            base_value: 8,    weight_kg: 0.05,  description: "Reads the temperature inside food: the only way to tell it is safely cooked (CDC)"),
     (id: "shovel_0",          name: "Shovel",             category: "tool",            base_value: 12,   weight_kg: 2.0,   description: "Digging tool for earth and sand"),
     (id: "pickaxe_0",         name: "Pickaxe",            category: "tool",            base_value: 20,   weight_kg: 3.0,   description: "Mining tool for breaking rock and ore"),
     (id: "axe_0",             name: "Axe",                category: "tool",            base_value: 18,   weight_kg: 2.5,   description: "Felling tool for trees and chopping wood"),

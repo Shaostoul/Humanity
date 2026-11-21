@@ -995,6 +995,8 @@ impl QuestSystem {
             // What the player drank and opened (2026-11-20, E1 and E3).
             QuestObjective::Drink { item_id, quantity } => counted(progress, DRINK_EVENT, item_id.as_deref()) >= *quantity,
             QuestObjective::Learn { page } => progress.get(&learn_event_key(page)).copied().unwrap_or(0) >= 1,
+            // A dish cooked through (2026-11-21, cooking rung 1).
+            QuestObjective::Cook { item_id, quantity } => counted(progress, crate::cooking::COOKED_EVENT, item_id.as_deref()) >= *quantity,
             QuestObjective::Keep { .. } => keep_met,
         }
     }
@@ -1700,6 +1702,12 @@ mod quest_tests {
                             _ => false,
                         };
                         assert!(found, "quest {}: Learn names {page}, which is no shipped guide or how-to", q.id);
+                    }
+                    // A Cook item must be what a dish makes (food_system.ron dishes).
+                    QuestObjective::Cook { item_id, .. } => {
+                        if let Some(id) = item_id {
+                            assert!(crate::cooking::Cooking::load(&root.join("data")).dish_for_item(id).is_some(), "quest {}: Cook names {id}, which no dish makes", q.id);
+                        }
                     }
                 }
                 // Reward items must exist too - a completed quest that grants

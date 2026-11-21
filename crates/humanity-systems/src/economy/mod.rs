@@ -122,6 +122,8 @@ impl TradeGoodsRegistry {
         levels: Option<&crate::crafting::quality::QualityLevels>,
     ) -> Option<i64> {
         let standard = self.vendor_buy_price(id)?;
+        // Food's byte is a hand-cooked dish's state, never a craft grade (cooking rung 1).
+        let quality = crate::cooking::craft_grade(id, quality);
         let m = levels.map_or(1.0, |l| l.price_multiplier(quality));
         parts::graded_pay(standard, self.parts_price(id), m)
     }

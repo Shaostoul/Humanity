@@ -1337,6 +1337,7 @@ pub struct GuiState {
     /// Recipe id the player clicked "Craft" on this frame; the main loop bridges it
     /// to the ECS CraftingSystem. None = nothing pending.
     pub pending_craft_recipe: Option<String>,
+    pub pending_cook_choice: Option<humanity_systems::cooking::Choice>, // a dish's heat and time (pages/cooking_panel.rs)
     /// Dev/creative provisioning request: stock the player with one stack of every
     /// recipe input (raws + intermediates) so every recipe is craftable immediately.
     pub dev_stock_materials: bool,
@@ -3550,6 +3551,7 @@ impl Default for GuiState {
             craft_selected: None,
             craft_selected_category: None,
             pending_craft_recipe: None,
+            pending_cook_choice: None,
             dev_stock_materials: false,
             craft_status: String::new(),
             blueprints: Vec::new(),

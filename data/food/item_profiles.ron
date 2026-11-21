@@ -80,6 +80,8 @@
         ("omelette_0", "omelette"),
         ("porridge_0", "porridge"),
         ("cooked_rice_0", "cooked_rice"),     // milled rice boiled in water (cook_rice)
+        ("egg_boiled_0", "eggs_cooked"),    // an egg boiled firm (cook_boiled_eggs, cooking rung 1)
+        ("beans_cooked_0", "legumes_cooked"), // dry beans soaked and boiled (cook_beans)
         ("salad_0", "raw_vegetables"),        // raw lettuce, tomato and carrot, no dressing
 
         // --- Grains and flour (dry, keep for a year) ---
@@ -357,6 +359,8 @@
         ("omelette_0", 300.0),
         ("porridge_0", 400.0),
         ("cooked_rice_0", 350.0),
+        ("egg_boiled_0", 52.8),      // as egg_0: 60 g in the shell less USDA's 12% shell
+        ("beans_cooked_0", 200.0),   // a quarter of cook_beans' 800 g pot
         ("salad_0", 400.0),
 
         // --- Grains, flour and dry legumes: 500 g and 300 g bags, no refuse ---

@@ -5760,6 +5760,76 @@ fn snapshot_crafting_home_storage() {
     });
 }
 
+/// The Crafting page on Roast Poultry with its cooking card (cooking rung 1, 2026-11-21): the
+/// Realistic level with a food thermometer in the backpack, the card set to low heat for 20
+/// minutes, so the thermometer reads under the safe line (the inside lags a low oven).
+fn cooking_card_state(state: &mut GuiState, level: &str, thermometer: bool) {
+    if state.craft_selected.is_some() {
+        return;
+    }
+    let idx = state.craft_recipes.iter().position(|r| r.id == "cook_roast_chicken").expect("the roast recipe ships");
+    state.craft_selected = Some(idx);
+    state.settings.set_level("cooking", level);
+    if thermometer {
+        state.inventory_items.push(Some(GuiItemSlot { item_id: "food_thermometer_0".into(), name: "Food Thermometer".into(), quantity: 1, ..Default::default() }));
+    }
+    state.inventory_items.push(Some(GuiItemSlot { item_id: "raw_poultry_0".into(), name: "Raw Poultry".into(), quantity: 3, ..Default::default() }));
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_cooking() {
+    crate::gui::pages::cooking_panel::set_choice("cook_roast_chicken", humanity_systems::cooking::Heat::Low, 20.0);
+    render_page_png("crafting_cooking", 1280, 1100, |ctx, theme, state| {
+        cooking_card_state(state, "realistic", true);
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
+
+/// The same card in Simplified (the default): the station picks, no controls.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_crafting_cooking_simplified() {
+    render_page_png("crafting_cooking_simplified", 1280, 1100, |ctx, theme, state| {
+        cooking_card_state(state, "simplified", false);
+        crate::gui::pages::crafting::draw(ctx, theme, state);
+    });
+}
+
+/// THE COOKING CARD SAYS WHAT THE LEVEL ALLOWS, read back from the drawn frame (no GPU): Realistic
+/// with no thermometer shows no reading and says why; with one it shows the inside's temperature;
+/// Simplified says the station picks; and every level shows poultry's safety line. Seen red
+/// 2026-11-21 with the card's thermometer check removed (it read the backpack for nothing):
+/// "Realistic without a thermometer shows the reading".
+#[test]
+fn the_cooking_card_says_what_the_level_allows() {
+    let drawn = |level: &str, thermometer: bool| {
+        let mut state = demo_state();
+        cooking_card_state(&mut state, level, thermometer);
+        let ctx = snapshot_ctx();
+        let theme = load_theme();
+        theme.apply_to_egui(&ctx);
+        let mut out = None;
+        for _ in 0..3 {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(1280.0, 4000.0))), ..Default::default() };
+            out = Some(ctx.run(input, |ctx| crate::gui::pages::crafting::draw(ctx, &theme, &mut state)));
+        }
+        out.expect("frames ran").shapes
+    };
+    let has = |shapes: &[egui::epaint::ClippedShape], q: &str| crate::gui::screen_surface::find_text_in_shapes(shapes, q).is_some();
+    let reading = "Food thermometer: the inside";
+    let none = drawn("realistic", false);
+    assert!(!has(&none, reading), "Realistic without a thermometer shows the reading");
+    assert!(has(&none, "You have no food thermometer"), "Realistic without a thermometer says why it shows no reading");
+    let with = drawn("realistic", true);
+    assert!(has(&with, reading), "Realistic with a thermometer shows the inside's temperature");
+    let simple = drawn("simplified", false);
+    assert!(has(&simple, "The station picks the heat and the time"), "Simplified says the station picks");
+    for (level, shapes) in [("realistic", &none), ("realistic with a thermometer", &with), ("simplified", &simple)] {
+        assert!(has(shapes, "74 C (165 F)"), "poultry's safety line shows in {level}");
+    }
+}
+
 /// The Tools card and the line under a greyed Craft button name a tool the
 /// way the Ingredients and Produces cards name a part ("Wrench Adjustable"),
 /// never by its item id. Headless (no GPU): the drawn text is read back from
@@ -5997,6 +6067,19 @@ fn snapshot_quests_chain_branches() {
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_quests_chain_dev() {
     quest_chain_png("quests_chain_dev", 1400, on_the_second_step(), "gs_first_steps", humanity_systems::quests::chain::Reveal::All);
+}
+
+/// Cook It Through (cooking rung 1, 2026-11-21) in its chain window, every step shown (the
+/// developer's view): Food First done, the how-to read, the thermometer step next.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_quests_cook_it_through() {
+    let tracker = humanity_systems::quests::QuestTracker {
+        active_quests: vec![humanity_systems::quests::ActiveQuest { quest_id: "food_cook".into(), current_step: 1, progress: Default::default() }],
+        completed_quests: vec!["food_first".into()],
+        tracked: Some("food_cook".into()),
+    };
+    quest_chain_png("quests_cook_it_through", 1100, tracker, "food_cook", humanity_systems::quests::chain::Reveal::All);
 }
 page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
 page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);

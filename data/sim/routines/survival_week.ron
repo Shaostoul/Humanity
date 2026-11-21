@@ -83,6 +83,14 @@
         (hour: 15.5, act: Drink),
         (hour: 18.5, act: Drink),
         (hour: 19.0, act: Eat),
+        // Cook It Through (2026-11-21, cooking rung 1) starts when Food First ends (by 19:00 on
+        // day 0): its how-to, then two of the kit's eggs boiled on the stove at the station's pick
+        // (the Simplified level, which the soak plays). Days 0 to 2, in case Food First ends late;
+        // a craft with no eggs left is refused and spends nothing.
+        (hour: 19.3, act: Read, what: "how_to:cook_meat_to_a_safe_temperature"),
+        (hour: 19.6, act: Craft, what: "cook_boiled_eggs", day: Some(0)),
+        (hour: 19.6, act: Craft, what: "cook_boiled_eggs", day: Some(1)),
+        (hour: 19.6, act: Craft, what: "cook_boiled_eggs", day: Some(2)),
         (hour: 20.0, act: Compost, day: Some(0)),
         (hour: 20.0, act: Compost, day: Some(1)),
         (hour: 20.0, act: Compost, day: Some(2)),

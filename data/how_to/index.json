@@ -91,6 +91,36 @@
       "search": "change furnace filter put clean in forced air the right way round so it runs as should anyone with no experience needed furnace's own manual says where its is turn off electrical supply open door or cover and slide old out write down size of one you throw away washable take new same wash by spraying tap water through from side comes rinse let dry into slot arrow on frame pointing flows toward if sits inside blower fan look again does point close back points will not compare filter's do run torn replace rather than washing screwdriver flat"
     },
     {
+      "id": "cook_meat_to_a_safe_temperature",
+      "file": "food/cook_meat_to_a_safe_temperature.json",
+      "title": "Cook meat, fish and eggs safely",
+      "summary": "Use a food thermometer to know that meat and poultry are cooked enough to be safe, because their colour and texture cannot tell you. Fish can also be judged by its flesh, and eggs by a firm yolk and white.",
+      "category": "food_cooking",
+      "top": "food",
+      "audience": "everyone",
+      "realities": [
+        "real",
+        "sim"
+      ],
+      "apps": [],
+      "time": {
+        "active_min": 5,
+        "waiting_min": 3
+      },
+      "difficulty": 1,
+      "hazard": "serious",
+      "review": {
+        "status": "sourced",
+        "checked": "2026-11-21",
+        "person": null
+      },
+      "written_by": "ai",
+      "makes": null,
+      "steps": 6,
+      "hash": "08a4ea64740cc6254e0d31d75de22625e1776fd50481ced5575fe848c60c5e18",
+      "search": "cook meat fish and eggs safely use food thermometer to know that poultry are cooked enough be safe because their colour texture cannot tell you can also judged by its flesh firm yolk white anyone cooking or leftovers for themselves others wash your hands after handling raw seafood keep away from is ready eat what decides the temperature inside must reach it then check with does read this higher whole if cut of beef veal lamb pork let rest minutes before carve reads under again until do not go"
+    },
+    {
       "id": "mix_ors_packet",
       "file": "health/mix_ors_packet.json",
       "title": "Mix oral rehydration solution from a packet",
@@ -188,6 +218,7 @@
       "canning_lid_0": "Canning Lid",
       "cooking_pot_0": "Cooking Pot",
       "cup_0": "Cup",
+      "food_thermometer_0": "Food Thermometer",
       "furnace_0": "Furnace",
       "furnace_filter_0": "Furnace Filter",
       "measuring_jug_0": "Measuring Jug (1 L)",
@@ -236,7 +267,7 @@
     }
   },
   "counts": {
-    "written": 6,
+    "written": 7,
     "planned": 48
   }
 }

@@ -782,3 +782,9 @@ what we will say about it.
   since February 2025, current wgpu needing only `dxcompiler.dll`; the options (DXC's GitHub release
   with its LICENSE.TXT beside the DLLs, recommended; a wgpu upgrade; a source build; stop bundling)
   for the operator. Not legal advice.
+- [`2026-11-21-cooking-safety-facts.md`](2026-11-21-cooking-safety-facts.md),
+  what cooking rung 1 teaches (docs/design/cooking.md) and from where: CDC's safe internal temperatures
+  and its seafood exception to "colour does not tell you", CDC's egg lines (firm; egg dishes 160 F),
+  FDA's Bad Bug Book on kidney beans (boil 30 minutes; slow cookers at 75 C or less fail), CDC's raw
+  dough and raw egg, USDA's retention factors (Release 6) and SR Legacy 16028; the refutation pass's
+  eleven corrections, and which numbers are game choices.
