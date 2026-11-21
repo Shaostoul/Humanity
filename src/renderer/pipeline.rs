@@ -2376,7 +2376,11 @@ where
     std::thread::Builder::new()
         .name(format!("pso: {name}"))
         .stack_size(COMPILE_STACK_BYTES)
-        .spawn_scoped(s, f)
+        // Below normal while the world is prepared beside the pages (renderer/world_build.rs).
+        .spawn_scoped(s, move || {
+            super::world_build::polite_thread();
+            f()
+        })
         .unwrap_or_else(|e| panic!("could not start the compile thread for {name}: {e}"))
 }
 
@@ -2391,6 +2395,11 @@ where
 /// everything else. A Windows call; a no-op elsewhere, and a failure to set it
 /// only means the compile shares the cores as before.
 fn raise_this_threads_priority() {
+    // Not while a worker prepares the world beside a drawing frame: the frame's thread wins then
+    // (renderer/world_build.rs; spawn_compile already put this thread below normal).
+    if super::world_build::polite() {
+        return;
+    }
     #[cfg(windows)]
     {
         #[link(name = "kernel32")]

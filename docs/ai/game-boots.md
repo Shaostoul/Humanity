@@ -233,6 +233,27 @@ microphone). A close posted by another program (`taskkill` without `/F`) always
 quits, hidden or shown, even with "closing keeps HumanityOS running in the tray" on,
 so the graceful close still saves (`src/engine/tray_window.rs`).
 
+## The world is prepared on Play, so a rig waits for the world itself (2026-11-20)
+
+A desktop starts PAGES-FIRST: the first frame comes in about a second with only the pages' GPU, and
+the 3D world's renderer, star sky and planet surfaces are built when Play is pressed (the default,
+the operator's: "I'd like to default to having to press play from now on. That way we can test
+non-game stuff faster."), beside the pages after the first frame, or before the pages, as Settings >
+Graphics > Prepare the 3D world says (`src/engine/world_prep.rs`). Two things follow for a rig:
+
+- **Its boot is done at the first frame.** The rigs that waited for `Cloud noise volumes generated`
+  also take `[Boot] first frame drawn` (the clouds are baked only once the world is entered).
+- **The dev autopilot's entry answers once the world has LOADED** (`engine/ipc.rs`,
+  `waited_for_world_ms` in `autopilot_done.json`): Play starts the preparation, the page shows its
+  progress card, and the answer comes when the world is in. So a rig never sleeps for the world: it
+  waits for `autopilot_done.json` as it always did, now a little longer (the preparation, about 8 to
+  12 s on this PC). A phone answers at once (it has no 3D world).
+
+Switches for a boot: `HUMANITY_WORLD_PREP=background|on_play|at_start` overrides the setting;
+`HUMANITY_PAGES_FIRST=1` is on Play, `=0` the old order (world before the first frame).
+`just verify-phone-start` measures all three and judges the frame's share of the preparation
+against its 2 ms budget.
+
 ## A quick manual boot
 
 A quick boot after a release build, world entry, and where a boot failure is written:

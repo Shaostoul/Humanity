@@ -1058,12 +1058,15 @@ verify-tray *ARGS:
 # Proves on this PC what the phone app's start does (Android rung A1, 2026-11-20;
 # docs/design/platforms.md): a phone starts PAGES-ONLY (none of the 3D world's pipelines, the cloud
 # bake or the star sky: engine/renderer_slot.rs) and draws a frame only when something changed
-# (engine/redraw.rs). BOOTS FOUR games, one after the other, in their own portable sandbox
-# (.probe-rig/phone-start: background, never focused, silent, no server): a plain desktop start, the
-# phone preview (HUMANITY_PHONE_PREVIEW=1: pages visited, then idle), the preview drawing every frame
-# (HUMANITY_REDRAW_ALWAYS=1, the before), and a desktop started pages-only (HUMANITY_PAGES_FIRST=1)
-# that then enters the world. wgpu's own count of the pipelines it holds, any stray reach for the
-# world, the idle frames, the first frame's time. Judged by scripts/lib/phone-start-judge.js
+# (engine/redraw.rs), and that a desktop starts pages-first too (engine/world_prep.rs, 2026-11-20).
+# BOOTS SIX games, one after the other, in their own portable sandbox (.probe-rig/phone-start:
+# background, never focused, silent, no server): a plain desktop start (the world prepared on Play,
+# then Play), the world prepared in the background (HUMANITY_WORLD_PREP=background), Play during that
+# preparation, the old order (HUMANITY_PAGES_FIRST=0), the phone preview (HUMANITY_PHONE_PREVIEW=1:
+# pages visited, then idle) and the preview drawing every frame (HUMANITY_REDRAW_ALWAYS=1, the
+# before). wgpu's own count of the pipelines it holds, any stray reach for the world, the frame's
+# share of the world's preparation against its 2 ms budget, the page frames while it ran, the idle
+# frames, the start times. Judged by scripts/lib/phone-start-judge.js
 # (scripts/tests/phone-start-judge.test.js breaks each rule). A timing rig: waits while another
 # HumanityOS or one of the operator's GPU-heavy programs runs; exit 1 refused, 2 a check failed.
 #   just verify-phone-start --dry-verdict <manifest.json>   re-judge without booting

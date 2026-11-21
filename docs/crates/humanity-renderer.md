@@ -15,13 +15,13 @@ static check cannot see.
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** (from `scripts/crate-layers.json`; paths under `src/`), by the gate each compiles under:
   - no gate (every build): `renderer/`, `assets/`
-- **Size:** 80,923 lines in 88 files, 3,917 of them in 9 test files.
-- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `renderer/materials.rs` 500 of 500, `renderer/mod.rs` 2,800 of 2,800, `renderer/tree_cards.rs` 450 of 450, `renderer/celestial.rs` 1,945 of 1,950, `renderer/capture.rs` 299 of 300, `renderer/tree_species.rs` 743 of 750, `renderer/tree_allometry.rs` 540 of 560, `renderer/tree_mesh.rs` 5,956 of 6,400, `renderer/scene_draw.rs` 660 of 750, `renderer/overlay_draw.rs` 390 of 550, `renderer/material_bind_groups.rs` 231 of 350, `renderer/view_depth.rs` 160 of 250, `renderer/surface.rs` 311 of 500, `renderer/shadow_cutout.rs` 102 of 250.
-- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 74, `wasm` 3.
+- **Size:** 81,462 lines in 90 files, 3,917 of them in 9 test files.
+- **Line budgets** (`tests/file_size_ratchet.rs`, in `just lints`; lines now of the budget, closest first): `renderer/materials.rs` 500 of 500, `renderer/tree_cards.rs` 450 of 450, `renderer/celestial.rs` 1,945 of 1,950, `renderer/capture.rs` 299 of 300, `renderer/tree_species.rs` 743 of 750, `renderer/tree_allometry.rs` 540 of 560, `renderer/mod.rs` 2,675 of 2,800, `renderer/tree_mesh.rs` 5,956 of 6,400, `renderer/scene_draw.rs` 660 of 750, `renderer/overlay_draw.rs` 390 of 550, `renderer/material_bind_groups.rs` 231 of 350, `renderer/view_depth.rs` 160 of 250, `renderer/surface.rs` 289 of 500, `renderer/shadow_cutout.rs` 102 of 250.
+- **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `native` 78, `wasm` 6.
 - **May use** (the plan): core, terrain. **Uses today** (references in non-test code): core 101, terrain 38.
-- **May be used by** (the plan): gui, engine. **Used today by:** engine 371, gui 65.
+- **May be used by** (the plan): gui, engine. **Used today by:** engine 382, gui 65.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 603 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
+- **Its lib tests:** 604 tests, and this runs exactly them, checked against every test's name (a libtest filter matches anywhere in a test's name, so each `--skip` drops another crate's module whose name holds a filter):
 
 ```
 just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_tests::assets:: --skip relay::storage::assets::
@@ -33,8 +33,8 @@ just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_t
 |---|---:|---|
 | `renderer::line::push_polyline` | 32 | engine 32 |
 | `renderer::camera::CameraMode` | 30 | engine 30 |
-| `renderer::mesh::Mesh` | 25 | engine 25 |
-| `renderer::RenderObject` | 19 | engine 19 |
+| `renderer::mesh::Mesh` | 27 | engine 27 |
+| `renderer::RenderObject` | 20 | engine 20 |
 | `renderer::Renderer` | 16 | engine 15, gui 1 |
 | `renderer::line::push_circle` | 13 | engine 13 |
 | `renderer::light::RoomLight` | 11 | engine 11 |
@@ -45,9 +45,9 @@ just test-lib --crate humanity-engine renderer:: assets:: --skip gui::crossing_t
 | `renderer::light::LightKind` | 7 | engine 5, gui 2 |
 | `renderer::texture_pool::SlotPool` | 7 | engine 7 |
 | `assets::AssetManager` | 6 | engine 6 |
-| `renderer` | 6 | engine 6 |
+| `renderer::billboard_bake::BakeCpuModel` | 6 | engine 6 |
 
-And 128 more items, 226 references (`node scripts/crate-cards.js --interface humanity-renderer` lists them all).
+And 135 more items, 234 references (`node scripts/crate-cards.js --interface humanity-renderer` lists them all).
 <!-- end generated -->
 
 ## Rules

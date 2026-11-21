@@ -6,17 +6,30 @@
 // cannot run here, so the phone preview (HUMANITY_PHONE_PREVIEW=1, the same switch the pages' phone
 // layout uses) stands in for it.
 //
-// FOUR BOOTS of the release binary in its own portable rig (.probe-rig/phone-start: background,
+// SIX BOOTS of the release binary in its own portable rig (.probe-rig/phone-start: background,
 // never focused, silent, no server), each closed with taskkill without /F so it saves:
-//   desktop      plain: the first frame's time, and wgpu's pipeline count with the world built.
+//   desktop      plain, which since 2026-11-20 starts PAGES-FIRST and prepares the 3D world only when
+//                Play is pressed (the default, the operator's; engine/world_prep.rs): the first frame's
+//                time and wgpu's own pipeline count at it (the pages before any world pipeline), then
+//                Play by the dev autopilot: the world built for entering it with the progress card,
+//                how long until it was ready, the frame's share of it against its 2 ms budget, the
+//                world entered and its pipelines there.
+//   background   HUMANITY_WORLD_PREP=background: the world prepared beside the pages after the first
+//                frame (when it was ready, the frame's share against its budget, the page frames'
+//                spacing while it ran and after), then Play once it is ready.
+//   play_during  HUMANITY_WORLD_PREP=background, Play right after the first frame, while the world is
+//                still being prepared: Play waits for it with the progress card, then opens it.
+//   old_order    HUMANITY_PAGES_FIRST=0, the order of every start before that day: the first frame's
+//                time with the world built before it (the "before" of the start time).
 //   phone        the preview: the first frame's time, a visit to several pages through the dev
 //                request (debug/showcase_request.json {"page": ...}), then an idle stretch; wgpu's
 //                own count of the pipelines it holds, any stray reach for the world, the frames an
 //                idle window drew.
 //   before       the preview with HUMANITY_REDRAW_ALWAYS=1 (every frame, as before 2026-11-20): the
 //                idle window's count for comparison.
-//   pages-first  HUMANITY_PAGES_FIRST=1, then the world entered by the dev autopilot: the world's
-//                renderer built on demand, and the world drawn without a panic.
+// (HUMANITY_PAGES_FIRST=1, the first rig's pages-first boot, names the default now: the desktop boot.)
+// The autopilot answers an entry once the world has LOADED (engine/ipc.rs, 2026-11-20), so each
+// boot waits for the world itself, never a sleep.
 // scripts/lib/phone-start-judge.js judges the logs (scripts/tests/phone-start-judge.test.js holds the
 // judge, one rule broken at a time). The verdict prints the start times and the idle frame counts.
 //
@@ -26,7 +39,7 @@
 //
 // Usage:
 //   node scripts/verify-phone-start.js [--exe PATH] [--timeout-min N] [--no-wait] [--wait-min N]
-//                                      [--idle-s N] [--only desktop,phone,before,pages_first]
+//                                      [--idle-s N] [--only desktop,background,play_during,old_order,phone,before]
 //                                      [--allow-other-build "<reason>"]
 //   node scripts/verify-phone-start.js --dry-verdict <manifest.json>   re-judge, nothing booted
 // Exit 0 = every check held. 1 = refused (nothing booted). 2 = a check failed, or a panic.
@@ -58,8 +71,8 @@ const DRY = opt("--dry-verdict", null);
 const TIMEOUT_MS = Number(opt("--timeout-min", "15")) * 60 * 1000;
 /** The idle stretch: two of the game's ten-second count windows must fall wholly inside it. */
 const IDLE_MS = Number(opt("--idle-s", "24")) * 1000;
-/** The boots to make (all four unless --only names some); the judge judges only these. */
-const ALL_BOOTS = ["desktop", "phone", "before", "pages_first"];
+/** The boots to make (all six unless --only names some); the judge judges only these. */
+const ALL_BOOTS = PJ.BOOTS;
 const ONLY = opt("--only", null);
 const BOOTS = ONLY ? ONLY.split(",").map((b) => b.trim()).filter(Boolean) : ALL_BOOTS;
 const RIG = path.join(REPO, ".probe-rig", "phone-start");
@@ -187,7 +200,7 @@ function start(env) {
     cwd: RIG,
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_PHONE_PREVIEW: "", HUMANITY_PAGES_FIRST: "", HUMANITY_REDRAW_ALWAYS: "", ...env },
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1", HUMANITY_PHONE_PREVIEW: "", HUMANITY_PAGES_FIRST: "", HUMANITY_WORLD_PREP: "", HUMANITY_REDRAW_ALWAYS: "", ...env },
     lowImpact: BOOT_PLAN.lowImpact,
   });
   game.child.unref();
@@ -242,14 +255,55 @@ async function main() {
   };
   const firstFrame = /\[Boot\] first frame drawn (\d+) ms/;
   try {
-    // ── desktop ──
+    // ── desktop: the default start, the world prepared on Play ──
     if (BOOTS.includes("desktop")) {
-    log("desktop: a plain start, to its first frame");
+    log("desktop: a plain start (pages-first, the world on Play), then Play");
     game = start({});
+    await waitFor(firstFrame, game, 240000, "the first frame");
+    // One page-frame window with nothing being built: the page frames' baseline, then Play.
+    await waitFor(/page frames in the last [\d.]+ s: [^\r\n]*the world: not started/, game, 15000, "a window of page frames before Play").catch((e) => log(`desktop: ${e.message}`));
+    WR.writeRequest(path.join(DEBUG, "autopilot_request.json"), {});
+    const entered = await waitFile("autopilot_done.json", 300000);
+    // One more count window after entry, so the count with the world built is in the log.
+    const from = countRedraw();
+    await waitWindows(game, from, 1, 30000).catch(() => {});
+    await close(game);
+    keep("desktop", { entered });
+    }
+
+    // ── background: the world prepared beside the pages ──
+    if (BOOTS.includes("background")) {
+    log("background: HUMANITY_WORLD_PREP=background, the world prepared beside the pages, then Play");
+    game = start({ HUMANITY_WORLD_PREP: "background" });
+    await waitFor(firstFrame, game, 240000, "the first frame");
+    await waitFor(/\[WorldPrep\] the 3D world is ready/, game, 300000, "the world prepared in the background");
+    // One page-frame window with the world ready and not entered (the "after" numbers), then Play.
+    await waitFor(/page frames in the last [\d.]+ s: [^\r\n]*the world: ready/, game, 15000, "a window of page frames after it was ready").catch((e) => log(`background: ${e.message}`));
+    WR.writeRequest(path.join(DEBUG, "autopilot_request.json"), {});
+    const entered = await waitFile("autopilot_done.json", 300000);
+    await close(game);
+    keep("background", { entered });
+    }
+
+    // ── Play during the background preparation ──
+    if (BOOTS.includes("play_during")) {
+    log("play during: the world prepared beside the pages, Play right after the first frame");
+    game = start({ HUMANITY_WORLD_PREP: "background" });
+    await waitFor(firstFrame, game, 240000, "the first frame");
+    WR.writeRequest(path.join(DEBUG, "autopilot_request.json"), {});
+    const entered = await waitFile("autopilot_done.json", 300000);
+    await close(game);
+    keep("play_during", { entered });
+    }
+
+    // ── old order ──
+    if (BOOTS.includes("old_order")) {
+    log("old order: HUMANITY_PAGES_FIRST=0, the world built before the first frame");
+    game = start({ HUMANITY_PAGES_FIRST: "0" });
     await waitFor(firstFrame, game, 240000, "the first frame");
     await sleep(1500);
     await close(game);
-    keep("desktop");
+    keep("old_order");
     }
 
     // ── phone ──
@@ -292,20 +346,6 @@ async function main() {
     keep("before");
     }
 
-    // ── pages-first ──
-    if (BOOTS.includes("pages_first")) {
-    log("pages-first: a desktop started pages-only, then the world entered");
-    game = start({ HUMANITY_PAGES_FIRST: "1" });
-    await waitFor(firstFrame, game, 240000, "the first frame");
-    await sleep(1500);
-    WR.writeRequest(path.join(DEBUG, "autopilot_request.json"), {});
-    const entered = await waitFile("autopilot_done.json", 300000);
-    // One more count window after entry, so the count with the world built is in the log.
-    const pfFrom = countRedraw();
-    await waitWindows(game, pfFrom, 1, 30000).catch(() => {});
-    await close(game);
-    keep("pages_first", { entered });
-    }
   } catch (e) {
     log(`ERROR: ${e.message}`);
     run.error = e.message;

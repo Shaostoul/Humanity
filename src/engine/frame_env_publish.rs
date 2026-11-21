@@ -6,7 +6,7 @@ use crate::engine::frame_prelude::*;
 /// Publishes the ocean's state for this frame.
 pub(crate) fn run(state: &mut EngineState) {
     // Nothing to do before the world's renderer is built (a pages-only start, engine/renderer_slot.rs): the ocean's upkeep and its pin are the world's.
-    if !gpu_ref!(state).renderer.world_built() {
+    if !crate::engine::world_prep::drawn(state) { // or before the world is entered (world_prep.rs)
         return;
     }
     let dt = state.clock.dt;

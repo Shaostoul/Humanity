@@ -31,6 +31,8 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
     if crate::gui::font_size::before_frame(&state.egui_ctx, &mut raw_input, &mut state.gui_state.settings.font_size) {
         state.gui_state.settings_dirty = true;
     }
+    // The card while Play waits for the 3D world to be ready (engine/world_prep.rs).
+    let world_prep_view = crate::engine::world_prep::view(state);
     let full_output = state.egui_ctx.run(raw_input, |ctx| {
         // `GuiPage::Profile` is an ALIAS for the Real page. Normalise
         // it HERE, inside the app's own frame, so the nav bar
@@ -513,6 +515,9 @@ pub(crate) fn run(state: &mut EngineState, event_loop: &ActiveEventLoop) -> egui
         // Confirmation toasts (v0.861): floats a "Saved" style
         // note over everything so actions are never silent.
         crate::gui::widgets::draw_toasts(ctx, &state.theme, &mut state.gui_state);
+        if let Some(v) = &world_prep_view {
+            crate::engine::world_prep::draw(ctx, &state.theme, v, &mut state.world_prep);
+        }
         // The first five minutes' tour card (gui/first_minutes.rs): bottom right,
         // over the open page, never over the world.
         crate::gui::first_minutes::draw(ctx, &state.theme, &mut state.gui_state);

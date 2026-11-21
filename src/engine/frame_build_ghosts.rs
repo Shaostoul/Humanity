@@ -8,7 +8,7 @@ use crate::engine::frame_prelude::*;
 pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // Nothing to draw into before the world's renderer is built (a pages-only start, a phone:
     // engine/renderer_slot.rs): build mode's previews.
-    if !gpu_ref!(state).renderer.world_built() {
+    if !crate::engine::world_prep::drawn(state) { // or before the world is entered (world_prep.rs)
         return;
     }
     // Placement ghost: the held palette item, previewed (semi-transparent, faintly

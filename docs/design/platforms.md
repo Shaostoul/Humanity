@@ -243,16 +243,47 @@ world follows with its own lighter settings.
    - **A pages-only start** (2026-11-20, [src/engine/renderer_slot.rs](../../src/engine/renderer_slot.rs),
      [src/renderer/pages_gpu.rs](../../src/renderer/pages_gpu.rs)): a phone makes only the device and
      the window's surface, all egui needs; the 3D world's renderer (every shader module and pipeline,
-     the cloud-noise and ground-texture bakes) is built the first time something needs the world,
-     which on a phone is never, and the star sky and the planet surfaces are not prebuilt. A desktop
-     builds everything at start, in the same order as before. On this PC (RTX 4070, release build,
-     `just verify-phone-start`) the first frame came 18,588 ms after the window opened on a
-     desktop start (adapter 1.3 s, device 4.2 s, shaders and pipelines 9.5 s, the PC busy with other
-     builds) and 947 ms on a pages-only one, and wgpu held 6 render pipelines and
-     no compute pipeline on the pages against 53 and 12 with the world built. `HUMANITY_PAGES_FIRST=1` starts a
-     desktop pages-only with the world still reachable (built at the first Enter, 8,705 ms there), so the
-     on-demand build is checked on this PC. A stray reach for the world in a pages-only run is logged
-     by its source line (`[PagesOnly] world touched from ...`) and fails the rig.
+     the cloud-noise and ground-texture bakes), the star sky and the planet surfaces are built the first
+     time the world is entered, which on a phone is never. Measured that day (`just verify-phone-start`,
+     release build, the PC busy with other builds): the first frame came 18,588 ms after the window
+     opened on the desktop start of then (adapter 1.3 s, device 4.2 s, shaders and pipelines 9.5 s) and
+     947 ms on a pages-only one, and wgpu held 6 render pipelines and no compute pipeline on the pages
+     against 53 and 12 with the world built. A stray reach for the world in a pages-only run is logged by
+     its source line (`[PagesOnly] world touched from ...`) and fails the rig.
+   - **The desktop starts pages-first too** (2026-11-20, [src/engine/world_prep.rs](../../src/engine/world_prep.rs),
+     [src/renderer/world_build.rs](../../src/renderer/world_build.rs)). The operator, verbatim: "Can we
+     skip building the 3D world's graphics immediately? Could we draw it out over several seconds to get
+     people in chat faster?", and the same day, on the default: "I figure the all at start could be an
+     option, but I'd like to default to having to press play from now on. That way we can test non-game
+     stuff faster." So a desktop draws its pages first, as a phone does, and prepares the world as
+     Settings > Graphics > Prepare the 3D world says: **only when I press Play** (the default), **in the
+     background after start**, or **at start, before the pages** (the old order). The world's renderer is
+     built OFF THE FRAME: `Renderer::build_world_detached` needs the device and the surface's format and
+     size, never the surface, so a worker thread builds it while the pages keep drawing, and the frame
+     installs it (`adopt_surface` moves the surface over and follows a resize made meanwhile). The
+     frame's share (looking whether it is done, installing it) has a 2 ms budget, timed every frame and
+     judged by the rig. Beside the pages the build is POLITE (his standing rule: gradual, never a burst):
+     every thread it starts runs one step below normal priority, the pipeline compiles' included, and the
+     320 MiB of cloud volumes go to the graphics card a 64 MiB slab at a time with a pause between. Play
+     before it is ready keeps the page and shows a card (the step under way in words, "Step 4 of 10: the
+     drawing programs for every kind of surface", a bar, "Stay on the pages"), and the world opens by
+     itself when ready; the window never freezes on it. The dev autopilot's entry answers once the world
+     has loaded, so every rig waits for the world itself. Measured on this PC
+     (`just verify-phone-start`, release build, other agents compiling, 2026-11-20): window to first
+     page frame 914 ms on the default start against 8,814 ms in the old order (773 ms with the
+     background choice, 782 ms in the phone preview); Play to the world ready 8,765 ms and to the world
+     loaded 10,403 ms on the default start; with the background choice the world was ready 10,503 ms
+     after the window opened, and Play then loaded it in 1,147 ms (10,214 ms when pressed during the
+     preparation). The frame's share of the preparation: worst 0.04 ms against its 2 ms budget. The page
+     frames (a hidden rig window, about 30 a second): with nothing being built the worst gap was 80 ms;
+     beside the background build 262 ms; under Play's progress card 529 ms. Each long gap is logged with
+     its parts (`[WorldPrep] a page frame N ms after the last ...`): the two worst were spent early in
+     the frame, before the world's check, during the ground and pipeline steps, so their cause is not
+     yet pinned (open work). Begun on the first frame itself, the background build had held that frame
+     970 ms, so it begins a second later; and the world's frame stages wait for the world to be entered
+     (they had cost the first page frame after the install 189 ms). A build someone waits for (Play)
+     runs at normal priority: with its threads below normal it took 121 s instead of 9 s while other
+     compiles kept the processors busy.
    - **Drawing only on change** (2026-11-20, [src/engine/redraw.rs](../../src/engine/redraw.rs)): on
      a phone a frame is drawn for input, for egui's own requests (animations, spinners, a page's
      timer, from any thread), when the network brings something the pages show (the sockets read

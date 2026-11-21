@@ -141,6 +141,7 @@ pub mod stars;
 pub mod sun_cascades;
 /// What the pages draw with: the device and the window's surface, without the 3D world (2026-11-20, Android rung A1).
 pub mod pages_gpu;
+pub mod world_build;
 /// Swapchain + render-target lifecycle: configure, resize, acquire, and the
 /// two target constructors everything else shares. Extracted from mod.rs in
 /// v0.1319 - see the file's header for why this cluster.
@@ -1134,24 +1135,25 @@ impl Renderer {
         Self::build_world(core)
     }
 
-    /// The 3D world's renderer on a device the pages already draw with (pages_gpu.rs): every shader
-    /// module and pipeline, the cloud-noise and ground-texture bakes (started here when the device
-    /// was made without them), the LUTs, buffers and bind groups. A desktop builds it at start, right
-    /// after the device (`init`); a pages-only start builds it the first time something needs the
-    /// world, which on a phone is never (engine/renderer_slot.rs).
+    /// The 3D world's renderer on a device the pages already draw with (pages_gpu.rs), WITHOUT the
+    /// window's surface: every shader module and pipeline, the cloud-noise and ground-texture bakes
+    /// (started here when the device was made without them), the LUTs, buffers and bind groups. It
+    /// can run on a worker thread while the pages keep the surface and draw (world_build.rs, the
+    /// desktop's background build since 2026-11-20); `adopt_surface` then hands it the surface.
+    /// `build_world` (world_build.rs) is both at once. `progress` hears each step as it starts.
     #[cfg(any(feature = "native", feature = "wasm"))]
-    pub fn build_world(core: pages_gpu::PagesGpu) -> Self {
-        let pages_gpu::PagesGpu {
+    pub(crate) fn build_world_detached(inputs: world_build::WorldInputs, progress: &world_build::Progress) -> Self {
+        let world_build::WorldInputs {
             device,
             queue,
-            surface,
             config,
-            pending_present_mode,
             supports_frame_capture,
             patch_indirect,
             background_bakes,
             bakes,
-        } = core;
+        } = inputs;
+        let (surface, pending_present_mode) = (None, None); // the pages hold the surface until adopt_surface
+        progress.mark(world_build::Step::Targets);
         let (cloud_rx, ground_rx) = bakes.unwrap_or_else(|| pages_gpu::start_bakes(background_bakes));
         let (width, height) = (config.width, config.height);
         let surface_format = config.format; // display-format: the swapchain's, for the present pass and egui, as init always had it
@@ -1174,6 +1176,7 @@ impl Renderer {
         let scene_format = scene_target::scene_format_for(surface_format);
         let present_pass = scene_target::PresentPass::new(&device, surface_format, scene_format);
         let scene = scene_target::SceneTarget::new(&device, &present_pass, width, height, scene_format);
+        progress.mark(world_build::Step::Effects);
         let t_unit = std::time::Instant::now();
         let bloom_pass = bloom::BloomPass::new(&device, width, height, scene_format);
         log::info!("[BootPhase]   bloom_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
@@ -1198,6 +1201,7 @@ impl Renderer {
         // metadata read per second is free and works through every alias
         // and editor write strategy. See poll_shader_reload.
         let shader_loader = shader_loader::ShaderLoader::new();
+        progress.mark(world_build::Step::Shaders);
         let t_unit = std::time::Instant::now();
         let shader = shader_loader.load_embedded_pbr(&device);
         log::info!("[BootPhase]   pbr_module: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
@@ -1230,6 +1234,7 @@ impl Renderer {
         // at all: FXC overflows its thread stack on the cloud march whatever
         // the stack size (pipeline.rs `fxc_clouds_requested`), which aborts
         // the process mid-play.
+        progress.mark(world_build::Step::Pipelines);
         let pipeline = Pipeline::new(
             &device,
             scene_format,
@@ -1241,6 +1246,7 @@ impl Renderer {
             cfg!(target_os = "windows") && dxc_dlls_beside_exe().is_none(),
         );
         log::info!("[BootPhase]   pipeline_new: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
+        progress.mark(world_build::Step::Buffers);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
         let t_unit = std::time::Instant::now();
@@ -1439,6 +1445,7 @@ impl Renderer {
         // renderer creation, overlapping the DXC shader compiles, so the
         // bigger volumes cost boot nothing: this recv() only blocks for
         // whatever remainder has not finished by the time uploads start.
+        progress.mark(world_build::Step::Clouds);
         let gen_start = std::time::Instant::now();
         let (shape_chain, detail_chain) = match cloud_rx {
             Some(rx) => rx.recv().expect("cloud noise generator thread died"),
@@ -1504,6 +1511,7 @@ impl Renderer {
                 for (z0, depth, b0, b1) in
                     cloud_noise::upload_slabs(mip_size, cloud_noise::UPLOAD_SLAB_BYTES)
                 {
+                    progress.pace_upload(&queue); // a background build sends the 320 MiB a slab at a time
                     queue.write_texture(
                         wgpu::TexelCopyTextureInfo {
                             texture: &tex,
@@ -1593,6 +1601,7 @@ impl Renderer {
         });
         log::info!("[BootPhase] shaders_and_pipelines: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
         let t_phase = std::time::Instant::now();
+        progress.mark(world_build::Step::Ground);
         // Ground PBR texture array (v0.907): the ambientCG sets from
         // assets/textures/ground/, or a neutral 1x1 fallback that renders
         // identically to the pre-texture look. The CPU bake ran on a
@@ -1606,6 +1615,7 @@ impl Renderer {
         };
         log::info!("[BootPhase] ground_textures_upload: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
         let t_phase = std::time::Instant::now();
+        progress.mark(world_build::Step::Sky);
 
         // Atmosphere LUTs (sky arc stage 3a, v0.945): transmittance 256x64 +
         // multiple-scattering 32x32, CPU-generated (atmo_luts.rs) and uploaded
@@ -1893,6 +1903,7 @@ impl Renderer {
         });
 
         log::info!("[BootPhase] luts_buffers_bindgroups: {:.0} ms", t_phase.elapsed().as_secs_f32() * 1000.0);
+        progress.mark(world_build::Step::Done);
 
         Self {
             device,

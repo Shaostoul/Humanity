@@ -106,6 +106,7 @@ const OUT = path.resolve(opt("--out", path.join(RIG, `boot-timing-${LABEL}.json`
 const CLOUDS_WAIT_MS = Number(opt("--clouds-wait-s", "90")) * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const ST = require("./lib/startup-times.js");
 const log = (m) => console.log(`[boot-timing] ${m}`);
 // The freshness gate's result (set before the rig is touched) and the record of
 // a deliberate other-build run.
@@ -313,6 +314,8 @@ async function oneRun(n) {
     timing,
     // Sub-spans the renderer logs but the BootTimer does not carry.
     phases: parseBootPhases(logText),
+    // The pages' first frame and the world ready, apart (lib/startup-times.js, 2026-11-20).
+    startup: ST.parseStartup(logText),
     pipelines: parsePipelines(logText),
     clouds: parseCloudsReady(logText),
   };
@@ -377,6 +380,15 @@ function report(runs) {
     `  wall to playable: median ${med(totals).toFixed(0)} ms  ` +
       `(runs: ${totals.map((t) => t.toFixed(0)).join(", ")})`
   );
+  // A pages-first start (2026-11-20, engine/world_prep.rs) has two moments where it had one: the
+  // PAGES READY (their first frame), and the 3D WORLD READY. The default start prepares the world
+  // only on Play, and the autopilot here presses Play as soon as the game reads it (its first
+  // frames), so "world ready after Play" is the preparation's own length, then loading it.
+  const st = (k) => ok.map((r) => r.startup && r.startup[k]).filter((v) => Number.isFinite(v));
+  const medOr = (xs) => (xs.length ? `median ${med(xs).toFixed(0)} ms (runs: ${xs.join(", ")})` : "n/a");
+  console.log(`  pages ready (first frame after the window opened): ${medOr(st("first_page_frame_ms"))}`);
+  console.log(`  world ready after Play (its preparation): ${medOr(st("world_prep_ms"))}; then loading it: ${medOr(st("world_load_ms"))}`);
+  console.log(`  world ready after the window opened: ${medOr(st("world_ready_ms"))}`);
   // Rank the BootTimer's own phases.
   const names = [];
   for (const r of ok) for (const p of r.timing.phases) if (!names.includes(p.name)) names.push(p.name);

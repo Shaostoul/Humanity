@@ -2886,6 +2886,27 @@ window.HOS_I18N_EN = {
     "settings_web_hint": "The amber line at the bottom of every page, until version 1.0. Muting hides it for a while in this browser; it comes back on its own when the time is up and with every new version, and the front page always shows it.",
     "mute_unavailable": "The choices could not be loaded. Try again in a moment."
   },
+  "world_prep": {
+    "cancel": "Stay on the pages",
+    "cancel_hint": "Closes this card and keeps you on the pages. The 3D world goes on getting ready in the background, and Play opens it later.",
+    "note": "Your home opens by itself as soon as this is done. The pages keep working meanwhile.",
+    "progress": "Step {{n}} of {{total}}: {{step}}",
+    "step": {
+      "buffers": "the memory for lights and objects",
+      "clouds": "the cloud shapes",
+      "done": "ready",
+      "effects": "the light effects: glow, sun rays and soft shadows",
+      "ground": "the ground textures",
+      "pipelines": "the drawing programs for every kind of surface, the longest step",
+      "planets": "the planet surfaces",
+      "shaders": "the main shader program",
+      "sky": "the sky and atmosphere tables",
+      "stars": "the star sky",
+      "targets": "the screen's drawing surfaces",
+      "waiting": "getting started"
+    },
+    "title": "Preparing the 3D world"
+  },
   "notifications": {
     "device_heading": "On this computer",
     "device_note": "These choices stay on this device.",
@@ -7734,6 +7755,21 @@ window.HOS_I18N_EN = {
     },
     "window_mode": "Window mode",
     "window_mode_hint": "How the game's window sits on your screen. Windowed fullscreen fills the screen and keeps the title bar and taskbar; borderless drops the title bar; exclusive gives the whole screen to the game (true fullscreen). A change applies at once.",
+    "world_prep": "Prepare the 3D world",
+    "world_prep_choice": {
+      "at_start": "At start, before the pages",
+      "background": "In the background after start",
+      "on_play": "Only when I press Play (default)"
+    },
+    "world_prep_cost": {
+      "at_start": "The window shows nothing until the whole world is built.",
+      "background": "Pages in about a second; the world gets ready beside them on spare processor time at low priority, and holds its video memory from then on.",
+      "on_play": "No processor time or video memory for the world until Play, which then waits while the world is prepared."
+    },
+    "world_prep_hint": "When the app builds what the 3D world needs to draw: its shader programs, the cloud shapes, the ground textures, the star sky and the planet surfaces. Only when I press Play (the default): chat and the pages open in about a second and nothing is built for the world until you press Play, which then shows how far along it is while it builds. In the background: the pages open just as fast and the world gets ready beside them at low priority, so Play is quick, at the cost of processor time and video memory you may not use. At start makes the window wait for the whole world before it shows anything. Applies at the next start.",
+    "world_prep_measured": "This start: the pages {{pages}} s after the window opened, the world ready at {{world}} s.",
+    "world_prep_measured_pending": "This start: the pages {{pages}} s after the window opened; the world is not prepared yet.",
+    "world_prep_next_start": "Your choice applies at the next start.",
     "window_mode_choice": {
       "windowed": "Windowed",
       "windowed_fullscreen": "Windowed fullscreen",

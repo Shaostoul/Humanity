@@ -167,7 +167,7 @@ async function waitBoot(game, timeoutMs) {
   while (Date.now() - t0 < timeoutMs) {
     const txt = logText();
     if (/PANIC/.test(txt)) throw new Error("PANIC during boot (see run.log)");
-    if (/Cloud noise volumes generated/.test(txt)) return;
+    if (/Cloud noise volumes generated|\[Boot\] first frame drawn/.test(txt)) return;
     if (game.exited()) throw new Error(`before it finished booting, ${game.describe()}`);
     await sleep(1000);
   }

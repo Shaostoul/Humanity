@@ -116,6 +116,9 @@ const APPLIED_WHERE_SET: &[(&str, &str, &str)] = &[
     // applies the saved one (a code no file provides falls back to English).
     ("language", "src/gui/pages/settings.rs", "i18n::set_language(code)"),
     ("language", "src/config.rs", "humanity_core::i18n::set_language(&self.language)"),
+    // Settings > Graphics > Prepare the 3D world (2026-11-20, engine/world_prep.rs): applied at the
+    // next start, by the saved config read before the renderer is made, in lib.rs.
+    ("world_prep", "src/lib.rs", "crate::engine::world_prep::init(config.as_ref().map_or(\"\", |c| c.world_prep.as_str()))"),
 ];
 
 /// Widgets that take a setting by `&mut` to show and change it: a binding, not a read, wherever

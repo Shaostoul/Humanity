@@ -2072,19 +2072,35 @@ steps). Not yet run on a phone: the first CI run and the operator's OnePlus 9 Pr
 - Touch: theme token `touch_target` (44 points, Settings > Widgets) as the smallest control height on
   a phone. `HUMANITY_PHONE_PREVIEW=1` shows the phone's view on a desktop.
 - Pages-only start (2026-11-20): `src/engine/renderer_slot.rs` (`RendererSlot`: the pages' GPU always,
-  the 3D world's renderer built on demand, `ensure_world` at world entry; a stray reach logged by its
-  source line; `pipeline_counts` from wgpu's own report) and `src/renderer/pages_gpu.rs` (`PagesGpu`:
-  adapter, device, surface; `Renderer::build_world` builds the rest). A phone and the phone preview
-  start pages-only; `HUMANITY_PAGES_FIRST=1` starts a desktop that way with the world still enterable.
-  No star-sky or planet prebuild on a pages-only start.
+  the 3D world's renderer built on a worker thread or on demand, installed on the frame with
+  `poll_world`; a stray reach logged by its source line; `pipeline_counts` from wgpu's own report) and
+  `src/renderer/pages_gpu.rs` (`PagesGpu`: adapter, device, surface). A phone and the phone preview
+  start pages-only and never build the world.
+- The desktop starts pages-first too (2026-11-20, `src/engine/world_prep.rs`): the first frame with
+  only the pages' GPU, and the world's renderer, star sky and planet surfaces prepared when Play is
+  pressed (the default), beside the pages after the first frame, or before the pages: Settings >
+  Graphics > General > Prepare the 3D world (`world_prep` in the config; each choice with what it costs,
+  the one this start used with this start's own times; applies at the next start). Switches:
+  `HUMANITY_WORLD_PREP=on_play|background|at_start`, `HUMANITY_PAGES_FIRST=1` (on Play) / `=0` (the old
+  order). The build runs off the frame (`src/renderer/world_build.rs`: `Renderer::build_world_detached`
+  from `WorldInputs` without the surface, `adopt_surface` hands it over, `Worker`, eight named steps);
+  beside the pages it is polite (every thread it starts below normal priority, the cloud volumes sent a
+  slab at a time). The frame's share (looking, installing) is timed against a 2 ms budget
+  (`[WorldPrep] on-frame work ...`). Play before it is ready keeps the page with a progress card (the
+  step in words, n of 10, a bar, "Stay on the pages") and opens the world by itself when ready. The dev
+  autopilot's entry answers once the world has loaded (`waited_for_world_ms`), so rigs wait for the
+  world, never a sleep; rigs take the first frame as their boot signal.
 - Drawing only on change on a phone (2026-11-20): `src/engine/redraw.rs` (input, egui's repaint
   requests from any thread, a network tick that draws only when the pages' data changed, a dev
   request; `[Redraw]` frame counts every 10 s, `[Boot] first frame drawn ... ms`; `HUMANITY_REDRAW_ALWAYS=1`
   to compare). The image cache's workers wake the frame (`WakeSender`); the Music page asks for frames
   while music plays.
 - Rig: `just verify-phone-start` (`scripts/verify-phone-start.js`, judge `scripts/lib/phone-start-judge.js`,
-  `scripts/tests/phone-start-judge.test.js`): four boots (desktop, phone preview, before, pages-first),
-  wgpu's pipeline counts, stray reaches, idle frames, start times.
+  `scripts/tests/phone-start-judge.test.js`): six boots (desktop on Play, background, Play during the
+  background preparation, old order, phone preview, before), wgpu's pipeline counts, stray reaches, the
+  frame's share against its 2 ms budget, page frames while the world is prepared, idle frames, start
+  times. `scripts/boot-timing.js` reports the pages ready and the world ready after Play apart
+  (`scripts/lib/startup-times.js`, `scripts/tests/startup-times.test.js`).
 - Download page (website): the Android card shows the APK and the install walk-through only when the
   newest release in `/releases/manifest.json` carries `HumanityOS-android-arm64.apk`, else "not
   published yet" (`web/pages/download.html`, `download-app.js`, words `download.android_*`; test

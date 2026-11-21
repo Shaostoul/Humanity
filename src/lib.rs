@@ -982,14 +982,14 @@ mod native_app {
                 }
             }
 
-            // Initialize renderer (block on async). The heaviest untimed phase on a desktop:
-            // adapter + device request, every shader-module + pipeline + bind-group-layout, plus
-            // the cloud-noise volumes. A pages-only start (a phone) makes only the device and the
-            // surface, and the world later if something needs it (engine/renderer_slot.rs, which
-            // also holds low impact's renderer switches as the world is built).
+            // Initialize renderer (block on async): the device and the surface, which is all the
+            // pages need; the 3D world's renderer is built beside the pages after the first frame, on
+            // Play, or here before them, as Settings > Graphics > Prepare the 3D world says
+            // (engine/world_prep.rs, engine/renderer_slot.rs, which also holds low impact's switches).
             let t_boot = std::time::Instant::now();
-            let pages_only = crate::engine::renderer_slot::pages_only_start();
-            let renderer = pollster::block_on(crate::engine::renderer_slot::RendererSlot::new_native(window.clone(), pages_only));
+            let config = crate::config::AppConfig::load_if_exists();
+            let prep = crate::engine::world_prep::init(config.as_ref().map_or("", |c| c.world_prep.as_str()));
+            let renderer = pollster::block_on(crate::engine::renderer_slot::RendererSlot::new_native(window.clone(), prep));
             boot_timer.since("renderer_init", t_boot);
 
             // Both modes were created hidden. A human launch shows normally
@@ -1034,7 +1034,7 @@ mod native_app {
                 crate::engine::engine_boot::BootOptions {
                     data_dir: find_data_dir(),
                     saves_dir: humanity_systems::persistence::saves_dir(),
-                    config: crate::config::AppConfig::load_if_exists(),
+                    config,
                     services: true,
                     boot_timer,
                     egui_ctx,

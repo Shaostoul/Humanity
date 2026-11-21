@@ -253,6 +253,40 @@ fn draw_bounced_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSt
     }
 }
 
+/// Settings > Graphics > General > Prepare the 3D world (2026-11-20, engine/world_prep.rs): when the
+/// world's renderer, star sky and planet surfaces are built. Each choice says what it means and
+/// costs; the one this start used says what it cost on this computer (this start's own times). It
+/// applies at the next start.
+fn draw_world_prep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate::gui::HintDisplay) {
+    use crate::gui::world_prep_choice::{self as wp, Choice};
+    use crate::gui::widgets::hint::Hint;
+    group_label(ui, theme, "graphics.world_prep");
+    let this_start = wp::choice();
+    let (pages, ready) = wp::measured();
+    let secs = |ms: u64| format!("{:.1}", ms as f64 / 1000.0);
+    egui::Grid::new("world_prep_choices").num_columns(2).show(ui, |ui| {
+        for c in Choice::ALL {
+            let sel = state.settings.world_prep == c.id();
+            let name = t_dyn(&format!("graphics.world_prep_choice.{}", c.id()));
+            if ui.selectable_label(sel, RichText::new(name).size(theme.font_size_small)).hint("graphics.world_prep_hint").clicked() && !sel {
+                state.settings.world_prep = c.id().to_string();
+                state.settings_dirty = true;
+            }
+            let words = match (c == this_start, pages, ready) {
+                (true, Some(p), Some(r)) => tf("graphics.world_prep_measured", &[("pages", &secs(p)), ("world", &secs(r))]),
+                (true, Some(p), None) => tf("graphics.world_prep_measured_pending", &[("pages", &secs(p))]),
+                _ => t_dyn(&format!("graphics.world_prep_cost.{}", c.id())).to_string(),
+            };
+            muted(ui, theme, words);
+            ui.end_row();
+        }
+    });
+    graphics_hint(ui, theme, hint, "world_prep");
+    if state.settings.world_prep != this_start.id() {
+        muted(ui, theme, t("graphics.world_prep_next_start"));
+    }
+}
+
 /// Room light shadows (2026-11-10, renderer/local_shadows.rs, docs/design/local-light-shadows.md): the
 /// levels from data/gui/shadow_levels.json, each with what it shadows and its video memory worked out
 /// from its own numbers, the card's memory against the chosen level, and what the shadows are doing
@@ -507,6 +541,7 @@ fn draw_page(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, hint: crate
             state.settings_dirty = true;
         }
         graphics_hint(ui, theme, hint, "render_distance");
+        draw_world_prep(ui, theme, state, hint);
 
         widgets::subsection_header(ui, theme, accent, t("graphics.section_planets"), t("graphics.section_planets_note"));
         widgets::setting_hint(ui, theme, hint, t("graphics.section_planets_hint"));

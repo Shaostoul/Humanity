@@ -12,9 +12,10 @@
 //! world the first time something needs it.
 //!
 //! THE BAKES. The cloud-noise and ground-texture bakes are pure CPU work on background threads. A
-//! desktop starts them here, right after the adapter answers, so they overlap the device request
-//! and the shader compiles exactly as they always did; a pages-only start does not start them at
-//! all (`bakes_now` false), and `build_world` starts them itself if it is ever asked.
+//! start that builds the world before the pages starts them here, right after the adapter answers,
+//! so they overlap the device request and the shader compiles exactly as they always did; a
+//! pages-first start does not start them here (`bakes_now` false): the world's background build
+//! starts them on its worker (world_build.rs), politely.
 //!
 //! THE SURFACE while only the pages draw: configured, resized, cleared and given back after a
 //! phone app returns by the methods below, the same rules as the world renderer's own
@@ -304,6 +305,7 @@ pub fn start_bakes(background: bool) -> Bakes {
     }
     let (tx, cloud_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
+        super::world_build::polite_thread(); // below normal beside the pages (world_build.rs)
         let threads =
             std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
         let t0 = std::time::Instant::now();
@@ -329,6 +331,7 @@ pub fn start_bakes(background: bool) -> Bakes {
     });
     let (tx, ground_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
+        super::world_build::polite_thread();
         let _ = tx.send(ground_textures::bake_all());
     });
     (Some(cloud_rx), Some(ground_rx))

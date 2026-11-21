@@ -78,6 +78,9 @@
         (id: "fps_background", cost: [Free("graphics.free.fps_background")]),
         (id: "fov", cost: [Shares(["gpu.scene", "gpu.celestial"])]),
         (id: "render_distance", cost: [Shares(["gpu.scene"])]),
+        // When the 3D world is prepared (2026-11-20, engine/world_prep.rs): each choice states its
+        // cost beside it, the one this start used with this start's own measured times.
+        (id: "world_prep", cost: [Computed]),
         // ── Planets seen from space ──
         (id: "planet_detail", cost: [Shares(["gpu.celestial"])]),
         (id: "planet_lod_px", cost: [Shares(["gpu.celestial"])]),

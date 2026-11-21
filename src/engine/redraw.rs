@@ -149,6 +149,8 @@ pub(crate) fn after_ui(state: &mut EngineState, out: &egui::FullOutput) {
             if pages_only { "yes" } else { "no" }
         );
         log_counts(state, "at the first frame");
+        // A pages-first desktop begins preparing the 3D world now, beside the pages (world_prep.rs).
+        crate::engine::world_prep::after_first_frame(state);
     }
     if reactive() {
         // The frame pumped the network itself (frame_load_screens.rs) and drew what it brought: the

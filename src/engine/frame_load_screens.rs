@@ -26,8 +26,15 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
         state.gui_state.go(GuiPage::Play, crate::gui::How::Beside);
     }
 
-    // Lazy-load 3D world on first Enter World (code LOD: chat loads fast, 3D loads when needed)
-    if state.gui_state.active_page == GuiPage::None && !state.world_loaded {
+    // The world's preparation beside the pages (engine/world_prep.rs): the finished renderer
+    // installed, the frame's share timed, and the world opened when Play was waiting for it.
+    crate::engine::world_prep::frame(state, f.frame_t0);
+    // Lazy-load 3D world on first Enter World (code LOD: chat loads fast, 3D loads when needed),
+    // once it is prepared: before that, Play keeps its page with the progress card.
+    if state.gui_state.active_page == GuiPage::None
+        && !state.world_loaded
+        && crate::engine::world_prep::ready_to_enter(state, page_before_frame)
+    {
         load_world(state);
     }
 

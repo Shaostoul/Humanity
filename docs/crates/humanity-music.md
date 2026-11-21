@@ -23,12 +23,12 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
   - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
   - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_cost.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`, `crates/humanity-music/src/tests_e6.rs`, `crates/humanity-music/src/tests_written.rs`, `crates/humanity-music/src/tests_written2.rs`, `crates/humanity-music/src/tests_scores.rs`
   - `all(test, feature = "kira")`: `crates/humanity-music/src/tests_stream.rs`
-- **Size:** 20,250 lines in 43 files, 5,507 of them in 12 test files.
+- **Size:** 20,351 lines in 43 files, 5,567 of them in 12 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 7.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 62, engine 23.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 71, engine 23.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 113 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 114 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -38,23 +38,23 @@ just test-lib --crate humanity-music
 
 | Item | References | From |
 |---|---:|---|
-| `MusicLibrary` | 7 | gui 6, engine 1 |
+| `MusicLibrary` | 8 | gui 7, engine 1 |
+| `MusicSettings` | 6 | gui 5, engine 1 |
 | `scores::WrittenPiece` | 6 | engine 4, gui 2 |
-| `MusicSettings` | 5 | gui 4, engine 1 |
 | `tune::Tune` | 4 | gui 4 |
 | `tuning::parse_note` | 4 | gui 4 |
 | `MusicStatus` | 3 | gui 2, engine 1 |
 | `Resolved` | 3 | gui 2, engine 1 |
+| `favourite` | 3 | gui 3 |
+| `scores::ScoreEntry` | 3 | gui 3 |
+| `tune::ROLES` | 3 | gui 3 |
 | `BedStatus` | 2 | engine 1, gui 1 |
 | `MusicContext` | 2 | engine 1, gui 1 |
 | `decode::decode_threads` | 2 | gui 2 |
 | `decode::each` | 2 | gui 2 |
-| `favourite` | 2 | gui 2 |
 | `instrument::SAMPLE_SCALE` | 2 | gui 2 |
-| `library::DEFAULT_MOOD` | 2 | gui 2 |
-| `scores::ScoreEntry` | 2 | gui 2 |
 
-And 36 more items, 37 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
+And 38 more items, 41 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
 <!-- end generated -->
 
 ## Rules

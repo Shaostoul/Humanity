@@ -3,8 +3,29 @@
 // phone-start-judge.test.js holds every rule, one broken at a time.
 //
 // THE BOOTS the rig makes, and what each must show:
-//   desktop      a plain desktop start: the world's renderer built at start ("pages-only start: no",
-//                many render pipelines). The comparison for the start time.
+//   desktop      a plain desktop start, which since 2026-11-20 is PAGES-FIRST and prepares the 3D world
+//                only when Play is pressed (the default, the operator's; engine/world_prep.rs), then
+//                entered by the dev autopilot (Play):
+//                  - a pages-only start, and at the first frame wgpu holds at most PAGES_MAX_RENDER
+//                    render pipelines and no compute pipeline, the world's renderer not built: the
+//                    pages were drawn before any world pipeline existed (counted by wgpu);
+//                  - Play waited for the world ("[WorldPrep] Play pressed before the world was
+//                    ready"), which was built for entering it and became ready;
+//                  - the frame's share of that preparation (looking whether it is done, installing
+//                    it) never over ON_FRAME_BUDGET_MS on any frame, as the game measured it;
+//                  - no stray reach for the world, the world entered, its pipelines there after.
+//                The numbers: its first frame (the pages ready), the world ready after Play, Play to
+//                the world loaded.
+//   background   HUMANITY_WORLD_PREP=background, the world prepared beside the pages after the first
+//                frame: the pages before any world pipeline, the world ready, the frame's share in
+//                its budget, no stray reach, then entered once ready. The numbers: when the world
+//                was ready, the page frames' spacing while it was prepared and after, Play after it.
+//   old_order    HUMANITY_PAGES_FIRST=0, the order of every start before 2026-11-20: the world's
+//                renderer built at start ("pages-only start: no", many render pipelines). The
+//                comparison for the start time.
+//   play_during  HUMANITY_WORLD_PREP=background, entered by the dev autopilot right after its first
+//                frame, while the world is still being prepared: Play waited for it, the world opened
+//                by itself once ready, and the world entered. The number: how long Play took then.
 //   phone        the phone preview (HUMANITY_PHONE_PREVIEW=1), pages visited, then idle:
 //                  - a pages-only start, the world's renderer never built;
 //                  - wgpu holds at most PAGES_MAX_RENDER render pipelines and no compute pipeline
@@ -14,8 +35,8 @@
 //   before       the same preview with HUMANITY_REDRAW_ALWAYS=1 (every frame drawn, as before
 //                2026-11-20): the frame count must see frames (at least BEFORE_MIN_FRAMES in a window),
 //                which proves the count can tell the two apart.
-//   pages-first  a desktop started pages-only (HUMANITY_PAGES_FIRST=1), then the world entered: the
-//                world's renderer built on demand, more pipelines after than before, no panic.
+// (The pages-first boot of the first phone-start rig, HUMANITY_PAGES_FIRST=1, is the desktop boot now:
+// that switch names the default since 2026-11-20.)
 // Every boot: no PANIC in its log.
 
 "use strict";
@@ -28,11 +49,15 @@ const IDLE_MAX_FRAMES = 2;
 const BEFORE_MIN_FRAMES = 50;
 /** A world renderer holds far more than the pages: at least this many render pipelines. */
 const WORLD_MIN_RENDER = 20;
+/** The frame's share of the world's preparation, at most, on any frame (engine/world_prep.rs ON_FRAME_BUDGET). */
+const ON_FRAME_BUDGET_MS = 2;
+/** Every boot the rig knows. */
+const BOOTS = ["desktop", "background", "play_during", "old_order", "phone", "before"];
 
-/** The numbers a boot's run.log carries (engine/redraw.rs and engine/renderer_slot.rs write them). */
+/** The numbers a boot's run.log carries (engine/redraw.rs, engine/renderer_slot.rs and engine/world_prep.rs write them). */
 function parseLog(text) {
   const t = String(text || "");
-  const out = { first_frame_ms: null, pages_only: null, counts: [], strays: [], redraw: [], built_for: [], panics: 0 };
+  const out = { first_frame_ms: null, pages_only: null, counts: [], strays: [], redraw: [], built_for: [], panics: 0, ready_ms: null, prep_ms: null, on_frame: null, during: null, windows: [], pressed: false, opened_ms: null, loaded_ms: null };
   const first = t.match(/\[Boot\] first frame drawn (\d+) ms after the window opened \(pages-only start: (yes|no)\)/);
   if (first) {
     out.first_frame_ms = Number(first[1]);
@@ -46,29 +71,108 @@ function parseLog(text) {
   for (const m of t.matchAll(/\[Redraw\] (reactive|continuous): (\d+) frames drawn in the last ([\d.]+) s, (\d+) wakes without one/g)) {
     out.redraw.push({ mode: m[1], frames: Number(m[2]), secs: Number(m[3]), wakes: Number(m[4]) });
   }
+  const ready = t.match(/\[WorldPrep\] the 3D world is ready: (\d+) ms after the window opened, (\d+) ms after its preparation began/);
+  if (ready) {
+    out.ready_ms = Number(ready[1]);
+    out.prep_ms = Number(ready[2]);
+  }
+  const onFrame = t.match(/\[WorldPrep\] on-frame work while it was prepared: worst ([\d.]+) ms over (\d+) frames/);
+  if (onFrame) out.on_frame = { worst_ms: Number(onFrame[1]), frames: Number(onFrame[2]) };
+  const during = t.match(/\[WorldPrep\] page frames while it was prepared: (\d+), ([\d.]+) ms apart on average, worst ([\d.]+) ms/);
+  if (during) out.during = { count: Number(during[1]), mean_ms: Number(during[2]), worst_ms: Number(during[3]) };
+  for (const m of t.matchAll(/\[WorldPrep\] page frames in the last ([\d.]+) s: (\d+), ([\d.]+) ms apart on average, worst ([\d.]+) ms; the world: (ready|being prepared|not started)/g)) {
+    out.windows.push({ secs: Number(m[1]), count: Number(m[2]), mean_ms: Number(m[3]), worst_ms: Number(m[4]), world: m[5] });
+  }
+  out.pressed = /\[WorldPrep\] Play pressed before the world was ready/.test(t);
+  const opened = t.match(/\[WorldPrep\] opening the world (\d+) ms after Play was pressed/);
+  if (opened) out.opened_ms = Number(opened[1]);
+  const loaded = t.match(/3D world loaded in (\d+)ms/);
+  if (loaded) out.loaded_ms = Number(loaded[1]);
   out.panics = (t.match(/PANIC/g) || []).length;
   return out;
 }
 
-/** Judge a run: { boots: { desktop, phone, before, pages_first } }, each { log } plus, for the phone
- *  boot, `idle_from` (how many [Redraw] lines were logged before its idle stretch began) and, for
- *  pages-first, `entered` (the autopilot's answer). Returns { ok, checks: [{ ok, what }] }. */
+/** Judge a run: { boots: { desktop, background, play_during, old_order, phone, before } }, each { log }
+ *  plus, for the phone boot, `idle_from` (how many [Redraw] lines were logged before its idle stretch
+ *  began) and, for desktop, background and play_during, `entered` (the autopilot's answer, written
+ *  once the world has loaded). Returns { ok, checks: [{ ok, what }], numbers }. */
 function judgePhoneStart(run) {
   const checks = [];
   const check = (ok, what) => checks.push({ ok: !!ok, what });
   const boots = (run && run.boots) || {};
-  // `--only` judges the boots it asked for; every other run judges all four.
+  // `--only` judges the boots it asked for; every other run judges all of them.
   const asked = (name) => !(run && Array.isArray(run.only)) || run.only.includes(name);
+  const enteredOk = (b) => b.entered && b.entered.ok === true;
+
+  // The first frame's count: the pages drawn before any world pipeline existed.
+  const pagesFirst = (name, p) => {
+    check(p.pages_only === true, `${name}: a pages-first start (pages-only start: ${p.pages_only === null ? "no first-frame line" : p.pages_only ? "yes" : "no"})`);
+    const c = p.counts[0];
+    check(
+      c && !c.built && c.render <= PAGES_MAX_RENDER && c.compute === 0,
+      `${name}: the pages drawn before any world pipeline existed (${c ? `${c.render} render, ${c.compute} compute, the world built: ${c.built ? "yes" : "no"}` : "no count"})`,
+    );
+  };
+  // The frame's share of the preparation, as the game measured it.
+  const budget = (name, p) => {
+    const of = p.on_frame;
+    check(
+      of && of.worst_ms <= ON_FRAME_BUDGET_MS,
+      `${name}: the frame's share of the preparation never over ${ON_FRAME_BUDGET_MS} ms (${of ? `worst ${of.worst_ms} ms over ${of.frames} frames` : "no measurement"})`,
+    );
+  };
 
   const desk = boots.desktop && parseLog(boots.desktop.log);
   if (!asked("desktop")) {
     // not asked for
   } else if (!desk) check(false, "desktop: no boot");
   else {
-    check(desk.pages_only === false, `desktop: a full start (pages-only start: ${desk.pages_only === null ? "no first-frame line" : desk.pages_only ? "yes" : "no"})`);
-    const c = desk.counts[0];
-    check(c && c.built && c.render >= WORLD_MIN_RENDER, `desktop: the world's renderer built at start (${c ? `${c.render} render pipelines` : "no count"})`);
+    pagesFirst("desktop", desk);
+    check(desk.pressed, `desktop: Play waited for the world it prepares (${desk.pressed ? "yes" : "no such line"})`);
+    check(desk.built_for.some((b) => b.reason === "entering the world"), `desktop: the world's renderer built for entering the world (${desk.built_for.map((b) => `${b.reason}, ${b.ms} ms`).join("; ") || "never"})`);
+    check(desk.prep_ms !== null, `desktop: the world ready after Play (${desk.prep_ms !== null ? `${desk.prep_ms} ms` : "never"})`);
+    budget("desktop", desk);
+    check(desk.strays.length === 0, `desktop: no reach for the world before it was ready (${desk.strays.length ? desk.strays.join("; ") : "none"})`);
+    check(enteredOk(boots.desktop), `desktop: the world entered (${JSON.stringify(boots.desktop.entered || null)})`);
+    const after = desk.counts[desk.counts.length - 1];
+    check(after && after.built && after.render >= WORLD_MIN_RENDER, `desktop: the world's pipelines exist after entry (${after ? `${after.render} render pipelines` : "no count"})`);
     check(desk.panics === 0, `desktop: no panic (${desk.panics})`);
+  }
+
+  const bg = boots.background && parseLog(boots.background.log);
+  if (!asked("background")) {
+    // not asked for
+  } else if (!bg) check(false, "background: no boot");
+  else {
+    pagesFirst("background", bg);
+    check(bg.ready_ms !== null && !bg.pressed, `background: the world prepared beside the pages, before Play (${bg.ready_ms !== null ? `ready ${bg.ready_ms} ms after the window opened` : "never"}${bg.pressed ? "; Play had to wait" : ""})`);
+    budget("background", bg);
+    check(bg.strays.length === 0, `background: no reach for the world before it was ready (${bg.strays.length ? bg.strays.join("; ") : "none"})`);
+    check(enteredOk(boots.background), `background: the world entered once it was ready (${JSON.stringify(boots.background.entered || null)})`);
+    check(bg.panics === 0, `background: no panic (${bg.panics})`);
+  }
+
+  const old = boots.old_order && parseLog(boots.old_order.log);
+  if (!asked("old_order")) {
+    // not asked for
+  } else if (!old) check(false, "old_order: no boot");
+  else {
+    check(old.pages_only === false, `old_order: a full start (pages-only start: ${old.pages_only === null ? "no first-frame line" : old.pages_only ? "yes" : "no"})`);
+    const c = old.counts[0];
+    check(c && c.built && c.render >= WORLD_MIN_RENDER, `old_order: the world's renderer built at start (${c ? `${c.render} render pipelines` : "no count"})`);
+    check(old.panics === 0, `old_order: no panic (${old.panics})`);
+  }
+
+  const pd = boots.play_during && parseLog(boots.play_during.log);
+  if (!asked("play_during")) {
+    // not asked for
+  } else if (!pd) check(false, "play_during: no boot");
+  else {
+    check(pd.pressed, `play_during: Play pressed before the world was ready, and waited for it (${pd.pressed ? "yes" : "no such line"})`);
+    check(pd.opened_ms !== null, `play_during: the world opened by itself once ready (${pd.opened_ms !== null ? `${pd.opened_ms} ms after Play` : "never"})`);
+    check(enteredOk(boots.play_during), `play_during: the world entered (${JSON.stringify(boots.play_during.entered || null)})`);
+    check(pd.strays.length === 0, `play_during: no reach for the world before it was ready (${pd.strays.length ? pd.strays.join("; ") : "none"})`);
+    check(pd.panics === 0, `play_during: no panic (${pd.panics})`);
   }
 
   const phone = boots.phone && parseLog(boots.phone.log);
@@ -99,46 +203,62 @@ function judgePhoneStart(run) {
     check(before.panics === 0, `before: no panic (${before.panics})`);
   }
 
-  const pf = boots.pages_first && parseLog(boots.pages_first.log);
-  if (!asked("pages_first")) {
-    // not asked for
-  } else if (!pf) check(false, "pages-first: no boot");
-  else {
-    check(pf.pages_only === true, `pages-first: a pages-only start (${pf.pages_only === null ? "no first-frame line" : pf.pages_only ? "yes" : "no"})`);
-    check(pf.built_for.some((b) => b.reason === "entering the world"), `pages-first: the world's renderer built on entering the world (${pf.built_for.map((b) => `${b.reason}, ${b.ms} ms`).join("; ") || "never"})`);
-    check(pf.strays.length === 0, `pages-first: no reach for the world before it was entered (${pf.strays.length ? pf.strays.join("; ") : "none"})`);
-    check(boots.pages_first.entered && boots.pages_first.entered.ok === true, `pages-first: the world entered (${JSON.stringify(boots.pages_first.entered || null)})`);
-    const after = pf.counts[pf.counts.length - 1];
-    check(after && after.built && after.render >= WORLD_MIN_RENDER, `pages-first: the world's pipelines exist after entry (${after ? `${after.render} render pipelines` : "no count"})`);
-    check(pf.panics === 0, `pages-first: no panic (${pf.panics})`);
-  }
-  return { ok: checks.length > 0 && checks.every((c) => c.ok), checks, numbers: numbers(desk, phone, before, pf) };
+  return { ok: checks.length > 0 && checks.every((c) => c.ok), checks, numbers: numbers({ desk, bg, old, phone, before }, boots) };
 }
 
-/** The numbers the report states: the start times and the idle frame counts. */
-function numbers(desk, phone, before, pf) {
+/** The numbers the report states: the start times, the world's preparation, the idle frame counts. */
+function numbers({ desk, bg, old, phone, before }, boots) {
   const idleOf = (p, mode) => {
     const w = p ? p.redraw.filter((x) => x.mode === mode) : [];
     return w.length ? w[w.length - 1] : null;
   };
+  const waited = (b) => (b && b.entered && Number.isFinite(b.entered.waited_for_world_ms) ? b.entered.waited_for_world_ms : null);
+  // The page frames once the world was ready (and before it was entered): the worst of those windows.
+  const afterWins = bg ? bg.windows.filter((w) => w.world === "ready") : [];
+  const after = afterWins.length
+    ? { count: afterWins.reduce((s, w) => s + w.count, 0), mean_ms: afterWins[afterWins.length - 1].mean_ms, worst_ms: Math.max(...afterWins.map((w) => w.worst_ms)) }
+    : null;
   return {
-    first_frame_ms: { desktop: desk ? desk.first_frame_ms : null, phone: phone ? phone.first_frame_ms : null, pages_first: pf ? pf.first_frame_ms : null },
+    first_frame_ms: { old_order: old ? old.first_frame_ms : null, desktop: desk ? desk.first_frame_ms : null, background: bg ? bg.first_frame_ms : null, phone: phone ? phone.first_frame_ms : null },
     idle_window: { before: idleOf(before, "continuous"), after: idleOf(phone, "reactive") },
-    world_build_on_entry_ms: pf ? (pf.built_for.find((b) => b.reason === "entering the world") || {}).ms || null : null,
+    world_build_on_entry_ms: desk ? (desk.built_for.find((b) => b.reason === "entering the world") || {}).ms || null : null,
+    world_ready_after_play_ms: desk ? desk.prep_ms : null,
+    world_ready_ms: bg ? bg.ready_ms : null,
+    on_frame_worst_ms: { desktop: desk && desk.on_frame ? desk.on_frame.worst_ms : null, background: bg && bg.on_frame ? bg.on_frame.worst_ms : null },
+    page_frames_during: bg ? bg.during : null,
+    page_frames_during_play: desk ? desk.during : null,
+    // The page frames with nothing being built (the default start before Play): the baseline.
+    page_frames_idle: (() => {
+      const w = desk ? desk.windows.filter((x) => x.world === "not started") : [];
+      return w.length ? { count: w.reduce((s, x) => s + x.count, 0), mean_ms: w[w.length - 1].mean_ms, worst_ms: Math.max(...w.map((x) => x.worst_ms)) } : null;
+    })(),
+    page_frames_after: after,
+    play: { on_play_ms: waited(boots.desktop), during_ms: waited(boots.play_during), after_ms: waited(boots.background) },
   };
 }
 
 function verdictLines(result) {
   const lines = result.checks.map((c) => `${c.ok ? "  ok  " : "  FAIL"} ${c.what}`);
   const n = result.numbers || {};
-  if (n.first_frame_ms) lines.push(`  first frame after the window opened: desktop ${n.first_frame_ms.desktop} ms, phone preview ${n.first_frame_ms.phone} ms, pages-first ${n.first_frame_ms.pages_first} ms`);
+  const ms = (v) => (v === null || v === undefined ? "n/a" : `${v} ms`);
+  if (n.first_frame_ms) {
+    const f = n.first_frame_ms;
+    lines.push(`  first frame after the window opened (the pages ready): old order ${ms(f.old_order)}, desktop now ${ms(f.desktop)}, background ${ms(f.background)}, phone preview ${ms(f.phone)}`);
+  }
+  const of = n.on_frame_worst_ms || {};
+  if (n.world_ready_after_play_ms) lines.push(`  the world ready after Play: ${n.world_ready_after_play_ms} ms (renderer ${ms(n.world_build_on_entry_ms)}); the frame's share worst ${ms(of.desktop)} (budget ${ON_FRAME_BUDGET_MS} ms)`);
+  if (n.world_ready_ms) lines.push(`  background: the world ready ${n.world_ready_ms} ms after the window opened; the frame's share worst ${ms(of.background)} (budget ${ON_FRAME_BUDGET_MS} ms)`);
+  const pfr = (p) => (p ? `${p.count} frames, ${p.mean_ms} ms apart on average, worst ${p.worst_ms} ms` : "n/a");
+  if (n.page_frames_during || n.page_frames_after) lines.push(`  background: page frames while the world was prepared: ${pfr(n.page_frames_during)}; after: ${pfr(n.page_frames_after)}`);
+  if (n.page_frames_idle) lines.push(`  page frames with nothing being built (before Play): ${pfr(n.page_frames_idle)}`);
+  if (n.page_frames_during_play) lines.push(`  on Play: page frames (the progress card) while the world was prepared: ${pfr(n.page_frames_during_play)}`);
+  if (n.play) lines.push(`  Play to the world loaded: the default start ${ms(n.play.on_play_ms)}; background, during the preparation ${ms(n.play.during_ms)}, after it ${ms(n.play.after_ms)}`);
   if (n.idle_window) {
     const f = (w) => (w ? `${w.frames} frames in ${w.secs} s` : "none");
     lines.push(`  an idle window: before (every frame) ${f(n.idle_window.before)}, after (on change) ${f(n.idle_window.after)}`);
   }
-  if (n.world_build_on_entry_ms) lines.push(`  the world's renderer built on entering the world: ${n.world_build_on_entry_ms} ms`);
   lines.push(result.ok ? "PHONE START: PASS" : "PHONE START: FAIL");
   return lines;
 }
 
-module.exports = { parseLog, judgePhoneStart, verdictLines, PAGES_MAX_RENDER, IDLE_MAX_FRAMES, BEFORE_MIN_FRAMES, WORLD_MIN_RENDER };
+module.exports = { parseLog, judgePhoneStart, verdictLines, PAGES_MAX_RENDER, IDLE_MAX_FRAMES, BEFORE_MIN_FRAMES, WORLD_MIN_RENDER, ON_FRAME_BUDGET_MS, BOOTS };

@@ -7,7 +7,11 @@
 //! nothing. A PAGES-ONLY START ([`pages_only_start`]) now makes only the device and the window's
 //! surface (renderer/pages_gpu.rs), which is all egui needs to draw the pages, and builds the world
 //! renderer the first time something needs it ([`RendererSlot::ensure_world`]: entering the world).
-//! A DESKTOP builds both at start, in the same order as before, so nothing there changed.
+//! A DESKTOP has started pages-first too since 2026-11-20 (engine/world_prep.rs): the world's
+//! renderer is built right after the first page frame on a WORKER THREAD ([`RendererSlot::start_background`],
+//! renderer/world_build.rs) while the pages keep the surface and draw, and the frame installs it when
+//! it is done ([`RendererSlot::poll_world`]). "At start, before the pages" (the setting, or
+//! `HUMANITY_PAGES_FIRST=0`) builds both at start, in the order of every start before that day.
 //!
 //! HOW EVERY CALLER STAYS THE SAME. `gpu.renderer` is this slot. The device and the queue are its
 //! own fields (clones of the one device: wgpu's handles share it), and the surface's methods the
@@ -24,28 +28,21 @@
 //! so one boot lists every place to fix. scripts/verify-phone-start.js fails on any such line, and
 //! counts the pipelines wgpu itself holds ([`pipeline_counts`]), never a flag of ours.
 //!
-//! THE DEV SWITCH. `HUMANITY_PAGES_FIRST=1` starts a desktop pages-only while keeping the world
-//! reachable: the world renderer is built at the first Enter, so a rig proves the on-demand build on
-//! this PC (`HUMANITY_PHONE_PREVIEW=1`, the phone's view, starts pages-only too, with Play's Enter a
-//! notice as on a phone).
+//! THE DEV SWITCHES (engine/world_prep.rs). `HUMANITY_PAGES_FIRST=1` starts a desktop pages-only and
+//! builds the world only when it is entered, so a rig proves the on-demand build on this PC
+//! (`HUMANITY_PHONE_PREVIEW=1`, the phone's view, starts pages-only too, with Play's Enter a notice
+//! as on a phone); `HUMANITY_PAGES_FIRST=0` is the old order.
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::BTreeSet;
 use std::ops::{Deref, DerefMut};
 use std::panic::Location;
+use std::time::Duration;
 
+use crate::engine::world_prep::Choice;
 use crate::renderer::pages_gpu::PagesGpu;
+use crate::renderer::world_build::{self, Step, Worker};
 use crate::renderer::Renderer;
-
-/// Start pages-only: a phone (or the phone preview on a desktop), or a desktop asked to with
-/// `HUMANITY_PAGES_FIRST=1` (the module docs). Read once.
-pub(crate) fn pages_only_start() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| {
-        humanity_core::platform::device::phone()
-            || std::env::var("HUMANITY_PAGES_FIRST").map(|v| v == "1").unwrap_or(false)
-    })
-}
 
 /// The pages' GPU, and the world's renderer once built (the module docs).
 pub(crate) struct RendererSlot {
@@ -64,12 +61,15 @@ pub(crate) struct RendererSlot {
     stray: Cell<bool>,
     /// The places already logged.
     touched: RefCell<BTreeSet<(&'static str, u32)>>,
+    /// The world's renderer being built on a worker thread, and what it was started for.
+    worker: RefCell<Option<(Worker, String)>>,
 }
 
 impl RendererSlot {
-    /// The window's device and surface, and on a desktop the whole world renderer at once
-    /// (`pages_only` false: the order and the timing of every start before 2026-11-20).
-    pub(crate) async fn new_native(window: std::sync::Arc<winit::window::Window>, pages_only: bool) -> Self {
+    /// The window's device and surface, and with "at start, before the pages" the whole world
+    /// renderer at once (the order and the timing of every start before 2026-11-20).
+    pub(crate) async fn new_native(window: std::sync::Arc<winit::window::Window>, prep: Choice) -> Self {
+        let pages_only = prep != Choice::AtStart;
         let core = Renderer::native_pages_gpu(window, !pages_only).await;
         let slot = Self {
             device: core.device.clone(),
@@ -79,13 +79,70 @@ impl RendererSlot {
             pages_only,
             stray: Cell::new(false),
             touched: RefCell::new(BTreeSet::new()),
+            worker: RefCell::new(None),
         };
         if pages_only {
-            log::info!("[PagesOnly] started pages-only: the world's renderer is built when something needs it");
+            log::info!("[PagesOnly] started pages-only: the world's renderer is built beside the pages or when something needs it");
         } else {
             slot.build("the start of a desktop run");
         }
         slot
+    }
+
+    /// Begin building the world's renderer on a worker thread while the pages keep the surface
+    /// (renderer/world_build.rs). No-op when it is built or being built (a call that is not
+    /// `polite` still ends the politeness). `reason` names it in the log.
+    pub(crate) fn start_background(&self, polite: bool, reason: &str) {
+        if self.world.get().is_some() || self.worker.borrow().is_some() {
+            if !polite {
+                world_build::set_polite(false);
+            }
+            return;
+        }
+        let Some(inputs) = self.pages.borrow_mut().as_mut().map(|p| p.world_inputs()) else {
+            return;
+        };
+        *self.worker.borrow_mut() = Some((Worker::spawn(inputs, polite), reason.to_string()));
+    }
+
+    /// The step the worker's build is on (None when nothing is being built).
+    pub(crate) fn build_step(&self) -> Option<Step> {
+        self.worker.borrow().as_ref().map(|(w, _)| w.progress().step())
+    }
+
+    /// Install the worker's renderer if it is done; never waits. True on the frame it installs.
+    /// A worker that died leaves the pages' GPU in place: the next need builds here, as before.
+    pub(crate) fn poll_world(&mut self) -> bool {
+        let polled = match self.worker.get_mut().as_ref() {
+            None => return false,
+            Some((w, _)) => w.poll(),
+        };
+        match polled {
+            world_build::Poll::Building => false,
+            world_build::Poll::Built(r, took) => {
+                self.install(r, took);
+                true
+            }
+            world_build::Poll::Died => {
+                self.worker.get_mut().take();
+                world_build::set_polite(false);
+                log::error!("[WorldPrep] the world-build thread died (see the panic above); the world is built when it is next needed");
+                false
+            }
+        }
+    }
+
+    /// Put the worker's finished renderer in place: it takes the surface over from the pages.
+    fn install(&self, mut r: Box<Renderer>, took: Duration) {
+        let reason = self.worker.borrow_mut().take().map(|(_, why)| why).unwrap_or_default();
+        world_build::set_polite(false);
+        let Some(core) = self.pages.borrow_mut().take() else {
+            return;
+        };
+        r.adopt_surface(core);
+        crate::engine::low_impact::hold_renderer(&mut r);
+        log::info!("[PagesOnly] the world's renderer built for {reason}: {} ms (on a worker thread)", took.as_millis());
+        let _ = self.world.set(r);
     }
 
     /// Whether the world's renderer is built.
@@ -119,8 +176,23 @@ impl RendererSlot {
     }
 
     /// Build the world's renderer on the pages' GPU (renderer/pages_gpu.rs), and hold low impact's
-    /// switches on it (engine/low_impact.rs: a no-op in a normal run).
+    /// switches on it (engine/low_impact.rs: a no-op in a normal run). Being built on a worker
+    /// already: wait for it, flat out, rather than build a second one.
     fn build(&self, reason: &str) {
+        if self.world.get().is_some() {
+            return;
+        }
+        let waiting = self.worker.borrow_mut().take();
+        if let Some((w, why)) = waiting {
+            world_build::set_polite(false);
+            let t0 = std::time::Instant::now();
+            if let Some((r, took)) = w.wait() {
+                log::info!("[PagesOnly] waited {} ms on the frame for the worker's build ({why}), needed for {reason}", t0.elapsed().as_millis());
+                *self.worker.borrow_mut() = Some((w, why));
+                self.install(r, took);
+                return;
+            }
+        }
         let Some(core) = self.pages.borrow_mut().take() else {
             return;
         };

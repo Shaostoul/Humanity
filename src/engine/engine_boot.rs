@@ -150,81 +150,10 @@ impl EngineState {
         let t_boot = std::time::Instant::now();
         load_data_registries(&mut data_store, &data_dir);
         opts.boot_timer.since("eager_data_registries", t_boot);
-        // A pages-only start (a phone, engine/renderer_slot.rs) prebuilds neither the star sky nor
-        // the planet surfaces below: both are the 3D world's, and on a phone nothing enters it. Should
-        // something enter it later (HUMANITY_PAGES_FIRST), world_load.rs builds both itself.
-        let pages_only = gpu.as_ref().is_some_and(|g| g.renderer.pages_only());
-        // ── Background star-sky prebuild (v0.865 boot speed) ──
-        // star_catalog_and_glow measured 4100 ms ON the world-entry path:
-        // catalog read + vertex packing + glow PNG decode + GPU upload.
-        // None of it needs the main thread (wgpu Device/Queue are Arc-backed
-        // and thread-safe), so build the ENTIRE StarRenderer while the user
-        // is still on the chat screen. Entering the world receives the
-        // finished sky; only someone who beats the thread waits (and then
-        // exactly as long as they would have anyway).
-        let star_preload_rx = gpu.as_ref().filter(|_| !pages_only).and_then(|g| {
-            let renderer = &g.renderer;
-            let (tx, rx) = std::sync::mpsc::channel();
-            let device = renderer.device.clone();
-            let queue = renderer.queue.clone();
-            let scene_format = renderer.scene_format();
-            let sky_dir = data_dir.clone();
-            let tier_setting = gui_state.settings.star_catalog_tier.clone();
-            let ultra_glow = gui_state.settings.sky_glow_tier == "ultra";
-            std::thread::spawn(move || {
-                let t = std::time::Instant::now();
-                let cap = crate::renderer::stars::StarCatalogTier::resolve_cap(&tier_setting);
-                let built = crate::renderer::stars::StarCatalog::load(&sky_dir, cap)
-                    .as_ref()
-                    .and_then(|catalog| {
-                        crate::renderer::stars::StarRenderer::new(
-                            &device,
-                            &queue,
-                            scene_format,
-                            catalog,
-                            &sky_dir,
-                            ultra_glow && cap >= 2,
-                        )
-                    });
-                log::info!(
-                    "[Boot] star sky prebuilt in background: {} ms ({})",
-                    t.elapsed().as_millis(),
-                    if built.is_some() { "ok" } else { "unavailable" }
-                );
-                let _ = tx.send(built);
-            });
-            Some(rx)
-        });
-        // ── Background planet-surface prebuild (2026-10-18 boot speed) ──
-        // planet_defs_bake measured 1.2 s on the world-entry path: reading
-        // data/planets/, loading or synthesizing each elevation grid,
-        // loading each colour grid and baking each surface texture. All of
-        // it is CPU work on files (net_route::bake_planet_defs), so it runs
-        // here beside the star sky while the player is still on the menu;
-        // the first world entry receives it and only installs and uploads
-        // (world_load.rs). A planet RON hot reload before world entry drops
-        // the receiver (reload_planet_defs), so a stale prebuild is never
-        // installed. The baked textures (about 100 MB of RGBA for the four
-        // textured bodies) wait in the channel until then.
-        let planet_defs_preload_rx = if pages_only { None } else {
-            let (tx, rx) = std::sync::mpsc::channel();
-            let dir = data_dir.clone();
-            std::thread::Builder::new()
-                .name("planet-defs".into())
-                .spawn(move || {
-                    let t = std::time::Instant::now();
-                    let bakes = crate::engine::net_route::bake_planet_defs(&dir);
-                    let took = t.elapsed();
-                    log::info!(
-                        "[Boot] planet surfaces prebuilt in background: {} ms ({} bodies)",
-                        took.as_millis(),
-                        bakes.len()
-                    );
-                    let _ = tx.send((bakes, took));
-                })
-                .ok()
-                .map(|_| rx)
-        };
+        // The star sky and the planet surfaces are prebuilt on their own threads by
+        // engine/world_prep.rs (moved from here on 2026-11-20): with the rest of the world, beside the
+        // pages after the first page frame, on Play, or at once when the world is built before the
+        // pages (`world_prep::at_boot` below). A phone never builds them.
         // The starter vehicles of a brand-new home (engine/sim_boot.rs).
         crate::engine::sim_boot::starter_vehicles(&mut game_world, &data_store);
         gui_state.market_categories = crate::gui::load_market_categories(&data_dir);
@@ -379,8 +308,9 @@ impl EngineState {
             data_store,
             // 3D world state: empty defaults, loaded lazily on first Enter World
             star_renderer: None,
-            star_preload_rx,
-            planet_defs_preload_rx,
+            star_preload_rx: None,
+            planet_defs_preload_rx: None,
+            world_prep: Default::default(),
             terrain_tiles: humanity_terrain::terrain_tiles::TerrainTiles::new(
                 data_dir.join("planets/earth_tiles"),
             ),
@@ -686,6 +616,8 @@ impl EngineState {
                 st.controller.set_interior_gravity(g as f32);
             }
         }
+        // The world built before the pages: its star sky and planet surfaces start now (world_prep.rs).
+        crate::engine::world_prep::at_boot(&mut state);
         state
     }
 }

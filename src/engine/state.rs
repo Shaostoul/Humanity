@@ -218,6 +218,9 @@ pub(crate) struct EngineState {
     pub(crate) planet_defs_preload_rx: Option<
         std::sync::mpsc::Receiver<(Vec<crate::engine::net_route::PlanetDefBake>, std::time::Duration)>,
     >,
+    /// When the 3D world is prepared and how far along it is: beside the pages after the first
+    /// page frame, on Play, or before the pages (engine/world_prep.rs, 2026-11-20).
+    pub(crate) world_prep: crate::engine::world_prep::WorldPrep,
     /// Streamed high-detail terrain tiles for EARTH (the downloadable
     /// terrain tier, ~460 m cells): region residency follows the camera,
     /// deep patches + the ground clamp sample it via tile_or_base. An

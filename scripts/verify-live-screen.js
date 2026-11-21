@@ -402,7 +402,7 @@ async function waitBoot(timeoutMs, game = null) {
     if (fs.existsSync(LOG)) {
       const txt = fs.readFileSync(LOG, "utf8");
       if (/PANIC/.test(txt)) throw new Error("PANIC during boot (see run.log)");
-      if (/Cloud noise volumes generated/.test(txt)) return true;
+      if (/Cloud noise volumes generated|\[Boot\] first frame drawn/.test(txt)) return true;
     }
     // An exit before boot finishes, said as one (naming a hand-off if the game made one).
     if (game && game.exited()) throw new Error(`before it finished booting, ${game.describe()}`);

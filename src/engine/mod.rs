@@ -222,6 +222,9 @@ pub mod app_lifecycle;
 /// The renderer the engine holds: the pages' GPU always, the 3D world's renderer built when something
 /// needs it, so a phone starts pages-only (Android rung A1, 2026-11-20, docs/design/platforms.md).
 pub mod renderer_slot;
+/// When the 3D world is prepared: the desktop starts pages-first and builds the world beside the
+/// pages, gradually (2026-11-20; Settings > Graphics > Prepare the 3D world).
+pub mod world_prep;
 /// Drawing a frame only when something changed, for the pages on a phone: input, egui's own
 /// requests, the network, a dev request (Android rung A1, 2026-11-20).
 pub mod redraw;

@@ -468,7 +468,9 @@ async function waitBoot(timeoutMs, game = null) {
     if (fs.existsSync(LOG)) {
       const txt = fs.readFileSync(LOG, "utf8");
       if (/PANIC/.test(txt)) throw new Error("probe PANIC during boot (see run.log)");
-      if (/Cloud noise volumes generated/.test(txt)) return true;
+      // The first frame (2026-11-20): a pages-first start bakes the clouds only once the world is
+      // entered, which the autopilot below does; its answer waits for the world itself to load.
+      if (/Cloud noise volumes generated|\[Boot\] first frame drawn/.test(txt)) return true;
     }
     // An exit before boot finishes is reported as one (naming a hand-off when
     // the game made one: lib/game-launch.js), not as a three-minute timeout.

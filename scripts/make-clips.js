@@ -253,7 +253,7 @@ async function waitBoot(timeoutMs) {
     if (fs.existsSync(LOG)) {
       const txt = fs.readFileSync(LOG, "utf8");
       if (/PANIC/.test(txt)) throw fatal("PANIC during boot (see run.log)");
-      if (/Cloud noise volumes generated/.test(txt)) return true;
+      if (/Cloud noise volumes generated|\[Boot\] first frame drawn/.test(txt)) return true;
     }
     checkGame();
     await sleep(1000);

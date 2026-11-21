@@ -637,6 +637,11 @@ pub struct AppConfig {
     /// scripted/dev fast path (see stars::StarCatalogTier::resolve_cap).
     #[serde(default = "default_star_catalog_tier")]
     pub star_catalog_tier: String,
+    /// When the 3D world is prepared (Settings > Graphics > Prepare the 3D world, 2026-11-20,
+    /// engine/world_prep.rs): "on_play" (the default, the operator's that day), "background"
+    /// (after the first page frame), "at_start" (before the pages). Read at the start, before the renderer.
+    #[serde(default = "default_world_prep")]
+    pub world_prep: String,
     /// Screen-size LOD base threshold in pixels for sky planets: one more
     /// icosphere subdivision each time the projected diameter doubles past
     /// this. See `terrain::planet::lod_level_for_pixels`.
@@ -1162,6 +1167,7 @@ fn default_sky_orbit_mode() -> String { "planets".to_string() }
 fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
+fn default_world_prep() -> String { "on_play".to_string() }
 fn default_true() -> bool { true }
 fn default_ai_talk_mode() -> String { "conversational".into() }
 fn default_ai_brain() -> String { "auto".into() }
@@ -1658,6 +1664,7 @@ impl AppConfig {
             sky_glow_tier: state.settings.sky_glow_tier.clone(),
             sky_star_halos: state.settings.sky_star_halos,
             star_catalog_tier: state.settings.star_catalog_tier.clone(),
+            world_prep: state.settings.world_prep.clone(),
             planet_lod_px: state.settings.planet_lod_px,
             terrain_split_px: state.settings.terrain_split_px,
             terrain_patch_budget: state.settings.terrain_patch_budget,
@@ -1932,6 +1939,7 @@ impl AppConfig {
         // Sanitize the star-catalog tier ceiling: known values pass through,
         // anything else (hand-edited/empty/old config) means "auto" so a player
         // who downloaded a bigger catalog is never silently downgraded.
+        state.settings.world_prep = crate::gui::world_prep_choice::Choice::from_id(&self.world_prep).id().to_string();
         state.settings.star_catalog_tier = match self.star_catalog_tier.trim().to_ascii_lowercase().as_str() {
             "standard" | "minimal" => "standard".to_string(),
             "extended" => "extended".to_string(),

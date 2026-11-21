@@ -72,6 +72,7 @@ it costs; "Now" is how its cost is known since this audit.
 | Background frame-rate cap (switch and slider) | yes | "frees your GPU and CPU" | Free, with why |
 | Field of view | yes | none | Shares: scene and world surface passes, measured |
 | Render distance | yes | vague ("more GPU work") | Shares: scene pass, measured |
+| Prepare the 3D world (2026-11-20, new) | yes: on Play (default), in the background, at start | n/a | Computed: each choice's cost beside it; the one this start used shows this start's own times (pages ready, world ready) |
 | Procedural surfaces | yes | vague ("small GPU cost") | Shares: world surface pass, measured |
 | Planet sharpening threshold (was "LOD pixel threshold") | yes, jargon | vague | Shares, measured; "LOD" marked for the glossary |
 | Most planet detail levels | partly | vague ("big meshes") | Shares and Memory (meshes), measured |

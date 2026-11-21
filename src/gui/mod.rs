@@ -64,6 +64,8 @@ pub mod history;
 /// Gameplay draws and the systems read through `SettingsState::level`.
 #[cfg(feature = "native")]
 pub mod gameplay_levels;
+/// When the 3D world is prepared (Settings > Graphics, 2026-11-20); the engine's half is engine/world_prep.rs.
+pub mod world_prep_choice;
 pub mod layers;
 /// The characters' bodies and animation as the pages see them (`GuiState::characters`).
 pub mod characters;
@@ -4291,6 +4293,8 @@ pub struct SettingsState {
     /// shipped 120k catalog for a fast boot), "extended", "ultra". Applied next
     /// world entry; HUMANITY_STAR_TIER env overrides without persisting.
     pub star_catalog_tier: String,
+    /// When the 3D world is prepared (engine/world_prep.rs `Choice::id`); applies at the next start.
+    pub world_prep: String,
     /// Star halos (2026-07-11): soft photographic glow + faint diffraction
     /// cross on the brightest ~50 stars, drawn additively over the star
     /// points. A plain visibility flag - applies live, no GPU state.
@@ -4663,6 +4667,7 @@ impl Default for SettingsState {
             sky_milkyway_intensity: 1.0,
             sky_glow_tier: "standard".to_string(),
             star_catalog_tier: "auto".to_string(),
+            world_prep: "on_play".to_string(),
             sky_star_halos: true,
             planet_lod_px: 10.0,
             terrain_split_px: 4.0,

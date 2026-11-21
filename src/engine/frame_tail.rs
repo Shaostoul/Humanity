@@ -104,6 +104,8 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
     // on the CPU. World frames only (see frame_total).
     let present_t0 = Instant::now();
     surface_texture.present();
+    // The frame's own length and its present's, for the world preparation's long-gap lines.
+    crate::engine::world_prep::note_frame_end(state, frame_t0, present_t0.elapsed());
     // The draw lists' memory, kept for the next frame (DrawBufs, S3). Taken out of the frame's
     // FrameVars, which ends with this frame.
     state.draw_bufs = crate::engine::state::DrawBufs {

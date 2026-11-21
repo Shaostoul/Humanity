@@ -4732,6 +4732,14 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
 pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
     const REQUEST_PATH: &str = "debug/autopilot_request.json";
     const DONE_PATH: &str = "debug/autopilot_done.json";
+    // An entry's answer waits for the world itself (below): written the frame it has loaded.
+    if state.world_loaded {
+        if let Some((mut done, asked)) = state.world_prep.autopilot_done.take() {
+            done["waited_for_world_ms"] = serde_json::json!(asked.elapsed().as_millis() as u64);
+            let _ = std::fs::create_dir_all("debug");
+            let _ = std::fs::write(DONE_PATH, done.to_string());
+        }
+    }
     // Consumed either way, through the rule every debug poll shares
     // (`take_request_text`): a malformed request must not retry every frame
     // forever. Every field is optional but the JSON is not (`{}` at the
@@ -4832,18 +4840,24 @@ pub(crate) fn poll_autopilot_request(state: &mut EngineState) {
         state.gui_state.server_url,
         key_prefix
     );
-    let _ = std::fs::write(
-        DONE_PATH,
-        serde_json::json!({
-            "ok": true,
-            "server_url": state.gui_state.server_url,
-            "user_name": state.gui_state.user_name,
-            "character_name": state.gui_state.character_name,
-            "public_key_prefix": key_prefix,
-            "entered": enter,
-        })
-        .to_string(),
-    );
+    let done = serde_json::json!({
+        "ok": true,
+        "server_url": state.gui_state.server_url,
+        "user_name": state.gui_state.user_name,
+        "character_name": state.gui_state.character_name,
+        "public_key_prefix": key_prefix,
+        "entered": enter,
+    });
+    // ENTERING ANSWERS ONCE THE WORLD HAS LOADED (2026-11-20): a pages-first start prepares the 3D
+    // world before it can load (engine/world_prep.rs), so the answer waits for the world itself and
+    // every rig that enters through here waits the right way, never by sleeping. A device without
+    // the 3D world (a phone) answers at once: it never loads one.
+    let world3d = humanity_core::platform::device::has(humanity_core::platform::device::Capability::World3d);
+    if enter && world3d && !state.world_loaded {
+        state.world_prep.autopilot_done = Some((done, std::time::Instant::now()));
+    } else {
+        let _ = std::fs::write(DONE_PATH, done.to_string());
+    }
 }
 
 // ── Remote-player recorder (2026-10-03, permanent dev tooling) ───────────────
