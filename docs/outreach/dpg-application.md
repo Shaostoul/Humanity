@@ -225,11 +225,14 @@ all the code, content and data; and if not, evidence of the right to redistribut
 > the emoji pictures, vendored code) is redistributed under its own open licence, each listed with
 > its obligation in https://github.com/Shaostoul/Humanity/blob/main/LICENSES.md and
 > https://github.com/Shaostoul/Humanity/blob/main/CREDITS.md, with the licence file beside each one.
+> The Rust libraries built into the programs carry their notices in
+> https://github.com/Shaostoul/Humanity/blob/main/THIRD-PARTY-NOTICES.txt, and the DirectX Shader
+> Compiler in the Windows download is built by the project from Microsoft's open source (NCSA), its
+> licence beside each file.
 > Much of the code is written with AI assistance under the maintainer's direction and review;
 > LICENSING.md says plainly that a licence covers only the parts that carry human authorship.
 
-**Verdict: ready, once the Windows DLLs' notice is in** (thin spots table). Until then, a reviewer
-who opens the Windows download finds two files the answer above does not account for.
+**Verdict: ready.** The Windows DLLs carry their licence since v0.1566.0 (2026-11-20).
 
 ## Indicator 4: Platform Independence
 
