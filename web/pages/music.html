@@ -21,25 +21,42 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-    /* The Music page's web mirror (docs/design/music-page.md section 11): the page's shell and the
-       favourites a person keeps as share codes in this browser. The music itself is composed live
-       by the desktop app's engine, which the website cannot run yet (said on the page, with the
-       reason). Theme tokens only. */
+    /* The Music page's web mirror, version 2 (docs/design/music-page.md section 19): the desktop
+       page's tabs, Explore's cards, the Written music list and its details, and the favourites kept
+       as share codes in this browser. The music itself is composed live by the desktop app's engine,
+       which the website cannot run yet (said under Listen, with the reason). Theme tokens only. */
     body { background: var(--bg); color: var(--text); line-height: 1.55; margin: 0; }
-    .mp { max-width: 46rem; margin: 0 auto; padding: var(--space-xl) 16px var(--space-3xl); }
+    .mp { max-width: 80rem; margin: 0 auto; padding: var(--space-xl) 16px var(--space-3xl); }
     .mp h1 { margin: 0 0 var(--space-sm); color: var(--text-strong); }
     .mp h2 { font-size: var(--text-base); margin: var(--space-xl) 0 var(--space-sm); }
+    .mp h3 { margin: 0 0 var(--space-sm); color: var(--text-strong); }
     .mp .why { color: var(--text-secondary); background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
     .mp .row { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
-    .mp input[type=text] { flex: 1 1 18rem; min-width: 0; padding: var(--space-sm); background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font-family: var(--font-mono, monospace); }
+    .mp input[type=text], .mp input[type=search], .mp select { min-width: 0; padding: var(--space-sm); background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); }
+    .mp #mp-code { flex: 1 1 18rem; font-family: var(--font-mono, monospace); }
     .mp button { padding: var(--space-sm) var(--space-md); background: var(--bg-card); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
     .mp button:hover, .mp button:focus-visible { border-color: var(--border-focus); }
+    .mp .tabs { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin: var(--space-md) 0; border-bottom: 1px solid var(--border); }
+    .mp .tabs button { border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; }
+    .mp .tabs button[aria-selected=true] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
     .mp ul { list-style: none; padding: 0; margin: var(--space-md) 0 0; display: grid; gap: var(--space-sm); }
     .mp li { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
-    .mp li .name { font-weight: 600; color: var(--text-strong); }
-    .mp li .line { color: var(--text-secondary); font-size: var(--text-sm); }
+    .mp li.chosen { border-color: var(--accent); }
+    .mp li .name, .mp .mp-card .name { font-weight: 600; color: var(--text-strong); }
+    .mp .line { color: var(--text-secondary); font-size: var(--text-sm); }
     .mp .msg { color: var(--text-secondary); font-size: var(--text-sm); min-height: 1.4em; }
     .mp .muted { color: var(--text-muted); }
+    .mp .cards { display: grid; gap: var(--space-sm); grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); }
+    .mp .mp-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
+    .mp .mp-card .danger { color: var(--warning); font-size: var(--text-sm); }
+    .mp .written { display: grid; gap: var(--space-md); grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
+    .mp .written li button.title { background: none; border: none; padding: 0; font-weight: 600; color: var(--text-strong); text-align: left; }
+    .mp .written li .line { margin-left: var(--space-sm); }
+    .mp #mp-w-detail { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-md) var(--space-lg); }
+    .mp dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-xs) var(--space-md); margin: 0 0 var(--space-sm); font-size: var(--text-sm); }
+    .mp dt { color: var(--text-secondary); }
+    .mp dd { margin: 0; }
+    @media (max-width: 760px) { .mp .written { grid-template-columns: 1fr; } }
   </style>
 <script src="/shared/safe-markup.js"></script>
 </head>
@@ -54,17 +71,57 @@
 <main class="mp" id="page-app">
   <h1 data-i18n="music_page.web_title">Music</h1>
   <p data-i18n="music_page.intro">The game composes its own music as it plays: a genre's rules and a number, the seed, make a piece. Explore the pieces, change them, keep the ones you love, and take them anywhere.</p>
-  <h2 data-i18n="music_page.what_plays">What plays</h2>
-  <p data-i18n="music_page.web_what_plays">In the desktop app this page is the one place that chooses what the music plays: let the game choose, or your own genre, mood and seed, played on every page and in the world until you choose again. Settings &gt; Music there sets only how the music sounds.</p>
-  <p class="why" data-i18n="music_page.web_why">The music is composed live by the app's own engine, which runs in the desktop app; the website cannot play it yet. This is the order we are building in, not a law, a patent or a platform rule: a later step compiles the music engine for the browser.</p>
-  <h2 data-i18n="music_page.web_favourites">Your favourites</h2>
-  <p class="muted" data-i18n="music_page.web_favourites_hint">Favourites you pasted here as share codes, kept in this browser. Open the desktop app's Music page and paste a code there to hear it.</p>
-  <div class="row">
-    <input type="text" id="mp-code" autocomplete="off" spellcheck="false" placeholder="HOSM1-" data-i18n-placeholder="music_page.web_code_placeholder" data-i18n-tip="music_page.web_paste_hint" data-tip-desc="Paste a share code (it starts with HOSM1-) to keep it here." aria-label="Share code" data-i18n-aria-label="music_page.web_code_label">
-    <button type="button" id="mp-add" data-i18n="music_page.paste_button" data-i18n-tip="music_page.paste_button_hint" data-tip-desc="Read the code and add its piece to your favourites.">Add</button>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="mp-tab-listen" aria-controls="mp-panel-listen" data-i18n="music_page.tab_listen" data-i18n-tip="music_page.tab_listen_hint" data-tip-desc="What plays, how it is tuned, and the piece as it moves.">Listen</button>
+    <button type="button" role="tab" id="mp-tab-explore" aria-controls="mp-panel-explore" data-i18n="music_page.tab_explore" data-i18n-tip="music_page.tab_explore_hint" data-tip-desc="A card for each genre and mood in plain words, the seed, and the pieces you heard.">Explore</button>
+    <button type="button" role="tab" id="mp-tab-written" aria-controls="mp-panel-written" data-i18n="music_page.tab_written" data-i18n-tip="music_page.tab_written_hint" data-tip-desc="Every written piece, to search, sort and play, with where each came from.">Written music</button>
+    <button type="button" role="tab" id="mp-tab-yours" aria-controls="mp-panel-yours" data-i18n="music_page.tab_yours" data-i18n-tip="music_page.tab_yours_hint" data-tip-desc="Your favourites, the music for each mood, share codes and audio files.">Your music</button>
   </div>
-  <p class="msg" id="mp-msg" role="status"></p>
-  <ul id="mp-list"></ul>
+  <section id="mp-panel-listen" role="tabpanel" aria-labelledby="mp-tab-listen">
+    <h2 data-i18n="music_page.what_plays">What plays</h2>
+    <p data-i18n="music_page.web_what_plays">In the desktop app this page is the one place that chooses what the music plays: let the game choose, or your own genre, mood and seed, played on every page and in the world until you choose again. Settings &gt; Music there sets only how the music sounds.</p>
+    <p data-i18n="music_page.web_listen">The desktop app plays the music here: what plays, its tuning, the piano roll and the mixer. Choose a genre and a mood under Explore and a written piece under Written music to see what each is; the app plays them.</p>
+    <p class="why" data-i18n="music_page.web_why">The music is composed live by the app's own engine, which runs in the desktop app; the website cannot play it yet. This is the order we are building in, not a law, a patent or a platform rule: a later step compiles the music engine for the browser.</p>
+  </section>
+  <section id="mp-panel-explore" role="tabpanel" aria-labelledby="mp-tab-explore" hidden>
+    <h2 data-i18n="music_page.genres_title">Genres</h2>
+    <p class="line" data-i18n="music_page.genres_intro">Each genre is a style with its own beat, instruments and feel. Click a card to choose it; it plays from the next bar.</p>
+    <div class="cards" id="mp-genres"></div>
+    <h2 data-i18n="music_page.moods_title">Moods</h2>
+    <p class="line" data-i18n="music_page.moods_intro">A mood is where the music plays and how it feels there. The game picks one for each place; choosing one here makes it yours.</p>
+    <div class="cards" id="mp-moods"></div>
+  </section>
+  <section id="mp-panel-written" role="tabpanel" aria-labelledby="mp-tab-written" hidden>
+    <h2 data-i18n="music_page.written">Written music</h2>
+    <p class="line" data-i18n="music_page.written_intro">Music written down note by note, like a printed score, and played on the game's own instruments at your tuning. Each piece is a file anyone can open and change.</p>
+    <div class="row">
+      <input type="search" id="mp-w-search" autocomplete="off" aria-label="Search" data-i18n-aria-label="music_page.written_search" data-i18n-placeholder="music_page.written_search" placeholder="Search" data-i18n-tip="music_page.written_search_hint" data-tip-desc="Finds pieces by any word: title, composer, edition, source or instrument.">
+      <select id="mp-w-sort" aria-label="Sort by" data-i18n-aria-label="music_page.written_sort" data-i18n-tip="music_page.written_sort_hint" data-tip-desc="Orders the list.">
+        <option value="title" data-i18n="music_page.sort_title">Title</option>
+        <option value="composer" data-i18n="music_page.sort_composer">Composer</option>
+        <option value="era" data-i18n="music_page.sort_era">Era</option>
+        <option value="year" data-i18n="music_page.sort_year">Year</option>
+        <option value="length" data-i18n="music_page.sort_length">Length</option>
+      </select>
+      <select id="mp-w-composer" aria-label="Composer" data-i18n-aria-label="music_page.written_composer_filter" data-i18n-tip="music_page.written_composer_filter_hint" data-tip-desc="Shows only this composer's pieces."></select>
+      <select id="mp-w-era" aria-label="Era" data-i18n-aria-label="music_page.written_era_filter" data-i18n-tip="music_page.written_era_filter_hint" data-tip-desc="Shows only the pieces of this era."></select>
+      <span class="line" id="mp-w-count" role="status"></span>
+    </div>
+    <div class="written">
+      <ul id="mp-w-list"></ul>
+      <div id="mp-w-detail"></div>
+    </div>
+  </section>
+  <section id="mp-panel-yours" role="tabpanel" aria-labelledby="mp-tab-yours" hidden>
+    <h2 data-i18n="music_page.web_favourites">Your favourites</h2>
+    <p class="muted" data-i18n="music_page.web_favourites_hint">Favourites you pasted here as share codes, kept in this browser. Open the desktop app's Music page and paste a code there to hear it.</p>
+    <div class="row">
+      <input type="text" id="mp-code" autocomplete="off" spellcheck="false" placeholder="HOSM1-" data-i18n-placeholder="music_page.web_code_placeholder" data-i18n-tip="music_page.web_paste_hint" data-tip-desc="Paste a share code (it starts with HOSM1-) to keep it here." aria-label="Share code" data-i18n-aria-label="music_page.web_code_label">
+      <button type="button" id="mp-add" data-i18n="music_page.paste_button" data-i18n-tip="music_page.paste_button_hint" data-tip-desc="Read the code and add its piece to your favourites.">Add</button>
+    </div>
+    <p class="msg" id="mp-msg" role="status"></p>
+    <ul id="mp-list"></ul>
+  </section>
 </main>
 <script src="/pages/music-app.js"></script>
 </body>

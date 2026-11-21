@@ -1,5 +1,5 @@
-//! The Music page's pictures: Now playing (the piece in words, the beat pulse, each part moving, the
-//! spectrum) and See (the piano roll with chord symbols and section letters). Everything is read
+//! The Music page's pictures: the piece in words, the beat pulse, each part moving and the spectrum
+//! (the piano roll is roll.rs). Everything is read
 //! from the score itself (its status: the beat, the role meters, the bands) or from the sheet, the
 //! same piece written down by the composer run dry (docs/design/music-page.md section 9).
 
@@ -19,8 +19,6 @@ use crate::gui::{widgets, GuiState};
 const AHEAD_S: f64 = 40.0;
 /// The longest transcription kept, seconds.
 const MOST_S: f64 = 1200.0;
-/// Bars the piano roll shows: one behind the playhead and three ahead.
-const ROLL_BARS: usize = 4;
 
 /// The tag a transcription of `playing` reaching `seconds` would carry.
 fn tag_of(playing: &Playing, seconds: f64) -> SheetTag {
@@ -36,7 +34,7 @@ fn tag_of(playing: &Playing, seconds: f64) -> SheetTag {
 
 /// Keep the sheet of the playing piece current: made again when the piece changes, when the playhead
 /// nears its end, and every frame with "turn off all reuse" off (CLAUDE.md, the no-caches rule).
-pub(super) fn ensure_sheet(state: &mut GuiState) {
+pub(crate) fn ensure_sheet(state: &mut GuiState) {
     // A written piece is drawn from its own timeline (score-player.md section 16, rung 2): made again
     // when the piece changes, and every frame with "turn off all reuse" off. It is not the composer's,
     // so no transcription of a seed's piece stands in for it.
@@ -53,12 +51,23 @@ pub(super) fn ensure_sheet(state: &mut GuiState) {
         return;
     };
     let now = state.music_dev.readout.score.map(|s| s.seconds).unwrap_or(0.0);
-    let reach = ((now + AHEAD_S) / 60.0).ceil() * 60.0;
-    let reach = reach.min(MOST_S);
+    // A piece with a set length (the game's "A new piece" every few minutes: the score says how long
+    // until the next one) is written down to its end, so the piano roll can draw it whole
+    // (docs/design/music-page.md section 7); an endless one (Never, or the person's own choice) 40
+    // seconds past the playhead, made again further on as the playhead nears the end.
+    let whole = state.music_dev.readout.next_piece_s.map(|rem| (now + rem as f64).min(MOST_S));
+    let reach = match whole {
+        Some(len) => len.ceil().max(1.0),
+        None => (((now + AHEAD_S) / 60.0).ceil() * 60.0).min(MOST_S),
+    };
     let keep = humanity_core::reuse::enabled()
         && state.music_page.sheet.as_ref().is_some_and(|s| {
             let fresh = tag_of(&playing, s.tag.seconds as f64);
-            s.tag == fresh && (s.tag.seconds as f64 >= MOST_S || now + AHEAD_S * 0.5 < s.tag.seconds as f64)
+            let long_enough = match whole {
+                Some(len) => s.tag.seconds as f64 >= len - 0.5,
+                None => s.tag.seconds as f64 >= MOST_S || now + AHEAD_S * 0.5 < s.tag.seconds as f64,
+            };
+            s.tag == fresh && long_enough
         });
     if keep {
         return;
@@ -93,19 +102,12 @@ fn piece_words(sheet: &Sheet, playing: &Playing) -> (String, Option<String>) {
     (words, (!leads.is_empty()).then(|| t("music_page.leads_line").replace("{{leads}}", &leads.join(", "))))
 }
 
-/// Now playing: what plays and who chose it (the very words Settings > Music shows:
-/// `now_playing_words`), the piece in words, and the visualizer.
-pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Color32) {
-    ensure_sheet(state);
-    let now = super::now_playing_words(&state.settings.music, &state.music_dev.readout);
+/// The piece in words and the visualizer (what plays and who chose it is the strip's sentence along
+/// the top: strip.rs).
+pub(super) fn now_playing(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _accent: Color32) {
     let readout = &state.music_dev.readout;
     let status = readout.score;
-    widgets::subsection_header(ui, theme, accent, t("music_page.now_playing"), "");
     widgets::card(ui, theme, |ui| {
-        ui.label(RichText::new(now).strong().color(theme.text_primary()));
-        if state.settings.music.music_on && !readout.device {
-            ui.label(RichText::new(t("music_page.no_device")).color(theme.text_muted()));
-        }
         // A written piece has no chords or sections of the composer's to name (its title is above).
         if let (Some(c), Some(p), None) = (state.music_page.sheet.as_ref(), readout.playing.as_ref(), readout.written.as_ref()) {
             let (words, leads) = piece_words(&c.sheet, p);
@@ -163,7 +165,9 @@ fn visualizer(ui: &mut egui::Ui, theme: &Theme, status: Option<&humanity_music::
         let h = parts.height() * v;
         painter.rect_filled(Rect::from_min_max(Pos2::new(x0, parts.top()), Pos2::new(x1, parts.bottom())), 2.0, theme.bg_panel());
         painter.rect_filled(Rect::from_min_max(Pos2::new(x0, parts.bottom() - h), Pos2::new(x1, parts.bottom())), 2.0, role_colour(theme, k as u8));
-        painter.text(Pos2::new((x0 + x1) * 0.5, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, role_words(k), font.clone(), theme.text_muted());
+        if col_w >= theme.font_size_small * 4.0 {
+            painter.text(Pos2::new((x0 + x1) * 0.5, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, role_words(k), font.clone(), theme.text_muted());
+        }
     }
     // The spectrum: each octave band's level, -60 to 0 dB.
     let spec = Rect::from_min_max(Pos2::new(parts.right() + 12.0, rect.top() + 8.0), Pos2::new(rect.right() - 8.0, rect.bottom() - label_h));
@@ -181,109 +185,5 @@ fn visualizer(ui: &mut egui::Ui, theme: &Theme, status: Option<&humanity_music::
             let label = if hz >= 1000.0 { format!("{:.0}k", hz / 1000.0) } else { format!("{hz:.0}") };
             painter.text(Pos2::new((x0 + x1) * 0.5, rect.bottom() - label_h * 0.5), Align2::CENTER_CENTER, label, font.clone(), theme.text_muted());
         }
-    }
-}
-
-/// See: the piano roll of the bars around the playhead.
-pub(super) fn see(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Color32) {
-    let hint = state.settings.hint_display;
-    widgets::subsection_header(ui, theme, accent, t("music_page.see"), "");
-    widgets::card(ui, theme, |ui| {
-        widgets::setting_hint(ui, theme, hint, t("music_page.roll_hint"));
-        let now = state.music_dev.readout.score.map(|s| s.seconds).unwrap_or(0.0);
-        // The parts muted in the choice as the page shows it (the person's, or what plays now).
-        let mute = super::shown(&state.settings.music, &state.music_dev.readout).tune.mute;
-        match state.music_page.sheet.as_ref() {
-            // A written piece's notes too (score-player.md section 16, rung 2): ensure_sheet draws it
-            // from its timeline.
-            Some(c) if !c.sheet.bars.is_empty() => piano_roll(ui, theme, &c.sheet, now, mute),
-            _ => {
-                ui.label(RichText::new(t("music_page.roll_empty")).color(theme.text_muted()));
-            }
-        }
-    });
-}
-
-/// The piano roll: `ROLL_BARS` bars from the one before the playhead; time across, pitch up, each
-/// part in its colour (a muted part faint), chord symbols above each chord, the section letter at
-/// each section's start, the playhead.
-pub fn piano_roll(ui: &mut egui::Ui, theme: &Theme, sheet: &Sheet, now: f64, muted: u8) {
-    let width = ui.available_width().max(320.0);
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(width, 280.0), Sense::hover());
-    resp.hint("music_page.roll_hint");
-    let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 6.0, theme.bg_card());
-    let first = sheet.bar_at(now).unwrap_or(0).saturating_sub(1);
-    let bars: Vec<usize> = (first..first + ROLL_BARS).filter(|&b| b < sheet.bars.len()).collect();
-    let Some(&last) = bars.last() else { return };
-    let (t0, _) = sheet.bar_span(first).unwrap_or((0.0, 1.0));
-    let (_, t1) = sheet.bar_span(last).unwrap_or((t0, t0 + 1.0));
-    // Two lines above the grid: the section letters, then the chord symbols.
-    let head_h = theme.font_size_small * 2.8 + 12.0;
-    let grid = Rect::from_min_max(Pos2::new(rect.left() + 4.0, rect.top() + head_h), Pos2::new(rect.right() - 4.0, rect.bottom() - 4.0));
-    let x_of = |s: f64| grid.left() + ((s - t0) / (t1 - t0).max(1e-6)) as f32 * grid.width();
-    // The notes in view and their pitch range.
-    let mut notes = Vec::new();
-    for &b in &bars {
-        let (a, end) = sheet.bar_span(b).unwrap_or((0.0, 0.0));
-        let beat_s = (end - a) / sheet.beats_per_bar.max(1) as f64;
-        for n in sheet.bar_notes(b) {
-            if n.role as usize >= ROLES {
-                continue;
-            }
-            notes.push((a + n.start_beat as f64 * beat_s, n.len_beats as f64 * beat_s, n));
-        }
-    }
-    let (lo, hi) = notes.iter().fold((f32::MAX, f32::MIN), |(lo, hi), (_, _, n)| (lo.min(n.midi), hi.max(n.midi)));
-    let (lo, hi) = if lo > hi { (48.0, 72.0) } else { ((lo - 2.0).floor(), (hi + 2.0).ceil()) };
-    let row = grid.height() / (hi - lo + 1.0).max(1.0);
-    let y_of = |m: f32| grid.bottom() - (m - lo + 1.0) * row;
-    // Octave lines (each C) and the bar and beat lines.
-    let mut c = (lo / 12.0).ceil() * 12.0;
-    while c <= hi {
-        painter.line_segment([Pos2::new(grid.left(), y_of(c) + row), Pos2::new(grid.right(), y_of(c) + row)], Stroke::new(1.0f32, theme.border().gamma_multiply(0.5)));
-        c += 12.0;
-    }
-    let font = FontId::proportional(theme.font_size_small);
-    let flats = sheet.flats();
-    for &b in &bars {
-        let (a, end) = sheet.bar_span(b).unwrap_or((0.0, 0.0));
-        let bpb = sheet.beats_per_bar.max(1);
-        for k in 0..bpb {
-            let x = x_of(a + (end - a) * k as f64 / bpb as f64);
-            let stroke = if k == 0 { Stroke::new(1.5f32, theme.border()) } else { Stroke::new(1.0f32, theme.border().gamma_multiply(0.35)) };
-            painter.line_segment([Pos2::new(x, grid.top()), Pos2::new(x, grid.bottom())], stroke);
-        }
-    }
-    // Section letters and chord symbols above the grid.
-    for s in sheet.sections.iter().filter(|s| s.at_s >= t0 - 1e-6 && s.at_s < t1 && s.letter > 0) {
-        let x = x_of(s.at_s);
-        painter.text(Pos2::new(x + 3.0, rect.top() + 4.0), Align2::LEFT_TOP, ((b'A' + s.letter - 1) as char).to_string(), FontId::proportional(theme.font_size_small * 1.3), theme.accent());
-    }
-    // The section already playing when the view begins, at its left edge (fainter).
-    if let Some(s) = sheet.section_at(t0 + 1e-6).filter(|s| s.letter > 0 && s.at_s < t0 - 1e-6) {
-        painter.text(Pos2::new(grid.left() + 3.0, rect.top() + 4.0), Align2::LEFT_TOP, ((b'A' + s.letter - 1) as char).to_string(), FontId::proportional(theme.font_size_small * 1.3), theme.text_secondary());
-    }
-    // The chord already sounding when the view begins, then each chord that starts in it.
-    if let Some(ch) = sheet.chord_at(t0 + 1e-6).filter(|c| c.at_s < t0 - 1e-6) {
-        painter.text(Pos2::new(grid.left() + 3.0, rect.top() + head_h - 4.0), Align2::LEFT_BOTTOM, chord_symbol(ch.root, ch.pcs, flats), font.clone(), theme.text_secondary());
-    }
-    for ch in sheet.chords.iter().filter(|c| c.at_s >= t0 - 1e-6 && c.at_s < t1) {
-        let x = x_of(ch.at_s);
-        painter.text(Pos2::new(x + 3.0, rect.top() + head_h - 4.0), Align2::LEFT_BOTTOM, chord_symbol(ch.root, ch.pcs, flats), font.clone(), theme.text_primary());
-    }
-    // The notes.
-    for (at, len, n) in &notes {
-        let x0 = x_of(*at);
-        let x1 = x_of(at + len.max(0.05)).max(x0 + 2.0).min(grid.right());
-        let y = y_of(n.midi);
-        let faint = muted & (1 << n.role) != 0;
-        let colour = role_colour(theme, n.role).gamma_multiply(if faint { 0.15 } else { 0.45 + 0.55 * n.vel.clamp(0.0, 1.0) });
-        painter.rect_filled(Rect::from_min_max(Pos2::new(x0, y + 1.0), Pos2::new(x1, y + row.max(2.0) - 1.0)), 2.0, colour);
-    }
-    // The playhead.
-    if now >= t0 && now <= t1 {
-        let x = x_of(now);
-        painter.line_segment([Pos2::new(x, grid.top()), Pos2::new(x, grid.bottom())], Stroke::new(2.0f32, theme.accent()));
     }
 }

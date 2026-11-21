@@ -26,6 +26,7 @@ Genre(
     id: "drum_and_bass",
     words: "music.genre.drum_and_bass",
     about_words: "music.genre.drum_and_bass_about",
+    plain_words: "music.genre.drum_and_bass_plain",
     tempo_bpm: Some((170.0, 176.0)),
     beat_felt: Some(true),
     beats_per_bar: Some(4),

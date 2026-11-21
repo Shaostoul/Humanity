@@ -6365,60 +6365,115 @@ fn snapshot_calculator_pulleys() {
     });
 }
 
-/// The Music page (2026-11-13, docs/design/music-page.md): an electro swing piece playing (seed
-/// 4242) twenty seconds in as the person's own choice ("Now playing: ... your choice from the Music
-/// page", the words Settings > Music shows too), What plays with Play my choice chosen and the
-/// game's options greyed (2026-11-14, section 4), the visualizer mid-beat with its part meters and
-/// spectrum, the piece in words, the tune controls with the bass 3 dB down and the texture muted, two favourites (one the
-/// music for tension), and the piano roll of the bars around the playhead with chord symbols and
-/// section letters. The piece is the real one, written down by the composer run dry.
-#[test]
-#[ignore = "GPU snapshot; run via `just snapshots`"]
-fn snapshot_music() {
+/// The Music page's state for its snapshots (version 2, 2026-11-20, docs/design/music-page.md): an
+/// electro swing piece playing (seed 4242) twenty seconds in as the person's own choice ("Now
+/// playing: ... your choice from the Music page", the words Settings > Music shows too), the bass 3
+/// dB down and the texture muted, the visualizer mid-beat, two favourites (one the music for
+/// tension), three pieces heard, the piano roll showing 16 bars with its overview, and on the Written
+/// music tab Für Elise's details. The piece is the real one, written down by the composer run dry.
+fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab) {
     use humanity_music::favourite::{Favourite, Favourites, SavedTune};
     use std::sync::Arc;
+    if state.music_page.fav_loaded {
+        return;
+    }
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let lib = Arc::new(humanity_music::MusicLibrary::load(&data).expect("the music data"));
     let res = Arc::new(humanity_music::Resolved::new(&lib, &humanity_music::SampleLibrary::new()).expect("resolve"));
-    render_page_png("music", 1280, 2900, |ctx, theme, state| {
-        if !state.music_page.fav_loaded {
-            let g = lib.genre_index("electro_swing").unwrap();
-            let mood = lib.mood_index("mothership_calm").unwrap() as u16;
-            let mut tune = humanity_music::tune::Tune::default();
-            tune.level_db[1] = -3.0;
-            tune.mute = 1 << 7;
-            let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, ..Default::default() };
-            let r = &mut state.music_dev.readout;
-            r.device = true;
-            r.lib = Some(lib.clone());
-            r.genres = lib.genres.iter().map(|x| crate::gui::pages::dev_music::GenreChoice { id: x.id.clone(), words: x.words.clone(), name: x.name.clone(), about_words: x.about_words.clone(), about: x.about.clone(), stand_ins: Vec::new() }).collect();
-            let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None };
-            r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res: res.clone(), lib: lib.clone() });
-            let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
-            status.roles = [0.6, 0.9, 0.0, 0.0, 0.4, 0.8, 0.0, 0.0];
-            for (k, b) in status.bands.iter_mut().enumerate() {
-                *b = 0.12 * (1.0 - (k as f32 - 3.0).abs() / 8.0).max(0.02);
-            }
-            r.score = Some(status);
-            r.mood = "mothership_calm".into();
-            // The person's own choice (2026-11-14: kept in their settings, the one state the score,
-            // this page and Settings > Music read).
-            let m = &mut state.settings.music;
-            m.genre = "electro_swing".into();
-            m.game_chooses = false;
-            m.mood = "mothership_calm".into();
-            m.seed = 4242;
-            m.tune = SavedTune::from_tune(&tune, &lib, g);
-            let p = &mut state.music_page;
-            p.export_dir_override = Some(std::path::PathBuf::from(r"C:\Users\you\Music\HumanityOS"));
-            let mut favs = Favourites::default();
-            favs.add(Favourite { id: 0, name: "Car, Tuesday".into(), genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4242, tune: SavedTune::from_tune(&tune, &lib, g) });
-            let fight = favs.add(Favourite { id: 0, name: "Boss fight".into(), genre: "lofi".into(), mood: "tension".into(), seed: 31, tune: SavedTune::default() });
-            favs.assign("tension", Some(fight));
-            p.favourites = Arc::new(favs);
-            p.fav_loaded = true;
+    let g = lib.genre_index("electro_swing").unwrap();
+    let mood = lib.mood_index("mothership_calm").unwrap() as u16;
+    let mut tune = humanity_music::tune::Tune::default();
+    tune.level_db[1] = -3.0;
+    tune.mute = 1 << 7;
+    let ctx_m = humanity_music::MusicContext { mood, genre_a: g as u16, genre_b: g as u16, tune, analyse: true, ..Default::default() };
+    let r = &mut state.music_dev.readout;
+    r.device = true;
+    r.lib = Some(lib.clone());
+    r.genres = lib.genres.iter().map(|x| crate::gui::pages::dev_music::GenreChoice { id: x.id.clone(), words: x.words.clone(), name: x.name.clone(), about_words: x.about_words.clone(), about: x.about.clone(), stand_ins: Vec::new() }).collect();
+    r.piece_minutes = lib.piece_minutes.clone();
+    let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None };
+    r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res, lib: lib.clone() });
+    let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
+    status.roles = [0.6, 0.9, 0.0, 0.0, 0.4, 0.8, 0.0, 0.0];
+    for (k, b) in status.bands.iter_mut().enumerate() {
+        *b = 0.12 * (1.0 - (k as f32 - 3.0).abs() / 8.0).max(0.02);
+    }
+    r.score = Some(status);
+    r.mood = "mothership_calm".into();
+    // The person's own choice (2026-11-14: kept in their settings, the one state the score, this
+    // page and Settings > Music read).
+    let m = &mut state.settings.music;
+    m.genre = "electro_swing".into();
+    m.game_chooses = false;
+    m.mood = "mothership_calm".into();
+    m.seed = 4242;
+    m.tune = SavedTune::from_tune(&tune, &lib, g);
+    let p = &mut state.music_page;
+    p.export_dir_override = Some(std::path::PathBuf::from(r"C:\Users\you\Music\HumanityOS"));
+    let mut favs = Favourites::default();
+    favs.add(Favourite { id: 0, name: "Car, Tuesday".into(), genre: "electro_swing".into(), mood: "mothership_calm".into(), seed: 4242, tune: SavedTune::from_tune(&tune, &lib, g) });
+    let fight = favs.add(Favourite { id: 0, name: "Boss fight".into(), genre: "lofi".into(), mood: "tension".into(), seed: 31, tune: SavedTune::default() });
+    favs.assign("tension", Some(fight));
+    p.favourites = Arc::new(favs);
+    p.fav_loaded = true;
+    p.roll_bars = 16;
+    p.tab = tab;
+    p.written_selected = Some("fur_elise".into());
+    let now = std::time::Instant::now();
+    let heard = |genre: &str, mood: &str, seed: u64, mins: u64| crate::gui::pages::music::Heard { genre: genre.into(), mood: mood.into(), seed, tune: humanity_music::tune::Tune::default(), written: None, at: now - std::time::Duration::from_secs(mins * 60) };
+    p.heard = vec![heard("electro_swing", "mothership_calm", 4242, 0), heard("electro_swing", "mothership_calm", 4241, 3), heard("lofi", "night_watch", 1907, 9)];
+}
+
+/// The Music page, version 2, at the operator's screen (2560 by 1440): the Now playing strip with
+/// Like, the tabs, Listen's columns (What plays and Tune beside the piece in words and the
+/// visualizer) and the piano roll docked along the bottom with its length slider and overview.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music() {
+    render_page_png("music", 2560, 1440, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// The Music page's Explore tab at 2560 by 1440: a card for each genre and mood with its plain
+/// sentence, the seed, and the pieces heard.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_explore() {
+    render_page_png("music_explore", 2560, 1440, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Explore);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// The Music page's Written music tab at 2560 by 1440: the searchable list and Für Elise's details
+/// (where it came from).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_written() {
+    render_page_png("music_written", 2560, 1440, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Written);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// The Music page on a phone (about 412 by 915 points, drawn at 200% with the phone preview on): one
+/// column, the strip's buttons wrapped, the piano roll inside Listen.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_phone_music() {
+    struct PreviewOff;
+    impl Drop for PreviewOff {
+        fn drop(&mut self) {
+            humanity_core::platform::device::set_phone_preview(false);
         }
-        crate::gui::pages::music::draw(ctx, theme, state);
+    }
+    humanity_core::platform::device::set_phone_preview(true);
+    let _off = PreviewOff;
+    render_page_png_at("phone_music", 824, 1830, 200.0, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
     });
 }
 

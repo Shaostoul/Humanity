@@ -1046,6 +1046,9 @@ pub(crate) fn frame(state: &mut EngineState) {
         music.step(audio.as_mut().map(|a| a as &mut dyn Mixer), &inputs)
     };
     state.gui_state.music_dev.readout = readout;
+    // The Music page's pieces heard, page open or not (docs/design/music-page.md section 9).
+    let crate::gui::GuiState { music_page, settings, music_dev, .. } = &mut state.gui_state;
+    music_page.note_heard(&settings.music, &music_dev.readout);
 }
 
 #[cfg(test)]

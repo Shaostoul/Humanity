@@ -135,6 +135,12 @@ pub struct Mood {
     /// Its name, by key.
     #[serde(default)]
     pub words: String,
+    /// WHERE IT PLAYS, in one plain sentence (the Music page's Explore card, docs/design/music-page.md
+    /// section 9), by key (or plain words in `where_plain` for a community mood).
+    #[serde(default)]
+    pub where_words: String,
+    #[serde(default)]
+    pub where_plain: String,
     pub keys: Vec<KeyCentre>,
     pub chords: Vec<ChordDef>,
     /// The chord graph: (from, to, weight) by chord name.

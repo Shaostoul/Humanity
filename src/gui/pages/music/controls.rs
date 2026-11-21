@@ -1,6 +1,6 @@
 //! The Music page's controls: What plays (let the game choose, with its options, or the person's
-//! choice), Explore (genre, mood, seed), Tune (key, tempo, lead voices, each part's level and mute)
-//! and Keep (favourites, "my music" for a mood, share codes, export). Every word by key, every
+//! choice), Tune (key, tempo, lead voices, each part's level and mute) and Your music (favourites,
+//! "my music" for a mood, share codes, export); Explore is explore.rs. Every word by key, every
 //! control with a hint that says what it changes (docs/design/music-page.md sections 4 to 8).
 //!
 //! The choice is the person's own settings (`MusicSettings`, config.json), the one state the score,
@@ -11,11 +11,11 @@
 use std::sync::Arc;
 
 use egui::{Color32, RichText};
-use humanity_core::i18n::{t, t_dyn};
+use humanity_core::i18n::t;
 use humanity_music::favourite::{from_share_code, share_code, Favourite, SavedTune, ShareError};
 use humanity_music::tune::{Tune, PIECE, ROLES};
 
-use super::{export_dir, export_file_name, genre_label, mood_words, open_favourite, role_colour, role_words, voice_words, ExportJob, ExportStatus, Shown, EXPORT_MINUTES, RANDOM_SEED_MAX};
+use super::{export_dir, export_file_name, genre_label, mood_words, open_favourite, role_colour, role_words, voice_words, ExportJob, ExportStatus, Shown, EXPORT_MINUTES};
 use crate::gui::pages::dev_music::GenreChoice;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{with_hint, Hint};
@@ -24,7 +24,7 @@ use crate::gui::{widgets, GuiState};
 /// The genres offered: the engine's list (the music's own data, community genres included), else
 /// the default alone, for the first moment of a run before the data is read (engine/music.rs,
 /// BUG-273).
-fn genres_of(state: &GuiState) -> Vec<GenreChoice> {
+pub(super) fn genres_of(state: &GuiState) -> Vec<GenreChoice> {
     if state.music_dev.readout.genres.is_empty() {
         vec![GenreChoice { id: humanity_music::library::DEFAULT_GENRE.to_string(), words: "music.genre.mothership_calm".to_string(), about_words: "music.genre.mothership_calm_about".to_string(), ..Default::default() }]
     } else {
@@ -128,89 +128,6 @@ pub(super) fn what_plays(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState,
     if dirty {
         state.settings_dirty = true;
     }
-}
-
-/// Explore: the genre (the app's one genre control), the mood and the seed.
-pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown, accent: Color32) {
-    let hint = state.settings.hint_display;
-    let lib = state.music_dev.readout.lib.clone();
-    let genres = genres_of(state);
-    let p = &mut state.music_page;
-    widgets::subsection_header(ui, theme, accent, t("music_page.explore"), "");
-    widgets::card(ui, theme, |ui| {
-        ui.label(RichText::new(t("music_page.genre")).color(theme.text_secondary()));
-        ui.horizontal_wrapped(|ui| {
-            for g in &genres {
-                let selected = sh.genre == g.id;
-                if ui.radio(selected, RichText::new(genre_label(&g.id, &g.words, &g.name)).color(theme.text_primary())).hint("music_page.genre_hint").clicked() && !selected {
-                    sh.genre = g.id.clone();
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, t("music_page.genre_hint"));
-        // What the chosen genre sounds like, and which of its instruments play synthesised stand-ins
-        // until a free recording of them is installed (said plainly, never silently).
-        if let Some(g) = genres.iter().find(|g| g.id == sh.genre) {
-            let about = genre_label("", &g.about_words, &g.about);
-            if !about.is_empty() {
-                ui.label(RichText::new(about).color(theme.text_secondary()));
-            }
-            if !g.stand_ins.is_empty() {
-                // Each part with the pack whose recording would play it (Settings > Audio >
-                // Instruments installs it).
-                let parts: Vec<String> = g
-                    .stand_ins
-                    .iter()
-                    .map(|s| match &s.pack {
-                        Some(pack) => t("music_page.stand_in_from").replace("{{part}}", t_dyn(&s.part)).replace("{{pack}}", t_dyn(pack)),
-                        None => t_dyn(&s.part).to_string(),
-                    })
-                    .collect();
-                ui.label(RichText::new(t("music_page.genre_stand_ins").replace("{{parts}}", &parts.join(", "))).size(theme.font_size_small).color(theme.text_muted()));
-            }
-        }
-        ui.label(RichText::new(t("music_page.recordings_note")).size(theme.font_size_small).color(theme.text_muted()));
-        ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new(t("music_page.mood")).color(theme.text_secondary()));
-        ui.horizontal_wrapped(|ui| {
-            for m in lib.iter().flat_map(|l| l.moods.iter()) {
-                let selected = sh.mood == m.id;
-                if ui.radio(selected, RichText::new(mood_words(lib.as_deref(), &m.id)).color(theme.text_primary())).hint("music_page.mood_hint").clicked() && !selected {
-                    sh.mood = m.id.clone();
-                }
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, t("music_page.mood_hint"));
-        ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new(t("music_page.seed")).color(theme.text_secondary()));
-        // The box shows the seed shown, and keeps what is being typed until it is a seed.
-        if p.seed_shown != sh.seed {
-            p.seed_text = sh.seed.to_string();
-            p.seed_shown = sh.seed;
-        }
-        ui.horizontal(|ui| {
-            if ui.button(t("music_page.previous")).hint("music_page.previous_hint").clicked() {
-                sh.seed = sh.seed.saturating_sub(1).max(1);
-            }
-            let r = ui.add(egui::TextEdit::singleline(&mut p.seed_text).desired_width(110.0)).hint("music_page.seed_box_hint");
-            if r.changed() {
-                if let Ok(s) = p.seed_text.trim().parse::<u64>() {
-                    if s > 0 {
-                        sh.seed = s;
-                        p.seed_shown = s;
-                    }
-                }
-            }
-            if ui.button(t("music_page.next")).hint("music_page.next_hint").clicked() {
-                sh.seed = sh.seed.saturating_add(1);
-            }
-            if ui.button(t("music_page.random")).hint("music_page.random_hint").clicked() {
-                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(7);
-                sh.seed = humanity_music::piece::mix(now, sh.seed) % RANDOM_SEED_MAX + 1;
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, t("music_page.seed_hint"));
-    });
 }
 
 /// Tune: the key, the tempo, the lead voices, and each part's level and mute.
@@ -323,10 +240,10 @@ pub(super) fn tune(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
     });
 }
 
-/// Keep: name and keep the piece shown, the favourites with their buttons, "my music" for each
-/// mood, a pasted share code, and where exports go. Opening a favourite or a code makes it the
-/// person's choice.
-pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &Shown, accent: Color32) {
+/// Your music: the favourites (Like keeps one in a click; each here with Open, Rename, Copy code,
+/// Export and Remove, the one Like marked outlined), "my music" for each mood, a pasted share code,
+/// and where exports go. Opening a favourite or a code makes it the person's choice.
+pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, accent: Color32) {
     let hint = state.settings.hint_display;
     let lib = state.music_dev.readout.lib.clone();
     let p = &mut state.music_page;
@@ -337,23 +254,7 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
         if let Some(e) = &p.fav_error {
             ui.label(RichText::new(t("music_page.fav_error").replace("{{error}}", e)).color(theme.warning()));
         }
-        // Keep the piece the page shows.
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(t("music_page.name")).color(theme.text_secondary()));
-            ui.add(egui::TextEdit::singleline(&mut p.name_text).desired_width(220.0)).hint("music_page.name_hint");
-            if ui.button(t("music_page.keep_button")).hint("music_page.keep_hint").clicked() {
-                let gi = lib.as_deref().and_then(|l| l.genre_index(&sh.genre));
-                let tune = match (lib.as_deref(), gi) {
-                    (Some(l), Some(g)) => SavedTune::from_tune(&sh.tune, l, g),
-                    _ => SavedTune::default(),
-                };
-                let name = if p.name_text.trim().is_empty() { t("music_page.default_name").replace("{{seed}}", &sh.seed.to_string()) } else { p.name_text.trim().to_string() };
-                Arc::make_mut(&mut p.favourites).add(Favourite { id: 0, name, genre: sh.genre.clone(), mood: sh.mood.clone(), seed: sh.seed, tune });
-                p.name_text.clear();
-                changed = true;
-            }
-        });
-        widgets::setting_hint(ui, theme, hint, t("music_page.keep_hint"));
+        widgets::setting_hint(ui, theme, hint, t("music_page.like_hint"));
         ui.add_space(theme.spacing_xs);
         // The favourites.
         let favs = p.favourites.favourites.clone();
@@ -362,13 +263,29 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
         }
         let mut remove: Option<u64> = None;
         let mut export: Option<Favourite> = None;
+        let mut renamed: Option<(u64, String)> = None;
         for f in &favs {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(&f.name).strong().color(theme.text_primary()));
+            let marked = p.marked == Some(f.id);
+            let row = ui.horizontal_wrapped(|ui| {
+                match p.renaming.as_mut().filter(|(id, _)| *id == f.id) {
+                    Some((_, text)) => {
+                        let r = ui.add(egui::TextEdit::singleline(text).desired_width(240.0)).hint("music_page.rename_hint");
+                        let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if (ui.button(t("music_page.rename_done")).hint("music_page.rename_done_hint").clicked() || enter) && !text.trim().is_empty() {
+                            renamed = Some((f.id, text.trim().to_string()));
+                        }
+                    }
+                    None => {
+                        ui.label(RichText::new(&f.name).strong().color(if marked { accent } else { theme.text_primary() }));
+                    }
+                }
                 let gl = state_genre_words(&f.genre, lib.as_deref());
                 ui.label(RichText::new(t("music_page.fav_line").replace("{{genre}}", &gl).replace("{{mood}}", &mood_words(lib.as_deref(), &f.mood)).replace("{{seed}}", &f.seed.to_string())).size(theme.font_size_small).color(theme.text_muted()));
                 if ui.button(t("music_page.open")).hint("music_page.open_hint").clicked() {
                     opened = Some(f.clone());
+                }
+                if p.renaming.as_ref().is_none_or(|(id, _)| *id != f.id) && ui.button(t("music_page.rename")).hint("music_page.rename_hint").clicked() {
+                    p.renaming = Some((f.id, f.name.clone()));
                 }
                 if ui.button(t("music_page.copy_code")).hint("music_page.copy_code_hint").clicked() {
                     ui.ctx().copy_text(share_code(f));
@@ -382,6 +299,17 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
                     remove = Some(f.id);
                 }
             });
+            // The favourite Like just kept, or found already kept, outlined.
+            if marked {
+                ui.painter().rect_stroke(row.response.rect.expand(2.0), 4.0, egui::Stroke::new(2.0f32, accent), egui::epaint::StrokeKind::Outside);
+            }
+        }
+        if let Some((id, name)) = renamed {
+            if let Some(f) = Arc::make_mut(&mut p.favourites).favourites.iter_mut().find(|f| f.id == id) {
+                f.name = name;
+            }
+            p.renaming = None;
+            changed = true;
         }
         if let Some(id) = remove {
             Arc::make_mut(&mut p.favourites).remove(id);
@@ -481,7 +409,6 @@ pub(super) fn keep(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
         p.save_favourites();
     }
     if let Some(f) = opened {
-        p.name_text = f.name.clone();
         open_favourite(&mut state.settings.music, &f);
         state.settings_dirty = true;
     }

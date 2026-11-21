@@ -21,6 +21,7 @@ Genre(
     id: "ambient",
     words: "music.genre.ambient",
     about_words: "music.genre.ambient_about",
+    plain_words: "music.genre.ambient_plain",
     tempo_bpm: Some((60.0, 68.0)),
     beat_felt: Some(false),
     beats_per_bar: Some(4),

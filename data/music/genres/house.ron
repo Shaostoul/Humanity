@@ -25,6 +25,7 @@ Genre(
     id: "house",
     words: "music.genre.house",
     about_words: "music.genre.house_about",
+    plain_words: "music.genre.house_plain",
     tempo_bpm: Some((120.0, 126.0)),
     beat_felt: Some(true),
     beats_per_bar: Some(4),

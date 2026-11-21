@@ -8,6 +8,7 @@
 Mood(
     id: "mothership_calm",
     words: "music.mood.mothership_calm",
+    where_words: "music.mood.mothership_calm_where",
     keys: [(root: "D", mode: Lydian, weight: 4.0), (root: "A", mode: Lydian, weight: 1.0), (root: "G", mode: Lydian, weight: 1.0)],
     chords: [
         (name: "Dmaj9", root: 0, notes: [0, 4, 7, 11, 14]),

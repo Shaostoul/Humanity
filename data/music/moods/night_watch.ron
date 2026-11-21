@@ -4,6 +4,7 @@
 Mood(
     id: "night_watch",
     words: "music.mood.night_watch",
+    where_words: "music.mood.night_watch_where",
     keys: [(root: "A", mode: Aeolian, weight: 3.0), (root: "E", mode: Aeolian, weight: 1.0), (root: "D", mode: Aeolian, weight: 1.0)],
     chords: [
         (name: "Am11", root: 0, notes: [0, 3, 7, 10, 14, 17]),

@@ -3,11 +3,15 @@
 //! cool if we could see the song in some sort of music sheet kind of thing and have a visualizer
 //! that moves around to the beat").
 //!
-//! One scroll in the order a person uses it: Now playing (what plays and who chose it, the piece in
-//! words, the visualizer), What plays (let the game choose, or the person's choice), Explore (genre,
-//! mood, seed), Tune (key, tempo, lead voice, each part's level and mute), Keep (favourites, "my
-//! music" for a mood, share codes, export to WAV) and See (the piano roll with chord symbols and
-//! section letters).
+//! VERSION 2 (2026-11-20, docs/design/music-page.md sections 5 to 11; the operator: "we have a lot of
+//! real estate for the UI. We could condense things"): the Now playing strip along the top, always in
+//! view (pause, previous and next piece, what plays, the genre, mood and seed chips, and Like, which
+//! keeps the piece in one click: `strip.rs`); then tabs: Listen (What plays, Tune, the piece in words
+//! and the visualizer), Explore (a card for each genre and mood in plain words, the seed, the pieces
+//! heard: `explore.rs`), Written music (the searchable catalogue: `written.rs`) and Your music
+//! (favourites, "my music" for a mood, share codes, export). On a wide page the piano roll (its
+//! length slider, the overview, follow the music: `roll.rs`) is docked along the bottom on every tab;
+//! on a narrow one (a small window, the phone) it sits in Listen.
 //!
 //! ONE PLACE CHOOSES THE MUSIC (2026-11-14, section 4; the operator: "When I go to the settings it
 //! plays one music and when I go to the music page it goes to another. We should have one place
@@ -26,10 +30,18 @@
 //! whenever they change.
 
 mod controls;
+mod explore;
+mod roll;
+mod strip;
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod tests_v2;
 mod view;
 mod written;
+
+pub use explore::Heard;
+pub use written::{WrittenQuery, WrittenSort};
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -87,9 +99,42 @@ pub struct SheetTag {
     pub seconds: u32,
 }
 
+/// The page's tabs (docs/design/music-page.md section 5), in their order; the Orchestra joins in
+/// rung 3.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Tab {
+    #[default]
+    Listen,
+    Explore,
+    Written,
+    Yours,
+}
+
+impl Tab {
+    pub const ALL: [Tab; 4] = [Tab::Listen, Tab::Explore, Tab::Written, Tab::Yours];
+    /// Its words key and its hint's key.
+    pub fn keys(self) -> (&'static str, &'static str) {
+        match self {
+            Tab::Listen => ("music_page.tab_listen", "music_page.tab_listen_hint"),
+            Tab::Explore => ("music_page.tab_explore", "music_page.tab_explore_hint"),
+            Tab::Written => ("music_page.tab_written", "music_page.tab_written_hint"),
+            Tab::Yours => ("music_page.tab_yours", "music_page.tab_yours_hint"),
+        }
+    }
+}
+
+/// The page is laid out in columns, with the piano roll docked along the bottom, from this width
+/// (points); narrower (a small window, the phone), one column with the roll in Listen.
+pub const WIDE_POINTS: f32 = 1100.0;
+
+/// The piano roll's bars shown when the page first opens (0 would be the whole piece).
+pub const ROLL_BARS_DEFAULT: usize = 8;
+
 /// The Music page's own state (what plays is the person's settings, not this).
 #[derive(Clone)]
 pub struct MusicPage {
+    /// The tab shown (kept for the session only: a tab is not a choice worth a file).
+    pub tab: Tab,
     /// The seed box's text, and the seed it last showed (the box keeps what is being typed until it
     /// is a seed).
     pub seed_text: String,
@@ -99,8 +144,22 @@ pub struct MusicPage {
     pub fav_loaded: bool,
     pub fav_error: Option<String>,
     pub fav_path: Option<PathBuf>,
-    /// The name box for a new favourite, the share box, and what the last paste said.
-    pub name_text: String,
+    /// The favourite whose name is being changed (its id and the box's text), the one Like marked on
+    /// Your music, and what the last Like said.
+    pub renaming: Option<(u64, String)>,
+    pub marked: Option<u64>,
+    pub like_msg: Option<String>,
+    /// The piano roll: how many bars it shows (0: the whole piece), whether it follows the music,
+    /// and the first bar shown while it does not.
+    pub roll_bars: usize,
+    pub roll_follow: bool,
+    pub roll_first: usize,
+    /// The pieces heard this session, newest first (`explore::HEARD_MOST` at most).
+    pub heard: Vec<Heard>,
+    /// The Written music list's search, sort and filters, and the piece whose details show.
+    pub written_query: WrittenQuery,
+    pub written_selected: Option<String>,
+    /// The share box, and what the last paste said.
     pub share_text: String,
     pub share_msg: Option<String>,
     /// The export length chosen, the export asked for (taken by the engine) and where it stands.
@@ -117,13 +176,22 @@ pub struct MusicPage {
 impl Default for MusicPage {
     fn default() -> Self {
         MusicPage {
+            tab: Tab::default(),
             seed_text: String::new(),
             seed_shown: 0,
             favourites: Arc::default(),
             fav_loaded: false,
             fav_error: None,
             fav_path: None,
-            name_text: String::new(),
+            renaming: None,
+            marked: None,
+            like_msg: None,
+            roll_bars: ROLL_BARS_DEFAULT,
+            roll_follow: true,
+            roll_first: 0,
+            heard: Vec::new(),
+            written_query: WrittenQuery::default(),
+            written_selected: None,
             share_text: String::new(),
             share_msg: None,
             export_minutes: 3.0,
@@ -443,7 +511,28 @@ pub fn role_words(role: usize) -> &'static str {
     humanity_music::tune::ROLE_IDS.get(role).map(|id| t_dyn(&format!("music_page.role.{id}"))).unwrap_or("")
 }
 
-/// Draw the Music page.
+/// The genre id a playing piece is heard in: its choice's, else the score's leading genre (a blend
+/// past halfway leads with its second), else the person's.
+pub fn playing_genre(p: &crate::gui::pages::dev_music::Playing, fallback: &str) -> String {
+    match &p.choice {
+        Some(c) => c.genre.clone(),
+        None => {
+            let k = if p.ctx.blend >= 0.5 { p.ctx.genre_b } else { p.ctx.genre_a };
+            p.lib.genres.get(k as usize).map(|g| g.id.clone()).unwrap_or_else(|| fallback.to_string())
+        }
+    }
+}
+
+impl MusicPage {
+    /// Note the piece playing now in the pieces heard (called every frame by the engine's music,
+    /// page open or not, so a piece heard elsewhere is in the list too; explore.rs draws it).
+    pub fn note_heard(&mut self, s: &MusicSettings, r: &MusicReadout) {
+        explore::note_heard(&mut self.heard, s, r, std::time::Instant::now());
+    }
+}
+
+/// Draw the Music page: the title and the Now playing strip, the tabs, the tab's content, and on a
+/// wide page the piano roll docked along the bottom (docs/design/music-page.md section 5).
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let accent = theme.nav_cat_apps();
     // The visualizer, the chord and section words and a written piece's roll move while music
@@ -453,24 +542,74 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
     }
     egui::CentralPanel::default().frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(16.0)).show(ctx, |ui| {
-        ScrollArea::vertical().id_salt("music_page_scroll").auto_shrink([false, false]).show(ui, |ui| {
+        view::ensure_sheet(state);
+        // The choice as the page shows it; the strip, Explore and Tune change `sh`, written back below.
+        let before = shown(&state.settings.music, &state.music_dev.readout);
+        let mut sh = before.clone();
+        let wide = ui.available_width() >= WIDE_POINTS;
+        egui::TopBottomPanel::top("music_page_top").frame(Frame::NONE).show_separator_line(false).show_inside(ui, |ui| {
             ui.label(RichText::new(t("music_page.title")).size(theme.font_size_title).color(theme.text_primary()));
-            ui.label(RichText::new(t("music_page.intro")).color(theme.text_secondary()));
-            ui.add_space(theme.spacing_sm);
-            // The choice as the page shows it; Explore and Tune change `sh`, written back below.
-            let before = shown(&state.settings.music, &state.music_dev.readout);
-            let mut sh = before.clone();
+            strip::strip(ui, theme, state, &mut sh, accent);
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal_wrapped(|ui| {
+                for tab in Tab::ALL {
+                    let (words, hint) = tab.keys();
+                    let active = state.music_page.tab == tab;
+                    if crate::gui::widgets::Button::tab(t(words), active).hint(hint).show(ui, theme) && !active {
+                        state.music_page.tab = tab;
+                    }
+                }
+            });
+            ui.add_space(theme.spacing_xs);
+        });
+        if wide {
+            let h = (ui.available_height() * 0.3).clamp(240.0, 460.0);
+            egui::TopBottomPanel::bottom("music_page_roll")
+                .frame(Frame::NONE.inner_margin(egui::Margin { top: 8, ..Default::default() }))
+                .show_separator_line(false)
+                .resizable(false)
+                .exact_height(h)
+                .show_inside(ui, |ui| roll::panel(ui, theme, state, accent));
+        }
+        ScrollArea::vertical().id_salt("music_page_scroll").auto_shrink([false, false]).show(ui, |ui| match state.music_page.tab {
+            Tab::Listen => listen(ui, theme, state, &before, &mut sh, accent, wide),
+            Tab::Explore => explore::explore(ui, theme, state, &mut sh, accent, wide),
+            Tab::Written => written::written(ui, theme, state, accent, wide),
+            Tab::Yours => controls::keep(ui, theme, state, accent),
+        });
+        let lib = state.music_dev.readout.lib.clone();
+        if apply(&mut state.settings.music, lib.as_deref(), &before, &sh) {
+            state.settings_dirty = true;
+        }
+    });
+}
+
+/// Listen: What plays beside the piece in words, the visualizer and Tune (wide), or one column with
+/// the piano roll in it (narrow).
+fn listen(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, before: &Shown, sh: &mut Shown, accent: Color32, wide: bool) {
+    if !wide {
+        view::now_playing(ui, theme, state, accent);
+        roll::panel(ui, theme, state, accent);
+        controls::what_plays(ui, theme, state, before, accent);
+        controls::tune(ui, theme, state, sh, accent);
+        return;
+    }
+    let gap = theme.spacing_md;
+    let left_w = (ui.available_width() * 0.36).max(380.0);
+    let right_w = (ui.available_width() - left_w - gap).max(320.0);
+    // No height: each column grows with what it holds (the page scrolls; a scroll area's own height
+    // is unbounded).
+    let h = 0.0;
+    ui.horizontal_top(|ui| {
+        ui.allocate_ui_with_layout(egui::vec2(left_w, h), egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.set_width(left_w);
+            controls::what_plays(ui, theme, state, before, accent);
+        });
+        ui.add_space(gap);
+        ui.allocate_ui_with_layout(egui::vec2(right_w, h), egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.set_width(right_w);
             view::now_playing(ui, theme, state, accent);
-            controls::what_plays(ui, theme, state, &before, accent);
-            written::written(ui, theme, state, accent);
-            controls::explore(ui, theme, state, &mut sh, accent);
-            controls::tune(ui, theme, state, &mut sh, accent);
-            controls::keep(ui, theme, state, &sh, accent);
-            view::see(ui, theme, state, accent);
-            let lib = state.music_dev.readout.lib.clone();
-            if apply(&mut state.settings.music, lib.as_deref(), &before, &sh) {
-                state.settings_dirty = true;
-            }
+            controls::tune(ui, theme, state, sh, accent);
         });
     });
 }

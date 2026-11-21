@@ -1,0 +1,344 @@
+{
+  "_generated": "Written by scripts/gen-music-catalogue.js from data/music (genres, moods, intensity.ron, scores/index.ron). Do not edit: change the RON and run the script.",
+  "genres": [
+    {
+      "id": "mothership_calm",
+      "words": "music.genre.mothership_calm",
+      "name": "",
+      "plain_words": "music.genre.mothership_calm_plain",
+      "plain": "",
+      "about_words": "music.genre.mothership_calm_about",
+      "about": "",
+      "tempo_bpm": null,
+      "instruments": [
+        "instrument_packs.part.strings_high",
+        "music.instrument.choir_ah",
+        "instrument_packs.part.bass_strings",
+        "instrument_packs.part.glockenspiel",
+        "instrument_packs.part.steel_pan",
+        "instrument_packs.part.deep_drum"
+      ]
+    },
+    {
+      "id": "ambient",
+      "words": "music.genre.ambient",
+      "name": "",
+      "plain_words": "music.genre.ambient_plain",
+      "plain": "",
+      "about_words": "music.genre.ambient_about",
+      "about": "",
+      "tempo_bpm": [
+        60,
+        68
+      ],
+      "instruments": [
+        "music.instrument.wavetable_pad",
+        "music.instrument.dark_pad",
+        "music.instrument.celesta",
+        "music.instrument.harp"
+      ]
+    },
+    {
+      "id": "deep_dubstep",
+      "words": "music.genre.deep_dubstep",
+      "name": "",
+      "plain_words": "music.genre.deep_dubstep_plain",
+      "plain": "",
+      "about_words": "music.genre.deep_dubstep_about",
+      "about": "",
+      "tempo_bpm": [
+        140,
+        140
+      ],
+      "instruments": [
+        "music.instrument.fm_growl",
+        "music.instrument.wavetable_growl",
+        "music.instrument.dub_pad",
+        "music.instrument.pwm_pad",
+        "music.instrument.wobble_bass",
+        "music.instrument.celesta"
+      ]
+    },
+    {
+      "id": "drum_and_bass",
+      "words": "music.genre.drum_and_bass",
+      "name": "",
+      "plain_words": "music.genre.drum_and_bass_plain",
+      "plain": "",
+      "about_words": "music.genre.drum_and_bass_about",
+      "about": "",
+      "tempo_bpm": [
+        170,
+        176
+      ],
+      "instruments": [
+        "music.instrument.wavetable_pad",
+        "music.instrument.soft_saw_pad",
+        "music.instrument.reese_bass",
+        "music.instrument.electric_piano"
+      ]
+    },
+    {
+      "id": "electro_swing",
+      "words": "music.genre.electro_swing",
+      "name": "",
+      "plain_words": "music.genre.electro_swing_plain",
+      "plain": "",
+      "about_words": "music.genre.electro_swing_about",
+      "about": "",
+      "tempo_bpm": [
+        128,
+        128
+      ],
+      "instruments": [
+        "instrument_packs.part.clarinet",
+        "instrument_packs.part.solo_violin",
+        "instrument_packs.part.tenor_saxophone",
+        "instrument_packs.part.vibraphone",
+        "instrument_packs.part.piano",
+        "instrument_packs.part.trombone"
+      ]
+    },
+    {
+      "id": "house",
+      "words": "music.genre.house",
+      "name": "",
+      "plain_words": "music.genre.house_plain",
+      "plain": "",
+      "about_words": "music.genre.house_about",
+      "about": "",
+      "tempo_bpm": [
+        120,
+        126
+      ],
+      "instruments": [
+        "music.instrument.electric_piano",
+        "music.instrument.supersaw",
+        "music.instrument.soft_lead",
+        "music.instrument.synth_lead",
+        "music.instrument.pulse_bass"
+      ]
+    },
+    {
+      "id": "lofi",
+      "words": "music.genre.lofi",
+      "name": "",
+      "plain_words": "music.genre.lofi_plain",
+      "plain": "",
+      "about_words": "music.genre.lofi_about",
+      "about": "",
+      "tempo_bpm": [
+        70,
+        82
+      ],
+      "instruments": [
+        "instrument_packs.part.piano",
+        "instrument_packs.part.electric_piano",
+        "instrument_packs.part.guitar",
+        "instrument_packs.part.handpan",
+        "music.instrument.round_bass",
+        "music.instrument.vinyl_crackle"
+      ]
+    },
+    {
+      "id": "synthwave",
+      "words": "music.genre.synthwave",
+      "name": "",
+      "plain_words": "music.genre.synthwave_plain",
+      "plain": "",
+      "about_words": "music.genre.synthwave_about",
+      "about": "",
+      "tempo_bpm": [
+        80,
+        118
+      ],
+      "instruments": [
+        "music.instrument.wavetable_pad",
+        "music.instrument.pwm_pad",
+        "music.instrument.pulse_bass",
+        "music.instrument.supersaw",
+        "music.instrument.synth_lead"
+      ]
+    }
+  ],
+  "moods": [
+    {
+      "id": "mothership_calm",
+      "words": "music.mood.mothership_calm",
+      "where_words": "music.mood.mothership_calm_where",
+      "where_plain": "",
+      "tempo_bpm": [
+        56,
+        64
+      ],
+      "danger": false
+    },
+    {
+      "id": "action",
+      "words": "music.mood.action",
+      "where_words": "music.mood.action_where",
+      "where_plain": "",
+      "tempo_bpm": [
+        118,
+        132
+      ],
+      "danger": true
+    },
+    {
+      "id": "garden_morning",
+      "words": "music.mood.garden_morning",
+      "where_words": "music.mood.garden_morning_where",
+      "where_plain": "",
+      "tempo_bpm": [
+        66,
+        72
+      ],
+      "danger": false
+    },
+    {
+      "id": "menu",
+      "words": "music.mood.menu",
+      "where_words": "music.mood.menu_where",
+      "where_plain": "",
+      "tempo_bpm": [
+        60,
+        60
+      ],
+      "danger": false
+    },
+    {
+      "id": "night_watch",
+      "words": "music.mood.night_watch",
+      "where_words": "music.mood.night_watch_where",
+      "where_plain": "",
+      "tempo_bpm": [
+        52,
+        58
+      ],
+      "danger": false
+    },
+    {
+      "id": "tension",
+      "words": "music.mood.tension",
+      "where_words": "music.mood.tension_where",
+      "where_plain": "",
+      "tempo_bpm": [
+        84,
+        100
+      ],
+      "danger": true
+    }
+  ],
+  "scores": [
+    {
+      "id": "ode_to_joy",
+      "words": "music.score.ode_to_joy",
+      "name": "",
+      "composer_words": "music.score.composer_beethoven",
+      "composer": "",
+      "era_words": "music.era.classical",
+      "era": "",
+      "composer_years": "1770-1827",
+      "key_root": "D",
+      "key_mode": "ionian",
+      "edition": "written by the project from the melody as it is commonly sung",
+      "source": "",
+      "source_url": "",
+      "typesetter": "HumanityOS",
+      "licence": "CC0 1.0",
+      "credit_words": "",
+      "tempo_words": "music.score.tempo_ode_to_joy",
+      "tempo_finding": "",
+      "year": 1824,
+      "length_s": 32,
+      "parts": [
+        "music.instrument.clarinet"
+      ]
+    },
+    {
+      "id": "fur_elise",
+      "words": "music.score.fur_elise",
+      "name": "",
+      "composer_words": "music.score.composer_beethoven",
+      "composer": "",
+      "era_words": "music.era.classical",
+      "era": "",
+      "composer_years": "1770-1827",
+      "key_root": "A",
+      "key_mode": "aeolian",
+      "edition": "Breitkopf & Härtel, Leipzig, 1888 (Ludwig van Beethovens Werke, Serie 25, No. 298)",
+      "source": "Mutopia Project piece 931, typeset by Stelios Samelis (2015)",
+      "source_url": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931",
+      "typesetter": "Stelios Samelis",
+      "licence": "Public domain",
+      "credit_words": "music.score.credit_fur_elise",
+      "tempo_words": "music.score.tempo_fur_elise",
+      "tempo_finding": "",
+      "year": 1810,
+      "length_s": 156.3,
+      "parts": [
+        "instrument_packs.part.piano"
+      ]
+    },
+    {
+      "id": "mountain_king",
+      "words": "music.score.mountain_king",
+      "name": "",
+      "composer_words": "music.score.composer_grieg",
+      "composer": "",
+      "era_words": "music.era.romantic",
+      "era": "",
+      "composer_years": "1843-1907",
+      "key_root": "B",
+      "key_mode": "aeolian",
+      "edition": "Grieg's piano arrangement, The University Society, New York, 1918 (IMSLP #00581)",
+      "source": "Mutopia Project piece 1888, typeset by Coyau (2013)",
+      "source_url": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1888",
+      "typesetter": "Coyau",
+      "licence": "Public domain",
+      "credit_words": "music.score.credit_mountain_king",
+      "tempo_words": "music.score.tempo_mountain_king",
+      "tempo_finding": "",
+      "year": 1875,
+      "length_s": 147.7,
+      "parts": [
+        "instrument_packs.part.piano"
+      ]
+    },
+    {
+      "id": "beethoven_symphony5_1",
+      "words": "music.score.beethoven_symphony5_1",
+      "name": "",
+      "composer_words": "music.score.composer_beethoven",
+      "composer": "",
+      "era_words": "music.era.classical",
+      "era": "",
+      "composer_years": "1770-1827",
+      "key_root": "C",
+      "key_mode": "aeolian",
+      "edition": "Breitkopf & Härtel, Leipzig, 1862 to 1865 (Ludwig van Beethovens Werke, Serie 1, No. 5)",
+      "source": "Mutopia Project piece 941, typeset by Stelios Samelis, adapted by Johannes Heinecke (2017)",
+      "source_url": "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=941",
+      "typesetter": "Stelios Samelis and Johannes Heinecke",
+      "licence": "Public domain",
+      "credit_words": "music.score.credit_beethoven_symphony5_1",
+      "tempo_words": "music.score.tempo_beethoven_symphony5_1",
+      "tempo_finding": "docs/reference/findings/2026-11-20-beethoven-5-metronome.md",
+      "year": 1808,
+      "length_s": 365.1,
+      "parts": [
+        "instrument_packs.part.flute",
+        "instrument_packs.part.oboe",
+        "instrument_packs.part.clarinet",
+        "instrument_packs.part.bassoon",
+        "instrument_packs.part.french_horn",
+        "instrument_packs.part.trumpet",
+        "instrument_packs.part.timpani",
+        "instrument_packs.part.strings_high",
+        "instrument_packs.part.strings_mid",
+        "instrument_packs.part.strings_low",
+        "instrument_packs.part.bass_strings"
+      ]
+    }
+  ]
+}

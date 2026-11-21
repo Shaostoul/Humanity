@@ -4,6 +4,7 @@
 Mood(
     id: "menu",
     words: "music.mood.menu",
+    where_words: "music.mood.menu_where",
     keys: [(root: "D", mode: Lydian)],
     chords: [
         (name: "Dmaj9", root: 0, notes: [0, 4, 7, 11, 14]),

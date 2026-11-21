@@ -26,6 +26,7 @@ Genre(
     id: "electro_swing",
     words: "music.genre.electro_swing",
     about_words: "music.genre.electro_swing_about",
+    plain_words: "music.genre.electro_swing_plain",
     tempo_bpm: Some((128.0, 128.0)),
     beat_felt: Some(true),
     beats_per_bar: Some(4),

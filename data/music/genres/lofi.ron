@@ -17,6 +17,7 @@ Genre(
     id: "lofi",
     words: "music.genre.lofi",
     about_words: "music.genre.lofi_about",
+    plain_words: "music.genre.lofi_plain",
     tempo_bpm: Some((70.0, 82.0)),
     beat_felt: Some(true),
     groove: Some((swing: 0.6, subdivision: 4, syncopation: 0.2, humanize_ms: 9.0)),

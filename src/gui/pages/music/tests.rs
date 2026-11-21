@@ -93,8 +93,8 @@ pub(crate) fn music_state() -> (GuiState, Arc<MusicLibrary>) {
 }
 
 /// THERE IS EXACTLY ONE GENRE CONTROL, ON THE MUSIC PAGE: the whole Settings page (every section, in
-/// a window tall enough to draw them all) draws no radio named for a genre, and the Music page draws
-/// one radio for each genre. A genre named like a mood ("Mothership calm" is both) is held to the
+/// a window tall enough to draw them all) draws no radio named for a genre, and the Music page's
+/// Explore tab draws one card for each genre (version 2, 2026-11-20: cards in place of radios). A genre named like a mood ("Mothership calm" is both) is held to the
 /// Settings half only, since the Music page offers the moods as radios too.
 ///
 /// Seen RED 2026-11-14 with Settings > Music as it was before this change (its file restored from
@@ -116,10 +116,11 @@ fn there_is_one_genre_control_and_no_settings_page_draws_one() {
     for l in &labels {
         assert!(!radios.contains(l), "no Settings page draws a genre picker: Settings shows {l:?}");
     }
+    state.music_page.tab = super::Tab::Explore;
     let out = frame(egui::vec2(1600.0, 6000.0), Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
-    let radios = radio_labels(&out);
+    let drawn = texts(&out);
     for l in labels.iter().filter(|l| !moods.contains(l)) {
-        assert_eq!(radios.iter().filter(|x| *x == l).count(), 1, "the Music page draws {l:?} once: the one genre control");
+        assert_eq!(drawn.iter().filter(|x| *x == l).count(), 1, "the Music page draws {l:?} once, as its Explore card: the one genre control");
     }
     // A community genre with no words shows its plain name, else its id.
     assert_eq!(genre_label("chiptune", "", "Chiptune"), "Chiptune");
@@ -178,7 +179,7 @@ fn settings_music_says_what_the_music_page_says() {
 }
 
 /// Every text a frame drew, with where.
-fn text_rects(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
+pub(crate) fn text_rects(out: &egui::FullOutput) -> Vec<(String, egui::Rect)> {
     fn walk(s: &egui::Shape, found: &mut Vec<(String, egui::Rect)>) {
         match s {
             egui::Shape::Text(t) => found.push((t.galley.text().to_string(), t.galley.rect.translate(t.pos.to_vec2()))),
@@ -206,10 +207,14 @@ fn the_written_pieces_list_plays_and_stops_a_piece() {
     let theme = crate::gui::theme::load_theme();
     let title = humanity_core::i18n::t("music.score.ode_to_joy");
     let size = egui::vec2(1600.0, 6000.0);
+    state.music_page.tab = super::Tab::Written;
     let button_on_row = |out: &egui::FullOutput, label: &str| -> egui::Pos2 {
         let drawn = text_rects(out);
-        let row = drawn.iter().find(|(x, _)| x == title).unwrap_or_else(|| panic!("the Music page lists the written piece {title:?}")).1;
-        drawn.iter().filter(|(x, r)| x == label && (r.center().y - row.center().y).abs() < 12.0).map(|(_, r)| r.center()).next().unwrap_or_else(|| panic!("a {label:?} button on the piece's row"))
+        // The title is drawn more than once (its row, the details, the strip's chip while it plays):
+        // the row is where the button sits beside it.
+        let rows: Vec<egui::Rect> = drawn.iter().filter(|(x, _)| x == title).map(|x| x.1).collect();
+        assert!(!rows.is_empty(), "the Music page lists the written piece {title:?}");
+        rows.iter().find_map(|row| drawn.iter().filter(|(x, r)| x == label && (r.center().y - row.center().y).abs() < 12.0).map(|(_, r)| r.center()).next()).unwrap_or_else(|| panic!("a {label:?} button on the piece's row"))
     };
     let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
     assert!(texts(&out).iter().any(|x| x.contains(humanity_core::i18n::t("music.score.composer_beethoven"))), "its composer");
@@ -252,7 +257,7 @@ fn filled_rects(out: &egui::FullOutput) -> usize {
 
 /// THE MUSIC PAGE CREDITS EACH WRITTEN PIECE AND DRAWS THE ONE PLAYING IN ITS PIANO ROLL
 /// (docs/design/score-player.md section 16, rung 2): each shipped piece whose index line names a credit
-/// shows those words just under its title (the edition and the typesetter, the dated finding's
+/// shows those words in its details, under its heading beside the list (version 2; the edition and the typesetter, the dated finding's
 /// courtesy credit), and with Für Elise playing the roll paints its notes: at least one filled
 /// rectangle more for each note of its first four bars than the page paints with nothing written
 /// playing.
@@ -299,26 +304,32 @@ fn the_music_page_credits_each_written_piece_and_draws_the_one_playing() {
     let theme = crate::gui::theme::load_theme();
     let size = egui::vec2(1600.0, 6000.0);
     let mut missing: Vec<String> = Vec::new();
-    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
-    let drawn = text_rects(&out);
+    // Version 2 (2026-11-20): the credit is in the chosen piece's details, beside the list, under its
+    // heading (the title drawn furthest right: the list's row is to its left).
+    state.music_page.tab = super::Tab::Written;
     let credited: Vec<_> = lib.scores.iter().filter(|e| !e.credit_words.is_empty()).collect();
     assert!(credited.len() >= 3, "the three converted pieces name their credit");
     for e in &credited {
+        state.music_page.written_selected = Some(e.id.clone());
+        let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
+        let drawn = text_rects(&out);
         let (title, _) = super::score_words(e);
         let Some(credit) = super::credit_words(e) else {
             missing.push(format!("{}: its credit key has no words", e.id));
             continue;
         };
-        let Some(t) = drawn.iter().find(|(x, _)| *x == title).map(|x| x.1) else {
+        let Some(t) = drawn.iter().filter(|(x, _)| *x == title).map(|x| x.1).max_by(|a, b| a.left().total_cmp(&b.left())) else {
             missing.push(format!("{title:?} is not listed"));
             continue;
         };
         match drawn.iter().find(|(x, _)| *x == credit).map(|x| x.1) {
-            Some(c) if c.top() >= t.bottom() - 1.0 && c.top() - t.bottom() < 40.0 => {}
-            Some(c) => missing.push(format!("{title:?}: its credit is drawn at {c:?}, not under the title at {t:?}")),
-            None => missing.push(format!("{title:?}: no credit beside it")),
+            Some(c) if c.top() >= t.bottom() - 1.0 && (c.left() - t.left()).abs() < 4.0 => {}
+            Some(c) => missing.push(format!("{title:?}: its credit is drawn at {c:?}, not in its details under {t:?}")),
+            None => missing.push(format!("{title:?}: no credit in its details")),
         }
     }
+    state.music_page.tab = super::Tab::Listen;
+    let out = frame(size, Vec::new(), |ctx| super::draw(ctx, &theme, &mut state));
     let plain = filled_rects(&out);
     let data = std::path::Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
     let piece = Arc::new(humanity_music::scores::load_piece(&data, lib.score("fur_elise").expect("listed")).expect("it reads"));

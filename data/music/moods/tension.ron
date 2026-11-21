@@ -6,6 +6,7 @@
 Mood(
     id: "tension",
     words: "music.mood.tension",
+    where_words: "music.mood.tension_where",
     keys: [(root: "D", mode: Phrygian, weight: 3.0), (root: "A", mode: Phrygian, weight: 1.0)],
     chords: [
         (name: "D5", root: 0, notes: [0, 7, 12]),

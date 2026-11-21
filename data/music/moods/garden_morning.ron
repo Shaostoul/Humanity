@@ -4,6 +4,7 @@
 Mood(
     id: "garden_morning",
     words: "music.mood.garden_morning",
+    where_words: "music.mood.garden_morning_where",
     keys: [(root: "G", mode: Ionian, weight: 3.0), (root: "D", mode: Ionian, weight: 1.0), (root: "C", mode: Ionian, weight: 1.0)],
     chords: [
         (name: "Gadd9", root: 0, notes: [0, 4, 7, 14]),

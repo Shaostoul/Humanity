@@ -108,3 +108,54 @@ fn the_symphony_reads_whole_with_its_repeat_and_its_cadenza() {
     assert_eq!(map.qpm(cadenza.at.add(crate::mei::Frac::new(1, 2))), 60.0, "the Adagio cadenza");
     assert!(t.length_s > 356.33 && t.length_s < 400.0, "{} s", t.length_s);
 }
+
+/// EVERY WRITTEN PIECE CARRIES ITS CATALOGUE DETAILS (docs/design/music-page.md section 10: the
+/// Written music list a person searches, sorts and filters): its era with words, the year it was
+/// written, the composer's years, a key the page can name (a note and a mode with words), the tempo's
+/// basis with words (and its finding, when it names one, on disk), a source page that is an https
+/// address when it gives one, and its LENGTH as the game plays it once through, within a second of
+/// the file's own timeline (so the list's Length and its sort by length are the music's, not a guess).
+///
+/// Seen RED 2026-11-20 with every `length_s` left at 0.0 in the index: "ode_to_joy: its length is 0
+/// s in the index, the file plays 32 s", and the same for Für Elise (156.25 s), the Mountain King
+/// (147.74 s) and the symphony (365.11 s).
+#[test]
+fn every_written_piece_carries_its_catalogue_details() {
+    let lib = shipped();
+    let en: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(data_dir().join("i18n/en.json")).unwrap()).unwrap();
+    let has = |key: &str| {
+        let mut v = &en;
+        for part in key.split('.') {
+            v = &v[part];
+        }
+        v.as_str().is_some_and(|s| !s.is_empty())
+    };
+    let repo = data_dir().parent().unwrap().to_path_buf();
+    let mut wrong = Vec::new();
+    for e in &lib.scores {
+        let id = &e.id;
+        if !(has(&e.era_words) || !e.era.is_empty()) {
+            wrong.push(format!("{id}: its era {:?} has no words", e.era_words));
+        }
+        if e.year == 0 || e.composer_years.is_empty() {
+            wrong.push(format!("{id}: no year written or composer's years"));
+        }
+        if (0..12).all(|pc| crate::sheet::pc_name(pc, false) != e.key_root && crate::sheet::pc_name(pc, true) != e.key_root) ||!has(&format!("music.mode.{}", e.key_mode)) {
+            wrong.push(format!("{id}: the key {:?} {:?} cannot be named", e.key_root, e.key_mode));
+        }
+        if !has(&e.tempo_words) {
+            wrong.push(format!("{id}: the tempo's basis {:?} has no words", e.tempo_words));
+        }
+        if !e.tempo_finding.is_empty() && !repo.join(&e.tempo_finding).is_file() {
+            wrong.push(format!("{id}: its tempo finding {} is not on disk", e.tempo_finding));
+        }
+        if !e.source_url.is_empty() && !e.source_url.starts_with("https://") {
+            wrong.push(format!("{id}: its source {:?} is not an https address", e.source_url));
+        }
+        let plays = load_piece(&data_dir(), e).unwrap_or_else(|x| panic!("{id}: {x}")).timeline.length_s;
+        if (e.length_s as f64 - plays).abs() > 1.0 {
+            wrong.push(format!("{id}: its length is {} s in the index, the file plays {plays} s", e.length_s));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}

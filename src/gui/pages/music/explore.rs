@@ -1,0 +1,360 @@
+//! EXPLORE MADE PLAIN (docs/design/music-page.md section 9; the operator, 2026-11-20: "We need to
+//! find some way to make the explore section more intuitive. What each style means and mood is kind
+//! of confusing"). A card for each genre (its name, ONE plain sentence of what it is from its data
+//! file, its tempo and the instruments it plays) and each mood (its name, where it plays, its tempo),
+//! the seed, and the pieces heard this session. Every card comes from the music's data: a new genre or
+//! mood file gets its card with no code change (infinite-of-X). Clicking a card chooses it; the
+//! choice plays from the next bar, everywhere (the page's one genre control is these cards).
+
+use std::time::Instant;
+
+use egui::{Color32, RichText, Stroke};
+use humanity_core::i18n::{t, t_dyn};
+use humanity_music::tune::{Tune, ROLES};
+use humanity_music::{MusicLibrary, MusicSettings};
+
+use super::{genre_label, mood_words, playing_genre, score_words, voice_words, Shown, RANDOM_SEED_MAX};
+use crate::gui::pages::dev_music::{GenreChoice, MusicReadout};
+use crate::gui::theme::Theme;
+use crate::gui::widgets::Hint;
+use crate::gui::{widgets, GuiState};
+
+/// The pieces heard this session kept at most (docs/design/music-page.md section 9).
+pub const HEARD_MOST: usize = 50;
+
+/// A card's width on a wide page, points (as many columns as fit).
+const CARD_W: f32 = 330.0;
+
+/// One piece heard: a composed piece's genre, mood, seed and tuning, or a written piece's id.
+#[derive(Clone, Debug)]
+pub struct Heard {
+    pub genre: String,
+    pub mood: String,
+    pub seed: u64,
+    pub tune: Tune,
+    pub written: Option<String>,
+    pub at: Instant,
+}
+
+/// The same piece (a level or a mute changed is still the piece heard).
+fn same_piece(a: &Heard, b: &Heard) -> bool {
+    let plain = |x: &Tune| Tune { level_db: [0.0; ROLES], mute: 0, solo: 0, ..*x };
+    a.written == b.written && (a.written.is_some() || (a.genre == b.genre && a.seed == b.seed && plain(&a.tune) == plain(&b.tune)))
+}
+
+/// Note what plays now at the top of the pieces heard (once per piece; a piece heard again moves to
+/// the top).
+pub fn note_heard(heard: &mut Vec<Heard>, s: &MusicSettings, r: &MusicReadout, now: Instant) {
+    let entry = if let Some(id) = &r.written {
+        Heard { genre: s.genre.clone(), mood: r.mood.clone(), seed: 0, tune: Tune::default(), written: Some(id.clone()), at: now }
+    } else if let Some(p) = r.playing.as_ref().filter(|p| p.seed > 0) {
+        let tune = p.choice.as_ref().map(|c| c.tune).unwrap_or(p.ctx.tune);
+        Heard { genre: playing_genre(p, &s.genre), mood: r.mood.clone(), seed: p.seed, tune, written: None, at: now }
+    } else {
+        return;
+    };
+    if heard.first().is_some_and(|h| same_piece(h, &entry)) {
+        return;
+    }
+    heard.retain(|h| !same_piece(h, &entry));
+    heard.insert(0, entry);
+    heard.truncate(HEARD_MOST);
+}
+
+/// One genre's card, as the data says it: its name, its plain sentence, its tempo, its instruments,
+/// and its longer "about" (shown on the chosen card).
+#[derive(Clone, Debug, PartialEq)]
+pub struct GenreCard {
+    pub id: String,
+    pub name: String,
+    pub plain: String,
+    pub tempo: String,
+    pub instruments: String,
+    pub about: String,
+}
+
+/// A tempo range in words.
+fn tempo_words((lo, hi): (f32, f32)) -> String {
+    if (hi - lo).abs() < 1.0 {
+        t("music_page.card_tempo_one").replace("{{bpm}}", &format!("{lo:.0}"))
+    } else {
+        t("music_page.card_tempo").replace("{{lo}}", &format!("{lo:.0}")).replace("{{hi}}", &format!("{hi:.0}"))
+    }
+}
+
+/// The instruments a genre plays, by their words: its lead voices, its palette and its added parts
+/// (a part's words where it names one), else the mood's own when the genre adds none (the ship's own
+/// genre plays the mood as written).
+fn instrument_words(lib: &MusicLibrary, g: &humanity_music::genre::Genre, mood: &str) -> String {
+    let inst = |id: &str| lib.instrument_index(id).map(|i| t_dyn(&lib.instruments[i].words).to_string()).filter(|w| !w.is_empty() && !w.contains('.')).unwrap_or_else(|| id.replace('_', " "));
+    let mut named: Vec<String> = Vec::new();
+    let add = |named: &mut Vec<String>, w: String| {
+        if !named.contains(&w) {
+            named.push(w);
+        }
+    };
+    for l in &g.leads {
+        add(&mut named, l.part.as_deref().map(voice_words).unwrap_or_else(|| inst(&l.instrument)));
+    }
+    for p in &g.palette {
+        add(&mut named, p.part.as_deref().map(voice_words).unwrap_or_else(|| inst(&p.instrument)));
+    }
+    for r in &g.roles_add {
+        add(&mut named, r.part.as_deref().map(voice_words).unwrap_or_else(|| inst(&r.instrument)));
+    }
+    if named.is_empty() {
+        if let Some(m) = lib.moods.iter().find(|m| m.id == mood).or(lib.moods.first()) {
+            for r in &m.roles {
+                add(&mut named, r.part.as_deref().map(voice_words).unwrap_or_else(|| inst(&r.instrument)));
+            }
+        }
+    }
+    named.truncate(6);
+    named.join(", ")
+}
+
+/// Every genre's card, in the data's order (the engine's list before the data is read: names only).
+pub fn genre_cards(lib: Option<&MusicLibrary>, offered: &[GenreChoice], mood: &str) -> Vec<GenreCard> {
+    let Some(lib) = lib else {
+        return offered.iter().map(|g| GenreCard { id: g.id.clone(), name: genre_label(&g.id, &g.words, &g.name), plain: String::new(), tempo: String::new(), instruments: String::new(), about: genre_label("", &g.about_words, &g.about) }).collect();
+    };
+    let mood_tempo = lib.moods.iter().find(|m| m.id == mood).or(lib.moods.first()).map(|m| m.tempo_bpm).unwrap_or((60.0, 120.0));
+    lib.genres
+        .iter()
+        .map(|g| GenreCard {
+            id: g.id.clone(),
+            name: genre_label(&g.id, &g.words, &g.name),
+            plain: genre_label("", &g.plain_words, &g.plain),
+            tempo: tempo_words(g.tempo_bpm.unwrap_or(mood_tempo)),
+            instruments: t("music_page.card_instruments").replace("{{list}}", &instrument_words(lib, g, mood)),
+            about: genre_label("", &g.about_words, &g.about),
+        })
+        .collect()
+}
+
+/// A mood's sentence of where it plays (its words by key, else a community file's plain words).
+pub fn mood_where(m: &humanity_music::mood::Mood) -> String {
+    genre_label("", &m.where_words, &m.where_plain)
+}
+
+/// How many cards fit across, and each card's width.
+fn card_columns(ui: &egui::Ui, theme: &Theme, wide: bool) -> (usize, f32) {
+    let avail = ui.available_width();
+    let gap = theme.spacing_sm;
+    let cols = if wide { (((avail + gap) / (CARD_W + gap)).floor() as usize).max(1) } else { 1 };
+    (cols, ((avail - gap * (cols as f32 - 1.0)) / cols as f32).max(200.0))
+}
+
+/// One card: a clickable surface `w` wide, marked when chosen. True when clicked.
+fn card(ui: &mut egui::Ui, theme: &Theme, w: f32, chosen: bool, hint: &'static str, add: impl FnOnce(&mut egui::Ui)) -> bool {
+    let inner = w - 2.0 * theme.card_padding;
+    let resp = widgets::card_clickable(ui, theme, |ui| {
+        ui.set_min_width(inner);
+        ui.set_max_width(inner);
+        // Top to bottom (a grid cell lays its contents out left to right).
+        ui.vertical(|ui| add(ui));
+    })
+    .hint(hint);
+    if chosen {
+        ui.painter().rect_stroke(resp.rect, theme.border_radius, Stroke::new(2.0f32, theme.accent()), egui::epaint::StrokeKind::Inside);
+    }
+    resp.clicked()
+}
+
+/// Explore: the genre cards, the mood cards, the seed, and the pieces heard.
+pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown, accent: Color32, wide: bool) {
+    let hint = state.settings.hint_display;
+    let lib = state.music_dev.readout.lib.clone();
+    let offered = super::controls::genres_of(state);
+    let (cols, w) = card_columns(ui, theme, wide);
+    let gap = theme.spacing_sm;
+    // The genres.
+    widgets::subsection_header(ui, theme, accent, t("music_page.genres_title"), "");
+    ui.label(RichText::new(t("music_page.genres_intro")).color(theme.text_secondary()));
+    ui.add_space(theme.spacing_xs);
+    let cards = genre_cards(lib.as_deref(), &offered, &sh.mood);
+    egui::Grid::new("music_page_genre_cards").num_columns(cols).spacing([gap, gap]).show(ui, |ui| {
+        for (i, c) in cards.iter().enumerate() {
+            let chosen = sh.genre == c.id;
+            let stand_ins = offered.iter().find(|g| g.id == c.id).map(|g| g.stand_ins.clone()).unwrap_or_default();
+            if card(ui, theme, w, chosen, "music_page.genre_card_hint", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(&c.name).size(theme.font_size_heading).strong().color(theme.text_primary()));
+                    if chosen {
+                        ui.label(RichText::new(t("music_page.card_chosen")).size(theme.font_size_small).color(theme.accent()));
+                    }
+                });
+                if !c.plain.is_empty() {
+                    ui.label(RichText::new(&c.plain).color(theme.text_primary()));
+                }
+                if !c.tempo.is_empty() {
+                    ui.label(RichText::new(&c.tempo).size(theme.font_size_small).color(theme.text_secondary()));
+                }
+                if !c.instruments.is_empty() {
+                    ui.label(RichText::new(&c.instruments).size(theme.font_size_small).color(theme.text_secondary()));
+                }
+                if chosen {
+                    if !c.about.is_empty() {
+                        ui.label(RichText::new(&c.about).size(theme.font_size_small).color(theme.text_muted()));
+                    }
+                    // Which of its instruments play synthesised stand-ins until a free recording of
+                    // them is installed (said plainly, never silently).
+                    if !stand_ins.is_empty() {
+                        let parts: Vec<String> = stand_ins
+                            .iter()
+                            .map(|s| match &s.pack {
+                                Some(pack) => t("music_page.stand_in_from").replace("{{part}}", t_dyn(&s.part)).replace("{{pack}}", t_dyn(pack)),
+                                None => t_dyn(&s.part).to_string(),
+                            })
+                            .collect();
+                        ui.label(RichText::new(t("music_page.genre_stand_ins").replace("{{parts}}", &parts.join(", "))).size(theme.font_size_small).color(theme.text_muted()));
+                    }
+                }
+            }) && !chosen
+            {
+                sh.genre = c.id.clone();
+            }
+            if (i + 1) % cols == 0 {
+                ui.end_row();
+            }
+        }
+    });
+    ui.label(RichText::new(t("music_page.recordings_note")).size(theme.font_size_small).color(theme.text_muted()));
+    // The moods.
+    ui.add_space(theme.spacing_md);
+    widgets::subsection_header(ui, theme, accent, t("music_page.moods_title"), "");
+    ui.label(RichText::new(t("music_page.moods_intro")).color(theme.text_secondary()));
+    ui.add_space(theme.spacing_xs);
+    if let Some(l) = lib.as_deref() {
+        egui::Grid::new("music_page_mood_cards").num_columns(cols).spacing([gap, gap]).show(ui, |ui| {
+            for (i, m) in l.moods.iter().enumerate() {
+                let chosen = sh.mood == m.id;
+                let danger = l.intensity.bands.iter().any(|b| b.mood.as_deref() == Some(m.id.as_str()));
+                if card(ui, theme, w, chosen, "music_page.mood_card_hint", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(mood_words(Some(l), &m.id)).size(theme.font_size_heading).strong().color(theme.text_primary()));
+                        if chosen {
+                            ui.label(RichText::new(t("music_page.card_chosen")).size(theme.font_size_small).color(theme.accent()));
+                        }
+                    });
+                    let place = mood_where(m);
+                    if !place.is_empty() {
+                        ui.label(RichText::new(place).color(theme.text_primary()));
+                    }
+                    ui.label(RichText::new(tempo_words(m.tempo_bpm)).size(theme.font_size_small).color(theme.text_secondary()));
+                    if danger {
+                        ui.label(RichText::new(t("music_page.mood_danger")).size(theme.font_size_small).color(theme.warning()));
+                    }
+                }) && !chosen
+                {
+                    sh.mood = m.id.clone();
+                }
+                if (i + 1) % cols == 0 {
+                    ui.end_row();
+                }
+            }
+        });
+    }
+    // The seed.
+    ui.add_space(theme.spacing_md);
+    widgets::subsection_header(ui, theme, accent, t("music_page.seed"), "");
+    widgets::card(ui, theme, |ui| seed_row(ui, theme, state, sh));
+    widgets::setting_hint(ui, theme, hint, t("music_page.seed_hint"));
+    // The pieces heard.
+    ui.add_space(theme.spacing_md);
+    heard(ui, theme, state, sh, accent);
+}
+
+/// The seed: Previous, the box, Next and Random.
+fn seed_row(ui: &mut egui::Ui, _theme: &Theme, state: &mut GuiState, sh: &mut Shown) {
+    let p = &mut state.music_page;
+    // The box shows the seed shown, and keeps what is being typed until it is a seed.
+    if p.seed_shown != sh.seed {
+        p.seed_text = sh.seed.to_string();
+        p.seed_shown = sh.seed;
+    }
+    ui.horizontal_wrapped(|ui| {
+        if ui.button(t("music_page.previous")).hint("music_page.previous_hint").clicked() {
+            sh.seed = sh.seed.saturating_sub(1).max(1);
+        }
+        let r = ui.add(egui::TextEdit::singleline(&mut p.seed_text).desired_width(110.0)).hint("music_page.seed_box_hint");
+        if r.changed() {
+            if let Ok(s) = p.seed_text.trim().parse::<u64>() {
+                if s > 0 {
+                    sh.seed = s;
+                    p.seed_shown = s;
+                }
+            }
+        }
+        if ui.button(t("music_page.next")).hint("music_page.next_hint").clicked() {
+            sh.seed = sh.seed.saturating_add(1);
+        }
+        if ui.button(t("music_page.random")).hint("music_page.random_hint").clicked() {
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(7);
+            sh.seed = humanity_music::piece::mix(now, sh.seed) % RANDOM_SEED_MAX + 1;
+        }
+    });
+}
+
+/// The pieces heard this session, newest first, each with Play again and Like.
+fn heard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &mut Shown, accent: Color32) {
+    let lib = state.music_dev.readout.lib.clone();
+    let list = state.music_page.heard.clone();
+    let mut play: Option<Heard> = None;
+    let mut like: Option<Heard> = None;
+    widgets::subsection_header(ui, theme, accent, t("music_page.heard_title"), "");
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new(t("music_page.heard_intro")).color(theme.text_secondary()));
+        if list.is_empty() {
+            ui.label(RichText::new(t("music_page.heard_none")).color(theme.text_muted()));
+        }
+        for (i, h) in list.iter().enumerate() {
+            let line = match &h.written {
+                Some(id) => {
+                    let title = lib.as_deref().and_then(|l| l.score(id)).map(|e| score_words(e).0).unwrap_or_else(|| id.replace('_', " "));
+                    t("music_page.heard_written").replace("{{title}}", &title)
+                }
+                None => {
+                    let genre = match lib.as_deref().and_then(|l| l.genres.iter().find(|g| g.id == h.genre)) {
+                        Some(g) => genre_label(&g.id, &g.words, &g.name),
+                        None => h.genre.replace('_', " "),
+                    };
+                    t("music_page.heard_line").replace("{{genre}}", &genre).replace("{{mood}}", &mood_words(lib.as_deref(), &h.mood)).replace("{{seed}}", &h.seed.to_string())
+                }
+            };
+            let mins = h.at.elapsed().as_secs() / 60;
+            let ago = if mins == 0 { t("music_page.heard_now").to_string() } else { t("music_page.heard_minutes").replace("{{n}}", &mins.to_string()) };
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(line).color(if i == 0 { theme.text_primary() } else { theme.text_secondary() }));
+                ui.label(RichText::new(ago).size(theme.font_size_small).color(theme.text_muted()));
+                if ui.button(t("music_page.heard_play")).hint("music_page.heard_play_hint").clicked() {
+                    play = Some(h.clone());
+                }
+                if h.written.is_none() && ui.button(t("music_page.like")).hint("music_page.like_hint").clicked() {
+                    like = Some(h.clone());
+                }
+            });
+        }
+    });
+    if let Some(h) = play {
+        match &h.written {
+            Some(id) => {
+                state.settings.music.written = id.clone();
+                state.settings_dirty = true;
+            }
+            None => {
+                if !state.settings.music.written.is_empty() {
+                    state.settings.music.written.clear();
+                    state.settings_dirty = true;
+                }
+                sh.genre = h.genre.clone();
+                sh.mood = h.mood.clone();
+                sh.seed = h.seed.max(1);
+                sh.tune = h.tune;
+            }
+        }
+    }
+    if let Some(h) = like {
+        super::strip::like(state, &Shown { genre: h.genre, mood: h.mood, seed: h.seed, tune: h.tune });
+    }
+}

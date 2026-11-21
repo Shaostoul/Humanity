@@ -3331,6 +3331,24 @@ reason it cannot play them (the engine runs in the app; a WebAssembly build is r
   the page exports it
 - Data: the part colours `music_role_*` in `data/gui/theme.ron`; words `music_page.*`, `music.mode.*`
 
+**Version 2 (2026-11-20, docs/design/music-page.md sections 5 to 11 and 23).** The operator: "we have
+a lot of real estate for the UI. We could condense things." The NOW PLAYING STRIP along the top
+(pause, previous and next piece, what plays, genre, mood and seed chips, and LIKE: the piece shown
+with every change kept as a favourite in one click under a name made for it; Liked opens Your music
+with it marked), then TABS (Listen, Explore, Written music, Your music; wide pages in columns with
+the piano roll docked along the bottom, narrow pages one column). The PIANO ROLL'S LENGTH SLIDER (2
+bars to the whole piece), its OVERVIEW of the whole piece with the window marked (click or drag to
+move it), Follow the music, bar numbers; a composed piece of a set length written down to its end.
+EXPLORE as cards: each genre's plain sentence (`plain_words` in its file), tempo and instruments,
+each mood's "where it plays" (`where_words`), the pieces heard this session. WRITTEN MUSIC as a
+catalogue: search, sort (title, composer, era, year, length), composer and era filters, a details
+panel (composer and years, era, year, key, length, instruments, edition, source with a link,
+typesetter, licence, tempo and its finding, credit), from the index's new fields. Rename on Your
+music.
+- Code: `src/gui/pages/music/strip.rs`, `roll.rs`, `explore.rs`, `written.rs`, `tests_v2.rs`
+- Web: the same tabs, cards and catalogue from `data/music/catalogue.json`
+  (`scripts/gen-music-catalogue.js`, `scripts/lib/ron-read.js`); `scripts/tests/music-web.test.js`
+
 ### The score player: written music stored as MEI (rung 1, 2026-11-20)
 The goal of 2026-11-16 ("save orchestral music in a file format everyone can easily modify"), with MEI
 approved 2026-11-20 ("MEI sounds right unless there's better"; docs/design/score-player.md). Our own

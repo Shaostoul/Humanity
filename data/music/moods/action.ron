@@ -7,6 +7,7 @@
 Mood(
     id: "action",
     words: "music.mood.action",
+    where_words: "music.mood.action_where",
     keys: [(root: "D", mode: Phrygian)],
     chords: [
         (name: "D5", root: 0, notes: [0, 7, 12]),

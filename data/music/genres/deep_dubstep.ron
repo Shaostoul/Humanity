@@ -22,6 +22,7 @@ Genre(
     id: "deep_dubstep",
     words: "music.genre.deep_dubstep",
     about_words: "music.genre.deep_dubstep_about",
+    plain_words: "music.genre.deep_dubstep_plain",
     tempo_bpm: Some((140.0, 140.0)),
     beat_felt: Some(true),
     beats_per_bar: Some(4),

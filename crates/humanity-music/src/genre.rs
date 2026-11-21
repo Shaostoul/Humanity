@@ -450,6 +450,13 @@ pub struct Genre {
     pub about_words: String,
     #[serde(default)]
     pub about: String,
+    /// ONE PLAIN SENTENCE for a person who knows no music words: what it is and what it is for (the
+    /// Music page's Explore card, docs/design/music-page.md section 9), by key (or plain words in
+    /// `plain` for a community genre).
+    #[serde(default)]
+    pub plain_words: String,
+    #[serde(default)]
+    pub plain: String,
     /// Tempo range over the mood's, bpm; a felt beat over the mood's.
     #[serde(default)]
     pub tempo_bpm: Option<(f32, f32)>,

@@ -26,6 +26,14 @@
 // (docs/reference/findings/2026-11-20-beethoven-5-metronome.md); the oboe's Adagio cadenza has no
 // mark of his, so its 60 quarter notes a minute is our own playback choice. Both are written in the
 // file as playback values beside the edition's words.
+//
+// The Written music list's details (docs/design/music-page.md section 10: a person searches, sorts
+// and filters by them): `era_words` (by key, `music.era.<id>`; a community file may give plain
+// `era`), `year` (written), `composer_years`, the key (`key_root`, and `key_mode` a mode id of
+// `music.mode.*`), `length_s` (once through as the game plays it, repeats included: the crate's
+// tests hold it to the file within a second, so a changed file needs its new length here),
+// `source_url` (the page the file was converted from), `typesetter`, and the tempo's basis
+// (`tempo_words` by key, `tempo_finding` the dated finding behind it, when there is one).
 Scores(
     pieces: [
         (
@@ -41,6 +49,14 @@ Scores(
             ],
             edition: "written by the project from the melody as it is commonly sung",
             licence: "CC0 1.0",
+            era_words: "music.era.classical",
+            year: 1824,
+            composer_years: "1770-1827",
+            key_root: "D",
+            key_mode: "ionian",
+            length_s: 32.0,
+            typesetter: "HumanityOS",
+            tempo_words: "music.score.tempo_ode_to_joy",
         ),
         (
             id: "fur_elise",
@@ -58,6 +74,15 @@ Scores(
             source: "Mutopia Project piece 931, typeset by Stelios Samelis (2015)",
             licence: "Public domain",
             credit_words: "music.score.credit_fur_elise",
+            era_words: "music.era.classical",
+            year: 1810,
+            composer_years: "1770-1827",
+            key_root: "A",
+            key_mode: "aeolian",
+            length_s: 156.3,
+            source_url: "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=931",
+            typesetter: "Stelios Samelis",
+            tempo_words: "music.score.tempo_fur_elise",
         ),
         (
             id: "mountain_king",
@@ -75,6 +100,15 @@ Scores(
             source: "Mutopia Project piece 1888, typeset by Coyau (2013)",
             licence: "Public domain",
             credit_words: "music.score.credit_mountain_king",
+            era_words: "music.era.romantic",
+            year: 1875,
+            composer_years: "1843-1907",
+            key_root: "B",
+            key_mode: "aeolian",
+            length_s: 147.7,
+            source_url: "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=1888",
+            typesetter: "Coyau",
+            tempo_words: "music.score.tempo_mountain_king",
         ),
         (
             id: "beethoven_symphony5_1",
@@ -102,6 +136,16 @@ Scores(
             source: "Mutopia Project piece 941, typeset by Stelios Samelis, adapted by Johannes Heinecke (2017)",
             licence: "Public domain",
             credit_words: "music.score.credit_beethoven_symphony5_1",
+            era_words: "music.era.classical",
+            year: 1808,
+            composer_years: "1770-1827",
+            key_root: "C",
+            key_mode: "aeolian",
+            length_s: 365.1,
+            source_url: "https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=941",
+            typesetter: "Stelios Samelis and Johannes Heinecke",
+            tempo_words: "music.score.tempo_beethoven_symphony5_1",
+            tempo_finding: "docs/reference/findings/2026-11-20-beethoven-5-metronome.md",
         ),
     ],
 )

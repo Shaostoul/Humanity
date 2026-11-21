@@ -119,8 +119,13 @@ fn the_shipped_music_data_parses() {
         }
         v.as_str().is_some_and(|s| !s.is_empty())
     };
-    for k in lib.genres.iter().flat_map(|s| [s.words.clone(), s.about_words.clone()]).chain(lib.moods.iter().map(|m| m.words.clone())).chain(lib.instruments.iter().map(|i| i.words.clone())) {
+    for k in lib.genres.iter().flat_map(|s| [s.words.clone(), s.about_words.clone(), s.plain_words.clone()]).chain(lib.moods.iter().flat_map(|m| [m.words.clone(), m.where_words.clone()])).chain(lib.instruments.iter().map(|i| i.words.clone())) {
         assert!(k.is_empty() || has(&k), "{k} has no words in en.json");
+    }
+    // Each mood says where it plays, for its Explore card (docs/design/music-page.md section 9).
+    // RED 2026-11-20 before the mood files named it: "mothership_calm: no words for where it plays".
+    for m in &lib.moods {
+        assert!((!m.where_words.is_empty() && has(&m.where_words)) || !m.where_plain.is_empty(), "{}: no words for where it plays", m.id);
     }
 }
 
@@ -454,6 +459,10 @@ fn every_genre_has_its_words_and_instrument_roles() {
     for g in &lib.genres {
         assert!((!g.words.is_empty() && has(&g.words)) || !g.name.is_empty(), "{}: its name has no words", g.id);
         assert!((!g.about_words.is_empty() && has(&g.about_words)) || !g.about.is_empty(), "{}: its one sentence has no words", g.id);
+        // The Explore card's plain sentence (docs/design/music-page.md section 9). RED 2026-11-20 before
+        // the genre files named one: "mothership_calm: its plain sentence for the Explore card has no
+        // words".
+        assert!((!g.plain_words.is_empty() && has(&g.plain_words)) || !g.plain.is_empty(), "{}: its plain sentence for the Explore card has no words", g.id);
         let mut named: Vec<(&str, Option<&str>)> = g.drums.iter().map(|d| (d.instrument.as_str(), None)).collect();
         named.extend(g.palette.iter().map(|p| (p.instrument.as_str(), p.part.as_deref())));
         named.extend(g.roles_add.iter().map(|r| (r.instrument.as_str(), r.part.as_deref())));

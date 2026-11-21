@@ -89,6 +89,34 @@ pub struct ScoreEntry {
     pub licence: String,
     #[serde(default)]
     pub credit_words: String,
+    /// THE CATALOGUE'S DETAILS (docs/design/music-page.md section 10: the Written music list a person
+    /// searches, sorts and filters). The era by key (`music.era.<id>`; plain words in `era` for a
+    /// community file), the year it was written (0: unknown), the composer's years ("1770-1827"), the
+    /// key (`key_root` a note name, `key_mode` a mode id of `music.mode.*`), its length in seconds as
+    /// the game plays it once through (a test holds it to the file), the source page's address, the
+    /// typesetter, and the tempo's basis by key with the dated finding it comes from.
+    #[serde(default)]
+    pub era_words: String,
+    #[serde(default)]
+    pub era: String,
+    #[serde(default)]
+    pub year: u32,
+    #[serde(default)]
+    pub composer_years: String,
+    #[serde(default)]
+    pub key_root: String,
+    #[serde(default)]
+    pub key_mode: String,
+    #[serde(default)]
+    pub length_s: f32,
+    #[serde(default)]
+    pub source_url: String,
+    #[serde(default)]
+    pub typesetter: String,
+    #[serde(default)]
+    pub tempo_words: String,
+    #[serde(default)]
+    pub tempo_finding: String,
 }
 
 /// The index file (its RON names the struct `Scores`).

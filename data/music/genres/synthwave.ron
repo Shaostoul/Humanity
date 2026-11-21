@@ -25,6 +25,7 @@ Genre(
     id: "synthwave",
     words: "music.genre.synthwave",
     about_words: "music.genre.synthwave_about",
+    plain_words: "music.genre.synthwave_plain",
     tempo_bpm: Some((80.0, 118.0)),
     beat_felt: Some(true),
     beats_per_bar: Some(4),
