@@ -1642,6 +1642,11 @@
       "date": "2026-11-21",
       "decision": "Merged the harvest basket (93949c834, BUG-339): a harvest's fraction of an item is kept per player per item and counted toward the next whole item; harvest_quantity's rounding removed; CropPicking::carry removed; saved with the world. Took its recommendations: the kept grams are weightless and not edible (bookkeeping under one item each); the Garden panel's crop card gets one line of what is kept ('112 g of 300 g kept') as a small GUI follow-up. Main now ends at BUG-339; pending branches (signed requests 339/340 and later, owner 339-380) renumber from main's end at their merges.",
       "why": "Never falsify data; let every gram count."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Merged the composer's seekable pieces and long arc (233712b18; eight engine music tests that could never pass fixed, the phone roll's letters, the Written search row) and the text-cut fix (bbb5ad530, BUG-340: humanity_core::text, every counted string cut moved, tests/text_cut_lint.rs; remote-reachable crashes closed on the desktop and the relay, e.g. the first 200 bytes of any malformed message on the relay). Combined trees checked native + relay + lints before each commit. Starting today's second release (v0.1568) with: lib-tests fix, Music rung 3a, survival quests, page-frame gaps, harvest basket, composer, text-cut. Not in it: arrival rungs 1-2 (running), owner round 5 (gates running, then a fifth review), signed requests round 3 (running). Pending BUG numbers renumber from main's end (340) at their merges.",
+      "why": "The batch includes remote-crash fixes; ship them."
     }
   ],
   "active_scopes_to_avoid": [
