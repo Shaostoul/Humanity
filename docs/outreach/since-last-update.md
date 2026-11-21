@@ -41,6 +41,8 @@ Each line is written the way a player would hear it; the release notes and
 
 - The servers' database library is updated, closing a published security flaw in it; the server program also got smaller by dropping two pieces it never used.
 - The desktop app shows emoji as the same OpenMoji pictures the website does, in messages, reactions and the reaction picker.
+- On dark themes every emoji gets a faint light outline, so dark-edged pictures stay readable, in both apps; it can be adjusted or turned off in Settings. The reaction panel no longer stutters the first time it opens.
+- The phone app starts in about a second (it no longer builds the 3D world it does not show) and redraws only when something changes, which saves battery. The download page shows the phone app's install steps once a release carries it.
 
 ### Outreach
 
