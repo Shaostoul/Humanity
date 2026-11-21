@@ -1535,24 +1535,30 @@ impl AppConfig {
     /// file, then a rename: `atomic_write::write_atomic`), so a crash mid-save leaves the old
     /// file rather than a torn one that would load as the defaults.
     pub fn save_at(&self, path: &std::path::Path) {
+        save_order::write(save_order::next_number(), path, &self.prepare_save());
+    }
+
+    /// The snapshot a save writes: the file's text and the protected setup, taken now.
+    fn prepare_save(&self) -> save_order::Prepared {
         // A rig's low impact (engine::low_impact) is never written: the sandbox keeps its own
         // settings for the next run, which may be a picture rig at full graphics.
         let text = match crate::engine::low_impact::strip_for_save(self) {
             Some(v) => serde_json::to_string_pretty(&v),
             None => serde_json::to_string_pretty(self),
         };
-        if let Ok(json) = text {
-            match humanity_core::atomic_write::write_atomic(path, json.as_bytes()) {
-                Ok(_) => log::info!("Saved config to {}", path.display()),
-                Err(e) => log::warn!("Failed to save config to {}: {}", path.display(), e),
-            }
+        save_order::Prepared { json: text.ok(), setup: self.protected_setup.clone() }
+    }
+
+    /// Save to config.json on the save writer's thread, never waiting for the disk (the frame's
+    /// settings changes, engine/frame_tail.rs; `save_order` says why). In order with every other
+    /// save: one taken before a save already written is dropped. The exit waits for it
+    /// ([`flush_saves`]).
+    pub fn save_soon(&self) {
+        #[cfg(test)]
+        if SAVES_OFF_DISK.with(|off| off.get()) {
+            return;
         }
-        if let Some(setup) = self.protected_setup.as_ref() {
-            let beside = crate::net::protected_store::path_beside(path);
-            if let Err(e) = crate::net::protected_store::save(&beside, setup) {
-                log::warn!("Failed to save the protected setup to {}: {e}", beside.display());
-            }
-        }
+        save_order::soon(save_order::next_number(), Self::config_path(), self.prepare_save());
     }
 
     /// The protected setup as this device keeps it, from its own file beside config.json:
@@ -3312,5 +3318,144 @@ mod server_address_tests {
         after.ws_manually_disconnected = false;
         assert!(after.may_dial_saved_servers(), "after Connect the saved servers are not dialled");
         assert!(restart(&with_saved("https://a.example")).may_dial_saved_servers(), "a restart with an address does not dial the saved servers");
+    }
+}
+
+/// Wait until every save asked for with [`AppConfig::save_soon`] is on disk (the exit, before the
+/// process ends).
+pub fn flush_saves() {
+    save_order::flush();
+}
+
+/// SAVES IN ORDER, AND THE FRAME'S SAVES OFF THE FRAME (2026-11-21). A save writes the file whole
+/// and flushes it to the disk before the rename (`atomic_write`), and the flush waits for the disk:
+/// beside other agents' compiles the boot frame's save held the window 394 ms (the long-gap lines
+/// of `just verify-phone-start`, engine/world_prep.rs), and every settings change saved on the frame
+/// the same way. So the frame's saves go to one writer thread ([`AppConfig::save_soon`]), a waiting
+/// save replaced by a newer one, and every save, on the frame or off it, takes a number when it is
+/// asked for: one that reaches the disk after a later one was written is dropped, so older settings
+/// never land over newer ones.
+mod save_order {
+    use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Condvar, Mutex, OnceLock};
+
+    /// What one save writes.
+    pub(super) struct Prepared {
+        pub(super) json: Option<String>,
+        pub(super) setup: Option<crate::net::protected::ProtectedSetup>,
+    }
+
+    static NUMBER: AtomicU64 = AtomicU64::new(0);
+    /// The newest save written; held while a save writes, so two never write at once.
+    static WRITTEN: Mutex<u64> = Mutex::new(0);
+
+    /// The next save's number.
+    pub(super) fn next_number() -> u64 {
+        NUMBER.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    /// Write save `number` unless a later one is on disk already.
+    pub(super) fn write(number: u64, path: &Path, p: &Prepared) {
+        let mut written = WRITTEN.lock().unwrap_or_else(|e| e.into_inner());
+        if number <= *written {
+            return;
+        }
+        if let Some(json) = &p.json {
+            match humanity_core::atomic_write::write_atomic(path, json.as_bytes()) {
+                Ok(_) => log::info!("Saved config to {}", path.display()),
+                Err(e) => log::warn!("Failed to save config to {}: {}", path.display(), e),
+            }
+        }
+        if let Some(setup) = p.setup.as_ref() {
+            let beside = crate::net::protected_store::path_beside(path);
+            if let Err(e) = crate::net::protected_store::save(&beside, setup) {
+                log::warn!("Failed to save the protected setup to {}: {e}", beside.display());
+            }
+        }
+        *written = number;
+    }
+
+    /// The writer: the save waiting (the newest asked for) and whether one is being written.
+    struct Writer {
+        slot: Mutex<(Option<(u64, PathBuf, Prepared)>, bool)>,
+        changed: Condvar,
+    }
+
+    static WRITER: OnceLock<Option<&'static Writer>> = OnceLock::new();
+
+    /// The writer thread, started by the first save that asks for it (None if it could not start).
+    fn writer() -> Option<&'static Writer> {
+        *WRITER.get_or_init(|| {
+            let w: &'static Writer = Box::leak(Box::new(Writer { slot: Mutex::new((None, false)), changed: Condvar::new() }));
+            let started = std::thread::Builder::new().name("config-save".into()).spawn(move || loop {
+                let job = {
+                    let mut s = w.slot.lock().unwrap_or_else(|e| e.into_inner());
+                    while s.0.is_none() {
+                        s = w.changed.wait(s).unwrap_or_else(|e| e.into_inner());
+                    }
+                    s.1 = true;
+                    s.0.take()
+                };
+                if let Some((number, path, p)) = job {
+                    write(number, &path, &p);
+                }
+                w.slot.lock().unwrap_or_else(|e| e.into_inner()).1 = false;
+                w.changed.notify_all();
+            });
+            started.ok().map(|_| w)
+        })
+    }
+
+    /// Hand save `number` to the writer, replacing a waiting older one; written here if the writer
+    /// could not start.
+    pub(super) fn soon(number: u64, path: PathBuf, p: Prepared) {
+        match writer() {
+            Some(w) => {
+                w.slot.lock().unwrap_or_else(|e| e.into_inner()).0 = Some((number, path, p));
+                w.changed.notify_all();
+            }
+            None => write(number, &path, &p),
+        }
+    }
+
+    /// Wait until the writer has nothing waiting and nothing being written.
+    pub(super) fn flush() {
+        let Some(Some(w)) = WRITER.get() else {
+            return;
+        };
+        let mut s = w.slot.lock().unwrap_or_else(|e| e.into_inner());
+        while s.0.is_some() || s.1 {
+            s = w.changed.wait(s).unwrap_or_else(|e| e.into_inner());
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// THE ORDER HOLDS (2026-11-21): a save handed to the writer and a later save written at
+        /// once leave the later one on disk, whichever reaches the disk first, and the flush waits
+        /// for the writer. Seen RED 2026-11-21 with the order check broken (`if number <= *written
+        /// && false {` in `write`): "the older save landed over the newer one: {"v":1}" (left
+        /// "{\"v\":1}", right "{\"v\":2}"), the same again run alone.
+        #[test]
+        fn an_older_save_never_lands_over_a_newer_one() {
+            let dir = std::env::temp_dir().join(format!("hos-save-order-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).unwrap();
+            let path = dir.join("config.json");
+            let p = |v: u32| Prepared { json: Some(format!("{{\"v\":{v}}}")), setup: None };
+            let (older, newer) = (next_number(), next_number());
+            write(newer, &path, &p(2));
+            soon(older, path.clone(), p(1));
+            flush();
+            let text = std::fs::read_to_string(&path).unwrap();
+            assert_eq!(text, "{\"v\":2}", "the older save landed over the newer one: {text}");
+            // A save asked for after both goes through the writer and lands.
+            soon(next_number(), path.clone(), p(3));
+            flush();
+            assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"v\":3}");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }

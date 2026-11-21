@@ -6,7 +6,7 @@
 > `grep -i <word> docs/ai/code-map.md` before searching the source. Features (what a person can do)
 > are in `docs/FEATURES.md`; pages in `docs/PAGES.md`.
 
-1654 Rust files (831,532 lines) under `src/` and `crates/*/src/`; 177 JavaScript files (101,609 lines) under `web/`.
+1654 Rust files (832,228 lines) under `src/` and `crates/*/src/`; 177 JavaScript files (101,609 lines) under `web/`.
 
 ## Folders
 
@@ -157,7 +157,7 @@
 - `debug.rs` (129): In-app debug console: captures log messages for display in an egui overlay. Main items: push_debug, drain_debug_log, draw_debug_console.
 - `dev_travel.rs` (368): Dev travel math (v0.791.x, Dev > Dev > Travel) - pure helpers for the teleport tool that lets the operator inspect any solar body up close. Main items: teleport_viewpoint, look_angles, look_dir, planet_spin_from_time, frame_lock_capture, frame_lock_ship_pos, format_multiplier, VIEW_DISTANCE_RADII.
 - `embedded_data.rs` (998): Compile-time embedded data files for offline operation. Main items: shipped_home_design, own_home_text, get_embedded, read_data_or_embedded, load_data_or_embedded, load_text_or_embedded, note_builtin_copy, builtin_copies_this_run (+160 more).
-- `frame_costs.rs` (1318): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, Spike, StageTimer, gpu_id_has_cpu_twin, spikes, thread_times (+33 more).
+- `frame_costs.rs` (1403): Live per-system resource measurement (resource budgets, increment 1 - MEASURE; see `docs/design/resource-budgets.md`). Main items: GpuTiming, Entry, Snapshot, Spike, StageTimer, gpu_id_has_cpu_twin, spikes, thread_times (+37 more).
 - `i18n.rs` (472): Every word a person reads in the app, by key, from `data/i18n/<language>.json` (the ELI5 mandate, docs/PRIORITIES.md TIER 3). Main items: Segment, plain, segments, t, t_dyn, t_marked, t_marked_dyn, has (+7 more).
 - `lib.rs` (124): humanity-core: the bottom of the stack, which every other crate of the workspace uses (the crate split, docs/design/crate-split.md; its card is docs/crates/humanity-core.md).
 - `lod_registry.rs` (89): Per-ITEM-TYPE LOD category registry (v0.971 generalization of the vegetation rung-2a registry): every kind of thing with detail stages - vegetation, creatures, water, planet terrain - gets a row in... Main items: LodCategory, categories, category.
@@ -603,8 +603,8 @@
 ## src/
 
 - `android.rs` (201): The phone build's entry point (Android rung A1, 2026-11-14; docs/design/platforms.md, android/README.md).
-- `config.rs` (3317): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+15 more).
-- `lib.rs` (1261): HumanityOS Game Engine Main items: drone_dock_visible, run, run_android.
+- `config.rs` (3462): Persistent configuration for the native desktop app. Main items: WindowMode, HudVitals, PlayMode, Capability, SavedServer, AppConfig, DonateAddressConfig, play_mode_allows (+16 more).
+- `lib.rs` (1263): HumanityOS Game Engine Main items: drone_dock_visible, run, run_android.
 - `main.rs` (256): HumanityOS, One binary to rule them all.
 - `release_update.rs` (384): Signed-release verification + signing (the supply-chain root of trust). Main items: handoff_block_reason, handoff_blocked_now, verify_file_against_sidecar, gen_release_key, sign_manifest_bytes, sign_release, sign_file, NO_HANDOFF_ENV.
 - `save_load.rs` (3566): Offline save/load lifecycle (v0.381) -- homes increment 3. Main items: WorldHold, HomeFrame, LoadedHomeBox, Resumed, hold_world, run_world, frame_for_save, record_home_frame (+32 more).
@@ -673,7 +673,7 @@
 - `frame_build_gizmos.rs` (470): Build mode's light and door-mouth gizmos (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: each placed light's centre marker and range rings, and th... Main items: run.
 - `frame_build_helpers.rs` (496): Build mode's helper gizmos (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: bounds boxes on placed structures and machines, the build-mode avatar a... Main items: run.
 - `frame_cards.rs` (579): Machine cards (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the home power readout, the machine labels and the pinned cards' auto-recipe selector. Main items: run.
-- `frame_clock.rs` (71): The frame's clock (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the frame-rate cap's sleep, the frame's steps (the true step for the counters, the... Main items: run.
+- `frame_clock.rs` (75): The frame's clock (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the frame-rate cap's sleep, the frame's steps (the true step for the counters, the... Main items: run.
 - `frame_collide_drive.rs` (224): Collision and driving (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as they were: pushing the player out of the home's walls, driving a vehicle, and the follo... Main items: run.
 - `frame_copresence.rs` (170): Multiplayer co-presence (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: joining the shared world while in it and connected to a relay, and syncing th... Main items: run.
 - `frame_dev_ipc.rs` (157): The dev control link's frame stage (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the dev autopilot's zero-click world entry, the dev IPC requests,... Main items: run.
@@ -709,8 +709,8 @@
 - `frame_sky.rs` (151): The real solar system around the home (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the sky's clock and the values every body shares, each body of... Main items: SkyBodies, run.
 - `frame_station.rs` (240): The orbital home station's frame stage (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the station card's attitude edits, the station's orbit propaga... Main items: run.
 - `frame_step.rs` (29): The simulation's step on the engine (the headless sim runner, increment 4, 2026-11-15; docs/design/headless-sim-runner.md, section 2): every stage of the frame that moves the world, in the frame's... Main items: run.
-- `frame_tail.rs` (521): The frame's tail (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: screenshots, the play journal's marks, the movie and the live broadcast copied from... Main items: run.
-- `frame_ui_paint.rs` (125): Painting the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the platform output handled, the shapes tessellated, the textures updated and the GU... Main items: run.
+- `frame_tail.rs` (530): The frame's tail (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: screenshots, the play journal's marks, the movie and the live broadcast copied from... Main items: run.
+- `frame_ui_paint.rs` (132): Painting the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the platform output handled, the shapes tessellated, the textures updated and the GU... Main items: run.
 - `frame_ui_run.rs` (555): Running the GUI (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the debug log drained into the GUI, the Garden data built for the Inventory page, the... Main items: run.
 - `frame_vars.rs` (88): The values one frame's stages hand to each other (the file-size split, step 1, 2026-11-14, docs/design/crate-split.md "The file-size split"). Main items: FrameVars.
 - `frame_walk_aboard.rs` (156): Walking aboard (the file-size split, step 1, 2026-11-14), moved out of `window_event` in src/lib.rs as it was: the elevators' tick, then the player's first-person movement aboard the ship and the h... Main items: run.
@@ -775,7 +775,7 @@
 - `put_answer.rs` (134): The server's answers to the `dm_put`s that change friendship state (section 10l of docs/design/blocking-and-safe-mode.md, "A pass counts as given only once the server took it", 2026-10-10): `dm_put... Main items: on_frame, expire, REQUEST_NOT_CONFIRMED.
 - `quest_hooks.rs` (100): The quests' per-frame glue (2026-10-04, the opening): what the quest system cannot see from the ECS, handed to it once a frame. Main items: frame, views_that_came_on_screen, off_the_record.
 - `quiet_allow.rs` (116): The always-allow list's half that touches the app and the sockets (notifications rung 3, 2026-11-01; the list and its notes are `notifications::allow`, pure). Main items: allows, set, flush, screens_dm.
-- `quit.rs` (89): Leaving the app: what is written before it closes (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Blocker 5). Main items: save_before_exit, save_game.
+- `quit.rs` (92): Leaving the app: what is written before it closes (first-hour audit 2026-10-04, docs/design/first-hour-audit-2026-10-04.md, Blocker 5). Main items: save_before_exit, save_game.
 - `reach.rs` (696): "Who can reach me" (step B of docs/design/blocking-and-safe-mode.md, section 10c), the native client's half that touches the socket and the app state: the relay's `reach_settings` (the only source... Main items: Arrival, on_frame, ask, current, shares_group, file_if_refused, file_if_refused_in, contact_request_in (+13 more).
 - `redraw.rs` (296): Drawing a frame only when something changed, for the app's pages on a phone (Android rung A1, 2026-11-20; docs/design/platforms.md, "The phone's GPU against the game renderer"). Main items: Redraw, reactive, install, dev_request_seen, note_event, after_ui, shown, net_fingerprint.
 - `registries.rs` (480): The game's small data registries (items, recipes, plants, status effects, skills, quests, containers), loaded into the DataStore at startup, before any world loads. Main items: load_data_registries.
@@ -809,7 +809,7 @@
 - `warnings.rs` (329): Warnings, and the recovery-phrase guard (step F of docs/design/blocking-and-safe-mode.md, sections 6.3 and 10g, 2026-10-10): the native client's half that touches the app state. Main items: ensure_loaded, sender_of, checked_sender, shown_under, dismiss_key, message_key, links_held, holds_own_phrase (+1 more).
 - `world_hold.rs` (48): The world's systems held still and quiet until the person enters a world (BUG-253, 2026-11-06; the rule and its why are in gui/world_entry.rs). Main items: tick, take_notices.
 - `world_load.rs` (1008): Entering the 3D world: `load_world` builds the player's home on its plot with what its start carries, and the star sky, planets, sun and home station. Main items: place_avatar, build_star_sky, load_world, place_decorations, build_hologram, clear_hologram, hologram_spot, refresh_home_content (+5 more).
-- `world_prep.rs` (471): When the 3D world is prepared: the desktop starts PAGES-FIRST, and builds the world when Play is pressed (the default) or beside the pages, gradually (2026-11-20; docs/design/platforms.md A1, rende... Main items: Frames, WorldPrep, View, after_first_frame, drawn, at_boot, ready_to_enter, frame (+4 more).
+- `world_prep.rs` (533): When the 3D world is prepared: the desktop starts PAGES-FIRST, and builds the world when Play is pressed (the default) or beside the pages, gradually (2026-11-20; docs/design/platforms.md A1, rende... Main items: Frames, WorldPrep, View, after_first_frame, drawn, at_boot, ready_to_enter, frame (+4 more).
 - `world_sim.rs` (611): The home's simulation at world entry, built without the GPU (headless sim runner increment 1, 2026-11-15, docs/design/headless-sim-runner.md section 5): the ship assembled with this player's home o... Main items: Parts, Spawn, MachinesPlaced, WorldSim, build, spawn_herd, spawn_wilds.
 - tests: `animation_feet_tests.rs`, `animation_interact_tests.rs`, `animation_look_tests.rs`, `animation_tests.rs`, `choice_tests.rs`, `death_pack_tests.rs`, `dm_pace_tests.rs`, `editor_storeys_tests.rs`, `file_transfer_tests.rs`, `fleet_tests.rs`, `frame_sim_tests.rs`, `frame_water_tests.rs`, `friend_code_tests.rs`, `fruiting_tent_tests.rs`, `garden_mirror_tests.rs`, `group_report_tests.rs`, `home_meshes_tests.rs`, `household_tests.rs`, `key_cards_tests.rs`, `map_feed_tests.rs`, `map_rig_tests.rs`, `map_tiles_tests.rs`, `map_view_tests.rs`, `mess_hall_tests.rs`, `mine_tasks_tests.rs`, `music_tests.rs`, `org_mail_tests.rs`, `planet_floor_tests.rs`, `protected_tests.rs`, `put_answer_devices_tests.rs`, `put_answer_tests.rs`, `save_slot_home_tests.rs`, `save_slot_tests.rs`, `screens_sound_tests.rs`, `sfx_tests.rs`, `shared_build_tests.rs`, `world_hold_tests.rs`, `world_load_tests.rs`, `world_sim_tests.rs`
 
@@ -1329,7 +1329,7 @@
 - `samples.rs` (318): Decoded sample audio, and a voice that plays one sample at a rate. Main items: DecodedSample, SampleBank, SampleVoice, decode_file, decode_attack, stream_settings.
 - `score.rs` (469): The bridge from the instrument library into the live score (crates/humanity-music; docs/design/ music.md, rung 6 and section 23): for every PART the moods' roles and the genres' roles and palettes... Main items: PartPlays, Attached, recorded_id, named_parts, sounding_parts, soft_loop, streamable, attach (+2 more).
 - `tar.rs` (113): Reading a pack archive: plain ustar, as `scripts/lib/instrument-build.js` writes it. Main items: safe_path, extract.
-- `ui.rs` (179): The state behind Settings > Audio > Instruments, and the frame step that acts on its buttons: the star catalog's request-and-thread pattern (the section sets a request, [`tick`], called once a fram... Main items: PacksUi, installed_generation, installed_changed, shared, base_url, tick, URL_OVERRIDE_ENV.
+- `ui.rs` (234): The state behind Settings > Audio > Instruments, and the frame step that acts on its buttons: the star catalog's request-and-thread pattern (the section sets a request, [`tick`], called once a fram... Main items: PacksUi, PacksRead, installed_generation, installed_changed, shared, base_url, tick, URL_OVERRIDE_ENV.
 - `waves.rs` (55): Wave sets (2026-11-13, the operator's approval of AKWF): single-cycle waves for the synthesiser's wavetable oscillator, kept as plain PCM WAV (a lossy codec smears a cycle of 600 samples), each set... Main items: WaveSet, Wave.
 - tests: `data_tests.rs`, `install_tests.rs`, `library_tests.rs`, `stream_tests.rs`
 
@@ -1662,14 +1662,14 @@
 - `materials.rs` (500): Material registry: everything that creates, textures or rewrites the `Material` slots the render passes bind at group 2 (uniforms) and group 3 (albedo + the engine-global texture set). Main items: MATERIAL_TYPE_SCREEN, MATERIAL_TYPE_CHARACTER, MATERIAL_TYPE_HAIR, HAIR_CUTOFF.
 - `mesh_pool.rs` (506): THE OWN-MESH POOL (2026-11-10, the look's follow-up; docs/design/character-animation.md section 16): each near person's own shaped and dressed mesh lives in ranges of a few GPU buffers allocated ON... Main items: MeshClass, Held, Refusal, Side, Step, MeshPool, VERTEX_BYTES, INDEX_BYTES.
 - `mesh.rs` (1190): Mesh primitives, vertex/index buffers for renderable geometry. Main items: GrassInstance, Mesh, vertex_layout, prev_position_layout, instance_layout, bounding_sphere, triangles_facing_against_their_normals, INSTANCE_STRIDE (+1 more).
-- `mod.rs` (2676): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_MIPS.
+- `mod.rs` (2675): Renderer, the `Renderer` struct, its construction, and its registries. Main items: PatchDraw, RenderObject, AlbedoBindGroup, Material, Renderer, SUN_SHADOW_MAP_SIZE, SUN_SHADOW_EXTENT_M, WEATHER_MAP_MIPS.
 - `multi_scale.rs` (30): Multi-scale rendering, AU, planet, habitat scale transitions. Main items: ScaleLevel, MultiScaleManager.
 - `overlay_draw.rs` (391): POST-PASSES: thin lines and particle billboards drawn ON TOP of a frame that has already been rendered.
 - `pages_gpu.rs` (339): What the app's PAGES need from the GPU, and nothing more (Android rung A1, 2026-11-20, docs/design/platforms.md): the adapter, the device and its queue, and the window's surface configured to draw on. Main items: CloudChains, Bakes, PagesGpu, acquire_cleared, start_bakes.
 - `particles_gpu.rs` (378): GPU particle simulation (v0.1068). Main items: SimParams, GpuParticles.
 - `particles.rs` (767): GPU particle system with data-driven emitter definitions. Main items: EmitterDef, Emitter, ParticleVertexData, ParticleSystem, build_particle_pipelines.
 - `patch_arena.rs` (526): Terrain patch mega-buffer arena (draw-batching increment 1, v0.1001). Main items: RangeAlloc, PatchInstance, IndirectArgs, PatchArena, MAX_PATCH_DRAWS.
-- `pipeline.rs` (4562): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, CloudPsos, CloudsReady, AtlasStep, ShaderClass (+23 more).
+- `pipeline.rs` (4563): Render pipeline management, creates and caches wgpu render pipelines. Main items: ObjectUniforms, MaterialUniforms, Pipeline, RebuiltPipelines, CloudPsos, CloudsReady, AtlasStep, ShaderClass (+23 more).
 - `room_probes_gpu.rs` (1537): ROOM GI, RUNG 1, the GPU half (docs/design/room-gi.md; the what and the why are in `room_probes.rs`, whose CPU twin this mirrors). Main items: RoomGi, PassWork, scratch_slots, MAX_UPDATES_PER_FRAME, MAX_SLAB_RUN_ROWS, UPDATE_REACH_M, UPDATE_SHADER.
 - `room_probes.rs` (3644): ROOM GI, RUNG 1: per-room irradiance probes (docs/design/room-gi.md). Main items: ProbeBudget, RoomBox, Lattice, AtlasLayout, Sun, OccluderSlab, PlotRun, Resident (+103 more).
 - `scene_draw.rs` (661): The SCENE passes: the draw loops that put the near world (the ship, the home, props, vegetation, water, holograms) on a target, plus the two screen-space passes that finish that image.
@@ -1685,7 +1685,7 @@
 - `sky_frame.rs` (406): Where the stars are, and how much of them a person can see (2026-10-04). Main items: SkyFades, TwilightRamps, sun_right_ascension, equatorial_to_world, twilight_fades, fades_with, DRAWN_SKY, NAKED_EYE.
 - `sky_view.rs` (199): Sky-view LUT pass (sky arc stage 3b-2, v0.947): the 200x100 offscreen target holding the full distant-sky radiance for the CURRENT camera altitude + sun elevation, re-rendered each frame the camera... Main items: SkyViewUniform, SkyViewPass, SKY_VIEW_W, SKY_VIEW_H.
 - `ssao.rs` (214): Screen-space ambient occlusion (v0.901; estimator rebuilt v0.1100): depth-only INPUT, normal-aware contact shading in the celestial slot, runs right after the god-ray pass while depth still holds t... Main items: SsaoPass.
-- `stars.rs` (3554): Star skybox renderer, draws the real star catalog as colored points. Main items: StarRenderer, StarCatalogTier, StarCatalog, dir_to_equirect_uv, equirect_uv_to_dir, ci_to_rgb, GALAXY_GLOW_ULTRA_FILE, GALAXY_GLOW_ULTRA_URL (+2 more).
+- `stars.rs` (3564): Star skybox renderer, draws the real star catalog as colored points. Main items: StarRenderer, StarCatalogTier, StarCatalog, dir_to_equirect_uv, equirect_uv_to_dir, ci_to_rgb, GALAXY_GLOW_ULTRA_FILE, GALAXY_GLOW_ULTRA_URL (+2 more).
 - `stream_capture.rs` (323): Non-blocking swapchain readback for live streaming (v0.853.0). Main items: StreamCapture.
 - `sun_cascades.rs` (24): Near sun cascades: the home and the planet build sites as sun casters. Main items: SunCascades.
 - `sun_disc.rs` (634): THE SUN AS A BODY (2026-10-21): its disc at its true size, its photosphere, its brightness, and the glare a camera sees round it. Main items: aperture_from_setting_mm, angular_radius, disc_angular_radius, mesh_angular_radius, camera_pads, disc_energy_scale, limb_darkening, disc_mean_over_centre (+23 more).
@@ -1701,7 +1701,7 @@
 - `tree_species.rs` (744): The SPECIES ARCHITECTURE: how each `form` lays out a crown (v0.1102).
 - `view_depth.rs` (161): The OFF-SCREEN VIEW depth buffer: which depth texture is current, the window's or a view's.
 - `water.rs` (1042): Planet ocean waves + land close-range detail: the Rust mirror of the WGSL math (v0.816). Main items: WaveOctave, water_footprint, detail_octave_fade, wave_presence, detail_octave_fade_aa, wave_warp, wave_octave, water_wave_gradient (+26 more).
-- `world_build.rs` (333): The 3D world's renderer built OFF THE FRAME while the pages draw (2026-11-20; the desktop's pages-first start, engine/world_prep.rs, docs/design/platforms.md A1). Main items: WorldInputs, Step, Progress, Worker, Poll, set_polite, polite, polite_thread (+1 more).
+- `world_build.rs` (647): The 3D world's renderer built OFF THE FRAME while the pages draw (2026-11-20; the desktop's pages-first start, engine/world_prep.rs, docs/design/platforms.md A1). Main items: WorldInputs, Step, Progress, CompilesRunning, Worker, Poll, EffectPasses, write_texture_in_slices (+10 more).
 - tests: `crossing_tests.rs`, `film_blur_tests.rs`, `scene_target_tests.rs`, `shadow_gpu_tests.rs`, `shadow_pool_tests.rs`, `shadow_transmit_tests.rs`, `tree_card_cull_tests.rs`
 
 ## src/renderer/shader_loader/

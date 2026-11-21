@@ -16,6 +16,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
     // paces presentation when on). std::thread::sleep is
     // ~1.5 ms-granular on Windows - fine for a cap, not a
     // precision limiter.
+    let mut slept = std::time::Duration::ZERO;
     {
         let s = &state.gui_state.settings;
         let cap = if state.window_focused || s.fps_background_sync {
@@ -33,14 +34,17 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars) {
                 // inside `cpu.frame_total`.
                 let sleep_t0 = Instant::now();
                 std::thread::sleep(target - elapsed);
-                humanity_core::frame_costs::record_cpu(
-                    "cpu.fps_cap_sleep",
-                    sleep_t0.elapsed(),
-                );
+                slept = sleep_t0.elapsed();
+                humanity_core::frame_costs::record_cpu("cpu.fps_cap_sleep", slept);
             }
         }
     }
     humanity_core::frame_costs::span_begin("cpu.span.station"); // the frame's spans: frame_costs::span
+    // The cap's sleep among the frame's laps, so a long page frame's stretches add up to it
+    // (engine/world_prep.rs names the longest).
+    if !slept.is_zero() {
+        humanity_core::frame_costs::lap_record("lap.fps_cap_sleep", slept);
+    }
     let now = Instant::now();
     // raw_dt is the TRUE frame delta, for the perf counters ONLY.
     // The clamped dt below protects the SIMULATION from spiral-of-

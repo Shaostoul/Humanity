@@ -1151,6 +1151,7 @@ impl Renderer {
             patch_indirect,
             background_bakes,
             bakes,
+            gate, // opened below once the pipelines are compiled (world_build.rs `compiles_running`)
         } = inputs;
         let (surface, pending_present_mode) = (None, None); // the pages hold the surface until adopt_surface
         progress.mark(world_build::Step::Targets);
@@ -1177,18 +1178,15 @@ impl Renderer {
         let present_pass = scene_target::PresentPass::new(&device, surface_format, scene_format);
         let scene = scene_target::SceneTarget::new(&device, &present_pass, width, height, scene_format);
         progress.mark(world_build::Step::Effects);
-        let t_unit = std::time::Instant::now();
-        let bloom_pass = bloom::BloomPass::new(&device, width, height, scene_format);
-        log::info!("[BootPhase]   bloom_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
-        let t_unit = std::time::Instant::now();
-        let godray_pass = godrays::GodrayPass::new(&device, scene_format);
-        let sun_vis = sun_glare::SunVisPass::new(&device);
-        log::info!("[BootPhase]   godray_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
-        let t_unit = std::time::Instant::now();
-        let ssao_pass = ssao::SsaoPass::new(&device, scene_format);
-        let cloud_composite_pass = cloud_composite::CloudCompositePass::new(&device, scene_format);
-        let cloud_resolve_pass = cloud_resolve::CloudResolvePass::new(&device);
-        log::info!("[BootPhase]   ssao_pass: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
+        // The six screen passes side by side (world_build.rs `EffectPasses`).
+        let world_build::EffectPasses {
+            bloom: bloom_pass,
+            godray: godray_pass,
+            sun_vis,
+            ssao: ssao_pass,
+            cloud_composite: cloud_composite_pass,
+            cloud_resolve: cloud_resolve_pass,
+        } = world_build::EffectPasses::build(&device, width, height, scene_format);
 
         // Shader + pipeline. The megashader compiles from the EMBEDDED
         // source; when assets/shaders/pbr_simple.wgsl exists on disk (dev
@@ -1246,6 +1244,7 @@ impl Renderer {
             cfg!(target_os = "windows") && dxc_dlls_beside_exe().is_none(),
         );
         log::info!("[BootPhase]   pipeline_new: {:.0} ms", t_unit.elapsed().as_secs_f32() * 1000.0);
+        drop(gate);
         progress.mark(world_build::Step::Buffers);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).

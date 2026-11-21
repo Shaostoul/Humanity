@@ -102,10 +102,12 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
     // present blocks when the swapchain queue is full,
     // which is what "waiting for the display" costs
     // on the CPU. World frames only (see frame_total).
+    // The present and the work after it as laps only (humanity_core::frame_costs: no span covers
+    // them), for the world preparation's long-gap lines (engine/world_prep.rs `note_frame_end`).
+    humanity_core::frame_costs::lap("lap.present");
     let present_t0 = Instant::now();
     surface_texture.present();
-    // The frame's own length and its present's, for the world preparation's long-gap lines.
-    crate::engine::world_prep::note_frame_end(state, frame_t0, present_t0.elapsed());
+    humanity_core::frame_costs::lap("lap.after_present");
     // The draw lists' memory, kept for the next frame (DrawBufs, S3). Taken out of the frame's
     // FrameVars, which ends with this frame.
     state.draw_bufs = crate::engine::state::DrawBufs {
@@ -285,11 +287,15 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
     // ── Instrument packs (2026-11-06, music.md rung 6): Settings > Audio >
     // Instruments' Download / Remove, the star catalog's way (a thread, a
     // checked archive, progress the section draws).
+    humanity_core::frame_costs::lap("lap.instrument_packs");
     crate::instrument_packs::ui::tick(&mut crate::instrument_packs::ui::shared(), &state.data_dir);
     // Model packs (2026-11-09, simready-props.md): Settings > Graphics > Furniture models.
+    humanity_core::frame_costs::lap("lap.model_packs");
     crate::model_packs::ui::tick(&mut crate::model_packs::ui::shared(), &state.data_dir);
     // Garment texture levels and packs (2026-11-10): Settings > Graphics > Garment textures.
+    humanity_core::frame_costs::lap("lap.garment_textures");
     crate::engine::look_textures::tick(&state.data_dir);
+    humanity_core::frame_costs::lap("lap.tail_downloads");
 
     // ── Ultra Milky Way glow download/remove (2026-07-11) ── same
     // mechanics as the star catalog above: background thread, stream
@@ -465,6 +471,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
     // ── Apply settings changes from GUI to engine ──
     if state.gui_state.settings_dirty {
         state.gui_state.settings_dirty = false;
+        humanity_core::frame_costs::lap("lap.settings_apply");
 
         // FOV. Clamped to a sane range so a degenerate
         // value in the config (e.g. a `"fov": 0.0` written
@@ -514,7 +521,9 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
         // Render distance → camera far plane
         state.camera.far = state.gui_state.settings.render_distance;
 
-        // Persist settings to config file
-        crate::config::AppConfig::from_gui_state(&state.gui_state).save();
+        // Persist settings to config file, on the save writer's thread: the save flushes to the
+        // disk, which held the boot frame 394 ms beside other agents' compiles (config.rs
+        // `save_order`, 2026-11-21). The exit waits for it (engine/quit.rs).
+        crate::config::AppConfig::from_gui_state(&state.gui_state).save_soon();
     }
 }

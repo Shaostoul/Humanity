@@ -99,10 +99,14 @@ pub(crate) struct WorldPrep {
     window_start: Option<Instant>,
     windows_logged: u32,
     gaps_logged: u32,
-    /// The last frame's whole length and its present's, and when it ended ([`note_frame_end`]).
+    /// The last frame's whole length and its present's, when it ended, and its longest stretches
+    /// (its laps, humanity_core::frame_costs) ([`note_frame_end`]).
     last_handler: Duration,
     last_present: Duration,
     last_end: Option<Instant>,
+    // reuse: not a reuse: a record of the frame before's measured stretches, rewritten at every
+    // frame's end, for the next long-gap line to report.
+    last_longest: Vec<(&'static str, Duration)>,
     during: Frames,
     /// The dev autopilot's answer to an entry, written once the world has loaded (engine/ipc.rs).
     pub(crate) autopilot_done: Option<(serde_json::Value, Instant)>,
@@ -279,25 +283,35 @@ fn note_spacing(state: &mut EngineState, now: Instant, frame_t0: Instant) {
         if building {
             wp.during.push(gap);
         }
-        // A long gap, named with what the preparation was doing, so a hitch can be put down to its
-        // cause (the first frames' own work, a build step, the install) rather than guessed at.
+        // A long gap, named with what the preparation was doing and the stretches of the two frames
+        // that took the time (their laps, humanity_core::frame_costs), so a hitch is put down to its
+        // cause (a stage of the frame, its present, the build step beside it) rather than guessed
+        // at. "Between frames" is the time from the end of the frame before (its whole handler, the
+        // work after its present included) to this one's start: on a desktop that draws every frame
+        // it is the event loop's own time; on a phone (reactive drawing, engine/redraw.rs) it is the
+        // honest wait while nothing asked for a frame. The judge (scripts/lib/phone-start-judge.js)
+        // tells the two apart by these numbers and the drawing named at the end.
         if gap >= LONG_GAP && wp.gaps_logged < MAX_GAPS {
             wp.gaps_logged += 1;
             let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+            let this_one = longest(humanity_core::frame_costs::laps());
             log::info!(
-                "[WorldPrep] a page frame {:.0} ms after the last ({} ms after the window opened; the frame before took {:.0} ms, {:.0} of them presenting, then {:.0} ms between frames, and this one {:.0} ms to here); the world: {}",
+                "[WorldPrep] a page frame {:.0} ms after the last ({} ms after the window opened; the frame before took {:.0} ms, {:.0} of them presenting, then {:.0} ms between frames, and this one {:.0} ms to here; the frame before's longest: {}; this one's: {}); the world: {}; drawing: {}",
                 ms(gap),
                 state.boot_timer.boot_start.elapsed().as_millis(),
                 ms(wp.last_handler),
                 ms(wp.last_present),
                 wp.last_end.map_or(0.0, |e| ms(frame_t0.saturating_duration_since(e))),
                 ms(now - frame_t0),
+                laps_words(&wp.last_longest),
+                laps_words(&this_one),
                 match (wp.ready, wp.started.is_some(), step) {
                     (true, _, _) => "ready".to_string(),
                     (false, true, Some(s)) => format!("being prepared, step {}", s.key()),
                     (false, true, None) => "being prepared, the renderer built".to_string(),
                     (false, false, _) => "not started".to_string(),
-                }
+                },
+                if crate::engine::redraw::reactive() { "reactive" } else { "continuous" }
             );
         }
     }
@@ -318,12 +332,48 @@ fn note_spacing(state: &mut EngineState, now: Instant, frame_t0: Instant) {
     }
 }
 
-/// The frame ended (frame_tail.rs): its whole length from the handler's start, and its present's.
-pub(crate) fn note_frame_end(state: &mut EngineState, frame_t0: Instant, present: Duration) {
+/// The frame's handler ended (lib.rs, its last line, every frame, presented or not): its whole
+/// length from the handler's start, its present's (the `lap.present` lap, frame_tail.rs), and its
+/// longest stretches, for the long-gap lines. The handler's end, not its present: the work after the
+/// present (the settings applied, the packs' ticks) used to count as "between frames", and the
+/// first long gap of every start (3,050 ms) read as the event loop's when it was the frame's own.
+pub(crate) fn note_frame_end(state: &mut EngineState, frame_t0: Instant) {
+    humanity_core::frame_costs::lap_end();
+    // Only page frames are timed (`frame` returns at once in the world).
+    if state.world_loaded {
+        return;
+    }
+    let laps = humanity_core::frame_costs::laps();
     let wp = &mut state.world_prep;
     wp.last_handler = frame_t0.elapsed();
-    wp.last_present = present;
+    wp.last_present = laps.iter().filter(|(id, _)| *id == "lap.present").map(|(_, d)| *d).sum();
     wp.last_end = Some(Instant::now());
+    wp.last_longest = longest(laps);
+}
+
+/// How many of a frame's longest stretches a long-gap line names.
+const LONGEST: usize = 3;
+
+/// A frame's longest stretches (its laps), longest first, at most [`LONGEST`].
+fn longest(mut laps: Vec<(&'static str, Duration)>) -> Vec<(&'static str, Duration)> {
+    laps.sort_by(|a, b| b.1.cmp(&a.1));
+    laps.truncate(LONGEST);
+    laps
+}
+
+/// "network 151 ms, load 2 ms" for a long-gap line: each stretch by its name, the id's last word
+/// (`cpu.span.network`, `lap.present`: names never hold a dot); "none" for a frame with no laps.
+/// The last word, not the families spelled out: a literal shaped like a measurement id reads as
+/// one the engine records to the Performance page's registry test (gui/pages/performance.rs
+/// `every_recorded_id_is_a_row_or_a_listed_remainder` failed on "cpu.span." here, 2026-11-21).
+fn laps_words(laps: &[(&'static str, Duration)]) -> String {
+    if laps.is_empty() {
+        return "none".to_string();
+    }
+    laps.iter()
+        .map(|(id, d)| format!("{} {:.0} ms", id.rsplit('.').next().unwrap_or(id), d.as_secs_f64() * 1000.0))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Whether a prebuild's channel has its result (or will never have one), never waiting: a result is
@@ -363,7 +413,7 @@ fn start_prebuilds(state: &mut EngineState) {
         let tier_setting = state.gui_state.settings.star_catalog_tier.clone();
         let ultra_glow = state.gui_state.settings.sky_glow_tier == "ultra";
         let spawned = std::thread::Builder::new().name("star-sky".into()).spawn(move || {
-            crate::renderer::world_build::polite_thread();
+            crate::renderer::world_build::build_thread();
             let t = Instant::now();
             let cap = crate::renderer::stars::StarCatalogTier::resolve_cap(&tier_setting);
             let built = crate::renderer::stars::StarCatalog::load(&sky_dir, cap).as_ref().and_then(|catalog| {
@@ -388,7 +438,7 @@ fn start_prebuilds(state: &mut EngineState) {
         let (tx, rx) = std::sync::mpsc::channel();
         let dir = state.data_dir.clone();
         let spawned = std::thread::Builder::new().name("planet-defs".into()).spawn(move || {
-            crate::renderer::world_build::polite_thread();
+            crate::renderer::world_build::build_thread();
             let t = Instant::now();
             let bakes = crate::engine::net_route::bake_planet_defs(&dir);
             let took = t.elapsed();
@@ -451,6 +501,18 @@ pub(crate) fn draw(ctx: &egui::Context, theme: &crate::gui::theme::Theme, view: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A long-gap line names a frame's longest stretches by their bare names, longest first, in the
+    /// shape scripts/lib/phone-start-judge.js `parseLaps` reads ("name N ms, ..."; "none"). Seen
+    /// RED 2026-11-21 with `longest` sorted shortest first: left "present 0 ms, load 2 ms,
+    /// instrument_packs 9 ms", right "network 151 ms, instrument_packs 9 ms, load 2 ms".
+    #[test]
+    fn a_long_gap_names_the_longest_stretches_by_their_bare_names() {
+        let ms = Duration::from_millis;
+        let laps = vec![("cpu.span.network", ms(151)), ("lap.present", Duration::from_micros(400)), ("cpu.span.load", ms(2)), ("lap.instrument_packs", ms(9))];
+        assert_eq!(laps_words(&longest(laps)), "network 151 ms, instrument_packs 9 ms, load 2 ms");
+        assert_eq!(laps_words(&[]), "none");
+    }
 
     #[test]
     fn a_prebuild_is_peeked_without_losing_its_result() {

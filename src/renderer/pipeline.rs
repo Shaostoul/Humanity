@@ -2363,8 +2363,9 @@ fn fxc_clouds_requested() -> bool {
 
 /// Spawn one scoped PSO compile thread, named after its PSO and with the
 /// large compile stack (`COMPILE_STACK_BYTES`). Every compile in this file
-/// goes through here; `std::thread::Scope::spawn` would give it 2 MiB.
-fn spawn_compile<'scope, 'env, T, F>(
+/// goes through here, and the six screen passes of world_build.rs
+/// `EffectPasses`; `std::thread::Scope::spawn` would give it 2 MiB.
+pub(super) fn spawn_compile<'scope, 'env, T, F>(
     s: &'scope std::thread::Scope<'scope, 'env>,
     name: &str,
     f: F,
@@ -2378,7 +2379,7 @@ where
         .stack_size(COMPILE_STACK_BYTES)
         // Below normal while the world is prepared beside the pages (renderer/world_build.rs).
         .spawn_scoped(s, move || {
-            super::world_build::polite_thread();
+            super::world_build::build_thread();
             f()
         })
         .unwrap_or_else(|e| panic!("could not start the compile thread for {name}: {e}"))

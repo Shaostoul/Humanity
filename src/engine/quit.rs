@@ -26,6 +26,9 @@ pub(crate) fn save_before_exit(state: &mut EngineState) {
     // and neither do the part files of downloads and private-file Saves the exit cut off (round 3
     // of docs/design/files-showcase.md: nothing is left under a final name, or as a hidden part).
     crate::gui::pages::files::open::forget_temp_files(&mut state.gui_state);
+    // A settings change saved off the frame in the last frames reaches the disk before the exit
+    // (config.rs `save_order`).
+    crate::config::flush_saves();
 }
 
 /// The game's half of [`save_before_exit`]: a paid machine removed in the last frame gives its item

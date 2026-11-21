@@ -893,8 +893,14 @@ fn record_thread(id: &'static str, ms: f64) {
 /// Open the frame's first span: forget anything left open (a frame that
 /// returned early), and record again (see `span_stop_recording`).
 pub fn span_begin(id: &'static str) {
+    let now = Instant::now();
     let c = thread_cycles();
-    SPAN.with(|s| s.set((Some((id, Instant::now(), c)), true)));
+    SPAN.with(|s| s.set((Some((id, now, c)), true)));
+    LAPS.with(|l| {
+        let mut l = l.borrow_mut();
+        l.1.clear();
+        l.0 = Some((id, now));
+    });
 }
 
 /// Close the open span, recording it, and open `id`.
@@ -908,6 +914,7 @@ pub fn span(id: &'static str) {
         }
         s.set((Some((id, now, c)), recording));
     });
+    lap_at(Some(id), now);
 }
 
 /// Close the open span, recording it, and open none.
@@ -921,6 +928,55 @@ pub fn span_end() {
         }
         s.set((None, recording));
     });
+    lap_at(None, now);
+}
+
+// ── Laps: the frame in progress, kept for the frame itself (2026-11-21) ──
+//
+// A frame a page covers throws its spans away (`span_stop_recording`, `discard_frame`), so a long
+// page frame could not say where its time went: the startup judge saw a page frame come 3,050 ms
+// after the one before, and the only clue was "between frames". So every span boundary also closes
+// a LAP into a list kept per thread for the frame in progress, recorded or not, and `lap` adds a
+// boundary that is a lap only, for the work no span covers (the present, and everything after it).
+// The engine reads the list (`laps`) at the frame's end: engine/world_prep.rs names a long gap
+// between page frames by its longest stretches. Cleared at `span_begin`, the frame's first span.
+
+thread_local! {
+    /// The open lap (its id and when it opened) and the frame's closed laps so far.
+    static LAPS: std::cell::RefCell<(Option<(&'static str, Instant)>, Vec<(&'static str, Duration)>)> =
+        const { std::cell::RefCell::new((None, Vec::new())) };
+}
+
+/// Close the open lap at `now` and open `next` (or none).
+fn lap_at(next: Option<&'static str>, now: Instant) {
+    LAPS.with(|l| {
+        let mut l = l.borrow_mut();
+        if let Some((id, t0)) = l.0.take() {
+            l.1.push((id, now.saturating_duration_since(t0)));
+        }
+        l.0 = next.map(|id| (id, now));
+    });
+}
+
+/// A boundary that is a lap only, never a span: close the open lap and open `id` (the laps' notes).
+pub fn lap(id: &'static str) {
+    lap_at(Some(id), Instant::now());
+}
+
+/// Close the open lap and open none: the frame's end.
+pub fn lap_end() {
+    lap_at(None, Instant::now());
+}
+
+/// A stretch measured before the frame's first span (the frame-rate cap's sleep, which comes
+/// before `span_begin` clears the list): added to the frame's laps after it as a closed lap.
+pub fn lap_record(id: &'static str, d: Duration) {
+    LAPS.with(|l| l.borrow_mut().1.push((id, d)));
+}
+
+/// The frame's closed laps so far, in order (the laps' notes).
+pub fn laps() -> Vec<(&'static str, Duration)> {
+    LAPS.with(|l| l.borrow().1.clone())
 }
 
 /// From now until the next `span_begin`, record no span. For a frame that
@@ -1013,6 +1069,35 @@ mod tests {
         assert!(a >= 3.0 && b >= 2.0, "each stretch holds its own time: a {a} ms, b {b} ms");
         assert!(a + b <= whole + 0.01, "the stretches never add up to more than the whole: {a} + {b} > {whole}");
         assert!(acc("cpu.span.test_c").is_none(), "a span closed while not recording was recorded");
+        reset_for_test();
+    }
+
+    /// LAPS KEEP THE FRAME FOR ITSELF, recorded or not (2026-11-21): every span boundary closes a
+    /// lap, `lap` adds one that never reaches the store, a stretch past `span_stop_recording` (a
+    /// page frame's) is still a lap, and `span_begin` starts the list again. Red evidence,
+    /// 2026-11-21, with `span` not closing a lap: "the page frame's stretch past its acquire is a
+    /// lap: [(\"cpu.span.test_d\", 2.913ms), (\"lap.test_present\", 3.9694ms)]" (test_e missing,
+    /// its time inside test_d's).
+    #[test]
+    fn laps_keep_a_page_frames_stretches_for_the_frame() {
+        let _g = serial();
+        reset_for_test();
+        begin_frame();
+        span_begin("cpu.span.test_old");
+        span_end();
+        span_begin("cpu.span.test_d");
+        span_stop_recording();
+        std::thread::sleep(Duration::from_millis(2));
+        span("cpu.span.test_e");
+        span_end();
+        lap("lap.test_present");
+        std::thread::sleep(Duration::from_millis(3));
+        lap_end();
+        let l = laps();
+        let ids: Vec<&str> = l.iter().map(|x| x.0).collect();
+        assert_eq!(ids, vec!["cpu.span.test_d", "cpu.span.test_e", "lap.test_present"], "the page frame's stretch past its acquire is a lap: {l:?}");
+        assert!(l[0].1 >= Duration::from_millis(2) && l[2].1 >= Duration::from_millis(3), "each lap holds its own time: {l:?}");
+        assert!(!store().lock().unwrap().cpu_accum.iter().any(|e| e.id.starts_with("lap.") || e.id == "cpu.span.test_e"), "a lap only, or a span while not recording, reached the store");
         reset_for_test();
     }
 

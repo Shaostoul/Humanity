@@ -41,6 +41,7 @@ function goodRun() {
           "[PagesOnly] the world's renderer built for entering the world: 7900 ms (on a worker thread)",
           ready(10200, 9100),
           onFrame("0.44", 640),
+          during(640, 14.1, 60.2),
           opening(9050),
           loaded(2100),
           counts(70, 12, 85, "now", true),
@@ -62,7 +63,7 @@ function goodRun() {
         entered: { ok: true, waited_for_world_ms: 2150 },
       },
       play_during: {
-        log: [first(1050, true), counts(6, 0, 6, "at the first frame", false), pressed, ready(9900, 8800), onFrame("0.38", 900), opening(8600), loaded(2200)].join("\n"),
+        log: [first(1050, true), counts(6, 0, 6, "at the first frame", false), pressed, ready(9900, 8800), onFrame("0.38", 900), during(900, 12.2, 70.4), opening(8600), loaded(2200)].join("\n"),
         entered: { ok: true, waited_for_world_ms: 10900 },
       },
       old_order: { log: [first(18500, false), counts(64, 9, 80, "at the first frame", true)].join("\n") },
@@ -221,6 +222,110 @@ test("--only judges the boots it asked for, and still fails a bad one", () => {
   assert.ok(verdict(run).ok, failing(run).join("; "));
   run.boots.phone.log += "\n[PagesOnly] world touched from src\\engine\\frame_sky.rs:42";
   assert.ok(!verdict(run).ok);
+});
+
+// A long gap between two page frames as engine/world_prep.rs `note_spacing` writes it (2026-11-21).
+const gapLine = (gap, at, [before, present, between, thisMs], [beforeLongest, thisLongest], world, drawing) =>
+  `[WorldPrep] a page frame ${gap} ms after the last (${at} ms after the window opened; the frame before took ${before} ms, ${present} of them presenting, then ${between} ms between frames, and this one ${thisMs} ms to here; the frame before's longest: ${beforeLongest}; this one's: ${thisLongest}); the world: ${world}; drawing: ${drawing}`;
+
+// THE SLOW PAGE FRAME BEFORE PLAY (2026-11-21). Red evidence: the run of 2026-11-21 08:25
+// (v0.1567.0, .probe-rig/phone-start/runs/20261121-082542) re-judged with --dry-verdict failed
+// "desktop: before Play, no stretch of a page frame over 100 ms (between frames 3037 ms; a gap of
+// 3051 ms, 4078 ms after the window opened)" and the same for the background boot (3906 ms), where
+// the judge before passed both and printed "worst 3050.6 ms" as a number nobody judged.
+test("a page frame before Play with a stretch over the limit fails, named by the stretch", () => {
+  const limit = PJ.IDLE_STRETCH_MAX_MS;
+  for (const b of ["desktop", "background"]) {
+    const run = goodRun();
+    run.boots[b].log += "\n" + gapLine(3051, 4078, [3040, 1, 2, 2], [`instrument_packs ${limit * 30} ms, ui_run 9 ms, present 1 ms`, "station 1 ms"], "not started", "continuous");
+    assert.ok(
+      failing(run).some((w) => new RegExp(`${b}: before Play, no stretch of a page frame over ${limit} ms \\(instrument_packs ${limit * 30} ms in the frame before; a gap of 3051 ms, 4078 ms after the window opened\\)`).test(w)),
+      failing(run).join("; "),
+    );
+    // A gap whose stretches are each in the limit passes, and the frame cap's sleep is pacing,
+    // never a cause, however long a cap makes it.
+    const ok = goodRun();
+    ok.boots[b].log += "\n" + gapLine(limit + 120, 2000, [limit + 80, 30, 0, 50], [`fps_cap_sleep ${limit + 50} ms, present 30 ms`, "network 45 ms"], "not started", "continuous");
+    assert.ok(verdict(ok).ok, failing(ok).join("; "));
+  }
+});
+
+// THE PAGE FRAMES WHILE THE WORLD IS BUILT (2026-11-21). Red evidence: the run of 2026-11-21 09:27
+// (the build's threads on every core) re-judged with --dry-verdict failed "desktop: while the world
+// was built, at most 5% of the page frames 100 ms or more after the one before (19 of 188; the
+// slowest: ui_paint 390 ms in the frame before; ...)" and play_during (17 of 209); v0.1567.0's run
+// failed the same two (16 of 221, 23 of 232). With the frame's core left to it (09:55): 7 of 301,
+// 0 of 355 and 2 of 278, a pass.
+test("long gaps while the world is built fail past their share, the slowest named; a few pass", () => {
+  const limit = PJ.BUSY_LONG_GAP_SHARE_MAX;
+  for (const b of ["desktop", "background", "play_during"]) {
+    const n = 200;
+    const many = Math.floor(n * limit) + 1;
+    const line = (i) => gapLine(150 + i, 5000 + i * 300, [150 + i, 140, 0, 1], [`present ${140 + i} ms, ui_paint 1 ms`, "ecs 0 ms"], "being prepared, step pipelines", "continuous");
+    const run = goodRun();
+    run.boots[b].log = run.boots[b].log.replace(/page frames while it was prepared: \d+, /, `page frames while it was prepared: ${n}, `);
+    const base = run.boots[b].log;
+    run.boots[b].log = base + "\n" + Array.from({ length: many }, (_, i) => line(i)).join("\n");
+    assert.ok(
+      failing(run).some((w) => new RegExp(`${b}: while the world was built, at most ${Math.round(limit * 100)}% of the page frames 100 ms or more after the one before \\(${many} of ${n}; the slowest: present ${140 + many - 1} ms in the frame before`).test(w)),
+      failing(run).join("; "),
+    );
+    run.boots[b].log = base + "\n" + Array.from({ length: many - 1 }, (_, i) => line(i)).join("\n");
+    assert.ok(verdict(run).ok, failing(run).join("; "));
+  }
+  // No count of the page frames while it was built fails rather than passing on nothing.
+  const none = goodRun();
+  none.boots.desktop.log = none.boots.desktop.log.replace(/\n\[WorldPrep\] page frames while it was prepared: [^\n]*/, "");
+  assert.ok(failing(none).some((w) => /desktop: while the world was built, .*no count of the page frames/.test(w)), failing(none).join("; "));
+});
+
+// ONE FROZEN PAGE FRAME WHILE THE WORLD IS BUILT (2026-11-21, BUG-338's third cause). Red evidence:
+// re-judged with --dry-verdict, the run of 2026-11-21 10:36 (.probe-rig/phone-start/runs/
+// 20261121-103629) failed "desktop: while the world was built, no page frame more than 300 ms after
+// the one before (worst 606.8 ms; the slowest named: ui_paint_submit_uploads 363 ms in the frame
+// before; ...)", 11:58 (20261121-115841, the screen passes side by side) failed desktop (849.4 ms,
+// ui_paint_buffers 502 ms) and play_during (440 ms), and 12:14 (20261121-121459, the gate closed
+// at the pipeline step only) desktop (390.9 ms, ui_paint_submit 287 ms), where the share rule
+// passed all four; with the gate closed at the worker's start (12:29, 20261121-122917) the worst
+// were 127, 198.4 and 120.1 ms, a pass. This test itself failed with the rule broken to pass any
+// worst (`worst !== null || ...`), at its message assertion.
+test("one page frame frozen past the cap while the world is built fails, named; at the cap it passes", () => {
+  const cap = PJ.BUSY_WORST_GAP_MAX_MS;
+  const worstIs = (log, ms) => log.replace(/(page frames while it was prepared: \d+, [\d.]+ ms apart on average, worst )[\d.]+/, `$1${ms}`);
+  for (const b of ["desktop", "background", "play_during"]) {
+    const run = goodRun();
+    run.boots[b].log = worstIs(run.boots[b].log, cap + 207);
+    run.boots[b].log += "\n" + gapLine(cap + 207, 8435, [cap + 207, 0, 0, 1], [`ui_paint_submit_uploads ${cap - 37} ms, world_passes 241 ms`, "ecs 0 ms"], "being prepared, step effects", "continuous");
+    assert.ok(
+      failing(run).some((w) => new RegExp(`${b}: while the world was built, no page frame more than ${cap} ms after the one before \\(worst ${cap + 207} ms; the slowest named: ui_paint_submit_uploads ${cap - 37} ms in the frame before`).test(w)),
+      failing(run).join("; "),
+    );
+    const ok = goodRun();
+    ok.boots[b].log = worstIs(ok.boots[b].log, cap);
+    assert.ok(verdict(ok).ok, failing(ok).join("; "));
+  }
+});
+
+test("between frames on a desktop is a stretch; on a phone, waiting is idle and never a hitch", () => {
+  const run = goodRun();
+  run.boots.desktop.log += "\n" + gapLine(900, 3000, [10, 1, 888, 2], ["ui_run 5 ms", "station 1 ms"], "not started", "continuous");
+  assert.ok(failing(run).some((w) => /desktop: before Play, no stretch of a page frame over \d+ ms \(between frames 888 ms; a gap of 900 ms/.test(w)), failing(run).join("; "));
+  const idle = PJ.classifyGap(PJ.parseLog(gapLine(2750, 3794, [21, 1, 2726, 2], ["ui_run 12 ms", "station 1 ms"], "not started", "reactive")).gaps[0]);
+  assert.strictEqual(idle.kind, "idle", JSON.stringify(idle));
+  // A reactive app's slow frame is still slow: the frame's own stretch took the gap, not the wait.
+  const slow = PJ.classifyGap(PJ.parseLog(gapLine(900, 3000, [880, 1, 15, 2], ["settings_apply 860 ms", "station 1 ms"], "not started", "reactive")).gaps[0]);
+  assert.deepStrictEqual([slow.kind, slow.cause.name, slow.cause.ms], ["slow", "settings_apply", 860]);
+});
+
+test("a long-gap line from before the laps (no stretches) is judged by its parts, CRLF or not", () => {
+  const old = "[2026-11-21T08:25:46.578Z INFO  humanity_engine::engine::world_prep] [WorldPrep] a page frame 3051 ms after the last (4078 ms after the window opened; the frame before took 17 ms, 1 of them presenting, then 3037 ms between frames, and this one 2 ms to here); the world: not started\r\n";
+  const g = PJ.parseLog(old).gaps;
+  assert.strictEqual(g.length, 1);
+  assert.deepStrictEqual([g[0].gap_ms, g[0].between_ms, g[0].world, g[0].drawing], [3051, 3037, "not started", null]);
+  const c = PJ.classifyGap(g[0]);
+  assert.deepStrictEqual([c.kind, c.cause.name, c.cause.ms], ["slow", "between frames", 3037]);
+  const during = PJ.parseLog(gapLine(192, 8796, [192, 189, 0, 1], ["present 189 ms, ui_run 2 ms, tail 1 ms", "station 0 ms"], "being prepared, step pipelines", "continuous")).gaps[0];
+  assert.deepStrictEqual([during.world, PJ.classifyGap(during).cause.name], ["being prepared, step pipelines", "present"]);
 });
 
 test("a panic in any boot fails, and a missing boot fails", () => {

@@ -305,7 +305,7 @@ pub fn start_bakes(background: bool) -> Bakes {
     }
     let (tx, cloud_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        super::world_build::polite_thread(); // below normal beside the pages (world_build.rs)
+        super::world_build::build_thread(); // below normal beside the pages (world_build.rs)
         let threads =
             std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
         let t0 = std::time::Instant::now();
@@ -331,7 +331,7 @@ pub fn start_bakes(background: bool) -> Bakes {
     });
     let (tx, ground_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        super::world_build::polite_thread();
+        super::world_build::build_thread();
         let _ = tx.send(ground_textures::bake_all());
     });
     (Some(cloud_rx), Some(ground_rx))

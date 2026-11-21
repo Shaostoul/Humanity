@@ -21,6 +21,9 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
         full_output.pixels_per_point,
     );
 
+    // The paint's parts as laps (2026-11-21, humanity_core::frame_costs::lap): the long-gap lines of a
+    // page frame name which of them waited (engine/world_prep.rs).
+    humanity_core::frame_costs::lap("lap.ui_paint_textures");
     // Handle egui texture updates
     for (id, image_delta) in &full_output.textures_delta.set {
         let gpu = gpu!(state);
@@ -50,6 +53,7 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
             },
         );
 
+        humanity_core::frame_costs::lap("lap.ui_paint_buffers");
         let gpu = gpu!(state);
         gpu.egui_renderer.update_buffers(
             &gpu.renderer.device,
@@ -59,7 +63,9 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
             &screen_descriptor,
         );
 
+        humanity_core::frame_costs::lap("lap.ui_paint_submit_uploads");
         gpu!(state).renderer.queue.submit(std::iter::once(encoder.finish()));
+        humanity_core::frame_costs::lap("lap.ui_paint_draw");
     }
 
     {
@@ -106,6 +112,7 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
         );
         drop(render_pass);
 
+        humanity_core::frame_costs::lap("lap.ui_paint_submit");
         gpu!(state).renderer.queue.submit(std::iter::once(encoder.finish()));
     }
     // `cpu.frame_total` does NOT close here: the egui submit

@@ -57,21 +57,52 @@ pub struct PacksUi {
     pub memory_job: Option<std::thread::JoinHandle<BTreeMap<String, super::memory::SetMemory>>>,
     /// The section drew last frame (so `tick` knows when it opens again).
     pub was_shown: bool,
+    /// The first read, on its own thread (`tick`).
+    pub read_job: Option<std::thread::JoinHandle<PacksRead>>,
+}
+
+/// What the section shows, read from the data folder in one go: on the frame after an install or a
+/// removal ([`PacksUi::reload`]), on its own thread the first time ([`tick`]).
+#[derive(Debug)]
+pub struct PacksRead {
+    catalog: Result<PackCatalog, String>,
+    parts: Result<Parts, String>,
+    installed: BTreeMap<String, InstalledPack>,
+    library: InstrumentLibrary,
+    used_parts: Option<BTreeSet<String>>,
+}
+
+impl PacksRead {
+    /// Read the catalog, the parts, the installed packs, the instruments and the parts the music uses.
+    pub fn from_disk(data_dir: &Path) -> PacksRead {
+        PacksRead {
+            catalog: PackCatalog::load(data_dir),
+            parts: Parts::load(data_dir),
+            installed: install::installed_packs(&packs_dir(data_dir)),
+            library: InstrumentLibrary::load(data_dir),
+            used_parts: humanity_music::MusicLibrary::load(data_dir).ok().map(|m| super::score::named_parts(&m).into_iter().map(|(p, _, _)| p).collect()),
+        }
+    }
 }
 
 impl PacksUi {
     /// Read the catalog, the parts, the installed packs and the instruments from `data_dir`.
     pub fn reload(&mut self, data_dir: &Path) {
+        self.apply(PacksRead::from_disk(data_dir));
+    }
+
+    /// Take what was read.
+    fn apply(&mut self, read: PacksRead) {
         let mut errors = Vec::new();
-        self.catalog = PackCatalog::load(data_dir).map_err(|e| errors.push(e)).ok();
-        self.parts = Parts::load(data_dir).map_err(|e| errors.push(e)).ok();
+        self.catalog = read.catalog.map_err(|e| errors.push(e)).ok();
+        self.parts = read.parts.map_err(|e| errors.push(e)).ok();
         self.load_error = if errors.is_empty() { None } else { Some(errors.join("; ")) };
-        self.installed = install::installed_packs(&packs_dir(data_dir));
-        self.library = InstrumentLibrary::load(data_dir);
+        self.installed = read.installed;
+        self.library = read.library;
         for p in &self.library.problems {
             log::warn!("[Instruments] {p}");
         }
-        self.used_parts = humanity_music::MusicLibrary::load(data_dir).ok().map(|m| super::score::named_parts(&m).into_iter().map(|(p, _, _)| p).collect());
+        self.used_parts = read.used_parts;
         self.loaded = true;
     }
 
@@ -122,7 +153,31 @@ pub fn tick(state: &mut PacksUi, data_dir: &Path) {
     let shown = std::mem::take(&mut state.shown);
     let opened = shown && !state.was_shown;
     state.was_shown = shown;
-    if !state.loaded || (shown && !humanity_core::reuse::enabled()) {
+    // The first read on its own thread (2026-11-21): every instrument's definition, a look for each
+    // of its recordings on disk and the music's whole library, which held the boot frame 85 to 92 ms
+    // on a quiet PC and was part of a 3,037 ms boot frame beside other agents' compiles (the long-gap
+    // lines of `just verify-phone-start`, engine/world_prep.rs). The section shows its introduction
+    // alone until it lands. With the reuse switch off it is read again each frame the section shows,
+    // on the frame, as before.
+    if state.read_job.as_ref().is_some_and(|j| j.is_finished()) {
+        match state.read_job.take().map(|j| j.join()) {
+            Some(Ok(read)) => state.apply(read),
+            _ => {
+                state.load_error = Some("the instruments' reading thread stopped".to_string());
+                state.loaded = true;
+            }
+        }
+    }
+    if !state.loaded && state.read_job.is_none() {
+        let dir = data_dir.to_path_buf();
+        match std::thread::Builder::new().name("instrument-packs-read".into()).spawn(move || PacksRead::from_disk(&dir)) {
+            Ok(j) => state.read_job = Some(j),
+            Err(e) => {
+                log::warn!("[Instruments] could not read the instruments on their own thread ({e}); reading them now");
+                state.reload(data_dir);
+            }
+        }
+    } else if state.loaded && shown && !humanity_core::reuse::enabled() {
         state.reload(data_dir);
     }
     // The memory each set takes (super::memory): counted on its own thread when the section first

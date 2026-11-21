@@ -1193,7 +1193,9 @@ mod native_app {
                         }
                     }
                     // The rigs' verbs, every frame, presented or not (increment 3; frame_tail.rs).
+                    humanity_core::frame_costs::lap("lap.showcase_poll");
                     crate::engine::ipc::poll_showcase_request(state);
+                    crate::engine::world_prep::note_frame_end(state, frame_t0); // the handler's end: its length and laps
                 }
                 _ => {}
             }

@@ -685,7 +685,7 @@ where
     std::thread::scope(|s| {
         for (slab_i, chunk) in buf.chunks_mut(slab_bytes).enumerate() {
             s.spawn(move || {
-                super::world_build::polite_thread(); // below normal beside the pages (world_build.rs)
+                super::world_build::build_thread(); // below normal beside the pages (world_build.rs)
                 let z0 = slab_i * slab_planes;
                 let mut sc = scratch();
                 for (r, row_bytes) in chunk.chunks_mut(n * 4).enumerate() {
@@ -816,7 +816,7 @@ fn downsample_volume(src: &[u8], src_size: u32) -> Vec<u8> {
         for (slab, chunk) in dst.chunks_mut(planes * d * d * 4).enumerate() {
             let src = &src;
             sc.spawn(move || {
-                super::world_build::polite_thread();
+                super::world_build::build_thread();
                 let z0 = slab * planes;
                 for (zi, plane) in chunk.chunks_mut(d * d * 4).enumerate() {
                     let z = z0 + zi;
@@ -913,7 +913,7 @@ fn channel_stats(v: &[u8]) -> ([f64; 4], [f64; 4]) {
             .chunks(chunk_bytes)
             .map(|c| {
                 sc.spawn(move || {
-                    super::world_build::polite_thread();
+                    super::world_build::build_thread();
                     let mut acc = [0.0f64; 4];
                     for px in c.chunks_exact(4) {
                         for k in 0..4 {
@@ -941,7 +941,7 @@ fn channel_stats(v: &[u8]) -> ([f64; 4], [f64; 4]) {
             .map(|c| {
                 let mean = mean;
                 sc.spawn(move || {
-                    super::world_build::polite_thread();
+                    super::world_build::build_thread();
                     let mut acc = [0.0f64; 4];
                     for px in c.chunks_exact(4) {
                         for k in 0..4 {
@@ -1001,7 +1001,7 @@ fn renormalize_level(v: &mut [u8], stats0: &([f64; 4], [f64; 4])) {
         for chunk in v.chunks_mut(chunk_bytes) {
             let (mean0, mean_l, gain) = (*mean0, mean_l, gain);
             sc.spawn(move || {
-                super::world_build::polite_thread();
+                super::world_build::build_thread();
                 for px in chunk.chunks_exact_mut(4) {
                     for c in 0..4 {
                         let x = mean0[c] + (px[c] as f64 - mean_l[c]) * gain[c];

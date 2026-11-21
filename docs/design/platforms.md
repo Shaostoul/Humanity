@@ -277,9 +277,26 @@ world follows with its own lighter settings.
      preparation). The frame's share of the preparation: worst 0.04 ms against its 2 ms budget. The page
      frames (a hidden rig window, about 30 a second): with nothing being built the worst gap was 80 ms;
      beside the background build 262 ms; under Play's progress card 529 ms. Each long gap is logged with
-     its parts (`[WorldPrep] a page frame N ms after the last ...`): the two worst were spent early in
-     the frame, before the world's check, during the ground and pipeline steps, so their cause is not
-     yet pinned (open work). Begun on the first frame itself, the background build had held that frame
+     its parts and, since 2026-11-21, each frame's longest stretches (`[WorldPrep] a page frame N ms
+     after the last ...; the frame before's longest: ...`, laps kept by `humanity_core::frame_costs`
+     for page frames too), and the judge classifies it: idle (a phone that drew nothing because
+     nothing asked) or slow, with the stretch named. **The causes, pinned 2026-11-21** (BUG-338): the
+     3,051 ms gap before Play on v0.1567.0 was the boot frame's file work after its present (the
+     instruments' first read, the settings' save with its flush to disk) on a busy disk, now off the
+     frame (the instruments read on their own thread, the frame's saves on a writer thread,
+     `config.rs` `save_order`); the gaps under Play's card (worst 606 ms, 10% of its frames) were the
+     frame's thread losing its core to the build's forty-odd threads on every core, now kept off the
+     first core (`world_build::build_thread`, no priority lowered). After: before Play no long gap
+     (worst 34 ms); beside the background build 0 to 2 long gaps in about 360 frames; under the card
+     1 to 5% of frames. The one card frame of every build that still froze for 440 to 940 ms was the
+     star sky's thread making the Milky Way glow's GPU memory beside the renderer's own build: those
+     creations crawled, and wgpu makes all GPU memory, every upload's staging included, under one
+     lock, so the frame's own small uploads waited behind them. Now the star sky makes its memory only
+     once the renderer's pipelines are compiled (`world_build::compiles_running`, closed before
+     either thread starts): the worst card frame 127 ms, the world ready after Play 9.0 s (BUG-338).
+     `just verify-phone-start` fails a page frame before Play whose longest stretch passes 100 ms,
+     long gaps past 5% of the frames while the world is built, and any one of them past 300 ms. Begun on the first frame itself, the
+     background build had held that frame
      970 ms, so it begins a second later; and the world's frame stages wait for the world to be entered
      (they had cost the first page frame after the install 189 ms). A build someone waits for (Play)
      runs at normal priority: with its threads below normal it took 121 s instead of 9 s while other

@@ -91,6 +91,7 @@ const STAGES: &[(&str, Kind, &str)] = &[
     ("frame_tail", Input, "present, the settings mirrored to the controller, the world's entry"),
     ("quit", Input, "the way out on a lost GPU: the world saved"),
     ("ipc", Input, "the rigs' verbs"),
+    ("world_prep", Input, "the frame's end for the page frames' timing (its length and laps); the module also opens the world when Play waited for it"),
 ];
 
 /// The step's known reads of view state and the wall clock: (stage file, word, count, why and

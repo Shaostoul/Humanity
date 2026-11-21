@@ -309,6 +309,9 @@ impl StarRenderer {
         }
         let star_count = vertices.len() as u32;
 
+        // Without the glow (its fallback band), the first GPU memory is here: after the world's
+        // pipeline compiles, like the glow's (renderer/world_build.rs `wait_for_the_compiles`).
+        super::world_build::wait_for_the_compiles();
         let t_upload = std::time::Instant::now();
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Star Vertex Buffer"),
@@ -1004,9 +1007,17 @@ fn build_glow_layer(
     data_dir: &Path,
     want_ultra: bool,
 ) -> Option<GlowLayer> {
+    // Each GPU-facing part timed for the log line at the end (2026-11-21, BUG-338: the line's
+    // timestamp minus these lays the upload against the page frames' long-gap lines).
+    let t_decode = std::time::Instant::now();
     let (img, png_path) =
         load_glow_image(data_dir, want_ultra, device.limits().max_texture_dimension_2d)?;
+    let decode_ms = t_decode.elapsed().as_secs_f64() * 1000.0;
+    // The decode ran beside the world's pipeline compiles; its texture memory waits for them
+    // (renderer/world_build.rs `wait_for_the_compiles`: at once off the world's preparation).
+    let waited_ms = super::world_build::wait_for_the_compiles().as_secs_f64() * 1000.0;
     let (w, h) = img.dimensions();
+    let t_texture = std::time::Instant::now();
 
     // Rgba8Unorm, NOT sRGB: the baked texels feed the framebuffer exactly
     // like star vertex colors do (raw values through the star shader), so
@@ -1023,21 +1034,14 @@ fn build_glow_layer(
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    queue.write_texture(
-        wgpu::TexelCopyTextureInfo {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &img,
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * w),
-            rows_per_image: Some(h),
-        },
-        size,
-    );
+    // In bands of rows (2026-11-21): one call of 128 MiB (512 on the ultra tier) holds the queue's
+    // write lock, which the window's frame needs, for its whole copy while the world is prepared
+    // beside the pages (renderer/world_build.rs UPLOAD_SLICE_BYTES).
+    let texture_ms = t_texture.elapsed().as_secs_f64() * 1000.0;
+    let t_upload = std::time::Instant::now();
+    super::world_build::write_texture_in_slices(queue, &texture, 0, 0, &img, 4 * w, w, h);
+    let upload_ms = t_upload.elapsed().as_secs_f64() * 1000.0;
+    let t_rest = std::time::Instant::now();
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     // Wrap in u (the RA seam at u=0/1 is the same line of sky - linear
@@ -1185,7 +1189,13 @@ fn build_glow_layer(
         usage: wgpu::BufferUsages::VERTEX,
     });
 
-    log::info!("Milky Way glow: {}x{} texture from {}", w, h, png_path.display());
+    log::info!(
+        "Milky Way glow: {}x{} texture from {} (decoded in {decode_ms:.0} ms, then {waited_ms:.0} ms waiting for the pipeline compiles, the texture made in {texture_ms:.0} ms, its rows written in {upload_ms:.0} ms, the pipeline and buffers in {:.0} ms)",
+        w,
+        h,
+        png_path.display(),
+        t_rest.elapsed().as_secs_f64() * 1000.0
+    );
     Some(GlowLayer {
         pipeline,
         bind_group,

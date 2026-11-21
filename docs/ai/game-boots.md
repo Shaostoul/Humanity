@@ -252,7 +252,18 @@ Graphics > Prepare the 3D world says (`src/engine/world_prep.rs`). Two things fo
 Switches for a boot: `HUMANITY_WORLD_PREP=background|on_play|at_start` overrides the setting;
 `HUMANITY_PAGES_FIRST=1` is on Play, `=0` the old order (world before the first frame).
 `just verify-phone-start` measures all three and judges the frame's share of the preparation
-against its 2 ms budget.
+against its 2 ms budget, and the page frames' long gaps (2026-11-21, BUG-338): each gap of 100 ms
+or more is logged (`[WorldPrep] a page frame ...`) with the two frames' longest stretches (laps,
+`humanity_core::frame_costs::laps`: the frame's spans, its present and each block after it) and the
+drawing; the judge calls a reactive app's wait IDLE and anything else SLOW with its stretch named,
+fails a page frame before Play over 100 ms in one stretch, long gaps past 5% of the frames while
+the world is built and any one of them past 300 ms, and prints the slowest of each with its cause.
+Read those lines before guessing where a hitch went. A worker thread of the world's build starts
+with `world_build::build_thread()` (off the frame's core; below normal while polite); a big upload
+of the build goes through `world_build::write_texture_in_slices`; a thread of the preparation other
+than the renderer's worker calls `world_build::wait_for_the_compiles()` before it makes GPU memory
+(BUG-338: wgpu makes all GPU memory under one lock, and a creation beside the renderer's own build
+crawled and held the frame's uploads behind it).
 
 ## A quick manual boot
 
