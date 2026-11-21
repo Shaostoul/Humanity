@@ -1572,6 +1572,11 @@
       "date": "2026-11-21",
       "decision": "v0.1567.0 RELEASED and delivered (c9edc0226): pages-first desktop start with world on Play, Android A1 key store + A4 stay connected, Music v2 rungs 1+2, desktop emoji pictures + outline, phone pages-only start, SQLite 3.54.1 and rustix advisories. Release exe checks: verify-runtime 3/3 panics 0; verify-phone-start PASS (pages ready 1,036 ms vs 10,451 ms old order; world ready after Play 9,247 ms; frame share worst 0.04 ms of 2 ms); lints; rig-tests; test-lib 6,544 passed. check-delivery OK. Noted for the profiling follow-up: a 3,050 ms gap between page frames before Play on the busy machine (may be redraw-on-change idling). Owner work NOT in it (third round running).",
       "why": "First release of 2026-11-21 (the second of the batch day); the APK attaches through the Android workflow on the tag."
+    },
+    {
+      "date": "2026-11-21",
+      "decision": "Owner round 3 (re-wrap, seal v4) HANDED OFF part-way (worktree-agent-af967ed3d82c36c37 at 6cfc91605): D1-D8 built on relay+desktop, website code built, owner-chat-web test not reworked, full gates not run; BUGs renumbered 337-348 (earlier rounds) and 349-359 (this round). My answers to its three questions: fingerprint confirmation takes the LAST TWO groups (32 bits; one 16-bit group is ~65k relay tries); a checking recipient learning each part key from its own slot is an accepted, written residual; TOFU-pinned key cards count as trusted, stated. Continuation dispatched (wk-ownerfix4.txt), then a third critic review before merge. Also: v0.1567.0 APK attached to the release and mirrored on united-humanity.us (/releases/v0.1567.0/), so the phone app is publicly downloadable; DPG form fields 9b + mobile get replacement text once the owner claim lands.",
+      "why": "The operator: We just want to make sure the system itself cannot be abused."
     }
   ],
   "active_scopes_to_avoid": [
