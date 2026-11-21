@@ -1547,6 +1547,11 @@
       "date": "2026-11-20",
       "decision": "MERGED Android rungs A1 (key store) + A4 (stay connected) as 88d1ee459, after two critic rounds (wk-andBfix, wk-andBfix2), every finding fixed with a red-first test; Android CI green (run 44872153404). Key store file is now 68 bytes (two alternating sealing keys per entry, the unlocked-only rule bit kept for Settings' words). Took the agent's three recommendations as my call: (1) a leftover start-up cannot forget shows in Settings only, no launch pop-up; (2) start-up looks at the unused slots every launch (on Linux a locked keyring holding a leftover may ask to unlock; only when something asked-to-be-forgotten is still there); (3) a failed delete of the OLD key after a successful re-remember is logged only, retried by the next remember or forget.",
       "why": "Owner and Android were the two pieces the day's second release waits for; owner is next (second critic review once its verify-relay finishes)."
+    },
+    {
+      "date": "2026-11-20",
+      "decision": "Owner branch worktree-agent-a0011f73c859a80e7 finished (website half of findings 1/5/6, BUG-337..346, three gates that had never run fixed; just verify, verify-relay exit 0, KATs, held fixtures both ways, web 36/36). SECOND REVIEW dispatched as two critics with separate lenses: relay/Rust (claim, handover, acceptance, role writes, signed caller) and website/JS twins (malicious relay, byte-for-byte twin agreement, /claim paths, tests that cannot fail). Not merged until both report and every HIGH/MEDIUM is fixed. BUG numbers 335 (Android, merged) and 336..346 on the branch: renumber if main moves.",
+      "why": "The operator's requirement: 'We just want to make sure the system itself can't be abused.' Security branches get a critic before merging."
     }
   ],
   "active_scopes_to_avoid": [
