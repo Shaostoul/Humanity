@@ -1,0 +1,21 @@
+// SOLO PIANO: every part of a written or imported piece on the piano (docs/design/music-page.md
+// section 15a, rung 3a; the operator chose it first, 2026-11-20). The `piano` part plays the best
+// installed piano recording (the core set's FreePats upright, CC0), the synthesised electric piano
+// when none is installed.
+//
+// A full score becomes a PIANO REDUCTION (crate::style has the rules and why): every note folded into
+// the piano's keys, a unison doubling struck once, at most ten keys down together (two hands) keeping
+// the outer notes and every pitch class, and each chord voiced with its top note full, its bass a
+// little under and its inner notes softer. A drum track is left out (a piano plays no drums), said in
+// words on the piece's details.
+Style(
+    id: "solo_piano",
+    words: "music.style.solo_piano",
+    plain_words: "music.style.solo_piano_plain",
+    level_db: 0.0,
+    default: Some((instrument: "electric_piano", part: Some("piano"))),
+    programs: [
+        (from: 0, to: 127, voice: (instrument: "electric_piano", part: Some("piano"))),
+    ],
+    reduction: Some((max_notes: 10, low: "A0", high: "C8", together_ms: 30.0, top: 1.0, bottom: 0.9, inner: 0.75)),
+)

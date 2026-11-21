@@ -225,13 +225,30 @@ pub struct WrittenPlayer {
     tag: u32,
     /// The piece's level, dB: what the score's level follows instead of the mood's.
     pub level_db: f32,
+    /// Drum staves a sound style mapped key by key (crate::style): the staff, and per key the
+    /// instrument, the note it plays at and its level (`u16::MAX`: no instrument, the key is skipped).
+    drums: Vec<(u16, Box<[(u16, f32, f32); 128]>)>,
 }
 
 impl WrittenPlayer {
     /// A player of `timeline` with `voices` (a staff no voice names is silent) at `rate` Hz and A4 =
     /// `a4`, resting `rest_s` seconds after each time through.
     pub fn new(timeline: Arc<Timeline>, voices: Vec<StaffVoice>, rate: f32, a4: f32, rest_s: f32, level_db: f32) -> WrittenPlayer {
-        WrittenPlayer { timeline, voices, rate: rate.max(1.0) as f64, a4, pos: 0, next: 0, rest_s: rest_s.max(0.0) as f64, loops: 0, tag: 1, level_db }
+        WrittenPlayer { timeline, voices, rate: rate.max(1.0) as f64, a4, pos: 0, next: 0, rest_s: rest_s.max(0.0) as f64, loops: 0, tag: 1, level_db, drums: Vec::new() }
+    }
+
+    /// Staff `staff` is a drum track a sound style mapped: each key in `hits` (the key, the
+    /// instrument's index, the note it plays at, its level as an amplitude) plays on its own
+    /// instrument. Made here, before the player reaches the audio thread.
+    pub fn set_drums(&mut self, staff: u16, hits: &[(u8, u16, f32, f32)]) {
+        let mut table = Box::new([(u16::MAX, 0.0f32, 0.0f32); 128]);
+        for &(k, inst, midi, level) in hits {
+            if let Some(slot) = table.get_mut(k as usize) {
+                *slot = (inst, midi, level);
+            }
+        }
+        self.drums.retain(|(s, _)| *s != staff);
+        self.drums.push((staff, table));
     }
 
     pub fn timeline(&self) -> &Arc<Timeline> {
@@ -281,8 +298,16 @@ impl WrittenPlayer {
             }
             self.next += 1;
             let Some(v) = self.voices.iter().find(|v| v.staff == n.staff).copied() else { continue };
+            // A mapped drum staff: the key's own instrument, at its own pitch and level.
+            let (inst, midi, level) = match self.drums.iter().find(|(s, _)| *s == n.staff) {
+                Some((_, table)) => match table[(n.midi.round().clamp(0.0, 127.0)) as usize] {
+                    (u16::MAX, _, _) => continue,
+                    (i, m, l) => (i, m, v.level * l),
+                },
+                None => (v.inst, n.midi, v.level),
+            };
             self.tag = self.tag.wrapping_add(1).max(1);
-            sink.note_on(NoteOn { inst: v.inst, role: v.role, midi: n.midi, a4: self.a4, vel: n.vel, pan: v.pan, gate: 0.0, hold_s: n.hold_s, tag: self.tag, level: v.level });
+            sink.note_on(NoteOn { inst, role: v.role, midi, a4: self.a4, vel: n.vel, pan: v.pan, gate: 0.0, hold_s: n.hold_s, tag: self.tag, level });
         }
     }
 

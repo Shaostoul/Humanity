@@ -6391,7 +6391,7 @@ fn music_snapshot_state(state: &mut GuiState, tab: crate::gui::pages::music::Tab
     r.lib = Some(lib.clone());
     r.genres = lib.genres.iter().map(|x| crate::gui::pages::dev_music::GenreChoice { id: x.id.clone(), words: x.words.clone(), name: x.name.clone(), about_words: x.about_words.clone(), about: x.about.clone(), stand_ins: Vec::new() }).collect();
     r.piece_minutes = lib.piece_minutes.clone();
-    let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None };
+    let choice = crate::gui::pages::dev_music::MusicChoice { genre: "electro_swing".into(), mood: Some("mothership_calm".into()), intensity: Some(0.3), seed: 4242, tune, written: None, style: None };
     r.playing = Some(crate::gui::pages::dev_music::Playing { choice: Some(choice), seed: 4242, ctx: ctx_m, res, lib: lib.clone() });
     let mut status = humanity_music::MusicStatus { seconds: 20.3, beat: 1.25, beats_per_bar: 4, bar: 2, tempo_bpm: 128.0, ..Default::default() };
     // Each part's level as the meters read it (an RMS of its sound, rung 2).
@@ -6504,6 +6504,64 @@ fn snapshot_phone_music_listen() {
     let _off = PreviewOff;
     render_page_png_at("phone_music_listen", 824, 6400, 200.0, |ctx, theme, state| {
         music_snapshot_state(state, crate::gui::pages::music::Tab::Listen);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// The Music page's whole Explore tab at the operator's width (2560 points, as tall as the tab is, rung
+/// 3a): the genre and mood cards, then the SOUND STYLES' cards (As written, then each style file's name
+/// and sentence), Solo piano chosen for all written music.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_explore_styles() {
+    render_page_png("music_explore_styles", 2560, 2600, |ctx, theme, state| {
+        music_snapshot_state(state, crate::gui::pages::music::Tab::Explore);
+        state.settings.music.style = "solo_piano".into();
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// A piece imported from a MIDI file (a violin, a bird tweet and a bass), its details as tall as they
+/// are (rung 3a): by instrument number, each part and the instrument of ours that plays it, and the
+/// bird tweet said to have none of ours yet.
+fn music_imported_state(state: &mut crate::gui::GuiState) {
+    use humanity_music::smf::{Notated, NotatedPart, PNote, PPQ};
+    music_snapshot_state(state, crate::gui::pages::music::Tab::Written);
+    let notes = |keys: &[u8]| keys.iter().enumerate().map(|(i, &k)| PNote { tick: i as u64 * PPQ as u64, len: PPQ as u64 / 2, key: k, vel: 100 }).collect::<Vec<_>>();
+    let mut n = Notated { title: "Birdsong".into(), ..Default::default() };
+    n.parts.push(NotatedPart { name: "Violin".into(), program: Some(40), notes: notes(&[76, 79, 81, 79]), ..Default::default() });
+    n.parts.push(NotatedPart { name: "Birds".into(), program: Some(123), notes: notes(&[84, 86, 88, 86]), ..Default::default() });
+    n.parts.push(NotatedPart { name: "Bass".into(), program: Some(33), notes: notes(&[40, 43, 45, 43]), ..Default::default() });
+    let mut e = humanity_music::own::import_midi(&humanity_music::smf::write_smf(&n), "birdsong.mid", &[]).expect("the test file imports").entry;
+    e.folder = Some(std::env::temp_dir());
+    state.music_page.written_selected = Some(e.id.clone());
+    state.music_page.own = vec![e];
+}
+
+/// The Written music tab with an imported piece's details at 2560 by 1440 (rung 3a).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_music_written_imported() {
+    render_page_png("music_written_imported", 2560, 1440, |ctx, theme, state| {
+        music_imported_state(state);
+        wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
+    });
+}
+
+/// The same at a phone's width (412 points, drawn at 200%, as tall as the tab is, rung 3a).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_phone_music_written() {
+    struct PreviewOff;
+    impl Drop for PreviewOff {
+        fn drop(&mut self) {
+            humanity_core::platform::device::set_phone_preview(false);
+        }
+    }
+    humanity_core::platform::device::set_phone_preview(true);
+    let _off = PreviewOff;
+    render_page_png_at("phone_music_written", 824, 6400, 200.0, |ctx, theme, state| {
+        music_imported_state(state);
         wip_strip_frame(ctx, theme, state, crate::gui::GuiPage::Music);
     });
 }

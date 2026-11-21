@@ -41,11 +41,16 @@ pub struct Tune {
     /// Per role, one bit: muted; and soloed (any solo silences every role not soloed).
     pub mute: u8,
     pub solo: u8,
+    /// How much is going on, 0 (calm: the fewest parts, the quietest) to 1 (every layer the mood has
+    /// joins), as the game's danger raises it (negative: the mood's own, as Explore plays it). The
+    /// Music page's Intensity (music-page.md rung 2, built in rung 3a); it reaches the score as the
+    /// choice's intensity (`MusicContext::intensity`), heard at the next bar.
+    pub intensity: f32,
 }
 
 impl Default for Tune {
     fn default() -> Self {
-        Tune { transpose: 0, tempo_bpm: 0.0, swing: -1.0, lead: [PIECE; ROLES], level_db: [0.0; ROLES], mute: 0, solo: 0 }
+        Tune { transpose: 0, tempo_bpm: 0.0, swing: -1.0, lead: [PIECE; ROLES], level_db: [0.0; ROLES], mute: 0, solo: 0, intensity: -1.0 }
     }
 }
 

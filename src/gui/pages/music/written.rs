@@ -174,6 +174,8 @@ pub(super) fn written(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, ac
     widgets::subsection_header(ui, theme, accent, t("music_page.written"), t("music_page.written_note"));
     ui.label(RichText::new(t("music_page.written_intro")).color(theme.text_secondary()));
     super::files::import_button(ui, theme, state);
+    // The sound style every written piece plays in unless it has its own (rung 3a).
+    dirty |= super::styles::all_written(ui, theme, state);
     ui.add_space(theme.spacing_xs);
     if scores.is_empty() {
         ui.label(RichText::new(t("music_page.written_none")).color(theme.text_muted()));
@@ -323,6 +325,8 @@ fn details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, e: &ScoreEntr
         changed = play_button(ui, state, e);
         status(ui, theme, state, e, accent);
     });
+    // Its sound style, and how that style plays it (rung 3a).
+    changed |= super::styles::for_piece(ui, theme, state, e);
     let composer = if e.composer_years.is_empty() { composer } else { t("music_page.detail_composer_value").replace("{{composer}}", &composer).replace("{{years}}", &e.composer_years) };
     let row = |ui: &mut egui::Ui, label: &str, value: &str| {
         if !value.is_empty() {

@@ -54,6 +54,10 @@ pub struct Imported {
 }
 
 /// A safe id from words: lower-case letters and digits joined by underscores.
+/// Every imported piece's id begins so (never a shipped piece's), so its sound style can be told
+/// before its index line is read: an imported file plays through the General-MIDI-like style.
+pub const ID_PREFIX: &str = "own_";
+
 fn slug(words: &str) -> String {
     let mut s = String::new();
     for c in words.chars() {
@@ -113,7 +117,7 @@ pub fn import_midi(bytes: &[u8], file_name: &str, taken: &[String]) -> Result<Im
     }
     let qpm = n.tempos.first().map(|t| t.1).unwrap_or(120.0).clamp(5.0, 1000.0);
     let timeline = crate::written::Timeline::from_mei(&score, qpm);
-    let base = format!("own_{}", slug(&n.title));
+    let base = format!("{ID_PREFIX}{}", slug(&n.title));
     let mut id = base.clone();
     let mut k = 2;
     while taken.iter().any(|t| *t == id) {
@@ -127,10 +131,14 @@ pub fn import_midi(bytes: &[u8], file_name: &str, taken: &[String]) -> Result<Im
         .enumerate()
         .map(|(i, p)| {
             let pan = if count > 1.0 { -0.3 + 0.6 * i as f32 / (count - 1.0) } else { 0.0 };
+            // As written (no style chosen) every part plays the piano and a drum track one drum; the
+            // program and the drum channel are kept, so a sound style plays each part by them
+            // (crate::style, music-page.md rung 3a).
+            let program = p.program.filter(|_| !p.drums);
             if p.drums {
-                StaffSpec { staff: i as u16 + 1, instrument: "deep_drum".into(), role: roles[i].into(), level_db: -6.0, pan, part: None }
+                StaffSpec { staff: i as u16 + 1, instrument: "deep_drum".into(), role: roles[i].into(), level_db: -6.0, pan, part: None, program: None, drums: true, drum_map: Vec::new() }
             } else {
-                StaffSpec { staff: i as u16 + 1, instrument: "electric_piano".into(), role: roles[i].into(), level_db: 0.0, pan, part: Some("piano".into()) }
+                StaffSpec { staff: i as u16 + 1, instrument: "electric_piano".into(), role: roles[i].into(), level_db: 0.0, pan, part: Some("piano".into()), program, drums: false, drum_map: Vec::new() }
             }
         })
         .collect();

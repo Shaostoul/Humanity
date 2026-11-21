@@ -420,7 +420,7 @@ download, which needs the operator's yes; nothing is downloaded until he says so
 
 | Where | Cost | Basis |
 |---|---|---|
-| Audio thread | the score as it is; with the page open, the analyser (about 0.007 ms a block, measured 2026-11-13); the orchestra's per-part placement in rung 3 (to measure) | the analyser runs only while the page is open |
+| Audio thread | the score as it is; with the page open, the analyser (about 0.007 ms a block, measured 2026-11-13); the orchestra's per-part placement in rung 3b (to measure); a written piece in a sound style (rung 3a, section 25: the symphony's densest stretch about 0.10 ms a block as written at the machine's quiet speed, retro FM and solo piano under it; held to 0.25 ms) | the analyser runs only while the page is open; a style is applied on the build thread, the audio thread only reads a drum key's table |
 | Game thread | the dry composer run once per piece (tens of milliseconds for minutes of music); the roll draws one rectangle per note in view and the overview one mark per pixel column per part; the catalogue filters and sorts its rows each frame (four rows today, thousands in rung 4: a sorted order kept in memory tagged by the query and the data) | in-memory reuse tagged and behind the reuse switch |
 | Export | its own thread, faster than real time | music.md's offline renderer |
 | Disk | favourites and stage layouts (kilobytes); exports where the person asked | the person's own data only |
@@ -458,8 +458,8 @@ search text from data; every genre file gets a card with its sentence, and a new
 with no code change; the website's tabs, cards and catalogue. Budget: no audio-thread change; the
 roll's whole-piece transcription once per piece.
 
-**Rung 2 (built 2026-11-20, section 24, but swing, intensity and A = 432/440 on the page, which
-wait).** The mixer strips with Solo and meters (section 8); the audition (proposed); the history
+**Rung 2 (built 2026-11-20, section 24; swing, intensity and A = 432/440 on the page built with rung
+3a, 2026-11-21, section 25).** The mixer strips with Solo and meters (section 8); the audition (proposed); the history
 kept in the person's data folder; clicking a bar seeks in a written piece; MEI and MIDI export
 (section 12); keyboard shortcuts (section 16); swing and intensity on the page; A = 432/440 shown on
 the page. Web: the history kept in the browser; the shortcuts.
@@ -469,8 +469,11 @@ the page. Web: the history kept in the browser; the shortcuts.
 written pieces, played through the General-MIDI-like style. Without that yes, our own small reader
 instead.
 
-**Rung 3.** Sound styles as data (section 15a: retro FM, General-MIDI-like, orchestral, piano solo,
-chiptune), chosen per written piece or for all of them. The orchestra's stage plot (section 14): ensembles, seatings, rooms and microphone arrays
+**Rung 3a (built 2026-11-21, section 25).** Sound styles as data (section 15a): retro FM, piano solo
+and the General-MIDI-like table for imported files, chosen per written piece or for all of them; rung
+2's swing, intensity and tuning on the page. **Rung 3b.** The orchestral and chiptune styles; the
+first ensemble the string quartet, then the full orchestra for the Fifth (the operator, 2026-11-20);
+the orchestra's stage plot (section 14): ensembles, seatings, rooms and microphone arrays
 as data; drag the pins, the microphones and the listener; pan, distance, air and reverb per part;
 layouts saved and shared; Simple and Full modes. Measured against the block budget. Web: the plot
 and layout codes, without sound.
@@ -505,7 +508,8 @@ operator, 2026-11-13).
    MIDI keyboard both. Recommendation: yes; without it we write our own small file reader and the
    keyboard waits.
 6. **The first sound styles.** Recommendation: retro FM synth and piano solo first (they need no
-   recordings), then the General-MIDI-like table with MIDI files.
+   recordings), then the General-MIDI-like table with MIDI files. Answered 2026-11-20: retro FM and
+   solo piano first; built with the General-MIDI-like table in rung 3a (section 25).
 7. **Version 1's questions** (the tempo range of a one-tempo genre, where exports go) stand as
    answered by default: 10% either way, and `Music\HumanityOS\` in your home folder.
 
@@ -671,3 +675,101 @@ three in `music-web.test.js`. Each was seen red, recorded in its comment.
 (the General-MIDI-like style is rung 3); swing, intensity and A = 432/440 on the page wait; a MIDI file's
 lyrics and program changes after the first are not kept; the meters measure each part's dry sound
 (the shared reverb is in no part).
+
+## 25. As built: version 2, rung 3a (2026-11-21): sound styles
+
+The operator's answers of 2026-11-20: the first sound styles are RETRO FM and SOLO PIANO (question 6);
+his question "Is there a genre like mode for playing any music piece in midi like the original Elite
+Frontier 2 game plays music" is answered by the style itself: any written or imported piece played
+through one palette of our own instruments. That game is his reference for the feel only; nothing of
+it is named in the product, sampled or copied. The ensembles and the stage plot are rung 3b (section
+14), not built here.
+
+**Styles as data** (`data/music/styles/*.ron`, crate `style.rs`, read with the library, so a new file
+is a new choice and a new Explore card with no code change). A style says what plays each staff: an
+imported file's staff by its General MIDI program (`programs`, ranges 0 to 127 as a file counts them)
+and a drum track key by key (`drums`, the General MIDI drum map on channel 10); any other staff by its
+part (`parts`), else its role (`roles`), else `default` (none: the staff's own instruments). Each target
+names a synthesised instrument and, optionally, a part of `parts.ron` whose best installed recording
+plays it, with a level and a pan. A program or drum key no row names plays on `program_default` or
+`drum_default` and is returned as a `StyleNote`, which the piece's details put in words ("Part 3
+(Melody) asks for program 124, Bird tweet, which has no instrument of ours yet, so it plays on the
+Piano."); a style with no drum rows leaves a drum track out and says so. The import now keeps each
+part's program and whether it played on channel 10 (`StaffSpec::program`, `drums`).
+
+**Where it is applied:** on the music's build thread (`engine/music.rs` `styled`), after the piece is
+read and BEFORE the parts are attached, so a style's recorded parts are attached like any staff's; the
+audio thread only reads a drum key's instrument from a 128-entry table made beforehand
+(`WrittenPlayer::set_drums`). The choice is `MusicChoice::style`; a change rebuilds the piece. The
+readout names the style playing and its notes (`written_style`, `style_notes`).
+
+**Chosen:** for all written music (`MusicSettings::style`: the Written music tab's chooser and a card
+each on Explore, "As written" first) or for one piece (`styles`, by piece id, from its details, which
+also list each part and what plays it). A piece's own choice comes first; `as_written` keeps its own
+instruments under a style chosen for all. An imported file with no choice plays BY INSTRUMENT NUMBER
+(the General-MIDI-like style, `style::IMPORTED_STYLE`): its "as written" is the instruments it asks for.
+
+**Retro FM** (`fm_ops.rs`, `InstrumentKind::FmOps`; fourteen instruments `retro_fm_*`): Chowning's
+frequency modulation (1973) with up to four operators wired as data (each names the earlier operators
+that modulate it, and whether it is heard), each with its frequency ratio and detune, its level (a
+carrier's amplitude, a modulator's index in radians), its own envelope, one of four waveforms (the sine,
+the half sine, the rectified sine and the pulsed quarter sine that the early-1990s sound cards' FM chips
+cut from it), key scaling (dB an octave above middle C, by note number) and velocity sensitivity; the
+first operator's feedback on itself (the mean of its last two samples, stable; pushed past six radians
+it turns to noise, which makes the snare, the hi-hat and the cymbal); a block-rate vibrato and tremolo;
+a drum's pitch drop. Lead, keys (two pairs: a body and a hammer), strings (two detuned pairs), brass
+(Chowning's rising index), reed (a half-sine carrier), flute, bass, organ (three added carriers), bell
+(Chowning's 1:1.4 bell), kick, snare, hi-hat, cymbal and tom (the timpani's notes too). Parts map by
+family (woodwinds to reed and flute, horns and trumpets to brass, strings to strings, the double bass to
+bass), every General MIDI program to a voice, every drum key to a drum.
+
+**Solo piano**, the PIANO REDUCTION (the plan left the rule open; decided here, written in `style.rs`):
+every staff on the `piano` part (the core set's FreePats upright, CC0, where installed; the electric
+piano otherwise); each note folded by octaves into A0 to C8; notes struck within 30 ms on the same key by
+several staves sound once, at the loudest velocity, credited to the most prominent staff (the melody,
+then the bass, then score order); at most ten keys together, keeping the highest and the lowest and then
+each note that adds a pitch class not yet held, from the top down, so only doublings are lost; each
+chord voiced top note full, bass 0.9, inner notes 0.75. The symphony keeps 7,488 of its 11,665 notes,
+never more than ten together, and every role is heard soloed (measured).
+
+**Rung 2's leftovers on the page** (the Listen tab's Tune card): the TUNING, A = 432 Hz or 440 Hz as
+radios (the setting Settings > Music keeps, for everything the page plays); SWING, the off-beats' place
+from 50% (straight) to 75% of the beat, or the genre's own; INTENSITY, 0 to 100%, or the mood's own
+(`Tune::intensity`, kept in `SavedTune`, favourites and share codes, one byte after the swing; it reaches
+the score as the choice's intensity, so 70% and over plays the action band's mood).
+
+**The website**: Explore's style cards (from `catalogue.json`'s `styles`), saying the app plays them;
+the Listen tab names the tuning, swing and intensity the app's Tune card sets.
+
+**The block budget** (section 18; `each_style_stays_within_the_block_budget`): the symphony, twelve
+staves, timed block by block, the fastest of two renders. Measured 2026-11-21 on the dev machine (i7-8700K)
+while other agents compiled (the calm score 0.0740 ms against its quiet 0.037, so a load factor of 2.0):
+
+| Style | Densest 10 s (bar 484, 690 notes): mean, p99 | First 90 s: mean, p99 |
+|---|---|---|
+| As written | 0.2047 ms, 0.4352 ms | 0.1060 ms, 0.3323 ms |
+| Retro FM | 0.1555 ms, 0.3720 ms | 0.1052 ms, 0.3166 ms |
+| Solo piano (the synthesised stand-in) | 0.1254 ms, 0.2375 ms | 0.0853 ms, 0.2387 ms |
+
+Scaled by the load, the worst is the as-written orchestra's densest stretch at about 0.10 ms a block,
+twice the calm score's 0.05 ms budget, which written pieces were never held to: the gate now holds every
+style to 0.25 ms a block (under a tenth of the 2.67 ms a block lasts) and to no more than a quarter over
+the piece as written. Retro FM costs less than the orchestra it replaces (four sines and envelopes a
+voice against the strings' detuned saws and filters).
+
+**Tests** (each seen red, the evidence in its comment): the crate's `tests_style.rs`
+(`a_style_file_changes_the_instruments_heard`, `retro_fm_renders_at_the_tuning`,
+`solo_piano_plays_every_part_of_a_written_piece`,
+`an_imported_files_programs_pick_their_instruments_and_a_missing_one_is_said`,
+`swing_moves_the_off_beats_by_the_stated_amount`, `intensity_changes_the_measured_level_and_density`,
+`each_style_stays_within_the_block_budget`); the page's `tests_style.rs` (the sliders, the tuning, the
+style chosen for all and for one piece, a missing program said); the runtime's
+`a_style_chosen_on_the_page_plays_and_a_change_rebuilds_it` and
+`solo_piano_plays_every_part_on_the_piano_recording`; the website's style cards in `music-web.test.js`.
+
+**Known limits, for later rungs:** chiptune and the orchestral style wait (chiptune's four-voice rule and
+the orchestra's stage are rung 3b); a General MIDI program change after a part's first is not kept, so a
+file that switches instruments mid-track plays its first throughout; the General-MIDI-like table has no
+instrument of ours yet for the sound effects (programs 120 to 127), most of the synth effects, several
+ethnic and pipe instruments and the hand percussion (the details name each); a style's level is one
+number for every piece (`level_db`), not measured per piece.

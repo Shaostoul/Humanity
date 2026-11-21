@@ -1,0 +1,18 @@
+// RETRO FM's strings (docs/design/music-page.md rung 3a; crate::fm_ops): two like 1:1 pairs six cents
+// either side of the note, so they beat slowly like a section and centre on the note, each swelling in over a seventh of a second with a
+// gentle held index, and a slow vibrato. It plays the orchestra's strings and sustained parts.
+Instrument(
+    id: "retro_fm_strings",
+    words: "music.instrument.retro_fm_strings",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 1.5, envelope: (attack_s: 0.12, decay_s: 0.8, sustain: 0.8, release_s: 0.35), key_scale_db: 3.0, velocity: 0.5),
+            (ratio: 1.0, detune_cents: 6.0, level: 0.5, envelope: (attack_s: 0.14, decay_s: 1.0, sustain: 0.85, release_s: 0.4), mods: [0], out: true),
+            (ratio: 1.0, level: 1.5, envelope: (attack_s: 0.12, decay_s: 0.8, sustain: 0.8, release_s: 0.35), key_scale_db: 3.0, velocity: 0.5),
+            (ratio: 1.0, detune_cents: -6.0, level: 0.5, envelope: (attack_s: 0.14, decay_s: 1.0, sustain: 0.85, release_s: 0.4), mods: [2], out: true),
+        ],
+        vibrato: Some((5.5, 7.0)),
+    )),
+    level_db: -16.0,
+    reverb_send: 0.2,
+)

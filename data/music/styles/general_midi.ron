@@ -1,0 +1,123 @@
+// GENERAL-MIDI-LIKE: an imported MIDI file played by the instrument numbers it asks for (General
+// MIDI's 128 programs and its drum map on channel 10), each through an instrument of ours
+// (docs/design/music-page.md section 15a, rung 3a). It is how an imported file plays unless another
+// style is chosen; a written piece keeps its own instruments in it.
+//
+// Each row names the part (data/music/parts.ron: its best installed recording plays, else the
+// synthesised instrument named beside it) or the synthesised instrument of ours that plays those
+// programs. A program or a drum key no row names has no instrument of ours yet: it plays on the piano
+// (or the closed hi-hat), and the piece's details SAY so in words, never dropping it in silence.
+// Programs are numbered 0 to 127 as a file counts them (people often count 1 to 128).
+Style(
+    id: "general_midi",
+    words: "music.style.general_midi",
+    plain_words: "music.style.general_midi_plain",
+    level_db: 0.0,
+    programs: [
+        // Pianos: acoustic grand, bright, electric grand; honky-tonk; the two electric pianos.
+        (from: 0, to: 2, voice: (instrument: "electric_piano", part: Some("piano"))),
+        (from: 3, to: 3, voice: (instrument: "electric_piano", part: Some("honky_tonk_piano"))),
+        (from: 4, to: 5, voice: (instrument: "electric_piano", part: Some("electric_piano"))),
+        // Chromatic percussion: celesta, glockenspiel, vibraphone, marimba, xylophone, tubular bells.
+        (from: 8, to: 8, voice: (instrument: "celesta")),
+        (from: 9, to: 9, voice: (instrument: "celesta", part: Some("glockenspiel"))),
+        (from: 11, to: 11, voice: (instrument: "celesta", part: Some("vibraphone"))),
+        (from: 12, to: 12, voice: (instrument: "celesta", part: Some("marimba"))),
+        (from: 13, to: 13, voice: (instrument: "celesta", part: Some("xylophone"))),
+        (from: 14, to: 14, voice: (instrument: "celesta", part: Some("tubular_bells"))),
+        // Organs (an FM organ of ours), the accordions.
+        (from: 16, to: 20, voice: (instrument: "retro_fm_organ")),
+        (from: 21, to: 21, voice: (instrument: "soft_saw_pad", part: Some("accordion"))),
+        (from: 23, to: 23, voice: (instrument: "soft_saw_pad", part: Some("accordion"))),
+        // Guitars: nylon and steel strings, jazz, clean and muted electric.
+        (from: 24, to: 25, voice: (instrument: "jazz_guitar", part: Some("acoustic_guitar"))),
+        (from: 26, to: 26, voice: (instrument: "jazz_guitar", part: Some("jazz_guitar"))),
+        (from: 27, to: 28, voice: (instrument: "harp", part: Some("guitar"))),
+        // Basses: acoustic, finger, pick, fretless, the two slap basses; the two synth basses.
+        (from: 32, to: 32, voice: (instrument: "upright_bass", part: Some("double_bass_pizzicato"))),
+        (from: 33, to: 37, voice: (instrument: "round_bass", part: Some("electric_bass"))),
+        (from: 38, to: 38, voice: (instrument: "pulse_bass")),
+        (from: 39, to: 39, voice: (instrument: "round_bass")),
+        // Strings: violin, viola, cello, contrabass, tremolo, pizzicato, harp, timpani.
+        (from: 40, to: 40, voice: (instrument: "soft_lead", part: Some("solo_violin"))),
+        (from: 41, to: 41, voice: (instrument: "soft_saw_pad", part: Some("strings_mid"))),
+        (from: 42, to: 42, voice: (instrument: "dark_pad", part: Some("strings_low"))),
+        (from: 43, to: 43, voice: (instrument: "drone", part: Some("bass_strings"))),
+        (from: 44, to: 44, voice: (instrument: "soft_saw_pad", part: Some("violins_tremolo"))),
+        (from: 45, to: 45, voice: (instrument: "harp", part: Some("strings_pizzicato"))),
+        (from: 46, to: 46, voice: (instrument: "harp", part: Some("harp"))),
+        (from: 47, to: 47, voice: (instrument: "taiko_hit", part: Some("timpani"))),
+        // Ensembles: string ensembles, synth strings, choir and voices, the orchestra hit.
+        (from: 48, to: 49, voice: (instrument: "soft_saw_pad", part: Some("strings_high"))),
+        (from: 50, to: 51, voice: (instrument: "soft_saw_pad")),
+        (from: 52, to: 54, voice: (instrument: "choir_ah", part: Some("choir_ah"))),
+        (from: 55, to: 55, voice: (instrument: "brass_stab")),
+        // Brass: trumpet, trombone, tuba, muted trumpet, French horn, brass section, synth brass.
+        (from: 56, to: 56, voice: (instrument: "swing_horns", part: Some("trumpet"))),
+        (from: 57, to: 57, voice: (instrument: "swing_horns", part: Some("trombone"))),
+        (from: 58, to: 58, voice: (instrument: "swing_horns", part: Some("tuba"))),
+        (from: 59, to: 59, voice: (instrument: "swing_horns", part: Some("trumpet_straight_mute"))),
+        (from: 60, to: 60, voice: (instrument: "swing_horns", part: Some("french_horn"))),
+        (from: 61, to: 61, voice: (instrument: "swing_horns")),
+        (from: 62, to: 63, voice: (instrument: "brass_stab")),
+        // Reeds: soprano, alto, tenor and baritone saxophones, oboe, bassoon, clarinet.
+        (from: 64, to: 64, voice: (instrument: "clarinet", part: Some("saxello"))),
+        (from: 65, to: 65, voice: (instrument: "clarinet", part: Some("alto_sax"))),
+        (from: 66, to: 66, voice: (instrument: "clarinet", part: Some("tenor_saxophone"))),
+        (from: 67, to: 67, voice: (instrument: "clarinet", part: Some("baritone_sax"))),
+        (from: 68, to: 68, voice: (instrument: "clarinet", part: Some("oboe"))),
+        (from: 70, to: 70, voice: (instrument: "clarinet", part: Some("bassoon"))),
+        (from: 71, to: 71, voice: (instrument: "clarinet", part: Some("clarinet"))),
+        // Pipes: piccolo, flute, recorder.
+        (from: 72, to: 72, voice: (instrument: "clarinet", part: Some("piccolo"))),
+        (from: 73, to: 73, voice: (instrument: "clarinet", part: Some("flute"))),
+        (from: 74, to: 74, voice: (instrument: "soft_lead", part: Some("alto_recorder"))),
+        // Synth leads and pads.
+        (from: 80, to: 81, voice: (instrument: "synth_lead")),
+        (from: 82, to: 87, voice: (instrument: "soft_lead")),
+        (from: 88, to: 89, voice: (instrument: "soft_saw_pad")),
+        (from: 90, to: 90, voice: (instrument: "pwm_pad")),
+        (from: 91, to: 91, voice: (instrument: "choir_ah")),
+        (from: 92, to: 93, voice: (instrument: "dark_pad")),
+        (from: 94, to: 94, voice: (instrument: "choir_ah")),
+        (from: 95, to: 95, voice: (instrument: "dub_pad")),
+        // Ethnic: bagpipe, fiddle.
+        (from: 109, to: 109, voice: (instrument: "drone", part: Some("bagpipe"))),
+        (from: 110, to: 110, voice: (instrument: "soft_lead", part: Some("solo_violin"))),
+        // Percussive: agogo, steel drums, woodblock, taiko, melodic tom, synth drum, reverse cymbal.
+        (from: 113, to: 113, voice: (instrument: "cowbell_808")),
+        (from: 114, to: 114, voice: (instrument: "steel_pan", part: Some("steel_pan"))),
+        (from: 115, to: 115, voice: (instrument: "rimshot_808")),
+        (from: 116, to: 116, voice: (instrument: "taiko")),
+        (from: 117, to: 117, voice: (instrument: "taiko", part: Some("kit_tom"))),
+        (from: 118, to: 118, voice: (instrument: "deep_drum")),
+        (from: 119, to: 119, voice: (instrument: "reverse_cymbal")),
+    ],
+    program_default: Some((instrument: "electric_piano", part: Some("piano"))),
+    // The drum map on channel 10 (General MIDI's keys 35 to 81).
+    drums: [
+        (from: 35, to: 36, voice: (instrument: "lofi_kick", part: Some("kit_kick"))),
+        (from: 37, to: 37, voice: (instrument: "rimshot_808")),
+        (from: 38, to: 38, voice: (instrument: "lofi_snare", part: Some("kit_snare"))),
+        (from: 39, to: 39, voice: (instrument: "clap", part: Some("electronic_clap"))),
+        (from: 40, to: 40, voice: (instrument: "lofi_snare", part: Some("kit_snare"))),
+        (from: 41, to: 41, voice: (instrument: "taiko", part: Some("kit_tom")), pitch: Some("F2")),
+        (from: 42, to: 42, voice: (instrument: "lofi_hat", part: Some("kit_hihat_closed"))),
+        (from: 43, to: 43, voice: (instrument: "taiko", part: Some("kit_tom")), pitch: Some("G2")),
+        (from: 44, to: 44, voice: (instrument: "lofi_hat", part: Some("kit_hihat_closed"))),
+        (from: 45, to: 45, voice: (instrument: "taiko", part: Some("kit_tom")), pitch: Some("A2")),
+        (from: 46, to: 46, voice: (instrument: "open_hat", part: Some("kit_hihat_open"))),
+        (from: 47, to: 48, voice: (instrument: "taiko", part: Some("kit_tom")), pitch: Some("C3")),
+        (from: 49, to: 49, voice: (instrument: "open_hat", part: Some("kit_crash"))),
+        (from: 50, to: 50, voice: (instrument: "taiko", part: Some("kit_tom")), pitch: Some("E3")),
+        (from: 51, to: 51, voice: (instrument: "open_hat", part: Some("kit_ride"))),
+        (from: 52, to: 52, voice: (instrument: "open_hat", part: Some("kit_crash"))),
+        (from: 53, to: 53, voice: (instrument: "open_hat", part: Some("kit_ride"))),
+        (from: 55, to: 55, voice: (instrument: "open_hat", part: Some("kit_crash"))),
+        (from: 56, to: 56, voice: (instrument: "cowbell_808")),
+        (from: 57, to: 57, voice: (instrument: "open_hat", part: Some("kit_crash"))),
+        (from: 59, to: 59, voice: (instrument: "open_hat", part: Some("kit_ride"))),
+        (from: 75, to: 77, voice: (instrument: "rimshot_808")),
+    ],
+    drum_default: Some((instrument: "lofi_hat", part: Some("kit_hihat_closed"))),
+)

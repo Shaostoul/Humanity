@@ -216,7 +216,7 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                 }
             });
             match listen_row(ui, theme, &c.name, auditioning.as_deref(), audition_s) {
-                Some(true) => listen = Some(Audition { choice: MusicChoice { genre: c.id.clone(), mood: Some(sh.mood.clone()), intensity: Some(intensity(&sh.mood)), seed: sh.seed.max(1), tune: Tune::default(), written: None }, words: c.name.clone() }),
+                Some(true) => listen = Some(Audition { choice: MusicChoice { genre: c.id.clone(), mood: Some(sh.mood.clone()), intensity: Some(intensity(&sh.mood)), seed: sh.seed.max(1), tune: Tune::default(), written: None, style: None }, words: c.name.clone() }),
                 Some(false) => stop = true,
                 None => {}
             }
@@ -261,7 +261,7 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
                     }
                 });
                 match listen_row(ui, theme, &name, auditioning.as_deref(), audition_s) {
-                    Some(true) => listen = Some(Audition { choice: MusicChoice { genre: sh.genre.clone(), mood: Some(m.id.clone()), intensity: Some(explore_intensity(l, &m.id)), seed: sh.seed.max(1), tune: Tune::default(), written: None }, words: name.clone() }),
+                    Some(true) => listen = Some(Audition { choice: MusicChoice { genre: sh.genre.clone(), mood: Some(m.id.clone()), intensity: Some(explore_intensity(l, &m.id)), seed: sh.seed.max(1), tune: Tune::default(), written: None, style: None }, words: name.clone() }),
                     Some(false) => stop = true,
                     None => {}
                 }
@@ -281,6 +281,43 @@ pub(super) fn explore(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh
         state.music_page.audition = Some(a);
     } else if stop {
         state.music_page.audition = None;
+    }
+    // The sound styles written music plays in (music-page.md section 15a, rung 3a): a card each, from
+    // the styles' data, chosen here for all written music (a piece's details choose for one piece).
+    ui.add_space(theme.spacing_md);
+    widgets::subsection_header(ui, theme, accent, t("music_page.styles_title"), "");
+    ui.label(RichText::new(t("music_page.styles_intro")).color(theme.text_secondary()));
+    ui.add_space(theme.spacing_xs);
+    let styles = super::styles::styles_of(state);
+    let mut pick: Option<String> = None;
+    let style_cards: Vec<(String, String, String)> = std::iter::once((String::new(), t("music_page.style_as_written").to_string(), t("music_page.style_as_written_plain").to_string()))
+        .chain(styles.iter().map(|s| (s.id.clone(), super::styles::style_name(s), super::styles::style_plain(s))))
+        .collect();
+    egui::Grid::new("music_page_style_cards").num_columns(cols).spacing([gap, gap]).show(ui, |ui| {
+        for (i, (id, name, plain)) in style_cards.iter().enumerate() {
+            let chosen = state.settings.music.style == *id;
+            let clicked = card(ui, theme, w, chosen, "music_page.style_card_hint", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(name).size(theme.font_size_heading).strong().color(theme.text_primary()));
+                    if chosen {
+                        ui.label(RichText::new(t("music_page.card_chosen")).size(theme.font_size_small).color(theme.accent()));
+                    }
+                });
+                if !plain.is_empty() {
+                    ui.label(RichText::new(plain).color(theme.text_primary()));
+                }
+            });
+            if clicked && !chosen {
+                pick = Some(id.clone());
+            }
+            if (i + 1) % cols == 0 {
+                ui.end_row();
+            }
+        }
+    });
+    if let Some(id) = pick {
+        state.settings.music.style = id;
+        state.settings_dirty = true;
     }
     // The seed.
     ui.add_space(theme.spacing_md);

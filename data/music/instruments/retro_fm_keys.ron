@@ -1,0 +1,18 @@
+// RETRO FM's keys (docs/design/music-page.md rung 3a; crate::fm_ops): four operators as two pairs.
+// The body: a 1:1 pair whose index falls quickly after the strike, so the note starts bright and
+// rings mellow, dying away like a struck string. The hammer: a modulator at fourteen times the note
+// over a quiet carrier, gone in a tenth of a second. It plays the piano's parts and harmony.
+Instrument(
+    id: "retro_fm_keys",
+    words: "music.instrument.retro_fm_keys",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 3.0, envelope: (attack_s: 0.002, decay_s: 0.9, sustain: 0.12, release_s: 0.2), key_scale_db: 4.0, velocity: 0.7),
+            (ratio: 1.0, level: 0.75, envelope: (attack_s: 0.002, decay_s: 2.4, sustain: 0.0, release_s: 0.25), mods: [0], out: true),
+            (ratio: 14.0, level: 1.4, envelope: (attack_s: 0.001, decay_s: 0.12, sustain: 0.0, release_s: 0.05), key_scale_db: 6.0, velocity: 1.0),
+            (ratio: 1.0, level: 0.22, envelope: (attack_s: 0.001, decay_s: 0.45, sustain: 0.0, release_s: 0.1), mods: [2], out: true),
+        ],
+    )),
+    level_db: -13.0,
+    reverb_send: 0.18,
+)

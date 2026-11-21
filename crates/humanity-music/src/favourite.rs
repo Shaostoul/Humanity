@@ -46,6 +46,9 @@ pub struct SavedTune {
     /// 0.5 straight to 0.75 heavy (absent: the genre's own).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub swing: Option<f32>,
+    /// 0 calm .. 1 everything the mood has (absent: the mood's own, `explore_intensity`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intensity: Option<f32>,
     /// Role id to lead voice id (the entry's part, else its instrument).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub leads: BTreeMap<String, String>,
@@ -81,7 +84,7 @@ impl SavedTune {
     /// The tuning as the score takes it, in the genre `genre` of `lib` (a lead voice the genre no
     /// longer has is the piece's own again).
     pub fn to_tune(&self, lib: &MusicLibrary, genre: usize) -> Tune {
-        let mut t = Tune { transpose: self.transpose.clamp(-6, 6), tempo_bpm: self.tempo_bpm.unwrap_or(0.0).max(0.0), swing: self.swing.unwrap_or(-1.0), ..Tune::default() };
+        let mut t = Tune { transpose: self.transpose.clamp(-6, 6), tempo_bpm: self.tempo_bpm.unwrap_or(0.0).max(0.0), swing: self.swing.unwrap_or(-1.0), intensity: self.intensity.map(|x| x.clamp(0.0, 1.0)).unwrap_or(-1.0), ..Tune::default() };
         let role = |id: &str| ROLE_IDS.iter().position(|r| *r == id);
         if let Some(g) = lib.genres.get(genre) {
             for (r, voice) in &self.leads {
@@ -112,7 +115,7 @@ impl SavedTune {
 
     /// The tuning `t` (in the genre `genre` of `lib`) as the file keeps it.
     pub fn from_tune(t: &Tune, lib: &MusicLibrary, genre: usize) -> SavedTune {
-        let mut s = SavedTune { transpose: t.transpose, tempo_bpm: (t.tempo_bpm > 0.0).then_some(t.tempo_bpm), swing: (t.swing >= 0.0).then_some(t.swing), ..Default::default() };
+        let mut s = SavedTune { transpose: t.transpose, tempo_bpm: (t.tempo_bpm > 0.0).then_some(t.tempo_bpm), swing: (t.swing >= 0.0).then_some(t.swing), intensity: (t.intensity >= 0.0).then_some(t.intensity.min(1.0)), ..Default::default() };
         let g = lib.genres.get(genre);
         for k in 0..ROLES {
             if t.lead[k] != PIECE {
@@ -317,6 +320,8 @@ pub fn share_code(f: &Favourite) -> String {
     b.push(t.transpose as u8);
     b.extend_from_slice(&((t.tempo_bpm.unwrap_or(0.0).clamp(0.0, 6000.0) * 10.0).round() as u16).to_le_bytes());
     b.push(t.swing.map(|s| (s.clamp(0.5, 0.75) * 200.0).round() as u8).unwrap_or(0));
+    // The intensity in hundredths, one up (0: the mood's own).
+    b.push(t.intensity.map(|x| (x.clamp(0.0, 1.0) * 100.0).round() as u8 + 1).unwrap_or(0));
     let bits = |list: &[String]| list.iter().filter_map(|r| ROLE_IDS.iter().position(|x| x == r)).fold(0u8, |a, k| a | 1 << k);
     b.push(bits(&t.muted));
     b.push(bits(&t.soloed));
@@ -398,6 +403,8 @@ pub fn from_share_code(code: &str) -> Result<Favourite, ShareError> {
         t.tempo_bpm = (tempo > 0).then(|| tempo as f32 / 10.0);
         let swing = r.u8()?;
         t.swing = (swing > 0).then(|| swing as f32 / 200.0);
+        let intensity = r.u8()?;
+        t.intensity = (intensity > 0).then(|| (intensity - 1).min(100) as f32 / 100.0);
         let roles = |bits: u8| (0..ROLES).filter(|k| bits & (1 << k) != 0).map(|k| ROLE_IDS[k].to_string()).collect::<Vec<_>>();
         t.muted = roles(r.u8()?);
         t.soloed = roles(r.u8()?);

@@ -797,7 +797,7 @@ fn a_sampled_instrument_retunes_by_rate_and_falls_back_without_its_pack() {
 /// low-passes at 120 Hz, the kick and the bass), its energy in 1 ms frames, and an onset where the
 /// energy jumps to four times what it was 4 to 8 ms before and above 2% of the loudest frame, at most
 /// one in 60 ms.
-fn onsets(frames: &[[f32; 2]], rate: f32, high: bool) -> Vec<f64> {
+pub(crate) fn onsets(frames: &[[f32; 2]], rate: f32, high: bool) -> Vec<f64> {
     let dt = 1.0 / rate as f64;
     let rc = |fc: f64| 1.0 / (2.0 * std::f64::consts::PI * fc);
     let (mut y1, mut y2, mut x1p, mut x2p) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);

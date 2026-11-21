@@ -138,8 +138,23 @@ pub(super) fn tune(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
     let sheet = state.music_page.sheet.as_ref().map(|s| s.sheet.clone());
     let genre = lib.as_deref().and_then(|l| l.genre_index(&sh.genre).map(|i| &l.genres[i]));
     let tu = &mut sh.tune;
+    let mood_intensity = lib.as_deref().map(|l| humanity_music::favourite::explore_intensity(l, &sh.mood)).unwrap_or(0.3);
     widgets::subsection_header(ui, theme, accent, t("music_page.tune"), t("music_page.tune_note"));
     widgets::card(ui, theme, |ui| {
+        // The tuning (rung 3a): A = 432 by default (the 2026-11-06 decision) or 440, for everything the
+        // page plays, written pieces and every sound style included (Settings > Music keeps the same
+        // choice).
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(t("music_page.tuning")).color(theme.text_secondary()));
+            for tuning in humanity_music::tuning::Tuning::ALL {
+                let selected = state.settings.music.tuning == tuning;
+                if ui.radio(selected, RichText::new(humanity_core::i18n::t_dyn(tuning.words_key())).color(theme.text_primary())).hint("music_page.tuning_hint").clicked() && !selected {
+                    state.settings.music.tuning = tuning;
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("music_page.tuning_hint"));
         // The key: a transposition, shown as the key it makes.
         let mut steps = tu.transpose as i32;
         let key_now = sheet.as_ref().and_then(|s| s.sections.first().map(|x| (x.key_pc, x.mode)));
@@ -171,6 +186,35 @@ pub(super) fn tune(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, sh: &
         });
         let one_tempo = (range.1 - range.0).abs() < range.0 * humanity_music::tune::NARROW_TEMPO_SPAN;
         widgets::setting_hint(ui, theme, hint, if one_tempo { t("music_page.tempo_one") } else { t("music_page.tempo_hint") });
+        // The swing (rung 3a): where the off-beats fall, from straight (half way through the beat) to
+        // heavy (three quarters), else the genre's own.
+        let own_swing = genre.and_then(|g| g.groove.as_ref().map(|x| x.swing)).unwrap_or(0.5).clamp(0.5, 0.75);
+        let mut swing = if tu.swing >= 0.0 { tu.swing } else { own_swing };
+        let swing_label = t("music_page.swing_value").replace("{{pct}}", &format!("{:.0}", swing * 100.0));
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(t("music_page.swing")).color(theme.text_secondary()));
+            if widgets::slider(ui, theme, egui::Slider::new(&mut swing, 0.5..=0.75).step_by(0.01).show_value(false).text(RichText::new(swing_label).color(theme.text_primary()))).hint("music_page.swing_hint").changed() {
+                tu.swing = (swing * 100.0).round() / 100.0;
+            }
+            if tu.swing >= 0.0 && ui.button(t("music_page.swing_own")).hint("music_page.swing_own_hint").clicked() {
+                tu.swing = -1.0;
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("music_page.swing_hint"));
+        // The intensity (rung 3a): how much is going on, 0 calm to 1 every layer the mood has, else
+        // the mood's own (what Explore plays it at).
+        let mut intensity = if tu.intensity >= 0.0 { tu.intensity } else { mood_intensity };
+        let intensity_label = t("music_page.intensity_value").replace("{{pct}}", &format!("{:.0}", intensity * 100.0));
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(t("music_page.intensity")).color(theme.text_secondary()));
+            if widgets::slider(ui, theme, egui::Slider::new(&mut intensity, 0.0..=1.0).step_by(0.05).show_value(false).text(RichText::new(intensity_label).color(theme.text_primary()))).hint("music_page.intensity_hint").changed() {
+                tu.intensity = (intensity * 100.0).round() / 100.0;
+            }
+            if tu.intensity >= 0.0 && ui.button(t("music_page.intensity_own")).hint("music_page.intensity_own_hint").clicked() {
+                tu.intensity = -1.0;
+            }
+        });
+        widgets::setting_hint(ui, theme, hint, t("music_page.intensity_hint"));
         // The lead voices: each role the genre offers leads for.
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new(t("music_page.lead")).color(theme.text_secondary()));

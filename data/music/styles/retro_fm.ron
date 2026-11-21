@@ -1,0 +1,83 @@
+// RETRO FM: any written or imported piece played on our own operator-FM voices, in the spirit of the
+// early-1990s computer games' sound cards (docs/design/music-page.md section 15a, rung 3a; the
+// operator chose it first, 2026-11-20). Every instrument is a file of ours (data/music/instruments/
+// retro_fm_*.ron, crate::fm_ops); no sound, sample or pairing of any game is copied.
+//
+// What plays each staff (crate::style): an imported file's staff by its General MIDI program (every
+// program has a voice here, as the old cards gave every program a patch) and its drum keys by the
+// drum map; a written piece's staff by its part, else its role, else `default`.
+Style(
+    id: "retro_fm",
+    words: "music.style.retro_fm",
+    plain_words: "music.style.retro_fm_plain",
+    level_db: 0.0,
+    parts: [
+        (part: "piano", voice: (instrument: "retro_fm_keys")),
+        (part: "timpani", voice: (instrument: "retro_fm_tom")),
+        (part: "flute", voice: (instrument: "retro_fm_flute")),
+        (part: "piccolo", voice: (instrument: "retro_fm_flute")),
+        (part: "oboe", voice: (instrument: "retro_fm_reed")),
+        (part: "clarinet", voice: (instrument: "retro_fm_reed")),
+        (part: "bassoon", voice: (instrument: "retro_fm_reed")),
+        (part: "french_horn", voice: (instrument: "retro_fm_brass")),
+        (part: "trumpet", voice: (instrument: "retro_fm_brass")),
+        (part: "trombone", voice: (instrument: "retro_fm_brass")),
+        (part: "tuba", voice: (instrument: "retro_fm_brass")),
+        (part: "solo_violin", voice: (instrument: "retro_fm_lead")),
+        (part: "strings_high", voice: (instrument: "retro_fm_strings")),
+        (part: "strings_mid", voice: (instrument: "retro_fm_strings")),
+        (part: "strings_low", voice: (instrument: "retro_fm_strings")),
+        (part: "bass_strings", voice: (instrument: "retro_fm_bass")),
+        (part: "glockenspiel", voice: (instrument: "retro_fm_bell")),
+        (part: "harp", voice: (instrument: "retro_fm_keys")),
+    ],
+    roles: [
+        (role: "melody", voice: (instrument: "retro_fm_lead")),
+        (role: "bass", voice: (instrument: "retro_fm_bass")),
+        (role: "pad", voice: (instrument: "retro_fm_strings")),
+        (role: "drone", voice: (instrument: "retro_fm_organ")),
+        (role: "choir", voice: (instrument: "retro_fm_organ")),
+        (role: "bells", voice: (instrument: "retro_fm_bell")),
+        (role: "percussion", voice: (instrument: "retro_fm_tom")),
+        (role: "texture", voice: (instrument: "retro_fm_keys")),
+    ],
+    default: Some((instrument: "retro_fm_keys")),
+    // The General MIDI families, eight programs each (0 to 127 as a file counts them).
+    programs: [
+        (from: 0, to: 7, voice: (instrument: "retro_fm_keys")),
+        (from: 8, to: 15, voice: (instrument: "retro_fm_bell")),
+        (from: 16, to: 23, voice: (instrument: "retro_fm_organ")),
+        (from: 24, to: 31, voice: (instrument: "retro_fm_keys")),
+        (from: 32, to: 39, voice: (instrument: "retro_fm_bass")),
+        (from: 40, to: 46, voice: (instrument: "retro_fm_strings")),
+        (from: 47, to: 47, voice: (instrument: "retro_fm_tom")),
+        (from: 48, to: 55, voice: (instrument: "retro_fm_strings")),
+        (from: 56, to: 63, voice: (instrument: "retro_fm_brass")),
+        (from: 64, to: 71, voice: (instrument: "retro_fm_reed")),
+        (from: 72, to: 79, voice: (instrument: "retro_fm_flute")),
+        (from: 80, to: 87, voice: (instrument: "retro_fm_lead")),
+        (from: 88, to: 103, voice: (instrument: "retro_fm_organ")),
+        (from: 104, to: 111, voice: (instrument: "retro_fm_keys")),
+        (from: 112, to: 119, voice: (instrument: "retro_fm_bell")),
+        (from: 120, to: 127, voice: (instrument: "retro_fm_cymbal")),
+    ],
+    // The General MIDI drum map's keys (35 the kick ... 81 the open triangle), each on a drum of ours.
+    drums: [
+        (from: 27, to: 34, voice: (instrument: "retro_fm_hat")),
+        (from: 35, to: 36, voice: (instrument: "retro_fm_kick"), pitch: Some("A1")),
+        (from: 37, to: 40, voice: (instrument: "retro_fm_snare"), pitch: Some("D3")),
+        (from: 41, to: 41, voice: (instrument: "retro_fm_tom"), pitch: Some("F2")),
+        (from: 42, to: 42, voice: (instrument: "retro_fm_hat"), pitch: Some("C7")),
+        (from: 43, to: 43, voice: (instrument: "retro_fm_tom"), pitch: Some("G2")),
+        (from: 44, to: 44, voice: (instrument: "retro_fm_hat"), pitch: Some("C7")),
+        (from: 45, to: 45, voice: (instrument: "retro_fm_tom"), pitch: Some("A2")),
+        (from: 46, to: 46, voice: (instrument: "retro_fm_cymbal"), pitch: Some("C7")),
+        (from: 47, to: 48, voice: (instrument: "retro_fm_tom"), pitch: Some("C3")),
+        (from: 49, to: 49, voice: (instrument: "retro_fm_cymbal"), pitch: Some("A6")),
+        (from: 50, to: 50, voice: (instrument: "retro_fm_tom"), pitch: Some("E3")),
+        (from: 51, to: 59, voice: (instrument: "retro_fm_cymbal"), pitch: Some("A6")),
+        (from: 60, to: 68, voice: (instrument: "retro_fm_tom"), pitch: Some("A3")),
+        (from: 69, to: 87, voice: (instrument: "retro_fm_hat"), pitch: Some("C7")),
+    ],
+    drum_default: Some((instrument: "retro_fm_hat")),
+)

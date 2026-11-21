@@ -65,7 +65,7 @@ class El {
   find(tag) { const out = []; const walk = (e) => { for (const c of e.children) { if (c.tagName === tag.toUpperCase()) out.push(c); walk(c); } }; walk(this); return out; }
 }
 
-const IDS = ['mp-list', 'mp-msg', 'mp-code', 'mp-add', 'mp-genres', 'mp-moods', 'mp-heard', 'mp-heard-clear', 'mp-w-search', 'mp-w-sort', 'mp-w-composer', 'mp-w-era', 'mp-w-count', 'mp-w-list', 'mp-w-detail', ...app.TABS.flatMap((t) => ['mp-tab-' + t, 'mp-panel-' + t])];
+const IDS = ['mp-list', 'mp-msg', 'mp-code', 'mp-add', 'mp-genres', 'mp-moods', 'mp-styles', 'mp-heard', 'mp-heard-clear', 'mp-w-search', 'mp-w-sort', 'mp-w-composer', 'mp-w-era', 'mp-w-count', 'mp-w-list', 'mp-w-detail', ...app.TABS.flatMap((t) => ['mp-tab-' + t, 'mp-panel-' + t])];
 
 /** The page over a stand-in document. `store`: this browser's storage, shared between visits. */
 function page(store = new Map()) {
@@ -217,4 +217,26 @@ test('a written piece offers its MEI file, exactly as the app keeps it', async (
   assert.strictEqual(link.getAttribute('href'), '/data/music/scores/fur_elise.mei');
   assert.ok(fs.existsSync(path.join(ROOT, 'data', 'music', 'scores', fur.file)), 'the file it points at ships');
   assert.ok(els['mp-w-detail'].textContent.includes(i18n.t('music_page.web_midi_note')), 'and says where MIDI files are saved, and why');
+});
+
+// Rung 3a (music-page.md section 15a): the sound styles, a card each on Explore as the app draws them,
+// from data/music/styles through the catalogue; and the Listen tab naming the tuning the app switches.
+// Seen RED 2026-11-21 with MUSIC_APP at the rung 2 script (git's copy before this rung): "app.styleCards
+// is not a function", and with the catalogue not regenerated: "one entry per style file".
+test('a card for every sound style, As written first, each with its plain sentence', async () => {
+  const files = fs.readdirSync(path.join(ROOT, 'data', 'music', 'styles')).filter((f) => f.endsWith('.ron'));
+  assert.strictEqual((CAT.styles || []).length, files.length, 'one entry per style file');
+  const cards = app.styleCards(CAT);
+  assert.strictEqual(cards[0].name, word('music_page.style_as_written'), 'As written first, as the app draws it');
+  for (const s of CAT.styles) {
+    const c = cards.find((x) => x.id === s.id);
+    assert.strictEqual(c.name, word(s.words), `the ${s.id} card is named by its words`);
+    assert.strictEqual(c.plain, word(s.plain_words), `the ${c.name} card shows its plain sentence`);
+  }
+  const { els } = await page();
+  assert.strictEqual(els['mp-styles'].all('mp-card').length, CAT.styles.length + 1, 'a card per style, and As written');
+  assert.ok(els['mp-styles'].textContent.includes(word('music.style.retro_fm_plain')), 'the retro FM sentence is on the page');
+  assert.ok(HTML.includes('data-i18n="music_page.web_tune"') && word('music_page.web_tune').includes('432'), 'Listen names the tuning, A = 432 by default');
+  const community = { styles: [{ id: 'chiptune', name: 'Chiptune', plain: 'Square waves and a noise channel.' }] };
+  assert.strictEqual(app.styleCards(community)[1].plain, 'Square waves and a noise channel.', 'a community style gives plain words');
 });

@@ -45,6 +45,13 @@ pub struct MusicSettings {
     /// its id in data/music/scores/index.ron, chosen on the Music page's list; "" = none. Stop clears
     /// it, and what played before plays again (the game's choice or the person's own is untouched).
     pub written: String,
+    /// THE SOUND STYLE written music plays in (docs/design/music-page.md section 15a, rung 3a; a
+    /// style's id in data/music/styles, crate::style): `style` for every written piece ("" = each in
+    /// its own instruments), and `styles` a piece's own choice by its id, which comes first
+    /// ([`AS_WRITTEN`] = its own instruments even when `style` names one). An imported MIDI file
+    /// with no choice plays through the General-MIDI-like style (`style::IMPORTED_STYLE`).
+    pub style: String,
+    pub styles: std::collections::BTreeMap<String, String>,
     /// A second genre to blend toward ("" = none) and how far (0..1).
     pub blend_with: String,
     pub blend: f32,
@@ -77,6 +84,8 @@ impl Default for MusicSettings {
             seed: 1,
             tune: crate::favourite::SavedTune::default(),
             written: String::new(),
+            style: String::new(),
+            styles: std::collections::BTreeMap::new(),
             blend_with: String::new(),
             blend: 0.0,
             places_pick_genre: false,
@@ -87,6 +96,33 @@ impl Default for MusicSettings {
             tone_hz: 528.0,
             tone_volume: 0.3,
             piece_minutes: 4.0,
+        }
+    }
+}
+
+/// A piece's own choice of sound style that means "its own instruments", even when a style is chosen
+/// for all written music.
+pub const AS_WRITTEN: &str = "as_written";
+
+impl MusicSettings {
+    /// The sound style the person chose for written piece `piece` (None: its own instruments): its own
+    /// choice first, then the one for all written music.
+    pub fn chosen_style(&self, piece: &str) -> Option<&str> {
+        match self.styles.get(piece).map(String::as_str) {
+            Some(AS_WRITTEN) => None,
+            Some(s) if !s.is_empty() => Some(s),
+            _ => Some(self.style.as_str()).filter(|s| !s.is_empty()),
+        }
+    }
+
+    /// The style written piece `piece` plays in: the person's choice, else for an imported MIDI file
+    /// (`imported`: its staves carry their programs) the General-MIDI-like style, so it plays by the
+    /// instruments it asks for (music-page.md section 15a). None: its own instruments.
+    pub fn style_for(&self, piece: &str, imported: bool) -> Option<String> {
+        match self.styles.get(piece).map(String::as_str) {
+            Some(AS_WRITTEN) if imported => Some(crate::style::IMPORTED_STYLE.to_string()),
+            Some(AS_WRITTEN) => None,
+            _ => self.chosen_style(piece).map(str::to_string).or_else(|| imported.then(|| crate::style::IMPORTED_STYLE.to_string())),
         }
     }
 }

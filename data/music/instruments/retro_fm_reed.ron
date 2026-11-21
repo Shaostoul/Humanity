@@ -1,0 +1,16 @@
+// RETRO FM's reed (docs/design/music-page.md rung 3a; crate::fm_ops): a modulator an octave above
+// the note over a half-sine carrier (one of the early FM chips' cut waveforms), which gives the
+// hollow, odd-leaning tone of a clarinet or an oboe. It plays the woodwinds.
+Instrument(
+    id: "retro_fm_reed",
+    words: "music.instrument.retro_fm_reed",
+    kind: FmOps((
+        ops: [
+            (ratio: 2.0, level: 1.3, envelope: (attack_s: 0.03, decay_s: 0.6, sustain: 0.8, release_s: 0.1), key_scale_db: 3.0, velocity: 0.6),
+            (ratio: 1.0, level: 0.8, wave: HalfSine, envelope: (attack_s: 0.03, decay_s: 0.8, sustain: 0.9, release_s: 0.1), mods: [0], out: true),
+        ],
+        vibrato: Some((5.0, 9.0)),
+    )),
+    level_db: -14.0,
+    reverb_send: 0.15,
+)

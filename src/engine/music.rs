@@ -403,7 +403,7 @@ impl<B: kira::backend::Backend> Mixer for humanity_core::audio::AudioManager<B> 
 }
 
 /// A build in flight on the worker thread: what it was asked for, and the bank lent to it.
-type BuildResult = (Result<Built, String>, SampleBank, Option<WrittenLoad>);
+type BuildResult = (Result<Built, String>, SampleBank, Option<WrittenLoad>, Vec<humanity_music::style::StyleNote>);
 
 /// A written piece read on the build's thread: its id, and the piece or why it could not be read.
 type WrittenLoad = (String, Result<Arc<humanity_music::scores::WrittenPiece>, String>);
@@ -426,6 +426,14 @@ pub(crate) fn load_written(data_dir: &Path, own: Option<&Path>, id: &str) -> Res
         log::info!("[Music] {}: skipped elements the reader does not know: {:?}", entry.file, piece.score.skipped);
     }
     Ok(Arc::new(piece))
+}
+
+/// `piece` played through the sound style `id` (data/music/styles, read each build: nothing is kept
+/// between runs), on the build's thread.
+pub(crate) fn styled(data_dir: &Path, id: &str, piece: &humanity_music::scores::WrittenPiece) -> Result<humanity_music::style::Styled, String> {
+    let styles = humanity_music::style::load_styles(data_dir)?;
+    let style = humanity_music::style::find(&styles, Some(id)).ok_or_else(|| format!("no style {id:?} in data/music/styles"))?;
+    Ok(humanity_music::style::apply(style, piece))
 }
 
 /// Why a score is being built, which says when it takes over and with which seed.
@@ -455,6 +463,8 @@ struct Building {
     generation: u64,
     genres: Vec<String>,
     take: Take,
+    /// The sound style the written piece was asked in (music-page.md rung 3a).
+    style: Option<String>,
 }
 
 /// A built score waiting to start.
@@ -466,6 +476,9 @@ struct Ready {
     genres: Vec<String>,
     /// The written piece it plays (its id and the piece read and timed; None: the composer composes).
     written: Option<(String, Arc<humanity_music::scores::WrittenPiece>)>,
+    /// The sound style the written piece plays in, and what to tell the person about it (crate::style).
+    style: Option<String>,
+    style_notes: Vec<humanity_music::style::StyleNote>,
     /// The playing score's phrase and bar count when it arrived: it takes over after that phrase
     /// (or that bar, for a genre change).
     at_phrase: u64,
@@ -551,6 +564,9 @@ pub(crate) struct MusicRuntime {
     /// The written piece the playing score plays, its id and the piece (None: the composer composes):
     /// the Music page's piano roll draws it.
     score_written: Option<(String, Arc<humanity_music::scores::WrittenPiece>)>,
+    /// The style the playing written piece plays in, and what the Music page tells the person about it.
+    score_style: Option<String>,
+    score_style_notes: Vec<humanity_music::style::StyleNote>,
     /// What to go back to when an audition ends (music-page.md section 9, rung 2): what played before
     /// it (its choice, or None while the game chose), its seed and where it was (its phrase, or a
     /// written piece's bar), so it carries on from there.
@@ -612,7 +628,8 @@ pub(crate) fn choice_now(lib: Option<&MusicLibrary>, inp: &Inputs, failed: Optio
 
 impl MusicRuntime {
     /// Start a build on the worker thread (the bank goes with it and comes back with the result).
-    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>, take: Take, written: Option<String>) {
+    #[allow(clippy::too_many_arguments)]
+    fn start_build(&mut self, data_dir: &Path, a4: f32, with_score: bool, generation: u64, reuse: bool, genres: Vec<String>, take: Take, written: Option<String>, style: Option<String>) {
         if self.building.is_some() {
             return;
         }
@@ -627,11 +644,27 @@ impl MusicRuntime {
         let own = self.own_dir.clone();
         let asked = genres.clone();
         let written = written.filter(|_| with_score);
+        let asked_style = style.clone();
         let handle = std::thread::Builder::new().name("music-build".into()).spawn(move || {
             // The written piece first: the parts its staves name are attached with the build's, and
-            // its staves then play the recordings found (score-player.md section 9, rung 2).
+            // its staves then play the recordings found (score-player.md section 9, rung 2). Played
+            // through a sound style, its staves are pointed at the style's instruments before that
+            // (music-page.md rung 3a), so the style's recorded parts are attached too.
+            let mut notes = Vec::new();
             let w = written.map(|id| {
-                let piece = load_written(&dir, own.as_deref(), &id);
+                let piece = load_written(&dir, own.as_deref(), &id).map(|p| match &style {
+                    Some(sid) => match styled(&dir, sid, &p) {
+                        Ok(s) => {
+                            notes = s.notes;
+                            Arc::new(s.piece)
+                        }
+                        Err(e) => {
+                            log::warn!("[Music] the sound style {sid:?} could not be read, so {id:?} plays in its own instruments: {e}");
+                            p
+                        }
+                    },
+                    None => p,
+                });
                 (id, piece)
             });
             let parts = match &w {
@@ -647,10 +680,10 @@ impl MusicRuntime {
                 }
                 (w, _) => w,
             };
-            (r, bank, w)
+            (r, bank, w, notes)
         });
         match handle {
-            Ok(handle) => self.building = Some(Building { handle, generation, genres, take }),
+            Ok(handle) => self.building = Some(Building { handle, generation, genres, take, style: asked_style }),
             Err(e) => {
                 log::warn!("[Music] the music's build thread did not start: {e}");
             }
@@ -663,9 +696,9 @@ impl MusicRuntime {
         if !finished {
             return;
         }
-        let Some(Building { handle, generation, genres, take }) = self.building.take() else { return };
+        let Some(Building { handle, generation, genres, take, style }) = self.building.take() else { return };
         match handle.join() {
-            Ok((result, bank, written)) => {
+            Ok((result, bank, written, style_notes)) => {
                 self.bank = Some(bank);
                 // The written piece asked for: read, or why not (then not asked for again).
                 let written = match written {
@@ -691,7 +724,7 @@ impl MusicRuntime {
                         self.lib = Some(built.lib);
                         self.stand_ins = built.stand_ins;
                         if let Some(res) = built.score {
-                            self.ready = Some(Ready { res, lib, generation, genres, written, at_phrase: current_phrase, at_bar: current_bar, take });
+                            self.ready = Some(Ready { res, lib, generation, genres, written, style, style_notes, at_phrase: current_phrase, at_bar: current_bar, take });
                         }
                     }
                     Err(e) => {
@@ -741,6 +774,7 @@ impl MusicRuntime {
         }
         let choice = choice_now(self.lib.as_deref(), inp, self.written_failed.as_ref().map(|(id, _)| id.as_str()));
         let written = choice.as_ref().and_then(|c| c.written.clone());
+        let style = choice.as_ref().and_then(|c| c.style.clone()).filter(|_| written.is_some());
         let genres = match &choice {
             Some(c) => vec![c.genre.clone()],
             None => genres_in_use(self.lib.as_deref(), inp),
@@ -749,7 +783,7 @@ impl MusicRuntime {
         // while it waited for its bar line) is not played: the build for the genres now starts at
         // once below (BUG-297: it played the stale score a phrase, then built again). The same for a
         // written piece no longer asked for (or one asked for since, or one that could not be read).
-        if self.ready.as_ref().is_some_and(|r| r.genres != genres || r.written.as_ref().map(|(id, _)| id) != written.as_ref()) {
+        if self.ready.as_ref().is_some_and(|r| r.genres != genres || r.written.as_ref().map(|(id, _)| id) != written.as_ref() || r.style != style) {
             self.ready = None;
         }
         if self.building.is_none() && self.ready.is_none() {
@@ -778,10 +812,10 @@ impl MusicRuntime {
             if mixer.is_some() && ((g.music && self.score.is_none()) || genre_changed || choice_changed || piece_due || installed || next_phrase) {
                 self.asked_at_phrase = phrase;
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone(), take, written.clone());
+                self.start_build(&inp.data_dir, a4, true, inp.generation, inp.reuse, genres.clone(), take, written.clone(), style.clone());
             } else if unread || (!inp.reuse && self.score.is_none() && self.since_read_s >= REREAD_S) {
                 self.since_read_s = 0.0;
-                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone(), Take::Start, None);
+                self.start_build(&inp.data_dir, a4, false, inp.generation, inp.reuse, genres.clone(), Take::Start, None, None);
             }
         }
         let Some(mixer) = mixer else {
@@ -803,7 +837,7 @@ impl MusicRuntime {
             _ => false,
         };
         if take_over {
-            if let Some(Ready { res, lib, generation, genres, take, written: ready_written, .. }) = self.ready.take() {
+            if let Some(Ready { res, lib, generation, genres, take, written: ready_written, style: ready_style, style_notes: ready_notes, .. }) = self.ready.take() {
                 let ctx = Self::context_of(&lib, inp, &g, a4, &genres, choice.as_ref());
                 // A rebuild of the same piece keeps its seed and carries on from the phrase the old
                 // score just began; a chosen piece (the Music page's, a mood's "my music") plays its
@@ -864,6 +898,8 @@ impl MusicRuntime {
                         self.score_seed = seed;
                         self.score_res = Some(res_copy);
                         self.score_written = written_now;
+                        self.score_style = ready_style;
+                        self.score_style_notes = ready_notes;
                     }
                     Err(e) => log::warn!("[Music] the score did not start: {e}"),
                 }
@@ -939,6 +975,8 @@ impl MusicRuntime {
         readout.zone = inp.place.zone.clone();
         readout.written = self.score.as_ref().and(self.score_written.as_ref().map(|(id, _)| id.clone()));
         readout.written_piece = self.score.as_ref().and(self.score_written.as_ref().map(|(_, p)| p.clone()));
+        readout.written_style = self.score_written.as_ref().and(self.score_style.clone());
+        readout.style_notes = if self.score_written.is_some() { self.score_style_notes.clone() } else { Vec::new() };
         readout.written_error = self.written_failed.clone();
         if inp.audition.is_none() {
             self.audition_s = None;

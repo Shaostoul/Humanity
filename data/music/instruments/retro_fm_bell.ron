@@ -1,0 +1,16 @@
+// RETRO FM's bell (docs/design/music-page.md rung 3a; crate::fm_ops): Chowning's bell (1973), a
+// modulator 1.4 times the carrier, so the partials fall at inharmonic places as a bell's do, its
+// index falling from a bright strike over a second while the note rings for several. It plays bells,
+// celesta and glockenspiel parts.
+Instrument(
+    id: "retro_fm_bell",
+    words: "music.instrument.retro_fm_bell",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.4, level: 6.0, envelope: (attack_s: 0.001, decay_s: 1.6, sustain: 0.0, release_s: 0.6), key_scale_db: 3.0, velocity: 0.8),
+            (ratio: 1.0, level: 0.7, envelope: (attack_s: 0.001, decay_s: 3.5, sustain: 0.0, release_s: 0.8), mods: [0], out: true),
+        ],
+    )),
+    level_db: -15.0,
+    reverb_send: 0.3,
+)

@@ -56,6 +56,10 @@ pub enum InstrumentKind {
     Membrane(MembraneSpec),
     /// Two-operator FM: electric piano, soft bells.
     Fm(FmSpec),
+    /// Operator FM (crate::fm_ops, music-page.md rung 3a): up to four operators wired as data, with
+    /// feedback, the early chips' four waveforms, key scaling and a drum's pitch drop: the retro FM
+    /// sound style's instruments.
+    FmOps(crate::fm_ops::FmOpsSpec),
     /// Extended Karplus-Strong: plucked strings, an upright bass.
     Plucked(PluckedSpec),
     /// Filtered noise with an optional tonal body and crackle: snares, hats, brushes, vinyl crackle.

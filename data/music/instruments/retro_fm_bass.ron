@@ -1,0 +1,16 @@
+// RETRO FM's bass (docs/design/music-page.md rung 3a; crate::fm_ops): a 1:1 pair with feedback, a
+// bright pluck that settles into a round held tone, its brightness scaled down on higher notes. It
+// plays the bass lines: cellos and basses, the left hand's lowest notes, a file's bass programs.
+Instrument(
+    id: "retro_fm_bass",
+    words: "music.instrument.retro_fm_bass",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 3.5, envelope: (attack_s: 0.002, decay_s: 0.3, sustain: 0.3, release_s: 0.08), key_scale_db: 5.0, velocity: 0.7),
+            (ratio: 1.0, level: 0.85, envelope: (attack_s: 0.003, decay_s: 1.4, sustain: 0.6, release_s: 0.08), mods: [0], out: true),
+        ],
+        feedback: 1.2,
+    )),
+    level_db: -12.0,
+    reverb_send: 0.08,
+)

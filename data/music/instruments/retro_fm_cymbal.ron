@@ -1,0 +1,15 @@
+// RETRO FM's cymbal (docs/design/music-page.md rung 3a; crate::fm_ops): the hi-hat's metallic noise
+// left to ring and fade over a second and a half, for crashes and rides.
+Instrument(
+    id: "retro_fm_cymbal",
+    words: "music.instrument.retro_fm_cymbal",
+    kind: FmOps((
+        ops: [
+            (ratio: 5.43, level: 9.0, envelope: (attack_s: 0.001, decay_s: 1.4, sustain: 0.0, release_s: 0.4)),
+            (ratio: 1.0, level: 0.45, envelope: (attack_s: 0.001, decay_s: 1.6, sustain: 0.0, release_s: 0.5), mods: [0], out: true),
+        ],
+        feedback: 12.0,
+    )),
+    level_db: -18.0,
+    reverb_send: 0.2,
+)

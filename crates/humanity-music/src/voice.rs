@@ -233,6 +233,7 @@ enum St {
     Modal(ModalSt),
     Membrane(MembraneSt),
     Fm(FmSt),
+    FmOps(crate::fm_ops::FmOpsSt),
     Plucked(PluckSt),
     Noise(NoiseSt),
     Sampler(SamplerSt),
@@ -568,6 +569,12 @@ impl VoicePool {
                 let tine = fm.tine.map(|(r, a, t)| Phasor::new((f * r).min(rate * 0.45), a, t, rate)).unwrap_or_default();
                 St::Fm(FmSt { car: 0.0, md: 0.0, index: fm.index, index_coef: (-1.0 / (fm.index_decay_s.max(0.001) * rate)).exp(), tine, ..Default::default() })
             }
+            InstrumentKind::FmOps(fo) => {
+                // Each operator has its own envelope (crate::fm_ops); the voice's own only follows the
+                // note's life (held, then let go over the longest heard release).
+                v.env = Env::new(0.0, 0.0, 1.0, fo.release_s().max(0.01), rate);
+                St::FmOps(crate::fm_ops::start(fo, n.midi, n.vel, rate, v.rng.f32()))
+            }
             InstrumentKind::Plucked(p) => {
                 v.env = Env::new(0.0, 0.0, 1.0, 0.1, rate);
                 let delay = (rate / f - 0.5).clamp(2.0, (KS_LEN - 2) as f32);
@@ -892,6 +899,7 @@ fn release(v: &mut Voice, insts: &[Instrument], rate: f32) {
         (InstrumentKind::Plucked(p), St::Plucked(st)) => {
             st.gain = 10f32.powf(-3.0 * p.damping_on_release.max(1.0) / (v.freq * p.decay_s.max(0.05)));
         }
+        (InstrumentKind::FmOps(_), St::FmOps(st)) => crate::fm_ops::release(st),
         _ => {}
     }
 }
@@ -1329,6 +1337,12 @@ fn render_voice(
                 out(i, s, s);
             }
             if v.env.done() {
+                v.active = false;
+            }
+        }
+        (InstrumentKind::FmOps(fo), St::FmOps(st)) => {
+            let f = v.freq * p.pitch_mul;
+            if !crate::fm_ops::render(fo, st, f, v.amp, rate, n, |i, y| out(i, y, y)) {
                 v.active = false;
             }
         }

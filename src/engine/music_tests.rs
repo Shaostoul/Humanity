@@ -945,7 +945,7 @@ fn an_audition_plays_20_seconds_then_the_piece_before_comes_back() {
     let reached = r.score.unwrap().form_pos;
     assert!(reached >= 2, "the person's piece has played some phrases: {reached}");
     let prior = r.playing.as_ref().and_then(|p| p.choice.clone());
-    let audition = MusicChoice { genre: settings.genre.clone(), mood: None, intensity: Some(0.3), seed: 991, tune: humanity_music::tune::Tune::default(), written: None };
+    let audition = MusicChoice { genre: settings.genre.clone(), mood: None, intensity: Some(0.3), seed: 991, tune: humanity_music::tune::Tune::default(), written: None, style: None };
     inp.audition = Some(audition);
     let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.audition_s.is_some());
     assert_eq!(r.playing.as_ref().map(|p| p.seed), Some(991), "the audition plays");
@@ -961,4 +961,94 @@ fn an_audition_plays_20_seconds_then_the_piece_before_comes_back() {
     let pos = r.score.unwrap().form_pos;
     assert!(pos >= reached, "the piece before carries on from phrase {reached}, not from the start: {pos}");
     assert_eq!(inp.settings, settings, "the person's choice never changed");
+}
+
+/// EVERY PART A SOUND STYLE NAMES IS IN THE PARTS CATALOGUE (music-page.md rung 3a): a style's
+/// recorded parts are attached by id (data/music/parts.ron, the instrument library's, which the music
+/// crate cannot read), so a misspelt part would quietly play its synthesised stand-in for ever.
+///
+/// Seen RED 2026-11-21 with the General-MIDI-like style naming `violin` for program 40 (parts.ron calls
+/// it `solo_violin`): "styles/general_midi.ron names the part \"violin\", which data/music/parts.ron lacks".
+#[test]
+fn every_part_a_sound_style_names_is_in_the_parts_catalogue() {
+    let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let lib = MusicLibrary::load(&data).expect("the music data");
+    let parts = crate::instrument_packs::catalog::Parts::load(&data).expect("data/music/parts.ron");
+    assert!(lib.styles.len() >= 3, "the shipped styles load");
+    for s in &lib.styles {
+        for v in s.voices() {
+            if let Some(p) = &v.part {
+                assert!(parts.part(p).is_some(), "styles/{}.ron names the part {p:?}, which data/music/parts.ron lacks", s.id);
+            }
+        }
+    }
+}
+
+/// The instrument each staff of the playing written piece resolves to in the playing score (past a
+/// recording's own fallback), by id.
+fn staff_instruments(rt: &MusicRuntime, r: &MusicReadout) -> Vec<(u16, String)> {
+    let res = rt.score_res.as_ref().expect("a score plays");
+    let piece = r.written_piece.as_ref().expect("a written piece plays");
+    piece.entry.staves.iter().map(|s| (s.staff, res.instrument_index(&s.instrument).map(|i| res.instruments[i as usize].id.clone()).unwrap_or_default())).collect()
+}
+
+/// A SOUND STYLE CHOSEN ON THE PAGE PLAYS IN THE RUNTIME, AND A CHANGE REBUILDS IT (music-page.md
+/// section 15a, rung 3a): with the music's data alone (no recordings), Ode to Joy asked in Retro FM
+/// plays with its staff on the retro FM lead and the readout naming the style; the person's choice
+/// switched to Solo piano rebuilds it, its staff then on the piano's synthesised stand-in.
+///
+/// Seen RED 2026-11-21 with the build thread not applying the style asked for: "its melody on the
+/// retro FM lead, left: [(1, \"clarinet\")]".
+#[test]
+fn a_style_chosen_on_the_page_plays_and_a_change_rebuilds_it() {
+    let t = music_alone("music_style");
+    let data = t.join("data");
+    let repo = Path::new(env!("HUMANITY_REPO_ROOT")).join("data/music");
+    for d in ["scores", "styles"] {
+        std::fs::create_dir_all(data.join("music").join(d)).unwrap();
+        for e in std::fs::read_dir(repo.join(d)).unwrap().flatten() {
+            std::fs::copy(e.path(), data.join("music").join(d).join(e.file_name())).unwrap();
+        }
+    }
+    let mut inp = inputs(&data);
+    inp.settings.written = "ode_to_joy".into();
+    inp.settings.style = "retro_fm".into();
+    let mut rt = MusicRuntime { seed: 20261121, ..Default::default() };
+    let mut mix = Offline::default();
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.written.as_deref() == Some("ode_to_joy") && r.score.is_some_and(|s| s.seconds > 0.2));
+    assert_eq!(r.written_style.as_deref(), Some("retro_fm"), "Ode to Joy plays in Retro FM");
+    assert_eq!(staff_instruments(&rt, &r), vec![(1, "retro_fm_lead".to_string())], "its melody on the retro FM lead");
+    assert!(r.style_notes.is_empty(), "nothing to tell: {:?}", r.style_notes);
+    // The piece's own choice: Solo piano.
+    inp.settings.styles.insert("ode_to_joy".into(), "solo_piano".into());
+    let r = run_until(&mut rt, &mut mix, &inp, 4000, |r| r.written_style.as_deref() == Some("solo_piano"));
+    assert_eq!(staff_instruments(&rt, &r), vec![(1, "electric_piano".to_string())], "with no piano recording installed, the piano's synthesised stand-in");
+}
+
+/// SOLO PIANO PLAYS EVERY PART ON THE APPROVED PIANO RECORDING (music-page.md section 15a, rung 3a):
+/// with the shipped data and its core recordings, Beethoven's Fifth asked as a solo piano plays every
+/// one of its twelve staves on the FreePats upright piano's recording (CC0, the core set), each resolved
+/// in the playing score to a recorded instrument.
+///
+/// Seen RED 2026-11-21 with the build thread not applying the style asked for (the symphony as
+/// written): "staff 1 plays \"soft_lead\", not a recording".
+#[test]
+fn solo_piano_plays_every_part_on_the_piano_recording() {
+    let data = Path::new(env!("HUMANITY_REPO_ROOT")).join("data");
+    let mut inp = inputs(&data);
+    inp.settings.written = "beethoven_symphony5_1".into();
+    inp.settings.style = "solo_piano".into();
+    let mut rt = MusicRuntime { seed: 20261121, ..Default::default() };
+    let mut mix = Offline::default();
+    let r = run_until(&mut rt, &mut mix, &inp, 6000, |r| r.written_style.as_deref() == Some("solo_piano") && r.score.is_some_and(|s| s.seconds > 0.2));
+    let res = rt.score_res.clone().unwrap();
+    let staves = staff_instruments(&rt, &r);
+    assert_eq!(staves.len(), 12, "every staff plays");
+    for (staff, id) in &staves {
+        let inst = res.instruments.iter().find(|i| i.id == *id).unwrap();
+        assert!(matches!(inst.kind, humanity_music::instrument::InstrumentKind::Sampler(_)), "staff {staff} plays {id:?}, not a recording");
+    }
+    let first = &staves[0].1;
+    assert!(staves.iter().all(|(_, id)| id == first), "every staff on the one piano: {staves:?}");
+    println!("solo piano: every staff on {first:?}");
 }

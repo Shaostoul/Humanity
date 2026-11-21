@@ -54,13 +54,17 @@ pub struct MusicChoice {
     /// A written piece to play instead of composing (its id in data/music/scores/index.ron;
     /// docs/design/score-player.md section 10), heard in `mood`'s hall.
     pub written: Option<String>,
+    /// The sound style the written piece plays in (a style's id in data/music/styles, crate::style;
+    /// None: its own instruments). A change rebuilds the piece through the new style
+    /// (docs/design/music-page.md section 15a, rung 3a).
+    pub style: Option<String>,
 }
 
 impl MusicChoice {
     /// Whether `other` composes the same piece (a level or a mute is heard at once; anything else
     /// starts the piece again with the change, at the next bar).
     pub fn composes_like(&self, other: &MusicChoice) -> bool {
-        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune) && self.written == other.written
+        self.genre == other.genre && self.mood == other.mood && self.intensity.map(f32::to_bits) == other.intensity.map(f32::to_bits) && self.seed == other.seed && self.tune.composes_like(&other.tune) && self.written == other.written && self.style == other.style
     }
 }
 
@@ -127,6 +131,11 @@ pub struct MusicReadout {
     /// The written piece itself, read and timed (the Music page's piano roll draws it; score-player.md
     /// section 16, rung 2).
     pub written_piece: Option<std::sync::Arc<humanity_music::scores::WrittenPiece>>,
+    /// The sound style it plays in (its id; None: its own instruments) and what the person should be
+    /// told about it: a program or a drum with no instrument of ours, a drum track left out
+    /// (crate::style, music-page.md rung 3a; the page puts each in words on the piece's details).
+    pub written_style: Option<String>,
+    pub style_notes: Vec<humanity_music::style::StyleNote>,
     /// An audition playing (docs/design/music-page.md section 9, rung 2): the audio seconds it has
     /// played, and whether it has played them all (the page then ends it).
     pub audition_s: Option<f64>,

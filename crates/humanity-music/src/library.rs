@@ -41,6 +41,9 @@ pub struct MusicLibrary {
     /// The written pieces the Music page offers (data/music/scores/index.ron; crate::scores): the
     /// index only, each piece's file is read when it is chosen.
     pub scores: Vec<crate::scores::ScoreEntry>,
+    /// The sound styles a written piece can be played through (data/music/styles; crate::style,
+    /// music-page.md rung 3a).
+    pub styles: Vec<crate::style::SoundStyle>,
 }
 
 /// data/music/tones.ron.
@@ -136,7 +139,8 @@ impl MusicLibrary {
             return Err(format!("{}: the choices must be 0 (never) to 600 minutes, and at least one", pieces_path.display()));
         }
         let scores = crate::scores::load_index(data_dir)?;
-        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes, scores };
+        let styles = crate::style::load_styles(data_dir)?;
+        let mut lib = MusicLibrary { instruments, moods, genres, places, hum, tones: tones.named_hz, intensity, piece_minutes: pieces.minutes, scores, styles };
         lib.order();
         lib.check()?;
         Ok(lib)
@@ -164,7 +168,12 @@ impl MusicLibrary {
             Ok(())
         }
         unique("instrument", self.instruments.iter().map(|i| i.id.as_str()))?;
-        unique("mood", self.moods.iter().map(|i| i.id.as_str()))?;
+        for i in &self.instruments {
+            if let crate::instrument::InstrumentKind::FmOps(fo) = &i.kind {
+                fo.check().map_err(|e| format!("instruments/{}.ron: {e}", i.id))?;
+            }
+        }
+        unique("mood",self.moods.iter().map(|i| i.id.as_str()))?;
         unique("genre", self.genres.iter().map(|i| i.id.as_str()))?;
         if self.moods.is_empty() {
             return Err("data/music/moods has no mood".into());
@@ -187,6 +196,15 @@ impl MusicLibrary {
                 if !self.instruments.iter().any(|i| i.id == s.instrument) {
                     return Err(format!("scores/index.ron: piece {:?}, staff {}: instrument {:?} is not in data/music/instruments", p.id, s.staff, s.instrument));
                 }
+            }
+        }
+        // A sound style names instruments of this library (its parts are the instrument library's,
+        // checked against data/music/parts.ron by the engine's tests).
+        unique("style", self.styles.iter().map(|s| s.id.as_str()))?;
+        for st in &self.styles {
+            st.check()?;
+            if let Some(v) = st.voices().find(|v| !self.instruments.iter().any(|i| i.id == v.instrument)) {
+                return Err(format!("styles/{}.ron: instrument {:?} is not in data/music/instruments", st.id, v.instrument));
             }
         }
         for s in &self.places.genre_suggestions {

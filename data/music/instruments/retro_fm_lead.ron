@@ -1,0 +1,18 @@
+// RETRO FM's lead (docs/design/music-page.md rung 3a; crate::fm_ops): two operators, a 1:1 pair
+// whose modulator's index falls from a bright strike to a held edge, with a little feedback for a
+// saw-like bite and the early sound cards' gentle fixed vibrato. Our own voice: no chip emulated,
+// nothing sampled. It plays melodies and solo winds.
+Instrument(
+    id: "retro_fm_lead",
+    words: "music.instrument.retro_fm_lead",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 2.4, envelope: (attack_s: 0.004, decay_s: 0.6, sustain: 0.5, release_s: 0.12), key_scale_db: 3.0, velocity: 0.6),
+            (ratio: 1.0, level: 0.8, envelope: (attack_s: 0.006, decay_s: 1.2, sustain: 0.75, release_s: 0.15), mods: [0], out: true),
+        ],
+        feedback: 0.9,
+        vibrato: Some((6.1, 8.0)),
+    )),
+    level_db: -14.0,
+    reverb_send: 0.12,
+)

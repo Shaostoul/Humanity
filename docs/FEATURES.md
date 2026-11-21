@@ -3431,6 +3431,37 @@ arrows, L, 1 to 4, [ and ], F, /), listed under the strip, never while a text bo
 - Web: the shortcuts (1 to 4, /), the pieces opened kept in the browser with Clear, each written
   piece's MEI file to download (MIDI says plainly it is saved from the app); `music-web.test.js`
 
+**Version 2, rung 3a (2026-11-21, docs/design/music-page.md section 25): SOUND STYLES.** Any written
+or imported piece played through one palette of our own instruments, its notes unchanged (the
+operator, 2026-11-20: "a genre like mode for playing any music piece in midi"). Styles are data
+(`data/music/styles/*.ron`): what plays each staff by its part, else its role, else a default; an
+imported MIDI file's staves by their General MIDI PROGRAM and its drum track KEY BY KEY by the General
+MIDI drum map. Shipped: RETRO FM (every part on our own operator-FM voices in the spirit of the
+early-1990s game sound cards: `InstrumentKind::FmOps`, up to four operators with ratios, levels,
+envelopes, the four cut sine waveforms, key scaling, feedback and a drum's pitch drop, all data;
+fourteen instruments `retro_fm_*`, Chowning's 1973 method, nothing sampled), SOLO PIANO (every part on
+the `piano` part, the core set's FreePats upright where installed, as a PIANO REDUCTION: notes folded
+into the keys, unison doublings struck once, at most ten keys together keeping the outer notes and
+every pitch class, chords voiced top-heavy; a drum track left out, said in words) and BY INSTRUMENT
+NUMBER (the General-MIDI-like table: how an imported file plays unless another style is chosen; each
+program or drum key with no instrument of ours plays on the piano or the closed hi-hat and is NAMED on
+the piece's details, never dropped). Chosen for all written music (Written music, and a card each on
+Explore) or for one piece (its details, which list what plays each part), kept in the person's settings
+(`MusicSettings::style`, `styles`). Rung 2's leftovers on the Listen tab's Tune card: SWING (where the
+off-beats fall, 50 to 75% of the beat, or the genre's own), INTENSITY (0 to 100%, or the mood's own;
+kept in favourites and share codes) and the TUNING (A = 432 or 440, for everything the page plays).
+- Code: `crates/humanity-music/src/fm_ops.rs` (the voice), `style.rs` (styles, the plan, the
+  reduction), `scores.rs` (a staff's program, drum channel and drum map), `written.rs` (drum maps on
+  the player), `settings.rs` (`chosen_style`, `style_for`), `tune.rs`/`favourite.rs` (the intensity),
+  `tests_style.rs`; `src/gui/pages/music/styles.rs` (the choosers, the per-part list, the notes in
+  words), `controls.rs` (swing, intensity, tuning), `explore.rs` (the style cards), `tests_style.rs`;
+  `src/engine/music.rs` (`styled`: the style applied on the build thread before the parts are attached,
+  a change rebuilding the piece; the readout's `written_style` and `style_notes`)
+- Data: `data/music/styles/{retro_fm,solo_piano,general_midi}.ron`, `data/music/instruments/retro_fm_*.ron`,
+  the 128 General MIDI program names and the drum map's names in `data/i18n/en.json` (`music.gm.*`)
+- Web: Explore's style cards from `data/music/catalogue.json` (`styles`), saying the app plays them;
+  the Listen tab names the tuning, swing and intensity the app sets; `music-web.test.js`
+
 ### The score player: written music stored as MEI (rung 1, 2026-11-20)
 The goal of 2026-11-16 ("save orchestral music in a file format everyone can easily modify"), with MEI
 approved 2026-11-20 ("MEI sounds right unless there's better"; docs/design/score-player.md). Our own

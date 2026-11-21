@@ -24,6 +24,7 @@ pub mod bed;
 pub mod composer;
 pub mod drum_machine;
 pub mod dsp;
+pub mod fm_ops;
 pub mod favourite;
 pub mod fx;
 pub mod instrument;
@@ -46,6 +47,7 @@ pub mod sheet;
 pub mod smf;
 pub mod stream;
 pub mod genre;
+pub mod style;
 pub mod tune;
 pub mod tuning;
 pub mod voice;
@@ -99,5 +101,7 @@ mod tests_written2;
 mod tests_scores;
 #[cfg(test)]
 mod tests_rung2;
+#[cfg(test)]
+mod tests_style;
 #[cfg(all(test, feature = "kira"))]
 mod tests_stream;

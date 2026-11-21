@@ -1,0 +1,16 @@
+// RETRO FM's tom (docs/design/music-page.md rung 3a; crate::fm_ops): a sine with a little
+// modulation whose pitch falls four semitones as it is struck and rings for half a second at the
+// note it is given, so it also plays the timpani's pitched notes.
+Instrument(
+    id: "retro_fm_tom",
+    words: "music.instrument.retro_fm_tom",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 0.9, envelope: (attack_s: 0.001, decay_s: 0.12, sustain: 0.0, release_s: 0.05)),
+            (ratio: 1.0, level: 1.0, envelope: (attack_s: 0.001, decay_s: 0.9, sustain: 0.0, release_s: 0.15), mods: [0], out: true),
+        ],
+        pitch_drop: Some((4.0, 0.06)),
+    )),
+    level_db: -10.0,
+    reverb_send: 0.15,
+)

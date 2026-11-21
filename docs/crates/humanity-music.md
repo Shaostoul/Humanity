@@ -19,16 +19,16 @@ so an edit to it rebuilds only the GUI and the engine above it. The server build
 
 <!-- generated: crate-cards.js; `just code-map` and `just brief` rewrite this block from scripts/crate-layers.json and the code, so never edit it by hand -->
 - **Owns** all of `crates/humanity-music/`, a crate of its own since the crate split cut it (`scripts/crate-layers.json` gives its `dir`; the rung is in `docs/design/crate-split.md`); the modules its `lib.rs` declares, by the gate each compiles under:
-  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/drum_machine.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/fx.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mei.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/osc.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/scores.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/stream.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`, `crates/humanity-music/src/wavetable.rs`, `crates/humanity-music/src/written.rs`
+  - no gate (every build): `crates/humanity-music/src/bed.rs`, `crates/humanity-music/src/composer.rs`, `crates/humanity-music/src/drum_machine.rs`, `crates/humanity-music/src/dsp.rs`, `crates/humanity-music/src/fm_ops.rs`, `crates/humanity-music/src/favourite.rs`, `crates/humanity-music/src/fx.rs`, `crates/humanity-music/src/instrument.rs`, `crates/humanity-music/src/intensity.rs`, `crates/humanity-music/src/library.rs`, `crates/humanity-music/src/mei.rs`, `crates/humanity-music/src/mei_write.rs`, `crates/humanity-music/src/mood.rs`, `crates/humanity-music/src/osc.rs`, `crates/humanity-music/src/own.rs`, `crates/humanity-music/src/piece.rs`, `crates/humanity-music/src/places.rs`, `crates/humanity-music/src/render.rs`, `crates/humanity-music/src/resolved.rs`, `crates/humanity-music/src/rng.rs`, `crates/humanity-music/src/score.rs`, `crates/humanity-music/src/scores.rs`, `crates/humanity-music/src/settings.rs`, `crates/humanity-music/src/sheet.rs`, `crates/humanity-music/src/smf.rs`, `crates/humanity-music/src/stream.rs`, `crates/humanity-music/src/genre.rs`, `crates/humanity-music/src/style.rs`, `crates/humanity-music/src/tune.rs`, `crates/humanity-music/src/tuning.rs`, `crates/humanity-music/src/voice.rs`, `crates/humanity-music/src/wavetable.rs`, `crates/humanity-music/src/written.rs`
   - `feature = "kira"`: `crates/humanity-music/src/decode.rs`, `crates/humanity-music/src/kira_sound.rs`
-  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_cost.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`, `crates/humanity-music/src/tests_e6.rs`, `crates/humanity-music/src/tests_written.rs`, `crates/humanity-music/src/tests_written2.rs`, `crates/humanity-music/src/tests_scores.rs`
+  - test builds only: `crates/humanity-music/src/tests.rs`, `crates/humanity-music/src/tests_audio.rs`, `crates/humanity-music/src/tests_cost.rs`, `crates/humanity-music/src/tests_piece.rs`, `crates/humanity-music/src/tests_page.rs`, `crates/humanity-music/src/tests_electronic.rs`, `crates/humanity-music/src/tests_e5.rs`, `crates/humanity-music/src/tests_e6.rs`, `crates/humanity-music/src/tests_written.rs`, `crates/humanity-music/src/tests_written2.rs`, `crates/humanity-music/src/tests_scores.rs`, `crates/humanity-music/src/tests_rung2.rs`, `crates/humanity-music/src/tests_style.rs`
   - `all(test, feature = "kira")`: `crates/humanity-music/src/tests_stream.rs`
-- **Size:** 20,351 lines in 43 files, 5,567 of them in 12 test files.
+- **Size:** 23,363 lines in 50 files, 6,330 of them in 14 test files.
 - **Gates inside its files** (`#[cfg]` attributes in non-test code, by the feature they name): `kira` 7.
 - **May use** (the plan): core. **Uses today** (references in non-test code): nothing.
-- **May be used by** (the plan): gui, engine. **Used today by:** gui 71, engine 23.
+- **May be used by** (the plan): gui, engine. **Used today by:** gui 102, engine 32.
 - **Wrong-way references:** 0 in code; 0 in test code. `node scripts/check-crate-layers.js` fails on any that appears.
-- **Its lib tests:** 114 tests, and this runs exactly them, checked against every test's name:
+- **Its lib tests:** 130 tests, and this runs exactly them, checked against every test's name:
 
 ```
 just test-lib --crate humanity-music
@@ -39,22 +39,22 @@ just test-lib --crate humanity-music
 | Item | References | From |
 |---|---:|---|
 | `MusicLibrary` | 8 | gui 7, engine 1 |
+| `scores::WrittenPiece` | 7 | engine 5, gui 2 |
 | `MusicSettings` | 6 | gui 5, engine 1 |
-| `scores::WrittenPiece` | 6 | engine 4, gui 2 |
-| `tune::Tune` | 4 | gui 4 |
+| `scores::ScoreEntry` | 5 | gui 5 |
+| `tune::Tune` | 5 | gui 5 |
+| `style::StyleNote` | 4 | engine 3, gui 1 |
+| `tune::ROLES` | 4 | gui 4 |
 | `tuning::parse_note` | 4 | gui 4 |
 | `MusicStatus` | 3 | gui 2, engine 1 |
 | `Resolved` | 3 | gui 2, engine 1 |
 | `favourite` | 3 | gui 3 |
-| `scores::ScoreEntry` | 3 | gui 3 |
-| `tune::ROLES` | 3 | gui 3 |
+| `style::find` | 3 | gui 2, engine 1 |
 | `BedStatus` | 2 | engine 1, gui 1 |
 | `MusicContext` | 2 | engine 1, gui 1 |
 | `decode::decode_threads` | 2 | gui 2 |
-| `decode::each` | 2 | gui 2 |
-| `instrument::SAMPLE_SCALE` | 2 | gui 2 |
 
-And 38 more items, 41 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
+And 62 more items, 73 references (`node scripts/crate-cards.js --interface humanity-music` lists them all).
 <!-- end generated -->
 
 ## Rules
@@ -118,6 +118,21 @@ And 38 more items, 41 references (`node scripts/crate-cards.js --interface human
 - **The sheet is the score's own loop** (`sheet.rs`): `transcribe` cuts time where `ScoreEngine::render`
   does (128-frame blocks, chunks of at most 64 samples), so its notes are the score's to the sample;
   a change to the score's chunking changes both. Source: music-page.md section 9.
+- **A sound style is data, applied before a written piece plays** (`style.rs`, 2026-11-21): a style
+  file points each staff at an instrument of ours (by its part, else its role, else a default; an
+  imported file's staves by their General MIDI program, a drum track key by key), on the build thread,
+  BEFORE the parts are attached, so the style's recorded parts are attached too; the audio thread only
+  looks up a drum key in a table made beforehand (`WrittenPlayer::set_drums`). A program or a drum key
+  with no instrument of ours plays on the style's stand-in and is returned as a `StyleNote` for the
+  page to say; nothing is dropped in silence. Solo piano's reduction is `piano_reduction` (its rules in
+  the module's comment); a change to them keeps `solo_piano_plays_every_part_of_a_written_piece` green.
+  Source: music-page.md sections 15a and 25.
+- **Operator FM's every number is data** (`fm_ops.rs`, 2026-11-21): operators, ratios, levels,
+  envelopes, waveforms, wiring, feedback, vibrato, tremolo and pitch drop live in each instrument's
+  file; the voice is given the note's frequency from `tuning::note_hz` and keys its scaling by note
+  number, never by a frequency typed into code (`retro_fm_renders_at_the_tuning` measures each retro FM
+  voice within a cent of A = 432 and of 440). No chip is emulated and no sound sampled. Source:
+  music-page.md section 25; Chowning, J. AES 21(7), 1973.
 
 ## How to test it
 
@@ -144,7 +159,11 @@ And 38 more items, 41 references (`node scripts/crate-cards.js --interface human
   with nothing skipped); `src/tests_written2.rs` the score player's rung 2 (repeats and endings, grace
   notes, octave lines, fermatas, hairpins and accents, articulations, measured tremolos, the piano
   roll's sheet of a written piece) and `src/tests_scores.rs` the three shipped pieces (their bars,
-  their length at the written tempo and their openings, worked out by hand). The crate is optimised in dev and test builds (the
+  their length at the written tempo and their openings, worked out by hand); `src/tests_style.rs` the
+  sound styles (music-page.md section 25: a style file changing the spectrum heard, retro FM within a
+  cent of the tuning, solo piano hearing every role of the symphony, an imported file's programs picking
+  their instruments and a missing one said, the swing and intensity measured in the sound, and each
+  style's cost per block on the symphony's densest ten seconds). The crate is optimised in dev and test builds (the
   root Cargo.toml), so its timing tests measure the game's speed.
 - **What starting the score costs, optimised:** the ignored `kira_sound::device_tests::
   decode_cost_of_starting_the_score` (`cargo test --release -p humanity-music --lib decode_cost --

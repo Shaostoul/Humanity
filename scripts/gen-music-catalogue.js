@@ -3,7 +3,9 @@
 // Written music list read (docs/design/music-page.md section 19): each genre (its words keys, its
 // plain sentence, its tempo, the instruments it plays), each mood (where it plays, its tempo, whether
 // it is heard as danger) and each written piece's catalogue details, all from the RON files the app
-// reads (data/music/genres, data/music/moods, data/music/intensity.ron, data/music/scores/index.ron).
+// reads (data/music/genres, data/music/moods, data/music/intensity.ron, data/music/scores/index.ron),
+// and each sound style written music can be played in (data/music/styles: its words keys and plain
+// sentence, music-page.md section 15a, rung 3a).
 // The website serves tracked data/*.json only, and cannot read RON, hence this copy. Never edit the
 // JSON by hand: change the RON and run `node scripts/gen-music-catalogue.js`;
 // scripts/tests/music-web.test.js refuses a stale copy.
@@ -53,9 +55,10 @@ function build() {
   const genres = dirRon('genres').sort(byDefault(DEFAULT_GENRE));
   const bands = (readRon(path.join(MUSIC, 'intensity.ron')).bands || []).map((b) => b.mood).filter(Boolean);
   const scores = (readRon(path.join(MUSIC, 'scores', 'index.ron')).pieces || []);
+  const styles = fs.existsSync(path.join(MUSIC, 'styles')) ? dirRon('styles') : [];
   const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] ?? '']));
   return {
-    _generated: 'Written by scripts/gen-music-catalogue.js from data/music (genres, moods, intensity.ron, scores/index.ron). Do not edit: change the RON and run the script.',
+    _generated: 'Written by scripts/gen-music-catalogue.js from data/music (genres, moods, intensity.ron, scores/index.ron, styles). Do not edit: change the RON and run the script.',
     genres: genres.map((g) => ({
       ...pick(g, ['id', 'words', 'name', 'plain_words', 'plain', 'about_words', 'about']),
       tempo_bpm: g.tempo_bpm || null,
@@ -72,6 +75,7 @@ function build() {
       length_s: s.length_s || 0,
       parts: (s.staves || []).map((st) => (st.part ? `instrument_packs.part.${st.part}` : (instruments[st.instrument] || `music.instrument.${st.instrument}`))).filter((k, i, a) => a.indexOf(k) === i),
     })),
+    styles: styles.map((s) => pick(s, ['id', 'words', 'name', 'plain_words', 'plain'])),
   };
 }
 

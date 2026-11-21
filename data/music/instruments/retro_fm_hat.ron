@@ -1,0 +1,16 @@
+// RETRO FM's hi-hat (docs/design/music-page.md rung 3a; crate::fm_ops): a noisy, fed-back modulator
+// at an inharmonic ratio over a carrier, a metallic hiss gone in a twentieth of a second. Played
+// high, so its noise sits above the music.
+Instrument(
+    id: "retro_fm_hat",
+    words: "music.instrument.retro_fm_hat",
+    kind: FmOps((
+        ops: [
+            (ratio: 7.13, level: 9.0, envelope: (attack_s: 0.001, decay_s: 0.08, sustain: 0.0, release_s: 0.03)),
+            (ratio: 1.0, level: 0.5, envelope: (attack_s: 0.001, decay_s: 0.07, sustain: 0.0, release_s: 0.03), mods: [0], out: true),
+        ],
+        feedback: 12.0,
+    )),
+    level_db: -16.0,
+    reverb_send: 0.1,
+)

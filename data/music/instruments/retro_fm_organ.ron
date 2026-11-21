@@ -1,0 +1,19 @@
+// RETRO FM's organ (docs/design/music-page.md rung 3a; crate::fm_ops): three carriers added at the
+// note, its octave and two octaves up (like an organ's stops), the lowest warmed by a light
+// modulator, held while the key is down, with the early sound cards' slow tremolo. It plays organs,
+// pads and held harmony.
+Instrument(
+    id: "retro_fm_organ",
+    words: "music.instrument.retro_fm_organ",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 0.6, envelope: (attack_s: 0.01, decay_s: 0.0, sustain: 1.0, release_s: 0.08)),
+            (ratio: 1.0, level: 0.55, envelope: (attack_s: 0.01, decay_s: 0.0, sustain: 1.0, release_s: 0.08), mods: [0], out: true),
+            (ratio: 2.0, level: 0.3, envelope: (attack_s: 0.01, decay_s: 0.0, sustain: 1.0, release_s: 0.08), out: true),
+            (ratio: 4.0, level: 0.12, envelope: (attack_s: 0.01, decay_s: 0.0, sustain: 1.0, release_s: 0.08), out: true),
+        ],
+        tremolo: Some((3.7, 1.0)),
+    )),
+    level_db: -16.0,
+    reverb_send: 0.2,
+)

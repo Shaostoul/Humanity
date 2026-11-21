@@ -1,5 +1,5 @@
 {
-  "_generated": "Written by scripts/gen-music-catalogue.js from data/music (genres, moods, intensity.ron, scores/index.ron). Do not edit: change the RON and run the script.",
+  "_generated": "Written by scripts/gen-music-catalogue.js from data/music (genres, moods, intensity.ron, scores/index.ron, styles). Do not edit: change the RON and run the script.",
   "genres": [
     {
       "id": "mothership_calm",
@@ -343,6 +343,29 @@
         "instrument_packs.part.strings_low",
         "instrument_packs.part.bass_strings"
       ]
+    }
+  ],
+  "styles": [
+    {
+      "id": "general_midi",
+      "words": "music.style.general_midi",
+      "name": "",
+      "plain_words": "music.style.general_midi_plain",
+      "plain": ""
+    },
+    {
+      "id": "retro_fm",
+      "words": "music.style.retro_fm",
+      "name": "",
+      "plain_words": "music.style.retro_fm_plain",
+      "plain": ""
+    },
+    {
+      "id": "solo_piano",
+      "words": "music.style.solo_piano",
+      "name": "",
+      "plain_words": "music.style.solo_piano_plain",
+      "plain": ""
     }
   ]
 }

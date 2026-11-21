@@ -134,6 +134,14 @@
     return (cat.moods || []).map((m) => ({ id: m.id, name: words(m.words, '', readable(m.id)), where: words(m.where_words, m.where_plain, ''), tempo: tempoWords(m.tempo_bpm), danger: !!m.danger }));
   }
 
+  // Each sound style's card, as the app draws them on Explore (explore.rs, music-page.md rung 3a): "As
+  // written" first, then each style file's name and plain sentence. The website plays no sound, so the
+  // cards only show what each style does; the app plays written music in the one chosen there.
+  function styleCards(cat) {
+    const first = { id: '', name: tr('music_page.style_as_written'), plain: tr('music_page.style_as_written_plain') };
+    return [first].concat((cat.styles || []).map((s) => ({ id: s.id, name: words(s.words, s.name, readable(s.id)), plain: words(s.plain_words, s.plain, '') })));
+  }
+
   // ── The page ─────────────────────────────────────────────────────────────────────────────────────
   function start(doc, fetchFn, storage) {
     const $ = (id) => doc.getElementById(id);
@@ -265,6 +273,11 @@
       m.textContent = '';
       for (const c of genreCards(state.cat)) g.appendChild(card(c.name, [['plain', c.plain], ['line', c.tempo], ['line', c.instruments]]));
       for (const c of moodCards(state.cat)) m.appendChild(card(c.name, [['plain', c.where], ['line', c.tempo], ['danger', c.danger ? tr('music_page.mood_danger') : '']]));
+      const st = $('mp-styles');
+      if (st) {
+        st.textContent = '';
+        for (const c of styleCards(state.cat)) st.appendChild(card(c.name, [['plain', c.plain]]));
+      }
     }
     function fillSelect(sel, all, values, chosen) {
       sel.textContent = '';
@@ -352,7 +365,7 @@
       .then(() => ({ show, state, renderWritten, opened: () => opened }));
   }
 
-  const api = { read, words, scoreWords, eraWords, lengthWords, catalogue, genreCards, moodCards, start, TABS };
+  const api = { read, words, scoreWords, eraWords, lengthWords, catalogue, genreCards, moodCards, styleCards, start, TABS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else {
     // Reading localStorage itself throws where site data is blocked: the page then keeps favourites for the visit only.

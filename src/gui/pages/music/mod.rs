@@ -37,10 +37,13 @@ mod keys;
 mod mixer;
 mod roll;
 mod strip;
+pub mod styles;
 #[cfg(test)]
 pub(crate) mod tests;
 #[cfg(test)]
 mod tests_rung2;
+#[cfg(test)]
+mod tests_style;
 #[cfg(test)]
 mod tests_v2;
 mod view;
@@ -385,9 +388,10 @@ pub fn chosen_composed(s: &MusicSettings, lib: Option<&MusicLibrary>) -> Option<
         return None;
     }
     let mood = mood_or_default(&s.mood);
-    let intensity = lib.map(|l| explore_intensity(l, &mood)).unwrap_or(0.3);
     let tune = lib.and_then(|l| l.genre_index(&s.genre).map(|g| s.tune.to_tune(l, g))).unwrap_or_default();
-    Some(MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune, written: None })
+    // The page's Intensity when the person set one (rung 3a), else the mood's own.
+    let intensity = if tune.intensity >= 0.0 { tune.intensity.min(1.0) } else { lib.map(|l| explore_intensity(l, &mood)).unwrap_or(0.3) };
+    Some(MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune, written: None, style: None })
 }
 
 /// The written piece the person chose (`MusicSettings::written`, docs/design/score-player.md section
@@ -402,7 +406,10 @@ pub fn written_choice(s: &MusicSettings, lib: Option<&MusicLibrary>) -> MusicCho
         tune.mute = full.mute;
         tune.solo = full.solo;
     }
-    MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune, written: Some(s.written.clone()) }
+    // The sound style it plays in (rung 3a): the person's choice for it or for all written music, else
+    // an imported file's General-MIDI-like style. Its id names the build the engine asks for.
+    let imported = lib.and_then(|l| l.score(&s.written)).map(humanity_music::style::is_imported).unwrap_or(s.written.starts_with(humanity_music::own::ID_PREFIX));
+    MusicChoice { genre: s.genre.clone(), mood: Some(mood), intensity: Some(intensity), seed: s.seed.max(1), tune, written: Some(s.written.clone()), style: s.style_for(&s.written, imported) }
 }
 
 /// A written piece's title and composer for a person: their words by key, else the plain words a
@@ -493,7 +500,7 @@ pub fn open_favourite(s: &mut MusicSettings, f: &Favourite) {
 /// A favourite as "my music" plays it: its genre, seed and tuning in the game's own mood.
 pub fn my_music_choice(f: &Favourite, lib: &MusicLibrary) -> Option<MusicChoice> {
     let g = lib.genre_index(&f.genre)?;
-    Some(MusicChoice { genre: f.genre.clone(), mood: None, intensity: None, seed: f.seed, tune: f.tune.to_tune(lib, g), written: None })
+    Some(MusicChoice { genre: f.genre.clone(), mood: None, intensity: None, seed: f.seed, tune: f.tune.to_tune(lib, g), written: None, style: None })
 }
 
 /// A genre's name for a person: its words by key, else the plain name a community file gives, else
@@ -575,6 +582,12 @@ pub fn now_playing_words(s: &MusicSettings, r: &MusicReadout) -> String {
 /// A lead voice's words: its part's (`instrument_packs.part.<id>`), else its id made readable.
 pub fn voice_words(id: &str) -> String {
     let key = format!("instrument_packs.part.{id}");
+    let w = t_dyn(&key);
+    if w != key {
+        return w.to_string();
+    }
+    // A synthesised instrument of ours (a sound style's retro FM voices, rung 3a).
+    let key = format!("music.instrument.{id}");
     let w = t_dyn(&key);
     if w != key {
         w.to_string()

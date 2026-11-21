@@ -1,0 +1,16 @@
+// RETRO FM's kick (docs/design/music-page.md rung 3a; crate::fm_ops): a lightly modulated sine
+// whose pitch falls two octaves in its first few hundredths of a second, then dies away. The early
+// FM sound cards' drivers swept a tone's pitch the same way for their drums.
+Instrument(
+    id: "retro_fm_kick",
+    words: "music.instrument.retro_fm_kick",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 1.2, envelope: (attack_s: 0.001, decay_s: 0.06, sustain: 0.0, release_s: 0.03)),
+            (ratio: 1.0, level: 1.0, envelope: (attack_s: 0.001, decay_s: 0.45, sustain: 0.0, release_s: 0.06), mods: [0], out: true),
+        ],
+        pitch_drop: Some((24.0, 0.025)),
+    )),
+    level_db: -9.0,
+    reverb_send: 0.05,
+)

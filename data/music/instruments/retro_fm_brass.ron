@@ -1,0 +1,17 @@
+// RETRO FM's brass (docs/design/music-page.md rung 3a; crate::fm_ops): Chowning's brass recipe
+// (1973): a 1:1 pair whose index RISES with the note's attack, so the tone brightens as it speaks,
+// the way a horn's does, with a touch of feedback. It plays the horns and trumpets.
+Instrument(
+    id: "retro_fm_brass",
+    words: "music.instrument.retro_fm_brass",
+    kind: FmOps((
+        ops: [
+            (ratio: 1.0, level: 3.2, envelope: (attack_s: 0.06, decay_s: 0.5, sustain: 0.7, release_s: 0.12), key_scale_db: 3.0, velocity: 0.8),
+            (ratio: 1.0, level: 0.8, envelope: (attack_s: 0.03, decay_s: 0.8, sustain: 0.85, release_s: 0.12), mods: [0], out: true),
+        ],
+        feedback: 0.5,
+        vibrato: Some((5.5, 5.0)),
+    )),
+    level_db: -15.0,
+    reverb_send: 0.15,
+)

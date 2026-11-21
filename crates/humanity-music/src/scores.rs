@@ -36,6 +36,29 @@ pub struct StaffSpec {
     /// `instrument` when none is installed. None: `instrument` always.
     #[serde(default)]
     pub part: Option<String>,
+    /// An imported MIDI file's General MIDI program for this staff (0 to 127), and whether it played
+    /// on channel 10, the drums (crate::own writes both; a sound style plays the staff by them,
+    /// crate::style, music-page.md rung 3a).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub program: Option<u8>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub drums: bool,
+    /// A drum staff's instruments key by key, as a sound style maps them (never in a file: made on
+    /// the build thread when the piece is played through a style).
+    #[serde(skip)]
+    pub drum_map: Vec<DrumHit>,
+}
+
+/// One drum key of a drum staff and what plays it (crate::style's drum map).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DrumHit {
+    /// The key the file strikes (the General MIDI drum map's numbering: 36 a kick, 38 a snare ...).
+    pub key: u8,
+    pub instrument: String,
+    pub part: Option<String>,
+    pub level_db: f32,
+    /// The note it plays at (a synthesised drum's pitch; a recorded hit plays at its own).
+    pub midi: f32,
 }
 
 fn default_role() -> String {
@@ -227,7 +250,13 @@ impl WrittenPiece {
                 pan: s.pan.clamp(-1.0, 1.0),
             })
             .collect();
-        WrittenPlayer::new(self.timeline.clone(), voices, rate, a4, self.entry.rest_s, self.entry.level_db)
+        let mut player = WrittenPlayer::new(self.timeline.clone(), voices, rate, a4, self.entry.rest_s, self.entry.level_db);
+        // A drum staff a sound style mapped plays each key on its own instrument (crate::style).
+        for s in self.entry.staves.iter().filter(|s| !s.drum_map.is_empty()) {
+            let hits = s.drum_map.iter().filter_map(|h| res.instrument_index(&h.instrument).map(|i| (h.key, i, h.midi, crate::dsp::db_to_amp(h.level_db)))).collect::<Vec<_>>();
+            player.set_drums(s.staff, &hits);
+        }
+        player
     }
 }
 
@@ -238,6 +267,14 @@ impl WrittenPiece {
 pub fn written_parts(entry: &ScoreEntry, score: &MeiScore) -> Vec<(String, String, i32)> {
     let mut out: Vec<(String, String, i32)> = Vec::new();
     for s in &entry.staves {
+        // A mapped drum staff's parts, each at the pitch it plays.
+        for h in &s.drum_map {
+            if let Some(part) = &h.part {
+                if !out.iter().any(|(p, _, _)| p == part) {
+                    out.push((part.clone(), h.instrument.clone(), h.midi.round() as i32));
+                }
+            }
+        }
         let Some(part) = &s.part else { continue };
         if out.iter().any(|(p, _, _)| p == part) {
             continue;
@@ -252,9 +289,15 @@ pub fn written_parts(entry: &ScoreEntry, score: &MeiScore) -> Vec<(String, Strin
 /// Point each staff of `entry` that names a part with a recording attached (`recorded`: the part
 /// and the score's instrument id that plays it) at that recording.
 pub fn point_staves(entry: &mut ScoreEntry, recorded: &[(String, String)]) {
+    let find = |part: &Option<String>| part.as_ref().and_then(|p| recorded.iter().find(|(q, _)| q == p)).map(|(_, id)| id.clone());
     for s in &mut entry.staves {
-        if let Some(id) = s.part.as_ref().and_then(|p| recorded.iter().find(|(q, _)| q == p)).map(|(_, id)| id.clone()) {
+        if let Some(id) = find(&s.part) {
             s.instrument = id;
+        }
+        for h in &mut s.drum_map {
+            if let Some(id) = find(&h.part) {
+                h.instrument = id;
+            }
         }
     }
 }
