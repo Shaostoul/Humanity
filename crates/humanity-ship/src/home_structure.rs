@@ -1962,6 +1962,7 @@ impl HomeStructure {
                 is_spawn_room: true,
                 room_type: None,
                 label: String::new(),
+                label_is_name: false,
             }]
         };
         // No interior walls and no upper floor -> the whole box is one room (keeps the empty-box
@@ -2091,6 +2092,7 @@ impl HomeStructure {
                             is_spawn_room: false,
                             room_type: None,
                             label: String::new(),
+                            label_is_name: false,
                         });
                         room_storeys.push(k);
                     }
@@ -4088,6 +4090,7 @@ mod storey_tests {
                 is_spawn_room: true,
                 room_type: None,
                 label: String::new(),
+                label_is_name: false,
             }];
         }
 
@@ -4160,6 +4163,7 @@ mod storey_tests {
                         is_spawn_room: false,
                         room_type: None,
                         label: String::new(),
+                        label_is_name: false,
                     });
                 }
             }
@@ -4175,6 +4179,7 @@ mod storey_tests {
                 is_spawn_room: true,
                 room_type: None,
                 label: String::new(),
+                label_is_name: false,
             }];
         }
         // Give the rooms their identity: a zone that covers a room's centre lends it its id,

@@ -2240,15 +2240,22 @@ impl ShipStructure {
             for mut r in m.room_info {
                 r.center += o;
                 if zi != home_idx {
-                    r.id = format!("{}:{}", z.id, r.id);
-                    r.is_spawn_room = false;
                     // The zone's own floor (2026-11-21): a room none of this zone's own rooms
                     // names (General Services' hall, the Commons' floor, a street) is the zone
                     // itself, so it reads as the zone, by key (`zone_words`). Until then it kept
                     // the anonymous id and the HUD said "general-services-1:room_3".
                     if r.label.is_empty() {
                         r.label = crate::room_types::zone_words(&z.id, &z.label);
+                    } else {
+                        // A room this zone's builder named (its inner zone's label: General
+                        // Services' medbay and barracks, the cabin block's washroom) reads that
+                        // name, by key (`room_words`), over its room type's: the medbay read
+                        // "Medical Bay", the district next door, the barracks "Crew Quarters".
+                        r.label = crate::room_types::room_words(&z.id, &r.id, &r.label);
+                        r.label_is_name = true;
                     }
+                    r.id = format!("{}:{}", z.id, r.id);
+                    r.is_spawn_room = false;
                 }
                 out.room_info.push(r);
             }
@@ -2299,6 +2306,7 @@ impl ShipStructure {
                     };
                     crate::room_types::corridor_words(&words(g.from_zone_idx), &words(g.to_zone_idx))
                 },
+                label_is_name: false,
             });
         }
         // The neighbours' homes and corridors (see above): drawn, never a room, never walked into.

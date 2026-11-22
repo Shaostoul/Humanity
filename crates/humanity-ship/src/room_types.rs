@@ -230,7 +230,9 @@ impl RoomTypeRegistry {
         let key = room.type_key();
         let def = if room.room_type.is_some() { self.lookup_type(key) } else { self.types.get(key) };
         RoomFunction {
-            display_name: def.map(|t| t.name.clone()).unwrap_or_else(|| {
+            // A room with its own name (`RoomInfo::label_is_name`) reads it; else its type's name;
+            // else the zone label; else the id.
+            display_name: room.label_is_name.then(|| room.label.clone()).or_else(|| def.map(|t| t.name.clone())).unwrap_or_else(|| {
                 if room.label.is_empty() {
                     room.id.clone()
                 } else {
@@ -279,6 +281,31 @@ pub fn zone_words(id: &str, label: &str) -> String {
         }
     }
     let _ = id;
+    label.to_string()
+}
+
+/// The key of the name of room `room` (an inner zone's id) in the ship's shared zone `zone`:
+/// `ship_rooms.<zone>.<room>`, hyphens as underscores (`ship_rooms.general_services_1.gs_medbay`).
+/// Keyed by both, because an inner zone's id is only unique within its zone.
+pub fn room_key(zone: &str, room: &str) -> String {
+    format!("ship_rooms.{}.{}", zone.replace('-', "_"), room.replace('-', "_"))
+}
+
+/// The name a person reads for a room a shared zone's builder named (2026-11-21, General
+/// Services' medbay and barracks): the words of `room_key` in data/i18n/en.json when it has one
+/// (the ELI5 mandate), else the room's own `label` from data/blueprints/ship_structure.ron. Such a
+/// room reads this over its room type's name (`RoomInfo::label_is_name`): the medbay read its
+/// type's "Medical Bay", the name of the district next door, and the barracks "Crew Quarters".
+/// The server build has no word source, so there it is the label.
+pub fn room_words(zone: &str, room: &str, label: &str) -> String {
+    #[cfg(feature = "native")]
+    {
+        let key = room_key(zone, room);
+        if humanity_core::i18n::has(&key) {
+            return humanity_core::i18n::t_dyn(&key).to_string();
+        }
+    }
+    let _ = (zone, room);
     label.to_string()
 }
 
@@ -335,6 +362,7 @@ mod tests {
             is_spawn_room: false,
             room_type: None,
             label: String::new(),
+            label_is_name: false,
         };
         assert_eq!(reg.function_for(&room).purpose, words, "the HUD's room line reads the same words");
         // A type with no key keeps its file's words.
@@ -349,7 +377,8 @@ mod tests {
     /// "general-services-1:room_3" in the hall beside the public pod, and a corridor said
     /// "corridor_4". Now the zone's own floor is the zone, by key (`zone_words`), and a corridor
     /// is named by the two zones it joins (`corridor_words`). Every room of General Services is
-    /// checked by name: its hall reads the key's words, its medbay and barracks their room types'.
+    /// checked by name: its hall reads the zone's key, its medbay and barracks their own keys
+    /// (`room_words`).
     ///
     /// Seen red 2026-11-21 before the floor and corridor names: "rooms that read as an id:
     /// commons:room_1 reads \"commons:room_1\"; ... street-1:home reads \"street-1:home\";
@@ -367,6 +396,28 @@ mod tests {
         let id_like = |n: &str| n.is_empty() || n.contains(':') || n.starts_with("room_") || n.starts_with("corridor_");
         let bad: Vec<String> = rooms.iter().filter(|r| id_like(&r.display_name)).map(|r| format!("{} reads {:?}", r.id, r.display_name)).collect();
         assert!(bad.is_empty(), "rooms that read as an id: {}", bad.join("; "));
+        // Every room a shared zone's builder named reads its own name by key, never its room
+        // type's (the cabin block's washroom read "Bathroom"), and a new one without a key fails
+        // here rather than showing words no translation can reach. Seen red 2026-11-21 before
+        // `room_words`, the keys already written: "named rooms not read by key: cabins-1:washroom-1
+        // reads \"Bathroom\" (key ship_rooms.cabins_1.washroom_1); general-services-1:gs-medbay
+        // reads \"Medical Bay\" (key ...gs_medbay); general-services-1:gs-barracks reads \"Crew
+        // Quarters\" (key ...gs_barracks)".
+        let named: Vec<String> = ship
+            .zones
+            .iter()
+            .enumerate()
+            .filter(|(zi, _)| *zi != ship.home_zone_index())
+            .flat_map(|(_, z)| z.body.zones.iter().map(move |inner| (z.id.clone(), inner.id.clone())))
+            .filter_map(|(zone, inner)| {
+                let id = format!("{zone}:{inner}");
+                let room = rooms.iter().find(|r| r.id == id)?;
+                let key = room_key(&zone, &inner);
+                let ok = humanity_core::i18n::has(&key) && room.display_name == humanity_core::i18n::t_dyn(&key);
+                (!ok).then(|| format!("{id} reads {:?} (key {key})", room.display_name))
+            })
+            .collect();
+        assert!(named.is_empty(), "named rooms not read by key: {}", named.join("; "));
         // General Services, room by room: x 182..200, z 93..141 (medbay 93..111, barracks 111..127,
         // the hall with the public pod 127..141).
         let at = |x: f32, z: f32| {
@@ -377,8 +428,14 @@ mod tests {
         };
         assert_eq!(at(191.0, 134.0).display_name, humanity_core::i18n::t("ship_zones.general_services_1"), "the hall is General Services, by key");
         assert_eq!(at(191.0, 134.0).display_name, "General Services");
-        assert_eq!(at(191.0, 102.0).display_name, reg.types["medbay"].name, "the medbay reads its room type");
-        assert_eq!(at(191.0, 119.0).display_name, reg.types["quarters"].name, "the barracks reads its room type");
+        // Its medbay and barracks read their own names, by key (2026-11-21 follow-up): their room
+        // types' names ("Medical Bay", "Crew Quarters") are the Medical Bay district's next door
+        // and a crew word. Seen red 2026-11-21 before the keys and `room_words`: "the medbay, by
+        // key", `left: "Medical Bay"`, `right: "ship_rooms.general_services_1.gs_medbay"`.
+        assert_eq!(at(191.0, 102.0).display_name, humanity_core::i18n::t("ship_rooms.general_services_1.gs_medbay"), "the medbay, by key");
+        assert_eq!(at(191.0, 102.0).display_name, "Medbay");
+        assert_eq!(at(191.0, 119.0).display_name, humanity_core::i18n::t("ship_rooms.general_services_1.gs_barracks"), "the barracks, by key");
+        assert_eq!(at(191.0, 119.0).display_name, "Barracks");
         let gs_rooms: Vec<&str> = rooms.iter().filter(|r| r.id.starts_with("general-services-1")).map(|r| r.id.as_str()).collect();
         assert_eq!(gs_rooms.len(), 3, "General Services is three rooms: {gs_rooms:?}");
         // The corridor from First Street to it names both.
@@ -457,6 +514,7 @@ mod tests {
             is_spawn_room: false,
             room_type: room_type.map(str::to_string),
             label: label.to_string(),
+            label_is_name: false,
         };
         // The homestead's great room: the living room, with the screens den's workstation in it
         // since 2026-11-13 (its name and purpose from rooms.ron, its actions as labels).

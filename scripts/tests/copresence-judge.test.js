@@ -296,15 +296,20 @@ test("a clothed body counts by its teal face, arms and hair; in its natural look
   assert.ok(natural.count < FIGURE_MIN_PX);
 });
 
-// The capture can land a second or more after the nameplate was asked for (a busy
-// machine, 2026-10-04: asked at x 1505, the figure captured at x 1286, so "0
-// teal px under its nameplate" with the figure in plain view). Asked again right
-// after the capture, the box spans both: the figure walked from one to the other.
-test("the figure between the nameplate before and after the capture counts; a window over it still fails", () => {
-  // The name asked at x 380, the body captured at 180..220, the name after the capture at 160.
-  assert.equal(figurePixels(picture(), [380, 90]).count, 0, "asked once, 160 px behind the figure: missed");
-  assert.equal(figurePixels(picture(), [380, 90], [160, 90]).count, 40 * 150, "asked before and after: the span holds it");
-  assert.equal(figurePixels(picture({ cover: true }), [380, 90], [160, 90]).count, 0, "a window over it still reads nothing");
+// THE NAME IS THE PICTURE'S OWN (2026-11-21). A window capture waits for 16 settled frames, 1 to 3
+// s on a busy machine, so a name asked before the capture (and, until that day, again after it) is
+// about other frames: on the walker-first meeting of runs 20261121-230950 and -232752 the walk
+// turned at its line's end inside the capture, both names stood on one side of the figure, and the
+// box between them read 29 and 0 teal px of a figure in plain view (827 and 824 px in the picture).
+// The box now stands under where the picture's own frame drew the name (the screenshot request's
+// find, src/engine/capture_find.rs): figurePixels takes that one name. Scaled to this 400 px
+// picture: the names asked before and after at 390 and 375 (both past the figure, the walk having
+// turned), the figure at 180..220, its name in the picture at 200.
+test("the box stands under the picture's own nameplate; a name from another frame misses the figure", () => {
+  assert.equal(figurePixels(picture(), [390, 90]).count, 0, "the name asked before the capture: 190 px off, missed");
+  assert.equal(figurePixels(picture(), [375, 90]).count, 0, "the name asked after it: missed too");
+  assert.equal(figurePixels(picture(), [200, 90]).count, 40 * 150, "the picture's own name: the box holds the figure");
+  assert.equal(figurePixels(picture({ cover: true }), [200, 90]).count, 0, "a window over it still reads nothing");
 });
 
 test("the room itself is not teal", () => {

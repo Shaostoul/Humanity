@@ -334,6 +334,12 @@ pub struct RoomInfo {
     /// zone sets no `room_type` still reads as a place and not as an id. Empty when no zone
     /// covers the room.
     pub label: String,
+    /// Whether `label` is this room's OWN name, read over its room type's (2026-11-21): a room a
+    /// shared zone's builder named, by key (`room_types::room_words`: General Services' "Medbay"
+    /// and "Barracks", not their types' "Medical Bay", the district next door, and "Crew
+    /// Quarters"). Set by `ShipStructure::generate_meshes`; false everywhere else, so the home's
+    /// rooms keep reading their types' names ("Living Room", not the editor's "Great room").
+    pub label_is_name: bool,
 }
 
 impl RoomInfo {
@@ -1447,6 +1453,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
             // Legacy layout: the id IS the rooms.ron key, no zone join needed.
             room_type: None,
             label: String::new(),
+            label_is_name: false,
         });
 
         // Ceiling (built for every room; only DRAWN when the roof toggle is on).
@@ -1648,6 +1655,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
                 // Legacy layout: the id IS the rooms.ron key, no zone join needed.
                 room_type: None,
                 label: String::new(),
+                label_is_name: false,
             });
         }
     }

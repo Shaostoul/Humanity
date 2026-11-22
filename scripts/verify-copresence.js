@@ -765,14 +765,16 @@ async function ui(body, timeoutMs = 15000) {
   req("ui_request.json", body);
   return waitFile("ui_request_done.json", timeoutMs);
 }
-async function screenshot(name) {
+/** A window screenshot. `find` names a drawn text: the game then says where THE CAPTURED FRAME
+ *  drew it (the done file's `find`, src/engine/capture_find.rs), returned as `find`. */
+async function screenshot(name, find = null) {
   clearDone("screenshot_done.json");
-  req("screenshot_request.json", { note: `verify-copresence ${name}` });
+  req("screenshot_request.json", find ? { note: `verify-copresence ${name}`, find } : { note: `verify-copresence ${name}` });
   const shot = await waitFile("screenshot_done.json", 30000);
   if (!shot || !shot.ok || !shot.path) return { ok: false, error: shot ? shot.error || "no path" : "no screenshot_done.json in 30 s" };
   const src = path.isAbsolute(shot.path) ? shot.path : path.join(RIG, shot.path);
   if (!fs.existsSync(src)) return { ok: false, error: `the game said it wrote ${shot.path}, which is not there` };
-  return { ok: true, src };
+  return { ok: true, src, find: shot.find || null };
 }
 
 /** The game's environment: this shell's, minus every HUMANITY_* variable (no
@@ -1342,8 +1344,11 @@ async function doorPointsOf() {
  *  and two thirds of the way along, timed from when it reached the line plus
  *  the drawing delay. Right before each, the game is asked where it drew the
  *  walker's NAMEPLATE (the ui `find` verb, exact text): the game's own word that
- *  the figure is on screen, and where. Copies each PNG into `out` as
- *  `<prefix>shot_a.png` and `<prefix>shot_b.png`. */
+ *  the figure is on screen at the moment chosen, and where (`nameplate`, which
+ *  `nameplateMoves` reads). The capture itself names it too, so the game says
+ *  where THE PICTURE'S OWN FRAME drew it (`nameplate_in_picture`, the screenshot
+ *  request's `find`, src/engine/capture_find.rs), which `figureVisible` reads.
+ *  Copies each PNG into `out` as `<prefix>shot_a.png` and `<prefix>shot_b.png`. */
 async function takeShots(name, onLineAt, passS, out, prefix = "") {
   const shots = [];
   for (const [label, share] of [["shot_a", 0.3], ["shot_b", 0.65]]) {
@@ -1351,19 +1356,24 @@ async function takeShots(name, onLineAt, passS, out, prefix = "") {
     if (Date.now() < due) await sleep(due - Date.now());
     const np = await ui({ action: "find", text: name });
     const requested = (Date.now() - onLineAt) / 1000;
-    const s = await screenshot(`${prefix}${label}`);
+    // The picture, and where its own frame drew the name. A find before or after the request
+    // cannot stand in for it (2026-11-21): a window capture waits for 16 settled frames, 1 to 3 s
+    // on a busy machine, and the walker turned at its line's end inside that time, so the names
+    // asked before and after the capture both stood near 77.1 to 77.7 m while the picture showed
+    // the walker near 79 m, outside the box between them (runs 20261121-230950 and -232752).
+    const s = await screenshot(`${prefix}${label}`, name);
     // When the capture was done, by the computer's clock: the capture's own long frame (400+ ms
     // on a busy machine) is the rig disturbing the drawing, so the meeting judges its walk on a
     // forward leg after the last of them (meetChecks).
     const taken = Date.now();
-    // Where the name is drawn right after the capture too: the figure in the picture stood
-    // between the two (figurePixels counts the span; on a busy machine the capture can land a
-    // second after the first ask).
-    const np2 = await ui({ action: "find", text: name });
     const nameplate = np && np.found && np.text === name ? { pos_px: np.pos_px, rect_px: np.rect_px } : null;
-    const nameplateAfter = np2 && np2.found && np2.text === name ? { pos_px: np2.pos_px, rect_px: np2.rect_px } : null;
+    const pf = s.ok ? s.find : null;
+    // null: the picture's frame drew no such name (the whole picture is then counted); absent
+    // from the record only when the capture failed.
+    const nameplateInPicture = pf && pf.found && pf.text === name ? { pos_px: pf.pos_px, rect_px: pf.rect_px } : null;
     const npNote = np ? (np.found ? `found "${np.text}"` : "not drawn") : "no answer";
-    const rec = { nameplate, nameplate_after: nameplateAfter, nameplate_find: npNote, taken_epoch_ms: taken };
+    const pfNote = pf ? (pf.found ? `found "${pf.text}"` : "not drawn") : "no answer";
+    const rec = { nameplate, nameplate_in_picture: nameplateInPicture, nameplate_find: npNote, picture_find: pfNote, taken_epoch_ms: taken };
     if (s.ok) {
       fs.copyFileSync(s.src, path.join(out, `${prefix}${label}.png`));
       shots.push({ file: `${prefix}${label}.png`, s_after_reaching_line: Number(requested.toFixed(2)), expected_along_m: Number((SPEED * requested).toFixed(2)), ...rec });
@@ -1536,16 +1546,27 @@ function crewInTree() {
 }
 
 /** The figure is VISIBLE in both pictures, not just drawn: its teal body
- *  counted under where the game put its nameplate (the whole picture when no
- *  nameplate position was recorded). Computed from the PNGs, so --dry-verdict
- *  re-checks it. Returns { ok, detail }. */
+ *  counted under where THE PICTURE'S OWN FRAME put its nameplate
+ *  (`nameplate_in_picture`, takeShots; the whole picture when that frame drew
+ *  no nameplate). Computed from the PNGs, so --dry-verdict re-checks it.
+ *  Returns { ok, detail }.
+ *
+ *  A record without the picture's own answer is not judged (2026-11-21): the
+ *  names asked before and after a capture are about other frames, and on a busy
+ *  machine the walk turned between them, so the box between them missed a figure
+ *  in plain view. Seen red so on runs 20261121-230950 and -232752 (walker-first):
+ *  "meet_shot_b.png: 29 teal px under its nameplate (x 1133 before the capture,
+ *  1086 after)" and "0 teal px ... (x 1115 before the capture, 1034 after)", with
+ *  827 and 824 teal px in those pictures, centred at x 984 and 844. */
 function figureVisible(shots, dir) {
   const seenIn = (shots || []).map((sh) => {
     if (!sh.file || !fs.existsSync(path.join(dir, sh.file))) return { file: sh.file, ok: false, note: "no picture" };
-    const at = sh.nameplate && sh.nameplate.pos_px ? sh.nameplate.pos_px : null;
-    const after = at && sh.nameplate_after && sh.nameplate_after.pos_px ? sh.nameplate_after.pos_px : null;
-    const f = figurePixels(png.decode(fs.readFileSync(path.join(dir, sh.file))), at, after);
-    const where = !at ? "in the whole picture" : after ? `under its nameplate (x ${at[0].toFixed(0)} before the capture, ${after[0].toFixed(0)} after)` : "under its nameplate";
+    if (!("nameplate_in_picture" in sh) || !/^(found|not drawn)/.test(sh.picture_find || "")) {
+      return { file: sh.file, ok: false, note: `the game never said where this picture's frame drew the nameplate (${sh.picture_find || "not recorded"}): the screenshot request's find, src/engine/capture_find.rs` };
+    }
+    const at = sh.nameplate_in_picture ? sh.nameplate_in_picture.pos_px : null;
+    const f = figurePixels(png.decode(fs.readFileSync(path.join(dir, sh.file))), at);
+    const where = at ? `under its nameplate in the picture (x ${at[0].toFixed(0)})` : "in the whole picture (its frame drew no nameplate)";
     return { file: sh.file, ok: f.count >= FIGURE_MIN_PX, note: `${f.count} teal px ${where}${f.centroid ? ` (centre x ${f.centroid[0].toFixed(0)})` : ""}` };
   });
   return {

@@ -33,6 +33,7 @@ pub(crate) fn run(state: &mut EngineState, f: &mut FrameVars, surface_texture: w
             &surface_texture.texture,
             size,
             &scene_lists,
+            None,
         );
     }
     poll_screenshot_request(state, &surface_texture.texture, &scene_lists);

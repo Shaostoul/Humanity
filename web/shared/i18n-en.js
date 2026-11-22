@@ -5433,6 +5433,15 @@ window.HOS_I18N_EN = {
     "pip": "Float it",
     "pip_hint": "Lets the video float over other windows too, using your browser's own picture-in-picture."
   },
+  "ship_rooms": {
+    "cabins_1": {
+      "washroom_1": "Washroom"
+    },
+    "general_services_1": {
+      "gs_barracks": "Barracks",
+      "gs_medbay": "Medbay"
+    }
+  },
   "ship_zones": {
     "cabins_1": "Cabin Block A",
     "commons": "The Commons",

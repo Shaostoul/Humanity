@@ -1530,20 +1530,23 @@ function isFigureTeal(r, g, b) {
 const FIGURE_MIN_PX = 400;
 
 /// Count figure-teal pixels in `img` ({ width, height, rgba }, scripts/lib/
-/// png.js decode). With `nameplate` ([x, y], window pixels, where the game
-/// drew the walker's name), only a box under it is counted: 150 px either
-/// side (the figure moves a little between asking and capturing) and 450 px
-/// down from the name. With `after` too (where the name was drawn when asked
-/// again right after the capture), the box spans both, 150 px either side: on
-/// a busy machine the capture can land a second or more after the first ask,
-/// and the figure walks 200 px in that time (2026-10-04, increment 2's
-/// meeting: the name asked at x 1505, the figure captured at x 1286). Without
-/// a nameplate, the whole picture. Returns { count, box, centroid } (centroid
-/// null when nothing counted).
-function figurePixels(img, nameplate = null, after = null) {
-  const xs = [nameplate, after].filter(Boolean).map((p) => p[0]);
+/// png.js decode). With `nameplate` ([x, y], window pixels, where THE
+/// PICTURE'S OWN FRAME drew the walker's name: the screenshot request's find,
+/// src/engine/capture_find.rs), only a box under it is counted: 150 px either
+/// side (the figure's arms, and a body turned on its walk) and 450 px down from
+/// the name. Without a nameplate, the whole picture. Returns { count, box,
+/// centroid } (centroid null when nothing counted).
+///
+/// Until 2026-11-21 the name came from the ui `find` verb asked before the
+/// capture and again after it, and the box spanned both (2026-10-04: the
+/// capture landed a second after the first ask). Neither is the picture's
+/// frame: a window capture waits for 16 settled frames, 1 to 3 s on a busy
+/// machine, and when the walk turned at its line's end inside that time both
+/// names stood on one side of the figure the picture caught (verify-copresence
+/// `figureVisible` has the runs).
+function figurePixels(img, nameplate = null) {
   const box = nameplate
-    ? [Math.max(0, Math.round(Math.min(...xs) - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(Math.max(...xs) + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
+    ? [Math.max(0, Math.round(nameplate[0] - 150)), Math.max(0, Math.round(nameplate[1])), Math.min(img.width, Math.round(nameplate[0] + 150)), Math.min(img.height, Math.round(nameplate[1] + 450))]
     : [0, 0, img.width, img.height];
   let count = 0;
   let sx = 0;

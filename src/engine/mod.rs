@@ -137,6 +137,9 @@ pub mod input;
 pub mod hot_reload_gates;
 pub mod ipc;
 pub mod ipc_parse;
+/// A screenshot request's `find`: where the captured frame itself drew a named text (2026-11-21,
+/// the copresence meeting's picture race), answered from that frame's shapes.
+pub mod capture_find;
 /// The Settings > Controls key-capture step (rebindable keybinds, 2026-08-12).
 pub mod keybind_capture;
 pub mod launch_focus;

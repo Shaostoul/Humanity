@@ -467,19 +467,33 @@ pub(crate) fn poll_screenshot_request(
     // the picture does not depend on the frames before the request (where the camera was a moment
     // ago, how long it has been parked). The hi-res capture draws off-screen without TAA and is
     // taken at once.
+    // A request may also name a drawn text (`{"find": "<text>"}`, engine/capture_find.rs): the done
+    // file then says where the CAPTURED frame drew it. This frame's answer is taken here, once per
+    // frame, so a capture can only carry the answer of its own frame.
+    let answer = crate::engine::capture_find::frame_answer();
     static HELD: std::sync::Mutex<Option<ScreenshotSize>> = std::sync::Mutex::new(None);
+    let hold = |s: ScreenshotSize| {
+        if let Ok(mut h) = HELD.lock() {
+            *h = Some(s);
+        }
+    };
     let held = HELD.lock().ok().and_then(|mut h| h.take());
     let size = match held {
         Some(s) => s,
         None => {
-            let Some(s) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
+            let Some((s, find)) = take_screenshot_request(std::path::Path::new(REQUEST_PATH), std::time::Instant::now()) else {
                 return;
             };
-            if matches!(s, ScreenshotSize::Window) && capture_waits_for_taa(gpu!(state).renderer.taa_on(), humanity_core::reuse::enabled()) {
+            // Taken in this frame's tail, after its shapes were painted: a find waits for the next
+            // frame, whose shapes are scanned for it (the hold below).
+            let asks_find = find.is_some();
+            crate::engine::capture_find::ask(find);
+            let waits = matches!(s, ScreenshotSize::Window) && capture_waits_for_taa(gpu!(state).renderer.taa_on(), humanity_core::reuse::enabled());
+            if waits {
                 gpu!(state).renderer.taa_reset();
-                if let Ok(mut h) = HELD.lock() {
-                    *h = Some(s);
-                }
+            }
+            if waits || asks_find {
+                hold(s);
                 return;
             }
             s
@@ -489,12 +503,20 @@ pub(crate) fn poll_screenshot_request(
         && capture_waits_for_taa(gpu!(state).renderer.taa_on(), humanity_core::reuse::enabled())
         && !gpu!(state).renderer.taa_settled()
     {
-        if let Ok(mut h) = HELD.lock() {
-            *h = Some(size);
-        }
+        hold(size);
         return;
     }
-    execute_screenshot_capture(state, frame_texture, size, lists);
+    let find = match answer {
+        crate::engine::capture_find::FrameAnswer::Ready(a) => a,
+        // A find is pending and this frame's shapes were not scanned: the next frame's are.
+        crate::engine::capture_find::FrameAnswer::NotScanned => {
+            hold(size);
+            return;
+        }
+    };
+    let ppp = state.egui_ctx.pixels_per_point();
+    execute_screenshot_capture(state, frame_texture, size, lists, find.map(|a| a.json(ppp)));
+    crate::engine::capture_find::done();
 }
 
 /// Does a window capture wait for temporal anti-aliasing's history to settle? Only while TAA is
@@ -512,8 +534,9 @@ pub(crate) fn capture_waits_for_taa(taa_on: bool, reuse: bool) -> bool {
 /// lands inside the grace is read, so a hi-res size written a moment after the file appeared is
 /// honoured rather than lost to a window grab. Pulled out of `poll_screenshot_request`, which
 /// needs a GPU, so the rule is testable.
-pub(crate) fn take_screenshot_request(path: &std::path::Path, now: std::time::Instant) -> Option<ScreenshotSize> {
-    take_request_text_at(path, now).map(|text| parse_screenshot_request(&text))
+/// With it, the drawn text the request asks the captured frame to find (`parse_screenshot_find`).
+pub(crate) fn take_screenshot_request(path: &std::path::Path, now: std::time::Instant) -> Option<(ScreenshotSize, Option<String>)> {
+    take_request_text_at(path, now).map(|text| (parse_screenshot_request(&text), parse_screenshot_find(&text)))
 }
 
 /// How long a dev request file that reads EMPTY is left where it is before it is taken anyway
@@ -2640,6 +2663,9 @@ pub(crate) fn execute_screenshot_capture(
     frame_texture: &wgpu::Texture,
     size: ScreenshotSize,
     lists: &SceneDrawLists,
+    // The request's `find`, answered from this very frame's shapes (engine/capture_find.rs), for
+    // the done file's `find`; None when the request asked for none (the Testing page's buttons).
+    find: Option<serde_json::Value>,
 ) {
     const DONE_PATH: &str = "debug/screenshot_done.json";
     state.screenshot_counter += 1;
@@ -2689,6 +2715,10 @@ pub(crate) fn execute_screenshot_capture(
         obj.insert("station_ride".to_string(), serde_json::json!(state.station_ride));
         // The tree card stage at this frame (BUG-301): probe-sweep's `min_tree_cards` gate reads it.
         obj.insert("tree_cards".to_string(), crate::engine::tree_card_stage::done_json());
+        // Where THIS picture's frame drew the text the request named (engine/capture_find.rs).
+        if let Some(find) = find {
+            obj.insert("find".to_string(), find);
+        }
     }
     let _ = std::fs::create_dir_all("debug");
     let _ = std::fs::write(DONE_PATH, done.to_string());
@@ -5798,7 +5828,7 @@ mod request_take_tests {
         assert!(p.exists());
         assert_eq!(
             take_screenshot_request(&p, t0 + REQUEST_EMPTY_GRACE),
-            Some(ScreenshotSize::Window),
+            Some((ScreenshotSize::Window, None)),
             "an empty drop is a window-size capture once the grace has passed"
         );
         assert!(!p.exists(), "and consumed");
@@ -5809,11 +5839,16 @@ mod request_take_tests {
         std::fs::write(&p, r#"{"width":3840,"height":2160}"#).unwrap();
         assert_eq!(
             take_screenshot_request(&p, t1 + ms(16)),
-            Some(ScreenshotSize::Custom(3840, 2160)),
+            Some((ScreenshotSize::Custom(3840, 2160), None)),
             "the size written a frame late is the size captured"
         );
         std::fs::write(&p, "x").unwrap();
-        assert_eq!(take_screenshot_request(&p, t1 + ms(32)), Some(ScreenshotSize::Window), "any other content: at once");
+        assert_eq!(take_screenshot_request(&p, t1 + ms(32)), Some((ScreenshotSize::Window, None)), "any other content: at once");
+        // A find rides along (engine/capture_find.rs), with a size or without one.
+        std::fs::write(&p, r#"{"note":"verify-copresence meet_shot_a","find":"TestBotPlots"}"#).unwrap();
+        assert_eq!(take_screenshot_request(&p, t1 + ms(48)), Some((ScreenshotSize::Window, Some("TestBotPlots".to_string()))));
+        std::fs::write(&p, r#"{"width":640,"height":360,"find":" "}"#).unwrap();
+        assert_eq!(take_screenshot_request(&p, t1 + ms(64)), Some((ScreenshotSize::Custom(640, 360), None)), "a blank find is none");
     }
 
     /// EVERY REQUEST READER TAKES ITS FILE THROUGH `take_request_text`, and none deletes a

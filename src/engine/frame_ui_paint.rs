@@ -14,6 +14,9 @@ pub(crate) fn run(state: &mut EngineState, full_output: egui::FullOutput, view: 
     // text lookup from THIS frame's shapes, before tessellation
     // consumes them. A no-op unless a find is pending.
     crate::engine::ipc::ui_request_scan_shapes(state, &full_output.shapes);
+    // A pending screenshot's `find` (engine/capture_find.rs): where THIS frame drew the text, for
+    // the capture this frame's tail may take. A no-op unless a screenshot asked for one.
+    crate::engine::capture_find::scan(&full_output.shapes);
 
     // Tessellate and render egui
     let paint_jobs = state.egui_ctx.tessellate(

@@ -40,6 +40,14 @@ pub(crate) fn parse_screenshot_request(text: &str) -> ScreenshotSize {
     }
 }
 
+/// The drawn text a screenshot request asks the captured frame to find, `{"find": "<text>"}`
+/// (2026-11-21, engine/capture_find.rs): None for any other content, an empty drop included.
+pub(crate) fn parse_screenshot_find(text: &str) -> Option<String> {
+    let v = serde_json::from_str::<serde_json::Value>(text).ok()?;
+    let f = v.get("find")?.as_str()?.trim();
+    (!f.is_empty()).then(|| f.to_string())
+}
+
 /// Monotonic-per-session output path for a captured screenshot. Pulled out of
 /// `poll_screenshot_request` so the naming is directly testable without a GPU.
 pub(crate) fn screenshot_output_path(counter: u32) -> String {

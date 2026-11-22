@@ -4961,6 +4961,12 @@ general services and frontier). Where you wake after a death is a place, in data
   looks at the solo household's death screen with it) and `crew_figures` ("hidden" leaves the crew out of the picture,
   for verify-copresence's crew look, which now counts what the crew's figures change between two pictures instead of
   the old amber).
+- **Its rooms' own names (2026-11-21, second follow-up):** a room a shared zone's builder named reads that name by key
+  over its room type's (`ship_rooms.<zone>.<room>`, `room_types::room_words`, `RoomInfo::label_is_name`): General
+  Services' medbay says "Medbay" and its barracks "Barracks" on the HUD and the map (native and the web plan), not
+  "Medical Bay" (the district next door) and "Crew Quarters"; the cabin block's washroom says "Washroom", not
+  "Bathroom". The home's rooms keep their types' names. The death screen names places by zone, so it still says
+  "General Services".
 
 ### Skills/Progression
 **The base set, skills rung 1 (2026-11-14, docs/design/skills.md, approved by the operator).** 90
